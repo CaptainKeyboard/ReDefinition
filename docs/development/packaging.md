@@ -153,25 +153,45 @@ https://github.com/KSP-CKAN/CKAN/blob/master/Core/IO/ModuleInstaller.cs,
 https://blog.curseforge.com/app-release-notes-1-277/,
 https://support.curseforge.com/support/solutions/articles/9000197279-moderation-policies
 
-## 4. CKAN metadata -- a draft, not submitted
+## 4. CKAN metadata
 
-Every identifier below was checked against the NetKAN repository.
+`NetKAN/ReDefinition.netkan` in https://github.com/KSP-CKAN/NetKAN. Every identifier was
+checked against the NetKAN repository, and every `file` against the release zip.
+
+* **`$kref`** takes the GitHub release; `asset_match` picks the player zip, not
+  `ReDefinition_<version>_source.zip` beside it.
+* **`$vref`** reads `ReDefinition.version` in the zip for the KSP versions.
+  `x_netkan_trust_version_file` takes the mod's version from there as well, so it reads
+  `0.1.0` and not the tag's `v0.1.0`.
+* **`license`:** `GPL-3.0` for ReDefinition, `unrestricted` for AMD's frame generation
+  runtime (section 3). CKAN has no identifier for the Modding and Linking Exceptions;
+  they are in `LICENSE` and `EXCEPTIONS.md` in the zip.
+* **`depends`:** `Harmony2`, which ReDefinition requires to load.
+* **`install`:** `GameData/ReDefinition` into `GameData`; `dxgi.dll`, AMD's runtime and
+  the licences into `GameRoot` (section 3).
+
+A new GitHub release reaches CKAN without a change to the file.
 
 ```yaml
 identifier: ReDefinition
 name: ReDefinition
 abstract: >-
-  DLSS and FSR antialiasing, upscaling and frame generation for KSP, and a
-  framework that tunes the graphics mods around it.
+  Brings KSP's mods together in one concept: their settings in one window, shared
+  profiles and compatible settings. Adds FSR and DLSS upscaling, and frame generation
+  through Direct3D 12.
 author: CaptainKeyboard
+$kref: '#/ckan/github/CaptainKeyboard/ReDefinition/asset_match/^ReDefinition_[0-9.]+\.zip$'
+$vref: '#/ckan/ksp-avc'
+x_netkan_trust_version_file: true
 license:
   - GPL-3.0
-  - unrestricted        # AMD's frame generation runtime, section 3
+  - unrestricted
 tags:
   - plugin
   - graphics
+  - library
 depends:
-  - name: Harmony2        # required: the section in KSP's own settings dialog, the close buttons on the bundled mods' windows and the hooks on their loading and windows are Harmony patches
+  - name: Harmony2
 supports:
   - name: Scatterer
   - name: EnvironmentalVisualEnhancements
@@ -187,7 +207,7 @@ supports:
   - name: HUDReplacer
   - name: ZTheme
 install:
-  - find: ReDefinition
+  - file: GameData/ReDefinition
     install_to: GameData
   - file: dxgi.dll
     install_to: GameRoot
@@ -200,8 +220,3 @@ install:
   - file: amd_fidelityfx_framegeneration_dx12_LICENSE.md
     install_to: GameRoot
 ```
-
-**[open]** before it can be submitted: a public home for `$kref` and the
-version file's `URL`; and how to state the Modding and Linking Exceptions,
-since CKAN's `license` field takes one identifier per licence and has none for
-them.
