@@ -40,7 +40,7 @@ namespace ReDefinition.Tests
         public void UntilItsReadyMemberHoldsSomethingAModIsNeitherReadNorSet()
         {
             List<string> problems = new List<string>();
-            RegisteredMod mod = Build("REDEFINITION_MOD\n{\n name = readyfake\n detect = ReDefinition.Tests.ReadyFake\n"
+            RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = readyfake\n detect = ReDefinition.Tests.ReadyFake\n"
                                       + " ready = ReDefinition.Tests.ReadyFake.Loaded\n SETTING\n {\n  name = Depth\n"
                                       + "  member = ReDefinition.Tests.ReadyFake.Depth\n  default = 4\n }\n}", problems);
             Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
@@ -65,7 +65,7 @@ namespace ReDefinition.Tests
         public void AReadyMemberThatIsNotThereLeavesTheModOut()
         {
             List<string> problems = new List<string>();
-            RegisteredMod mod = Build("REDEFINITION_MOD\n{\n name = readyfake\n detect = ReDefinition.Tests.ReadyFake\n"
+            RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = readyfake\n detect = ReDefinition.Tests.ReadyFake\n"
                                       + " ready = ReDefinition.Tests.ReadyFake.NotThere\n SETTING\n {\n  name = Depth\n"
                                       + "  member = ReDefinition.Tests.ReadyFake.Depth\n }\n}", problems);
 
@@ -76,7 +76,7 @@ namespace ReDefinition.Tests
         private static KeyValuePair<ConfigNode, string> Source(string title, bool own)
         {
             return new KeyValuePair<ConfigNode, string>(
-                Node(ModRegistration.NodeName, "REDEFINITION_MOD\n{\n name = shared\n title = " + title
+                Node(ModRegistration.NodeName, "MOD_SETTINGS\n{\n name = shared\n title = " + title
                                                + "\n detect = No.Such.Shared\n}"),
                 own ? "ReDefinition/Mods/Shared" : "SomePack/Registrations");
         }
@@ -124,12 +124,12 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void OnlyAnAssemblyFromGameDataTellsAModsBuildWithoutItsDetectType()
         {
-            RegisteredMod outside = Build("REDEFINITION_MOD\n{\n name = outside\n detect = ReDefinition.Tests.NoSuchType\n}",
+            RegisteredMod outside = Build("MOD_SETTINGS\n{\n name = outside\n detect = ReDefinition.Tests.NoSuchType\n}",
                                           new List<string>());
             Assert.IsFalse(outside.IsInstalled);
             Assert.AreEqual(0, outside.DroppedMembers.Count);
 
-            RegisteredMod absent = Build("REDEFINITION_MOD\n{\n name = absent\n detect = No.Such.Type\n}", new List<string>());
+            RegisteredMod absent = Build("MOD_SETTINGS\n{\n name = absent\n detect = No.Such.Type\n}", new List<string>());
             Assert.AreEqual(0, absent.DroppedMembers.Count);
 
             Assert.IsTrue(RegisteredMod.InGameData(@"C:\Games\KSP\GameData\Scatterer\Plugin\Scatterer.dll"));
@@ -143,7 +143,7 @@ namespace ReDefinition.Tests
         public void AButtonWithoutAWindowIsReported()
         {
             List<string> problems = new List<string>();
-            RegisteredMod mod = Build("REDEFINITION_MOD\n{\n name = defaultsfake\n detect = ReDefinition.Tests.DefaultsFake\n"
+            RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = defaultsfake\n detect = ReDefinition.Tests.DefaultsFake\n"
                                       + " button = SomeAssembly\n SETTING\n {\n  name = Depth\n"
                                       + "  member = ReDefinition.Tests.DefaultsFake.Depth\n  default = 4\n }\n}", problems);
             Assert.IsTrue(mod.IsInstalled);
@@ -171,10 +171,10 @@ namespace ReDefinition.Tests
         {
             const string Settings = " SETTING\n {\n  name = Depth\n  member = ReDefinition.Tests.DefaultsFake.Depth\n  default = 4\n }\n";
             const string Width = " SETTING\n {\n  name = Width\n  member = ReDefinition.Tests.DefaultsFake.Width\n  default = 2\n }\n";
-            string installed = Build("REDEFINITION_MOD\n{\n name = defaultsfake\n detect = ReDefinition.Tests.DefaultsFake\n"
+            string installed = Build("MOD_SETTINGS\n{\n name = defaultsfake\n detect = ReDefinition.Tests.DefaultsFake\n"
                                      + Settings + "}", new List<string>()).Version;
             string block = " DEFAULTS\n {\n  version = " + installed + "\n  Depth = 5\n }\n";
-            string head = "REDEFINITION_MOD\n{\n name = defaultsfake\n detect = ReDefinition.Tests.DefaultsFake\n version = 0.1\n";
+            string head = "MOD_SETTINGS\n{\n name = defaultsfake\n detect = ReDefinition.Tests.DefaultsFake\n version = 0.1\n";
 
             List<string> problems = new List<string>();
             RegisteredMod covered = Build(head + Settings + block + "}", problems);
@@ -200,7 +200,7 @@ namespace ReDefinition.Tests
         public void AProfileTakesTheBlocksOfItsNameThatFitTheBuild()
         {
             List<string> problems = new List<string>();
-            RegisteredMod mod = Build("REDEFINITION_MOD\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n"
+            RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n"
                                       + " BUILD\n {\n  name = narrow\n  has = ReDefinition.Tests.DefaultsFake.Narrow\n }\n"
                                       + " BUILD\n {\n  name = wide\n  has = ReDefinition.Tests.DefaultsFake.Width\n }\n"
                                       + " SETTING\n {\n  name = Depth\n  member = ReDefinition.Tests.DefaultsFake.Depth\n"
@@ -230,7 +230,7 @@ namespace ReDefinition.Tests
         public void ABlockForTheBuildCountsOverOneForEveryBuildWhereverAPatchPutsIt()
         {
             List<string> problems = new List<string>();
-            RegisteredMod mod = Build("REDEFINITION_MOD\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n"
+            RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n"
                                       + " BUILD\n {\n  name = wide\n  has = ReDefinition.Tests.DefaultsFake.Width\n }\n"
                                       + " SETTING\n {\n  name = Depth\n  member = ReDefinition.Tests.DefaultsFake.Depth\n"
                                       + "  kind = Quality\n  default = 4\n }\n"
@@ -250,7 +250,7 @@ namespace ReDefinition.Tests
         {
             List<string> problems = new List<string>();
             ModRegistration.FromConfigNode(Node(ModRegistration.NodeName,
-                "REDEFINITION_MOD\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n"
+                "MOD_SETTINGS\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n"
                 + " BUILD\n {\n  name = wide\n  has = ReDefinition.Tests.DefaultsFake.Width\n }\n"
                 + " SETTING\n {\n  name = Depth\n  member = ReDefinition.Tests.DefaultsFake.Depth\n  kind = Quality\n }\n"
                 + " DEFAULTS\n {\n  build = wdie\n  Depth = 6\n }\n"
@@ -262,7 +262,7 @@ namespace ReDefinition.Tests
             // A behaviour that tells the build, and no BUILD: not said.
             problems.Clear();
             ModRegistration.FromConfigNode(Node(ModRegistration.NodeName,
-                "REDEFINITION_MOD\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n behaviour = Tufx\n"
+                "MOD_SETTINGS\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n behaviour = Tufx\n"
                 + " SETTING\n {\n  name = Depth\n  member = ReDefinition.Tests.DefaultsFake.Depth\n  kind = Quality\n }\n"
                 + " DEFAULTS\n {\n  build = volumetric\n  Depth = 6\n }\n}"), problems);
             Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
@@ -272,7 +272,7 @@ namespace ReDefinition.Tests
         public void EveryProfileTakesTheBlocksForEveryProfileWhateverTheKind()
         {
             List<string> problems = new List<string>();
-            RegisteredMod mod = Build("REDEFINITION_MOD\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n"
+            RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = profiledfake\n detect = ReDefinition.Tests.DefaultsFake\n"
                                       + " BUILD\n {\n  name = wide\n  has = ReDefinition.Tests.DefaultsFake.Width\n }\n"
                                       + " BUILD\n {\n  name = narrow\n  has = ReDefinition.Tests.DefaultsFake.Narrow\n }\n"
                                       + " SETTING\n {\n  name = Depth\n  member = ReDefinition.Tests.DefaultsFake.Depth\n"
@@ -293,7 +293,7 @@ namespace ReDefinition.Tests
         public void AModuleKeyGivenTwiceCountsOnceTheLastAndIsSaid()
         {
             GraphicsProfile profile = GraphicsProfile.FromConfigNode(Node(GraphicsProfile.NodeName,
-                "REDEFINITION_PROFILE\n{\n name = high\n MODULE\n {\n  name = upscaler\n  quality = NativeAA\n"
+                "GRAPHICS_PROFILE\n{\n name = high\n MODULE\n {\n  name = upscaler\n  quality = NativeAA\n"
                 + "  quality = Balanced\n }\n}"), new List<string>());
             List<string> problems = new List<string>();
 
@@ -304,7 +304,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(problems.Exists(problem => problem.Contains("'quality' twice")));
 
             profile = GraphicsProfile.FromConfigNode(Node(GraphicsProfile.NodeName,
-                "REDEFINITION_PROFILE\n{\n name = high\n MODULE\n {\n  name = upscaler\n  quality = NativeAA\n"
+                "GRAPHICS_PROFILE\n{\n name = high\n MODULE\n {\n  name = upscaler\n  quality = NativeAA\n"
                 + "  quality = 3\n }\n}"), new List<string>());
             problems.Clear();
             values = ProfileApplier.ModuleValues(profile, problems);

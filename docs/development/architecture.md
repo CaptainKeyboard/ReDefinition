@@ -95,7 +95,7 @@ How a frame goes through it: [upscaler.md](upscaler.md).
 
 ### Registrations
 
-A mod is bundled from a `REDEFINITION_MOD` config node
+A mod is bundled from a `MOD_SETTINGS` config node
 ([modders/registering-a-mod.md](../modders/registering-a-mod.md)).
 
 | File | Role |
@@ -118,7 +118,7 @@ the reset:
    `default` and `DEFAULTS` blocks.
 2. **The chosen profile** over them, quality settings only -- `ModProfiles.cs`, from
    each registration's `PROFILE` blocks; the profile's own name, title and
-   ReDefinition's module values from `REDEFINITION_PROFILE` (`GraphicsProfile.cs`,
+   ReDefinition's module values from `GRAPHICS_PROFILE` (`GraphicsProfile.cs`,
    `ProfileLibrary.cs`).
 3. **What every profile sets**, any kind -- `ModProfiles.SelectAll`, from each
    registration's `ALL_PROFILES` blocks.

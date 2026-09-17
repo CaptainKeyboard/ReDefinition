@@ -8,7 +8,7 @@ namespace ReDefinition.Api
     public static class Profiles
     {
         /// <summary>
-        /// The profile's name as its <c>REDEFINITION_PROFILE</c> node gives it -- <c>low</c>,
+        /// The profile's name as its <c>GRAPHICS_PROFILE</c> node gives it -- <c>low</c>,
         /// <c>medium</c>, <c>high</c>, <c>ultra</c>, <c>max</c> -- or null while none is chosen, when
         /// ReDefinition's upscaler and frame generation are off.
         /// </summary>

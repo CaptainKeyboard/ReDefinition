@@ -147,7 +147,7 @@ try {
     $registrationNodes = (New-Object 'System.Collections.Generic.List[object]').PSObject.BaseObject
     foreach ($file in [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Mods'), '*.cfg')) {
         $fileRoot = $loadNode.Invoke($null, [object[]]@($file))
-        foreach ($n in $fileRoot.GetNodes('REDEFINITION_MOD')) { $registrationNodes.Add($n) }
+        foreach ($n in $fileRoot.GetNodes('MOD_SETTINGS')) { $registrationNodes.Add($n) }
     }
     $registrationProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
     # The list itself for Build: wrapped in an array it is no IList of registrations.
@@ -345,7 +345,7 @@ try {
         $root = $loadNode.Invoke($null, [object[]]@($file))
         foreach ($v in $root.values) { $refused += "${fileName}: '$($v.name) = $($v.value)' stands outside any node" }
         foreach ($node in $root.GetNodes()) {
-            if ($node.name -cne 'REDEFINITION_PROFILE') { $refused += "${fileName}: '$($node.name)' is no profile"; continue }
+            if ($node.name -cne 'GRAPHICS_PROFILE') { $refused += "${fileName}: '$($node.name)' is no profile"; continue }
             $problems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
             $profile = $fromNode.Invoke($null, [object[]]@($node, $problems))
             if ($null -eq $profile) { $refused += "a profile without a name in $fileName"; continue }
@@ -541,8 +541,8 @@ try {
     $ourFolder = [IO.Path]::Combine($gameData, 'ReDefinition') + [IO.Path]::DirectorySeparatorChar
     foreach ($file in [IO.Directory]::EnumerateFiles($gameData, '*.cfg', [IO.SearchOption]::AllDirectories)) {
         if ($file.StartsWith($ourFolder, [StringComparison]::OrdinalIgnoreCase)) { continue }
-        if (-not [IO.File]::ReadAllText($file).Contains('REDEFINITION_MOD')) { continue }
-        foreach ($n in $loadNode.Invoke($null, [object[]]@($file)).GetNodes('REDEFINITION_MOD')) { $gameDataNodes.Add($n) }
+        if (-not [IO.File]::ReadAllText($file).Contains('MOD_SETTINGS')) { continue }
+        foreach ($n in $loadNode.Invoke($null, [object[]]@($file)).GetNodes('MOD_SETTINGS')) { $gameDataNodes.Add($n) }
         $relative = $file.Substring($gameData.Length + 1)
         if ($relative.IndexOf([IO.Path]::DirectorySeparatorChar) -lt 0) { continue }
         $folder = $relative.Split([IO.Path]::DirectorySeparatorChar)[0]
@@ -552,7 +552,7 @@ try {
     }
     $exampleNodes = (New-Object 'System.Collections.Generic.List[object]').PSObject.BaseObject
     foreach ($file in [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'docs\modders\examples'), '*.cfg')) {
-        foreach ($n in $loadNode.Invoke($null, [object[]]@($file)).GetNodes('REDEFINITION_MOD')) { $exampleNodes.Add($n) }
+        foreach ($n in $loadNode.Invoke($null, [object[]]@($file)).GetNodes('MOD_SETTINGS')) { $exampleNodes.Add($n) }
     }
 
     function Check-Registrations($label, $nodes, $atLeast) {
@@ -599,12 +599,12 @@ try {
     $parseNode = $configNodeType.GetMethod('Parse', [Type[]]@([string]))
     function Build-Registered($text) {
         $nodes = (New-Object 'System.Collections.Generic.List[object]').PSObject.BaseObject
-        foreach ($n in $parseNode.Invoke($null, [object[]]@($text)).GetNodes('REDEFINITION_MOD')) { $nodes.Add($n) }
+        foreach ($n in $parseNode.Invoke($null, [object[]]@($text)).GetNodes('MOD_SETTINGS')) { $nodes.Add($n) }
         $script:caseProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
         $regs = $readRegistrations.Invoke($null, [object[]]@($nodes, $script:caseProblems))
         return @($buildRegistered.Invoke($null, [object[]]@($regs, $script:caseProblems)))
     }
-    function Case-Mod($name, $body) { return "REDEFINITION_MOD`n{`n name = $name`n detect = Waterfall.Settings`n$body}`n" }
+    function Case-Mod($name, $body) { return "MOD_SETTINGS`n{`n name = $name`n detect = Waterfall.Settings`n$body}`n" }
     function Case-Setting($name, $more) { return " SETTING`n {`n  name = $name`n  member = Waterfall.Settings.$name`n$more`n }`n" }
     $waterfallHere = [AppDomain]::CurrentDomain.GetAssemblies() | ForEach-Object { $_.GetType('Waterfall.Settings', $false) } | Where-Object { $_ } | Select-Object -First 1
     if (-not $waterfallHere) {

@@ -13,7 +13,7 @@ specification ReDefinition's reader follows (`src/Framework/ModRegistration.cs`)
 A `.cfg` file anywhere in your mod's folder under `GameData`:
 
 ```
-REDEFINITION_MOD
+MOD_SETTINGS
 {
     name = mymod
     detect = MyMod.Settings
@@ -238,7 +238,7 @@ build is picked with `:HAS[#build[volumetric]]`, the one for every build with
 `:HAS[~build[]]`:
 
 ```
-@REDEFINITION_MOD[parallax]:NEEDS[ReDefinition]
+@MOD_SETTINGS[parallax]:NEEDS[ReDefinition]
 {
     @PROFILE[medium]:HAS[~build[]] { @densityMultiplier = 0.9 }
 }

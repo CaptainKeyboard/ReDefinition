@@ -164,7 +164,7 @@ namespace ReDefinition.Framework
     }
 
     // A mod's registration: everything ReDefinition needs to bundle its settings,
-    // from a REDEFINITION_MOD node in the GameDatabase -- docs/modders/registering-a-mod.md
+    // from a MOD_SETTINGS node in the GameDatabase -- docs/modders/registering-a-mod.md
     // is the specification this reads by. Read and checked for its own sake only:
     // whether its members exist is the registry's to find out, with the mod
     // loaded.
@@ -175,7 +175,7 @@ namespace ReDefinition.Framework
     // read, is left out; a mod without its name or detect is skipped.
     internal sealed class ModRegistration
     {
-        public const string NodeName = "REDEFINITION_MOD";
+        public const string NodeName = "MOD_SETTINGS";
         public const string SettingNodeName = "SETTING";
         public const string BuildNodeName = "BUILD";
         public const string DefaultsNodeName = "DEFAULTS";

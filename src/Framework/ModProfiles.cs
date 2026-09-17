@@ -53,7 +53,7 @@ namespace ReDefinition.Framework
             return selected;
         }
 
-        // A block for a profile no REDEFINITION_PROFILE defines sets nothing: said,
+        // A block for a profile no GRAPHICS_PROFILE defines sets nothing: said,
         // once for each mod and name -- usually a typo, or a pack's profile that is
         // not installed.
         internal static List<string> Unknown(IEnumerable<IBundledMod> mods, ICollection<string> profiles)

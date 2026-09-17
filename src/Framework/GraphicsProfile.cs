@@ -8,7 +8,7 @@ namespace ReDefinition.Framework
     // (ModProfiles). Config nodes loaded through the GameDatabase, so a visual pack can
     // add or patch profiles with ModuleManager.
     //
-    //   REDEFINITION_PROFILE
+    //   GRAPHICS_PROFILE
     //   {
     //       name = balanced
     //       title = Balanced
@@ -19,7 +19,7 @@ namespace ReDefinition.Framework
     //   }
     internal sealed class GraphicsProfile
     {
-        public const string NodeName = "REDEFINITION_PROFILE";
+        public const string NodeName = "GRAPHICS_PROFILE";
         public const string ModuleNodeName = "MODULE";
 
         private static readonly string[] ProfileKeys = { "name", "title", "description", "order", "hardware" };

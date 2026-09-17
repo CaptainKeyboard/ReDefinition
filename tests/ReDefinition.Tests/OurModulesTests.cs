@@ -13,8 +13,8 @@ namespace ReDefinition.Tests
     {
         private static GraphicsProfile Profile(string modules)
         {
-            ConfigNode node = ConfigNode.Parse("REDEFINITION_PROFILE\n{\n name = test\n" + modules + "}\n")
-                .GetNode("REDEFINITION_PROFILE");
+            ConfigNode node = ConfigNode.Parse("GRAPHICS_PROFILE\n{\n name = test\n" + modules + "}\n")
+                .GetNode("GRAPHICS_PROFILE");
             return GraphicsProfile.FromConfigNode(node, new List<string>());
         }
 

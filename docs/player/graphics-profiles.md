@@ -176,7 +176,7 @@ Waterfall's heat distortion and Distant Object's range keep their defaults.
   other setting in a profile, a block for a profile that does not exist, and a key High
   sets beyond its deviations.
 * **A visual pack** changes a mod's values for a tier in its registration:
-  `@REDEFINITION_MOD[parallax] { @PROFILE[medium]:HAS[~build[]] { ... } }`. A block for
+  `@MOD_SETTINGS[parallax] { @PROFILE[medium]:HAS[~build[]] { ... } }`. A block for
   one build is selected with `:HAS[#build[volumetric]]`, the block for every build with
   `:HAS[~build[]]`. The guide: [../modders/registering-a-mod.md](../modders/registering-a-mod.md).
 
