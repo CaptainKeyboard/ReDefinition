@@ -96,6 +96,8 @@ namespace ReDefinition
 
         public static void Close()
         {
+            // A row still listening would keep the game's controls locked.
+            KeyCapture.Stop();
             if (dialog != null) dialog.Dismiss();
             dialog = null;
         }

@@ -689,6 +689,7 @@ namespace ReDefinition
             Guarded("settings-save", () => Collect().Save());
 
             Detach();
+            KeyCapture.Stop();
             SharedFrame.Uninstall();
             FsrShaderBundle.Unload();
         }

@@ -70,6 +70,7 @@ Harmony is a requirement (`src/KspAssemblyInfo.cs`).
 | File | Role |
 |---|---|
 | `SettingsWindow.cs`, `TabScrollList.cs` | the settings window's view, from KSP's dialog elements |
+| `SettingsWindow.Keys.cs`, `KeyCapture.cs`, `Conflicts.cs`, `KspKeyBindings.cs` | the Keys tab: the rows that take a combination, the capture with KSP's controls locked, the shared combinations shown in yellow, and KSP's own bindings read from `GameSettings` |
 | `KspSettingsSection.cs` | the section in KSP's settings dialog, through Harmony postfixes on `VideoSettings` |
 | `UpscalerToolbarButton.cs`, `CompatibilityLog.cs` | the toolbar button; warnings said a few times at most |
 | `src/UpscalerProbe.cs` | the log tag `[ReDefinition]`, the camera survey |
@@ -149,6 +150,7 @@ The rules: [settings-store.md](settings-store.md).
 | `GraphicsModule.cs` | `IGraphicsModule`, `ModuleSetting`, `ApplyWindow`: ReDefinition's own features in the same model |
 | `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable; the main menu's first question |
 | `ModWindowClose.cs` | the close button on a mod's own settings window, and knowing whether that window is open |
+| `KeyCombination.cs`, `KeptBindings.cs` | a binding as up to two modifiers and one key, read and written as text -- free of Unity but for the keys it reads, tested; and the bindings ReDefinition keeps for a mod that has none of its own |
 
 ## The proxy, `src/native`
 

@@ -50,6 +50,12 @@ effects read the settings as they are built (`SkyNode`, `OceanNode`,
 Clouds' build (0.908) differ in their fields and are told apart by the members that
 exist.
 
+Its window's keys are not among those settings: they stand on
+`Scatterer.Instance.pluginData`, each as a `KeyCode` field it reads and a string field
+it saves, and its window opens on either modifier with either key. Both pairs are rows
+in the *Keys* tab; a change goes into all four fields and is saved with Scatterer's own
+`savePluginData`.
+
 **EVE, Volumetric Clouds build.** `Atmosphere.RaymarchedCloudsQualityManager`, fed from
 `EVE_RAYMARCHED_CLOUDS_QUALITY`, copies its object's values into private statics and
 rebuilds the clouds. A value goes into the static and the same key in the first object
@@ -83,7 +89,9 @@ bow shock with the material properties, the particles when a vessel's effects ar
 built. Its `disable_` switches are shown the right way round (`invert`).
 
 **Deferred.** The `settings` instance of its main-menu add-on, never written to disk,
-so ReDefinition keeps a value and sets it at every start and scene change. At every
+so ReDefinition keeps a value and sets it at every start and scene change. Its window
+opens on both modifiers and the key together, so the *Keys* tab writes one modifier into
+both of its modifier fields. At every
 scene load Deferred sets up its screen-space reflections and hands its ambient values
 to its shaders as globals. Its two reflection-probe caps are left to Deferred's config:
 with a cap on, Deferred writes KSP's own reflection settings at every scene load, and
