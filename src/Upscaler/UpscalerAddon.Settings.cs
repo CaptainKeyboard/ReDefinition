@@ -81,6 +81,9 @@ namespace ReDefinition
             frameGeneration = loaded.FrameGeneration;
             backend = loaded.Backend;
             dlssPreset = loaded.DlssPreset;
+            // The hotkeys are read from the settings object itself (HandleHotkeys),
+            // so the file's bindings go there.
+            SetBindings(loaded);
 
             savedSnapshot = asSaved;
         }
@@ -100,6 +103,16 @@ namespace ReDefinition
             if (ProfileChosen()) return;
             if (frameGeneration) SetFrameGeneration(false);
             if (wantEnabled) SetEnabled(false);
+        }
+
+        // The hotkeys as the player set them, into the settings object the add-on
+        // reads and saves.
+        private void SetBindings(UpscalerSettings from)
+        {
+            settings.UpscalerKey = from.UpscalerKey;
+            settings.SettingsWindowKey = from.SettingsWindowKey;
+            settings.DiagnosticsKey = from.DiagnosticsKey;
+            settings.CameraListKey = from.CameraListKey;
         }
 
         private UpscalerSettings Collect()
@@ -412,6 +425,7 @@ namespace ReDefinition
             if (before.SkinnedMotionVectors != after.SkinnedMotionVectors)
                 SetSkinnedMotionVectors(after.SkinnedMotionVectors);
             if (before.Enabled != after.Enabled && after.Enabled) SetEnabled(true);
+            SetBindings(after);
         }
 
         private static Fsr3Upscaler.QualityMode Step(Fsr3Upscaler.QualityMode mode, int direction)

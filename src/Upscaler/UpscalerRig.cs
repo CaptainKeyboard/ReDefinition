@@ -165,9 +165,11 @@ namespace ReDefinition
         private bool resetHistory = true;
 
         // Once per scene load, a few seconds after the rig first sees it: which
-        // skinned renderers draw their own motion vectors.
-        private float skinnedReportTime = float.MaxValue;
-        private int skinnedReportedLoad = -1;
+        // skinned renderers draw their own motion vectors. Static: a rig rebuilt in
+        // the same scene -- a quality change, a camera mode change -- is not another
+        // scene to report on.
+        private static float skinnedReportTime = float.MaxValue;
+        private static int skinnedReportedLoad = -1;
 
         // DLSS frame generation's camera matrices for the packet (StreamlineCamera),
         // reused every frame, and the view-projection of the frame that sent the
@@ -694,7 +696,16 @@ namespace ReDefinition
             {
                 skinnedReportTime = float.MaxValue;
                 skinnedReportedLoad = sceneLoads;
-                Debug.Log(UpscalerProbe.Tag + " Skinned renderers: " + skinned.Describe(VisibleLayerMask()) + ".");
+                // It walks the scene's renderers and their materials: a shader
+                // unloaded with the scene must not take this frame's inputs with it.
+                try
+                {
+                    Debug.Log(UpscalerProbe.Tag + " Skinned renderers: " + skinned.Describe(VisibleLayerMask()) + ".");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning(UpscalerProbe.Tag + " The skinned renderers could not be reported: " + e);
+                }
             }
 
             ReportCameraMotionIfDue(false);
