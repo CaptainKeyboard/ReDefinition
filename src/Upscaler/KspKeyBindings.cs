@@ -17,8 +17,10 @@ namespace ReDefinition
     // switchState says in which situations a binding counts (settings.cfg writes it
     // as modeMask): two that never count together are no conflict.
     //
-    // The defaults come from a fresh InputSettings, where KSP's own defaults stand;
-    // a binding whose field is not found there has none, and the reset leaves it.
+    // KSP's defaults are not read here: its InputSettings names the same bindings
+    // differently -- CAMERA_ORBIT_UP is viewOrbitUp, SAS_HOLD is sasMomentairly --
+    // so only part of them could be matched, and a half reset of a keyboard layout
+    // is worse than none. KSP's own settings screen resets them.
     internal static class KspKeyBindings
     {
         internal sealed class Binding
@@ -43,13 +45,6 @@ namespace ReDefinition
                 Field.SetValue(null, binding);
             }
 
-            public string Default(bool secondary)
-            {
-                object shipped = Defaults(Name);
-                if (shipped == null) return null;
-                KeyCode code = Code(shipped, secondary);
-                return code == KeyCode.None ? KeyCombination.NoneText : code.ToString();
-            }
         }
 
         private static List<Binding> bindings;
@@ -57,8 +52,6 @@ namespace ReDefinition
         private static FieldInfo secondary;
         private static FieldInfo codeField;
         private static Type keyCodeExtended;
-        private static object defaultSettings;
-        private static Dictionary<string, FieldInfo> defaultFields;
 
         // Where a name that starts like this belongs, as KSP's own input screen
         // groups them. What matches nothing stands under General.
@@ -175,36 +168,6 @@ namespace ReDefinition
             if (extended == null) extended = Activator.CreateInstance(keyCodeExtended);
             codeField.SetValue(extended, code);
             which.SetValue(binding, extended);
-        }
-
-        // KSP's shipped binding of that name, from a fresh InputSettings -- where
-        // KSP keeps its defaults -- matched by name without the underscores.
-        private static object Defaults(string name)
-        {
-            if (defaultFields == null)
-            {
-                defaultFields = new Dictionary<string, FieldInfo>(StringComparer.OrdinalIgnoreCase);
-                Type input = TypeLookup.Find("InputSettings");
-                try
-                {
-                    defaultSettings = input != null ? Activator.CreateInstance(input, true) : null;
-                }
-                catch (Exception)
-                {
-                    defaultSettings = null;
-                }
-                if (defaultSettings != null)
-                {
-                    foreach (FieldInfo field in input.GetFields(HostStack.Any))
-                    {
-                        if (field.FieldType != typeof(KeyBinding)) continue;
-                        defaultFields[field.Name] = field;
-                    }
-                }
-            }
-            if (defaultSettings == null) return null;
-            FieldInfo match;
-            return defaultFields.TryGetValue(name.Replace("_", ""), out match) ? match.GetValue(defaultSettings) : null;
         }
 
         // KSP writes its settings file itself; the values are read live from

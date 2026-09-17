@@ -19,8 +19,9 @@ namespace ReDefinition
     // refused (Conflicts).
     internal static partial class SettingsWindow
     {
-        private const float BindingWidth = 150f;
+        private const float BindingWidth = 120f;
         private const float BindingButtonWidth = 24f;
+        private const float ModifierWidth = 26f;
         private const string ListeningText = "<color=#ffdd55>Press a key...</color>";
 
         private static string keySearch = "";
@@ -165,22 +166,13 @@ namespace ReDefinition
             }
         }
 
-        // Reset to defaults: KSP's bindings go back to what KSP ships, where its
-        // defaults can be read.
+        // Reset to defaults: ReDefinition's own bindings and the mods' go back to
+        // their defaults with their other settings. KSP's own stay as the player has
+        // them -- KSP's settings screen resets those itself, and there is no way back
+        // from here to a keyboard layout somebody spent time on.
         internal static void ResetKeyBindings()
         {
-            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
-            {
-                ResetOne(binding, false);
-                ResetOne(binding, true);
-            }
-        }
-
-        private static void ResetOne(KspKeyBindings.Binding binding, bool second)
-        {
-            string shipped = binding.Default(second);
-            if (shipped == null) return;
-            kspPending["ksp." + binding.Name + (second ? ".secondary" : ".primary")] = shipped;
+            kspPending.Clear();
         }
 
         // ReDefinition's own hotkeys, over the settings copy the window edits.
@@ -212,8 +204,21 @@ namespace ReDefinition
             return row;
         }
 
+        // The modifiers a row can switch on its own, each with its right-hand
+        // counterpart: a combination the system swallows before the game sees it --
+        // Alt + Tab, anything with the Windows key -- cannot be pressed into a row.
+        private static readonly KeyCode[][] ModifierPairs =
+        {
+            new[] { KeyCode.LeftControl, KeyCode.RightControl },
+            new[] { KeyCode.LeftAlt, KeyCode.RightAlt },
+            new[] { KeyCode.LeftShift, KeyCode.RightShift },
+        };
+
+        private static readonly string[] ModifierLabels = { "Ctrl", "Alt", "Shift" };
+
         // The row itself: the name, the binding as a button that listens when it is
-        // clicked, a button that clears it, and where it comes from.
+        // clicked, a button that clears it, switches for the modifiers, and where it
+        // comes from.
         private static DialogGUIBase BindingRow(string key, string title, string tooltip, string owner,
                                                 Func<string> current, Action<string> set, Func<bool> changeable)
         {
@@ -234,9 +239,45 @@ namespace ReDefinition
             clear.OptionInteractableCondition = changeable;
             clear.tooltipText = "Clears this binding.";
 
+            List<DialogGUIBase> row = new List<DialogGUIBase>
+            {
+                new DialogGUILabel(title, NameWidth), take, new DialogGUISpace(4f), clear, new DialogGUISpace(6f),
+            };
+            for (int i = 0; i < ModifierPairs.Length; i++)
+            {
+                row.Add(ModifierSwitch(key, ModifierPairs[i], ModifierLabels[i], current, set, changeable));
+            }
+            row.Add(new DialogGUISpace(6f));
+            row.Add(new DialogGUILabel("<color=#9a9a9a>" + owner + "</color>", SourceWidth));
             return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel(title, NameWidth), take, new DialogGUISpace(6f), clear, new DialogGUISpace(10f),
-                new DialogGUILabel("<color=#9a9a9a>" + owner + "</color>", SourceWidth));
+                row.ToArray());
+        }
+
+        // One modifier on or off, without pressing it: the left one, unless the row
+        // holds its right-hand counterpart.
+        private static DialogGUIBase ModifierSwitch(string key, KeyCode[] pair, string label, Func<string> current,
+                                                    Action<string> set, Func<bool> changeable)
+        {
+            KeyCode left = pair[0];
+            KeyCode right = pair[1];
+            Func<KeyCombination> combination = () => KeyCombination.Parse(current());
+            Func<string> text = () =>
+            {
+                KeyCombination now = combination();
+                return now.HasModifier(left) || now.HasModifier(right) ? "<color=#ffdd55>" + label + "</color>" : label;
+            };
+            DialogGUIButton button = new DialogGUIButton(text, () =>
+            {
+                KeyCombination now = combination();
+                if (!now.IsBound) return;
+                KeyCode which = now.HasModifier(right) ? right : left;
+                set(now.Toggled(which).ToString());
+            }, ModifierWidth, RowHeight + 4f, false);
+            button.OptionInteractableCondition = () => changeable() && combination().IsBound;
+            button.tooltipText = label + " on or off for this binding, without pressing it -- for a combination"
+                                 + "\nWindows takes before the game sees it. Pressing it sets the left or right key"
+                                 + "\nas pressed; this switch takes the left one unless the right one is set.";
+            return button;
         }
 
         // What the button shows: the combination, in yellow where another row has

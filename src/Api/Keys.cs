@@ -72,38 +72,14 @@ namespace ReDefinition.Api
             return combination;
         }
 
-        // The settings found, while the installed mods are the same ones: asked
+        // Through the store's own index, which it keeps by key: these are asked
         // every frame, and walking every mod's settings for each call is work per
         // frame a mod should not pay for.
-        private static readonly Dictionary<string, BundledSetting> found = new Dictionary<string, BundledSetting>();
-        private static int foundFor = -1;
-
         private static BundledSetting Find(string key)
         {
             if (string.IsNullOrEmpty(key)) return null;
-            List<IBundledMod> installed = BundledSettings.Installed();
-            if (foundFor != installed.Count)
-            {
-                found.Clear();
-                foundFor = installed.Count;
-            }
-            BundledSetting known;
-            if (found.TryGetValue(key, out known)) return known;
-            BundledSetting setting = Search(key, installed);
-            found[key] = setting;
-            return setting;
-        }
-
-        private static BundledSetting Search(string key, List<IBundledMod> installed)
-        {
-            foreach (IBundledMod mod in installed)
-            {
-                foreach (BundledSetting setting in mod.Settings)
-                {
-                    if (setting.Control == SettingControl.Binding && setting.Key == key) return setting;
-                }
-            }
-            return null;
+            BundledSetting setting = BundledSettings.Find(key);
+            return setting != null && setting.Control == SettingControl.Binding ? setting : null;
         }
     }
 }

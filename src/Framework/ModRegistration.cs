@@ -478,6 +478,17 @@ namespace ReDefinition.Framework
                     problems.Add(where + ": default '" + setting.Default + "' is no key binding -- left out.");
                     return;
                 }
+                // Without a member ReDefinition keeps the binding in its own file. A
+                // mod that saves its settings itself would have that value handed to
+                // its own save, which knows nothing of it, and lose it at the next
+                // start.
+                if (setting.Member == null && setting.Behaviour == null && mod.Behaviour == null
+                    && (mod.Save != null || mod.Saving != SettingsSaving.AtEveryStart))
+                {
+                    problems.Add(where + ": a binding without a member is ReDefinition's to keep, which a mod that"
+                                 + " saves its own settings cannot do -- give it a member -- left out.");
+                    return;
+                }
             }
             string kind = binding ? null : Last(node, "kind", where, problems);
             if (kind != null)

@@ -28,10 +28,11 @@ read, nothing has to be looked up in them during play.
 | Click *Upscaler on or off*, press `RightAlt` + `P` | the row says it is listening, then shows `RightAlt+P`; pressing it in flight switches the upscaler |
 | Click a row and press Escape | the binding stays as it was |
 | Click *x* beside a row | the row shows *None*, and that key does nothing afterwards |
+| Click *Alt* beside a bound row | the label turns yellow and the binding gains `LeftAlt` |
 | Set two rows to the same combination | both are shown in yellow, and both still work |
 | Set KSP's *Pitch down* to `K`, *Accept*, launch | the vessel pitches on `K` |
-| Press a binding while a row is listening | nothing happens in the game |
-| *Reset to defaults*, *Accept* | every binding stands at its default again, KSP's included |
+| Bind a row to `Space` in flight, then press the row and `Space` again | nothing stages while the row takes the key |
+| *Reset to defaults*, *Accept* | ReDefinition's bindings and the mods' stand at their defaults again; KSP's are untouched |
 
 ## Flight
 

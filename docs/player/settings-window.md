@@ -57,8 +57,13 @@ The search field at the top filters the rows by their name or their mod.
 
 Click a binding, and the row says it is listening: the next combination is taken,
 up to two modifiers and one key. Escape cancels, and *x* beside it clears the
-binding. As everywhere in this window, *Apply* or *Accept* sets what was changed
-and *Cancel* leaves it.
+binding. *Ctrl*, *Alt* and *Shift* beside it switch a modifier on or off without
+pressing it, for a combination Windows takes before the game sees it; they are
+yellow while the binding holds them. As everywhere in this window, *Apply* or
+*Accept* sets what was changed and *Cancel* leaves it.
+
+*Reset to defaults* puts ReDefinition's own bindings and the mods' back to their
+defaults. KSP's own stay as they are: KSP's settings screen resets those itself.
 
 KSP keeps two keys per binding, a first and a second, and one key each without a
 modifier -- its own modifier key is a binding of its own. The mods' and

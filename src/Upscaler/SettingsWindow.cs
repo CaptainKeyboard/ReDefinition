@@ -127,7 +127,11 @@ namespace ReDefinition
                     skin, new Rect(0.5f, 0.5f, WindowWidth, WindowHeight), Build(skin));
                 dialog = PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), window,
                     false, skin, false);
-                dialog.OnDismiss = () => dialog = null;
+                dialog.OnDismiss = () =>
+            {
+                dialog = null;
+                KeyCapture.Stop();
+            };
                 UnityMouseEvents.Shield(dialog);
             }
             catch (Exception e)
@@ -160,6 +164,8 @@ namespace ReDefinition
             shownKeys.Clear();
             Conflicts.Clear();
             kspPending.Clear();
+            // The search field is built empty, and so is what it filters by.
+            keySearch = "";
             List<DialogGUIBase> tabs = new List<DialogGUIBase>();
             // Sized by TabScrollList itself: KSP's DialogGUIContentSizer lets go
             // of the height once a page fits.
@@ -580,8 +586,9 @@ namespace ReDefinition
                        + " other mods keep their own antialiasing, until one is.\n\n"
                        + "The rows are only filled in: Apply or Accept sets them, Cancel leaves everything as it was."
                        + " \"Restore settings from before ReDefinition\" under Mods and toolbar brings back what the mods"
-                       + " had before ReDefinition first changed them.\n\nThe key bindings go back to their defaults"
-                       + " too: ReDefinition's, the mods' and KSP's own.";
+                       + " had before ReDefinition first changed them.\n\nReDefinition's own key bindings and the"
+                       + " mods' go back to their defaults too. KSP's own stay as they are: its settings screen resets"
+                       + " those itself.";
 
             MultiOptionDialog confirm = new MultiOptionDialog("ReDefinitionReset", message,
                 "Reset to defaults", HighLogic.UISkin, 460f,

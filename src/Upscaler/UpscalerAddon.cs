@@ -110,8 +110,7 @@ namespace ReDefinition
             KspBehaviour.DlssFrameGenerationVsync = () => FrameGenerationBridge.DlssFrameGenerationVsync;
 
             Debug.Log(UpscalerProbe.Tag + " Upscaler ready."
-                      + " Toolbar button for the settings window; Right Ctrl + Right Shift"
-                      + " with U to toggle and with K for the diagnostics window.");
+                      + " Toolbar button for the settings window; its Keys tab holds the hotkeys.");
 
             LoadSettings();
             // The frame's state for every mod (ReDefinition.Api), with or without a rig; a

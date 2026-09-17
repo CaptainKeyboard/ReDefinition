@@ -26,6 +26,11 @@ namespace ReDefinition
 
         private static readonly List<Entry> entries = new List<Entry>();
         private static readonly HashSet<string> sharing = new HashSet<string>();
+        // Filled again each frame, never built again: the tab holds every one of
+        // KSP's bindings.
+        private static readonly List<string> keysNow = new List<string>();
+        private static readonly List<string> textsNow = new List<string>();
+        private static readonly List<int> modesNow = new List<int>();
         private static int countedFrame = -1;
 
         internal static void Clear()
@@ -48,55 +53,42 @@ namespace ReDefinition
             return sharing.Contains(key);
         }
 
-        // The rows others share a combination with, for a row's tooltip.
-        internal static List<string> Others(string key)
-        {
-            Count();
-            List<string> others = new List<string>();
-            Entry mine = entries.Find(entry => entry.Key == key);
-            if (mine == null) return others;
-            KeyCombination combination = KeyCombination.Parse(Safe(mine));
-            if (!combination.IsBound) return others;
-            foreach (Entry other in entries)
-            {
-                if (other == mine || (other.Modes & mine.Modes) == 0) continue;
-                if (KeyCombination.Parse(Safe(other)).Equals(combination)) others.Add(other.Key);
-            }
-            return others;
-        }
-
         // Once a frame: the rows read their label every frame, and every row would
         // otherwise walk the whole list.
         private static void Count()
         {
             if (countedFrame == Time.frameCount) return;
             countedFrame = Time.frameCount;
-            List<string> keys = new List<string>(entries.Count);
-            List<string> texts = new List<string>(entries.Count);
-            List<int> modes = new List<int>(entries.Count);
+            keysNow.Clear();
+            textsNow.Clear();
+            modesNow.Clear();
             foreach (Entry entry in entries)
             {
-                keys.Add(entry.Key);
-                texts.Add(Safe(entry));
-                modes.Add(entry.Modes);
+                keysNow.Add(entry.Key);
+                textsNow.Add(Safe(entry));
+                modesNow.Add(entry.Modes);
             }
             sharing.Clear();
-            foreach (string key in Sharing(keys, texts, modes)) sharing.Add(key);
+            foreach (string key in Sharing(keysNow, textsNow, modesNow)) sharing.Add(key);
         }
 
         // Which of the bindings given share a combination with another that counts
         // in the same situations. Without the game, for the tests.
         internal static List<string> Sharing(IList<string> keys, IList<string> texts, IList<int> modes)
         {
+            // Parsed once each, not once per pair: the tab holds every one of KSP's
+            // bindings, and this runs in a frame.
+            KeyCombination[] combinations = new KeyCombination[keys.Count];
+            for (int i = 0; i < keys.Count; i++) combinations[i] = KeyCombination.Parse(texts[i]);
+
             List<string> shared = new List<string>();
             for (int i = 0; i < keys.Count; i++)
             {
-                KeyCombination first = KeyCombination.Parse(texts[i]);
-                if (!first.IsBound) continue;
+                if (!combinations[i].IsBound) continue;
                 for (int j = i + 1; j < keys.Count; j++)
                 {
                     if ((modes[i] & modes[j]) == 0) continue;
-                    if (!KeyCombination.Parse(texts[j]).Equals(first)) continue;
+                    if (!combinations[j].Equals(combinations[i])) continue;
                     if (!shared.Contains(keys[i])) shared.Add(keys[i]);
                     if (!shared.Contains(keys[j])) shared.Add(keys[j]);
                 }

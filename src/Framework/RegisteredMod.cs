@@ -404,12 +404,43 @@ namespace ReDefinition.Framework
                 return;
             }
 
-            BundledSetting setting = Add(entry.Name, Localized(entry.Title), entry.TakesEffect, Localized(entry.Tooltip),
+            ApplyWindow window = entry.TakesEffect;
+            if (entry.After != null) write = CalledAfter(entry, where, problems, write, ref window);
+
+            BundledSetting setting = Add(entry.Name, Localized(entry.Title), window, Localized(entry.Tooltip),
                 read, write);
             setting.Control = SettingControl.Binding;
             setting.Kind = SettingKind.Other;
             if (registration.Saving == SettingsSaving.PerSave && entry.PerSave != false) setting.Context = LoadedSave;
             if (behaviour != null) behaviour.Finish(this, setting, entry);
+        }
+
+        // The method the registration's `after` names, called once the binding is
+        // written: a mod that takes its key only when it is told to.
+        private Action<string> CalledAfter(SettingRegistration entry, string where, List<string> problems,
+                                           Action<string> write, ref ApplyWindow window)
+        {
+            string problem;
+            MemberPath call = MemberPath.Resolve(entry.After, folder, out problem);
+            if (call != null && !call.IsMethod)
+            {
+                problem = entry.After + " is no method";
+                call = null;
+            }
+            if (call == null)
+            {
+                problems.Add(where + ": after: " + problem + " -- ignored.");
+                // The row promises only what the call that is there can keep.
+                if (window == ApplyWindow.Live) window = ApplyWindow.NextScene;
+                return write;
+            }
+            Action<string> inner = write;
+            MemberPath method = call;
+            return text =>
+            {
+                inner(text);
+                method.Invoke();
+            };
         }
 
         // The binding's members: the key, and the modifiers where the mod keeps them

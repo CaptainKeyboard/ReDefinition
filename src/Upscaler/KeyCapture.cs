@@ -17,6 +17,9 @@ namespace ReDefinition
         private static string listening;
         private static Action<string> take;
         private static bool locked;
+        // The frame a combination was taken in: its keys are still down, and the
+        // game's controls are unlocked again, so nothing else may act on them.
+        private static int takenFrame = -1;
 
         // The keys that can be bound, once: Unity's KeyCode holds every mouse
         // button and joystick button as well.
@@ -27,9 +30,12 @@ namespace ReDefinition
             return listening != null && listening == key;
         }
 
+        // While a row listens, and for the rest of the frame the combination was
+        // taken in: the keys of that combination are down in that frame, and a
+        // hotkey or a mod reading them would fire on the binding being set.
         internal static bool Busy
         {
-            get { return listening != null; }
+            get { return listening != null || takenFrame == Time.frameCount; }
         }
 
         // Starts listening for that row; a row already listening stops.
@@ -57,7 +63,8 @@ namespace ReDefinition
         {
             if (listening == null)
             {
-                Unlock();
+                // Not before the frame the combination was taken in is over.
+                if (takenFrame != Time.frameCount) Unlock();
                 return;
             }
             Lock();
@@ -87,7 +94,10 @@ namespace ReDefinition
 
             Action<string> taken = take;
             string text = new KeyCombination(pressed, first, second).ToString();
-            Stop();
+            // The lock stays for this frame: KSP's handlers run after this one.
+            listening = null;
+            take = null;
+            takenFrame = Time.frameCount;
             if (taken != null) taken(text);
         }
 
