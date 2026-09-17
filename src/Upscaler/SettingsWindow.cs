@@ -157,6 +157,7 @@ namespace ReDefinition
             choiceRows.Clear();
             shownKeys.Clear();
             Conflicts.Clear();
+            kspPending.Clear();
             List<DialogGUIBase> tabs = new List<DialogGUIBase>();
             // Sized by TabScrollList itself: KSP's DialogGUIContentSizer lets go
             // of the height once a page fits.
@@ -256,6 +257,8 @@ namespace ReDefinition
                 rows.Add(row);
                 shownKeys.Add(setting.Key);
             }
+            // KSP's own bindings last, after ReDefinition's and the mods'.
+            if (category == SettingCategory.Keys) rows.AddRange(KspKeyRows());
             if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
                 && category != SettingCategory.Keys)
             {
@@ -575,7 +578,8 @@ namespace ReDefinition
                        + " other mods keep their own antialiasing, until one is.\n\n"
                        + "The rows are only filled in: Apply or Accept sets them, Cancel leaves everything as it was."
                        + " \"Restore settings from before ReDefinition\" under Mods and toolbar brings back what the mods"
-                       + " had before ReDefinition first changed them.";
+                       + " had before ReDefinition first changed them.\n\nThe key bindings go back to their defaults"
+                       + " too: ReDefinition's, the mods' and KSP's own.";
 
             MultiOptionDialog confirm = new MultiOptionDialog("ReDefinitionReset", message,
                 "Reset to defaults", HighLogic.UISkin, 460f,
@@ -607,6 +611,9 @@ namespace ReDefinition
                 model.Profile = "";
             }
             if (edit != null) edit.After = new UpscalerSettings();
+            // The bindings as well: ReDefinition's with the settings above, KSP's
+            // to what KSP ships, and the mods' with their other settings.
+            ResetKeyBindings();
             status = null;
         }
 
@@ -975,6 +982,15 @@ namespace ReDefinition
         // back afterwards, as the section in KSP's settings dialog does.
         private static void Apply()
         {
+            try
+            {
+                ApplyKeyBindings();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(UpscalerProbe.Tag + " KSP's key bindings from the window applied only in part: " + e);
+            }
+
             try
             {
                 if (model.Bundled != BundledSettings.Enabled)

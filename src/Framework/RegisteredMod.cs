@@ -391,6 +391,14 @@ namespace ReDefinition.Framework
             {
                 if (read == null) return;
             }
+            else if (entry.Member == null)
+            {
+                // ReDefinition keeps it: the mod reads it through ReDefinition.Api.
+                string kept = Id + "." + entry.Name;
+                string fallback = entry.Default ?? KeyCombination.NoneText;
+                read = () => KeptBindings.Get(kept, fallback);
+                write = text => KeptBindings.Set(kept, text);
+            }
             else if (!BindingThrough(entry, where, problems, out read, out write))
             {
                 return;
@@ -423,6 +431,7 @@ namespace ReDefinition.Framework
                 ? BindingMember(entry, entry.Modifier2, "modifier2", where, problems)
                 : null;
             if (entry.Modifier2 != null && second == null) return false;
+            bool all = entry.ModifiersAll;
 
             read = () =>
             {
@@ -443,8 +452,13 @@ namespace ReDefinition.Framework
                     return;
                 }
                 SetBinding(key, combination.Key.ToString());
-                SetBinding(first, combination.FirstModifier.ToString());
-                if (second != null) SetBinding(second, combination.SecondModifier.ToString());
+                UnityEngine.KeyCode firstModifier = combination.FirstModifier;
+                UnityEngine.KeyCode secondModifier = combination.SecondModifier;
+                // A mod that holds every modifier member at once reads one modifier
+                // only where both say it.
+                if (all && secondModifier == UnityEngine.KeyCode.None) secondModifier = firstModifier;
+                SetBinding(first, firstModifier.ToString());
+                if (second != null) SetBinding(second, secondModifier.ToString());
             };
             return true;
         }

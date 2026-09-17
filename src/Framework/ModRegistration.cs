@@ -55,6 +55,9 @@ namespace ReDefinition.Framework
         public bool IsBinding;
         public string Modifier1;
         public string Modifier2;
+        // Whether the mod asks for every modifier member at once (Deferred) rather
+        // than for either of them (Scatterer): one modifier then goes into both.
+        public bool ModifiersAll;
     }
 
     // A build of a mod, told by a member it has.
@@ -207,8 +210,9 @@ namespace ReDefinition.Framework
         // modifiers in members of their own, as Scatterer does.
         private static readonly string[] KeyKeys =
         {
-            "name", "member", "modifier1", "modifier2", "title", "tooltip", "default", "row", "order", "takesEffect",
-            "optional", "after", "perSave", "leftOutWith", "rowUnless", "behaviour", "leftOut", "required",
+            "name", "member", "modifier1", "modifier2", "modifiers", "title", "tooltip", "default", "row", "order",
+            "takesEffect", "optional", "after", "perSave", "leftOutWith", "rowUnless", "behaviour", "leftOut",
+            "required",
         };
 
         private static readonly string[] BuildKeys = { "name", "has" };
@@ -442,7 +446,10 @@ namespace ReDefinition.Framework
             setting.Behaviour = Last(node, "behaviour", where, problems);
             setting.Member = Last(node, "member", where, problems);
             setting.LeftOut = Text(Last(node, "leftOut", where, problems));
-            if (setting.Member == null && setting.Behaviour == null && mod.Behaviour == null && setting.LeftOut == null)
+            // A binding without a member is ReDefinition's to keep: the mod asks
+            // ReDefinition.Api whether it is pressed.
+            if (!binding && setting.Member == null && setting.Behaviour == null && mod.Behaviour == null
+                && setting.LeftOut == null)
             {
                 problems.Add(where + ": no member -- left out.");
                 return;
@@ -459,6 +466,13 @@ namespace ReDefinition.Framework
                 setting.Modifier2 = Last(node, "modifier2", where, problems);
                 if (setting.Modifier2 != null && setting.Modifier1 == null)
                     problems.Add(where + ": modifier2 without modifier1 -- the second modifier is ignored.");
+                string modifiers = Last(node, "modifiers", where, problems);
+                if (modifiers != null)
+                {
+                    if (string.Equals(modifiers, "all", StringComparison.OrdinalIgnoreCase)) setting.ModifiersAll = true;
+                    else if (!string.Equals(modifiers, "any", StringComparison.OrdinalIgnoreCase))
+                        problems.Add(where + ": modifiers '" + modifiers + "' is not all or any -- any is taken.");
+                }
                 if (setting.Default != null && !KeyCombination.IsText(setting.Default))
                 {
                     problems.Add(where + ": default '" + setting.Default + "' is no key binding -- left out.");
@@ -526,7 +540,8 @@ namespace ReDefinition.Framework
             SettingRegistration earlier = mod.Setting(name);
             if (earlier != null)
             {
-                problems.Add(modWhere + ": '" + name + "' twice -- the last one counts.");
+                problems.Add(modWhere + ": " + (binding ? "binding '" : "setting '") + name
+                             + "' twice -- the last one counts.");
                 mod.Settings.Remove(earlier);
             }
             mod.Settings.Add(setting);

@@ -50,6 +50,139 @@ namespace ReDefinition
             return rows.ToArray();
         }
 
+        // KSP's own bindings, after ReDefinition's and the mods'. They are edited
+        // here and written on Apply, as everything else in this window is.
+        private static readonly Dictionary<string, string> kspPending = new Dictionary<string, string>();
+
+        private static DialogGUIBase[] KspKeyRows()
+        {
+            List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            string group = null;
+            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
+            {
+                if (binding.Group != group)
+                {
+                    group = binding.Group;
+                    string title = group;
+                    DialogGUIBase header = new DialogGUIBox(title, -1f, RowHeight, null);
+                    header.OptionEnabledCondition = () => GroupShown(title);
+                    rows.Add(header);
+                }
+                rows.Add(KspBindingRow(binding));
+            }
+            return rows.ToArray();
+        }
+
+        // A group's title stands only while one of its rows does.
+        private static bool GroupShown(string group)
+        {
+            if (keySearch.Length == 0) return true;
+            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
+                if (binding.Group == group && MatchesSearch(binding.Title, "KSP")) return true;
+            return false;
+        }
+
+        private static DialogGUIBase KspBindingRow(KspKeyBindings.Binding binding)
+        {
+            KspKeyBindings.Binding shown = binding;
+            DialogGUIBase first = KspBindingControl(shown, false);
+            DialogGUIBase second = KspBindingControl(shown, true);
+            DialogGUIBase row = new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(),
+                TextAnchor.MiddleLeft, new DialogGUILabel(shown.Title, NameWidth), first, new DialogGUISpace(6f), second,
+                new DialogGUISpace(10f), new DialogGUILabel("<color=#9a9a9a>KSP</color>", SourceWidth));
+            row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "KSP");
+            return row;
+        }
+
+        // One of the two keys KSP keeps per binding. Modifiers are left out: a
+        // KeyBinding holds one KeyCode.
+        private static DialogGUIBase KspBindingControl(KspKeyBindings.Binding binding, bool second)
+        {
+            KspKeyBindings.Binding shown = binding;
+            string key = "ksp." + shown.Name + (second ? ".secondary" : ".primary");
+            Func<string> current = () =>
+            {
+                string pending;
+                return kspPending.TryGetValue(key, out pending) ? pending : shown.Read(second);
+            };
+            Conflicts.Register(key, current, shown.Modes);
+
+            Func<string> label = () => KeyCapture.Listening(key) ? ListeningText : BindingLabel(key, current());
+            DialogGUIButton take = new DialogGUIButton(label,
+                () => KeyCapture.Start(key, text => kspPending[key] = KeyCombination.Parse(text).Key.ToString()),
+                BindingWidth * 0.6f, RowHeight + 4f, false);
+            take.tooltipText = (second ? "The second key for " : "The key for ") + shown.Title
+                               + ".\nKSP keeps one key per binding: modifiers are left out, and its own modifier key"
+                               + " is a binding of its own.\nClick, then press the key. Escape cancels; x clears it.";
+
+            DialogGUIButton clear = new DialogGUIButton("x", () =>
+            {
+                if (KeyCapture.Listening(key)) KeyCapture.Stop();
+                kspPending[key] = KeyCombination.NoneText;
+            }, BindingButtonWidth, RowHeight + 4f, false);
+
+            return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                take, new DialogGUISpace(4f), clear);
+        }
+
+        // On Apply: into GameSettings, then KSP's own save.
+        private static void ApplyKeyBindings()
+        {
+            if (kspPending.Count == 0) return;
+            bool written = false;
+            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
+            {
+                written |= Write(binding, false);
+                written |= Write(binding, true);
+            }
+            kspPending.Clear();
+            if (!written) return;
+            try
+            {
+                KspKeyBindings.Save();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(UpscalerProbe.Tag + " KSP's key bindings could not be saved: " + e);
+            }
+        }
+
+        private static bool Write(KspKeyBindings.Binding binding, bool second)
+        {
+            string key = "ksp." + binding.Name + (second ? ".secondary" : ".primary");
+            string text;
+            if (!kspPending.TryGetValue(key, out text)) return false;
+            try
+            {
+                binding.Write(second, text);
+                return true;
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("ksp-binding-" + key, binding.Title + ": the binding could not be set ("
+                                                            + CompatibilityLog.Reason(e) + ").");
+                return false;
+            }
+        }
+
+        // Reset to defaults: KSP's bindings go back to what KSP ships, where its
+        // defaults can be read.
+        internal static void ResetKeyBindings()
+        {
+            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
+            {
+                ResetOne(binding, false);
+                ResetOne(binding, true);
+            }
+        }
+
+        private static void ResetOne(KspKeyBindings.Binding binding, bool second)
+        {
+            string shipped = binding.Default(second);
+            if (shipped == null) return;
+            kspPending["ksp." + binding.Name + (second ? ".secondary" : ".primary")] = shipped;
+        }
+
         // ReDefinition's own hotkeys, over the settings copy the window edits.
         private static DialogGUIBase OwnBindingRow(ModuleSetting setting)
         {

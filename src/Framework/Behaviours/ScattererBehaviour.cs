@@ -31,6 +31,14 @@ namespace ReDefinition.Framework
         private ConfigNode parsedNode;
         private object parsed;
 
+        // Its window's keys are not among the main settings: they stand on
+        // Scatterer.Instance.pluginData, each as a KeyCode field it reads and a
+        // string field it saves (PluginDataReadWrite). Its window opens on either
+        // modifier with either key.
+        private FieldInfo pluginData;
+        private MethodInfo savePluginData;
+        private bool pluginDataChanged;
+
         public override bool Attach(RegisteredMod mod)
         {
             Type scatterer = TypeLookup.Find("Scatterer.Scatterer");
@@ -40,6 +48,11 @@ namespace ReDefinition.Framework
             mainSettings = scatterer.GetField("mainSettings", HostStack.Any);
             isActive = scatterer.GetField("isActive", HostStack.Any);
             if (instance == null || mainSettings == null) return false;
+            pluginData = scatterer.GetField("pluginData", HostStack.Any);
+            Type pluginDataType = TypeLookup.Find("Scatterer.PluginDataReadWrite");
+            savePluginData = pluginDataType != null
+                ? pluginDataType.GetMethod("savePluginData", HostStack.Any, null, Type.EmptyTypes, null)
+                : null;
             if (isActive != null && !isActive.IsStatic && isActive.FieldType == typeof(bool)) return true;
             mod.Drop(RegisteredMod.WholeMod, "this build of Scatterer cannot be asked whether it runs in this scene");
             return false;
@@ -51,6 +64,7 @@ namespace ReDefinition.Framework
             read = null;
             write = null;
             type = null;
+            if (setting.IsBinding) return ReachBinding(mod, setting, out read, out write);
             FieldInfo field = settingsType.GetField(setting.Name, HostStack.Any);
             if (field == null)
             {
@@ -83,9 +97,69 @@ namespace ReDefinition.Framework
             }
         }
 
+        // Its window's keys: the KeyCode fields it reads, and the string fields it
+        // saves, both written. The binding's name is the key field's, guiKey1 or
+        // guiKey2, and the modifier beside it carries the same number.
+        private bool ReachBinding(RegisteredMod mod, SettingRegistration setting, out Func<string> read,
+                                  out Action<string> write)
+        {
+            read = null;
+            write = null;
+            string number = setting.Name.Substring(setting.Name.Length - 1);
+            FieldInfo key = PluginField("guiKey" + number, typeof(UnityEngine.KeyCode));
+            FieldInfo keyText = PluginField("guiKey" + number + "String", typeof(string));
+            FieldInfo modifier = PluginField("guiModifierKey" + number, typeof(UnityEngine.KeyCode));
+            FieldInfo modifierText = PluginField("guiModifierKey" + number + "String", typeof(string));
+            if (pluginData == null || key == null || keyText == null || modifier == null || modifierText == null
+                || savePluginData == null)
+            {
+                mod.MemberMissing(setting, "this build of Scatterer keeps its window's keys elsewhere");
+                return true;
+            }
+
+            read = () =>
+            {
+                object data = PluginData();
+                if (data == null) return null;
+                return new KeyCombination((UnityEngine.KeyCode)key.GetValue(data),
+                    (UnityEngine.KeyCode)modifier.GetValue(data), UnityEngine.KeyCode.None).ToString();
+            };
+            write = text =>
+            {
+                object data = PluginData();
+                if (data == null) throw new InvalidOperationException("Scatterer has no plugin data to set");
+                KeyCombination combination = KeyCombination.Parse(text);
+                key.SetValue(data, combination.Key);
+                keyText.SetValue(data, combination.Key.ToString());
+                modifier.SetValue(data, combination.FirstModifier);
+                modifierText.SetValue(data, combination.FirstModifier.ToString());
+                pluginDataChanged = true;
+            };
+            return true;
+        }
+
+        private FieldInfo PluginField(string name, Type type)
+        {
+            Type pluginDataType = pluginData != null ? pluginData.FieldType : null;
+            FieldInfo field = pluginDataType != null ? pluginDataType.GetField(name, HostStack.Any) : null;
+            return field != null && field.FieldType == type ? field : null;
+        }
+
+        private object PluginData()
+        {
+            UnityEngine.Object scatterer = instance.GetValue(null, null) as UnityEngine.Object;
+            return scatterer == null ? null : pluginData.GetValue(scatterer);
+        }
+
         // The node's file, as Scatterer's own save writes it.
         public override void Save(RegisteredMod mod)
         {
+            if (pluginDataChanged)
+            {
+                object data = PluginData();
+                if (data != null) savePluginData.Invoke(data, null);
+                pluginDataChanged = false;
+            }
             if (!nodeChanged) return;
             UrlDir.UrlConfig config = Config();
             if (config == null) throw new InvalidOperationException("Scatterer has no " + NodeName + " node to save");

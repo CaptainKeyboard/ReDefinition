@@ -71,19 +71,37 @@ namespace ReDefinition
         {
             if (countedFrame == Time.frameCount) return;
             countedFrame = Time.frameCount;
-            sharing.Clear();
-            for (int i = 0; i < entries.Count; i++)
+            List<string> keys = new List<string>(entries.Count);
+            List<string> texts = new List<string>(entries.Count);
+            List<int> modes = new List<int>(entries.Count);
+            foreach (Entry entry in entries)
             {
-                KeyCombination first = KeyCombination.Parse(Safe(entries[i]));
+                keys.Add(entry.Key);
+                texts.Add(Safe(entry));
+                modes.Add(entry.Modes);
+            }
+            sharing.Clear();
+            foreach (string key in Sharing(keys, texts, modes)) sharing.Add(key);
+        }
+
+        // Which of the bindings given share a combination with another that counts
+        // in the same situations. Without the game, for the tests.
+        internal static List<string> Sharing(IList<string> keys, IList<string> texts, IList<int> modes)
+        {
+            List<string> shared = new List<string>();
+            for (int i = 0; i < keys.Count; i++)
+            {
+                KeyCombination first = KeyCombination.Parse(texts[i]);
                 if (!first.IsBound) continue;
-                for (int j = i + 1; j < entries.Count; j++)
+                for (int j = i + 1; j < keys.Count; j++)
                 {
-                    if ((entries[i].Modes & entries[j].Modes) == 0) continue;
-                    if (!KeyCombination.Parse(Safe(entries[j])).Equals(first)) continue;
-                    sharing.Add(entries[i].Key);
-                    sharing.Add(entries[j].Key);
+                    if ((modes[i] & modes[j]) == 0) continue;
+                    if (!KeyCombination.Parse(texts[j]).Equals(first)) continue;
+                    if (!shared.Contains(keys[i])) shared.Add(keys[i]);
+                    if (!shared.Contains(keys[j])) shared.Add(keys[j]);
                 }
             }
+            return shared;
         }
 
         private static string Safe(Entry entry)
