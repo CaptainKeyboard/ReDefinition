@@ -84,6 +84,15 @@ namespace ReDefinition.Framework
             return new KeyCombination(Key, FirstModifier, modifier);
         }
 
+        // The same combination with at most that many modifiers: for a mod that
+        // keeps fewer than two.
+        public KeyCombination WithAtMost(int modifiers)
+        {
+            if (ModifierCount <= modifiers) return this;
+            if (modifiers <= 0) return new KeyCombination(Key, KeyCode.None, KeyCode.None);
+            return new KeyCombination(Key, FirstModifier, KeyCode.None);
+        }
+
         public static bool IsModifier(KeyCode key)
         {
             foreach (KeyCode modifier in ModifierOrder)

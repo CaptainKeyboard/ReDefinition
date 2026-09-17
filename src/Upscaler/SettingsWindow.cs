@@ -127,11 +127,11 @@ namespace ReDefinition
                     skin, new Rect(0.5f, 0.5f, WindowWidth, WindowHeight), Build(skin));
                 dialog = PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), window,
                     false, skin, false);
-                dialog.OnDismiss = () =>
-            {
-                dialog = null;
-                KeyCapture.Stop();
-            };
+                    dialog.OnDismiss = () =>
+                {
+                    dialog = null;
+                    KeyCapture.Stop();
+                };
                 UnityMouseEvents.Shield(dialog);
             }
             catch (Exception e)
@@ -620,8 +620,9 @@ namespace ReDefinition
                 model.Profile = "";
             }
             if (edit != null) edit.After = new UpscalerSettings();
-            // The bindings as well: ReDefinition's with the settings above, KSP's
-            // to what KSP ships, and the mods' with their other settings.
+            // ReDefinition's own bindings went back with the settings above, and the
+            // mods' go with their other settings; this drops what the Keys tab holds
+            // for KSP, whose bindings the reset leaves alone.
             ResetKeyBindings();
             status = null;
         }

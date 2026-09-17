@@ -19,9 +19,12 @@ namespace ReDefinition
     // refused (Conflicts).
     internal static partial class SettingsWindow
     {
-        private const float BindingWidth = 120f;
-        private const float BindingButtonWidth = 24f;
-        private const float ModifierWidth = 26f;
+        private const float BindingWidth = 118f;
+        private const float BindingButtonWidth = 22f;
+        private const float ModifierWidth = 38f;
+        // Narrower than the other tabs': the switches stand beside every row.
+        private const float KeyNameWidth = 168f;
+        private const float KeySourceWidth = 52f;
         private const string ListeningText = "<color=#ffdd55>Press a key...</color>";
 
         private static string keySearch = "";
@@ -39,7 +42,7 @@ namespace ReDefinition
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel("Search", NameWidth),
+                new DialogGUILabel("Search", KeyNameWidth),
                 new DialogGUITextInput("", false, 64, text =>
                 {
                     keySearch = text ?? "";
@@ -89,8 +92,9 @@ namespace ReDefinition
             DialogGUIBase first = KspBindingControl(shown, false);
             DialogGUIBase second = KspBindingControl(shown, true);
             DialogGUIBase row = new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(),
-                TextAnchor.MiddleLeft, new DialogGUILabel(shown.Title, NameWidth), first, new DialogGUISpace(6f), second,
-                new DialogGUISpace(10f), new DialogGUILabel("<color=#9a9a9a>KSP</color>", SourceWidth));
+                TextAnchor.MiddleLeft, new DialogGUILabel(shown.Title, KeyNameWidth), first, new DialogGUISpace(6f),
+                second, new DialogGUISpace(4f),
+                new DialogGUILabel("<color=#9a9a9a>KSP</color>", KeySourceWidth));
             row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "KSP");
             return row;
         }
@@ -182,12 +186,14 @@ namespace ReDefinition
             string key = "redefinition." + shown.Key;
             Func<string> text = () => shown.Read(edit.After);
             DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, "ReDefinition", text,
-                value => shown.Write(edit.After, value), () => true);
+                value => shown.Write(edit.After, value), () => true, 2);
             row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "ReDefinition");
             return row;
         }
 
-        // A bundled mod's binding, over the edit model like its other settings.
+        // A bundled mod's binding, over the edit model like its other settings. How
+        // many modifiers it can hold is the mod's: Scatterer keeps one beside each of
+        // its keys.
         private static DialogGUIBase BundledBindingRow(BundledSetting setting)
         {
             BundledSetting shown = setting;
@@ -199,7 +205,7 @@ namespace ReDefinition
             };
             DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, shown.Owner.ModName, text,
                 value => model.Change(key, value),
-                () => model.Bundled && model.HasPending(key));
+                () => model.Bundled && model.HasPending(key), shown.MaxModifiers);
             row.OptionEnabledCondition = () => MatchesSearch(shown.Title, shown.Owner.ModName);
             return row;
         }
@@ -220,16 +226,23 @@ namespace ReDefinition
         // clicked, a button that clears it, switches for the modifiers, and where it
         // comes from.
         private static DialogGUIBase BindingRow(string key, string title, string tooltip, string owner,
-                                                Func<string> current, Action<string> set, Func<bool> changeable)
+                                                Func<string> current, Action<string> set, Func<bool> changeable,
+                                                int maxModifiers)
         {
             // ReDefinition's and the mods' bindings count in every situation.
             Conflicts.Register(key, current, -1);
+            // What the mod can keep: a combination pressed with more modifiers loses
+            // the ones beyond it here rather than silently at the next read-back.
+            Action<string> taken = text => set(KeyCombination.Parse(text).WithAtMost(maxModifiers).ToString());
             Func<string> label = () => KeyCapture.Listening(key) ? ListeningText : BindingLabel(key, current());
-            DialogGUIButton take = new DialogGUIButton(label, () => KeyCapture.Start(key, set), BindingWidth,
+            DialogGUIButton take = new DialogGUIButton(label, () => KeyCapture.Start(key, taken), BindingWidth,
                 RowHeight + 4f, false);
             take.OptionInteractableCondition = changeable;
             take.tooltipText = (string.IsNullOrEmpty(tooltip) ? title : tooltip)
-                               + "\nClick, then press the combination. Escape cancels; x clears the binding.";
+                               + "\nClick, then press the combination. Escape cancels; x clears the binding."
+                               + (maxModifiers < 2
+                                   ? "\nThis mod keeps one modifier beside the key: a second one is left out."
+                                   : "");
 
             DialogGUIButton clear = new DialogGUIButton("x", () =>
             {
@@ -241,14 +254,15 @@ namespace ReDefinition
 
             List<DialogGUIBase> row = new List<DialogGUIBase>
             {
-                new DialogGUILabel(title, NameWidth), take, new DialogGUISpace(4f), clear, new DialogGUISpace(6f),
+                new DialogGUILabel(title, KeyNameWidth), take, new DialogGUISpace(4f), clear, new DialogGUISpace(4f),
             };
             for (int i = 0; i < ModifierPairs.Length; i++)
             {
-                row.Add(ModifierSwitch(key, ModifierPairs[i], ModifierLabels[i], current, set, changeable));
+                row.Add(ModifierSwitch(key, ModifierPairs[i], ModifierLabels[i], current, set, changeable,
+                    maxModifiers));
             }
-            row.Add(new DialogGUISpace(6f));
-            row.Add(new DialogGUILabel("<color=#9a9a9a>" + owner + "</color>", SourceWidth));
+            row.Add(new DialogGUISpace(4f));
+            row.Add(new DialogGUILabel("<color=#9a9a9a>" + owner + "</color>", KeySourceWidth));
             return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 row.ToArray());
         }
@@ -256,7 +270,7 @@ namespace ReDefinition
         // One modifier on or off, without pressing it: the left one, unless the row
         // holds its right-hand counterpart.
         private static DialogGUIBase ModifierSwitch(string key, KeyCode[] pair, string label, Func<string> current,
-                                                    Action<string> set, Func<bool> changeable)
+                                                    Action<string> set, Func<bool> changeable, int maxModifiers)
         {
             KeyCode left = pair[0];
             KeyCode right = pair[1];
@@ -266,17 +280,27 @@ namespace ReDefinition
                 KeyCombination now = combination();
                 return now.HasModifier(left) || now.HasModifier(right) ? "<color=#ffdd55>" + label + "</color>" : label;
             };
+            // Held by this row, or this row has room for it: a third modifier would
+            // push one of the two out without a word.
+            Func<bool> fits = () =>
+            {
+                KeyCombination now = combination();
+                return now.HasModifier(left) || now.HasModifier(right) || now.ModifierCount < maxModifiers;
+            };
             DialogGUIButton button = new DialogGUIButton(text, () =>
             {
                 KeyCombination now = combination();
-                if (!now.IsBound) return;
+                if (!now.IsBound || !fits()) return;
+                // The row is no longer listening for a key: this is the answer.
+                if (KeyCapture.Listening(key)) KeyCapture.Stop();
                 KeyCode which = now.HasModifier(right) ? right : left;
                 set(now.Toggled(which).ToString());
             }, ModifierWidth, RowHeight + 4f, false);
-            button.OptionInteractableCondition = () => changeable() && combination().IsBound;
+            button.OptionInteractableCondition = () => changeable() && combination().IsBound && fits();
             button.tooltipText = label + " on or off for this binding, without pressing it -- for a combination"
                                  + "\nWindows takes before the game sees it. Pressing it sets the left or right key"
-                                 + "\nas pressed; this switch takes the left one unless the right one is set.";
+                                 + "\nas pressed; this switch takes the left one unless the right one is set."
+                                 + "\nIt is grey where the binding already holds as many modifiers as it can.";
             return button;
         }
 

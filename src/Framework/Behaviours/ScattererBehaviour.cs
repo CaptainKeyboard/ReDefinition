@@ -83,6 +83,12 @@ namespace ReDefinition.Framework
             return true;
         }
 
+        // Each of its keys has one modifier beside it, so a row for one holds one.
+        public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
+        {
+            if (registration.IsBinding) setting.MaxModifiers = 1;
+        }
+
         public override void Complete(RegisteredMod mod)
         {
             foreach (FieldInfo field in settingsType.GetFields(BindingFlags.Public | BindingFlags.Instance))

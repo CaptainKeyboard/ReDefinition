@@ -31,6 +31,7 @@ namespace ReDefinition
         private static readonly List<string> keysNow = new List<string>();
         private static readonly List<string> textsNow = new List<string>();
         private static readonly List<int> modesNow = new List<int>();
+        private static KeyCombination[] parsedNow = new KeyCombination[0];
         private static int countedFrame = -1;
 
         internal static void Clear()
@@ -77,8 +78,10 @@ namespace ReDefinition
         internal static List<string> Sharing(IList<string> keys, IList<string> texts, IList<int> modes)
         {
             // Parsed once each, not once per pair: the tab holds every one of KSP's
-            // bindings, and this runs in a frame.
-            KeyCombination[] combinations = new KeyCombination[keys.Count];
+            // bindings, and this runs in a frame. The array grows with the rows and
+            // is kept, rather than built again every frame.
+            if (parsedNow.Length < keys.Count) parsedNow = new KeyCombination[keys.Count];
+            KeyCombination[] combinations = parsedNow;
             for (int i = 0; i < keys.Count; i++) combinations[i] = KeyCombination.Parse(texts[i]);
 
             List<string> shared = new List<string>();

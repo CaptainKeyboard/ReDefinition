@@ -91,6 +91,10 @@ namespace ReDefinition.Framework
             return ChoicesSource != null ? ChoicesSource() : Choices;
         }
 
+        // Binding: how many modifiers the mod can keep for it. Scatterer holds one
+        // modifier beside each of its keys.
+        public int MaxModifiers = 2;
+
         // Value: the member's type, which a value must parse into.
         public Type ValueType;
 

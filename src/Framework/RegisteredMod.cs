@@ -436,10 +436,30 @@ namespace ReDefinition.Framework
             }
             Action<string> inner = write;
             MemberPath method = call;
+            string runKey = "after-" + Id + "-" + entry.After;
+            string after = entry.After;
+            string modName = ModName;
+            // As for a setting: a call that fails is logged rather than thrown into
+            // the write already done, which the store would otherwise take for a
+            // write that did not happen -- and drop the value from before
+            // ReDefinition with it.
+            Action run = () =>
+            {
+                try
+                {
+                    method.Invoke();
+                }
+                catch (Exception e)
+                {
+                    CompatibilityLog.Warn(runKey, modName + "'s " + after + " did not run after a change ("
+                                                  + CompatibilityLog.Reason(e) + "); the binding takes effect when "
+                                                  + modName + " next reads it.");
+                }
+            };
             return text =>
             {
                 inner(text);
-                method.Invoke();
+                BundledSettingsAddon.AtEndOfFrame(runKey, run);
             };
         }
 

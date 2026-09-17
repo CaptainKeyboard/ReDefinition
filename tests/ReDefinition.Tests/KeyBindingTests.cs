@@ -133,6 +133,16 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void AModWithOneModifierKeepsTheFirst()
+        {
+            KeyCombination combination = KeyCombination.Parse("LeftControl+LeftAlt+F10");
+            Assert.AreEqual("LeftControl+F10", combination.WithAtMost(1).ToString());
+            Assert.AreEqual("F10", combination.WithAtMost(0).ToString());
+            // What already fits stays as it is.
+            Assert.AreEqual("LeftControl+LeftAlt+F10", combination.WithAtMost(2).ToString());
+        }
+
+        [TestMethod]
         public void KspsFieldNamesAreReadableAndGrouped()
         {
             Assert.AreEqual("Pitch down", KspKeyBindings.Readable("PITCH_DOWN"));
