@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- An example mod that uses each part of ReDefinition's interface once
+       (docs/modders/shared-foundation.md). Built with ReDefinition's solution, so it
+       keeps compiling against the interface; not copied into the game. To try it, copy
+       ReDefinitionExample.dll and ExampleEffect.hlsl from build/examples/ReDefinitionExample
+       into GameData/ReDefinitionExample. -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>ReDefinitionExample</AssemblyName>
+    <RootNamespace>ReDefinitionExample</RootNamespace>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\..\..\build\examples\ReDefinitionExample\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- The game's assemblies, never copied: KSP loads its own. No reference to
+       ReDefinition.dll: the wrapper reaches the interface. -->
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(KspManaged)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(KspManaged)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(KspManaged)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(KspManaged)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- The wrapper, linked here; a mod copies it and puts it in its own namespace. -->
+  <ItemGroup>
+    <Compile Include="..\ReDefinitionApi.cs" Link="ReDefinitionApi.cs" />
+    <None Include="ExampleEffect.hlsl" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

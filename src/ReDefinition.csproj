@@ -1,0 +1,286 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- KSP 1.12.5 runs on Mono with a .NET 4.x profile; newer language
+         features need runtime support this Mono does not have. -->
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>$(ModName)</AssemblyName>
+    <RootNamespace>ReDefinition</RootNamespace>
+    <OutputPath>$(MSBuildThisFileDirectory)..\build\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Deterministic>true</Deterministic>
+    <DebugType>portable</DebugType>
+    <Version>0.1.0</Version>
+    <Product>ReDefinition</Product>
+    <Copyright>Copyright (C) 2026 CaptainKeyboard. GPL-3.0-or-later</Copyright>
+    <!-- FSR3Unity gates its debug view behind UNITY_EDITOR or DEVELOPMENT_BUILD,
+         and Unity defines neither in a plain plugin build. Development builds
+         define it: FSR's debug view pass, its switch in the diagnostics window,
+         and FSR's own EnableDebugChecking. The player package
+         (-p:ReleasePackage=true) is built without it. -->
+    <DefineConstants Condition="'$(ReleasePackage)' != 'true'">$(DefineConstants);DEVELOPMENT_BUILD</DefineConstants>
+
+    <!-- ReDefinition.xml beside the DLL: the interface for mods (src/Api) documented for the
+         IDE of a mod that references ReDefinition.dll. Only src/Api carries XML
+         documentation, so a public member without it (CS1591) is not reported; malformed
+         documentation is. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!-- Set to false when a build should not go straight into the game. -->
+    <DeployToGameData Condition="'$(DeployToGameData)' == ''">true</DeployToGameData>
+  </PropertyGroup>
+
+  <!-- The decisions of the store and the settings window are tested without the
+       game (tests/ReDefinition.Tests). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ReDefinition.Tests" />
+  </ItemGroup>
+
+  <!-- Replaces the .NET Framework developer pack: the reference assemblies come
+       as a NuGet package so that nothing beyond the .NET SDK has to be installed. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Private=false: game DLLs must never be copied into GameData, otherwise KSP
+       loads half of the Unity modules a second time. -->
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(KspManaged)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>$(KspManaged)\Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(KspManaged)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(KspManaged)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- For the precompiled compute shaders: they ship as an AssetBundle because
+         a Unity player cannot compile shaders at runtime. -->
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>$(KspManaged)\UnityEngine.AssetBundleModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- KSP's ApplicationLauncher names Animator in its signature. -->
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(KspManaged)\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- The reactive mask draws particle systems, whose renderer lives here. -->
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>$(KspManaged)\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(KspManaged)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(KspManaged)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(KspManaged)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.SharedInternalsModule">
+      <HintPath>$(KspManaged)\UnityEngine.SharedInternalsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- uGUI: ScrollRect and ContentSizeFitter, for the scroll list of the
+         settings window (src/Upscaler/TabScrollList.cs). -->
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(KspManaged)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Canvas and RectTransformUtility: whether the cursor is over one of this
+         mod's windows (src/Upscaler/UnityMouseEvents.cs). -->
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(KspManaged)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- The player's download of NVIDIA's DLLs from NVIDIA's release
+         (src/Upscaler/NvidiaDownloader.cs). -->
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(KspManaged)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- A requirement (src/KspAssemblyInfo.cs): the section in KSP's own
+         settings dialog, the close buttons on the bundled mods' windows, and the
+         hooks on Scatterer's godrays, EVE's clouds, TUFX's post-processing and
+         TUFX's and Distant Object's own windows. The shared copy in 000_Harmony. -->
+    <Reference Include="0Harmony">
+      <HintPath>$(KspGameData)\000_Harmony\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Before references are resolved, so a missing game or Harmony stops the
+       build with this message instead of a page of unresolved-type errors. -->
+  <Target Name="StopIfKspMissing" BeforeTargets="ResolveAssemblyReferences" Condition="!Exists('$(KspManaged)')">
+    <Error Text="KSP not found at '$(KspRoot)'. Adjust the path in Directory.Build.props." />
+  </Target>
+
+  <Target Name="StopIfHarmonyMissing" BeforeTargets="ResolveAssemblyReferences" Condition="!Exists('$(KspGameData)\000_Harmony\0Harmony.dll')">
+    <Error Text="Harmony not found at '$(KspGameData)\000_Harmony\0Harmony.dll'. ReDefinition requires it, to build and to play (install HarmonyKSP): KSP does not load the mod without it." />
+  </Target>
+
+  <Target Name="StopIfPackageNotRelease" BeforeTargets="ResolveAssemblyReferences"
+          Condition="'$(ReleasePackage)' == 'true' And '$(Configuration)' != 'Release'">
+    <Error Text="-p:ReleasePackage=true builds the player package and needs -c Release; otherwise it would only put a DLL without FSR's debug checks into the game." />
+  </Target>
+
+  <!-- The KSP-AVC version file, generated from the project's version, as
+       KSPCommunityFixes generates its own (KSPBuildTools). KSP 1.12.5 only. No
+       URL or DOWNLOAD: the project has no public home. -->
+  <Target Name="GenerateVersionFile" AfterTargets="Build">
+    <PropertyGroup>
+      <_AvcDir>$(OutputPath)GameData\$(ModName)</_AvcDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_AvcLine Include="{" />
+      <_AvcLine Include="&quot;NAME&quot;: &quot;$(ModName)&quot;," />
+      <_AvcLine Include="&quot;VERSION&quot;: &quot;$(Version)&quot;," />
+      <_AvcLine Include="&quot;KSP_VERSION&quot;: &quot;1.12.5&quot;," />
+      <_AvcLine Include="&quot;KSP_VERSION_MIN&quot;: &quot;1.12.5&quot;," />
+      <_AvcLine Include="&quot;KSP_VERSION_MAX&quot;: &quot;1.12.5&quot;" />
+      <_AvcLine Include="}" />
+    </ItemGroup>
+    <MakeDir Directories="$(_AvcDir)" />
+    <WriteLinesToFile File="$(_AvcDir)\$(ModName).version" Lines="@(_AvcLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
+
+  <Target Name="DeployToGameData" AfterTargets="Build" DependsOnTargets="GenerateVersionFile"
+          Condition="'$(DeployToGameData)' == 'true' And Exists('$(KspGameData)')">
+    <MakeDir Directories="$(KspGameData)\$(ModName)\Plugins" />
+    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml" DestinationFolder="$(KspGameData)\$(ModName)\Plugins" />
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version" DestinationFolder="$(KspGameData)\$(ModName)" />
+    <!-- The static GameData files of the repository (profiles and mod
+         registrations), copied the way KSPCommunityFixes copies its own. What
+         this build ships is removed from the game first, so that a file dropped
+         from the repository leaves the game: the profiles with the prefix
+         ReDefinition- (one a player put there by hand stays) and the
+         registrations in Mods, which other mods ship in folders of their own.
+         PluginData is never touched. -->
+    <ItemGroup>
+      <_StaticGameData Include="$(MSBuildThisFileDirectory)..\GameData\**\*.*" />
+      <_ShippedInGame Include="$(KspGameData)\$(ModName)\Profiles\ReDefinition-*.cfg" />
+      <_ShippedInGame Include="$(KspGameData)\$(ModName)\Mods\*.cfg" />
+    </ItemGroup>
+    <Delete Files="@(_ShippedInGame)" />
+    <Copy SourceFiles="@(_StaticGameData)" DestinationFolder="$(KspGameData)\%(RecursiveDir)" />
+    <Message Importance="high" Text="$(ModName).dll, $(ModName).version and the static GameData files copied to $(KspGameData)\$(ModName)." />
+  </Target>
+
+  <!-- The player package, built only on request:
+         dotnet build -c Release -p:ReleasePackage=true
+       the way KSPCommunityFixes builds its release zip: GameData with the
+       mod's folder inside. In it, as the forum's add-on rules and the licences
+       ask: this project's licence and exceptions, the MIT notices of FSR3Unity
+       and of AMD's FidelityFX shaders compiled into the bundle, the credits,
+       and a note on the source. Next to it, the complete source of the commit
+       it was built from, as GPL-3.0 section 6(d) asks - so the tree has to be
+       committed first. The shader bundle is built by the Unity project into
+       the game's GameData, so it is taken from there, and only if no shader
+       source is newer than it. Whenever any of that fails there is no zip, and
+       one left from an earlier build is removed so it cannot pass for this
+       one. Next to GameData go the files for the game folder: the proxy,
+       refused when missing or older than a native source, with the MIT notices
+       of NVIDIA's and AMD's headers compiled into it, and AMD's runtime,
+       fetched by tools/fetch_amd_runtime.py and refused unless it matches the
+       pinned SHA-256, with AMD's licence beside it. The
+       proxy's ini goes into GameData as a template only: without it the
+       proxy's defaults apply, and one in the game folder holds a player's
+       settings, which an update must not overwrite (docs/development/packaging.md). -->
+  <Target Name="MakeReleaseZip" AfterTargets="DeployToGameData" DependsOnTargets="GenerateVersionFile"
+          Condition="'$(Configuration)' == 'Release' And '$(ReleasePackage)' == 'true'">
+    <PropertyGroup>
+      <_ReleaseDir>$(OutputPath)release</_ReleaseDir>
+      <_Stage>$(_ReleaseDir)\stage</_Stage>
+      <_StageMod>$(_Stage)\GameData\$(ModName)</_StageMod>
+      <_ReleaseZip>$(_ReleaseDir)\$(ModName)_$(Version).zip</_ReleaseZip>
+      <_SourceZip>$(_ReleaseDir)\$(ModName)_$(Version)_source.zip</_SourceZip>
+      <_ShaderBundle>$(KspGameData)\$(ModName)\Shaders\redefinition.shaders</_ShaderBundle>
+      <_RepoRoot>$(MSBuildThisFileDirectory)..\</_RepoRoot>
+      <_Native>$(_RepoRoot)src\native</_Native>
+      <_ProxyDll>$(_RepoRoot)build\native\Release\dxgi.dll</_ProxyDll>
+      <_FfxRuntime>$(_RepoRoot)third_party\amd\amd_fidelityfx_framegeneration_dx12.dll</_FfxRuntime>
+      <_FfxRuntimePin>$(_RepoRoot)third_party\amd\amd_fidelityfx_framegeneration_dx12.dll.sha256</_FfxRuntimePin>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.compute;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.h;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.hlsl;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Editor\**\*.cs" />
+      <_StaticGameDataZip Include="$(_RepoRoot)GameData\**\*.*" />
+      <_NativeSource Include="$(_Native)\*.cpp;$(_Native)\*.h;$(_Native)\*.def;$(_Native)\*.rc.in;$(_Native)\CMakeLists.txt;$(_Native)\extern\**\*.h"
+                     Exclude="$(_Native)\ProxyHarness.cpp" />
+    </ItemGroup>
+
+    <Delete Files="$(_ReleaseZip);$(_SourceZip)" />
+    <RemoveDir Condition="Exists('$(_Stage)')" Directories="$(_Stage)" />
+
+    <Error Condition="!Exists('$(_ProxyDll)')"
+           Text="No release zip: the frame generation proxy '$(_ProxyDll)' is missing. Build it first (docs/development/building-and-testing.md)." />
+    <Error Condition="$([System.IO.File]::GetLastWriteTime('%(_NativeSource.FullPath)').Ticks) &gt; $([System.IO.File]::GetLastWriteTime('$(_ProxyDll)').Ticks)"
+           Text="No release zip: '%(_NativeSource.Identity)' is newer than the proxy. Rebuild it with CMake first." />
+    <Error Condition="!Exists('$(_FfxRuntime)')"
+           Text="No release zip: AMD's frame generation runtime is missing. Fetch it with: python tools/fetch_amd_runtime.py" />
+    <ReadLinesFromFile File="$(_FfxRuntimePin)">
+      <Output TaskParameter="Lines" PropertyName="_FfxRuntimePinned" />
+    </ReadLinesFromFile>
+    <GetFileHash Files="$(_FfxRuntime)" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="_FfxRuntimeHash" />
+    </GetFileHash>
+    <Error Condition="'$(_FfxRuntimeHash)' != '$(_FfxRuntimePinned)'"
+           Text="No release zip: '$(_FfxRuntime)' does not match the pinned SHA-256 $(_FfxRuntimePinned). Fetch it again with: python tools/fetch_amd_runtime.py" />
+    <Error Condition="!Exists('$(_ShaderBundle)')"
+           Text="No release zip: the shader bundle '$(_ShaderBundle)' is missing. Build it with the Unity project first (docs/development/building-and-testing.md)." />
+    <Error Condition="$([System.IO.File]::GetLastWriteTime('%(_ShaderSource.FullPath)').Ticks) &gt; $([System.IO.File]::GetLastWriteTime('$(_ShaderBundle)').Ticks)"
+           Text="No release zip: '%(_ShaderSource.Identity)' is newer than the shader bundle. Rebuild the bundle with the Unity project first." />
+    <Exec Command="git --version" WorkingDirectory="$(_RepoRoot)" IgnoreExitCode="true" StandardOutputImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="_GitMissing" />
+    </Exec>
+    <Error Condition="'$(_GitMissing)' != '0'" Text="No release zip: git is needed for the source that goes with it, and it was not found." />
+    <!-- stderr to the null device: ConsoleToMSBuild captures both streams,
+         and a git warning on a clean tree is not a change. Exec runs cmd.exe
+         on Windows and sh elsewhere, hence two names for it. -->
+    <PropertyGroup>
+      <_NullDevice Condition="'$(OS)' == 'Windows_NT'">nul</_NullDevice>
+      <_NullDevice Condition="'$(OS)' != 'Windows_NT'">/dev/null</_NullDevice>
+    </PropertyGroup>
+    <Exec Command="git status --porcelain 2&gt;$(_NullDevice)" WorkingDirectory="$(_RepoRoot)" ConsoleToMSBuild="true" StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_TreeStatus" />
+    </Exec>
+    <Error Condition="'$(_TreeStatus)' != ''"
+           Text="No release zip: the working tree has changes or untracked files, and the source that goes with the package is HEAD's. Commit first." />
+
+    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml" DestinationFolder="$(_StageMod)\Plugins" />
+    <Copy SourceFiles="$(_ShaderBundle)" DestinationFolder="$(_StageMod)\Shaders" />
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)licenses\SOURCE.md"
+          DestinationFolder="$(_StageMod)" />
+    <Copy SourceFiles="$(_RepoRoot)docs\credits-and-licences.md" DestinationFiles="$(_StageMod)\CREDITS.md" />
+    <Copy SourceFiles="$(_RepoRoot)src\Fsr3\LICENSE.txt" DestinationFiles="$(_StageMod)\LICENSE-FSR3Unity.txt" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\FidelityFX-FSR3-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-FidelityFX.txt" />
+    <Copy SourceFiles="@(_StaticGameDataZip)" DestinationFolder="$(_Stage)\GameData\%(RecursiveDir)" />
+    <Copy SourceFiles="$(_ProxyDll);$(_FfxRuntime)" DestinationFolder="$(_Stage)" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-SDK-license.md" DestinationFiles="$(_Stage)\amd_fidelityfx_framegeneration_dx12_LICENSE.md" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\NVIDIA-MIT.txt" DestinationFiles="$(_Stage)\dxgi_LICENSE-NVIDIA.txt" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-API-MIT.txt" DestinationFiles="$(_Stage)\dxgi_LICENSE-FidelityFX.txt" />
+    <Copy SourceFiles="$(_Native)\ReDefinitionProxy.ini" DestinationFolder="$(_StageMod)" />
+
+    <!-- The source first: if it cannot be made, there is no player zip either. -->
+    <Exec Command="git archive --format=zip -o &quot;$(_SourceZip)&quot; HEAD" WorkingDirectory="$(_RepoRoot)" />
+    <ZipDirectory SourceDirectory="$(_Stage)" DestinationFile="$(_ReleaseZip)" Overwrite="true" />
+    <Message Importance="high" Text="Release zip: $(_ReleaseZip). Its source: $(_SourceZip)." />
+  </Target>
+
+</Project>

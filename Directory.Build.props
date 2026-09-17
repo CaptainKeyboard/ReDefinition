@@ -1,0 +1,12 @@
+<Project>
+
+  <!-- One place for every path into the game. Overridable via the KspRoot
+       environment variable or -p:KspRoot=... on the command line. -->
+  <PropertyGroup>
+    <KspRoot Condition="'$(KspRoot)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program</KspRoot>
+    <KspManaged>$(KspRoot)\KSP_x64_Data\Managed</KspManaged>
+    <KspGameData>$(KspRoot)\GameData</KspGameData>
+    <ModName>ReDefinition</ModName>
+  </PropertyGroup>
+
+</Project>

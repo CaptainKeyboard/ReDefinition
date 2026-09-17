@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The decisions of the bundled settings' store and of the settings window,
+       tested without the game (docs/development/building-and-testing.md):
+         dotnet test tests/ReDefinition.Tests
+       Building it builds the mod as well, which goes into the game as any build
+       of it does. -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <RootNamespace>ReDefinition.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.6.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.6.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ReDefinition.csproj" />
+  </ItemGroup>
+
+  <!-- The wrapper mods copy (docs/modders/examples), compiled here so that its lookups
+       are checked against the interface (SharedFoundationTests). -->
+  <ItemGroup>
+    <Compile Include="..\..\docs\modders\examples\ReDefinitionApi.cs" Link="ReDefinitionApi.cs" />
+  </ItemGroup>
+
+  <!-- The game's assemblies the framework's types name, copied beside the tests
+       so that the runtime finds them, and never beside the mod. bundled.cfg's tests
+       use KSP's own ConfigNode. -->
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(KspManaged)\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(KspManaged)\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(KspManaged)\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <!-- ZipArchive, to make an archive laid out like NVIDIA's (NvidiaFilesTests). -->
+    <Reference Include="System.IO.Compression" />
+  </ItemGroup>
+
+</Project>

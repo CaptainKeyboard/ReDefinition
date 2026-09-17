@@ -1,0 +1,16 @@
+; The exports the system dxgi.dll offers and that anything in this process may
+; call. This dxgi.dll is loaded in its place, so every one of them exists here and
+; is forwarded, or the process fails to start.
+;
+; Forwarder entries ("dxgi.CreateDXGIFactory") are not usable here: this module
+; is itself called dxgi, so a forwarder would point at itself. Each export is
+; therefore implemented in DxgiExports.cpp and resolved through GetProcAddress on
+; the real system library.
+LIBRARY dxgi
+
+EXPORTS
+    CreateDXGIFactory
+    CreateDXGIFactory1
+    CreateDXGIFactory2
+    DXGIDeclareAdapterRemovalSupport
+    DXGIGetDebugInterface1

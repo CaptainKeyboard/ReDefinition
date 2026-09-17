@@ -1,0 +1,129 @@
+# ReDefinition
+
+ReDefinition is an attempt to bring the mods of Kerbal Space Program 1 together in one
+concept: their settings unified in one window, profiles that set them up together, and
+rules that keep their settings compatible with each other. Furthermore, ReDefinition adds
+upscaling with FSR and DLSS, and Direct3D 12 on top of the game for frame generation. Both
+work on the whole scene, other mods' effects included.
+
+Mods for KSP are installed one by one and set up one by one, each in its own window, and
+whether their settings work together is left to chance. ReDefinition starts with the major
+graphics mods; any mod can join with a config file.
+
+> **Pre-release.** What works and what is open: [docs/project/status.md](docs/project/status.md).
+
+## Features
+
+### Unified settings
+
+* **One window for all settings.** KSP's and the supported mods' settings, sorted by what
+  they do; a change is saved in the mod itself.
+* **Profiles from Low to Max.** One choice sets up all installed mods together; High is
+  the mod authors' own defaults.
+* **Compatible settings.** What a mod requires of other settings is kept in every
+  profile, and other mods' antialiasing is switched off while a profile is chosen.
+* **Reset and restore.** Back to the defaults, or back to each mod's settings from before
+  ReDefinition.
+* **Open to other mods.** A mod or visual pack joins with a config file in its own folder.
+
+### Added to the game
+
+* **Upscaling and antialiasing** with AMD FSR 3, NVIDIA DLSS and AMD's FSR DLL, fed with
+  the game's own depth and motion vectors.
+* **Frame generation** with AMD FSR 3.1 or NVIDIA DLSS, through Direct3D 12 on top of the
+  game.
+
+## Supported mods
+
+Scatterer, EVE Redux with its volumetric clouds, Parallax Continued, Deferred, Firefly,
+Waterfall, Distant Object Enhancement and TUFX -- each optional. How ReDefinition works
+with further graphics mods: [docs/reference/graphics-mod-compatibility.md](docs/reference/graphics-mod-compatibility.md).
+
+## Requirements
+
+* Kerbal Space Program 1.12.5 on Windows
+* HarmonyKSP (on CKAN: *Harmony2*)
+
+DLSS needs an NVIDIA RTX GPU, frame generation a GPU with Direct3D 12. ReDefinition
+downloads NVIDIA's DLSS files itself once NVIDIA's licences are accepted in its settings
+window. What each technique needs:
+[docs/player/upscaler-and-frame-generation.md](docs/player/upscaler-and-frame-generation.md).
+
+## Installation
+
+### With CKAN
+
+Search for *ReDefinition* in CKAN and install it; CKAN installs HarmonyKSP with it. CKAN
+does not replace a `dxgi.dll` it did not install, such as ReShade's: move that one away
+from `KSP_x64.exe` first.
+
+### Manually
+
+1. Install HarmonyKSP.
+2. Extract the release zip into the KSP folder, the one with `KSP_x64.exe`.
+   `GameData/ReDefinition` goes into `GameData`; `dxgi.dll` and AMD's frame generation
+   runtime go next to `KSP_x64.exe`.
+
+Then, in the game, open ReDefinition from the toolbar and choose a profile. Details, and
+how to remove ReDefinition again: [docs/player/installing.md](docs/player/installing.md).
+
+## Choosing a profile
+
+| Profile | Suggested GPU |
+|---|---|
+| Low | GTX 1660 / RTX 2060 |
+| Medium | RTX 3060 / 4060, RX 6600 XT |
+| High | RTX 3080 / 4080 |
+| Ultra | RTX 4090 |
+| Max | RTX 4090 at its limit |
+
+Suggestions for 1440p; at 4K one profile lower fits. What each profile sets:
+[docs/player/graphics-profiles.md](docs/player/graphics-profiles.md).
+
+## Known limitations
+
+* Another `dxgi.dll` next to `KSP_x64.exe`, such as ReShade's, cannot be used together
+  with ReDefinition's.
+* KerbalVR does not work together with ReDefinition's upscaler.
+
+## Reporting a problem
+
+Open an issue with `KSP.log` from the KSP folder, and `ReDefinitionProxy.log` from next to
+`KSP_x64.exe`. *Write diagnostics to log* in the diagnostics window
+(`RightCtrl` + `RightShift` + `K`) adds the upscaler's current state to `KSP.log`.
+
+## For mod authors
+
+A mod or visual pack registers its settings, defaults and profile values with a config
+file in its own folder: [docs/modders/registering-a-mod.md](docs/modders/registering-a-mod.md).
+
+A mod can also use what ReDefinition provides once for every mod -- the jitter, history
+resets, its own motion vectors, the upscaled image, overlays and Direct3D 12 compute
+passes from HLSL -- with or without depending on ReDefinition, with a shader include, a
+wrapper file and an example mod to start from:
+[docs/modders/shared-foundation.md](docs/modders/shared-foundation.md).
+
+## Building
+
+```
+dotnet build ReDefinition.sln
+dotnet test tests/ReDefinition.Tests
+```
+
+The shaders, the proxy and the release package:
+[docs/development/building-and-testing.md](docs/development/building-and-testing.md).
+All documentation: [docs/README.md](docs/README.md).
+
+## Credits and licence
+
+**GPL-3.0-or-later WITH Modding Exception AND GPL-3.0 Linking Exception** -- see
+[LICENSE](LICENSE) and [EXCEPTIONS.md](EXCEPTIONS.md).
+
+FSR 3 in the game is [FSR3Unity](https://github.com/ndepoel/FSR3Unity) by Nico de Poel
+(MIT, `src/Fsr3/LICENSE.txt`) with AMD's FidelityFX shaders, adapted in ReDefinition
+for Unity 2019.4 and KSP. The `dxgi.dll` proxy follows the approach of
+[DynamicShaderFrameGen](https://github.com/jatelop8/DynamicShaderFrameGen) (jatelop8),
+which builds on Community Shaders and ENBFrameGeneration (doodlum / Pentalimb).
+
+Everyone whose work ReDefinition builds on or talks to, with the licence of that work:
+[docs/credits-and-licences.md](docs/credits-and-licences.md).
