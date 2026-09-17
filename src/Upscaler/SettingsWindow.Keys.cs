@@ -1,0 +1,117 @@
+using System;
+using System.Collections.Generic;
+using ReDefinition.Framework;
+using UnityEngine;
+
+namespace ReDefinition
+{
+    // The Keys tab: every binding a player has -- ReDefinition's own, the bundled
+    // mods' and KSP's -- with a search field above them, since KSP alone brings
+    // about 127.
+    //
+    // A row shows its binding and takes a new one: clicked, it listens (KeyCapture),
+    // the next combination of up to two modifiers and one key is taken, Escape
+    // cancels, and the button beside it clears the binding. The modifiers can be
+    // switched afterwards for a combination the system swallows before the game
+    // sees it.
+    //
+    // A combination two rows share is shown in yellow on both, and nothing is
+    // refused (Conflicts).
+    internal static partial class SettingsWindow
+    {
+        private const float BindingWidth = 150f;
+        private const float BindingButtonWidth = 24f;
+        private const string ListeningText = "<color=#ffdd55>Press a key...</color>";
+
+        private static string keySearch = "";
+
+        // Both a row's own name and its mod's are searched: "camera" finds KSP's
+        // camera rows, "scatterer" the mod's.
+        private static bool MatchesSearch(string title, string owner)
+        {
+            if (keySearch.Length == 0) return true;
+            return (title != null && title.IndexOf(keySearch, StringComparison.OrdinalIgnoreCase) >= 0)
+                   || (owner != null && owner.IndexOf(keySearch, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private static DialogGUIBase[] KeyRows()
+        {
+            List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUILabel("Search", NameWidth),
+                new DialogGUITextInput("", false, 64, text =>
+                {
+                    keySearch = text ?? "";
+                    return text;
+                }, BindingWidth, RowHeight + 6f)));
+
+            foreach (ModuleSetting setting in OurModules.Rows(SettingCategory.Keys))
+                rows.Add(OwnBindingRow(setting));
+            return rows.ToArray();
+        }
+
+        // ReDefinition's own hotkeys, over the settings copy the window edits.
+        private static DialogGUIBase OwnBindingRow(ModuleSetting setting)
+        {
+            ModuleSetting shown = setting;
+            string key = "redefinition." + shown.Key;
+            Func<string> text = () => shown.Read(edit.After);
+            DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, "ReDefinition", text,
+                value => shown.Write(edit.After, value), () => true);
+            row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "ReDefinition");
+            return row;
+        }
+
+        // A bundled mod's binding, over the edit model like its other settings.
+        private static DialogGUIBase BundledBindingRow(BundledSetting setting)
+        {
+            BundledSetting shown = setting;
+            string key = shown.Key;
+            Func<string> text = () =>
+            {
+                string pending;
+                return model.TryGetPending(key, out pending) ? pending : KeyCombination.NoneText;
+            };
+            DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, shown.Owner.ModName, text,
+                value => model.Change(key, value),
+                () => model.Bundled && model.HasPending(key));
+            row.OptionEnabledCondition = () => MatchesSearch(shown.Title, shown.Owner.ModName);
+            return row;
+        }
+
+        // The row itself: the name, the binding as a button that listens when it is
+        // clicked, a button that clears it, and where it comes from.
+        private static DialogGUIBase BindingRow(string key, string title, string tooltip, string owner,
+                                                Func<string> current, Action<string> set, Func<bool> changeable)
+        {
+            // ReDefinition's and the mods' bindings count in every situation.
+            Conflicts.Register(key, current, -1);
+            Func<string> label = () => KeyCapture.Listening(key) ? ListeningText : BindingLabel(key, current());
+            DialogGUIButton take = new DialogGUIButton(label, () => KeyCapture.Start(key, set), BindingWidth,
+                RowHeight + 4f, false);
+            take.OptionInteractableCondition = changeable;
+            take.tooltipText = (string.IsNullOrEmpty(tooltip) ? title : tooltip)
+                               + "\nClick, then press the combination. Escape cancels; x clears the binding.";
+
+            DialogGUIButton clear = new DialogGUIButton("x", () =>
+            {
+                if (KeyCapture.Listening(key)) KeyCapture.Stop();
+                set(KeyCombination.NoneText);
+            }, BindingButtonWidth, RowHeight + 4f, false);
+            clear.OptionInteractableCondition = changeable;
+            clear.tooltipText = "Clears this binding.";
+
+            return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUILabel(title, NameWidth), take, new DialogGUISpace(6f), clear, new DialogGUISpace(10f),
+                new DialogGUILabel("<color=#9a9a9a>" + owner + "</color>", SourceWidth));
+        }
+
+        // What the button shows: the combination, in yellow where another row has
+        // the same one.
+        private static string BindingLabel(string key, string text)
+        {
+            string shown = string.IsNullOrEmpty(text) ? KeyCombination.NoneText : text;
+            return Conflicts.Shares(key) ? "<color=#ffdd55>" + shown + "</color>" : shown;
+        }
+    }
+}

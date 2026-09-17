@@ -17,6 +17,8 @@ namespace ReDefinition.Framework
         Planets,
         // Re-entry, engines, flares and distant vessels.
         Effects,
+        // Every key binding: ReDefinition's, the mods' and KSP's.
+        Keys,
         Interface,
     }
 
@@ -25,6 +27,8 @@ namespace ReDefinition.Framework
         Toggle,
         Slider,
         Choice,
+        // A key binding, held as the text of a KeyCombination.
+        Binding,
         // A value of any other type -- a number without a range, a vector, a
         // name -- for a setting the window does not show: the reset and the
         // profiles set it, and it is checked by its type (ValueType).

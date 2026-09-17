@@ -75,6 +75,9 @@ namespace ReDefinition.Framework
         // Where its row stands under General, among every module's rows.
         public int Order;
 
+        // The tab its row stands in; the hotkeys stand under Keys.
+        public SettingCategory Row = SettingCategory.General;
+
         public Func<UpscalerSettings, string> Read;
         public Action<UpscalerSettings, string> Write;
 
@@ -92,6 +95,9 @@ namespace ReDefinition.Framework
                 case SettingControl.Toggle:
                     bool on;
                     return bool.TryParse(value, out on) ? null : "not True or False";
+
+                case SettingControl.Binding:
+                    return KeyCombination.IsText(value) ? null : "not a key binding";
 
                 case SettingControl.Slider:
                     double number;
@@ -118,6 +124,9 @@ namespace ReDefinition.Framework
                 case SettingControl.Toggle:
                     bool on;
                     return bool.TryParse(value, out on) ? (on ? "True" : "False") : value;
+
+                case SettingControl.Binding:
+                    return KeyCombination.IsText(value) ? KeyCombination.Parse(value).ToString() : value;
 
                 case SettingControl.Slider:
                     double number;

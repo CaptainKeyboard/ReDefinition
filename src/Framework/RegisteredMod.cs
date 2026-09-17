@@ -325,6 +325,11 @@ namespace ReDefinition.Framework
             Func<string> read;
             Action<string> write;
             Type type;
+            if (entry.IsBinding)
+            {
+                AddBinding(entry, behaviour, where, problems);
+                return;
+            }
             if (behaviour != null && behaviour.Reach(this, entry, out read, out write, out type))
             {
                 if (read == null) return;
@@ -372,6 +377,117 @@ namespace ReDefinition.Framework
             }
             if (registration.Saving == SettingsSaving.PerSave && entry.PerSave != false) setting.Context = LoadedSave;
             if (behaviour != null) behaviour.Finish(this, setting, entry);
+        }
+
+        // A KEY block: the binding travels as the text of a KeyCombination, whatever
+        // the mod keeps it in -- a KeyCode, the name of one as text, or a key and its
+        // modifiers in members of their own, as Scatterer keeps them.
+        private void AddBinding(SettingRegistration entry, ModBehaviour behaviour, string where, List<string> problems)
+        {
+            Func<string> read;
+            Action<string> write;
+            Type type;
+            if (behaviour != null && behaviour.Reach(this, entry, out read, out write, out type))
+            {
+                if (read == null) return;
+            }
+            else if (!BindingThrough(entry, where, problems, out read, out write))
+            {
+                return;
+            }
+
+            BundledSetting setting = Add(entry.Name, Localized(entry.Title), entry.TakesEffect, Localized(entry.Tooltip),
+                read, write);
+            setting.Control = SettingControl.Binding;
+            setting.Kind = SettingKind.Other;
+            if (registration.Saving == SettingsSaving.PerSave && entry.PerSave != false) setting.Context = LoadedSave;
+            if (behaviour != null) behaviour.Finish(this, setting, entry);
+        }
+
+        // The binding's members: the key, and the modifiers where the mod keeps them
+        // apart. A member holds a KeyCode or its name as text; where the mod keeps
+        // the whole combination in one member, its text is read and written as it
+        // stands.
+        private bool BindingThrough(SettingRegistration entry, string where, List<string> problems,
+                                    out Func<string> read, out Action<string> write)
+        {
+            read = null;
+            write = null;
+            MemberPath key = BindingMember(entry, entry.Member, "member", where, problems);
+            if (key == null) return false;
+            MemberPath first = entry.Modifier1 != null
+                ? BindingMember(entry, entry.Modifier1, "modifier1", where, problems)
+                : null;
+            if (entry.Modifier1 != null && first == null) return false;
+            MemberPath second = entry.Modifier2 != null
+                ? BindingMember(entry, entry.Modifier2, "modifier2", where, problems)
+                : null;
+            if (entry.Modifier2 != null && second == null) return false;
+
+            read = () =>
+            {
+                string keyText = BindingText(key);
+                if (keyText == null) return null;
+                if (first == null) return KeyCombination.Parse(keyText).ToString();
+                return new KeyCombination(KeyCombination.Parse(keyText).Key,
+                    KeyCombination.ParseModifier(BindingText(first)),
+                    KeyCombination.ParseModifier(BindingText(second))).ToString();
+            };
+            write = text =>
+            {
+                KeyCombination combination = KeyCombination.Parse(text);
+                if (first == null)
+                {
+                    // One member holds the whole binding: its text as it stands.
+                    SetBinding(key, combination.ToString());
+                    return;
+                }
+                SetBinding(key, combination.Key.ToString());
+                SetBinding(first, combination.FirstModifier.ToString());
+                if (second != null) SetBinding(second, combination.SecondModifier.ToString());
+            };
+            return true;
+        }
+
+        private MemberPath BindingMember(SettingRegistration entry, string text, string what, string where,
+                                         List<string> problems)
+        {
+            string problem;
+            MemberPath path = MemberPath.Resolve(text, folder, out problem);
+            if (path != null && path.IsMethod)
+            {
+                problem = text + " is a method, not a value";
+                path = null;
+            }
+            if (path != null && path.ValueType != typeof(string) && path.ValueType != typeof(UnityEngine.KeyCode)
+                && path.ValueType != typeof(object))
+            {
+                problem = text + " holds a " + path.ValueType.Name + ", and a binding needs a KeyCode or its name as text";
+                path = null;
+            }
+            if (path == null)
+            {
+                if (entry.Optional == null) problems.Add(where + ": " + what + ": " + problem + " -- left out.");
+                MemberMissing(entry, problem);
+            }
+            return path;
+        }
+
+        private static string BindingText(MemberPath path)
+        {
+            if (path == null) return KeyCombination.NoneText;
+            object value = path.Get();
+            return value != null ? value.ToString() : null;
+        }
+
+        private static void SetBinding(MemberPath path, string text)
+        {
+            if (path.ValueType == typeof(UnityEngine.KeyCode))
+            {
+                path.Set(SettingValues.Parse(text, typeof(UnityEngine.KeyCode)));
+                return;
+            }
+            path.Set(text);
         }
 
         // Through the member path, as the registration names it.

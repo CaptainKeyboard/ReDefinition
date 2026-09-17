@@ -27,8 +27,7 @@ namespace ReDefinition
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public partial class UpscalerAddon : MonoBehaviour
     {
-        private const KeyCode ToggleKey = KeyCode.U;     // upscaler on/off
-        private const KeyCode WindowKey = KeyCode.K;     // window open/close
+
 
         // Camera the rig attaches to. It finds the remaining ones itself.
         private static readonly string[] CameraPreference = { "Camera 00", "Main Camera" };
@@ -288,17 +287,17 @@ namespace ReDefinition
                 hostStackMessage = HostStack.Restore();
         }
 
-        private static bool ModifiersHeld()
-        {
-            return Input.GetKey(KeyCode.RightControl) && Input.GetKey(KeyCode.RightShift);
-        }
-
+        // The hotkeys as the player set them (UpscalerSettings, the Keys tab).
+        // While a row is listening for a key, none of them fires.
         private void HandleHotkeys()
         {
-            if (!ModifiersHeld()) return;
+            KeyCapture.Poll();
+            if (KeyCapture.Busy) return;
 
-            if (Input.GetKeyDown(ToggleKey)) SetEnabled(!wantEnabled);
-            if (Input.GetKeyDown(WindowKey)) ToggleWindow();
+            if (KeyCombination.Parse(settings.UpscalerKey).Pressed()) SetEnabled(!wantEnabled);
+            if (KeyCombination.Parse(settings.SettingsWindowKey).Pressed()) SettingsWindow.Toggle();
+            if (KeyCombination.Parse(settings.DiagnosticsKey).Pressed()) ToggleWindow();
+            if (KeyCombination.Parse(settings.CameraListKey).Pressed()) UpscalerProbe.LogCameraSurvey();
         }
 
         // The toolbar button shows whether the settings window is open, which

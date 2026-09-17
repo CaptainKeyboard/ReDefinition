@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using FidelityFX.FSR3;
+using ReDefinition.Framework;
 using UnityEngine;
 
 namespace ReDefinition
@@ -28,6 +29,13 @@ namespace ReDefinition
         public bool FrameGeneration;
         public UpscalerBackend Backend = UpscalerBackend.Fsr3;
         public DlssPreset DlssPreset = DlssPreset.Default;
+
+        // The hotkeys, as KeyCombination writes them. The defaults are the keys
+        // ReDefinition had before they could be set.
+        public string UpscalerKey = "RightControl+RightShift+U";
+        public string DiagnosticsKey = "RightControl+RightShift+K";
+        public string CameraListKey = "RightControl+RightShift+N";
+        public string SettingsWindowKey = KeyCombination.NoneText;
 
         private const string RootName = "ReDefinition";
 
@@ -70,6 +78,10 @@ namespace ReDefinition
             settings.FrameGeneration = Bool(node, "frameGeneration", settings.FrameGeneration);
             settings.Backend = Enum(node, "technique", settings.Backend);
             settings.DlssPreset = Enum(node, "dlssPreset", settings.DlssPreset);
+            settings.UpscalerKey = Binding(node, "upscalerKey", settings.UpscalerKey);
+            settings.DiagnosticsKey = Binding(node, "diagnosticsKey", settings.DiagnosticsKey);
+            settings.CameraListKey = Binding(node, "cameraListKey", settings.CameraListKey);
+            settings.SettingsWindowKey = Binding(node, "settingsWindowKey", settings.SettingsWindowKey);
             return settings;
         }
 
@@ -93,6 +105,10 @@ namespace ReDefinition
             node.AddValue("frameGeneration", FrameGeneration);
             node.AddValue("technique", Backend);
             node.AddValue("dlssPreset", DlssPreset);
+            node.AddValue("upscalerKey", UpscalerKey);
+            node.AddValue("diagnosticsKey", DiagnosticsKey);
+            node.AddValue("cameraListKey", CameraListKey);
+            node.AddValue("settingsWindowKey", SettingsWindowKey);
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -115,7 +131,9 @@ namespace ReDefinition
               .Append(DisableMsaa).Append('|').Append(ForceAnisotropic).Append('|')
               .Append(Jitter).Append('|').Append(SkinnedMotionVectors).Append('|').Append(TufxAfterUpscaling).Append('|')
               .Append(TransparencyMask).Append('|').Append(ReactiveMask).Append('|')
-              .Append(FrameGeneration).Append('|').Append(Backend).Append('|').Append(DlssPreset);
+              .Append(FrameGeneration).Append('|').Append(Backend).Append('|').Append(DlssPreset).Append('|')
+              .Append(UpscalerKey).Append('|').Append(DiagnosticsKey).Append('|').Append(CameraListKey).Append('|')
+              .Append(SettingsWindowKey);
             return sb.ToString();
         }
 
@@ -139,6 +157,13 @@ namespace ReDefinition
             string text = node.GetValue(name);
             return float.TryParse(text, System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out value) ? value : fallback;
+        }
+
+        // A binding the file holds; what is no binding leaves the default.
+        private static string Binding(ConfigNode node, string name, string fallback)
+        {
+            string text = node.GetValue(name);
+            return text != null && KeyCombination.IsText(text) ? KeyCombination.Parse(text).ToString() : fallback;
         }
 
         private static T Enum<T>(ConfigNode node, string name, T fallback)

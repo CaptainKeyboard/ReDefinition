@@ -14,18 +14,7 @@ namespace ReDefinition
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
-            Debug.Log(Tag + " Loaded. Right Ctrl + Right Shift + N logs a camera survey.");
-        }
-
-        private void Update()
-        {
-            // No Alt: that is KSP's modifier key, and every combination with it
-            // triggers game functions on the side.
-            if (!Input.GetKey(KeyCode.RightControl) || !Input.GetKey(KeyCode.RightShift))
-                return;
-
-            if (Input.GetKeyDown(KeyCode.N))
-                LogCameraSurvey();
+            Debug.Log(Tag + " Loaded. The hotkeys stand in the settings window, under Keys.");
         }
 
         // Which cameras exist, in what order, drawing into what -- for a camera

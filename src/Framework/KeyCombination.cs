@@ -26,6 +26,12 @@ namespace ReDefinition.Framework
             KeyCode.LeftCommand, KeyCode.RightCommand
         };
 
+        // The modifiers a binding can hold, in the order they are written.
+        public static IEnumerable<KeyCode> Modifiers
+        {
+            get { return ModifierOrder; }
+        }
+
         public readonly KeyCode Key;
         public readonly KeyCode FirstModifier;
         public readonly KeyCode SecondModifier;
@@ -143,6 +149,22 @@ namespace ReDefinition.Framework
             }
             combination = new KeyCombination(key, first, second);
             return true;
+        }
+
+        // A modifier on its own, as a mod that keeps its modifiers apart writes it;
+        // None for anything else.
+        public static KeyCode ParseModifier(string text)
+        {
+            KeyCode key;
+            if (text == null || !TryParseKey(text.Trim(), out key) || !IsModifier(key)) return KeyCode.None;
+            return key;
+        }
+
+        // Whether the text is a binding, "None" among them.
+        public static bool IsText(string text)
+        {
+            KeyCombination combination;
+            return TryParse(text, out combination);
         }
 
         // What the text means, or None where it means nothing.

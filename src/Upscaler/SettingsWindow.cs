@@ -24,7 +24,7 @@ namespace ReDefinition
     // BundledSettings. Cancel leaves everything as it was. This is the view:
     // what the rows hold, where their values came from and what Apply does with
     // them are the model's.
-    internal static class SettingsWindow
+    internal static partial class SettingsWindow
     {
         private const float WindowWidth = 740f;
         private const float WindowHeight = 540f;
@@ -156,6 +156,7 @@ namespace ReDefinition
         {
             choiceRows.Clear();
             shownKeys.Clear();
+            Conflicts.Clear();
             List<DialogGUIBase> tabs = new List<DialogGUIBase>();
             // Sized by TabScrollList itself: KSP's DialogGUIContentSizer lets go
             // of the height once a page fits.
@@ -220,6 +221,7 @@ namespace ReDefinition
                 case SettingCategory.ShadowsAndReflections: return "Shadows and reflections";
                 case SettingCategory.Planets: return "Planets";
                 case SettingCategory.Effects: return "Effects";
+                case SettingCategory.Keys: return "Keys";
                 default: return "Mods and toolbar";
             }
         }
@@ -245,6 +247,7 @@ namespace ReDefinition
                 if (nvidia != null) rows.Add(nvidia);
             }
             if (category == SettingCategory.Interface) rows.AddRange(InterfaceRows());
+            if (category == SettingCategory.Keys) rows.AddRange(KeyRows());
 
             foreach (BundledSetting setting in WindowLayout.In(category))
             {
@@ -253,7 +256,8 @@ namespace ReDefinition
                 rows.Add(row);
                 shownKeys.Add(setting.Key);
             }
-            if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface)
+            if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
+                && category != SettingCategory.Keys)
             {
                 DialogGUIBase advanced = OwnWindowRow(category);
                 if (advanced != null) rows.Add(advanced);
@@ -794,6 +798,7 @@ namespace ReDefinition
             // whatever the layout lists -- which the check outside the game
             // refuses.
             if (setting.Control == SettingControl.Value) return null;
+            if (setting.Control == SettingControl.Binding) return BundledBindingRow(setting);
 
             string key = setting.Key;
             DialogGUIBase control;

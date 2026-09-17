@@ -149,7 +149,56 @@ namespace ReDefinition
             return technique ?? KspSettingsSection.StateText(on);
         }
 
-        public static readonly IList<IGraphicsModule> All = new List<IGraphicsModule> { Upscaler, FrameGeneration }.AsReadOnly();
+        // ReDefinition's own hotkeys, in the Keys tab beside the mods' and KSP's.
+        // A profile never sets a binding, so none of them is a quality setting.
+        public static readonly IGraphicsModule Hotkeys = new GraphicsModule("hotkeys", "ReDefinition",
+            new ModuleSetting
+            {
+                Key = "upscalerKey",
+                Title = "Upscaler on or off",
+                Order = 10,
+                Row = SettingCategory.Keys,
+                Control = SettingControl.Binding,
+                Tooltip = "Switches the upscaler on or off without opening a window.",
+                Read = settings => settings.UpscalerKey,
+                Write = (settings, value) => settings.UpscalerKey = value,
+            },
+            new ModuleSetting
+            {
+                Key = "settingsWindowKey",
+                Title = "Settings window",
+                Order = 20,
+                Row = SettingCategory.Keys,
+                Control = SettingControl.Binding,
+                Tooltip = "Opens and closes this window; it also opens from ReDefinition's toolbar button.",
+                Read = settings => settings.SettingsWindowKey,
+                Write = (settings, value) => settings.SettingsWindowKey = value,
+            },
+            new ModuleSetting
+            {
+                Key = "diagnosticsKey",
+                Title = "Diagnostics window",
+                Order = 30,
+                Row = SettingCategory.Keys,
+                Control = SettingControl.Binding,
+                Tooltip = "Opens and closes the diagnostics window.",
+                Read = settings => settings.DiagnosticsKey,
+                Write = (settings, value) => settings.DiagnosticsKey = value,
+            },
+            new ModuleSetting
+            {
+                Key = "cameraListKey",
+                Title = "Camera list to the log",
+                Order = 40,
+                Row = SettingCategory.Keys,
+                Control = SettingControl.Binding,
+                Tooltip = "Writes the scene's cameras, with their depth and what they render, into KSP.log.",
+                Read = settings => settings.CameraListKey,
+                Write = (settings, value) => settings.CameraListKey = value,
+            });
+
+        public static readonly IList<IGraphicsModule> All =
+            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys }.AsReadOnly();
 
         public static IGraphicsModule Find(string name)
         {
@@ -158,11 +207,18 @@ namespace ReDefinition
             return null;
         }
 
-        // Every module's settings in the order their rows stand.
+        // Every module's settings in the order their rows stand, in that tab.
         public static List<ModuleSetting> Rows()
         {
+            return Rows(SettingCategory.General);
+        }
+
+        public static List<ModuleSetting> Rows(SettingCategory tab)
+        {
             List<ModuleSetting> rows = new List<ModuleSetting>();
-            foreach (IGraphicsModule module in All) rows.AddRange(module.Settings);
+            foreach (IGraphicsModule module in All)
+                foreach (ModuleSetting setting in module.Settings)
+                    if (setting.Row == tab) rows.Add(setting);
             // Stable: equal orders keep the modules' order.
             List<ModuleSetting> sorted = new List<ModuleSetting>();
             foreach (ModuleSetting setting in rows)

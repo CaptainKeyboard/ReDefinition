@@ -50,6 +50,11 @@ namespace ReDefinition.Framework
         public string LeftOutWith;
         public string RowUnless;
         public string Behaviour;
+        // A KEY block: the member holds a key, and the modifiers may live in
+        // members of their own.
+        public bool IsBinding;
+        public string Modifier1;
+        public string Modifier2;
     }
 
     // A build of a mod, told by a member it has.
@@ -177,6 +182,7 @@ namespace ReDefinition.Framework
     {
         public const string NodeName = "MOD_SETTINGS";
         public const string SettingNodeName = "SETTING";
+        public const string KeyNodeName = "KEY";
         public const string BuildNodeName = "BUILD";
         public const string DefaultsNodeName = "DEFAULTS";
         public const string RequiresNodeName = "REQUIRES";
@@ -196,6 +202,15 @@ namespace ReDefinition.Framework
             "rowUnless", "behaviour", "leftOut", "required",
         };
 
+        // A KEY block: a binding instead of a value, so no slider, no list and no
+        // inverted switch. modifier1 and modifier2 are for a mod that keeps its
+        // modifiers in members of their own, as Scatterer does.
+        private static readonly string[] KeyKeys =
+        {
+            "name", "member", "modifier1", "modifier2", "title", "tooltip", "default", "row", "order", "takesEffect",
+            "optional", "after", "perSave", "leftOutWith", "rowUnless", "behaviour", "leftOut", "required",
+        };
+
         private static readonly string[] BuildKeys = { "name", "has" };
 
         private static readonly string[] RequiresKeys =
@@ -209,10 +224,10 @@ namespace ReDefinition.Framework
         private static readonly SettingCategory[] Tabs =
         {
             SettingCategory.General, SettingCategory.ShadowsAndReflections, SettingCategory.Planets,
-            SettingCategory.Effects,
+            SettingCategory.Effects, SettingCategory.Keys,
         };
 
-        private const string TabNames = "General, ShadowsAndReflections, Planets or Effects";
+        private const string TabNames = "General, ShadowsAndReflections, Planets, Effects or Keys";
 
         // When a change can take effect, as the guide names them.
         private static readonly ApplyWindow[] Windows = { ApplyWindow.Live, ApplyWindow.NextScene, ApplyWindow.Restart };
@@ -313,7 +328,10 @@ namespace ReDefinition.Framework
                 switch (child.name)
                 {
                     case SettingNodeName:
-                        ReadSetting(mod, child, where, problems);
+                        ReadSetting(mod, child, where, problems, false);
+                        break;
+                    case KeyNodeName:
+                        ReadSetting(mod, child, where, problems, true);
                         break;
                     case BuildNodeName:
                         ReadBuild(mod, child, where, problems);
@@ -403,22 +421,24 @@ namespace ReDefinition.Framework
                 problems.Add(blockWhere + ": node '" + child.name + "' inside " + block.Kind + " -- ignored.");
         }
 
-        private static void ReadSetting(ModRegistration mod, ConfigNode node, string modWhere, List<string> problems)
+        private static void ReadSetting(ModRegistration mod, ConfigNode node, string modWhere, List<string> problems,
+                                        bool binding)
         {
+            string nodeName = binding ? KeyNodeName : SettingNodeName;
             string name = Last(node, "name", modWhere, problems);
             if (name == null)
             {
-                problems.Add(modWhere + ": a " + SettingNodeName + " without a name -- left out.");
+                problems.Add(modWhere + ": a " + nodeName + " without a name -- left out.");
                 return;
             }
-            string where = modWhere + ", setting '" + name + "'";
+            string where = modWhere + ", " + (binding ? "binding '" : "setting '") + name + "'";
             if (!IsId(name, true))
             {
                 problems.Add(where + ": the name may hold only letters, digits, _ and . -- left out.");
                 return;
             }
 
-            SettingRegistration setting = new SettingRegistration { Name = name };
+            SettingRegistration setting = new SettingRegistration { Name = name, IsBinding = binding };
             setting.Behaviour = Last(node, "behaviour", where, problems);
             setting.Member = Last(node, "member", where, problems);
             setting.LeftOut = Text(Last(node, "leftOut", where, problems));
@@ -431,7 +451,21 @@ namespace ReDefinition.Framework
             setting.Tooltip = Text(Last(node, "tooltip", where, problems)) ?? "";
             setting.Default = Last(node, "default", where, problems);
 
-            string kind = Last(node, "kind", where, problems);
+            if (binding)
+            {
+                // The profiles set quality, and a binding is none of it.
+                setting.Kind = SettingKind.Other;
+                setting.Modifier1 = Last(node, "modifier1", where, problems);
+                setting.Modifier2 = Last(node, "modifier2", where, problems);
+                if (setting.Modifier2 != null && setting.Modifier1 == null)
+                    problems.Add(where + ": modifier2 without modifier1 -- the second modifier is ignored.");
+                if (setting.Default != null && !KeyCombination.IsText(setting.Default))
+                {
+                    problems.Add(where + ": default '" + setting.Default + "' is no key binding -- left out.");
+                    return;
+                }
+            }
+            string kind = binding ? null : Last(node, "kind", where, problems);
             if (kind != null)
             {
                 SettingKind parsed;
@@ -445,6 +479,8 @@ namespace ReDefinition.Framework
                 if (TryTab(row, out parsed)) setting.Row = parsed;
                 else problems.Add(where + ": row '" + row + "' is not " + TabNames + " -- ignored.");
             }
+            // Every binding has a row, in the Keys tab unless it is placed elsewhere.
+            if (binding && setting.Row == null) setting.Row = SettingCategory.Keys;
             string order = Last(node, "order", where, problems);
             if (order != null)
             {
@@ -460,11 +496,13 @@ namespace ReDefinition.Framework
                 else problems.Add(where + ": takesEffect '" + effect + "' is not Live, NextScene or Restart -- ignored.");
             }
 
-            ReadSlider(setting, node, where, problems);
-            ReadChoices(setting, node, where, problems);
-
-            setting.Whole = Bool(node, "whole", where, problems);
-            setting.Invert = Bool(node, "invert", where, problems) ?? false;
+            if (!binding)
+            {
+                ReadSlider(setting, node, where, problems);
+                ReadChoices(setting, node, where, problems);
+                setting.Whole = Bool(node, "whole", where, problems);
+                setting.Invert = Bool(node, "invert", where, problems) ?? false;
+            }
             setting.PerSave = Bool(node, "perSave", where, problems);
             // `optional = False` is no reason: the same as none.
             string optional = Last(node, "optional", where, problems);
@@ -481,14 +519,14 @@ namespace ReDefinition.Framework
             setting.ShaderGlobal = Last(node, "shaderGlobal", where, problems);
             setting.LeftOutWith = ModName(node, "leftOutWith", where, problems);
             setting.RowUnless = ModName(node, "rowUnless", where, problems);
-            Unknown(node, SettingKeys, where, problems);
+            Unknown(node, binding ? KeyKeys : SettingKeys, where, problems);
             foreach (ConfigNode child in node.GetNodes())
-                problems.Add(where + ": node '" + child.name + "' inside a setting -- ignored.");
+                problems.Add(where + ": node '" + child.name + "' inside a " + nodeName + " -- ignored.");
 
             SettingRegistration earlier = mod.Setting(name);
             if (earlier != null)
             {
-                problems.Add(modWhere + ": setting '" + name + "' twice -- the last one counts.");
+                problems.Add(modWhere + ": '" + name + "' twice -- the last one counts.");
                 mod.Settings.Remove(earlier);
             }
             mod.Settings.Add(setting);
