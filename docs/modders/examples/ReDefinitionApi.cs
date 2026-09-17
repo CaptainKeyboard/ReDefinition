@@ -25,7 +25,7 @@ namespace YourMod
     internal static class ReDefinitionApi
     {
         // The interface version this file was written for (ReDefinition.Api.ApiInfo.Version).
-        internal const int WrittenFor = 1;
+        internal const int WrittenFor = 2;
 
         internal delegate int PassStateFn(int pass, out string status);
 
@@ -162,6 +162,13 @@ namespace YourMod
                    && dispatchInto(buffer, pass, read, write, constants, groupsX, groupsY, groupsZ, nextFrame);
         }
 
+        // Key bindings (ReDefinition.Api.Keys): the key is the mod's id, a dot, and
+        // the name of the KEY block in its registration.
+        internal static string Binding(string key) { Resolve(); return binding != null ? binding(key) : null; }
+        internal static bool KeyPressed(string key) { Resolve(); return keyPressed != null && keyPressed(key); }
+        internal static bool KeyHeld(string key) { Resolve(); return keyHeld != null && keyHeld(key); }
+        internal static bool KeyReleased(string key) { Resolve(); return keyReleased != null && keyReleased(key); }
+
         internal static void DestroyComputePass(int pass) { Resolve(); if (destroyComputePass != null) destroyComputePass(pass); }
         internal static void ReleaseTexture(RenderTexture texture) { Resolve(); if (releaseTexture != null) releaseTexture(texture); }
 
@@ -183,6 +190,8 @@ namespace YourMod
         private static PassStateFn computePassState;
         private static Func<int, RenderTexture[], RenderTexture[], byte[], int, int, int, bool, bool> dispatch;
         private static Func<CommandBuffer, int, RenderTexture[], RenderTexture[], byte[], int, int, int, bool, bool> dispatchInto;
+        private static Func<string, string> binding;
+        private static Func<string, bool> keyPressed, keyHeld, keyReleased;
         private static Action<int> destroyComputePass;
         private static Action<RenderTexture> releaseTexture;
 
@@ -270,6 +279,11 @@ namespace YourMod
                 assembly, "D3D12", "Dispatch");
             dispatchInto = Bind<Func<CommandBuffer, int, RenderTexture[], RenderTexture[], byte[], int, int, int, bool, bool>>(
                 assembly, "D3D12", "DispatchInto");
+            binding = Bind<Func<string, string>>(assembly, "Keys", "Binding");
+            keyPressed = Bind<Func<string, bool>>(assembly, "Keys", "Pressed");
+            keyHeld = Bind<Func<string, bool>>(assembly, "Keys", "Held");
+            keyReleased = Bind<Func<string, bool>>(assembly, "Keys", "Released");
+
             destroyComputePass = Bind<Action<int>>(assembly, "D3D12", "DestroyComputePass");
             releaseTexture = Bind<Action<RenderTexture>>(assembly, "D3D12", "ReleaseTexture");
         }

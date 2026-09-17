@@ -12,7 +12,7 @@ namespace ReDefinition
     // docs/development/shared-foundation.md.
     internal static class SharedFrame
     {
-        internal const int InterfaceVersion = 1;
+        internal const int InterfaceVersion = 2;
 
         // In a class of their own, initialised when the first frame begins: the state's
         // properties are read outside Unity too (tests), where PropertyToID cannot run.

@@ -103,6 +103,40 @@ gets no row. A member of any other type cannot be set from a config file's text
 and is left out, with the reason in the log -- as is a setting whose `default` is
 no value of its member's type.
 
+## A key binding
+
+A `KEY` block beside the `SETTING` blocks is a key binding: it stands in the
+settings window's *Keys* tab, beside ReDefinition's own bindings, the other mods'
+and KSP's, and the player sets it there with up to two modifiers and one key.
+
+```
+KEY
+{
+    name = window
+    title = MyMod's window
+    tooltip = Opens MyMod's own window.
+    default = LeftAlt+M
+    takesEffect = Live
+}
+```
+
+| Key | Needed | Left out | What it does |
+|---|---|---|---|
+| `name` | yes | -- | As a setting's: the second part of the binding's key, `<mod>.<name>`. |
+| `member` | no | ReDefinition keeps the binding | Where your mod keeps the key: a `KeyCode`, or its name as text. Without it, ReDefinition keeps the binding and your mod asks `ReDefinition.Api.Keys` whether it is pressed ([shared-foundation.md](shared-foundation.md)). |
+| `modifier1`, `modifier2` | no | -- | Where your mod keeps the modifiers, when it keeps them apart from the key. |
+| `modifiers` | no | `any` | `any`: your mod takes either modifier member; `all`: it asks for both at once, and one modifier then goes into both. |
+| `title`, `tooltip`, `default`, `order`, `takesEffect`, `optional`, `required`, `leftOut`, `behaviour`, `perSave` | no | -- | As for a setting. `default` is written as the window shows it: `LeftAlt+F10`, `F11`, `None`. |
+| `row` | no | `Keys` | Another tab, where a binding belongs beside a feature's rows. |
+
+A binding is never set by a graphics profile: profiles set quality, and a key is
+the player's. *Reset to defaults* puts it back to `default`, and *Restore settings
+from before ReDefinition* to what your mod had.
+
+The keys a binding can hold: the keyboard, and the mouse from its third button on
+-- the left and right buttons are the game's own. KSP's own bindings hold one key
+and no modifier, as KSP keeps them.
+
 ## Member paths
 
 A member path is written as in C#, from the full name of a type:

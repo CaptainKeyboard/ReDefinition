@@ -188,6 +188,24 @@ name when it changes.
 For a mod's settings in ReDefinition's window and profiles:
 [registering-a-mod.md](registering-a-mod.md).
 
+## Key bindings
+
+A binding declared in your registration (`KEY`, [registering-a-mod.md](registering-a-mod.md))
+is the player's to set in ReDefinition's *Keys* tab. Where your mod keeps no key of its
+own, it asks here:
+
+| Member | Answers |
+|---|---|
+| `Keys.Binding(key)` | the binding as text -- `LeftAlt+F10`, `F11`, `None` -- or null where no binding of that key is registered |
+| `Keys.Pressed(key)` | the key went down this frame, with exactly the binding's modifiers |
+| `Keys.Held(key)` | it is held |
+| `Keys.Released(key)` | it went up this frame |
+
+`key` is your mod's id in its registration, a dot, and the `KEY` block's name:
+`mymod.window`. Another modifier held means another binding is meant, so `F10` does not
+answer while `Alt+F10` is pressed. While the player is setting a binding in the window,
+none of them answers.
+
 ## Direct3D 12
 
 Compute passes on the Direct3D 12 device of ReDefinition's `dxgi.dll`, on Unity's

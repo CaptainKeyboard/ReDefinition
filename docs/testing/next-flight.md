@@ -19,6 +19,20 @@ read, nothing has to be looked up in them during play.
 | Click a building | it opens |
 | Pause menu, *Settings* | a *ReDefinition* section at the end of the graphics part |
 
+## Keys
+
+| Do | See |
+|---|---|
+| Open the *Keys* tab | ReDefinition's four bindings, the installed mods' and KSP's own in groups |
+| Type "camera" into the search field | only the rows whose name or mod holds it |
+| Click *Upscaler on or off*, press `RightAlt` + `P` | the row says it is listening, then shows `RightAlt+P`; pressing it in flight switches the upscaler |
+| Click a row and press Escape | the binding stays as it was |
+| Click *x* beside a row | the row shows *None*, and that key does nothing afterwards |
+| Set two rows to the same combination | both are shown in yellow, and both still work |
+| Set KSP's *Pitch down* to `K`, *Accept*, launch | the vessel pitches on `K` |
+| Press a binding while a row is listening | nothing happens in the game |
+| *Reset to defaults*, *Accept* | every binding stands at its default again, KSP's included |
+
 ## Flight
 
 Play normally for a few minutes: launch, staging, the map and back, IVA and back, a

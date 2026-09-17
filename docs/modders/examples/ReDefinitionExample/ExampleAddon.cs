@@ -13,8 +13,12 @@ namespace ReDefinitionExample
     //     the scene and kept out of frame generation;
     //   * a compute pass after the upscaler: ExampleEffect.hlsl, compiled by ReDefinition,
     //     darkens the upscaled image towards its edges on the Direct3D 12 device;
-    //   * a camera cut: Right Ctrl + Right Shift + J puts the flight camera back to its
-    //     start distance at once and reports the jump, and every history reset is logged.
+    //   * a camera cut on a key the player sets: the binding stands in this mod's
+    //     registration (ReDefinitionExample.cfg) and in ReDefinition's Keys tab, and it puts
+    //     the flight camera back to its start distance at once, reporting the jump. Without
+    //     ReDefinition the mod keeps its own key.
+    //
+    // Every history reset is logged.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ExampleAddon : MonoBehaviour
     {
@@ -71,9 +75,13 @@ namespace ReDefinitionExample
                 Debug.LogWarning(Tag + " No compute pass: " + ReDefinitionApi.D3D12LastRefusal);
         }
 
+        // The binding's key: this mod's id in its registration, a dot, and the KEY
+        // block's name.
+        private const string CameraCutKey = "redefinitionexample.cameraCut";
+
         private void Update()
         {
-            if (!Input.GetKey(KeyCode.RightControl) || !Input.GetKey(KeyCode.RightShift) || !Input.GetKeyDown(KeyCode.J))
+            if (!CutPressed())
                 return;
             FlightCamera camera = FlightCamera.fetch;
             if (camera == null)
@@ -81,6 +89,16 @@ namespace ReDefinitionExample
             // Update runs before any camera culls: the reset reaches every mod in this frame.
             camera.SetDistanceImmediate(camera.startDistance);
             ReDefinitionApi.RequestHistoryReset("ReDefinitionExample put the flight camera back to its start distance");
+        }
+
+        // With ReDefinition the player's binding, which its settings window sets; without it
+        // this mod's own key.
+        private bool CutPressed()
+        {
+            if (ReDefinitionApi.Installed)
+                return ReDefinitionApi.KeyPressed(CameraCutKey);
+            return Input.GetKey(KeyCode.RightControl) && Input.GetKey(KeyCode.RightShift)
+                   && Input.GetKeyDown(KeyCode.J);
         }
 
         private void DrawOverlay(CommandBuffer buffer, Camera scene)

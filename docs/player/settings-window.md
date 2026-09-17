@@ -9,13 +9,14 @@ setting does. A mod that is not installed has no rows.
 * **ReDefinition's toolbar button**, in every scene including the main menu.
 * **KSP's own settings dialog** (*Settings* in the pause menu of flight and of the
   space centre): a *ReDefinition* section at the end of its graphics part.
-* **Hotkeys** on the right-hand side of the keyboard:
+* **Hotkeys**, as they come and as the *Keys* tab sets them:
 
 | Keys | Does |
 |---|---|
 | `RightCtrl` + `RightShift` + `U` | upscaler on or off |
 | `RightCtrl` + `RightShift` + `K` | diagnostics window open or closed |
 | `RightCtrl` + `RightShift` + `N` | camera list into `KSP.log` |
+| not bound | this window open or closed |
 
 The window is built from KSP's own dialog elements, so a UI theme such as ZTheme
 themes it. It edits copies: *Apply* sets what was changed, *Accept* sets it and
@@ -31,6 +32,7 @@ the scene behind it.
 | **Shadows and reflections** | KSP's shadow cascades, Scatterer's long-distance terrain shadows, Deferred's screen-space reflections |
 | **Planets** | EVE's volumetric cloud upscaling, cloud ambience and thunder volume; Scatterer's light shafts through clouds, ocean and waves moving vessels; KSP's terrain detail; Parallax's scatter density and scatter collisions |
 | **Effects** | KSP's aerodynamic FX (while Firefly is not installed), Firefly's re-entry particles, Waterfall's plume lights and heat distortion, Scatterer's sun flare, Distant Object's flares, names on flares and distant vessels |
+| **Keys** | every key binding: ReDefinition's own, the bundled mods' and KSP's, with a search field above them |
 | **Mods and toolbar** | *Bundle other mods here*, the list of bundled mods, and *Restore settings from before ReDefinition* |
 
 The *Diagnostics* button at the end of the tab row opens the diagnostics window.
@@ -46,6 +48,25 @@ rows; a change made here shows there once applied.
 
 **The upscaler and frame generation** can be changed only while a graphics profile is
 chosen.
+
+## Key bindings
+
+The *Keys* tab holds every binding in one place: ReDefinition's own hotkeys, the
+bindings of the bundled mods, and KSP's own, in the groups KSP sorts them into.
+The search field at the top filters the rows by their name or their mod.
+
+Click a binding, and the row says it is listening: the next combination is taken,
+up to two modifiers and one key. Escape cancels, and *x* beside it clears the
+binding. As everywhere in this window, *Apply* or *Accept* sets what was changed
+and *Cancel* leaves it.
+
+KSP keeps two keys per binding, a first and a second, and one key each without a
+modifier -- its own modifier key is a binding of its own. The mods' and
+ReDefinition's own take modifiers.
+
+Where two rows hold the same combination, both are shown in yellow. Nothing is
+refused: KSP's bindings that never count at the same time -- one in flight, one in
+the editor -- are no conflict and stay unmarked.
 
 ## Where a change goes
 

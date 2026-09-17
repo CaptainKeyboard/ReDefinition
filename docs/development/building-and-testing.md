@@ -54,6 +54,7 @@ build does:
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_bundled_mods.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_profile_parser.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_key_bindings.ps1
 ```
 
 **`check_bundled_mods.ps1`** loads the installed mods' assemblies and the built DLL,
@@ -69,6 +70,11 @@ and builds `docs/modders/examples` and any registration in the installed `GameDa
 
 **`check_profile_parser.ps1`** feeds the profile and registration readers from the built
 DLL with nodes holding one mistake of each kind, and checks what they make of it.
+
+**`check_key_bindings.ps1`** reads the key bindings from the built DLL: the texts the
+mods and KSP write, every `KEY` block of the shipped registrations with its default, and
+KSP's own bindings in `GameSettings` -- that they are the shape the Keys tab reads, and
+that every one of them has a name for its row.
 
 Reflection from PowerShell into KSP's assemblies has two traps, both handled in the
 scripts: an `AssemblyResolve` handler must use only `[IO.File]`/`[IO.Path]` and guard
