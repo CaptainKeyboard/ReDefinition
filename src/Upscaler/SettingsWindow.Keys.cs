@@ -105,60 +105,119 @@ namespace ReDefinition
                     return text;
                 }, 160f, RowHeight + 6f)));
 
+            // Every binding by its section: ReDefinition's and the mods' under Mods
+            // unless a registration names another (its KEY block's `group`), KSP's
+            // under its groups. Mods first, then KSP's groups, then sections of the
+            // mods' own.
+            sectionMembers.Clear();
+            Dictionary<string, List<Func<DialogGUIBase>>> sections = new Dictionary<string, List<Func<DialogGUIBase>>>(
+                StringComparer.OrdinalIgnoreCase);
+            List<string> order = new List<string> { BundledSetting.ModsGroup };
+            order.AddRange(KspKeyBindings.GroupOrderNames());
+
             foreach (ModuleSetting setting in OurModules.Rows(SettingCategory.Keys))
-                rows.Add(OwnBindingRow(setting));
+            {
+                ModuleSetting own = setting;
+                AddToSection(sections, order, BundledSetting.ModsGroup, own.Title, "ReDefinition",
+                    () => OwnBindingRow(own));
+            }
+            foreach (BundledSetting setting in WindowLayout.In(SettingCategory.Keys))
+            {
+                if (setting.Control != SettingControl.Binding) continue;
+                BundledSetting bundled = setting;
+                shownKeys.Add(bundled.Key);
+                AddToSection(sections, order, bundled.Group, bundled.Title, bundled.Owner.ModName,
+                    () => BundledBindingRow(bundled));
+            }
+            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
+            {
+                KspKeyBindings.Binding ksp = binding;
+                AddToSection(sections, order, ksp.Group, ksp.Title, "KSP", () => KspBindingRow(ksp));
+            }
+
+            foreach (string name in order)
+            {
+                List<Func<DialogGUIBase>> members;
+                if (!sections.TryGetValue(name, out members) || members.Count == 0) continue;
+                string section = SectionName(name);
+                rows.Add(GroupHeader(section, members.Count));
+                foreach (Func<DialogGUIBase> build in members)
+                {
+                    DialogGUIBase row = build();
+                    Func<bool> matches = row.OptionEnabledCondition;
+                    row.OptionEnabledCondition = () => GroupOpen(section) && (matches == null || matches());
+                    rows.Add(row);
+                }
+            }
             return rows.ToArray();
         }
 
-        // KSP's own bindings, after ReDefinition's and the mods'. They are edited
-        // here and written on Apply, as everything else in this window is.
+        // What a search looks through, per section: each row's name and where it
+        // comes from.
+        private static readonly Dictionary<string, List<string[]>> sectionMembers =
+            new Dictionary<string, List<string[]>>(StringComparer.OrdinalIgnoreCase);
+
+        private static void AddToSection(Dictionary<string, List<Func<DialogGUIBase>>> sections, List<string> order,
+                                         string section, string title, string owner, Func<DialogGUIBase> build)
+        {
+            string name = string.IsNullOrEmpty(section) ? BundledSetting.ModsGroup : section;
+            List<Func<DialogGUIBase>> members;
+            if (!sections.TryGetValue(name, out members))
+            {
+                members = new List<Func<DialogGUIBase>>();
+                sections[name] = members;
+                if (!order.Exists(known => string.Equals(known, name, StringComparison.OrdinalIgnoreCase)))
+                    order.Add(name);
+            }
+            members.Add(build);
+
+            string key = SectionName(name);
+            List<string[]> names;
+            if (!sectionMembers.TryGetValue(key, out names))
+            {
+                names = new List<string[]>();
+                sectionMembers[key] = names;
+            }
+            names.Add(new[] { title, owner });
+        }
+
+        // A section as its header shows it: KSP's own spelling where it is one of
+        // KSP's groups, whatever case a registration wrote.
+        private static string SectionName(string name)
+        {
+            if (string.Equals(name, BundledSetting.ModsGroup, StringComparison.OrdinalIgnoreCase))
+                return BundledSetting.ModsGroup;
+            foreach (string known in KspKeyBindings.GroupOrderNames())
+                if (string.Equals(known, name, StringComparison.OrdinalIgnoreCase)) return known;
+            return name;
+        }
+
+        // KSP's own bindings are edited here and written on Apply, as everything
+        // else in this window is.
         private static readonly Dictionary<string, string> kspPending = new Dictionary<string, string>();
 
-        // KSP's groups, each folded until it is opened: a row of a folded group is
-        // inactive, and costs nothing while the window is dragged -- all of KSP's
-        // rows at once are about a thousand elements, which Unity would lay out
-        // again for every step of a drag. A search shows its matches in every
-        // group. Kept open for the run, as the player left them.
-        private static readonly HashSet<string> openGroups = new HashSet<string>();
+        // The sections, each folded until it is opened -- Mods open at first: a row
+        // of a folded section is inactive, and costs nothing while the window is
+        // dragged. All of KSP's rows at once are about a thousand elements, which
+        // Unity would lay out again for every step of a drag. A search shows its
+        // matches in every section. Kept as the player left them for the run.
+        private static readonly HashSet<string> openGroups =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { BundledSetting.ModsGroup };
 
-        private static DialogGUIBase[] KspKeyRows()
-        {
-            List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            Dictionary<string, int> counts = new Dictionary<string, int>();
-            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
-            {
-                int count;
-                counts.TryGetValue(binding.Group, out count);
-                counts[binding.Group] = count + 1;
-            }
-
-            string group = null;
-            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
-            {
-                if (binding.Group != group)
-                {
-                    group = binding.Group;
-                    rows.Add(GroupHeader(group, counts[group]));
-                }
-                rows.Add(KspBindingRow(binding));
-            }
-            return rows.ToArray();
-        }
-
-        // A group's header: a button that opens and folds it, with how many
+        // A section's header: a button that opens and folds it, with how many
         // bindings it holds.
         private static DialogGUIBase GroupHeader(string group, int count)
         {
             string title = group;
-            string folded = "+  KSP: " + title + " (" + count + ")";
-            string open = "-  KSP: " + title + " (" + count + ")";
+            string folded = "+  " + title + " (" + count + ")";
+            string open = "-  " + title + " (" + count + ")";
             DialogGUIButton header = new DialogGUIButton(() => GroupOpen(title) ? open : folded, () =>
             {
                 if (!openGroups.Remove(title)) openGroups.Add(title);
             }, PageWidth - 60f, RowHeight + 6f, false);
             header.OptionEnabledCondition = () => GroupShown(title);
             header.OptionInteractableCondition = () => keySearch.Length == 0;
-            header.tooltipText = "Opens or folds KSP's " + title + " bindings. A search shows its matches in every group.";
+            header.tooltipText = "Opens or folds the " + title + " bindings. A search shows its matches in every section.";
             return header;
         }
 
@@ -171,7 +230,7 @@ namespace ReDefinition
         private static string groupsShownFor;
         private static readonly HashSet<string> groupsShown = new HashSet<string>();
 
-        // A group's title stands only while one of its rows does.
+        // A section's title stands only while one of its rows does.
         private static bool GroupShown(string group)
         {
             if (keySearch.Length == 0) return true;
@@ -179,8 +238,15 @@ namespace ReDefinition
             {
                 groupsShownFor = keySearch;
                 groupsShown.Clear();
-                foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
-                    if (MatchesSearch(binding.Title, "KSP")) groupsShown.Add(binding.Group);
+                foreach (KeyValuePair<string, List<string[]>> section in sectionMembers)
+                {
+                    foreach (string[] member in section.Value)
+                    {
+                        if (!MatchesSearch(member[0], member[1])) continue;
+                        groupsShown.Add(section.Key);
+                        break;
+                    }
+                }
             }
             return groupsShown.Contains(group);
         }
@@ -194,7 +260,7 @@ namespace ReDefinition
                 TextAnchor.MiddleLeft, new DialogGUILabel(shown.Title, KeyNameWidth), first, new DialogGUISpace(6f),
                 second, new DialogGUISpace(4f),
                 new DialogGUILabel("<color=#9a9a9a>KSP</color>", KeySourceWidth));
-            row.OptionEnabledCondition = () => GroupOpen(shown.Group) && MatchesSearch(shown.Title, "KSP");
+            row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "KSP");
             return row;
         }
 
@@ -209,14 +275,15 @@ namespace ReDefinition
                 string pending;
                 return kspPending.TryGetValue(key, out pending) ? pending : shown.Read(second);
             });
-            Conflicts.Register(key, current, shown.Modes);
+            Conflicts.Register(key, current, shown.Situations, shown.Modes, () => shown.Default(second));
 
             Func<string> label = () => KeyCapture.Listening(key) ? ListeningText : BindingLabel(key, current());
+            // Any key, a modifier among them: KSP binds LeftShift to the throttle.
             DialogGUIButton take = new DialogGUIButton(label, () => KeyCapture.Start(key, text =>
             {
                 kspPending[key] = text;
                 KeysChanged();
-            }), BindingWidth, RowHeight + 4f, false);
+            }, true), BindingWidth, RowHeight + 4f, false);
             take.tooltipText = (second ? "The second key for " : "The key for ") + shown.Title
                                + ".\nKSP keeps one key per binding; its own modifier key is a binding of its own."
                                + "\nClick, then press the key. Escape cancels; x clears it.";
@@ -301,7 +368,7 @@ namespace ReDefinition
             string key = "redefinition." + shown.Key;
             Func<string> text = () => CachedText(key, () => shown.Read(edit.After));
             DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, "ReDefinition", text,
-                value => shown.Write(edit.After, value), () => true, 2);
+                value => shown.Write(edit.After, value), () => true, 2, KspKeyBindings.Everywhere);
             row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "ReDefinition");
             return row;
         }
@@ -318,9 +385,11 @@ namespace ReDefinition
                 string pending;
                 return model.TryGetPending(key, out pending) ? pending : KeyCombination.NoneText;
             });
+            // Placed in one of KSP's groups, it counts where that group does.
             DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, shown.Owner.ModName, text,
                 value => model.Change(key, value),
-                () => model.Bundled && model.HasPending(key), shown.MaxModifiers);
+                () => model.Bundled && model.HasPending(key), shown.MaxModifiers,
+                KspKeyBindings.SituationsOfGroup(shown.Group));
             row.OptionEnabledCondition = () => MatchesSearch(shown.Title, shown.Owner.ModName);
             return row;
         }
@@ -340,10 +409,9 @@ namespace ReDefinition
         // comes from.
         private static DialogGUIBase BindingRow(string key, string title, string tooltip, string owner,
                                                 Func<string> current, Action<string> set, Func<bool> changeable,
-                                                int maxModifiers)
+                                                int maxModifiers, int situations)
         {
-            // ReDefinition's and the mods' bindings count in every situation.
-            Conflicts.Register(key, current, -1);
+            Conflicts.Register(key, current, situations, -1, null);
             Action<string> write = text =>
             {
                 set(text);

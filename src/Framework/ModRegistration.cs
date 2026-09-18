@@ -53,6 +53,9 @@ namespace ReDefinition.Framework
         // A KEY block: the member holds a key, and the modifiers may live in
         // members of their own.
         public bool IsBinding;
+        // The Keys tab's section: one of KSP's -- Flight, EVA, Editor, Camera, Map
+        // and vessels, General -- or a name of the mod's own; null is Mods.
+        public string KeyGroup;
         public string Modifier1;
         public string Modifier2;
         // Whether the mod asks for every modifier member at once (Deferred) rather
@@ -210,8 +213,8 @@ namespace ReDefinition.Framework
         // modifiers in members of their own, as Scatterer does.
         private static readonly string[] KeyKeys =
         {
-            "name", "member", "modifier1", "modifier2", "modifiers", "title", "tooltip", "default", "row", "order",
-            "takesEffect", "optional", "after", "perSave", "leftOutWith", "rowUnless", "behaviour", "leftOut",
+            "name", "member", "modifier1", "modifier2", "modifiers", "group", "title", "tooltip", "default", "row",
+            "order", "takesEffect", "optional", "after", "perSave", "leftOutWith", "rowUnless", "behaviour", "leftOut",
             "required",
         };
 
@@ -462,6 +465,8 @@ namespace ReDefinition.Framework
             {
                 // The profiles set quality, and a binding is none of it.
                 setting.Kind = SettingKind.Other;
+                // The section of the Keys tab it stands in: Mods where none is named.
+                setting.KeyGroup = Text(Last(node, "group", where, problems));
                 setting.Modifier1 = Last(node, "modifier1", where, problems);
                 setting.Modifier2 = Last(node, "modifier2", where, problems);
                 if (setting.Modifier2 != null && setting.Modifier1 == null)

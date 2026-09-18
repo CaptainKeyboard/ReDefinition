@@ -5,13 +5,15 @@ using UnityEngine;
 
 namespace ReDefinition
 {
-    // Which bindings in the Keys tab share a combination.
+    // Which bindings in the Keys tab share a combination in the same situation.
     //
-    // KSP's own bindings carry a modeMask: in which situations they count
-    // (settings.cfg). Two that never count at the same time are no conflict --
-    // the same key stages a vessel in flight and does something else in the
-    // editor. A binding of ReDefinition or of a mod counts everywhere, so it
-    // shares with anything that holds the same combination.
+    // A binding counts in situations -- flying a vessel, on EVA, in the editor, in
+    // map view (KspKeyBindings): B brakes a vessel and boards one on EVA, and the
+    // two never meet. Within flight KSP's switchState tells modes apart as well:
+    // Space stages, and in docking mode switches translation and rotation. Two
+    // bindings KSP itself ships on the same key -- W pitches and drives a rover --
+    // are KSP's choice, not the player's, and are not marked while both stand
+    // at KSP's default. A binding of ReDefinition or of a mod counts everywhere.
     //
     // Nothing is refused: a shared combination is shown in yellow, and the player
     // decides.
@@ -21,7 +23,10 @@ namespace ReDefinition
         {
             public string Key;
             public Func<string> Text;
+            public int Situations;
             public int Modes;
+            // What KSP ships for it; null for a binding that is not KSP's.
+            public Func<string> Shipped;
         }
 
         private static readonly List<Entry> entries = new List<Entry>();
@@ -31,6 +36,8 @@ namespace ReDefinition
         private static readonly List<string> keysNow = new List<string>();
         private static readonly List<string> textsNow = new List<string>();
         private static readonly List<int> modesNow = new List<int>();
+        private static readonly List<int> situationsNow = new List<int>();
+        private static readonly List<string> shippedNow = new List<string>();
         private static KeyCombination[] parsedNow = new KeyCombination[0];
         private static int countedVersion = int.MinValue;
 
@@ -41,11 +48,11 @@ namespace ReDefinition
             countedVersion = int.MinValue;
         }
 
-        // From the rows as they are built. modes is KSP's modeMask, or -1 for a
-        // binding that counts in every situation.
-        internal static void Register(string key, Func<string> text, int modes)
+        // From the rows as they are built: where the binding counts, KSP's
+        // switchState within flight, or -1, and what KSP ships for one of its own.
+        internal static void Register(string key, Func<string> text, int situations, int modes, Func<string> shipped)
         {
-            entries.Add(new Entry { Key = key, Text = text, Modes = modes });
+            entries.Add(new Entry { Key = key, Text = text, Situations = situations, Modes = modes, Shipped = shipped });
         }
 
         // Counted again only when the rows' version has moved: every row asks in
@@ -63,26 +70,33 @@ namespace ReDefinition
             keysNow.Clear();
             textsNow.Clear();
             modesNow.Clear();
+            situationsNow.Clear();
+            shippedNow.Clear();
             foreach (Entry entry in entries)
             {
                 keysNow.Add(entry.Key);
-                textsNow.Add(Safe(entry));
+                textsNow.Add(Safe(entry.Text));
+                situationsNow.Add(entry.Situations);
                 modesNow.Add(entry.Modes);
+                shippedNow.Add(entry.Shipped != null ? Safe(entry.Shipped) : null);
             }
             sharing.Clear();
-            foreach (string key in Sharing(keysNow, textsNow, modesNow)) sharing.Add(key);
+            foreach (string key in Sharing(keysNow, textsNow, situationsNow, modesNow, shippedNow)) sharing.Add(key);
         }
 
         // Which of the bindings given share a combination with another that counts
-        // in the same situations. Without the game, for the tests.
-        internal static List<string> Sharing(IList<string> keys, IList<string> texts, IList<int> modes)
+        // in the same situation. shipped holds KSP's default of each of its own
+        // bindings, null for the others. Without the game, for the tests.
+        internal static List<string> Sharing(IList<string> keys, IList<string> texts, IList<int> situations,
+                                             IList<int> modes, IList<string> shipped)
         {
             // Parsed once each, not once per pair: the tab holds every one of KSP's
             // bindings. The array grows with the rows and is kept, rather than built
             // again at every count.
             if (parsedNow.Length < keys.Count) parsedNow = new KeyCombination[keys.Count];
             KeyCombination[] combinations = parsedNow;
-            for (int i = 0; i < keys.Count; i++) combinations[i] = KeyCombination.Parse(texts[i]);
+            // Loosely: KSP binds modifiers as keys of their own.
+            for (int i = 0; i < keys.Count; i++) combinations[i] = KeyCombination.ParseLoose(texts[i]);
 
             List<string> shared = new List<string>();
             for (int i = 0; i < keys.Count; i++)
@@ -90,8 +104,9 @@ namespace ReDefinition
                 if (!combinations[i].IsBound) continue;
                 for (int j = i + 1; j < keys.Count; j++)
                 {
-                    if ((modes[i] & modes[j]) == 0) continue;
+                    if ((situations[i] & situations[j]) == 0 || (modes[i] & modes[j]) == 0) continue;
                     if (!combinations[j].Equals(combinations[i])) continue;
+                    if (ShippedTogether(texts[i], shipped[i]) && ShippedTogether(texts[j], shipped[j])) continue;
                     if (!shared.Contains(keys[i])) shared.Add(keys[i]);
                     if (!shared.Contains(keys[j])) shared.Add(keys[j]);
                 }
@@ -99,11 +114,17 @@ namespace ReDefinition
             return shared;
         }
 
-        private static string Safe(Entry entry)
+        // A KSP binding that stands at what KSP ships.
+        private static bool ShippedTogether(string text, string shipped)
+        {
+            return shipped != null && KeyCombination.ParseLoose(text).Equals(KeyCombination.ParseLoose(shipped));
+        }
+
+        private static string Safe(Func<string> read)
         {
             try
             {
-                return entry.Text();
+                return read();
             }
             catch (Exception)
             {

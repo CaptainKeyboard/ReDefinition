@@ -88,6 +88,18 @@ namespace ReDefinition
 
         public static bool Visible { get { return dialog != null; } }
 
+        // Whether a text field of this window -- the Keys tab's search -- has the
+        // keyboard (KeyCapture keeps the game's keys from it meanwhile).
+        internal static bool TextFieldFocused()
+        {
+            if (dialog == null) return false;
+            UnityEngine.EventSystems.EventSystem events = UnityEngine.EventSystems.EventSystem.current;
+            GameObject selected = events != null ? events.currentSelectedGameObject : null;
+            if (selected == null || !selected.transform.IsChildOf(dialog.transform)) return false;
+            TMPro.TMP_InputField field = selected.GetComponent<TMPro.TMP_InputField>();
+            return field != null && field.isFocused;
+        }
+
         public static void Toggle()
         {
             if (Visible) Close();
@@ -260,15 +272,16 @@ namespace ReDefinition
             if (category == SettingCategory.Interface) rows.AddRange(InterfaceRows());
             if (category == SettingCategory.Keys) rows.AddRange(KeyRows());
 
-            foreach (BundledSetting setting in WindowLayout.In(category))
+            // The Keys tab builds its sections itself (KeyRows).
+            foreach (BundledSetting setting in category == SettingCategory.Keys
+                         ? new List<BundledSetting>()
+                         : WindowLayout.In(category))
             {
                 DialogGUIBase row = BundledRow(setting);
                 if (row == null) continue;
                 rows.Add(row);
                 shownKeys.Add(setting.Key);
             }
-            // KSP's own bindings last, after ReDefinition's and the mods'.
-            if (category == SettingCategory.Keys) rows.AddRange(KspKeyRows());
             if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
                 && category != SettingCategory.Keys)
             {

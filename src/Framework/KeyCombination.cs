@@ -182,6 +182,19 @@ namespace ReDefinition.Framework
             return TryParse(text, out combination);
         }
 
+        // A binding as KSP keeps it: one key of any kind, a modifier among them --
+        // THROTTLE_UP is LeftShift -- or a combination as Parse reads it. None where
+        // the text means nothing.
+        public static KeyCombination ParseLoose(string text)
+        {
+            KeyCombination combination;
+            if (TryParse(text, out combination)) return combination;
+            KeyCode key;
+            if (text != null && TryParseKey(text.Trim(), out key) && key != KeyCode.None)
+                return new KeyCombination(key, KeyCode.None, KeyCode.None);
+            return None;
+        }
+
         // What the text means, or None where it means nothing.
         public static KeyCombination Parse(string text)
         {

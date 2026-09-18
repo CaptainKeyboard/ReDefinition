@@ -95,6 +95,10 @@ namespace ReDefinition.Framework
         // modifier beside each of its keys.
         public int MaxModifiers = 2;
 
+        // Binding: the Keys tab's section it stands in (SettingRegistration.KeyGroup).
+        public const string ModsGroup = "Mods";
+        public string Group = ModsGroup;
+
         // Value: the member's type, which a value must parse into.
         public Type ValueType;
 

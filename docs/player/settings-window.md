@@ -51,10 +51,14 @@ chosen.
 
 ## Key bindings
 
-The *Keys* tab holds every binding in one place: ReDefinition's own hotkeys, the
-bindings of the bundled mods, and KSP's own, in the groups KSP sorts them into.
-KSP's groups are folded until one is opened with a click on its title. The search
-field at the top filters the rows by their name or their mod, in every group.
+The *Keys* tab holds every binding in one place, in sections: *Mods* for
+ReDefinition's own hotkeys and the mods' -- a mod can place its bindings in another
+section -- and KSP's own in the groups KSP sorts them into (*Flight*, *EVA*,
+*Editor*, *Camera*, *Map and vessels*, *General*). A section opens and folds with a
+click on its title; *Mods* is open at first. The search field at the top filters
+the rows by their name or their mod, in every section. While the search field has
+the keyboard, no key reaches the game -- W is a letter there, not a pitch -- and
+Enter confirms, Escape cancels.
 
 Click a binding, and the row says it is listening: the next key pressed is taken.
 Escape cancels, and *x* beside it clears the binding. The modifiers are the
@@ -72,9 +76,12 @@ KSP keeps two keys per binding, a first and a second, and one key each without a
 modifier -- its own modifier key is a binding of its own. The mods' and
 ReDefinition's own take modifiers.
 
-Where two rows hold the same combination, both are shown in yellow. Nothing is
-refused: KSP's bindings that never count at the same time -- one in flight, one in
-the editor -- are no conflict and stay unmarked.
+Where two rows hold the same combination in the same situation, both are shown in
+yellow. A binding counts where its section does: flying a vessel (also in map view),
+on EVA, in the editor; *Mods* and *General* count everywhere. B that brakes a vessel
+and B that boards one on EVA never meet and stay unmarked, as do keys KSP itself
+ships twice -- W pitches and drives a rover -- while both stand at KSP's default.
+Nothing is refused.
 
 ## Where a change goes
 

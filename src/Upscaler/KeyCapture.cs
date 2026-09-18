@@ -11,17 +11,26 @@ namespace ReDefinition
     // right Alt at once.
     //
     // While it listens, KSP's controls are locked (InputLockManager), so that the
-    // keys pressed do not stage a vessel or open a scene on the way.
+    // keys pressed do not stage a vessel or open a scene on the way. The same
+    // while a text field in ReDefinition's window has the keyboard -- the search
+    // field: W is a letter there, not a pitch. The field itself takes Enter to
+    // confirm and Escape to cancel, and neither reaches the game.
     internal static class KeyCapture
     {
         private const string LockId = "ReDefinition-key-capture";
 
         private static string listening;
         private static Action<string> take;
+        private static bool anyKey;
         private static bool locked;
         // The frame a combination was taken in: its keys are still down, and the
         // game's controls are unlocked again, so nothing else may act on them.
         private static int takenFrame = -1;
+
+        // The last frame a text field of ReDefinition's window had the keyboard.
+        // Kept one frame longer: Escape and Enter leave the field before this
+        // runs, and KSP must not open its pause menu on the Escape that did.
+        private static int typingFrame = -10;
 
         // The keys that can be bound, once: Unity's KeyCode holds every mouse
         // button and joystick button as well.
@@ -37,11 +46,17 @@ namespace ReDefinition
         // hotkey or a mod reading them would fire on the binding being set.
         internal static bool Busy
         {
-            get { return listening != null || takenFrame == Time.frameCount; }
+            get { return listening != null || takenFrame == Time.frameCount || Typing; }
         }
 
-        // Starts listening for that row; a row already listening stops.
-        internal static void Start(string key, Action<string> taken)
+        private static bool Typing
+        {
+            get { return Time.frameCount <= typingFrame + 1; }
+        }
+
+        // Starts listening for that row; a row already listening stops. With
+        // anyKey a modifier is a key as well: KSP binds LeftShift to the throttle.
+        internal static void Start(string key, Action<string> taken, bool anyKey = false)
         {
             if (Listening(key))
             {
@@ -50,6 +65,7 @@ namespace ReDefinition
             }
             listening = key;
             take = taken;
+            KeyCapture.anyKey = anyKey;
             Lock();
         }
 
@@ -63,10 +79,13 @@ namespace ReDefinition
         // From the add-on's Update, every frame.
         internal static void Poll()
         {
+            if (SettingsWindow.TextFieldFocused()) typingFrame = Time.frameCount;
             if (listening == null)
             {
-                // Not before the frame the combination was taken in is over.
-                if (takenFrame != Time.frameCount) Unlock();
+                // Not before the frame the combination was taken in is over, nor
+                // while a text field has the keyboard.
+                if (Busy) Lock();
+                else Unlock();
                 return;
             }
             Lock();
@@ -77,7 +96,7 @@ namespace ReDefinition
             }
 
             KeyCode pressed = KeyCode.None;
-            foreach (KeyCode key in Candidates())
+            foreach (KeyCode key in anyKey ? AnyCandidates() : Candidates())
             {
                 if (!Input.GetKeyDown(key)) continue;
                 pressed = key;
@@ -92,6 +111,18 @@ namespace ReDefinition
             take = null;
             takenFrame = Time.frameCount;
             if (taken != null) taken(text);
+        }
+
+        // The keys KSP's own bindings can hold: the same, and the modifiers.
+        private static KeyCode[] anyCandidates;
+
+        private static KeyCode[] AnyCandidates()
+        {
+            if (anyCandidates != null) return anyCandidates;
+            List<KeyCode> keys = new List<KeyCode>(Candidates());
+            foreach (KeyCode modifier in KeyCombination.Modifiers) keys.Add(modifier);
+            anyCandidates = keys.ToArray();
+            return anyCandidates;
         }
 
         private static KeyCode[] Candidates()

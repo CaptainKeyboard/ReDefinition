@@ -474,6 +474,7 @@ namespace ReDefinition.Framework
                 read, write);
             setting.Control = SettingControl.Binding;
             setting.Kind = SettingKind.Other;
+            if (!string.IsNullOrEmpty(entry.KeyGroup)) setting.Group = entry.KeyGroup;
             if (registration.Saving == SettingsSaving.PerSave && entry.PerSave != false) setting.Context = LoadedSave;
             if (behaviour != null) behaviour.Finish(this, setting, entry);
         }

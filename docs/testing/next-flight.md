@@ -25,6 +25,9 @@ read, nothing has to be looked up in them during play.
 |---|---|
 | Open the *Keys* tab | ReDefinition's four bindings, the installed mods' and KSP's own in groups |
 | Type "camera" into the search field | only the rows whose name or mod holds it |
+| In flight, click the search field and type `wasd` | the letters appear; the vessel does not move |
+| Press Escape in the search field | the field lets go; KSP's pause menu does not open |
+| Open *Mods* and *EVA* | ReDefinition's, Scatterer's and Deferred's keys under *Mods*; *B* under *EVA* is not yellow, though *Brakes* under *Flight* is *B* too |
 | Click *Upscaler on or off*, press `P` | the row says it is listening, then shows `P`; its *Ctrl* and *Shift* switches keep what they held |
 | Click *Alt* beside it twice | *L Alt*, then *R Alt*; `AltGr` + `P` in flight then switches the upscaler |
 | Click a row and press Escape | the binding stays as it was |

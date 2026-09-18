@@ -127,6 +127,7 @@ KEY
 | `member` | no | ReDefinition keeps the binding | Where your mod keeps the key: a `KeyCode`, or its name as text. Without it, ReDefinition keeps the binding and your mod asks `ReDefinition.Api.Keys` whether it is pressed ([shared-foundation.md](shared-foundation.md)). |
 | `modifier1`, `modifier2` | no | -- | Where your mod keeps the modifiers, when it keeps them apart from the key. |
 | `modifiers` | no | `any` | `any`: your mod takes either modifier member; `all`: it asks for both at once, and one modifier then goes into both. |
+| `group` | no | `Mods` | The section of the *Keys* tab it stands in: one of KSP's -- `Flight`, `EVA`, `Editor`, `Camera`, `Map and vessels`, `General` -- or a name of your own. In one of KSP's it counts where that group does when two bindings are compared; in `Mods` or a section of your own, everywhere. |
 | `title`, `tooltip`, `default`, `order`, `takesEffect`, `optional`, `required`, `leftOut`, `behaviour`, `perSave` | no | -- | As for a setting. `default` is written as the window shows it: `LeftAlt+F10`, `F11`, `None`. |
 | `row` | no | `Keys` | Another tab, where a binding belongs beside a feature's rows. |
 
