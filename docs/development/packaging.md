@@ -44,7 +44,11 @@ file is read through `$vref: '#/ckan/ksp-avc'`.
   `build/GameData/ReDefinition/ReDefinition.version` from the project's version
   and copies it, the DLL and the repository's static `GameData` files (the
   profiles and the registrations) into the game. The KSP range is 1.12.5 to 1.12.5.
-  The version file has no `URL` or `DOWNLOAD`: there is no public home to point at.
+  The version file carries `URL` -- its copy on the repository's `main` branch, which
+  KSP-AVC compares with the installed one -- `DOWNLOAD` (the latest GitHub release) and
+  `CHANGE_LOG_URL` (`CHANGELOG.md` on `main`). The build writes that copy into the
+  repository root as well; the release package refuses a working tree that differs
+  from `HEAD`, so a version goes out only with its copy committed.
 * **The player package is built on request:**
 
   ```

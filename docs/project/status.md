@@ -35,7 +35,6 @@ What to try in the game, and what counts as right:
 | Interface for mods | The hooks and the frame's state in the game; raytracing and mask contributions | [development/shared-foundation.md](../development/shared-foundation.md) |
 | Compatibility | Ghosting behind plumes; thin trajectory lines; Singularity in the smaller modes; Kerbal Frame Generator installed | [reference/graphics-mod-compatibility.md](../reference/graphics-mod-compatibility.md), "Open" |
 | Modders | Settings that need code of their own can be bundled only through a behaviour in ReDefinition; choices read from a mod's own list need one too | a mod that needs it |
-| Release | The version file's `URL` and `DOWNLOAD` for the update check | [development/packaging.md](../development/packaging.md) |
 
 ## Settled
 

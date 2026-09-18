@@ -142,15 +142,23 @@
   </Target>
 
   <!-- The KSP-AVC version file, generated from the project's version, as
-       KSPCommunityFixes generates its own (KSPBuildTools). KSP 1.12.5 only. No
-       URL or DOWNLOAD: the project has no public home. -->
+       KSPCommunityFixes generates its own (KSPBuildTools). KSP 1.12.5 only.
+       URL is the copy on the repository's main branch, which KSP-AVC compares
+       with the installed one: the build writes it into the repository root as
+       well, and the release package refuses a working tree that differs from
+       HEAD, so a version is released only with its copy committed. -->
   <Target Name="GenerateVersionFile" AfterTargets="Build">
     <PropertyGroup>
       <_AvcDir>$(OutputPath)GameData\$(ModName)</_AvcDir>
+      <_AvcHome>https://github.com/CaptainKeyboard/$(ModName)</_AvcHome>
+      <_AvcRaw>https://raw.githubusercontent.com/CaptainKeyboard/$(ModName)/main</_AvcRaw>
     </PropertyGroup>
     <ItemGroup>
       <_AvcLine Include="{" />
       <_AvcLine Include="&quot;NAME&quot;: &quot;$(ModName)&quot;," />
+      <_AvcLine Include="&quot;URL&quot;: &quot;$(_AvcRaw)/$(ModName).version&quot;," />
+      <_AvcLine Include="&quot;DOWNLOAD&quot;: &quot;$(_AvcHome)/releases/latest&quot;," />
+      <_AvcLine Include="&quot;CHANGE_LOG_URL&quot;: &quot;$(_AvcRaw)/CHANGELOG.md&quot;," />
       <_AvcLine Include="&quot;VERSION&quot;: &quot;$(Version)&quot;," />
       <_AvcLine Include="&quot;KSP_VERSION&quot;: &quot;1.12.5&quot;," />
       <_AvcLine Include="&quot;KSP_VERSION_MIN&quot;: &quot;1.12.5&quot;," />
@@ -159,6 +167,8 @@
     </ItemGroup>
     <MakeDir Directories="$(_AvcDir)" />
     <WriteLinesToFile File="$(_AvcDir)\$(ModName).version" Lines="@(_AvcLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <WriteLinesToFile File="$(MSBuildThisFileDirectory)..\$(ModName).version" Lines="@(_AvcLine)" Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
   </Target>
 
   <Target Name="DeployToGameData" AfterTargets="Build" DependsOnTargets="GenerateVersionFile"
