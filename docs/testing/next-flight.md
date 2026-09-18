@@ -25,10 +25,12 @@ read, nothing has to be looked up in them during play.
 |---|---|
 | Open the *Keys* tab | ReDefinition's four bindings, the installed mods' and KSP's own in groups |
 | Type "camera" into the search field | only the rows whose name or mod holds it |
-| Click *Upscaler on or off*, press `RightAlt` + `P` | the row says it is listening, then shows `RightAlt+P`; pressing it in flight switches the upscaler |
+| Click *Upscaler on or off*, press `P` | the row says it is listening, then shows `P`; its *Ctrl* and *Shift* switches keep what they held |
+| Click *Alt* beside it twice | *L Alt*, then *R Alt*; `AltGr` + `P` in flight then switches the upscaler |
 | Click a row and press Escape | the binding stays as it was |
 | Click *x* beside a row | the row shows *None*, and that key does nothing afterwards |
-| Click *Alt* beside a bound row | the label turns yellow and the binding gains `LeftAlt` |
+| Click *Alt* a third time | the switch shows *Alt* again, without the modifier |
+| Scroll through the *Keys* tab | it scrolls as smoothly as the other tabs |
 | Set two rows to the same combination | both are shown in yellow, and both still work |
 | Set KSP's *Pitch down* to `K`, *Accept*, launch | the vessel pitches on `K` |
 | Bind a row to `Space` in flight, then press the row and `Space` again | nothing stages while the row takes the key |

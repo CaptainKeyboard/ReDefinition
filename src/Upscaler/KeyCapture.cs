@@ -5,8 +5,10 @@ using UnityEngine;
 
 namespace ReDefinition
 {
-    // Taking a key binding from the player: the row says it is listening, the next
-    // combination of up to two modifiers and one key is taken, Escape cancels.
+    // Taking a key from the player: the row says it is listening, the next key
+    // pressed is taken, Escape cancels. Modifiers are not taken from the keyboard --
+    // the row's switches set them -- since Windows turns AltGr into left Ctrl and
+    // right Alt at once.
     //
     // While it listens, KSP's controls are locked (InputLockManager), so that the
     // keys pressed do not stage a vessel or open a scene on the way.
@@ -83,17 +85,8 @@ namespace ReDefinition
             }
             if (pressed == KeyCode.None) return;
 
-            KeyCode first = KeyCode.None;
-            KeyCode second = KeyCode.None;
-            foreach (KeyCode modifier in KeyCombination.Modifiers)
-            {
-                if (!Input.GetKey(modifier)) continue;
-                if (first == KeyCode.None) first = modifier;
-                else if (second == KeyCode.None) second = modifier;
-            }
-
             Action<string> taken = take;
-            string text = new KeyCombination(pressed, first, second).ToString();
+            string text = pressed.ToString();
             // The lock stays for this frame: KSP's handlers run after this one.
             listening = null;
             take = null;

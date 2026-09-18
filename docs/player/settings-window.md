@@ -55,12 +55,14 @@ The *Keys* tab holds every binding in one place: ReDefinition's own hotkeys, the
 bindings of the bundled mods, and KSP's own, in the groups KSP sorts them into.
 The search field at the top filters the rows by their name or their mod.
 
-Click a binding, and the row says it is listening: the next combination is taken,
-up to two modifiers and one key. Escape cancels, and *x* beside it clears the
-binding. *Ctrl*, *Alt* and *Shift* beside it switch a modifier on or off without
-pressing it, for a combination Windows takes before the game sees it; they are
-yellow while the binding holds them. As everywhere in this window, *Apply* or
-*Accept* sets what was changed and *Cancel* leaves it.
+Click a binding, and the row says it is listening: the next key pressed is taken.
+Escape cancels, and *x* beside it clears the binding. The modifiers are the
+switches *Ctrl*, *Alt* and *Shift* beside it: a click sets the left one (*L Ctrl*),
+a second the right one (*R Ctrl*), a third none. A binding holds up to two; a
+switch is grey where it has no room. Pressed modifiers are not taken from the
+keyboard, since Windows turns AltGr into Ctrl and Alt at once -- a binding with
+right Alt answers to AltGr. As everywhere in this window, *Apply* or *Accept* sets
+what was changed and *Cancel* leaves it.
 
 *Reset to defaults* puts ReDefinition's own bindings and the mods' back to their
 defaults. KSP's own stay as they are: KSP's settings screen resets those itself.

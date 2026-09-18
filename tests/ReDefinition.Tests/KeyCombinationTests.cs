@@ -89,24 +89,44 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void AModifierIsAddedAndTakenAwayAgain()
+        public void AModifierSwitchGoesThroughLeftAndRightToNone()
         {
             KeyCombination combination = KeyCombination.Parse("F10");
-            combination = combination.Toggled(KeyCode.LeftAlt);
+            combination = combination.Cycled(KeyCode.LeftAlt, KeyCode.RightAlt);
             Assert.AreEqual("LeftAlt+F10", combination.ToString());
+            combination = combination.Cycled(KeyCode.LeftAlt, KeyCode.RightAlt);
+            Assert.AreEqual("RightAlt+F10", combination.ToString());
+            combination = combination.Cycled(KeyCode.LeftAlt, KeyCode.RightAlt);
+            Assert.AreEqual("F10", combination.ToString());
+        }
 
-            combination = combination.Toggled(KeyCode.LeftShift);
-            Assert.AreEqual("LeftAlt+LeftShift+F10", combination.ToString());
-
-            // A third takes the second one's place.
-            combination = combination.Toggled(KeyCode.LeftControl);
+        [TestMethod]
+        public void AModifierSwitchKeepsTheOtherModifier()
+        {
+            KeyCombination combination = KeyCombination.Parse("LeftControl+F10");
+            combination = combination.Cycled(KeyCode.LeftAlt, KeyCode.RightAlt);
             Assert.AreEqual("LeftControl+LeftAlt+F10", combination.ToString());
+            combination = combination.Cycled(KeyCode.LeftControl, KeyCode.RightControl);
+            Assert.AreEqual("RightControl+LeftAlt+F10", combination.ToString());
+            // A third one has no room and changes nothing.
+            Assert.AreEqual(combination, combination.Cycled(KeyCode.LeftShift, KeyCode.RightShift));
+        }
 
-            combination = combination.Toggled(KeyCode.LeftAlt);
-            Assert.AreEqual("LeftControl+F10", combination.ToString());
+        [TestMethod]
+        public void ANewKeyKeepsTheModifiers()
+        {
+            KeyCombination combination = KeyCombination.Parse("RightControl+RightShift+U");
+            Assert.AreEqual("RightControl+RightShift+P", combination.WithKey(KeyCode.P).ToString());
+            // A modifier or AltGr is no key to take.
+            Assert.AreEqual(combination, combination.WithKey(KeyCode.LeftAlt));
+            Assert.AreEqual(combination, combination.WithKey(KeyCode.AltGr));
+        }
 
-            // A key that is no modifier changes nothing.
-            Assert.AreEqual(combination, combination.Toggled(KeyCode.F1));
+        [TestMethod]
+        public void AltGrIsNoKey()
+        {
+            Assert.IsFalse(KeyCombination.CanBind(KeyCode.AltGr));
+            Assert.IsFalse(KeyCombination.IsText("AltGr"));
         }
 
         [TestMethod]

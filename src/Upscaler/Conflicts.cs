@@ -26,19 +26,19 @@ namespace ReDefinition
 
         private static readonly List<Entry> entries = new List<Entry>();
         private static readonly HashSet<string> sharing = new HashSet<string>();
-        // Filled again each frame, never built again: the tab holds every one of
-        // KSP's bindings.
+        // Filled again at each count, never built again: the tab holds every one
+        // of KSP's bindings.
         private static readonly List<string> keysNow = new List<string>();
         private static readonly List<string> textsNow = new List<string>();
         private static readonly List<int> modesNow = new List<int>();
         private static KeyCombination[] parsedNow = new KeyCombination[0];
-        private static int countedFrame = -1;
+        private static int countedVersion = int.MinValue;
 
         internal static void Clear()
         {
             entries.Clear();
             sharing.Clear();
-            countedFrame = -1;
+            countedVersion = int.MinValue;
         }
 
         // From the rows as they are built. modes is KSP's modeMask, or -1 for a
@@ -48,18 +48,18 @@ namespace ReDefinition
             entries.Add(new Entry { Key = key, Text = text, Modes = modes });
         }
 
-        internal static bool Shares(string key)
+        // Counted again only when the rows' version has moved: every row asks in
+        // every frame, and the count reads every binding.
+        internal static bool Shares(string key, int version)
         {
-            Count();
+            Count(version);
             return sharing.Contains(key);
         }
 
-        // Once a frame: the rows read their label every frame, and every row would
-        // otherwise walk the whole list.
-        private static void Count()
+        private static void Count(int version)
         {
-            if (countedFrame == Time.frameCount) return;
-            countedFrame = Time.frameCount;
+            if (countedVersion == version) return;
+            countedVersion = version;
             keysNow.Clear();
             textsNow.Clear();
             modesNow.Clear();
@@ -78,8 +78,8 @@ namespace ReDefinition
         internal static List<string> Sharing(IList<string> keys, IList<string> texts, IList<int> modes)
         {
             // Parsed once each, not once per pair: the tab holds every one of KSP's
-            // bindings, and this runs in a frame. The array grows with the rows and
-            // is kept, rather than built again every frame.
+            // bindings. The array grows with the rows and is kept, rather than built
+            // again at every count.
             if (parsedNow.Length < keys.Count) parsedNow = new KeyCombination[keys.Count];
             KeyCombination[] combinations = parsedNow;
             for (int i = 0; i < keys.Count; i++) combinations[i] = KeyCombination.Parse(texts[i]);

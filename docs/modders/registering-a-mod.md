@@ -107,7 +107,8 @@ no value of its member's type.
 
 A `KEY` block beside the `SETTING` blocks is a key binding: it stands in the
 settings window's *Keys* tab, beside ReDefinition's own bindings, the other mods'
-and KSP's, and the player sets it there with up to two modifiers and one key.
+and KSP's, and the player sets it there: one key, and up to two modifiers, each
+left or right.
 
 ```
 KEY

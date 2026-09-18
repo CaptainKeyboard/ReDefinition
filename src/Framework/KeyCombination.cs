@@ -70,18 +70,22 @@ namespace ReDefinition.Framework
             return modifier != KeyCode.None && (FirstModifier == modifier || SecondModifier == modifier);
         }
 
-        // The same combination with that modifier added, or without it where it is
-        // already there; a third modifier replaces the second.
-        public KeyCombination Toggled(KeyCode modifier)
+        // One modifier a step further through none, left and right, the other
+        // modifier kept: the Keys tab's switch.
+        public KeyCombination Cycled(KeyCode left, KeyCode right)
         {
-            if (!IsModifier(modifier)) return this;
-            if (HasModifier(modifier))
-            {
-                KeyCode kept = FirstModifier == modifier ? SecondModifier : FirstModifier;
-                return new KeyCombination(Key, kept, KeyCode.None);
-            }
-            // A third modifier takes the second one's place.
-            return new KeyCombination(Key, FirstModifier, modifier);
+            KeyCode other = FirstModifier == left || FirstModifier == right ? SecondModifier : FirstModifier;
+            if (HasModifier(left)) return new KeyCombination(Key, other, right);
+            if (HasModifier(right)) return new KeyCombination(Key, other, KeyCode.None);
+            // Added only where there is room: a third would push one out.
+            if (ModifierCount >= 2) return this;
+            return new KeyCombination(Key, other, left);
+        }
+
+        // Another key with the same modifiers.
+        public KeyCombination WithKey(KeyCode key)
+        {
+            return CanBind(key) ? new KeyCombination(key, FirstModifier, SecondModifier) : this;
         }
 
         // The same combination with at most that many modifiers: for a mod that
@@ -106,9 +110,11 @@ namespace ReDefinition.Framework
         // button on. Mouse0 and Mouse1 are the game's own -- selecting, and the
         // camera -- and the wheel is an axis, not a key. A modifier alone is no
         // binding either.
+        // AltGr is a modifier on the keyboards that have it, which Windows reports as
+        // left Ctrl and right Alt together.
         public static bool CanBind(KeyCode key)
         {
-            if (key == KeyCode.None || IsModifier(key)) return false;
+            if (key == KeyCode.None || IsModifier(key) || key == KeyCode.AltGr) return false;
             if (key == KeyCode.Mouse0 || key == KeyCode.Mouse1) return false;
             return true;
         }
@@ -239,13 +245,18 @@ namespace ReDefinition.Framework
             return IsBound && Input.GetKeyUp(Key) && ModifiersHeld();
         }
 
+        // AltGr counts as right Alt, and the left Ctrl Windows presses with it is
+        // not another modifier -- unless the binding asks for left Ctrl itself.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private bool ModifiersHeld()
         {
+            bool altGr = Input.GetKey(KeyCode.AltGr);
             foreach (KeyCode modifier in ModifierOrder)
             {
-                bool wanted = HasModifier(modifier);
-                if (wanted != Input.GetKey(modifier)) return false;
+                bool held = Input.GetKey(modifier);
+                if (altGr && modifier == KeyCode.RightAlt) held = true;
+                if (altGr && modifier == KeyCode.LeftControl && !HasModifier(KeyCode.LeftControl)) held = false;
+                if (HasModifier(modifier) != held) return false;
             }
             return true;
         }
