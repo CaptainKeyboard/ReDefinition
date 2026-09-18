@@ -10,7 +10,7 @@ ReDefinition is four things in one repository:
    `GameData/ReDefinition`).
 3. **The proxy** -- a native `dxgi.dll` that presents KSP's frames through Direct3D 12:
    frame generation with FSR 3 or DLSS (Streamline), and the DLSS and AMD upscalers
-   (`src/native`).
+   (`src/DxgiProxy`).
 4. **The interface for mods** -- the frame's state, history resets, hooks, the chosen
    profile and Direct3D 12 compute passes (`src/Api`,
    [shared-foundation.md](shared-foundation.md)).
@@ -152,7 +152,7 @@ The rules: [settings-store.md](settings-store.md).
 | `ModWindowClose.cs` | the close button on a mod's own settings window, and knowing whether that window is open |
 | `KeyCombination.cs`, `KeptBindings.cs` | a binding as up to two modifiers and one key, read and written as text -- free of Unity but for the keys it reads, tested; and the bindings ReDefinition keeps for a mod that has none of its own |
 
-## The proxy, `src/native`
+## The proxy, `src/DxgiProxy`
 
 | File | Role |
 |---|---|

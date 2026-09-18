@@ -2,7 +2,7 @@ dxgi.dll contains parts of NVIDIA's MIT-licensed SDK sources. Their notices foll
 verbatim.
 
 ----------------------------------------------------------------------------
-1. NVIDIA's Streamline SDK headers -- src/native/extern/Streamline/include, among
+1. NVIDIA's Streamline SDK headers -- src/DxgiProxy/extern/Streamline/include, among
    them the signature check in sl_security.h -- from license.txt of the Streamline
    SDK 2.14.1:
 
@@ -29,7 +29,7 @@ verbatim.
 */
 
 ----------------------------------------------------------------------------
-2. NVIDIA's NVAPI headers, whose function ids and structures src/native/NvidiaGpu.cpp
+2. NVIDIA's NVAPI headers, whose function ids and structures src/DxgiProxy/NvidiaGpu.cpp
    declares -- from nvapi.h and nvapi_interface.h in external/nvapi of the Streamline
    SDK 2.14.1:
 

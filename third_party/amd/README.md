@@ -23,8 +23,8 @@ same pin and refuses without a match.
 | Size | 40 085 776 bytes |
 
 The release's frame generation header says 4.0.1, the version the proxy is built
-against (`src/native/extern`).
+against (`src/DxgiProxy/extern`).
 
-To move to a newer release: update the headers in `src/native/extern`, the tag
+To move to a newer release: update the headers in `src/DxgiProxy/extern`, the tag
 in `tools/fetch_amd_runtime.py`, the pin and this table; rebuild the proxy; run
 `tools/audit_ffx_fields.py` and the proxy harness.

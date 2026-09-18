@@ -130,10 +130,10 @@ file is read through `$vref: '#/ckan/ksp-avc'`.
   needed for FSR frame generation: the proxy harness passes with nothing else beside
   it. Pin, source and signature: `third_party/amd/README.md`.
 * **The headers' notices [src]:** `licenses/NVIDIA-MIT.txt` holds, verbatim, the MIT
-  notices of the Streamline 2.14.1 headers (`src/native/extern/Streamline/include`, the
+  notices of the Streamline 2.14.1 headers (`src/DxgiProxy/extern/Streamline/include`, the
   signature check in `sl_security.h` among them) and of the NVAPI headers whose function
   ids and structures `NvidiaGpu.cpp` declares; `licenses/AMD-FidelityFX-API-MIT.txt` the
-  MIT notice of AMD's FidelityFX API headers (`src/native/extern/FidelityFX`, the loader
+  MIT notice of AMD's FidelityFX API headers (`src/DxgiProxy/extern/FidelityFX`, the loader
   `ffx_api_loader.h` among them). The package puts both next to `dxgi.dll`.
 * **CKAN [src]:** its spec allows `install_to: GameRoot` for KSP 1 ("should be
   used sparingly, if at all"), and Advanced Fly-By-Wire's NetKAN installs

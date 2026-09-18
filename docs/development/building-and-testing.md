@@ -129,8 +129,8 @@ Visual Studio Build Tools is enough, at
 where it is not on the path.
 
 ```
-cmake -S src/native -B build/native -G "Visual Studio 17 2022" -A x64
-cmake --build build/native --config Release
+cmake -S src/DxgiProxy -B build/DxgiProxy -G "Visual Studio 17 2022" -A x64
+cmake --build build/DxgiProxy --config Release
 ```
 
 The build copies `dxgi.dll` next to `KSP_x64.exe` (`-DKSP_DIR=...` for another game
@@ -145,7 +145,7 @@ and runs a compute pass on Direct3D 12 for mods from DXBC and, where the build f
 Windows SDK's `dxc`, from DXIL (`HarnessPass.cso`):
 
 ```
-build\native\Release\ProxyHarness.exe
+build\DxgiProxy\Release\ProxyHarness.exe
 ```
 
 It runs FSR's frame generation where `amd_fidelityfx_framegeneration_dx12.dll` lies next to

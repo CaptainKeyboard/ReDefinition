@@ -223,8 +223,8 @@
       <_SourceZip>$(_ReleaseDir)\$(ModName)_$(Version)_source.zip</_SourceZip>
       <_ShaderBundle>$(KspGameData)\$(ModName)\Shaders\redefinition.shaders</_ShaderBundle>
       <_RepoRoot>$(MSBuildThisFileDirectory)..\</_RepoRoot>
-      <_Native>$(_RepoRoot)src\native</_Native>
-      <_ProxyDll>$(_RepoRoot)build\native\Release\dxgi.dll</_ProxyDll>
+      <_Native>$(_RepoRoot)src\DxgiProxy</_Native>
+      <_ProxyDll>$(_RepoRoot)build\DxgiProxy\Release\dxgi.dll</_ProxyDll>
       <_FfxRuntime>$(_RepoRoot)third_party\amd\amd_fidelityfx_framegeneration_dx12.dll</_FfxRuntime>
       <_FfxRuntimePin>$(_RepoRoot)third_party\amd\amd_fidelityfx_framegeneration_dx12.dll.sha256</_FfxRuntimePin>
     </PropertyGroup>

@@ -17,10 +17,10 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HEADER = os.path.join(ROOT, "src", "native", "extern", "FidelityFX",
+HEADER = os.path.join(ROOT, "src", "DxgiProxy", "extern", "FidelityFX",
                       "framegeneration", "include", "ffx_framegeneration.h")
 # Frame generation's files, all of them: a descriptor filled in one of them counts.
-IMPL = [os.path.join(ROOT, "src", "native", name)
+IMPL = [os.path.join(ROOT, "src", "DxgiProxy", name)
         for name in ("FrameGeneration.cpp", "FrameGenerationInputs.cpp", "FrameGenerationCheck.cpp")]
 
 # Fields left at their zero value, each with its reason.
