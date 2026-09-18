@@ -247,10 +247,14 @@ namespace ReDefinition.Framework
 
         // AltGr counts as right Alt, and the left Ctrl Windows presses with it is
         // not another modifier -- unless the binding asks for left Ctrl itself.
+        // Whether Unity reports AltGr as a key of its own or only as left Ctrl with
+        // right Alt, both are taken as AltGr; a left Ctrl pressed with right Alt on
+        // purpose cannot be told from it.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private bool ModifiersHeld()
         {
-            bool altGr = Input.GetKey(KeyCode.AltGr);
+            bool altGr = Input.GetKey(KeyCode.AltGr)
+                         || (Input.GetKey(KeyCode.RightAlt) && Input.GetKey(KeyCode.LeftControl));
             foreach (KeyCode modifier in ModifierOrder)
             {
                 bool held = Input.GetKey(modifier);
