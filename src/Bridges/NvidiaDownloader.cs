@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading;
 using System;
 using KSP.Localization;
+using ReDefinition.Core;
 using ReDefinition.Window;
 using UnityEngine.Networking;
 using UnityEngine;
@@ -97,7 +98,7 @@ namespace ReDefinition.Bridges
                 : "DLSS";
         }
 
-        // When they are used: nvngx_dlss.dll at once (UpscalerAddon.NvidiaFilesPlaced),
+        // When they are used: nvngx_dlss.dll at once (ReDefinitionAddon.NvidiaFilesPlaced),
         // Streamline only by a swapchain made after it is there -- KSP makes one as
         // it starts.
         public static string WhenUsed(bool dlss, bool frameGeneration)
@@ -120,7 +121,7 @@ namespace ReDefinition.Bridges
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " NVIDIA's files could not be looked for: " + e.Message);
+                Debug.LogWarning(Log.Tag + " NVIDIA's files could not be looked for: " + e.Message);
                 return new List<NvidiaFiles.Entry>();
             }
         }
@@ -155,7 +156,7 @@ namespace ReDefinition.Bridges
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " NVIDIA's folders could not be named: " + e.Message);
+                Debug.LogWarning(Log.Tag + " NVIDIA's folders could not be named: " + e.Message);
             }
 
             string message =
@@ -204,9 +205,9 @@ namespace ReDefinition.Bridges
 
         private static void Start(List<NvidiaFiles.Entry> entries)
         {
-            if (Running || UpscalerAddon.Instance == null) return;
+            if (Running || ReDefinitionAddon.Instance == null) return;
             Running = true;
-            UpscalerAddon.Instance.StartCoroutine(Guarded(Run(new List<NvidiaFiles.Entry>(entries))));
+            ReDefinitionAddon.Instance.StartCoroutine(Guarded(Run(new List<NvidiaFiles.Entry>(entries))));
         }
 
         // The download's range files, for Guarded's clean-up.
@@ -257,7 +258,7 @@ namespace ReDefinition.Bridges
                 Finish("Download failed, nothing was changed: " + e.Message + ".", rangeFiles);
                 yield break;
             }
-            Debug.Log(UpscalerProbe.Tag + " Downloading " + entries.Count + " of NVIDIA's files (" + Megabytes(total)
+            Debug.Log(Log.Tag + " Downloading " + entries.Count + " of NVIDIA's files (" + Megabytes(total)
                       + " MB) from " + NvidiaFiles.ArchiveUrl + ", the player having accepted NVIDIA's licences.");
 
             for (int i = 0; i < entries.Count; i++)
@@ -374,7 +375,7 @@ namespace ReDefinition.Bridges
             Finish("Installed. " + WhenUsed(dlssFetched, frameGenerationFetched)
                    + (backups != null && backups.Count > 0 ? " Kept before: " + string.Join(", ", backups.ToArray()) + "." : ""),
                    rangeFiles);
-            if (dlssFetched && UpscalerAddon.Instance != null) UpscalerAddon.Instance.NvidiaFilesPlaced();
+            if (dlssFetched && ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.NvidiaFilesPlaced();
         }
 
         private static void Finish(string outcome, List<string> rangeFiles)
@@ -392,8 +393,8 @@ namespace ReDefinition.Bridges
             downloading = false;
             Running = false;
             status = outcome;
-            if (Installed) Debug.Log(UpscalerProbe.Tag + " NVIDIA's files: " + outcome);
-            else Debug.LogWarning(UpscalerProbe.Tag + " NVIDIA's files: " + outcome);
+            if (Installed) Debug.Log(Log.Tag + " NVIDIA's files: " + outcome);
+            else Debug.LogWarning(Log.Tag + " NVIDIA's files: " + outcome);
             ScreenMessages.PostScreenMessage("NVIDIA's DLSS files: " + outcome, 8f);
         }
 

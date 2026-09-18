@@ -7,7 +7,7 @@ namespace ReDefinition
 {
     // The add-on's part for the frame rates the window compares: with and without
     // the upscaler, rendered and presented, and the load behind them.
-    public partial class UpscalerAddon
+    public partial class ReDefinitionAddon
     {
         private readonly FrameRateMeter meterOn = new FrameRateMeter();
         private readonly FrameRateMeter meterOff = new FrameRateMeter();

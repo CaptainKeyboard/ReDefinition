@@ -368,7 +368,7 @@ namespace ReDefinition.Upscaler
 
             Applied = true;
             LastMessage = report.ToString();
-            Debug.Log(UpscalerProbe.Tag + " Host stack configured: " + LastMessage);
+            Debug.Log(Log.Tag + " Host stack configured: " + LastMessage);
             Refresh(true);
             return LastMessage;
         }
@@ -485,7 +485,7 @@ namespace ReDefinition.Upscaler
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning(UpscalerProbe.Tag + " SMAA not handed back: " + e);
+                    Debug.LogWarning(Log.Tag + " SMAA not handed back: " + e);
                 }
             }
             smaaStates.Clear();
@@ -494,7 +494,7 @@ namespace ReDefinition.Upscaler
 
             Applied = false;
             LastMessage = report.ToString();
-            Debug.Log(UpscalerProbe.Tag + " Host stack restored: " + LastMessage);
+            Debug.Log(Log.Tag + " Host stack restored: " + LastMessage);
             Refresh(true);
             return LastMessage;
         }

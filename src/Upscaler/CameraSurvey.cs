@@ -1,30 +1,20 @@
 using System.Text;
-using ReDefinition.Upscaler;
+using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
-    // The log tag every file uses, and the camera survey on Right Ctrl + Right
-    // Shift + N. The motion vector measurement the upscaler rests on is in
-    // docs/development/upscaler.md.
-    [KSPAddon(KSPAddon.Startup.Instantly, true)]
-    public class UpscalerProbe : MonoBehaviour
+    // Which cameras exist, in what order, drawing into what -- into KSP.log on
+    // its hotkey (the Keys tab), for a camera stack that behaves unexpectedly.
+    internal static class CameraSurvey
     {
-        public const string Tag = "[ReDefinition]";
-
-        private void Awake()
-        {
-            DontDestroyOnLoad(gameObject);
-            Debug.Log(Tag + " Loaded. The hotkeys stand in the settings window, under Keys.");
-        }
-
         // Which cameras exist, in what order, drawing into what -- for a camera
         // stack that behaves unexpectedly. FXCamera, for one, draws at depth 3,
         // after the upscaler's presenter.
-        public static void LogCameraSurvey()
+        internal static void Write()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append(Tag).Append(" Camera survey in scene ").Append(HighLogic.LoadedScene).AppendLine();
+            sb.Append(Log.Tag).Append(" Camera survey in scene ").Append(HighLogic.LoadedScene).AppendLine();
 
             foreach (Camera cam in Camera.allCameras)
             {

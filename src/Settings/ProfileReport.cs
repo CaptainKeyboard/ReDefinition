@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Settings
@@ -21,7 +22,7 @@ namespace ReDefinition.Settings
                 List<GraphicsProfile> profiles = ProfileLibrary.LoadAll(problems);
 
                 StringBuilder sb = new StringBuilder();
-                sb.Append(UpscalerProbe.Tag).Append(" Graphics profiles: ").Append(profiles.Count).Append(" found.");
+                sb.Append(Log.Tag).Append(" Graphics profiles: ").Append(profiles.Count).Append(" found.");
                 foreach (GraphicsProfile profile in profiles)
                 {
                     sb.AppendLine().Append("  '").Append(profile.Name).Append("' (").Append(profile.Title).Append("): ")
@@ -42,7 +43,7 @@ namespace ReDefinition.Settings
             }
             catch (System.Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " Graphics profiles could not be listed: " + e.Message);
+                Debug.LogWarning(Log.Tag + " Graphics profiles could not be listed: " + e.Message);
             }
 
             Destroy(gameObject);

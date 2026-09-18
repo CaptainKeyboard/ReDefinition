@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using FidelityFX.FSR3;
 using ReDefinition.Api;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Upscaler
@@ -85,7 +86,7 @@ namespace ReDefinition.Upscaler
                     if (loaded != null) byName[loaded.name] = loaded;
                 }
 
-                Debug.Log(UpscalerProbe.Tag + " AssetBundle loaded, " + byName.Count
+                Debug.Log(Log.Tag + " AssetBundle loaded, " + byName.Count
                           + " compute shaders in it: " + string.Join(", ", Keys()));
             }
 

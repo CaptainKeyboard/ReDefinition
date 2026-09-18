@@ -1,6 +1,7 @@
 using System;
 using ReDefinition.Api;
 using ReDefinition.Bridges;
+using ReDefinition.Core;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;
 using UnityEngine.Rendering;
@@ -175,7 +176,7 @@ namespace ReDefinition.Shared
             pendingBodyOffset = Vector3d.zero;
             pendingShift = false;
 
-            UpscalerAddon addon = UpscalerAddon.Instance;
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             UpscalerRig rig = addon != null ? addon.CurrentRig : null;
             if (rig != null && rig.TornDown) rig = null;
 
@@ -198,7 +199,7 @@ namespace ReDefinition.Shared
                                                               (float)OriginShift.z, Shifted ? 1f : 0f));
 
             if (RigResetReason != null && rig != null)
-                Debug.Log(UpscalerProbe.Tag + " History reset: " + RigResetReason + ".");
+                Debug.Log(Log.Tag + " History reset: " + RigResetReason + ".");
             if (ResetReason != null)
             {
                 string reason = ResetReason;
@@ -213,7 +214,7 @@ namespace ReDefinition.Shared
 
         private static void Report(string message)
         {
-            Debug.LogWarning(UpscalerProbe.Tag + " " + message);
+            Debug.LogWarning(Log.Tag + " " + message);
         }
     }
 }

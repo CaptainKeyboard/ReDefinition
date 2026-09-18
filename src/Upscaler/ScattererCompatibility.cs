@@ -76,12 +76,12 @@ namespace ReDefinition.Upscaler
             try
             {
                 if (!__result) return;
-                UpscalerAddon addon = UpscalerAddon.Instance;
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 UpscalerRig rig = addon != null ? addon.CurrentRig : null;
                 if (rig == null) return;   // nothing redirected: Scatterer's own size is right
 
                 if (Size(__instance as Component))
-                    Debug.Log(UpscalerProbe.Tag + " Scatterer godrays made while the upscaler runs sized for its"
+                    Debug.Log(Log.Tag + " Scatterer godrays made while the upscaler runs sized for its"
                               + " camera.");
             }
             catch (Exception e)
@@ -111,7 +111,7 @@ namespace ReDefinition.Upscaler
             }
 
             if (resized > 0)
-                Debug.Log(UpscalerProbe.Tag + " Scatterer godrays sized anew for " + resized
+                Debug.Log(Log.Tag + " Scatterer godrays sized anew for " + resized
                           + " camera(s) (" + reason + ").");
         }
 
@@ -170,7 +170,7 @@ namespace ReDefinition.Upscaler
             }
 
             if (!Present || init == null)
-                Debug.LogWarning(UpscalerProbe.Tag + " Scatterer is installed, but not the one this mod was"
+                Debug.LogWarning(Log.Tag + " Scatterer is installed, but not the one this mod was"
                                  + " written against; its godrays may keep the screen's size in the smaller modes.");
         }
     }

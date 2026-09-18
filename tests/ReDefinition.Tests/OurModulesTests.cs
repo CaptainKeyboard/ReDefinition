@@ -26,7 +26,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AProfileSetsTheUpscalerAndItsModeByName()
         {
-            UpscalerSettings settings = new UpscalerSettings();
+            OwnSettings settings = new OwnSettings();
             List<string> problems = new List<string>();
 
             ProfileApplier.ApplyModules(Profile(Upscaler("  enabled = true\n  quality = performance\n")), settings, problems);
@@ -39,7 +39,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AModeIsANameNeverANumber()
         {
-            UpscalerSettings settings = new UpscalerSettings();
+            OwnSettings settings = new OwnSettings();
             List<string> problems = new List<string>();
 
             ProfileApplier.ApplyModules(Profile(Upscaler("  quality = 2\n")), settings, problems);
@@ -52,7 +52,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AProfileLeavesTasteAndFrameGenerationToThePlayer()
         {
-            UpscalerSettings settings = new UpscalerSettings();
+            OwnSettings settings = new OwnSettings();
             List<string> problems = new List<string>();
 
             ProfileApplier.ApplyModules(Profile(Upscaler("  sharpness = 0.5\n")
@@ -80,7 +80,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void EveryModuleValueThatDiffersCountsAsASetting()
         {
-            UpscalerSettings settings = new UpscalerSettings();
+            OwnSettings settings = new OwnSettings();
             GraphicsProfile profile = Profile(Upscaler("  enabled = True\n  quality = Balanced\n"));
             Dictionary<BundledSetting, string> none = new Dictionary<BundledSetting, string>();
 

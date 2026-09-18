@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 using ReDefinition.Bridges;
+using ReDefinition.Core;
 using ReDefinition.Shared;
 using UnityEngine;
 
@@ -140,7 +141,7 @@ namespace ReDefinition.Upscaler
                 return;
             nextTurnRecord = Time.unscaledTime + TurnRecordSpacing;
             FrameGenerationBridge.RequestCheck();
-            pendingTurnLine = UpscalerProbe.Tag + " Fast turn in frame " + Time.frameCount + ": " + turn.ToString("0.0")
+            pendingTurnLine = Log.Tag + " Fast turn in frame " + Time.frameCount + ": " + turn.ToString("0.0")
                               + " deg in a " + (dt * 1000f).ToString("0") + " ms frame ("
                               + (dt > 0f ? (1f / dt).ToString("0") : "?") + " fps)"
                               + (shifted ? ", floating origin shifted in this frame" : "")
@@ -159,7 +160,7 @@ namespace ReDefinition.Upscaler
             if (sampledFrames > 0 || shiftTicks > 0)
             {
                 StringBuilder sb = new StringBuilder();
-                sb.Append(UpscalerProbe.Tag).Append(" Camera and origin, last ").Append(elapsed.ToString("0.0"))
+                sb.Append(Log.Tag).Append(" Camera and origin, last ").Append(elapsed.ToString("0.0"))
                   .Append(" s, ").Append(sampledFrames).Append(" frames. Ordinary frames: largest turn ")
                   .Append(largestTurn.ToString("0.00")).Append(" deg in a ").Append((largestTurnDt * 1000f).ToString("0"))
                   .Append(" ms frame, largest move against the target ").Append(largestMove.ToString("0.00"))

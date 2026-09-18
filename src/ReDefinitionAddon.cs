@@ -29,9 +29,9 @@ namespace ReDefinition
     //
     // Here the rig's lifecycle: attached, rebuilt and detached as the scene, the
     // camera and the settings ask. The settings, the diagnostics window and the
-    // frame rates are in UpscalerAddon.*.cs.
+    // frame rates are in ReDefinitionAddon.*.cs.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
-    public partial class UpscalerAddon : MonoBehaviour
+    public partial class ReDefinitionAddon : MonoBehaviour
     {
 
 
@@ -94,11 +94,11 @@ namespace ReDefinition
         private Vector2Int dlssSizesAskedFor;
         private int dlssSizeWaits;
 
-        private UpscalerToolbarButton toolbarButton;
+        private ToolbarButton toolbarButton;
 
         // The one instance, for KSP's settings dialog (KspSettingsSection),
         // which reads and changes the same settings as the diagnostics window.
-        internal static UpscalerAddon Instance { get; private set; }
+        internal static ReDefinitionAddon Instance { get; private set; }
 
         // The rig in place, or null; for ScattererCompatibility's hook and
         // UnityMouseEvents.
@@ -115,7 +115,7 @@ namespace ReDefinition
             KspBehaviour.DlssFrameGenerationRuns = () => frameGeneration && FrameGenerationBridge.DlssFrameGenerationRuns;
             KspBehaviour.DlssFrameGenerationVsync = () => FrameGenerationBridge.DlssFrameGenerationVsync;
 
-            Debug.Log(UpscalerProbe.Tag + " Upscaler ready."
+            Debug.Log(Log.Tag + " Upscaler ready."
                       + " Toolbar button for the settings window; its Keys tab holds the hotkeys.");
 
             LoadSettings();
@@ -131,7 +131,7 @@ namespace ReDefinition
 
             // The button opens the settings window; the diagnostics window this
             // add-on draws opens from there and by hotkey.
-            toolbarButton = new UpscalerToolbarButton(SettingsWindow.Toggle);
+            toolbarButton = new ToolbarButton(SettingsWindow.Toggle);
             toolbarButton.Register();
 
             // Both sets, with and without HDR_COLOR_INPUT, right at startup: then the
@@ -140,11 +140,11 @@ namespace ReDefinition
             if (FsrShaderBundle.Load(true) == null || FsrShaderBundle.Load(false) == null)
             {
                 problem = FsrShaderBundle.LastError;
-                Debug.LogWarning(UpscalerProbe.Tag + " Upscaler not operational: " + problem);
+                Debug.LogWarning(Log.Tag + " Upscaler not operational: " + problem);
             }
             else
             {
-                Debug.Log(UpscalerProbe.Tag + " All eleven required compute shaders found."
+                Debug.Log(Log.Tag + " All eleven required compute shaders found."
                           + " Compute support: " + SystemInfo.supportsComputeShaders
                           + ", graphics API: " + SystemInfo.graphicsDeviceType
                           + ", reversed depth: " + SystemInfo.usesReversedZBuffer);
@@ -264,7 +264,7 @@ namespace ReDefinition
             CameraManager.CameraMode mode = manager.currentCameraMode;
             if (cameraModeKnown && mode != lastCameraMode && rig != null)
             {
-                Debug.Log(UpscalerProbe.Tag + " Camera mode " + lastCameraMode + " -> " + mode
+                Debug.Log(Log.Tag + " Camera mode " + lastCameraMode + " -> " + mode
                           + ": rebuilding the upscaler for the new set of cameras.");
                 Detach();
                 nextAttachAttempt = 0f;
@@ -292,7 +292,7 @@ namespace ReDefinition
                 hostStackMessage = HostStack.Restore();
         }
 
-        // The hotkeys as the player set them (UpscalerSettings, the Keys tab).
+        // The hotkeys as the player set them (OwnSettings, the Keys tab).
         // While a row is listening for a key, none of them fires.
         private void HandleHotkeys()
         {
@@ -302,7 +302,7 @@ namespace ReDefinition
             if (Hotkey(settings.UpscalerKey).Pressed()) SetEnabled(!wantEnabled);
             if (Hotkey(settings.SettingsWindowKey).Pressed()) SettingsWindow.Toggle();
             if (Hotkey(settings.DiagnosticsKey).Pressed()) ToggleWindow();
-            if (Hotkey(settings.CameraListKey).Pressed()) UpscalerProbe.LogCameraSurvey();
+            if (Hotkey(settings.CameraListKey).Pressed()) CameraSurvey.Write();
         }
 
         // Parsed once per text: asked every frame, and parsing allocates.
@@ -426,7 +426,7 @@ namespace ReDefinition
 
         // In the main menu and its settings screen the mod only takes settings:
         // they take effect in flight and in the editors, and the window is
-        // there to change them before a game is loaded (UpscalerToolbarButton).
+        // there to change them before a game is loaded (ToolbarButton).
         // The settings screen has a "Main Camera" of its own, which the
         // upscaler would attach to for nothing.
         // So nothing is attempted in either, and a camera problem left over
@@ -469,7 +469,7 @@ namespace ReDefinition
                 // player's setting stays as it is.
                 problem = FsrShaderBundle.LastError ?? "Shaders not loaded.";
                 problemIsCamera = false;
-                if (loggedSetupProblem != problem) Debug.LogError(UpscalerProbe.Tag + " " + problem);
+                if (loggedSetupProblem != problem) Debug.LogError(Log.Tag + " " + problem);
                 loggedSetupProblem = problem;
                 setupFailures = SetupAttempts;
                 return;
@@ -494,7 +494,7 @@ namespace ReDefinition
             {
                 runs = UpscalerBackend.Fsr3;
                 if (loggedFallback != fallbackReason)
-                    Debug.LogWarning(UpscalerProbe.Tag + " " + UpscalerBackends.Name(backend)
+                    Debug.LogWarning(Log.Tag + " " + UpscalerBackends.Name(backend)
                                      + " cannot run, FSR 3 runs instead: " + fallbackReason);
                 loggedFallback = fallbackReason;
             }
@@ -558,7 +558,7 @@ namespace ReDefinition
                 if (attachRetries > 0)
                 {
                     attachRetries--;
-                    Debug.LogWarning(UpscalerProbe.Tag + " Upscaler could not be set up yet, trying again in a second: "
+                    Debug.LogWarning(Log.Tag + " Upscaler could not be set up yet, trying again in a second: "
                                      + problem);
                     return;
                 }
@@ -567,7 +567,7 @@ namespace ReDefinition
                 int failures = passThrough ? ++captureFailures : ++setupFailures;
                 bool givingUp = failures >= SetupAttempts;
                 if (loggedSetupProblem != problem || givingUp)
-                    Debug.LogWarning(UpscalerProbe.Tag
+                    Debug.LogWarning(Log.Tag
                                      + (passThrough ? " Frame generation's capture" : " The upscaler")
                                      + " could not be set up"
                                      + (!givingUp
@@ -597,7 +597,7 @@ namespace ReDefinition
             // A rig for frame generation alone measures neither.
             if (!passThrough) meterOn.Reset();
 
-            Debug.Log(UpscalerProbe.Tag + " Upscaler running on '" + target.name + "': "
+            Debug.Log(Log.Tag + " Upscaler running on '" + target.name + "': "
                       + rig.RenderSize.x + "x" + rig.RenderSize.y + " -> "
                       + rig.DisplaySize.x + "x" + rig.DisplaySize.y + " (" + quality + ", "
                       + UpscalerBackends.Name(runs)

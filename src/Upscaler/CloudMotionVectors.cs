@@ -1,5 +1,6 @@
-using UnityEngine;
+using ReDefinition.Core;
 using UnityEngine.Rendering;
+using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
@@ -63,7 +64,7 @@ namespace ReDefinition.Upscaler
                     || !UpscalerMasks.Ensure(ref unityMotion, size, RenderTextureFormat.RGHalf, "ReDefinition_UnityMotion",
                                              out created)))
                 State = "their textures could not be created";
-            Log();
+            LogState();
             if (State != null)
             {
                 Detach();
@@ -154,11 +155,11 @@ namespace ReDefinition.Upscaler
         }
 
         // Each change once, not every frame.
-        private void Log()
+        private void LogState()
         {
             if (State == loggedState || !EveCloudMotion.Present) return;
             loggedState = State;
-            Debug.Log(UpscalerProbe.Tag + " EVE's cloud motion vectors: "
+            Debug.Log(Log.Tag + " EVE's cloud motion vectors: "
                       + (State == null ? "blended into the motion vectors." : "left out -- " + State + "."));
         }
 

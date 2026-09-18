@@ -9,17 +9,17 @@ namespace ReDefinition
 {
     // ReDefinition's own features as modules (docs/development/architecture.md):
     // the upscaler and frame generation, their settings over ReDefinition's
-    // settings file (UpscalerSettings). What a profile's MODULE node names comes from
+    // settings file (OwnSettings). What a profile's MODULE node names comes from
     // here (ProfileApplier), and so do the rows under General in the settings
     // window and in KSP's settings dialog (KspSettingsSection). Both edit a copy
-    // and commit it through the add-on's setters (UpscalerAddon.Apply); the FSR rig
+    // and commit it through the add-on's setters (ReDefinitionAddon.Apply); the FSR rig
     // stays as it is.
     //
     // A profile sets their quality settings only, as it does the other mods': the
     // upscaler and its mode. Its sharpness is taste, and frame generation -- which
     // needs the dxgi.dll proxy a profile cannot see -- the player's switch. None of
     // them can be changed without a graphics profile chosen: only a profile makes
-    // ReDefinition active (UpscalerAddon).
+    // ReDefinition active (ReDefinitionAddon).
     internal static class OurModules
     {
         public static readonly IGraphicsModule Upscaler = new GraphicsModule("upscaler", "Upscaler",
@@ -104,7 +104,7 @@ namespace ReDefinition
                 Order = 30,
                 Control = SettingControl.Slider,
                 Min = 0f,
-                Max = UpscalerAddon.MaximumSharpness,
+                Max = ReDefinitionAddon.MaximumSharpness,
                 StepsPerUnit = 20f,
                 Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)
                     .ToString("0.00", CultureInfo.InvariantCulture),

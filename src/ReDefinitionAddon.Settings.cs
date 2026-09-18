@@ -1,6 +1,7 @@
 using System;
 using FidelityFX.FSR3;
 using ReDefinition.Bridges;
+using ReDefinition.Core;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;
 using UnityEngine;
@@ -9,7 +10,7 @@ namespace ReDefinition
 {
     // The add-on's part for its settings: what they are, how a change takes effect,
     // and how they are loaded, saved and applied from a settings view.
-    public partial class UpscalerAddon
+    public partial class ReDefinitionAddon
     {
         // NativeAA: on the development machine, the 3D scene rendered with 89 %
         // fewer pixels made the frame longer -- the pixel shading costs under 0.2 ms
@@ -50,14 +51,14 @@ namespace ReDefinition
 
         private bool skinnedMotionVectors = true;
 
-        private readonly UpscalerSettings settings = new UpscalerSettings();
+        private readonly OwnSettings settings = new OwnSettings();
         private string savedSnapshot;
         private float nextSettingsCheck;
         private bool saveFailureLogged;
 
         private void LoadSettings()
         {
-            UpscalerSettings loaded = UpscalerSettings.Load();
+            OwnSettings loaded = OwnSettings.Load();
             string asSaved = loaded.Snapshot();
             // Nothing runs without a graphics profile chosen, whatever the file
             // says; what is corrected here is saved at the next check.
@@ -109,7 +110,7 @@ namespace ReDefinition
 
         // The hotkeys as the player set them, into the settings object the add-on
         // reads and saves.
-        private void SetBindings(UpscalerSettings from)
+        private void SetBindings(OwnSettings from)
         {
             settings.UpscalerKey = from.UpscalerKey;
             settings.SettingsWindowKey = from.SettingsWindowKey;
@@ -120,7 +121,7 @@ namespace ReDefinition
         // What a view changed of the hotkeys, and nothing else: KSP's settings
         // dialog holds a copy from when it opened, and its Apply must not bring back
         // a key this window set meanwhile.
-        private void ChangeBindings(UpscalerSettings before, UpscalerSettings after)
+        private void ChangeBindings(OwnSettings before, OwnSettings after)
         {
             if (before.UpscalerKey != after.UpscalerKey) settings.UpscalerKey = after.UpscalerKey;
             if (before.SettingsWindowKey != after.SettingsWindowKey) settings.SettingsWindowKey = after.SettingsWindowKey;
@@ -128,7 +129,7 @@ namespace ReDefinition
             if (before.CameraListKey != after.CameraListKey) settings.CameraListKey = after.CameraListKey;
         }
 
-        private UpscalerSettings Collect()
+        private OwnSettings Collect()
         {
             settings.Enabled = wantEnabled;
             settings.Quality = quality;
@@ -170,7 +171,7 @@ namespace ReDefinition
             catch (System.Exception e)
             {
                 if (!saveFailureLogged)
-                    Debug.LogWarning(UpscalerProbe.Tag + " Settings not saved, retrying: " + e.Message);
+                    Debug.LogWarning(Log.Tag + " Settings not saved, retrying: " + e.Message);
                 saveFailureLogged = true;
             }
         }
@@ -188,7 +189,7 @@ namespace ReDefinition
             captureFailures = 0;
             // Update takes the rig down (WantsRig), for the reason Reattach waits.
             nextAttachAttempt = 0f;
-            Debug.Log(UpscalerProbe.Tag + " Upscaler " + (wantEnabled ? "on" : "off"));
+            Debug.Log(Log.Tag + " Upscaler " + (wantEnabled ? "on" : "off"));
         }
 
         // Said on screen when something asks for the upscaler or frame generation
@@ -212,7 +213,7 @@ namespace ReDefinition
             if (rig != null) rig.Sharpness = sharpness;
             // 0 switches RCAS off, which takes the other accumulate shader: a new rig.
             if (rig != null && wasSharpening != (sharpness > 0f)) Reattach();
-            Debug.Log(UpscalerProbe.Tag + " Sharpness " + sharpness.ToString("0.00")
+            Debug.Log(Log.Tag + " Sharpness " + sharpness.ToString("0.00")
                       + (sharpness > 1f ? "  (beyond FidelityFX' maximum)" : ""));
         }
 
@@ -226,28 +227,28 @@ namespace ReDefinition
         {
             compensateLodBias = value;
             if (rig != null) { rig.CompensateLodBias = compensateLodBias; rig.RefreshQualityOverrides(); }
-            Debug.Log(UpscalerProbe.Tag + " LOD bias compensation " + (compensateLodBias ? "on" : "off"));
+            Debug.Log(Log.Tag + " LOD bias compensation " + (compensateLodBias ? "on" : "off"));
         }
 
         private void SetDisableMsaa(bool value)
         {
             disableMsaa = value;
             if (rig != null) { rig.DisableMsaa = disableMsaa; rig.RefreshQualityOverrides(); }
-            Debug.Log(UpscalerProbe.Tag + " MSAA override " + (disableMsaa ? "on" : "off"));
+            Debug.Log(Log.Tag + " MSAA override " + (disableMsaa ? "on" : "off"));
         }
 
         private void SetForceAnisotropic(bool value)
         {
             forceAnisotropic = value;
             if (rig != null) { rig.ForceAnisotropic = forceAnisotropic; rig.RefreshQualityOverrides(); }
-            Debug.Log(UpscalerProbe.Tag + " Anisotropic override " + (forceAnisotropic ? "on" : "off"));
+            Debug.Log(Log.Tag + " Anisotropic override " + (forceAnisotropic ? "on" : "off"));
         }
 
         // Built into the FSR context: a new rig.
         private void SetAutoExposure(bool value)
         {
             autoExposure = value;
-            Debug.Log(UpscalerProbe.Tag + " FSR auto exposure " + (autoExposure ? "on" : "off"));
+            Debug.Log(Log.Tag + " FSR auto exposure " + (autoExposure ? "on" : "off"));
             Reattach();
         }
 
@@ -257,7 +258,7 @@ namespace ReDefinition
         {
             tufxAfterUpscaling = value;
             if (rig != null) rig.TufxAfterUpscaling = tufxAfterUpscaling;
-            Debug.Log(UpscalerProbe.Tag + " TUFX effects " + (tufxAfterUpscaling ? "after" : "before") + " FSR");
+            Debug.Log(Log.Tag + " TUFX effects " + (tufxAfterUpscaling ? "after" : "before") + " FSR");
         }
 
         // Live: the rig records the masks and hands them to FSR in every frame.
@@ -265,14 +266,14 @@ namespace ReDefinition
         {
             transparencyMask = value;
             if (rig != null) rig.TransparencyMask = transparencyMask;
-            Debug.Log(UpscalerProbe.Tag + " Transparency mask " + (transparencyMask ? "on" : "off"));
+            Debug.Log(Log.Tag + " Transparency mask " + (transparencyMask ? "on" : "off"));
         }
 
         private void SetReactiveMask(UpscalerMasks.ReactiveSource value)
         {
             reactiveMask = value;
             if (rig != null) rig.ReactiveMask = reactiveMask;
-            Debug.Log(UpscalerProbe.Tag + " Reactive mask: " + ReactiveLabel(reactiveMask));
+            Debug.Log(Log.Tag + " Reactive mask: " + ReactiveLabel(reactiveMask));
         }
 
         private static string ReactiveLabel(UpscalerMasks.ReactiveSource source)
@@ -291,7 +292,7 @@ namespace ReDefinition
             if (backend == value) return;
             backend = value;
             ForgetNativeFailures(true);
-            Debug.Log(UpscalerProbe.Tag + " Upscaler technique: " + UpscalerBackends.Name(backend));
+            Debug.Log(Log.Tag + " Upscaler technique: " + UpscalerBackends.Name(backend));
             Reattach();
         }
 
@@ -300,7 +301,7 @@ namespace ReDefinition
         {
             dlssPreset = value;
             if (rig != null) rig.DlssPreset = dlssPreset;
-            Debug.Log(UpscalerProbe.Tag + " DLSS preset " + dlssPreset);
+            Debug.Log(Log.Tag + " DLSS preset " + dlssPreset);
             // A preset the DLSS library lacks may be what made FSR 3 take over:
             // forgotten in any case, and tried at once where DLSS is to run now.
             if (!stableFailures.Contains(UpscalerBackend.Dlss) && nativeFailures.Remove(UpscalerBackend.Dlss))
@@ -331,7 +332,7 @@ namespace ReDefinition
         {
             jitter = value;
             if (rig != null) rig.EnableJitter = jitter;
-            Debug.Log(UpscalerProbe.Tag + " Jitter " + (jitter ? "on" : "off"));
+            Debug.Log(Log.Tag + " Jitter " + (jitter ? "on" : "off"));
         }
 
         // Live: the rig sweeps the skinned renderers once a second while this is
@@ -340,7 +341,7 @@ namespace ReDefinition
         {
             skinnedMotionVectors = value;
             if (rig != null) rig.ForceSkinnedMotionVectors = skinnedMotionVectors;
-            Debug.Log(UpscalerProbe.Tag + " Skinned motion vectors "
+            Debug.Log(Log.Tag + " Skinned motion vectors "
                       + (skinnedMotionVectors ? "forced on" : "as the game set them"));
         }
 
@@ -376,12 +377,12 @@ namespace ReDefinition
             // its way down (Reattach, WantsRig) may not dispatch again, while its
             // teardown only switches the proxy off when frame generation is on.
             if (!frameGeneration) FrameGenerationBridge.SetEnabled(false);
-            Debug.Log(UpscalerProbe.Tag + " Frame generation " + (frameGeneration ? "on" : "off"));
+            Debug.Log(Log.Tag + " Frame generation " + (frameGeneration ? "on" : "off"));
         }
 
         // The settings as they are now, as a copy: KSP's settings dialog edits
         // it and hands it back through Apply only on Apply or Accept.
-        internal UpscalerSettings Current()
+        internal OwnSettings Current()
         {
             return Collect().Clone();
         }
@@ -396,7 +397,7 @@ namespace ReDefinition
         // built once, before Apply returns: the settings views read back what came
         // of it -- a rig that cannot start switches the upscaler off. They are
         // uGUI dialogs, not the IMGUI window Reattach waits for.
-        internal void Apply(UpscalerSettings before, UpscalerSettings after)
+        internal void Apply(OwnSettings before, OwnSettings after)
         {
             if (before == null || after == null) return;
 
@@ -418,7 +419,7 @@ namespace ReDefinition
             SaveSettingsIfChanged(true);
         }
 
-        private void ApplyChanges(UpscalerSettings before, UpscalerSettings after)
+        private void ApplyChanges(OwnSettings before, OwnSettings after)
         {
             if (before.Enabled != after.Enabled && !after.Enabled) SetEnabled(false);
             if (before.Quality != after.Quality) SetQuality(after.Quality);

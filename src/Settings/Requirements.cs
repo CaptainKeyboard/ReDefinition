@@ -184,7 +184,7 @@ namespace ReDefinition.Settings
                         }
                         if (!BundledSettings.Correct(setting, fix)) continue;
                         changed = true;
-                        Debug.Log(UpscalerProbe.Tag + " " + setting.Owner.ModName + ", " + setting.Title + ": " + now
+                        Debug.Log(Log.Tag + " " + setting.Owner.ModName + ", " + setting.Title + ": " + now
                                   + " -> " + fix + " (" + when + "). " + reasons);
                         foreach (Rule rule in failing) Say(rule);
                     }

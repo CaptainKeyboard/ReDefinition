@@ -557,12 +557,12 @@ namespace FidelityFX.FSR3
                 Debug.LogWarning("RenderSize contains zero dimension");
             }
 
-            // ReDefinition: sharpness up to UpscalerAddon.MaximumSharpness, past
+            // ReDefinition: sharpness up to ReDefinitionAddon.MaximumSharpness, past
             // FidelityFX's 1.
-            if (dispatchParams.Sharpness < 0.0f || dispatchParams.Sharpness > ReDefinition.UpscalerAddon.MaximumSharpness)
+            if (dispatchParams.Sharpness < 0.0f || dispatchParams.Sharpness > ReDefinition.ReDefinitionAddon.MaximumSharpness)
             {
                 Debug.LogWarning("Sharpness contains value outside of expected range [0.0, "
-                                 + ReDefinition.UpscalerAddon.MaximumSharpness + "]");
+                                 + ReDefinition.ReDefinitionAddon.MaximumSharpness + "]");
             }
 
             if (dispatchParams.FrameTimeDelta > 1.0f)

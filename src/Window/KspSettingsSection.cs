@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System;
 using FidelityFX.FSR3;
 using KSP.Localization;
+using ReDefinition.Core;
 using ReDefinition.Settings;
 using UnityEngine;
 
@@ -57,8 +58,8 @@ namespace ReDefinition.Window
         // Also the settings window's (SettingsWindow), which edits the same way.
         internal sealed class Edit
         {
-            public UpscalerSettings Before;
-            public UpscalerSettings After;
+            public OwnSettings Before;
+            public OwnSettings After;
 
             // Whether a graphics profile is chosen for these rows -- here the one
             // applied; in the settings window the one its rows were filled from.
@@ -74,11 +75,11 @@ namespace ReDefinition.Window
             try
             {
                 Patch();
-                Debug.Log(UpscalerProbe.Tag + " Section added to the graphics part of KSP's settings dialog.");
+                Debug.Log(Log.Tag + " Section added to the graphics part of KSP's settings dialog.");
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " Could not add the section to KSP's settings dialog: " + e);
+                Debug.LogWarning(Log.Tag + " Could not add the section to KSP's settings dialog: " + e);
             }
 
             Destroy(gameObject);
@@ -135,15 +136,15 @@ namespace ReDefinition.Window
             try
             {
                 Edits.Remove(__instance);
-                UpscalerAddon addon = UpscalerAddon.Instance;
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 if (addon == null) return;
 
-                UpscalerSettings current = addon.Current();
+                OwnSettings current = addon.Current();
                 Edits.Add(__instance, new Edit { Before = current, After = current.Clone() });
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " Settings section not loaded: " + e);
+                Debug.LogWarning(Log.Tag + " Settings section not loaded: " + e);
             }
         }
 
@@ -162,7 +163,7 @@ namespace ReDefinition.Window
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " Settings section not drawn: " + e);
+                Debug.LogWarning(Log.Tag + " Settings section not drawn: " + e);
             }
         }
 
@@ -171,7 +172,7 @@ namespace ReDefinition.Window
             try
             {
                 Edit edit;
-                UpscalerAddon addon = UpscalerAddon.Instance;
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 if (addon == null || !Edits.TryGetValue(__instance, out edit)) return;
 
                 try
@@ -184,14 +185,14 @@ namespace ReDefinition.Window
                     // the new starting point -- as it is after the commit, which is
                     // not always as asked: the other mods set up only in part, a
                     // setter that threw half way. So it is read back.
-                    UpscalerSettings now = addon.Current();
+                    OwnSettings now = addon.Current();
                     edit.Before = now;
                     edit.After = now.Clone();
                 }
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " Settings from KSP's dialog applied only in part: " + e);
+                Debug.LogWarning(Log.Tag + " Settings from KSP's dialog applied only in part: " + e);
             }
         }
 

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using System;
 using ReDefinition.Bridges;
+using ReDefinition.Core;
 using UnityEngine.Rendering;
 using UnityEngine;
 
@@ -103,7 +104,7 @@ namespace ReDefinition.Upscaler
             if (unchanged) LogHudLessCapture();
             else AttachHudLessCapture(presenterCam, false);
 
-            UpscalerProbe.LogCameraSurvey();
+            CameraSurvey.Write();
         }
 
         private void DetachHudLessCapture()
@@ -132,7 +133,7 @@ namespace ReDefinition.Upscaler
 
             float lastDepth = float.MinValue;
             StringBuilder sb = new StringBuilder();
-            sb.Append(UpscalerProbe.Tag).Append(" HUD-less snapshot at the end of");
+            sb.Append(Log.Tag).Append(" HUD-less snapshot at the end of");
             foreach (Camera carrier in hudLessCameras)
             {
                 if (carrier == null) continue;

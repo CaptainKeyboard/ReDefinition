@@ -1,6 +1,7 @@
 using System.Text;
 using System;
 using ReDefinition.Bridges;
+using ReDefinition.Core;
 using UnityEngine.Rendering;
 using UnityEngine;
 
@@ -62,7 +63,7 @@ namespace ReDefinition.Upscaler
         public void LogDiagnostics()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append(UpscalerProbe.Tag).Append(" Diagnostics").AppendLine();
+            sb.Append(Log.Tag).Append(" Diagnostics").AppendLine();
             sb.Append("  screen ").Append(Screen.width).Append("x").Append(Screen.height)
               .Append(", render ").Append(renderSize.x).Append("x").Append(renderSize.y)
               .Append(", bypass ").Append(Bypass).AppendLine();

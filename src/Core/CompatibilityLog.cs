@@ -19,7 +19,7 @@ namespace ReDefinition.Core
             Counts.TryGetValue(kind, out count);
             if (count >= PerKind) return;
             Counts[kind] = count + 1;
-            Debug.LogWarning(UpscalerProbe.Tag + " " + message
+            Debug.LogWarning(Log.Tag + " " + message
                              + (count + 1 == PerKind ? " (further warnings of this kind are not logged)" : ""));
         }
 

@@ -1,8 +1,9 @@
-using System;
 using System.Runtime.InteropServices;
 using System.Text;
-using UnityEngine;
+using System;
+using ReDefinition.Core;
 using UnityEngine.Rendering;
+using UnityEngine;
 
 namespace ReDefinition.Bridges
 {
@@ -142,7 +143,7 @@ namespace ReDefinition.Bridges
                     {
                         unavailable = true;
                         unavailableReason = "proxy present, but frameGeneration=0 in ReDefinitionProxy.ini";
-                        Debug.Log(UpscalerProbe.Tag + " Frame generation is switched off in the proxy's ini"
+                        Debug.Log(Log.Tag + " Frame generation is switched off in the proxy's ini"
                                   + " (frameGeneration=0); upscaling continues unaffected.");
                     }
                 }
@@ -268,7 +269,7 @@ namespace ReDefinition.Bridges
             TryNative(() => KspFgSetEnabled(0));
             unavailable = true;
             unavailableReason = "the dxgi.dll proxy is older than the mod (it has no " + export + ")";
-            Debug.Log(UpscalerProbe.Tag + " Frame generation off: " + unavailableReason + ".");
+            Debug.Log(Log.Tag + " Frame generation off: " + unavailableReason + ".");
         }
 
         // Whether the proxy's last attempt to make frame generation's context
@@ -333,7 +334,7 @@ namespace ReDefinition.Bridges
             IntPtr h = hudLess != null ? hudLess.GetNativeTexturePtr() : IntPtr.Zero;
 
             if (TryCall(() => KspFgRegisterInputs3(d, m, h)))
-                Debug.Log(UpscalerProbe.Tag + " Frame generation inputs registered.");
+                Debug.Log(Log.Tag + " Frame generation inputs registered.");
         }
 
         // Recorded into the upscaler's own CommandBuffer each frame, after the
@@ -361,7 +362,7 @@ namespace ReDefinition.Bridges
             int packetSize = Marshal.SizeOf(typeof(FramePacket));
             if (nativeSize != (uint)packetSize)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " Frame packet layout mismatch: managed " + packetSize
+                Debug.LogWarning(Log.Tag + " Frame packet layout mismatch: managed " + packetSize
                                  + " bytes, native " + nativeSize + " -- frame generation stays off.");
                 renderEvent = IntPtr.Zero;
                 unavailable = true;
@@ -413,7 +414,7 @@ namespace ReDefinition.Bridges
             }
 
             countersMissing = true;
-            Debug.Log(UpscalerProbe.Tag + " The proxy does not count frames (a dxgi.dll older than the mod);"
+            Debug.Log(Log.Tag + " The proxy does not count frames (a dxgi.dll older than the mod);"
                       + " the window shows the rendered frame rate only.");
             return false;
         }
@@ -478,7 +479,7 @@ namespace ReDefinition.Bridges
 
             unavailable = true;
             unavailableReason = "proxy not present (dxgi.dll without the frame generation exports)";
-            Debug.Log(UpscalerProbe.Tag + " Frame generation proxy not available; upscaling continues unaffected.");
+            Debug.Log(Log.Tag + " Frame generation proxy not available; upscaling continues unaffected.");
             return false;
         }
 

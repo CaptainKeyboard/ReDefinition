@@ -49,7 +49,7 @@ namespace ReDefinition.Settings
 
         public static string Path
         {
-            get { return UpscalerSettings.PluginDataPath(FileName); }
+            get { return OwnSettings.PluginDataPath(FileName); }
         }
 
         // Whether the other mods' settings are bundled here and their buttons
@@ -112,7 +112,7 @@ namespace ReDefinition.Settings
                     built = true;
                     registrationProblems.AddRange(problems);
                     if (problems.Count > 0)
-                        Debug.LogWarning(UpscalerProbe.Tag + " Mod registrations:\n  " + string.Join("\n  ", problems.ToArray()));
+                        Debug.LogWarning(Log.Tag + " Mod registrations:\n  " + string.Join("\n  ", problems.ToArray()));
                     foreach (IBundledMod mod in mods) Report(mod);
                 }
                 finally
@@ -130,7 +130,7 @@ namespace ReDefinition.Settings
         {
             if (mod.IsInstalled) InstallHooks(mod);
             if (mod.DroppedMembers.Count > 0)
-                Debug.Log(UpscalerProbe.Tag + " " + mod.ModName
+                Debug.Log(Log.Tag + " " + mod.ModName
                           + (mod.IsInstalled ? ": not bundled here -- " : ": not bundled at all -- ")
                           + string.Join("; ", new List<string>(mod.DroppedMembers).ToArray()) + ".");
         }
@@ -306,12 +306,12 @@ namespace ReDefinition.Settings
 
             public void Info(string message)
             {
-                Debug.Log(UpscalerProbe.Tag + " " + message);
+                Debug.Log(Log.Tag + " " + message);
             }
 
             public void Warning(string message)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " " + message);
+                Debug.LogWarning(Log.Tag + " " + message);
             }
 
             public void Warn(string kind, string message)

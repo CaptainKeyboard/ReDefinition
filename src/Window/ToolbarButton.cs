@@ -16,7 +16,7 @@ namespace ReDefinition.Window
     // Through KSP's own ApplicationLauncher, in Assembly-CSharp.
     //
     // The icon is generated at run time.
-    internal class UpscalerToolbarButton
+    internal class ToolbarButton
     {
         private const int IconSize = 38;
 
@@ -25,7 +25,7 @@ namespace ReDefinition.Window
         private Texture2D icon;
         private bool registered;
 
-        public UpscalerToolbarButton(Callback clickHandler)
+        public ToolbarButton(Callback clickHandler)
         {
             onClick = clickHandler;
         }

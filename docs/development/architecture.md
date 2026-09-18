@@ -24,10 +24,10 @@ Harmony is a requirement (`src/KspAssemblyInfo.cs`).
 
 | File | Role |
 |---|---|
-| `UpscalerAddon.cs` | the add-on's lifecycle: builds and tears down the rig per scene and camera mode, the hotkeys, HostStack while a profile is chosen |
-| `UpscalerAddon.Settings.cs` | the settings: what each change does, loading, saving, applying from a settings view |
-| `UpscalerAddon.Window.cs` | the diagnostics window, *General* and *Debug* |
-| `UpscalerAddon.FrameRates.cs`, `FrameRateMeter.cs` | frame rates with and without the upscaler, rendered and presented, with the load behind them |
+| `ReDefinitionAddon.cs` | the add-on's lifecycle: builds and tears down the rig per scene and camera mode, the hotkeys, HostStack while a profile is chosen |
+| `ReDefinitionAddon.Settings.cs` | the settings: what each change does, loading, saving, applying from a settings view |
+| `ReDefinitionAddon.Diagnostics.cs` | the diagnostics window, *General* and *Debug* |
+| `ReDefinitionAddon.FrameRates.cs`, `FrameRateMeter.cs` | frame rates with and without the upscaler, rendered and presented, with the load behind them |
 | `UpscalerRig.cs` | one upscaler on one scene: render targets, jitter, the captures of colour, depth and motion vectors, the dispatch, setup and teardown |
 | `UpscalerRig.CameraMotion.cs` | the camera motion and floating origin instrument; the fast-turn switch |
 | `UpscalerRig.Hooks.cs`, `UpscalerOverlay.cs` | the hooks other mods register: motion vectors into the capture, the upscaled image, the overlay camera |
@@ -36,7 +36,7 @@ Harmony is a requirement (`src/KspAssemblyInfo.cs`).
 | `UpscalerRig.Diagnostics.cs`, `.Preview.cs` | *Write diagnostics to log*, the input preview |
 | `CameraRedirect.cs` | redirects KSP's 3D camera stack into one render-size target, jitters it, and puts back each camera's target and projection |
 | `UpscalerPresenter.cs` | the presenter camera that draws the result into the frame buffer before the UI cameras |
-| `UpscalerSettings.cs`, `OurModules.cs` | the player's choices in `PluginData/settings.cfg`; the upscaler and frame generation as modules of the framework |
+| `OwnSettings.cs`, `OurModules.cs` | the player's choices in `PluginData/settings.cfg`; the upscaler and frame generation as modules of the framework |
 
 ### Inputs and the game's state
 
@@ -72,8 +72,8 @@ Harmony is a requirement (`src/KspAssemblyInfo.cs`).
 | `SettingsWindow.cs`, `TabScrollList.cs` | the settings window's view, from KSP's dialog elements |
 | `SettingsWindow.Keys.cs`, `KeyCapture.cs`, `Conflicts.cs`, `KspKeyBindings.cs` | the Keys tab: the rows that take a combination, the capture with KSP's controls locked, the shared combinations shown in yellow, and KSP's own bindings read from `GameSettings` |
 | `KspSettingsSection.cs` | the section in KSP's settings dialog, through Harmony postfixes on `VideoSettings` |
-| `UpscalerToolbarButton.cs`, `CompatibilityLog.cs` | the toolbar button; warnings said a few times at most |
-| `src/UpscalerProbe.cs` | the log tag `[ReDefinition]`, the camera survey |
+| `ToolbarButton.cs`, `CompatibilityLog.cs` | the toolbar button; warnings said a few times at most |
+| `src/Log.cs` | the log tag `[ReDefinition]`, the camera survey |
 
 ### The interface for mods, `src/Api`
 

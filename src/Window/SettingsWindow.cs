@@ -21,7 +21,7 @@ namespace ReDefinition.Window
     // name, themes it with the rest of KSP's dialogs.
     //
     // It edits copies, as KSP's dialog does: the upscaler's settings in an
-    // UpscalerSettings copy committed through UpscalerAddon.Apply, the other
+    // OwnSettings copy committed through ReDefinitionAddon.Apply, the other
     // mods' values in the edit model (SettingsEdit) committed through
     // BundledSettings. Cancel leaves everything as it was. This is the view:
     // what the rows hold, where their values came from and what Apply does with
@@ -118,12 +118,12 @@ namespace ReDefinition.Window
 
         private static void Open()
         {
-            UpscalerAddon addon = UpscalerAddon.Instance;
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon == null) return;
 
             try
             {
-                UpscalerSettings now = addon.Current();
+                OwnSettings now = addon.Current();
                 // ReDefinition's own rows follow the profile the other rows were filled from,
                 // applied or not -- with the bundling, without which no profile is
                 // stored.
@@ -151,7 +151,7 @@ namespace ReDefinition.Window
             catch (Exception e)
             {
                 dialog = null;
-                Debug.LogWarning(UpscalerProbe.Tag + " The settings window could not be opened: " + e);
+                Debug.LogWarning(Log.Tag + " The settings window could not be opened: " + e);
             }
         }
 
@@ -638,7 +638,7 @@ namespace ReDefinition.Window
                         5f);
                 model.Profile = "";
             }
-            if (edit != null) edit.After = new UpscalerSettings();
+            if (edit != null) edit.After = new OwnSettings();
             // ReDefinition's own bindings went back with the settings above, the
             // mods' go with their other settings, and KSP's are filled in here.
             ResetKeyBindings();
@@ -657,7 +657,7 @@ namespace ReDefinition.Window
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning(UpscalerProbe.Tag + " The graphics profiles could not be read again: " + e);
+                    Debug.LogWarning(Log.Tag + " The graphics profiles could not be read again: " + e);
                 }
             }
             if (!model.ChooseProfile(profile.Name)) return;
@@ -673,7 +673,7 @@ namespace ReDefinition.Window
         {
             string applied = BundledSettings.ProfileName;
             bool enabled = BundledSettings.Enabled;
-            UpscalerSettings after = edit != null ? edit.After : null;
+            OwnSettings after = edit != null ? edit.After : null;
             bool upscalerPending = UpscalerPending();
             bool modulesSame = SameModules(after);
 
@@ -697,7 +697,7 @@ namespace ReDefinition.Window
         // Whether every quality setting of ReDefinition's modules still holds the value the
         // status line was worked out with; the values now are kept for the next
         // frame.
-        private static bool SameModules(UpscalerSettings after)
+        private static bool SameModules(OwnSettings after)
         {
             int count = 0;
             for (int m = 0; m < OurModules.All.Count; m++)
@@ -729,7 +729,7 @@ namespace ReDefinition.Window
         }
 
         // Field by field, since the status line asks every frame.
-        private static bool SameUpscaler(UpscalerSettings a, UpscalerSettings b)
+        private static bool SameUpscaler(OwnSettings a, OwnSettings b)
         {
             return a.Enabled == b.Enabled && a.Quality == b.Quality && a.Sharpness == b.Sharpness
                    && a.MipmapBias == b.MipmapBias && a.CompensateLodBias == b.CompensateLodBias
@@ -883,11 +883,11 @@ namespace ReDefinition.Window
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " The settings from before ReDefinition were restored only in part: " + e);
+                Debug.LogWarning(Log.Tag + " The settings from before ReDefinition were restored only in part: " + e);
             }
             // Without the profile the upscaler goes off now, before anything reads it
             // back.
-            UpscalerAddon addon = UpscalerAddon.Instance;
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon != null) addon.EnforceProfile();
             // The rows show what the mods hold now.
             if (!Visible) return;
@@ -895,7 +895,7 @@ namespace ReDefinition.Window
             LoadProfiles();
             if (addon != null && edit != null)
             {
-                UpscalerSettings now = addon.Current();
+                OwnSettings now = addon.Current();
                 edit.Before = now;
                 edit.After = now.Clone();
             }
@@ -1065,7 +1065,7 @@ namespace ReDefinition.Window
 
         private static void ShowDiagnostics()
         {
-            UpscalerAddon addon = UpscalerAddon.Instance;
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon != null) addon.ShowDiagnostics();
         }
 
@@ -1090,7 +1090,7 @@ namespace ReDefinition.Window
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " KSP's key bindings from the window applied only in part: " + e);
+                Debug.LogWarning(Log.Tag + " KSP's key bindings from the window applied only in part: " + e);
             }
 
             try
@@ -1135,16 +1135,16 @@ namespace ReDefinition.Window
                     }
                     if (changed) BundledSettings.SaveNow();
                     if (resetting)
-                        Debug.Log(UpscalerProbe.Tag + " Bundled settings: every setting set to its mod's default"
+                        Debug.Log(Log.Tag + " Bundled settings: every setting set to its mod's default"
                                   + " (Reset to defaults).");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " Other mods' settings from the window applied only in part: " + e);
+                Debug.LogWarning(Log.Tag + " Other mods' settings from the window applied only in part: " + e);
             }
 
-            UpscalerAddon addon = UpscalerAddon.Instance;
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon != null && edit != null)
             {
                 try
@@ -1153,7 +1153,7 @@ namespace ReDefinition.Window
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning(UpscalerProbe.Tag + " The upscaler's settings from the window applied only in part: " + e);
+                    Debug.LogWarning(Log.Tag + " The upscaler's settings from the window applied only in part: " + e);
                 }
                 finally
                 {
@@ -1163,14 +1163,14 @@ namespace ReDefinition.Window
                         // Both or neither: a half-written pair would take the
                         // player's earlier changes for new ones at the next
                         // Apply.
-                        UpscalerSettings now = addon.Current();
-                        UpscalerSettings copy = now.Clone();
+                        OwnSettings now = addon.Current();
+                        OwnSettings copy = now.Clone();
                         edit.Before = now;
                         edit.After = copy;
                     }
                     catch (Exception e)
                     {
-                        Debug.LogWarning(UpscalerProbe.Tag + " The upscaler's settings could not be read back into the"
+                        Debug.LogWarning(Log.Tag + " The upscaler's settings could not be read back into the"
                                          + " window: " + e);
                     }
                 }
@@ -1185,7 +1185,7 @@ namespace ReDefinition.Window
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " The other mods' values could not be read back into the"
+                Debug.LogWarning(Log.Tag + " The other mods' values could not be read back into the"
                                  + " window: " + e);
             }
         }

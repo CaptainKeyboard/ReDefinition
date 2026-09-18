@@ -4,6 +4,7 @@ using System;
 using FidelityFX.FSR3;
 using FidelityFX;
 using ReDefinition.Bridges;
+using ReDefinition.Core;
 using ReDefinition.Shared;
 using UnityEngine.Rendering;
 using UnityEngine;
@@ -386,7 +387,7 @@ namespace ReDefinition.Upscaler
                     // DLSS goes on unsharpened.
                     dlssSharpener.Release();
                     dlssSharpener = null;
-                    Debug.LogWarning(UpscalerProbe.Tag + " DLSS runs without sharpening: the texture RCAS reads could not be created.");
+                    Debug.LogWarning(Log.Tag + " DLSS runs without sharpening: the texture RCAS reads could not be created.");
                 }
             }
             if (!Bypass)
@@ -422,7 +423,7 @@ namespace ReDefinition.Upscaler
             if (PassThrough && QualitySettings.antiAliasing > 1 && !loggedPassThroughMsaa)
             {
                 loggedPassThroughMsaa = true;
-                Debug.LogWarning(UpscalerProbe.Tag + " Frame generation without the upscaler captures the scene without KSP's "
+                Debug.LogWarning(Log.Tag + " Frame generation without the upscaler captures the scene without KSP's "
                                  + QualitySettings.antiAliasing + "x MSAA; the upscaler at AA only antialiases it.");
             }
             resetHistory = true;
@@ -513,7 +514,7 @@ namespace ReDefinition.Upscaler
             presenter = presenterObject.AddComponent<UpscalerPresenter>();
             presenter.Rig = this;
 
-            Debug.Log(UpscalerProbe.Tag + " " + redirects.Count + " cameras redirected; last in the stack '"
+            Debug.Log(Log.Tag + " " + redirects.Count + " cameras redirected; last in the stack '"
                       + lastName + "' (depth " + lastDepth.ToString("0.##")
                       + "), presenter camera at depth " + presenterCam.depth.ToString("0.##") + ".");
 
@@ -672,7 +673,7 @@ namespace ReDefinition.Upscaler
             mipmapBias.ApplyMipmapBias(bias);
             biasApplied = true;
 
-            Debug.Log(UpscalerProbe.Tag + " Mipmap bias " + bias.ToString("0.00") + " applied to "
+            Debug.Log(Log.Tag + " Mipmap bias " + bias.ToString("0.00") + " applied to "
                       + mipmapBias.TextureCount + " textures in "
                       + ((Time.realtimeSinceStartup - started) * 1000f).ToString("0") + " ms.");
         }
@@ -702,11 +703,11 @@ namespace ReDefinition.Upscaler
                 // unloaded with the scene must not take this frame's inputs with it.
                 try
                 {
-                    Debug.Log(UpscalerProbe.Tag + " Skinned renderers: " + skinned.Describe(VisibleLayerMask()) + ".");
+                    Debug.Log(Log.Tag + " Skinned renderers: " + skinned.Describe(VisibleLayerMask()) + ".");
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning(UpscalerProbe.Tag + " The skinned renderers could not be reported: " + e);
+                    Debug.LogWarning(Log.Tag + " The skinned renderers could not be reported: " + e);
                 }
             }
 
@@ -842,7 +843,7 @@ namespace ReDefinition.Upscaler
         {
             if (RebuildWanted) return;
             RebuildWanted = true;
-            Debug.Log(UpscalerProbe.Tag + " Rebuilding the upscaler: " + reason + ".");
+            Debug.Log(Log.Tag + " Rebuilding the upscaler: " + reason + ".");
         }
 
         // Called by the presenter camera. Returning false means: did nothing,
@@ -874,7 +875,7 @@ namespace ReDefinition.Upscaler
             SharedFrame.EnsureBegun();
             string late = SharedFrame.LateReset();
             if (late != null)
-                Debug.Log(UpscalerProbe.Tag + " History reset while the frame rendered: " + late + ".");
+                Debug.Log(Log.Tag + " History reset while the frame rendered: " + late + ".");
             bool cut = SharedFrame.RigResetReason != null || late != null;
             dispatch.Reset = resetHistory || cut;
             resetHistory = false;
@@ -979,7 +980,7 @@ namespace ReDefinition.Upscaler
                 catch (System.Exception e)
                 {
                     instrumentFailed = true;
-                    Debug.LogWarning(UpscalerProbe.Tag + " Camera instrument stopped: " + e.Message);
+                    Debug.LogWarning(Log.Tag + " Camera instrument stopped: " + e.Message);
                 }
             }
             return true;

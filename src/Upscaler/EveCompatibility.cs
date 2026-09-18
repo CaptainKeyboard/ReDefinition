@@ -90,7 +90,7 @@ namespace ReDefinition.Upscaler
             try
             {
                 reinitAll.Invoke(null, null);
-                Debug.Log(UpscalerProbe.Tag + " EVE volumetric clouds rebuilt for the render size (" + reason + ").");
+                Debug.Log(Log.Tag + " EVE volumetric clouds rebuilt for the render size (" + reason + ").");
             }
             catch (Exception e)
             {
@@ -140,7 +140,7 @@ namespace ReDefinition.Upscaler
             try
             {
                 shadowsManagerUpdate.Invoke(manager, null);
-                Debug.Log(UpscalerProbe.Tag + " EVE screen-space cloud shadows sized anew for " + resized
+                Debug.Log(Log.Tag + " EVE screen-space cloud shadows sized anew for " + resized
                           + " camera(s) (" + reason + ").");
             }
             catch (Exception e)
@@ -177,7 +177,7 @@ namespace ReDefinition.Upscaler
             }
 
             if ((clouds != null && reinitAll == null) || ((renderer != null || manager != null) && !ShadowsUsable))
-                Debug.LogWarning(UpscalerProbe.Tag + " EVE is installed, but not the one this mod was written"
+                Debug.LogWarning(Log.Tag + " EVE is installed, but not the one this mod was written"
                                  + " against; its clouds or cloud shadows may show stripes in the smaller modes.");
         }
     }

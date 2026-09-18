@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections;
+using ReDefinition.Core;
 using ReDefinition.Settings;
 using UnityEngine;
 
@@ -39,7 +40,7 @@ namespace ReDefinition.Window
                 BundledSettings.MarkAsked(fresh);
                 if (!BundledSettings.Enabled)
                 {
-                    Debug.Log(UpscalerProbe.Tag + " " + list + " keep their own buttons, as chosen before.");
+                    Debug.Log(Log.Tag + " " + list + " keep their own buttons, as chosen before.");
                     yield break;
                 }
 
@@ -53,7 +54,7 @@ namespace ReDefinition.Window
                     new DialogGUIButton("OK", () => { }, true));
                 UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                     note, false, HighLogic.UISkin));
-                Debug.Log(UpscalerProbe.Tag + " Main menu note: " + list + " bundled too, as chosen before.");
+                Debug.Log(Log.Tag + " Main menu note: " + list + " bundled too, as chosen before.");
                 yield break;
             }
 
@@ -80,7 +81,7 @@ namespace ReDefinition.Window
             // events, which no dialog locks.
             UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 dialog, false, HighLogic.UISkin));
-            Debug.Log(UpscalerProbe.Tag + " Main menu notice about ReDefinition shown for " + list + ".");
+            Debug.Log(Log.Tag + " Main menu notice about ReDefinition shown for " + list + ".");
         }
 
         // One button or several: the sentence around the list follows the
@@ -111,16 +112,16 @@ namespace ReDefinition.Window
             ToolbarTakeover.Refresh();
             if (profile == null)
             {
-                Debug.Log(UpscalerProbe.Tag + " Main menu notice answered: "
+                Debug.Log(Log.Tag + " Main menu notice answered: "
                           + (profileName == null ? "later" : "the profile '" + profileName + "', which is not there")
                           + " -- nothing set.");
                 ProfileApplier.Report("Graphics profile from the main menu", problems);
                 return;
             }
 
-            Debug.Log(UpscalerProbe.Tag + " Main menu notice answered: the profile '" + profileName + "'.");
+            Debug.Log(Log.Tag + " Main menu notice answered: the profile '" + profileName + "'.");
             ProfileApplier.ApplyNow(profile, profiles, problems);
-            Debug.Log(UpscalerProbe.Tag + " Graphics profile '" + profile.Title + "' applied from the main menu.");
+            Debug.Log(Log.Tag + " Graphics profile '" + profile.Title + "' applied from the main menu.");
             ProfileApplier.Report("Graphics profile from the main menu", problems);
         }
     }

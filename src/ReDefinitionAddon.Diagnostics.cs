@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System;
 using FidelityFX.FSR3;
 using ReDefinition.Bridges;
+using ReDefinition.Core;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;
 using ReDefinition.Window;
@@ -10,7 +11,7 @@ using UnityEngine;
 namespace ReDefinition
 {
     // The add-on's part for its diagnostics window (IMGUI): General and Debug.
-    public partial class UpscalerAddon
+    public partial class ReDefinitionAddon
     {
         private bool windowVisible;
 
@@ -255,7 +256,7 @@ namespace ReDefinition
             if (GUILayout.Button("Write diagnostics to log"))
             {
                 if (rig != null) rig.LogDiagnostics();
-                else Debug.Log(UpscalerProbe.Tag + " Diagnostics: upscaler is not active.");
+                else Debug.Log(Log.Tag + " Diagnostics: upscaler is not active.");
             }
 
             // The rendered picture as it is, through the same redirect: what the
@@ -272,7 +273,7 @@ namespace ReDefinition
             {
                 recordFastTurns = !recordFastTurns;
                 if (rig != null) rig.RecordFastTurns = recordFastTurns;
-                Debug.Log(UpscalerProbe.Tag + " Motion vector check on fast turns " + (recordFastTurns ? "on" : "off") + ".");
+                Debug.Log(Log.Tag + " Motion vector check on fast turns " + (recordFastTurns ? "on" : "off") + ".");
             }
             GUI.enabled = enabled;
 
@@ -287,7 +288,7 @@ namespace ReDefinition
             if (SwitchRow("EVE clouds: jitter and motion vectors", OnOff(EveCloudMotion.Enabled)))
             {
                 EveCloudMotion.Enabled = !EveCloudMotion.Enabled;
-                Debug.Log(UpscalerProbe.Tag + " EVE clouds with jitter and motion vectors "
+                Debug.Log(Log.Tag + " EVE clouds with jitter and motion vectors "
                           + (EveCloudMotion.Enabled ? "on" : "off") + ".");
             }
             GUI.enabled = enabled;
@@ -338,7 +339,7 @@ namespace ReDefinition
             {
                 debugView = !debugView;
                 if (rig != null) rig.DebugView = debugView;
-                Debug.Log(UpscalerProbe.Tag + " FSR debug view " + (debugView ? "on" : "off"));
+                Debug.Log(Log.Tag + " FSR debug view " + (debugView ? "on" : "off"));
             }
             GUI.enabled = enabled;
 #endif

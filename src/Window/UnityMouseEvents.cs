@@ -87,7 +87,7 @@ namespace ReDefinition.Window
 
                 if (!InsertAround(ref loop, typeof(UnityEngine.PlayerLoop.PreUpdate.SendMouseEvents)))
                 {
-                    Debug.LogWarning(UpscalerProbe.Tag + " Unity's mouse event pass is not in the player loop:"
+                    Debug.LogWarning(Log.Tag + " Unity's mouse event pass is not in the player loop:"
                                      + " while the upscaler runs, buildings in the space centre and switches in"
                                      + " IVA do not react to clicks.");
                     return;
@@ -95,12 +95,12 @@ namespace ReDefinition.Window
 
                 UnityEngine.LowLevel.PlayerLoop.SetPlayerLoop(loop);
                 ResolveHits();
-                Debug.Log(UpscalerProbe.Tag + " Redirected cameras take part in Unity's mouse events."
+                Debug.Log(Log.Tag + " Redirected cameras take part in Unity's mouse events."
                           + (currentHits == null ? " The objects they reach cannot be named in the log here." : ""));
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " Redirected cameras could not be added to Unity's mouse"
+                Debug.LogWarning(Log.Tag + " Redirected cameras could not be added to Unity's mouse"
                                  + " events: " + e);
             }
         }
@@ -167,7 +167,7 @@ namespace ReDefinition.Window
 
             try
             {
-                UpscalerAddon addon = UpscalerAddon.Instance;
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 UpscalerRig rig = addon != null ? addon.CurrentRig : null;
                 if (rig == null) return;
 
@@ -342,7 +342,7 @@ namespace ReDefinition.Window
                 if (target == null || camera == null || !WasLent(camera)) continue;
 
                 loggedFor = lentFor;
-                Debug.Log(UpscalerProbe.Tag + " Unity's mouse events reach '" + target.name
+                Debug.Log(Log.Tag + " Unity's mouse events reach '" + target.name
                           + "' through the redirected camera '" + camera.name + "'.");
                 return;
             }

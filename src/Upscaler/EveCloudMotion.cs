@@ -197,7 +197,7 @@ namespace ReDefinition.Upscaler
             string last;
             if (loggedOutcomes.TryGetValue(cam.GetInstanceID(), out last) && last == how) return;
             loggedOutcomes[cam.GetInstanceID()] = how;
-            Debug.Log(UpscalerProbe.Tag + " EVE's clouds render " + how + " on '" + cam.name + "'.");
+            Debug.Log(Log.Tag + " EVE's clouds render " + how + " on '" + cam.name + "'.");
         }
 
         // The shader EVE reconstructs its clouds with, once it has looked it up --

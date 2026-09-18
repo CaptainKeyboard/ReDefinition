@@ -1,5 +1,6 @@
 using System;
 using ReDefinition.Bridges;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Upscaler
@@ -151,7 +152,7 @@ namespace ReDefinition.Upscaler
                 if (nativeStoppedSince < 0f) nativeStoppedSince = Time.unscaledTime;
 
                 // What cannot upscale does not stay on screen: FSR 3 runs in its
-                // place (UpscalerAddon, which says when it tries again).
+                // place (ReDefinitionAddon, which says when it tries again).
                 // A failure that stands (-2) stands for this rig as for the one
                 // before: no waiting for it.
                 float allowed = state == -2 ? 0f : nativeEverShown ? NativeStoppedSeconds : NativeNeverShownSeconds;
@@ -166,7 +167,7 @@ namespace ReDefinition.Upscaler
                 if (nativeStopped == reason) return;
                 nativeStopped = reason;
                 Status = name + " stopped: " + reason;
-                Debug.LogWarning(UpscalerProbe.Tag + " " + name + " stopped, the image is shown without upscaling: " + reason);
+                Debug.LogWarning(Log.Tag + " " + name + " stopped, the image is shown without upscaling: " + reason);
             }
             else
             {
@@ -175,7 +176,7 @@ namespace ReDefinition.Upscaler
                 {
                     nativeStopped = null;
                     Status = "active";
-                    Debug.Log(UpscalerProbe.Tag + " " + name + " running again.");
+                    Debug.Log(Log.Tag + " " + name + " running again.");
                 }
             }
         }

@@ -28,7 +28,7 @@ namespace ReDefinition.Settings.Behaviours
     // it, the terrain shader quality while Kopernicus enforces or warns about a
     // level. Antialiasing is kept for the reset only: while the upscaler runs it
     // switches MSAA off again whenever KSP's settings are applied
-    // (UpscalerAddon.OnGameSettingsApplied), which FollowUp fires after every
+    // (ReDefinitionAddon.OnGameSettingsApplied), which FollowUp fires after every
     // change here.
     internal sealed class KspBehaviour : ModBehaviour
     {

@@ -158,7 +158,7 @@ namespace ReDefinition.Settings
 
         // ReDefinition's modules' part (OurModules): each MODULE node's values onto the
         // settings they name, in `settings`.
-        public static void ApplyModules(GraphicsProfile profile, UpscalerSettings settings, List<string> problems)
+        public static void ApplyModules(GraphicsProfile profile, OwnSettings settings, List<string> problems)
         {
             if (settings == null) return;
             foreach (KeyValuePair<ModuleSetting, string> pair in ModuleValues(profile, problems))
@@ -218,7 +218,7 @@ namespace ReDefinition.Settings
         // match the profile -- what makes it Custom. valueOf gives a setting's value
         // as the caller holds it.
         public static int Differences(GraphicsProfile profile, Dictionary<BundledSetting, string> values,
-                                      Func<BundledSetting, string> valueOf, UpscalerSettings upscaler)
+                                      Func<BundledSetting, string> valueOf, OwnSettings upscaler)
         {
             int count = 0;
             // A value that cannot be read now is not known to differ: with every
@@ -265,14 +265,14 @@ namespace ReDefinition.Settings
             BundledSettings.ProfileName = profile.Name;
             BundledSettings.SaveNow();
 
-            UpscalerAddon addon = UpscalerAddon.Instance;
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon == null) return;
             // Caught as the window catches it: a failure here must not take the
             // report of what came before with it.
             try
             {
-                UpscalerSettings before = addon.Current();
-                UpscalerSettings after = before.Clone();
+                OwnSettings before = addon.Current();
+                OwnSettings after = before.Clone();
                 ApplyModules(profile, after, problems);
                 addon.Apply(before, after);
             }
@@ -292,7 +292,7 @@ namespace ReDefinition.Settings
             foreach (string problem in problems)
                 if (reported.Add(problem)) fresh.Add(problem);
             if (fresh.Count == 0) return;
-            Debug.LogWarning(UpscalerProbe.Tag + " " + what + ":\n  " + string.Join("\n  ", fresh.ToArray()));
+            Debug.LogWarning(Log.Tag + " " + what + ":\n  " + string.Join("\n  ", fresh.ToArray()));
         }
 
         // Null where the setting's control can take the value; otherwise why

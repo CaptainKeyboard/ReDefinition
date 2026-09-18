@@ -13,7 +13,7 @@ namespace ReDefinition
     // Not kept here: the state taken from other mods for the upscaler
     // (HostStack). It is captured fresh each time it is taken, so a restore
     // returns to what the player chose in TUFX or Scatterer in the meantime.
-    internal class UpscalerSettings
+    internal class OwnSettings
     {
         public bool Enabled;
         public Fsr3Upscaler.QualityMode Quality = Fsr3Upscaler.QualityMode.NativeAA;
@@ -55,9 +55,9 @@ namespace ReDefinition
                     System.IO.Path.Combine("PluginData", fileName))));
         }
 
-        public static UpscalerSettings Load()
+        public static OwnSettings Load()
         {
-            UpscalerSettings settings = new UpscalerSettings();
+            OwnSettings settings = new OwnSettings();
             if (!File.Exists(Path)) return settings;
 
             ConfigNode root = ConfigNode.Load(Path);
@@ -141,9 +141,9 @@ namespace ReDefinition
 
         // For KSP's settings dialog, which edits a copy and commits it only on
         // Apply or Accept -- Cancel has to leave the live values untouched.
-        public UpscalerSettings Clone()
+        public OwnSettings Clone()
         {
-            return (UpscalerSettings)MemberwiseClone();
+            return (OwnSettings)MemberwiseClone();
         }
 
         private static bool Bool(ConfigNode node, string name, bool fallback)

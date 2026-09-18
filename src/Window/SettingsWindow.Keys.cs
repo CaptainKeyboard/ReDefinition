@@ -329,7 +329,7 @@ namespace ReDefinition.Window
             }
             catch (Exception e)
             {
-                Debug.LogWarning(UpscalerProbe.Tag + " KSP's key bindings could not be saved: " + e);
+                Debug.LogWarning(Log.Tag + " KSP's key bindings could not be saved: " + e);
             }
         }
 

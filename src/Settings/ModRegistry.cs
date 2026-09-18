@@ -1,6 +1,7 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Collections;
+using System;
+using ReDefinition.Core;
 
 namespace ReDefinition.Settings
 {
@@ -35,7 +36,7 @@ namespace ReDefinition.Settings
                 sources.Add(new KeyValuePair<ConfigNode, string>(config.config, config.parent != null ? config.parent.url : ""));
             List<string> notes = new List<string>();
             List<ModRegistration> read = ReadSources(sources, problems, notes);
-            foreach (string note in notes) UnityEngine.Debug.Log(UpscalerProbe.Tag + " " + note);
+            foreach (string note in notes) UnityEngine.Debug.Log(Log.Tag + " " + note);
             return read;
         }
 

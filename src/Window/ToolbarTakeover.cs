@@ -197,7 +197,7 @@ namespace ReDefinition.Window
             owners[button] = mod;
             button.VisibleInScenes = ApplicationLauncher.AppScenes.NEVER;
             if (reported.Add(mod.Id))
-                Debug.Log(UpscalerProbe.Tag + " " + mod.ModName + "'s toolbar button hidden: its settings are in"
+                Debug.Log(Log.Tag + " " + mod.ModName + "'s toolbar button hidden: its settings are in"
                           + " ReDefinition's window.");
         }
 
@@ -283,7 +283,7 @@ namespace ReDefinition.Window
                 }
             }
             if (shown > 0)
-                Debug.Log(UpscalerProbe.Tag + " " + shown + " toolbar button(s) of other mods shown again.");
+                Debug.Log(Log.Tag + " " + shown + " toolbar button(s) of other mods shown again.");
             hidden.Clear();
             HashSet<string> stillHidden = new HashSet<string>();
             foreach (KeyValuePair<ApplicationLauncherButton, ApplicationLauncher.AppScenes> pair in keep)
@@ -348,7 +348,7 @@ namespace ReDefinition.Window
                 modList = typeof(ApplicationLauncher).GetField("appListMod", HostStack.Any);
                 modListHidden = typeof(ApplicationLauncher).GetField("appListModHidden", HostStack.Any);
                 if (modList == null || modListHidden == null)
-                    Debug.LogWarning(UpscalerProbe.Tag + " KSP's launcher is not the one this mod was written against:"
+                    Debug.LogWarning(Log.Tag + " KSP's launcher is not the one this mod was written against:"
                                      + " other mods' toolbar buttons stay.");
             }
 

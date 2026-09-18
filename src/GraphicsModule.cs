@@ -29,7 +29,7 @@ namespace ReDefinition
     // One of ReDefinition's own features -- the upscaler, frame generation -- as the
     // profiles and the settings windows see it (docs/development/architecture.md):
     // the name a profile's MODULE node gives, a title, and its settings over
-    // ReDefinition's settings file (UpscalerSettings), which the settings window and KSP's settings
+    // ReDefinition's settings file (OwnSettings), which the settings window and KSP's settings
     // dialog edit as a copy and commit through the add-on. Modelled on Community
     // Shaders' Feature (src/Feature.h there), cut to what KSP needs. The modules
     // are OurModules.
@@ -79,11 +79,11 @@ namespace ReDefinition
         // The tab its row stands in; the hotkeys stand under Keys.
         public SettingCategory Row = SettingCategory.General;
 
-        public Func<UpscalerSettings, string> Read;
-        public Action<UpscalerSettings, string> Write;
+        public Func<OwnSettings, string> Read;
+        public Action<OwnSettings, string> Write;
 
         // Whether the row can be changed now; null is always.
-        public Func<UpscalerSettings, bool> Interactable;
+        public Func<OwnSettings, bool> Interactable;
 
         // Null where the setting can take the value; otherwise why not. A choice
         // by its name, case aside -- never a number, which Enum.Parse would
