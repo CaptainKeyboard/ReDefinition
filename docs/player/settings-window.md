@@ -53,7 +53,8 @@ chosen.
 
 The *Keys* tab holds every binding in one place: ReDefinition's own hotkeys, the
 bindings of the bundled mods, and KSP's own, in the groups KSP sorts them into.
-The search field at the top filters the rows by their name or their mod.
+KSP's groups are folded until one is opened with a click on its title. The search
+field at the top filters the rows by their name or their mod, in every group.
 
 Click a binding, and the row says it is listening: the next key pressed is taken.
 Escape cancels, and *x* beside it clears the binding. The modifiers are the

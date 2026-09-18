@@ -114,23 +114,57 @@ namespace ReDefinition
         // here and written on Apply, as everything else in this window is.
         private static readonly Dictionary<string, string> kspPending = new Dictionary<string, string>();
 
+        // KSP's groups, each folded until it is opened: a row of a folded group is
+        // inactive, and costs nothing while the window is dragged -- all of KSP's
+        // rows at once are about a thousand elements, which Unity would lay out
+        // again for every step of a drag. A search shows its matches in every
+        // group. Kept open for the run, as the player left them.
+        private static readonly HashSet<string> openGroups = new HashSet<string>();
+
         private static DialogGUIBase[] KspKeyRows()
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            Dictionary<string, int> counts = new Dictionary<string, int>();
+            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
+            {
+                int count;
+                counts.TryGetValue(binding.Group, out count);
+                counts[binding.Group] = count + 1;
+            }
+
             string group = null;
             foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
             {
                 if (binding.Group != group)
                 {
                     group = binding.Group;
-                    string title = group;
-                    DialogGUIBase header = new DialogGUIBox(title, -1f, RowHeight, null);
-                    header.OptionEnabledCondition = () => GroupShown(title);
-                    rows.Add(header);
+                    rows.Add(GroupHeader(group, counts[group]));
                 }
                 rows.Add(KspBindingRow(binding));
             }
             return rows.ToArray();
+        }
+
+        // A group's header: a button that opens and folds it, with how many
+        // bindings it holds.
+        private static DialogGUIBase GroupHeader(string group, int count)
+        {
+            string title = group;
+            string folded = "+  KSP: " + title + " (" + count + ")";
+            string open = "-  KSP: " + title + " (" + count + ")";
+            DialogGUIButton header = new DialogGUIButton(() => GroupOpen(title) ? open : folded, () =>
+            {
+                if (!openGroups.Remove(title)) openGroups.Add(title);
+            }, PageWidth - 60f, RowHeight + 6f, false);
+            header.OptionEnabledCondition = () => GroupShown(title);
+            header.OptionInteractableCondition = () => keySearch.Length == 0;
+            header.tooltipText = "Opens or folds KSP's " + title + " bindings. A search shows its matches in every group.";
+            return header;
+        }
+
+        private static bool GroupOpen(string group)
+        {
+            return keySearch.Length > 0 || openGroups.Contains(group);
         }
 
         // The groups a search leaves rows in, worked out once per search.
@@ -160,7 +194,7 @@ namespace ReDefinition
                 TextAnchor.MiddleLeft, new DialogGUILabel(shown.Title, KeyNameWidth), first, new DialogGUISpace(6f),
                 second, new DialogGUISpace(4f),
                 new DialogGUILabel("<color=#9a9a9a>KSP</color>", KeySourceWidth));
-            row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "KSP");
+            row.OptionEnabledCondition = () => GroupOpen(shown.Group) && MatchesSearch(shown.Title, "KSP");
             return row;
         }
 

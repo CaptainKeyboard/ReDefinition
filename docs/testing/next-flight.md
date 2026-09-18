@@ -30,7 +30,8 @@ read, nothing has to be looked up in them during play.
 | Click a row and press Escape | the binding stays as it was |
 | Click *x* beside a row | the row shows *None*, and that key does nothing afterwards |
 | Click *Alt* a third time | the switch shows *Alt* again, without the modifier |
-| Scroll through the *Keys* tab | it scrolls as smoothly as the other tabs |
+| Open the *Keys* tab and drag the window | it moves as smoothly as with the other tabs |
+| Click *KSP: Flight*, then drag the window | the group opens; the window still moves smoothly |
 | Set two rows to the same combination | both are shown in yellow, and both still work |
 | Set KSP's *Pitch down* to `K`, *Accept*, launch | the vessel pitches on `K` |
 | Bind a row to `Space` in flight, then press the row and `Space` again | nothing stages while the row takes the key |
