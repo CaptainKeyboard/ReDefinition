@@ -16,13 +16,7 @@ namespace ReDefinition
 {
     // User interface and lifecycle of the upscaler.
     //
-    // The hotkeys avoid Alt: that is KSP's modifier key, and every
-    // Alt combination triggers game functions on the side. Left Ctrl and Shift
-    // are bound to throttle. What remains is the right-hand side of the
-    // keyboard, which KSP does not bind -- and three keys at once are not hit by
-    // accident.
-    //
-    // Apart from on/off everything goes through the windows -- the settings
+    // Everything goes through the windows -- the settings
     // window the toolbar button opens (SettingsWindow), and the diagnostics
     // window this add-on draws -- so that no further key combination has to be
     // claimed for each setting.

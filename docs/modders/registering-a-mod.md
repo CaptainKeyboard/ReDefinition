@@ -116,7 +116,7 @@ KEY
     name = window
     title = MyMod's window
     tooltip = Opens MyMod's own window.
-    default = LeftAlt+M
+    default = None
     takesEffect = Live
 }
 ```
@@ -137,7 +137,9 @@ from before ReDefinition* to what your mod had.
 
 The keys a binding can hold: the keyboard, and the mouse from its third button on
 -- the left and right buttons are the game's own. KSP's own bindings hold one key
-and no modifier, as KSP keeps them.
+and no modifier, as KSP keeps them, and fire on their key whatever modifiers are
+held: a `default` on a key KSP binds sets off KSP's binding as well. KSP binds nearly
+every letter, digit and function key; `None` leaves the choice to the player.
 
 ## Member paths
 

@@ -24,8 +24,10 @@
   - Two bindings on the same key are shown in yellow only where they count in the same
     situation -- B for the brakes and B for boarding on EVA are no conflict.
   - *Reset to defaults* puts the bindings back as well, KSP's to what KSP ships.
-  - ReDefinition's hotkeys can be changed there; their defaults stay as they were. A
-    hotkey for the settings window itself is new, unbound at first.
+  - ReDefinition's hotkeys are set there, one for the settings window itself among
+    them. None is bound at first: KSP's own bindings fire whatever modifiers are
+    held, so the former `RightCtrl`+`RightShift`+`U`, `K` and `N` also switched the
+    lights and moved the vessel on RCS.
   - Scatterer's and Deferred's window keys are bundled.
   - While the search field has the keyboard, no key reaches the game.
 - **A notice for what a mod's update leaves out.** Where a new version of a bundled mod

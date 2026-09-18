@@ -9,14 +9,14 @@ setting does. A mod that is not installed has no rows.
 * **ReDefinition's toolbar button**, in every scene including the main menu.
 * **KSP's own settings dialog** (*Settings* in the pause menu of flight and of the
   space centre): a *ReDefinition* section at the end of its graphics part.
-* **Hotkeys**, as they come and as the *Keys* tab sets them:
+* **Hotkeys**, once set in the *Keys* tab; none is bound at first:
 
-| Keys | Does |
+| Hotkey | Does |
 |---|---|
-| `RightCtrl` + `RightShift` + `U` | upscaler on or off |
-| `RightCtrl` + `RightShift` + `K` | diagnostics window open or closed |
-| `RightCtrl` + `RightShift` + `N` | camera list into `KSP.log` |
-| not bound | this window open or closed |
+| Upscaler on or off | the upscaler on or off |
+| Diagnostics window | the diagnostics window open or closed |
+| Camera list to the log | the camera list into `KSP.log` |
+| Settings window | this window open or closed |
 
 The window is built from KSP's own dialog elements, so a UI theme such as ZTheme
 themes it. It edits copies: *Apply* sets what was changed, *Accept* sets it and

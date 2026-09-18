@@ -33,11 +33,13 @@ namespace ReDefinition
         public UpscalerBackend Backend = UpscalerBackend.Fsr3;
         public DlssPreset DlssPreset = DlssPreset.Default;
 
-        // The hotkeys, as KeyCombination writes them. The defaults are the keys
-        // ReDefinition had before they could be set.
-        public string UpscalerKey = "RightControl+RightShift+U";
-        public string DiagnosticsKey = "RightControl+RightShift+K";
-        public string CameraListKey = "RightControl+RightShift+N";
+        // The hotkeys, as KeyCombination writes them. Unbound until the player
+        // sets one in the Keys tab: KSP's own bindings fire on their key whatever
+        // modifiers are held, and KSP binds nearly every letter, digit and
+        // function key, so a default would set off one of KSP's as well.
+        public string UpscalerKey = KeyCombination.NoneText;
+        public string DiagnosticsKey = KeyCombination.NoneText;
+        public string CameraListKey = KeyCombination.NoneText;
         public string SettingsWindowKey = KeyCombination.NoneText;
 
         private const string RootName = "ReDefinition";
