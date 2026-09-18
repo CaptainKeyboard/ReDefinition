@@ -99,19 +99,19 @@
       <Private>false</Private>
     </Reference>
     <!-- uGUI: ScrollRect and ContentSizeFitter, for the scroll list of the
-         settings window (src/Upscaler/TabScrollList.cs). -->
+         settings window (src/Window/TabScrollList.cs). -->
     <Reference Include="UnityEngine.UI">
       <HintPath>$(KspManaged)\UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <!-- Canvas and RectTransformUtility: whether the cursor is over one of this
-         mod's windows (src/Upscaler/UnityMouseEvents.cs). -->
+         mod's windows (src/Window/UnityMouseEvents.cs). -->
     <Reference Include="UnityEngine.UIModule">
       <HintPath>$(KspManaged)\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <!-- The player's download of NVIDIA's DLLs from NVIDIA's release
-         (src/Upscaler/NvidiaDownloader.cs). -->
+         (src/Window/NvidiaDownloader.cs). -->
     <Reference Include="UnityEngine.UnityWebRequestModule">
       <HintPath>$(KspManaged)\UnityEngine.UnityWebRequestModule.dll</HintPath>
       <Private>false</Private>

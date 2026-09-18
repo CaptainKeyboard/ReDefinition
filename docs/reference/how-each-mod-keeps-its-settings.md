@@ -5,7 +5,7 @@ value set in ReDefinition's window reaches it and is saved, and when it takes ef
 Read from each mod's source and checked against the installed build by decompiling
 where the version matters; KSP 1.12.5 decompiled. How a registration reaches these
 places: the registrations in `GameData/ReDefinition/Mods`, and for what a member path
-cannot say, the behaviours in `src/Framework/Behaviours`.
+cannot say, the behaviours in `src/Settings/Behaviours`.
 
 ## Saved through
 

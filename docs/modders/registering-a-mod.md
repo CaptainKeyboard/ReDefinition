@@ -6,7 +6,7 @@ joins with a config file of its own -- no code, and no dependency: without
 ReDefinition installed the game reads the file and does nothing with it.
 
 This guide is for mod authors and visual pack authors. It is also the
-specification ReDefinition's reader follows (`src/Framework/ModRegistration.cs`).
+specification ReDefinition's reader follows (`src/Settings/ModRegistration.cs`).
 
 ## The smallest registration
 

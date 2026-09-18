@@ -2,97 +2,68 @@
 
 ReDefinition is four things in one repository:
 
-1. **The upscaler** -- on KSP's camera stack, in C# (`src/Upscaler`, `src/Fsr3`): FSR 3
+1. **The settings framework** -- the other mods' settings and key bindings in one
+   window, graphics profiles, defaults, requirements, all driven by registrations
+   (`src/Settings`, `src/Window`, `GameData/ReDefinition`).
+2. **The upscaler** -- on KSP's camera stack, in C# (`src/Upscaler`, `src/Fsr3`): FSR 3
    in Unity, with its compute shaders built into an AssetBundle by a Unity project
-   (`unity/`); DLSS and AMD's upscaler DLL run in the proxy on the same inputs.
-2. **The graphics framework** -- the other mods' settings in one window, graphics
-   profiles, defaults, requirements, all driven by registrations (`src/Framework`,
-   `GameData/ReDefinition`).
+   (`unity/`); DLSS and AMD's upscaler DLL run in the proxy on the same inputs
+   (`src/Bridges`).
 3. **The proxy** -- a native `dxgi.dll` that presents KSP's frames through Direct3D 12:
    frame generation with FSR 3 or DLSS (Streamline), and the DLSS and AMD upscalers
    (`src/DxgiProxy`).
-4. **The interface for mods** -- the frame's state, history resets, hooks, the chosen
-   profile and Direct3D 12 compute passes (`src/Api`,
-   [shared-foundation.md](shared-foundation.md)).
+4. **The interface for mods** -- the frame's state, history resets, hooks, key
+   bindings, the chosen profile and Direct3D 12 compute passes (`src/Api`,
+   `src/Shared`, [shared-foundation.md](shared-foundation.md)).
 
 The C# mod targets .NET Framework 4.8 with C# 7.3, the profile KSP 1.12.5's Mono runs.
 Harmony is a requirement (`src/KspAssemblyInfo.cs`).
 
-## The upscaler, `src/Upscaler` and `src/Fsr3`
+## Layers
 
-### The add-on and the rig
+Each folder is one namespace. A layer uses only the layers below it:
+
+| Layer | Folder | Namespace | What |
+|---|---|---|---|
+| 1 | `src/Core` | `ReDefinition.Core` | the log tag, warnings said a few times at most, types and members looked up by name, the `PluginData` folder |
+| 2 | `src/Settings` | `ReDefinition.Settings` | registrations, the bundled mods' settings, profiles, defaults, requirements, key combinations, the settings window's edit model |
+| 3 | `src/Upscaler`, `src/Fsr3` | `ReDefinition.Upscaler`, `FidelityFX.FSR3` | the upscaler on KSP's camera stack |
+| 3 | `src/Bridges` | `ReDefinition.Bridges` | the managed side of the proxy |
+| 3 | `src/Shared` | `ReDefinition.Shared` | the frame's state and hooks behind the interface for mods |
+| 4 | `src/` | `ReDefinition` | the add-on, ReDefinition's own settings and modules |
+| 4 | `src/Window` | `ReDefinition.Window` | the settings window, the Keys tab, the toolbar, the other mods' windows |
+| 4 | `src/Api` | `ReDefinition.Api` | the public interface for mods |
+
+Where a lower layer has to reach a higher one, it offers a hook and the add-on sets it
+in its `Awake`: `KspBehaviour.SettingsApplied` (the settings window follows KSP's
+settings screen), `KspBehaviour.DlssFrameGenerationRuns` and `DlssFrameGenerationVsync`
+(KSP's V-Sync row), `TufxBehaviour.ProfileApplied` (the camera stack put back in order
+over a TUFX profile). `UpscalerRig.Current` is the rig in place, set as the add-on
+attaches and detaches one.
+
+## The add-on, `src/`
 
 | File | Role |
 |---|---|
-| `ReDefinitionAddon.cs` | the add-on's lifecycle: builds and tears down the rig per scene and camera mode, the hotkeys, HostStack while a profile is chosen |
+| `ReDefinitionAddon.cs` | the add-on's lifecycle: builds and tears down the rig per scene and camera mode, the hotkeys, HostStack while a profile is chosen, the hooks of the lower layers |
 | `ReDefinitionAddon.Settings.cs` | the settings: what each change does, loading, saving, applying from a settings view |
 | `ReDefinitionAddon.Diagnostics.cs` | the diagnostics window, *General* and *Debug* |
-| `ReDefinitionAddon.FrameRates.cs`, `FrameRateMeter.cs` | frame rates with and without the upscaler, rendered and presented, with the load behind them |
-| `UpscalerRig.cs` | one upscaler on one scene: render targets, jitter, the captures of colour, depth and motion vectors, the dispatch, setup and teardown |
-| `UpscalerRig.CameraMotion.cs` | the camera motion and floating origin instrument; the fast-turn switch |
-| `UpscalerRig.Hooks.cs`, `UpscalerOverlay.cs` | the hooks other mods register: motion vectors into the capture, the upscaled image, the overlay camera |
-| `UpscalerRig.HudLess.cs` | frame generation's HUD-less copy of the backbuffer |
-| `UpscalerRig.Native.cs` | DLSS and AMD's DLL in the proxy: textures handed over, packets, the proxy's state |
-| `UpscalerRig.Diagnostics.cs`, `.Preview.cs` | *Write diagnostics to log*, the input preview |
-| `CameraRedirect.cs` | redirects KSP's 3D camera stack into one render-size target, jitters it, and puts back each camera's target and projection |
-| `UpscalerPresenter.cs` | the presenter camera that draws the result into the frame buffer before the UI cameras |
-| `OwnSettings.cs`, `OurModules.cs` | the player's choices in `PluginData/settings.cfg`; the upscaler and frame generation as modules of the framework |
+| `ReDefinitionAddon.FrameRates.cs` | frame rates with and without the upscaler, rendered and presented, with the load behind them |
+| `OwnSettings.cs` | the player's choices in `PluginData/settings.cfg` |
+| `GraphicsModule.cs`, `OurModules.cs` | `IGraphicsModule`, `ModuleSetting`: the upscaler and frame generation as modules, in the same model as a mod's settings |
+| `ModuleProfiles.cs` | a profile's `MODULE` nodes onto the modules; a profile applied from the main menu |
+| `KspAssemblyInfo.cs` | the version KSP sees, Harmony as a dependency |
 
-### Inputs and the game's state
+## Core, `src/Core`
 
 | File | Role |
 |---|---|
-| `QualityOverrides.cs` | while the upscaler runs: MSAA off, LOD bias compensated, anisotropic filtering forced on; taken back when it stops |
-| `KspMipmapBias.cs` | the negative mipmap bias, on textures of renderers the redirected cameras see |
-| `SkinnedMotionVectors.cs` | kerbals and flags drawing their own motion vectors |
-| `UpscalerMasks.cs` | FSR 3's transparency and reactive masks |
-| `EveCloudMotion.cs`, `CloudMotionVectors.cs` | EVE's clouds jittered, and their motion vectors blended into the captured ones |
-| `TufxPostProcessing.cs` | TUFX's effects split around the upscaler |
-| `HostStack.cs` | other mods' temporal and spatial antialiasing switched off, and what Scatterer's TAA leaves behind |
-| `ScattererCompatibility.cs`, `EveCompatibility.cs` | Scatterer's godrays and EVE's clouds sized for redirected cameras |
-| `UnityMouseEvents.cs` | Unity's mouse events on redirected cameras, and clicks on ReDefinition's windows kept from the scene |
+| `Log.cs` | the tag `[ReDefinition]` every log line begins with |
+| `CompatibilityLog.cs` | warnings about other mods, said a few times at most |
+| `TypeLookup.cs` | a type by name across loaded assemblies; the binding flags every lookup uses |
+| `PluginData.cs` | files in `GameData/ReDefinition/PluginData` |
 
-### Techniques and the proxy
-
-| File | Role |
-|---|---|
-| `src/Fsr3/` | FSR3Unity (MIT), adapted for Unity 2019.4 and KSP ([upscaler.md](upscaler.md), "FSR3Unity on Unity 2019.4") |
-| `FsrShaderBundle.cs` | loads the compute shaders from `Shaders/redefinition.shaders` |
-| `RcasSharpener.cs` | FSR 3's RCAS pass on its own, for the sharpness slider with DLSS |
-| `NativeUpscalerLink.cs`, `DlssBridge.cs`, `AmdUpscalerBridge.cs` | the managed side of the upscalers in the proxy |
-| `FrameGenerationBridge.cs` | the managed side of frame generation: inputs registered, a frame packet per frame, state and counters |
-| `PacketRing.cs` | the packet slots render events read on Unity's render thread |
-| `StreamlineCamera.cs` | the camera matrices DLSS frame generation takes, in Streamline's form |
-| `NvidiaFiles.cs`, `NvidiaDownloader.cs` | which of NVIDIA's DLLs the GPU can use, and their download from NVIDIA's Streamline release after licence consent |
-
-### Interface
-
-| File | Role |
-|---|---|
-| `SettingsWindow.cs`, `TabScrollList.cs` | the settings window's view, from KSP's dialog elements |
-| `SettingsWindow.Keys.cs`, `KeyCapture.cs`, `Conflicts.cs`, `KspKeyBindings.cs` | the Keys tab: the rows that take a combination, the capture with KSP's controls locked, the shared combinations shown in yellow, and KSP's own bindings read from `GameSettings` |
-| `KspSettingsSection.cs` | the section in KSP's settings dialog, through Harmony postfixes on `VideoSettings` |
-| `ToolbarButton.cs`, `CompatibilityLog.cs` | the toolbar button; warnings said a few times at most |
-| `src/Log.cs` | the log tag `[ReDefinition]`, the camera survey |
-
-### The interface for mods, `src/Api`
-
-| File | Role |
-|---|---|
-| `Api/ApiInfo.cs`, `Frame.cs`, `Hooks.cs`, `Profiles.cs`, `D3D12.cs` | `ReDefinition.Api`, public: the interface's version, the frame's state and resets, the hooks, the chosen profile, Direct3D 12 |
-| `Upscaler/SharedFrame.cs` | the frame's state, decided before its first scene camera culls, as properties and shader globals; the hooks' lists; the profile's changes |
-| `Upscaler/CameraCuts.cs`, `HistoryResets.cs` | KSP's camera cuts; which frame resets for whom -- free of Unity, tested |
-| `Upscaler/HookList.cs` | handlers run each on its own, one that throws removed |
-| `Upscaler/D3d12Bridge.cs` | the managed side of Direct3D 12 for mods: packets, render events, status |
-| `docs/modders/examples/ReDefinitionApi.cs` | the wrapper mods copy, binding the interface once as typed delegates |
-| `docs/modders/examples/ReDefinitionExample` | the example mod, built with the solution |
-| `unity/Assets/ReDefinition/Include` | `ReDefinition.cginc`, the shader include for mods, and the shader that checks it (`Editor/IncludeCheck.cs`) |
-
-The reference for mod authors: [modders/shared-foundation.md](../modders/shared-foundation.md).
-
-How a frame goes through it: [upscaler.md](upscaler.md).
-
-## The framework, `src/Framework`
+## The settings framework, `src/Settings`
 
 ### Registrations
 
@@ -101,14 +72,15 @@ A mod is bundled from a `MOD_SETTINGS` config node
 
 | File | Role |
 |---|---|
-| `ModRegistration.cs` | reads a node into a registration: the mod, its settings, builds, defaults, profile values, requirements; every problem reported |
+| `ModRegistration.cs` | reads a node into a registration: the mod, its settings and key bindings, builds, defaults, profile values, requirements; every problem reported |
 | `ModRegistry.cs` | reads all registrations from the GameDatabase once ModuleManager has patched them (`PartLoader` ready) -- one outside ReDefinition's folder over ReDefinition's own of the same name -- and builds a mod for each, by title |
-| `RegisteredMod.cs` | an `IBundledMod` built from a registration: detect, version, build, `needs`, `save`, `ready`, member paths, controls, follow-ups, own window; what is left out, with the reason |
+| `RegisteredMod.cs` | an `IBundledMod` built from a registration: detect, version, build, `needs`, `save`, `ready`, member paths, controls, follow-ups, own window; what is left out, with the reason; rows and saved settings the installed build no longer matches |
 | `MemberPath.cs` | a C# path from a type to a field, property, indexer or method, resolved once in the mod's own folder (`ModFolder`) |
 | `ModBehaviour.cs`, `Behaviours/` | code for what a path cannot say -- KSP's follow-ups and checks, Scatterer's node, EVE's rebuild, TUFX's scenes, Distant Object's hooks, Firefly's text, Parallax's renormalisation; named from a registration with `behaviour` |
-| `BundledSetting.cs` | the model of one setting and of a bundled mod (`IBundledMod`) |
+| `BundledSetting.cs`, `ApplyWindow.cs` | the model of one setting and of a bundled mod (`IBundledMod`); when a change takes effect |
 | `SettingValues.cs` | values as invariant text: conversion and comparison |
-| `TypeLookup.cs`, `HarmonyHooks.cs` | a type by name across loaded assemblies; Harmony patches installed all or none |
+| `HarmonyHooks.cs` | Harmony patches installed all or none |
+| `KeyCombination.cs`, `KeptBindings.cs` | a binding as up to two modifiers and one key, read and written as text -- free of Unity but for the keys it reads, tested; the bindings ReDefinition keeps for a mod that has none of its own |
 
 ### Values: defaults, profiles, requirements
 
@@ -127,7 +99,8 @@ the reset:
    registration's `REQUIRES`.
 
 The reset takes the defaults and the requirements only. `ProfileApplier.cs` combines
-the layers; `ProfileReport.cs` lists the profiles in the log at the main menu.
+the layers for the registered mods, `ModuleProfiles.cs` (in `src/`) for ReDefinition's
+own modules; `ProfileReport.cs` lists the profiles in the log at the main menu.
 
 ### The store: what reaches the mods, and when
 
@@ -141,16 +114,90 @@ the layers; `ProfileReport.cs` lists the profiles in the log at the main menu.
 
 The rules: [settings-store.md](settings-store.md).
 
-### The window and the other mods' UI
+### The edit model
 
 | File | Role |
 |---|---|
 | `SettingsEdit.cs` | the settings window's edit model: rows, where their values came from, filling from a profile or the reset, the status line, *Apply* as steps -- free of Unity, tested |
 | `WindowLayout.cs` | which settings show in which tab, in what order; the *Advanced* buttons |
-| `GraphicsModule.cs` | `IGraphicsModule`, `ModuleSetting`, `ApplyWindow`: ReDefinition's own features in the same model |
+
+## The upscaler, `src/Upscaler` and `src/Fsr3`
+
+### The rig
+
+| File | Role |
+|---|---|
+| `UpscalerRig.cs` | one upscaler on one scene: render targets, jitter, the captures of colour, depth and motion vectors, the dispatch, setup and teardown |
+| `UpscalerRig.CameraMotion.cs` | the camera motion and floating origin instrument; the fast-turn switch |
+| `UpscalerRig.Hooks.cs`, `UpscalerOverlay.cs` | the hooks other mods register: motion vectors into the capture, the upscaled image, the overlay camera |
+| `UpscalerRig.HudLess.cs` | frame generation's HUD-less copy of the backbuffer |
+| `UpscalerRig.Native.cs` | DLSS and AMD's DLL in the proxy: textures handed over, packets, the proxy's state |
+| `UpscalerRig.Diagnostics.cs`, `.Preview.cs`, `CameraSurvey.cs` | *Write diagnostics to log*, the input preview, the cameras in order |
+| `CameraRedirect.cs` | redirects KSP's 3D camera stack into one render-size target, jitters it, and puts back each camera's target and projection |
+| `UpscalerPresenter.cs` | the presenter camera that draws the result into the frame buffer before the UI cameras |
+| `FrameRateMeter.cs` | frame times with and without the upscaler |
+
+### Inputs and the game's state
+
+| File | Role |
+|---|---|
+| `QualityOverrides.cs` | while the upscaler runs: MSAA off, LOD bias compensated, anisotropic filtering forced on; taken back when it stops |
+| `KspMipmapBias.cs` | the negative mipmap bias, on textures of renderers the redirected cameras see |
+| `SkinnedMotionVectors.cs` | kerbals and flags drawing their own motion vectors |
+| `UpscalerMasks.cs` | FSR 3's transparency and reactive masks |
+| `EveCloudMotion.cs`, `CloudMotionVectors.cs` | EVE's clouds jittered, and their motion vectors blended into the captured ones |
+| `TufxPostProcessing.cs` | TUFX's effects split around the upscaler |
+| `HostStack.cs` | other mods' temporal and spatial antialiasing switched off, and what Scatterer's TAA leaves behind |
+| `ScattererCompatibility.cs`, `EveCompatibility.cs` | Scatterer's godrays and EVE's clouds sized for redirected cameras |
+
+### Techniques
+
+| File | Role |
+|---|---|
+| `src/Fsr3/` | FSR3Unity (MIT), adapted for Unity 2019.4 and KSP ([upscaler.md](upscaler.md), "FSR3Unity on Unity 2019.4") |
+| `FsrShaderBundle.cs` | loads the compute shaders from `Shaders/redefinition.shaders` |
+| `RcasSharpener.cs` | FSR 3's RCAS pass on its own, for the sharpness slider with DLSS |
+
+## The proxy's managed side, `src/Bridges`
+
+| File | Role |
+|---|---|
+| `NativeUpscalerLink.cs`, `DlssBridge.cs`, `AmdUpscalerBridge.cs` | the managed side of the upscalers in the proxy |
+| `FrameGenerationBridge.cs` | the managed side of frame generation: inputs registered, a frame packet per frame, state and counters |
+| `D3d12Bridge.cs` | the managed side of Direct3D 12 for mods: packets, render events, status |
+| `PacketRing.cs` | the packet slots render events read on Unity's render thread |
+| `StreamlineCamera.cs` | the camera matrices DLSS frame generation takes, in Streamline's form |
+| `NvidiaFiles.cs` | which of NVIDIA's DLLs the GPU can use, and where they come from |
+
+## The interface for mods, `src/Api` and `src/Shared`
+
+| File | Role |
+|---|---|
+| `Api/ApiInfo.cs`, `Frame.cs`, `Hooks.cs`, `Keys.cs`, `Profiles.cs`, `D3D12.cs` | `ReDefinition.Api`, public: the interface's version, the frame's state and resets, the hooks, the key bindings, the chosen profile, Direct3D 12 |
+| `Shared/SharedFrame.cs` | the frame's state, decided before its first scene camera culls, as properties and shader globals; the hooks' lists; the profile's changes |
+| `Shared/CameraCuts.cs`, `HistoryResets.cs` | KSP's camera cuts; which frame resets for whom -- free of Unity, tested |
+| `Shared/HookList.cs` | handlers run each on its own, one that throws removed |
+| `docs/modders/examples/ReDefinitionApi.cs` | the wrapper mods copy, binding the interface once as typed delegates |
+| `docs/modders/examples/ReDefinitionExample` | the example mod, built with the solution |
+| `unity/Assets/ReDefinition/Include` | `ReDefinition.cginc`, the shader include for mods, and the shader that checks it (`Editor/IncludeCheck.cs`) |
+
+The reference for mod authors: [modders/shared-foundation.md](../modders/shared-foundation.md).
+
+How a frame goes through it: [upscaler.md](upscaler.md).
+
+## The windows, `src/Window`
+
+| File | Role |
+|---|---|
+| `SettingsWindow.cs`, `TabScrollList.cs` | the settings window's view, from KSP's dialog elements |
+| `SettingsWindow.Keys.cs`, `KeyCapture.cs`, `Conflicts.cs`, `KspKeyBindings.cs` | the Keys tab: the rows that take a combination, the capture with KSP's controls locked, the shared combinations shown in yellow, and KSP's own bindings read from `GameSettings` |
+| `KspSettingsSection.cs` | the section in KSP's settings dialog, through Harmony postfixes on `VideoSettings` |
+| `ToolbarButton.cs` | the toolbar button |
 | `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable; the main menu's first question |
 | `ModWindowClose.cs` | the close button on a mod's own settings window, and knowing whether that window is open |
-| `KeyCombination.cs`, `KeptBindings.cs` | a binding as up to two modifiers and one key, read and written as text -- free of Unity but for the keys it reads, tested; and the bindings ReDefinition keeps for a mod that has none of its own |
+| `ModWindowsAddon.cs` | when: the close buttons installed, the toolbar looked at, the open settings window following a change made in another window |
+| `UnityMouseEvents.cs` | Unity's mouse events on redirected cameras, and clicks on ReDefinition's windows kept from the scene |
+| `NvidiaDownloader.cs` | the download of NVIDIA's DLLs from NVIDIA's Streamline release after licence consent |
 
 ## The proxy, `src/DxgiProxy`
 
