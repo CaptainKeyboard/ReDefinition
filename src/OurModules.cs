@@ -3,6 +3,7 @@ using System.Globalization;
 using FidelityFX.FSR3;
 using ReDefinition.Bridges;
 using ReDefinition.Settings;
+using ReDefinition.Upscaler;
 using ReDefinition.Window;
 
 namespace ReDefinition
@@ -104,7 +105,7 @@ namespace ReDefinition
                 Order = 30,
                 Control = SettingControl.Slider,
                 Min = 0f,
-                Max = ReDefinitionAddon.MaximumSharpness,
+                Max = UpscalerRig.MaximumSharpness,
                 StepsPerUnit = 20f,
                 Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)
                     .ToString("0.00", CultureInfo.InvariantCulture),

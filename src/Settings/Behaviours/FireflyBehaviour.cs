@@ -1,6 +1,5 @@
 using System.Reflection;
 using System;
-using ReDefinition.Api;
 using ReDefinition.Core;
 
 namespace ReDefinition.Settings.Behaviours

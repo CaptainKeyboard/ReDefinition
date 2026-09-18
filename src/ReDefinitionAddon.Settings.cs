@@ -202,14 +202,10 @@ namespace ReDefinition
 
         // Sharpness takes effect immediately: SetupDispatch reads it every frame,
         // the context does not need rebuilding for it.
-        // Up to 2: values above FidelityFX's range of 1 stay numerically sound;
-        // above about 1.2 artefacts appear.
-        internal const float MaximumSharpness = 2f;
-
         private void SetSharpness(float value)
         {
             bool wasSharpening = sharpness > 0f;
-            sharpness = Mathf.Clamp(value, 0f, MaximumSharpness);
+            sharpness = Mathf.Clamp(value, 0f, UpscalerRig.MaximumSharpness);
             if (rig != null) rig.Sharpness = sharpness;
             // 0 switches RCAS off, which takes the other accumulate shader: a new rig.
             if (rig != null && wasSharpening != (sharpness > 0f)) Reattach();

@@ -21,7 +21,8 @@ Harmony is a requirement (`src/KspAssemblyInfo.cs`).
 
 ## Layers
 
-Each folder is one namespace. A layer uses only the layers below it:
+Each folder is one namespace. A folder uses its own layer and the layers below it,
+never one above:
 
 | Layer | Folder | Namespace | What |
 |---|---|---|---|

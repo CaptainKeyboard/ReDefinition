@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System;
-using ReDefinition.Api;
 using ReDefinition.Core;
 using ReDefinition.Settings;
 using UnityEngine;

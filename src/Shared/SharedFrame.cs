@@ -1,5 +1,4 @@
 using System;
-using ReDefinition.Api;
 using ReDefinition.Bridges;
 using ReDefinition.Core;
 using ReDefinition.Settings;

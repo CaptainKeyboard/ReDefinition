@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using FidelityFX.FSR3;
-using ReDefinition.Api;
 using ReDefinition.Core;
 using UnityEngine;
 
