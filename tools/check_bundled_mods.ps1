@@ -191,6 +191,11 @@ foreach ($m in $registered) {
             continue
         }
         Expect "$($m.ModName) is bundled: its registration finds every member it needs" $m.IsInstalled
+        # What the settings window would tell the player is missing: a row this
+        # build cannot give, or a setting it saves that no registration names.
+        $notShown = @($m.RowsNotShown) + @($m.SettingsNotKnown | ForEach-Object { "$_ (not registered)" })
+        Expect "$($m.ModName): nothing it has is missing from the window" ($notShown.Count -eq 0)
+        foreach ($n in $notShown) { "      $n" }
         # Settings this build of the mod does not offer, or that another mod
         # holds for itself, listed: a dropped member is no failure -- that row
         # goes, the rest of the mod stays bundled -- and outside the game this is

@@ -71,6 +71,7 @@ namespace ReDefinition.Framework
                 mod.MemberMissing(setting, "this build of Scatterer does not have it");
                 return true;
             }
+            mod.Named(field);
             // quarterResScattering is such a field in 0.908 -- its [Persistent] is
             // commented out.
             if (!field.IsDefined(typeof(Persistent), true))

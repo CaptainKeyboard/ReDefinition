@@ -231,7 +231,9 @@ namespace ReDefinition
                 case SettingCategory.Planets: return "Planets";
                 case SettingCategory.Effects: return "Effects";
                 case SettingCategory.Keys: return "Keys";
-                default: return "Mods and toolbar";
+                // Marked where a mod has settings this window cannot show: the tab says
+                // which, and where they are.
+                default: return AnyNotShown() ? "Mods and toolbar (!)" : "Mods and toolbar";
             }
         }
 
@@ -729,8 +731,9 @@ namespace ReDefinition
 
         private static DialogGUIBase[] InterfaceRows()
         {
+            List<DialogGUIBase> notShown = NotShownRows();
             List<IBundledMod> installed = BundledSettings.Installed();
-            if (installed.Count == 0) return new DialogGUIBase[0];
+            if (installed.Count == 0) return notShown.ToArray();
 
             List<string> names = new List<string>();
             foreach (IBundledMod mod in installed) names.Add(mod.ModName);
@@ -752,13 +755,84 @@ namespace ReDefinition
                                   + " saved there.\nApply or cancel the changes made here first.";
             restore.OptionInteractableCondition = () => BundledSettings.CanRestore && !Unapplied();
 
-            return new DialogGUIBase[]
+            List<DialogGUIBase> rows = new List<DialogGUIBase>
             {
                 new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUILabel("Bundle other mods here", NameWidth), bundle),
                 new DialogGUILabel("<color=#9a9a9a>Bundled: " + list + "</color>", true),
                 restore,
             };
+            rows.AddRange(notShown);
+            return rows.ToArray();
+        }
+
+        // What an installed mod has that this window cannot show: a mod this build of
+        // which is not bundled at all, rows its registration places that the build
+        // lacks, and settings the build saves that no registration names. Nothing
+        // where a mod's version has changed without any of that. Each stays in the
+        // mod's own window, which a button here opens where ReDefinition can.
+        private static List<DialogGUIBase> NotShownRows()
+        {
+            List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            foreach (IBundledMod mod in BundledSettings.Mods)
+            {
+                RegisteredMod registered = mod as RegisteredMod;
+                if (registered == null || !registered.AssemblyLoaded) continue;
+
+                string text = NotShownText(registered);
+                if (text == null) continue;
+                if (rows.Count == 0)
+                    rows.Add(new DialogGUILabel("<color=#ffdd55>Not shown in this window</color>", true));
+
+                if (registered.IsInstalled && registered.OwnWindow != null)
+                {
+                    IBundledMod shown = mod;
+                    DialogGUIButton open = new DialogGUIButton(mod.ModName + "'s window", () => OpenOwnWindow(shown),
+                        160f, 24f, false);
+                    rows.Add(new DialogGUIHorizontalLayout(0f, 24f, 8f, new RectOffset(), TextAnchor.MiddleLeft,
+                        new DialogGUILabel(text, PageWidth - 220f), open));
+                }
+                else
+                {
+                    rows.Add(new DialogGUILabel(text, true));
+                }
+            }
+            return rows;
+        }
+
+        private static bool AnyNotShown()
+        {
+            foreach (IBundledMod mod in BundledSettings.Mods)
+            {
+                RegisteredMod registered = mod as RegisteredMod;
+                if (registered != null && registered.AssemblyLoaded && NotShownText(registered) != null) return true;
+            }
+            return false;
+        }
+
+        private static string NotShownText(RegisteredMod mod)
+        {
+            if (!mod.IsInstalled)
+            {
+                return mod.ModName + ": this build is not bundled, so none of its settings are here -- its own window"
+                       + " and toolbar button have them all.";
+            }
+            List<string> parts = new List<string>();
+            if (mod.RowsNotShown.Count > 0)
+                parts.Add("this build has no " + Joined(mod.RowsNotShown) + " as ReDefinition knows "
+                          + (mod.RowsNotShown.Count == 1 ? "it" : "them"));
+            if (mod.SettingsNotKnown.Count > 0)
+                parts.Add("it saves " + Joined(mod.SettingsNotKnown) + ", which ReDefinition does not know");
+            if (parts.Count == 0) return null;
+            return mod.ModName + ": " + string.Join("; ", parts.ToArray()) + ". Its own window has "
+                   + (mod.RowsNotShown.Count + mod.SettingsNotKnown.Count == 1 ? "it." : "them.");
+        }
+
+        private static string Joined(IList<string> names)
+        {
+            List<string> quoted = new List<string>();
+            foreach (string name in names) quoted.Add("'" + name + "'");
+            return string.Join(", ", quoted.ToArray());
         }
 
         private static void ConfirmRestore()

@@ -208,3 +208,17 @@ log.
 
 Other mods and visual packs can register their settings with a config file in their
 own folder: [modders/registering-a-mod.md](../modders/registering-a-mod.md).
+
+## After a mod's update
+
+A mod's new version can drop a setting, hold it another way, or save one more. The
+tab *Mods and toolbar* is then marked *(!)*, and under *Not shown in this window* it
+names what is missing, per mod:
+
+* a row this window places that the new version no longer has as ReDefinition knows it;
+* a setting the new version saves that no registration names yet;
+* a new version that ReDefinition cannot bundle at all -- its settings then stay with
+  the mod, and its toolbar button stays.
+
+Each of them is still in the mod's own window, which the button beside the line opens.
+A version that changes nothing of this is not mentioned.

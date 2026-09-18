@@ -56,6 +56,13 @@ namespace ReDefinition.Framework
             get { return segments[segments.Count - 1].Method != null; }
         }
 
+        // The field at the end, where the path ends in one; null for a property,
+        // an indexer or a method.
+        public FieldInfo EndField
+        {
+            get { return segments[segments.Count - 1].Field; }
+        }
+
         // Null where the path does not resolve, with the reason in `problem`.
         public static MemberPath Resolve(string text, ModFolder folder, out string problem)
         {

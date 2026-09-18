@@ -95,6 +95,30 @@ namespace ReDefinition.Framework
             get { return dropped; }
         }
 
+        // What the settings window cannot show of this build, though the mod has
+        // it: rows its registration places that this build lacks or holds
+        // otherwise -- not the `optional` ones, which a build is known to lack --
+        // and settings the mod saves that no registration names. Both stay in the
+        // mod's own window. Empty where nothing is missing, whatever the version.
+        public IList<string> RowsNotShown
+        {
+            get { return rowsNotShown; }
+        }
+
+        public IList<string> SettingsNotKnown
+        {
+            get { return settingsNotKnown; }
+        }
+
+        private readonly List<string> rowsNotShown = new List<string>();
+        private readonly List<string> settingsNotKnown = new List<string>();
+
+        // The objects the registration's settings live in, where they are saved
+        // through KSP's [Persistent]: their other [Persistent] fields are settings
+        // the mod saves too.
+        private readonly HashSet<Type> settingsTypes = new HashSet<Type>();
+        private readonly HashSet<string> namedFields = new HashSet<string>();
+
         public string OwnWindow { get; private set; }
 
         public Type OwnWindowType { get; private set; }
@@ -212,6 +236,7 @@ namespace ReDefinition.Framework
                 return;
             }
             if (modBehaviour != null) modBehaviour.Complete(this);
+            FindUnknown();
             if (ready != null) WaitForReady();
             WindowFrom(where, problems);
             IsInstalled = settings.Count > 0;
@@ -281,6 +306,7 @@ namespace ReDefinition.Framework
         // `True`; a `required` one takes the mod with it.
         internal void MemberMissing(SettingRegistration entry, string why)
         {
+            RowLost(entry);
             if (!IsTrue(entry.Optional)) Drop(entry.Name, entry.Optional ?? why);
             if (entry.Required) lostRequired = true;
         }
@@ -291,6 +317,40 @@ namespace ReDefinition.Framework
             foreach (BundledSetting setting in settings)
                 if (setting.Key == key) return true;
             return false;
+        }
+
+        // A row the registration places that this build cannot give: not an
+        // `optional` one, which a build is known to lack.
+        private void RowLost(SettingRegistration entry)
+        {
+            if (entry.Row == null || entry.Optional != null) return;
+            string title = Localized(entry.Title);
+            if (!rowsNotShown.Contains(title)) rowsNotShown.Add(title);
+        }
+
+        // A field the registration names, directly or through a behaviour that
+        // reaches its mod's settings by name.
+        internal void Named(FieldInfo field)
+        {
+            if (field == null) return;
+            namedFields.Add(field.DeclaringType.FullName + "." + field.Name);
+            if (field.IsDefined(typeof(Persistent), true)) settingsTypes.Add(field.DeclaringType);
+        }
+
+        // Once every setting is built: the [Persistent] fields of the settings
+        // objects that no registration names -- a setting a newer build saves.
+        private void FindUnknown()
+        {
+            foreach (Type type in settingsTypes)
+            {
+                foreach (FieldInfo field in type.GetFields(Any))
+                {
+                    if (!field.IsDefined(typeof(Persistent), true)) continue;
+                    if (namedFields.Contains(type.FullName + "." + field.Name)) continue;
+                    if (registration.Setting(field.Name) != null) continue;
+                    if (!settingsNotKnown.Contains(field.Name)) settingsNotKnown.Add(field.Name);
+                }
+            }
         }
 
         // A setting a behaviour finds on its own -- a field Scatterer saves that no
@@ -347,6 +407,7 @@ namespace ReDefinition.Framework
                 string problem = "its default '" + entry.Default + "' is no value of its " + type.Name;
                 problems.Add(where + ": " + problem + " -- left out.");
                 Drop(entry.Name, problem);
+                RowLost(entry);
                 return;
             }
 
@@ -535,6 +596,10 @@ namespace ReDefinition.Framework
                 if (entry.Optional == null) problems.Add(where + ": " + what + ": " + problem + " -- left out.");
                 MemberMissing(entry, problem);
             }
+            else
+            {
+                Named(path.EndField);
+            }
             return path;
         }
 
@@ -595,9 +660,11 @@ namespace ReDefinition.Framework
                 problem = "a " + type.Name + " cannot be set from text";
                 problems.Add(where + ": " + problem + " -- left out.");
                 Drop(entry.Name, problem);
+                RowLost(entry);
                 return false;
             }
 
+            Named(path.EndField);
             MemberPath member = path;
             bool invert = entry.Invert;
             Type declared = type;

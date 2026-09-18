@@ -289,6 +289,14 @@ name only a behaviour ReDefinition has; with any other name the mod is left out 
 a whole, with the reason in the log. A mod whose settings need code of their own
 to be read or set cannot be registered with a config file alone.
 
+## When your mod changes
+
+Where a build of your mod lacks a setting that has a `row` -- not an `optional` one --
+or saves a `[Persistent]` field of a settings object your registration reaches that the
+registration does not name, the player's window says so under *Mods and toolbar*, and
+points to your own window. A field your registration knows and leaves out on purpose
+is named with `leftOut`, so it is not reported as new.
+
 ## When something is wrong
 
 Every problem in a registration -- a key the reader does not know, a value it
