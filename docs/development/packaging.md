@@ -64,6 +64,7 @@ file is read through `$vref: '#/ckan/ksp-avc'`.
       Mods/*.cfg                the registrations of the bundled mods
       ReDefinition.version
       LICENSE, EXCEPTIONS.md    this project's licence
+      CHANGELOG.md              what each release changed
       LICENSE-FSR3Unity.txt     FSR3Unity, MIT, compiled into the DLL
       LICENSE-FidelityFX.txt    AMD's FSR 3 shaders, MIT, compiled into the bundle
       SOURCE.md                 where the source is

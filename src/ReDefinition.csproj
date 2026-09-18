@@ -265,7 +265,7 @@
 
     <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml" DestinationFolder="$(_StageMod)\Plugins" />
     <Copy SourceFiles="$(_ShaderBundle)" DestinationFolder="$(_StageMod)\Shaders" />
-    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)licenses\SOURCE.md"
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"
           DestinationFolder="$(_StageMod)" />
     <Copy SourceFiles="$(_RepoRoot)docs\credits-and-licences.md" DestinationFiles="$(_StageMod)\CREDITS.md" />
     <Copy SourceFiles="$(_RepoRoot)src\Fsr3\LICENSE.txt" DestinationFiles="$(_StageMod)\LICENSE-FSR3Unity.txt" />
