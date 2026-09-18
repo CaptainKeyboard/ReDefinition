@@ -663,7 +663,7 @@ namespace ReDefinition.Window
             if (!model.ChooseProfile(profile.Name)) return;
 
             List<string> problems = new List<string>();
-            if (edit != null) ProfileApplier.ApplyModules(profile, edit.After, problems);
+            if (edit != null) ModuleProfiles.Apply(profile, edit.After, problems);
             ProfileApplier.Report("Graphics profile '" + profile.Title + "'", problems);
         }
 
@@ -690,7 +690,7 @@ namespace ReDefinition.Window
             statusUpscalerPending = upscalerPending;
             GraphicsProfile profile = ProfileApplier.Find(profiles, model.Profile);
             status = model.Status(applied, enabled, upscalerPending, profile != null ? profile.Title : null,
-                values => ProfileApplier.Differences(profile, values, PendingValue, after));
+                values => ProfileApplier.Differences(values, PendingValue) + ModuleProfiles.Differences(profile, after));
             return status;
         }
 

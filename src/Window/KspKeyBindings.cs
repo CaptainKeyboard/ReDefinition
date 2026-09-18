@@ -3,7 +3,6 @@ using System.Reflection;
 using System;
 using ReDefinition.Core;
 using ReDefinition.Settings;
-using ReDefinition.Upscaler;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -120,11 +119,11 @@ namespace ReDefinition.Window
             bindings = new List<Binding>();
             Type settings = typeof(GameSettings);
             Type keyBinding = typeof(KeyBinding);
-            primary = keyBinding.GetField("primary", HostStack.Any);
-            secondary = keyBinding.GetField("secondary", HostStack.Any);
-            FieldInfo modes = keyBinding.GetField("switchState", HostStack.Any);
+            primary = keyBinding.GetField("primary", TypeLookup.Any);
+            secondary = keyBinding.GetField("secondary", TypeLookup.Any);
+            FieldInfo modes = keyBinding.GetField("switchState", TypeLookup.Any);
             keyCodeExtended = primary != null ? primary.FieldType : null;
-            codeField = keyCodeExtended != null ? keyCodeExtended.GetField("code", HostStack.Any) : null;
+            codeField = keyCodeExtended != null ? keyCodeExtended.GetField("code", TypeLookup.Any) : null;
             if (primary == null || secondary == null || codeField == null)
             {
                 CompatibilityLog.Warn("ksp-bindings", "KSP's key bindings are not the shape this build was written"

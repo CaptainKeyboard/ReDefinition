@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Reflection;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Upscaler;
 
 namespace ReDefinition.Settings
 {
@@ -18,7 +17,7 @@ namespace ReDefinition.Settings
     // setting, is a settings object of another shape, and is not bundled at all.
     internal sealed class RegisteredMod : IBundledMod
     {
-        private const BindingFlags Any = HostStack.Any;
+        private const BindingFlags Any = TypeLookup.Any;
 
         private readonly ModRegistration registration;
         private readonly ModFolder folder;

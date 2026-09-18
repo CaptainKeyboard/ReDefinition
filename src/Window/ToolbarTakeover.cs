@@ -5,7 +5,6 @@ using System;
 using KSP.UI.Screens;
 using ReDefinition.Core;
 using ReDefinition.Settings;
-using ReDefinition.Upscaler;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -245,9 +244,9 @@ namespace ReDefinition.Window
                 Type control = TypeLookup.Find("ToolbarControl_NS.ToolbarControl");
                 if (control != null)
                 {
-                    tcList = control.GetField("tcList", HostStack.Any);
-                    tcNamespace = control.GetField("nameSpace", HostStack.Any);
-                    tcStock = control.GetField("stockButton", HostStack.Any);
+                    tcList = control.GetField("tcList", TypeLookup.Any);
+                    tcNamespace = control.GetField("nameSpace", TypeLookup.Any);
+                    tcStock = control.GetField("stockButton", TypeLookup.Any);
                     if (tcList != null && !tcList.IsStatic) tcList = null;
                 }
             }
@@ -345,8 +344,8 @@ namespace ReDefinition.Window
             if (!resolved)
             {
                 resolved = true;
-                modList = typeof(ApplicationLauncher).GetField("appListMod", HostStack.Any);
-                modListHidden = typeof(ApplicationLauncher).GetField("appListModHidden", HostStack.Any);
+                modList = typeof(ApplicationLauncher).GetField("appListMod", TypeLookup.Any);
+                modListHidden = typeof(ApplicationLauncher).GetField("appListModHidden", TypeLookup.Any);
                 if (modList == null || modListHidden == null)
                     Debug.LogWarning(Log.Tag + " KSP's launcher is not the one this mod was written against:"
                                      + " other mods' toolbar buttons stay.");

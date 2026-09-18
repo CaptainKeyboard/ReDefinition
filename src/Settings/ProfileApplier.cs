@@ -6,11 +6,11 @@ using UnityEngine;
 
 namespace ReDefinition.Settings
 {
-    // Carries a graphics profile out (docs/player/graphics-profiles.md): its MODULE
-    // nodes onto this mod's own settings, the PROFILE blocks of the registrations
-    // onto the settings of the registered mods -- the same way the settings window
-    // commits a change, so that a profile is nothing but many rows set at once,
-    // saved like every other.
+    // Carries a graphics profile out (docs/player/graphics-profiles.md): the
+    // PROFILE blocks of the registrations onto the settings of the registered
+    // mods, the same way the settings window commits a change, so that a profile
+    // is nothing but many rows set at once, saved like every other. Its MODULE
+    // nodes are ModuleProfiles'.
     //
     // A mod that is not installed is skipped without a word: a profile covers
     // every mod it knows, a player has only some of them. So is a setting an
@@ -156,69 +156,11 @@ namespace ReDefinition.Settings
                 applied != null && applied != profile ? Values(applied, new List<string>()) : null, released);
         }
 
-        // ReDefinition's modules' part (OurModules): each MODULE node's values onto the
-        // settings they name, in `settings`.
-        public static void ApplyModules(GraphicsProfile profile, OwnSettings settings, List<string> problems)
-        {
-            if (settings == null) return;
-            foreach (KeyValuePair<ModuleSetting, string> pair in ModuleValues(profile, problems))
-                pair.Key.Write(settings, pair.Value);
-        }
-
-        // The values a profile's MODULE nodes set, each as its setting holds it --
-        // read as any mod's block is, without a case of their own: quality settings
-        // only, as for the other mods; a module, a setting or a value that cannot be
-        // taken is reported and left out. `problems` may be null. Internal: the
-        // check outside the game asks the same.
-        internal static List<KeyValuePair<ModuleSetting, string>> ModuleValues(GraphicsProfile profile,
-                                                                                List<string> problems)
-        {
-            List<KeyValuePair<ModuleSetting, string>> values = new List<KeyValuePair<ModuleSetting, string>>();
-            foreach (KeyValuePair<string, ConfigNode> entry in profile.Modules)
-            {
-                string where = "Profile '" + profile.Name + "', module '" + entry.Key + "'";
-                IGraphicsModule module = OurModules.Find(entry.Key);
-                if (module == null)
-                {
-                    if (problems != null) problems.Add(where + ": no such module -- skipped.");
-                    continue;
-                }
-                // A key given twice -- a pack's patch that adds a value rather than
-                // editing it -- counts once, with its last value, and is said, as in a
-                // mod's block: the last value is judged, and where it is refused the
-                // earlier one does not stand in.
-                List<string> keys = new List<string>();
-                Dictionary<string, string> last = new Dictionary<string, string>();
-                foreach (ConfigNode.Value value in entry.Value.values)
-                {
-                    if (value.name == "name") continue;
-                    if (!last.ContainsKey(value.name)) keys.Add(value.name);
-                    else if (problems != null) problems.Add(where + ": '" + value.name + "' twice -- the last one counts.");
-                    last[value.name] = value.value;
-                }
-                foreach (string key in keys)
-                {
-                    string text = last[key];
-                    ModuleSetting setting = module.Setting(key);
-                    string why = setting == null ? "no setting of the module"
-                        : setting.Kind != SettingKind.Quality ? "a profile sets quality only, never taste or other switches"
-                        : setting.Refusal(text);
-                    if (why != null)
-                    {
-                        if (problems != null) problems.Add(where + ", " + key + " = " + text + ": " + why + " -- left out.");
-                        continue;
-                    }
-                    values.Add(new KeyValuePair<ModuleSetting, string>(setting, setting.Normalize(text)));
-                }
-            }
-            return values;
-        }
-
-        // How many of the given values and of ReDefinition's modules' settings no longer
-        // match the profile -- what makes it Custom. valueOf gives a setting's value
-        // as the caller holds it.
-        public static int Differences(GraphicsProfile profile, Dictionary<BundledSetting, string> values,
-                                      Func<BundledSetting, string> valueOf, OwnSettings upscaler)
+        // How many of the given values no longer match the profile -- with
+        // ModuleProfiles.Differences, what makes it Custom. valueOf gives a
+        // setting's value as the caller holds it.
+        public static int Differences(Dictionary<BundledSetting, string> values,
+                                      Func<BundledSetting, string> valueOf)
         {
             int count = 0;
             // A value that cannot be read now is not known to differ: with every
@@ -229,18 +171,11 @@ namespace ReDefinition.Settings
                 string now = valueOf(pair.Key);
                 if (now != null && !SettingValues.Same(now, pair.Value)) count++;
             }
-
-            // A module's setting that differs counts as one, as a mod's does.
-            if (upscaler != null)
-            {
-                foreach (KeyValuePair<ModuleSetting, string> pair in ModuleValues(profile, null))
-                    if (!SettingValues.Same(pair.Key.Normalize(pair.Key.Read(upscaler)), pair.Value)) count++;
-            }
             return count;
         }
 
-        // Right away, without the window -- the main menu's first question.
-        // Bundling must be on already.
+        // The registered mods' part right away, without the window
+        // (ModuleProfiles.ApplyNow). Bundling must be on already.
         public static void ApplyNow(GraphicsProfile profile, IList<GraphicsProfile> all, List<string> problems)
         {
             HashSet<BundledSetting> released = new HashSet<BundledSetting>();
@@ -264,23 +199,6 @@ namespace ReDefinition.Settings
             }
             BundledSettings.ProfileName = profile.Name;
             BundledSettings.SaveNow();
-
-            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            if (addon == null) return;
-            // Caught as the window catches it: a failure here must not take the
-            // report of what came before with it.
-            try
-            {
-                OwnSettings before = addon.Current();
-                OwnSettings after = before.Clone();
-                ApplyModules(profile, after, problems);
-                addon.Apply(before, after);
-            }
-            catch (Exception e)
-            {
-                problems.Add("Profile '" + profile.Name + "', upscaler: could not be applied (" + CompatibilityLog.Reason(e)
-                             + ").");
-            }
         }
 
         // Each problem once per run, however often the window opens -- and one

@@ -3,7 +3,6 @@ using System.Collections;
 using System.Reflection;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Upscaler;
 
 namespace ReDefinition.Settings.Behaviours
 {
@@ -85,7 +84,7 @@ namespace ReDefinition.Settings.Behaviours
             try
             {
                 Type globals = TypeLookup.Find("DistantObject.Globals");
-                FieldInfo named = globals != null ? globals.GetField("DistantObjectVersion", HostStack.Any) : null;
+                FieldInfo named = globals != null ? globals.GetField("DistantObjectVersion", TypeLookup.Any) : null;
                 string version = named != null && named.IsStatic ? named.GetValue(null) as string : null;
                 return string.IsNullOrEmpty(version) ? null : version;
             }
@@ -138,12 +137,12 @@ namespace ReDefinition.Settings.Behaviours
             string[] names = member.Substring(Root.Length).Split('.');
             if (names.Length == 2)
             {
-                group = settingsType.GetField(names[0], HostStack.Any);
-                field = group != null ? group.FieldType.GetField(names[1], HostStack.Any) : null;
+                group = settingsType.GetField(names[0], TypeLookup.Any);
+                field = group != null ? group.FieldType.GetField(names[1], TypeLookup.Any) : null;
             }
             else if (names.Length == 1)
             {
-                field = settingsType.GetField(names[0], HostStack.Any);
+                field = settingsType.GetField(names[0], TypeLookup.Any);
             }
             return field != null;
         }
@@ -153,7 +152,7 @@ namespace ReDefinition.Settings.Behaviours
         // offers them.
         private bool FontChoice(RegisteredMod mod, BundledSetting setting, FieldInfo group)
         {
-            PropertyInfo fonts = group != null ? group.FieldType.GetProperty("fonts", HostStack.Any) : null;
+            PropertyInfo fonts = group != null ? group.FieldType.GetProperty("fonts", TypeLookup.Any) : null;
             if (fonts == null)
             {
                 mod.Settings.Remove(setting);

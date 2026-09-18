@@ -100,10 +100,6 @@ namespace ReDefinition
         // which reads and changes the same settings as the diagnostics window.
         internal static ReDefinitionAddon Instance { get; private set; }
 
-        // The rig in place, or null; for ScattererCompatibility's hook and
-        // UnityMouseEvents.
-        internal UpscalerRig CurrentRig { get { return rig; } }
-
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
@@ -114,6 +110,8 @@ namespace ReDefinition
             // What KSP's V-Sync row allows while DLSS frame generation runs (KSP.cfg).
             KspBehaviour.DlssFrameGenerationRuns = () => frameGeneration && FrameGenerationBridge.DlssFrameGenerationRuns;
             KspBehaviour.DlssFrameGenerationVsync = () => FrameGenerationBridge.DlssFrameGenerationVsync;
+            KspBehaviour.SettingsApplied = SettingsWindow.FollowModSoon;
+            TufxBehaviour.ProfileApplied = HostStack.ReassertNow;
 
             Debug.Log(Log.Tag + " Upscaler ready."
                       + " Toolbar button for the settings window; its Keys tab holds the hotkeys.");
@@ -584,6 +582,7 @@ namespace ReDefinition
             }
 
             rig = created;
+            UpscalerRig.Current = rig;
             attachRetries = 0;
             // The upscaler's failures stand while frame generation's capture runs
             // in its place.
@@ -619,6 +618,7 @@ namespace ReDefinition
                 // straight after must not meet a half torn down instance.
                 DestroyImmediate(rig);
                 rig = null;
+                UpscalerRig.Current = null;
                 RequestRenderSizeFollowUp("upscaler detached");
             }
             attachedTo = null;
@@ -687,7 +687,11 @@ namespace ReDefinition
         private void OnDestroy()
         {
             destroying = true;
-            if (Instance == this) Instance = null;
+            if (Instance == this)
+            {
+                Instance = null;
+                UpscalerRig.Current = null;
+            }
             GameEvents.OnGameSettingsApplied.Remove(OnGameSettingsApplied);
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
 

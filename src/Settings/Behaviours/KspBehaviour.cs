@@ -4,8 +4,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Upscaler;
-using ReDefinition.Window;
 using UnityEngine;
 
 namespace ReDefinition.Settings.Behaviours
@@ -70,6 +68,10 @@ namespace ReDefinition.Settings.Behaviours
         // Set by the upscaler's add-on in the game: whether DLSS frame generation
         // presents ReDefinition's frame generation now, and whether its build
         // presents with V-Sync. Unset outside the game, where every value passes.
+        // KSP's settings applied, with the id of KSP's registration: the settings
+        // window reads them all at its next sync (SettingsWindow.FollowModSoon).
+        internal static Action<string> SettingsApplied;
+
         internal static Func<bool> DlssFrameGenerationRuns;
         internal static Func<bool> DlssFrameGenerationVsync;
 
@@ -105,7 +107,11 @@ namespace ReDefinition.Settings.Behaviours
         public override void InstallHooks(RegisteredMod mod)
         {
             string id = mod.Id;
-            GameEvents.OnGameSettingsApplied.Add(() => SettingsWindow.FollowModSoon(id));
+            GameEvents.OnGameSettingsApplied.Add(() =>
+            {
+                Action<string> follow = SettingsApplied;
+                if (follow != null) follow(id);
+            });
         }
 
         public override bool Reach(RegisteredMod mod, SettingRegistration setting, out Func<string> read,
@@ -253,9 +259,9 @@ namespace ReDefinition.Settings.Behaviours
                 PropertyInfo property = field == null ? utility.GetProperty("KopernicusConfig", Statics) : null;
                 object config = field != null ? field.GetValue(null) : property != null ? property.GetValue(null, null) : null;
                 if (config == null) return -1;
-                FieldInfo enforce = config.GetType().GetField("EnforceShaders", HostStack.Any);
-                FieldInfo warn = config.GetType().GetField("WarnShaders", HostStack.Any);
-                FieldInfo level = config.GetType().GetField("EnforcedShaderLevel", HostStack.Any);
+                FieldInfo enforce = config.GetType().GetField("EnforceShaders", TypeLookup.Any);
+                FieldInfo warn = config.GetType().GetField("WarnShaders", TypeLookup.Any);
+                FieldInfo level = config.GetType().GetField("EnforcedShaderLevel", TypeLookup.Any);
                 if (level == null) return -1;
                 bool holds = (enforce != null && (bool)enforce.GetValue(config))
                              || (warn != null && (bool)warn.GetValue(config));

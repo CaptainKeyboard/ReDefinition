@@ -82,7 +82,7 @@ namespace ReDefinition.Upscaler
             // like any other member missing.
             Type vrUtils = TypeLookup.Find(VrUtilsTypeName);
 
-            MethodInfo onPreRender = renderer.GetMethod("OnPreRender", HostStack.Any, null, Type.EmptyTypes, null);
+            MethodInfo onPreRender = renderer.GetMethod("OnPreRender", TypeLookup.Any, null, Type.EmptyTypes, null);
             MethodInfo helper = vrUtils != null
                 ? vrUtils.GetMethod("GetNonJitteredProjectionMatrixForCamera", BindingFlags.Public | BindingFlags.Static,
                                     null, new[] { typeof(Camera) }, null)
@@ -239,7 +239,7 @@ namespace ReDefinition.Upscaler
 
             Type renderer = TypeLookup.Find(RendererTypeName);
             if (renderer == null) return;
-            targetCamera = renderer.GetField("targetCamera", HostStack.Any);
+            targetCamera = renderer.GetField("targetCamera", TypeLookup.Any);
             reconstructionShader = renderer.GetField("reconstructCloudShader", BindingFlags.NonPublic | BindingFlags.Static);
             // The field behind EVE's static DeferredRaymarchedRendererToScreen
             // property, whose getter creates the object when there is none.

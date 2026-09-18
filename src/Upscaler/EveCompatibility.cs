@@ -158,22 +158,22 @@ namespace ReDefinition.Upscaler
 
             Type clouds = TypeLookup.Find(CloudsRendererTypeName);
             if (clouds != null)
-                reinitAll = clouds.GetMethod("ReinitAll", HostStack.Any, null, Type.EmptyTypes, null);
+                reinitAll = clouds.GetMethod("ReinitAll", TypeLookup.Any, null, Type.EmptyTypes, null);
 
             Type renderer = TypeLookup.Find(ShadowsRendererTypeName);
             if (renderer != null)
             {
-                shadowsWidth = renderer.GetField("screenWidth", HostStack.Any);
-                shadowsHeight = renderer.GetField("screenHeight", HostStack.Any);
-                shadowsSetResolution = renderer.GetMethod("SetRenderingResolution", HostStack.Any, null, Type.EmptyTypes, null);
+                shadowsWidth = renderer.GetField("screenWidth", TypeLookup.Any);
+                shadowsHeight = renderer.GetField("screenHeight", TypeLookup.Any);
+                shadowsSetResolution = renderer.GetMethod("SetRenderingResolution", TypeLookup.Any, null, Type.EmptyTypes, null);
             }
 
             Type manager = TypeLookup.Find(ShadowsManagerTypeName);
             if (manager != null)
             {
-                shadowsManagerInstance = manager.GetField("instance", HostStack.Any);
-                shadowsRenderers = manager.GetField("cameraToShadowsRenderer", HostStack.Any);
-                shadowsManagerUpdate = manager.GetMethod("UpdateRenderers", HostStack.Any, null, Type.EmptyTypes, null);
+                shadowsManagerInstance = manager.GetField("instance", TypeLookup.Any);
+                shadowsRenderers = manager.GetField("cameraToShadowsRenderer", TypeLookup.Any);
+                shadowsManagerUpdate = manager.GetMethod("UpdateRenderers", TypeLookup.Any, null, Type.EmptyTypes, null);
             }
 
             if ((clouds != null && reinitAll == null) || ((renderer != null || manager != null) && !ShadowsUsable))

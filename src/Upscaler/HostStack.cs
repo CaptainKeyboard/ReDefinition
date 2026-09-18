@@ -78,9 +78,7 @@ namespace ReDefinition.Upscaler
         private static readonly int PreviousFrameTransformId =
             Shader.PropertyToID("TAA_PreviousFrameTransform");
 
-        // Also the compatibility classes' lookups (EveCompatibility, ScattererCompatibility).
-        internal const BindingFlags Any = BindingFlags.Instance | BindingFlags.Static
-                                       | BindingFlags.Public | BindingFlags.NonPublic;
+        private const BindingFlags Any = TypeLookup.Any;
 
         // The state found is remembered, so a restore puts back that state rather
         // than defaults.

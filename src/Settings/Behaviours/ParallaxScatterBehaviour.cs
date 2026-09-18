@@ -2,7 +2,6 @@ using System.Collections;
 using System.Reflection;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Upscaler;
 
 namespace ReDefinition.Settings.Behaviours
 {
@@ -54,7 +53,7 @@ namespace ReDefinition.Settings.Behaviours
             Type loader = TypeLookup.Find("Parallax.ConfigLoader");
             Type scatter = TypeLookup.Find("Parallax.Scatter");
             Type body = TypeLookup.Find("Parallax.ParallaxScatterBody");
-            const BindingFlags Any = HostStack.Any;
+            const BindingFlags Any = TypeLookup.Any;
             scatterBodies = loader != null ? loader.GetField("parallaxScatterBodies", Any) : null;
             fastScatters = body != null ? body.GetField("fastScatters", Any) : null;
             reverse = loader != null && scatter != null

@@ -320,7 +320,7 @@ Expect "every setting the registrations name is offered by its mod here ($($inve
 try {
     $fromNode = $mod.GetType('ReDefinition.Settings.GraphicsProfile', $true).GetMethod('FromConfigNode')
     $refusalMethod = $mod.GetType('ReDefinition.Settings.ProfileApplier', $true).GetMethod('Refusal', $sflags)
-    $moduleValues = $mod.GetType('ReDefinition.Settings.ProfileApplier', $true).GetMethod('ModuleValues', $sflags)
+    $moduleValues = $mod.GetType('ReDefinition.ModuleProfiles', $true).GetMethod('Values', $sflags)
     # What High may set beyond the defaults (docs/player/graphics-profiles.md).
     $highDeviations = @('ksp.TEXTURE_QUALITY', 'ksp.terrainDetail', 'ksp.TERRAIN_SHADER_QUALITY', 'ksp.REFLECTION_PROBE_REFRESH_MODE')
     $unchecked = New-Object 'System.Collections.Generic.SortedSet[string]'
@@ -356,7 +356,7 @@ try {
             if ($null -eq $profile) { $refused += "a profile without a name in $fileName"; continue }
             $profileNames.Add($profile.Name)
             foreach ($p in $problems) { $refused += "'$($profile.Name)': $p" }
-            # ReDefinition's modules' part, as ProfileApplier reads it: every value a
+            # ReDefinition's modules' part, as ModuleProfiles reads it: every value a
             # quality setting of a module, one its setting takes.
             $moduleProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
             [void]$moduleValues.Invoke($null, [object[]]@($profile, $moduleProblems))

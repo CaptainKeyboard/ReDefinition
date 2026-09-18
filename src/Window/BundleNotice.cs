@@ -120,7 +120,7 @@ namespace ReDefinition.Window
             }
 
             Debug.Log(Log.Tag + " Main menu notice answered: the profile '" + profileName + "'.");
-            ProfileApplier.ApplyNow(profile, profiles, problems);
+            ModuleProfiles.ApplyNow(profile, profiles, problems);
             Debug.Log(Log.Tag + " Graphics profile '" + profile.Title + "' applied from the main menu.");
             ProfileApplier.Report("Graphics profile from the main menu", problems);
         }

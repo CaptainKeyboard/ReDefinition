@@ -176,8 +176,7 @@ namespace ReDefinition.Shared
             pendingBodyOffset = Vector3d.zero;
             pendingShift = false;
 
-            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            UpscalerRig rig = addon != null ? addon.CurrentRig : null;
+            UpscalerRig rig = UpscalerRig.Current;
             if (rig != null && rig.TornDown) rig = null;
 
             UpscalerActive = rig != null && rig.UpscalerRuns;

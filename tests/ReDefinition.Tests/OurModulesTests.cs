@@ -29,7 +29,7 @@ namespace ReDefinition.Tests
             OwnSettings settings = new OwnSettings();
             List<string> problems = new List<string>();
 
-            ProfileApplier.ApplyModules(Profile(Upscaler("  enabled = true\n  quality = performance\n")), settings, problems);
+            ModuleProfiles.Apply(Profile(Upscaler("  enabled = true\n  quality = performance\n")), settings, problems);
 
             Assert.IsTrue(settings.Enabled);
             Assert.AreEqual(Fsr3Upscaler.QualityMode.Performance, settings.Quality);
@@ -42,7 +42,7 @@ namespace ReDefinition.Tests
             OwnSettings settings = new OwnSettings();
             List<string> problems = new List<string>();
 
-            ProfileApplier.ApplyModules(Profile(Upscaler("  quality = 2\n")), settings, problems);
+            ModuleProfiles.Apply(Profile(Upscaler("  quality = 2\n")), settings, problems);
 
             Assert.AreEqual(Fsr3Upscaler.QualityMode.NativeAA, settings.Quality);
             Assert.AreEqual(1, problems.Count);
@@ -55,7 +55,7 @@ namespace ReDefinition.Tests
             OwnSettings settings = new OwnSettings();
             List<string> problems = new List<string>();
 
-            ProfileApplier.ApplyModules(Profile(Upscaler("  sharpness = 0.5\n")
+            ModuleProfiles.Apply(Profile(Upscaler("  sharpness = 0.5\n")
                                                 + " MODULE\n {\n  name = frameGeneration\n  enabled = True\n }\n"),
                 settings, problems);
 
@@ -69,7 +69,7 @@ namespace ReDefinition.Tests
         {
             List<string> problems = new List<string>();
 
-            ProfileApplier.ModuleValues(Profile(Upscaler("  colour = blue\n") + " MODULE\n {\n  name = shaders\n  on = True\n }\n"),
+            ModuleProfiles.Values(Profile(Upscaler("  colour = blue\n") + " MODULE\n {\n  name = shaders\n  on = True\n }\n"),
                 problems);
 
             Assert.AreEqual(2, problems.Count, string.Join("\n", problems));
@@ -82,11 +82,10 @@ namespace ReDefinition.Tests
         {
             OwnSettings settings = new OwnSettings();
             GraphicsProfile profile = Profile(Upscaler("  enabled = True\n  quality = Balanced\n"));
-            Dictionary<BundledSetting, string> none = new Dictionary<BundledSetting, string>();
 
-            Assert.AreEqual(2, ProfileApplier.Differences(profile, none, setting => null, settings));
-            ProfileApplier.ApplyModules(profile, settings, new List<string>());
-            Assert.AreEqual(0, ProfileApplier.Differences(profile, none, setting => null, settings));
+            Assert.AreEqual(2, ModuleProfiles.Differences(profile, settings));
+            ModuleProfiles.Apply(profile, settings, new List<string>());
+            Assert.AreEqual(0, ModuleProfiles.Differences(profile, settings));
         }
 
         [TestMethod]

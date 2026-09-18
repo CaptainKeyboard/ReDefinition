@@ -49,7 +49,7 @@ namespace ReDefinition.Settings
 
         public static string Path
         {
-            get { return OwnSettings.PluginDataPath(FileName); }
+            get { return PluginData.Path(FileName); }
         }
 
         // Whether the other mods' settings are bundled here and their buttons

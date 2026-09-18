@@ -5,12 +5,12 @@ using System.IO;
 using System.Threading;
 using System;
 using KSP.Localization;
+using ReDefinition.Bridges;
 using ReDefinition.Core;
-using ReDefinition.Window;
 using UnityEngine.Networking;
 using UnityEngine;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Window
 {
     // The player's download of NVIDIA's DLLs (NvidiaFiles) from NVIDIA's own
     // release on GitHub: offered in the settings window where the GPU can use them

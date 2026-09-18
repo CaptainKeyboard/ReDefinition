@@ -297,7 +297,7 @@ namespace ReDefinition.Tests
                 + "  quality = Balanced\n }\n}"), new List<string>());
             List<string> problems = new List<string>();
 
-            List<KeyValuePair<ModuleSetting, string>> values = ProfileApplier.ModuleValues(profile, problems);
+            List<KeyValuePair<ModuleSetting, string>> values = ModuleProfiles.Values(profile, problems);
 
             Assert.AreEqual(1, values.Count);
             Assert.AreEqual("Balanced", values[0].Value);
@@ -307,7 +307,7 @@ namespace ReDefinition.Tests
                 "GRAPHICS_PROFILE\n{\n name = high\n MODULE\n {\n  name = upscaler\n  quality = NativeAA\n"
                 + "  quality = 3\n }\n}"), new List<string>());
             problems.Clear();
-            values = ProfileApplier.ModuleValues(profile, problems);
+            values = ModuleProfiles.Values(profile, problems);
             Assert.AreEqual(0, values.Count, "the last counts where it is refused too");
             Assert.IsTrue(problems.Exists(problem => problem.Contains("'quality' twice")));
             Assert.IsTrue(problems.Exists(problem => problem.Contains("left out")));

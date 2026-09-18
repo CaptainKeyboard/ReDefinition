@@ -194,6 +194,10 @@ namespace ReDefinition.Upscaler
         // loading-buffer scene, so the count may rise twice per change.
         private static int sceneLoads;
 
+        // The rig in place, or null; set by the add-on as it attaches and
+        // detaches one (SharedFrame, ScattererCompatibility, UnityMouseEvents).
+        internal static UpscalerRig Current { get; set; }
+
         internal static void NoteSceneLoad()
         {
             sceneLoads++;

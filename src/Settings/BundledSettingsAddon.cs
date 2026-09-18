@@ -2,13 +2,12 @@ using System.Collections.Generic;
 using System.Collections;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Window;
 using UnityEngine;
 
 namespace ReDefinition.Settings
 {
-    // When the bundled settings reach their mods, and when the toolbar is
-    // looked at.
+    // When the bundled settings reach their mods. The windows' part is
+    // ModWindowsAddon's.
     //
     // At every scene change: when the next scene is requested, before it loads
     // -- Scatterer reads its node in the new scene's Awake, Deferred sets up
@@ -35,9 +34,6 @@ namespace ReDefinition.Settings
     public class BundledSettingsAddon : MonoBehaviour
     {
         private const float TickInterval = 2f;
-        // How often the open settings window looks for changes made in another.
-        private const float SyncInterval = 0.25f;
-        private float nextSync;
 
         private static BundledSettingsAddon instance;
         private static readonly Dictionary<string, Action> endOfFrame = new Dictionary<string, Action>();
@@ -49,20 +45,10 @@ namespace ReDefinition.Settings
         {
             instance = this;
             DontDestroyOnLoad(gameObject);
-            try
-            {
-                ModWindowClose.Install();
-            }
-            catch (Exception e)
-            {
-                CompatibilityLog.Warn("own-window-close-hooks", "The bundled mods' own windows get no close button ("
-                                                                + CompatibilityLog.Reason(e) + ").");
-            }
             GameEvents.onGameSceneLoadRequested.Add(OnSceneLoadRequested);
             GameEvents.onLevelWasLoaded.Add(OnLevelLoaded);
             GameEvents.onLevelWasLoadedGUIReady.Add(OnLevelReady);
             GameEvents.OnCameraChange.Add(OnCameraChange);
-            GameEvents.onGUIApplicationLauncherReady.Add(OnLauncherReady);
             GameEvents.OnGameSettingsApplied.Add(OnGameSettingsApplied);
         }
 
@@ -72,7 +58,6 @@ namespace ReDefinition.Settings
             GameEvents.onLevelWasLoaded.Remove(OnLevelLoaded);
             GameEvents.onLevelWasLoadedGUIReady.Remove(OnLevelReady);
             GameEvents.OnCameraChange.Remove(OnCameraChange);
-            GameEvents.onGUIApplicationLauncherReady.Remove(OnLauncherReady);
             GameEvents.OnGameSettingsApplied.Remove(OnGameSettingsApplied);
             if (instance == this) instance = null;
         }
@@ -172,7 +157,6 @@ namespace ReDefinition.Settings
         private void OnLevelLoaded(GameScenes scene)
         {
             BundledSettings.NoteSceneLoaded();
-            ModWindowClose.Forget();
             BundledSettings.ReapplyStored(scene + " loaded");
             Requirements.Enforce(scene + " loaded");
         }
@@ -181,7 +165,6 @@ namespace ReDefinition.Settings
         {
             BundledSettings.ReapplyStored(scene + " ready");
             Requirements.Enforce(scene + " ready");
-            ToolbarTakeover.Refresh();
         }
 
         // KSP's own settings screen, or this mod's KSP rows, applied: what a
@@ -197,32 +180,12 @@ namespace ReDefinition.Settings
             BundledSettings.ReapplyStored("camera now " + mode);
         }
 
-        private void OnLauncherReady()
-        {
-            ToolbarTakeover.Refresh();
-        }
-
         private void Update()
         {
             Schedule();   // anything queued while this was disabled
 
-            if (SettingsWindow.Visible && Time.unscaledTime >= nextSync)
-            {
-                nextSync = Time.unscaledTime + SyncInterval;
-                try
-                {
-                    SettingsWindow.SyncFromMods();
-                }
-                catch (Exception e)
-                {
-                    CompatibilityLog.Warn("settings-window-sync", "ReDefinition's window could not follow a change made in"
-                                                                  + " another window (" + CompatibilityLog.Reason(e) + ").");
-                }
-            }
-
             if (Time.unscaledTime < nextTick) return;
             nextTick = Time.unscaledTime + TickInterval;
-            ToolbarTakeover.Refresh();
             if (HighLogic.LoadedScene == GameScenes.MAINMENU) BundledSettings.ReapplyStored("main menu");
             // Elsewhere only to the mods a value could not reach before: Trajectories
             // from its first flight on, whenever in the scene's loading it makes its

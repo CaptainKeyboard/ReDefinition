@@ -1,7 +1,6 @@
 using System.Reflection;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Upscaler;
 
 namespace ReDefinition.Settings.Behaviours
 {
@@ -47,13 +46,13 @@ namespace ReDefinition.Settings.Behaviours
             settingsType = TypeLookup.Find("Scatterer.MainSettingsReadWrite");
             if (scatterer == null || settingsType == null) return false;
             instance = scatterer.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
-            mainSettings = scatterer.GetField("mainSettings", HostStack.Any);
-            isActive = scatterer.GetField("isActive", HostStack.Any);
+            mainSettings = scatterer.GetField("mainSettings", TypeLookup.Any);
+            isActive = scatterer.GetField("isActive", TypeLookup.Any);
             if (instance == null || mainSettings == null) return false;
-            pluginData = scatterer.GetField("pluginData", HostStack.Any);
+            pluginData = scatterer.GetField("pluginData", TypeLookup.Any);
             Type pluginDataType = TypeLookup.Find("Scatterer.PluginDataReadWrite");
             savePluginData = pluginDataType != null
-                ? pluginDataType.GetMethod("savePluginData", HostStack.Any, null, Type.EmptyTypes, null)
+                ? pluginDataType.GetMethod("savePluginData", TypeLookup.Any, null, Type.EmptyTypes, null)
                 : null;
             if (isActive != null && !isActive.IsStatic && isActive.FieldType == typeof(bool)) return true;
             mod.Drop(RegisteredMod.WholeMod, "this build of Scatterer cannot be asked whether it runs in this scene");
@@ -67,7 +66,7 @@ namespace ReDefinition.Settings.Behaviours
             write = null;
             type = null;
             if (setting.IsBinding) return ReachBinding(mod, setting, out read, out write);
-            FieldInfo field = settingsType.GetField(setting.Name, HostStack.Any);
+            FieldInfo field = settingsType.GetField(setting.Name, TypeLookup.Any);
             if (field == null)
             {
                 mod.MemberMissing(setting, "this build of Scatterer does not have it");
@@ -150,7 +149,7 @@ namespace ReDefinition.Settings.Behaviours
         private FieldInfo PluginField(string name, Type type)
         {
             Type pluginDataType = pluginData != null ? pluginData.FieldType : null;
-            FieldInfo field = pluginDataType != null ? pluginDataType.GetField(name, HostStack.Any) : null;
+            FieldInfo field = pluginDataType != null ? pluginDataType.GetField(name, TypeLookup.Any) : null;
             return field != null && field.FieldType == type ? field : null;
         }
 

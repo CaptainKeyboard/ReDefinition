@@ -10,6 +10,11 @@ namespace ReDefinition.Core
     // are built outside the game too (tools/check_bundled_mods.ps1).
     internal static class TypeLookup
     {
+        // Every member, public or not, static or not: what the lookups into other
+        // mods ask for.
+        internal const BindingFlags Any = BindingFlags.Instance | BindingFlags.Static
+                                       | BindingFlags.Public | BindingFlags.NonPublic;
+
         private static readonly Dictionary<string, Type> cache = new Dictionary<string, Type>();
 
         public static Type Find(string fullName)

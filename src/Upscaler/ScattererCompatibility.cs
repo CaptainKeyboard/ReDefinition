@@ -76,8 +76,7 @@ namespace ReDefinition.Upscaler
             try
             {
                 if (!__result) return;
-                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                UpscalerRig rig = addon != null ? addon.CurrentRig : null;
+                UpscalerRig rig = UpscalerRig.Current;
                 if (rig == null) return;   // nothing redirected: Scatterer's own size is right
 
                 if (Size(__instance as Component))
@@ -152,18 +151,18 @@ namespace ReDefinition.Upscaler
             godraysType = TypeLookup.Find(GodraysTypeName);
             if (godraysType == null) return;
 
-            screenWidth = godraysType.GetField("screenWidth", HostStack.Any);
-            screenHeight = godraysType.GetField("screenHeight", HostStack.Any);
-            renderWidth = godraysType.GetField("renderWidth", HostStack.Any);
-            renderHeight = godraysType.GetField("renderHeight", HostStack.Any);
-            useTerrainGodrays = godraysType.GetField("useTerrainGodrays", HostStack.Any);
-            occlusionMaterial = godraysType.GetField("scatteringOcclusionMaterial", HostStack.Any);
-            downscaledDepth = godraysType.GetField("downscaledDepth", HostStack.Any);
-            resize = godraysType.GetMethod("ResizeRenderTextures", HostStack.Any, null, new[] { typeof(bool) }, null);
+            screenWidth = godraysType.GetField("screenWidth", TypeLookup.Any);
+            screenHeight = godraysType.GetField("screenHeight", TypeLookup.Any);
+            renderWidth = godraysType.GetField("renderWidth", TypeLookup.Any);
+            renderHeight = godraysType.GetField("renderHeight", TypeLookup.Any);
+            useTerrainGodrays = godraysType.GetField("useTerrainGodrays", TypeLookup.Any);
+            occlusionMaterial = godraysType.GetField("scatteringOcclusionMaterial", TypeLookup.Any);
+            downscaledDepth = godraysType.GetField("downscaledDepth", TypeLookup.Any);
+            resize = godraysType.GetMethod("ResizeRenderTextures", TypeLookup.Any, null, new[] { typeof(bool) }, null);
 
             // Init(Light, SkyNode, bool, bool, int, int), returning bool: the one
             // overload there is, found without naming Scatterer's SkyNode type.
-            foreach (MethodInfo method in godraysType.GetMethods(HostStack.Any))
+            foreach (MethodInfo method in godraysType.GetMethods(TypeLookup.Any))
             {
                 if (method.Name == "Init" && method.ReturnType == typeof(bool) && method.GetParameters().Length == 6)
                     init = method;

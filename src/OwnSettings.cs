@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using FidelityFX.FSR3;
 using ReDefinition.Bridges;
+using ReDefinition.Core;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;
 using UnityEngine;
@@ -43,16 +44,7 @@ namespace ReDefinition
 
         public static string Path
         {
-            get { return PluginDataPath("settings.cfg"); }
-        }
-
-        // A file in ReDefinition's settings folder, GameData/ReDefinition/PluginData;
-        // bundled.cfg's as well (BundledSettings).
-        internal static string PluginDataPath(string fileName)
-        {
-            return System.IO.Path.Combine(KSPUtil.ApplicationRootPath,
-                System.IO.Path.Combine("GameData", System.IO.Path.Combine("ReDefinition",
-                    System.IO.Path.Combine("PluginData", fileName))));
+            get { return PluginData.Path("settings.cfg"); }
         }
 
         public static OwnSettings Load()

@@ -3,7 +3,6 @@ using System.Collections;
 using System.Reflection;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Upscaler;
 
 namespace ReDefinition.Settings.Behaviours
 {
@@ -32,7 +31,11 @@ namespace ReDefinition.Settings.Behaviours
     internal sealed class TufxBehaviour : ModBehaviour
     {
         private const string HarmonyId = "ReDefinition.TufxHooks";
-        private const BindingFlags Any = HostStack.Any;
+        private const BindingFlags Any = TypeLookup.Any;
+
+        // After a TUFX profile is applied: the upscaler's camera stack is put
+        // back in order over it (HostStack.ReassertNow).
+        internal static Action ProfileApplied;
 
         // The mod the hook reports to; one per run.
         private static RegisteredMod hooked;
@@ -347,7 +350,8 @@ namespace ReDefinition.Settings.Behaviours
                 ? profileByName.Invoke(loader, new object[] { name })
                 : all != null && all.Contains(name) ? all[name] : null;
             applyProfile.Invoke(loader, new[] { profile, scene });
-            HostStack.ReassertNow();
+            Action applied = ProfileApplied;
+            if (applied != null) applied();
         }
 
         private string[] ProfileNames()

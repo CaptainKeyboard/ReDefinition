@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Upscaler;
 
 namespace ReDefinition.Settings.Behaviours
 {
@@ -23,7 +22,7 @@ namespace ReDefinition.Settings.Behaviours
     // back over the one set here.
     internal sealed class EveBehaviour : ModBehaviour
     {
-        private const BindingFlags Any = HostStack.Any | BindingFlags.FlattenHierarchy;
+        private const BindingFlags Any = TypeLookup.Any | BindingFlags.FlattenHierarchy;
 
         private FieldInfo managerInstance;
         private FieldInfo configs;
@@ -35,7 +34,7 @@ namespace ReDefinition.Settings.Behaviours
             Type renderer = TypeLookup.Find("Atmosphere.DeferredRaymarchedVolumetricCloudsRenderer");
             if (manager == null || renderer == null) return false;
 
-            MethodInfo reinitAll = renderer.GetMethod("ReinitAll", HostStack.Any, null, Type.EmptyTypes, null);
+            MethodInfo reinitAll = renderer.GetMethod("ReinitAll", TypeLookup.Any, null, Type.EmptyTypes, null);
             // Protected statics of the generic base, GenericEVEManager<T>: found
             // only with FlattenHierarchy.
             managerInstance = manager.GetField("instance", Any);

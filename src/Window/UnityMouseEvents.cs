@@ -167,8 +167,7 @@ namespace ReDefinition.Window
 
             try
             {
-                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                UpscalerRig rig = addon != null ? addon.CurrentRig : null;
+                UpscalerRig rig = UpscalerRig.Current;
                 if (rig == null) return;
 
                 lentFor = rig;
