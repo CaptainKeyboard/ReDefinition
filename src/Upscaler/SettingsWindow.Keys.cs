@@ -240,13 +240,24 @@ namespace ReDefinition
         }
 
         // Reset to defaults: ReDefinition's own bindings and the mods' go back to
-        // their defaults with their other settings. KSP's own stay as the player has
-        // them -- KSP's settings screen resets those itself, and there is no way back
-        // from here to a keyboard layout somebody spent time on.
+        // their defaults with their other settings, and KSP's to what KSP ships
+        // (KspKeyBindings.Defaults). Filled in only: Apply writes them.
         internal static void ResetKeyBindings()
         {
             kspPending.Clear();
+            foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
+            {
+                ResetOne(binding, false);
+                ResetOne(binding, true);
+            }
             KeysChanged();
+        }
+
+        private static void ResetOne(KspKeyBindings.Binding binding, bool second)
+        {
+            string shipped = binding.Default(second);
+            if (shipped == null) return;
+            kspPending["ksp." + binding.Name + (second ? ".secondary" : ".primary")] = shipped;
         }
 
         // ReDefinition's own hotkeys, over the settings copy the window edits.

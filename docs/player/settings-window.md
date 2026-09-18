@@ -64,8 +64,8 @@ keyboard, since Windows turns AltGr into Ctrl and Alt at once -- a binding with
 right Alt answers to AltGr. As everywhere in this window, *Apply* or *Accept* sets
 what was changed and *Cancel* leaves it.
 
-*Reset to defaults* puts ReDefinition's own bindings and the mods' back to their
-defaults. KSP's own stay as they are: KSP's settings screen resets those itself.
+*Reset to defaults* puts every binding back to its default: ReDefinition's own,
+the mods', and KSP's to what KSP ships -- the same keys KSP's own reset sets.
 
 KSP keeps two keys per binding, a first and a second, and one key each without a
 modifier -- its own modifier key is a binding of its own. The mods' and

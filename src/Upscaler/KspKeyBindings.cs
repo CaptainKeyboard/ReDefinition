@@ -17,10 +17,12 @@ namespace ReDefinition
     // switchState says in which situations a binding counts (settings.cfg writes it
     // as modeMask): two that never count together are no conflict.
     //
-    // KSP's defaults are not read here: its InputSettings names the same bindings
-    // differently -- CAMERA_ORBIT_UP is viewOrbitUp, SAS_HOLD is sasMomentairly --
-    // so only part of them could be matched, and a half reset of a keyboard layout
-    // is worse than none. KSP's own settings screen resets them.
+    // KSP's defaults are the ones its own reset sets: GameSettings.SetDefaultValues
+    // assigns every static field of GameSettings anew -- 119 new KeyBindings among
+    // them -- and does nothing else (its IL in KSP 1.12.5: stores to its own fields
+    // and constructors without side effects). Every field is saved first, the
+    // defaults are read, and every field is put back as it was, the same objects
+    // included: nothing that holds one of KSP's bindings sees a change.
     internal static class KspKeyBindings
     {
         internal sealed class Binding
@@ -43,6 +45,14 @@ namespace ReDefinition
                 if (binding == null) return;
                 SetCode(binding, secondary, KeyCombination.Parse(text).Key);
                 Field.SetValue(null, binding);
+            }
+
+            // What KSP ships for it; null where it could not be read.
+            public string Default(bool secondary)
+            {
+                string[] shipped;
+                if (!Defaults().TryGetValue(Name, out shipped)) return null;
+                return shipped[secondary ? 1 : 0];
             }
 
         }
@@ -168,6 +178,53 @@ namespace ReDefinition
             if (extended == null) extended = Activator.CreateInstance(keyCodeExtended);
             codeField.SetValue(extended, code);
             which.SetValue(binding, extended);
+        }
+
+        private static Dictionary<string, string[]> defaults;
+
+        // KSP's own defaults of every binding, by field name: primary and
+        // secondary. Once per run -- they are KSP's code, not the player's.
+        private static Dictionary<string, string[]> Defaults()
+        {
+            if (defaults != null) return defaults;
+            defaults = new Dictionary<string, string[]>();
+            if (All().Count == 0) return defaults;
+
+            List<FieldInfo> fields = new List<FieldInfo>();
+            foreach (FieldInfo field in typeof(GameSettings).GetFields(BindingFlags.Public | BindingFlags.NonPublic
+                                                                          | BindingFlags.Static))
+            {
+                if (!field.IsLiteral && !field.IsInitOnly) fields.Add(field);
+            }
+            object[] saved = new object[fields.Count];
+            for (int i = 0; i < fields.Count; i++) saved[i] = fields[i].GetValue(null);
+            try
+            {
+                GameSettings.SetDefaultValues();
+                foreach (Binding binding in All())
+                {
+                    object shipped = binding.Field.GetValue(null);
+                    defaults[binding.Name] = new[] { Text(Code(shipped, false)), Text(Code(shipped, true)) };
+                }
+            }
+            catch (Exception e)
+            {
+                defaults.Clear();
+                CompatibilityLog.Warn("ksp-binding-defaults", "KSP's default key bindings could not be read ("
+                                                              + CompatibilityLog.Reason(e)
+                                                              + "); the reset leaves KSP's bindings as they are.");
+            }
+            finally
+            {
+                // Everything as it was, whatever went wrong above.
+                for (int i = 0; i < fields.Count; i++) fields[i].SetValue(null, saved[i]);
+            }
+            return defaults;
+        }
+
+        private static string Text(KeyCode code)
+        {
+            return code == KeyCode.None ? KeyCombination.NoneText : code.ToString();
         }
 
         // KSP writes its settings file itself; the values are read live from

@@ -127,7 +127,7 @@ namespace ReDefinition
                     skin, new Rect(0.5f, 0.5f, WindowWidth, WindowHeight), Build(skin));
                 dialog = PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), window,
                     false, skin, false);
-                    dialog.OnDismiss = () =>
+                dialog.OnDismiss = () =>
                 {
                     dialog = null;
                     KeyCapture.Stop();
@@ -586,9 +586,9 @@ namespace ReDefinition
                        + " other mods keep their own antialiasing, until one is.\n\n"
                        + "The rows are only filled in: Apply or Accept sets them, Cancel leaves everything as it was."
                        + " \"Restore settings from before ReDefinition\" under Mods and toolbar brings back what the mods"
-                       + " had before ReDefinition first changed them.\n\nReDefinition's own key bindings and the"
-                       + " mods' go back to their defaults too. KSP's own stay as they are: its settings screen resets"
-                       + " those itself.";
+                       + " had before ReDefinition first changed them.\n\nThe key bindings go back to their defaults"
+                       + " too: ReDefinition's own, the mods' and KSP's -- KSP's to what KSP ships, as its own reset"
+                       + " sets them.";
 
             MultiOptionDialog confirm = new MultiOptionDialog("ReDefinitionReset", message,
                 "Reset to defaults", HighLogic.UISkin, 460f,
@@ -620,9 +620,8 @@ namespace ReDefinition
                 model.Profile = "";
             }
             if (edit != null) edit.After = new UpscalerSettings();
-            // ReDefinition's own bindings went back with the settings above, and the
-            // mods' go with their other settings; this drops what the Keys tab holds
-            // for KSP, whose bindings the reset leaves alone.
+            // ReDefinition's own bindings went back with the settings above, the
+            // mods' go with their other settings, and KSP's are filled in here.
             ResetKeyBindings();
             status = null;
         }

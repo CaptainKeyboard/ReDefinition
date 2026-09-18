@@ -100,6 +100,16 @@ try {
     }
     $named = @($fields | Where-Object { [string]::IsNullOrEmpty($readable.Invoke($null, [object[]]@($_.Name))) })
     Expect "every one of them has a name for its row" ($named.Count -eq 0)
+
+    # KSP's defaults, read as the reset reads them: SetDefaultValues gives every binding
+    # a new KeyBinding, and what it holds is what KSP ships.
+    [void]$ksp.GetType('GameSettings').GetMethod('SetDefaultValues').Invoke($null, $null)
+    $unset = @($fields | Where-Object { $null -eq $_.GetValue($null) })
+    Expect "SetDefaultValues gives every binding a default" ($unset.Count -eq 0)
+    $pitch = $ksp.GetType('GameSettings').GetField('PITCH_DOWN').GetValue($null)
+    $stage = $ksp.GetType('GameSettings').GetField('LAUNCH_STAGES').GetValue($null)
+    Expect "KSP's defaults are the known ones (Pitch down W, Launch stages Space)" (
+        "$($code.GetValue($primary.GetValue($pitch)))" -eq 'W' -and "$($code.GetValue($primary.GetValue($stage)))" -eq 'Space')
 }
 catch {
     "FAIL  " + $_.Exception.GetBaseException().Message

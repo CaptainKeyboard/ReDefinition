@@ -34,7 +34,7 @@ read, nothing has to be looked up in them during play.
 | Set two rows to the same combination | both are shown in yellow, and both still work |
 | Set KSP's *Pitch down* to `K`, *Accept*, launch | the vessel pitches on `K` |
 | Bind a row to `Space` in flight, then press the row and `Space` again | nothing stages while the row takes the key |
-| *Reset to defaults*, *Accept* | ReDefinition's bindings and the mods' stand at their defaults again; KSP's are untouched |
+| *Reset to defaults*, *Accept* | every binding stands at its default again, KSP's included (*Pitch down* is `W`, *Launch stages* `Space`) |
 
 ## Flight
 
