@@ -227,13 +227,13 @@ namespace ReDefinition
             {
                 case SettingCategory.Profiles: return "Profiles";
                 case SettingCategory.General: return "General";
-                case SettingCategory.ShadowsAndReflections: return "Shadows and reflections";
+                case SettingCategory.ShadowsAndReflections: return "Shadows / Reflections";
                 case SettingCategory.Planets: return "Planets";
                 case SettingCategory.Effects: return "Effects";
                 case SettingCategory.Keys: return "Keys";
                 // Marked where a mod has settings this window cannot show: the tab says
                 // which, and where they are.
-                default: return AnyNotShown() ? "Mods and toolbar (!)" : "Mods and toolbar";
+                default: return AnyNotShown() ? "Mods and toolbar (!)" : "Mods / Toolbar";
             }
         }
 

@@ -18,6 +18,19 @@ namespace ReDefinition.Tests
         public float runningTime;
     }
 
+    // A settings class that inherits saved fields from its base.
+    internal class PersistentBaseFake
+    {
+        [Persistent] public int inherited = 1;
+    }
+
+    internal sealed class PersistentDerivedFake : PersistentBaseFake
+    {
+        internal static PersistentDerivedFake Instance = new PersistentDerivedFake();
+
+        [Persistent] public bool own = true;
+    }
+
     // What the settings window is told it cannot show: only a row a build really
     // lacks, and a setting a build saves that no registration names -- never a
     // version on its own.
@@ -84,6 +97,19 @@ namespace ReDefinition.Tests
                 + " SETTING\n {\n  name = detail\n  member = ReDefinition.Tests.PersistentFake.Instance.detail\n  default = 2\n }\n"
                 + " SETTING\n {\n  name = addedLater\n  member = ReDefinition.Tests.PersistentFake.Instance.addedLater\n  default = False\n }\n}");
             Assert.AreEqual(0, mod.RowsNotShown.Count);
+        }
+
+        [TestMethod]
+        public void AnInheritedFieldTheRegistrationNamesIsKnown()
+        {
+            RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = derivedfake\n"
+                + " detect = ReDefinition.Tests.PersistentDerivedFake\n"
+                + " SETTING\n {\n  name = ownSwitch\n  member = ReDefinition.Tests.PersistentDerivedFake.Instance.own\n"
+                + "  default = True\n }\n"
+                + " SETTING\n {\n  name = baseValue\n  member = ReDefinition.Tests.PersistentDerivedFake.Instance.inherited\n"
+                + "  default = 1\n }\n}");
+            // The names differ from the fields': only the fields themselves tell they are known.
+            Assert.AreEqual(0, mod.SettingsNotKnown.Count, string.Join(", ", new List<string>(mod.SettingsNotKnown).ToArray()));
         }
 
         [TestMethod]

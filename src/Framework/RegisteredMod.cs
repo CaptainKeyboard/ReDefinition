@@ -346,7 +346,9 @@ namespace ReDefinition.Framework
                 foreach (FieldInfo field in type.GetFields(Any))
                 {
                     if (!field.IsDefined(typeof(Persistent), true)) continue;
-                    if (namedFields.Contains(type.FullName + "." + field.Name)) continue;
+                    // By the type that declares it, as Named keeps it: a field a settings
+                    // class inherits is its base class's.
+                    if (namedFields.Contains(field.DeclaringType.FullName + "." + field.Name)) continue;
                     if (registration.Setting(field.Name) != null) continue;
                     if (!settingsNotKnown.Contains(field.Name)) settingsNotKnown.Add(field.Name);
                 }
@@ -655,6 +657,9 @@ namespace ReDefinition.Framework
                 object now = SafeGet(path);
                 type = now != null ? now.GetType() : typeof(object);
             }
+            // Named before its type is judged: a field whose type a new build changed
+            // is a row not shown, not also a setting nobody knows.
+            Named(path.EndField);
             if (type != typeof(object) && !SettingValues.CanParse(type))
             {
                 problem = "a " + type.Name + " cannot be set from text";
@@ -664,7 +669,6 @@ namespace ReDefinition.Framework
                 return false;
             }
 
-            Named(path.EndField);
             MemberPath member = path;
             bool invert = entry.Invert;
             Type declared = type;

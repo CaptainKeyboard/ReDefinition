@@ -60,6 +60,7 @@ namespace ReDefinition.Framework
                 return true;
             }
 
+            mod.Named(path.EndField);
             MemberPath member = path;
             Type valueType = path.ValueType;
             int dot = setting.Name.LastIndexOf('.');
