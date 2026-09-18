@@ -123,11 +123,15 @@ namespace ReDefinition
             }
             foreach (BundledSetting setting in WindowLayout.In(SettingCategory.Keys))
             {
-                if (setting.Control != SettingControl.Binding) continue;
                 BundledSetting bundled = setting;
+                // A setting of another kind a registration places here -- a switch
+                // that belongs beside its mod's keys -- stands under Mods with its
+                // usual control. One with none to draw has no row, as in any tab.
+                bool binding = bundled.Control == SettingControl.Binding;
+                if (!binding && bundled.Control == SettingControl.Value) continue;
                 shownKeys.Add(bundled.Key);
-                AddToSection(sections, order, bundled.Group, bundled.Title, bundled.Owner.ModName,
-                    () => BundledBindingRow(bundled));
+                AddToSection(sections, order, binding ? bundled.Group : BundledSetting.ModsGroup, bundled.Title,
+                    bundled.Owner.ModName, () => binding ? BundledBindingRow(bundled) : BundledRow(bundled));
             }
             foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
             {

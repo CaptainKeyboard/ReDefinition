@@ -75,7 +75,11 @@ namespace ReDefinition
             foreach (Entry entry in entries)
             {
                 keysNow.Add(entry.Key);
-                textsNow.Add(Safe(entry.Text));
+                // Only KSP's own bindings -- the ones with what KSP ships -- hold a
+                // modifier as a key of its own; a mod's is read as its row shows it,
+                // where a lone modifier is no binding.
+                string text = Safe(entry.Text);
+                textsNow.Add(entry.Shipped != null ? text : KeyCombination.Parse(text).ToString());
                 situationsNow.Add(entry.Situations);
                 modesNow.Add(entry.Modes);
                 shippedNow.Add(entry.Shipped != null ? Safe(entry.Shipped) : null);
