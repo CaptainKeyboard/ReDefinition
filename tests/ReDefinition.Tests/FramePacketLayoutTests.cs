@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Bridges;
 
 namespace ReDefinition.Tests
 {

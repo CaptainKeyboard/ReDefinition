@@ -1,10 +1,11 @@
-using System;
 using System.Collections;
 using System.Reflection;
-using UnityEngine;
+using System;
 using Object = UnityEngine.Object;
+using ReDefinition.Core;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // Two parts of EVE Redux size themselves once by their camera and never
     // again, and the rig changes that size whenever it attaches, detaches or

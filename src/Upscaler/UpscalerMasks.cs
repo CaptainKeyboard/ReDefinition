@@ -1,10 +1,10 @@
-using System;
 using System.Collections.Generic;
-using ReDefinition.Framework;
-using UnityEngine;
+using System;
+using ReDefinition.Core;
 using UnityEngine.Rendering;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // The two masks FSR takes beside colour, depth and motion vectors
     // (docs/development/upscaler.md, "Masks (FSR 3)").

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // Game-wide quality settings for the time the upscaler runs.
     //

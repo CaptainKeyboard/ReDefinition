@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // Writes the finished image into the frame buffer, from a camera of its own.
     //

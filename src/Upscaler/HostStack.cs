@@ -1,11 +1,12 @@
-using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
-using UnityEngine;
+using System;
+using ReDefinition.Core;
 using UnityEngine.Rendering;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // Reads and configures the temporal and spatial filters of other mods.
     //

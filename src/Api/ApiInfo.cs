@@ -1,3 +1,5 @@
+using ReDefinition.Shared;
+
 namespace ReDefinition.Api
 {
     /// <summary>

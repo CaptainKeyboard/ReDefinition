@@ -1,6 +1,6 @@
 using System;
-using ReDefinition.Framework;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Settings;
 
 namespace ReDefinition.Tests
 {

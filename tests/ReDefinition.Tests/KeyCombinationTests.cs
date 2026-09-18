@@ -1,5 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Framework;
+using ReDefinition.Settings;
 using UnityEngine;
 
 namespace ReDefinition.Tests

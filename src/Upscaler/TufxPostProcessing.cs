@@ -1,13 +1,14 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Collections;
 using System.Reflection;
 using System.Text;
-using ReDefinition.Framework;
-using UnityEngine;
+using System;
+using ReDefinition.Core;
+using ReDefinition.Settings;
 using UnityEngine.Rendering;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // TUFX's post-processing, split around the upscaler.
     //

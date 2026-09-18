@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Upscaler;
 
 namespace ReDefinition.Tests
 {

@@ -1,6 +1,6 @@
-using System;
 using System.Collections.Generic;
-using ReDefinition.Framework;
+using System;
+using ReDefinition.Settings;
 
 namespace ReDefinition.Tests
 {

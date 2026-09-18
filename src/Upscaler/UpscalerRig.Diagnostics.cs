@@ -1,9 +1,10 @@
-using System;
 using System.Text;
-using UnityEngine;
+using System;
+using ReDefinition.Bridges;
 using UnityEngine.Rendering;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // The rig's part for "Write diagnostics to log": what the cameras, the
     // inputs, the masks and the proxy's textures hold, read back where numbers

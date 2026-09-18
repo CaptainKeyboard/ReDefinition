@@ -1,12 +1,14 @@
-using System;
 using System.Collections.Generic;
 using System.Text;
-using FidelityFX;
+using System;
 using FidelityFX.FSR3;
-using UnityEngine;
+using FidelityFX;
+using ReDefinition.Bridges;
+using ReDefinition.Shared;
 using UnityEngine.Rendering;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // The upscaler on one scene.
     //

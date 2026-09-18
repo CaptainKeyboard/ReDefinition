@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // EVE's raymarched clouds in the motion vectors every upscaler and frame
     // generation read. Unity's motion vectors know only the depth buffer, which

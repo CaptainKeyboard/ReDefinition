@@ -1,7 +1,7 @@
-using System;
 using System.IO;
-using ReDefinition.Framework;
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Settings;
 
 namespace ReDefinition.Tests
 {

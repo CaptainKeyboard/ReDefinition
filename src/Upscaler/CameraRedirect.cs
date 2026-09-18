@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // Redirects a camera into a shared RenderTexture and puts everything back
     // the way it was afterwards.

@@ -1,10 +1,11 @@
-using System;
 using System.Collections.Generic;
 using System.Text;
-using UnityEngine;
+using System;
+using ReDefinition.Bridges;
 using UnityEngine.Rendering;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // The rig's part for frame generation's HUD-less copy: the backbuffer taken
     // after the last camera that draws the scene, before the UI.

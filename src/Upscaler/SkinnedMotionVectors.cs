@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // Motion vectors for skinned geometry: kerbals, and planted flags, whose part
     // plays its deploy animation (FlagSite) on a skinned mesh, as the editor's

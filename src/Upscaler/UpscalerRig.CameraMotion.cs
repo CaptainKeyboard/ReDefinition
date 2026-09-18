@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.Text;
+using ReDefinition.Bridges;
+using ReDefinition.Shared;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // The rig's part for the camera: the instrument for camera motion and the
     // floating origin, and the Debug switch for fast turns. The cuts that reset the

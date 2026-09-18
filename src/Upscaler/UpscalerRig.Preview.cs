@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // The rig's part for the preview of what the upscaler receives, in the diagnostics window.
     public partial class UpscalerRig

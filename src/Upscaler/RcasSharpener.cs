@@ -3,7 +3,7 @@ using FidelityFX.FSR3;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // FSR 3's RCAS pass on its own, after DLSS. DLSS sharpens nothing itself -- its
     // guide calls the sharpening of earlier versions deprecated and points

@@ -1,9 +1,10 @@
-using System;
 using System.Reflection;
-using UnityEngine;
+using System;
 using Object = UnityEngine.Object;
+using ReDefinition.Core;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // Scatterer's raymarched godrays -- light shafts through EVE's clouds,
     // useRaymarchedCloudGodrays in its config -- size

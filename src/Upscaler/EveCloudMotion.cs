@@ -1,10 +1,11 @@
-using System;
 using System.Collections.Generic;
 using System.Reflection;
-using UnityEngine;
+using System;
 using Object = UnityEngine.Object;
+using ReDefinition.Core;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // EVE's raymarched clouds and the upscaler's jitter.
     //

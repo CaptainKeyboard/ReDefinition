@@ -1,8 +1,9 @@
 using System;
-using UnityEngine;
+using ReDefinition.Shared;
 using UnityEngine.Rendering;
+using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // The rig's part for the hooks other mods register (ReDefinition.Api.Hooks,
     // SharedFrame): motion vectors into the capture, the upscaled image, and an

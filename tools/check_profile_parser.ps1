@@ -46,7 +46,7 @@ function Has($list, $pattern) { return @($list | Where-Object { $_ -like $patter
 
 try {
     $parse = $ksp.GetType('ConfigNode').GetMethod('Parse', [Type[]]@([string]))
-    $from = $mod.GetType('ReDefinition.Framework.GraphicsProfile').GetMethod('FromConfigNode')
+    $from = $mod.GetType('ReDefinition.Settings.GraphicsProfile').GetMethod('FromConfigNode')
     $callArgs = New-Object 'object[]' 2
 
     function Read-Profile($text) {
@@ -79,7 +79,7 @@ try {
 
     # Mod registrations (docs/modders/registering-a-mod.md): what may be left out, and
     # each kind of mistake the reader has to survive.
-    $fromMod = $mod.GetType('ReDefinition.Framework.ModRegistration').GetMethod('FromConfigNode')
+    $fromMod = $mod.GetType('ReDefinition.Settings.ModRegistration').GetMethod('FromConfigNode')
     function Read-Mod($text) {
         $script:callArgs[0] = $parse.Invoke($null, [object[]]@($text)).GetNode('MOD_SETTINGS')
         $script:callArgs[1] = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject

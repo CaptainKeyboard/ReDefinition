@@ -44,7 +44,7 @@ function Expect($what, $ok) {
 }
 
 try {
-    $combination = $mod.GetType('ReDefinition.Framework.KeyCombination')
+    $combination = $mod.GetType('ReDefinition.Settings.KeyCombination')
     $parse = $combination.GetMethod('Parse', [Type[]]@([string]))
     $isText = $combination.GetMethod('IsText', [Type[]]@([string]))
 
@@ -60,7 +60,7 @@ try {
 
     # The shipped registrations: every KEY block a binding the reader takes.
     $parseNode = $ksp.GetType('ConfigNode').GetMethod('Parse', [Type[]]@([string]))
-    $fromNode = $mod.GetType('ReDefinition.Framework.ModRegistration').GetMethod('FromConfigNode')
+    $fromNode = $mod.GetType('ReDefinition.Settings.ModRegistration').GetMethod('FromConfigNode')
     $bindings = 0
     $bad = @()
     foreach ($file in [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Mods'), '*.cfg')) {
@@ -94,9 +94,9 @@ try {
         Where-Object { $_.FieldType -eq $keyBinding })
     Expect "GameSettings holds KSP's bindings (at least 100)" ($fields.Count -ge 100)
 
-    $readable = $mod.GetType('ReDefinition.KspKeyBindings').GetMethod('Readable', [Reflection.BindingFlags]'NonPublic,Static')
+    $readable = $mod.GetType('ReDefinition.Window.KspKeyBindings').GetMethod('Readable', [Reflection.BindingFlags]'NonPublic,Static')
     if ($null -eq $readable) {
-        $readable = $mod.GetType('ReDefinition.KspKeyBindings').GetMethod('Readable', [Reflection.BindingFlags]'Public,Static')
+        $readable = $mod.GetType('ReDefinition.Window.KspKeyBindings').GetMethod('Readable', [Reflection.BindingFlags]'Public,Static')
     }
     $named = @($fields | Where-Object { [string]::IsNullOrEmpty($readable.Invoke($null, [object[]]@($_.Name))) })
     Expect "every one of them has a name for its row" ($named.Count -eq 0)

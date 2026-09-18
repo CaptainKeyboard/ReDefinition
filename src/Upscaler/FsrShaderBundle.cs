@@ -2,9 +2,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using FidelityFX.FSR3;
+using ReDefinition.Api;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // Loads the precompiled compute shaders from the AssetBundle.
     //

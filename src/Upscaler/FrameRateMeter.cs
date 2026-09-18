@@ -1,4 +1,4 @@
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // Running mean of the frame time. The first frames after a switch -- shader
     // compilation, resources -- are left out by a warmup.

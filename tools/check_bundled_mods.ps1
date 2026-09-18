@@ -126,7 +126,7 @@ $loadNode = $configNodeType.GetMethod('Load', [Type[]]@([string]))
 # The registrations, read and built as the game reads and builds them
 # (ModRegistry): a problem in any of them is a failure here, since the game only
 # logs it.
-$ibundled = $mod.GetType('ReDefinition.Framework.IBundledMod', $true)
+$ibundled = $mod.GetType('ReDefinition.Settings.IBundledMod', $true)
 # The mods as an IBundledMod[] -- an IList<IBundledMod>, as the framework's
 # methods take them.
 function As-Mods($items) {
@@ -135,7 +135,7 @@ function As-Mods($items) {
     for ($i = 0; $i -lt $list.Count; $i++) { $array.SetValue($list[$i].PSObject.BaseObject, $i) }
     return ,$array
 }
-$registryType = $mod.GetType('ReDefinition.Framework.ModRegistry', $true)
+$registryType = $mod.GetType('ReDefinition.Settings.ModRegistry', $true)
 $readRegistrations = $registryType.GetMethod('Read', $sflags)
 $buildRegistered = $registryType.GetMethod('Build', $sflags)
 $registrations = @()
@@ -264,8 +264,8 @@ foreach ($m in $registered) {
 # be missing without a word -- unless it is listed as left out here -- and a
 # setting checked by its type only has no control the window can draw.
 try {
-    $categoryType = $mod.GetType('ReDefinition.Framework.SettingCategory', $true)
-    $rowsIn = @($mod.GetType('ReDefinition.Framework.WindowLayout', $true).GetMethods($sflags) |
+    $categoryType = $mod.GetType('ReDefinition.Settings.SettingCategory', $true)
+    $rowsIn = @($mod.GetType('ReDefinition.Settings.WindowLayout', $true).GetMethods($sflags) |
         Where-Object { $_.Name -eq 'In' -and $_.GetParameters().Count -eq 2 })[0]
     $shown = @()
     foreach ($tab in @('General', 'ShadowsAndReflections', 'Planets', 'Effects')) {
@@ -318,9 +318,9 @@ Expect "every setting the registrations name is offered by its mod here ($($inve
 # no settings: its values are named rather than refused. Ids and keys compare
 # case-sensitively, as the game's lookups do.
 try {
-    $fromNode = $mod.GetType('ReDefinition.Framework.GraphicsProfile', $true).GetMethod('FromConfigNode')
-    $refusalMethod = $mod.GetType('ReDefinition.Framework.ProfileApplier', $true).GetMethod('Refusal', $sflags)
-    $moduleValues = $mod.GetType('ReDefinition.Framework.ProfileApplier', $true).GetMethod('ModuleValues', $sflags)
+    $fromNode = $mod.GetType('ReDefinition.Settings.GraphicsProfile', $true).GetMethod('FromConfigNode')
+    $refusalMethod = $mod.GetType('ReDefinition.Settings.ProfileApplier', $true).GetMethod('Refusal', $sflags)
+    $moduleValues = $mod.GetType('ReDefinition.Settings.ProfileApplier', $true).GetMethod('ModuleValues', $sflags)
     # What High may set beyond the defaults (docs/player/graphics-profiles.md).
     $highDeviations = @('ksp.TEXTURE_QUALITY', 'ksp.terrainDetail', 'ksp.TERRAIN_SHADER_QUALITY', 'ksp.REFLECTION_PROBE_REFRESH_MODE')
     $unchecked = New-Object 'System.Collections.Generic.SortedSet[string]'
@@ -452,7 +452,7 @@ catch {
 }
 
 # The conversions the window and bundled.cfg rely on: plain .NET, callable here.
-$settingValues = $mod.GetType('ReDefinition.Framework.SettingValues', $true)
+$settingValues = $mod.GetType('ReDefinition.Settings.SettingValues', $true)
 $text = $settingValues.GetMethod('Text', $sflags)
 $parse = $settingValues.GetMethod('Parse', $sflags)
 $normalize = $settingValues.GetMethod('Normalize', $sflags)
@@ -484,7 +484,7 @@ function Call($method, [object[]]$callArgs) {
 # from are the installed ones wherever the mod can tell.
 $chosen = $null
 try {
-    $select = $mod.GetType('ReDefinition.Framework.ModDefaults', $true).GetMethod('Select', $sflags)
+    $select = $mod.GetType('ReDefinition.Settings.ModDefaults', $true).GetMethod('Select', $sflags)
     $withoutDefault = @('ksp.TERRAIN_SHADER_QUALITY')
     $defaultProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
     $chosen = $select.Invoke($null, [object[]]@($installedList, $defaultProblems))
@@ -513,8 +513,8 @@ catch {
 # A registration reaches its own mod's folder only: KSP's reaches GameSettings,
 # not the rest of the Managed folder; Waterfall's not Parallax.
 try {
-    $folderOf = $mod.GetType('ReDefinition.Framework.ModFolder', $true).GetMethod('Of')
-    $exists = $mod.GetType('ReDefinition.Framework.MemberPath', $true).GetMethod('Exists', [Reflection.BindingFlags]'Static, Public')
+    $folderOf = $mod.GetType('ReDefinition.Settings.ModFolder', $true).GetMethod('Of')
+    $exists = $mod.GetType('ReDefinition.Settings.MemberPath', $true).GetMethod('Exists', [Reflection.BindingFlags]'Static, Public')
     $gameSettings = [AppDomain]::CurrentDomain.GetAssemblies() | ForEach-Object { $_.GetType('GameSettings', $false) } | Where-Object { $_ } | Select-Object -First 1
     $kspFolder = $folderOf.Invoke($null, [object[]]@($gameSettings.Assembly))
     $reachesOwn = $exists.Invoke($null, [object[]]@('GameSettings.SaveSettings', $kspFolder))
@@ -576,13 +576,13 @@ try {
             }
             foreach ($d in @($m.DroppedMembers)) { "note  $($m.ModName) does not bundle: $d" }
             $defaultIssues = @()
-            $defaultsOf = $mod.GetType('ReDefinition.Framework.ModDefaults', $true).GetMethod('Select', $sflags).Invoke($null, [object[]]@((As-Mods @($m)), (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject))
+            $defaultsOf = $mod.GetType('ReDefinition.Settings.ModDefaults', $true).GetMethod('Select', $sflags).Invoke($null, [object[]]@((As-Mods @($m)), (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject))
             $values = $null
             [void]$defaultsOf.TryGetValue($m.Id, [ref]$values)
             foreach ($s in $m.Settings) {
                 $member = $s.Key.Substring($m.Id.Length + 1)
                 if ($null -eq $values -or -not $values.ContainsKey($member)) { $defaultIssues += "$($s.Key): no default"; continue }
-                $why = $mod.GetType('ReDefinition.Framework.ProfileApplier', $true).GetMethod('Refusal', $sflags).Invoke($null, [object[]]@($s, [string]$values[$member]))
+                $why = $mod.GetType('ReDefinition.Settings.ProfileApplier', $true).GetMethod('Refusal', $sflags).Invoke($null, [object[]]@($s, [string]$values[$member]))
                 if ($why) { $defaultIssues += "$($s.Key) = $($values[$member]): $why" }
             }
             foreach ($i in $defaultIssues) { "      $i" }
@@ -649,7 +649,7 @@ catch {
 # installed mod here, that is named: the game changes it the same way
 # (Requirements.Adjust).
 try {
-    $requirementsType = $mod.GetType('ReDefinition.Framework.Requirements', $true)
+    $requirementsType = $mod.GetType('ReDefinition.Settings.Requirements', $true)
     $rulesOf = $requirementsType.GetMethod('RulesOf', $sflags)
     $passes = $requirementsType.GetMethod('Passes', $sflags)
     $fixOf = $requirementsType.GetMethod('FixOf', $sflags)

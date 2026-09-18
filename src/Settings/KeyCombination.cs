@@ -1,0 +1,281 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using UnityEngine;
+
+namespace ReDefinition.Settings
+{
+    // A key binding: up to two modifiers and one key.
+    //
+    // Written and read as text -- "LeftAlt+F10", "F11", "None" -- the way the
+    // registrations, the store and KSP's settings.cfg hold it. Left and right
+    // modifiers are told apart, as Scatterer's settings do.
+    //
+    // Everything but Pressed, Held and Released works without the game, for the
+    // tests and the check outside it.
+    internal struct KeyCombination : IEquatable<KeyCombination>
+    {
+        public const string NoneText = "None";
+
+        // The modifiers, in the order they are written.
+        private static readonly KeyCode[] ModifierOrder =
+        {
+            KeyCode.LeftControl, KeyCode.RightControl,
+            KeyCode.LeftAlt, KeyCode.RightAlt,
+            KeyCode.LeftShift, KeyCode.RightShift,
+            KeyCode.LeftCommand, KeyCode.RightCommand
+        };
+
+        // The modifiers a binding can hold, in the order they are written.
+        public static IEnumerable<KeyCode> Modifiers
+        {
+            get { return ModifierOrder; }
+        }
+
+        public readonly KeyCode Key;
+        public readonly KeyCode FirstModifier;
+        public readonly KeyCode SecondModifier;
+
+        public KeyCombination(KeyCode key, KeyCode firstModifier, KeyCode secondModifier)
+        {
+            Key = key;
+            FirstModifier = KeyCode.None;
+            SecondModifier = KeyCode.None;
+            // In the written order, so that Alt+Shift+F1 and Shift+Alt+F1 are one
+            // combination.
+            List<KeyCode> modifiers = new List<KeyCode>(2);
+            foreach (KeyCode modifier in ModifierOrder)
+            {
+                if ((firstModifier == modifier || secondModifier == modifier) && !modifiers.Contains(modifier))
+                    modifiers.Add(modifier);
+            }
+            if (modifiers.Count > 0) FirstModifier = modifiers[0];
+            if (modifiers.Count > 1) SecondModifier = modifiers[1];
+        }
+
+        public static readonly KeyCombination None = new KeyCombination(KeyCode.None, KeyCode.None, KeyCode.None);
+
+        public bool IsBound
+        {
+            get { return Key != KeyCode.None; }
+        }
+
+        public int ModifierCount
+        {
+            get { return (FirstModifier != KeyCode.None ? 1 : 0) + (SecondModifier != KeyCode.None ? 1 : 0); }
+        }
+
+        public bool HasModifier(KeyCode modifier)
+        {
+            return modifier != KeyCode.None && (FirstModifier == modifier || SecondModifier == modifier);
+        }
+
+        // One modifier a step further through none, left and right, the other
+        // modifier kept: the Keys tab's switch.
+        public KeyCombination Cycled(KeyCode left, KeyCode right)
+        {
+            KeyCode other = FirstModifier == left || FirstModifier == right ? SecondModifier : FirstModifier;
+            if (HasModifier(left)) return new KeyCombination(Key, other, right);
+            if (HasModifier(right)) return new KeyCombination(Key, other, KeyCode.None);
+            // Added only where there is room: a third would push one out.
+            if (ModifierCount >= 2) return this;
+            return new KeyCombination(Key, other, left);
+        }
+
+        // Another key with the same modifiers.
+        public KeyCombination WithKey(KeyCode key)
+        {
+            return CanBind(key) ? new KeyCombination(key, FirstModifier, SecondModifier) : this;
+        }
+
+        // The same combination with at most that many modifiers: for a mod that
+        // keeps fewer than two.
+        public KeyCombination WithAtMost(int modifiers)
+        {
+            if (ModifierCount <= modifiers) return this;
+            if (modifiers <= 0) return new KeyCombination(Key, KeyCode.None, KeyCode.None);
+            return new KeyCombination(Key, FirstModifier, KeyCode.None);
+        }
+
+        public static bool IsModifier(KeyCode key)
+        {
+            foreach (KeyCode modifier in ModifierOrder)
+            {
+                if (modifier == key) return true;
+            }
+            return false;
+        }
+
+        // Which keys a binding can hold: the keyboard, and the mouse from its third
+        // button on. Mouse0 and Mouse1 are the game's own -- selecting, and the
+        // camera -- and the wheel is an axis, not a key. A modifier alone is no
+        // binding either.
+        // AltGr is a modifier on the keyboards that have it, which Windows reports as
+        // left Ctrl and right Alt together.
+        public static bool CanBind(KeyCode key)
+        {
+            if (key == KeyCode.None || IsModifier(key) || key == KeyCode.AltGr) return false;
+            if (key == KeyCode.Mouse0 || key == KeyCode.Mouse1) return false;
+            return true;
+        }
+
+        // "LeftAlt+F10". Unbound is "None", as KSP's settings.cfg writes it.
+        public override string ToString()
+        {
+            if (!IsBound) return NoneText;
+            string text = string.Empty;
+            if (FirstModifier != KeyCode.None) text += FirstModifier + "+";
+            if (SecondModifier != KeyCode.None) text += SecondModifier + "+";
+            return text + Key;
+        }
+
+        // Takes what the mods and KSP write: a key on its own, modifiers before it
+        // separated by "+", and "None" or nothing for unbound. False for anything
+        // else, with None in combination.
+        public static bool TryParse(string text, out KeyCombination combination)
+        {
+            combination = None;
+            if (text == null) return false;
+            string trimmed = text.Trim();
+            if (trimmed.Length == 0 || string.Equals(trimmed, NoneText, StringComparison.OrdinalIgnoreCase)) return true;
+
+            string[] parts = trimmed.Split('+');
+            KeyCode key = KeyCode.None;
+            KeyCode first = KeyCode.None;
+            KeyCode second = KeyCode.None;
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string part = parts[i].Trim();
+                if (part.Length == 0) return false;
+                KeyCode parsed;
+                if (!TryParseKey(part, out parsed)) return false;
+                if (i < parts.Length - 1)
+                {
+                    if (!IsModifier(parsed)) return false;
+                    if (first == KeyCode.None) first = parsed;
+                    else if (second == KeyCode.None) second = parsed;
+                    else return false;
+                }
+                else
+                {
+                    if (!CanBind(parsed)) return false;
+                    key = parsed;
+                }
+            }
+            combination = new KeyCombination(key, first, second);
+            return true;
+        }
+
+        // A modifier on its own, as a mod that keeps its modifiers apart writes it;
+        // None for anything else.
+        public static KeyCode ParseModifier(string text)
+        {
+            KeyCode key;
+            if (text == null || !TryParseKey(text.Trim(), out key) || !IsModifier(key)) return KeyCode.None;
+            return key;
+        }
+
+        // Whether the text is a binding, "None" among them.
+        public static bool IsText(string text)
+        {
+            KeyCombination combination;
+            return TryParse(text, out combination);
+        }
+
+        // A binding as KSP keeps it: one key of any kind, a modifier among them --
+        // THROTTLE_UP is LeftShift -- or a combination as Parse reads it. None where
+        // the text means nothing.
+        public static KeyCombination ParseLoose(string text)
+        {
+            KeyCombination combination;
+            if (TryParse(text, out combination)) return combination;
+            KeyCode key;
+            if (text != null && TryParseKey(text.Trim(), out key) && key != KeyCode.None)
+                return new KeyCombination(key, KeyCode.None, KeyCode.None);
+            return None;
+        }
+
+        // What the text means, or None where it means nothing.
+        public static KeyCombination Parse(string text)
+        {
+            KeyCombination combination;
+            TryParse(text, out combination);
+            return combination;
+        }
+
+        private static bool TryParseKey(string text, out KeyCode key)
+        {
+            key = KeyCode.None;
+            try
+            {
+                object parsed = Enum.Parse(typeof(KeyCode), text, true);
+                key = (KeyCode)parsed;
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+            catch (OverflowException)
+            {
+                return false;
+            }
+        }
+
+        public bool Equals(KeyCombination other)
+        {
+            return Key == other.Key && FirstModifier == other.FirstModifier && SecondModifier == other.SecondModifier;
+        }
+
+        public override bool Equals(object other)
+        {
+            return other is KeyCombination && Equals((KeyCombination)other);
+        }
+
+        public override int GetHashCode()
+        {
+            return (int)Key ^ ((int)FirstModifier << 9) ^ ((int)SecondModifier << 18);
+        }
+
+        // In the game: the key this frame, with exactly this combination's
+        // modifiers held. Another modifier held means another binding is meant --
+        // F10 does not fire while Alt+F10 is pressed.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public bool Pressed()
+        {
+            return IsBound && Input.GetKeyDown(Key) && ModifiersHeld();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public bool Held()
+        {
+            return IsBound && Input.GetKey(Key) && ModifiersHeld();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public bool Released()
+        {
+            return IsBound && Input.GetKeyUp(Key) && ModifiersHeld();
+        }
+
+        // AltGr counts as right Alt, and the left Ctrl Windows presses with it is
+        // not another modifier -- unless the binding asks for left Ctrl itself.
+        // Whether Unity reports AltGr as a key of its own or only as left Ctrl with
+        // right Alt, both are taken as AltGr; a left Ctrl pressed with right Alt on
+        // purpose cannot be told from it.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private bool ModifiersHeld()
+        {
+            bool altGr = Input.GetKey(KeyCode.AltGr)
+                         || (Input.GetKey(KeyCode.RightAlt) && Input.GetKey(KeyCode.LeftControl));
+            foreach (KeyCode modifier in ModifierOrder)
+            {
+                bool held = Input.GetKey(modifier);
+                if (altGr && modifier == KeyCode.RightAlt) held = true;
+                if (altGr && modifier == KeyCode.LeftControl && !HasModifier(KeyCode.LeftControl)) held = false;
+                if (HasModifier(modifier) != held) return false;
+            }
+            return true;
+        }
+    }
+}

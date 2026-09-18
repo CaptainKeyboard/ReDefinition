@@ -1,4 +1,5 @@
 using System.Text;
+using ReDefinition.Upscaler;
 using UnityEngine;
 
 namespace ReDefinition

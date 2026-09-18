@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // On the rig's overlay camera: the handlers other mods registered for overlays
     // fill its buffer as it culls (UpscalerRig.FillOverlay).

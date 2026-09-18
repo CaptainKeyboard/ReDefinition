@@ -1,7 +1,9 @@
-using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Bridges;
+using ReDefinition.Shared;
 
 namespace ReDefinition.Tests
 {

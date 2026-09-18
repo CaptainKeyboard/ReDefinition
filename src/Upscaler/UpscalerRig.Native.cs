@@ -1,7 +1,8 @@
 using System;
+using ReDefinition.Bridges;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Upscaler
 {
     // The rig's part for the upscalers that run in the dxgi.dll proxy, DLSS and
     // AMD's DLL: the textures handed to it, the packets, and what its state means.
