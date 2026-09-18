@@ -326,7 +326,8 @@ namespace ksp
         for (int hypothesis = 0; hypothesis < 8; ++hypothesis)
         {
             const double mean = counted[hypothesis] ? error[hypothesis] / static_cast<double>(counted[hypothesis]) : 1e300;
-            if (mean < bestError) { bestError = mean; best = hypothesis; }
+            // A hypothesis without a sample tells nothing, and is never the best.
+            if (counted[hypothesis] != 0 && mean < bestError) { bestError = mean; best = hypothesis; }
 
             char cell[64] = {};
             if (counted[hypothesis] == 0)
@@ -346,6 +347,17 @@ namespace ksp
         const int given = (givenX < 0.0f ? 1 : 0) | (givenY < 0.0f ? 2 : 0);
 
         char line[640] = {};
+        // Every sample of every hypothesis outside the frame -- motion too large
+        // to reproject, a scene load: no verdict, rather than a wrong one.
+        if (best < 0)
+        {
+            FormatTo(line,
+                     "    Motion vectors (as FSR gets them, mean %.1f px): no hypothesis had a sample inside the frame;%s. "
+                     "Nothing to test in this frame.",
+                     magnitude, report.c_str());
+            LogLine(line);
+            return;
+        }
         FormatTo(line,
                   "    Motion vectors (as FSR gets them, mean %.1f px): reprojection error per pixel, no motion %.1f;%s. "
                   "Best: %s %c%c. FSR is given: rows as delivered %c%c. %s",
