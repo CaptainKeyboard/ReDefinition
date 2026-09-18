@@ -350,14 +350,14 @@ extern "C"
         UINT contextWidth = 0;
         UINT contextHeight = 0;
         if (fg.ContextSize(contextWidth, contextHeight))
-            sprintf_s(contextSize, "%ux%u", contextWidth, contextHeight);
+            ksp::FormatTo(contextSize, "%ux%u", contextWidth, contextHeight);
 
         char check[64] = "none yet";
         float direct = -1.0f;
         float mirrored = -1.0f;
         fg.LastHudLessCheck(direct, mirrored);
         if (direct >= 0.0f)
-            sprintf_s(check, "direct %.2f%%, mirrored %.2f%% differ",
+            ksp::FormatTo(check, "direct %.2f%%, mirrored %.2f%% differ",
                       100.0 * static_cast<double>(direct), 100.0 * static_cast<double>(mirrored));
 
         UINT checkWidth = 0;
@@ -367,14 +367,14 @@ extern "C"
         char device[40] = "ok";
         const HRESULT removed = ksp::DeviceRemovedReason();
         if (FAILED(removed))
-            sprintf_s(device, "removed (0x%08lX)", static_cast<unsigned long>(removed));
+            ksp::FormatTo(device, "removed (0x%08lX)", static_cast<unsigned long>(removed));
 
         // Which frame generation, and for DLSS what it generates or why it does
         // not run -- last in the line, which readers may cut.
         char technique[200] = "none";
         const int running = ksp::FrameGenerationTechnique();
         if (running == 2)
-            sprintf_s(technique, "dlss (%dx)", fg.StreamlineMultiplier());
+            ksp::FormatTo(technique, "dlss (%dx)", fg.StreamlineMultiplier());
         else if (ksp::Config().frameGeneration && ksp::Config().dlssFrameGeneration)
             _snprintf_s(technique, _TRUNCATE, "%s (dlss: %s)", running == 1 ? "fsr" : "none",
                         ksp::Streamline::Get().Describe().c_str());

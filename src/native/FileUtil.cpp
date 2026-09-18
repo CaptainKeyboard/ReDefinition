@@ -1,4 +1,5 @@
 #include "FileUtil.h"
+#include "Log.h"
 
 #include <windows.h>
 
@@ -46,7 +47,7 @@ namespace ksp
         if (!VerQueryValueW(data.data(), L"\\", reinterpret_cast<LPVOID*>(&info), &length) || info == nullptr)
             return std::string();
         char text[64] = {};
-        sprintf_s(text, "%u.%u.%u.%u", HIWORD(info->dwFileVersionMS), LOWORD(info->dwFileVersionMS),
+        FormatTo(text, "%u.%u.%u.%u", HIWORD(info->dwFileVersionMS), LOWORD(info->dwFileVersionMS),
                   HIWORD(info->dwFileVersionLS), LOWORD(info->dwFileVersionLS));
         return text;
     }

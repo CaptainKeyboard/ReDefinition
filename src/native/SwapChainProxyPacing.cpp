@@ -383,7 +383,7 @@ namespace ksp
         }
 
         char line[400] = {};
-        sprintf_s(line,
+        FormatTo(line,
                   "%s: %zu frames, mean %.2f ms (%.1f fps), p50 %.2f, p95 %.2f, p99 %.2f, max %.2f"
                   ", presented/rendered %.2f, displayed %.0f/s at %.0f Hz, sync %u",
                   measureOnly ? "Baseline" : "D3D12 proxy",

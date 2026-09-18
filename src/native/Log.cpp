@@ -60,7 +60,7 @@ namespace ksp
     std::string Hr(long hr)
     {
         char buffer[16] = {};
-        sprintf_s(buffer, "0x%08lX", static_cast<unsigned long>(hr));
+        FormatTo(buffer, "0x%08lX", static_cast<unsigned long>(hr));
         return buffer;
     }
 }

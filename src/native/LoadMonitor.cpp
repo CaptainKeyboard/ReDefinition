@@ -204,7 +204,7 @@ namespace ksp
                 if (seconds <= 0.0)
                     return "n/a";
                 char buffer[16] = {};
-                sprintf_s(buffer, "%.0f %%", sum / seconds);
+                FormatTo(buffer, "%.0f %%", sum / seconds);
                 return buffer;
             }
         };
@@ -470,7 +470,7 @@ namespace ksp
                 if (windowEnds)
                 {
                     char span[16] = {};
-                    sprintf_s(span, "%.1f", windowSeconds);
+                    FormatTo(span, "%.1f", windowSeconds);
                     LogLine(std::string("Load, last ") + span + " s: main thread " + mainAverage.Text()
                             + ", render thread " + renderAverage.Text() + ", GPU " + gpuAverage.Text()
                             + " (this process " + ownAverage.Text() + ")");

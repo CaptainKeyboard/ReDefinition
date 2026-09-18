@@ -62,7 +62,7 @@ namespace ksp
                  + " format " + std::to_string(static_cast<int>(desc.Format))
                  + " buffers " + std::to_string(desc.BufferCount)
                  + " swapEffect " + std::to_string(static_cast<int>(desc.SwapEffect))
-                 + " flags 0x" + [&] { char b[16]; sprintf_s(b, "%X", desc.Flags); return std::string(b); }()
+                 + " flags 0x" + [&] { char b[16]; FormatTo(b, "%X", desc.Flags); return std::string(b); }()
                  + " samples " + std::to_string(desc.SampleDesc.Count);
         }
     }

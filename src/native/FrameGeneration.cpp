@@ -429,7 +429,7 @@ namespace ksp
     void FrameGeneration::LogInputsLocked() const
     {
         char line[512] = {};
-        sprintf_s(line,
+        FormatTo(line,
                   "FG inputs: frame %u  render %ux%u  jitter %.4f/%.4f  mvScale %.1f/%.1f  "
                   "near %.3f far %.1f fovY %.4f  dt %.2f ms  reset %u  flipped %d  "
                   "pos %.1f/%.1f/%.1f  fwd %.3f/%.3f/%.3f  up %.3f/%.3f/%.3f  "

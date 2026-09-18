@@ -315,7 +315,7 @@ namespace ksp
         if (magnitude < 0.5)
         {
             char line[200] = {};
-            sprintf_s(line, "    Motion vectors: mean %.2f px between the two frames -- too little motion to test the convention", magnitude);
+            FormatTo(line, "    Motion vectors: mean %.2f px between the two frames -- too little motion to test the convention", magnitude);
             LogLine(line);
             return;
         }
@@ -329,8 +329,12 @@ namespace ksp
             if (mean < bestError) { bestError = mean; best = hypothesis; }
 
             char cell[64] = {};
-            sprintf_s(cell, " %s%c%c=%.1f", (hypothesis & 4) ? "mirrored" : "rows", (hypothesis & 1) ? '-' : '+',
-                      (hypothesis & 2) ? '-' : '+', mean);
+            if (counted[hypothesis] == 0)
+                FormatTo(cell, " %s%c%c=n/a", (hypothesis & 4) ? "mirrored" : "rows", (hypothesis & 1) ? '-' : '+',
+                         (hypothesis & 2) ? '-' : '+');
+            else
+                FormatTo(cell, " %s%c%c=%.1f", (hypothesis & 4) ? "mirrored" : "rows", (hypothesis & 1) ? '-' : '+',
+                         (hypothesis & 2) ? '-' : '+', mean);
             report += cell;
         }
 
@@ -342,7 +346,7 @@ namespace ksp
         const int given = (givenX < 0.0f ? 1 : 0) | (givenY < 0.0f ? 2 : 0);
 
         char line[640] = {};
-        sprintf_s(line,
+        FormatTo(line,
                   "    Motion vectors (as FSR gets them, mean %.1f px): reprojection error per pixel, no motion %.1f;%s. "
                   "Best: %s %c%c. FSR is given: rows as delivered %c%c. %s",
                   magnitude, stillError / static_cast<double>(stillCounted), report.c_str(),
@@ -535,7 +539,7 @@ namespace ksp
             ? static_cast<float>(static_cast<double>(differingMirrored) / static_cast<double>(sampled)) : 0.0f;
 
         char line[512] = {};
-        sprintf_s(line,
+        FormatTo(line,
                   "HUD-less check (frame %u, inputs %s): direct %.2f %% of the frame differs from the copy, "
                   "mirrored %.2f %%. The smaller one is what FSR treats as UI; the flip is right when "
                   "direct is the smaller.",
@@ -578,7 +582,7 @@ namespace ksp
                 }
             }
 
-            sprintf_s(line,
+            FormatTo(line,
                       "    Depth as FSR gets it: top tenth mean %.4f, bottom tenth mean %.4f "
                       "(reversed Z: larger is nearer). Presented frame luminance: top %.3f, bottom %.3f.",
                       topN ? top / topN : 0.0, bottomN ? bottom / bottomN : 0.0,

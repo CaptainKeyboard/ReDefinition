@@ -260,7 +260,7 @@ namespace ksp
         if (FAILED(hr))
         {
             char text[16] = {};
-            sprintf_s(text, "0x%08lX", static_cast<unsigned long>(hr));
+            FormatTo(text, "0x%08lX", static_cast<unsigned long>(hr));
             SetStatus(-1, std::string("the shared fence or command list could not be made (") + text + ")");
             list.Reset();
             return false;

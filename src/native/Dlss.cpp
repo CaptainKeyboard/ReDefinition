@@ -143,7 +143,7 @@ namespace ksp
         std::string Hex(uint32_t value)
         {
             char text[16] = {};
-            sprintf_s(text, "0x%08X", value);
+            FormatTo(text, "0x%08X", value);
             return text;
         }
 

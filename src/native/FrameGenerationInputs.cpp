@@ -346,7 +346,7 @@ namespace ksp
             if (packetsRejected == 0)
                 LogLine("Frame packet rejected: size "
                         + std::to_string(incoming != nullptr ? incoming->size : 0u) + " magic 0x"
-                        + [&] { char b[16]; sprintf_s(b, "%08X", incoming != nullptr ? incoming->magic : 0u); return std::string(b); }()
+                        + [&] { char b[16]; FormatTo(b, "%08X", incoming != nullptr ? incoming->magic : 0u); return std::string(b); }()
                         + ", expected " + std::to_string(sizeof(FramePacket))
                         + " / 0x4B535046 -- the managed and native builds disagree on the layout");
             ++packetsRejected;

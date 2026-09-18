@@ -232,7 +232,7 @@ namespace ksp
         if (attached)
         {
             char line[160] = {};
-            sprintf_s(line, "Direct3D 12 for mods: feature level 0x%X, shader model 0x%X, raytracing tier %d,"
+            FormatTo(line, "Direct3D 12 for mods: feature level 0x%X, shader model 0x%X, raytracing tier %d,"
                             " mesh shader tier %d, variable rate shading tier %d",
                       static_cast<unsigned>(found.featureLevel), static_cast<unsigned>(found.shaderModel),
                       found.raytracingTier, found.meshShaderTier, found.variableShadingRateTier);

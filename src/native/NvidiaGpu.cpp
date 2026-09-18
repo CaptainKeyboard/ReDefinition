@@ -145,14 +145,14 @@ namespace ksp
 
             char text[128] = {};
             if (g_answer == NvidiaGpuAnswer::Found)
-                sprintf_s(text, "NVIDIA GPU: architecture 0x%X, implementation 0x%X (NVAPI)", g_gpu.architecture,
+                FormatTo(text, "NVIDIA GPU: architecture 0x%X, implementation 0x%X (NVAPI)", g_gpu.architecture,
                           g_gpu.implementation);
             else if (g_answer == NvidiaGpuAnswer::NotNvidia)
-                sprintf_s(text, "KSP's adapter is not an NVIDIA GPU (NVAPI)");
+                FormatTo(text, "KSP's adapter is not an NVIDIA GPU (NVAPI)");
             else if (g_answer == NvidiaGpuAnswer::Incomplete)
-                sprintf_s(text, "NVAPI lacks a function this build asks for -- NVIDIA driver too old?");
+                FormatTo(text, "NVAPI lacks a function this build asks for -- NVIDIA driver too old?");
             else
-                sprintf_s(text, "NVAPI did not answer for KSP's adapter -- asked again up to %d times", kAttempts - 1);
+                FormatTo(text, "NVAPI did not answer for KSP's adapter -- asked again up to %d times", kAttempts - 1);
             LogLine(text);
         }
     }
