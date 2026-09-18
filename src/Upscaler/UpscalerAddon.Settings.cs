@@ -115,6 +115,17 @@ namespace ReDefinition
             settings.CameraListKey = from.CameraListKey;
         }
 
+        // What a view changed of the hotkeys, and nothing else: KSP's settings
+        // dialog holds a copy from when it opened, and its Apply must not bring back
+        // a key this window set meanwhile.
+        private void ChangeBindings(UpscalerSettings before, UpscalerSettings after)
+        {
+            if (before.UpscalerKey != after.UpscalerKey) settings.UpscalerKey = after.UpscalerKey;
+            if (before.SettingsWindowKey != after.SettingsWindowKey) settings.SettingsWindowKey = after.SettingsWindowKey;
+            if (before.DiagnosticsKey != after.DiagnosticsKey) settings.DiagnosticsKey = after.DiagnosticsKey;
+            if (before.CameraListKey != after.CameraListKey) settings.CameraListKey = after.CameraListKey;
+        }
+
         private UpscalerSettings Collect()
         {
             settings.Enabled = wantEnabled;
@@ -425,7 +436,7 @@ namespace ReDefinition
             if (before.SkinnedMotionVectors != after.SkinnedMotionVectors)
                 SetSkinnedMotionVectors(after.SkinnedMotionVectors);
             if (before.Enabled != after.Enabled && after.Enabled) SetEnabled(true);
-            SetBindings(after);
+            ChangeBindings(before, after);
         }
 
         private static Fsr3Upscaler.QualityMode Step(Fsr3Upscaler.QualityMode mode, int direction)

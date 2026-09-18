@@ -181,6 +181,18 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void AgainstKspsOwnOnlyTheKeyCounts()
+        {
+            int flight = KspKeyBindings.Flight;
+            // KSP's U fires whatever modifiers are held: RightControl+RightShift+U sets it off.
+            Assert.AreEqual(2, Sharing(new[] { "RightControl+RightShift+U", "U" }, new[] { All, flight },
+                new[] { -1, -1 }, new string[] { null, "U" }).Count);
+            // Between two bindings that are not KSP's, the modifiers still tell them apart.
+            Assert.AreEqual(0, Sharing(new[] { "RightControl+RightShift+U", "U" }, new[] { All, All },
+                new[] { -1, -1 }, new string[] { null, null }).Count);
+        }
+
+        [TestMethod]
         public void AnUnboundRowSharesWithNobody()
         {
             Assert.AreEqual(0, Sharing(new[] { "None", "None" }, new[] { All, All }, new[] { -1, -1 },

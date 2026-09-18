@@ -131,7 +131,7 @@ namespace ReDefinition
                 if (!binding && bundled.Control == SettingControl.Value) continue;
                 shownKeys.Add(bundled.Key);
                 AddToSection(sections, order, binding ? bundled.Group : BundledSetting.ModsGroup, bundled.Title,
-                    bundled.Owner.ModName, () => binding ? BundledBindingRow(bundled) : BundledRow(bundled));
+                    bundled.Owner.ModName, () => binding ? BundledBindingRow(bundled, true) : BundledRow(bundled));
             }
             foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
             {
@@ -144,14 +144,20 @@ namespace ReDefinition
                 List<Func<DialogGUIBase>> members;
                 if (!sections.TryGetValue(name, out members) || members.Count == 0) continue;
                 string section = SectionName(name);
-                rows.Add(GroupHeader(section, members.Count));
+                // Built first: a setting with nothing to draw -- a list whose choices
+                // only the running mod knows, before it has them -- has no row.
+                List<DialogGUIBase> built = new List<DialogGUIBase>();
                 foreach (Func<DialogGUIBase> build in members)
                 {
                     DialogGUIBase row = build();
+                    if (row == null) continue;
                     Func<bool> matches = row.OptionEnabledCondition;
                     row.OptionEnabledCondition = () => GroupOpen(section) && (matches == null || matches());
-                    rows.Add(row);
+                    built.Add(row);
                 }
+                if (built.Count == 0) continue;
+                rows.Add(GroupHeader(section, built.Count));
+                rows.AddRange(built);
             }
             return rows.ToArray();
         }
@@ -380,7 +386,9 @@ namespace ReDefinition
         // A bundled mod's binding, over the edit model like its other settings. How
         // many modifiers it can hold is the mod's: Scatterer keeps one beside each of
         // its keys.
-        private static DialogGUIBase BundledBindingRow(BundledSetting setting)
+        // inKeysTab: filtered by the Keys tab's search; a binding a registration
+        // places in another tab stands there whatever the search holds.
+        private static DialogGUIBase BundledBindingRow(BundledSetting setting, bool inKeysTab)
         {
             BundledSetting shown = setting;
             string key = shown.Key;
@@ -394,7 +402,7 @@ namespace ReDefinition
                 value => model.Change(key, value),
                 () => model.Bundled && model.HasPending(key), shown.MaxModifiers,
                 KspKeyBindings.SituationsOfGroup(shown.Group));
-            row.OptionEnabledCondition = () => MatchesSearch(shown.Title, shown.Owner.ModName);
+            if (inKeysTab) row.OptionEnabledCondition = () => MatchesSearch(shown.Title, shown.Owner.ModName);
             return row;
         }
 

@@ -450,6 +450,10 @@ namespace ReDefinition.Framework
             Func<string> read;
             Action<string> write;
             Type type;
+            // How many modifiers the mod can keep: two where ReDefinition keeps the
+            // binding or a behaviour reaches it (which lowers it where its mod keeps
+            // fewer), else as many as its members hold (BindingThrough).
+            int maxModifiers = 2;
             if (behaviour != null && behaviour.Reach(this, entry, out read, out write, out type))
             {
                 if (read == null) return;
@@ -462,7 +466,7 @@ namespace ReDefinition.Framework
                 read = () => KeptBindings.Get(kept, fallback);
                 write = text => KeptBindings.Set(kept, text);
             }
-            else if (!BindingThrough(entry, where, problems, out read, out write))
+            else if (!BindingThrough(entry, where, problems, out read, out write, out maxModifiers))
             {
                 return;
             }
@@ -474,6 +478,7 @@ namespace ReDefinition.Framework
                 read, write);
             setting.Control = SettingControl.Binding;
             setting.Kind = SettingKind.Other;
+            setting.MaxModifiers = maxModifiers;
             if (!string.IsNullOrEmpty(entry.KeyGroup)) setting.Group = entry.KeyGroup;
             if (registration.Saving == SettingsSaving.PerSave && entry.PerSave != false) setting.Context = LoadedSave;
             if (behaviour != null) behaviour.Finish(this, setting, entry);
@@ -532,10 +537,11 @@ namespace ReDefinition.Framework
         // the whole combination in one member, its text is read and written as it
         // stands.
         private bool BindingThrough(SettingRegistration entry, string where, List<string> problems,
-                                    out Func<string> read, out Action<string> write)
+                                    out Func<string> read, out Action<string> write, out int maxModifiers)
         {
             read = null;
             write = null;
+            maxModifiers = 0;
             MemberPath key = BindingMember(entry, entry.Member, "member", where, problems);
             if (key == null) return false;
             MemberPath first = entry.Modifier1 != null
@@ -547,6 +553,12 @@ namespace ReDefinition.Framework
                 : null;
             if (entry.Modifier2 != null && second == null) return false;
             bool all = entry.ModifiersAll;
+            // A KeyCode member alone holds no modifier; text alone holds the whole
+            // combination; beside modifier members, as many as there are -- and with
+            // `all`, two, since one modifier goes into both.
+            bool keyAsCode = key.ValueType == typeof(UnityEngine.KeyCode);
+            if (first == null) maxModifiers = keyAsCode ? 0 : 2;
+            else maxModifiers = second != null ? 2 : 1;
 
             read = () =>
             {
@@ -562,8 +574,9 @@ namespace ReDefinition.Framework
                 KeyCombination combination = KeyCombination.Parse(text);
                 if (first == null)
                 {
-                    // One member holds the whole binding: its text as it stands.
-                    SetBinding(key, combination.ToString());
+                    // One member holds the whole binding: its text as it stands, or
+                    // for a KeyCode the key alone.
+                    SetBinding(key, keyAsCode ? combination.Key.ToString() : combination.ToString());
                     return;
                 }
                 SetBinding(key, combination.Key.ToString());

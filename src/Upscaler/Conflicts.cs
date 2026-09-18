@@ -14,6 +14,10 @@ namespace ReDefinition
     // bindings KSP itself ships on the same key -- W pitches and drives a rover --
     // are KSP's choice, not the player's, and are not marked while both stand
     // at KSP's default. A binding of ReDefinition or of a mod counts everywhere.
+    // KSP's own bindings fire on their key whatever modifiers are held
+    // (ExtendedInput.GetKeyDown asks Input.GetKeyDown of the key and nothing
+    // more): RightCtrl+RightShift+U switches KSP's lights on U as well. Against one
+    // of KSP's, only the key counts.
     //
     // Nothing is refused: a shared combination is shown in yellow, and the player
     // decides.
@@ -109,7 +113,9 @@ namespace ReDefinition
                 for (int j = i + 1; j < keys.Count; j++)
                 {
                     if ((situations[i] & situations[j]) == 0 || (modes[i] & modes[j]) == 0) continue;
-                    if (!combinations[j].Equals(combinations[i])) continue;
+                    bool kspInvolved = shipped[i] != null || shipped[j] != null;
+                    if (kspInvolved ? combinations[j].Key != combinations[i].Key : !combinations[j].Equals(combinations[i]))
+                        continue;
                     if (ShippedTogether(texts[i], shipped[i]) && ShippedTogether(texts[j], shipped[j])) continue;
                     if (!shared.Contains(keys[i])) shared.Add(keys[i]);
                     if (!shared.Contains(keys[j])) shared.Add(keys[j]);

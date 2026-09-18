@@ -492,7 +492,9 @@ namespace ReDefinition
         // Whether anything in the window still waits for Apply.
         private static bool Unapplied()
         {
-            return model.Unapplied(UpscalerPending(), BundledSettings.Enabled, BundledSettings.ProfileName);
+            // KSP's key bindings wait in the Keys tab until Apply as well.
+            return kspPending.Count > 0
+                   || model.Unapplied(UpscalerPending(), BundledSettings.Enabled, BundledSettings.ProfileName);
         }
 
         private static bool UpscalerPending()
@@ -733,7 +735,9 @@ namespace ReDefinition
                    && a.SkinnedMotionVectors == b.SkinnedMotionVectors
                    && a.TufxAfterUpscaling == b.TufxAfterUpscaling && a.TransparencyMask == b.TransparencyMask
                    && a.ReactiveMask == b.ReactiveMask && a.AutoExposure == b.AutoExposure
-                   && a.FrameGeneration == b.FrameGeneration && a.Backend == b.Backend && a.DlssPreset == b.DlssPreset;
+                   && a.FrameGeneration == b.FrameGeneration && a.Backend == b.Backend && a.DlssPreset == b.DlssPreset
+                   && a.UpscalerKey == b.UpscalerKey && a.SettingsWindowKey == b.SettingsWindowKey
+                   && a.DiagnosticsKey == b.DiagnosticsKey && a.CameraListKey == b.CameraListKey;
         }
 
         private static string PendingValue(BundledSetting setting)
@@ -901,7 +905,7 @@ namespace ReDefinition
             // whatever the layout lists -- which the check outside the game
             // refuses.
             if (setting.Control == SettingControl.Value) return null;
-            if (setting.Control == SettingControl.Binding) return BundledBindingRow(setting);
+            if (setting.Control == SettingControl.Binding) return BundledBindingRow(setting, false);
 
             string key = setting.Key;
             DialogGUIBase control;

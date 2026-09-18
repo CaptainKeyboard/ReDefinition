@@ -293,10 +293,23 @@ namespace ReDefinition
             KeyCapture.Poll();
             if (KeyCapture.Busy) return;
 
-            if (KeyCombination.Parse(settings.UpscalerKey).Pressed()) SetEnabled(!wantEnabled);
-            if (KeyCombination.Parse(settings.SettingsWindowKey).Pressed()) SettingsWindow.Toggle();
-            if (KeyCombination.Parse(settings.DiagnosticsKey).Pressed()) ToggleWindow();
-            if (KeyCombination.Parse(settings.CameraListKey).Pressed()) UpscalerProbe.LogCameraSurvey();
+            if (Hotkey(settings.UpscalerKey).Pressed()) SetEnabled(!wantEnabled);
+            if (Hotkey(settings.SettingsWindowKey).Pressed()) SettingsWindow.Toggle();
+            if (Hotkey(settings.DiagnosticsKey).Pressed()) ToggleWindow();
+            if (Hotkey(settings.CameraListKey).Pressed()) UpscalerProbe.LogCameraSurvey();
+        }
+
+        // Parsed once per text: asked every frame, and parsing allocates.
+        private readonly Dictionary<string, KeyCombination> hotkeys = new Dictionary<string, KeyCombination>();
+
+        private KeyCombination Hotkey(string text)
+        {
+            if (text == null) return KeyCombination.None;
+            KeyCombination combination;
+            if (hotkeys.TryGetValue(text, out combination)) return combination;
+            combination = KeyCombination.Parse(text);
+            hotkeys[text] = combination;
+            return combination;
         }
 
         // The toolbar button shows whether the settings window is open, which
