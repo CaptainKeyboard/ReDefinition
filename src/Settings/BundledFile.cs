@@ -19,6 +19,12 @@ namespace ReDefinition.Settings
         // the bundling is on, so a mod installed later follows the rule rather
         // than an old file.
         public readonly List<string> ButtonKept = new List<string>();
+
+        // What the chosen profile was applied to: the build each mod had at the
+        // time, by id. A mod that is not in here, or one whose build has changed
+        // since, never had this profile's values -- it is installed or updated
+        // after the fact, and gets them without the player pressing Apply.
+        public readonly Dictionary<string, string> ProfileApplied = new Dictionary<string, string>();
     }
 
     // What the store needs of the game (docs/development/architecture.md):
@@ -59,6 +65,7 @@ namespace ReDefinition.Settings
         private const string RootName = "REDEFINITION_BUNDLED";
         private const string ValuesName = "VALUES";
         private const string BackupName = "BEFORE_REDEFINITION";
+        private const string AppliedName = "PROFILE_APPLIED_TO";
         private const string SaveName = "SAVE";
         private const string RestoreName = "restoring";
 
@@ -98,6 +105,11 @@ namespace ReDefinition.Settings
                 }
 
                 state.ProfileName = node.GetValue("profile") ?? "";
+
+                ConfigNode applied = node.GetNode(AppliedName);
+                if (applied != null)
+                    foreach (ConfigNode.Value value in applied.values)
+                        state.ProfileApplied[value.name] = value.value ?? "";
 
                 string kept = node.GetValue("buttonsKept");
                 if (!string.IsNullOrEmpty(kept))
@@ -142,6 +154,9 @@ namespace ReDefinition.Settings
                 node.AddValue("asked", string.Join(",", state.Asked.ToArray()));
                 node.AddValue("profile", state.ProfileName);
                 node.AddValue("buttonsKept", string.Join(",", state.ButtonKept.ToArray()));
+                ConfigNode applied = node.AddNode(AppliedName);
+                foreach (KeyValuePair<string, string> pair in state.ProfileApplied)
+                    applied.AddValue(pair.Key, pair.Value);
                 ConfigNode values = node.AddNode(ValuesName);
                 foreach (KeyValuePair<string, string> pair in ledger.StoredCopy())
                     values.AddValue(pair.Key, pair.Value);

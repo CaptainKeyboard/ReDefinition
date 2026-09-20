@@ -401,5 +401,36 @@ namespace ReDefinition.Tests
             store.ReapplyStored("next scene", null, false);
             Assert.AreEqual("False", scatterer.Values["useOceanShaders"]);
         }
+
+        [TestMethod]
+        public void AModInstalledOrBuiltDifferentlySinceTheProfileIsNamed()
+        {
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            store.ProfileName = "high";
+            Assert.AreEqual(0, store.ModsWithoutTheProfile().Count, "the profile was applied with this mod installed");
+
+            Mod("eve", SettingsSaving.InModFiles);
+            CollectionAssert.AreEqual(new[] { "eve" }, store.ModsWithoutTheProfile(),
+                                      "a mod installed since has never had the profile");
+
+            scatterer.Build = "volumetric";
+            CollectionAssert.AreEquivalent(new[] { "eve", "scatterer" }, store.ModsWithoutTheProfile(),
+                                           "another build of a mod has settings the profile never set");
+
+            store.NoteProfileApplied();
+            Assert.AreEqual(0, store.ModsWithoutTheProfile().Count, "once they have it, they are not named again");
+        }
+
+        [TestMethod]
+        public void WithNoProfileOrWithTheBundlingOffNoModIsNamed()
+        {
+            Mod("scatterer", SettingsSaving.InModFiles);
+            Assert.AreEqual(0, store.ModsWithoutTheProfile().Count, "no profile chosen: nothing to catch up with");
+
+            store.ProfileName = "high";
+            Mod("eve", SettingsSaving.InModFiles);
+            store.SetEnabled(false);
+            Assert.AreEqual(0, store.ModsWithoutTheProfile().Count, "with the bundling off the mods keep their own");
+        }
     }
 }

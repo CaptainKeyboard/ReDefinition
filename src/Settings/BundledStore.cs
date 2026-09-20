@@ -84,7 +84,37 @@ namespace ReDefinition.Settings
             {
                 Load();
                 state.ProfileName = value ?? "";
+                NoteProfileApplied();
             }
+        }
+
+        // The mods the chosen profile has been applied to, with the build they
+        // had. Called wherever a profile becomes the applied one.
+        public void NoteProfileApplied()
+        {
+            Load();
+            state.ProfileApplied.Clear();
+            if (state.ProfileName.Length == 0) return;
+            foreach (IBundledMod mod in host.Installed())
+                state.ProfileApplied[mod.Id] = mod.Build ?? "";
+        }
+
+        // The mods that have not had the chosen profile: installed since, or
+        // built differently now -- Volumetric Clouds brings another build of EVE
+        // and of Scatterer, and its TUFX profile, all of which a chosen profile
+        // has values for. Empty with no profile chosen or the bundling off.
+        public List<string> ModsWithoutTheProfile()
+        {
+            Load();
+            List<string> fresh = new List<string>();
+            if (!state.Enabled || state.ProfileName.Length == 0) return fresh;
+            foreach (IBundledMod mod in host.Installed())
+            {
+                string build;
+                if (state.ProfileApplied.TryGetValue(mod.Id, out build) && build == (mod.Build ?? "")) continue;
+                fresh.Add(mod.Id);
+            }
+            return fresh;
         }
 
         public bool Enabled

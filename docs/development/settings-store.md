@@ -102,6 +102,16 @@ A per-save value put back is a change to its save like one made in the mod's own
 TUFX keeps it in the game, which KSP writes when it saves, so a quicksave from before
 brings back what that quicksave holds. Distant Object writes the save's own file at once.
 
+## A mod the profile has not reached
+
+`PROFILE_APPLIED_TO` holds the mods the chosen profile was applied to, each with the
+build it had. At the first scene of a run, a mod that is not in it, or one whose build
+has changed, is given that profile's values: the build's defaults, the profile's blocks,
+what every profile sets, and what other mods require. Only that mod
+(`ProfileApplier.CatchUpNewMods`). A mod installed after a profile was chosen is set up
+without the player pressing *Apply*, and what the player changed in the other mods is
+left alone.
+
 ## A mod that cannot take a value yet
 
 `BundledSetting.Applicable` says whether a mod can take a value now. It is false for EVE
@@ -143,6 +153,13 @@ REDEFINITION_BUNDLED
     enabled = True                  // bundle the other mods here
     asked = scatterer,eve,...       // mods the main menu's question covered
     buttonsKept = tufx              // mods whose toolbar button the player keeps
+
+    PROFILE_APPLIED_TO              // what the chosen profile was applied to,
+    {                               // and the build each mod had at the time
+        eve = volumetric
+        scatterer = volumetric
+        ksp =
+    }
     profile = high                  // the profile last applied, or empty
     VALUES
     {

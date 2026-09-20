@@ -4,6 +4,10 @@
 
 ### Changed
 
+- **A mod installed after you chose a profile is set up by that profile**, at the next
+  start, without pressing *Apply*. The same where a mod's build changes, as it does when
+  Volumetric Clouds brings its own EVE and Scatterer. Only those mods are set, so what
+  you changed in the others stays.
 - **Which mods keep their toolbar button is now yours to pick.** *Mods / Toolbar* has
   *Hide all from toolbar* and, under *Per mod*, one switch per mod, folded out like the
   *Keys* tab's sections. A mod switched off keeps its button, and its settings stay in

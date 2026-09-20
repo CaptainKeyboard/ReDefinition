@@ -201,6 +201,55 @@ namespace ReDefinition.Settings
             BundledSettings.SaveNow();
         }
 
+        // A mod the chosen profile never reached gets its values now: one
+        // installed since the profile was applied, or one built differently --
+        // Volumetric Clouds brings another build of EVE and of Scatterer, and its
+        // TUFX profile. Only those mods are set, so what the player changed in the
+        // others stays. Nothing happens with no profile chosen, with the bundling
+        // off, or where the profile is no longer in the GameDatabase.
+        public static bool CatchUpNewMods(List<string> problems)
+        {
+            List<string> fresh = BundledSettings.ModsWithoutTheProfile();
+            if (fresh.Count == 0) return false;
+
+            List<GraphicsProfile> all = Ordered(problems);
+            GraphicsProfile profile = Find(all, BundledSettings.ProfileName);
+            if (profile == null)
+            {
+                problems.Add("The profile '" + BundledSettings.ProfileName + "' is not in the GameDatabase -- the"
+                             + " settings of " + string.Join(", ", fresh.ToArray()) + " are left as they are.");
+                return false;
+            }
+
+            HashSet<string> ids = new HashSet<string>(fresh);
+            List<string> touched = new List<string>();
+            foreach (KeyValuePair<BundledSetting, string> pair in Values(profile, problems))
+            {
+                BundledSetting setting = pair.Key;
+                if (setting.Owner == null || !ids.Contains(setting.Owner.Id)) continue;
+                try
+                {
+                    if (SettingValues.Same(pair.Value, BundledSettings.Current(setting))
+                        && BundledSettings.Holds(setting, pair.Value)) continue;
+                    BundledSettings.Set(setting, pair.Value, false);
+                    if (!touched.Contains(setting.Owner.ModName)) touched.Add(setting.Owner.ModName);
+                }
+                catch (Exception e)
+                {
+                    problems.Add("Profile '" + profile.Name + "', " + setting.Owner.ModName + ", " + setting.Title
+                                 + ": could not be set (" + CompatibilityLog.Reason(e) + ").");
+                }
+            }
+
+            BundledSettings.NoteProfileApplied();
+            BundledSettings.SaveNow();
+            Debug.Log(Log.Tag + " Profile '" + profile.Title + "' applied to "
+                      + (touched.Count > 0 ? string.Join(", ", touched.ToArray()) : "no setting of "
+                                             + string.Join(", ", fresh.ToArray()))
+                      + ": installed or built differently since it was chosen.");
+            return touched.Count > 0;
+        }
+
         // Each problem once per run, however often the window opens -- and one
         // that appears only at a later opening, TUFX's profile list known by
         // then, still reaches the log.

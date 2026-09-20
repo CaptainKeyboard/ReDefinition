@@ -154,8 +154,31 @@ namespace ReDefinition.Settings
             Run(beforeScene, "bundled-before-scene");
         }
 
+        // Once per run, as soon as the mods are built: a mod installed since the
+        // profile was chosen, or one built differently now, has never had that
+        // profile's values. The player should not have to press Apply for that.
+        private static bool caughtUp;
+
+        internal static void CatchUpProfile(string when)
+        {
+            if (caughtUp) return;
+            caughtUp = true;
+            List<string> problems = new List<string>();
+            try
+            {
+                ProfileApplier.CatchUpNewMods(problems);
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("profile-catch-up", "The graphics profile could not be applied to a mod"
+                                      + " installed since (" + CompatibilityLog.Reason(e) + ").");
+            }
+            ProfileApplier.Report("Graphics profile, " + when, problems);
+        }
+
         private void OnLevelLoaded(GameScenes scene)
         {
+            CatchUpProfile(scene + " loaded");
             BundledSettings.NoteSceneLoaded();
             BundledSettings.ReapplyStored(scene + " loaded");
             Requirements.Enforce(scene + " loaded");

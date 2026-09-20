@@ -33,7 +33,7 @@ namespace ReDefinition.Tests
         public string OwnWindow { get { return null; } }
         public Type OwnWindowType { get { return null; } }
         public IList<BundledSetting> Settings { get { return settings; } }
-        public string Build { get { return null; } }
+        public string Build { get; set; }
         public string Version { get { return null; } }
         public SettingsSaving Saving { get; private set; }
 

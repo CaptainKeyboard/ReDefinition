@@ -246,6 +246,16 @@ namespace ReDefinition.Settings
             store.SetEnabled(on);
         }
 
+        public static void NoteProfileApplied()
+        {
+            store.NoteProfileApplied();
+        }
+
+        public static List<string> ModsWithoutTheProfile()
+        {
+            return store.ModsWithoutTheProfile();
+        }
+
         public static bool HidesButton(string modId)
         {
             return store.HidesButton(modId);
