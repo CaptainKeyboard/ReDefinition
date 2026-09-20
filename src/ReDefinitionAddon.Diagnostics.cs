@@ -330,6 +330,14 @@ namespace ReDefinition
             if (SwitchRow("Anisotropic filtering forced", OnOff(forceAnisotropic)))
                 SetForceAnisotropic(!forceAnisotropic);
 
+            Heading("Interface for mods");
+
+            // Never saved: a probe, not a setting. It registers a handler on each
+            // hook and writes one line per scene and hook into KSP.log, so that the
+            // path a mod's handler takes is walked in a normal game (HookProbe).
+            if (SwitchRow("Hook probe, into the log", OnOff(HookProbe.On)))
+                HookProbe.Set(!HookProbe.On);
+
 #if DEVELOPMENT_BUILD
             // FSR's debug view pass is compiled into development builds only.
             Heading("FSR 3 internals");

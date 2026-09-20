@@ -234,4 +234,7 @@ the GPU, such as Parallax's terrain, is not there.
   line.
 * The example mod: built with the solution, without warnings.
 * **[open]** The hooks and the frame's state in the game: nothing in this build uses them
+  for its own work. *Hook probe, into the log*, in the diagnostics window's *Debug* tab,
+  registers a handler on all three and writes what each one is called with, once per
+  scene (`src/HookProbe.cs`), so the path is walked in a normal game
   yet but ReDefinition's own cut detection.

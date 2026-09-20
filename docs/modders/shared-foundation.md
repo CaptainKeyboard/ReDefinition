@@ -132,7 +132,9 @@ The hooks below run while ReDefinition's upscaler or frame generation runs, whic
 while the player has a graphics profile chosen. Without one, a handler is not called,
 so a mod that must draw either way keeps its own path as well. A handler that throws is
 removed and logged once, and the others keep running. No mod uses these hooks in the
-game yet, so expect rough edges and report what you find.
+game yet, so expect rough edges and report what you find. *Hook probe, into the log*,
+in the diagnostics window's *Debug* tab, writes what each hook is called with, which
+tells you whether yours should have been called.
 
 ### Add motion vectors for what Unity misses
 
