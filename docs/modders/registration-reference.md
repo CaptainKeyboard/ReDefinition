@@ -233,6 +233,10 @@ blocks', and what installed mods require takes precedence over both.
 The profiles themselves are in `GameData/ReDefinition/Profiles`. A block for a
 profile that is not there is reported and does nothing.
 
+A player who installs your mod after choosing a profile gets these values at the next
+start, without pressing *Apply*, and so does one whose installed build of your mod
+changes ([player/graphics-profiles.md](../player/graphics-profiles.md)).
+
 A visual pack changes these values with ModuleManager. `:HAS[#build[volumetric]]` picks
 the block for one build, `:HAS[~build[]]` the one for every build:
 
