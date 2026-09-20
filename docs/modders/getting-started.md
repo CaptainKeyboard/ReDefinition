@@ -108,8 +108,10 @@ setting costs frame time, say so, and say what the lower tiers should set:
     }
 ```
 
-High is your own default, so it needs no block. Write `kind = Taste` for a setting that
-decides how the game looks rather than what it costs. No `PROFILE` block touches one.
+High is your own default, so it needs no block. A tier without a block of its own keeps
+that default, so here Medium, Ultra and Max leave the switch on. Write
+`kind = Taste` for a setting that decides how the game looks rather than what it costs.
+No `PROFILE` block touches one.
 
 ## 6. Find out why the row is missing
 

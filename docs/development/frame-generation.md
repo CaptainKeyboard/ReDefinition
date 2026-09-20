@@ -208,7 +208,8 @@ window offers only the intervals that apply.
 with the same timing code on both sides: 11.83 ms against 11.38 ms, within the run-to-run
 variation. The p99 is about 35 ms on both sides, which is KSP's own.
 
-**FSR's swapchain without interpolation [meas]:**
+**FSR's swapchain without interpolation [meas]**, another run against the same baseline
+of 11.38 ms:
 
 | Run | mean | p50 | p95 | vs baseline |
 |---|---|---|---|---|
@@ -234,9 +235,10 @@ many parts and re-entry. It does not pay on the pad at 80-90 fps.
 * **FSR:** 640x360; presents per frame 2.00 on, 2.00 after eight mode changes, 1.00 off,
   2.00 on again, 2.00 after a resize to 800x450; `fgVSync=1`, `fgHalfRefreshLimit=1` and
   `fgAsyncWorkloads=1` from the ini; the HUD-less check finds exactly the drawn UI.
-* **DLSS-G:** the same phases, counted by the proxy's own totals, and V-Sync every second
-  refresh: 2.00 presents per frame, 120 a second at 120 Hz. DLSS-G generates nothing while
-  the harness window does not have the focus.
+* **DLSS-G:** the same phases, counted by the proxy's own totals. It then asks for V-Sync
+  every second refresh, which DLSS-G does not support, to see that the interval is clamped
+  to every refresh and generation goes on: 2.00 presents per frame, 120 a second at 120 Hz.
+  DLSS-G generates nothing while the harness window does not have the focus.
 
 ## Open
 

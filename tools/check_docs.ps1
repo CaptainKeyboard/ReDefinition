@@ -76,19 +76,43 @@ foreach ($page in $pages) {
         Style "$relative -- no For / You need / You get at the top"
     }
 
+    # Paragraphs, so that a phrase broken over two lines is still found.
+    $paragraphLines = New-Object System.Collections.ArrayList
+    $paragraphStart = 0
+    $paragraphs = New-Object System.Collections.ArrayList
+
     foreach ($entry in $prose) {
         $number, $text = $entry -split "`t", 2
         # A dash inside code font is the rule itself, or a command line.
         $outsideCode = [regex]::Replace($text, '`[^`]*`', '')
         if ($outsideCode -match ' -- ') { Style "$relative`:$number -- a dash aside" }
-        # German in English words (docs/development/writing-these-pages.md).
+        if ($text.Length -gt 95) { Style "$relative`:$number -- $($text.Length) characters" }
+
+        if ($text.Trim().Length -eq 0) {
+            if ($paragraphLines.Count -gt 0) {
+                [void]$paragraphs.Add(@{ Line = $paragraphStart; Text = ($paragraphLines -join ' ') })
+                $paragraphLines.Clear()
+            }
+            continue
+        }
+        if ($paragraphLines.Count -eq 0) { $paragraphStart = $number }
+        [void]$paragraphLines.Add($outsideCode)
+    }
+    if ($paragraphLines.Count -gt 0) {
+        [void]$paragraphs.Add(@{ Line = $paragraphStart; Text = ($paragraphLines -join ' ') })
+    }
+
+    # German in English words (docs/development/writing-these-pages.md).
+    foreach ($paragraph in $paragraphs) {
         foreach ($calque in @('stands in', 'stand in', 'stands there', 'counts over',
-                              'count over', 'put right', 'the frame before')) {
-            if ($outsideCode -match [regex]::Escape($calque)) {
-                Style "$relative`:$number -- `"$calque`""
+                              'count over', 'the frame before',
+                              'put\s+(?:the|it|that|its|them|him|her)?\s*\w*\s*right',
+                              'puts\s+(?:the|it|that|its|them)?\s*\w*\s*right')) {
+            $found = [regex]::Match($paragraph.Text, $calque)
+            if ($found.Success) {
+                Style "$relative`:$($paragraph.Line) -- `"$($found.Value)`""
             }
         }
-        if ($text.Length -gt 95) { Style "$relative`:$number -- $($text.Length) characters" }
     }
 }
 

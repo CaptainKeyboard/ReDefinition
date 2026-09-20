@@ -10,7 +10,7 @@ ReDefinition first changed it. A value set here is saved through the mod's own s
 routine, as if the player had set it in the mod's own window, so both windows show the
 same.
 
-## Where the code stands
+## Where the code is
 
 | File | Holds |
 |---|---|
@@ -55,7 +55,7 @@ Putting a value back works with the bundling on or off.
   from before ReDefinition to be put back.
 * **`ResetTo`.** The value *Reset to defaults* gives a setting. For a mod that saves it
   works as `Set` does. For a mod without a save routine it sets the running value only,
-  and keeps nothing, so the mod's own config stands again at the next start. Where such a
+  and keeps nothing, so the mod's own config is in force again at the next start. Where such a
   mod holds the default already, nothing is written. The value from before ReDefinition is
   kept as for any other change, so a restore undoes the reset.
 * **`Correct`.** A value a requirement puts right (`Requirements.Enforce`). It becomes a

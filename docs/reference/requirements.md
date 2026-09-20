@@ -6,9 +6,10 @@ block.
 **You get:** every requirement ReDefinition enforces, with its source, and the rules by
 which it holds.
 
-A requirement is a value one mod needs of another mod's setting. ReDefinition keeps
-that setting as the mod needs it while that mod is loaded, whatever a profile, the
-reset or a row says, and whether or not it bundles the mod itself.
+A requirement is a value one mod needs of another mod's setting. The mod errors or warns
+about that setting whether or not ReDefinition bundles it, so the requirement holds
+while the mod is loaded. While *Bundle other mods here* is on, ReDefinition keeps the
+setting as the mod needs it, against a profile, the reset and the player alike.
 
 Each requirement is written as a `REQUIRES` block in the registration of the mod that needs
 it ([modders/registering-a-mod.md](../modders/registering-a-mod.md)). Its keys:
@@ -43,8 +44,8 @@ ReDefinition's frame generation is off, or while FSR 3 presents it, every value 
   message per run names the reason.
 * A per-save value is corrected in the loaded save only, unless a choice for every save
   is kept.
-* Requirements are enforced while the other mods are bundled, which *Bundle other mods
-  here* switches.
+* Requirements are enforced while *Bundle other mods here* is on. With it off, the mods
+  hold their settings themselves again.
 * *Restore settings from before ReDefinition* puts back what was there before, even
   where a requirement forbids it. The next scene load applies the requirement again
   while the bundling is on.
@@ -73,9 +74,9 @@ ReDefinition leaves these to the mod, and drops or limits the row instead:
 ## Set by ReDefinition while a profile is chosen
 
 These are not requirements of other mods. The upscaler does the antialiasing, so every
-profile switches Scatterer's TAA and SMAA and Deferred's editor SMAA off. With the
-Volumetric Clouds build of TUFX, every profile also sets *Blackrack_TUFX* in every
-scene. All three go through the `ALL_PROFILES` blocks in their registrations. The
+profile switches Scatterer's TAA and SMAA and Deferred's editor SMAA off. With
+Volumetric Clouds installed, every profile also sets TUFX's *Blackrack_TUFX* profile in
+every scene. All three go through the `ALL_PROFILES` blocks in their registrations. The
 upscaler switches MSAA off while it runs.
 
 ## Dependencies, not requirements

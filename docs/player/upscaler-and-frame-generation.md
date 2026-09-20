@@ -7,7 +7,7 @@ upscaler DLL the proxy and those files ([installing.md](installing.md)).
 and where it falls short.
 
 Both are active only while a graphics profile is chosen
-([graphics-profiles.md](graphics-profiles.md)). Their settings stand under *General* in
+([graphics-profiles.md](graphics-profiles.md)). Their settings are under *General* in
 the settings window, in the diagnostics window, and in KSP's own settings dialog.
 
 The diagnostics window's status line names what is running, and its frame rate line
@@ -24,6 +24,7 @@ from it. The interface is drawn on top at full resolution and stays sharp.
 | Technique | *FSR 3*, *DLSS* or *AMD FSR (DLL)*. If the chosen one cannot run, FSR 3 runs in its place, and the diagnostics window says why |
 | Mode | *AA only*, at the right end, renders at full resolution and uses the upscaler as temporal antialiasing. This is what the profiles choose. Further left, the scene renders smaller by the factor shown and is reconstructed. DLSS renders at the size it asks for in each mode, and *1.2x*, which DLSS does not have, runs as DLSS's *Quality* |
 | DLSS preset | which of NVIDIA's DLSS models runs. *Default* lets the DLSS library choose per mode; *J*, *K*, *L* and *M* where the library has them |
+| Sharpness | how hard the image is sharpened after the upscaler, for every technique. 0 switches it off. Above 1.0 goes past what the sharpening was made for, and AMD's DLL stops at 1.0 |
 
 The six modes, and how much smaller the scene renders in each:
 
@@ -35,8 +36,6 @@ The six modes, and how much smaller the scene renders in each:
 | *1.7x* | 1/1.7 |
 | *2.0x* | half |
 | *3.0x* | a third |
-
-| Sharpness | how hard the image is sharpened after the upscaler, for every technique. 0 switches it off. Above 1.0 goes past what the sharpening was made for, and AMD's DLL stops at 1.0 |
 
 The transparency and reactive masks, which decide how transparent effects are treated,
 are off at first. Both are on the diagnostics window's *Debug* tab.
@@ -157,5 +156,5 @@ within a second of it being saved.
 | `streamlineDirectory` | empty | the folder of NVIDIA's Streamline DLLs. Read when KSP makes its swapchain, so a change needs a restart |
 | `reportSeconds` | 10 | how often frame times go into `ReDefinitionProxy.log` |
 
-The remaining settings in the file are for development. Each one is described where it
-stands.
+The remaining settings in the file are for development. Each one is described in the
+file, beside its value.

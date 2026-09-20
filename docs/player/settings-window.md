@@ -101,16 +101,18 @@ KSP keeps two keys per binding, a first and a second, each without a modifier. I
 modifier key is a binding of its own. The mods' bindings and ReDefinition's take
 modifiers.
 
-If two rows hold the same combination in the same situation, both are shown in
-yellow, and both still work. Against one of KSP's bindings only the key counts, since
-KSP's fire on their key whatever modifiers are held: a mod's Ctrl+U meets KSP's U. A
-binding counts where its section does: flying a vessel, map view included, on EVA, or
-in the editor. *Mods* and *General* count everywhere. B that brakes a vessel and B that
-boards one on EVA never meet, so neither is marked. Within flight KSP's own modes count
-too: Space stages, and in docking mode the same key translates, so those two never
-meet.
-Keys KSP itself ships twice, such as W for pitch and for driving a rover, stay unmarked
-while both stand at KSP's default.
+If two rows hold the same combination in the same situation, both are shown in yellow,
+and both still work. What counts as the same situation:
+
+* A binding counts where its section does: flying a vessel, map view included, on EVA,
+  or in the editor. *Mods* and *General* count everywhere. B that brakes a vessel and B
+  that boards one on EVA never meet, so neither is marked.
+* Within flight, KSP's own modes count too: Space stages, and in docking mode the same
+  key translates, so those two never meet.
+* Against one of KSP's bindings only the key counts, since KSP's fire on their key
+  whatever modifiers are held: a mod's Ctrl+U meets KSP's U.
+* Keys KSP itself ships twice, such as W for pitch and for driving a rover, stay
+  unmarked while both are at KSP's default.
 
 ## Find out why a row is missing
 
@@ -156,7 +158,7 @@ mods' releases ship. With Volumetric Clouds installed, the defaults of EVE, Scat
 and TUFX are the ones its author ships. KSP's graphics settings are reset without
 resolution and full screen.
 
-After a reset, ReDefinition's own settings stand at their defaults and no profile is
+After a reset, ReDefinition's own settings are at their defaults and no profile is
 chosen: the upscaler and frame generation are off, and the other mods keep their own
 antialiasing until you choose a profile. A setting without a known default, KSP's
 terrain shader quality, stays as it is. Every default and its source:
@@ -187,7 +189,7 @@ a short note when it is bundled.
 
 ## What the installed mods require
 
-Some mods need another setting to stand a certain way and show an error or a warning
+Some mods need another setting set a certain way and show an error or a warning
 otherwise. ReDefinition keeps such a setting as the mod needs it, whatever a profile,
 the reset or a row says. The row is locked or offers only the allowed values, and its
 tooltip says why.
@@ -223,7 +225,7 @@ the same settings file. The main menu's settings screen has no ReDefinition sect
 ## The diagnostics window
 
 Open it with *Diagnostics* in the settings window, or with the hotkey you set for it.
-At the top stand the status, the frame rate, with the presented rate in brackets while
+At the top are the status, the frame rate, with the presented rate in brackets while
 frame generation runs, and the on/off button. Below them are two tabs.
 
 *General* holds Technique, Mode, DLSS preset, Sharpness, the frame generation switch,
@@ -240,7 +242,7 @@ chosen technique cannot run, it names the reason, and after a failure it offers
 | Game settings while upscaling | LOD bias compensation, MSAA forced off, Anisotropic filtering forced |
 | FSR 3 internals | *FSR's debug view*, in development builds only |
 
-Below them stand three buttons. *Show other mods' state* lists what ReDefinition sees of
+Below them are three buttons. *Show other mods' state* lists what ReDefinition sees of
 the other mods. *Show mod registrations* lists the bundled mods and the problems
 of their registrations. *Show preview* shows what the upscaler receives: motion
 vectors, depth, the image at render resolution, the transparency and reactive masks,

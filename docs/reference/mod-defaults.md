@@ -49,7 +49,7 @@ run with the upscaler. *Reset to defaults* sets every kind.
 
 ## Sources
 
-| Mod | Default from | Checked against the installed build |
+| Mod | Default from | Checked against the build installed for development |
 |---|---|---|
 | KSP 1.12.5 | `Assembly-CSharp` decompiled: `GameSettings.SetDefaultValues`, `PQSCache.CreateDefaultPresetList`; graphics screen fields in `sharedassets3.assets` | -- |
 | Scatterer 0.878 (public) | `Scatterer-release`: `config/config.cfg`; `MainSettingsReadWrite` decompiled for fields the file leaves out | not installed |

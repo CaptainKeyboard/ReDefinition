@@ -62,6 +62,8 @@ A camera mod that switches or jumps the view says so:
 ReDefinitionApi.RequestHistoryReset("MyCameraMod switched to " + camera.name);
 ```
 
+With a reference to ReDefinition, that is `Frame.RequestHistoryReset(reason)`.
+
 Before the frame's first 3D camera culls, the request reaches every mod in that frame.
 Later, it reaches the upscaler and frame generation in that frame, and the mods in the
 next one.
@@ -71,6 +73,9 @@ If your mod keeps temporal history of its own, drop it when ReDefinition says so
 ```csharp
 ReDefinitionApi.RegisterHistoryReset(reason => myHistoryValid = false);
 ```
+
+Directly, that is `Frame.RegisterHistoryReset(handler)`, and `Frame.UnregisterHistoryReset`
+takes it off again.
 
 ## Read the state in a shader
 
@@ -123,8 +128,11 @@ KSP 1.12.5 is built with.
 
 ## Hooks into ReDefinition's rendering
 
-The hooks below run while ReDefinition's upscaler or frame generation runs. A handler
-that throws is removed and logged once, and the others keep running.
+The hooks below run while ReDefinition's upscaler or frame generation runs, which is
+while the player has a graphics profile chosen. Without one, a handler is not called,
+so a mod that must draw either way keeps its own path as well. A handler that throws is
+removed and logged once, and the others keep running. No mod uses these hooks in the
+game yet, so expect rough edges and report what you find.
 
 ### Add motion vectors for what Unity misses
 
@@ -238,10 +246,11 @@ write textures back.
 ### Check what is there
 
 `D3D12.Available` says whether the device is there, and `D3D12.Problem` says why not.
-The reason is one of these: no `dxgi.dll`, the proxy switched off or set to measuring
-only in `ReDefinitionProxy.ini`, or the swapchain not made yet. Through the wrapper the
-two are `ReDefinitionApi.D3D12Available` and `D3D12Problem`. The properties below carry
-the same `D3D12` prefix there; the methods keep their names.
+The reason is one of these: no `dxgi.dll`, the proxy switched off, or set to measure
+frame times without substituting anything (`measureOnly=1` in `ReDefinitionProxy.ini`),
+or the swapchain not made yet. Through the wrapper the two are
+`ReDefinitionApi.D3D12Available` and `D3D12Problem`. The properties below carry the
+same `D3D12` prefix there; the methods keep their names.
 
 What the device supports, in Direct3D's own encoding:
 

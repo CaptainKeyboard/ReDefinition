@@ -11,7 +11,11 @@ ReDefinition works with are all optional. A mod that is not installed has no row
 
 ## Install from the release zip
 
-Extract the zip into the KSP folder, the one with `KSP_x64.exe`:
+**1. Install HarmonyKSP** from
+https://github.com/KSPModdingLibs/HarmonyKSP/releases, extracted into `GameData`. KSP
+does not load ReDefinition without it.
+
+**2. Extract ReDefinition's zip** into the KSP folder, the one with `KSP_x64.exe`:
 
 ```
 GameData/ReDefinition/                          merges into your GameData
@@ -23,25 +27,23 @@ amd_fidelityfx_framegeneration_dx12_LICENSE.md  AMD's licence for it
 ```
 
 Windows loads the `dxgi.dll` next to `KSP_x64.exe` instead of its own, and
-ReDefinition's hands everything it does not need on to Windows.
+ReDefinition's file hands on to Windows everything it does not need itself.
 
 Only one `dxgi.dll` can sit there. If you already have another one, ReShade's for
 example, move it away first.
 
-HarmonyKSP is a separate download, from
-https://github.com/KSPModdingLibs/HarmonyKSP/releases. Extract it into `GameData` as
-well.
+**3. Start KSP.** ReDefinition is in when its button is in the toolbar of the main
+menu.
 
-Start KSP. ReDefinition is in when its button is in the toolbar of the main menu.
-
-Then choose a graphics profile. Until you do, ReDefinition changes nothing: no
+**4. Choose a graphics profile.** Until you do, ReDefinition changes nothing: no
 upscaler, no frame generation, and every mod keeps its own settings. The main menu
 offers *Use High* at the first start, and the *Profiles* tab has all five
 ([graphics-profiles.md](graphics-profiles.md)).
 
 ## Install with CKAN
 
-Search for *ReDefinition* in CKAN once its entry is merged, and install it. CKAN
+Search for *ReDefinition* in CKAN and install it. If CKAN does not list it, its entry
+there is not accepted yet, and the release zip above is the way in. CKAN
 installs Harmony with it, and puts `dxgi.dll` and AMD's runtime next to `KSP_x64.exe`.
 CKAN does not replace a `dxgi.dll` it did not install, so move another one away first.
 

@@ -38,7 +38,7 @@ Linking Exception (see `LICENSE`).
 ## Mods ReDefinition talks to at run time
 
 Their defaults ([reference/mod-defaults.md](reference/mod-defaults.md)) were read from
-each release as shipped and from their code, and stand as values in ReDefinition's
+each release as shipped and from their code, and are the values in ReDefinition's
 registrations.
 
 | Mod | By | Licence | What this project does with it |

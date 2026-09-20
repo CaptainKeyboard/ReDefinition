@@ -101,7 +101,7 @@ size (NVIDIA's DLSS Programming Guide 3.6.1, 3.7.3; AMD's `ffx_upscale.h`) **[do
   is copied back into Unity's output, with a shared fence between the two. The DLL decides
   which upscaler runs: FSR 4 where the DLL and the GPU have it, otherwise FSR 3.1.
 * **The proxy's state** is 0 before the first frame, 1 while it upscales, -1 once something
-  stopped it, and -2 when that stands until the GPU, driver or DLL changes. The proxy's
+  stopped it, and -2 when that holds until the GPU, driver or DLL changes. The proxy's
   output is shown only once it has reported an upscaled frame; before that the image
   without upscaling is shown. A technique that stays stopped gives way to FSR 3: the add-on
   builds a new rig with FSR 3 in its place, and the diagnostics window offers to try the

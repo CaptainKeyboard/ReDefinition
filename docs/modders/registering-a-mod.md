@@ -33,7 +33,8 @@ SETTING
 
 Give a row only to what a player looks for in a graphics menu. Everything else needs
 none. Give it a `SETTING` block without a `row`, and it is still kept, reset and set by
-profiles.
+profiles. A number gets a row only with `min` and `max`, or with `choices`: without
+them there is no sensible slider, so the setting is kept without a row.
 
 `takesEffect` tells the player when the change arrives: `Live`, `NextScene` or
 `Restart`. If a `Live` value needs a call to take hold, name that call with `after`.
@@ -156,7 +157,7 @@ out rather than half bundled.
 
 ## Require something of another mod's setting
 
-If your mod errors or warns unless another setting stands a certain way, say so.
+If your mod errors or warns unless another setting is set a certain way, say so.
 While the mods are bundled, ReDefinition then keeps it that way against a profile, the
 reset and the player, and shows your reason once per run:
 
@@ -211,7 +212,7 @@ A pack edits a registration with ModuleManager rather than shipping a second one
 
 `:HAS[~build[]]` picks the block that counts for every build, and
 `:HAS[#build[volumetric]]` the one for a named build. To replace a whole registration
-instead, ship a `MOD_SETTINGS` with the same `name` from your own folder. It counts
+instead, ship a `MOD_SETTINGS` with the same `name` from your own folder. It takes precedence
 over ReDefinition's, and the log names the file that won.
 
 ## Find out why something is missing

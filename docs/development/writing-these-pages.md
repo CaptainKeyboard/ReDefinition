@@ -70,7 +70,7 @@ repository open.
   keeps producing, and the check script warns about them:
 
   | Instead of | Write |
-|---|---|
+  |---|---|
   | the row stands in the tab | the row is in the tab |
   | its values count over the defaults | its values take precedence over the defaults |
   | the value is put right | the value is corrected |

@@ -19,8 +19,8 @@ later one counts.
 
 A value that is left empty counts as no value at all. The spaces around a value are
 trimmed, and commas and backslashes are kept, so a comma inside a choice is written
-`\,`. As in every KSP config file, a value holds no `//` and no brace, which is why no
-note can stand beside one.
+`\,`. As in every KSP config file, a value holds no `//` and no brace, which is why a
+note can stand beside one: KSP cuts the line at the `//`.
 
 Titles, tooltips and labels may be localisation tags, KSP's own `#autoLOC_...` or your
 mod's `#LOC_...`. The window shows them in the player's language, through KSP's
@@ -42,7 +42,7 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `window` | no | -- | `Namespace.Type.Method` that draws your IMGUI settings window. It gets a close button while your toolbar button is hidden. |
 | `button` | no | -- | The name of the assembly your toolbar button's click handler lives in. ReDefinition hides that button while your settings are bundled, and opens your window through it. Only together with `window`. |
 | `toolbarControl` | no | -- | The namespace your button registers with in ToolbarControl, where you make it that way. Like `button`, only together with `window`. |
-| `tab` | no | no *Advanced* button | Where your *Advanced* button goes: `General`, `ShadowsAndReflections`, `Planets` or `Effects`. `Keys` is taken too but draws no *Advanced* row, and any other name is reported and ignored. A tab without rows gets no *Advanced* row either. |
+| `tab` | no | no *Advanced* button | Where your *Advanced* button goes. Where your settings go is each setting's own `row`: `General`, `ShadowsAndReflections`, `Planets` or `Effects`. `Keys` is taken too but draws no *Advanced* row, and any other name is reported and ignored. A tab without rows gets no *Advanced* row either. |
 
 ## SETTING
 
@@ -50,7 +50,7 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 |---|---|---|---|
 | `name` | yes | -- | The second part of the setting's key. Never change it once released. |
 | `member` | yes, unless `leftOut` or a `behaviour` answers for it | -- | Where the value lives: a [member path](#member-paths). |
-| `default` | recommended, and needed for a setting with no `member` that your own behaviour answers for | the reset and the profiles leave the setting as it is | The value your release ships, as a config file writes it: `True`, `0.5`, `High`. *Reset to defaults* sets it, and the profiles start from it. |
+| `default` | recommended, and needed for a setting with no `member` that your own behaviour answers for | the reset and the profiles leave the setting as it is; a setting your own behaviour answers for gets no row, and the log says so | The value your release ships, as a config file writes it: `True`, `0.5`, `High`. *Reset to defaults* sets it, and the profiles start from it. |
 | `title` | no | `name` | The row's name. |
 | `tooltip` | no | -- | What the setting does. `\n` starts a new line. |
 | `kind` | no | `Other` | `Quality`: it costs frame time, and the profiles set it. `Taste`: how the game looks, which no profile touches. `Other`: interface, debugging, compatibility. |
@@ -159,7 +159,8 @@ unless the registration has no `BUILD` at all and a behaviour tells the build.
 
 ## REQUIRES
 
-What your mod needs of another setting, while your mod is loaded, bundled or not:
+What your mod needs of another setting, while your mod is loaded, whether or not
+ReDefinition bundles its settings:
 
 ```
 REQUIRES
@@ -171,9 +172,9 @@ REQUIRES
 }
 ```
 
-While the mods are bundled, ReDefinition keeps that setting as you require it against a
-profile, the reset and the player. It puts the value right when something else changes
-it, and shows your reason once per run.
+While *Bundle other mods here* is on, ReDefinition keeps that setting as you require it
+against a profile, the reset and the player. It corrects the value when something else
+changes it, and shows your reason once per run.
 
 | Key | Needed | Left out | What it does |
 |---|---|---|---|
@@ -190,7 +191,7 @@ Exactly one test per block:
 |---|---|
 | `equals` | this value |
 | `atMost`, `atLeast` | a number no higher, or no lower. A value that is no number passes |
-| `highest = True` | the last of the setting's choices by its place in the list. A name that also stands earlier never counts as the last |
+| `highest = True` | the last of the setting's choices by its place in the list. A name that also appears earlier never counts as the last |
 | `check` | a check ReDefinition's behaviour for that setting's mod answers, with `fix` for the value that satisfies it |
 
 The checks ReDefinition answers:
@@ -255,7 +256,7 @@ ReDefinition:
 |---|---|---|
 | `string Read(string name)` | yes | The value as text. `null` says the value cannot be read now. |
 | `void Write(string name, string value)` | yes | Takes the value. May return `bool`: `false` is a value your mod refuses, which ReDefinition reports and keeps. |
-| `bool Ready` | no | Whether your mod can take values now, as `ready` says it for a path. Where `behaviour` stands on the mod it gates every setting of your mod, member paths included; where it stands on one setting, that setting alone. |
+| `bool Ready` | no | Whether your mod can take values now, as `ready` says it for a path. Given for the mod, it gates every setting of your mod, member paths included; given for one setting, that setting alone. |
 | `void Save()` | no | Saves as your own window saves. Called before a `save` the registration names. |
 | `string[] Choices(string name)` | no | A list only the running mod knows. `null` leaves the setting the control its value's type gives. |
 | `string Version` | no | Your mod's version, where the registration cannot tell it. |
@@ -287,7 +288,8 @@ the setting. The same list is in the game, in the diagnostics window under *Debu
 A value ReDefinition cannot read is ignored, and that key's default stands.
 
 ReDefinition leaves a setting out, and keeps the rest of your mod, where the setting has
-no `name` or no `member`, or where its member is not there.
+no `name`, or no `member` while neither `leftOut` nor a `behaviour` answers for it, or
+where its member is not there.
 
 Your mod is left out as a whole where one of these is missing: a `required` setting's
 member, one of `needs`, the `save` method, the `ready` member, `detect` while your mod's
