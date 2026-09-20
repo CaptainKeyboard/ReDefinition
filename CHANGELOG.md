@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Every graphics profile switches KSP's own antialiasing off**, as it already did for
+  Scatterer's, TUFX's and Deferred's. The upscaler does the antialiasing, and MSAA
+  resolves before the capture, which takes the smoothed edges the upscaler reconstructs
+  from. KSP's settings screen shows it off now, instead of a value that was overruled
+  while the upscaler ran. *Restore settings from before ReDefinition* puts your choice
+  back, and the upscaler still holds MSAA off while it runs.
+- `tools/check_bundled_mods.ps1` reports a check it cannot ask, because the mod that
+  answers it is not installed, as a note rather than a failure. The same for
+  ToolbarControl.
+
 ## 0.1.2 -- 2026-09-20
 
 ### Fixed

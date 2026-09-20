@@ -82,7 +82,7 @@ run with the upscaler. *Reset to defaults* sets every kind.
 | `REFLECTION_PROBE_TEXTURE_RESOLUTION` | quality | 1 | |
 | `SYNC_VBL` | other | 1 | the monitor's |
 | `FRAMERATE_LIMIT` | other | 120 | the monitor's |
-| `ANTI_ALIASING` | other | 2 | the upscaler switches MSAA off while it runs |
+| `ANTI_ALIASING` | other | 2 | every profile sets it off, and the upscaler holds it there while it runs |
 | `AMBIENTLIGHT_BOOSTFACTOR` | taste | 0 | |
 | `AMBIENTLIGHT_BOOSTFACTOR_MAPONLY` | taste | 0 | |
 | `AMBIENTLIGHT_BOOSTFACTOR_EDITONLY` | taste | 0 | |

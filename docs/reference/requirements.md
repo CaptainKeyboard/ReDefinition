@@ -74,10 +74,12 @@ ReDefinition leaves these to the mod, and drops or limits the row instead:
 ## Set by ReDefinition while a profile is chosen
 
 These are not requirements of other mods. The upscaler does the antialiasing, so every
-profile switches Scatterer's TAA and SMAA and Deferred's editor SMAA off. With
+profile switches KSP's own antialiasing and Scatterer's TAA and SMAA and Deferred's
+editor SMAA off. With
 Volumetric Clouds installed, every profile also sets TUFX's *Blackrack_TUFX* profile in
-every scene. All three go through the `ALL_PROFILES` blocks in their registrations. The
-upscaler switches MSAA off while it runs.
+every scene. All four go through the `ALL_PROFILES` blocks in their registrations. While the
+upscaler runs it also holds Unity's MSAA at off, so that KSP's own settings screen
+cannot put it back in the middle of a flight.
 
 ## Dependencies, not requirements
 

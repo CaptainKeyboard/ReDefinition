@@ -31,8 +31,10 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
   KSP's highest terrain detail, KSP's own scatter off, and reflections at 256 at most
   and not off. With Volumetric Clouds, it is a TUFX flight profile with ambient
   occlusion. Low sets terrain detail *Low*, and *High* where Parallax is installed.
-* Every profile switches off Scatterer's TAA and SMAA and Deferred's editor SMAA,
-  because the upscaler does the antialiasing. With Volumetric Clouds installed, every
+* Every profile switches off KSP's own antialiasing and Scatterer's TAA and SMAA and
+  Deferred's editor SMAA, because the upscaler does the antialiasing. KSP's row is in
+  its own settings screen, and the choice is put back by *Restore settings from before
+  ReDefinition*. With Volumetric Clouds installed, every
   profile sets TUFX's *Blackrack_TUFX* profile in every scene, the one Volumetric
   Clouds is made with.
 * A setting another mod holds is left to that mod. Firefly holds KSP's aerodynamic FX,

@@ -139,8 +139,9 @@ The files the player needs, and where they go: [player/installing.md](../player/
 * **Game-wide quality settings** (`QualityOverrides`). While the upscaler runs, the LOD
   bias is multiplied by display height over render height, since Unity picks LODs by
   covered pixels. The mipmap bias is FSR's own `log2(render / display) - 1` and a
-  different quantity. MSAA is off, and anisotropic filtering is forced on so the negative
-  mipmap bias does not shimmer. Shadow distance and cascades are left alone. KSP's
+  different quantity. MSAA is held at off, and every profile sets KSP's own setting
+  off as well (`ALL_PROFILES` in `KSP.cfg`). Anisotropic filtering is forced on so
+  the negative mipmap bias does not shimmer. Shadow distance and cascades are left alone. KSP's
   `SetQualityLevel` resets these, and `OnGameSettingsApplied` puts them back. Where KSP
   writes a value there other than ReDefinition's, that value becomes the one restored when
   the upscaler stops. MSAA from KSP's settings screen is such a value.

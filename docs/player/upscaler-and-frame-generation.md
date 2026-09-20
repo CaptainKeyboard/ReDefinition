@@ -71,7 +71,7 @@ Choosing no profile gives each of them back what it had, unless it was changed s
 
 While the upscaler runs, ReDefinition also keeps EVE's clouds, kerbals and flags from
 smearing, draws TUFX's bloom, colour grading, depth of field, motion blur and grain
-after the upscaler so they stay crisp, switches KSP's MSAA off, forces anisotropic
+after the upscaler so they stay crisp, holds KSP's MSAA off, forces anisotropic
 filtering on, and keeps textures and level of detail at what they are at full
 resolution.
 

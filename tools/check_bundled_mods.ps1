@@ -664,7 +664,11 @@ try {
         if ($byId.ContainsKey($modId)) { foreach ($s in $byId[$modId].Settings) { if ($s.Key -ceq $rule.Key) { $setting = $s } } }
         if ("$($rule.Registration.Test)" -eq 'Check') {
             $behaviour = if ($byId.ContainsKey($modId)) { Internal $byId[$modId] 'MainBehaviour' } else { $null }
-            if ($null -eq $behaviour -or -not $behaviour.Provides($rule.Registration.Value)) { $ruleIssues += "$($rule.Id): $modId answers no check '$($rule.Registration.Value)'" }
+            if ($null -eq $behaviour) {
+                "note  $($rule.Id): $modId is not installed here, so its check '$($rule.Registration.Value)' is not asked"
+            } elseif (-not $behaviour.Provides($rule.Registration.Value)) {
+                $ruleIssues += "$($rule.Id): $modId answers no check '$($rule.Registration.Value)'"
+            }
         }
         $fix = $fixOf.Invoke($null, [object[]]@($rule, $setting))
         if ($null -eq $fix) { "note  $($rule.Id): its fix needs the game"; continue }
@@ -727,8 +731,12 @@ $prop = $buttonType.GetProperty('VisibleInScenes')
 Expect "ApplicationLauncherButton.VisibleInScenes can be set" ($prop -and $prop.CanWrite)
 
 $tc = [AppDomain]::CurrentDomain.GetAssemblies() | ForEach-Object { $_.GetType('ToolbarControl_NS.ToolbarControl', $false) } | Where-Object { $_ } | Select-Object -First 1
-$tcList = if ($tc) { $tc.GetField('tcList', $any) } else { $null }
-Expect "ToolbarControl keeps its instances in the static tcList, each with nameSpace and stockButton" ($tcList -and $tcList.IsStatic -and $tc.GetField('nameSpace', $any) -and $tc.GetField('stockButton', $any))
+if ($null -eq $tc) {
+    "note  ToolbarControl is not installed here: how it keeps its instances is not checked"
+} else {
+    $tcList = $tc.GetField('tcList', $any)
+    Expect "ToolbarControl keeps its instances in the static tcList, each with nameSpace and stockButton" ($tcList -and $tcList.IsStatic -and $tc.GetField('nameSpace', $any) -and $tc.GetField('stockButton', $any))
+}
 
 ""
 if ($failures -eq 0) { "All checks passed." } else { "$failures check(s) failed."; exit 1 }

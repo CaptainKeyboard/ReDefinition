@@ -202,9 +202,10 @@ with the source of each:
 ## KSP's own graphics settings
 
 The rows are: render quality, texture quality, V-Sync, frame limit, shadow cascades,
-terrain detail, and aerodynamic FX while Firefly is not installed. The profiles also set KSP's
-pixel light count, terrain shader quality and reflections. *Reset to defaults* sets
-those and its terrain scatter, planet shadows, scatter density and surface FX.
+terrain detail, and aerodynamic FX while Firefly is not installed. The profiles also
+set KSP's antialiasing off, and its pixel light count, terrain shader quality and
+reflections. *Reset to defaults* sets those and its terrain scatter, planet shadows,
+scatter density and surface FX.
 
 Some of them another mod holds for itself:
 
