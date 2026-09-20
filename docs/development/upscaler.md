@@ -272,7 +272,9 @@ make the texture: Unity writes `D3D11: Failed to create RenderTexture ... 0x8007
 into the log and carries on. A rig built on such textures redirects the cameras into
 nothing, and the player sees a black screen. The rig therefore asks for the native
 handle (`GetNativeTexturePtr`), which is null where the texture is not there, and its
-set-up fails instead. The add-on then tries again after a second, after five, and three
+set-up fails instead. While it runs, the same handle is asked for about once a second,
+since asking synchronises with the render thread, and a texture lost since then has the
+rig rebuilt. The add-on then tries again after a second, after five, and three
 times in all, so the upscaler comes back by itself once the memory does
 ([reference/graphics-mod-compatibility.md](../reference/graphics-mod-compatibility.md)).
 

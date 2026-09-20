@@ -848,15 +848,35 @@ namespace ReDefinition.Upscaler
         // fullscreen", and they "will become "not yet created" again, you can check
         // for that with IsCreated function" (ScriptReference, RenderTexture, 2019.4).
         // The rig is rebuilt rather than handing on pointers to what is gone.
+        private int nativeChecked;
+
         private bool TexturesCreated()
         {
-            return Created(lowRes) && (PassThrough || Created(upscaled)) && Created(motionVectors) && Created(depthCopy)
-                   && Created(hudLessCopy) && (dlssSharpener == null || Created(dlssSharpener.Input));
+            if (!(Created(lowRes) && (PassThrough || Created(upscaled)) && Created(motionVectors)
+                  && Created(depthCopy) && Created(hudLessCopy)
+                  && (dlssSharpener == null || Created(dlssSharpener.Input))))
+                return false;
+
+            // IsCreated() is true for a texture Direct3D never made or has lost
+            // (see Made). The native handle settles it, but asking for it
+            // synchronises with the render thread, so it is asked about once a
+            // second rather than in every frame: a lost texture costs that second
+            // before the rig is rebuilt, not a black screen that stays.
+            if (Time.frameCount - nativeChecked < 60) return true;
+            nativeChecked = Time.frameCount;
+            return Native(lowRes) && (PassThrough || Native(upscaled)) && Native(motionVectors)
+                   && Native(depthCopy) && Native(hudLessCopy)
+                   && (dlssSharpener == null || Native(dlssSharpener.Input));
         }
 
         private static bool Created(RenderTexture texture)
         {
             return texture != null && texture.IsCreated();
+        }
+
+        private static bool Native(RenderTexture texture)
+        {
+            return texture != null && texture.GetNativeTexturePtr() != IntPtr.Zero;
         }
 
         // The add-on builds the new rig in its next Update; until then the frame

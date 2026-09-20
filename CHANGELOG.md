@@ -10,7 +10,8 @@
   Reported from the game after a scene change under memory pressure, where switching the
   upscaler off and on brought the picture back. The rig now asks for the native handle,
   its set-up fails where a texture is missing, and the upscaler comes back by itself
-  once the memory does.
+  once the memory does. A texture lost while the rig runs is caught the same way, about
+  once a second, and the rig is rebuilt.
 
 ### Changed
 
