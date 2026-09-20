@@ -59,6 +59,7 @@ registrations.
 |---|---|---|---|
 | **KSPCommunityFixes** | gotmachine, NathanKell, JonnyOThan, Phantomical, siimav, tobiasnmf (KSPModdingLibs) | MIT | The way to add a section to KSP's own settings dialog; what KSP's floating origin moves, and by how much (`FloatingOriginPerf`) |
 | **KerbalVR** | Vivero, jrbudda | MIT | The list of cameras that make up KSP's 3D image |
+| **Astrogator** | HebaruSan | GPL-3.0 | How a toolbar button gets the tooltip KSP's own buttons have: a `TooltipController_Text` on the button's object with the game's `Tooltip_Text` prefab (`TooltipExtensions.cs`) |
 | **ClickThroughBlocker** | linuxgurugamer, chambm, HebaruSan, SteveBenz | LGPL-3.0 | How a per-save setting is made global (its `Global.cfg`); how a window keeps clicks from what lies behind it -- `ALLBUTCAMERAS` locked while the cursor is over one (its `FocusLock`), which this mod's windows do the same way |
 | **RemoteTech** | Peppie84, KSP-TaxiService, Starstrider42, neitsa, d4rksh4de, tomekpiotrowski (RemoteTechnologiesGroup) | GPL-2.0 | An options window of its own in the space centre |
 | **ZTheme** | zapSNH, OnlyLightMatters, Phantomical | GPL-3.0 | The UI baseline: the settings are built from KSP's own elements so that it themes them |

@@ -1,4 +1,7 @@
+using System;
 using KSP.UI.Screens;
+using KSP.UI.TooltipTypes;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -23,6 +26,9 @@ namespace ReDefinition.Window
 
         // The icon in GameData, without the extension, as KSP's GameDatabase holds it.
         private const string IconPath = "ReDefinition/Icons/ReDefinitionIcon";
+
+        // What the pointer shows over the button.
+        private const string Tooltip = "ReDefinition - Settings";
 
         private readonly Callback onClick;   // KSP's own delegate, not System.Action
         private ApplicationLauncherButton button;
@@ -78,6 +84,31 @@ namespace ReDefinition.Window
             }
 
             button = AddWith(drawn);
+            SetTooltip(button, Tooltip);
+        }
+
+        // The tooltip KSP's own buttons use: a controller on the button's object with
+        // the game's own prefab, as Astrogator's TooltipExtensions does it. Guarded:
+        // a build without that prefab loses the tooltip, not the button.
+        private static void SetTooltip(ApplicationLauncherButton target, string text)
+        {
+            if (target == null || target.gameObject == null) return;
+            try
+            {
+                Tooltip_Text prefab = AssetBase.GetPrefab<Tooltip_Text>("Tooltip_Text");
+                if (prefab == null) return;
+
+                TooltipController_Text tooltip = target.gameObject.GetComponent<TooltipController_Text>()
+                                                 ?? target.gameObject.AddComponent<TooltipController_Text>();
+                if (tooltip == null) return;
+                tooltip.prefab = prefab;
+                tooltip.textString = text;
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("toolbar-tooltip", "The toolbar button has no tooltip ("
+                                      + CompatibilityLog.Reason(e) + ").");
+            }
         }
 
         // The texture a mod ships, as Kopernicus loads its own: null where the file

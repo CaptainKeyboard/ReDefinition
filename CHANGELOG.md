@@ -4,6 +4,8 @@
 
 ### Changed
 
+- The toolbar button has a tooltip, *ReDefinition - Settings*, the kind KSP's own
+  buttons show.
 - **A toolbar icon of its own.** A bank of sliders in the stock toolbar's colours, which
   is what the button opens: every graphics mod's settings on one panel. It ships as
   `GameData/ReDefinition/Icons/ReDefinitionIcon.png`; where that file is missing, the
