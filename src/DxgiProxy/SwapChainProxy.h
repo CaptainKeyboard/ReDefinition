@@ -196,6 +196,11 @@ namespace redefinition
         HRESULT CreateSharedColour(UINT width, UINT height, DXGI_FORMAT format);
         void ReleaseSharedColour();
         HRESULT CopyAndPresent(UINT syncInterval, UINT flags);
+
+        // The frame presented as it stands where it could not be copied, so the
+        // picture never goes away: counted, and said now and then.
+        HRESULT PresentUncopied(UINT syncInterval, UINT flags, const char* why);
+        unsigned long long uncopiedPresents = 0;
         // The two halves of a Present's command list, shared by CopyAndPresent and
         // PresentWithStreamlineOff: this allocator's list reset once its last frame
         // is done, and -- after whatever else is recorded into it -- the shared

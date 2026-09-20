@@ -202,6 +202,17 @@ KSP's registration requires the same of KSP's V-Sync row while DLSS frame genera
 ([reference/requirements.md](../reference/requirements.md), R6 and R7), so the settings
 window offers only the intervals that apply.
 
+## A frame that cannot be copied
+
+Unity's Present reaches the proxy, which copies the frame into the Direct3D 12
+backbuffer before presenting it. Four things can end that copy early: no shared
+backbuffer, a wait that failed, a command list that could not be reset, and a copy that
+failed. Each used to return the error to Unity with nothing presented, and the picture
+stayed black or frozen with nothing to bring it back. Each now presents the swapchain
+as it stands (`SwapChainProxy::PresentUncopied`): the display holds the previous frame,
+the game is told the frame went out and goes on rendering, and the log counts the
+frames it happened to. A copy that works again ends it by itself.
+
 ## What the proxy writes about memory
 
 With every frame time report the proxy adds a line: what the game holds in memory and

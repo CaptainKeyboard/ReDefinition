@@ -510,21 +510,20 @@ namespace redefinition
             return text;
         }
 
-        // The adapter this process renders on, kept for as long as the monitor runs:
-        // enumerating it every time would be a factory per report.
+        // The adapter this process renders on, made and released within the call:
+        // a static one would be released at process exit, when DXGI may already be
+        // gone -- which ends the process in its own teardown. A factory every ten
+        // seconds costs nothing next to that.
         Microsoft::WRL::ComPtr<IDXGIAdapter3> VideoAdapter()
         {
-            static Microsoft::WRL::ComPtr<IDXGIAdapter3> adapter = []() {
-                Microsoft::WRL::ComPtr<IDXGIFactory1> factory;
-                Microsoft::WRL::ComPtr<IDXGIAdapter3> found;
-                if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))))
-                    return found;
-                Microsoft::WRL::ComPtr<IDXGIAdapter1> first;
-                if (SUCCEEDED(factory->EnumAdapters1(0, &first)))
-                    first.As(&found);
+            Microsoft::WRL::ComPtr<IDXGIFactory1> factory;
+            Microsoft::WRL::ComPtr<IDXGIAdapter3> found;
+            if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))))
                 return found;
-            }();
-            return adapter;
+            Microsoft::WRL::ComPtr<IDXGIAdapter1> first;
+            if (SUCCEEDED(factory->EnumAdapters1(0, &first)))
+                first.As(&found);
+            return found;
         }
     }
 

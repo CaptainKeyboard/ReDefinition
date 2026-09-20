@@ -283,6 +283,24 @@ namespace redefinition
                 + " -- nothing reaches the screen any more; KSP has to be restarted");
     }
 
+    // Every way out of the copy below leaves the frame unpresented: the display
+    // keeps what it has, Unity is told the Present failed, and the picture is
+    // black or frozen until something else puts it right. A frame that cannot be
+    // copied is better shown as the one before it, so the swapchain is presented
+    // as it stands and Unity is told the frame went out. The context lock is the
+    // copy path's, because Present is where interpolation is requested.
+    HRESULT SwapChainProxy::PresentUncopied(UINT syncInterval, UINT flags, const char* why)
+    {
+        ++uncopiedPresents;
+        if (uncopiedPresents == 1 || uncopiedPresents % 600 == 0)
+            LogLine(std::string("Frame not copied (") + why + "): presented as it stands, "
+                    + std::to_string(uncopiedPresents) + " so far. The picture holds the frame before it.");
+
+        std::lock_guard<std::mutex> fgLock(FrameGeneration::Get().ContextMutex());
+        const HRESULT hr = swapChain->Present(syncInterval, flags & ~static_cast<UINT>(DXGI_PRESENT_ALLOW_TEARING));
+        return SUCCEEDED(hr) ? S_OK : hr;
+    }
+
     HRESULT SwapChainProxy::CopyAndPresent(UINT syncInterval, UINT flags)
     {
         // A removed device first: every call below would fail and return early
@@ -297,7 +315,7 @@ namespace redefinition
         // Without Unity's backbuffer nothing of the frame is begun: no inputs
         // copied, no frame generation prepared for a Present that does not come.
         if (!HasSharedColour())
-            return DXGI_ERROR_INVALID_CALL;
+            return PresentUncopied(syncInterval, flags, "Unity's backbuffer is not shared");
 
         // Before the flush, so the copies go out with this frame's work. Unity
         // calls Present once everything it drew this frame is submitted, which
@@ -314,11 +332,11 @@ namespace redefinition
 
         HRESULT hr = WaitForUnityWork();
         if (FAILED(hr))
-            return hr;
+            return PresentUncopied(syncInterval, flags, "waiting for Unity's work failed");
 
         hr = ResetCommandList();
         if (FAILED(hr))
-            return hr;
+            return PresentUncopied(syncInterval, flags, "the command list could not be reset");
 
         // The API names the calls that must be externally synchronised, and
         // the swapchain's Present is one of them once a frame generation
@@ -385,7 +403,10 @@ namespace redefinition
 
         hr = CopySharedColourAndExecute();
         if (FAILED(hr))
-            return hr;
+        {
+            fgLock.unlock();
+            return PresentUncopied(syncInterval, flags, "the frame could not be copied");
+        }
 
         // Unity must not draw the next frame into the shared backbuffer until
         // the copy above has read it. That copy is done long before the

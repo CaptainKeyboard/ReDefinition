@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- **The picture never goes away while the proxy runs.** Every way out of the frame's
+  copy used to leave the frame unpresented and tell the game the Present had failed: the
+  screen stayed black or frozen with nothing to bring it back. The frame is now
+  presented as it stands, so the picture holds the previous frame for as long as the
+  copy fails, and the log counts it.
 - **A black screen where the upscaler's buffers could not be made.** Unity's
   `RenderTexture.Create()` answers true even where Direct3D refused the texture, so the
   rig was built on buffers that were not there and the cameras rendered into nothing.
