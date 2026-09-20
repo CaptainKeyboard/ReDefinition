@@ -2,8 +2,20 @@
 
 ## Unreleased
 
+### Fixed
+
+- **A black screen where the upscaler's buffers could not be made.** Unity's
+  `RenderTexture.Create()` answers true even where Direct3D refused the texture, so the
+  rig was built on buffers that were not there and the cameras rendered into nothing.
+  Reported from the game after a scene change under memory pressure, where switching the
+  upscaler off and on brought the picture back. The rig now asks for the native handle,
+  its set-up fails where a texture is missing, and the upscaler comes back by itself
+  once the memory does.
+
 ### Changed
 
+- The proxy writes a line about memory with every frame time report: what the game
+  holds, what Windows has left, and its video memory against the driver's budget.
 - The toolbar button has a tooltip, *ReDefinition - Settings*, the kind KSP's own
   buttons show.
 - **A toolbar icon of its own.** A bank of sliders in the stock toolbar's colours, which

@@ -490,7 +490,7 @@ namespace ReDefinition.Upscaler
                 name = name,
                 filterMode = FilterMode.Point,
             };
-            if (!texture.Create())
+            if (!texture.Create() || texture.GetNativeTexturePtr() == IntPtr.Zero)
             {
                 UpscalerRig.Release(ref texture);
                 return false;

@@ -265,6 +265,17 @@ fixed-resolution volumes and raymarching, reflection probes. Lowering KSP's own 
 without the mod changed nothing either. Hence *AA only* in every profile. **[open]** On
 hardware limited by pixel fill rate the smaller modes would pay, but that is not measured.
 
+## When a texture cannot be made
+
+**[meas] 2026-09-20.** `RenderTexture.Create()` answers true where Direct3D could not
+make the texture: Unity writes `D3D11: Failed to create RenderTexture ... 0x8007000e`
+into the log and carries on. A rig built on such textures redirects the cameras into
+nothing, and the player sees a black screen. The rig therefore asks for the native
+handle (`GetNativeTexturePtr`), which is null where the texture is not there, and its
+set-up fails instead. The add-on then tries again after a second, after five, and three
+times in all, so the upscaler comes back by itself once the memory does
+([reference/graphics-mod-compatibility.md](../reference/graphics-mod-compatibility.md)).
+
 ## Camera cuts
 
 The history is reset whenever the flight camera's target, its parent or the kerbal of the

@@ -261,6 +261,19 @@ namespace ReDefinition.Upscaler
             get { return cam; }
         }
 
+        // Unity's Create() answers true even where Direct3D could not make the
+        // texture: it writes "D3D11: Failed to create RenderTexture ... 0x8007000e"
+        // into the log and carries on. Measured in the game on 2026-09-20: the rig
+        // was set up on textures that were never made, the cameras were redirected
+        // into them, and the player got a black screen until the upscaler was
+        // switched off and on. The native handle is what says a texture is there.
+        private static bool Made(RenderTexture texture)
+        {
+            if (texture == null) return false;
+            if (!texture.Create() && !texture.IsCreated()) return false;
+            return texture.GetNativeTexturePtr() != IntPtr.Zero;
+        }
+
         public bool Setup(Camera target, Fsr3UpscalerShaders shaders)
         {
             cam = target;
@@ -308,9 +321,10 @@ namespace ReDefinition.Upscaler
                 RenderTextureReadWrite.Default);
             lowRes.name = "ReDefinition_LowRes";
             lowRes.filterMode = FilterMode.Bilinear;
-            if (!lowRes.Create())
+            if (!Made(lowRes))
             {
-                Status = "RenderTexture " + renderSize.x + "x" + renderSize.y + " could not be created.";
+                Status = "RenderTexture " + renderSize.x + "x" + renderSize.y
+                         + " could not be created -- memory, most likely.";
                 return false;
             }
 
@@ -322,9 +336,9 @@ namespace ReDefinition.Upscaler
                 upscaled.name = "ReDefinition_Upscaled";
                 upscaled.enableRandomWrite = true;   // FSR writes into it via UAV
                 upscaled.filterMode = FilterMode.Bilinear;
-                if (!upscaled.Create())
+                if (!Made(upscaled))
                 {
-                    Status = "Output texture could not be created.";
+                    Status = "Output texture could not be created -- memory, most likely.";
                     return false;
                 }
             }
@@ -339,9 +353,9 @@ namespace ReDefinition.Upscaler
             depthCopy.name = "ReDefinition_Depth";
             depthCopy.filterMode = FilterMode.Point;
 
-            if (!motionVectors.Create() || !depthCopy.Create())
+            if (!Made(motionVectors) || !Made(depthCopy))
             {
-                Status = "Depth and motion vector buffers could not be created.";
+                Status = "Depth and motion vector buffers could not be created -- memory, most likely.";
                 return false;
             }
 
@@ -351,9 +365,9 @@ namespace ReDefinition.Upscaler
                 RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
             hudLessCopy.name = "ReDefinition_HudLess";
             hudLessCopy.filterMode = FilterMode.Point;
-            if (!hudLessCopy.Create())
+            if (!Made(hudLessCopy))
             {
-                Status = "HUD-less texture could not be created.";
+                Status = "HUD-less texture could not be created -- memory, most likely.";
                 return false;
             }
 

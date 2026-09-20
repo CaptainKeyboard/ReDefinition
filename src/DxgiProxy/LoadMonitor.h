@@ -32,6 +32,10 @@ namespace redefinition
         void SetAllowed(bool allowed);
         bool Allowed() const { return allowed.load(); }
 
+        // Into the log with every report: what the game holds, what Windows has
+        // left, and this process's video memory against its budget.
+        void ReportMemory();
+
         // The game's main thread, named by the mod from that thread.
         void RegisterMainThread();
 

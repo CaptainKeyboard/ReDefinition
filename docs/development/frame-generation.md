@@ -202,6 +202,15 @@ KSP's registration requires the same of KSP's V-Sync row while DLSS frame genera
 ([reference/requirements.md](../reference/requirements.md), R6 and R7), so the settings
 window offers only the intervals that apply.
 
+## What the proxy writes about memory
+
+With every frame time report the proxy adds a line: what the game holds in memory and
+has committed, how much Windows has free and how much is left to commit, and this
+process's video memory against the budget the driver gives it
+(`LoadMonitor::ReportMemory`, `GetProcessMemoryInfo`, `GlobalMemoryStatusEx`,
+`IDXGIAdapter3::QueryVideoMemoryInfo`). A texture that cannot be made ends a run, and
+the log should say which of the three ran out rather than leaving it to be guessed.
+
 ## Measured
 
 **The proxy presenting through Direct3D 12 without frame generation [meas]**, in flight,

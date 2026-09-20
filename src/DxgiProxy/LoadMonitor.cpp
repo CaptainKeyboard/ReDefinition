@@ -2,8 +2,11 @@
 
 #include "Log.h"
 
+#include <dxgi1_4.h>
 #include <pdh.h>
 #include <pdhmsg.h>
+#include <psapi.h>
+#include <wrl/client.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -456,6 +459,13 @@ namespace redefinition
                     sinceCollect = 0.0;
                 }
 
+                // What the game holds: its own memory, what Windows has left, and
+                // this process's video memory against the budget the driver gives
+                // it. A frame's texture that cannot be made (E_OUTOFMEMORY) is the
+                // end of the run, and the log should say which of the three ran out.
+                if (windowEnds)
+                    ReportMemory();
+
                 {
                     std::lock_guard<std::mutex> lock(mutex);
                     latest = sample;
@@ -486,5 +496,67 @@ namespace redefinition
             {
             }
         }
+    }
+}
+
+namespace redefinition
+{
+    namespace
+    {
+        std::string Gigabytes(unsigned long long bytes)
+        {
+            char text[32] = {};
+            FormatTo(text, "%.1f", static_cast<double>(bytes) / (1024.0 * 1024.0 * 1024.0));
+            return text;
+        }
+
+        // The adapter this process renders on, kept for as long as the monitor runs:
+        // enumerating it every time would be a factory per report.
+        Microsoft::WRL::ComPtr<IDXGIAdapter3> VideoAdapter()
+        {
+            static Microsoft::WRL::ComPtr<IDXGIAdapter3> adapter = []() {
+                Microsoft::WRL::ComPtr<IDXGIFactory1> factory;
+                Microsoft::WRL::ComPtr<IDXGIAdapter3> found;
+                if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))))
+                    return found;
+                Microsoft::WRL::ComPtr<IDXGIAdapter1> first;
+                if (SUCCEEDED(factory->EnumAdapters1(0, &first)))
+                    first.As(&found);
+                return found;
+            }();
+            return adapter;
+        }
+    }
+
+    void LoadMonitor::ReportMemory()
+    {
+        std::string line = "Memory: ";
+
+        PROCESS_MEMORY_COUNTERS_EX counters = {};
+        counters.cb = sizeof(counters);
+        if (GetProcessMemoryInfo(GetCurrentProcess(),
+                                 reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters), sizeof(counters)))
+            line += "the game holds " + Gigabytes(counters.WorkingSetSize) + " GB in memory, "
+                    + Gigabytes(counters.PrivateUsage) + " GB committed";
+        else
+            line += "the game's own use is unknown";
+
+        MEMORYSTATUSEX status = {};
+        status.dwLength = sizeof(status);
+        if (GlobalMemoryStatusEx(&status))
+            line += "; Windows has " + Gigabytes(status.ullAvailPhys) + " GB of "
+                    + Gigabytes(status.ullTotalPhys) + " GB free, "
+                    + Gigabytes(status.ullAvailPageFile) + " GB left to commit";
+
+        Microsoft::WRL::ComPtr<IDXGIAdapter3> adapter = VideoAdapter();
+        if (adapter)
+        {
+            DXGI_QUERY_VIDEO_MEMORY_INFO video = {};
+            if (SUCCEEDED(adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &video)))
+                line += "; video memory " + Gigabytes(video.CurrentUsage) + " GB of "
+                        + Gigabytes(video.Budget) + " GB budget";
+        }
+
+        LogLine(line);
     }
 }

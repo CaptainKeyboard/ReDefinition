@@ -436,7 +436,7 @@ namespace ReDefinition.Upscaler
                 {
                     name = "ReDefinition_TufxAfterFsr",
                 };
-                if (!output.Create())
+                if (!output.Create() || output.GetNativeTexturePtr() == IntPtr.Zero)
                 {
                     UpscalerRig.Release(ref output);
                     Stop("its output texture could not be created");
@@ -480,7 +480,8 @@ namespace ReDefinition.Upscaler
                 name = "ReDefinition_TufxMotionVectors",
                 filterMode = FilterMode.Point,
             };
-            if (motionAtDisplaySize.Create()) return true;
+            if (motionAtDisplaySize.Create() && motionAtDisplaySize.GetNativeTexturePtr() != IntPtr.Zero)
+                return true;
             UpscalerRig.Release(ref motionAtDisplaySize);
             return false;
         }
