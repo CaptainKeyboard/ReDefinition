@@ -284,6 +284,13 @@ namespace ReDefinition
                 hostStackMessage = HostStack.Restore();
         }
 
+        // The toolbar's front, asked for again whenever the launcher is looked at
+        // (ModWindowsAddon).
+        internal void KeepToolbarButtonFirst()
+        {
+            if (toolbarButton != null) toolbarButton.KeepFirst();
+        }
+
         // The hotkeys as the player set them (OwnSettings, the Keys tab).
         // While a row is listening for a key, none of them fires.
         private void HandleHotkeys()

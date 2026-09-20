@@ -39,7 +39,7 @@ uses its own layer and the layers below it, never one above.
 | 3 | `src/Bridges` | `ReDefinition.Bridges` | the managed side of the proxy |
 | 3 | `src/Shared` | `ReDefinition.Shared` | the frame's state and hooks behind the interface for mods |
 | 4 | `src/` | `ReDefinition` | the add-on, ReDefinition's own settings and modules |
-| 4 | `src/Window` | `ReDefinition.Window` | the settings window, the *Keys* tab, the toolbar, the other mods' windows |
+| 4 | `src/Window` | `ReDefinition.Window` | the settings window, the *Keys* tab, the toolbar, KSP's settings dialog and pause menu, the other mods' windows |
 | 4 | `src/Api` | `ReDefinition.Api` | the public interface for mods |
 
 ## How a lower layer reaches a higher one
@@ -207,7 +207,9 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | `SettingsWindow.cs`, `TabScrollList.cs` | the settings window's view, from KSP's dialog elements |
 | `SettingsWindow.Keys.cs`, `KeyCapture.cs`, `Conflicts.cs`, `KspKeyBindings.cs` | the *Keys* tab: the rows that take a combination, the capture with KSP's controls locked, the shared combinations shown in yellow, and KSP's own bindings read from `GameSettings` |
 | `KspSettingsSection.cs` | the section in KSP's settings dialog, through Harmony postfixes on `VideoSettings` |
-| `ToolbarButton.cs` | the toolbar button |
+| `PauseMenuEntry.cs` | the *ReDefinition* entry in the menu Escape opens, through a Harmony postfix on `PauseMenu.draw()` |
+| `WindowPause.cs` | the pause button at the top of the settings window, and the flight held while the window stands |
+| `ToolbarButton.cs` | the toolbar button, its tooltip, and its place at the front of the row |
 | `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable; the main menu's first question |
 | `ModWindowClose.cs` | the close button on a mod's own settings window, and knowing whether that window is open |
 | `ModWindowsAddon.cs` | when: the close buttons installed, the toolbar looked at, the open settings window following a change made in another window |

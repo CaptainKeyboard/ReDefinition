@@ -16,8 +16,9 @@ and frame generation are off, and every mod keeps its own settings.
 
 | Way | Where |
 |---|---|
-| ReDefinition's toolbar button | every scene, the main menu included |
-| KSP's own settings dialog | *Settings* in the pause menu of flight and of the space centre, at the end of its graphics part |
+| ReDefinition's toolbar button | every scene, the main menu included; it is the first button of the row |
+| The *ReDefinition* entry in the pause menu | what Escape opens in flight and in the space centre, under KSP's own entries |
+| KSP's own settings dialog | *Settings* in the pause menu, at the end of its graphics part: the rows there, and *All settings* for this window |
 | A hotkey | once you set one in the *Keys* tab; none is bound at first |
 
 The four hotkeys you can set are in the *Keys* tab, in this order: *Upscaler on or
@@ -29,6 +30,14 @@ it and closes, *Cancel* closes without setting anything. Clicks on the window do
 reach the scene behind it.
 
 *Reset to defaults* is at the bottom left, beside those three, on every tab.
+
+## The pause button
+
+In flight, the button at the top right holds the flight while the window is open. It
+shows two bars while the flight runs and a triangle while it is held, so it shows what
+a click does. Closing the window lets the flight go on as it was: a pause you set with
+Escape stays. Outside flight there is nothing to hold and the button is dead. Your
+choice is kept for the next time you open the window.
 
 ## The tabs
 

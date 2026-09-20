@@ -27,6 +27,10 @@ namespace ReDefinition
         private bool jitter = true;
         private bool compensateLodBias = true;
         private bool disableMsaa = true;
+
+        // The settings window's own: it holds the flight while it is open
+        // (WindowPause). Not a graphics setting, so nothing is rebuilt for it.
+        private bool pauseWhileOpen;
         private bool forceAnisotropic = true;
         // FSR's own exposure for its internal tonemapping, as AMD recommends
         // (UpscalerRig.AutoExposure).
@@ -75,6 +79,7 @@ namespace ReDefinition
             mipmapBias = loaded.MipmapBias;
             compensateLodBias = loaded.CompensateLodBias;
             disableMsaa = loaded.DisableMsaa;
+            pauseWhileOpen = loaded.PauseWhileOpen;
             forceAnisotropic = loaded.ForceAnisotropic;
             tufxAfterUpscaling = loaded.TufxAfterUpscaling;
             transparencyMask = loaded.TransparencyMask;
@@ -138,6 +143,7 @@ namespace ReDefinition
             settings.MipmapBias = mipmapBias;
             settings.CompensateLodBias = compensateLodBias;
             settings.DisableMsaa = disableMsaa;
+            settings.PauseWhileOpen = pauseWhileOpen;
             settings.ForceAnisotropic = forceAnisotropic;
             settings.TufxAfterUpscaling = tufxAfterUpscaling;
             settings.TransparencyMask = transparencyMask;
@@ -224,6 +230,12 @@ namespace ReDefinition
             compensateLodBias = value;
             if (rig != null) { rig.CompensateLodBias = compensateLodBias; rig.RefreshQualityOverrides(); }
             Debug.Log(Log.Tag + " LOD bias compensation " + (compensateLodBias ? "on" : "off"));
+        }
+
+        internal bool PauseWhileOpen
+        {
+            get { return pauseWhileOpen; }
+            set { pauseWhileOpen = value; }
         }
 
         private void SetDisableMsaa(bool value)

@@ -20,6 +20,18 @@
 
 ### Changed
 
+- **The window opens from the menu Escape opens.** A *ReDefinition* entry stands there
+  under KSP's own, and *All settings* in ReDefinition's section of KSP's settings dialog
+  opens the same window. The toolbar is hidden while that menu is up, so this is the way
+  in mid-flight.
+- **A pause button at the top of the settings window**, in symbols rather than words: two
+  bars while the flight runs, a triangle while the window holds it. It holds the flight
+  for as long as the window is open and then lets it go on as it was, so a pause set with
+  Escape is not lifted by closing the window. In flight only, and the choice is kept for
+  the next time the window opens.
+- **ReDefinition's toolbar button goes first.** Only its own entry is moved, in what the
+  launcher shows and in the list the launcher keeps; no other button is read or moved,
+  and a failure leaves the toolbar as it was.
 - The proxy writes a line about memory with every frame time report: what the game
   holds, what Windows has left, how much the game may still commit against its own
   limit, and its video memory against the driver's budget. Once at the start it also

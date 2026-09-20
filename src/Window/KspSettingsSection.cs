@@ -218,16 +218,37 @@ namespace ReDefinition.Window
             Value = ValueWidth,
         };
 
-        // For KSP's own dialog, under a heading of its own.
+        // For KSP's own dialog, under a heading of its own and over a button to
+        // the settings window, where the bundled mods' rows, the profiles and the
+        // key bindings are. This dialog holds ReDefinition's own rows only.
         internal static DialogGUIBase[] Rows(Edit edit, bool header = true)
         {
             DialogGUIBase[] rows = Rows(edit, DialogLayout);
             if (!header) return rows;
 
-            DialogGUIBase[] withHeader = new DialogGUIBase[rows.Length + 1];
+            DialogGUIButton all = new DialogGUIButton("All settings ...", OpenWindow, ControlWidth, RowHeight + 6f, false);
+            all.tooltipText = "The window with the graphics mods' settings, the profiles and the key bindings.";
+
+            DialogGUIBase[] withHeader = new DialogGUIBase[rows.Length + 2];
             withHeader[0] = new DialogGUIBox("ReDefinition", -1f, RowHeight, null);
             Array.Copy(rows, 0, withHeader, 1, rows.Length);
+            withHeader[rows.Length + 1] = new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(),
+                TextAnchor.MiddleLeft, new DialogGUISpace(NameWidth), all);
             return withHeader;
+        }
+
+        // The dialog stays where it is: closing the window leaves the player in
+        // KSP's settings, as they were.
+        private static void OpenWindow()
+        {
+            try
+            {
+                if (!SettingsWindow.Visible) SettingsWindow.Toggle();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " The settings window could not be opened from KSP's dialog: " + e);
+            }
         }
 
         // Shared with the settings window, which lays them out its own way: every

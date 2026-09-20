@@ -110,6 +110,8 @@ namespace ReDefinition.Window
 
         public static void Close()
         {
+            // The flight goes on as it was before this window held it.
+            WindowPause.Release();
             // A row still listening would keep the game's controls locked.
             KeyCapture.Stop();
             if (dialog != null) dialog.Dismiss();
@@ -145,8 +147,10 @@ namespace ReDefinition.Window
                 {
                     dialog = null;
                     KeyCapture.Stop();
+                    WindowPause.Release();
                 };
                 UnityMouseEvents.Shield(dialog);
+                WindowPause.Refresh();
             }
             catch (Exception e)
             {
@@ -243,6 +247,8 @@ namespace ReDefinition.Window
 
             return new DialogGUIBase[]
             {
+                new DialogGUIHorizontalLayout(WindowWidth - 20f, 26f, 0f, new RectOffset(),
+                    TextAnchor.MiddleRight, new DialogGUIFlexibleSpace(), WindowPause.Button()),
                 new DialogGUIHorizontalLayout(WindowWidth - 20f, PageHeight, 8f, new RectOffset(),
                     TextAnchor.UpperLeft, tabList, scroll),
                 new DialogGUIHorizontalLayout(

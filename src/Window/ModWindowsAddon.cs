@@ -50,11 +50,22 @@ namespace ReDefinition.Window
         private void OnLevelReady(GameScenes scene)
         {
             ToolbarTakeover.Refresh();
+            KeepOurButtonFirst();
         }
 
         private void OnLauncherReady()
         {
             ToolbarTakeover.Refresh();
+            KeepOurButtonFirst();
+        }
+
+        // A mod that adds its button after this scene's launcher was ready puts
+        // itself behind ours, but one that rebuilds the row can move ours along,
+        // so the front is asked for again whenever the toolbar is looked at.
+        private static void KeepOurButtonFirst()
+        {
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon != null) addon.KeepToolbarButtonFirst();
         }
 
         private void Update()

@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Reflection;
 using System;
 using KSP.UI.Screens;
 using KSP.UI.TooltipTypes;
@@ -85,6 +87,46 @@ namespace ReDefinition.Window
 
             button = AddWith(drawn);
             SetTooltip(button, Tooltip);
+            KeepFirst();
+        }
+
+        // ReDefinition's button at the front of the toolbar, in what the launcher
+        // shows and in the list it keeps. Only this mod's own entry is moved: it
+        // is taken out of the list and put in at the front, and its object is made
+        // the first child of the row. No other button is read, moved or removed,
+        // and a failure leaves the toolbar as it was.
+        //
+        // KSP adds a mod's button in the order the mods ask for it, which is their
+        // load order. Mods that add theirs later end up behind this one; one that
+        // moves its own the same way wins the front until the next pass here.
+        internal void KeepFirst()
+        {
+            if (button == null) return;
+
+            try
+            {
+                if (button.gameObject != null && button.gameObject.transform != null
+                    && button.gameObject.transform.GetSiblingIndex() != 0)
+                    button.gameObject.transform.SetAsFirstSibling();
+
+                ApplicationLauncher launcher = ApplicationLauncher.Instance;
+                if (launcher == null) return;
+
+                FieldInfo field = typeof(ApplicationLauncher).GetField("appListMod",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                IList list = field != null ? field.GetValue(launcher) as IList : null;
+                if (list == null || list.Count < 2) return;
+
+                int at = list.IndexOf(button);
+                if (at <= 0) return;
+                list.RemoveAt(at);
+                list.Insert(0, button);
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("toolbar-first", "ReDefinition's toolbar button could not be moved to the front ("
+                                      + CompatibilityLog.Reason(e) + "); it stays where the launcher put it.");
+            }
         }
 
         // The tooltip KSP's own buttons use: a controller on the button's object with
