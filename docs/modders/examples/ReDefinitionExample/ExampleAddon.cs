@@ -36,9 +36,15 @@ namespace ReDefinitionExample
         private RenderTexture darkened;
         private readonly RenderTexture[] read = new RenderTexture[1];
         private readonly RenderTexture[] write = new RenderTexture[1];
+        // The compute pass's constants: how far the edges are darkened, from this
+        // mod's own settings (SettingsBridge).
         private readonly float[] parameters = { 0.35f, 0f, 0f, 0f };
         private readonly byte[] constants = new byte[16];
         private bool dispatchRefusalLogged;
+        private bool overlay = true;
+
+        // The one in the scene, for a setting changed while it runs.
+        private static ExampleAddon instance;
 
         private Action<CommandBuffer, Camera> drawOverlay;
         private Action<CommandBuffer, RenderTexture, Camera> darken;
@@ -46,6 +52,7 @@ namespace ReDefinitionExample
 
         private void Start()
         {
+            instance = this;
             if (!ReDefinitionApi.Installed)
             {
                 Debug.Log(Tag + " ReDefinition is not installed; nothing to show.");
@@ -61,6 +68,8 @@ namespace ReDefinitionExample
             lineMaterial.SetInt("_ZWrite", 0);
 
             // Delegates made once: a method group makes a new one each time.
+            ApplySettings();
+
             drawOverlay = DrawOverlay;
             darken = Darken;
             logReset = LogReset;
@@ -101,10 +110,22 @@ namespace ReDefinitionExample
                    && Input.GetKeyDown(KeyCode.J);
         }
 
+        // A setting changed, here or in ReDefinition's window.
+        internal static void SettingsChanged()
+        {
+            if (instance != null) instance.ApplySettings();
+        }
+
+        private void ApplySettings()
+        {
+            parameters[0] = SettingsBridge.Number("edgeDarkening", 0.35f);
+            overlay = SettingsBridge.Flag("overlay", true);
+        }
+
         private void DrawOverlay(CommandBuffer buffer, Camera scene)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
-            if (vessel == null)
+            if (vessel == null || !overlay)
                 return;
 
             lineVertices[0] = vessel.CurrentCoM;
@@ -160,6 +181,7 @@ namespace ReDefinitionExample
 
         private void OnDestroy()
         {
+            if (instance == this) instance = null;
             if (drawOverlay != null) ReDefinitionApi.UnregisterOverlay(drawOverlay);
             if (darken != null) ReDefinitionApi.UnregisterAfterUpscaling(darken);
             if (logReset != null) ReDefinitionApi.UnregisterHistoryReset(logReset);

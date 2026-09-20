@@ -61,6 +61,13 @@ namespace ReDefinition.Settings
         {
         }
 
+        // Whether values reach the mod's files through this behaviour, for a
+        // registration that says they are kept there.
+        internal virtual bool Saves
+        {
+            get { return true; }
+        }
+
         public virtual void InstallHooks(RegisteredMod mod)
         {
         }

@@ -20,8 +20,10 @@ delegate: a call costs what a direct call costs, without allocating.
 
 **An example mod** uses each part once, through the wrapper:
 [examples/ReDefinitionExample](examples/ReDefinitionExample) -- a line from the vessel as an
-overlay, a compute pass that darkens the upscaled image, and a reported camera jump
-(`RightCtrl` + `RightShift` + `J` in flight). It is built with ReDefinition's solution;
+overlay, a compute pass that darkens the upscaled image, a reported camera jump, and two
+settings of its own in ReDefinition's window, which it reads and saves itself
+(`SettingsBridge.cs`, [registering-a-mod.md](registering-a-mod.md)). It is built with
+ReDefinition's solution;
 copy `ReDefinitionExample.dll` and `ExampleEffect.hlsl` from
 `build/examples/ReDefinitionExample` into `GameData/ReDefinitionExample` to try it.
 

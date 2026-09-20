@@ -58,6 +58,7 @@ ModuleManager's `@` instead.
 | `window` | no | -- | `Namespace.Type.Method` that draws your own IMGUI settings window (`GUILayout.Window` or `GUI.Window`): the window gets an *Advanced* button for it, and a close button while your toolbar button is hidden. |
 | `button` | no | -- | The name of the assembly your toolbar button's click handler lives in: that button is hidden while your settings are in ReDefinition's window. Only together with `window`, whose method the player then reaches through the *Advanced* button; a `button` without `window` is reported, and the button stays. |
 | `toolbarControl` | no | -- | The namespace your button registers with in ToolbarControl, where you make it that way. Like `button`, only together with `window`. |
+| `behaviour` | no | -- | Code that answers for the settings a member path cannot reach: a type of your own, with its namespace, or one of ReDefinition's own names (*Behaviours* below). |
 | `tab` | no | -- | Where your *Advanced* button goes: `General`, `ShadowsAndReflections`, `Planets` or `Effects`. |
 
 ## A setting
@@ -65,7 +66,7 @@ ModuleManager's `@` instead.
 | Key | Needed | Left out | What it does |
 |---|---|---|---|
 | `name` | yes | -- | The second part of the setting's key -- **never change it** either. |
-| `member` | yes, but with `leftOut` | -- | Where the value lives: a member path (below). |
+| `member` | yes, but with `leftOut` or a `behaviour` | -- | Where the value lives: a member path (below). Without one, the mod's `behaviour` answers for the setting. |
 | `title` | no | `name` | The row's name. |
 | `tooltip` | no | -- | What the setting does, for the row's tooltip; `\n` starts a new line. |
 | `default` | recommended | -- | The value your release ships, as a config file writes it (`True`, `0.5`, `High`). *Reset to defaults* sets it, and the graphics profiles start from it. |
@@ -86,6 +87,7 @@ ModuleManager's `@` instead.
 | `perSave` | no | as the mod's `saving` | `False` for a setting your mod keeps for the game as a whole while the others are per save. |
 | `leftOutWith` | no | -- | The `name` of another registered mod: while that one is loaded -- bundled or not -- this setting is left out: its own code holds the setting. |
 | `rowUnless` | no | -- | The `name` of another registered mod: while that one is installed the row is not shown, the setting still is kept. |
+| `behaviour` | no | the mod's | Code for this setting alone (*Behaviours* below). |
 
 The mod's `title` and a setting's `title`, `tooltip` and `labels` may be
 localization tags -- KSP's own `#autoLOC_...` or your mod's `#LOC_...` from its
@@ -285,12 +287,70 @@ build is picked with `:HAS[#build[volumetric]]`, the one for every build with
 ## Behaviours
 
 Some mods keep their settings in ways a path cannot reach -- per scene, in a
-config node besides the running object, behind hooks. ReDefinition handles those
-of the mods it ships registrations for with behaviours, classes in ReDefinition's
-own assembly, named with `behaviour =` on the mod or a setting. A registration can
-name only a behaviour ReDefinition has; with any other name the mod is left out as
-a whole, with the reason in the log. A mod whose settings need code of their own
-to be read or set cannot be registered with a config file alone.
+config node besides the running object, behind hooks. `behaviour =`, on the mod or
+on one setting, names the code that answers for them. It takes two kinds of name:
+
+* **a type of your own**, written with its namespace (`behaviour = MyMod.SettingsBridge`):
+  a class in your mod's folder that ReDefinition asks for those settings. This is
+  the way for your own mod.
+* **one of ReDefinition's**, a bare name (`Tufx`, `Scatterer`): the classes
+  ReDefinition has for the mods it ships registrations for, whose authors are not
+  involved. A bare name it does not have leaves the mod out as a whole, with the
+  reason in the log.
+
+### A type of your own
+
+Its members are found by name, so your mod needs no reference to ReDefinition and
+runs without it:
+
+```csharp
+namespace MyMod
+{
+    public class SettingsBridge
+    {
+        // Needed. The value as text, exactly as a config file writes it; null
+        // where it cannot be read now.
+        public string Read(string name) { ... }
+
+        // Needed. bool may be returned instead of void.
+        public void Write(string name, string value) { ... }
+
+        // Whether your mod can take values now, as `ready` says it for a path.
+        public bool Ready { get { ... } }
+
+        // As your own window saves, called before a `save` the registration names.
+        public void Save() { ... }
+
+        // A list only the running mod knows -- for a setting whose value is text,
+        // and which has no `choices` and no `min`/`max`. null: no list.
+        public string[] Choices(string name) { ... }
+
+        // The version of your mod, where the registration cannot tell it.
+        public string Version { get { ... } }
+    }
+}
+```
+
+`Read` and `Write` are needed, the rest is optional. A `Write` that returns `false`
+has refused the value: ReDefinition says so and keeps it. Each member may be a property, a
+field or a method, and static members are called on the type. For members that are
+not static, a static `Instance` -- property or field -- is used where your type has
+one, and where it has none ReDefinition makes the type once through its
+parameterless constructor.
+
+Every setting of your registration **without** a `member` goes through it, by its
+`name`; a setting with a `member` keeps its path, and a `KEY` block without a member
+stays ReDefinition's to keep. Give every setting it answers for a `default`: its row
+follows that value's shape. `Ready` gates all of your settings, paths included, and
+`saving = InModFiles` needs either `save` or a `Save` here. Its control follows the
+registration as everywhere else: `choices` or `min`/`max` where they stand, and
+otherwise the shape of `default` -- `True`/`False` a switch, a number a number,
+anything else text. A build without `Read` and `Write`, or without the type at all,
+leaves the mod out as a whole with the reason in the log.
+
+`docs/modders/examples/ReDefinitionExample/SettingsBridge.cs` is such a type, built
+with ReDefinition's solution: two settings in a config file of the mod's own, read,
+set and saved from there, with the running effect told about a change.
 
 ## When your mod changes
 
@@ -309,8 +369,9 @@ ignored and its default stands; a setting without its `name` or `member`, or
 whose member is not there, is left out, and the rest of your mod stays in.
 Your mod is left out as a whole where a `required` setting's member, one of
 `needs`, the `save` method or the `ready` member is missing, where `detect` is
-missing while your mod's assembly is loaded, or where `behaviour` names none of
-ReDefinition's. A registration without `name` or `detect` is skipped. A key given
+missing while your mod's assembly is loaded, or where `behaviour` names neither a
+type of your mod with `Read` and `Write` nor one of ReDefinition's own names. A
+registration without `name` or `detect` is skipped. A key given
 twice counts with its last value, and that is reported too -- it is usually a
 patch that meant to change the first.
 

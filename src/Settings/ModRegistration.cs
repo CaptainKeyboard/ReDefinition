@@ -451,6 +451,14 @@ namespace ReDefinition.Settings
             setting.LeftOut = Text(Last(node, "leftOut", where, problems));
             // A binding without a member is ReDefinition's to keep: the mod asks
             // ReDefinition.Api whether it is pressed.
+            // A type of the mod itself answers with text and says nothing about the
+            // value's type, so its default is what the row's control follows.
+            // ReDefinition's own behaviours reach the member and know it.
+            string ownBehaviour = setting.Behaviour ?? mod.Behaviour;
+            if (!binding && setting.Member == null && setting.Default == null && setting.LeftOut == null
+                && ownBehaviour != null && ownBehaviour.IndexOf('.') >= 0)
+                problems.Add(where + ": a setting your behaviour answers for needs a default, so that its row knows"
+                             + " what it shows.");
             if (!binding && setting.Member == null && setting.Behaviour == null && mod.Behaviour == null
                 && setting.LeftOut == null)
             {

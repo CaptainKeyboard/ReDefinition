@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reflection;
 using System;
 using ReDefinition.Core;
+using ReDefinition.Settings.Behaviours;
 
 namespace ReDefinition.Settings
 {
@@ -22,6 +23,8 @@ namespace ReDefinition.Settings
         private readonly ModRegistration registration;
         private readonly ModFolder folder;
         private readonly Dictionary<string, ModBehaviour> behaviours = new Dictionary<string, ModBehaviour>();
+        // Why the last behaviour asked for is not there, for the line that drops it.
+        private string behaviourProblem;
         private readonly ModBehaviour modBehaviour;
         private readonly MemberPath save;
         private readonly MemberPath ready;
@@ -177,7 +180,7 @@ namespace ReDefinition.Settings
                 modBehaviour = MakeBehaviour(registration.Behaviour, where, problems);
                 if (modBehaviour == null)
                 {
-                    Drop(WholeMod, "no behaviour '" + registration.Behaviour + "' in this ReDefinition");
+                    Drop(WholeMod, behaviourProblem);
                     return;
                 }
                 // A behaviour that cannot hook in says why where it knows. The whole
@@ -237,6 +240,10 @@ namespace ReDefinition.Settings
                 return;
             }
             if (modBehaviour != null) modBehaviour.Complete(this);
+            if (registration.Saving == SettingsSaving.InModFiles && save == null
+                && (modBehaviour == null || !modBehaviour.Saves))
+                problems.Add(where + ": saving = InModFiles, but neither `save` nor a behaviour with a Save is"
+                             + " there -- what is set here would be gone at the next start.");
             FindUnknown();
             if (ready != null) WaitForReady();
             WindowFrom(where, problems);
@@ -380,7 +387,7 @@ namespace ReDefinition.Settings
                 behaviour = MakeBehaviour(entry.Behaviour, where, problems);
                 if (behaviour == null)
                 {
-                    Drop(entry.Name, "no behaviour '" + entry.Behaviour + "' in this ReDefinition");
+                    Drop(entry.Name, behaviourProblem);
                     return;
                 }
             }
@@ -860,12 +867,23 @@ namespace ReDefinition.Settings
             return !(value is bool) || (bool)value;
         }
 
+        // One of ReDefinition's own behaviours by its name, or -- where the name
+        // holds a dot -- a type of the mod itself (ProvidedSettings).
         private ModBehaviour MakeBehaviour(string name, string where, List<string> problems)
         {
             ModBehaviour behaviour;
             if (behaviours.TryGetValue(name, out behaviour)) return behaviour;
-            behaviour = ModBehaviours.Create(name);
-            if (behaviour == null) problems.Add(where + ": no behaviour '" + name + "' in this ReDefinition -- left out.");
+            if (name.IndexOf('.') >= 0)
+            {
+                behaviour = ProvidedSettings.For(name, folder, out behaviourProblem);
+                if (behaviour == null) problems.Add(where + ": behaviour: " + behaviourProblem + " -- left out.");
+            }
+            else
+            {
+                behaviour = ModBehaviours.Create(name);
+                behaviourProblem = "no behaviour '" + name + "' in this ReDefinition";
+                if (behaviour == null) problems.Add(where + ": " + behaviourProblem + " -- left out.");
+            }
             behaviours[name] = behaviour;
             return behaviour;
         }
