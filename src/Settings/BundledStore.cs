@@ -96,6 +96,24 @@ namespace ReDefinition.Settings
             }
         }
 
+        // Whether a mod's toolbar button is hidden: with the bundling on, and
+        // unless the player kept that one button. What a mod's button is, and
+        // whether there is one to hide, is the window's question (ToolbarTakeover).
+        public bool HidesButton(string modId)
+        {
+            Load();
+            return state.Enabled && !state.ButtonKept.Contains(modId);
+        }
+
+        public void SetHidesButton(string modId, bool hide)
+        {
+            Load();
+            if (hide == !state.ButtonKept.Contains(modId)) return;
+            if (hide) state.ButtonKept.Remove(modId);
+            else state.ButtonKept.Add(modId);
+            Save();
+        }
+
         // Whether the main-menu notice has had an answer before.
         public bool AnyAsked
         {

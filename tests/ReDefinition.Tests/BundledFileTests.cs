@@ -39,6 +39,7 @@ namespace ReDefinition.Tests
             BundledLedger ledger = new BundledLedger();
             BundledState state = new BundledState { ProfileName = "high" };
             state.Asked.Add("scatterer");
+            state.ButtonKept.Add("tufx");
             ledger.Keep("waterfall.EnableLights", "False");
             ledger.SetBackup("", "ksp.SYNC_VBL", "1");
             ledger.MarkRestore("ksp.SYNC_VBL", true);
@@ -55,6 +56,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("False", value);
             Assert.AreEqual("high", readState.ProfileName);
             CollectionAssert.AreEqual(new[] { "scatterer" }, readState.Asked);
+            CollectionAssert.AreEqual(new[] { "tufx" }, readState.ButtonKept,
+                                      "a button the player kept stays kept over a restart");
             BundledLedger.Backup backup;
             Assert.IsTrue(read.TryBackup("", "ksp.SYNC_VBL", out backup));
             Assert.AreEqual("1", backup.Value);

@@ -13,6 +13,12 @@ namespace ReDefinition.Settings
         public bool Enabled = true;
         public readonly List<string> Asked = new List<string>();
         public string ProfileName = "";
+
+        // The mods whose toolbar button stays where it is, by id. Everything else
+        // with a button ReDefinition can open its window through is hidden while
+        // the bundling is on, so a mod installed later follows the rule rather
+        // than an old file.
+        public readonly List<string> ButtonKept = new List<string>();
     }
 
     // What the store needs of the game (docs/development/architecture.md):
@@ -93,6 +99,14 @@ namespace ReDefinition.Settings
 
                 state.ProfileName = node.GetValue("profile") ?? "";
 
+                string kept = node.GetValue("buttonsKept");
+                if (!string.IsNullOrEmpty(kept))
+                {
+                    foreach (string id in kept.Split(','))
+                        if (id.Trim().Length > 0 && !state.ButtonKept.Contains(id.Trim()))
+                            state.ButtonKept.Add(id.Trim());
+                }
+
                 // With the bundling off no value is kept to hand over.
                 ConfigNode values = state.Enabled ? node.GetNode(ValuesName) : null;
                 if (values != null)
@@ -127,6 +141,7 @@ namespace ReDefinition.Settings
                 node.AddValue("enabled", state.Enabled);
                 node.AddValue("asked", string.Join(",", state.Asked.ToArray()));
                 node.AddValue("profile", state.ProfileName);
+                node.AddValue("buttonsKept", string.Join(",", state.ButtonKept.ToArray()));
                 ConfigNode values = node.AddNode(ValuesName);
                 foreach (KeyValuePair<string, string> pair in ledger.StoredCopy())
                     values.AddValue(pair.Key, pair.Value);

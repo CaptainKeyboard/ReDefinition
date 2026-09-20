@@ -4,6 +4,12 @@
 
 ### Changed
 
+- **Which mods keep their toolbar button is now yours to pick.** *Mods / Toolbar* has
+  *Hide all from toolbar* and, under *Per mod*, one switch per mod, folded out like the
+  *Keys* tab's sections. A mod switched off keeps its button, and its settings stay in
+  ReDefinition's window. The main menu's panels offer the same switches. The choice is
+  kept in `bundled.cfg` as `buttonsKept`, so a mod installed later follows the rule
+  rather than an old file.
 - **Every graphics profile switches KSP's own antialiasing off**, as it already did for
   Scatterer's, TUFX's and Deferred's. The upscaler does the antialiasing, and MSAA
   resolves before the capture, which takes the smoothed edges the upscaler reconstructs

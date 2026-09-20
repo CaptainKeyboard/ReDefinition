@@ -69,6 +69,14 @@ namespace ReDefinition.Window
 
             try
             {
+                // A button the player has asked to keep goes back where it was.
+                foreach (ApplicationLauncherButton button in new List<ApplicationLauncherButton>(hidden.Keys))
+                {
+                    IBundledMod owner;
+                    if (!owners.TryGetValue(button, out owner) || WouldHide(owner)) continue;
+                    Show(button);
+                }
+
                 foreach (ApplicationLauncherButton button in ModButtons())
                 {
                     // Hidden already -- unless the mod has set its scenes again.
@@ -113,11 +121,18 @@ namespace ReDefinition.Window
             return true;
         }
 
-        // Whether a bundled mod's toolbar button is hidden: it names one, and
-        // ReDefinition's window opens the mod's own window in its place.
-        internal static bool WouldHide(IBundledMod mod)
+        // Whether ReDefinition could hide this mod's button at all: it names one,
+        // and ReDefinition's window opens the mod's own window in its place.
+        internal static bool CanHide(IBundledMod mod)
         {
             return mod.OwnWindow != null && (mod.ButtonAssembly != null || mod.ToolbarControlNamespace != null);
+        }
+
+        // Whether it is hidden: it could be, and the player has not kept it
+        // (BundledSettings.HidesButton).
+        internal static bool WouldHide(IBundledMod mod)
+        {
+            return CanHide(mod) && BundledSettings.HidesButton(mod.Id);
         }
 
         internal static bool HasButton(IBundledMod mod)
@@ -251,6 +266,38 @@ namespace ReDefinition.Window
                 }
             }
             return tcList != null && tcNamespace != null && tcStock != null;
+        }
+
+        // One button back where it was: the mod is still bundled, only its button
+        // stays. Its scenes are kept where the launcher throws, so the next pass
+        // tries again instead of leaving it hidden with nothing to restore to.
+        private static void Show(ApplicationLauncherButton button)
+        {
+            ApplicationLauncher.AppScenes scenes;
+            if (button == null || !hidden.TryGetValue(button, out scenes))
+            {
+                hidden.Remove(button);
+                return;
+            }
+
+            try
+            {
+                if (button.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER) button.VisibleInScenes = scenes;
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("toolbar-show-one", "A toolbar button of another mod could not be shown again ("
+                                      + CompatibilityLog.Reason(e) + "); it is tried again.");
+                return;
+            }
+
+            hidden.Remove(button);
+            IBundledMod owner;
+            if (owners.TryGetValue(button, out owner) && owner != null && !Hides(owner))
+            {
+                reported.Remove(owner.Id);
+                Debug.Log(Log.Tag + " " + owner.ModName + "'s toolbar button is shown again, as chosen in the window.");
+            }
         }
 
         private static void RestoreAll()

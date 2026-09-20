@@ -44,14 +44,15 @@ namespace ReDefinition.Window
                     yield break;
                 }
 
+                List<DialogGUIBase> noteRows = ToolbarRows();
+                noteRows.Add(new DialogGUIButton("OK", () => { }, true));
                 MultiOptionDialog note = new MultiOptionDialog("ReDefinitionBundleNote",
                     "The graphics settings of " + list + " are now in ReDefinition's settings window as well"
                     + (withButton.Count > 0 ? ", and the toolbar " + Buttons(withButton.Count) + buttonList
                                               + (withButton.Count > 1 ? " are hidden" : " is hidden") : "")
                     + " -- as you chose for the other graphics mods. "
-                    + "You can change this under \"Mods and toolbar\" in the window.",
-                    "Graphics settings in one place", HighLogic.UISkin, 420f,
-                    new DialogGUIButton("OK", () => { }, true));
+                    + "You can change this under \"Mods / Toolbar\" in the window.",
+                    "Graphics settings in one place", HighLogic.UISkin, 420f, noteRows.ToArray());
                 UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                     note, false, HighLogic.UISkin));
                 Debug.Log(Log.Tag + " Main menu note: " + list + " bundled too, as chosen before.");
@@ -73,15 +74,69 @@ namespace ReDefinition.Window
                 + ". ReDefinition keeps what each had before, and \"Restore settings from before ReDefinition\" under"
                 + " \"Mods and toolbar\" brings it back.";
 
-            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionBundleNotice", message,
-                "ReDefinition", HighLogic.UISkin, 540f,
+            List<DialogGUIBase> rows = ToolbarRows();
+            rows.Add(new DialogGUIHorizontalLayout(0f, 30f, 8f, new RectOffset(), TextAnchor.MiddleCenter,
                 new DialogGUIButton("Use High", () => Choose(fresh, "high"), true),
-                new DialogGUIButton("Later", () => Choose(fresh, null), true));
+                new DialogGUIButton("Later", () => Choose(fresh, null), true)));
+            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionBundleNotice", message,
+                "ReDefinition", HighLogic.UISkin, 540f, rows.ToArray());
             // Shielded: the main menu's entries behind it take Unity's mouse
             // events, which no dialog locks.
             UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 dialog, false, HighLogic.UISkin));
             Debug.Log(Log.Tag + " Main menu notice about ReDefinition shown for " + list + ".");
+        }
+
+        // Whether the per-mod switches are folded out, for as long as the dialog
+        // stands.
+        private static bool perModOpen;
+
+        // The toolbar choice in the main menu's panels: one switch for every
+        // button, and a header that folds the mods out, as the settings window
+        // has it. These panels have no Apply, so a switch here is the choice
+        // itself, kept in bundled.cfg and acted on at once.
+        private static List<DialogGUIBase> ToolbarRows()
+        {
+            List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            List<IBundledMod> mods = new List<IBundledMod>();
+            foreach (IBundledMod mod in BundledSettings.Installed())
+                if (ToolbarTakeover.CanHide(mod)) mods.Add(mod);
+            if (mods.Count == 0) return rows;
+
+            DialogGUIToggle all = new DialogGUIToggle(() => AllHidden(mods), "Hide all from toolbar", hide =>
+            {
+                foreach (IBundledMod mod in mods) BundledSettings.SetHidesButton(mod.Id, hide);
+                ToolbarTakeover.Refresh();
+            }, 300f);
+            all.tooltipText = "On: these mods' own toolbar buttons are hidden while their settings are bundled in"
+                              + " ReDefinition's window, which opens each of them with its Advanced button.";
+            rows.Add(all);
+
+            string folded = "+  Per mod (" + mods.Count + ")";
+            string open = "-  Per mod (" + mods.Count + ")";
+            rows.Add(new DialogGUIButton(() => perModOpen ? open : folded,
+                () => { perModOpen = !perModOpen; }, 300f, 24f, false));
+
+            foreach (IBundledMod mod in mods)
+            {
+                IBundledMod shown = mod;
+                DialogGUIToggle toggle = new DialogGUIToggle(() => BundledSettings.HidesButton(shown.Id),
+                    "    " + mod.ModName, hide =>
+                    {
+                        BundledSettings.SetHidesButton(shown.Id, hide);
+                        ToolbarTakeover.Refresh();
+                    }, 300f);
+                toggle.OptionEnabledCondition = () => perModOpen;
+                rows.Add(toggle);
+            }
+            return rows;
+        }
+
+        private static bool AllHidden(List<IBundledMod> mods)
+        {
+            foreach (IBundledMod mod in mods)
+                if (!BundledSettings.HidesButton(mod.Id)) return false;
+            return mods.Count > 0;
         }
 
         // One button or several: the sentence around the list follows the

@@ -161,6 +161,25 @@ namespace ReDefinition.Window
         private static void ReadBundled()
         {
             model.Open(BundledSettings.Enabled, BundledSettings.ProfileName, CurrentValues());
+            model.OpenButtons(ButtonStates());
+        }
+
+        // The mods whose toolbar button ReDefinition can hide, with what it does
+        // with it now. A mod without a button of its own, or without a window to
+        // open in its place, has nothing to choose here.
+        private static IEnumerable<KeyValuePair<string, bool>> ButtonStates()
+        {
+            foreach (IBundledMod mod in BundledSettings.Installed())
+                if (ToolbarTakeover.CanHide(mod))
+                    yield return new KeyValuePair<string, bool>(mod.Id, BundledSettings.HidesButton(mod.Id));
+        }
+
+        private static List<IBundledMod> ButtonMods()
+        {
+            List<IBundledMod> mods = new List<IBundledMod>();
+            foreach (IBundledMod mod in BundledSettings.Installed())
+                if (ToolbarTakeover.CanHide(mod)) mods.Add(mod);
+            return mods;
         }
 
         private static IEnumerable<KeyValuePair<string, string>> CurrentValues()
@@ -779,10 +798,67 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUILabel("Bundle other mods here", NameWidth), bundle),
                 new DialogGUILabel("<color=#9a9a9a>Bundled: " + list + "</color>", true),
-                restore,
             };
+            rows.AddRange(ButtonRows());
+            rows.Add(restore);
             rows.AddRange(notShown);
             return rows.ToArray();
+        }
+
+        // Whether the per-mod switches are folded out. Kept for the run, as the
+        // Keys tab keeps its sections.
+        private static bool buttonsOpen;
+
+        // The toolbar block: one switch for every button ReDefinition can hide, and
+        // a header that folds the mods out one by one, as the Keys tab's sections
+        // do. Empty where no installed mod has such a button. The choices wait for
+        // Apply, as everything else in this window does.
+        private static List<DialogGUIBase> ButtonRows()
+        {
+            List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            List<IBundledMod> mods = ButtonMods();
+            if (mods.Count == 0) return rows;
+
+            DialogGUIToggle all = new DialogGUIToggle(() => AllButtonsHidden(mods),
+                () => KspSettingsSection.StateText(AllButtonsHidden(mods)),
+                hide => { foreach (IBundledMod mod in mods) model.SetButtonHidden(mod.Id, hide); }, ControlWidth);
+            all.tooltipText = "On: every mod below is hidden from the toolbar while its settings are bundled here.\n"
+                              + "Off: every one of them keeps its button.\n"
+                              + "It shows On while all of them are hidden.";
+            all.OptionInteractableCondition = () => model.Bundled;
+            rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUILabel("Hide all from toolbar", NameWidth), all));
+
+            string folded = "+  Per mod (" + mods.Count + ")";
+            string open = "-  Per mod (" + mods.Count + ")";
+            DialogGUIButton header = new DialogGUIButton(() => buttonsOpen ? open : folded,
+                () => { buttonsOpen = !buttonsOpen; }, PageWidth - 60f, RowHeight + 6f, false);
+            header.tooltipText = "Opens or folds the switch for each mod's own toolbar button.";
+            rows.Add(header);
+
+            foreach (IBundledMod mod in mods)
+            {
+                IBundledMod shown = mod;
+                DialogGUIToggle toggle = new DialogGUIToggle(() => model.ButtonHidden(shown.Id),
+                    () => KspSettingsSection.StateText(model.ButtonHidden(shown.Id)),
+                    hide => model.SetButtonHidden(shown.Id, hide), ControlWidth);
+                toggle.tooltipText = "On: " + mod.ModName + "'s toolbar button is hidden, and the Advanced button here"
+                                     + " opens its window.\n"
+                                     + "Off: it keeps its button, and its settings stay in this window.";
+                toggle.OptionInteractableCondition = () => model.Bundled;
+                DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(),
+                    TextAnchor.MiddleLeft, new DialogGUILabel("    " + mod.ModName, NameWidth), toggle);
+                row.OptionEnabledCondition = () => buttonsOpen;
+                rows.Add(row);
+            }
+            return rows;
+        }
+
+        private static bool AllButtonsHidden(List<IBundledMod> mods)
+        {
+            foreach (IBundledMod mod in mods)
+                if (!model.ButtonHidden(mod.Id)) return false;
+            return mods.Count > 0;
         }
 
         // What an installed mod has that this window cannot show: a mod this build of
@@ -1095,9 +1171,17 @@ namespace ReDefinition.Window
 
             try
             {
+                bool buttonsChanged = model.ButtonsPending();
+                foreach (KeyValuePair<string, bool> pair in model.Buttons)
+                    BundledSettings.SetHidesButton(pair.Key, pair.Value);
+
                 if (model.Bundled != BundledSettings.Enabled)
                 {
                     BundledSettings.SetEnabled(model.Bundled);
+                    ToolbarTakeover.Refresh();
+                }
+                else if (buttonsChanged)
+                {
                     ToolbarTakeover.Refresh();
                 }
 

@@ -215,5 +215,28 @@ namespace ReDefinition.Tests
             Assert.AreEqual("The profile 'gone' is not installed any more -- Apply or Accept sets it",
                 edit.Status("high", true, false, null, v => 0));
         }
+
+        [TestMethod]
+        public void AToolbarChoiceWaitsForApplyAsARowDoes()
+        {
+            SettingsEdit model = new SettingsEdit();
+            model.Open(true, "high", new Dictionary<string, string>());
+            model.OpenButtons(new Dictionary<string, bool> { { "scatterer", true }, { "tufx", true } });
+
+            Assert.IsFalse(model.ButtonsPending(), "nothing changed yet");
+            Assert.IsFalse(model.Unapplied(false, true, "high"));
+
+            model.SetButtonHidden("tufx", false);
+            Assert.IsTrue(model.ButtonsPending(), "the choice is the window's until Apply");
+            Assert.IsTrue(model.Unapplied(false, true, "high"), "Apply and Cancel see it");
+            Assert.IsFalse(model.ButtonHidden("tufx"));
+            Assert.IsTrue(model.ButtonHidden("scatterer"), "the others are untouched");
+
+            model.SetButtonHidden("tufx", true);
+            Assert.IsFalse(model.ButtonsPending(), "back at what was opened");
+
+            model.SetButtonHidden("nothere", false);
+            Assert.IsFalse(model.ButtonsPending(), "a mod without a button to hide is not held");
+        }
     }
 }

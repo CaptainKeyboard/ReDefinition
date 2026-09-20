@@ -142,6 +142,7 @@ REDEFINITION_BUNDLED
 {
     enabled = True                  // bundle the other mods here
     asked = scatterer,eve,...       // mods the main menu's question covered
+    buttonsKept = tufx              // mods whose toolbar button the player keeps
     profile = high                  // the profile last applied, or empty
     VALUES
     {

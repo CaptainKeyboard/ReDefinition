@@ -107,8 +107,58 @@ namespace ReDefinition.Settings
         // The rows as the window opens, or after Apply or Restore: each setting's
         // value now -- null where it cannot be read, which leaves the row without
         // a value -- with nothing filled and no reset chosen.
+        // The toolbar buttons the window holds, by mod id: true where the button
+        // is hidden. Filled by OpenButtons after Open, for the mods whose button
+        // ReDefinition can hide at all.
+        private readonly Dictionary<string, bool> buttons = new Dictionary<string, bool>();
+        private readonly Dictionary<string, bool> buttonsOpened = new Dictionary<string, bool>();
+
+        public void OpenButtons(IEnumerable<KeyValuePair<string, bool>> hidden)
+        {
+            buttons.Clear();
+            buttonsOpened.Clear();
+            foreach (KeyValuePair<string, bool> pair in hidden)
+            {
+                buttons[pair.Key] = pair.Value;
+                buttonsOpened[pair.Key] = pair.Value;
+            }
+            Version++;
+        }
+
+        // False for a mod the window does not hold: one without a button to hide.
+        public bool ButtonHidden(string modId)
+        {
+            bool hidden;
+            return buttons.TryGetValue(modId, out hidden) && hidden;
+        }
+
+        public void SetButtonHidden(string modId, bool hidden)
+        {
+            bool now;
+            if (!buttons.TryGetValue(modId, out now) || now == hidden) return;
+            buttons[modId] = hidden;
+            Version++;
+        }
+
+        public IEnumerable<KeyValuePair<string, bool>> Buttons
+        {
+            get { return buttons; }
+        }
+
+        public bool ButtonsPending()
+        {
+            foreach (KeyValuePair<string, bool> pair in buttons)
+            {
+                bool opened;
+                if (!buttonsOpened.TryGetValue(pair.Key, out opened) || opened != pair.Value) return true;
+            }
+            return false;
+        }
+
         public void Open(bool bundled, string profile, IEnumerable<KeyValuePair<string, string>> values)
         {
+            buttons.Clear();
+            buttonsOpened.Clear();
             pending.Clear();
             opened.Clear();
             filled.Clear();
@@ -272,7 +322,8 @@ namespace ReDefinition.Settings
         // Whether anything in the window still waits for Apply.
         public bool Unapplied(bool upscalerPending, bool enabled, string applied)
         {
-            return upscalerPending || Bundled != enabled || Profile != applied || Resetting || RowsPending();
+            return upscalerPending || Bundled != enabled || Profile != applied || Resetting || RowsPending()
+                   || ButtonsPending();
         }
 
         // The Profiles tab's line: what the rows hold against the profile they

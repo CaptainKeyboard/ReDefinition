@@ -246,6 +246,16 @@ namespace ReDefinition.Settings
             store.SetEnabled(on);
         }
 
+        public static bool HidesButton(string modId)
+        {
+            return store.HidesButton(modId);
+        }
+
+        public static void SetHidesButton(string modId, bool hide)
+        {
+            store.SetHidesButton(modId, hide);
+        }
+
         public static List<IBundledMod> NotYetAsked()
         {
             return store.NotYetAsked();

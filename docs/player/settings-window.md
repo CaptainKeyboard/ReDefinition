@@ -40,7 +40,7 @@ reach the scene behind it.
 | *Planets* | EVE's volumetric cloud upscaling, cloud ambience and thunder volume; Scatterer's light shafts through clouds, its ocean and waves moving vessels; KSP's terrain detail; Parallax's scatter density and scatter collisions |
 | *Effects* | KSP's aerodynamic FX while Firefly is not installed, Firefly's re-entry particles, Waterfall's plume lights and heat distortion, Scatterer's sun flare, Distant Object's flares, names and distant vessels |
 | *Keys* | every key binding: ReDefinition's own, the bundled mods' and KSP's, with a search field above them |
-| *Mods / Toolbar* | *Bundle other mods here*, the list of bundled mods, and *Restore settings from before ReDefinition* |
+| *Mods / Toolbar* | *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, and *Restore settings from before ReDefinition* |
 
 The status line on *Profiles* names the chosen profile, shows *Custom* where rows were
 changed since, and says what still waits for *Apply*.
@@ -181,6 +181,15 @@ does not goes back to its value from before ReDefinition, unless you changed it 
 their toolbar buttons, lets each mod's own window decide again, and clears the profile.
 What was saved in the mods stays. What only ReDefinition kept is dropped: the choices
 for every save, and Deferred's and Waterfall's settings.
+
+### Which mods keep their toolbar button
+
+*Hide all from toolbar*, under *Mods / Toolbar*, decides it for every mod at once, and
+*Per mod* under it folds out one switch per mod. A mod is in that list where it has a
+button of its own and ReDefinition's *Advanced* button opens its window in its place;
+the others have nothing to hide and are not listed. Switched off, a mod keeps its button
+and its settings stay in this window all the same. The choices wait for *Apply*, like
+every other row, and the main menu's panel offers the same switches.
 
 At the first start, the main menu explains ReDefinition and offers *Use High*, which
 chooses the High profile and bundles the mods, or *Later*, which leaves every mod as it
