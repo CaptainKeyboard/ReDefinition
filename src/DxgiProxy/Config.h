@@ -89,8 +89,10 @@ namespace redefinition
         // generation always gets them.
         bool fgCameraBasis = true;
 
-        // Force VSync while FSR frame generation is generating, whatever the game
-        // asked for. Off by default: KSP's own V-Sync setting applies. AMD's
+        // Force VSync for as long as FSR frame generation is switched on and has a
+        // context (PacedByVSyncLocked), not only on the frames it interpolates,
+        // whatever the game asked for: a sync interval of 0 becomes 1, a higher one
+        // the game asks for stays. Off by default: KSP's own V-Sync setting applies. AMD's
         // swapchain derives its pacing from the sync interval of the game's
         // Present -- with VSync it "will slow down the application to half refresh
         // rate, so every interpolated and real frame gets displayed for one
