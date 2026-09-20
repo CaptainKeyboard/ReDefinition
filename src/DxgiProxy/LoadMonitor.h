@@ -36,6 +36,9 @@ namespace redefinition
         // left, and this process's video memory against its budget.
         void ReportMemory();
 
+        // Whether a job object caps what the game may commit, said once.
+        void ReportJobLimitOnce();
+
         // The game's main thread, named by the mod from that thread.
         void RegisterMainThread();
 

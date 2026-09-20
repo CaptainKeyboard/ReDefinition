@@ -528,8 +528,45 @@ namespace redefinition
         }
     }
 
+    // Steam and Windows both put a game into a job object at times, and a job can
+    // cap how much its processes may commit. Said once: it does not change.
+    void LoadMonitor::ReportJobLimitOnce()
+    {
+        static bool said = false;
+        if (said)
+            return;
+        said = true;
+
+        BOOL inJob = FALSE;
+        if (!IsProcessInJob(GetCurrentProcess(), nullptr, &inJob) || !inJob)
+        {
+            LogLine("Memory: the game runs in no job object, so nothing caps what it may commit but Windows itself.");
+            return;
+        }
+
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {};
+        DWORD written = 0;
+        if (!QueryInformationJobObject(nullptr, JobObjectExtendedLimitInformation, &limits, sizeof(limits), &written))
+        {
+            LogLine("Memory: the game runs in a job object whose limits could not be read.");
+            return;
+        }
+
+        std::string line = "Memory: the game runs in a job object";
+        if ((limits.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_PROCESS_MEMORY) != 0)
+            line += ", which caps a process at " + Gigabytes(limits.ProcessMemoryLimit) + " GB committed";
+        if ((limits.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_JOB_MEMORY) != 0)
+            line += ", and the job as a whole at " + Gigabytes(limits.JobMemoryLimit) + " GB";
+        if ((limits.BasicLimitInformation.LimitFlags
+             & (JOB_OBJECT_LIMIT_PROCESS_MEMORY | JOB_OBJECT_LIMIT_JOB_MEMORY)) == 0)
+            line += " with no memory limit of its own";
+        LogLine(line + ".");
+    }
+
     void LoadMonitor::ReportMemory()
     {
+        ReportJobLimitOnce();
+
         std::string line = "Memory: ";
 
         PROCESS_MEMORY_COUNTERS_EX counters = {};
@@ -541,12 +578,17 @@ namespace redefinition
         else
             line += "the game's own use is unknown";
 
+        // ullAvailPageFile is what this process may still commit, which a job
+        // object can cap below the system's own limit; ullTotalPageFile is that
+        // cap. Where the two say less than Windows' commit limit, something holds
+        // the game to a ceiling of its own.
         MEMORYSTATUSEX status = {};
         status.dwLength = sizeof(status);
         if (GlobalMemoryStatusEx(&status))
             line += "; Windows has " + Gigabytes(status.ullAvailPhys) + " GB of "
-                    + Gigabytes(status.ullTotalPhys) + " GB free, "
-                    + Gigabytes(status.ullAvailPageFile) + " GB left to commit";
+                    + Gigabytes(status.ullTotalPhys) + " GB free, and the game may commit "
+                    + Gigabytes(status.ullAvailPageFile) + " GB more of its "
+                    + Gigabytes(status.ullTotalPageFile) + " GB limit";
 
         Microsoft::WRL::ComPtr<IDXGIAdapter3> adapter = VideoAdapter();
         if (adapter)

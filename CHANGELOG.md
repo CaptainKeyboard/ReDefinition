@@ -16,7 +16,10 @@
 ### Changed
 
 - The proxy writes a line about memory with every frame time report: what the game
-  holds, what Windows has left, and its video memory against the driver's budget.
+  holds, what Windows has left, how much the game may still commit against its own
+  limit, and its video memory against the driver's budget. Once at the start it also
+  says whether a job object caps what the game may commit, which is below Windows' own
+  limit where something sets one.
 - The toolbar button has a tooltip, *ReDefinition - Settings*, the kind KSP's own
   buttons show.
 - **A toolbar icon of its own.** A bank of sliders in the stock toolbar's colours, which
