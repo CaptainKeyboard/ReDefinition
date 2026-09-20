@@ -3,8 +3,8 @@
 ReDefinition is an attempt to bring the mods of Kerbal Space Program 1 together in one
 concept: their settings unified in one window, profiles that set them up together, and
 rules that keep their settings compatible with each other. Furthermore, ReDefinition adds
-upscaling with FSR and DLSS, and Direct3D 12 on top of the game for frame generation. Both
-work on the whole scene, other mods' effects included.
+upscaling with FSR and DLSS, and frame generation. Both work on the whole scene, other
+mods' effects included.
 
 Mods for KSP are installed one by one and set up one by one, each in its own window, and
 whether their settings work together is left to chance. ReDefinition starts with the major
@@ -31,8 +31,10 @@ graphics mods; any mod can join with a config file.
 
 * **Upscaling and antialiasing** with AMD FSR 3, NVIDIA DLSS and AMD's FSR DLL, fed with
   the game's own depth and motion vectors.
-* **Frame generation** with AMD FSR 3.1 or NVIDIA DLSS, through Direct3D 12 on top of the
-  game.
+* **Frame generation** with AMD FSR 3.1 or NVIDIA DLSS. Both need Direct3D 12, which KSP
+  does not use: a `dxgi.dll` beside the game presents its frames through a Direct3D 12
+  swapchain, while the game itself goes on rendering in Direct3D 11. DLSS and AMD's
+  upscaler DLL run on that device as well.
 
 ## Supported mods
 
@@ -100,10 +102,11 @@ upscaler's current state to `KSP.log`.
 A mod or visual pack registers its settings, defaults and profile values with a config
 file in its own folder: [docs/modders/registering-a-mod.md](docs/modders/registering-a-mod.md).
 
-A mod can also use what ReDefinition provides once for every mod: the jitter, history
-resets, its own motion vectors, the upscaled image, overlays and Direct3D 12 compute
-passes from HLSL. It works with or without depending on ReDefinition, and there is a
-shader include, a wrapper file and an example mod to start from:
+A mod can also use what ReDefinition works out once for every mod: the jitter, history
+resets, its own motion vectors, the upscaled image and overlays. The Direct3D 12 device
+the frames are presented through can run a mod's compute passes too. It works with or
+without depending on ReDefinition, and there is a shader include, a wrapper file and an
+example mod to start from:
 [docs/modders/shared-foundation.md](docs/modders/shared-foundation.md).
 
 ## Building

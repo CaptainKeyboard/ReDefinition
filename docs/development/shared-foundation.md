@@ -129,7 +129,9 @@ back into Unity's texture.
 
 `D3D12.Available` says that the proxy presents through Direct3D 12. The rest comes from
 `ID3D12Device::CheckFeatureSupport`: `FeatureLevel`, `ShaderModel`, `RaytracingTier`,
-`MeshShaderTier` and `VariableShadingRateTier`.
+`MeshShaderTier` and `VariableShadingRateTier`. They report the GPU, not this interface:
+the only pass it builds is the compute pass below, so the last three are there to be read,
+not to be used.
 
 ### Compute passes
 

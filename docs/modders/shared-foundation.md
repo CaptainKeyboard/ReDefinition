@@ -240,10 +240,15 @@ answers.
 
 ## Run a compute pass on Direct3D 12
 
-The passes run on the Direct3D 12 device of ReDefinition's `dxgi.dll`, on Unity's
-textures. Unity keeps rendering in Direct3D 11, so each dispatch copies its textures
-into textures both devices share, runs the pass on the Direct3D 12 queue, and copies the
-write textures back.
+ReDefinition's `dxgi.dll` presents the game's frames through a Direct3D 12 swapchain,
+because frame generation and the upscaler DLLs need that device. The same device can run
+a mod's compute passes, which is what this section is about.
+
+Unity keeps rendering in Direct3D 11, so each dispatch copies its textures into textures
+both devices share, runs the pass on the Direct3D 12 queue, and copies the write textures
+back. What the pass can be is one compute shader against the root signature below: either
+HLSL this device compiles at run time, as `cs_5_0`, or bytecode you bring yourself,
+including DXIL signed by DXC for the later shader models.
 
 ### Check what is there
 
@@ -263,6 +268,10 @@ What the device supports, in Direct3D's own encoding:
 | `RaytracingTier` | `D3D12_RAYTRACING_TIER` | 10 for 1.0, 11 for 1.1 |
 | `MeshShaderTier` | `D3D12_MESH_SHADER_TIER` | 10 for 1.0 |
 | `VariableShadingRateTier` | `D3D12_VARIABLE_SHADING_RATE_TIER` | 1, 2 |
+
+These say what the GPU can do, not what this interface offers. What it offers is the
+compute pass below: raytracing, mesh shaders and variable rate shading have no pass of
+their own here.
 
 ### Write the shader
 

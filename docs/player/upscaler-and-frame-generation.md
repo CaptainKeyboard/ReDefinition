@@ -98,8 +98,10 @@ The measurements behind that, for anyone who wants the numbers:
 
 ## Frame generation
 
-Frame generation puts generated frames between the rendered ones. It runs in the proxy,
-so it needs `dxgi.dll` next to `KSP_x64.exe`.
+Frame generation puts generated frames between the rendered ones. Both techniques need
+Direct3D 12, which KSP does not use: `dxgi.dll` next to `KSP_x64.exe` presents the game's
+frames through a Direct3D 12 swapchain, and the game goes on rendering in Direct3D 11.
+Without that file there is no frame generation.
 
 | Frame generation | Runs on | Frames |
 |---|---|---|
