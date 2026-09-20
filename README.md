@@ -41,7 +41,7 @@ with further graphics mods: [docs/reference/graphics-mod-compatibility.md](docs/
 
 ## Requirements
 
-* Kerbal Space Program 1.12.5 on Windows
+* Kerbal Space Program 1.12 on Windows, built and tested on 1.12.5
 * HarmonyKSP (on CKAN: *Harmony2*)
 
 DLSS needs an NVIDIA RTX GPU, frame generation a GPU with Direct3D 12. ReDefinition

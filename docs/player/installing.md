@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| Kerbal Space Program | 1.12.5 |
+| Kerbal Space Program | 1.12, built and tested on 1.12.5 |
 | Harmony | **required**: HarmonyKSP (on CKAN: *Harmony2*), in `GameData/000_Harmony`. KSP does not load ReDefinition without it |
 | Operating system | Windows |
 | For DLSS, AMD's upscaler DLL and frame generation | ReDefinition's `dxgi.dll` next to `KSP_x64.exe`, from the release zip, and a GPU with Direct3D 12 |

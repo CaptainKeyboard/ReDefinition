@@ -1,6 +1,6 @@
 # Status
 
-Before the first release.
+Released: 0.1.1.
 
 ## What exists
 
@@ -19,14 +19,10 @@ Before the first release.
 | **Release package** -- zip with licences and notices, source zip, AMD runtime pinned | built |
 | **Interface for mods** -- the frame's state as properties and shader globals, history resets from ReDefinition and from mods, hooks for motion vectors, the upscaled image and overlays, the chosen profile, Direct3D 12 compute passes from HLSL or bytecode; the wrapper, the shader include, the example mod, the XML documentation | built; unit tests; the harness runs compute passes compiled by the proxy and from DXIL; the include compiles in Unity 2019.4.18f1 |
 
-What to try in the game, and what counts as right:
-[testing/next-flight.md](../testing/next-flight.md).
-
 ## Open
 
 | Area | Question | What settles it |
 |---|---|---|
-| Game | The parts above in flight, in the editors and at the space centre | [testing/next-flight.md](../testing/next-flight.md) |
 | Profiles | Whether the tiers land where they are meant to on real GPUs | frame times per tier at 1440p and 4K |
 | Profiles | What KSP's render quality levels 4 and 5 set | a log line per level at the main menu |
 | Profiles | Steps for EVE's light volume, Scatterer's light shaft steps, Parallax's fade-out | their authors' cost guidance |

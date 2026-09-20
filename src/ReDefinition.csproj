@@ -142,7 +142,10 @@
   </Target>
 
   <!-- The KSP-AVC version file, generated from the project's version, as
-       KSPCommunityFixes generates its own (KSPBuildTools). KSP 1.12.5 only.
+       KSPCommunityFixes generates its own (KSPBuildTools). Built and tested
+       against KSP 1.12.5; 1.12.0 and up run the same interfaces of KSP that
+       this uses, so the range is the one the other mods of this kind give
+       (EVE, Kopernicus: 1.12.0 to 1.12.99).
        URL is the copy on the repository's main branch, which KSP-AVC compares
        with the installed one: the build writes it into the repository root as
        well, and the release package refuses a working tree that differs from
@@ -161,8 +164,8 @@
       <_AvcLine Include="&quot;CHANGE_LOG_URL&quot;: &quot;$(_AvcRaw)/CHANGELOG.md&quot;," />
       <_AvcLine Include="&quot;VERSION&quot;: &quot;$(Version)&quot;," />
       <_AvcLine Include="&quot;KSP_VERSION&quot;: &quot;1.12.5&quot;," />
-      <_AvcLine Include="&quot;KSP_VERSION_MIN&quot;: &quot;1.12.5&quot;," />
-      <_AvcLine Include="&quot;KSP_VERSION_MAX&quot;: &quot;1.12.5&quot;" />
+      <_AvcLine Include="&quot;KSP_VERSION_MIN&quot;: &quot;1.12.0&quot;," />
+      <_AvcLine Include="&quot;KSP_VERSION_MAX&quot;: &quot;1.12.99&quot;" />
       <_AvcLine Include="}" />
     </ItemGroup>
     <MakeDir Directories="$(_AvcDir)" />

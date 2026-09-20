@@ -12,7 +12,6 @@
 | build, test or package ReDefinition | [development/building-and-testing.md](development/building-and-testing.md), [development/packaging.md](development/packaging.md) |
 | find your way around the code | [development/architecture.md](development/architecture.md) |
 | know how the upscaler, frame generation, the settings store and the interface for mods work | [development/upscaler.md](development/upscaler.md), [development/frame-generation.md](development/frame-generation.md), [development/settings-store.md](development/settings-store.md), [development/shared-foundation.md](development/shared-foundation.md) |
-| try it in the game | [testing/next-flight.md](testing/next-flight.md) |
 | know what is done and what is open | [project/status.md](project/status.md), [project/reviews.md](project/reviews.md) |
 
 Everyone whose work ReDefinition builds on or talks to, with the licence of that
@@ -46,8 +45,6 @@ docs/
     frame-generation.md
     settings-store.md
     shared-foundation.md
-  testing/
-    next-flight.md                   what to do and see in the next game session
   project/
     status.md                        what exists, what is open, what is settled
     reviews.md                       how changes are reviewed, and the review log
