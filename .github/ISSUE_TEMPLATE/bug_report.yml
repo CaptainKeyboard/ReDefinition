@@ -1,0 +1,108 @@
+name: Bug report
+description: Something in ReDefinition does not work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Both logs are what makes a report usable. Drag the files into the box at the
+        bottom rather than pasting their contents.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you saw, and what you expected instead.
+      placeholder: |
+        The vessel turns black as soon as frame generation is switched on.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to get there
+      description: What you did, from starting the game to the point it happened.
+      placeholder: |
+        1. Main menu, profile High
+        2. Launch a vessel
+        3. Settings window, General, Frame generation on
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ReDefinition version
+      placeholder: "0.1.1"
+    validations:
+      required: true
+
+  - type: input
+    id: ksp
+    attributes:
+      label: KSP version
+      placeholder: "1.12.5"
+    validations:
+      required: true
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver version
+      placeholder: "NVIDIA RTX 4070, 566.36"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: proxy
+    attributes:
+      label: Is dxgi.dll next to KSP_x64.exe?
+      description: It comes with the release zip. Without it there is no DLSS, no AMD upscaler DLL and no frame generation.
+      options:
+        - "Yes"
+        - "No"
+        - "I do not know"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: technique
+    attributes:
+      label: What was switched on
+      multiple: true
+      options:
+        - Upscaler, FSR 3
+        - Upscaler, DLSS
+        - Upscaler, AMD's FSR DLL
+        - AA only
+        - Frame generation, FSR 3
+        - Frame generation, DLSS
+        - Nothing of these
+    validations:
+      required: true
+
+  - type: input
+    id: profile
+    attributes:
+      label: Graphics profile
+      placeholder: "High, or none chosen"
+
+  - type: textarea
+    id: mods
+    attributes:
+      label: Installed mods
+      description: The folders in GameData, or the CKAN list.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        `KSP.log` from the KSP folder, and `ReDefinitionProxy.log` from next to
+        `KSP_x64.exe` where the proxy is installed. Drop both files here. After a
+        crash, the dump from `CrashDumps` as well.
+    validations:
+      required: true

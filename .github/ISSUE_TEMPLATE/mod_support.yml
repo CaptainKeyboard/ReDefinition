@@ -1,0 +1,42 @@
+name: Another mod
+description: A mod whose settings should join ReDefinition's window, or one that does not get along with it
+labels: ["compatibility"]
+body:
+  - type: input
+    id: mod
+    attributes:
+      label: The mod
+      description: Its name, its version and where it is downloaded.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What this is about
+      options:
+        - Its settings should show in ReDefinition's window
+        - Its registration is there and does not fit this build
+        - It and ReDefinition get in each other's way
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: Details
+      description: |
+        For settings: which of them, and where they are kept. For a registration that
+        does not fit, or mods in each other's way: what you see, and what you expected.
+        A mod can register itself with a config file in its own folder --
+        docs/modders/registering-a-mod.md.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Where something goes wrong: `KSP.log` from the KSP folder, and
+        `ReDefinitionProxy.log` from next to `KSP_x64.exe`. Drop the files here.

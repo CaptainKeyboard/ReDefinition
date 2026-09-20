@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How a mod registers its settings
+    url: https://github.com/CaptainKeyboard/ReDefinition/blob/main/docs/modders/registering-a-mod.md
+    about: The config file that puts a mod's settings, profiles and key bindings into ReDefinition's window.
+  - name: What a mod can use of ReDefinition's rendering
+    url: https://github.com/CaptainKeyboard/ReDefinition/blob/main/docs/modders/shared-foundation.md
+    about: The frame's state, motion vectors, the upscaled image, history resets and Direct3D 12 compute passes.
+  - name: Installing, and what the settings window does
+    url: https://github.com/CaptainKeyboard/ReDefinition/blob/main/docs/player/installing.md
+    about: For questions before a report.

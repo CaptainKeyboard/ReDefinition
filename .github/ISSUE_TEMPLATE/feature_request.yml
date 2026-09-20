@@ -1,0 +1,24 @@
+name: Idea
+description: Something ReDefinition should do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should it do
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: What for
+      description: What you are trying to get to, and how you do it today.
+    validations:
+      required: true
+
+  - type: input
+    id: mods
+    attributes:
+      label: Which mods does it concern
+      placeholder: "Scatterer, EVE -- or none"
