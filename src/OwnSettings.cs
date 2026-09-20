@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text;
 using FidelityFX.FSR3;
@@ -122,7 +123,7 @@ namespace ReDefinition
         {
             StringBuilder sb = new StringBuilder();
             sb.Append(Enabled).Append('|').Append(Quality).Append('|')
-              .Append(Sharpness.ToString("0.00")).Append('|').Append(AutoExposure).Append('|')
+              .Append(Sharpness.ToString("0.00", CultureInfo.InvariantCulture)).Append('|').Append(AutoExposure).Append('|')
               .Append(MipmapBias).Append('|').Append(CompensateLodBias).Append('|')
               .Append(DisableMsaa).Append('|').Append(ForceAnisotropic).Append('|')
               .Append(Jitter).Append('|').Append(SkinnedMotionVectors).Append('|').Append(TufxAfterUpscaling).Append('|')

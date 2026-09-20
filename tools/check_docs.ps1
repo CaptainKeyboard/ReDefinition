@@ -1,4 +1,5 @@
-# What the pages under docs/ and the repository's README.md have to hold
+# What the pages under docs/ have to hold, and that the version the README and the
+# status page name is the project's
 # (docs/development/writing-these-pages.md): links that lead somewhere, paths that
 # exist, no dash asides, lines that fit, and an opening that says who the page is for.
 #
@@ -31,6 +32,28 @@ $pages = @(Get-ChildItem -Path (Join-Path $root 'docs') -Filter *.md -Recurse -F
 $pages = $pages | Where-Object { $_.FullName -notlike '*\docs\project\reviews.md' }
 
 Write-Host "Pages: $($pages.Count)"
+
+# The version a reader is told, against the one the package carries. README.md goes
+# into the zip, so a release that leaves it behind says the wrong version to every
+# player who opens it.
+$projectText = [IO.File]::ReadAllText((Join-Path $root 'src\ReDefinition.csproj'))
+$projectVersion = ([regex]::Match($projectText, '<Version>([^<]+)</Version>')).Groups[1].Value
+if (-not $projectVersion) {
+    Fail "src\ReDefinition.csproj -- no <Version>"
+} else {
+    foreach ($named in @(
+        @{ Path = 'README.md'; Pattern = 'release, (\d+\.\d+\.\d+)' },
+        @{ Path = 'docs\project\status.md'; Pattern = 'Released: (\d+\.\d+\.\d+)' })) {
+        $text = [IO.File]::ReadAllText((Join-Path $root $named.Path))
+        $found = [regex]::Match($text, $named.Pattern)
+        if (-not $found.Success) {
+            Fail "$($named.Path) -- no version line matching '$($named.Pattern)'"
+        } elseif ($found.Groups[1].Value -ne $projectVersion) {
+            Fail "$($named.Path) -- says $($found.Groups[1].Value), the project is at $projectVersion"
+        }
+    }
+}
+
 
 foreach ($page in $pages) {
     $relative = $page.FullName.Substring($root.Length + 1).Replace('\', '/')

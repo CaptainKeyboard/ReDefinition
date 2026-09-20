@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A setting a mod's own behaviour answers for was reported as missing its `default`
+  even where it had one: the default was judged before the registration had read it.
+  Every such setting said so in `KSP.log`, the example mod's two among them.
+- A member path with an indexer, `MyMod.ModSettings.I[strength]`, counts for `needs`
+  and for a `BUILD`'s `has` as it does for a `member`. It was read as a member named
+  `I[strength]`, which is nowhere, so `needs` dropped the whole mod and `has` never
+  told the build.
+- The version in `README.md` and on the status page is checked against the project's
+  (`tools/check_docs.ps1`). The 0.1.2 package's README still said 0.1.1.
+- A list of choices a requirement narrows keeps its labels beside their values, also
+  where the values come from the running mod and the labels from the registration.
+
 ## 0.1.2 -- 2026-09-20
 
 ### Changed

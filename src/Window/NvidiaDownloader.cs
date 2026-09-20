@@ -363,7 +363,7 @@ namespace ReDefinition.Window
             });
             worker.IsBackground = true;
             worker.Start();
-            while (!done) yield return null;
+            while (!Volatile.Read(ref done)) yield return null;
 
             if (error != null)
             {

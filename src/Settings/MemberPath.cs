@@ -107,7 +107,13 @@ namespace ReDefinition.Settings
                 if (type == null) continue;
                 for (int i = count; i < parts.Length; i++)
                 {
-                    Segment segment = Member(type, parts[i], true, i == parts.Length - 1);
+                    // name[key] is the indexer, as Resolve reads it: the member is
+                    // what stands before the bracket.
+                    string name = parts[i];
+                    int open = name.IndexOf('[');
+                    bool indexed = open > 0 && name.EndsWith("]", StringComparison.Ordinal);
+                    if (indexed) name = name.Substring(0, open);
+                    Segment segment = Member(type, name, true, !indexed && i == parts.Length - 1);
                     if (segment == null) return false;
                     type = segment.ValueType;
                     if (type == null && i < parts.Length - 1) return false;

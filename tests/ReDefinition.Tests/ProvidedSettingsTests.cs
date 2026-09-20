@@ -327,6 +327,15 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void ASettingWithADefaultIsNotReported()
+        {
+            List<string> problems = new List<string>();
+            Build(Head + " SETTING\n {\n  name = shadows\n  default = True\n }\n}", problems);
+            Assert.IsFalse(problems.Exists(p => p.Contains("needs a default")),
+                           string.Join("; ", problems.ToArray()));
+        }
+
+        [TestMethod]
         public void ATypeThatIsNotThereLeavesTheModOut()
         {
             List<string> problems = new List<string>();

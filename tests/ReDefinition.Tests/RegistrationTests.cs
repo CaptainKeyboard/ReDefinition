@@ -20,6 +20,21 @@ namespace ReDefinition.Tests
         internal static int Width = 0;
     }
 
+    // A mod that keeps its settings behind an indexer, as a member path may name it
+    // (docs/modders/registration-reference.md): MyMod.ModSettings.I[strength].
+    internal sealed class IndexerFake
+    {
+        internal static readonly IndexerFake I = new IndexerFake();
+
+        private readonly Dictionary<string, string> values = new Dictionary<string, string> { { "strength", "2" } };
+
+        internal string this[string key]
+        {
+            get { return values[key]; }
+            set { values[key] = value; }
+        }
+    }
+
     // What registrations build (RegisteredMod, ModRegistry), the defaults they give
     // (ModDefaults) and a profile's MODULE node (ProfileApplier), with types of the
     // tests' own standing in for a mod.
@@ -194,6 +209,24 @@ namespace ReDefinition.Tests
             ModDefaults.Select(new List<IBundledMod> { partly }, problems);
             Assert.AreEqual(1, problems.Count);
             StringAssert.Contains(problems[0], "version 0.1");
+        }
+
+        [TestMethod]
+        public void AnIndexerCountsForNeedsAndForABuildAsItDoesForAMember()
+        {
+            List<string> problems = new List<string>();
+            RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = indexedfake\n"
+                                      + " detect = ReDefinition.Tests.IndexerFake\n"
+                                      + " needs = ReDefinition.Tests.IndexerFake.I[strength]\n"
+                                      + " BUILD\n {\n  name = indexed\n"
+                                      + "  has = ReDefinition.Tests.IndexerFake.I[strength]\n }\n"
+                                      + " SETTING\n {\n  name = strength\n"
+                                      + "  member = ReDefinition.Tests.IndexerFake.I[strength]\n"
+                                      + "  min = 0\n  max = 4\n  whole = True\n  default = 2\n }\n}", problems);
+
+            Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
+            Assert.AreEqual(1, mod.Settings.Count, "the mod is not dropped over its needs");
+            Assert.AreEqual("indexed", mod.Build, "an indexer tells the build as any member does");
         }
 
         [TestMethod]

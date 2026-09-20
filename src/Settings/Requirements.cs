@@ -137,17 +137,21 @@ namespace ReDefinition.Settings
             List<Rule> rules = RulesFor(setting);
             if (rules == null || choices == null) return;
 
+            // Labels belong to the choices one by one. Where they do not -- a
+            // list only the running mod knows (ChoicesSource) beside labels from
+            // the registration -- they are left as they are rather than shifted.
+            bool labelled = labels != null && labels.Length == choices.Length;
             List<string> keptChoices = new List<string>();
             List<string> keptLabels = new List<string>();
             for (int i = 0; i < choices.Length; i++)
             {
                 if (!PassesAll(rules, setting, choices[i])) continue;
                 keptChoices.Add(choices[i]);
-                if (labels != null && i < labels.Length) keptLabels.Add(labels[i]);
+                if (labelled) keptLabels.Add(labels[i]);
             }
             if (keptChoices.Count == 0) return;
             choices = keptChoices.ToArray();
-            if (labels != null) labels = keptLabels.ToArray();
+            if (labelled) labels = keptLabels.ToArray();
         }
 
         // At every scene load and when KSP's own settings are applied, with the
