@@ -150,6 +150,7 @@ namespace ReDefinition.Window
                     WindowPause.Release();
                 };
                 UnityMouseEvents.Shield(dialog);
+                WindowPause.PlaceInTitleRow(dialog);
                 WindowPause.Refresh();
             }
             catch (Exception e)
@@ -247,8 +248,9 @@ namespace ReDefinition.Window
 
             return new DialogGUIBase[]
             {
-                new DialogGUIHorizontalLayout(WindowWidth - 20f, 26f, 0f, new RectOffset(),
-                    TextAnchor.MiddleRight, new DialogGUIFlexibleSpace(), WindowPause.Button()),
+                // A row of its own here, and moved into the title row once the
+                // dialog stands (WindowPause.PlaceInTitleRow).
+                WindowPause.Button(),
                 new DialogGUIHorizontalLayout(WindowWidth - 20f, PageHeight, 8f, new RectOffset(),
                     TextAnchor.UpperLeft, tabList, scroll),
                 new DialogGUIHorizontalLayout(

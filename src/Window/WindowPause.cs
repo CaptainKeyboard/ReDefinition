@@ -1,5 +1,6 @@
 using System;
 using ReDefinition.Core;
+using UnityEngine.UI;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -8,9 +9,15 @@ namespace ReDefinition.Window
     // window is open, the flight is paused.
     //
     // The pause itself is KSP's own (FlightDriver.SetPause, as Parallax pauses
-    // while it rebuilds its scatter). What the flight was before is remembered and
-    // put back when the window closes, so a pause the player set with Escape is
-    // not lifted by closing this window.
+    // while it rebuilds its scatter). Closing the window lets the flight run
+    // again, and opening it holds the flight anew -- unless KSP's own pause menu
+    // stands, which is a pause of the player's own and stays.
+    //
+    // The button sits in the window's title row. The title is a child object of
+    // the dialog's window named Title (PopupDialog.SetPopupData, decompiled), so
+    // the button is moved there once the dialog stands: in the row where it
+    // belongs, and out of the window's vertical layout, which would give it a
+    // row of its own.
     //
     // Only in flight: the space centre and the editors have no physics to hold.
     // The choice is one of ReDefinition's own settings, so it is there again at the
@@ -24,16 +31,19 @@ namespace ReDefinition.Window
     {
         private const int IconSize = 24;
         private const float ButtonSize = 26f;
+        // From the right edge of the title row.
+        private const float TitleInset = 8f;
 
         private static readonly Color Glyph = new Color(0.898f, 0.898f, 0.910f, 1f);
 
         private static Sprite pauseSprite;
         private static Sprite playSprite;
 
-        // Whether this window is holding the flight, and what the flight was
-        // before it did.
+        // What was last built, for the move into the title row.
+        private static DialogGUIButton button;
+
+        // Whether this window is holding the flight.
         private static bool holding;
-        private static bool pausedBefore;
 
         internal static bool Wanted
         {
@@ -69,32 +79,84 @@ namespace ReDefinition.Window
         {
             if (!holding) return;
             holding = false;
-            if (HighLogic.LoadedSceneIsFlight) FlightDriver.SetPause(pausedBefore);
+            if (!HighLogic.LoadedSceneIsFlight) return;
+            // The flight runs again with the window gone. Only KSP's own pause
+            // menu keeps it: that pause is the player's, not this window's.
+            FlightDriver.SetPause(PauseMenuStands);
+        }
+
+        private static bool PauseMenuStands
+        {
+            get
+            {
+                try
+                {
+                    return PauseMenu.exists && PauseMenu.isOpen;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
         }
 
         private static void Hold()
         {
             if (holding) return;
-            pausedBefore = FlightDriver.Pause;
             holding = true;
             FlightDriver.SetPause(true);
         }
 
         internal static DialogGUIBase Button()
         {
-            DialogGUIButton button = new DialogGUIButton(PauseSprite(), Toggle, ButtonSize, ButtonSize, false);
-            button.tooltipText = "Pauses the flight while this window is open. The flight goes on as it was when the"
-                                 + " window closes.";
+            button = new DialogGUIButton(PauseSprite(), Toggle, ButtonSize, ButtonSize, false);
+            button.tooltipText = "Pauses the flight while this window is open. The flight runs again when the window"
+                                 + " closes.";
             button.OptionInteractableCondition = () => Possible;
             return button;
         }
 
+        // Into the title row, once the dialog's objects stand. Anchored to the
+        // right of the title itself, so it keeps the row whatever the window's
+        // width and the UI's scale are.
+        internal static void PlaceInTitleRow(PopupDialog dialog)
+        {
+            try
+            {
+                if (button == null || dialog == null || dialog.popupWindow == null) return;
+
+                GameObject item = button.uiItem;
+                GameObject title = dialog.popupWindow.GetChild("Title");
+                if (item == null || title == null) return;
+
+                RectTransform placed = item.transform as RectTransform;
+                if (placed == null) return;
+
+                LayoutElement outside = item.GetComponent<LayoutElement>() ?? item.AddComponent<LayoutElement>();
+                outside.ignoreLayout = true;
+
+                placed.SetParent(title.transform, false);
+                placed.anchorMin = new Vector2(1f, 0.5f);
+                placed.anchorMax = new Vector2(1f, 0.5f);
+                placed.pivot = new Vector2(1f, 0.5f);
+                placed.sizeDelta = new Vector2(ButtonSize, ButtonSize);
+                placed.anchoredPosition = new Vector2(-TitleInset, 0f);
+                placed.localScale = Vector3.one;
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("window-pause-place", "The pause button stayed below the settings window's title"
+                                      + " (" + CompatibilityLog.Reason(e) + ").");
+            }
+        }
+
         // The sprite a DialogGUIButton is built with cannot be swapped afterwards,
         // so the button shows what a click does: the bars where the window does not
-        // hold the flight, the triangle where it does.
+        // hold the flight, the triangle where it does. Read from the choice, not
+        // from `holding`: the button is built before the window takes hold.
         private static Sprite PauseSprite()
         {
-            return holding ? Play() : Pause();
+            return Wanted && Possible ? Play() : Pause();
         }
 
         private static void Toggle()

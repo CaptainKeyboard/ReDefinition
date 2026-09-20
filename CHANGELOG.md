@@ -20,15 +20,15 @@
 
 ### Changed
 
-- **The window opens from the menu Escape opens.** A *ReDefinition* entry stands there
-  under KSP's own, and *All settings* in ReDefinition's section of KSP's settings dialog
-  opens the same window. The toolbar is hidden while that menu is up, so this is the way
-  in mid-flight.
-- **A pause button at the top of the settings window**, in symbols rather than words: two
-  bars while the flight runs, a triangle while the window holds it. It holds the flight
-  for as long as the window is open and then lets it go on as it was, so a pause set with
-  Escape is not lifted by closing the window. In flight only, and the choice is kept for
-  the next time the window opens.
+- **The window opens from the menu Escape opens**, in flight and in the space centre. A
+  *ReDefinition* entry stands there under KSP's own, and *All settings* in ReDefinition's
+  section of KSP's settings dialog opens the same window. The toolbar is hidden while
+  that menu is up, so this is the way in mid-flight.
+- **A pause button in the settings window's title row**, in symbols rather than words:
+  two bars while the flight runs, a triangle while the window holds it. It holds the
+  flight for as long as the window is open; closing the window lets the flight run again,
+  and only KSP's own pause menu keeps it paused. In flight only, and the choice is kept,
+  so the next opening holds the flight again.
 - **ReDefinition's toolbar button goes first.** Only its own entry is moved, in what the
   launcher shows and in the list the launcher keeps; no other button is read or moved,
   and a failure leaves the toolbar as it was.

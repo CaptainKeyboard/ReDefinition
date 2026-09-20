@@ -7,15 +7,17 @@ namespace ReDefinition.Window
 {
     // A ReDefinition button in the menu Escape opens, next to KSP's own.
     //
-    // KSP's pause menu is a PopupDialog whose contents come from PauseMenu.draw(),
-    // which answers a DialogGUIBase[] (its `dialog`, `dialogObj` and `draw` read
-    // from the game's assembly). A Harmony postfix appends one button to that
-    // array, the way the settings section appends its rows to the graphics part
+    // KSP has two of these menus, and both are patched: PauseMenu in flight and
+    // KSCPauseMenu in the space centre (the two classes that build a dialog named
+    // GamePaused; the editors and the tracking station have none). Each is a
+    // PopupDialog whose contents come from its own draw(), answering a
+    // DialogGUIBase[]. A Harmony postfix appends one button to that array, the way
+    // the settings section appends its rows to the graphics part
     // (KspSettingsSection). Built from KSP's own dialog elements, so a UI theme
     // covers it.
     //
-    // The toolbar is hidden while the pause menu stands, so without this the
-    // window can only be reached by a hotkey the player has bound.
+    // The toolbar is hidden while such a menu stands, so without this the window
+    // can only be reached by a hotkey the player has bound.
     //
     // Harmony is a requirement (src/KspAssemblyInfo.cs).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
@@ -44,17 +46,24 @@ namespace ReDefinition.Window
 
         private static void Patch()
         {
-            MethodInfo original = typeof(PauseMenu).GetMethod("draw",
-                BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
-            if (original == null)
-                throw new MissingMethodException("PauseMenu", "draw");
-
             MethodInfo postfix = typeof(PauseMenuEntry).GetMethod(nameof(DrawPostfix),
                 BindingFlags.NonPublic | BindingFlags.Static);
             if (postfix == null)
                 throw new MissingMethodException("PauseMenuEntry", nameof(DrawPostfix));
 
-            new HarmonyLib.Harmony(HarmonyId).Patch(original, postfix: new HarmonyLib.HarmonyMethod(postfix));
+            HarmonyLib.Harmony harmony = new HarmonyLib.Harmony(HarmonyId);
+            Patch(harmony, postfix, typeof(PauseMenu));
+            Patch(harmony, postfix, typeof(KSCPauseMenu));
+        }
+
+        private static void Patch(HarmonyLib.Harmony harmony, MethodInfo postfix, Type menu)
+        {
+            MethodInfo original = menu.GetMethod("draw",
+                BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+            if (original == null)
+                throw new MissingMethodException(menu.Name, "draw");
+
+            harmony.Patch(original, postfix: new HarmonyLib.HarmonyMethod(postfix));
         }
 
         // Inside KSP's own dialog code: an exception escaping here would take the

@@ -207,8 +207,8 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | `SettingsWindow.cs`, `TabScrollList.cs` | the settings window's view, from KSP's dialog elements |
 | `SettingsWindow.Keys.cs`, `KeyCapture.cs`, `Conflicts.cs`, `KspKeyBindings.cs` | the *Keys* tab: the rows that take a combination, the capture with KSP's controls locked, the shared combinations shown in yellow, and KSP's own bindings read from `GameSettings` |
 | `KspSettingsSection.cs` | the section in KSP's settings dialog, through Harmony postfixes on `VideoSettings` |
-| `PauseMenuEntry.cs` | the *ReDefinition* entry in the menu Escape opens, through a Harmony postfix on `PauseMenu.draw()` |
-| `WindowPause.cs` | the pause button at the top of the settings window, and the flight held while the window stands |
+| `PauseMenuEntry.cs` | the *ReDefinition* entry in the menu Escape opens, through Harmony postfixes on `PauseMenu.draw()` in flight and `KSCPauseMenu.draw()` in the space centre |
+| `WindowPause.cs` | the pause button in the settings window's title row, and the flight held while the window stands |
 | `ToolbarButton.cs` | the toolbar button, its tooltip, and its place at the front of the row |
 | `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable; the main menu's first question |
 | `ModWindowClose.cs` | the close button on a mod's own settings window, and knowing whether that window is open |

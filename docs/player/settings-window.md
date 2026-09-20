@@ -17,7 +17,7 @@ and frame generation are off, and every mod keeps its own settings.
 | Way | Where |
 |---|---|
 | ReDefinition's toolbar button | every scene, the main menu included; it is the first button of the row |
-| The *ReDefinition* entry in the pause menu | what Escape opens in flight and in the space centre, under KSP's own entries |
+| The *ReDefinition* entry in the pause menu | what Escape opens in flight and in the space centre, under KSP's own entries; the editors and the tracking station have no such menu |
 | KSP's own settings dialog | *Settings* in the pause menu, at the end of its graphics part: the rows there, and *All settings* for this window |
 | A hotkey | once you set one in the *Keys* tab; none is bound at first |
 
@@ -33,11 +33,15 @@ reach the scene behind it.
 
 ## The pause button
 
-In flight, the button at the top right holds the flight while the window is open. It
-shows two bars while the flight runs and a triangle while it is held, so it shows what
-a click does. Closing the window lets the flight go on as it was: a pause you set with
-Escape stays. Outside flight there is nothing to hold and the button is dead. Your
-choice is kept for the next time you open the window.
+In flight, the button in the window's title row holds the flight while the window is
+open. It shows two bars while the flight runs and a triangle while it is held, so it
+shows what a click does.
+
+Closing the window lets the flight run again. Only KSP's own pause menu keeps it
+paused, since that pause is not this window's. Your choice is kept, so the next time
+you open the window it holds the flight again.
+
+Outside flight there is nothing to hold and the button is dead.
 
 ## The tabs
 
