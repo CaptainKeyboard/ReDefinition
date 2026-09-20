@@ -11,7 +11,8 @@ Every claim here carries its mark: **[src]**, **[doc]**, **[meas]** or **[open]*
 
 ## How comparable mods ship
 
-**What installed mods ship [src]**, from their folders in this installation's `GameData`:
+**What installed mods ship [src]**, from their folders in this installation's `GameData`.
+Named here is what bears on a package's layout, not every file they hold:
 
 | Mod | In its folder |
 |---|---|
@@ -122,6 +123,7 @@ In these cases there is no zip, and one left from an earlier build is removed:
 * any shader source is newer than the bundle. The Unity project builds the bundle
   directly into the game's `GameData` (`BundleBuilder.cs`), and the package takes it from
   there;
+* git is not on the path, so the source that goes with the package cannot be made;
 * the working tree differs from `HEAD`, whose source would not match the binary.
 
 ## What is not in the zip
@@ -184,7 +186,8 @@ https://support.curseforge.com/support/solutions/articles/9000197279-moderation-
 
 ## The CKAN metadata
 
-The file is `NetKAN/ReDefinition.netkan` in https://github.com/KSP-CKAN/NetKAN. Every
+The file goes to https://github.com/KSP-CKAN/NetKAN as `NetKAN/ReDefinition.netkan`. The
+copy here is `build/ckan/ReDefinition.netkan`, with its pull request body beside it. Every
 identifier was checked against the NetKAN repository, and every `file` against the release
 zip.
 

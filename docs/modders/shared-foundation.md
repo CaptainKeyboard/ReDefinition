@@ -240,8 +240,8 @@ write textures back.
 `D3D12.Available` says whether the device is there, and `D3D12.Problem` says why not.
 The reason is one of these: no `dxgi.dll`, the proxy switched off or set to measuring
 only in `ReDefinitionProxy.ini`, or the swapchain not made yet. Through the wrapper the
-two are `ReDefinitionApi.D3D12Available` and `D3D12Problem`, and every member below
-carries the same `D3D12` prefix there.
+two are `ReDefinitionApi.D3D12Available` and `D3D12Problem`. The properties below carry
+the same `D3D12` prefix there; the methods keep their names.
 
 What the device supports, in Direct3D's own encoding:
 

@@ -99,7 +99,8 @@ run with the upscaler. *Reset to defaults* sets every kind.
 
 ## Scatterer
 
-"--" means the build has no such field.
+"--" means the build has no such field. "not kept" means the mod does not save the setting, so
+ReDefinition drops the row and names it in the log.
 
 | Key | Kind | Public 0.878 | Volumetric Clouds 0.908 |
 |---|---|---|---|
@@ -155,6 +156,7 @@ run with the upscaler. *Reset to defaults* sets every kind.
 | `dualCamShadowBiasOverride` | other | 0.5 | 0.5 |
 | `dualCamShadowResolutionOverride` | quality | 0 | 0 |
 | `dualCamShadowCascadeSplitsOverride` | other | 0.005, 0.025, 0.125 | 0.005, 0.025, 0.125 |
+| `quarterResScattering` | quality | not kept | not kept |
 | `useDithering` | taste | True | **False** |
 | `m_fourierGridSize` | quality | 128 | **256** |
 | `oceanMeshResolution` | quality | 6 | 6 |

@@ -33,8 +33,8 @@ The six modes, and how much smaller the scene renders in each:
 | *1.2x* | 1/1.2 of it in each direction |
 | *1.5x* | 1/1.5 |
 | *1.7x* | 1/1.7 |
-| *2x* | half |
-| *3x* | a third |
+| *2.0x* | half |
+| *3.0x* | a third |
 
 | Sharpness | how hard the image is sharpened after the upscaler, for every technique. 0 switches it off. Above 1.0 goes past what the sharpening was made for, and AMD's DLL stops at 1.0 |
 
@@ -150,7 +150,7 @@ within a second of it being saved.
 | `enabled` | 1 | 0 passes everything through to Windows' own `dxgi.dll`. Read at the start |
 | `frameGeneration` | 1 | 0: no frame generation, the proxy presents only. Read at the start |
 | `dlssFrameGeneration` | 1 | 0: FSR 3 frame generation even where DLSS frame generation runs. Read at the start |
-| `fgVSync` | 0 | 1: FSR 3 frame generation presents with V-Sync while it generates, whatever KSP's setting says |
+| `fgVSync` | 0 | 1: while FSR 3 frame generation is on, the game presents with V-Sync whatever KSP's setting says |
 | `fgHalfRefreshLimit` | 0 | 1: with FSR 3 frame generation and without V-Sync, the rendered frame rate is held just below half the refresh rate |
 | `fgAsyncWorkloads` | 0 | 1: frame generation runs alongside the game's rendering instead of after it. Worth a try where it costs more frame rate than it gives |
 | `dlssDirectory`, `amdUpscalerDirectory` | empty | the folders of NVIDIA's and AMD's DLLs, where they are not next to `KSP_x64.exe` |

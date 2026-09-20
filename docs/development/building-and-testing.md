@@ -48,7 +48,8 @@ dotnet test tests/ReDefinition.Tests
 These run without the game, on .NET Framework 4.8. They cover the store, `bundled.cfg`,
 the settings window's edit model, ReDefinition's modules, the registrations, the frame
 packet layouts shared with the proxy, Streamline's camera matrices, EVE's cloud motion,
-TUFX's split around the upscaler and NVIDIA's file list.
+TUFX's split around the upscaler, NVIDIA's file list, and the key bindings with the
+decisions the *Keys* tab makes.
 
 The tests use KSP's own `ConfigNode` from the game's `Assembly-CSharp`, copied beside
 them. Types of the test assembly take the place of mods (`RegistrationTests.cs`), and
@@ -77,8 +78,8 @@ reads every registration with KSP's `ConfigNode` and builds each mod with the re
 game runs. It then checks:
 
 * that every member a registration names exists in the installed build;
-* the settings, rows, *Advanced* tabs, defaults and requirements it derives, which it
-  lists;
+* the settings, the rows of the four tabs, defaults and requirements it derives, which
+  it lists;
 * every default and profile value against the setting's control, through
   `ProfileApplier.Refusal`, the method the game asks;
 * that High sets only its deviations from the defaults;

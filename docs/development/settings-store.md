@@ -105,10 +105,10 @@ brings back what that quicksave holds. Distant Object writes the save's own file
 ## A mod that cannot take a value yet
 
 `BundledSetting.Applicable` says whether a mod can take a value now. It is false for EVE
-before its quality config is loaded, for TUFX before its profiles are loaded or before a
-save is, and for a mod whose `ready` member holds nothing or `False`. A mod that brings its own
-behaviour gates its settings the same way, through a `Ready` member of its own type
-(`src/Settings/Behaviours/ProvidedSettings.cs`).
+before its quality config is loaded, for TUFX before its profiles are loaded and, for its
+per-save profiles, before a save is, and for a mod whose `ready` member holds nothing or
+`False`. A mod that brings its own behaviour gates its settings the same way, through a
+`Ready` member of its own type (`src/Settings/Behaviours/ProvidedSettings.cs`).
 
 A value set while the mod cannot take it is kept, and reaches the mod at the next chance
 through `ReapplyWaiting`. `Read` returns null while a mod's objects are not there to ask,

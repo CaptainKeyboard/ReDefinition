@@ -11,7 +11,7 @@ decompiled where the version matters. KSP was decompiled from 1.12.5.
 
 The registrations that reach these places are in `GameData/ReDefinition/Mods`
 ([modders/registering-a-mod.md](../modders/registering-a-mod.md)). A setting no member
-path reaches needs a behaviour, one per mod.
+path reaches needs a behaviour, for the whole mod or for that setting alone.
 
 ## Saved through
 
@@ -22,7 +22,7 @@ path reaches needs a behaviour, one per mod.
 | EVE, Volumetric Clouds build | the first object node of `EVE_RAYMARCHED_CLOUDS_QUALITY`, its `SaveConfig` | in its visual pack's file | `InModFiles` |
 | Parallax Continued | `ParallaxSettings.SaveSettings` | in its file | `InModFiles` |
 | Firefly | `SettingsManager.SaveModSettings` | in its file | `InModFiles` |
-| TUFX | the main menu's profile in its `defaultConfiguration`, `SaveConfigs`; every other scene's in `TUFXGameSettings` of the loaded save | per save. ReDefinition keeps the choice and sets it into every save as it loads | `PerSave` |
+| TUFX | the main menu's profile in its `defaultConfiguration`, `SaveConfigs`; every other scene's in `TUFXGameSettings` of the loaded save | per save, but the main menu's profile, which counts for the game as a whole. ReDefinition keeps the per-save choice and sets it into every save as it loads | `PerSave` |
 | Distant Object | `Settings.Save` | per save, as TUFX | `PerSave` |
 | Deferred, Waterfall | no save routine of their own | ReDefinition keeps the value and sets it at every start | `AtEveryStart` |
 
@@ -32,7 +32,8 @@ Values are saved once after a batch of changes, not one by one.
 
 The settings are static fields of `GameSettings`. KSP hands the quality ones to Unity
 in `GameSettings.ApplySettings`: `QualitySettings.SetQualityLevel` with the render
-quality, then the texture mipmap limit, the pixel lights and the shadow cascades.
+quality, then the antialiasing, the texture mipmap limit, V-Sync, the pixel lights and
+the shadow cascades.
 
 A change from ReDefinition is followed up the way KSP's own screens finish. It hands
 Unity the same quality values, sets the frame limit as `Application.targetFrameRate`,
@@ -96,8 +97,9 @@ The settings are the static `Parallax.ConfigLoader.parallaxGlobalSettings`, read
 while loading and saved by its window's *Save Changes*. Its groups are structs, so a
 change reads the group, sets the field and writes the group back.
 
-Tessellation and the planet shadow settings take effect at once, through the calls its
-own window makes, `ToolbarMenu.UpdateTerrainMaterials` and
+Tessellation, the advanced texture blending, the ambient occlusion and the planet
+shadow settings take effect at once, through the calls its own window makes,
+`ToolbarMenu.UpdateTerrainMaterials`, `UpdateTerrainKeywords` and
 `UpdateScaledShadowMaterialSettings`, run once at the end of the frame. Part-light
 shadows take effect when a part's light starts.
 
@@ -167,8 +169,9 @@ no save loaded, and `Save` writes that same file. It reads its file whenever a s
 loads, whenever its drawing components start and whenever its window reads its values,
 and it saves unasked when a save closes.
 
-A value goes into the fields, then through `Commit`, which enables or disables its
-drawing components, then through `Save`.
+A value goes into the fields, and into an open window's copy of them. Its three
+switches and its debug mode also go through `Commit`, which enables or disables its
+drawing components. The save then writes the file.
 
 A Harmony postfix on `Load` hands the choice kept in ReDefinition back over whatever
 file was just read, so every save gets it as it loads. A postfix on its window's

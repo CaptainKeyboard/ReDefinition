@@ -35,7 +35,8 @@ namespace ReDefinition.Upscaler
         // At NativeAA the ratio is 1, so Max(1, ratio) is 1 and the bias is
         // multiplied by one: the switch changes nothing at AA only.
         //
-        // The factor is the same one the mipmap bias uses: display over render.
+        // The factor is display height over render height. The mipmap bias is a
+        // different quantity: FSR's own log2(render / display) - 1.
         // Affects everything with a LODGroup, so Parallax' scatter objects and
         // part of the part models. Not KSP's terrain, which subdivides its quads
         // by distance rather than by screen size.

@@ -173,8 +173,9 @@ From NVIDIA's ProgrammingGuideDLSS_G.md and the Streamline headers:
 V-Sync, frame generation holds the game at half the refresh rate and shows every frame for
 one refresh; without it, in a window, "not all frames generated will get displayed".
 
-* KSP's own V-Sync setting applies. `fgVSync=1` presents with V-Sync while frame generation
-  generates, whatever KSP's setting says.
+* KSP's own V-Sync setting applies. `fgVSync=1` presents FSR's swapchain with V-Sync for
+  as long as frame generation is switched on and has a context, not only on the frames
+  it interpolates: a sync interval of 0 becomes 1, a higher one KSP asks for stays.
 * `fgHalfRefreshLimit=1` holds the rendered rate 2 % below half the refresh rate after each
   generated frame presented without V-Sync. AMD: "The application should ensure that the
   rendered frame rate is slightly below half the desired output frame rate". The wait comes

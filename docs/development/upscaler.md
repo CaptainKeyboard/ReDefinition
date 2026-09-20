@@ -137,8 +137,9 @@ The files the player needs, and where they go: [player/installing.md](../player/
   `BuiltinRenderTextureType.MotionVectors` is valid only inside the rendering of the
   camera that produces it, so a command buffer at `BeforeImageEffects` copies them there.
 * **Game-wide quality settings** (`QualityOverrides`). While the upscaler runs, the LOD
-  bias is compensated by the same factor as the mipmap bias, since Unity picks LODs by
-  covered pixels. MSAA is off, and anisotropic filtering is forced on so the negative
+  bias is multiplied by display height over render height, since Unity picks LODs by
+  covered pixels. The mipmap bias is FSR's own `log2(render / display) - 1` and a
+  different quantity. MSAA is off, and anisotropic filtering is forced on so the negative
   mipmap bias does not shimmer. Shadow distance and cascades are left alone. KSP's
   `SetQualityLevel` resets these, and `OnGameSettingsApplied` puts them back. Where KSP
   writes a value there other than ReDefinition's, that value becomes the one restored when
@@ -161,8 +162,9 @@ the upscaler needs:
   `BeforeImageEffects`, so the upscaler would receive smoothed edges, which is what it
   reconstructs from. The buffer outlives the component and is taken off too. Deferred adds
   a fresh copy on every editor scene load, so the editors are checked once a second.
-* Kerbal Frame Generator's frame blend off, if installed. Its switch is never saved, so
-  this lasts for the run.
+* Kerbal Frame Generator's frame blend off, if installed. Its switch is only in memory,
+  and it goes back on when no profile is chosen, where it still holds the value written
+  here.
 
 EVE's temporal upscaling for its clouds is EVE's own reconstruction and stays.
 
@@ -181,9 +183,11 @@ the component, two of them the scene:
   corrected every frame. Disabled, they freeze and stop writing object motion, and the
   vessel smears.
 
-All three are cleaned up. What was found is remembered, and it is reasserted after scene
-changes, since Scatterer rebuilds its components. It is restored only where the value is
-still the one written, so a newer choice by the player or another mod stands.
+All three are cleaned up, and reasserted after scene changes, since Scatterer rebuilds
+its components. The shader and `TAA_UseFloatingOriginCameraMotion` are put back, and
+only where the value is still the one written, so a newer choice by the player or
+another mod stands. `TAA_PreviousFrameTransform` stays at identity, and the renderers
+freed from `ForceNoMotion` stay on `Object`, which is what writes their motion.
 
 ### EVE's volumetric clouds
 
@@ -201,9 +205,10 @@ clouds write no depth and no motion vectors into the camera's buffers.
   Unity's at the capture the way Scatterer's TAA blends them. The clouds' vectors count
   where they cover the pixel, over the sky by their transmittance, and over geometry once
   less than a tenth of it is left.
-* Both only with Scatterer's cloud reconstruction shader
-  (`Scatterer-EVE/ReconstructRaymarchedClouds`), whose output was read. The Debug switch
-  *EVE clouds: jitter and motion vectors* is on at every start.
+* The motion vectors only with Scatterer's cloud reconstruction shader
+  (`Scatterer-EVE/ReconstructRaymarchedClouds`), whose output was read; the jitter
+  wherever EVE's renderer and its `GetNonJitteredProjectionMatrixForCamera` are found.
+  The Debug switch *EVE clouds: jitter and motion vectors* is on at every start.
 
 ### TUFX's post-processing
 

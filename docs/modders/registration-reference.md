@@ -19,8 +19,8 @@ later one counts.
 
 A value that is left empty counts as no value at all. The spaces around a value are
 trimmed, and commas and backslashes are kept, so a comma inside a choice is written
-`\,`. As in every KSP config file, a value holds no `//` and no brace, which is why a
-note can are beside one.
+`\,`. As in every KSP config file, a value holds no `//` and no brace, which is why no
+note can stand beside one.
 
 Titles, tooltips and labels may be localisation tags, KSP's own `#autoLOC_...` or your
 mod's `#LOC_...`. The window shows them in the player's language, through KSP's
@@ -42,7 +42,7 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `window` | no | -- | `Namespace.Type.Method` that draws your IMGUI settings window. It gets a close button while your toolbar button is hidden. |
 | `button` | no | -- | The name of the assembly your toolbar button's click handler lives in. ReDefinition hides that button while your settings are bundled, and opens your window through it. Only together with `window`. |
 | `toolbarControl` | no | -- | The namespace your button registers with in ToolbarControl, where you make it that way. Like `button`, only together with `window`. |
-| `tab` | no | no *Advanced* button | Where your *Advanced* button goes: `General`, `ShadowsAndReflections`, `Planets` or `Effects`. The window draws no *Advanced* row in `Keys` or `Profiles`. |
+| `tab` | no | no *Advanced* button | Where your *Advanced* button goes: `General`, `ShadowsAndReflections`, `Planets` or `Effects`. `Keys` is taken too but draws no *Advanced* row, and any other name is reported and ignored. A tab without rows gets no *Advanced* row either. |
 
 ## SETTING
 
@@ -88,7 +88,7 @@ right.
 | Key | Needed | Left out | What it does |
 |---|---|---|---|
 | `name` | yes | -- | As a setting's: the second part of the binding's key. |
-| `member` | no | ReDefinition keeps the binding | Where your mod keeps the key: a `KeyCode`, or its name as text. Without it, ReDefinition keeps the binding and your mod asks `ReDefinition.Api.Keys` whether it is pressed. A mod with `save`, or with `saving` other than `AtEveryStart`, must give a member: otherwise the binding is left out, with the reason in the log. |
+| `member` | no | ReDefinition keeps the binding | Where your mod keeps the key: a `KeyCode`, or its name as text. Without it, ReDefinition keeps the binding and your mod asks `ReDefinition.Api.Keys` whether it is pressed. A mod with `save`, or with `saving` other than `AtEveryStart`, must give a member unless a `behaviour` is named for the mod or for the binding: otherwise the binding is left out, with the reason in the log. |
 | `modifier1`, `modifier2` | no | -- | Where your mod keeps the modifiers, when it keeps them apart from the key. |
 | `modifiers` | no | `any` | `any`: your mod takes either modifier member. `all`: it asks for both at once, and one modifier then goes into both. |
 | `group` | no | `Mods` | The section of the *Keys* tab it is in: one of KSP's, or a name of your own. KSP's are `Flight`, `EVA`, `Editor`, `Camera`, `Map and vessels` and `General`. |
@@ -181,7 +181,7 @@ it, and shows your reason once per run.
 | one test | yes | -- | `equals`, `atMost`, `atLeast`, `highest` or `check`, from the table below. |
 | `fix` | with `check` | -- | The value that satisfies the check. |
 | `reason` | recommended | -- | The sentence the player reads on the row and in the log. |
-| `lock` | no | `False` | `True` locks the row. Otherwise the row offers only the values allowed. |
+| `lock` | no | `False` | `True` locks the row. Otherwise a row with a list offers only the values allowed, and any other row takes what the player sets and has it corrected as it is applied. |
 | `whenInstalled` | no | -- | The `name` of another registered mod that must be loaded too. |
 
 Exactly one test per block:
@@ -255,7 +255,7 @@ ReDefinition:
 |---|---|---|
 | `string Read(string name)` | yes | The value as text. `null` says the value cannot be read now. |
 | `void Write(string name, string value)` | yes | Takes the value. May return `bool`: `false` is a value your mod refuses, which ReDefinition reports and keeps. |
-| `bool Ready` | no | Whether your mod can take values now, as `ready` says it for a path. It gates every setting of your mod, member paths included. |
+| `bool Ready` | no | Whether your mod can take values now, as `ready` says it for a path. Where `behaviour` stands on the mod it gates every setting of your mod, member paths included; where it stands on one setting, that setting alone. |
 | `void Save()` | no | Saves as your own window saves. Called before a `save` the registration names. |
 | `string[] Choices(string name)` | no | A list only the running mod knows. `null` leaves the setting the control its value's type gives. |
 | `string Version` | no | Your mod's version, where the registration cannot tell it. |
@@ -274,8 +274,9 @@ keep.
 
 **One of ReDefinition's own names**, without a dot: `Tufx`, `Scatterer`, `Eve`, `Ksp`,
 `DistantObject`, `Firefly`, `ParallaxScatter`. These are the behaviours ReDefinition
-brings for the mods it ships registrations for. A bare name it does not have leaves the
-mod out as a whole.
+brings for the mods it ships registrations for. A name ReDefinition does not have leaves
+the mod out as a whole where the mod names it, and leaves out that setting alone where a
+setting names it.
 
 ## What is reported
 
@@ -290,8 +291,8 @@ no `name` or no `member`, or where its member is not there.
 
 Your mod is left out as a whole where one of these is missing: a `required` setting's
 member, one of `needs`, the `save` method, the `ready` member, `detect` while your mod's
-assembly is loaded, or the type or name `behaviour` gives. A registration without `name`
-or `detect` is skipped.
+assembly is loaded, or the type or name the mod's own `behaviour` gives. A registration
+without `name` or `detect` is skipped.
 
 A key given twice counts with its last value, and that is reported: it is usually a
 patch that meant to change the first.

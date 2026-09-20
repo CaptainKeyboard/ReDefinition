@@ -165,8 +165,9 @@ back into Unity's texture.
   (Unity 2019.4.18f1 player with KSP's graphics jobs, 2026-09-14). `D3D12.Dispatch`
   executes at once. `D3D12.DispatchInto(buffer, ...)` records into a buffer the mod
   executes the same way.
-* **Formats.** Colour formats a Direct3D 11 texture can be shared in, and, for write
-  textures, bound for unordered access in. No depth-stencil formats.
+* **Formats.** Colour formats a Direct3D 11 texture can be shared in and bound for
+  unordered access in, read textures as well, and that a shader can load from. No
+  depth-stencil formats.
 * **Textures a mod is done with.** `D3D12.ReleaseTexture(texture)` frees the shared copy.
   Copies not used for ten seconds are freed anyway.
 * **One texture in several passes.** A dispatch that reads or writes a texture another

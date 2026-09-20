@@ -37,7 +37,7 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
   Clouds is made with.
 * A setting another mod holds is left to that mod. Firefly holds KSP's aerodynamic FX,
   Deferred KSP's reflection refresh and resolution, and Kopernicus the terrain shader
-  quality where it enforces one.
+  quality where its config enforces a level or warns about one.
 * A row you change after applying a profile makes the choice *Custom*. The profile it
   came from is still named.
 

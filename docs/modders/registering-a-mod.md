@@ -53,8 +53,9 @@ saving = InModFiles
 default, and without it `AtEveryStart`.
 
 With `PerSave`, the player's choice counts for the game rather than for one save.
-ReDefinition sets it into every save as that save loads, and a change made in your own
-window becomes the new choice.
+ReDefinition sets it into every save as that save loads. A change made in your own
+window becomes the new choice only where ReDefinition brings a hook for your mod, as it
+does for TUFX and Distant Object.
 
 ## Wait until your mod can take values
 
@@ -92,7 +93,7 @@ If your mod keeps no key of its own, leave `member` out. ReDefinition then keeps
 binding for you, and your mod asks whether it is pressed:
 
 ```csharp
-If (ReDefinitionApi.KeyPressed("mymod.window")) ToggleWindow();
+if (ReDefinitionApi.KeyPressed("mymod.window")) ToggleWindow();
 ```
 
 That call comes from the wrapper,
@@ -101,7 +102,8 @@ That call comes from the wrapper,
 
 A binding without a member works only where ReDefinition keeps your settings anyway.
 If your mod has `save`, or `saving = InModFiles` or `PerSave`, give the binding a
-member. Without one it is left out, with the reason in the log.
+member, unless the mod or the binding names a `behaviour`. Without either it is left
+out, with the reason in the log.
 
 Give a binding `default = None` unless you know the key is free. KSP's own bindings
 fire on their key whatever modifiers are held, and KSP binds nearly every letter, digit

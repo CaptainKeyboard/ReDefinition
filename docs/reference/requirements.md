@@ -19,9 +19,9 @@ it ([modders/registering-a-mod.md](../modders/registering-a-mod.md)). Its keys:
 | # | While | Setting | Kept at | Source |
 |---|---|---|---|---|
 | R1 | Parallax is loaded | KSP terrain detail | the highest preset | Parallax's `ConfigLoader.CheckSettings` shows "Parallax Installation Error" at every start otherwise; its installation instructions |
-| R2 | Parallax is loaded | KSP terrain scatter | off | Parallax replaces KSP's scatter only on Eeloo. Everywhere else both would be drawn |
+| R2 | Parallax is loaded | KSP terrain scatter | off | Parallax brings its own scatter; KSP's would be drawn beside it for nothing |
 | R3 | Parallax is loaded | KSP reflection resolution | 256 at most | `CheckSettings` warns above 256 |
-| R4 | Parallax is loaded | KSP reflection refresh | not *Off* | its installation instructions: "Minimum (NOT off!)". With Deferred installed the row does not exist, and Deferred raises *Off* itself |
+| R4 | Parallax is loaded | KSP reflection refresh | not *Off* | its installation instructions: "Minimum (NOT off!)". With Deferred's own refresh cap on, the row is not shown at all; with that cap off, the row stays without *Off*, which Deferred raises to Low |
 | R5 | Volumetric Clouds and TUFX are loaded | TUFX's flight profile | one with ambient occlusion. The author's *Blackrack_TUFX* where the chosen one has none | Volumetric Clouds' Readme: "Use my TUFX profile or your profile of choice with ambient occlusion enabled" |
 | R6 | DLSS frame generation runs | KSP V-Sync | off, or every refresh | NVIDIA's DLSS-G programming guide, 22.2: a sync interval above 1 is not supported |
 | R7 | DLSS frame generation runs in a build without V-Sync support | KSP V-Sync | off | the guide, 22.1: V-Sync only where `bIsVsyncSupportAvailable` is set |
@@ -35,8 +35,9 @@ ReDefinition's frame generation is off, or while FSR 3 presents it, every value 
 
 * A profile's values and the reset's pass through the requirements before they are
   shown or set.
-* A row a requirement fixes to one value is locked. A list offers only the allowed
-  entries. The tooltip ends with the reason.
+* A row a requirement locks (`lock = True`) cannot be moved. A list offers only the
+  allowed entries, and any other row is corrected as it is applied. The tooltip ends
+  with the reason.
 * A forbidden value is corrected and saved at every scene load, when a scene is ready,
   when KSP's own settings are applied, and when frame generation is switched on. One
   message per run names the reason.
@@ -72,9 +73,10 @@ ReDefinition leaves these to the mod, and drops or limits the row instead:
 ## Set by ReDefinition while a profile is chosen
 
 These are not requirements of other mods. The upscaler does the antialiasing, so every
-profile switches Scatterer's TAA and SMAA and Deferred's editor SMAA off, through the
-`ALL_PROFILES` blocks in their registrations. The upscaler switches MSAA off while it
-runs.
+profile switches Scatterer's TAA and SMAA and Deferred's editor SMAA off. With the
+Volumetric Clouds build of TUFX, every profile also sets *Blackrack_TUFX* in every
+scene. All three go through the `ALL_PROFILES` blocks in their registrations. The
+upscaler switches MSAA off while it runs.
 
 ## Dependencies, not requirements
 

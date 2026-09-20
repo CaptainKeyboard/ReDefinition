@@ -28,14 +28,14 @@ Harmony is a requirement (`src/KspAssemblyInfo.cs`).
 
 ## The layers
 
-Each folder is one namespace. A folder uses its own layer and the layers below it, never
-one above.
+Each folder is one namespace, but for `src/Fsr3`, which keeps FSR3Unity's two. A folder
+uses its own layer and the layers below it, never one above.
 
 | Layer | Folder | Namespace | What |
 |---|---|---|---|
 | 1 | `src/Core` | `ReDefinition.Core` | the log tag, warnings logged a few times at most, types and members looked up by name, the `PluginData` folder |
 | 2 | `src/Settings` | `ReDefinition.Settings` | registrations, the bundled mods' settings, profiles, defaults, requirements, key combinations, the settings window's edit model |
-| 3 | `src/Upscaler`, `src/Fsr3` | `ReDefinition.Upscaler`, `FidelityFX.FSR3` | the upscaler on KSP's camera stack |
+| 3 | `src/Upscaler`, `src/Fsr3` | `ReDefinition.Upscaler`, `FidelityFX.FSR3`, `FidelityFX` | the upscaler on KSP's camera stack |
 | 3 | `src/Bridges` | `ReDefinition.Bridges` | the managed side of the proxy |
 | 3 | `src/Shared` | `ReDefinition.Shared` | the frame's state and hooks behind the interface for mods |
 | 4 | `src/` | `ReDefinition` | the add-on, ReDefinition's own settings and modules |
@@ -91,7 +91,7 @@ A mod is bundled from a `MOD_SETTINGS` config node
 | `ModRegistry.cs` | reads all registrations from the GameDatabase once ModuleManager has patched them (`PartLoader` ready), and builds a mod for each, by title. A registration outside ReDefinition's folder wins over ReDefinition's own of the same name |
 | `RegisteredMod.cs` | an `IBundledMod` built from a registration: detect, version, build, `needs`, `save`, `ready`, member paths, controls, follow-ups, own window; what is left out, with the reason; rows and saved settings the installed build no longer matches |
 | `MemberPath.cs` | a C# path from a type to a field, property, indexer or method, resolved once in the mod's own folder (`ModFolder`) |
-| `ModBehaviour.cs`, `Behaviours/` | code for what a member path cannot say: KSP's follow-ups and checks, Scatterer's node, EVE's rebuild, TUFX's scenes, Distant Object's hooks, Firefly's text, Parallax's renormalisation. A registration names one with `behaviour` |
+| `ModBehaviour.cs`, `Behaviours/` | code for what a member path cannot say: KSP's follow-ups and checks, Scatterer's node, EVE's rebuild, TUFX's scenes, Distant Object's hooks, Firefly's text, Parallax's renormalisation. A registration names one with `behaviour`, for the mod or for one setting. `Behaviours/ProvidedSettings.cs` answers for a type the mod itself brings, reached by name and signature |
 | `BundledSetting.cs`, `ApplyWindow.cs` | the model of one setting and of a bundled mod (`IBundledMod`); when a change takes effect |
 | `SettingValues.cs` | values as invariant text: conversion and comparison |
 | `HarmonyHooks.cs` | Harmony patches installed all or none |
@@ -255,9 +255,11 @@ KSP's UI textures by name, themes it with the rest of KSP's dialogs.
 | `Log.h`, `Log.cpp`, `LoadMonitor.h`, `LoadMonitor.cpp` | `ReDefinitionProxy.log`; CPU and GPU load |
 | `FileUtil.h`, `FileUtil.cpp`, `D3d12Util.h` | paths next to the executable, file facts; Direct3D 12 resource transitions |
 | `ProxyHarness.cpp`, `HarnessPass.hlsl` | a test driver that does what Unity does, without KSP; its compute pass for Direct3D 12 for mods |
+| `ReDefinitionProxy.def`, `ReDefinitionProxy.rc.in` | the exported names; the version resource, filled from the project's version |
 | `extern/` | AMD's FidelityFX headers and NVIDIA's Streamline headers (MIT) |
 
-The proxy's own files are C++17 in the namespace `redefinition`. CMake builds them into
+The proxy's own files are C++17 in the namespace `redefinition`, but for the three that
+only export: `DxgiExports.cpp`, `ManagedBridge.cpp` and the harness. CMake builds them into
 `dxgi.dll` and the harness into `ProxyHarness.exe` (`src/DxgiProxy/CMakeLists.txt`).
 
 Design and measurements: [frame-generation.md](frame-generation.md).
@@ -268,8 +270,8 @@ Design and measurements: [frame-generation.md](frame-generation.md).
 |---|---|
 | `GameData/ReDefinition/Mods` | the registrations of KSP and the eight bundled mods |
 | `GameData/ReDefinition/Profiles` | the five profiles |
-| `unity/Assets/ReDefinition` | the ported FSR 3 compute shaders and `Editor/BundleBuilder.cs`; the shader include for mods and `Editor/IncludeCheck.cs` |
-| `tests/ReDefinition.Tests` | MSTest on .NET Framework 4.8: the store, the file, the edit model, the modules, registrations, frame packet layout, Streamline's camera matrices, EVE's cloud motion, TUFX's split, NVIDIA's files, the interface for mods and its wrapper |
+| `unity/Assets/ReDefinition` | the ported FSR 3 compute shaders and ReDefinition's own two, the masks and EVE's cloud motion, and `Editor/BundleBuilder.cs`; the shader include for mods and `Editor/IncludeCheck.cs` |
+| `tests/ReDefinition.Tests` | MSTest on .NET Framework 4.8: the store, the file, the edit model, the modules, registrations, frame packet layout, Streamline's camera matrices, EVE's cloud motion, TUFX's split, NVIDIA's files, the key bindings and the *Keys* tab, the interface for mods and its wrapper |
 | `tools/check_bundled_mods.ps1`, `tools/check_profile_parser.ps1`, `tools/check_key_bindings.ps1` | checks against the installed mods and KSP's own `ConfigNode` |
 | `tools/check_docs.ps1` | the rules the pages under `docs/` follow |
 | `tools/port_fsr3_shaders.py`, `tools/audit_ffx_fields.py`, `tools/fetch_amd_runtime.py` | the FSR shaders from FSR3Unity's, the frame generation field audit, AMD's runtime for the package |
