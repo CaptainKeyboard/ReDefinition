@@ -4,6 +4,11 @@
 
 ### Changed
 
+- **A toolbar icon of its own.** A bank of sliders in the stock toolbar's colours, which
+  is what the button opens: every graphics mod's settings on one panel. It ships as
+  `GameData/ReDefinition/Icons/ReDefinitionIcon.png`; where that file is missing, the
+  icon ReDefinition draws at run time stands in. `tools/make_icon.py` draws both it and
+  the picture for a forum post or a mod site.
 - A switch *Hook probe, into the log* in the diagnostics window's *Debug* tab registers a
   handler on each of the three places a mod can add to the frame, and writes two lines per
   scene for each: which camera, which textures, and the frame's state. It draws nothing.

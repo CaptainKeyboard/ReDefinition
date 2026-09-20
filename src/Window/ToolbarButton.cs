@@ -15,10 +15,14 @@ namespace ReDefinition.Window
     //
     // Through KSP's own ApplicationLauncher, in Assembly-CSharp.
     //
-    // The icon is generated at run time.
+    // The icon comes from GameData/ReDefinition/Icons; the one drawn at run time
+    // below stands in where that file is missing.
     internal class ToolbarButton
     {
         private const int IconSize = 38;
+
+        // The icon in GameData, without the extension, as KSP's GameDatabase holds it.
+        private const string IconPath = "ReDefinition/Icons/ReDefinitionIcon";
 
         private readonly Callback onClick;   // KSP's own delegate, not System.Action
         private ApplicationLauncherButton button;
@@ -66,9 +70,33 @@ namespace ReDefinition.Window
         {
             if (button != null || ApplicationLauncher.Instance == null) return;
 
-            if (icon == null) icon = BuildIcon();
+            Texture drawn = FromGameData(IconPath);
+            if (drawn == null)
+            {
+                if (icon == null) icon = BuildIcon();
+                drawn = icon;
+            }
 
-            button = ApplicationLauncher.Instance.AddModApplication(
+            button = AddWith(drawn);
+        }
+
+        // The texture a mod ships, as Kopernicus loads its own: null where the file
+        // is not there, and then the one this mod draws is used.
+        private static Texture FromGameData(string path)
+        {
+            try
+            {
+                return GameDatabase.Instance != null ? GameDatabase.Instance.GetTexture(path, false) : null;
+            }
+            catch (System.Exception)
+            {
+                return null;
+            }
+        }
+
+        private ApplicationLauncherButton AddWith(Texture texture)
+        {
+            return ApplicationLauncher.Instance.AddModApplication(
                 onClick, onClick,               // on and off both lead to a toggle
                 null, null, null, null,
                 ApplicationLauncher.AppScenes.FLIGHT
@@ -78,7 +106,7 @@ namespace ReDefinition.Window
                 | ApplicationLauncher.AppScenes.SPH
                 | ApplicationLauncher.AppScenes.TRACKSTATION
                 | ApplicationLauncher.AppScenes.MAINMENU,
-                icon);
+                texture);
         }
 
         private void Forget()
