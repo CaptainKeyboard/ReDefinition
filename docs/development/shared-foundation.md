@@ -235,8 +235,13 @@ the GPU, such as Parallax's terrain, is not there.
   shader error or warning. A deliberate error in the include made it fail with that error's
   line.
 * The example mod: built with the solution, without warnings.
-* **[open]** The hooks and the frame's state in the game: nothing in this build uses them
-  for its own work. *Hook probe, into the log*, in the diagnostics window's *Debug* tab,
-  registers a handler on all three and writes what each one is called with, once per
-  scene (`src/HookProbe.cs`), so the path is walked in a normal game
+* **[meas]** The three hooks in flight, 2026-09-20, with *Hook probe, into the log* in
+  the diagnostics window's *Debug* tab (`src/HookProbe.cs`): each one is called on
+  `Camera 00` with the capture buffer, the motion vectors as `RGHalf` and the depth as
+  `RFloat` at render size, and the upscaled image as `ARGBHalf` at display size. The
+  frame's state a handler reads is the frame's: the motion vector hook and the one after
+  the upscaler saw the same jitter in the same frame, and every zero was a frame with a
+  history reset, where the rig jitters nothing. With render size at display size the
+  jitter runs through eight phases, and frames of the same phase read alike. **[open]**
+  no mod uses the hooks for its own work yet
   yet but ReDefinition's own cut detection.

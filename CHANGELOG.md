@@ -5,10 +5,11 @@
 ### Changed
 
 - A switch *Hook probe, into the log* in the diagnostics window's *Debug* tab registers a
-  handler on each of the three places a mod can add to the frame, and writes one line per
+  handler on each of the three places a mod can add to the frame, and writes two lines per
   scene for each: which camera, which textures, and the frame's state. It draws nothing.
   Nothing in ReDefinition uses those hooks for its own work, so this is what walks their
-  path in a normal game.
+  path in a normal game. All three were seen running in flight, with the state a handler
+  reads matching the frame it runs in.
 - **A mod installed after you chose a profile is set up by that profile**, at the next
   start, without pressing *Apply*. The same where a mod's build changes, as it does when
   Volumetric Clouds brings its own EVE and Scatterer. Only those mods are set, so what
