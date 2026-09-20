@@ -10,7 +10,7 @@ Mods for KSP are installed one by one and set up one by one, each in its own win
 whether their settings work together is left to chance. ReDefinition starts with the major
 graphics mods; any mod can join with a config file.
 
-> **Early release, 0.1.3.** What works and what is open:
+> **Early release, 0.1.2.** What works and what is open:
 > [docs/project/status.md](docs/project/status.md).
 
 ## Features
