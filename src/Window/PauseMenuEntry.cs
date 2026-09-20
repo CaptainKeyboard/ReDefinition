@@ -77,15 +77,29 @@ namespace ReDefinition.Window
                 DialogGUIButton open = new DialogGUIButton("ReDefinition", Open, ButtonWidth, ButtonHeight, false);
                 open.tooltipText = "The settings of ReDefinition and of the graphics mods it bundles.";
 
+                int at = Below(__result);
                 DialogGUIBase[] withEntry = new DialogGUIBase[__result.Length + 1];
-                Array.Copy(__result, withEntry, __result.Length);
-                withEntry[__result.Length] = open;
+                Array.Copy(__result, 0, withEntry, 0, at);
+                withEntry[at] = open;
+                Array.Copy(__result, at, withEntry, at + 1, __result.Length - at);
                 __result = withEntry;
             }
             catch (Exception e)
             {
                 Debug.LogWarning(Log.Tag + " The pause menu's ReDefinition entry could not be built: " + e);
             }
+        }
+
+        // Below the menu's own buttons, above the line with the game's version:
+        // both menus end with a space and that line (PauseMenu.draw and
+        // KSCPauseMenu.draw), so the entry goes before the last space. Appended
+        // at the end it would stand under the version line, apart from the
+        // buttons it belongs with.
+        private static int Below(DialogGUIBase[] entries)
+        {
+            for (int i = entries.Length - 1; i >= 0; i--)
+                if (entries[i] is DialogGUISpace) return i;
+            return entries.Length;
         }
 
         // The window over the pause menu: the menu stays, so Escape still ends

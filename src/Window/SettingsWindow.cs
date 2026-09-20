@@ -143,12 +143,23 @@ namespace ReDefinition.Window
                     skin, new Rect(0.5f, 0.5f, WindowWidth, WindowHeight), Build(skin));
                 dialog = PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), window,
                     false, skin, false);
-                dialog.OnDismiss = () =>
+                // Accept and Cancel dismiss the dialog themselves, and
+                // PopupDialog.Dismiss does not call OnDismiss -- only Escape
+                // does, from PopupDialog.Update (decompiled). Its onDestroy is
+                // the one event every way out of the window passes, a scene
+                // change included. It runs a frame later, once the object is
+                // gone, and only for the dialog it belongs to: a window built
+                // anew in the same frame has its own.
+                PopupDialog spawned = dialog;
+                UnityEngine.Events.UnityAction gone = () =>
                 {
+                    if (dialog != spawned) return;
                     dialog = null;
                     KeyCapture.Stop();
                     WindowPause.Release();
                 };
+                spawned.onDestroy.AddListener(gone);
+                spawned.OnDismiss = () => gone();
                 UnityMouseEvents.Shield(dialog);
                 WindowPause.PlaceInTitleRow(dialog);
                 WindowPause.Refresh();

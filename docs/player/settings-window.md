@@ -37,7 +37,8 @@ In flight, the button in the window's title row holds the flight while the windo
 open. It shows two bars while the flight runs and a triangle while it is held, so it
 shows what a click does.
 
-Closing the window lets the flight run again. Only KSP's own pause menu keeps it
+Closing the window lets the flight run again, whether you close it with *Accept*, with
+*Cancel*, with Escape or with the toolbar button. Only KSP's own pause menu keeps it
 paused, since that pause is not this window's. Your choice is kept, so the next time
 you open the window it holds the flight again.
 

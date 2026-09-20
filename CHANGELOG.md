@@ -21,7 +21,7 @@
 ### Changed
 
 - **The window opens from the menu Escape opens**, in flight and in the space centre. A
-  *ReDefinition* entry stands there under KSP's own, and *All settings* in ReDefinition's
+  *ReDefinition* entry stands there below the menu's own buttons, and *All settings* in ReDefinition's
   section of KSP's settings dialog opens the same window. The toolbar is hidden while
   that menu is up, so this is the way in mid-flight.
 - **A pause button in the settings window's title row**, in symbols rather than words:
