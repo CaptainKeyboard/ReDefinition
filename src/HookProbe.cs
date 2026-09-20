@@ -25,9 +25,18 @@ namespace ReDefinition
     {
         private static bool on;
 
+        // Twice per scene: the first call, and one about two seconds later. The
+        // first is the frame the rig was built in, where the jitter is zero by
+        // design; a mod's handler sees the settled frame, which the second line
+        // is.
+        private const int SettledAfter = 120;
+
         private static int motionVectorsSaid = -1;
         private static int afterUpscalingSaid = -1;
         private static int overlaySaid = -1;
+        private static int motionVectorsFirst;
+        private static int afterUpscalingFirst;
+        private static int overlayFirst;
 
         internal static bool On
         {
@@ -43,6 +52,9 @@ namespace ReDefinition
                 motionVectorsSaid = -1;
                 afterUpscalingSaid = -1;
                 overlaySaid = -1;
+                motionVectorsFirst = 0;
+                afterUpscalingFirst = 0;
+                overlayFirst = 0;
                 Hooks.RegisterMotionVectors(MotionVectors);
                 Hooks.RegisterAfterUpscaling(AfterUpscaling);
                 Hooks.RegisterOverlay(Overlay);
@@ -78,22 +90,36 @@ namespace ReDefinition
             return texture == null ? "none" : texture.width + "x" + texture.height + " " + texture.format;
         }
 
-        // Once per scene: a line every frame would say nothing more and fill the
-        // log.
-        private static bool Once(ref int said)
+        // The first call in a scene, and one once the frame has settled: a line
+        // every frame would fill the log, and one line alone would say nothing
+        // about the frames that follow it.
+        private static bool Say(ref int said, ref int first)
         {
             int scene = (int)HighLogic.LoadedScene;
-            if (said == scene) return false;
-            said = scene;
+            int frame = Time.frameCount;
+            if (said != scene)
+            {
+                said = scene;
+                first = frame;
+                return true;
+            }
+
+            if (first == 0 || frame - first < SettledAfter) return false;
+            first = 0;
             return true;
+        }
+
+        private static string At()
+        {
+            return "frame " + Time.frameCount + ": ";
         }
 
         private static void MotionVectors(CommandBuffer buffer, RenderTexture motionVectors, RenderTexture depth,
                                           Camera scene)
         {
-            if (!Once(ref motionVectorsSaid)) return;
+            if (!Say(ref motionVectorsSaid, ref motionVectorsFirst)) return;
             StringBuilder sb = new StringBuilder();
-            sb.Append(Log.Tag).Append(" Hook probe, motion vectors: called on ")
+            sb.Append(Log.Tag).Append(" Hook probe, motion vectors, ").Append(At()).Append("called on ")
               .Append(scene == null ? "no camera" : scene.name)
               .Append(", buffer ").Append(buffer == null ? "none" : buffer.name)
               .Append(", motion vectors ").Append(Of(motionVectors))
@@ -104,16 +130,16 @@ namespace ReDefinition
 
         private static void AfterUpscaling(CommandBuffer buffer, RenderTexture image, Camera scene)
         {
-            if (!Once(ref afterUpscalingSaid)) return;
-            Debug.Log(Log.Tag + " Hook probe, after upscaling: called on "
+            if (!Say(ref afterUpscalingSaid, ref afterUpscalingFirst)) return;
+            Debug.Log(Log.Tag + " Hook probe, after upscaling, " + At() + "called on "
                       + (scene == null ? "no camera" : scene.name)
                       + ", image " + Of(image) + " -- " + Frames());
         }
 
         private static void Overlay(CommandBuffer buffer, Camera scene)
         {
-            if (!Once(ref overlaySaid)) return;
-            Debug.Log(Log.Tag + " Hook probe, overlay: called on "
+            if (!Say(ref overlaySaid, ref overlayFirst)) return;
+            Debug.Log(Log.Tag + " Hook probe, overlay, " + At() + "called on "
                       + (scene == null ? "no camera" : scene.name) + " -- " + Frames());
         }
     }
