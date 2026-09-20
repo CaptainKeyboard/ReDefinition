@@ -7,7 +7,7 @@ using UnityEngine;
 namespace ReDefinition.Upscaler
 {
     // The two masks FSR takes beside colour, depth and motion vectors
-    // (docs/development/upscaler.md, "Masks (FSR 3)").
+    // (docs/development/upscaler.md, "The masks for FSR 3").
     //
     // Transparency and composition: what the motion vectors do not follow though
     // nothing is blended -- EVE's raymarched clouds, rebuilt over several frames, and

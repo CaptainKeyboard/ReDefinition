@@ -10,7 +10,8 @@ Mods for KSP are installed one by one and set up one by one, each in its own win
 whether their settings work together is left to chance. ReDefinition starts with the major
 graphics mods; any mod can join with a config file.
 
-> **Pre-release.** What works and what is open: [docs/project/status.md](docs/project/status.md).
+> **Early release, 0.1.1.** What works and what is open:
+> [docs/project/status.md](docs/project/status.md).
 
 ## Features
 
@@ -36,8 +37,9 @@ graphics mods; any mod can join with a config file.
 ## Supported mods
 
 Scatterer, EVE Redux with its volumetric clouds, Parallax Continued, Deferred, Firefly,
-Waterfall, Distant Object Enhancement and TUFX -- each optional. How ReDefinition works
-with further graphics mods: [docs/reference/graphics-mod-compatibility.md](docs/reference/graphics-mod-compatibility.md).
+Waterfall, Distant Object Enhancement and TUFX, each of them optional. How ReDefinition
+works with further graphics mods:
+[docs/reference/graphics-mod-compatibility.md](docs/reference/graphics-mod-compatibility.md).
 
 ## Requirements
 
@@ -53,9 +55,9 @@ window. What each technique needs:
 
 ### With CKAN
 
-Search for *ReDefinition* in CKAN and install it; CKAN installs HarmonyKSP with it. CKAN
-does not replace a `dxgi.dll` it did not install, such as ReShade's: move that one away
-from `KSP_x64.exe` first.
+Once ReDefinition's CKAN entry is merged, search for it there and install it. CKAN
+installs HarmonyKSP with it. CKAN does not replace a `dxgi.dll` it did not install,
+such as ReShade's: move that one away from `KSP_x64.exe` first.
 
 ### Manually
 
@@ -88,19 +90,20 @@ Suggestions for 1440p; at 4K one profile lower fits. What each profile sets:
 
 ## Reporting a problem
 
-Open an issue with `KSP.log` from the KSP folder, and `ReDefinitionProxy.log` from next to
-`KSP_x64.exe`. *Write diagnostics to log* in the diagnostics window
-(`RightCtrl` + `RightShift` + `K`) adds the upscaler's current state to `KSP.log`.
+Open an issue. The form asks for what is needed: your GPU, what was switched on, your
+mods, and the two logs, `KSP.log` from the KSP folder and `ReDefinitionProxy.log` from
+next to `KSP_x64.exe`. *Write diagnostics to log*, in the diagnostics window, adds the
+upscaler's current state to `KSP.log`.
 
 ## For mod authors
 
 A mod or visual pack registers its settings, defaults and profile values with a config
 file in its own folder: [docs/modders/registering-a-mod.md](docs/modders/registering-a-mod.md).
 
-A mod can also use what ReDefinition provides once for every mod -- the jitter, history
+A mod can also use what ReDefinition provides once for every mod: the jitter, history
 resets, its own motion vectors, the upscaled image, overlays and Direct3D 12 compute
-passes from HLSL -- with or without depending on ReDefinition, with a shader include, a
-wrapper file and an example mod to start from:
+passes from HLSL. It works with or without depending on ReDefinition, and there is a
+shader include, a wrapper file and an example mod to start from:
 [docs/modders/shared-foundation.md](docs/modders/shared-foundation.md).
 
 ## Building
@@ -116,7 +119,7 @@ All documentation: [docs/README.md](docs/README.md).
 
 ## Credits and licence
 
-**GPL-3.0-or-later WITH Modding Exception AND GPL-3.0 Linking Exception** -- see
+**GPL-3.0-or-later WITH Modding Exception AND GPL-3.0 Linking Exception.** See
 [LICENSE](LICENSE) and [EXCEPTIONS.md](EXCEPTIONS.md).
 
 FSR 3 in the game is [FSR3Unity](https://github.com/ndepoel/FSR3Unity) by Nico de Poel

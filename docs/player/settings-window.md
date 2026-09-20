@@ -1,232 +1,271 @@
 # The settings window
 
-ReDefinition's settings window holds the upscaler, frame generation and the graphics
-settings of the installed graphics mods, one row per feature, sorted by what a
-setting does. A mod that is not installed has no rows.
+**For:** players.
+**You need:** ReDefinition installed ([installing.md](installing.md)).
+**You get:** how to find every setting, apply it, reset it, and put the mods back the
+way they were.
 
-## Opening it
+The window holds the upscaler, frame generation and the graphics settings of the
+installed graphics mods, one row per feature, sorted by what a setting does. A mod that
+is not installed has no rows.
 
-* **ReDefinition's toolbar button**, in every scene including the main menu.
-* **KSP's own settings dialog** (*Settings* in the pause menu of flight and of the
-  space centre): a *ReDefinition* section at the end of its graphics part.
-* **Hotkeys**, once set in the *Keys* tab; none is bound at first:
+Nothing of this is active until you choose a graphics profile. Until then the upscaler
+and frame generation are off, and every mod keeps its own settings.
 
-| Hotkey | Does |
+## Open it
+
+| Way | Where |
 |---|---|
-| Upscaler on or off | the upscaler on or off |
-| Diagnostics window | the diagnostics window open or closed |
-| Camera list to the log | the camera list into `KSP.log` |
-| Settings window | this window open or closed |
+| ReDefinition's toolbar button | every scene, the main menu included |
+| KSP's own settings dialog | *Settings* in the pause menu of flight and of the space centre, at the end of its graphics part |
+| A hotkey | once you set one in the *Keys* tab; none is bound at first |
 
-The window is built from KSP's own dialog elements, so a UI theme such as ZTheme
-themes it. It edits copies: *Apply* sets what was changed, *Accept* sets it and
-closes, *Cancel* closes without setting anything. Clicks on the window do not reach
-the scene behind it.
+The four hotkeys you can set are in the *Keys* tab, in this order: *Upscaler on or
+off*, *Settings window*, *Diagnostics window* and *Camera list to the log*.
+
+The window is built from KSP's own dialog elements, so a UI theme such as ZTheme themes
+it as well. It edits copies of the values. *Apply* sets what you changed, *Accept* sets
+it and closes, *Cancel* closes without setting anything. Clicks on the window do not
+reach the scene behind it.
+
+*Reset to defaults* is at the bottom left, beside those three, on every tab.
 
 ## The tabs
 
 | Tab | Rows |
 |---|---|
-| **Profiles** | the graphics profiles with the hardware each is made for, a status line -- the chosen profile, *Custom* with the rows changed since, what waits for *Apply* -- and *Reset to defaults* |
-| **General** | Upscaler, Technique, Mode, DLSS preset, Sharpness, Frame generation; *NVIDIA DLSS files*; KSP's render quality, texture quality, V-Sync and frame limit |
-| **Shadows and reflections** | KSP's shadow cascades, Scatterer's long-distance terrain shadows, Deferred's screen-space reflections |
-| **Planets** | EVE's volumetric cloud upscaling, cloud ambience and thunder volume; Scatterer's light shafts through clouds, ocean and waves moving vessels; KSP's terrain detail; Parallax's scatter density and scatter collisions |
-| **Effects** | KSP's aerodynamic FX (while Firefly is not installed), Firefly's re-entry particles, Waterfall's plume lights and heat distortion, Scatterer's sun flare, Distant Object's flares, names on flares and distant vessels |
-| **Keys** | every key binding: ReDefinition's own, the bundled mods' and KSP's, with a search field above them |
-| **Mods and toolbar** | *Bundle other mods here*, the list of bundled mods, and *Restore settings from before ReDefinition* |
+| *Profiles* | a status line, and one row per graphics profile with the hardware it is made for and what it sets |
+| *General* | Upscaler, Technique, Mode, DLSS preset, Sharpness, Frame generation, *NVIDIA DLSS files*, and KSP's render quality, texture quality, V-Sync and frame limit |
+| *Shadows / Reflections* | KSP's shadow cascades, Scatterer's long-distance terrain shadows, Deferred's screen-space reflections |
+| *Planets* | EVE's volumetric cloud upscaling, cloud ambience and thunder volume; Scatterer's light shafts through clouds, its ocean and waves moving vessels; KSP's terrain detail; Parallax's scatter density and scatter collisions |
+| *Effects* | KSP's aerodynamic FX while Firefly is not installed, Firefly's re-entry particles, Waterfall's plume lights and heat distortion, Scatterer's sun flare, Distant Object's flares, names and distant vessels |
+| *Keys* | every key binding: ReDefinition's own, the bundled mods' and KSP's, with a search field above them |
+| *Mods / Toolbar* | *Bundle other mods here*, the list of bundled mods, and *Restore settings from before ReDefinition* |
 
-The *Diagnostics* button at the end of the tab row opens the diagnostics window.
+The status line on *Profiles* names the chosen profile, shows *Custom* where rows were
+changed since, and says what still waits for *Apply*.
 
-A row's tooltip says what the setting does and when a change takes effect: at once,
-from the next scene on, or after a restart.
+Each row's tooltip says what the setting does, which mod holds the value, where that
+value is kept, and when the change arrives: at once, from the next scene on, after a
+restart, or when the mod next reads it.
 
-**Advanced.** The *Planets* and *Effects* tabs end with a button for each mod whose
-own window has more: Scatterer, EVE and Parallax under *Planets*; Firefly, TUFX and
-Distant Object under *Effects*. It opens the mod's own window beside ReDefinition's,
-with an X at its top right to close it. A change made there shows in ReDefinition's
-rows; a change made here shows there once applied.
+The *Diagnostics* button below the tabs opens the diagnostics window.
 
-**The upscaler and frame generation** can be changed only while a graphics profile is
+The upscaler and frame generation can only be changed while a graphics profile is
 chosen.
 
-## Key bindings
+## Reach a mod's own window
 
-The *Keys* tab holds every binding in one place, in sections: *Mods* for
-ReDefinition's own hotkeys and the mods' -- a mod can place its bindings in another
-section -- and KSP's own in the groups KSP sorts them into (*Flight*, *EVA*,
-*Editor*, *Camera*, *Map and vessels*, *General*). A section opens and folds with a
-click on its title; *Mods* is open at first. The search field at the top filters
-the rows by their name or their mod, in every section. While the search field has
-the keyboard, no key reaches the game -- W is a letter there, not a pitch -- and
-Enter confirms, Escape cancels.
+A tab ends with an *Advanced* row where a bundled mod puts its own window there. With
+the mods bundled today that is *Planets*, for Scatterer, EVE and Parallax, and
+*Effects*, for Firefly, TUFX and Distant Object.
 
-Click a binding, and the row says it is listening: the next key pressed is taken.
-Escape cancels, and *x* beside it clears the binding. The modifiers are the
-switches *Ctrl*, *Alt* and *Shift* beside it: a click sets the left one (*L Ctrl*),
-a second the right one (*R Ctrl*), a third none. A binding holds up to two; a
-switch is grey where it has no room. Pressed modifiers are not taken from the
-keyboard, since Windows turns AltGr into Ctrl and Alt at once -- a binding with
-right Alt answers to AltGr. As everywhere in this window, *Apply* or *Accept* sets
-what was changed and *Cancel* leaves it.
+A button opens that mod's own window beside ReDefinition's, with an X at its top right
+to close it. A change you make there shows up in ReDefinition's rows. A change
+you make here shows up there once you apply it.
 
-*Reset to defaults* puts every binding back to its default: ReDefinition's own,
-the mods', and KSP's to what KSP ships -- the same keys KSP's own reset sets.
+While their settings are bundled here, the toolbar buttons of those mods are hidden.
+Waterfall's button opens its effect editor rather than settings, so it stays, and so do
+buttons on Blizzy's toolbar.
 
-KSP keeps two keys per binding, a first and a second, and one key each without a
-modifier -- its own modifier key is a binding of its own. The mods' and
-ReDefinition's own take modifiers.
+## Set a key
 
-Where two rows hold the same combination in the same situation, both are shown in
-yellow. A binding counts where its section does: flying a vessel (also in map view),
-on EVA, in the editor; *Mods* and *General* count everywhere. B that brakes a vessel
-and B that boards one on EVA never meet and stay unmarked, as do keys KSP itself
-ships twice -- W pitches and drives a rover -- while both stand at KSP's default.
-Nothing is refused.
+The *Keys* tab holds every binding in one place, in sections. *Mods* holds
+ReDefinition's own hotkeys and the mods', and a mod can place its bindings in another
+section. KSP's own bindings are in the groups KSP sorts them into: *Flight*, *EVA*,
+*Editor*, *Camera*, *Map and vessels* and *General*.
 
-## Where a change goes
+A section opens and folds with a click on its title, and *Mods* is open at first. The
+search field filters the rows by their name or their mod, in every section. While the
+search field has the keyboard, no key reaches the game: W is a letter there, not a
+pitch. Enter confirms, Escape leaves the field.
 
-A setting changed here is saved in its mod, as that mod's own window saves it:
+To set a binding:
+
+1. Click the row. It says that it is listening.
+2. Press the key you want. Escape cancels, and *x* beside the row clears the binding.
+3. Set the modifiers with the switches *Ctrl*, *Alt* and *Shift* beside the row. One
+   click takes the left one (*L Ctrl*), a second the right one (*R Ctrl*), a third
+   none.
+4. Press *Apply* or *Accept*.
+
+A binding holds up to two modifiers, and a switch is grey where the binding has no room
+for it. The modifiers come from the switches rather than from the keyboard, because
+Windows turns AltGr into Ctrl and Alt at once. A binding with right Alt answers to
+AltGr.
+
+*Reset to defaults* puts every binding back to its default: ReDefinition's own, the
+mods', and KSP's to the keys KSP ships, the same ones KSP's own reset sets.
+
+KSP keeps two keys per binding, a first and a second, each without a modifier. Its
+modifier key is a binding of its own. The mods' bindings and ReDefinition's take
+modifiers.
+
+If two rows hold the same combination in the same situation, both are shown in
+yellow, and both still work. A binding counts where its section does: flying a vessel,
+map view included, on EVA, or in the editor. *Mods* and *General* count everywhere. B
+that brakes a vessel and B that boards one on EVA never meet, so neither is marked.
+Keys KSP itself ships twice, such as W for pitch and for driving a rover, stay unmarked
+while both stand at KSP's default.
+
+## Find out why a row is missing
+
+Three things leave a mod out of the window:
+
+* the mod is not installed;
+* the installed build is one ReDefinition does not bundle. Plain EVE Redux without the
+  volumetric clouds is such a build;
+* *Bundle other mods here*, under *Mods / Toolbar*, is switched off. Then only
+  ReDefinition's own rows and KSP's are in the window.
+
+Which of the three it is, the game says: *Diagnostics*, *Debug*, *Show mod
+registrations*. It lists every mod that is loaded and not bundled, with the reason.
+
+## Where your change goes
+
+A setting you change here is saved in its mod, the way that mod's own window saves it:
 
 | Mod | Kept |
 |---|---|
 | KSP | in `settings.cfg`, as KSP's own settings screens save it |
 | Scatterer, EVE, Parallax, Firefly | in their own config files, through their own save routines |
-| TUFX, Distant Object | per save: a choice here counts for every save, goes into the loaded save, and into every other save as it loads; a change made in their own windows becomes the choice here |
-| Deferred, Waterfall | they have no save routine: ReDefinition keeps the value in its `bundled.cfg` and sets it at every start and scene change |
+| TUFX, Distant Object | per save. Your choice counts for every save: it goes into the loaded save, and into every other save as that save loads. A change in their own windows becomes your choice here |
+| Deferred, Waterfall | they have no save routine, so ReDefinition keeps the value in `bundled.cfg` and sets it at every start and scene change |
 
-A value a mod cannot take yet -- EVE before its cloud settings are loaded, a mod whose
-settings exist only in flight -- waits in `bundled.cfg` and reaches the mod once it
-can take it.
+A value a mod cannot take yet waits in `bundled.cfg` and reaches the mod once it can
+take it. EVE before its cloud settings are loaded is such a case, and so is a mod whose
+settings exist only in flight.
 
-How each mod keeps its settings:
-[reference/how-each-mod-keeps-its-settings.md](../reference/how-each-mod-keeps-its-settings.md).
+Where each mod keeps its settings:
+[how-each-mod-keeps-its-settings.md](../reference/how-each-mod-keeps-its-settings.md).
 
-## Profiles, and *Reset to defaults*
+## Choose a profile, or reset
 
-Choosing a profile fills the rows of every tab with its values; *Apply* or *Accept*
-sets them. A row changed afterwards makes the choice *Custom*. A profile sets quality
--- what costs frame time -- and switches the upscaler on. What each profile sets:
+Choosing a profile fills the rows of every tab with its values, and *Apply* or *Accept*
+sets them. A row you change afterwards makes the choice *Custom*. A profile sets what
+costs frame time, and switches the upscaler on. What each profile sets:
 [graphics-profiles.md](graphics-profiles.md).
 
 *Reset to defaults* asks first and names what it resets. It fills the rows with every
-setting's default -- what the mods' releases ship, with Volumetric Clouds installed
-what its author ships, and KSP's graphics settings without resolution and full
-screen -- including the settings that have no row. ReDefinition's own settings go
-back to theirs, and no profile stays chosen: the upscaler and frame generation are
-off, and the other mods keep their own antialiasing, until a profile is chosen. A
-setting without a known default -- KSP's terrain shader quality -- stays as it is.
-Every default and its source: [reference/mod-defaults.md](../reference/mod-defaults.md).
+setting's default, the settings without a row included. Those defaults are what the
+mods' releases ship. With Volumetric Clouds installed, EVE's defaults are the ones its
+author ships. KSP's graphics settings are reset without resolution and full screen.
 
-## Values from before ReDefinition
+After a reset, ReDefinition's own settings stand at their defaults and no profile is
+chosen: the upscaler and frame generation are off, and the other mods keep their own
+antialiasing until you choose a profile. A setting without a known default, KSP's
+terrain shader quality, stays as it is. Every default and its source:
+[reference/mod-defaults.md](../reference/mod-defaults.md).
 
-Before ReDefinition first changes a setting, the value its mod had is written to
-`bundled.cfg` -- for TUFX and Distant Object once per save. *Restore settings from
-before ReDefinition*, under *Mods and toolbar*, asks first, puts every one of them
-back, saves it in its mod and clears the profile. A save that is not loaded gets its
-values back the next time it loads. The button is greyed out while changes wait for
-*Apply*.
+## Put the mods back as they were
 
-When another profile is chosen, a setting the previous profile set and the new one
-does not goes back to its value from before ReDefinition, unless it was changed
-since.
+Before ReDefinition changes a setting for the first time, it writes that setting's
+current value into `bundled.cfg`. For TUFX and Distant Object it does so once per save.
+
+*Restore settings from before ReDefinition*, under *Mods / Toolbar*, asks first, puts
+every one of those values back, saves each in its mod and clears the profile. A save
+that is not loaded gets its values back the next time you load it. The button is greyed
+out while changes wait for *Apply*.
+
+When you choose another profile, a setting the previous profile set and the new one
+does not goes back to its value from before ReDefinition, unless you changed it since.
+
+*Bundle other mods here*, under *Mods / Toolbar*, switched off gives the mods back
+their toolbar buttons, lets each mod's own window decide again, and clears the profile.
+What was saved in the mods stays. What only ReDefinition kept is dropped: the choices
+for every save, and Deferred's and Waterfall's settings.
+
+At the first start, the main menu explains ReDefinition and offers *Use High*, which
+chooses the High profile and bundles the mods, or *Later*, which leaves every mod as it
+is until you choose a profile. A graphics mod installed later follows that choice, with
+a short note when it is bundled.
 
 ## What the installed mods require
 
-Some mods need a setting to be a certain way and show an error or warning otherwise.
-Whatever a profile, the reset or a row says, ReDefinition keeps such a setting as the
-mod needs it: the row is locked or offers only the allowed values, its tooltip says
-why, and a value set elsewhere -- in KSP's own settings screen, for example -- is put
-right at the next scene load or when KSP's settings are applied, with one message per
-run. The list, with the source of each:
+Some mods need another setting to stand a certain way and show an error or a warning
+otherwise. ReDefinition keeps such a setting as the mod needs it, whatever a profile,
+the reset or a row says. The row is locked or offers only the allowed values, and its
+tooltip says why.
+
+A value set elsewhere, in KSP's own settings screen for example, is corrected at the
+next scene load or when KSP's settings are applied, with one message per run. The list,
+with the source of each:
 [reference/requirements.md](../reference/requirements.md).
-
-## The other mods' toolbar buttons
-
-While their settings are bundled here, the toolbar buttons of Scatterer, EVE,
-Parallax, Firefly, TUFX and Distant Object are hidden, as long as ReDefinition's
-window can open their own windows through the *Advanced* buttons. Waterfall's button,
-which opens its effect editor, stays, and so do buttons on Blizzy's toolbar.
-
-At the first start the main menu explains ReDefinition and offers *Use High*, which
-chooses the High profile and bundles the mods, or *Later*, which leaves every mod as
-it is until a profile is chosen. A graphics mod installed later follows that choice,
-with a short note when it is bundled.
-
-*Bundle other mods here*, under *Mods and toolbar*, switched off: the buttons come
-back, each mod's own window decides again, and the profile is cleared. What was saved
-in the mods stays; what only ReDefinition kept -- the choices for every save, and
-Deferred's and Waterfall's settings -- is dropped.
 
 ## KSP's own graphics settings
 
-Rows: render quality, texture quality, V-Sync, frame limit, shadow cascades, terrain
-detail, and aerodynamic FX while Firefly is not installed. The profiles and *Reset to
-defaults* also set KSP's pixel light count, terrain shader quality, terrain scatter,
-planet shadows and reflections. Some of them another mod holds for itself:
+The rows are: render quality, texture quality, V-Sync, frame limit, shadow cascades,
+terrain detail, and aerodynamic FX while Firefly is not installed. The profiles and
+*Reset to defaults* also set KSP's pixel light count, terrain shader quality, terrain
+scatter, planet shadows and reflections.
 
-* aerodynamic FX: Firefly sets it to its lowest, since it replaces KSP's effects;
-* the reflection refresh: Deferred holds it at Low;
-* the reflection resolution: Deferred holds it at 256 at most;
-* the terrain shader quality: Kopernicus, where it enforces a level.
+Some of them another mod holds for itself:
+
+| Setting | Held by |
+|---|---|
+| aerodynamic FX | Firefly, at its lowest, since it replaces KSP's effects |
+| reflection refresh | Deferred, at Low, while its own cap for it is on |
+| reflection resolution | Deferred, at 256 at most, while its own cap for it is on |
+| terrain shader quality | Kopernicus, where it enforces a level |
 
 ## The section in KSP's settings dialog
 
-Upscaler, Technique, Mode (all six, with the scale factor), DLSS preset, Sharpness and
-Frame generation. What the dialog shows is a copy, set on *Apply* or *Accept*, as KSP's
-own graphics settings are. The dialog and the settings window use the same settings
-file. The main menu's settings screen has no ReDefinition section.
+It holds Upscaler, Technique, Mode with all six modes and their scale factors, DLSS
+preset, Sharpness and Frame generation. What the dialog shows is a copy, set on *Apply*
+or *Accept*, as KSP's own graphics settings are. The dialog and the settings window use
+the same settings file. The main menu's settings screen has no ReDefinition section.
 
 ## The diagnostics window
 
-*Diagnostics* in the settings window, or `RightCtrl` + `RightShift` + `K`. The status,
-the on/off button and the frame rates -- measured separately with the upscaler on and
-off, with the load of the main thread, the render thread and the GPU -- sit above two
-tabs.
+Open it with *Diagnostics* in the settings window, or with the hotkey you set for it.
+At the top stand the status, the frame rate with the presented rate in brackets, and
+the on/off button. Below them are two tabs.
 
-**General:** Technique, Mode, DLSS preset, Sharpness, the frame generation switch, and
-whether other visual mods run anything that conflicts with the upscaler. Where the
-chosen technique cannot run, the reason, and after a failure *Try ... again*.
+*General* holds Technique, Mode, DLSS preset, Sharpness, the frame generation switch,
+and whether other visual mods run anything that conflicts with the upscaler. If the
+chosen technique cannot run, it names the reason, and after a failure it offers
+*Try ... again*.
 
-**Debug**, for finding out what happens:
+*Debug* is for finding out what happens:
 
 | Section | Holds |
 |---|---|
-| Measure | *Write diagnostics to log*; *Without upscaler (bypass)*; *Motion vector check on fast turns* (with frame generation; not saved) |
-| What the upscaler receives | Jitter; EVE clouds: jitter and motion vectors (not saved); Mipmap bias; Skinned motion vectors; TUFX after upscaling; Auto exposure (FSR 3, AMD); Transparency mask (FSR 3); Reactive mask (FSR 3) |
-| Game settings while upscaling | LOD bias compensation; MSAA forced off; Anisotropic filtering forced |
-| FSR 3 internals | *FSR's debug view* -- in development builds only |
+| Measure | for troubleshooting and bug reports: the frame rates with the upscaler on and off, the load of the main thread, the render thread and the GPU, *Write diagnostics to log*, *Without upscaler (bypass)*, and *Motion vector check on fast turns* with frame generation, which is not saved. The load is measured only while this tab is open |
+| What the upscaler receives | switches for a bug report, explained in [the glossary](../glossary.md): Jitter; EVE clouds: jitter and motion vectors, not saved; Mipmap bias; Skinned motion vectors; TUFX after upscaling; Auto exposure for FSR 3 and AMD; Transparency mask and Reactive mask for FSR 3 |
+| Game settings while upscaling | LOD bias compensation, MSAA forced off, Anisotropic filtering forced |
+| FSR 3 internals | *FSR's debug view*, in development builds only |
 
-Below them: the other mods' state as ReDefinition sees it, *Show mod registrations* --
-the bundled mods, the installed mods that are not bundled with the reason, and every
-problem in the registrations -- and a preview of what the upscaler receives: motion
+Below them stand three buttons. *Show other mods' state* lists what ReDefinition sees of
+the other mods. *Show mod registrations* lists the bundled mods and the problems
+of their registrations. *Show preview* shows what the upscaler receives: motion
 vectors, depth, the image at render resolution, the transparency and reactive masks,
-and the result. The motion vector, depth and mask previews read the image back from
-the GPU and cost frame rate while they are shown.
+and the result. The motion vector, depth and mask previews read the image back from the
+GPU and cost frame rate while they are shown.
 
-Everything ReDefinition reports goes into `KSP.log` with the prefix `[ReDefinition]`;
-the proxy writes `ReDefinitionProxy.log` next to `KSP_x64.exe`.
-
-## Not bundled
-
-Kopernicus, whose window holds technical configuration rather than graphics settings;
-Deferred's caps on KSP's reflection probe, which lower KSP's own settings; and any
-setting a mod does not save itself -- Scatterer keeps only the fields it marks
-`[Persistent]`, so a field without that mark stays Scatterer's and is named in the
-log.
-
-Other mods and visual packs can register their settings with a config file in their
-own folder: [modders/registering-a-mod.md](../modders/registering-a-mod.md).
+Everything ReDefinition reports goes into `KSP.log` behind `[ReDefinition]`. The proxy
+writes `ReDefinitionProxy.log` next to `KSP_x64.exe`.
 
 ## After a mod's update
 
-A mod's new version can drop a setting, hold it another way, or save one more. The
-tab *Mods and toolbar* is then marked *(!)*, and under *Not shown in this window* it
-names what is missing, per mod:
+A mod's new version can drop a setting, hold it another way, or save one more. The tab
+is then titled *Mods and toolbar (!)*, and under *Not shown in this window* it names
+what is missing, per mod:
 
 * a row this window places that the new version no longer has as ReDefinition knows it;
 * a setting the new version saves that no registration names yet;
-* a new version that ReDefinition cannot bundle at all -- its settings then stay with
-  the mod, and its toolbar button stays.
+* a new version ReDefinition cannot bundle at all. Its settings then stay with the mod,
+  and its toolbar button stays.
 
-Each of them is still in the mod's own window, which the button beside the line opens.
+Each of them is still in that mod's own window, which the button beside the line opens.
 A version that changes nothing of this is not mentioned.
+
+## What is not bundled
+
+* Kopernicus, whose window holds technical configuration rather than graphics settings.
+* Deferred's caps on KSP's reflection probe, which lower KSP's own settings.
+* Any setting a mod does not save itself. Scatterer keeps only the fields it marks
+  `[Persistent]`, so a field without that mark stays Scatterer's and is named in the
+  log.
+
+Other mods and visual packs can register their settings with a config file in their own
+folder: [modders/registering-a-mod.md](../modders/registering-a-mod.md).

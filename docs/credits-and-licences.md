@@ -1,8 +1,9 @@
 # Credits and licences
 
-This project stands on other people's work. Everyone whose work it builds on,
-talks to at run time, or learnt from is named here, with the licence of that
-work and what this project does with it.
+**For:** anyone asking whose work is in ReDefinition, and under which licence.
+**You need:** nothing.
+**You get:** everyone whose work ReDefinition builds on, talks to at run time, or
+learnt from, with the licence of that work and what ReDefinition does with it.
 
 Authors are taken from the work itself where it names them (a licence, a
 NOTICE, a README), otherwise from the repository owner and its leading
@@ -13,7 +14,7 @@ Linking Exception (see `LICENSE`).
 
 ---
 
-## 1. Part of this project
+## Part of this project
 
 | Work | By | Licence | How it is used |
 |---|---|---|---|
@@ -22,7 +23,7 @@ Linking Exception (see `LICENSE`).
 | **AMD FidelityFX SDK** -- FSR 3.1 frame generation runtime | Advanced Micro Devices | AMD's SDK licence (`docs/license.md` of the SDK): binaries may be redistributed with AMD's notice reproduced; no reverse engineering | The player package ships `amd_fidelityfx_framegeneration_dx12.dll` 4.0.1 from FSR SDK v2.3.0, signed by AMD, next to `KSP_x64.exe` with AMD's licence beside it (`third_party/amd/README.md`). |
 | **NVIDIA Streamline SDK 2.14.1** -- headers, and the NVAPI headers it carries | NVIDIA Corporation | MIT | The Streamline headers in `src/DxgiProxy/extern/Streamline/include`, its signature check `sl_security.h` among them, compiled into `dxgi.dll`; function ids and structures from NVAPI's `nvapi.h` and `nvapi_interface.h` declared in `NvidiaGpu.cpp`. Their notices are in `licenses/NVIDIA-MIT.txt`, which the package puts next to `dxgi.dll` as `dxgi_LICENSE-NVIDIA.txt` |
 
-## 2. Used to build or run, not in the package
+## Used to build or run, not in the package
 
 | Work | By | Licence | How it is used |
 |---|---|---|---|
@@ -34,7 +35,7 @@ Linking Exception (see `LICENSE`).
 | **ILSpy** | the ICSharpCode team | MIT | Tool: decompiling KSP and installed mods for research |
 | **CKAN** | the KSP-CKAN team | -- | Tool: its download cache held the release archives of the installed mods, whose shipped settings were read for the defaults, and its registry ModuleManager's metadata |
 
-## 3. Mods this project talks to at run time
+## Mods ReDefinition talks to at run time
 
 Their defaults ([reference/mod-defaults.md](reference/mod-defaults.md)) were read from
 each release as shipped and from their code, and stand as values in ReDefinition's
@@ -52,7 +53,7 @@ registrations.
 | **Distant Object Enhancement /L** | Lisias, MOARdV, duckytopia, TheDarkBadger, Kerbas-ad-astra, Clayell; its NOTICE also names Rubber Ducky | SKL 1.0 or GPL-2.0 | Its flare, distant-vessel and sky settings bundled in the settings window, set on its running settings object and saved with its own `Save`, per save; Harmony postfixes on its `Load` and its window's `ApplySettings` keep its window and the settings window alike; its debug and toolbar switches for the reset only |
 | **ToolbarControl** | linuxgurugamer | LGPL-3.0 | Its instance list is read to find and hide the stock toolbar button of a mod bundled here (TUFX's) |
 
-## 4. Mods this project learnt from or is made compatible with
+## Mods ReDefinition learnt from or is made compatible with
 
 | Mod | By | Licence | What this project learnt from it, or does with it |
 |---|---|---|---|
@@ -76,7 +77,7 @@ registrations.
 | **Volumetric Clouds** (the raymarched volumetrics preview package) | Ghassen Lahmar (blackrack) | "All rights reserved" (its `License.txt`, which also names its STBN noise as licensed to NVIDIA and its lightning sounds as licensed from Epidemic sounds) | Its Readme's step 3 -- a TUFX profile with ambient occlusion in flight, the author's own or another -- is the requirement R5, and the settings it ships are the defaults where it is installed |
 | **ModuleManager** | ialdabaoth, Sarbian, Blowfish | CC-BY-SA (its CKAN metadata) | The registrations and profiles are config nodes a pack can patch with it; its `CheckConstraints` (4.2.3) shows how a patch picks a block for one build |
 
-## 5. Beyond KSP
+## Beyond KSP
 
 | Work | By | Licence | What this project took from it |
 |---|---|---|---|

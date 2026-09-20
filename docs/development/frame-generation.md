@@ -1,9 +1,16 @@
 # Frame generation
 
-Frame generation in a game that renders in Direct3D 11, through a `dxgi.dll` proxy: AMD's
-FSR 3.1 frame generation, or NVIDIA's DLSS frame generation through Streamline 2.14.1.
-Marks: **[src]** read from source, **[doc]** a vendor's or project's statement, **[meas]**
-measured, **[open]** not verified.
+**For:** anyone changing ReDefinition's frame generation.
+**You need:** the repository. The code is in `src/DxgiProxy/` and `src/Bridges/`.
+**You get:** how generated frames are made in a game that renders in Direct3D 11, what
+each runtime asks for, and what it costs.
+
+KSP renders in Direct3D 11, so frame generation runs in a `dxgi.dll` proxy. Two runtimes
+are offered there: AMD's FSR 3.1 frame generation, and NVIDIA's DLSS frame generation
+through Streamline 2.14.1.
+
+Every claim here carries its mark: **[src]**, **[doc]**, **[meas]** or **[open]**
+([writing-these-pages.md](writing-these-pages.md)).
 
 ## The idea
 
@@ -23,18 +30,24 @@ rendering in Direct3D 11.
 | Presentation | through the runtime's swapchain, which paces generated and real frames |
 
 **[src]** The proxy hooks `IDXGIFactory2::CreateSwapChainForHwnd`, the call Unity makes.
-Windows loads a `dxgi.dll` next to the executable before the system's; the proxy forwards
-every other export to Windows' own.
+Windows loads a `dxgi.dll` next to the executable before the system's, and the proxy
+forwards every other export to Windows' own.
 
-## Which runtime
+## Which runtime runs
 
 With `dlssFrameGeneration=1` in `ReDefinitionProxy.ini` the proxy makes the swapchain
-through Streamline where DLSS frame generation runs: Streamline 2.14.1 signed by NVIDIA in
-the player's files, an NVIDIA GPU that supports it (Ada, through NVAPI), Windows 10 20H1 or
-newer and hardware-accelerated GPU scheduling. Otherwise through FidelityFX, where
-`amd_fidelityfx_framegeneration_dx12.dll` lies next to the executable; otherwise a plain
-Direct3D 12 swapchain that presents without frame generation. The log's "DLSS frame
-generation" lines say which runs and why.
+through Streamline where DLSS frame generation runs. It runs where Streamline 2.14.1
+signed by NVIDIA lies in the player's files, on an NVIDIA GPU that supports it, under
+Windows 10 20H1 or newer, with hardware-accelerated GPU scheduling on. Streamline itself
+decides the support: `slIsFeatureSupported` for DLSS-G, and the same for Reflex, which
+DLSS-G requires **[doc]**. NVAPI reports the GPU's architecture
+(`src/DxgiProxy/NvidiaGpu.cpp`), and the mod offers NVIDIA's frame generation files from
+Ada on (`src/Bridges/NvidiaFiles.cs`).
+
+Otherwise the swapchain is made through FidelityFX, where
+`amd_fidelityfx_framegeneration_dx12.dll` lies next to the executable. Where neither is
+there, the proxy makes a plain Direct3D 12 swapchain that presents without frame
+generation. The log's "DLSS frame generation" lines say which runs and why.
 
 Streamline runs in manual hooking mode: its command queue comes from its device proxy, the
 swapchain is made through its factory proxy, and every other call goes to the native
@@ -47,7 +60,7 @@ which are hooked by SL", ProgrammingGuideManualHooking.md) **[doc]**.
 |---|---|---|
 | Format | `R8G8B8A8_UNORM` | shareable |
 | Swap effect | `FLIP_DISCARD` | already the flip model |
-| Flags | `0x842` -- `ALLOW_TEARING`, `ALLOW_MODE_SWITCH`, `FRAME_LATENCY_WAITABLE_OBJECT` | tearing must be kept; the waitable object must be served through `IDXGISwapChain2`, or Unity stops presenting |
+| Flags | `0x842`: `ALLOW_TEARING`, `ALLOW_MODE_SWITCH`, `FRAME_LATENCY_WAITABLE_OBJECT` | tearing must be kept; the waitable object must be served through `IDXGISwapChain2`, or Unity stops presenting |
 | Windowed | true | the fullscreen restriction costs nothing |
 
 ## The inputs
@@ -55,7 +68,7 @@ which are hooked by SL", ProgrammingGuideManualHooking.md) **[doc]**.
 | Needed | From | Format |
 |---|---|---|
 | colour | the backbuffer itself: FSR through `frameGenerationCallback`, DLSS-G from its swapchain | `R8G8B8A8_UNORM` |
-| depth | the rig's depth copy | `R32_FLOAT` -- on the NT sharing whitelist, where `D32_FLOAT` is not |
+| depth | the rig's depth copy | `R32_FLOAT`, which is on the NT sharing whitelist where `D32_FLOAT` is not |
 | motion vectors | the rig's motion vectors | `R16G16_FLOAT` |
 | HUD-less colour | a `Blit` of the backbuffer recorded at `CameraEvent.AfterEverything` on the presenter and each effect camera after it | the backbuffer's own |
 | camera | jitter, planes, field of view, position and basis, and for DLSS-G the view and projection matrices without jitter (`StreamlineCamera`) | one packet per frame through a render event, size and magic checked |
@@ -70,19 +83,19 @@ still redirects the 3D stack at full size for frame generation's inputs: depth, 
 vectors and the HUD-less copy, without jitter, masks, mipmap bias or quality overrides.
 
 **Orientation.** **[meas]** Depth and motion vectors are blits between render textures
-and keep Unity's flipped storage; the HUD-less copy is a blit from the screen and is
+and keep Unity's flipped storage. The HUD-less copy is a blit from the screen and is
 oriented like the screen. The proxy flips per texture, with a compute shader compiled at
 run time from `d3dcompiler_47.dll`: `fgFlipInputs=1`, `fgFlipHudLess=0`. DLSS-G needs the
-flip: depth and motion vectors upside down against the backbuffer cannot be corrected by a
-constant.
+flip, since depth and motion vectors upside down against the backbuffer cannot be corrected
+by a constant.
 
 **Depth convention.** **[src]** FSR ignores the order of the near and far planes and
-decides by `ENABLE_DEPTH_INVERTED` alone (`ffx_frameinterpolation.cpp`); KSP's depth runs
+decides by `ENABLE_DEPTH_INVERTED` alone (`ffx_frameinterpolation.cpp`). KSP's depth runs
 from 1 to 0, so the flag is set, as the upscaler sets it.
 
 ## The UI
 
-**[doc]** Of FSR's three UI strategies, only the HUD-less surface fits: KSP's UI and every
+**[doc]** Of FSR's three UI strategies, only the HUD-less surface fits. KSP's UI and every
 mod's `OnGUI` window are drawn by Unity straight onto the backbuffer, and nothing can draw
 them again on request. The runtime finds the UI as the difference between the backbuffer
 and the HUD-less image, so that image must equal the backbuffer everywhere but the UI.
@@ -96,8 +109,8 @@ snapshot, and warns where one carries a post-processing layer.
 **The check.** Every `reportSeconds` the proxy reads both images back, never waiting on the
 GPU, and logs how much of the frame differs and where, as a 12 x 5 tile map, in both
 orientations. A correct snapshot differs by the UI only; a late one by nothing; a stale one
-by nearly everything. The motion vector check reprojects the frame before onto this one
-with both orientations and signs and names the one with the smallest error.
+by nearly everything. The motion vector check reprojects the previous frame onto this one
+with both orientations and signs, and names the one with the smallest error.
 
 ## FSR 3.1, per frame, as the API requires **[doc]**
 
@@ -118,19 +131,22 @@ the proxy does:
   swapchain's work; a resize destroys the context and the next frame makes one at the new
   size.
 
-**[src]** Where the proxy differs from DynamicShaderFrameGen: `PrepareV2` in place of the deprecated
-`Prepare`; `allowAsyncWorkloads` off by default and offered as `fgAsyncWorkloads`, with the
-inputs double buffered as AMD requires for it; frame pacing at AMD's documented defaults,
-with hybrid spin a setting, off by default; `viewSpaceToMetersFactor` 1, KSP's
-unit being the metre; the motion vector scale's sign following the upscaler.
+**[src]** Where the proxy differs from DynamicShaderFrameGen:
+
+* `PrepareV2` in place of the deprecated `Prepare`;
+* `allowAsyncWorkloads` off by default and offered as `fgAsyncWorkloads`, with the inputs
+  double buffered as AMD requires for it;
+* frame pacing at AMD's documented defaults, with hybrid spin a setting, off by default;
+* `viewSpaceToMetersFactor` 1, KSP's unit being the metre;
+* the motion vector scale's sign following the upscaler.
 
 ## DLSS frame generation, per frame **[doc]**
 
 From NVIDIA's ProgrammingGuideDLSS_G.md and the Streamline headers:
 
 * **Frame tokens.** The presenting thread fetches the next frame's token and calls Reflex's
-  sleep under it ("Starting new frame, grab handle from SL", ProgrammingGuideReflex.md); the
-  frame's constants, tags and markers go under the same token when it is presented.
+  sleep under it ("Starting new frame, grab handle from SL", ProgrammingGuideReflex.md).
+  The frame's constants, tags and markers go under the same token when it is presented.
 * **Tags.** Depth, motion vectors and HUD-less colour, tagged `eValidUntilPresent`, in
   `COMMON` state between uses; the motion vector scale as Streamline's normalisation by the
   texture's size.
@@ -138,15 +154,15 @@ From NVIDIA's ProgrammingGuideDLSS_G.md and the Streamline headers:
   than the display allows (below); off when the mod has it off or no inputs arrived.
   Resources are kept while off. Options take effect "in the next Present() call that
   executes after it".
-* **Status.** A failing status keeps DLSS-G off until a retry; the first generating
-  presents after it comes on are not held against it, since Reflex needs frames to be
-  detected. Each status is logged once.
+* **Status.** A failing status keeps DLSS-G off until a retry. The first generating presents
+  after it comes on are not held against it, since Reflex needs frames to be detected. Each
+  status is logged once.
 * **Fences.** "SL client must wait on SL DLSS-G plugin-internal fence and associated value,
   before it can modify or destroy the tagged resources input to DLSS-G [...] on a
-  non-presenting queue" (`sl_dlss_g.h`) -- Direct3D 11's writes are on one. The proxy waits
-  for that fence before Direct3D 11 writes into the input slot again. A fence that does not
-  complete while the status fails costs the wait's limit once; fences stored while the
-  status failed are not waited for again until it is fine.
+  non-presenting queue" (`sl_dlss_g.h`), and Direct3D 11's writes are on one. The proxy
+  waits for that fence before Direct3D 11 writes into the input slot again. A fence that
+  does not complete while the status fails costs the wait's limit once. Fences stored while
+  the status failed are not waited for again until it is fine.
 * **Window changes.** DLSS-G is switched off, and the shared colour presented once more,
   before the swapchain's size or full screen state changes ("Turn DLSS-G off ... before any
   window manipulation").
@@ -160,9 +176,9 @@ one refresh; without it, in a window, "not all frames generated will get display
 * KSP's own V-Sync setting applies. `fgVSync=1` presents with V-Sync while frame generation
   generates, whatever KSP's setting says.
 * `fgHalfRefreshLimit=1` holds the rendered rate 2 % below half the refresh rate after each
-  generated frame presented without V-Sync -- AMD: "The application should ensure that the
+  generated frame presented without V-Sync. AMD: "The application should ensure that the
   rendered frame rate is slightly below half the desired output frame rate". The wait comes
-  before the game's next frame, on a high-resolution waitable timer; KSP's own frame limit
+  before the game's next frame, on a high-resolution waitable timer. KSP's own frame limit
   is a software timer.
 * The monitor's refresh rate is read on a thread of the proxy's own, every two seconds and
   after a resize, never on the present path.
@@ -175,10 +191,11 @@ one refresh; without it, in a window, "not all frames generated will get display
 * **22.2:** "SyncInterval > 1: Not supported. Will be clamped to 1 with a warning". The proxy
   presents with interval 1 while DLSS-G generates when KSP asks for more, and logs it once.
 * **22.7:** with V-Sync, "60Hz ... 4x", "75Hz ... 5x"; above that "frames are generated
-  faster than the display can present them, causing frame queue backup". The proxy allows
-  a multiplier of the displayed rate over 15 -- refresh rate over sync interval, with a
-  hundredth added for rates such as 59.94 Hz -- so 72 Hz stays at 4x; without V-Sync no
-  limit beyond the GPU's; with the rate not known yet, one generated frame.
+  faster than the display can present them, causing frame queue backup". So the proxy takes
+  a fifteenth of the rate frames are shown at, which is the refresh rate over the sync
+  interval, rounded down to the table's row. A hundredth of a row is added for rates such
+  as 59.94 Hz, which keeps 72 Hz at 4x. Without V-Sync there is no limit beyond the GPU's.
+  With the rate not known yet, one generated frame is allowed.
 
 KSP's registration requires the same of KSP's V-Sync row while DLSS frame generation runs
 ([reference/requirements.md](../reference/requirements.md), R6 and R7), so the settings
@@ -186,31 +203,32 @@ window offers only the intervals that apply.
 
 ## Measured
 
-**The proxy presenting through Direct3D 12 without frame generation [meas]** -- flight,
-same timing code both sides: 11.83 ms against 11.38 ms, within the run-to-run variation;
-p99 of about 35 ms on both sides, KSP's own.
+**The proxy presenting through Direct3D 12 without frame generation [meas]**, in flight,
+with the same timing code on both sides: 11.83 ms against 11.38 ms, within the run-to-run
+variation. The p99 is about 35 ms on both sides, which is KSP's own.
 
 **FSR's swapchain without interpolation [meas]:**
 
 | Run | mean | p50 | p95 | vs baseline |
 |---|---|---|---|---|
-| baseline | 11.38 ms | 11.30 | 15.95 | -- |
+| baseline | 11.38 ms | 11.30 | 15.95 | the baseline |
 | proxy, plain swapchain | 11.70 ms | 11.69 | 15.97 | +2.8 % |
 | proxy, FSR swapchain | 12.66 ms | 12.22 | 17.27 | +11.3 % |
 
 **FSR frame generation on [meas]**, 3440x1440 at 120 Hz, V-Sync off: rendered 82-84 fps at
 12.0 ms without, 70 fps at 14.2 ms with, 140 frames a second reaching DXGI against a 120 Hz
 monitor, the excess dropped unevenly. At a 30 fps cap: presented per rendered 2.00, 59 of
-60 possible frames a second on screen, and 200-470 pixels of motion per frame -- beyond what
-interpolation handles cleanly.
-The HUD-less check in flight: the UI and nothing else; the motion vector reprojection
-check: `MATCH` for the orientation FSR is given.
+60 possible frames a second on screen, and 200-470 pixels of motion per frame, which is
+beyond what interpolation handles cleanly. The HUD-less check in flight found the UI and
+nothing else. The motion vector reprojection check reported `MATCH` for the orientation FSR
+is given.
 
-**[meas]** In flight the GPU is at 90-97 %: interpolation is paid for out of the real frame
-rate. Frame generation pays where the rendered rate is low -- large vessels, many parts,
-re-entry -- not on the pad at 80-90 fps.
+**[meas]** In flight the GPU is at 90-97 %, so interpolation is paid for out of the real
+frame rate. Frame generation pays where the rendered rate is low, such as large vessels,
+many parts and re-entry. It does not pay on the pad at 80-90 fps.
 
-**The harness [meas]** (`ProxyHarness.exe`, [building-and-testing.md](building-and-testing.md)):
+**The harness [meas]**, `ProxyHarness.exe` in
+[building-and-testing.md](building-and-testing.md):
 
 * **FSR:** 640x360; presents per frame 2.00 on, 2.00 after eight mode changes, 1.00 off,
   2.00 on again, 2.00 after a resize to 800x450; `fgVSync=1`, `fgHalfRefreshLimit=1` and

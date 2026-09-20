@@ -74,7 +74,7 @@ namespace ReDefinition
                 Label = value => KspSettingsSection.ModeName(Mode(value)),
                 Tooltip = "Right end: AA only, full resolution, the upscaler as antialiasing.\n"
                           + "Further left: rendered smaller by the factor shown, and reconstructed.\n"
-                          + "DLSS renders at the size it asks for in each mode; 1.3x, which DLSS does not have, as its Quality.\n"
+                          + "DLSS renders at the size it asks for in each mode; 1.2x, which DLSS does not have, as its Quality.\n"
                           + "The diagnostics window shows the frame rate it gives.\n"
                           + "With V-Sync on and frame generation, the rendered rate is held at half the refresh rate,\n"
                           + "or lower where DLSS generates several frames from each rendered one.",

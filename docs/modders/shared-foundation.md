@@ -1,92 +1,103 @@
-# ReDefinition's interface for mods
+# Using ReDefinition from your mod
 
-What a KSP game has only once -- the camera's jitter, the frame's motion vectors, camera
-cuts, the floating origin's shifts, the image after upscaling, Direct3D 12 -- ReDefinition
-offers every mod, in `ReDefinition.Api`. The design behind it:
-[development/shared-foundation.md](../development/shared-foundation.md).
+**For:** mod authors who draw, raymarch, reproject, move geometry, or want a compute
+pass on Direct3D 12.
+**You need:** your own mod, and for the compute passes ReDefinition's `dxgi.dll`
+installed.
+**You get:** the frame's state, the hooks into ReDefinition's rendering, the chosen
+profile, your key bindings, and Direct3D 12 compute passes, each with the code to copy.
 
-## Reaching it
+A KSP game has some things only once: the camera's jitter, the frame's motion vectors,
+camera cuts, the floating origin's shifts, the image after upscaling, and a Direct3D 12
+device. ReDefinition offers all of them to every mod, in `ReDefinition.Api`. Why it is
+built this way: [development/shared-foundation.md](../development/shared-foundation.md).
+
+## Reach the interface
 
 | Way | For | How |
 |---|---|---|
-| The shader include | a shader that reads the frame's state | copy [`unity/Assets/ReDefinition/Include/ReDefinition.cginc`](../../unity/Assets/ReDefinition/Include/ReDefinition.cginc) into the shader project and `#include "ReDefinition.cginc"`; without ReDefinition every function returns what the game has without it. MIT |
-| The wrapper | a mod that runs with or without ReDefinition | copy [examples/ReDefinitionApi.cs](examples/ReDefinitionApi.cs) into the mod and put it in the mod's namespace; `ReDefinitionApi.Installed` says whether ReDefinition is there. MIT |
-| A reference | a mod that requires ReDefinition | reference `GameData/ReDefinition/Plugins/ReDefinition.dll`, declare `[assembly: KSPAssemblyDependency("ReDefinition", 0, 1)]`, and use `ReDefinition.Api`; `ReDefinition.xml` beside the DLL documents every member in the IDE |
+| The shader include | a shader that reads the frame's state | copy [`ReDefinition.cginc`](../../unity/Assets/ReDefinition/Include/ReDefinition.cginc) from ReDefinition's repository into your shader project and `#include "ReDefinition.cginc"`. Without ReDefinition every function returns what the game has without it. MIT |
+| The wrapper | a mod that runs with or without ReDefinition | copy [examples/ReDefinitionApi.cs](examples/ReDefinitionApi.cs) into your mod and put it in your namespace. `ReDefinitionApi.Installed` says whether ReDefinition is there. MIT |
+| A reference | a mod that requires ReDefinition | reference `GameData/ReDefinition/Plugins/ReDefinition.dll`, declare `[assembly: KSPAssemblyDependency("ReDefinition", 0, 1)]`, and use `ReDefinition.Api`. `ReDefinition.xml` beside the DLL documents every member in your IDE |
 
-Every member is called from the main thread. `ApiInfo.Version` counts changes of the
-interface; the wrapper returns what the game has without ReDefinition while the installed
-interface is older than the one it was written for. It binds each member once as a typed
-delegate: a call costs what a direct call costs, without allocating.
+Call every member from the main thread. `ApiInfo.Version` counts changes of the
+interface. The wrapper returns what the game has without ReDefinition while the
+installed interface is older than the one you wrote against. It binds each member once
+as a typed delegate, so a call costs what a direct call costs and allocates nothing.
 
-**An example mod** uses each part once, through the wrapper:
-[examples/ReDefinitionExample](examples/ReDefinitionExample) -- a line from the vessel as an
-overlay, a compute pass that darkens the upscaled image, a reported camera jump, and two
-settings of its own in ReDefinition's window, which it reads and saves itself
-(`SettingsBridge.cs`, [registering-a-mod.md](registering-a-mod.md)). It is built with
-ReDefinition's solution;
-copy `ReDefinitionExample.dll` and `ExampleEffect.hlsl` from
-`build/examples/ReDefinitionExample` into `GameData/ReDefinitionExample` to try it.
+The example mod uses each part once:
+[examples/ReDefinitionExample](examples/ReDefinitionExample). It draws a line from the
+vessel as an overlay, darkens the upscaled image with a compute pass, reports a camera
+jump, and keeps two settings of its own in ReDefinition's window.
 
-## The frame
+To try it, clone ReDefinition's repository, build its solution, and copy
+`ReDefinitionExample.dll` and `ExampleEffect.hlsl` from
+`build/examples/ReDefinitionExample` into `GameData/ReDefinitionExample`.
 
-Decided once per frame, before the first camera of the 3D stack culls; read it from
-rendering code -- camera callbacks, command buffers, `OnRenderImage`.
+## Read the frame's state
+
+The state is decided once per frame, before the first camera of the 3D stack culls.
+Read it from rendering code: camera callbacks, command buffers, `OnRenderImage`.
 
 | `Frame.` | Shader global | Holds |
 |---|---|---|
-| `UpscalerActive`, `FrameGenerationActive` | `_ReDefinition_Frame.x`, `.y` | whether ReDefinition's upscaler reconstructs this frame; whether frame generation receives it |
+| `UpscalerActive`, `FrameGenerationActive` | `_ReDefinition_Frame.x`, `.y` | whether the upscaler reconstructs this frame, and whether frame generation receives it |
 | `Technique` | | `"FSR 3"`, `"DLSS"` or `"AMD FSR (DLL)"` while the upscaler is active |
 | `HistoryReset`, `HistoryResetReason` | `_ReDefinition_Frame.z` | whether temporal history is to be dropped this frame, and why |
 | | `_ReDefinition_Frame.w` | the interface version |
-| `RenderSize`, `DisplaySize` | `_ReDefinition_RenderSize`, `_ReDefinition_DisplaySize` | width, height, 1/width, 1/height of the 3D cameras' target and of the image shown; the screen without the upscaler |
-| `Jitter`, `JitterNdc` | `_ReDefinition_Jitter` | the jitter the 3D cameras render with, in pixels at render size (`.xy`) and in normalized device coordinates (`.zw`); zero without it |
-| `OriginShift`, `BodyShift`, `OriginShifted` | `_ReDefinition_OriginShift` (`OriginShift` and 1 if it shifted) | the floating origin's shifts since the frame before, summed. KSP moves the active vessel, the camera and nearby objects by `-OriginShift`, bodies and landed or packed vessels by `-BodyShift` |
+| `RenderSize`, `DisplaySize` | `_ReDefinition_RenderSize`, `_ReDefinition_DisplaySize` | width, height, 1/width and 1/height of the 3D cameras' target and of the image shown. Both are the screen without the upscaler |
+| `Jitter`, `JitterNdc` | `_ReDefinition_Jitter` | the jitter the 3D cameras render with, in pixels at render size (`.xy`) and in normalized device coordinates (`.zw`). Zero without it |
+| `OriginShift`, `BodyShift`, `OriginShifted` | `_ReDefinition_OriginShift` | the floating origin's shifts since the previous frame, summed. KSP moves the active vessel, the camera and nearby objects by `-OriginShift`, and bodies and landed or packed vessels by `-BodyShift`. The global holds `OriginShift` and 1 where it shifted |
 
-**The jitter.** ReDefinition adds it to every camera of the 3D stack in `OnPreRender`, and
-keeps the projection without it in `Camera.nonJitteredProjectionMatrix`. A mod that
-raymarches or reprojects with its own matrices takes that one for history and motion, and
-the camera's `projectionMatrix` for the rays.
+ReDefinition adds the jitter to every camera of the 3D stack in `OnPreRender`, and keeps
+the projection without it in `Camera.nonJitteredProjectionMatrix`. If you raymarch or
+reproject with your own matrices, take that one for history and motion, and the camera's
+`projectionMatrix` for the rays.
 
-**A cut of the mod's own.** A camera mod that switches or jumps the view:
+## Tell the upscaler about your own camera cut
+
+A camera mod that switches or jumps the view says so:
 
 ```csharp
 ReDefinitionApi.RequestHistoryReset("MyCameraMod switched to " + camera.name);
 ```
 
-Before the frame's first 3D camera culls it reaches every mod in that frame; later, the
-upscaler and frame generation in that frame and the mods in the next. A mod with temporal
-history of its own drops it when told:
+Before the frame's first 3D camera culls, the request reaches every mod in that frame.
+Later, it reaches the upscaler and frame generation in that frame, and the mods in the
+next one.
+
+If your mod keeps temporal history of its own, drop it when ReDefinition says so:
 
 ```csharp
 ReDefinitionApi.RegisterHistoryReset(reason => myHistoryValid = false);
 ```
 
-## In shaders
+## Read the state in a shader
 
 `ReDefinition.cginc` declares the globals above and includes `UnityCG.cginc`. Without
-ReDefinition the globals are zero, and the functions fall back: the sizes to
-`_ScreenParams`, the rest to no upscaler, no jitter, no reset, no shift.
+ReDefinition the globals are zero and the functions fall back: the sizes to
+`_ScreenParams`, and the rest to no upscaler, no jitter, no reset and no shift.
 
 | Function | Returns |
 |---|---|
 | `ReDefinitionInstalled()` | whether ReDefinition sets the globals |
 | `ReDefinitionUpscalerActive()`, `ReDefinitionFrameGenerationActive()`, `ReDefinitionHistoryReset()` | the frame's state |
-| `ReDefinitionRenderSize()`, `ReDefinitionDisplaySize()` | width, height, 1/width, 1/height -- never zero |
+| `ReDefinitionRenderSize()`, `ReDefinitionDisplaySize()` | width, height, 1/width, 1/height, never zero |
 | `ReDefinitionJitterPixels()`, `ReDefinitionJitterNdc()` | the jitter |
-| `ReDefinitionRemoveJitter(clip)` | a clip-space position from the camera's own matrices (`UnityObjectToClipPos`) without the jitter, `y` flipped as `_ProjectionParams.x` says |
+| `ReDefinitionRemoveJitter(clip)` | a clip-space position from the camera's own matrices (`UnityObjectToClipPos`) without the jitter, with `y` flipped as `_ProjectionParams.x` says |
 | `ReDefinitionOriginShift()`, `ReDefinitionOriginShifted()` | the floating origin's shift |
-| `ReDefinitionMotionVector(clipCurrent, clipPrevious)` | a motion vector in Unity's encoding, from this frame's and the frame before's clip-space position, both without jitter and with `y` up |
+| `ReDefinitionMotionVector(clipCurrent, clipPrevious)` | a motion vector in Unity's encoding, from this frame's and the previous frame's clip-space position, both without jitter and with `y` up |
 
-For a vertex shader that moves geometry -- waves, wind -- the motion vector pass computes
-the position twice, with this frame's and the frame before's parameters:
+If a vertex shader moves geometry, waves or wind for example, the motion vector pass
+computes the position twice, with this frame's and the previous frame's parameters:
 
 ```hlsl
 #include "ReDefinition.cginc"
 
 float4x4 _MyNonJitteredVP;       // GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix, false) * camera.worldToCameraMatrix
-float4x4 _MyPreviousVP;          // the same, kept from the frame before
+float4x4 _MyPreviousVP;          // the same, kept from the previous frame
 float _MyTime, _MyPreviousTime;
-// Wave(vertex, time): the mod's own displacement.
+// Wave(vertex, time): your own displacement.
 
 struct v2f { float4 pos : SV_POSITION; float4 current : TEXCOORD0; float4 previous : TEXCOORD1; };
 
@@ -107,20 +118,20 @@ half4 frag(v2f i) : SV_Target
 }
 ```
 
-The include is compiled with every function called by Unity 2019.4.18f1, the version KSP
-1.12.5 is built with (`IncludeCheck` in ReDefinition's Unity project).
+The include is compiled with every function called, in Unity 2019.4.18f1, the version
+KSP 1.12.5 is built with.
 
-## Hooks
+## Hooks into ReDefinition's rendering
 
-While ReDefinition's upscaler or frame generation runs. A handler that throws is removed
-and logged once; the others run on.
+The hooks below run while ReDefinition's upscaler or frame generation runs. A handler
+that throws is removed and logged once, and the others keep running.
 
-### Motion vectors
+### Add motion vectors for what Unity misses
 
-For geometry a vertex shader moves and content that writes no depth, which Unity's motion
-vectors miss. The handler is called as the scene camera culls, with the frame's state
-decided, and adds commands to that camera's capture, which runs at its
-`BeforeImageEffects` after Unity's motion vectors are written:
+Unity writes no motion vectors for geometry a vertex shader moves, or for content that
+writes no depth. Your handler is called as the scene camera culls, with the frame's
+state decided. It adds commands to that camera's capture, which runs at its
+`BeforeImageEffects`, after Unity's motion vectors are written:
 
 ```csharp
 ReDefinitionApi.RegisterMotionVectors((buffer, motionVectors, depth, scene) =>
@@ -132,22 +143,24 @@ ReDefinitionApi.RegisterMotionVectors((buffer, motionVectors, depth, scene) =>
 });
 ```
 
-* `motionVectors`: `RGHalf` at render size, in Unity's encoding -- the current minus the
+* `motionVectors` is `RGHalf` at render size, in Unity's encoding: the current minus the
   previous viewport position, viewport coordinates running from 0 to 1, with `y` flipped
-  where `UNITY_UV_STARTS_AT_TOP` (Unity's `Internal-MotionVectors.shader`).
+  where `UNITY_UV_STARTS_AT_TOP`. Unity's `Internal-MotionVectors.shader` defines it, and
   `ReDefinitionMotionVector` in the include writes it.
-* Both positions without jitter and with `y` up, as Unity's `_NonJitteredVP` and
-  `_PreviousVP` are: through `GL.GetGPUProjectionMatrix(scene.nonJitteredProjectionMatrix, false)`
-  and `scene.worldToCameraMatrix`, this frame's and the one the mod kept from the frame
-  before. The motion vector pass flips `y` itself.
-* `depth`: the scene's raw depth at render size (`RFloat`), reversed on Direct3D 11 -- 1
-  near, 0 far -- to test against.
+* Take both positions without jitter and with `y` up, as Unity's `_NonJitteredVP` and
+  `_PreviousVP` are. Build them from
+  `GL.GetGPUProjectionMatrix(scene.nonJitteredProjectionMatrix, false)` and
+  `scene.worldToCameraMatrix`, this frame's and the one you kept from the previous frame.
+  The motion vector pass flips `y` itself.
+* `depth` is the scene's raw depth at render size, `RFloat`, reversed on Direct3D 11,
+  where 1 is near and 0 is far, to test against.
 * Every upscaler and frame generation read the result.
 
-### After upscaling
+### Draw after the upscaler
 
-An effect on the upscaled image, at display size, before TUFX's effects after the upscaler
-and before frame generation's copy of the scene; interpolated with the scene:
+An effect on the upscaled image runs at display size. It runs before TUFX's effects
+after the upscaler, and before frame generation's copy of the scene, so it is
+interpolated with the scene:
 
 ```csharp
 ReDefinitionApi.RegisterAfterUpscaling((buffer, image, scene) =>
@@ -159,16 +172,15 @@ ReDefinitionApi.RegisterAfterUpscaling((buffer, image, scene) =>
 });
 ```
 
-The buffer is executed at once from `OnRenderImage`. `image` is HDR while the upscaler
-runs. A Direct3D 12 compute pass recorded into this buffer with `DispatchInto` reads the
-upscaled image -- the example mod does that.
+The buffer is executed at once from `OnRenderImage`, and `image` is HDR while the
+upscaler runs. A Direct3D 12 compute pass recorded into this buffer with `DispatchInto`
+reads the upscaled image. The example mod does exactly that.
 
-### Overlays
+### Draw an overlay
 
-Lines and markers in the world, drawn after the scene at display size: not upscaled, and
-UI to frame generation, which does not interpolate them. The handler fills the buffer of a
-camera behind every camera that draws the scene, as that camera culls; the buffer draws
-onto the backbuffer at its `AfterEverything`, which holds no scene depth:
+Lines and markers in the world are drawn after the scene, at display size. They are not
+upscaled, and frame generation treats them as interface, so it does not interpolate
+them:
 
 ```csharp
 ReDefinitionApi.RegisterOverlay((buffer, scene) =>
@@ -178,47 +190,59 @@ ReDefinitionApi.RegisterOverlay((buffer, scene) =>
 });
 ```
 
-The camera exists only while a handler is registered.
+Your handler fills the buffer of a camera behind every camera that draws the scene, as
+that camera culls. The buffer draws onto the backbuffer at its `AfterEverything`, which
+holds no scene depth. The camera exists only while a handler is registered.
 
-## Profiles
+## Follow the chosen profile
 
-`Profiles.Current` is the graphics profile chosen in ReDefinition's window -- `low`,
-`medium`, `high`, `ultra`, `max` -- or null with none, when the upscaler and frame
-generation are off. `Profiles.RegisterChanged(Action<string>)` is called with the new
-name when it changes.
+`Profiles.Current` is the graphics profile chosen in ReDefinition's window: `low`,
+`medium`, `high`, `ultra` or `max`. It is null while none is chosen, which is when the
+upscaler and frame generation are off.
 
-For a mod's settings in ReDefinition's window and profiles:
+`Profiles.RegisterChanged(Action<string>)` is called with the new name when it changes.
+
+Through the wrapper these two are `ReDefinitionApi.Profile` and
+`RegisterProfileChanged`.
+
+To put your own settings into the window and into the profiles:
 [registering-a-mod.md](registering-a-mod.md).
 
-## Key bindings
+## Ask whether your key is pressed
 
-A binding declared in your registration (`KEY`, [registering-a-mod.md](registering-a-mod.md))
-is the player's to set in ReDefinition's *Keys* tab. Where your mod keeps no key of its
-own, it asks here:
+A binding declared in your registration with a `KEY` block is the player's to set in the
+*Keys* tab. If your mod keeps no key of its own, ask here:
 
 | Member | Answers |
 |---|---|
-| `Keys.Binding(key)` | the binding as text -- `LeftAlt+F10`, `F11`, `None` -- or null where no binding of that key is registered |
+| `Keys.Binding(key)` | the binding as text, such as `LeftAlt+F10`, `F11` or `None`, or null where no binding of that key is registered |
 | `Keys.Pressed(key)` | the key went down this frame, with exactly the binding's modifiers |
 | `Keys.Held(key)` | it is held |
 | `Keys.Released(key)` | it went up this frame |
 
-`key` is your mod's id in its registration, a dot, and the `KEY` block's name:
-`mymod.window`. Another modifier held means another binding is meant, so `F10` does not
-answer while `Alt+F10` is pressed. While the player is setting a binding in the window,
-none of them answers.
+`key` is your mod's id in its registration, a dot, and the `KEY` block's name, for
+example `mymod.window`. Through the wrapper the four are `ReDefinitionApi.Binding`,
+`KeyPressed`, `KeyHeld` and `KeyReleased`.
 
-## Direct3D 12
+Another modifier held means another binding is meant, so `F10` does not answer while
+`Alt+F10` is pressed. While the player is setting a binding in the window, none of them
+answers.
 
-Compute passes on the Direct3D 12 device of ReDefinition's `dxgi.dll`, on Unity's
-textures. Unity keeps rendering in Direct3D 11: each dispatch copies its textures into
-textures both devices share, runs the pass on the Direct3D 12 queue, and copies the write
-textures back.
+## Run a compute pass on Direct3D 12
 
-### Available
+The passes run on the Direct3D 12 device of ReDefinition's `dxgi.dll`, on Unity's
+textures. Unity keeps rendering in Direct3D 11, so each dispatch copies its textures
+into textures both devices share, runs the pass on the Direct3D 12 queue, and copies the
+write textures back.
 
-`D3D12.Available`, and `D3D12.Problem` when not: without ReDefinition's `dxgi.dll`, with it
-switched off or measuring only in `ReDefinitionProxy.ini`, or before its swapchain is made.
+### Check what is there
+
+`D3D12.Available` says whether the device is there, and `D3D12.Problem` says why not.
+The reason is one of these: no `dxgi.dll`, the proxy switched off or set to measuring
+only in `ReDefinitionProxy.ini`, or the swapchain not made yet. Through the wrapper the
+two are `ReDefinitionApi.D3D12Available` and `D3D12Problem`, and every member below
+carries the same `D3D12` prefix there.
+
 What the device supports, in Direct3D's own encoding:
 
 | `D3D12.` | Encoding | Example |
@@ -229,9 +253,9 @@ What the device supports, in Direct3D's own encoding:
 | `MeshShaderTier` | `D3D12_MESH_SHADER_TIER` | 10 for 1.0 |
 | `VariableShadingRateTier` | `D3D12_VARIABLE_SHADING_RATE_TIER` | 1, 2 |
 
-### A compute pass
+### Write the shader
 
-The shader, against the root signature every pass shares:
+Every pass shares one root signature:
 
 ```hlsl
 Texture2D<float4> Source : register(t0);          // t0-t7: read textures
@@ -251,7 +275,9 @@ void main(uint3 id : SV_DispatchThreadID)
 }
 ```
 
-**From HLSL.** The mod ships the `.hlsl` file; ReDefinition compiles it with Windows'
+### Build and dispatch it from HLSL
+
+Ship the `.hlsl` file with your mod. ReDefinition compiles it with Windows'
 `d3dcompiler_47.dll`, loaded from System32, to DXBC (`cs_5_0`). `#include` lines are
 resolved relative to the file.
 
@@ -290,42 +316,32 @@ void OnDestroy()
 `D3D12.LastCompilerMessages` holds what the compiler said: its errors, or its warnings
 after a success.
 
-**From bytecode.** `CreateComputePass(name, bytecode)` takes a shader compiled beforehand
-with the Windows SDK's compilers, from `Windows Kits\10\bin\<version>\x64`:
+### Or ship bytecode
+
+`CreateComputePass(name, bytecode)` takes a shader you compiled beforehand with the
+Windows SDK's compilers, from `Windows Kits\10\bin\<version>\x64`:
 
 ```
 dxc -T cs_6_0 -E main -Fo MyPass.cso MyPass.hlsl
 fxc /T cs_5_0 /E main /Fo MyPass.cso MyPass.hlsl
 ```
 
-`dxc` makes DXIL (Shader Model 6) and signs it with the `dxil.dll` beside it, which
-Direct3D 12 requires; `fxc` makes DXBC.
+`dxc` makes DXIL, Shader Model 6, and signs it with the `dxil.dll` beside it, which
+Direct3D 12 requires. `fxc` makes DXBC.
 
-* **Building.** Each `CreateComputePass` method returns a handle above 0; the pipeline is
-  built on the render thread. `ComputePassState(pass, out status)`: 1 built, 0 not yet, -1
-  failed, with the reason.
-* **Where to dispatch.** `Dispatch` executes at once. A render event that reads a texture
-  Unity drew this frame sees this frame's content when it is issued through
-  `Graphics.ExecuteCommandBuffer` from `OnRenderImage`, and the frame before's when issued
-  from a camera's own command buffer (measured in a Unity 2019.4.18f1 player with KSP's
-  graphics jobs). `DispatchInto(buffer, ...)` records the dispatch into a buffer the mod
-  executes itself, once, in the frame it recorded it in: a later dispatch reuses the
-  packet the recorded event points at.
-* **Timing.** With `nextFrame` false the write textures hold the result when `Dispatch`
-  returns, in Unity's command order: Direct3D 11 waits for the pass. With `nextFrame` true
-  they get it at the pass's next dispatch, and the pass runs beside the rest of the frame.
-* **Textures.** Up to 8 read and 8 write, none in both and none written twice; created
-  `RenderTexture`s without mipmaps, arrays or multisampling, in a colour format a texture
-  can be shared and bound for unordered access in -- no depth formats. An sRGB texture
-  arrives as its bytes, not converted. Write textures are copied in before the pass too,
-  so a pass may change part of one.
-* **Limits.** 32 dispatches a frame. Each dispatch copies its textures twice and waits once;
-  the shared copies take video memory, and one not used for ten seconds is freed.
-  `ReleaseTexture` frees it earlier.
-* **What Direct3D 12 sees.** Only the textures a pass is handed: not Unity's meshes, and not
-  geometry Unity tessellates on the GPU.
+### The rules a dispatch follows
 
-## Later
+| Rule | What it means |
+|---|---|
+| Building | Each `CreateComputePass` method returns a handle above 0, and the pipeline is built on the render thread. `ComputePassState(pass, out status)` answers 1 for built, 0 for not yet, and -1 for failed, with the reason |
+| Where to dispatch | `Dispatch` executes at once. A render event that reads a texture Unity drew this frame sees this frame's content when it is issued through `Graphics.ExecuteCommandBuffer` from `OnRenderImage`, and the previous frame's when issued from a camera's own command buffer |
+| `DispatchInto` | It records the dispatch into a buffer you execute yourself, once, in the frame you recorded it in. A later dispatch reuses the packet the recorded event points at |
+| Timing | With `nextFrame` false, the write textures hold the result when `Dispatch` returns, in Unity's command order: Direct3D 11 waits for the pass. With `nextFrame` true they get it at the pass's next dispatch, and the pass runs beside the rest of the frame |
+| Textures | Up to 8 read and 8 write, none in both and none written twice. Use created `RenderTexture`s without mipmaps, arrays or multisampling, in a colour format a texture can be shared and bound for unordered access in. Depth formats do not work. An sRGB texture arrives as its bytes, not converted. Write textures are copied in before the pass as well, so a pass may change part of one |
+| Limits | 32 dispatches a frame. Each dispatch copies its textures twice and waits once. The shared copies take video memory, and one not used for ten seconds is freed. `ReleaseTexture` frees it earlier |
+| What Direct3D 12 sees | Only the textures a pass is handed. Not Unity's meshes, and not geometry Unity tessellates on the GPU |
 
-Raytracing -- acceleration structures from meshes a mod hands over -- and contributions to
-FSR 3's reactive and transparency masks are not in this build.
+## Not in this build
+
+Raytracing, with acceleration structures built from meshes a mod hands over, and
+contributions to FSR 3's reactive and transparency masks.

@@ -429,7 +429,7 @@ namespace ReDefinition
         // The other mods' state that decides the image (HostStack), line by line.
         private void DrawHostStack()
         {
-            if (GUILayout.Button(hostStackVisible ? "Hide host stack" : "Show host stack"))
+            if (GUILayout.Button(hostStackVisible ? "Hide other mods' state" : "Show other mods' state"))
                 hostStackVisible = !hostStackVisible;
 
             if (!hostStackVisible) return;

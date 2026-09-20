@@ -1,33 +1,51 @@
-# Mod defaults -- every setting, its default and its kind
+# Every setting, its default and its kind
 
-The inventory the *Reset to defaults* button and the profiles are built on. The
-values stand in each mod's registration (`GameData/ReDefinition/Mods`: `default`
-and `DEFAULTS`). One row per setting in each bundled mod's own
-settings file, and KSP's graphics settings.
+**For:** anyone checking what *Reset to defaults* will set, and pack authors looking
+for the value a profile starts from.
+**You need:** nothing.
+**You get:** one row per setting of each bundled mod and of KSP's graphics settings,
+with its default, its kind and where the value was read.
 
-## What "default" means here
+This is the inventory *Reset to defaults* and the profiles are built on. The values
+are in each mod's registration in `GameData/ReDefinition/Mods`, as `default` and in
+`DEFAULTS` blocks.
 
-- **A mod's default** is the value its release ships for the version installed:
-  its settings file as released, and its code's own value where that file has
-  none. Never the installed file: ReDefinition, the player and visual packs write
-  those.
-- **With Volumetric Clouds installed** (Blackrack's raymarched volumetrics
-  package: its own builds of EVE and Scatterer and their configs), what its
-  author ships is the default -- including its TUFX profile in every scene (its
-  Readme). It changes no other mod's defaults.
-- **KSP's default** is what the *Reset* of KSP's own settings screen sets
-  (`GameSettings.ResetSettings`: `SetDefaultValues`, `PQSCache.CreateDefaultPresetList`),
-  for the graphics settings only -- the ones KSP's graphics screen lists in
-  `sharedassets3.assets` -- and without resolution and full screen.
+A key in the tables below is the mod's own. ReDefinition's key for it is the mod's id, a
+dot and that key, such as `scatterer.oceanFoam`. That is the key a `PROFILE` block or a
+ModuleManager patch names
+([modders/registration-reference.md](../modders/registration-reference.md)).
 
-## Kinds
+A value here is the one a config file holds. KSP's settings are numbers there, and the
+window shows their names: `TEXTURE_QUALITY = 1` is *Half*,
+`REFLECTION_PROBE_TEXTURE_RESOLUTION = 1` is *256*, `AERO_FX_QUALITY = 3` is *Normal*.
+[player/graphics-profiles.md](../player/graphics-profiles.md) uses the names.
 
-- **quality** -- how good and how costly the picture is. Profiles set these.
-- **taste** -- the look an author or visual pack chose. Profiles never set these.
-- **other** -- interface, input, debug, physics, compatibility switches, and
-  the antialiasing ReDefinition's upscaler owns. Profiles never set these.
+## What a default is here
 
-The reset sets every kind.
+A mod's default is the value its release ships for the installed version: its settings
+file as released, and its code's own value where that file has none. It is never the
+installed file, because ReDefinition, the player and visual packs write that one.
+
+With Volumetric Clouds installed, what its author ships is the default. That package
+holds its own builds of EVE and Scatterer with their configs, and its Readme asks for
+its TUFX profile in every scene. It changes no other mod's defaults.
+
+KSP's default is what the *Reset* of KSP's own settings screen sets, through
+`GameSettings.ResetSettings`, which calls `SetDefaultValues` and
+`PQSCache.CreateDefaultPresetList`. Only the graphics settings count here, the ones
+KSP's graphics screen lists in `sharedassets3.assets`, and without resolution and full
+screen.
+
+## The three kinds
+
+| Kind | Means | Profiles |
+|---|---|---|
+| quality | how good and how costly the picture is | a `PROFILE` block sets these |
+| taste | the look an author or a visual pack chose | never set by a `PROFILE` block |
+| other | interface, input, debug, physics and compatibility switches, and the antialiasing the upscaler owns | never set by a `PROFILE` block |
+
+An `ALL_PROFILES` block may set a setting of any kind, for what a mod needs changed to
+run with the upscaler. *Reset to defaults* sets every kind.
 
 ## Sources
 
@@ -37,7 +55,7 @@ The reset sets every kind.
 | Scatterer 0.878 (public) | `Scatterer-release`: `config/config.cfg`; `MainSettingsReadWrite` decompiled for fields the file leaves out | not installed |
 | Scatterer 0.908 (Volumetric Clouds) | `RaymarchedVolumetrics`: `config/config.cfg`; `MainSettingsReadWrite` decompiled | `Scatterer.dll` identical (MD5) |
 | EVE 3.2.2 (Volumetric Clouds) | `RaymarchedVolumetrics`: `StockVolumetricClouds/raymarchedClouds.cfg`; `RaymarchedCloudsQuality`, `LightVolumeSettings` decompiled | `Atmosphere.dll` identical |
-| EVE 1.11.7 (public) | -- has no volumetric clouds and nothing bundled here | not installed |
+| EVE 1.11.7 (public) | it has no volumetric clouds, and nothing of it is bundled here | not installed |
 | Parallax Continued 1.0.4 | `Parallax-release` = CKAN zip: `Config/ParallaxGlobalSettings.cfg`; `Common.cs` defaults | `ParallaxContinued.dll` identical |
 | Firefly 1.0.6 | CKAN zip: `ModSettings.cfg`; `SettingsManager.cs` defaults | `Firefly.dll` identical; installed file unchanged |
 | Deferred 1.3.5.0 | `Deferred-release` = CKAN zip: `Deferred.cfg`; `Settings.cs` defaults | `Deferred.dll` identical; installed file unchanged |
@@ -143,10 +161,10 @@ The reset sets every kind.
 | `useLowResolutionAtmosphere` | other | False | False |
 
 The SMAA and TAA rows are Scatterer's antialiasing: every graphics profile sets both
-off (`ALL_PROFILES`), and while a profile is chosen HostStack also switches their
+off (`ALL_PROFILES`), and while a profile is chosen ReDefinition also switches their
 components off at run time, whatever the file says.
 
-## EVE -- Volumetric Clouds build only
+## EVE, Volumetric Clouds build only
 
 | Key | Kind | Default | Note |
 |---|---|---|---|

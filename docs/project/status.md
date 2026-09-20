@@ -1,5 +1,9 @@
 # Status
 
+**For:** anyone working on ReDefinition.
+**You need:** nothing.
+**You get:** what exists, what is still open, and which decisions are settled.
+
 Released: 0.1.1.
 
 ## What exists
@@ -30,7 +34,7 @@ Released: 0.1.1.
 | Frame generation | The fence's and the check's cost; pacing per profile; DLSS frame generation in flight | [development/frame-generation.md](../development/frame-generation.md), "Open" |
 | Interface for mods | The hooks and the frame's state in the game; raytracing and mask contributions | [development/shared-foundation.md](../development/shared-foundation.md) |
 | Compatibility | Ghosting behind plumes; thin trajectory lines; Singularity in the smaller modes; Kerbal Frame Generator installed | [reference/graphics-mod-compatibility.md](../reference/graphics-mod-compatibility.md), "Open" |
-| Modders | Settings that need code of their own can be bundled only through a behaviour in ReDefinition; choices read from a mod's own list need one too | a mod that needs it |
+| Modders | Whether a mod's own behaviour type covers what the mods ReDefinition bundles needed | a third-party mod that brings one |
 
 ## Settled
 
@@ -38,12 +42,12 @@ Released: 0.1.1.
 |---|---|
 | ReDefinition is active only while a graphics profile is chosen; *Reset to defaults* leaves no profile chosen | the upscaler and the other mods' antialiasing change together |
 | *AA only* in every profile | upscaling buys no frame rate on the development machine ([development/upscaler.md](../development/upscaler.md)) |
-| A profile sets quality, never a mod's taste; High is the mod authors' defaults, for an RTX 3080/4080 at 1440p; *Reset to defaults* resets everything | [player/graphics-profiles.md](../player/graphics-profiles.md) |
+| A profile sets quality, and a mod's taste only where that mod needs it changed to run with the upscaler; High is the mod authors' defaults, for an RTX 3080/4080 at 1440p; *Reset to defaults* resets everything | [player/graphics-profiles.md](../player/graphics-profiles.md) |
 | A requirement of an installed mod is enforced whatever profile is chosen | [reference/requirements.md](../reference/requirements.md) |
 | Settings are saved in each mod through its own routine, with the values from before kept for a restore | [development/settings-store.md](../development/settings-store.md) |
-| Mods register through config nodes in their own folders; code for a mod is a behaviour in ReDefinition | [modders/registering-a-mod.md](../modders/registering-a-mod.md) |
+| Mods register through config nodes in their own folders; a setting no member path reaches goes through a behaviour, one ReDefinition brings or one the mod itself brings | [modders/registering-a-mod.md](../modders/registering-a-mod.md) |
 | Frame generation's V-Sync follows KSP's own setting; with DLSS frame generation only the intervals NVIDIA supports | [development/frame-generation.md](../development/frame-generation.md) |
 | The player package holds the proxy and AMD's frame generation runtime; the player downloads NVIDIA's DLLs from NVIDIA's release after accepting NVIDIA's licences | [development/packaging.md](../development/packaging.md) |
 | Harmony is required | `src/KspAssemblyInfo.cs` |
 | Licence GPL-3.0-or-later with the Modding and Linking Exceptions | `LICENSE`, `EXCEPTIONS.md` |
-| No compatibility with earlier builds of ReDefinition itself before the first release | |
+| ReDefinition keeps no migration for its own stored formats: a format changes in place | |
