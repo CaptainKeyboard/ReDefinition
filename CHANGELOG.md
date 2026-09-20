@@ -1,6 +1,40 @@
 # Changelog
 
-## 0.1.1
+## 0.1.2 -- 2026-09-20
+
+### Changed
+
+- **KSP 1.12.0 to 1.12.99** in the version file, instead of 1.12.5 alone, so CKAN and
+  KSP-AVC offer ReDefinition on every 1.12 release. The interfaces it uses are the same
+  in all of them.
+- Two texts in the window: the mode tooltip said 1.3x where the upscaler renders at
+  1.2x, and the diagnostics button is *Show other mods' state* instead of *Show host
+  stack*.
+- `ReDefinitionProxy.ini` describes `fgVSync` as it works: V-Sync for as long as frame
+  generation is switched on, not only on the frames it interpolates, and a sync interval
+  of 0 becomes 1 while a higher one stays.
+
+### For mod authors
+
+- **A mod can answer for its own settings.** `behaviour = MyMod.SettingsBridge` in a
+  registration names a type in your own mod. ReDefinition finds `Read` and `Write` on it
+  by name, and `Ready`, `Save`, `Choices` and `Version` where you offer them, so a
+  setting no member path reaches needs no code in ReDefinition and no reference to it.
+  It answers for settings, not for key bindings: a `KEY` block without a member stays
+  ReDefinition's to keep.
+- A registration that says `saving = InModFiles` with no way to save is reported instead
+  of silently losing the value, and a setting such a behaviour answers for is reported
+  where it has no `default`.
+
+### Documentation
+
+- The pages are rebuilt around who reads them: a glossary, a first setting in fifteen
+  minutes, the format key by key, and the pages for players, mod authors and development
+  apart. Every claim was held against the code.
+- GitHub issue forms for a bug report, an idea, and a mod whose settings should join the
+  window.
+
+## 0.1.1 -- 2026-09-18
 
 ### Fixed
 
