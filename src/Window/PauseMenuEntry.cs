@@ -1,5 +1,6 @@
 using System.Reflection;
 using System;
+using KSP.Localization;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -28,6 +29,9 @@ namespace ReDefinition.Window
         // KSP's own pause menu buttons are this wide and high (PauseMenu.draw).
         private const float ButtonWidth = 160f;
         private const float ButtonHeight = 30f;
+
+        // The label of KSP's own Settings button in both menus.
+        private const string SettingsLabel = "#autoLOC_417154";
 
         private void Awake()
         {
@@ -77,7 +81,7 @@ namespace ReDefinition.Window
                 DialogGUIButton open = new DialogGUIButton("ReDefinition", Open, ButtonWidth, ButtonHeight, false);
                 open.tooltipText = "The settings of ReDefinition and of the graphics mods it bundles.";
 
-                int at = Below(__result);
+                int at = Place(__result);
                 DialogGUIBase[] withEntry = new DialogGUIBase[__result.Length + 1];
                 Array.Copy(__result, 0, withEntry, 0, at);
                 withEntry[at] = open;
@@ -90,13 +94,22 @@ namespace ReDefinition.Window
             }
         }
 
-        // Below the menu's own buttons, above the line with the game's version:
-        // both menus end with a space and that line (PauseMenu.draw and
-        // KSCPauseMenu.draw), so the entry goes before the last space. Appended
-        // at the end it would stand under the version line, apart from the
-        // buttons it belongs with.
-        private static int Below(DialogGUIBase[] entries)
+        // Directly under KSP's own Settings, where that button is an entry of the
+        // menu's array: the space centre's menu is one column (KSCPauseMenu.draw).
+        // Flight's menu holds its buttons in two columns inside one entry
+        // (PauseMenu.draw), where one more button would leave the columns uneven,
+        // so there the entry goes below the columns, above the line with the
+        // game's version: the menu ends with a space and that line, and the entry
+        // goes before the last space.
+        private static int Place(DialogGUIBase[] entries)
         {
+            string settings = Localizer.Format(SettingsLabel);
+            for (int i = 0; i < entries.Length; i++)
+            {
+                DialogGUIButton button = entries[i] as DialogGUIButton;
+                if (button != null && button.OptionText == settings) return i + 1;
+            }
+
             for (int i = entries.Length - 1; i >= 0; i--)
                 if (entries[i] is DialogGUISpace) return i;
             return entries.Length;
