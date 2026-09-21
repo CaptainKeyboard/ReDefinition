@@ -50,6 +50,12 @@ namespace ReDefinition.Settings
         public string LeftOutWith;
         public string RowUnless;
         public string Behaviour;
+        // The heading of its group within the tab; null for none.
+        public string Section;
+        // Slider: shown as a percentage.
+        public bool Percent;
+        // False: never bundled, set directly (BundledSetting.Bundled).
+        public bool Bundled = true;
         // A KEY block: the member holds a key, and the modifiers may live in
         // members of their own.
         public bool IsBinding;
@@ -198,14 +204,14 @@ namespace ReDefinition.Settings
         private static readonly string[] ModKeys =
         {
             "name", "title", "detect", "needs", "version", "save", "ready", "saving", "window", "button", "toolbarControl",
-            "tab", "behaviour",
+            "tab", "behaviour", "direct",
         };
 
         private static readonly string[] SettingKeys =
         {
             "name", "member", "title", "tooltip", "default", "kind", "row", "order", "takesEffect", "min", "max",
             "whole", "choices", "labels", "invert", "optional", "after", "shaderGlobal", "perSave", "leftOutWith",
-            "rowUnless", "behaviour", "leftOut", "required",
+            "rowUnless", "behaviour", "leftOut", "required", "section", "percent", "bundled",
         };
 
         // A KEY block: a binding instead of a value, so no slider, no list and no
@@ -231,10 +237,12 @@ namespace ReDefinition.Settings
         private static readonly SettingCategory[] Tabs =
         {
             SettingCategory.General, SettingCategory.ShadowsAndReflections, SettingCategory.Planets,
-            SettingCategory.Effects, SettingCategory.Keys,
+            SettingCategory.Effects, SettingCategory.Audio, SettingCategory.Gameplay, SettingCategory.System,
+            SettingCategory.Input, SettingCategory.Keys, SettingCategory.Axes,
         };
 
-        private const string TabNames = "General, ShadowsAndReflections, Planets, Effects or Keys";
+        private const string TabNames =
+            "General, ShadowsAndReflections, Planets, Effects, Audio, Gameplay, System, Input, Keys or Axes";
 
         // When a change can take effect, as the guide names them.
         private static readonly ApplyWindow[] Windows = { ApplyWindow.Live, ApplyWindow.NextScene, ApplyWindow.Restart };
@@ -255,6 +263,10 @@ namespace ReDefinition.Settings
         public string ToolbarControl;
         public SettingCategory? Tab;
         public string Behaviour;
+        // With the bundling off, its rows are set directly, as its own screen
+        // sets them, rather than locked: KSP, whose own screen ReDefinition's
+        // window can stand in for.
+        public bool Direct;
 
         public readonly List<SettingRegistration> Settings = new List<SettingRegistration>();
         public readonly List<BuildRegistration> Builds = new List<BuildRegistration>();
@@ -328,6 +340,7 @@ namespace ReDefinition.Settings
                 if (TryTab(tab, out parsed)) mod.Tab = parsed;
                 else problems.Add(where + ": tab '" + tab + "' is not " + TabNames + " -- ignored.");
             }
+            mod.Direct = Bool(node, "direct", where, problems) ?? false;
             Unknown(node, ModKeys, where, problems);
 
             foreach (ConfigNode child in node.GetNodes())
@@ -560,6 +573,14 @@ namespace ReDefinition.Settings
             setting.ShaderGlobal = Last(node, "shaderGlobal", where, problems);
             setting.LeftOutWith = ModName(node, "leftOutWith", where, problems);
             setting.RowUnless = ModName(node, "rowUnless", where, problems);
+            if (!binding)
+            {
+                setting.Section = Text(Last(node, "section", where, problems));
+                setting.Percent = Bool(node, "percent", where, problems) ?? false;
+                if (setting.Percent && setting.Min == null)
+                    problems.Add(where + ": percent without min and max -- it shows a slider's value only.");
+                setting.Bundled = Bool(node, "bundled", where, problems) ?? true;
+            }
             Unknown(node, binding ? KeyKeys : SettingKeys, where, problems);
             foreach (ConfigNode child in node.GetNodes())
                 problems.Add(where + ": node '" + child.name + "' inside a " + nodeName + " -- ignored.");

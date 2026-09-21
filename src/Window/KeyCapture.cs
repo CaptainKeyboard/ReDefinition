@@ -113,7 +113,9 @@ namespace ReDefinition.Window
             if (taken != null) taken(text);
         }
 
-        // The keys KSP's own bindings can hold: the same, and the modifiers.
+        // The keys KSP's own bindings can hold: the same, the modifiers, and a
+        // controller's buttons -- KSP's own screen binds those too
+        // (SettingsInputBinding, ExtendedInput.DetectKeyDown).
         private static KeyCode[] anyCandidates;
 
         private static KeyCode[] AnyCandidates()
@@ -121,6 +123,12 @@ namespace ReDefinition.Window
             if (anyCandidates != null) return anyCandidates;
             List<KeyCode> keys = new List<KeyCode>(Candidates());
             foreach (KeyCode modifier in KeyCombination.Modifiers) keys.Add(modifier);
+            foreach (KeyCode key in Enum.GetValues(typeof(KeyCode)))
+            {
+                // JoystickButton0 is a button of any controller; Joystick1Button0
+                // one of the first. KSP stores the one pressed.
+                if (key.ToString().StartsWith("Joystick", StringComparison.Ordinal) && !keys.Contains(key)) keys.Add(key);
+            }
             anyCandidates = keys.ToArray();
             return anyCandidates;
         }

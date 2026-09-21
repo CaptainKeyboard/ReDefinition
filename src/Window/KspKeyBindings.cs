@@ -9,7 +9,10 @@ namespace ReDefinition.Window
 {
     // KSP's own key bindings, read from GameSettings rather than listed by hand:
     // every static KeyBinding field there (about 119 in KSP 1.12.5), each with a
-    // primary and a secondary key.
+    // primary and a secondary key -- and the keys of KSP's four custom axes, which
+    // are no static fields but members of AXIS_CUSTOM (AxisKeyBindingList, each
+    // entry a plusKeyBinding and a minusKeyBinding), as KSP's input screen lists
+    // them (InputSettings.xml in sharedassets3.assets).
     //
     // A KeyBinding holds one KeyCode per key, so a combination with modifiers
     // cannot be one of KSP's: the key is taken and the modifiers are left, and the
@@ -41,21 +44,23 @@ namespace ReDefinition.Window
             public string Group;
             public int Situations;
             public int Modes;
-            public FieldInfo Field;
+            // The KeyBinding as GameSettings holds it now: a static field, or an
+            // entry of a custom axis.
+            public Func<object> Get;
 
             public string Read(bool secondary)
             {
-                KeyCode code = Code(Field.GetValue(null), secondary);
+                KeyCode code = Code(Get(), secondary);
                 return code == KeyCode.None ? KeyCombination.NoneText : code.ToString();
             }
 
             // Any key, a modifier among them: KSP binds LeftShift to the throttle.
+            // The KeyBinding is a class: its key is set in place.
             public void Write(bool secondary, string text)
             {
-                object binding = Field.GetValue(null);
+                object binding = Get();
                 if (binding == null) return;
                 SetCode(binding, secondary, KeyCombination.ParseLoose(text).Key);
-                Field.SetValue(null, binding);
             }
 
             // What KSP ships for it; null where it could not be read.
@@ -150,6 +155,7 @@ namespace ReDefinition.Window
                     if (mask == 0) mask = -1;
                 }
                 KeyGroup group = GroupFor(field.Name);
+                FieldInfo shown = field;
                 bindings.Add(new Binding
                 {
                     Name = field.Name,
@@ -159,15 +165,72 @@ namespace ReDefinition.Window
                     // switchState tells flight modes apart -- staging, docking -- and
                     // means nothing beyond flight.
                     Modes = group != null && group.Name == "Flight" ? mask : -1,
-                    Field = field,
+                    Get = () => shown.GetValue(null),
                 });
             }
+            AddCustomAxisKeys(modes);
             bindings.Sort((a, b) =>
             {
                 int group = GroupOrder(a.Group).CompareTo(GroupOrder(b.Group));
                 return group != 0 ? group : string.CompareOrdinal(a.Title, b.Title);
             });
             return bindings;
+        }
+
+        // KSP's custom axes: four, each with a key that pushes it up and one that
+        // pushes it down, flown like the other flight controls. Titles as KSP's
+        // input screen has them (#autoLOC_8320076 ... #autoLOC_8320083).
+        private static void AddCustomAxisKeys(FieldInfo modes)
+        {
+            try
+            {
+                if (GameSettings.AXIS_CUSTOM == null) return;
+                for (int i = 0; i < 4; i++)
+                {
+                    int index = i;
+                    AddCustomKey("AXIS_CUSTOM[" + index + "].plusKeyBinding", 8320076 + index * 2,
+                        () => GameSettings.AXIS_CUSTOM[index].plusKeyBinding, modes);
+                    AddCustomKey("AXIS_CUSTOM[" + index + "].minusKeyBinding", 8320077 + index * 2,
+                        () => GameSettings.AXIS_CUSTOM[index].minusKeyBinding, modes);
+                }
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("ksp-custom-axis-keys", "The keys of KSP's custom axes could not be read ("
+                                                              + CompatibilityLog.Reason(e) + "); they are left out"
+                                                              + " of the Keys tab.");
+            }
+        }
+
+        private static void AddCustomKey(string name, int localization, Func<object> get, FieldInfo modes)
+        {
+            object value = get();
+            if (value == null) return;
+            int mask = -1;
+            if (modes != null)
+            {
+                try
+                {
+                    mask = Convert.ToInt32(modes.GetValue(value));
+                }
+                catch (Exception)
+                {
+                    mask = -1;
+                }
+                if (mask == 0) mask = -1;
+            }
+            string title = KSP.Localization.Localizer.Format("#autoLOC_" + localization);
+            if (string.IsNullOrEmpty(title) || title.StartsWith("#autoLOC", StringComparison.Ordinal))
+                title = "Custom axis " + (name[12] - '0' + 1) + (name.Contains("plus") ? " +" : " -");
+            bindings.Add(new Binding
+            {
+                Name = name,
+                Title = title,
+                Group = "Flight",
+                Situations = Flight | Map,
+                Modes = mask,
+                Get = get,
+            });
         }
 
         // The groups in the order their rows stand.
@@ -291,7 +354,7 @@ namespace ReDefinition.Window
                 GameSettings.SetDefaultValues();
                 foreach (Binding binding in All())
                 {
-                    object shipped = binding.Field.GetValue(null);
+                    object shipped = binding.Get();
                     defaults[binding.Name] = new[] { Text(Code(shipped, false)), Text(Code(shipped, true)) };
                 }
             }

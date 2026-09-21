@@ -82,6 +82,11 @@
       <HintPath>$(KspManaged)\UnityEngine.ParticleSystemModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- KSP's master volume is Unity's AudioListener, which lives here. -->
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(KspManaged)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- The main menu entry widens its BoxCollider, which lives here. -->
     <Reference Include="UnityEngine.PhysicsModule">
       <HintPath>$(KspManaged)\UnityEngine.PhysicsModule.dll</HintPath>

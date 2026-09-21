@@ -80,6 +80,11 @@ namespace ReDefinition.Window
                 if (__result == null) return;
 
                 string[] settings = Array.ConvertAll(SettingsLabels, label => Localizer.Format(label));
+                if (Replacing())
+                {
+                    TakeOverSettings(__result, settings);
+                    return;
+                }
                 for (int i = 0; i < __result.Length; i++)
                 {
                     if (IsSettings(__result[i], settings))
@@ -122,6 +127,33 @@ namespace ReDefinition.Window
             DialogGUIButton open = new DialogGUIButton("ReDefinition", Open, width, height, false);
             open.tooltipText = "The settings of ReDefinition and of the graphics mods it bundles.";
             return open;
+        }
+
+        // With *Replace original settings* on: KSP's own Settings button opens
+        // ReDefinition's window, its callback swapped, and no entry is added.
+        private static bool Replacing()
+        {
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            return addon != null && addon.ReplaceKspSettings;
+        }
+
+        private static void TakeOverSettings(DialogGUIBase[] entries, string[] settings)
+        {
+            foreach (DialogGUIBase entry in entries)
+            {
+                if (IsSettings(entry, settings))
+                {
+                    ((DialogGUIButton)entry).onOptionSelected = Open;
+                    return;
+                }
+                DialogGUIBase column;
+                int at;
+                if (Holding(entry, settings, out column, out at))
+                {
+                    ((DialogGUIButton)column.children[at]).onOptionSelected = Open;
+                    return;
+                }
+            }
         }
 
         private static bool IsSettings(DialogGUIBase entry, string[] settings)

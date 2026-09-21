@@ -68,6 +68,16 @@ namespace ReDefinition.Window
             MainMenu menu = FindObjectOfType<MainMenu>();
             if (menu == null || menu.settingBtn == null) return false;
 
+            // With *Replace original settings* on, KSP's own Settings entry
+            // opens ReDefinition's window, and the column stays as KSP built it.
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon != null && addon.ReplaceKspSettings)
+            {
+                menu.settingBtn.onTap = Open;
+                Debug.Log(Log.Tag + " The main menu's Settings opens ReDefinition's window (Replace original settings).");
+                return false;
+            }
+
             Transform settings = menu.settingBtn.transform;
             Transform column = settings.parent;
             if (column == null) return false;

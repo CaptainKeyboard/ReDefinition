@@ -94,6 +94,35 @@ try {
         Where-Object { $_.FieldType -eq $keyBinding })
     Expect "GameSettings holds KSP's bindings (at least 100)" ($fields.Count -ge 100)
 
+    # KSP's custom axes (KspKeyBindings.AddCustomAxisKeys, KspAxes): a list of four
+    # entries, each an axis and a key up and down.
+    $gameSettings = $ksp.GetType('GameSettings')
+    $customField = $gameSettings.GetField('AXIS_CUSTOM')
+    $entryType = $ksp.GetType('AxisKeyBinding')
+    Expect "GameSettings.AXIS_CUSTOM is a list of axes with an indexer" (
+        $null -ne $customField -and $null -ne $customField.FieldType.GetProperty('Item'))
+    Expect "each custom axis holds axisBinding, plusKeyBinding and minusKeyBinding" (
+        $null -ne $entryType -and $null -ne $entryType.GetField('axisBinding') -and
+        $entryType.GetField('plusKeyBinding').FieldType -eq $keyBinding -and
+        $entryType.GetField('minusKeyBinding').FieldType -eq $keyBinding)
+
+    # The axes the Axes tab lists, and what its rows edit (KspAxes, SettingsWindow.Axes).
+    $axisBinding = $ksp.GetType('AxisBinding')
+    $axisNames = @('AXIS_PITCH', 'AXIS_ROLL', 'AXIS_YAW', 'AXIS_TRANSLATE_X', 'AXIS_TRANSLATE_Y', 'AXIS_TRANSLATE_Z',
+                   'AXIS_THROTTLE', 'AXIS_THROTTLE_INC', 'AXIS_WHEEL_STEER', 'AXIS_WHEEL_THROTTLE',
+                   'axis_EVA_translate_z', 'axis_EVA_translate_x', 'axis_EVA_translate_y', 'axis_EVA_pitch',
+                   'axis_EVA_yaw', 'axis_EVA_roll', 'AXIS_CAMERA_HDG', 'AXIS_CAMERA_PITCH', 'AXIS_MOUSEWHEEL')
+    $missingAxes = @($axisNames | Where-Object {
+        $f = $gameSettings.GetField($_); $null -eq $f -or $f.FieldType -ne $axisBinding })
+    if ($missingAxes.Count -gt 0) { $script:lastThrow = "missing: " + ($missingAxes -join ', ') }
+    Expect "GameSettings holds the 19 axes KSP's input screen lists" ($missingAxes.Count -eq 0)
+    $single = $ksp.GetType('AxisBinding_Single')
+    $members = @('idTag', 'name', 'title', 'deviceIdx', 'axisIdx', 'inverted', 'sensitivity', 'deadzone', 'scale')
+    $absent = @($members | Where-Object { $null -eq $single.GetField($_) })
+    Expect "an axis binding holds what the Axes tab edits ($($members -join ', '))" ($absent.Count -eq 0)
+    Expect "KSP's axis sensitivity range is there (AxisSensitivityMin, AxisSensitivityMax)" (
+        $null -ne $gameSettings.GetField('AxisSensitivityMin') -and $null -ne $gameSettings.GetField('AxisSensitivityMax'))
+
     $readable = $mod.GetType('ReDefinition.Window.KspKeyBindings').GetMethod('Readable', [Reflection.BindingFlags]'NonPublic,Static')
     if ($null -eq $readable) {
         $readable = $mod.GetType('ReDefinition.Window.KspKeyBindings').GetMethod('Readable', [Reflection.BindingFlags]'Public,Static')

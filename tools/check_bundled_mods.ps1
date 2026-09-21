@@ -105,8 +105,11 @@ $expectedDrops = @{
     'scatterer' = @('quarterResScattering');   # Scatterer does not save it
     # AERO_FX_QUALITY while Firefly is loaded, which sets it itself; the
     # reflection refresh while Deferred caps it -- outside the game its cap
-    # cannot be read and counts as on, its own default.
-    'ksp'       = @('AERO_FX_QUALITY', 'REFLECTION_PROBE_REFRESH_MODE');
+    # cannot be read and counts as on, its own default; Making History's two
+    # settings without the expansion -- outside the game KSP's expansions loader
+    # has not run, so they count as not installed.
+    'ksp'       = @('AERO_FX_QUALITY', 'REFLECTION_PROBE_REFRESH_MODE', 'MISSION_GAP_CAMERA_VAB_CONTROLS',
+                    'MISSION_MINIMUM_CANVAS_ZOOM');
     # Its reflection-probe caps, with which it would lower KSP's own settings for good.
     'deferred'  = @('capReflectionProbeRefreshRate', 'capReflectionProbeResolution');
 }
@@ -268,7 +271,8 @@ try {
     $rowsIn = @($mod.GetType('ReDefinition.Settings.WindowLayout', $true).GetMethods($sflags) |
         Where-Object { $_.Name -eq 'In' -and $_.GetParameters().Count -eq 2 })[0]
     $shown = @()
-    foreach ($tab in @('General', 'ShadowsAndReflections', 'Planets', 'Effects')) {
+    foreach ($tab in @('General', 'ShadowsAndReflections', 'Planets', 'Effects', 'Audio', 'Gameplay', 'System',
+                       'Input', 'Axes')) {
         $rows = @($rowsIn.Invoke($null, [object[]]@([Enum]::Parse($categoryType, $tab), $installedList)))
         "      ${tab}: " + (@($rows | ForEach-Object { $_.Key }) -join ', ')
         $shown += $rows
@@ -485,7 +489,9 @@ function Call($method, [object[]]$callArgs) {
 $chosen = $null
 try {
     $select = $mod.GetType('ReDefinition.Settings.ModDefaults', $true).GetMethod('Select', $sflags)
-    $withoutDefault = @('ksp.TERRAIN_SHADER_QUALITY')
+    # KSP's own reset leaves the terrain shader quality as it is; the screen
+    # resolution and full screen belong to the monitor (KspReset).
+    $withoutDefault = @('ksp.TERRAIN_SHADER_QUALITY', 'ksp.screenResolution', 'ksp.FULLSCREEN')
     $defaultProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
     $chosen = $select.Invoke($null, [object[]]@($installedList, $defaultProblems))
     $defaultIssues = @($defaultProblems)

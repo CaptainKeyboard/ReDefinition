@@ -34,6 +34,10 @@ namespace ReDefinition
 
         // Whether the settings window holds the flight while it is open.
         public bool PauseWhileOpen;
+
+        // Whether KSP's own Settings buttons open ReDefinition's window instead
+        // of KSP's screens (PauseMenuEntry, MainMenuEntry).
+        public bool ReplaceKspSettings;
         public UpscalerBackend Backend = UpscalerBackend.Fsr3;
         public DlssPreset DlssPreset = DlssPreset.Default;
 
@@ -70,6 +74,7 @@ namespace ReDefinition
             settings.CompensateLodBias = Bool(node, "lodBias", settings.CompensateLodBias);
             settings.DisableMsaa = Bool(node, "disableMsaa", settings.DisableMsaa);
             settings.PauseWhileOpen = Bool(node, "pauseWhileOpen", settings.PauseWhileOpen);
+            settings.ReplaceKspSettings = Bool(node, "replaceKspSettings", settings.ReplaceKspSettings);
             settings.ForceAnisotropic = Bool(node, "forceAnisotropic", settings.ForceAnisotropic);
             settings.Jitter = Bool(node, "jitter", settings.Jitter);
             settings.SkinnedMotionVectors = Bool(node, "skinnedMotionVectors", settings.SkinnedMotionVectors);
@@ -98,6 +103,7 @@ namespace ReDefinition
             node.AddValue("lodBias", CompensateLodBias);
             node.AddValue("disableMsaa", DisableMsaa);
             node.AddValue("pauseWhileOpen", PauseWhileOpen);
+            node.AddValue("replaceKspSettings", ReplaceKspSettings);
             node.AddValue("forceAnisotropic", ForceAnisotropic);
             node.AddValue("jitter", Jitter);
             node.AddValue("skinnedMotionVectors", SkinnedMotionVectors);
@@ -131,7 +137,7 @@ namespace ReDefinition
               .Append(Sharpness.ToString("0.00", CultureInfo.InvariantCulture)).Append('|').Append(AutoExposure).Append('|')
               .Append(MipmapBias).Append('|').Append(CompensateLodBias).Append('|')
               .Append(DisableMsaa).Append('|').Append(ForceAnisotropic).Append('|')
-              .Append(PauseWhileOpen).Append('|')
+              .Append(PauseWhileOpen).Append('|').Append(ReplaceKspSettings).Append('|')
               .Append(Jitter).Append('|').Append(SkinnedMotionVectors).Append('|').Append(TufxAfterUpscaling).Append('|')
               .Append(TransparencyMask).Append('|').Append(ReactiveMask).Append('|')
               .Append(FrameGeneration).Append('|').Append(Backend).Append('|').Append(DlssPreset).Append('|')

@@ -5,12 +5,13 @@
 **You get:** how to find every setting, apply it, reset it, and put the mods back the
 way they were.
 
-The window holds the upscaler, frame generation and the graphics settings of the
-installed graphics mods, one row per feature, sorted by what a setting does. A mod that
-is not installed has no rows.
+The window holds the upscaler, frame generation, the graphics settings of the
+installed graphics mods, one row per feature, and every setting of KSP's own settings
+screen, sorted by what a setting does. A mod that is not installed has no rows.
 
-Nothing of this is active until you choose a graphics profile. Until then the upscaler
-and frame generation are off, and every mod keeps its own settings.
+The graphics mods' settings are active once you choose a graphics profile. Until then
+the upscaler and frame generation are off, and every mod keeps its own settings. KSP's
+own settings can always be changed here, as in KSP's screen.
 
 ## Open it
 
@@ -50,11 +51,16 @@ Outside flight there is nothing to hold and the button is dead.
 | Tab | Rows |
 |---|---|
 | *Profiles* | a status line, and one row per graphics profile with the hardware it is made for and what it sets |
-| *General* | Upscaler, Technique, Mode, DLSS preset, Sharpness, Frame generation, *NVIDIA DLSS files*, and KSP's render quality, texture quality, V-Sync and frame limit |
-| *Shadows / Reflections* | KSP's shadow cascades, Scatterer's long-distance terrain shadows, Deferred's screen-space reflections |
-| *Planets* | EVE's volumetric cloud upscaling, cloud ambience and thunder volume; Scatterer's light shafts through clouds, its ocean and waves moving vessels; KSP's terrain detail; Parallax's scatter density and scatter collisions |
-| *Effects* | KSP's aerodynamic FX while Firefly is not installed, Firefly's re-entry particles, Waterfall's plume lights and heat distortion, Scatterer's sun flare, Distant Object's flares, names and distant vessels |
-| *Keys* | every key binding: ReDefinition's own, the bundled mods' and KSP's, with a search field above them |
+| *General* | *Replace original settings*; Upscaler, Technique, Mode, DLSS preset, Sharpness, Frame generation, *NVIDIA DLSS files*; KSP's render quality, texture quality, V-Sync, frame limit, screen resolution, full screen, pixel light count, anti-aliasing and ambient light boosts |
+| *Shadows / Reflections* | KSP's shadow cascades, planets casting shadows, reflection refresh and resolution; Scatterer's long-distance terrain shadows, Deferred's screen-space reflections |
+| *Planets* | EVE's volumetric cloud upscaling, cloud ambience and thunder volume; Scatterer's light shafts through clouds, its ocean and waves moving vessels; KSP's terrain detail, terrain shader quality, terrain scatter and its density; Parallax's scatter density and scatter collisions |
+| *Effects* | KSP's aerodynamic FX while Firefly is not installed, surface FX, underwater FX, highlight FX and the part highlighter; Firefly's re-entry particles, Waterfall's plume lights and heat distortion, Scatterer's sun flare, Distant Object's flares, names and distant vessels |
+| *Audio* | KSP's volumes and its sound normalizer |
+| *Gameplay* | KSP's gameplay switches, the UI scale, and the map view's lines |
+| *System* | KSP's confirmations, debris, physics and logging; Making History's two settings where it is installed |
+| *Input* | KSP's mouse wheel, Track IR, 6-DOF device and keyboard layout |
+| *Keys* | every key binding: ReDefinition's own, the bundled mods' and KSP's, with a search field above them. KSP's keys take a controller's buttons too |
+| *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
 | *Mods / Toolbar* | *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, and *Restore settings from before ReDefinition* |
 
 The status line on *Profiles* names the chosen profile, shows *Custom* where rows were
@@ -68,6 +74,22 @@ The *Diagnostics* button below the tabs opens the diagnostics window.
 
 The upscaler and frame generation can only be changed while a graphics profile is
 chosen.
+
+## Replace KSP's settings screen
+
+*Replace original settings*, at the top of *General*, sends every *Settings* button of
+KSP to this window: the main menu's and those of the pause menus in flight and in the
+space centre. ReDefinition then adds no entry of its own there. With it off, KSP's
+buttons open KSP's screens, and the *ReDefinition* entry stands under them. It takes
+effect the next time a menu is built.
+
+## Bind an axis
+
+In *Axes*, click an axis's button and move the stick, trigger or wheel on the
+controller: the first axis that moves more than half its range is taken. Escape
+cancels, *x* clears the binding. Sensitivity and deadzone work as in KSP's own input
+screen. *Bind keys to this layout*, under *Input*, sets every one of KSP's keys to the
+chosen keyboard layout's preset at *Apply*.
 
 ## Reach a mod's own window
 
@@ -170,8 +192,10 @@ costs frame time, and switches the upscaler on. What each profile sets:
 *Reset to defaults* asks first and names what it resets. It fills the rows with every
 setting's default, the settings without a row included. Those defaults are what the
 mods' releases ship. With Volumetric Clouds installed, the defaults of EVE, Scatterer
-and TUFX are the ones its author ships. KSP's graphics settings are reset without
-resolution and full screen.
+and TUFX are the ones its author ships. All of KSP's settings go back to what KSP
+ships, as KSP's own *Reset* sets them, its keys and axes included. The screen
+resolution and full screen stay as they are: KSP's own reset would set 1280 x 720 in a
+window.
 
 After a reset, ReDefinition's own settings are at their defaults and no profile is
 chosen: the upscaler and frame generation are off, and the other mods keep their own

@@ -31,8 +31,10 @@ SETTING
 }
 ```
 
-Give a row only to what a player looks for in a graphics menu. Everything else needs
-none. Give it a `SETTING` block without a `row`, and it is still kept, reset and set by
+Give a row to what a player looks for in a settings menu: a feature's quality, whether
+it is on, a volume, an input. A feature's finer switches and technical parameters need
+none. They stay in your own window, which the player reaches through *Advanced*. Give
+such a setting a `SETTING` block without a `row`, and it is still kept, reset and set by
 profiles. A number gets a row only with `min` and `max`, or with `choices`: without
 them there is no sensible slider, so the setting is kept without a row.
 

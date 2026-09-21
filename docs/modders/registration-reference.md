@@ -42,7 +42,8 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `window` | no | -- | `Namespace.Type.Method` that draws your IMGUI settings window. It gets a close button while your toolbar button is hidden. |
 | `button` | no | -- | The name of the assembly your toolbar button's click handler lives in. ReDefinition hides that button while your settings are bundled, and opens your window through it. Only together with `window`. |
 | `toolbarControl` | no | -- | The namespace your button registers with in ToolbarControl, where you make it that way. Like `button`, only together with `window`. |
-| `tab` | no | no *Advanced* button | Where your *Advanced* button goes. Where your settings go is each setting's own `row`: `General`, `ShadowsAndReflections`, `Planets` or `Effects`. `Keys` is taken too but draws no *Advanced* row, and any other name is reported and ignored. A tab without rows gets no *Advanced* row either. |
+| `tab` | no | no *Advanced* button | Where your *Advanced* button goes. Where your settings go is each setting's own `row`: `General`, `ShadowsAndReflections`, `Planets`, `Effects`, `Audio`, `Gameplay`, `System`, `Input`, `Keys` or `Axes`. `Keys` is taken too but draws no *Advanced* row, and any other name is reported and ignored. A tab without rows gets no *Advanced* row either. |
+| `direct` | no | `False` | `True`: while the player has the bundling off, your rows are set straight into your mod, as your own window sets them, instead of being locked. KSP's registration says so, since ReDefinition's window can stand in for KSP's own screen. |
 
 ## SETTING
 
@@ -54,11 +55,13 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `title` | no | `name` | The row's name. |
 | `tooltip` | no | -- | What the setting does. `\n` starts a new line. |
 | `kind` | no | `Other` | `Quality`: it costs frame time, and the profiles set it. `Taste`: how the game looks, which no profile touches. `Other`: interface, debugging, compatibility. |
-| `row` | no | not shown | The tab its row is in: `General`, `ShadowsAndReflections`, `Planets`, `Effects` or `Keys`. |
+| `row` | no | not shown | The tab its row is in: `General`, `ShadowsAndReflections`, `Planets`, `Effects`, `Audio`, `Gameplay`, `System`, `Input`, `Keys` or `Axes`. |
+| `section` | no | -- | A heading the row stands under within its tab. A heading is drawn before the first row of each run of rows with the same `section`. |
 | `order` | no | after the numbered rows | A number placing the row among its tab's rows, those of other mods included. Rows of the same order stand by their mods' titles, and within one mod in the order its registration lists them. |
 | `takesEffect` | no | `NextScene` | `Live`, `NextScene` or `Restart`. The window tells the player. |
 | `min`, `max` | no | -- | A number with both is a slider. |
 | `whole` | no | `True` for an `int`, else `False` | Whether the slider snaps to whole numbers. |
+| `percent` | no | `False` | `True`: the slider's value, from 0 to 1, is shown as a percentage. Only with `min` and `max`. |
 | `choices` | no | an enum's names | A list to choose from, separated by commas. `\,` is a comma inside a choice. |
 | `labels` | no | the choices | What the list shows for each choice, as many as there are choices. |
 | `invert` | no | `False` | For a switch your mod stores the other way round, such as `disable_...`. The row shows it the right way. |
@@ -71,6 +74,7 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `leftOutWith` | no | -- | The `name` of another registered mod. While that one is loaded, this setting is left out: its own code holds the setting. |
 | `rowUnless` | no | -- | The `name` of another registered mod. While that one is bundled, the row is not shown and the setting is still kept. |
 | `behaviour` | no | the mod's | Code for this setting alone. See [Behaviours](#behaviours). |
+| `bundled` | no | `True` | `False`: the setting is never bundled. It is set straight into your mod whether the bundling is on or off, no profile sets it, `bundled.cfg` never keeps it, and *Restore settings from before ReDefinition* leaves it. *Reset to defaults* still sets its `default`. For an interface or input setting that has nothing to do with the graphics. |
 
 Without `choices`, `min` and `max`, the row follows the member's type: a switch for a
 `bool`, a list of names for an `enum`. An `int`, `float`, `double`, `string` or

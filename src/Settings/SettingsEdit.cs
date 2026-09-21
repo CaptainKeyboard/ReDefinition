@@ -302,6 +302,17 @@ namespace ReDefinition.Settings
             return true;
         }
 
+        // Whether one row holds something other than what it was read with --
+        // changed by hand, by a profile or by the reset.
+        public bool Changed(string key)
+        {
+            string value;
+            if (!pending.TryGetValue(key, out value)) return false;
+            string before;
+            opened.TryGetValue(key, out before);
+            return !SettingValues.Same(value, before);
+        }
+
         // Whether a row holds something other than what it was read with.
         public bool RowsPending()
         {

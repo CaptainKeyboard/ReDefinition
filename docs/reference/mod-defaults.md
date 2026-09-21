@@ -32,9 +32,10 @@ its TUFX profile in every scene. It changes no other mod's defaults.
 
 KSP's default is what the *Reset* of KSP's own settings screen sets, through
 `GameSettings.ResetSettings`, which calls `SetDefaultValues` and
-`PQSCache.CreateDefaultPresetList`. Only the graphics settings count here, the ones
-KSP's graphics screen lists in `sharedassets3.assets`, and without resolution and full
-screen.
+`PQSCache.CreateDefaultPresetList`. That covers every control of KSP's settings screen,
+as its `SettingsScreenSetup` in `sharedassets3.assets` lists them. Resolution and full
+screen are the exception: *Reset to defaults* keeps them, where KSP's reset sets 1280 x
+720 in a window.
 
 ## The three kinds
 

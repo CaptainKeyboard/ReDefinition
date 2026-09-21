@@ -127,6 +127,12 @@ menu.
 | `BundledFile.cs` | `PluginData/bundled.cfg` |
 | `BundledSettingsAddon.cs` | when: before a scene is requested, when it has loaded and when it is ready, when KSP's settings are applied, at camera changes, on a two-second tick, at the end of a frame |
 
+A setting whose registration says `bundled = False` never reaches the store: the window
+writes it straight into its mod and calls the mod's save, as does every row of a mod
+whose registration says `direct` while the bundling is off. KSP's audio, gameplay,
+system and input settings are such settings. `KspReset.cs` is KSP's own reset, which
+*Reset to defaults* runs before the store resets the bundled rows.
+
 The rules the store follows: [settings-store.md](settings-store.md).
 
 ### The edit model
@@ -211,6 +217,8 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | `MainMenuEntry.cs` | the *ReDefinition* entry in KSP's main menu: a copy of its *Settings* entry, with Harmony postfixes on `MainMenu.lockEverything` and `unlockEverything` |
 | `WindowPause.cs` | the pause button in the settings window's title row, and the flight held while the window stands |
 | `ToolbarButton.cs` | the toolbar button, its tooltip, and its place at the front of the row |
+| `SettingsWindow.Axes.cs`, `KspAxes.cs`, `AxisCapture.cs` | the *Axes* tab: KSP's joystick and gamepad axes, the copies it edits, and the capture that takes an axis as it moves |
+| `SettingsWindow.Layout.cs` | KSP's keyboard layout in the *Input* tab |
 | `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable; the main menu's first question |
 | `ModWindowClose.cs` | the close button on a mod's own settings window, and knowing whether that window is open |
 | `ModWindowsAddon.cs` | when: the close buttons installed, the toolbar looked at, the open settings window following a change made in another window |

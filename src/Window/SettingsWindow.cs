@@ -114,6 +114,7 @@ namespace ReDefinition.Window
             WindowPause.Release();
             // A row still listening would keep the game's controls locked.
             KeyCapture.Stop();
+            AxisCapture.Stop();
             if (dialog != null) dialog.Dismiss();
             dialog = null;
         }
@@ -139,7 +140,7 @@ namespace ReDefinition.Window
                 LoadProfiles();
 
                 UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
-                MultiOptionDialog window = new MultiOptionDialog("ReDefinitionSettings", "", "Graphics -- ReDefinition",
+                MultiOptionDialog window = new MultiOptionDialog("ReDefinitionSettings", "", "Settings -- ReDefinition",
                     skin, new Rect(0.5f, 0.5f, WindowWidth, WindowHeight), Build(skin));
                 dialog = PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), window,
                     false, skin, false);
@@ -156,6 +157,7 @@ namespace ReDefinition.Window
                     if (dialog != spawned) return;
                     dialog = null;
                     KeyCapture.Stop();
+                    AxisCapture.Stop();
                     WindowPause.Release();
                 };
                 spawned.onDestroy.AddListener(gone);
@@ -213,6 +215,9 @@ namespace ReDefinition.Window
             shownKeys.Clear();
             Conflicts.Clear();
             kspPending.Clear();
+            axisPending.Clear();
+            AxisCapture.Stop();
+            ClearLayoutPending();
             // The search field is built empty, and so is what it filters by.
             keySearch = "";
             List<DialogGUIBase> tabs = new List<DialogGUIBase>();
@@ -235,7 +240,7 @@ namespace ReDefinition.Window
                         if (!on || current == shown) return;
                         current = shown;
                         if (scroll != null) scroll.ToTop();
-                    }, TabWidth, 30f);
+                    }, TabWidth, 28f);
                 tabs.Add(tab);
 
                 DialogGUIVerticalLayout page = new DialogGUIVerticalLayout(PageWidth - 30f, -1f, 4f,
@@ -249,7 +254,7 @@ namespace ReDefinition.Window
             // Last below the categories, though no page of its own: it opens the
             // diagnostics window.
             tabs.Add(new DialogGUIToggleButton(() => false, "Diagnostics", on => { if (on) ShowDiagnostics(); }, TabWidth,
-                30f));
+                28f));
 
             DialogGUIVerticalLayout pageList = new DialogGUIVerticalLayout(PageWidth - 30f, -1f, 4f,
                 new RectOffset(), TextAnchor.UpperLeft, pages.ToArray());
@@ -282,7 +287,12 @@ namespace ReDefinition.Window
                 case SettingCategory.ShadowsAndReflections: return "Shadows / Reflections";
                 case SettingCategory.Planets: return "Planets";
                 case SettingCategory.Effects: return "Effects";
+                case SettingCategory.Audio: return "Audio";
+                case SettingCategory.Gameplay: return "Gameplay";
+                case SettingCategory.System: return "System";
+                case SettingCategory.Input: return "Input";
                 case SettingCategory.Keys: return "Keys";
+                case SettingCategory.Axes: return "Axes";
                 // Marked where a mod has settings this window cannot show: the tab says
                 // which, and where they are.
                 default: return AnyNotShown() ? "Mods and toolbar (!)" : "Mods / Toolbar";
@@ -297,6 +307,7 @@ namespace ReDefinition.Window
             // out like the other rows there, KSP's among them.
             if (category == SettingCategory.General)
             {
+                rows.Add(ReplaceRow());
                 rows.AddRange(KspSettingsSection.Rows(edit, new KspSettingsSection.Layout
                 {
                     Name = NameWidth,
@@ -311,17 +322,23 @@ namespace ReDefinition.Window
             }
             if (category == SettingCategory.Interface) rows.AddRange(InterfaceRows());
             if (category == SettingCategory.Keys) rows.AddRange(KeyRows());
+            if (category == SettingCategory.Axes) rows.AddRange(AxisRows());
 
-            // The Keys tab builds its sections itself (KeyRows).
+            // The Keys tab builds its sections itself (KeyRows). A heading goes
+            // before the first row of each group a registration names (`section`).
+            string section = null;
             foreach (BundledSetting setting in category == SettingCategory.Keys
                          ? new List<BundledSetting>()
                          : WindowLayout.In(category))
             {
                 DialogGUIBase row = BundledRow(setting);
                 if (row == null) continue;
+                if (setting.Section != null && setting.Section != section) rows.Add(SectionHeading(setting.Section));
+                section = setting.Section;
                 rows.Add(row);
                 shownKeys.Add(setting.Key);
             }
+            if (category == SettingCategory.Input) rows.AddRange(LayoutRows());
             if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
                 && category != SettingCategory.Keys)
             {
@@ -329,6 +346,34 @@ namespace ReDefinition.Window
                 if (advanced != null) rows.Add(advanced);
             }
             return rows.ToArray();
+        }
+
+        // Whether KSP's own Settings buttons -- in the main menu and the pause
+        // menus -- open this window instead of KSP's screens. One of
+        // ReDefinition's own settings, applied with the others.
+        private static DialogGUIBase ReplaceRow()
+        {
+            DialogGUIToggle toggle = new DialogGUIToggle(() => edit != null && edit.After.ReplaceKspSettings,
+                () => KspSettingsSection.StateText(edit != null && edit.After.ReplaceKspSettings),
+                b =>
+                {
+                    if (edit != null) edit.After.ReplaceKspSettings = b;
+                }, ControlWidth);
+            toggle.tooltipText = "On: every Settings button of KSP -- the main menu's and the pause menus' -- opens this"
+                                 + " window, which holds all of KSP's settings, and ReDefinition adds no entry of its own"
+                                 + " there.\nOff: KSP's buttons open KSP's own screens, and ReDefinition's entry stands"
+                                 + " under them.\nTakes effect the next time a menu is built.";
+            return new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUILabel("Replace original settings", NameWidth), toggle, new DialogGUISpace(10f),
+                new DialogGUILabel("", ValueWidth),
+                new DialogGUILabel("<color=#9a9a9a>ReDefinition</color>", SourceWidth));
+        }
+
+        // A group's heading within a tab, as KSP's own screen heads its groups.
+        private static DialogGUIBase SectionHeading(string title)
+        {
+            return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.LowerLeft,
+                new DialogGUILabel("<b><color=#ffffff>" + title + "</color></b>", NameWidth + ControlWidth));
         }
 
         // NVIDIA's DLLs for DLSS and DLSS frame generation, which the player fetches
@@ -532,8 +577,8 @@ namespace ReDefinition.Window
         // Whether anything in the window still waits for Apply.
         private static bool Unapplied()
         {
-            // KSP's key bindings wait in the Keys tab until Apply as well.
-            return kspPending.Count > 0
+            // KSP's key bindings and axes wait in their tabs until Apply as well.
+            return kspPending.Count > 0 || axisPending.Count > 0 || layoutPending != null
                    || model.Unapplied(UpscalerPending(), BundledSettings.Enabled, BundledSettings.ProfileName);
         }
 
@@ -619,24 +664,27 @@ namespace ReDefinition.Window
             List<string> atEveryStart = new List<string>();
             foreach (IBundledMod mod in BundledSettings.Installed())
             {
+                // KSP's own reset is KSP's (KspReset), said apart below.
+                if (mod.Id == "ksp") continue;
                 names.Add(mod.ModName);
                 if (mod.Saving == SettingsSaving.AtEveryStart) atEveryStart.Add(mod.ModName);
             }
 
-            string message = "";
+            string message = "All of KSP's settings go back to what KSP ships, as KSP's own Reset sets them: graphics,"
+                             + " gameplay, system, audio, input, and the key bindings of the keyboard layout KSP detects."
+                             + " The screen resolution and full screen stay as they are.\n\n";
             if (names.Count > 0)
             {
-                message = "Every setting of " + string.Join(", ", names.ToArray()) + " goes back to its default, the"
-                          + " ones this window does not show included: what the mods' releases ship, and with Volumetric"
-                          + " Clouds installed what its author ships. Of KSP's settings only the graphics ones, without"
-                          + " resolution and full screen; a setting without a known default -- KSP's terrain shader"
-                          + " quality -- stays as it is. What an installed mod requires still counts."
-                          + (atEveryStart.Count > 0
-                              ? " " + string.Join(" and ", atEveryStart.ToArray()) + ", which ReDefinition sets at every"
-                                + " start, take what their own files hold from the next start on."
-                              : "")
-                          + (model.Bundled ? " Their settings stay in this window." : " Their settings are bundled in this window.")
-                          + "\n\n";
+                message += "Every setting of " + string.Join(", ", names.ToArray()) + " goes back to its default, the"
+                           + " ones this window does not show included: what the mods' releases ship, and with"
+                           + " Volumetric Clouds installed what its author ships. What an installed mod requires still"
+                           + " counts."
+                           + (atEveryStart.Count > 0
+                               ? " " + string.Join(" and ", atEveryStart.ToArray()) + ", which ReDefinition sets at every"
+                                 + " start, take what their own files hold from the next start on."
+                               : "")
+                           + (model.Bundled ? " Their settings stay in this window." : " Their settings are bundled in this window.")
+                           + "\n\n";
             }
             message += "ReDefinition's own settings go back to theirs, with the upscaler and frame generation off. No"
                        + " graphics profile is chosen afterwards: the upscaler and frame generation stay off, and the"
@@ -644,8 +692,7 @@ namespace ReDefinition.Window
                        + "The rows are only filled in: Apply or Accept sets them, Cancel leaves everything as it was."
                        + " \"Restore settings from before ReDefinition\" under Mods and toolbar brings back what the mods"
                        + " had before ReDefinition first changed them.\n\nThe key bindings go back to their defaults"
-                       + " too: ReDefinition's own, the mods' and KSP's -- KSP's to what KSP ships, as its own reset"
-                       + " sets them.";
+                       + " too: ReDefinition's own and the mods'.";
 
             MultiOptionDialog confirm = new MultiOptionDialog("ReDefinitionReset", message,
                 "Reset to defaults", HighLogic.UISkin, 460f,
@@ -680,6 +727,8 @@ namespace ReDefinition.Window
             // ReDefinition's own bindings went back with the settings above, the
             // mods' go with their other settings, and KSP's are filled in here.
             ResetKeyBindings();
+            ResetAxes();
+            ClearLayoutPending();
             status = null;
         }
 
@@ -1072,8 +1121,8 @@ namespace ReDefinition.Window
             // The switch as it stands in the window, not as it was applied: with
             // bundling unticked the rows are left to their mods at once. A value
             // nobody could read cannot be edited sensibly.
-            control.OptionInteractableCondition = () => model.Bundled && model.HasPending(key)
-                                                        && !Requirements.Locked(setting);
+            control.OptionInteractableCondition = () => (model.Bundled || SetDirectly(setting, false))
+                                                        && model.HasPending(key) && !Requirements.Locked(setting);
 
             return new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUILabel(setting.Title, NameWidth), control, new DialogGUISpace(10f),
@@ -1146,6 +1195,8 @@ namespace ReDefinition.Window
 
             float value;
             if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) return text;
+            if (setting.Percent)
+                return Mathf.RoundToInt(value * 100f).ToString(CultureInfo.InvariantCulture) + " %";
             return setting.WholeNumbers
                 ? Mathf.RoundToInt(value).ToString(CultureInfo.InvariantCulture)
                 : value.ToString("0.00", CultureInfo.InvariantCulture);
@@ -1172,6 +1223,82 @@ namespace ReDefinition.Window
             }
         }
 
+        // The settings that go through the bundling at Apply: all but those set
+        // directly.
+        private static IEnumerable<BundledSetting> BundledNow()
+        {
+            foreach (BundledSetting setting in InstalledSettings())
+                if (!SetDirectly(setting, true)) yield return setting;
+        }
+
+        // Whether a row is set straight into its mod, as the mod's own screen
+        // would: one that is never bundled, and one of a mod whose registration
+        // says `direct` while the bundling is off -- as the window holds it, or
+        // as it was applied.
+        private static bool SetDirectly(BundledSetting setting, bool applied)
+        {
+            if (!setting.Bundled) return true;
+            RegisteredMod mod = setting.Owner as RegisteredMod;
+            if (mod == null || !mod.Registration.Direct) return false;
+            return applied ? !BundledSettings.Enabled : !model.Bundled;
+        }
+
+        // The rows set directly whose value the player changed, or the reset
+        // filled in: written into their mods, then each mod saves once. KSP's own
+        // reset goes first where the window resets (KspReset), so that what
+        // KSP's reset covers and no row shows -- its key layout, its terrain
+        // presets -- is reset as well.
+        private static void ApplyDirect(bool resetting)
+        {
+            if (resetting) KspReset.Run();
+
+            HashSet<IBundledMod> written = new HashSet<IBundledMod>();
+            foreach (BundledSetting setting in InstalledSettings())
+            {
+                // Only what the window changed: a value KSP's own screen set since
+                // the window read it stays.
+                if (!SetDirectly(setting, true) || !model.Changed(setting.Key)) continue;
+                string value;
+                if (!model.TryGetPending(setting.Key, out value) || value == null) continue;
+                string now = SafeRead(setting);
+                if (now != null && SettingValues.Same(now, value)) continue;
+                try
+                {
+                    setting.Write(value);
+                    written.Add(setting.Owner);
+                }
+                catch (Exception e)
+                {
+                    CompatibilityLog.Warn("direct-apply-" + setting.Key, setting.Owner.ModName + ", " + setting.Title
+                                          + ": could not be set (" + CompatibilityLog.Reason(e) + ").");
+                }
+            }
+            foreach (IBundledMod mod in written)
+            {
+                try
+                {
+                    mod.Save();
+                }
+                catch (Exception e)
+                {
+                    CompatibilityLog.Warn("direct-save-" + mod.Id, mod.ModName + "'s settings could not be saved ("
+                                          + CompatibilityLog.Reason(e) + ").");
+                }
+            }
+        }
+
+        private static string SafeRead(BundledSetting setting)
+        {
+            try
+            {
+                return setting.Read();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         // Apply and Accept, as in KSP's dialog: the bundling switch (on hands the
         // stored values over, off takes them back), the model's steps and the
         // profile, saved once -- then ReDefinition's own through the add-on's
@@ -1181,11 +1308,29 @@ namespace ReDefinition.Window
         {
             try
             {
+                ApplyLayout();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " KSP's keyboard layout from the window could not be applied: " + e);
+            }
+
+            try
+            {
                 ApplyKeyBindings();
             }
             catch (Exception e)
             {
                 Debug.LogWarning(Log.Tag + " KSP's key bindings from the window applied only in part: " + e);
+            }
+
+            try
+            {
+                ApplyAxes();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " KSP's axes from the window applied only in part: " + e);
             }
 
             try
@@ -1204,11 +1349,21 @@ namespace ReDefinition.Window
                     ToolbarTakeover.Refresh();
                 }
 
+                bool resettingAll = model.Resetting;
+                try
+                {
+                    ApplyDirect(resettingAll);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning(Log.Tag + " Settings set directly from the window applied only in part: " + e);
+                }
+
                 if (BundledSettings.Enabled)
                 {
                     bool changed = false;
-                    bool resetting = model.Resetting;
-                    foreach (SettingsEdit.Step step in model.Steps(InstalledSettings(), BundledSettings.Holds))
+                    bool resetting = resettingAll;
+                    foreach (SettingsEdit.Step step in model.Steps(BundledNow(), BundledSettings.Holds))
                     {
                         BundledSetting setting = step.Setting;
                         // One setting that cannot be handed over must not take the

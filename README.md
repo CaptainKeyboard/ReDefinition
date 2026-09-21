@@ -17,8 +17,9 @@ graphics mods; any mod can join with a config file.
 
 ### Unified settings
 
-* **One window for all settings.** KSP's and the supported mods' settings, sorted by what
-  they do; a change is saved in the mod itself.
+* **One window for all settings.** Every setting of KSP, its axes included, and the
+  supported mods' settings, sorted by what they do; it can take the place of KSP's own
+  settings screen.
 * **Profiles from Low to Max.** One choice sets up all installed mods together; High is
   the mod authors' own defaults.
 * **Compatible settings.** What a mod requires of other settings is kept in every

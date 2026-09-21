@@ -296,6 +296,7 @@ namespace ReDefinition
         private void HandleHotkeys()
         {
             KeyCapture.Poll();
+            AxisCapture.Poll();
             if (KeyCapture.Busy) return;
 
             if (Hotkey(settings.UpscalerKey).Pressed()) SetEnabled(!wantEnabled);

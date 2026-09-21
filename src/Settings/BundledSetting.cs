@@ -17,8 +17,18 @@ namespace ReDefinition.Settings
         Planets,
         // Re-entry, engines, flares and distant vessels.
         Effects,
+        // KSP's volumes and its sound normalizer.
+        Audio,
+        // KSP's gameplay switches and the map view's lines.
+        Gameplay,
+        // KSP's confirmations, debris, physics and logging.
+        System,
+        // Mouse, Track IR, 6-DOF and the keyboard layout.
+        Input,
         // Every key binding: ReDefinition's, the mods' and KSP's.
         Keys,
+        // KSP's joystick and gamepad axes.
+        Axes,
         Interface,
     }
 
@@ -116,6 +126,17 @@ namespace ReDefinition.Settings
         // now, which the value from before ReDefinition is kept for as well; null
         // for a value kept for the game as a whole.
         public Func<string> Context;
+
+        // The heading of the group it stands in within its tab; null for none.
+        public string Section;
+
+        // Slider: shown as a percentage of its value, which runs from 0 to 1.
+        public bool Percent;
+
+        // False: set directly, as the mod's own screen sets it -- editable with
+        // the bundling off, never kept in bundled.cfg, never set by a profile nor
+        // put back by the restore. KSP's audio, gameplay, system and input.
+        public bool Bundled = true;
 
         // Set by the mod that declares it.
         public IBundledMod Owner;

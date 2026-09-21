@@ -427,6 +427,9 @@ namespace ReDefinition.Settings
 
             BundledSetting setting = Add(entry.Name, Localized(entry.Title), window, Localized(entry.Tooltip), read, write);
             setting.Kind = entry.Kind;
+            setting.Section = entry.Section != null ? Localized(entry.Section) : null;
+            setting.Percent = entry.Percent;
+            setting.Bundled = entry.Bundled;
             if (entry.Min != null && entry.Max != null)
             {
                 Slider(setting, entry.Min.Value, entry.Max.Value, entry.Whole ?? type == typeof(int));
