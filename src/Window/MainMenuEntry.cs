@@ -20,6 +20,11 @@ namespace ReDefinition.Window
     // under Settings, and the entries below move down by one row: the distance
     // between Settings and the entry under it.
     //
+    // The entries fade in and out with the camera's distance: MainMenuEnvLogic
+    // sets the alpha of every text in its uiTexts each frame (DistanceFadeUI,
+    // decompiled), which is what makes them appear once the menu has loaded.
+    // The copy is added to that list wherever Settings is in it.
+    //
     // MainMenu locks its entries while one of its dialogs stands
     // (lockEverything, unlockEverything); Harmony postfixes lock the copy with
     // them.
@@ -93,10 +98,28 @@ namespace ReDefinition.Window
             text.text = Label;
             ColliderOverText(copy, text);
             entry.onTap = Open;
+            FadeWithTheOthers(menu, menu.settingBtn.Text, text);
 
             foreach (Transform moved in below)
                 moved.localPosition -= new Vector3(0f, row, 0f);
             return true;
+        }
+
+        private static void FadeWithTheOthers(MainMenu menu, TextMeshPro settings, TextMeshPro text)
+        {
+            MainMenuEnvLogic scene = menu.envLogic;
+            if (scene == null || scene.uiTexts == null || Array.IndexOf(scene.uiTexts, settings) < 0) return;
+
+            // TextProButton3D.Awake gave the copy its full colour; until the
+            // next frame's fade it takes the alpha Settings has now.
+            Color color = text.color;
+            color.a = settings.color.a;
+            text.color = color;
+
+            TextMeshPro[] texts = new TextMeshPro[scene.uiTexts.Length + 1];
+            Array.Copy(scene.uiTexts, texts, scene.uiTexts.Length);
+            texts[scene.uiTexts.Length] = text;
+            scene.uiTexts = texts;
         }
 
         // The copy's collider is Settings', sized for a shorter word: widened to
