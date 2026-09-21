@@ -18,7 +18,10 @@ namespace ReDefinition.Window
     // (decompiled). The entry is a copy of Settings, so it has the same parent,
     // font, colours and hover; it gets its own text and tap. It takes the row
     // under Settings, and the entries below move down by one row: the distance
-    // between Settings and the entry under it.
+    // between Settings and the entry under it. The column then keeps the height
+    // it had: every entry is made smaller and moved towards the top one by the
+    // same factor, the old height over the new, so the last entry stands where
+    // it stood before and the rows stay evenly spaced.
     //
     // The entries fade in and out with the camera's distance: MainMenuEnvLogic
     // sets the alpha of every text in its uiTexts each frame (DistanceFadeUI,
@@ -69,14 +72,16 @@ namespace ReDefinition.Window
             Transform column = settings.parent;
             if (column == null) return false;
 
-            // The entries under Settings in its column, top to bottom.
+            // The column's entries, and those under Settings, top to bottom.
+            List<Transform> entries = new List<Transform>();
             List<Transform> below = new List<Transform>();
             foreach (Transform child in column)
             {
-                if (child == settings || child.GetComponent<TextProButton3D>() == null) continue;
+                if (child.GetComponent<TextProButton3D>() == null) continue;
                 Vector3 at = child.localPosition;
                 if (Mathf.Abs(at.x - settings.localPosition.x) > ColumnTolerance) continue;
-                if (at.y < settings.localPosition.y) below.Add(child);
+                entries.Add(child);
+                if (child != settings && at.y < settings.localPosition.y) below.Add(child);
             }
             // Without an entry under Settings there is no row height to go by.
             if (below.Count == 0) return false;
@@ -100,9 +105,31 @@ namespace ReDefinition.Window
             entry.onTap = Open;
             FadeWithTheOthers(menu, menu.settingBtn.Text, text);
 
+            float top = settings.localPosition.y;
+            foreach (Transform one in entries) top = Mathf.Max(top, one.localPosition.y);
+            float bottom = below[below.Count - 1].localPosition.y;
+
             foreach (Transform moved in below)
                 moved.localPosition -= new Vector3(0f, row, 0f);
+
+            entries.Add(copy.transform);
+            KeepHeight(entries, top, top - bottom, top - bottom + row);
             return true;
+        }
+
+        // Every entry scaled by the old height over the new, and its distance from
+        // the top entry with it.
+        private static void KeepHeight(List<Transform> entries, float top, float before, float after)
+        {
+            if (before <= 0f || after <= before) return;
+
+            float factor = before / after;
+            foreach (Transform one in entries)
+            {
+                Vector3 at = one.localPosition;
+                one.localPosition = new Vector3(at.x, top - (top - at.y) * factor, at.z);
+                one.localScale *= factor;
+            }
         }
 
         private static void FadeWithTheOthers(MainMenu menu, TextMeshPro settings, TextMeshPro text)

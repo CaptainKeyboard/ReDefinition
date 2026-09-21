@@ -25,7 +25,8 @@
   section of KSP's settings dialog opens the same window. The toolbar is hidden while
   that menu is up, so this is the way in mid-flight.
 - **A *ReDefinition* entry in KSP's main menu**, under *Settings*, in the menu's own
-  font and colours, fading in with the others. The entries below it move down by one row.
+  font and colours, fading in with the others. The menu keeps its height: every entry is
+  a little smaller and the rows a little closer.
 - **A pause button in the settings window's title row**, in symbols rather than words:
   two bars while the flight runs, a triangle while the window holds it. It holds the
   flight for as long as the window is open; closing the window lets the flight run again,
