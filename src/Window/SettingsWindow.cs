@@ -252,7 +252,7 @@ namespace ReDefinition.Window
                 pages.Add(page);
             }
             // The category last shown may have nothing here now.
-            if (!currentShown) current = SettingCategory.General;
+            if (!currentShown) current = SettingCategory.Profiles;
 
             // Last below the categories, though no page of its own: it opens the
             // diagnostics window.
@@ -287,14 +287,14 @@ namespace ReDefinition.Window
             switch (category)
             {
                 case SettingCategory.Profiles: return "Profiles";
-                case SettingCategory.General: return "General";
+                case SettingCategory.Display: return "Display";
+                case SettingCategory.General: return "Upscaling / Quality";
                 case SettingCategory.ShadowsAndReflections: return "Shadows / Reflections";
                 case SettingCategory.Planets: return "Planets";
                 case SettingCategory.Effects: return "Effects";
                 case SettingCategory.Audio: return "Audio";
                 case SettingCategory.Gameplay: return "Gameplay";
-                case SettingCategory.System: return "System";
-                case SettingCategory.Input: return "Input";
+                case SettingCategory.Devices: return "Devices";
                 case SettingCategory.Keys: return "Keys";
                 case SettingCategory.Axes: return "Axes";
                 // Marked where a mod has settings this window cannot show: the tab says
@@ -311,7 +311,7 @@ namespace ReDefinition.Window
             // out like the other rows there, KSP's among them.
             if (category == SettingCategory.General)
             {
-                rows.Add(ReplaceRow());
+                rows.Add(SectionHeading("Upscaling"));
                 rows.AddRange(KspSettingsSection.Rows(edit, new KspSettingsSection.Layout
                 {
                     Name = NameWidth,
@@ -324,8 +324,16 @@ namespace ReDefinition.Window
                 DialogGUIBase nvidia = NvidiaRow();
                 if (nvidia != null) rows.Add(nvidia);
             }
-            if (category == SettingCategory.Interface) rows.AddRange(InterfaceRows());
-            if (category == SettingCategory.Keys) rows.AddRange(KeyRows());
+            if (category == SettingCategory.Interface)
+            {
+                rows.Add(ReplaceRow());
+                rows.AddRange(InterfaceRows());
+            }
+            if (category == SettingCategory.Keys)
+            {
+                rows.AddRange(LayoutRows());
+                rows.AddRange(KeyRows());
+            }
             if (category == SettingCategory.Axes) rows.AddRange(AxisRows());
 
             // The Keys tab builds its sections itself (KeyRows). A heading goes
@@ -342,7 +350,6 @@ namespace ReDefinition.Window
                 rows.Add(row);
                 shownKeys.Add(setting.Key);
             }
-            if (category == SettingCategory.Input) rows.AddRange(LayoutRows());
             if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
                 && category != SettingCategory.Keys)
             {

@@ -50,18 +50,18 @@ Outside flight there is nothing to hold and the button is dead.
 
 | Tab | Rows |
 |---|---|
+| *Gameplay* | KSP's gameplay switches, the map view's lines, and its system section: confirmations, debris, physics and logging; Making History's two settings where it is installed |
+| *Audio* | KSP's volumes and its sound normalizer |
 | *Profiles* | a status line, and one row per graphics profile with the hardware it is made for and what it sets |
-| *General* | *Replace original settings*; Upscaler, Technique, Mode, DLSS preset, Sharpness, Frame generation, *NVIDIA DLSS files*; KSP's render quality, texture quality, V-Sync, frame limit, screen resolution, full screen, pixel light count, anti-aliasing and ambient light boosts |
+| *Display* | KSP's screen resolution, full screen, V-Sync, frame limit, UI scale and ambient light boosts |
+| *Upscaling / Quality* | Upscaler, Technique, Mode, DLSS preset, Sharpness, Frame generation, *NVIDIA DLSS files*; KSP's render quality, texture quality, pixel light count and anti-aliasing |
 | *Shadows / Reflections* | KSP's shadow cascades, planets casting shadows, reflection refresh and resolution; Scatterer's long-distance terrain shadows, Deferred's screen-space reflections |
 | *Planets* | EVE's volumetric cloud upscaling, cloud ambience and thunder volume; Scatterer's light shafts through clouds, its ocean and waves moving vessels; KSP's terrain detail, terrain shader quality, terrain scatter and its density; Parallax's scatter density and scatter collisions |
 | *Effects* | KSP's aerodynamic FX while Firefly is not installed, surface FX, underwater FX, highlight FX and the part highlighter; Firefly's re-entry particles, Waterfall's plume lights and heat distortion, Scatterer's sun flare, Distant Object's flares, names and distant vessels |
-| *Audio* | KSP's volumes and its sound normalizer |
-| *Gameplay* | KSP's gameplay switches, the UI scale, and the map view's lines |
-| *System* | KSP's confirmations, debris, physics and logging; Making History's two settings where it is installed |
-| *Input* | KSP's mouse wheel, Track IR, 6-DOF device and keyboard layout |
-| *Keys* | every key binding: ReDefinition's own, the bundled mods' and KSP's, with a search field above them. KSP's keys take a controller's buttons too |
+| *Keys* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's, with a search field above them. KSP's keys take a controller's buttons too |
 | *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
-| *Mods / Toolbar* | *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, and *Restore settings from before ReDefinition* |
+| *Devices* | KSP's mouse wheel, Track IR and 6-DOF device |
+| *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, and *Restore settings from before ReDefinition* |
 
 The status line on *Profiles* names the chosen profile, shows *Custom* where rows were
 changed since, and says what still waits for *Apply*.
@@ -78,7 +78,7 @@ chosen.
 
 ## Replace KSP's settings screen
 
-*Replace original settings*, at the top of *General*, sends every *Settings* button of
+*Replace original settings*, at the top of *Mods / Toolbar*, sends every *Settings* button of
 KSP to this window: the main menu's and those of the pause menus in flight and in the
 space centre. ReDefinition then adds no entry of its own there. With it off, KSP's
 buttons open KSP's screens, and the *ReDefinition* entry stands under them. It takes
@@ -89,7 +89,7 @@ effect the next time a menu is built.
 In *Axes*, click an axis's button and move the stick, trigger or wheel on the
 controller: the first axis that moves more than half its range is taken. Escape
 cancels, *x* clears the binding. Sensitivity and deadzone work as in KSP's own input
-screen. *Bind keys to this layout*, under *Input*, sets every one of KSP's keys to the
+screen. *Bind keys to this layout*, at the top of *Keys*, sets every one of KSP's keys to the
 chosen keyboard layout's preset at *Apply*.
 
 ## Reach a mod's own window

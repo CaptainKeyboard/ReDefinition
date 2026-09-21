@@ -54,11 +54,11 @@ They go next to `KSP_x64.exe`, or into the folders the proxy's ini names.
 
 | For | Files | Where from |
 |---|---|---|
-| DLSS | `nvngx_dlss.dll` | *Download ...* beside *NVIDIA DLSS files*, under *General* |
-| DLSS frame generation | `sl.interposer.dll`, `sl.common.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll`, `nvngx_dlssg.dll`, from NVIDIA Streamline 2.14.1 | *Download ...* beside *NVIDIA DLSS files*, under *General* |
+| DLSS | `nvngx_dlss.dll` | *Download ...* beside *NVIDIA DLSS files*, under *Upscaling / Quality* |
+| DLSS frame generation | `sl.interposer.dll`, `sl.common.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll`, `nvngx_dlssg.dll`, from NVIDIA Streamline 2.14.1 | *Download ...* beside *NVIDIA DLSS files*, under *Upscaling / Quality* |
 | AMD FSR as a DLL, FSR 4 where the GPU has it | `amd_fidelityfx_upscaler_dx12.dll` | a game that ships it |
 
-*NVIDIA DLSS files* is under *General* in the settings window. It is shown on an
+*NVIDIA DLSS files* is under *Upscaling / Quality* in the settings window. It is shown on an
 NVIDIA GPU that can use DLSS, which is RTX 20 and newer, or DLSS frame generation,
 which is RTX 40 and newer. It is there while those files are missing, and until you
 have read how the download went.

@@ -236,13 +236,13 @@ namespace ReDefinition.Settings
         // Where a row or an Advanced button can be.
         private static readonly SettingCategory[] Tabs =
         {
-            SettingCategory.General, SettingCategory.ShadowsAndReflections, SettingCategory.Planets,
-            SettingCategory.Effects, SettingCategory.Audio, SettingCategory.Gameplay, SettingCategory.System,
-            SettingCategory.Input, SettingCategory.Keys, SettingCategory.Axes,
+            SettingCategory.Gameplay, SettingCategory.Audio, SettingCategory.Display, SettingCategory.General,
+            SettingCategory.ShadowsAndReflections, SettingCategory.Planets, SettingCategory.Effects,
+            SettingCategory.Keys, SettingCategory.Axes, SettingCategory.Devices,
         };
 
         private const string TabNames =
-            "General, ShadowsAndReflections, Planets, Effects, Audio, Gameplay, System, Input, Keys or Axes";
+            "Gameplay, Audio, Display, General, ShadowsAndReflections, Planets, Effects, Keys, Axes or Devices";
 
         // When a change can take effect, as the guide names them.
         private static readonly ApplyWindow[] Windows = { ApplyWindow.Live, ApplyWindow.NextScene, ApplyWindow.Restart };

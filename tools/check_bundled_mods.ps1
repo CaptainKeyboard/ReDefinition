@@ -271,8 +271,8 @@ try {
     $rowsIn = @($mod.GetType('ReDefinition.Settings.WindowLayout', $true).GetMethods($sflags) |
         Where-Object { $_.Name -eq 'In' -and $_.GetParameters().Count -eq 2 })[0]
     $shown = @()
-    foreach ($tab in @('General', 'ShadowsAndReflections', 'Planets', 'Effects', 'Audio', 'Gameplay', 'System',
-                       'Input', 'Axes')) {
+    foreach ($tab in @('Gameplay', 'Audio', 'Display', 'General', 'ShadowsAndReflections', 'Planets', 'Effects',
+                       'Axes', 'Devices')) {
         $rows = @($rowsIn.Invoke($null, [object[]]@([Enum]::Parse($categoryType, $tab), $installedList)))
         "      ${tab}: " + (@($rows | ForEach-Object { $_.Key }) -join ', ')
         $shown += $rows

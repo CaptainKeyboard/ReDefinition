@@ -6,7 +6,8 @@ using UnityEngine;
 
 namespace ReDefinition.Window
 {
-    // KSP's keyboard layout, as its input screen offers it (SettingsLayoutConfig,
+    // KSP's keyboard layout, above the Keys tab's bindings as in KSP's input
+    // screen, and as that screen offers it (SettingsLayoutConfig,
     // SettingsKeyboardLayoutOs, SettingsKeyboardLayoutInput, decompiled): the
     // system's layout as a line, the layout chosen among
     // GameSettings.KeyboardLayouts, and binding the keys to that layout's preset.

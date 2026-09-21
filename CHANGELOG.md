@@ -20,10 +20,12 @@
 
 ### Changed
 
-- **Every setting of KSP's own settings screen is in the window.** New tabs *Audio*,
-  *Gameplay*, *System*, *Input* and *Axes* hold KSP's volumes and sound normalizer, its
-  gameplay and system switches, the UI scale, the map view's lines, the mouse wheel,
-  Track IR, the 6-DOF device, the keyboard layout and the joystick and gamepad axes.
+- **Every setting of KSP's own settings screen is in the window**, and the tabs are in a
+  new order: *Gameplay* and *Audio* first, then the graphics -- *Profiles*, *Display*,
+  *Upscaling / Quality*, *Shadows / Reflections*, *Planets*, *Effects* -- then *Keys*,
+  *Axes* and *Devices*, and *Mods / Toolbar* last. They hold KSP's gameplay and system
+  switches, the map view's lines, its volumes, the screen, the keyboard layout, the
+  joystick and gamepad axes, the mouse wheel, Track IR and the 6-DOF device.
   KSP's graphics settings that were kept without a row have one now, and the screen
   resolution and full screen are there too. KSP's settings can be changed without a
   graphics profile, as in KSP's own screen; no profile sets anything outside the
@@ -31,7 +33,7 @@
 - **Axes are bound by moving them**, as in KSP's own input screen: each with a primary
   and a secondary binding, invert, sensitivity and deadzone. KSP's keys take a
   controller's buttons as well, and the four custom axes' keys are in *Keys*.
-- **Replace original settings**, at the top of *General*: every *Settings* button of KSP
+- **Replace original settings**, at the top of *Mods / Toolbar*: every *Settings* button of KSP
   opens this window instead of KSP's screens.
 - ***Reset to defaults* is now *Reset*, and resets all of KSP's settings** as KSP's own
   *Reset* does, its keys and axes included, besides the mods' settings. The screen

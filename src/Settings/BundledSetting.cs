@@ -3,32 +3,38 @@ using System;
 
 namespace ReDefinition.Settings
 {
-    // The tabs of the settings window, by feature, in this order. Which setting
-    // shows in which, and in what order, its registration says (`row`, `order`;
-    // WindowLayout).
+    // The tabs of the settings window, by feature, in this order: the game, its
+    // sound, the graphics -- profiles, the screen, then what is drawn -- the input,
+    // and last ReDefinition's own dealings with menus, mods and the toolbar. Which
+    // setting shows in which, and in what order, its registration says (`row`,
+    // `order`; WindowLayout).
     internal enum SettingCategory
     {
+        // KSP's gameplay switches, the map view's lines, and its system section:
+        // one tab, as KSP's own General tab holds both.
+        Gameplay,
+        // KSP's volumes and its sound normalizer.
+        Audio,
         Profiles,
-        // ReDefinition's own upscaler and frame generation lead it, then KSP's
-        // render quality, textures, V-Sync and frame limit.
+        // The screen: resolution, full screen, V-Sync, frame limit, the UI's
+        // size and the brightness boosts.
+        Display,
+        // ReDefinition's upscaler and frame generation, then KSP's render
+        // quality, textures, lights and antialiasing. Named General in the
+        // registration format; titled Upscaling / Quality.
         General,
         ShadowsAndReflections,
         // Clouds, sea and ground.
         Planets,
         // Re-entry, engines, flares and distant vessels.
         Effects,
-        // KSP's volumes and its sound normalizer.
-        Audio,
-        // KSP's gameplay switches and the map view's lines.
-        Gameplay,
-        // KSP's confirmations, debris, physics and logging.
-        System,
-        // Mouse, Track IR, 6-DOF and the keyboard layout.
-        Input,
-        // Every key binding: ReDefinition's, the mods' and KSP's.
+        // Every key binding: ReDefinition's, the mods' and KSP's, with KSP's
+        // keyboard layout above them.
         Keys,
         // KSP's joystick and gamepad axes.
         Axes,
+        // Mouse wheel, Track IR and 6-DOF.
+        Devices,
         Interface,
     }
 
