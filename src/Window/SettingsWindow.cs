@@ -337,19 +337,37 @@ namespace ReDefinition.Window
             if (category == SettingCategory.Axes) rows.AddRange(AxisRows());
 
             // The Keys tab builds its sections itself (KeyRows). A heading goes
-            // before the first row of each group a registration names (`section`).
+            // before the first row of each group a registration names (`section`);
+            // in the long tabs the groups open and fold instead (AddFold).
             string section = null;
+            bool folding = Folding(category);
+            List<DialogGUIBase> fold = new List<DialogGUIBase>();
+            bool firstFold = true;
             foreach (BundledSetting setting in category == SettingCategory.Keys
                          ? new List<BundledSetting>()
                          : WindowLayout.In(category))
             {
                 DialogGUIBase row = BundledRow(setting);
                 if (row == null) continue;
-                if (setting.Section != null && setting.Section != section) rows.Add(SectionHeading(setting.Section));
+                shownKeys.Add(setting.Key);
+                bool newSection = setting.Section != null && setting.Section != section;
+                if (folding)
+                {
+                    if (newSection && fold.Count > 0)
+                    {
+                        AddFold(rows, category, section, fold, firstFold);
+                        firstFold = false;
+                        fold = new List<DialogGUIBase>();
+                    }
+                    section = setting.Section ?? section ?? Title(category);
+                    fold.Add(row);
+                    continue;
+                }
+                if (newSection) rows.Add(SectionHeading(setting.Section));
                 section = setting.Section;
                 rows.Add(row);
-                shownKeys.Add(setting.Key);
             }
+            if (folding && fold.Count > 0) AddFold(rows, category, section, fold, firstFold);
             if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
                 && category != SettingCategory.Keys)
             {

@@ -50,7 +50,7 @@ Outside flight there is nothing to hold and the button is dead.
 
 | Tab | Rows |
 |---|---|
-| *Gameplay* | KSP's gameplay switches, the map view's lines, and its system section: confirmations, debris, physics and logging; Making History's two settings where it is installed |
+| *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed |
 | *Audio* | KSP's volumes and its sound normalizer |
 | *Profiles* | a status line, and one row per graphics profile with the hardware it is made for and what it sets |
 | *Display* | KSP's screen resolution, full screen, V-Sync, frame limit, UI scale and ambient light boosts |
@@ -62,6 +62,9 @@ Outside flight there is nothing to hold and the button is dead.
 | *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
 | *Devices* | KSP's mouse wheel, Track IR and 6-DOF device |
 | *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, and *Restore settings from before ReDefinition* |
+
+In *Gameplay*, *Axes* and *Devices* the rows are in groups that open and fold, as the
+sections of *Keys* do. The first group of each tab is open at first.
 
 The status line on *Profiles* names the chosen profile, shows *Custom* where rows were
 changed since, and says what still waits for *Apply*.

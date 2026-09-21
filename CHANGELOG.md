@@ -25,7 +25,8 @@
   *Upscaling / Quality*, *Shadows / Reflections*, *Planets*, *Effects* -- then *Keys*,
   *Axes* and *Devices*, and *Mods / Toolbar* last. They hold KSP's gameplay and system
   switches, the map view's lines, its volumes, the screen, the keyboard layout, the
-  joystick and gamepad axes, the mouse wheel, Track IR and the 6-DOF device.
+  joystick and gamepad axes, the mouse wheel, Track IR and the 6-DOF device. In
+  *Gameplay*, *Axes* and *Devices* the rows are in groups that open and fold.
   KSP's graphics settings that were kept without a row have one now, and the screen
   resolution and full screen are there too. KSP's settings can be changed without a
   graphics profile, as in KSP's own screen; no profile sets anything outside the

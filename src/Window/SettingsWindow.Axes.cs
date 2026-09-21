@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System;
 using ReDefinition.Core;
+using ReDefinition.Settings;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -28,23 +29,31 @@ namespace ReDefinition.Window
                                         + " bind it; Escape cancels, x clears it. Sensitivity and deadzone as in KSP's"
                                         + " own input screen.</color>", true));
             string group = null;
+            List<DialogGUIBase> members = new List<DialogGUIBase>();
+            bool first = true;
             foreach (KspAxes.Axis axis in KspAxes.All())
             {
                 if (axis.Group != group)
                 {
+                    if (members.Count > 0)
+                    {
+                        AddFold(rows, SettingCategory.Axes, group, members, first);
+                        first = false;
+                        members = new List<DialogGUIBase>();
+                    }
                     group = axis.Group;
-                    rows.Add(SectionHeading(group));
-                    rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                    members.Add(new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                         new DialogGUISpace(AxisSideWidth),
                         new DialogGUILabel("<color=#9a9a9a>Axis</color>", AxisButtonWidth + 26f),
                         new DialogGUILabel("<color=#9a9a9a>Invert</color>", 56f),
                         new DialogGUILabel("<color=#9a9a9a>Sensitivity</color>", AxisSliderWidth + AxisValueWidth),
                         new DialogGUILabel("<color=#9a9a9a>Deadzone</color>", AxisSliderWidth + AxisValueWidth)));
                 }
-                rows.Add(new DialogGUILabel(axis.Title, NameWidth + ControlWidth));
-                rows.Add(AxisSide(axis, false));
-                rows.Add(AxisSide(axis, true));
+                members.Add(new DialogGUILabel(axis.Title, NameWidth + ControlWidth));
+                members.Add(AxisSide(axis, false));
+                members.Add(AxisSide(axis, true));
             }
+            if (members.Count > 0) AddFold(rows, SettingCategory.Axes, group, members, first);
             return rows.ToArray();
         }
 
