@@ -25,8 +25,11 @@ namespace ReDefinition.Window
     //
     // The button carries a symbol rather than a word: two bars while the flight
     // runs, a triangle while this window holds it. Both are drawn here into a
-    // sprite (DialogGUIButton takes one), which needs no file and no glyph the
-    // game's font may not have.
+    // texture, which needs no file and no glyph the game's font may not have.
+    // The symbol is an image on top of a plain button of the window's skin, not
+    // the button's own sprite: DialogGUIButton.Create puts a sprite in place of
+    // the button's background and swaps it for the skin's on hover, press and
+    // disable (SpriteState, decompiled), which hid the symbol on hover.
     internal static class WindowPause
     {
         private const int IconSize = 24;
@@ -36,11 +39,12 @@ namespace ReDefinition.Window
 
         private static readonly Color Glyph = new Color(0.898f, 0.898f, 0.910f, 1f);
 
-        private static Sprite pauseSprite;
-        private static Sprite playSprite;
+        private static Texture2D pauseSymbol;
+        private static Texture2D playSymbol;
 
         // What was last built, for the move into the title row.
         private static DialogGUIButton button;
+        private static DialogGUIImage symbol;
 
         // Whether this window is holding the flight.
         private static bool holding;
@@ -109,7 +113,8 @@ namespace ReDefinition.Window
 
         internal static DialogGUIBase Button()
         {
-            button = new DialogGUIButton(PauseSprite(), Toggle, ButtonSize, ButtonSize, false);
+            symbol = new DialogGUIImage(new Vector2(IconSize, IconSize), Vector2.zero, Color.white, Symbol());
+            button = new DialogGUIButton("", Toggle, ButtonSize, ButtonSize, false, symbol);
             button.tooltipText = "Pauses the flight while this window is open. The flight runs again when the window"
                                  + " closes.";
             button.OptionInteractableCondition = () => Possible;
@@ -142,6 +147,8 @@ namespace ReDefinition.Window
                 placed.sizeDelta = new Vector2(ButtonSize, ButtonSize);
                 placed.anchoredPosition = new Vector2(-TitleInset, 0f);
                 placed.localScale = Vector3.one;
+
+                CenterSymbol();
             }
             catch (Exception e)
             {
@@ -150,11 +157,33 @@ namespace ReDefinition.Window
             }
         }
 
-        // The sprite a DialogGUIButton is built with cannot be swapped afterwards,
-        // so the button shows what a click does: the bars where the window does not
-        // hold the flight, the triangle where it does. Read from the choice, not
-        // from `holding`: the button is built before the window takes hold.
-        private static Sprite PauseSprite()
+        // In the middle of the button, and not in the way of its clicks.
+        private static void CenterSymbol()
+        {
+            GameObject image = symbol != null ? symbol.uiItem : null;
+            if (image == null) return;
+
+            RectTransform placed = image.transform as RectTransform;
+            if (placed != null)
+            {
+                LayoutElement outside = image.GetComponent<LayoutElement>() ?? image.AddComponent<LayoutElement>();
+                outside.ignoreLayout = true;
+                placed.anchorMin = new Vector2(0.5f, 0.5f);
+                placed.anchorMax = new Vector2(0.5f, 0.5f);
+                placed.pivot = new Vector2(0.5f, 0.5f);
+                placed.sizeDelta = new Vector2(IconSize, IconSize);
+                placed.anchoredPosition = Vector2.zero;
+            }
+
+            RawImage raw = image.GetComponent<RawImage>();
+            if (raw != null) raw.raycastTarget = false;
+        }
+
+        // The symbol is drawn with the window, so the button shows what a click
+        // does: the bars where the window does not hold the flight, the triangle
+        // where it does. Read from the choice, not from `holding`: the button is
+        // built before the window takes hold.
+        private static Texture2D Symbol()
         {
             return Wanted && Possible ? Play() : Pause();
         }
@@ -167,8 +196,7 @@ namespace ReDefinition.Window
             addon.PauseWhileOpen = !addon.PauseWhileOpen;
             Debug.Log(Log.Tag + " Pause while the settings window is open: " + (addon.PauseWhileOpen ? "on" : "off"));
             Refresh();
-            // The sprite of a button cannot be swapped, so the window is drawn
-            // anew for the symbol to follow the state.
+            // The window is drawn anew for the symbol to follow the state.
             if (SettingsWindow.Visible)
             {
                 SettingsWindow.Close();
@@ -176,9 +204,9 @@ namespace ReDefinition.Window
             }
         }
 
-        private static Sprite Pause()
+        private static Texture2D Pause()
         {
-            if (pauseSprite != null) return pauseSprite;
+            if (pauseSymbol != null) return pauseSymbol;
 
             Texture2D texture = Blank();
             // Two bars, a third of the width each, with a third between them.
@@ -189,13 +217,13 @@ namespace ReDefinition.Window
                     if (bar) texture.SetPixel(x, y, Glyph);
                 }
             texture.Apply(false);
-            pauseSprite = ToSprite(texture, "ReDefinitionPauseIcon");
-            return pauseSprite;
+            pauseSymbol = Finished(texture, "ReDefinitionPauseIcon");
+            return pauseSymbol;
         }
 
-        private static Sprite Play()
+        private static Texture2D Play()
         {
-            if (playSprite != null) return playSprite;
+            if (playSymbol != null) return playSymbol;
 
             Texture2D texture = Blank();
             // A triangle pointing right: its width falls off towards the tip.
@@ -206,8 +234,8 @@ namespace ReDefinition.Window
                 for (int x = 7; x < until; x++) texture.SetPixel(x, y, Glyph);
             }
             texture.Apply(false);
-            playSprite = ToSprite(texture, "ReDefinitionPlayIcon");
-            return playSprite;
+            playSymbol = Finished(texture, "ReDefinitionPlayIcon");
+            return playSymbol;
         }
 
         private static Texture2D Blank()
@@ -220,13 +248,11 @@ namespace ReDefinition.Window
             return texture;
         }
 
-        private static Sprite ToSprite(Texture2D texture, string name)
+        private static Texture2D Finished(Texture2D texture, string name)
         {
             texture.name = name;
             texture.filterMode = FilterMode.Bilinear;
-            Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, IconSize, IconSize), new Vector2(0.5f, 0.5f));
-            sprite.name = name;
-            return sprite;
+            return texture;
         }
     }
 }

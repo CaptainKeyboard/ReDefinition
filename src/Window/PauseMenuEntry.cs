@@ -115,8 +115,10 @@ namespace ReDefinition.Window
         // and that line.
         private static DialogGUIButton Entry(DialogGUIBase besides)
         {
-            float width = besides != null && besides.width > 0f ? besides.width : ButtonWidth;
-            float height = besides != null && besides.height > 0f ? besides.height : ButtonHeight;
+            // A sized DialogGUIButton keeps its size in `size`; `width` and
+            // `height` stay -1 (DialogGUIButton's constructors, decompiled).
+            float width = besides != null && besides.size.x > 0f ? besides.size.x : ButtonWidth;
+            float height = besides != null && besides.size.y > 0f ? besides.size.y : ButtonHeight;
             DialogGUIButton open = new DialogGUIButton("ReDefinition", Open, width, height, false);
             open.tooltipText = "The settings of ReDefinition and of the graphics mods it bundles.";
             return open;
