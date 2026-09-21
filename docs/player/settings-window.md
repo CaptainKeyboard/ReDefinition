@@ -18,7 +18,7 @@ and frame generation are off, and every mod keeps its own settings.
 |---|---|
 | ReDefinition's toolbar button | every scene, the main menu included; it is the first button of the row |
 | The *ReDefinition* entry in the main menu | under *Settings* |
-| The *ReDefinition* entry in the pause menu | what Escape opens: in the space centre under *Settings*, in flight below the two columns of buttons; the editors and the tracking station have no such menu |
+| The *ReDefinition* entry in the pause menu | what Escape opens in flight and in the space centre, under *Settings*; the editors and the tracking station have no such menu |
 | KSP's own settings dialog | *Settings* in the pause menu, at the end of its graphics part: the rows there, and *All settings* for this window |
 | A hotkey | once you set one in the *Keys* tab; none is bound at first |
 

@@ -30,8 +30,9 @@ namespace ReDefinition.Window
         private const float ButtonWidth = 160f;
         private const float ButtonHeight = 30f;
 
-        // The label of KSP's own Settings button in both menus.
-        private const string SettingsLabel = "#autoLOC_417154";
+        // The labels of KSP's own Settings button: in the space centre's menu
+        // (KSCPauseMenu.draw) and in flight's (PauseMenu.draw).
+        private static readonly string[] SettingsLabels = { "#autoLOC_417154", "#autoLOC_360624" };
 
         private void Awake()
         {
@@ -78,15 +79,25 @@ namespace ReDefinition.Window
             {
                 if (__result == null) return;
 
-                DialogGUIButton open = new DialogGUIButton("ReDefinition", Open, ButtonWidth, ButtonHeight, false);
-                open.tooltipText = "The settings of ReDefinition and of the graphics mods it bundles.";
+                string[] settings = Array.ConvertAll(SettingsLabels, label => Localizer.Format(label));
+                for (int i = 0; i < __result.Length; i++)
+                {
+                    if (IsSettings(__result[i], settings))
+                    {
+                        __result = Inserted(__result, i + 1, Entry(__result[i]));
+                        return;
+                    }
 
-                int at = Place(__result);
-                DialogGUIBase[] withEntry = new DialogGUIBase[__result.Length + 1];
-                Array.Copy(__result, 0, withEntry, 0, at);
-                withEntry[at] = open;
-                Array.Copy(__result, at, withEntry, at + 1, __result.Length - at);
-                __result = withEntry;
+                    DialogGUIBase column;
+                    int at;
+                    if (Holding(__result[i], settings, out column, out at))
+                    {
+                        column.children.Insert(at + 1, Entry(column.children[at]));
+                        return;
+                    }
+                }
+
+                __result = Inserted(__result, BeforeLastSpace(__result), Entry(null));
             }
             catch (Exception e)
             {
@@ -94,22 +105,60 @@ namespace ReDefinition.Window
             }
         }
 
-        // Directly under KSP's own Settings, where that button is an entry of the
-        // menu's array: the space centre's menu is one column (KSCPauseMenu.draw).
-        // Flight's menu holds its buttons in two columns inside one entry
-        // (PauseMenu.draw), where one more button would leave the columns uneven,
-        // so there the entry goes below the columns, above the line with the
-        // game's version: the menu ends with a space and that line, and the entry
-        // goes before the last space.
-        private static int Place(DialogGUIBase[] entries)
+        // The entry goes directly under KSP's own Settings. In the space centre's
+        // menu that button is an entry of the menu's array, one column
+        // (KSCPauseMenu.draw); in flight's it is in the right of two columns,
+        // a vertical layout inside one entry (PauseMenu.draw), and the entry goes
+        // into that column. The buttons after Settings move down one place.
+        // Without a Settings button the entry goes below the menu's buttons,
+        // above the line with the game's version: both menus end with a space
+        // and that line.
+        private static DialogGUIButton Entry(DialogGUIBase besides)
         {
-            string settings = Localizer.Format(SettingsLabel);
-            for (int i = 0; i < entries.Length; i++)
-            {
-                DialogGUIButton button = entries[i] as DialogGUIButton;
-                if (button != null && button.OptionText == settings) return i + 1;
-            }
+            float width = besides != null && besides.width > 0f ? besides.width : ButtonWidth;
+            float height = besides != null && besides.height > 0f ? besides.height : ButtonHeight;
+            DialogGUIButton open = new DialogGUIButton("ReDefinition", Open, width, height, false);
+            open.tooltipText = "The settings of ReDefinition and of the graphics mods it bundles.";
+            return open;
+        }
 
+        private static bool IsSettings(DialogGUIBase entry, string[] settings)
+        {
+            DialogGUIButton button = entry as DialogGUIButton;
+            return button != null && Array.IndexOf(settings, button.OptionText) >= 0;
+        }
+
+        // The layout among the entry's descendants that holds Settings, and where.
+        private static bool Holding(DialogGUIBase entry, string[] settings, out DialogGUIBase column, out int at)
+        {
+            column = null;
+            at = -1;
+            if (entry == null || entry.children == null) return false;
+
+            for (int i = 0; i < entry.children.Count; i++)
+            {
+                if (IsSettings(entry.children[i], settings))
+                {
+                    column = entry;
+                    at = i;
+                    return true;
+                }
+                if (Holding(entry.children[i], settings, out column, out at)) return true;
+            }
+            return false;
+        }
+
+        private static DialogGUIBase[] Inserted(DialogGUIBase[] entries, int at, DialogGUIBase entry)
+        {
+            DialogGUIBase[] withEntry = new DialogGUIBase[entries.Length + 1];
+            Array.Copy(entries, 0, withEntry, 0, at);
+            withEntry[at] = entry;
+            Array.Copy(entries, at, withEntry, at + 1, entries.Length - at);
+            return withEntry;
+        }
+
+        private static int BeforeLastSpace(DialogGUIBase[] entries)
+        {
             for (int i = entries.Length - 1; i >= 0; i--)
                 if (entries[i] is DialogGUISpace) return i;
             return entries.Length;
