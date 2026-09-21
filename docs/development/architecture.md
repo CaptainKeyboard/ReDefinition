@@ -208,6 +208,7 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | `SettingsWindow.Keys.cs`, `KeyCapture.cs`, `Conflicts.cs`, `KspKeyBindings.cs` | the *Keys* tab: the rows that take a combination, the capture with KSP's controls locked, the shared combinations shown in yellow, and KSP's own bindings read from `GameSettings` |
 | `KspSettingsSection.cs` | the section in KSP's settings dialog, through Harmony postfixes on `VideoSettings` |
 | `PauseMenuEntry.cs` | the *ReDefinition* entry in the menu Escape opens, through Harmony postfixes on `PauseMenu.draw()` in flight and `KSCPauseMenu.draw()` in the space centre |
+| `MainMenuEntry.cs` | the *ReDefinition* entry in KSP's main menu: a copy of its *Settings* entry, with Harmony postfixes on `MainMenu.lockEverything` and `unlockEverything` |
 | `WindowPause.cs` | the pause button in the settings window's title row, and the flight held while the window stands |
 | `ToolbarButton.cs` | the toolbar button, its tooltip, and its place at the front of the row |
 | `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable; the main menu's first question |

@@ -82,6 +82,11 @@
       <HintPath>$(KspManaged)\UnityEngine.ParticleSystemModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- The main menu entry widens its BoxCollider, which lives here. -->
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(KspManaged)\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
       <HintPath>$(KspManaged)\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>false</Private>
