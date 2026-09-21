@@ -38,6 +38,7 @@ namespace ReDefinition.Window
         private const float ValueWidth = 60f;
         private const float SourceWidth = 70f;
         private const float RowHeight = 18f;
+        private const float ResetWidth = 80f;
 
         private static PopupDialog dialog;
         private static SettingCategory current = SettingCategory.Profiles;
@@ -140,8 +141,10 @@ namespace ReDefinition.Window
                 LoadProfiles();
 
                 UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
+                DialogGUIBase[] content = Build(skin);
+                TooltipText.WrapAll(content);
                 MultiOptionDialog window = new MultiOptionDialog("ReDefinitionSettings", "", "Settings -- ReDefinition",
-                    skin, new Rect(0.5f, 0.5f, WindowWidth, WindowHeight), Build(skin));
+                    skin, new Rect(0.5f, 0.5f, WindowWidth, WindowHeight), content);
                 dialog = PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), window,
                     false, skin, false);
                 // Accept and Cancel dismiss the dialog themselves, and
@@ -271,6 +274,7 @@ namespace ReDefinition.Window
                     TextAnchor.UpperLeft, tabList, scroll),
                 new DialogGUIHorizontalLayout(
                     ResetButton(),
+                    WaitingNotice(WindowWidth - 20f - ResetWidth - 3f * 80f - 24f),
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton(Localizer.Format("#autoLOC_149512"), Apply, 80f, 30f, false),
                     new DialogGUIButton(Localizer.Format("#autoLOC_149513"), Apply, 80f, 30f, true),
@@ -652,9 +656,9 @@ namespace ReDefinition.Window
         // has been answered.
         private static DialogGUIButton ResetButton()
         {
-            DialogGUIButton reset = new DialogGUIButton("Reset to defaults", ConfirmReset, 150f, 30f, false);
-            reset.tooltipText = "Every setting back to its default, and ReDefinition off until a profile is chosen.\n"
-                                + "Asks first, and says what it resets.";
+            DialogGUIButton reset = new DialogGUIButton("Reset", ConfirmReset, ResetWidth, 30f, false);
+            reset.tooltipText = "Every setting back to its default: KSP's as KSP's own Reset sets them, and the mods'.\n"
+                                + "ReDefinition is off until a profile is chosen. Asks first, and says what it resets.";
             return reset;
         }
 
@@ -695,7 +699,7 @@ namespace ReDefinition.Window
                        + " too: ReDefinition's own and the mods'.";
 
             MultiOptionDialog confirm = new MultiOptionDialog("ReDefinitionReset", message,
-                "Reset to defaults", HighLogic.UISkin, 460f,
+                "Reset", HighLogic.UISkin, 460f,
                 new DialogGUIButton("Reset", ChooseDefaults, true),
                 new DialogGUIButton(Localizer.Format("#autoLOC_149514"), () => { }, true));
             UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -711,7 +715,7 @@ namespace ReDefinition.Window
         {
             List<string> problems = new List<string>();
             Dictionary<BundledSetting, string> values = ProfileApplier.DefaultValues(problems);
-            ProfileApplier.Report("Reset to defaults", problems);
+            ProfileApplier.Report("Reset", problems);
             if (values.Count > 0)
             {
                 model.ChooseDefaults(values);
@@ -1115,9 +1119,9 @@ namespace ReDefinition.Window
                 value = () => Display(setting, choice.Choices, choice.Labels);
             }
 
-            control.tooltipText = setting.Tooltip + "\nFrom " + setting.Owner.ModName + "; takes effect "
-                                  + BundledStore.When(setting.Window) + "; " + BundledStore.Kept(setting) + "."
-                                  + Requirements.Note(setting);
+            // When a change arrives, where it is not at once, is said below the
+            // tabs (WaitingNotice); the row's owner stands at its right.
+            control.tooltipText = setting.Tooltip + Requirements.Note(setting);
             // The switch as it stands in the window, not as it was applied: with
             // bundling unticked the rows are left to their mods at once. A value
             // nobody could read cannot be edited sensibly.
@@ -1306,6 +1310,7 @@ namespace ReDefinition.Window
         // back afterwards, as the section in KSP's settings dialog does.
         private static void Apply()
         {
+            NoteWaiting();
             try
             {
                 ApplyLayout();
@@ -1394,7 +1399,7 @@ namespace ReDefinition.Window
                     if (changed) BundledSettings.SaveNow();
                     if (resetting)
                         Debug.Log(Log.Tag + " Bundled settings: every setting set to its mod's default"
-                                  + " (Reset to defaults).");
+                                  + " (Reset).");
                 }
             }
             catch (Exception e)

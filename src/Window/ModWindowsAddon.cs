@@ -49,6 +49,7 @@ namespace ReDefinition.Window
 
         private void OnLevelReady(GameScenes scene)
         {
+            SettingsWindow.SceneChanged();
             ToolbarTakeover.Refresh();
             KeepOurButtonFirst();
         }

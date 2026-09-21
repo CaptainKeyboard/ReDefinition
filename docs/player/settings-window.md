@@ -31,7 +31,7 @@ it as well. It edits copies of the values. *Apply* sets what you changed, *Accep
 it and closes, *Cancel* closes without setting anything. Clicks on the window do not
 reach the scene behind it.
 
-*Reset to defaults* is at the bottom left, beside those three, on every tab.
+*Reset* is at the bottom left, beside those three, on every tab.
 
 ## The pause button
 
@@ -66,9 +66,10 @@ Outside flight there is nothing to hold and the button is dead.
 The status line on *Profiles* names the chosen profile, shows *Custom* where rows were
 changed since, and says what still waits for *Apply*.
 
-Each row's tooltip says what the setting does, which mod holds the value, where that
-value is kept, and when the change arrives: at once, from the next scene on, after a
-restart, or when the mod next reads it.
+Each row's tooltip says what the setting does, and the grey name at its right which
+mod holds it. A change that does not take effect at once is said in yellow between
+*Reset* and *Apply*, from the moment you make it until it arrives: from the next scene
+on, or after a restart. Its tooltip names each setting that waits.
 
 The *Diagnostics* button below the tabs opens the diagnostics window.
 
@@ -131,7 +132,7 @@ binding already holds as many modifiers as it can. The modifiers come from the s
 rather than from the keyboard, because Windows turns AltGr into Ctrl and Alt at once. A
 binding with right Alt answers to AltGr.
 
-*Reset to defaults* puts every binding back to its default: ReDefinition's own, the
+*Reset* puts every binding back to its default: ReDefinition's own, the
 mods', and KSP's to the keys KSP ships, the same ones KSP's own reset sets.
 
 KSP keeps two keys per binding, a first and a second, each without a modifier. Its
@@ -189,7 +190,7 @@ sets them. A row you change afterwards makes the choice *Custom*. A profile sets
 costs frame time, and switches the upscaler on. What each profile sets:
 [graphics-profiles.md](graphics-profiles.md).
 
-*Reset to defaults* asks first and names what it resets. It fills the rows with every
+*Reset* asks first and names what it resets. It fills the rows with every
 setting's default, the settings without a row included. Those defaults are what the
 mods' releases ship. With Volumetric Clouds installed, the defaults of EVE, Scatterer
 and TUFX are the ones its author ships. All of KSP's settings go back to what KSP
@@ -252,7 +253,7 @@ with the source of each:
 The rows are: render quality, texture quality, V-Sync, frame limit, shadow cascades,
 terrain detail, and aerodynamic FX while Firefly is not installed. The profiles also
 set KSP's antialiasing off, and its pixel light count, terrain shader quality and
-reflections. *Reset to defaults* sets those and its terrain scatter, planet shadows,
+reflections. *Reset* sets those and its terrain scatter, planet shadows,
 scatter density and surface FX.
 
 Some of them another mod holds for itself:

@@ -61,7 +61,7 @@ What the keys say about your mod:
 * `member` is where your value lives, written as in C#.
 * `row` puts it in the *Effects* tab. A setting without `row` is kept and reset, but has
   no row in the window.
-* `default` is the value your release ships. *Reset to defaults* sets it, and the
+* `default` is the value your release ships. *Reset* sets it, and the
   profiles start from it.
 
 ## 3. See it in the game

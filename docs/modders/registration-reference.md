@@ -51,7 +51,7 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 |---|---|---|---|
 | `name` | yes | -- | The second part of the setting's key. Never change it once released. |
 | `member` | yes, unless `leftOut` or a `behaviour` answers for it | -- | Where the value lives: a [member path](#member-paths). |
-| `default` | recommended, and needed for a setting with no `member` that your own behaviour answers for | the reset and the profiles leave the setting as it is; a setting your own behaviour answers for gets no row, and the log says so | The value your release ships, as a config file writes it: `True`, `0.5`, `High`. *Reset to defaults* sets it, and the profiles start from it. |
+| `default` | recommended, and needed for a setting with no `member` that your own behaviour answers for | the reset and the profiles leave the setting as it is; a setting your own behaviour answers for gets no row, and the log says so | The value your release ships, as a config file writes it: `True`, `0.5`, `High`. *Reset* sets it, and the profiles start from it. |
 | `title` | no | `name` | The row's name. |
 | `tooltip` | no | -- | What the setting does. `\n` starts a new line. |
 | `kind` | no | `Other` | `Quality`: it costs frame time, and the profiles set it. `Taste`: how the game looks, which no profile touches. `Other`: interface, debugging, compatibility. |
@@ -74,7 +74,7 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `leftOutWith` | no | -- | The `name` of another registered mod. While that one is loaded, this setting is left out: its own code holds the setting. |
 | `rowUnless` | no | -- | The `name` of another registered mod. While that one is bundled, the row is not shown and the setting is still kept. |
 | `behaviour` | no | the mod's | Code for this setting alone. See [Behaviours](#behaviours). |
-| `bundled` | no | `True` | `False`: the setting is never bundled. It is set straight into your mod whether the bundling is on or off, no profile sets it, `bundled.cfg` never keeps it, and *Restore settings from before ReDefinition* leaves it. *Reset to defaults* still sets its `default`. For an interface or input setting that has nothing to do with the graphics. |
+| `bundled` | no | `True` | `False`: the setting is never bundled. It is set straight into your mod whether the bundling is on or off, no profile sets it, `bundled.cfg` never keeps it, and *Restore settings from before ReDefinition* leaves it. *Reset* still sets its `default`. For an interface or input setting that has nothing to do with the graphics. |
 
 Without `choices`, `min` and `max`, the row follows the member's type: a switch for a
 `bool`, a list of names for an `enum`. An `int`, `float`, `double`, `string` or
@@ -111,7 +111,7 @@ modifier, and they fire on that key whatever modifiers are held.
 
 Which default to give a binding: [registering-a-mod.md](registering-a-mod.md).
 
-No graphics profile sets a binding. *Reset to defaults* puts it back to `default`, and
+No graphics profile sets a binding. *Reset* puts it back to `default`, and
 *Restore settings from before ReDefinition* to what your mod had.
 
 ## Member paths

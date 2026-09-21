@@ -227,7 +227,8 @@ namespace ReDefinition.Window
             if (!header) return rows;
 
             DialogGUIButton all = new DialogGUIButton("All settings ...", OpenWindow, ControlWidth, RowHeight + 6f, false);
-            all.tooltipText = "The window with the graphics mods' settings, the profiles and the key bindings.";
+            all.tooltipText = TooltipText.Wrap("The window with all of KSP's settings, the graphics mods', the profiles"
+                                               + " and the key bindings.");
 
             DialogGUIBase[] withHeader = new DialogGUIBase[rows.Length + 2];
             withHeader[0] = new DialogGUIBox("ReDefinition", -1f, RowHeight, null);
@@ -291,7 +292,8 @@ namespace ReDefinition.Window
                 control = new DialogGUISlider(() => ChoiceIndex(edit, setting), 0f, last, true, width, -1f,
                     f => setting.Write(edit.After, setting.Choices[Mathf.Clamp(Mathf.RoundToInt(f), 0, last)]));
             }
-            control.tooltipText = setting.Tooltip + "\nLocked while no graphics profile is chosen in ReDefinition's window.";
+            control.tooltipText = TooltipText.Wrap(setting.Tooltip
+                                                   + "\nLocked while no graphics profile is chosen in ReDefinition's window.");
             control.OptionInteractableCondition = () => edit.ProfileChosen()
                                                         && (setting.Interactable == null || setting.Interactable(edit.After));
             return control;

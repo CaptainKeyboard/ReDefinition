@@ -48,7 +48,7 @@ How a value lasts is the mod's `saving`:
 | graphics profile, tier | One of the five steps from Low to Max. It sets the quality settings of every bundled mod and KSP's own graphics at once. High is every mod as its authors ship it. |
 | quality setting | A setting that costs frame time. A profile sets only these. |
 | taste setting | A setting that decides how the game looks rather than what it costs. No profile changes one, except where a mod needs it changed to run with the upscaler. |
-| *Reset to defaults* | Sets every setting to the default of the installed build, every key binding to its default, KSP's bindings to KSP's own, and leaves no profile chosen. It is not the same as *Restore settings from before ReDefinition*. |
+| *Reset* | Sets every setting to the default of the installed build, every key binding to its default, KSP's bindings to KSP's own, and leaves no profile chosen. It is not the same as *Restore settings from before ReDefinition*. |
 
 ## Rendering
 

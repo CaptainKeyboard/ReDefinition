@@ -1,12 +1,12 @@
 # Every setting, its default and its kind
 
-**For:** anyone checking what *Reset to defaults* will set, and pack authors looking
+**For:** anyone checking what *Reset* will set, and pack authors looking
 for the value a profile starts from.
 **You need:** nothing.
 **You get:** one row per setting of each bundled mod and of KSP's graphics settings,
 with its default, its kind and where the value was read.
 
-This is the inventory *Reset to defaults* and the profiles are built on. The values
+This is the inventory *Reset* and the profiles are built on. The values
 are in each mod's registration in `GameData/ReDefinition/Mods`, as `default` and in
 `DEFAULTS` blocks.
 
@@ -34,7 +34,7 @@ KSP's default is what the *Reset* of KSP's own settings screen sets, through
 `GameSettings.ResetSettings`, which calls `SetDefaultValues` and
 `PQSCache.CreateDefaultPresetList`. That covers every control of KSP's settings screen,
 as its `SettingsScreenSetup` in `sharedassets3.assets` lists them. Resolution and full
-screen are the exception: *Reset to defaults* keeps them, where KSP's reset sets 1280 x
+screen are the exception: *Reset* keeps them, where KSP's reset sets 1280 x
 720 in a window.
 
 ## The three kinds
@@ -46,7 +46,7 @@ screen are the exception: *Reset to defaults* keeps them, where KSP's reset sets
 | other | interface, input, debug, physics and compatibility switches, and the antialiasing the upscaler owns | never set by a `PROFILE` block |
 
 An `ALL_PROFILES` block may set a setting of any kind, for what a mod needs changed to
-run with the upscaler. *Reset to defaults* sets every kind.
+run with the upscaler. *Reset* sets every kind.
 
 ## Sources
 

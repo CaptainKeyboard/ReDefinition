@@ -33,7 +33,7 @@ namespace ReDefinition.Settings
             // What listens to KSP's settings -- the music, the reflection probe,
             // the upscaler's hold on MSAA -- takes them as after KSP's own screen.
             GameEvents.OnGameSettingsApplied.Fire();
-            Debug.Log(Log.Tag + " KSP's settings reset to KSP's defaults (Reset to defaults); the screen resolution"
+            Debug.Log(Log.Tag + " KSP's settings reset to KSP's defaults (Reset); the screen resolution"
                       + " stays " + width + " x " + height + (fullScreen ? ", full screen." : ", windowed."));
         }
     }

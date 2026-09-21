@@ -14,7 +14,7 @@ beside it.
 | You want to | Page |
 |---|---|
 | install it, or take it out again | [player/installing.md](player/installing.md) |
-| use the settings window, its tabs, *Apply* and *Reset to defaults* | [player/settings-window.md](player/settings-window.md) |
+| use the settings window, its tabs, *Apply* and *Reset* | [player/settings-window.md](player/settings-window.md) |
 | choose a graphics profile and see what it sets | [player/graphics-profiles.md](player/graphics-profiles.md) |
 | set up upscaling or frame generation, and know what they cost | [player/upscaler-and-frame-generation.md](player/upscaler-and-frame-generation.md) |
 

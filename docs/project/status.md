@@ -18,7 +18,7 @@ Released: 0.1.2.
 | **KSP settings dialog section** | built |
 | **Settings window and diagnostics window** -- tabs by feature, *Advanced*, toolbar takeover, close buttons on mods' windows | built |
 | **Saving in the mods, values from before ReDefinition, restore** | built, unit tests |
-| **Graphics profiles** Low to Max, **Reset to defaults**, **requirements** R1-R7 | built, checked against the installed mods |
+| **Graphics profiles** Low to Max, **Reset**, **requirements** R1-R7 | built, checked against the installed mods |
 | **Registrations** -- KSP and eight mods, the worked example (Trajectories), template, diagnostics list | built, unit tests, checked against the installed mods |
 | **Release package** -- zip with licences and notices, source zip, AMD runtime pinned | built |
 | **Interface for mods** -- the frame's state as properties and shader globals, history resets from ReDefinition and from mods, hooks for motion vectors, the upscaled image and overlays, the chosen profile, Direct3D 12 compute passes from HLSL or bytecode; the wrapper, the shader include, the example mod, the XML documentation | built; unit tests; the harness runs compute passes compiled by the proxy and from DXIL; the include compiles in Unity 2019.4.18f1 |
@@ -40,9 +40,9 @@ Released: 0.1.2.
 
 | Decision | |
 |---|---|
-| ReDefinition is active only while a graphics profile is chosen; *Reset to defaults* leaves no profile chosen | the upscaler and the other mods' antialiasing change together |
+| ReDefinition is active only while a graphics profile is chosen; *Reset* leaves no profile chosen | the upscaler and the other mods' antialiasing change together |
 | *AA only* in every profile | upscaling buys no frame rate on the development machine ([development/upscaler.md](../development/upscaler.md)) |
-| A profile sets quality, and a mod's taste only where that mod needs it changed to run with the upscaler; High is the mod authors' defaults, for an RTX 3080/4080 at 1440p; *Reset to defaults* resets everything | [player/graphics-profiles.md](../player/graphics-profiles.md) |
+| A profile sets quality, and a mod's taste only where that mod needs it changed to run with the upscaler; High is the mod authors' defaults, for an RTX 3080/4080 at 1440p; *Reset* resets everything | [player/graphics-profiles.md](../player/graphics-profiles.md) |
 | A requirement of an installed mod is enforced whatever profile is chosen | [reference/requirements.md](../reference/requirements.md) |
 | Settings are saved in each mod through its own routine, with the values from before kept for a restore | [development/settings-store.md](../development/settings-store.md) |
 | Mods register through config nodes in their own folders; a setting no member path reaches goes through a behaviour, one ReDefinition brings or one the mod itself brings | [modders/registering-a-mod.md](../modders/registering-a-mod.md) |

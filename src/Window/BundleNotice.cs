@@ -108,8 +108,8 @@ namespace ReDefinition.Window
                 foreach (IBundledMod mod in mods) BundledSettings.SetHidesButton(mod.Id, hide);
                 ToolbarTakeover.Refresh();
             }, 300f);
-            all.tooltipText = "On: these mods' own toolbar buttons are hidden while their settings are bundled in"
-                              + " ReDefinition's window, which opens each of them with its Advanced button.";
+            all.tooltipText = TooltipText.Wrap("On: these mods' own toolbar buttons are hidden while their settings are bundled in"
+                              + " ReDefinition's window, which opens each of them with its Advanced button.");
             rows.Add(all);
 
             string folded = "+  Per mod (" + mods.Count + ")";

@@ -53,7 +53,7 @@ Putting a value back works with the bundling on or off.
 * **`Release`.** A setting a newly chosen profile leaves alone while it still holds the
   applied profile's value. The store keeps no value for it any more, and marks its value
   from before ReDefinition to be put back.
-* **`ResetTo`.** The value *Reset to defaults* gives a setting. For a mod that saves it
+* **`ResetTo`.** The value *Reset* gives a setting. For a mod that saves it
   works as `Set` does. For a mod without a save routine it sets the running value only,
   and keeps nothing, so the mod's own config is in force again at the next start. Where such a
   mod holds the default already, nothing is written. The value from before ReDefinition is

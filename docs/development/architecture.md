@@ -131,7 +131,7 @@ A setting whose registration says `bundled = False` never reaches the store: the
 writes it straight into its mod and calls the mod's save, as does every row of a mod
 whose registration says `direct` while the bundling is off. KSP's audio, gameplay,
 system and input settings are such settings. `KspReset.cs` is KSP's own reset, which
-*Reset to defaults* runs before the store resets the bundled rows.
+*Reset* runs before the store resets the bundled rows.
 
 The rules the store follows: [settings-store.md](settings-store.md).
 

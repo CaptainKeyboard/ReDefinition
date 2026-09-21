@@ -86,6 +86,20 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void ATooltipLineLongerThanTheUpscalersFirstIsBrokenAtASpace()
+        {
+            string upscaler = "The upscaler on the 3D scene, FSR 3 or the chosen technique: temporal antialiasing,";
+            Assert.AreEqual(ReDefinition.Window.TooltipText.MaxLine, upscaler.Length);
+            Assert.AreEqual(upscaler, ReDefinition.Window.TooltipText.Wrap(upscaler), "a line of the length stays");
+
+            string longer = upscaler + " and in every mode but AA only also upscaling.";
+            string wrapped = ReDefinition.Window.TooltipText.Wrap(longer + "\nShort.");
+            foreach (string line in wrapped.Split('\n'))
+                Assert.IsTrue(line.Length <= ReDefinition.Window.TooltipText.MaxLine, line);
+            Assert.AreEqual(longer.Replace("antialiasing, and", "antialiasing,\nand") + "\nShort.", wrapped);
+        }
+
+        [TestMethod]
         public void AResolutionIsWrittenAndReadAsKspShowsIt()
         {
             Assert.AreEqual("3440 x 1440", KspBehaviour.ResolutionText(3440, 1440));

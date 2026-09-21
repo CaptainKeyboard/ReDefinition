@@ -33,9 +33,14 @@
   controller's buttons as well, and the four custom axes' keys are in *Keys*.
 - **Replace original settings**, at the top of *General*: every *Settings* button of KSP
   opens this window instead of KSP's screens.
-- **Reset to defaults resets all of KSP's settings** as KSP's own *Reset* does, its keys
-  and axes included, besides the mods' settings. The screen resolution and full screen
-  stay as they are.
+- ***Reset to defaults* is now *Reset*, and resets all of KSP's settings** as KSP's own
+  *Reset* does, its keys and axes included, besides the mods' settings. The screen
+  resolution and full screen stay as they are.
+- **A change that does not take effect at once is said in yellow** between *Reset* and
+  *Apply*, from the moment it is changed until it arrives: at the next scene or after a
+  restart. Its tooltip names each setting. The rows' tooltips no longer end in "From
+  ...; takes effect ...; saved in ...", and no tooltip line is longer than the
+  Upscaler's first.
 - The window is titled *Settings -- ReDefinition*.
 - **The window opens from the menu Escape opens**, in flight and in the space centre. A
   *ReDefinition* entry stands there under KSP's own *Settings*, and *All settings* in ReDefinition's
