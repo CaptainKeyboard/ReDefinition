@@ -47,8 +47,8 @@ you open the window it holds the flight again.
 Outside flight there is nothing to hold and the button is dead.
 
 While the window holds the flight, its background is nearly opaque. While the game runs
-behind it, the window is as see-through as KSP's own dialogs, and the rows are written
-with a shadow under them so that they read against a bright sky or snow.
+behind it, the window is thinner than KSP's own dialogs, and the rows are written with
+a shadow under them so that they read against a bright sky or snow.
 
 ## The tabs
 

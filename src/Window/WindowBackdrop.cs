@@ -15,8 +15,8 @@ namespace ReDefinition.Window
     // its contents -- the same sprite, type and colour, stretched over the whole
     // window -- which a UI theme that replaces the sprite, ZTheme, covers as well.
     //
-    // While the game runs behind it, the window stays as see-through as KSP's own
-    // dialogs, and the rows are kept readable by their text instead: every text
+    // While the game runs behind it, the window is drawn thinner than the skin
+    // draws it, and the rows are kept readable by their text instead: every text
     // gets a shadow under it (TextMeshPro's underlay). The shadow is one copy of
     // the font's material per font, shared by every text of that font, so the
     // window still draws in as few batches as before and KSP's own texts keep
@@ -24,6 +24,10 @@ namespace ReDefinition.Window
     internal static class WindowBackdrop
     {
         private const string Name = "ReDefinitionBackdrop";
+
+        // How much of the skin's own opacity the window keeps while the game runs
+        // behind it.
+        private const float SeeThrough = 0.55f;
 
         // Half a pixel of the font's size, dark and soft: enough against snow and
         // a bright sky, not enough to thicken the letters.
@@ -50,6 +54,7 @@ namespace ReDefinition.Window
                     copy.color = window.color;
                     return;
                 }
+                SeeThroughWindow(dialog.popupWindow);
                 ShadowTexts(dialog.popupWindow);
             }
             catch (Exception e)
@@ -75,6 +80,16 @@ namespace ReDefinition.Window
             Image image = backdrop.GetComponent<Image>();
             image.raycastTarget = false;
             return image;
+        }
+
+        // The window's own background, thinner than the skin draws it.
+        private static void SeeThroughWindow(GameObject window)
+        {
+            Image image = window.GetComponent<Image>();
+            if (image == null) return;
+            Color color = image.color;
+            color.a *= SeeThrough;
+            image.color = color;
         }
 
         private static void ShadowTexts(GameObject window)
