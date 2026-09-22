@@ -40,9 +40,6 @@ namespace ReDefinition.Window
         private const float RowHeight = 18f;
         private const float ResetWidth = 80f;
 
-        // The scroll list the pages stand in, for the backing behind them.
-        private static DialogGUIBase pageArea;
-
         private static PopupDialog dialog;
         private static SettingCategory current = SettingCategory.Profiles;
         private static KspSettingsSection.Edit edit;
@@ -170,7 +167,7 @@ namespace ReDefinition.Window
                 spawned.OnDismiss = () => gone();
                 UnityMouseEvents.Shield(dialog);
                 WindowPause.PlaceInTitleRow(dialog);
-                WindowBackdrop.Add(dialog, WindowPause.Wanted, pageArea);
+                WindowBackdrop.Add(dialog, WindowPause.Wanted);
                 WindowPause.Refresh();
             }
             catch (Exception e)
@@ -277,7 +274,6 @@ namespace ReDefinition.Window
             DialogGUIVerticalLayout pageList = new DialogGUIVerticalLayout(PageWidth - 30f, -1f, 4f,
                 new RectOffset(), TextAnchor.UpperLeft, pages.ToArray());
             scroll = new TabScrollList(new Vector2(PageWidth, PageHeight), pageList);
-            pageArea = scroll;
             DialogGUIVerticalLayout tabList = new DialogGUIVerticalLayout(TabWidth, PageHeight, 4f,
                 new RectOffset(), TextAnchor.UpperLeft, tabs.ToArray());
 

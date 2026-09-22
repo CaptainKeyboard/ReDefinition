@@ -24,8 +24,8 @@
   **Sharpness** runs from 0 to 1.2. Each profile shows one sentence and the hardware
   beside its button; what it sets is in its tooltip. **The profiles name no graphics
   card any more**: which tier a card holds has not been measured. The groups show no count. The window
-  is nearly opaque while it holds the flight, and see-through with a dark panel behind
-  the rows while the game runs.
+  is nearly opaque while it holds the flight; while the game runs it stays as
+  see-through as KSP's own dialogs, with a shadow under the rows' text.
 - **Every setting of KSP's own settings screen is in the window**, and the tabs are a
   tree: *Gameplay*, *Audio*, *Display*, *Graphics* with *Detail* under it, *Controls*
   with *Axes* and *Devices* under it, and *Mods / Toolbar* set apart. *Display* holds the

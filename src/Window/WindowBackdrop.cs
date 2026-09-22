@@ -1,27 +1,41 @@
+using System.Collections.Generic;
 using System;
 using ReDefinition.Core;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace ReDefinition.Window
 {
-    // How see-through the settings window is. The skin's window sprite is half
-    // transparent.
+    // How the settings window stands against what is behind it. The skin's window
+    // sprite is half transparent.
     //
-    // While the window holds the flight: the dialog's own background drawn once
-    // more behind its contents -- the same sprite, type and colour, stretched
-    // over the whole window -- which makes it more opaque the way the skin looks,
-    // and a UI theme that replaces the sprite, ZTheme, covers the copy as well.
+    // While the window holds the flight, the game behind it does not move, and the
+    // window is drawn nearly opaque: the dialog's own background once more behind
+    // its contents -- the same sprite, type and colour, stretched over the whole
+    // window -- which a UI theme that replaces the sprite, ZTheme, covers as well.
     //
-    // While the game runs behind it: the skin's own transparency, so the flight
-    // can be watched, with a dark panel behind the pages only, so that the rows
-    // read against a bright sky or snow.
+    // While the game runs behind it, the window stays as see-through as KSP's own
+    // dialogs, and the rows are kept readable by their text instead: every text
+    // gets a shadow under it (TextMeshPro's underlay). The shadow is one copy of
+    // the font's material per font, shared by every text of that font, so the
+    // window still draws in as few batches as before and KSP's own texts keep
+    // their material.
     internal static class WindowBackdrop
     {
         private const string Name = "ReDefinitionBackdrop";
-        private static readonly Color PageBacking = new Color(0f, 0f, 0f, 0.45f);
 
-        internal static void Add(PopupDialog dialog, bool holding, DialogGUIBase pages)
+        // Half a pixel of the font's size, dark and soft: enough against snow and
+        // a bright sky, not enough to thicken the letters.
+        private static readonly Color ShadowColor = new Color(0f, 0f, 0f, 0.9f);
+        private const float ShadowOffset = 0.5f;
+        private const float ShadowSoftness = 0.25f;
+        private const float ShadowDilate = 0.1f;
+
+        // The shadowed copy per material the texts came with.
+        private static readonly Dictionary<int, Material> shadowed = new Dictionary<int, Material>();
+
+        internal static void Add(PopupDialog dialog, bool holding)
         {
             try
             {
@@ -36,8 +50,7 @@ namespace ReDefinition.Window
                     copy.color = window.color;
                     return;
                 }
-                if (pages == null || pages.uiItem == null) return;
-                Behind(pages.uiItem.transform).color = PageBacking;
+                ShadowTexts(dialog.popupWindow);
             }
             catch (Exception e)
             {
@@ -62,6 +75,36 @@ namespace ReDefinition.Window
             Image image = backdrop.GetComponent<Image>();
             image.raycastTarget = false;
             return image;
+        }
+
+        private static void ShadowTexts(GameObject window)
+        {
+            foreach (TextMeshProUGUI text in window.GetComponentsInChildren<TextMeshProUGUI>(true))
+            {
+                Material material = text.fontSharedMaterial;
+                if (material == null) continue;
+                Material copy = Shadowed(material);
+                if (copy != null) text.fontSharedMaterial = copy;
+            }
+        }
+
+        private static Material Shadowed(Material material)
+        {
+            Material copy;
+            if (shadowed.TryGetValue(material.GetInstanceID(), out copy)) return copy;
+
+            copy = new Material(material);
+            copy.name = material.name + " ReDefinition shadow";
+            // TextMeshPro's underlay: the same glyphs drawn once more, offset and
+            // softened, under the text (its SDF shaders' UNDERLAY_ON).
+            copy.EnableKeyword("UNDERLAY_ON");
+            if (copy.HasProperty("_UnderlayColor")) copy.SetColor("_UnderlayColor", ShadowColor);
+            if (copy.HasProperty("_UnderlayOffsetX")) copy.SetFloat("_UnderlayOffsetX", ShadowOffset);
+            if (copy.HasProperty("_UnderlayOffsetY")) copy.SetFloat("_UnderlayOffsetY", -ShadowOffset);
+            if (copy.HasProperty("_UnderlaySoftness")) copy.SetFloat("_UnderlaySoftness", ShadowSoftness);
+            if (copy.HasProperty("_UnderlayDilate")) copy.SetFloat("_UnderlayDilate", ShadowDilate);
+            shadowed[material.GetInstanceID()] = copy;
+            return copy;
         }
     }
 }
