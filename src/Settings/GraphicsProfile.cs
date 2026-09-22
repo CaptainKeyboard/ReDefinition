@@ -14,6 +14,7 @@ namespace ReDefinition.Settings
     //       title = Balanced
     //       order = 3
     //       hardware = RTX 3080 class
+    //       summary = ...
     //       description = ...
     //       MODULE { name = upscaler   enabled = True   quality = NativeAA }
     //   }
@@ -22,7 +23,7 @@ namespace ReDefinition.Settings
         public const string NodeName = "GRAPHICS_PROFILE";
         public const string ModuleNodeName = "MODULE";
 
-        private static readonly string[] ProfileKeys = { "name", "title", "description", "order", "hardware" };
+        private static readonly string[] ProfileKeys = { "name", "title", "summary", "description", "order", "hardware" };
 
         public string Name = "";
         public string Title = "";
@@ -34,6 +35,9 @@ namespace ReDefinition.Settings
 
         // The hardware it is made for, in a few words, for the chooser.
         public string Hardware = "";
+
+        // One sentence under its button; the description is its tooltip.
+        public string Summary = "";
 
         // By module name: a copy of the MODULE node, so that nothing done to a
         // profile reaches the GameDatabase it was read from.
@@ -60,6 +64,7 @@ namespace ReDefinition.Settings
                 Title = string.IsNullOrEmpty(title) ? name : title,
                 Description = node.GetValue("description") ?? "",
                 Hardware = node.GetValue("hardware") ?? "",
+                Summary = node.GetValue("summary") ?? "",
             };
             string where = "Profile '" + name + "'";
 

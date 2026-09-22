@@ -40,6 +40,9 @@ namespace ReDefinition.Window
         private const float RowHeight = 18f;
         private const float ResetWidth = 80f;
 
+        // The scroll list the pages stand in, for the backing behind them.
+        private static DialogGUIBase pageArea;
+
         private static PopupDialog dialog;
         private static SettingCategory current = SettingCategory.Profiles;
         private static KspSettingsSection.Edit edit;
@@ -167,7 +170,7 @@ namespace ReDefinition.Window
                 spawned.OnDismiss = () => gone();
                 UnityMouseEvents.Shield(dialog);
                 WindowPause.PlaceInTitleRow(dialog);
-                WindowBackdrop.Add(dialog);
+                WindowBackdrop.Add(dialog, WindowPause.Wanted, pageArea);
                 WindowPause.Refresh();
             }
             catch (Exception e)
@@ -274,6 +277,7 @@ namespace ReDefinition.Window
             DialogGUIVerticalLayout pageList = new DialogGUIVerticalLayout(PageWidth - 30f, -1f, 4f,
                 new RectOffset(), TextAnchor.UpperLeft, pages.ToArray());
             scroll = new TabScrollList(new Vector2(PageWidth, PageHeight), pageList);
+            pageArea = scroll;
             DialogGUIVerticalLayout tabList = new DialogGUIVerticalLayout(TabWidth, PageHeight, 4f,
                 new RectOffset(), TextAnchor.UpperLeft, tabs.ToArray());
 
@@ -767,11 +771,13 @@ namespace ReDefinition.Window
                 GraphicsProfile shown = profile;
                 DialogGUIToggleButton choose = new DialogGUIToggleButton(() => model.Profile == shown.Name, shown.Title,
                     on => { if (on) ChooseProfile(shown); }, 110f, 30f);
-                // What it sets in the tooltip: the page shows the choice and the hardware.
+                // A sentence and the hardware beside the button; everything it sets in its tooltip.
                 choose.tooltipText = shown.Description + "\nApply or Accept sets it; a row changed afterwards makes it"
-                                     + " Custom. Calibrated for 1440p at native resolution: at 4K a tier lower fits.";
-                rows.Add(new DialogGUIHorizontalLayout(0f, 30f, 8f, new RectOffset(), TextAnchor.MiddleLeft,
-                    choose, new DialogGUILabel("<color=#9a9a9a>" + shown.Hardware + "</color>", true)));
+                                     + " Custom.";
+                string beside = (shown.Summary.Length > 0 ? shown.Summary : shown.Title)
+                                + (shown.Hardware.Length > 0 ? "\n<color=#9a9a9a>" + shown.Hardware + "</color>" : "");
+                rows.Add(new DialogGUIHorizontalLayout(0f, 36f, 8f, new RectOffset(), TextAnchor.MiddleLeft,
+                    choose, new DialogGUILabel(beside, true)));
             }
 
             return rows.ToArray();
