@@ -167,6 +167,7 @@ namespace ReDefinition.Window
                 spawned.OnDismiss = () => gone();
                 UnityMouseEvents.Shield(dialog);
                 WindowPause.PlaceInTitleRow(dialog);
+                WindowBackdrop.Add(dialog);
                 WindowPause.Refresh();
             }
             catch (Exception e)

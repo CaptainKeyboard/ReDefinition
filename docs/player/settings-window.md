@@ -65,9 +65,10 @@ The tabs under *Graphics* and *Controls* are indented below them, and shown only
 *Graphics* or *Controls* or one of their tabs is open. A line sets *Mods / Toolbar* and
 *Diagnostics* apart.
 
-The search field above the tabs searches every setting by its name and its mod. While
-it holds text, the window shows every tab with a match, each under its name, and only
-the matching rows; *x* empties it.
+The search field above the tabs searches every setting by its name and its mod. Each
+word is looked for on its own, in any order: *wobble camera* finds *Camera wobble
+external*. While it holds text, the window shows every tab with a match, each under its
+name, and only the matching rows; *x* empties it.
 
 A blue dot before a row's name marks a value that differs from its default. A blue dot
 after a tab's name marks changes that wait for *Apply* there, or under it.

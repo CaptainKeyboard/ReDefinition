@@ -28,7 +28,8 @@
   switches, the map view's lines, its volumes, the screen, the keyboard layout, the
   joystick and gamepad axes, the mouse wheel, Track IR and the 6-DOF device. In
   *Gameplay*, *Detail*, *Axes* and *Devices* the rows are in groups that open and fold.
-- **A search above the tabs** finds every setting by its name or its mod. A blue dot
+- **A search above the tabs** finds every setting by its name or its mod, each word on
+  its own and in any order. The window's background is less see-through. A blue dot
   marks a row that differs from its default, and a tab where changes wait for *Apply*.
   KSP's graphics settings that were kept without a row have one now, and the screen
   resolution and full screen are there too. KSP's settings can be changed without a

@@ -84,12 +84,33 @@ namespace ReDefinition.Window
         }
 
         // Both a row's own name and its mod's are searched: "camera" finds KSP's
-        // camera rows, "scatterer" the mod's.
+        // camera rows, "scatterer" the mod's. Each word of the search is looked for
+        // on its own, in any order: "wobble camera" finds "Camera wobble external",
+        // "scatterer shadows" Scatterer's terrain shadows.
         private static bool MatchesSearch(string title, string owner)
         {
             if (keySearch.Length == 0) return true;
-            return (title != null && title.IndexOf(keySearch, StringComparison.OrdinalIgnoreCase) >= 0)
-                   || (owner != null && owner.IndexOf(keySearch, StringComparison.OrdinalIgnoreCase) >= 0);
+            foreach (string word in SearchWords())
+            {
+                bool found = (title != null && title.IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0)
+                             || (owner != null && owner.IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (!found) return false;
+            }
+            return true;
+        }
+
+        // The search's words, split once per search.
+        private static string searchWordsFor;
+        private static string[] searchWords = new string[0];
+
+        private static string[] SearchWords()
+        {
+            if (searchWordsFor != keySearch)
+            {
+                searchWordsFor = keySearch;
+                searchWords = keySearch.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            }
+            return searchWords;
         }
 
         private static DialogGUIBase[] KeyRows()
