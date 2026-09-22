@@ -20,17 +20,20 @@
 
 ### Changed
 
+- **The DLSS preset is gone**: DLSS runs the model its library chooses for each mode.
+  **Sharpness** runs from 0 to 1.2. The profiles' page shows the buttons and the hardware;
+  what a profile sets is in its tooltip. The groups show no count.
 - **Every setting of KSP's own settings screen is in the window**, and the tabs are a
-  tree: *Gameplay*, *Audio*, *Graphics* with *Display*, *Upscaling* and *Detail* under
-  it, *Controls* with *Axes* and *Devices* under it, and *Mods / Toolbar* set apart. The
-  tabs under a parent show while it or one of them is open. *Detail* holds KSP's
-  quality settings and the shadows, planets and effects as groups. They hold KSP's gameplay and system
+  tree: *Gameplay*, *Audio*, *Display*, *Graphics* with *Detail* under it, *Controls*
+  with *Axes* and *Devices* under it, and *Mods / Toolbar* set apart. *Display* holds the
+  screen and the upscaler, *Detail* KSP's quality settings and the shadows, planets and
+  effects as groups. The tabs under a parent show while it or one of them is open. They hold KSP's gameplay and system
   switches, the map view's lines, its volumes, the screen, the keyboard layout, the
   joystick and gamepad axes, the mouse wheel, Track IR and the 6-DOF device. In
   *Gameplay*, *Detail*, *Axes* and *Devices* the rows are in groups that open and fold.
 - **A search above the tabs** finds every setting by its name or its mod, each word on
   its own and in any order. The window's background is less see-through. A blue dot
-  marks a row that differs from its default, and a tab where changes wait for *Apply*.
+  marks a row, and a tab, where a change waits for *Apply*.
   KSP's graphics settings that were kept without a row have one now, and the screen
   resolution and full screen are there too. KSP's settings can be changed without a
   graphics profile, as in KSP's own screen; no profile sets anything outside the

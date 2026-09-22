@@ -163,17 +163,5 @@ namespace ReDefinition.Bridges
                 default: return 3;
             }
         }
-
-        internal static string[] PresetNames()
-        {
-            return Enum.GetNames(typeof(DlssPreset));
-        }
-
-        internal static DlssPreset NextPreset(DlssPreset preset)
-        {
-            Array values = Enum.GetValues(typeof(DlssPreset));
-            int index = Array.IndexOf(values, preset);
-            return (DlssPreset)values.GetValue((index + 1) % values.Length);
-        }
     }
 }

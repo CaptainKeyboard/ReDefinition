@@ -83,22 +83,6 @@ namespace ReDefinition
             },
             new ModuleSetting
             {
-                Key = "dlssPreset",
-                Title = "DLSS preset",
-                Kind = SettingKind.Taste,
-                Order = 25,
-                Control = SettingControl.Choice,
-                Choices = DlssBridge.PresetNames(),
-                Label = value => value == DlssPreset.Default.ToString() ? "Default" : "Preset " + value,
-                Tooltip = "Which of NVIDIA's DLSS models to use; Default lets the DLSS library choose for each mode.\n"
-                          + "Which presets a library has depends on its version.",
-                Read = settings => settings.DlssPreset.ToString(),
-                Write = (settings, value) => settings.DlssPreset =
-                    (DlssPreset)System.Enum.Parse(typeof(DlssPreset), value, true),
-                Interactable = settings => settings.Backend == UpscalerBackend.Dlss,
-            },
-            new ModuleSetting
-            {
                 Key = "sharpness",
                 Title = "Sharpness",
                 Kind = SettingKind.Taste,

@@ -5,8 +5,8 @@ using ReDefinition.Settings;
 namespace ReDefinition.Window
 {
     // Groups that open and fold, for the long tabs -- Gameplay, Axes, Devices --
-    // as the Keys tab's sections do: a header button with the group's name and
-    // how many rows it holds, and the rows shown only while it is open. The first
+    // as the Keys tab's sections do: a header button with the group's name, and
+    // the rows shown only while it is open. The first
     // group of a tab is open at first, the others folded; kept as the player
     // left them for the run.
     internal static partial class SettingsWindow
@@ -33,8 +33,8 @@ namespace ReDefinition.Window
             string fold = category + "/" + title;
             if (knownFolds.Add(fold) && first) openFolds.Add(fold);
 
-            string folded = "+  " + title + " (" + members.Count + ")";
-            string open = "-  " + title + " (" + members.Count + ")";
+            string folded = "+  " + title;
+            string open = "-  " + title;
             List<DialogGUIBase> group = new List<DialogGUIBase>(members);
             // While searching, a group stands open where one of its rows matches,
             // with only those rows; its button then folds nothing.

@@ -51,12 +51,20 @@ namespace ReDefinition.Window
                         GroupAxisTitles(group)));
                 }
                 string text = axis.Title + " " + axis.Group + " axis";
-                members.Add(Searchable(new DialogGUILabel(axis.Title, NameWidth + ControlWidth), text));
+                KspAxes.Axis marked = axis;
+                members.Add(Searchable(new DialogGUILabel(() => Marked(marked.Title, AxisChanged(marked)),
+                    NameWidth + ControlWidth), text));
                 members.Add(Searchable(AxisSide(axis, false), text));
                 members.Add(Searchable(AxisSide(axis, true), text));
             }
             if (members.Count > 0) AddFold(rows, SettingCategory.Axes, group, members, first);
             return rows.ToArray();
+        }
+
+        private static bool AxisChanged(KspAxes.Axis axis)
+        {
+            AxisBinding copy;
+            return axisPending.TryGetValue(axis.Name, out copy) && !KspAxes.Same(axis.Get(), copy);
         }
 
         // The column captions stand wherever an axis of their group is found.

@@ -10,7 +10,7 @@ Released: 0.1.2.
 
 | Part | State |
 |---|---|
-| **Upscaler** -- FSR 3 in Unity, DLSS and AMD's upscaler DLL in the proxy; six modes, *AA only* in every profile; sharpness; DLSS presets; FSR 3's transparency and reactive masks; EVE's clouds jittered and with their own motion vectors; TUFX's effects after the upscaler; skinned motion vectors | built; DLSS passes the harness |
+| **Upscaler** -- FSR 3 in Unity, DLSS and AMD's upscaler DLL in the proxy; six modes, *AA only* in every profile; sharpness; FSR 3's transparency and reactive masks; EVE's clouds jittered and with their own motion vectors; TUFX's effects after the upscaler; skinned motion vectors | built; DLSS passes the harness |
 | **Other mods' antialiasing** -- Scatterer's TAA and SMAA with their leftovers, TUFX's antialiasing, Deferred's editor SMAA, Kerbal Frame Generator's blend, while a profile is chosen | built |
 | **Proxy** -- Direct3D 12 presentation, FSR 3.1 frame generation, DLSS frame generation through Streamline 2.14.1, HUD-less copy and its check, V-Sync as NVIDIA's guide allows, half-refresh limit, live ini | built; harness passes with FSR and with DLSS frame generation; `tools/audit_ffx_fields.py` passes |
 | **Frame generation without the upscaler** | built; harness passes |

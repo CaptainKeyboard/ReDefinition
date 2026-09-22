@@ -229,7 +229,6 @@ namespace ReDefinition.Window
             foldRows.Clear();
             keysIn.Clear();
             pageMatchesFor = null;
-            LoadRowDefaults();
             List<DialogGUIBase> tabs = new List<DialogGUIBase> { SearchRow() };
             // Sized by TabScrollList itself: KSP's DialogGUIContentSizer lets go
             // of the height once a page fits.
@@ -238,9 +237,10 @@ namespace ReDefinition.Window
             TabScrollList scroll = null;
             bool currentShown = false;
             if (InDetail(current)) current = SettingCategory.Detail;
+            if (current == SettingCategory.General) current = SettingCategory.Display;
             foreach (SettingCategory category in Enum.GetValues(typeof(SettingCategory)))
             {
-                if (InDetail(category)) continue;
+                if (NoTab(category)) continue;
                 building = category;
                 List<DialogGUIBase> rows = new List<DialogGUIBase>(Rows(category));
                 if (rows.Count == 0) continue;
@@ -332,24 +332,8 @@ namespace ReDefinition.Window
             }
             // ReDefinition's own upscaler and frame generation lead General, laid
             // out like the other rows there, KSP's among them.
-            if (category == SettingCategory.General)
-            {
-                DialogGUIBase[] own = KspSettingsSection.Rows(edit, new KspSettingsSection.Layout
-                {
-                    Name = NameWidth,
-                    Control = ControlWidth,
-                    ValueGap = 10f,
-                    Value = ValueWidth,
-                    Source = "ReDefinition",
-                    SourceWidth = SourceWidth,
-                });
-                // One row per module setting, in the same order (KspSettingsSection.Rows).
-                List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows());
-                for (int i = 0; i < own.Length; i++)
-                    rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Upscaler") + " ReDefinition"));
-                DialogGUIBase nvidia = NvidiaRow();
-                if (nvidia != null) rows.Add(Searchable(nvidia, "NVIDIA DLSS files download"));
-            }
+            if (category == SettingCategory.General) return new DialogGUIBase[0];
+            bool upscalingDone = category != SettingCategory.Display;
             if (category == SettingCategory.Interface)
             {
                 rows.Add(Searchable(ReplaceRow(), "Replace original settings KSP menu"));
@@ -391,10 +375,17 @@ namespace ReDefinition.Window
                     fold.Add(row);
                     continue;
                 }
+                // Display's upscaling section follows its screen section.
+                if (newSection && !upscalingDone && section == "Screen")
+                {
+                    AddUpscaling(rows);
+                    upscalingDone = true;
+                }
                 if (newSection) rows.Add(SectionHeading(setting.Section));
                 section = setting.Section;
                 rows.Add(row);
             }
+            if (!upscalingDone) AddUpscaling(rows);
             if (folding && fold.Count > 0) AddFold(rows, category, section, fold, firstFold);
             if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
                 && category != SettingCategory.Keys)
@@ -424,6 +415,37 @@ namespace ReDefinition.Window
                 new DialogGUILabel("Replace original settings", NameWidth), toggle, new DialogGUISpace(10f),
                 new DialogGUILabel("", ValueWidth),
                 new DialogGUILabel("<color=#9a9a9a>ReDefinition</color>", SourceWidth));
+        }
+
+        // ReDefinition's upscaler and frame generation, NVIDIA's files, and the
+        // rows other mods register as General: Display's upscaling section.
+        private static void AddUpscaling(List<DialogGUIBase> rows)
+        {
+            rows.Add(SectionHeading("Upscaling"));
+            DialogGUIBase[] own = KspSettingsSection.Rows(edit, new KspSettingsSection.Layout
+            {
+                Name = NameWidth,
+                Control = ControlWidth,
+                ValueGap = 10f,
+                Value = ValueWidth,
+                Source = "ReDefinition",
+                SourceWidth = SourceWidth,
+                Marked = Marked,
+            });
+            // One row per module setting, in the same order (KspSettingsSection.Rows).
+            List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows());
+            for (int i = 0; i < own.Length; i++)
+                rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Upscaler") + " ReDefinition"));
+            DialogGUIBase nvidia = NvidiaRow();
+            if (nvidia != null) rows.Add(Searchable(nvidia, "NVIDIA DLSS files download"));
+            foreach (BundledSetting setting in WindowLayout.In(SettingCategory.General))
+            {
+                DialogGUIBase row = Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
+                if (row == null) continue;
+                shownKeys.Add(setting.Key);
+                NoteKey(SettingCategory.Display, setting.Key);
+                rows.Add(row);
+            }
         }
 
         // Detail: KSP's render quality, textures, lights and antialiasing, then
@@ -739,19 +761,17 @@ namespace ReDefinition.Window
             List<DialogGUIBase> rows = new List<DialogGUIBase>
             {
                 new DialogGUILabel(ProfileStatus, PageWidth - 60f),
-                new DialogGUILabel("<color=#9a9a9a>Choosing a profile fills in the rows of every tab; Apply or Accept"
-                                   + " sets them. A row changed afterwards makes it Custom. Calibrated for 1440p at"
-                                   + " native resolution: at 4K a tier lower fits.</color>", true),
             };
             foreach (GraphicsProfile profile in profiles)
             {
                 GraphicsProfile shown = profile;
                 DialogGUIToggleButton choose = new DialogGUIToggleButton(() => model.Profile == shown.Name, shown.Title,
                     on => { if (on) ChooseProfile(shown); }, 110f, 30f);
-                choose.tooltipText = shown.Description;
+                // What it sets in the tooltip: the page shows the choice and the hardware.
+                choose.tooltipText = shown.Description + "\nApply or Accept sets it; a row changed afterwards makes it"
+                                     + " Custom. Calibrated for 1440p at native resolution: at 4K a tier lower fits.";
                 rows.Add(new DialogGUIHorizontalLayout(0f, 30f, 8f, new RectOffset(), TextAnchor.MiddleLeft,
                     choose, new DialogGUILabel("<color=#9a9a9a>" + shown.Hardware + "</color>", true)));
-                rows.Add(new DialogGUILabel(shown.Description, true));
             }
 
             return rows.ToArray();
@@ -934,7 +954,7 @@ namespace ReDefinition.Window
                    && a.SkinnedMotionVectors == b.SkinnedMotionVectors
                    && a.TufxAfterUpscaling == b.TufxAfterUpscaling && a.TransparencyMask == b.TransparencyMask
                    && a.ReactiveMask == b.ReactiveMask && a.AutoExposure == b.AutoExposure
-                   && a.FrameGeneration == b.FrameGeneration && a.Backend == b.Backend && a.DlssPreset == b.DlssPreset
+                   && a.FrameGeneration == b.FrameGeneration && a.Backend == b.Backend
                    && a.UpscalerKey == b.UpscalerKey && a.SettingsWindowKey == b.SettingsWindowKey
                    && a.DiagnosticsKey == b.DiagnosticsKey && a.CameraListKey == b.CameraListKey;
         }

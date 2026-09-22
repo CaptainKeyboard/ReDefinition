@@ -89,9 +89,9 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheRowsUnderGeneralStandInTheirOrder()
+        public void TheUpscalingRowsStandInTheirOrder()
         {
-            CollectionAssert.AreEqual(new[] { "Upscaler", "Technique", "Mode", "DLSS preset", "Sharpness", "Frame generation" },
+            CollectionAssert.AreEqual(new[] { "Upscaler", "Technique", "Mode", "Sharpness", "Frame generation" },
                 OurModules.Rows().Select(setting => setting.Title).ToArray());
         }
 

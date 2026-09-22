@@ -52,17 +52,16 @@ Outside flight there is nothing to hold and the button is dead.
 |---|---|
 | *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed |
 | *Audio* | KSP's volumes and its sound normalizer |
-| *Graphics* | a status line, and one row per graphics profile with the hardware it is made for and what it sets |
-| *Graphics*, *Display* | KSP's screen resolution, full screen, V-Sync, frame limit, UI scale and ambient light boosts |
-| *Graphics*, *Upscaling* | Upscaler, Technique, Mode, DLSS preset, Sharpness, Frame generation, *NVIDIA DLSS files* |
+| *Display* | KSP's screen resolution, full screen, V-Sync and frame limit; Upscaler, Technique, Mode, Sharpness, Frame generation, *NVIDIA DLSS files*; UI scale and ambient light boosts |
+| *Graphics* | a status line, and one button per graphics profile with the hardware it is made for; its tooltip says what it sets |
 | *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*; *Effects* -- the graphics mods' features and KSP's own |
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
 | *Controls*, *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
 | *Controls*, *Devices* | KSP's mouse wheel, Track IR and 6-DOF device |
 | *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, and *Restore settings from before ReDefinition* |
 
-The tabs under *Graphics* and *Controls* are indented below them, and shown only while
-*Graphics* or *Controls* or one of their tabs is open. A line sets *Mods / Toolbar* and
+*Detail* is indented under *Graphics*, and *Axes* and *Devices* under *Controls*. They
+are shown only while their parent or one of its tabs is open. A line sets *Mods / Toolbar* and
 *Diagnostics* apart.
 
 The search field above the tabs searches every setting by its name and its mod. Each
@@ -70,8 +69,8 @@ word is looked for on its own, in any order: *wobble camera* finds *Camera wobbl
 external*. While it holds text, the window shows every tab with a match, each under its
 name, and only the matching rows; *x* empties it.
 
-A blue dot before a row's name marks a value that differs from its default. A blue dot
-after a tab's name marks changes that wait for *Apply* there, or under it.
+A blue dot before a row's name marks a change that waits for *Apply*, and a blue dot
+after a tab's name a tab with such a change, there or under it.
 
 In *Gameplay*, *Detail*, *Axes* and *Devices* the rows are in groups that open and fold,
 as the sections of *Controls* do. The first group of each tab is open at first.
@@ -291,7 +290,7 @@ Open it with *Diagnostics* in the settings window, or with the hotkey you set fo
 At the top are the status, the frame rate, with the presented rate in brackets while
 frame generation runs, and the on/off button. Below them are two tabs.
 
-*General* holds Technique, Mode, DLSS preset, Sharpness, the frame generation switch,
+*General* holds Technique, Mode, Sharpness, the frame generation switch,
 and whether other visual mods run anything that conflicts with the upscaler. If the
 chosen technique cannot run, it names the reason, and after a failure it offers
 *Try ... again*.

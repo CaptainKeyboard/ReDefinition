@@ -547,7 +547,6 @@ namespace ReDefinition
             created.FrameGeneration = frameGeneration;
             created.Backend = runs;
             created.PassThrough = passThrough;
-            created.DlssPreset = dlssPreset;
             created.RecordFastTurns = recordFastTurns;
 
             if (!created.Setup(target, shaders))

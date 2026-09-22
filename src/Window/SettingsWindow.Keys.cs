@@ -242,8 +242,8 @@ namespace ReDefinition.Window
         private static DialogGUIBase GroupHeader(string group, int count)
         {
             string title = group;
-            string folded = "+  " + title + " (" + count + ")";
-            string open = "-  " + title + " (" + count + ")";
+            string folded = "+  " + title;
+            string open = "-  " + title;
             DialogGUIButton header = new DialogGUIButton(() => GroupOpen(title) ? open : folded, () =>
             {
                 if (!openGroups.Remove(title)) openGroups.Add(title);
@@ -290,7 +290,10 @@ namespace ReDefinition.Window
             DialogGUIBase first = KspBindingControl(shown, false);
             DialogGUIBase second = KspBindingControl(shown, true);
             DialogGUIBase row = new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(),
-                TextAnchor.MiddleLeft, new DialogGUILabel(shown.Title, KeyNameWidth), first, new DialogGUISpace(6f),
+                TextAnchor.MiddleLeft,
+                new DialogGUILabel(() => Marked(shown.Title, kspPending.ContainsKey("ksp." + shown.Name + ".primary")
+                                                             || kspPending.ContainsKey("ksp." + shown.Name + ".secondary")),
+                    KeyNameWidth), first, new DialogGUISpace(6f),
                 second, new DialogGUISpace(4f),
                 new DialogGUILabel("<color=#9a9a9a>KSP</color>", KeySourceWidth));
             row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "KSP");

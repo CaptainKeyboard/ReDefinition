@@ -54,7 +54,6 @@ namespace ReDefinition
         private bool frameGeneration;
         // FSR 3 or DLSS (DlssBridge), and DLSS's preset.
         private UpscalerBackend backend = UpscalerBackend.Fsr3;
-        private DlssPreset dlssPreset = DlssPreset.Default;
 
         private bool skinnedMotionVectors = true;
 
@@ -92,7 +91,6 @@ namespace ReDefinition
             skinnedMotionVectors = loaded.SkinnedMotionVectors;
             frameGeneration = loaded.FrameGeneration;
             backend = loaded.Backend;
-            dlssPreset = loaded.DlssPreset;
             // The hotkeys are read from the settings object itself (HandleHotkeys),
             // so the file's bindings go there.
             SetBindings(loaded);
@@ -157,7 +155,6 @@ namespace ReDefinition
             settings.SkinnedMotionVectors = skinnedMotionVectors;
             settings.FrameGeneration = frameGeneration;
             settings.Backend = backend;
-            settings.DlssPreset = dlssPreset;
             return settings;
         }
 
@@ -315,17 +312,6 @@ namespace ReDefinition
         }
 
         // Live: the proxy creates DLSS's feature anew when the preset differs.
-        private void SetDlssPreset(DlssPreset value)
-        {
-            dlssPreset = value;
-            if (rig != null) rig.DlssPreset = dlssPreset;
-            Debug.Log(Log.Tag + " DLSS preset " + dlssPreset);
-            // A preset the DLSS library lacks may be what made FSR 3 take over:
-            // forgotten in any case, and tried at once where DLSS is to run now.
-            if (!stableFailures.Contains(UpscalerBackend.Dlss) && nativeFailures.Remove(UpscalerBackend.Dlss))
-                RetryDlssIfFallenBack();
-        }
-
         // NVIDIA's download placed nvngx_dlss.dll: a DLSS failure that stood for its
         // lack stands no more once NGX's search has changed (Dlss::Status), and DLSS
         // is tried at once where it is chosen, not only after the next scene change.
@@ -443,7 +429,6 @@ namespace ReDefinition
             if (before.Quality != after.Quality) SetQuality(after.Quality);
             if (before.Sharpness != after.Sharpness) SetSharpness(after.Sharpness);
             if (before.Backend != after.Backend) SetBackend(after.Backend);
-            if (before.DlssPreset != after.DlssPreset) SetDlssPreset(after.DlssPreset);
             if (before.AutoExposure != after.AutoExposure) SetAutoExposure(after.AutoExposure);
             if (before.FrameGeneration != after.FrameGeneration) SetFrameGeneration(after.FrameGeneration);
             if (before.MipmapBias != after.MipmapBias) SetMipmapBias(after.MipmapBias);

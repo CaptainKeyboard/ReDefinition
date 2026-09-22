@@ -7,9 +7,8 @@ upscaler DLL the proxy and those files ([installing.md](installing.md)).
 and where it falls short.
 
 Both are active only while a graphics profile is chosen
-([graphics-profiles.md](graphics-profiles.md)). Their settings are under *Graphics*,
-*Upscaling* in the settings window, in the diagnostics window, and in KSP's own
-settings dialog.
+([graphics-profiles.md](graphics-profiles.md)). Their settings are under *Display* in
+the settings window, in the diagnostics window, and in KSP's own settings dialog.
 
 The diagnostics window's status line names what is running, and its frame rate line
 shows the rendered rate with the presented rate in brackets.
@@ -24,8 +23,7 @@ from it. The interface is drawn on top at full resolution and stays sharp.
 | Upscaler | on or off |
 | Technique | *FSR 3*, *DLSS* or *AMD FSR (DLL)*. If the chosen one cannot run, FSR 3 runs in its place, and the diagnostics window says why |
 | Mode | *AA only*, at the right end, renders at full resolution and uses the upscaler as temporal antialiasing. This is what the profiles choose. Further left, the scene renders smaller by the factor shown and is reconstructed. DLSS renders at the size it asks for in each mode, and *1.2x*, which DLSS does not have, runs as DLSS's *Quality* |
-| DLSS preset | which of NVIDIA's DLSS models runs. *Default* lets the DLSS library choose per mode; *J*, *K*, *L* and *M* where the library has them |
-| Sharpness | how hard the image is sharpened after the upscaler, for every technique. 0 switches it off. Above 1.0 goes past what the sharpening was made for, and AMD's DLL stops at 1.0 |
+| Sharpness | how hard the image is sharpened after the upscaler, for every technique, from 0 to 1.2. 0 switches it off. Above 1.0 goes past what the sharpening was made for, and AMD's DLL stops at 1.0 |
 
 The six modes, and how much smaller the scene renders in each:
 

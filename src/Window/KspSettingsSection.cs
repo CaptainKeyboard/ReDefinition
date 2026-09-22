@@ -201,6 +201,10 @@ namespace ReDefinition.Window
         // comes from -- so that these line up with the other mods' rows there.
         internal struct Layout
         {
+            // Where given: the name a row shows, marked while its change waits
+            // for Apply (the settings window's rows; KSP's dialog has none).
+            public Func<string, bool, string> Marked;
+
             public float Name;
             public float Control;
             public float ValueGap;
@@ -262,7 +266,10 @@ namespace ReDefinition.Window
             {
                 ModuleSetting shown = setting;
                 Func<string> value = shown.Control == SettingControl.Toggle ? null : (Func<string>)(() => Shown(edit, shown));
-                rows.Add(Row(layout, shown.Title, Control(edit, shown, layout.Control), value));
+                Func<string> name = layout.Marked == null
+                    ? null
+                    : (Func<string>)(() => layout.Marked(shown.Title, shown.Read(edit.After) != shown.Read(edit.Before)));
+                rows.Add(Row(layout, shown.Title, Control(edit, shown, layout.Control), value, name));
             }
             return rows.ToArray();
         }
@@ -350,9 +357,11 @@ namespace ReDefinition.Window
         }
 
         private static DialogGUIHorizontalLayout Row(Layout layout, string name, DialogGUIBase control,
-                                                     Func<string> value = null)
+                                                     Func<string> value = null, Func<string> markedName = null)
         {
-            DialogGUILabel label = new DialogGUILabel(name, layout.Name);
+            DialogGUILabel label = markedName != null
+                ? new DialogGUILabel(markedName, layout.Name)
+                : new DialogGUILabel(name, layout.Name);
 
             // With a source column every row keeps its value column, empty or
             // not, so that the source lines up under the other rows' sources.

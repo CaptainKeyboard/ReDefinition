@@ -14,7 +14,7 @@
 | setting key | The name a setting is kept under: `<mod>.<setting>`, for example `scatterer.oceanFoam`. |
 | key, key binding | A keyboard key, with its modifiers, that does something in the game. The *Controls* tab holds them all. |
 | row | A setting's line in the window, in one of the tabs. Some settings a profile sets have no row. |
-| tab | One page of the window: *Gameplay*, *Audio*, *Graphics* with *Display*, *Upscaling* and *Detail* under it, *Controls* with *Axes* and *Devices* under it, and *Mods / Toolbar*. The last one is titled *Mods and toolbar (!)* while a mod has settings the window cannot show. |
+| tab | One page of the window: *Gameplay*, *Audio*, *Display*, *Graphics* with *Detail* under it, *Controls* with *Axes* and *Devices* under it, and *Mods / Toolbar*. The last one is titled *Mods and toolbar (!)* while a mod has settings the window cannot show. |
 | control | What a row looks like: a toggle, a slider, a list of choices, a key binding, or a plain value, which is kept but has no row. |
 | *Apply*, *Accept*, *Cancel* | *Apply* sets what was changed. *Accept* sets it and closes the window. *Cancel* closes it without setting anything. |
 | *Custom* | The status on the *Graphics* tab once a row was changed after a profile was applied. |

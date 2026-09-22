@@ -192,10 +192,6 @@ namespace ReDefinition
                 }
             }
 
-            // With any technique, so it is set before DLSS runs.
-            if (SwitchRow("DLSS preset", dlssPreset == DlssPreset.Default ? "Default" : "Preset " + dlssPreset))
-                SetDlssPreset(DlssBridge.NextPreset(dlssPreset));
-
             GUILayout.Space(6f);
 
             Row("Sharpness", sharpness.ToString("0.0"),

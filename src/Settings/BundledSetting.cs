@@ -4,10 +4,10 @@ using System;
 namespace ReDefinition.Settings
 {
     // The tabs of the settings window, by feature, in this order: the game, its
-    // sound, the graphics -- Graphics with the profiles, then the screen, the
-    // upscaler and the detail under it -- the controls with their axes and
-    // devices under them, and last ReDefinition's own dealings with menus, mods
-    // and the toolbar. Shadows and reflections, planets and effects are groups of
+    // sound, the display with the upscaler, the graphics -- Graphics with the
+    // profiles and Detail under it -- the controls with their axes and devices
+    // under them, and last ReDefinition's own dealings with menus, mods and the
+    // toolbar. Shadows and reflections, planets and effects are groups of
     // Detail, not tabs of their own. Which setting shows where, and in what
     // order, its registration says (`row`, `order`; WindowLayout).
     internal enum SettingCategory
@@ -17,13 +17,14 @@ namespace ReDefinition.Settings
         Gameplay,
         // KSP's volumes and its sound normalizer.
         Audio,
-        // Titled Graphics: the profiles, and the graphics' tabs under it.
-        Profiles,
-        // The screen: resolution, full screen, V-Sync, frame limit, the UI's
-        // size and the brightness boosts.
+        // The screen: resolution, full screen, V-Sync, frame limit, then
+        // ReDefinition's upscaler and frame generation, the UI's size and the
+        // brightness boosts.
         Display,
-        // ReDefinition's upscaler and frame generation. Named General in the
-        // registration format; titled Upscaling.
+        // Titled Graphics: the profiles, and Detail under it.
+        Profiles,
+        // Shown in Display, as its upscaling section, not as a tab: named
+        // General in the registration format, which is released.
         General,
         // KSP's render quality, textures, lights and antialiasing, then the
         // three below as groups.

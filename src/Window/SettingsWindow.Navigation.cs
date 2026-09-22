@@ -9,9 +9,8 @@ namespace ReDefinition.Window
     // How the settings window is found through: the categories as a tree -- the
     // graphics' and the controls' tabs indented under Graphics and Controls, and
     // shown only while one of theirs is open -- a search over every setting, a
-    // mark on rows that differ from their default and on categories where
-    // something waits for Apply, and a line that sets ReDefinition's own tabs
-    // apart.
+    // mark on rows and categories where a change waits for Apply, and a line that
+    // sets ReDefinition's own tabs apart.
     internal static partial class SettingsWindow
     {
         private const float TabIndent = 16f;
@@ -24,8 +23,6 @@ namespace ReDefinition.Window
         {
             switch (category)
             {
-                case SettingCategory.Display:
-                case SettingCategory.General:
                 case SettingCategory.Detail:
                     return SettingCategory.Profiles;
                 case SettingCategory.Axes:
@@ -42,6 +39,13 @@ namespace ReDefinition.Window
         {
             return category == SettingCategory.ShadowsAndReflections || category == SettingCategory.Planets
                    || category == SettingCategory.Effects;
+        }
+
+        // Categories with no tab of their own: Detail's groups, and General, which
+        // is Display's upscaling section.
+        private static bool NoTab(SettingCategory category)
+        {
+            return InDetail(category) || category == SettingCategory.General;
         }
 
         // A child tab stands while its parent or one of its siblings is open.
@@ -158,31 +162,16 @@ namespace ReDefinition.Window
 
         // ------------------------------------------------------------ marks
 
-        // Each shown setting's default, as Reset fills it in; worked out as the
-        // window is built.
-        private static Dictionary<BundledSetting, string> rowDefaults = new Dictionary<BundledSetting, string>();
-
-        private static void LoadRowDefaults()
-        {
-            try
-            {
-                rowDefaults = ProfileApplier.DefaultValues(new List<string>());
-            }
-            catch (Exception)
-            {
-                rowDefaults = new Dictionary<BundledSetting, string>();
-            }
-        }
-
-        // The row's name, marked where its value differs from its default.
+        // The row's name, marked while a change to it waits for Apply -- made by
+        // hand, by a profile or by Reset.
         private static string MarkedTitle(BundledSetting setting)
         {
-            string value;
-            string shipped;
-            if (model.TryGetPending(setting.Key, out value) && rowDefaults.TryGetValue(setting, out shipped)
-                && shipped != null && value != null && !SettingValues.Same(value, shipped))
-                return "<color=" + MarkColor + ">" + Mark + "</color> " + setting.Title;
-            return setting.Title;
+            return Marked(setting.Title, model.Changed(setting.Key));
+        }
+
+        private static string Marked(string title, bool changed)
+        {
+            return changed ? "<color=" + MarkColor + ">" + Mark + "</color> " + title : title;
         }
 
         // The keys of the bundled rows by the tab they stand in, for the tabs' marks.
@@ -221,7 +210,7 @@ namespace ReDefinition.Window
                         break;
                     }
                 }
-                if (UpscalerPending()) pendingIn.Add(SettingCategory.General);
+                if (UpscalerPending()) pendingIn.Add(SettingCategory.Display);
                 if (model.Profile != BundledSettings.ProfileName || model.Resetting) pendingIn.Add(SettingCategory.Profiles);
                 if (kspPending.Count > 0 || layoutPending != null) pendingIn.Add(SettingCategory.Keys);
                 if (AxesDiffer()) pendingIn.Add(SettingCategory.Axes);

@@ -196,7 +196,7 @@ namespace ReDefinition.Upscaler
 
         // Up to 2: values above FidelityFX's range of 1 stay numerically sound;
         // above about 1.2 artefacts appear.
-        internal const float MaximumSharpness = 2f;
+        internal const float MaximumSharpness = 1.2f;
 
         // The rig in place, or null; set by the add-on as it attaches and
         // detaches one (SharedFrame, ScattererCompatibility, UnityMouseEvents).
