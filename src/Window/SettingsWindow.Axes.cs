@@ -42,19 +42,30 @@ namespace ReDefinition.Window
                         members = new List<DialogGUIBase>();
                     }
                     group = axis.Group;
-                    members.Add(new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                    members.Add(Searchable(new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                         new DialogGUISpace(AxisSideWidth),
                         new DialogGUILabel("<color=#9a9a9a>Axis</color>", AxisButtonWidth + 26f),
                         new DialogGUILabel("<color=#9a9a9a>Invert</color>", 56f),
                         new DialogGUILabel("<color=#9a9a9a>Sensitivity</color>", AxisSliderWidth + AxisValueWidth),
-                        new DialogGUILabel("<color=#9a9a9a>Deadzone</color>", AxisSliderWidth + AxisValueWidth)));
+                        new DialogGUILabel("<color=#9a9a9a>Deadzone</color>", AxisSliderWidth + AxisValueWidth)),
+                        GroupAxisTitles(group)));
                 }
-                members.Add(new DialogGUILabel(axis.Title, NameWidth + ControlWidth));
-                members.Add(AxisSide(axis, false));
-                members.Add(AxisSide(axis, true));
+                string text = axis.Title + " " + axis.Group + " axis";
+                members.Add(Searchable(new DialogGUILabel(axis.Title, NameWidth + ControlWidth), text));
+                members.Add(Searchable(AxisSide(axis, false), text));
+                members.Add(Searchable(AxisSide(axis, true), text));
             }
             if (members.Count > 0) AddFold(rows, SettingCategory.Axes, group, members, first);
             return rows.ToArray();
+        }
+
+        // The column captions stand wherever an axis of their group is found.
+        private static string GroupAxisTitles(string group)
+        {
+            System.Text.StringBuilder text = new System.Text.StringBuilder(group);
+            foreach (KspAxes.Axis axis in KspAxes.All())
+                if (axis.Group == group) text.Append(' ').Append(axis.Title);
+            return text.Append(" axis").ToString();
         }
 
         // What the row shows: the copy edited, or KSP's binding as it stands.

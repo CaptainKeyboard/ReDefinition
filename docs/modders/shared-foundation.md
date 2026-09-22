@@ -222,7 +222,7 @@ To put your own settings into the window and into the profiles:
 ## Ask whether your key is pressed
 
 A binding declared in your registration with a `KEY` block is the player's to set in the
-*Keys* tab. If your mod keeps no key of its own, ask here:
+*Controls* tab. If your mod keeps no key of its own, ask here:
 
 | Member | Answers |
 |---|---|

@@ -223,32 +223,43 @@ namespace ReDefinition.Window
             ClearLayoutPending();
             // The search field is built empty, and so is what it filters by.
             keySearch = "";
-            List<DialogGUIBase> tabs = new List<DialogGUIBase>();
+            searchTexts.Clear();
+            pageTexts.Clear();
+            foldRows.Clear();
+            keysIn.Clear();
+            pageMatchesFor = null;
+            LoadRowDefaults();
+            List<DialogGUIBase> tabs = new List<DialogGUIBase> { SearchRow() };
             // Sized by TabScrollList itself: KSP's DialogGUIContentSizer lets go
             // of the height once a page fits.
             List<DialogGUIBase> pages = new List<DialogGUIBase>();
 
             TabScrollList scroll = null;
             bool currentShown = false;
+            if (InDetail(current)) current = SettingCategory.Detail;
             foreach (SettingCategory category in Enum.GetValues(typeof(SettingCategory)))
             {
-                DialogGUIBase[] rows = Rows(category);
-                if (rows.Length == 0) continue;
+                if (InDetail(category)) continue;
+                building = category;
+                List<DialogGUIBase> rows = new List<DialogGUIBase>(Rows(category));
+                if (rows.Count == 0) continue;
+                MakeSearchable(category, rows);
+                rows.Insert(0, PageHeading(category));
 
                 SettingCategory shown = category;
                 currentShown |= shown == current;
-                DialogGUIToggleButton tab = new DialogGUIToggleButton(() => current == shown, Title(shown),
-                    on =>
-                    {
-                        if (!on || current == shown) return;
-                        current = shown;
-                        if (scroll != null) scroll.ToTop();
-                    }, TabWidth, 28f);
-                tabs.Add(tab);
+                // ReDefinition's own tabs set apart from the game's.
+                if (shown == SettingCategory.Interface) tabs.Add(TabSeparator());
+                tabs.Add(TabEntry(shown, on =>
+                {
+                    if (!on || current == shown) return;
+                    current = shown;
+                    if (scroll != null) scroll.ToTop();
+                }));
 
                 DialogGUIVerticalLayout page = new DialogGUIVerticalLayout(PageWidth - 30f, -1f, 4f,
-                    new RectOffset(8, 24, 8, 8), TextAnchor.UpperLeft, rows);
-                page.OptionEnabledCondition = () => current == shown;
+                    new RectOffset(8, 24, 8, 8), TextAnchor.UpperLeft, rows.ToArray());
+                page.OptionEnabledCondition = () => Searching ? PageMatches(shown) : current == shown;
                 pages.Add(page);
             }
             // The category last shown may have nothing here now.
@@ -286,16 +297,17 @@ namespace ReDefinition.Window
         {
             switch (category)
             {
-                case SettingCategory.Profiles: return "Profiles";
+                case SettingCategory.Profiles: return "Graphics";
                 case SettingCategory.Display: return "Display";
-                case SettingCategory.General: return "Upscaling / Quality";
+                case SettingCategory.General: return "Upscaling";
+                case SettingCategory.Detail: return "Detail";
                 case SettingCategory.ShadowsAndReflections: return "Shadows / Reflections";
                 case SettingCategory.Planets: return "Planets";
                 case SettingCategory.Effects: return "Effects";
                 case SettingCategory.Audio: return "Audio";
                 case SettingCategory.Gameplay: return "Gameplay";
                 case SettingCategory.Devices: return "Devices";
-                case SettingCategory.Keys: return "Keys";
+                case SettingCategory.Keys: return "Controls";
                 case SettingCategory.Axes: return "Axes";
                 // Marked where a mod has settings this window cannot show: the tab says
                 // which, and where they are.
@@ -306,13 +318,22 @@ namespace ReDefinition.Window
         private static DialogGUIBase[] Rows(SettingCategory category)
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            if (category == SettingCategory.Profiles) rows.AddRange(ProfileRows());
+            if (category == SettingCategory.Detail)
+            {
+                DetailRows(rows);
+                return rows.ToArray();
+            }
+            if (category == SettingCategory.Profiles)
+            {
+                StringBuilderText profilesText = new StringBuilderText("Graphics profiles");
+                foreach (GraphicsProfile profile in profiles) profilesText.Add(profile.Title);
+                foreach (DialogGUIBase row in ProfileRows()) rows.Add(Searchable(row, profilesText.Text));
+            }
             // ReDefinition's own upscaler and frame generation lead General, laid
             // out like the other rows there, KSP's among them.
             if (category == SettingCategory.General)
             {
-                rows.Add(SectionHeading("Upscaling"));
-                rows.AddRange(KspSettingsSection.Rows(edit, new KspSettingsSection.Layout
+                DialogGUIBase[] own = KspSettingsSection.Rows(edit, new KspSettingsSection.Layout
                 {
                     Name = NameWidth,
                     Control = ControlWidth,
@@ -320,18 +341,23 @@ namespace ReDefinition.Window
                     Value = ValueWidth,
                     Source = "ReDefinition",
                     SourceWidth = SourceWidth,
-                }));
+                });
+                // One row per module setting, in the same order (KspSettingsSection.Rows).
+                List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows());
+                for (int i = 0; i < own.Length; i++)
+                    rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Upscaler") + " ReDefinition"));
                 DialogGUIBase nvidia = NvidiaRow();
-                if (nvidia != null) rows.Add(nvidia);
+                if (nvidia != null) rows.Add(Searchable(nvidia, "NVIDIA DLSS files download"));
             }
             if (category == SettingCategory.Interface)
             {
-                rows.Add(ReplaceRow());
-                rows.AddRange(InterfaceRows());
+                rows.Add(Searchable(ReplaceRow(), "Replace original settings KSP menu"));
+                foreach (DialogGUIBase row in InterfaceRows())
+                    rows.Add(Searchable(row, "Mods toolbar bundle hide restore before ReDefinition"));
             }
             if (category == SettingCategory.Keys)
             {
-                rows.AddRange(LayoutRows());
+                foreach (DialogGUIBase row in LayoutRows()) rows.Add(Searchable(row, "Keyboard layout"));
                 rows.AddRange(KeyRows());
             }
             if (category == SettingCategory.Axes) rows.AddRange(AxisRows());
@@ -347,9 +373,10 @@ namespace ReDefinition.Window
                          ? new List<BundledSetting>()
                          : WindowLayout.In(category))
             {
-                DialogGUIBase row = BundledRow(setting);
+                DialogGUIBase row = Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
                 if (row == null) continue;
                 shownKeys.Add(setting.Key);
+                NoteKey(category, setting.Key);
                 bool newSection = setting.Section != null && setting.Section != section;
                 if (folding)
                 {
@@ -396,6 +423,59 @@ namespace ReDefinition.Window
                 new DialogGUILabel("Replace original settings", NameWidth), toggle, new DialogGUISpace(10f),
                 new DialogGUILabel("", ValueWidth),
                 new DialogGUILabel("<color=#9a9a9a>ReDefinition</color>", SourceWidth));
+        }
+
+        // Detail: KSP's render quality, textures, lights and antialiasing, then
+        // shadows and reflections, planets and effects -- each a group that
+        // opens and folds, with the Advanced buttons of the mods it holds.
+        private static void DetailRows(List<DialogGUIBase> rows)
+        {
+            bool first = true;
+            foreach (KeyValuePair<SettingCategory, string> group in new[]
+                     {
+                         new KeyValuePair<SettingCategory, string>(SettingCategory.Detail, "Quality"),
+                         new KeyValuePair<SettingCategory, string>(SettingCategory.ShadowsAndReflections,
+                             "Shadows / Reflections"),
+                         new KeyValuePair<SettingCategory, string>(SettingCategory.Planets, "Planets"),
+                         new KeyValuePair<SettingCategory, string>(SettingCategory.Effects, "Effects"),
+                     })
+            {
+                List<DialogGUIBase> members = new List<DialogGUIBase>();
+                foreach (BundledSetting setting in WindowLayout.In(group.Key))
+                {
+                    DialogGUIBase row = Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
+                    if (row == null) continue;
+                    shownKeys.Add(setting.Key);
+                    NoteKey(SettingCategory.Detail, setting.Key);
+                    members.Add(row);
+                }
+                if (members.Count == 0) continue;
+                DialogGUIBase advanced = OwnWindowRow(group.Key);
+                if (advanced != null) members.Add(Searchable(advanced, "Advanced " + group.Value));
+                AddFold(rows, SettingCategory.Detail, group.Value, members, first);
+                first = false;
+            }
+        }
+
+        // Texts joined for the search.
+        private sealed class StringBuilderText
+        {
+            private readonly System.Text.StringBuilder text;
+
+            public StringBuilderText(string start)
+            {
+                text = new System.Text.StringBuilder(start);
+            }
+
+            public void Add(string more)
+            {
+                if (!string.IsNullOrEmpty(more)) text.Append(' ').Append(more);
+            }
+
+            public string Text
+            {
+                get { return text.ToString(); }
+            }
         }
 
         // A group's heading within a tab, as KSP's own screen heads its groups.
@@ -1154,7 +1234,7 @@ namespace ReDefinition.Window
                                                         && model.HasPending(key) && !Requirements.Locked(setting);
 
             return new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel(setting.Title, NameWidth), control, new DialogGUISpace(10f),
+                new DialogGUILabel(() => MarkedTitle(setting), NameWidth), control, new DialogGUISpace(10f),
                 new DialogGUILabel(value, ValueWidth),
                 new DialogGUILabel("<color=#9a9a9a>" + setting.Owner.ModName + "</color>", SourceWidth));
         }

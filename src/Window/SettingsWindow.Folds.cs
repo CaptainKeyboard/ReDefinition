@@ -35,18 +35,27 @@ namespace ReDefinition.Window
 
             string folded = "+  " + title + " (" + members.Count + ")";
             string open = "-  " + title + " (" + members.Count + ")";
-            DialogGUIButton header = new DialogGUIButton(() => FoldOpen(fold) ? open : folded, () =>
+            List<DialogGUIBase> group = new List<DialogGUIBase>(members);
+            // While searching, a group stands open where one of its rows matches,
+            // with only those rows; its button then folds nothing.
+            DialogGUIButton header = new DialogGUIButton(() => FoldOpen(fold) || Searching ? open : folded, () =>
             {
                 if (!openFolds.Remove(fold)) openFolds.Add(fold);
             }, PageWidth - 60f, RowHeight + 6f, false);
             header.tooltipText = "Opens or folds " + title + ".";
+            header.OptionEnabledCondition = () => !Searching || group.Exists(RowMatches);
+            header.OptionInteractableCondition = () => !Searching;
             rows.Add(header);
+            foldRows.Add(header);
 
             foreach (DialogGUIBase member in members)
             {
+                DialogGUIBase shown = member;
                 Func<bool> before = member.OptionEnabledCondition;
-                member.OptionEnabledCondition = () => FoldOpen(fold) && (before == null || before());
+                member.OptionEnabledCondition = () => (Searching ? RowMatches(shown) : FoldOpen(fold))
+                                                      && (before == null || before());
                 rows.Add(member);
+                foldRows.Add(member);
             }
         }
     }

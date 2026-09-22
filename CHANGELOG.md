@@ -20,13 +20,16 @@
 
 ### Changed
 
-- **Every setting of KSP's own settings screen is in the window**, and the tabs are in a
-  new order: *Gameplay* and *Audio* first, then the graphics -- *Profiles*, *Display*,
-  *Upscaling / Quality*, *Shadows / Reflections*, *Planets*, *Effects* -- then *Keys*,
-  *Axes* and *Devices*, and *Mods / Toolbar* last. They hold KSP's gameplay and system
+- **Every setting of KSP's own settings screen is in the window**, and the tabs are a
+  tree: *Gameplay*, *Audio*, *Graphics* with *Display*, *Upscaling* and *Detail* under
+  it, *Controls* with *Axes* and *Devices* under it, and *Mods / Toolbar* set apart. The
+  tabs under a parent show while it or one of them is open. *Detail* holds KSP's
+  quality settings and the shadows, planets and effects as groups. They hold KSP's gameplay and system
   switches, the map view's lines, its volumes, the screen, the keyboard layout, the
   joystick and gamepad axes, the mouse wheel, Track IR and the 6-DOF device. In
-  *Gameplay*, *Axes* and *Devices* the rows are in groups that open and fold.
+  *Gameplay*, *Detail*, *Axes* and *Devices* the rows are in groups that open and fold.
+- **A search above the tabs** finds every setting by its name or its mod. A blue dot
+  marks a row that differs from its default, and a tab where changes wait for *Apply*.
   KSP's graphics settings that were kept without a row have one now, and the screen
   resolution and full screen are there too. KSP's settings can be changed without a
   graphics profile, as in KSP's own screen; no profile sets anything outside the

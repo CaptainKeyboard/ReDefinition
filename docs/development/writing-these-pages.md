@@ -91,7 +91,7 @@ repository open.
   two sentences, the page probably wants a section instead.
 * Code, file names, config keys and values in `code font`. Paths from the repository
   root: `src/Settings/BundledStore.cs`.
-* Interface words in *italics*: *Apply*, *Reset*, the *Keys* tab.
+* Interface words in *italics*: *Apply*, *Reset*, the *Controls* tab.
 * Wrap prose at 95 characters. Table rows may be longer.
 * A fact is explained on one page. Other pages name it and link to that page rather
   than explaining it again.

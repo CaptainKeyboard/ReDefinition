@@ -7,8 +7,9 @@ upscaler DLL the proxy and those files ([installing.md](installing.md)).
 and where it falls short.
 
 Both are active only while a graphics profile is chosen
-([graphics-profiles.md](graphics-profiles.md)). Their settings are under *Upscaling /
-Quality* in the settings window, in the diagnostics window, and in KSP's own settings dialog.
+([graphics-profiles.md](graphics-profiles.md)). Their settings are under *Graphics*,
+*Upscaling* in the settings window, in the diagnostics window, and in KSP's own
+settings dialog.
 
 The diagnostics window's status line names what is running, and its frame rate line
 shows the rendered rate with the presented rate in brackets.

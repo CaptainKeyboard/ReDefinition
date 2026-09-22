@@ -237,12 +237,12 @@ namespace ReDefinition.Settings
         private static readonly SettingCategory[] Tabs =
         {
             SettingCategory.Gameplay, SettingCategory.Audio, SettingCategory.Display, SettingCategory.General,
-            SettingCategory.ShadowsAndReflections, SettingCategory.Planets, SettingCategory.Effects,
-            SettingCategory.Keys, SettingCategory.Axes, SettingCategory.Devices,
+            SettingCategory.Detail, SettingCategory.ShadowsAndReflections, SettingCategory.Planets,
+            SettingCategory.Effects, SettingCategory.Keys, SettingCategory.Axes, SettingCategory.Devices,
         };
 
-        private const string TabNames =
-            "Gameplay, Audio, Display, General, ShadowsAndReflections, Planets, Effects, Keys, Axes or Devices";
+        private const string TabNames = "Gameplay, Audio, Display, General, Detail, ShadowsAndReflections, Planets,"
+                                        + " Effects, Keys, Axes or Devices";
 
         // When a change can take effect, as the guide names them.
         private static readonly ApplyWindow[] Windows = { ApplyWindow.Live, ApplyWindow.NextScene, ApplyWindow.Restart };

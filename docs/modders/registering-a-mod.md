@@ -78,7 +78,7 @@ method, ReDefinition leaves your whole mod out and says so in the log.
 
 ## Offer a key binding
 
-A `KEY` block is in the *Keys* tab, beside ReDefinition's own bindings, the other
+A `KEY` block is in the *Controls* tab, beside ReDefinition's own bindings, the other
 mods' and KSP's. If your mod keeps the key itself, name the member:
 
 ```

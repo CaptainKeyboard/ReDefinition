@@ -1,7 +1,7 @@
 # Graphics profiles
 
 **For:** players choosing a profile.
-**You need:** ReDefinition installed, and the settings window open on its *Profiles*
+**You need:** ReDefinition installed, and the settings window open on its *Graphics*
 tab.
 **You get:** what each of the five tiers sets, for KSP and for every bundled mod.
 

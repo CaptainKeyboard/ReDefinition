@@ -114,7 +114,7 @@ handler that throws is removed and logged once, and the others run on
 
 ### Key bindings
 
-A binding a mod declares in its registration is in the settings window's *Keys* tab,
+A binding a mod declares in its registration is in the settings window's *Controls* tab,
 and the mod asks `ReDefinition.Api.Keys` whether it is pressed (`src/Api/Keys.cs`). A mod
 that keeps no key of its own then keeps no key file of its own either.
 

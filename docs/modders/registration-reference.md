@@ -42,7 +42,7 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `window` | no | -- | `Namespace.Type.Method` that draws your IMGUI settings window. It gets a close button while your toolbar button is hidden. |
 | `button` | no | -- | The name of the assembly your toolbar button's click handler lives in. ReDefinition hides that button while your settings are bundled, and opens your window through it. Only together with `window`. |
 | `toolbarControl` | no | -- | The namespace your button registers with in ToolbarControl, where you make it that way. Like `button`, only together with `window`. |
-| `tab` | no | no *Advanced* button | Where your *Advanced* button goes. Where your settings go is each setting's own `row`: `Gameplay`, `Audio`, `Display`, `General` (titled *Upscaling / Quality*), `ShadowsAndReflections`, `Planets`, `Effects`, `Keys`, `Axes` or `Devices`. `Keys` is taken too but draws no *Advanced* row, and any other name is reported and ignored. A tab without rows gets no *Advanced* row either. |
+| `tab` | no | no *Advanced* button | Where your *Advanced* button goes. Where your settings go is each setting's own `row`: `Gameplay`, `Audio`, `Display`, `General` (titled *Upscaling*), `Detail`, `Keys` (titled *Controls*), `Axes` or `Devices`; `ShadowsAndReflections`, `Planets` and `Effects` are groups of *Detail*. `Keys` is taken too but draws no *Advanced* row, and any other name is reported and ignored. A tab without rows gets no *Advanced* row either. |
 | `direct` | no | `False` | `True`: while the player has the bundling off, your rows are set straight into your mod, as your own window sets them, instead of being locked. KSP's registration says so, since ReDefinition's window can stand in for KSP's own screen. |
 
 ## SETTING
@@ -55,7 +55,7 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `title` | no | `name` | The row's name. |
 | `tooltip` | no | -- | What the setting does. `\n` starts a new line. |
 | `kind` | no | `Other` | `Quality`: it costs frame time, and the profiles set it. `Taste`: how the game looks, which no profile touches. `Other`: interface, debugging, compatibility. |
-| `row` | no | not shown | The tab its row is in: `Gameplay`, `Audio`, `Display`, `General` (titled *Upscaling / Quality*), `ShadowsAndReflections`, `Planets`, `Effects`, `Keys`, `Axes` or `Devices`. |
+| `row` | no | not shown | The tab its row is in: `Gameplay`, `Audio`, `Display`, `General` (titled *Upscaling*), `Detail`, `Keys` (titled *Controls*), `Axes` or `Devices`; `ShadowsAndReflections`, `Planets` and `Effects` are groups of *Detail*. |
 | `section` | no | -- | A heading the row stands under within its tab. A heading is drawn before the first row of each run of rows with the same `section`. |
 | `order` | no | after the numbered rows | A number placing the row among its tab's rows, those of other mods included. Rows of the same order stand by their mods' titles, and within one mod in the order its registration lists them. |
 | `takesEffect` | no | `NextScene` | `Live`, `NextScene` or `Restart`. The window tells the player. |
@@ -85,7 +85,7 @@ type.
 
 ## KEY
 
-A key binding. It is in the *Keys* tab beside ReDefinition's own bindings, the
+A key binding. It is in the *Controls* tab beside ReDefinition's own bindings, the
 other mods' and KSP's. The player sets one key and up to two modifiers, each left or
 right.
 
@@ -95,7 +95,7 @@ right.
 | `member` | no | ReDefinition keeps the binding | Where your mod keeps the key: a `KeyCode`, or its name as text. Without it, ReDefinition keeps the binding and your mod asks `ReDefinition.Api.Keys` whether it is pressed. A mod with `save`, or with `saving` other than `AtEveryStart`, must give a member unless a `behaviour` is named for the mod or for the binding: otherwise the binding is left out, with the reason in the log. |
 | `modifier1`, `modifier2` | no | -- | Where your mod keeps the modifiers, when it keeps them apart from the key. |
 | `modifiers` | no | `any` | `any`: your mod takes either modifier member. `all`: it asks for both at once, and one modifier then goes into both. |
-| `group` | no | `Mods` | The section of the *Keys* tab it is in: one of KSP's, or a name of your own. KSP's are `Flight`, `EVA`, `Editor`, `Camera`, `Map and vessels` and `General`. |
+| `group` | no | `Mods` | The section of the *Controls* tab it is in: one of KSP's, or a name of your own. KSP's are `Flight`, `EVA`, `Editor`, `Camera`, `Map and vessels` and `General`. |
 | `row` | no | `Keys` | Another tab, where a binding belongs beside a feature's rows. |
 | `title`, `tooltip`, `default`, `order`, `takesEffect`, `optional`, `required`, `leftOut`, `behaviour`, `perSave`, `after`, `leftOutWith`, `rowUnless` | no | -- | As for a setting. `default` is written as the window shows it: `LeftAlt+F10`, `F11`, `None`. |
 

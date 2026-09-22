@@ -39,7 +39,7 @@ uses its own layer and the layers below it, never one above.
 | 3 | `src/Bridges` | `ReDefinition.Bridges` | the managed side of the proxy |
 | 3 | `src/Shared` | `ReDefinition.Shared` | the frame's state and hooks behind the interface for mods |
 | 4 | `src/` | `ReDefinition` | the add-on, ReDefinition's own settings and modules |
-| 4 | `src/Window` | `ReDefinition.Window` | the settings window, the *Keys* tab, the toolbar, KSP's settings dialog and pause menu, the other mods' windows |
+| 4 | `src/Window` | `ReDefinition.Window` | the settings window, the *Controls* tab, the toolbar, KSP's settings dialog and pause menu, the other mods' windows |
 | 4 | `src/Api` | `ReDefinition.Api` | the public interface for mods |
 
 ## How a lower layer reaches a higher one
@@ -211,14 +211,14 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | File | Role |
 |---|---|
 | `SettingsWindow.cs`, `TabScrollList.cs` | the settings window's view, from KSP's dialog elements |
-| `SettingsWindow.Keys.cs`, `KeyCapture.cs`, `Conflicts.cs`, `KspKeyBindings.cs` | the *Keys* tab: the rows that take a combination, the capture with KSP's controls locked, the shared combinations shown in yellow, and KSP's own bindings read from `GameSettings` |
+| `SettingsWindow.Keys.cs`, `KeyCapture.cs`, `Conflicts.cs`, `KspKeyBindings.cs` | the *Controls* tab: the rows that take a combination, the capture with KSP's controls locked, the shared combinations shown in yellow, and KSP's own bindings read from `GameSettings` |
 | `KspSettingsSection.cs` | the section in KSP's settings dialog, through Harmony postfixes on `VideoSettings` |
 | `PauseMenuEntry.cs` | the *ReDefinition* entry in the menu Escape opens, through Harmony postfixes on `PauseMenu.draw()` in flight and `KSCPauseMenu.draw()` in the space centre |
 | `MainMenuEntry.cs` | the *ReDefinition* entry in KSP's main menu: a copy of its *Settings* entry, with Harmony postfixes on `MainMenu.lockEverything` and `unlockEverything` |
 | `WindowPause.cs` | the pause button in the settings window's title row, and the flight held while the window stands |
 | `ToolbarButton.cs` | the toolbar button, its tooltip, and its place at the front of the row |
 | `SettingsWindow.Axes.cs`, `KspAxes.cs`, `AxisCapture.cs` | the *Axes* tab: KSP's joystick and gamepad axes, the copies it edits, and the capture that takes an axis as it moves |
-| `SettingsWindow.Layout.cs` | KSP's keyboard layout at the top of the *Keys* tab |
+| `SettingsWindow.Layout.cs` | KSP's keyboard layout at the top of the *Controls* tab |
 | `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable; the main menu's first question |
 | `ModWindowClose.cs` | the close button on a mod's own settings window, and knowing whether that window is open |
 | `ModWindowsAddon.cs` | when: the close buttons installed, the toolbar looked at, the open settings window following a change made in another window |
@@ -282,7 +282,7 @@ Design and measurements: [frame-generation.md](frame-generation.md).
 | `GameData/ReDefinition/Mods` | the registrations of KSP and the eight bundled mods |
 | `GameData/ReDefinition/Profiles` | the five profiles |
 | `unity/Assets/ReDefinition` | the ported FSR 3 compute shaders and ReDefinition's own two, the masks and EVE's cloud motion, and `Editor/BundleBuilder.cs`; the shader include for mods and `Editor/IncludeCheck.cs` |
-| `tests/ReDefinition.Tests` | MSTest on .NET Framework 4.8: the store, the file, the edit model, the modules, registrations, frame packet layout, Streamline's camera matrices, EVE's cloud motion, TUFX's split, NVIDIA's files, the key bindings and the *Keys* tab, the interface for mods and its wrapper |
+| `tests/ReDefinition.Tests` | MSTest on .NET Framework 4.8: the store, the file, the edit model, the modules, registrations, frame packet layout, Streamline's camera matrices, EVE's cloud motion, TUFX's split, NVIDIA's files, the key bindings and the *Controls* tab, the interface for mods and its wrapper |
 | `tools/check_bundled_mods.ps1`, `tools/check_profile_parser.ps1`, `tools/check_key_bindings.ps1` | checks against the installed mods and KSP's own `ConfigNode` |
 | `tools/check_docs.ps1` | the rules the pages under `docs/` follow |
 | `tools/port_fsr3_shaders.py`, `tools/audit_ffx_fields.py`, `tools/fetch_amd_runtime.py` | the FSR shaders from FSR3Unity's, the frame generation field audit, AMD's runtime for the package |

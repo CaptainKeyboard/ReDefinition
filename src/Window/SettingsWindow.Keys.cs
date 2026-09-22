@@ -98,13 +98,6 @@ namespace ReDefinition.Window
             groupsShownFor = null;
             KeysChanged();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel("Search", KeyNameWidth),
-                new DialogGUITextInput("", false, 64, text =>
-                {
-                    keySearch = text ?? "";
-                    return text;
-                }, 160f, RowHeight + 6f)));
 
             // Every binding by its section: ReDefinition's and the mods' under Mods
             // unless a registration names another (its KEY block's `group`), KSP's
@@ -131,6 +124,7 @@ namespace ReDefinition.Window
                 bool binding = bundled.Control == SettingControl.Binding;
                 if (!binding && bundled.Control == SettingControl.Value) continue;
                 shownKeys.Add(bundled.Key);
+                NoteKey(SettingCategory.Keys, bundled.Key);
                 AddToSection(sections, order, binding ? bundled.Group : BundledSetting.ModsGroup, bundled.Title,
                     bundled.Owner.ModName, () => binding ? BundledBindingRow(bundled, true) : BundledRow(bundled));
             }
@@ -190,6 +184,13 @@ namespace ReDefinition.Window
                 sectionMembers[key] = names;
             }
             names.Add(new[] { title, owner });
+            List<string> texts;
+            if (!pageTexts.TryGetValue(SettingCategory.Keys, out texts))
+            {
+                texts = new List<string>();
+                pageTexts[SettingCategory.Keys] = texts;
+            }
+            texts.Add(title + " " + owner + " " + key);
         }
 
         // A section as its header shows it: KSP's own spelling where it is one of

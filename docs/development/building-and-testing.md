@@ -49,7 +49,7 @@ These run without the game, on .NET Framework 4.8. They cover the store, `bundle
 the settings window's edit model, ReDefinition's modules, the registrations, the frame
 packet layouts shared with the proxy, Streamline's camera matrices, EVE's cloud motion,
 TUFX's split around the upscaler, NVIDIA's file list, and the key bindings with the
-decisions the *Keys* tab makes.
+decisions the *Controls* tab makes.
 
 The tests use KSP's own `ConfigNode` from the game's `Assembly-CSharp`, copied beside
 them. Types of the test assembly take the place of mods (`RegistrationTests.cs`), and
@@ -97,7 +97,7 @@ DLL with nodes holding one mistake of each kind, and checks what they make of it
 
 **`check_key_bindings.ps1`** reads the key bindings from the built DLL: the texts the mods
 and KSP write, every `KEY` block of the shipped registrations with its default, and KSP's
-own bindings in `GameSettings`. It checks that they are the shape the *Keys* tab reads,
+own bindings in `GameSettings`. It checks that they are the shape the *Controls* tab reads,
 and that every one of them has a name for its row.
 
 Reflection from PowerShell into KSP's assemblies has two traps, and the scripts handle

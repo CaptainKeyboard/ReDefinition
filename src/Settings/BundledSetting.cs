@@ -4,10 +4,12 @@ using System;
 namespace ReDefinition.Settings
 {
     // The tabs of the settings window, by feature, in this order: the game, its
-    // sound, the graphics -- profiles, the screen, then what is drawn -- the input,
-    // and last ReDefinition's own dealings with menus, mods and the toolbar. Which
-    // setting shows in which, and in what order, its registration says (`row`,
-    // `order`; WindowLayout).
+    // sound, the graphics -- Graphics with the profiles, then the screen, the
+    // upscaler and the detail under it -- the controls with their axes and
+    // devices under them, and last ReDefinition's own dealings with menus, mods
+    // and the toolbar. Shadows and reflections, planets and effects are groups of
+    // Detail, not tabs of their own. Which setting shows where, and in what
+    // order, its registration says (`row`, `order`; WindowLayout).
     internal enum SettingCategory
     {
         // KSP's gameplay switches, the map view's lines, and its system section:
@@ -15,21 +17,25 @@ namespace ReDefinition.Settings
         Gameplay,
         // KSP's volumes and its sound normalizer.
         Audio,
+        // Titled Graphics: the profiles, and the graphics' tabs under it.
         Profiles,
         // The screen: resolution, full screen, V-Sync, frame limit, the UI's
         // size and the brightness boosts.
         Display,
-        // ReDefinition's upscaler and frame generation, then KSP's render
-        // quality, textures, lights and antialiasing. Named General in the
-        // registration format; titled Upscaling / Quality.
+        // ReDefinition's upscaler and frame generation. Named General in the
+        // registration format; titled Upscaling.
         General,
+        // KSP's render quality, textures, lights and antialiasing, then the
+        // three below as groups.
+        Detail,
         ShadowsAndReflections,
         // Clouds, sea and ground.
         Planets,
         // Re-entry, engines, flares and distant vessels.
         Effects,
-        // Every key binding: ReDefinition's, the mods' and KSP's, with KSP's
-        // keyboard layout above them.
+        // Titled Controls: every key binding -- ReDefinition's, the mods' and
+        // KSP's -- with KSP's keyboard layout above them, and the axes and
+        // devices under it.
         Keys,
         // KSP's joystick and gamepad axes.
         Axes,

@@ -56,7 +56,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void EveryNewTabIsARowAndAnUnknownOneIsNot()
         {
-            foreach (string tab in new[] { "Gameplay", "Audio", "Display", "Axes", "Devices" })
+            foreach (string tab in new[] { "Gameplay", "Audio", "Display", "Detail", "Axes", "Devices" })
             {
                 List<string> problems = new List<string>();
                 RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = tabsfake\n detect = ReDefinition.Tests.TabsFake\n"

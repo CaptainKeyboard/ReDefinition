@@ -69,7 +69,7 @@ members that exist.
 Its window's keys are not among those settings. They are on
 `Scatterer.Instance.pluginData`, each as a `KeyCode` field it reads and a string field
 it saves, and its window opens on either modifier with either key. Both pairs are rows
-in the *Keys* tab. A change goes into all four fields and is saved with Scatterer's own
+in the *Controls* tab. A change goes into all four fields and is saved with Scatterer's own
 `savePluginData`.
 
 ## EVE, Volumetric Clouds build
@@ -127,7 +127,7 @@ material properties, and its particles when a vessel's effects are built. Its
 The settings are the `settings` instance of its main-menu add-on, never written to
 disk. ReDefinition therefore keeps a value and sets it at every start and scene change.
 
-Its window opens on both modifiers and the key together, so the *Keys* tab writes one
+Its window opens on both modifiers and the key together, so the *Controls* tab writes one
 modifier into both of its modifier fields.
 
 At every scene load, Deferred sets up its screen-space reflections and hands its ambient
