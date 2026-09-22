@@ -57,7 +57,7 @@ the rows so that they stay readable.
 | *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed |
 | *Audio* | KSP's volumes and its sound normalizer |
 | *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, Sharpness, Frame generation, *NVIDIA DLSS files*; ambient light boosts |
-| *Graphics* | a status line, and one button per graphics profile with a sentence about it and the hardware it is made for; its tooltip says what it sets |
+| *Graphics* | a status line, and one button per graphics profile with a sentence about it; its tooltip says what it sets |
 | *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*; *Effects* -- the graphics mods' features and KSP's own |
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
 | *Controls*, *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |

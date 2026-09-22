@@ -33,7 +33,9 @@ namespace ReDefinition.Settings
         // a profile without one comes after those that have one.
         public int Order = int.MaxValue;
 
-        // The hardware it is made for, in a few words, for the chooser.
+        // The hardware a pack says it is made for, in a few words, under the
+        // chooser's sentence. ReDefinition's own profiles name none: which tier a
+        // card holds has not been measured.
         public string Hardware = "";
 
         // One sentence under its button; the description is its tooltip.

@@ -22,7 +22,8 @@
 
 - **The DLSS preset is gone**: DLSS runs the model its library chooses for each mode.
   **Sharpness** runs from 0 to 1.2. Each profile shows one sentence and the hardware
-  beside its button; what it sets is in its tooltip. The groups show no count. The window
+  beside its button; what it sets is in its tooltip. **The profiles name no graphics
+  card any more**: which tier a card holds has not been measured. The groups show no count. The window
   is nearly opaque while it holds the flight, and see-through with a dark panel behind
   the rows while the game runs.
 - **Every setting of KSP's own settings screen is in the window**, and the tabs are a

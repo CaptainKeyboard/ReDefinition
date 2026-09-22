@@ -19,7 +19,7 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
 
 * It starts from the defaults of the installed builds, and changes quality settings
   from there.
-* **High is those defaults**, sized for an RTX 3080 or 4080 at 1440p. Beyond what every
+* **High is those defaults.** Beyond what every
   profile sets, it deviates only in KSP's own settings, listed below. With Volumetric
   Clouds installed, its author's values are the defaults, so High follows them.
 * Below High, a profile lowers only settings that are documented to cost frame time.
@@ -49,25 +49,23 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
 
 ## The tiers
 
-| Tier | Made for | Video memory |
-|---|---|---|
-| Low | GTX 1660 / RTX 2060 class | 6 GB |
-| Medium | RTX 3060 / 4060, RX 6600 XT class | 8 to 12 GB |
-| **High** | RTX 3080 / 4080 class | 10 to 16 GB |
-| Ultra | RTX 4090 class | 24 GB |
-| Max | RTX 4090 at its limit | 24 GB |
+| Tier | What it sets |
+|---|---|
+| Low | every visual mod on, at its lowest useful level |
+| Medium | clouds, ocean and scatter a step below the mods' defaults |
+| **High** | every mod as its authors ship it |
+| Ultra | Scatterer's High preset, finer clouds, tessellation and scatter |
+| Max | Scatterer's Very High preset and the finest detail everywhere |
 
-The tiers are calibrated for 1440p at native resolution, with the upscaler at *AA
-only*. At 4K, a tier lower fits, since 4K has 2.25 times the pixels. At 1080p, a tier
-higher fits, at 0.56 times.
+**Which tier a graphics card holds is not said here, because it has not been measured.**
+Start with High, the mods' own defaults. If the frame rate does not hold, take the tier
+below it, or switch the upscaler from *AA only* to a smaller mode
+([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)). A larger screen
+costs more: 4K has 2.25 times the pixels of 1440p, 1080p 0.56 times.
 
 The tiers differ in the work the graphics card does: volumetric clouds, terrain detail,
 long-distance shadows, ground scatter and reflections. What the processor does, the
 physics and the part count, is the same in every tier.
-
-If a tier does not hold its frame rate, take the one below it, or switch the
-upscaler from *AA only* to a smaller mode
-([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)).
 
 High deviates from the defaults in KSP's settings only:
 

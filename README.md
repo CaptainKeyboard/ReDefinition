@@ -74,15 +74,16 @@ how to remove ReDefinition again: [docs/player/installing.md](docs/player/instal
 
 ## Choosing a profile
 
-| Profile | Suggested GPU |
+| Profile | What it sets |
 |---|---|
-| Low | GTX 1660 / RTX 2060 |
-| Medium | RTX 3060 / 4060, RX 6600 XT |
-| High | RTX 3080 / 4080 |
-| Ultra | RTX 4090 |
-| Max | RTX 4090 at its limit |
+| Low | every visual mod on, at its lowest useful level |
+| Medium | clouds, ocean and scatter a step below the mods' defaults |
+| High | every mod as its authors ship it |
+| Ultra | Scatterer's High preset, finer clouds, tessellation and scatter |
+| Max | Scatterer's Very High preset and the finest detail everywhere |
 
-Suggestions for 1440p; at 4K one profile lower fits. What each profile sets:
+Start with High and take the tier below it if the frame rate does not hold: which tier
+a graphics card holds has not been measured. What each profile sets:
 [docs/player/graphics-profiles.md](docs/player/graphics-profiles.md).
 
 ## Known limitations
