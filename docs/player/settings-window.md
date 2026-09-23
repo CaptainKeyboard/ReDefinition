@@ -17,7 +17,7 @@ own settings can always be changed here, as in KSP's screen.
 
 | Way | Where |
 |---|---|
-| ReDefinition's toolbar button | every scene, the main menu included, once you switch it on under *Mods / Toolbar*; it is then the first button of the row |
+| ReDefinition's toolbar button | every scene of a game, the first button of the row; not in the main menu, which has the entry below |
 | The *ReDefinition* entry in the main menu | under *Settings* |
 | The *ReDefinition* entry in the pause menu | what Escape opens in flight and in the space centre, under *Settings*; the editors and the tracking station have no such menu |
 | KSP's own settings dialog | *Settings* in the pause menu, at the end of its graphics part: the rows there, and *All settings* for this window |
@@ -63,7 +63,7 @@ the flight, and in the main menu, the space centre and the editors.
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
 | *Controls*, *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
 | *Controls*, *Devices* | KSP's mouse wheel, Track IR and 6-DOF device |
-| *Mods / Toolbar* | *ReDefinition's toolbar button*, *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, and *Restore settings from before ReDefinition* |
+| *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, and *Restore settings from before ReDefinition* |
 
 *Detail* is indented under *Graphics*, and *Axes* and *Devices* under *Controls*. They
 are shown only while their parent or one of its tabs is open. A line sets *Mods / Toolbar* and

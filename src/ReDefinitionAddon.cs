@@ -122,11 +122,9 @@ namespace ReDefinition
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
 
             // The button opens the settings window; the diagnostics window this
-            // add-on draws opens from there and by hotkey. It is there only where
-            // the player asks for it (Mods / Toolbar); the window is reached from
-            // KSP's menus and from a hotkey without it.
+            // add-on draws opens from there and by hotkey.
             toolbarButton = new ToolbarButton(SettingsWindow.Toggle);
-            if (showToolbarButton) toolbarButton.Register();
+            toolbarButton.Register();
 
             // Both sets, with and without HDR_COLOR_INPUT, right at startup: then the
             // log already says whether AssetBundle and plugin match. Which one a rig

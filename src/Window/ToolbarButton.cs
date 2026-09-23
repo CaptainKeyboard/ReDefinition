@@ -10,12 +10,9 @@ namespace ReDefinition.Window
 {
     // Button in KSP's own toolbar.
     //
-    // In the main menu as well: ReDefinition's section lives in the settings
-    // dialog of a running game (KspSettingsSection), so the settings window the
-    // button opens (SettingsWindow) is where the settings can be changed before a
-    // game is loaded.
-    // TUFX, Scatterer, Kopernicus and Parallax show their buttons in every
-    // scene (AppScenes.ALWAYS); KSP lists a button in the main menu when its
+    // In every scene of a game, not in the main menu: there the ReDefinition
+    // entry under Settings (MainMenuEntry) opens the window, and the button would
+    // be a second way to it. KSP lists a button in the main menu only when its
     // scenes include MAINMENU (ApplicationLauncher, decompiled).
     //
     // Through KSP's own ApplicationLauncher, in Assembly-CSharp.
@@ -177,8 +174,7 @@ namespace ReDefinition.Window
                 | ApplicationLauncher.AppScenes.SPACECENTER
                 | ApplicationLauncher.AppScenes.VAB
                 | ApplicationLauncher.AppScenes.SPH
-                | ApplicationLauncher.AppScenes.TRACKSTATION
-                | ApplicationLauncher.AppScenes.MAINMENU,
+                | ApplicationLauncher.AppScenes.TRACKSTATION,
                 texture);
         }
 

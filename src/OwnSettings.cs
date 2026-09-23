@@ -38,10 +38,6 @@ namespace ReDefinition
         // Whether KSP's own Settings buttons open ReDefinition's window instead
         // of KSP's screens (PauseMenuEntry, MainMenuEntry).
         public bool ReplaceKspSettings;
-
-        // Whether ReDefinition has a button in KSP's toolbar. Off: the window
-        // opens from KSP's menus and from the hotkey.
-        public bool ShowToolbarButton;
         public UpscalerBackend Backend = UpscalerBackend.Fsr3;
 
         // The hotkeys, as KeyCombination writes them. Unbound until the player
@@ -78,7 +74,6 @@ namespace ReDefinition
             settings.DisableMsaa = Bool(node, "disableMsaa", settings.DisableMsaa);
             settings.PauseWhileOpen = Bool(node, "pauseWhileOpen", settings.PauseWhileOpen);
             settings.ReplaceKspSettings = Bool(node, "replaceKspSettings", settings.ReplaceKspSettings);
-            settings.ShowToolbarButton = Bool(node, "showToolbarButton", settings.ShowToolbarButton);
             settings.ForceAnisotropic = Bool(node, "forceAnisotropic", settings.ForceAnisotropic);
             settings.Jitter = Bool(node, "jitter", settings.Jitter);
             settings.SkinnedMotionVectors = Bool(node, "skinnedMotionVectors", settings.SkinnedMotionVectors);
@@ -107,7 +102,6 @@ namespace ReDefinition
             node.AddValue("disableMsaa", DisableMsaa);
             node.AddValue("pauseWhileOpen", PauseWhileOpen);
             node.AddValue("replaceKspSettings", ReplaceKspSettings);
-            node.AddValue("showToolbarButton", ShowToolbarButton);
             node.AddValue("forceAnisotropic", ForceAnisotropic);
             node.AddValue("jitter", Jitter);
             node.AddValue("skinnedMotionVectors", SkinnedMotionVectors);
@@ -141,7 +135,6 @@ namespace ReDefinition
               .Append(MipmapBias).Append('|').Append(CompensateLodBias).Append('|')
               .Append(DisableMsaa).Append('|').Append(ForceAnisotropic).Append('|')
               .Append(PauseWhileOpen).Append('|').Append(ReplaceKspSettings).Append('|')
-              .Append(ShowToolbarButton).Append('|')
               .Append(Jitter).Append('|').Append(SkinnedMotionVectors).Append('|').Append(TufxAfterUpscaling).Append('|')
               .Append(TransparencyMask).Append('|').Append(ReactiveMask).Append('|')
               .Append(FrameGeneration).Append('|').Append(Backend).Append('|')

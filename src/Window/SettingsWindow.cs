@@ -340,7 +340,6 @@ namespace ReDefinition.Window
             bool upscalingDone = category != SettingCategory.Display;
             if (category == SettingCategory.Interface)
             {
-                rows.Add(Searchable(ToolbarButtonRow(), "ReDefinition toolbar button show"));
                 rows.Add(Searchable(ReplaceRow(), "Replace original settings KSP menu"));
                 foreach (DialogGUIBase row in InterfaceRows())
                     rows.Add(Searchable(row, "Mods toolbar bundle hide restore before ReDefinition"));
@@ -399,26 +398,6 @@ namespace ReDefinition.Window
                 if (advanced != null) rows.Add(advanced);
             }
             return rows.ToArray();
-        }
-
-        // Whether ReDefinition has a button in KSP's toolbar. One of
-        // ReDefinition's own settings, applied with the others.
-        private static DialogGUIBase ToolbarButtonRow()
-        {
-            DialogGUIToggle toggle = new DialogGUIToggle(() => edit != null && edit.After.ShowToolbarButton,
-                () => KspSettingsSection.StateText(edit != null && edit.After.ShowToolbarButton),
-                b =>
-                {
-                    if (edit != null) edit.After.ShowToolbarButton = b;
-                }, ControlWidth);
-            toggle.tooltipText = "On: ReDefinition has a button in KSP's toolbar, the first of the row, which opens"
-                                 + " this window.\nOff: the window opens from the ReDefinition entry in KSP's menus,"
-                                 + " from All settings in KSP's settings dialog, and from a hotkey of the Controls tab.";
-            return new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel(() => Marked("ReDefinition's toolbar button",
-                    edit != null && edit.Before.ShowToolbarButton != edit.After.ShowToolbarButton), NameWidth),
-                toggle, new DialogGUISpace(10f), new DialogGUILabel("", ValueWidth),
-                new DialogGUILabel("<color=#9a9a9a>ReDefinition</color>", SourceWidth));
         }
 
         // Whether KSP's own Settings buttons -- in the main menu and the pause

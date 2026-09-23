@@ -23,10 +23,8 @@
 
 ### Changed
 
-- **ReDefinition has no toolbar button unless you ask for it.** *ReDefinition's toolbar
-  button*, under *Mods / Toolbar*, switches it on and off without a scene change. The
-  window opens from the *ReDefinition* entry in KSP's menus, from *All settings* in
-  KSP's settings dialog, and from a hotkey.
+- **ReDefinition's toolbar button is not in the main menu any more**: the
+  *ReDefinition* entry under *Settings* opens the window there.
 - **The DLSS preset is gone**: DLSS runs the model its library chooses for each mode.
   **Sharpness** runs from 0 to 1.2. Each profile shows one sentence and the hardware
   beside its button; what it sets is in its tooltip. **The profiles name no graphics
