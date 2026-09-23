@@ -219,6 +219,7 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | `ToolbarButton.cs` | the toolbar button, its tooltip, and its place at the front of the row |
 | `SettingsWindow.Axes.cs`, `KspAxes.cs`, `AxisCapture.cs` | the *Axes* tab: KSP's joystick and gamepad axes, the copies it edits, and the capture that takes an axis as it moves |
 | `SettingsWindow.Layout.cs` | KSP's keyboard layout at the top of the *Controls* tab |
+| `WindowBackdrop.cs`, `ScrollThrough.cs` | how see-through the window is drawn and the shadow under its text; the mouse wheel passed from a button to the list under it |
 | `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable; the main menu's first question |
 | `ModWindowClose.cs` | the close button on a mod's own settings window, and knowing whether that window is open |
 | `ModWindowsAddon.cs` | when: the close buttons installed, the toolbar looked at, the open settings window following a change made in another window |

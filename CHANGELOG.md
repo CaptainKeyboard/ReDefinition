@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- **The mouse wheel over a button scrolls the list under it.** KSP's dialog button
+  prefab carries an `EventTrigger`, which takes the wheel; the settings window now
+  passes it on, as KSP's own forwarder does.
 - **The picture never goes away while the proxy runs.** Every way out of the frame's
   copy used to leave the frame unpresented and tell the game the Present had failed: the
   screen stayed black or frozen with nothing to bring it back. The frame is now

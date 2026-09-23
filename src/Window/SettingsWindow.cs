@@ -171,6 +171,7 @@ namespace ReDefinition.Window
                 // main menu, the space centre and the editors nothing moves, and
                 // the window is drawn as it is while it holds a flight.
                 WindowBackdrop.Add(dialog, WindowPause.Wanted || !WindowPause.Possible);
+                ScrollThrough.Apply(dialog.popupWindow);
                 WindowPause.Refresh();
             }
             catch (Exception e)
