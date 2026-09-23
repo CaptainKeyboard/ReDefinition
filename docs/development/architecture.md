@@ -167,7 +167,6 @@ The rules the store follows: [settings-store.md](settings-store.md).
 | `SkinnedMotionVectors.cs` | kerbals and flags drawing their own motion vectors |
 | `UpscalerMasks.cs` | FSR 3's transparency and reactive masks |
 | `EveCloudMotion.cs`, `CloudMotionVectors.cs` | EVE's clouds jittered, and their motion vectors blended into the captured ones |
-| `ScaledSpaceMotion.cs` | the distant planets' own motion vectors, from `Camera ScaledSpace`, where the scene camera draws nothing |
 | `TufxPostProcessing.cs` | TUFX's effects split around the upscaler |
 | `HostStack.cs` | other mods' temporal and spatial antialiasing switched off, and what Scatterer's TAA leaves behind |
 | `ScattererCompatibility.cs`, `EveCompatibility.cs` | Scatterer's godrays and EVE's clouds sized for redirected cameras |
