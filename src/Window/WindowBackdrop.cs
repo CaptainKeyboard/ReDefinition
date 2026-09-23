@@ -10,12 +10,13 @@ namespace ReDefinition.Window
     // How the settings window stands against what is behind it. The skin's window
     // sprite is half transparent.
     //
-    // While the window holds the flight, the game behind it does not move, and the
-    // window is drawn nearly opaque: the dialog's own background once more behind
+    // Where nothing moves behind the window -- it holds the flight, or the scene
+    // is the main menu, the space centre or an editor -- the window is drawn
+    // nearly opaque: the dialog's own background once more behind
     // its contents -- the same sprite, type and colour, stretched over the whole
     // window -- which a UI theme that replaces the sprite, ZTheme, covers as well.
     //
-    // While the game runs behind it, the window is drawn thinner than the skin
+    // While a flight runs behind it, the window is drawn thinner than the skin
     // draws it, and the rows are kept readable by their text instead: every text
     // gets a shadow under it (TextMeshPro's underlay). The shadow is one copy of
     // the font's material per font, shared by every text of that font, so the
