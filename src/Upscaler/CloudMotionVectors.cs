@@ -85,17 +85,19 @@ namespace ReDefinition.Upscaler
             Active = true;
         }
 
-        // Unity's motion vectors into the rig's capture, after the depth is copied:
-        // straight into motionVectors, or with the clouds recorded for this frame
-        // into a copy of their own and blended from there.
-        internal void Capture(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
+        // The scene's motion vectors into the rig's capture, after the depth is
+        // copied -- Unity's, or those with the distant planets' merged in
+        // (ScaledSpaceMotion): straight into motionVectors, or with the clouds
+        // recorded for this frame into a copy of their own and blended from there.
+        internal void Capture(CommandBuffer capture, RenderTargetIdentifier source, RenderTexture motionVectors,
+                              RenderTexture depth)
         {
             if (!Active)
             {
-                capture.Blit(BuiltinRenderTextureType.MotionVectors, motionVectors);
+                capture.Blit(source, motionVectors);
                 return;
             }
-            capture.Blit(BuiltinRenderTextureType.MotionVectors, unityMotion);
+            capture.Blit(source, unityMotion);
             capture.SetGlobalTexture(UnityMotionId, unityMotion);
             capture.SetGlobalTexture(CloudMotionId, clouds);
             capture.SetGlobalTexture(SceneDepthId, depth);

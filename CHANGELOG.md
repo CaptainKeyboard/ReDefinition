@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **Planets and their clouds seen from orbit no longer trail under time warp.** Their
+  pixels carried only the camera's turn as motion, not the planet's rotation or the
+  vessel's travel along its orbit. The distant planets' motion is now computed from the
+  planets' own movement where the near scene draws nothing.
 - **The mouse wheel over a button scrolls the list under it.** KSP's dialog button
   prefab carries an `EventTrigger`, which takes the wheel; the settings window now
   passes it on, as KSP's own forwarder does.

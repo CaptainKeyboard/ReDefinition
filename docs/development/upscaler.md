@@ -190,6 +190,32 @@ only where the value is still the one written, so a newer choice by the player o
 another mod stands. `TAA_PreviousFrameTransform` stays at identity, and the renderers
 freed from `ForceNoMotion` stay on `Object`, which is what writes their motion.
 
+### The distant planets
+
+`Camera ScaledSpace` draws the planets seen from afar, their atmospheres and the clouds on
+them; `Camera 00` draws the near scene over it. The rig's motion vectors are `Camera 00`'s,
+and where it draws nothing Unity fills them with its camera motion at the far plane: the
+camera's turn, nothing of the planet's rotation or of the vessel travelling along its orbit
+**[src]**. A planet moving across the screen, fast under time warp, was reprojected as if
+it stood still, and trailed.
+
+KSP places and turns every scaled body in `LateUpdate` and hides a faded one by disabling
+its renderer (`ScaledMovement`, `ScaledSpaceFader`, decompiled). As `Camera 00` culls,
+`ScaledSpaceMotion` takes up to eight bodies in view, largest on screen first, with their
+transforms and the scaled camera's view and projection. Pass 2 of the cloud motion shader
+follows the scaled camera's ray through every pixel where `Camera 00`'s depth is at the far
+plane to the nearest body it meets, on the surface or, passing it, within the atmosphere.
+It moves that point back by the body's change of transform since the previous frame and
+writes the difference of the two projections in Unity's encoding. EVE's clouds are
+blended over the result. The scaled camera is left as it is: asking Unity for its motion
+vectors made the picture flicker everywhere with DLSS. EVE's two-dimensional cloud layers
+drift by a shader and keep the planet's motion under them.
+
+Measured in a Unity 2019.4.18f1 editor on Direct3D 11 with a sphere rendered into a render
+texture: the pass writes on exactly the sphere's pixels, and its values match the moved
+position's viewport difference in Unity's encoding, `y` flipped as
+`Internal-MotionVectors.shader` flips it.
+
 ### EVE's volumetric clouds
 
 EVE casts the clouds' rays through the projection Unity binds, but reprojects their
@@ -312,6 +338,7 @@ In the diagnostics window's *Debug* tab
 
 | Question | What settles it |
 |---|---|
+| Whether the distant planets' motion vectors take out the trails behind the planet and its clouds under time warp | a look from orbit at 100x and above, with the motion vector preview |
 | Whether the transparency and reactive masks take out ghosting on clouds, ocean, plumes and re-entry | a flight with engines burning over the ocean and under clouds, masks off and on, with the preview |
 | What a floating origin shift does to Unity's motion vectors in that frame | the camera and origin line in orbit and low and slow, next to the proxy's motion vector check |
 | Camera cuts that keep target and parent: Hullcam between two cameras on one part, CameraTools switching mode or vessel, jumps inside a CameraTools mode | the mods' own report (`Frame.RequestHistoryReset`), or their state read by reflection (Hullcam's `sCurrentCamera`, CameraTools' `toolMode` and `vessel`), and the turn and jump numbers for the jumps |

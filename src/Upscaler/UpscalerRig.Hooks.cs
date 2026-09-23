@@ -32,10 +32,14 @@ namespace ReDefinition.Upscaler
 
         // Unity calls it on the components of a camera's object before that camera culls:
         // the rig sits on the scene camera. By then the frame's state is decided
-        // (SharedFrame), which a handler reads.
+        // (SharedFrame), which a handler reads, and the distant planets are placed
+        // (ScaledSpaceMotion).
         private void OnPreCull()
         {
-            if (lowRes == null || captureBuffer == null || motionVectorHooksFrame == Time.frameCount) return;
+            if (lowRes == null || captureBuffer == null) return;
+            // After LateUpdate, where KSP places the scaled bodies.
+            scaledMotion.Update();
+            if (motionVectorHooksFrame == Time.frameCount) return;
             motionVectorHooksFrame = Time.frameCount;
             SharedFrame.EnsureBegun();
             RecordMotionVectorHooks();
