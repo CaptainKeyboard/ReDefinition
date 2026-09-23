@@ -52,8 +52,11 @@ namespace ReDefinition
         // (UpscalerRig.RecordFastTurns).
         private bool recordFastTurns;
         private bool frameGeneration;
-        // FSR 3 or DLSS (DlssBridge), and DLSS's preset.
+        // FSR 3 or DLSS (DlssBridge).
         private UpscalerBackend backend = UpscalerBackend.Fsr3;
+        // Not saved, Default at every start: DLSS's preset, for a comparison in the
+        // Debug tab.
+        private DlssPreset dlssPreset = DlssPreset.Default;
 
         private bool skinnedMotionVectors = true;
 

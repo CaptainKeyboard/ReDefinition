@@ -292,6 +292,19 @@ namespace ReDefinition
             if (SwitchRow("Mipmap bias", OnOff(mipmapBias)))
                 SetMipmapBias(!mipmapBias);
 
+            // Not saved: DLSS's preset, live (the proxy creates the feature anew).
+            // NVIDIA's defaults: K for DLAA, Quality and Balanced, M for
+            // Performance, L for Ultra Performance, which ghosts less than J and K
+            // (DLSS Programming Guide 310.6.0, 3.2).
+            GUI.enabled = enabled && backend == UpscalerBackend.Dlss;
+            if (SwitchRow("DLSS preset", dlssPreset.ToString()))
+            {
+                dlssPreset = NextPreset(dlssPreset);
+                if (rig != null) rig.DlssPreset = dlssPreset;
+                Debug.Log(Log.Tag + " DLSS preset: " + dlssPreset + ".");
+            }
+            GUI.enabled = enabled;
+
             if (SwitchRow("Skinned motion vectors", skinnedMotionVectors ? "forced" : "as set"))
                 SetSkinnedMotionVectors(!skinnedMotionVectors);
 
@@ -552,6 +565,17 @@ namespace ReDefinition
         private static readonly GUIContent switchValue = new GUIContent();
 
         // A switch as one row: what it is on the left, its state on the button.
+        private static DlssPreset NextPreset(DlssPreset preset)
+        {
+            switch (preset)
+            {
+                case DlssPreset.Default: return DlssPreset.K;
+                case DlssPreset.K: return DlssPreset.L;
+                case DlssPreset.L: return DlssPreset.M;
+                default: return DlssPreset.Default;
+            }
+        }
+
         private static bool SwitchRow(string label, string value)
         {
             GUILayout.BeginHorizontal();

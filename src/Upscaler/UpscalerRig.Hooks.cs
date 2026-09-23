@@ -43,6 +43,8 @@ namespace ReDefinition.Upscaler
             motionVectorHooksFrame = Time.frameCount;
             SharedFrame.EnsureBegun();
             RecordMotionVectorHooks();
+            // After the hooks: it reads the motion vectors as the upscaler gets them.
+            motionAudit.Record(captureBuffer, cam, motionVectors, depthCopy, renderSize);
         }
 
         // Into the capture at BeforeImageEffects, after Unity's motion vectors and

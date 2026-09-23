@@ -162,6 +162,7 @@ namespace ReDefinition.Upscaler
         private readonly UpscalerMasks masks = new UpscalerMasks();
         private readonly CloudMotionVectors cloudMotion = new CloudMotionVectors();
         private readonly ScaledSpaceMotion scaledMotion = new ScaledSpaceMotion();
+        private readonly MotionVectorAudit motionAudit = new MotionVectorAudit();
         private readonly SkinnedMotionVectors skinned = new SkinnedMotionVectors();
         private int skinnedSeenLoads = -1;
         private static bool loggedPassThroughMsaa;
@@ -665,6 +666,7 @@ namespace ReDefinition.Upscaler
         private void Awake()
         {
             GameEvents.onFloatingOriginShift.Add(OnFloatingOriginShift);
+            motionAudit.Enable();
         }
 
         // A rig can go without Teardown: destroyed with its camera when a scene
@@ -676,6 +678,7 @@ namespace ReDefinition.Upscaler
         private void OnDestroy()
         {
             GameEvents.onFloatingOriginShift.Remove(OnFloatingOriginShift);
+            motionAudit.Disable();
             Teardown();
         }
 

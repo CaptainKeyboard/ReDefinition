@@ -72,6 +72,7 @@ namespace ReDefinition.MotionVectorCheck
             yield return Measure("camera", () => cam.transform.position = new Vector3(-0.3f, -0.2f, -10f));
             for (int i = 0; i < StillFrames; i++) yield return null;
             yield return Measure("object", () => sphere.transform.position += new Vector3(0.3f, 0.2f, 0f));
+            yield return ReadBack();
 
             System.IO.File.WriteAllText(path, result.ToString());
             Application.Quit();
@@ -139,6 +140,28 @@ namespace ReDefinition.MotionVectorCheck
             Vector2 oursMean = pixels > 0 ? oursSum / pixels : Vector2.zero;
             result.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5} {6}",
                 label, pixels, covered, unityMean.x, unityMean.y, oursMean.x, oursMean.y));
+        }
+
+        // How MotionVectorAudit in the plugin addresses a pixel: a viewport position,
+        // y up, read with AsyncGPUReadback at row y times the height. The sphere's
+        // centre read so must be the sphere, and the row mirrored must not.
+        private IEnumerator ReadBack()
+        {
+            Vector3 viewport = cam.WorldToViewportPoint(sphere.transform.position);
+            int x = Mathf.FloorToInt(viewport.x * Width);
+            int y = Mathf.FloorToInt(viewport.y * Height);
+            float atRow = -1f, mirrored = -1f;
+            CommandBuffer read = new CommandBuffer();
+            read.RequestAsyncReadback(color, 0, x, 1, y, 1, 0, 1,
+                r => { if (!r.hasError) atRow = r.GetData<ushort>()[0]; });
+            read.RequestAsyncReadback(color, 0, x, 1, Height - 1 - y, 1, 0, 1,
+                r => { if (!r.hasError) mirrored = r.GetData<ushort>()[0]; });
+            Graphics.ExecuteCommandBuffer(read);
+            for (int i = 0; i < 10 && (atRow < 0f || mirrored < 0f); i++) yield return null;
+            AsyncGPUReadback.WaitAllRequests();
+            result.AppendLine(string.Format(CultureInfo.InvariantCulture, "readback {0} {1}",
+                atRow < 0f ? -1f : Mathf.HalfToFloat((ushort)atRow),
+                mirrored < 0f ? -1f : Mathf.HalfToFloat((ushort)mirrored)));
         }
 
         private static Texture2D Read(RenderTexture texture, TextureFormat format)

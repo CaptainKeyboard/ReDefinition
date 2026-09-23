@@ -529,6 +529,7 @@ namespace ReDefinition
             created.Sharpness = sharpness;
             created.Sharpening = sharpness > 0f;
             created.AutoExposure = autoExposure;
+            created.DlssPreset = dlssPreset;
             created.EnableMipmapBias = mipmapBias;
             // Bypass is the upscaler's diagnostic; frame generation's capture has no
             // upscaler to bypass, and would send nothing with it.

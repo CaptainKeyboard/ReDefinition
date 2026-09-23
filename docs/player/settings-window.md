@@ -306,7 +306,7 @@ chosen technique cannot run, it names the reason, and after a failure it offers
 | Section | Holds |
 |---|---|
 | Measure | for troubleshooting and bug reports: the frame rates with the upscaler on and off, the load of the main thread, the render thread and the GPU, *Write diagnostics to log*, *Without upscaler (bypass)*, and *Motion vector check on fast turns* with frame generation, which is not saved. The load is measured only while this tab is open |
-| What the upscaler receives | switches for a bug report, each explained by its tooltip: Jitter; EVE clouds: jitter and motion vectors, not saved; Mipmap bias; Skinned motion vectors; TUFX after upscaling; Auto exposure for FSR 3 and AMD; Transparency mask and Reactive mask for FSR 3 |
+| What the upscaler receives | switches for a bug report, each explained by its tooltip: Jitter; EVE clouds: jitter and motion vectors, not saved; Mipmap bias; DLSS preset, not saved; Skinned motion vectors; TUFX after upscaling; Auto exposure for FSR 3 and AMD; Transparency mask and Reactive mask for FSR 3 |
 | Game settings while upscaling | LOD bias compensation, MSAA forced off, Anisotropic filtering forced |
 | Interface for mods | *Hook probe, into the log*: registers a handler on each place a mod can add to the frame and writes one line per scene into `KSP.log` for each. It draws nothing, and it is never saved |
 | FSR 3 internals | *FSR's debug view*, in development builds only |

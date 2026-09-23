@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- **DLSS preset in the diagnostics window's Debug tab**, not saved: Default, K, L or M,
+  to compare how DLSS's models treat a scene. Default lets DLSS choose for each mode.
+- **A log line comparing the motion vectors with the true motion** about every ten
+  seconds in flight, on the active vessel and on the ground around it, in pixels.
+
 ### Fixed
 
 - **`ReDefinitionMotionVector` in the shader include writes `y` the right way up.** It

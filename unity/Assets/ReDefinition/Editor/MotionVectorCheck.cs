@@ -17,7 +17,9 @@ namespace ReDefinition.EditorTools
     // for it, runs it, and compares, for a moving camera and a moving object, Unity's motion
     // vectors over a sphere with those pass 2 of Hidden/ReDefinition/CloudMotion computes
     // for it (ScaledSpaceMotion in the plugin, through ReDefinitionMotionVector). Fails when
-    // the pass misses more than a few of the sphere's pixels or its mean differs.
+    // the pass misses more than a few of the sphere's pixels or its mean differs. A third
+    // case reads the sphere's centre with AsyncGPUReadback at the row MotionVectorAudit in
+    // the plugin reads, the viewport y times the height.
     //
     //   Unity.exe -batchmode -quit -projectPath <unity>
     //     -executeMethod ReDefinition.EditorTools.MotionVectorCheck.RunFromCommandLine
@@ -120,10 +122,21 @@ namespace ReDefinition.EditorTools
         {
             string[] lines = File.ReadAllLines(resultPath);
             int cases = 0;
+            bool readback = false;
             foreach (string line in lines)
             {
                 Debug.Log("ReDefinition motion vector check: " + line);
                 string[] f = line.Split(' ');
+                if (f.Length == 3 && f[0] == "readback")
+                {
+                    readback = true;
+                    float atRow = Float(f[1]), mirrored = Float(f[2]);
+                    if (atRow < 0.1f || mirrored > 0.05f)
+                        problems.Add("readback: at the sphere's viewport row " + atRow.ToString("0.00")
+                                     + ", mirrored " + mirrored.ToString("0.00") + "; MotionVectorAudit reads the"
+                                     + " wrong row.");
+                    continue;
+                }
                 if (f.Length != 7 || (f[0] != "camera" && f[0] != "object")) continue;
                 cases++;
                 int pixels = int.Parse(f[1], CultureInfo.InvariantCulture);
@@ -143,6 +156,7 @@ namespace ReDefinition.EditorTools
                     problems.Add(f[0] + ": computed " + Show(ours) + ", Unity " + Show(unity) + ".");
             }
             if (cases != 2) problems.Add("the result has " + cases + " of 2 cases.");
+            if (!readback) problems.Add("the result has no readback line.");
         }
 
         private static float Float(string text)

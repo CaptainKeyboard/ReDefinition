@@ -324,6 +324,15 @@ In the diagnostics window's *Debug* tab
 * **Camera and origin**, about every ten seconds: frames with an origin shift, the largest
   re-centring and Krakensbane step, the largest turn and move in ordinary frames, and turn
   and jump at detected cuts.
+* **Motion vectors against the true motion**, about every ten seconds in flight
+  (`MotionVectorAudit`): every fifth frame the capture reads back the finished motion
+  vectors and depth at the centres of three of the vessel's parts and at four points low
+  in the picture. The pixel's world position, taken back from its depth, is moved back
+  by the part's change of transform or, for the ground, not at all, and projected with
+  this and the previous frame's view-projection. The line gives, for vessel and ground,
+  the samples, the mean and largest difference from what was read in pixels, the mean
+  motion, and the worst sample. Frames with an origin shift or a reset are left out.
+  `MotionVectorCheck` in the Unity project checks the pixel addressing it relies on.
 * **Motion vector check on fast turns**, with frame generation: a fast turn asks the proxy
   for its motion vector check at once, and a line says what the camera did.
 * **Write diagnostics to log**: what the cameras, the inputs, the masks, the proxy's
