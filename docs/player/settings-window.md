@@ -35,16 +35,17 @@ reach the scene behind it.
 
 ## The pause button
 
-In flight, the button in the window's title row holds the flight while the window is
-open. It shows two bars while the flight runs and a triangle while it is held, so it
-shows what a click does.
+In flight, map view included, in the space centre and in the tracking station, the
+button in the window's title row holds game time while the window is open. It shows two
+bars while the game runs and a triangle while it is held, so it shows what a click
+does.
 
-Closing the window lets the flight run again, whether you close it with *Accept*, with
+Closing the window lets the game run again, whether you close it with *Accept*, with
 *Cancel*, with Escape or with the toolbar button. Only KSP's own pause menu keeps it
 paused, since that pause is not this window's. Your choice is kept, so the next time
 you open the window it holds the flight again.
 
-Outside flight there is nothing to hold and the button is dead.
+In the main menu and the editors no game time runs, and the button is dead.
 
 While a flight runs behind the window, it is thinner than KSP's own dialogs, and the
 rows are written with a shadow under them so that they read against a bright sky or

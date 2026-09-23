@@ -23,6 +23,9 @@
 
 ### Changed
 
+- **The pause button works in the space centre and the tracking station too**, where
+  game time runs as well. There it stops Unity's time scale and gives it back through
+  KSP's time warp, as KSP does when it unpauses a flight.
 - **ReDefinition's toolbar button is not in the main menu any more**: the
   *ReDefinition* entry under *Settings* opens the window there.
 - **The DLSS preset is gone**: DLSS runs the model its library chooses for each mode.

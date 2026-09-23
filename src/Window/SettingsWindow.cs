@@ -167,10 +167,10 @@ namespace ReDefinition.Window
                 spawned.OnDismiss = () => gone();
                 UnityMouseEvents.Shield(dialog);
                 WindowPause.PlaceInTitleRow(dialog);
-                // See-through only where a flight runs behind the window: in the
-                // main menu, the space centre and the editors nothing moves, and
-                // the window is drawn as it is while it holds a flight.
-                WindowBackdrop.Add(dialog, WindowPause.Wanted || !WindowPause.Possible);
+                // See-through only where a flight runs behind the window; in the
+                // main menu, the space centre, the tracking station and the
+                // editors, and while it holds the flight, it is drawn nearly opaque.
+                WindowBackdrop.Add(dialog, !WindowPause.FlightRunsBehind);
                 ScrollThrough.Apply(dialog.popupWindow);
                 WindowPause.Refresh();
             }

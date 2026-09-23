@@ -6,12 +6,19 @@ using UnityEngine;
 namespace ReDefinition.Window
 {
     // The pause button at the top of the settings window: while it is on and the
-    // window is open, the flight is paused.
+    // window is open, game time stands still.
     //
-    // The pause itself is KSP's own (FlightDriver.SetPause, as Parallax pauses
-    // while it rebuilds its scatter). Closing the window lets the flight run
-    // again, and opening it holds the flight anew -- unless KSP's own pause menu
-    // stands, which is a pause of the player's own and stays.
+    // In flight, map view included, the pause is KSP's own (FlightDriver.SetPause,
+    // as Parallax pauses while it rebuilds its scatter). In the space centre and
+    // the tracking station game time runs as well: Planetarium advances it in
+    // FixedUpdate, by the fixed step times TimeWarp's rate (decompiled), and there
+    // is no FlightDriver. There Unity's time scale goes to 0, which stops the fixed
+    // steps, and comes back through TimeWarp.SetRate with its current rate, as
+    // FlightDriver does when it unpauses.
+    //
+    // Closing the window lets the game run again, and opening it holds it anew --
+    // unless KSP's own pause menu stands in flight, which is a pause of the
+    // player's own and stays.
     //
     // The button sits in the window's title row. The title is a child object of
     // the dialog's window named Title (PopupDialog.SetPopupData, decompiled), so
@@ -19,9 +26,9 @@ namespace ReDefinition.Window
     // belongs, and out of the window's vertical layout, which would give it a
     // row of its own.
     //
-    // Only in flight: the space centre and the editors have no physics to hold.
-    // The choice is one of ReDefinition's own settings, so it is there again at the
-    // next opening.
+    // Not in the main menu and the editors, where no game time runs. The choice
+    // is one of ReDefinition's own settings, so it is there again at the next
+    // opening.
     //
     // The button carries a symbol rather than a word: two bars while the flight
     // runs, a triangle while this window holds it. Both are drawn here into a
@@ -46,8 +53,10 @@ namespace ReDefinition.Window
         private static DialogGUIButton button;
         private static DialogGUIImage symbol;
 
-        // Whether this window is holding the flight.
+        // Whether this window is holding the game, and whether through the
+        // time scale rather than FlightDriver.
         private static bool holding;
+        private static bool byTimeScale;
 
         internal static bool Wanted
         {
@@ -58,9 +67,23 @@ namespace ReDefinition.Window
             }
         }
 
+        // Where game time runs: in flight, and in the space centre and the
+        // tracking station.
         internal static bool Possible
         {
-            get { return HighLogic.LoadedSceneIsFlight && FlightDriver.fetch != null; }
+            get
+            {
+                if (HighLogic.LoadedSceneIsFlight) return FlightDriver.fetch != null;
+                return HighLogic.LoadedScene == GameScenes.SPACECENTER
+                       || HighLogic.LoadedScene == GameScenes.TRACKSTATION;
+            }
+        }
+
+        // A flight runs behind the window and is not held: the window is drawn
+        // see-through only then (WindowBackdrop).
+        internal static bool FlightRunsBehind
+        {
+            get { return HighLogic.LoadedSceneIsFlight && FlightDriver.fetch != null && !Wanted; }
         }
 
         // The window opened, or the switch was flipped while it stands.
@@ -73,7 +96,7 @@ namespace ReDefinition.Window
             }
             catch (Exception e)
             {
-                CompatibilityLog.Warn("window-pause", "The flight could not be paused for the settings window ("
+                CompatibilityLog.Warn("window-pause", "The game could not be paused for the settings window ("
                                       + CompatibilityLog.Reason(e) + ").");
             }
         }
@@ -83,6 +106,15 @@ namespace ReDefinition.Window
         {
             if (!holding) return;
             holding = false;
+            if (byTimeScale)
+            {
+                // Whatever scene it is by now: a time scale left at 0 would stop
+                // the next one as well.
+                byTimeScale = false;
+                if (TimeWarp.fetch != null) TimeWarp.SetRate(TimeWarp.CurrentRateIndex, true, false);
+                else Time.timeScale = 1f;
+                return;
+            }
             if (!HighLogic.LoadedSceneIsFlight) return;
             // The flight runs again with the window gone. Only KSP's own pause
             // menu keeps it: that pause is the player's, not this window's.
@@ -108,15 +140,17 @@ namespace ReDefinition.Window
         {
             if (holding) return;
             holding = true;
-            FlightDriver.SetPause(true);
+            byTimeScale = !HighLogic.LoadedSceneIsFlight;
+            if (byTimeScale) Time.timeScale = 0f;
+            else FlightDriver.SetPause(true);
         }
 
         internal static DialogGUIBase Button()
         {
             symbol = new DialogGUIImage(new Vector2(IconSize, IconSize), Vector2.zero, Color.white, Symbol());
             button = new DialogGUIButton("", Toggle, ButtonSize, ButtonSize, false, symbol);
-            button.tooltipText = "Pauses the flight while this window is open. The flight runs again when the window"
-                                 + " closes.";
+            button.tooltipText = "Pauses the game while this window is open: in flight, in the space centre and in"
+                                 + " the tracking station.\nThe game runs again when the window closes.";
             button.OptionInteractableCondition = () => Possible;
             return button;
         }
