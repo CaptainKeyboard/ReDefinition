@@ -34,6 +34,9 @@ namespace ReDefinition
 
         // KSP's Settings buttons open ReDefinition's window (OwnSettings).
         private bool replaceKspSettings;
+
+        // ReDefinition's own button in KSP's toolbar; off at first.
+        private bool showToolbarButton;
         private bool forceAnisotropic = true;
         // FSR's own exposure for its internal tonemapping, as AMD recommends
         // (UpscalerRig.AutoExposure).
@@ -83,6 +86,7 @@ namespace ReDefinition
             disableMsaa = loaded.DisableMsaa;
             pauseWhileOpen = loaded.PauseWhileOpen;
             replaceKspSettings = loaded.ReplaceKspSettings;
+            showToolbarButton = loaded.ShowToolbarButton;
             forceAnisotropic = loaded.ForceAnisotropic;
             tufxAfterUpscaling = loaded.TufxAfterUpscaling;
             transparencyMask = loaded.TransparencyMask;
@@ -147,6 +151,7 @@ namespace ReDefinition
             settings.DisableMsaa = disableMsaa;
             settings.PauseWhileOpen = pauseWhileOpen;
             settings.ReplaceKspSettings = replaceKspSettings;
+            settings.ShowToolbarButton = showToolbarButton;
             settings.ForceAnisotropic = forceAnisotropic;
             settings.TufxAfterUpscaling = tufxAfterUpscaling;
             settings.TransparencyMask = transparencyMask;
@@ -239,10 +244,32 @@ namespace ReDefinition
             get { return replaceKspSettings; }
         }
 
+        internal bool ShowToolbarButton
+        {
+            get { return showToolbarButton; }
+        }
+
         internal bool PauseWhileOpen
         {
             get { return pauseWhileOpen; }
             set { pauseWhileOpen = value; }
+        }
+
+        // The button comes and goes with the switch, without a scene change.
+        private void SetShowToolbarButton(bool value)
+        {
+            showToolbarButton = value;
+            if (toolbarButton == null) return;
+            if (value)
+            {
+                toolbarButton.Register();
+                toolbarButton.Reflect(ReDefinition.Window.SettingsWindow.Visible);
+            }
+            else
+            {
+                toolbarButton.Unregister();
+            }
+            Debug.Log(Log.Tag + " ReDefinition's toolbar button " + (value ? "shown." : "hidden."));
         }
 
         private void SetDisableMsaa(bool value)
@@ -442,6 +469,7 @@ namespace ReDefinition
             if (before.SkinnedMotionVectors != after.SkinnedMotionVectors)
                 SetSkinnedMotionVectors(after.SkinnedMotionVectors);
             if (before.Enabled != after.Enabled && after.Enabled) SetEnabled(true);
+            if (before.ShowToolbarButton != after.ShowToolbarButton) SetShowToolbarButton(after.ShowToolbarButton);
             if (before.ReplaceKspSettings != after.ReplaceKspSettings)
             {
                 replaceKspSettings = after.ReplaceKspSettings;
