@@ -91,7 +91,7 @@ ReDefinition the globals are zero and the functions fall back: the sizes to
 | `ReDefinitionJitterPixels()`, `ReDefinitionJitterNdc()` | the jitter |
 | `ReDefinitionRemoveJitter(clip)` | a clip-space position from the camera's own matrices (`UnityObjectToClipPos`) without the jitter, with `y` flipped as `_ProjectionParams.x` says |
 | `ReDefinitionOriginShift()`, `ReDefinitionOriginShifted()` | the floating origin's shift |
-| `ReDefinitionMotionVector(clipCurrent, clipPrevious)` | a motion vector in Unity's encoding, from this frame's and the previous frame's clip-space position, both without jitter and with `y` up |
+| `ReDefinitionMotionVector(clipCurrent, clipPrevious)` | a motion vector in the encoding of the rig's motion vectors, from this frame's and the previous frame's clip-space position, both without jitter and with `y` up |
 
 If a vertex shader moves geometry, waves or wind for example, the motion vector pass
 computes the position twice, with this frame's and the previous frame's parameters:
@@ -154,15 +154,14 @@ ReDefinitionApi.RegisterMotionVectors((buffer, motionVectors, depth, scene) =>
 });
 ```
 
-* `motionVectors` is `RGHalf` at render size, in Unity's encoding: the current minus the
-  previous viewport position, viewport coordinates running from 0 to 1, with `y` flipped
-  where `UNITY_UV_STARTS_AT_TOP`. Unity's `Internal-MotionVectors.shader` defines it, and
+* `motionVectors` is `RGHalf` at render size, in the encoding Unity's
+  `Internal-MotionVectors.shader` writes for a camera that renders into a render texture,
+  as the scene camera does while ReDefinition runs: the current minus the previous
+  viewport position, viewport coordinates running from 0 to 1, `y` up.
   `ReDefinitionMotionVector` in the include writes it.
-* Take both positions without jitter and with `y` up, as Unity's `_NonJitteredVP` and
-  `_PreviousVP` are. Build them from
+* Take both positions without jitter and with `y` up. Build them from
   `GL.GetGPUProjectionMatrix(scene.nonJitteredProjectionMatrix, false)` and
   `scene.worldToCameraMatrix`, this frame's and the one you kept from the previous frame.
-  The motion vector pass flips `y` itself.
 * `depth` is the scene's raw depth at render size, `RFloat`, reversed on Direct3D 11,
   where 1 is near and 0 is far, to test against.
 * Every upscaler and frame generation read the result.

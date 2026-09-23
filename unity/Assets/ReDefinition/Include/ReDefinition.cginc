@@ -102,20 +102,19 @@ inline bool ReDefinitionOriginShifted()
     return _ReDefinition_OriginShift.w > 0.5;
 }
 
-// A motion vector in Unity's encoding, the one Hidden/Internal-MotionVectors writes and
-// every upscaler and frame generation read: the current minus the previous viewport
-// position, 0 to 1, y flipped where UNITY_UV_STARTS_AT_TOP. The two positions in clip space
-// without jitter and with y up -- a world position through
+// A motion vector in the encoding Hidden/Internal-MotionVectors writes for a camera that
+// renders into a render texture, as every camera ReDefinition redirects does, and every
+// upscaler and frame generation read: the current minus the previous viewport position,
+// 0 to 1, y up. Unity projects there with the render texture's flipped projection and flips
+// y back where UNITY_UV_STARTS_AT_TOP, so the two cancel (measured in a Unity 2019.4.18f1
+// player on Direct3D 11). The two positions in clip space without jitter and with y up --
+// a world position through
 // GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix, false) * worldToCameraMatrix,
-// this frame's and the frame before's, as Unity's _NonJitteredVP and _PreviousVP are.
+// this frame's and the previous frame's.
 inline half4 ReDefinitionMotionVector(float4 clipCurrent, float4 clipPrevious)
 {
     float2 current = (clipCurrent.xy / clipCurrent.w + 1.0) * 0.5;
     float2 previous = (clipPrevious.xy / clipPrevious.w + 1.0) * 0.5;
-#if UNITY_UV_STARTS_AT_TOP
-    current.y = 1.0 - current.y;
-    previous.y = 1.0 - previous.y;
-#endif
     return half4(current - previous, 0, 1);
 }
 

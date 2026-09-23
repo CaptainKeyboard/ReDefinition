@@ -156,6 +156,24 @@ not in the bundle. After a change, compile it with every function called:
 
 The exit code is 1 on any shader error or warning, which the log names with its line.
 
+## Check the computed motion vectors
+
+The distant planets' motion vectors and `ReDefinitionMotionVector` in the include are
+computed, not taken from Unity. After a change to either, compare them with Unity's own:
+
+```
+"C:\Program Files\Unity\Editor\Unity.exe" -batchmode -quit -projectPath unity ^
+    -executeMethod ReDefinition.EditorTools.MotionVectorCheck.RunFromCommandLine ^
+    -logFile build\motion-vector-check.log
+```
+
+It builds a small Windows player into `build\motion-vector-check` and runs it. A window
+opens for a few seconds and stays black, since the camera renders into a render texture.
+The player moves first its camera, then a sphere, and writes Unity's motion vectors over
+the sphere next to those pass 2 of the cloud motion shader computes. The exit code is 1
+when the pass misses more than 5% of the sphere's pixels or its mean differs from
+Unity's by more than 3%. The log shows both values for each case.
+
 ## Build the proxy
 
 You need MSVC with the C++ workload and a Windows 10 SDK. The CMake that comes with Visual

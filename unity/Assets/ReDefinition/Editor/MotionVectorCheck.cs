@@ -1,0 +1,158 @@
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using ReDefinition.MotionVectorCheck;
+using UnityEditor;
+using UnityEditor.Build.Reporting;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using Debug = UnityEngine.Debug;
+
+namespace ReDefinition.EditorTools
+{
+    // Checks the motion vectors ReDefinition computes against Unity's own, in a Windows
+    // player: in the editor the frames do not advance between renders, and Unity keeps the
+    // previous frame's matrices. Builds the player with MotionVectorProbe in a scene made
+    // for it, runs it, and compares, for a moving camera and a moving object, Unity's motion
+    // vectors over a sphere with those pass 2 of Hidden/ReDefinition/CloudMotion computes
+    // for it (ScaledSpaceMotion in the plugin, through ReDefinitionMotionVector). Fails when
+    // the pass misses more than a few of the sphere's pixels or its mean differs.
+    //
+    //   Unity.exe -batchmode -quit -projectPath <unity>
+    //     -executeMethod ReDefinition.EditorTools.MotionVectorCheck.RunFromCommandLine
+    //     -logFile build/motion-vector-check.log
+    public static class MotionVectorCheck
+    {
+        private const string ScenePath = "Assets/ReDefinition/MotionVectorCheck/MotionVectorCheck.unity";
+        private const string ShaderPath = "Assets/ReDefinition/Shaders/ReDefinitionCloudMotion.shader";
+        private const string PlayerDirectory = "../build/motion-vector-check";
+        private const int TimeoutMilliseconds = 120000;
+
+        // The sphere is a mesh, the pass hits a true sphere: its rim differs by a pixel.
+        private const float MinimumCoverage = 0.95f;
+        private const float RelativeTolerance = 0.03f;
+        private const float AbsoluteTolerance = 2e-4f;
+
+        public static void RunFromCommandLine()
+        {
+            List<string> problems = new List<string>();
+            string resultPath = Path.GetFullPath(Path.Combine(PlayerDirectory, "result.txt"));
+            try
+            {
+                string player = BuildPlayer(problems);
+                if (player != null) RunPlayer(player, resultPath, problems);
+                if (problems.Count == 0) Judge(resultPath, problems);
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(ScenePath);
+            }
+
+            if (problems.Count > 0)
+            {
+                foreach (string problem in problems) Debug.LogError("ReDefinition motion vector check: " + problem);
+                EditorApplication.Exit(1);
+                return;
+            }
+            Debug.Log("ReDefinition motion vector check: the computed motion vectors match Unity's.");
+            EditorApplication.Exit(0);
+        }
+
+        private static string BuildPlayer(List<string> problems)
+        {
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            MotionVectorProbe probe = new GameObject("MotionVectorProbe").AddComponent<MotionVectorProbe>();
+            probe.cloudMotion = AssetDatabase.LoadAssetAtPath<Shader>(ShaderPath);
+            // Standard writes depth, which Unity's camera motion reads.
+            probe.surface = Shader.Find("Standard");
+            if (probe.cloudMotion == null || probe.surface == null)
+            {
+                problems.Add("the shaders for the probe did not load.");
+                return null;
+            }
+            EditorSceneManager.SaveScene(scene, ScenePath);
+
+            string player = Path.GetFullPath(Path.Combine(PlayerDirectory, "MotionVectorCheck.exe"));
+            // Without focus a player stops its frames unless it runs in the background.
+            bool runInBackground = PlayerSettings.runInBackground;
+            PlayerSettings.runInBackground = true;
+            BuildReport report;
+            try
+            {
+                report = BuildPipeline.BuildPlayer(new[] { ScenePath }, player,
+                    BuildTarget.StandaloneWindows64, BuildOptions.None);
+            }
+            finally
+            {
+                PlayerSettings.runInBackground = runInBackground;
+            }
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                problems.Add("the player did not build (" + report.summary.result + ").");
+                return null;
+            }
+            return player;
+        }
+
+        private static void RunPlayer(string player, string resultPath, List<string> problems)
+        {
+            if (File.Exists(resultPath)) File.Delete(resultPath);
+            ProcessStartInfo start = new ProcessStartInfo(player,
+                "-screen-fullscreen 0 -screen-width 640 -screen-height 360 -logFile \""
+                + Path.Combine(Path.GetDirectoryName(player), "player.log") + "\" -result \"" + resultPath + "\"")
+            {
+                UseShellExecute = false,
+            };
+            using (Process process = Process.Start(start))
+            {
+                if (!process.WaitForExit(TimeoutMilliseconds))
+                {
+                    process.Kill();
+                    problems.Add("the player did not finish within " + TimeoutMilliseconds / 1000 + " s.");
+                    return;
+                }
+            }
+            if (!File.Exists(resultPath)) problems.Add("the player wrote no result; see its player.log.");
+        }
+
+        private static void Judge(string resultPath, List<string> problems)
+        {
+            string[] lines = File.ReadAllLines(resultPath);
+            int cases = 0;
+            foreach (string line in lines)
+            {
+                Debug.Log("ReDefinition motion vector check: " + line);
+                string[] f = line.Split(' ');
+                if (f.Length != 7 || (f[0] != "camera" && f[0] != "object")) continue;
+                cases++;
+                int pixels = int.Parse(f[1], CultureInfo.InvariantCulture);
+                int covered = int.Parse(f[2], CultureInfo.InvariantCulture);
+                Vector2 unity = new Vector2(Float(f[3]), Float(f[4]));
+                Vector2 ours = new Vector2(Float(f[5]), Float(f[6]));
+                if (pixels < 100)
+                {
+                    problems.Add(f[0] + ": the sphere covers only " + pixels + " pixels.");
+                    continue;
+                }
+                if (unity.magnitude < 1e-3f)
+                    problems.Add(f[0] + ": Unity's motion vectors show no motion (" + Show(unity) + ").");
+                if (covered < MinimumCoverage * pixels)
+                    problems.Add(f[0] + ": the pass covers " + covered + " of the sphere's " + pixels + " pixels.");
+                if ((ours - unity).magnitude > AbsoluteTolerance + RelativeTolerance * unity.magnitude)
+                    problems.Add(f[0] + ": computed " + Show(ours) + ", Unity " + Show(unity) + ".");
+            }
+            if (cases != 2) problems.Add("the result has " + cases + " of 2 cases.");
+        }
+
+        private static float Float(string text)
+        {
+            return float.Parse(text, CultureInfo.InvariantCulture);
+        }
+
+        private static string Show(Vector2 value)
+        {
+            return value.ToString("F5");
+        }
+    }
+}

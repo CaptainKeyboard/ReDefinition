@@ -211,10 +211,9 @@ blended over the result. The scaled camera is left as it is: asking Unity for it
 vectors made the picture flicker everywhere with DLSS. EVE's two-dimensional cloud layers
 drift by a shader and keep the planet's motion under them.
 
-Measured in a Unity 2019.4.18f1 editor on Direct3D 11 with a sphere rendered into a render
-texture: the pass writes on exactly the sphere's pixels, and its values match the moved
-position's viewport difference in Unity's encoding, `y` flipped as
-`Internal-MotionVectors.shader` flips it.
+Measured in a Unity 2019.4.18f1 player on Direct3D 11, with a moving sphere drawn by a
+camera that renders into a render texture: the pass writes on exactly the sphere's pixels,
+with the values Unity's own motion vectors carry there, `y` up.
 
 ### EVE's volumetric clouds
 

@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **`ReDefinitionMotionVector` in the shader include writes `y` the right way up.** It
+  flipped `y` where Unity does not for a camera that renders into a render texture, as
+  the scene camera does while ReDefinition runs, so motion drawn with it pointed the
+  wrong way vertically.
 - **Planets and their clouds seen from orbit no longer trail under time warp.** Their
   pixels carried only the camera's turn as motion, not the planet's rotation or the
   vessel's travel along its orbit. The distant planets' motion is now computed from the

@@ -18,7 +18,8 @@ namespace ReDefinition.Api
         /// vectors and EVE's clouds are written; every upscaler and frame generation read the result.
         /// </summary>
         /// <param name="handler">Given the capture buffer; the motion vectors (<c>RGHalf</c> at render
-        /// size, the current minus the previous viewport position, as Unity encodes them -- see
+        /// size, the current minus the previous viewport position, y up, as Unity encodes them for a camera
+        /// that renders into a render texture -- see
         /// <c>ReDefinitionMotionVector</c> in ReDefinition.cginc); the scene's raw depth at the same size
         /// (<c>RFloat</c>); and the scene camera.</param>
         public static void RegisterMotionVectors(Action<CommandBuffer, RenderTexture, RenderTexture, Camera> handler)
