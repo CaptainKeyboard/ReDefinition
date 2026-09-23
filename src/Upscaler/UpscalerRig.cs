@@ -161,6 +161,7 @@ namespace ReDefinition.Upscaler
         private readonly TufxPostProcessing tufx = new TufxPostProcessing();
         private readonly UpscalerMasks masks = new UpscalerMasks();
         private readonly CloudMotionVectors cloudMotion = new CloudMotionVectors();
+        private readonly ScaledSpaceMotion scaledMotion = new ScaledSpaceMotion();
         private readonly SkinnedMotionVectors skinned = new SkinnedMotionVectors();
         private int skinnedSeenLoads = -1;
         private static bool loggedPassThroughMsaa;
@@ -391,6 +392,7 @@ namespace ReDefinition.Upscaler
                 Status = "No 3D cameras found to redirect.";
                 return false;
             }
+            scaledMotion.Attach(redirects, renderSize);
 
             // Before the first frame renders: TUFX's layers are split from it on.
             tufx.Refresh(redirects, cam, TufxAfterUpscaling && !DebugView && !PassThrough, EffectiveHdr, displaySize);
@@ -471,7 +473,17 @@ namespace ReDefinition.Upscaler
             cloudMotion.Record(cam, renderSize);
             captureBuffer.Clear();
             captureBuffer.Blit(DepthIdentifier(Depth), depthCopy);
-            cloudMotion.Capture(captureBuffer, motionVectors, depthCopy);
+            // The distant planets' own motion where the scene camera drew nothing
+            // (ScaledSpaceMotion), then EVE's clouds over it.
+            if (scaledMotion.Active)
+            {
+                scaledMotion.Merge(captureBuffer, depthCopy, renderSize);
+                cloudMotion.Capture(captureBuffer, scaledMotion.Merged, motionVectors, depthCopy);
+            }
+            else
+            {
+                cloudMotion.Capture(captureBuffer, BuiltinRenderTextureType.MotionVectors, motionVectors, depthCopy);
+            }
             // Other mods' motion vectors over Unity's and the clouds' follow as the camera
             // culls (OnPreCull), with the frame's state decided.
             motionVectorHooksFrame = -1;
@@ -568,6 +580,7 @@ namespace ReDefinition.Upscaler
             tufx.Dispose();
             masks.Dispose();
             cloudMotion.Dispose();
+            scaledMotion.Dispose();
             skinned.Restore();
 
             // The proxy hears about frame generation only through the dispatch, and
