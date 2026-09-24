@@ -130,13 +130,16 @@ namespace ReDefinition.EditorTools
             {
                 Debug.Log("ReDefinition motion vector check: " + line);
                 string[] f = line.Split(' ');
-                if (f.Length == 4 && (f[0] == "audit" || f[0] == "auditWrong"))
+                if (f.Length == 4 && (f[0] == "audit" || f[0] == "auditWrong" || f[0] == "repair"))
                 {
                     audits++;
                     long audited = long.Parse(f[1], CultureInfo.InvariantCulture);
                     long bad = long.Parse(f[2], CultureInfo.InvariantCulture);
                     if (audited < 100)
                         problems.Add(f[0] + ": the audit found only " + audited + " of the sphere's pixels.");
+                    else if (f[0] == "repair" && bad > 0.02 * audited)
+                        problems.Add("repair: " + bad + " of " + audited + " pixels off after pass 1 wrote them;"
+                                     + " the vessel's motion vectors would be written wrong.");
                     else if (f[0] == "audit" && bad > 0.02 * audited)
                         problems.Add("audit: " + bad + " of " + audited + " pixels off, where Unity's motion vectors are"
                                      + " right; the vessel check would report errors that are not there.");
@@ -175,7 +178,7 @@ namespace ReDefinition.EditorTools
             }
             if (cases != 2) problems.Add("the result has " + cases + " of 2 cases.");
             if (!readback) problems.Add("the result has no readback line.");
-            if (audits != 2) problems.Add("the result has " + audits + " of 2 audit lines.");
+            if (audits != 3) problems.Add("the result has " + audits + " of 3 audit lines.");
         }
 
         private static float Float(string text)

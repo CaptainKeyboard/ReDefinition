@@ -1,5 +1,5 @@
-// The active vessel's motion vectors checked pixel by pixel (VesselMotionAudit in the
-// plugin). Built into redefinition.shaders by BundleBuilder.
+// The active vessel's motion vectors checked and written pixel by pixel
+// (VesselMotionVectors in the plugin). Built into redefinition.shaders by BundleBuilder.
 Shader "Hidden/ReDefinition/MotionAudit"
 {
     SubShader
@@ -79,6 +79,60 @@ Shader "Hidden/ReDefinition/MotionAudit"
                 InterlockedAdd(_AuditStats[slot + 2u], min(sixteenths, 65535u));
                 InterlockedMax(_AuditStats[slot + 3u], sixteenths);
                 return 0;
+            }
+            ENDCG
+        }
+
+        // 1: the same motion vector written into the captured ones, where the
+        // renderer is the surface the scene camera saw. Drawn before the other mods'
+        // motion vector hooks, so a mod that writes its own for a part keeps them.
+        Pass
+        {
+            ZTest Always
+            ZWrite Off
+            Cull Off
+            ColorMask RG
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 3.5
+            #include "UnityCG.cginc"
+            #include "../Include/ReDefinition.cginc"
+
+            float4x4 _AuditRasterViewProjection;
+            float4x4 _AuditViewProjection;
+            float4x4 _AuditPreviousViewProjection;
+            float4x4 _AuditPreviousModel;
+            float4 _AuditTexel;
+            sampler2D _AuditDepth;
+
+            struct v2f
+            {
+                float4 pos : SV_POSITION;
+                float4 now : TEXCOORD0;
+                float4 before : TEXCOORD1;
+            };
+
+            v2f vert (float4 vertex : POSITION)
+            {
+                float4 local = float4(vertex.xyz, 1.0);
+                float4 world = mul(unity_ObjectToWorld, local);
+                v2f o;
+                o.pos = mul(_AuditRasterViewProjection, world);
+                o.now = mul(_AuditViewProjection, world);
+                o.before = mul(_AuditPreviousViewProjection, mul(_AuditPreviousModel, local));
+                return o;
+            }
+
+            float4 frag (v2f i) : SV_Target
+            {
+                float2 uv = i.pos.xy * _AuditTexel.xy;
+                float scene = tex2Dlod(_AuditDepth, float4(uv, 0.0, 0.0)).r;
+                float own = i.pos.z;
+                if (abs(own - scene) > 0.01 * max(own, scene) + 1e-7)
+                    discard;
+                return float4(ReDefinitionMotionVector(i.now, i.before).xy, 0.0, 0.0);
             }
             ENDCG
         }

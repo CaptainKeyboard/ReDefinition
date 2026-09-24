@@ -133,7 +133,7 @@ namespace ReDefinition.Upscaler
         // (CloudMotionVectors).
         public const string MaskShaderName = "Hidden/ReDefinition/Masks";
         public const string CloudMotionShaderName = "Hidden/ReDefinition/CloudMotion";
-        // The vessel's motion vectors checked per pixel (VesselMotionAudit).
+        // The vessel's motion vectors written and checked per pixel (VesselMotionVectors).
         public const string MotionAuditShaderName = "Hidden/ReDefinition/MotionAudit";
         private static readonly Dictionary<string, Shader> namedShaders = new Dictionary<string, Shader>();
         private static readonly Dictionary<string, string> namedShaderErrors = new Dictionary<string, string>();

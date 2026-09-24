@@ -215,6 +215,25 @@ Measured in a Unity 2019.4.18f1 player on Direct3D 11, with a moving sphere draw
 camera that renders into a render texture: the pass writes on exactly the sphere's pixels,
 with the values Unity's own motion vectors carry there, `y` up.
 
+### The active vessel
+
+Measured on the runway with DLSS presets L and M: while the aircraft rolled fast, 0.5 to
+1.2% of its pixels, in up to a quarter of the frames, carried Unity's camera motion, the
+motion of standing ground at that depth, instead of the part's own, off by up to a hundred
+pixels. Most were on the canards, the elevons, the nose and the landing gear. At a
+standstill both agree and it does not show. The upscalers blend in the wrong history at
+those edges, and they flicker.
+
+`VesselMotionVectors` draws each mesh renderer of the active vessel once more at the end
+of the capture with `Hidden/ReDefinition/MotionAudit`, rasterised with the scene camera's
+jittered projection. Where its depth is the captured depth, pass 1 writes the motion
+vector Unity writes for an object: this frame's position against the previous frame's,
+through the renderer's previous matrix and the previous view-projection. It runs before
+the other mods' hooks, so a mod's own motion vectors for a part stay on top. Skinned
+renderers and materials above queue 2500 are left out, and so are frames after an origin
+shift or a reset. NVIDIA's guide suggests drawing the motion vectors of problem objects
+separately (3.6.4). The Debug tab's *Vessel motion vectors* switches back to Unity's.
+
 ### EVE's volumetric clouds
 
 EVE casts the clouds' rays through the projection Unity binds, but reprojects their
@@ -334,14 +353,11 @@ In the diagnostics window's *Debug* tab
   motion, and the worst sample. Frames with an origin shift or a reset are left out.
   `MotionVectorCheck` in the Unity project checks the pixel addressing it relies on.
 * **Vessel motion vectors per pixel**, about every ten seconds in flight
-  (`VesselMotionAudit`): every frame, each mesh renderer of the active vessel is drawn
-  once more at the end of the capture with `Hidden/ReDefinition/MotionAudit`, rasterised
-  with the scene camera's jittered projection. Where its depth is the captured depth, the
-  shader computes the motion vector Unity writes for it from the renderer's previous
-  matrix and compares it with the captured one; per part, a buffer counts pixels, pixels
-  off by more than a pixel and the largest error. The line gives the share off, the
-  frames with more than 0.5% off, apart for frames with and without a physics step, and
-  the parts most off. Skinned renderers and materials above queue 2500 are left out.
+  (`VesselMotionVectors`): pass 0 of the same shader, after the hooks, compares the motion
+  vector computed for each vessel pixel with the one the upscalers read; per part, a
+  buffer counts pixels, pixels off by more than a pixel and the largest error. The line
+  says whether the rig wrote them, and gives the share off, the frames with more than
+  0.5% off, apart for frames with and without a physics step, and the parts most off.
 * **Motion vector check on fast turns**, with frame generation: a fast turn asks the proxy
   for its motion vector check at once, and a line says what the camera did.
 * **Write diagnostics to log**: what the cameras, the inputs, the masks, the proxy's

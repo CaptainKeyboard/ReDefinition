@@ -305,6 +305,15 @@ namespace ReDefinition
             }
             GUI.enabled = enabled;
 
+            // Not saved: the active vessel's motion vectors written by the rig
+            // (VesselMotionVectors), for a look with Unity's own.
+            if (SwitchRow("Vessel motion vectors", VesselMotionVectors.RepairEnabled ? "written" : "Unity's"))
+            {
+                VesselMotionVectors.RepairEnabled = !VesselMotionVectors.RepairEnabled;
+                Debug.Log(Log.Tag + " Vessel motion vectors "
+                          + (VesselMotionVectors.RepairEnabled ? "written by ReDefinition." : "as Unity writes them."));
+            }
+
             if (SwitchRow("Skinned motion vectors", skinnedMotionVectors ? "forced" : "as set"))
                 SetSkinnedMotionVectors(!skinnedMotionVectors);
 

@@ -9,28 +9,36 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Upscaler
 {
-    // An instrument: the active vessel's motion vectors checked on every pixel it
-    // covers, every frame in flight while the rig runs, logged about every ten seconds.
+    // The active vessel's motion vectors, written by the rig and checked on every pixel.
+    //
+    // Measured on the runway with DLSS presets L and M: while the aircraft rolled fast,
+    // 0.5 to 1.2% of its pixels, in up to a quarter of the frames, carried Unity's
+    // camera motion -- the motion of standing ground at that depth -- instead of the
+    // part's own, off by up to a hundred pixels, most on the canards, the elevons, the
+    // nose and the landing gear. At a standstill both agree and it does not show. The
+    // upscalers then blend in the wrong history at those edges, which flickers.
     //
     // At the end of the capture each of the vessel's mesh renderers is drawn once more
     // with Hidden/ReDefinition/MotionAudit, rasterised with the scene camera's jittered
-    // projection so it covers the pixels it covered in the image. Where its depth is the
-    // captured depth -- the surface the camera saw -- the shader computes the motion
-    // vector Unity writes for it, this frame's position against the previous frame's
-    // through the renderer's previous matrix and the previous view-projection, and
-    // compares it with the captured one. Per part a buffer counts the pixels, those off
-    // by more than a pixel, the sum and the largest error; it is read back each frame.
+    // projection so it covers the pixels it covered in the image. Where its depth is
+    // the captured depth -- the surface the camera saw -- the shader computes the motion
+    // vector Unity writes for an object, this frame's position against the previous
+    // frame's through the renderer's previous matrix and the previous view-projection.
+    // Pass 1 writes it into the captured motion vectors, before the other mods' hooks;
+    // pass 0, after them, compares it with what the upscalers read and counts, per part,
+    // the pixels, those off by more than a pixel and the largest error, read back every
+    // frame and logged about every ten seconds. MotionVectorCheck in the Unity project
+    // checks the shader against Unity's own motion vectors.
+    //
     // Skinned renderers are left out, since their previous pose is not at hand; so are
     // materials above queue 2500, which write no motion vectors. Frames with an origin
     // shift or a history reset since the frame before are left out, since there the
-    // previous matrices do not describe the motion.
-    //
-    // The line counts the frames with more than half a percent of the vessel off, apart
-    // for frames with and without a physics step since the frame before: KSP moves the
-    // vessel in FixedUpdate, so a frame without one sees the vessel where it was. It
-    // names the parts most off, with their largest error.
-    internal sealed class VesselMotionAudit
+    // previous matrices do not describe the motion. The repair has a Debug switch, not
+    // saved, for a look with and without.
+    internal sealed class VesselMotionVectors
     {
+        private const int AuditPass = 0;
+        private const int RepairPass = 1;
         private const int MaxParts = 256;
         private const float BadPixels = 1f;
         private const float BadFrameShare = 0.005f;
@@ -46,6 +54,9 @@ namespace ReDefinition.Upscaler
         private static readonly int TexelId = Shader.PropertyToID("_AuditTexel");
         private static readonly int MotionId = Shader.PropertyToID("_AuditMotion");
         private static readonly int DepthId = Shader.PropertyToID("_AuditDepth");
+
+        // The Debug switch; on at every start.
+        internal static bool RepairEnabled = true;
 
         private struct Drawn
         {
@@ -77,6 +88,15 @@ namespace ReDefinition.Upscaler
         private bool shifted;
         private bool subscribed;
         private float windowStart = -1f;
+
+        // This frame's, from Begin.
+        private bool active;
+        private bool continuous;
+        private bool stepped;
+        private Matrix4x4 viewProjection;
+        private Matrix4x4 raster;
+        private Vector2Int size;
+        private bool repairedThisWindow;
 
         private static int physicsSteps;
         private int stepsAtPreviousFrame;
@@ -123,69 +143,95 @@ namespace ReDefinition.Upscaler
         }
 
         // In the scene camera's OnPreCull, after LateUpdate, where KSP has placed the
-        // vessel for this frame; the commands go at the end of the capture.
-        internal void Record(CommandBuffer capture, Camera camera, RenderTexture motionVectors, RenderTexture depth,
-                             Vector2Int size)
+        // vessel for this frame: the frame's matrices, and whether the previous frame's
+        // describe the motion to it.
+        internal void Begin(Camera camera, Vector2Int renderSize)
         {
-            if (camera == null || motionVectors == null || depth == null || !HighLogic.LoadedSceneIsFlight) return;
-            Vessel active = FlightGlobals.ActiveVessel;
-            if (active == null || !Prepare(size)) return;
+            active = false;
+            if (camera == null || !HighLogic.LoadedSceneIsFlight) return;
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            if (vessel == null || !Prepare(renderSize)) return;
+            active = true;
+            size = renderSize;
             if (windowStart < 0f) windowStart = Time.unscaledTime;
 
             Matrix4x4 projection = camera.projectionMatrix;
-            Matrix4x4 viewProjection = GL.GetGPUProjectionMatrix(projection, false) * camera.worldToCameraMatrix;
+            viewProjection = GL.GetGPUProjectionMatrix(projection, false) * camera.worldToCameraMatrix;
             Matrix4x4 jittered = CameraRedirect.JitterActive
                 ? Matrix4x4.Translate(new Vector3(CameraRedirect.JitterNdc.x, CameraRedirect.JitterNdc.y, 0f)) * projection
                 : projection;
-            Matrix4x4 raster = GL.GetGPUProjectionMatrix(jittered, true) * camera.worldToCameraMatrix;
+            raster = GL.GetGPUProjectionMatrix(jittered, true) * camera.worldToCameraMatrix;
 
-            if (active != drawnFor || active.parts.Count != partCount) Choose(active);
+            if (vessel != drawnFor || vessel.parts.Count != partCount) Choose(vessel);
 
-            int steps = physicsSteps - stepsAtPreviousFrame;
+            stepped = physicsSteps != stepsAtPreviousFrame;
             stepsAtPreviousFrame = physicsSteps;
-            bool continuous = previousFrame == Time.frameCount - 1 && !shifted && SharedFrame.RigResetReason == null;
+            continuous = previousFrame == Time.frameCount - 1 && !shifted && SharedFrame.RigResetReason == null;
             shifted = false;
+            if (!continuous) skipped++;
+        }
 
-            if (continuous)
-            {
-                stats.SetData(zeros);
-                capture.SetRenderTarget(target);
-                capture.SetRandomWriteTarget(1, stats);
-                capture.SetGlobalMatrix(RasterId, raster);
-                capture.SetGlobalMatrix(ViewProjectionId, viewProjection);
-                capture.SetGlobalMatrix(PreviousViewProjectionId, previousViewProjection);
-                capture.SetGlobalFloat(BadPixelsId, BadPixels);
-                capture.SetGlobalVector(TexelId, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
-                capture.SetGlobalTexture(MotionId, motionVectors);
-                capture.SetGlobalTexture(DepthId, depth);
-                foreach (Drawn d in drawn)
-                {
-                    Matrix4x4 before;
-                    if (d.Renderer == null || !d.Renderer.enabled || !d.Renderer.gameObject.activeInHierarchy
-                        || !previousModel.TryGetValue(d.Renderer, out before))
-                        continue;
-                    capture.SetGlobalMatrix(PreviousModelId, before);
-                    capture.SetGlobalFloat(PartId, d.Part);
-                    for (int s = 0; s < d.Submeshes; s++) capture.DrawRenderer(d.Renderer, material, s, 0);
-                }
-                capture.ClearRandomWriteTargets();
-                bool stepped = steps > 0;
-                capture.RequestAsyncReadback(stats, request => Read(request, stepped));
-            }
-            else
-            {
-                skipped++;
-            }
+        // Into the capture, before the other mods' motion vector hooks.
+        internal void RecordRepair(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
+        {
+            if (!active || !continuous || !RepairEnabled || motionVectors == null || depth == null) return;
+            repairedThisWindow = true;
+            capture.SetRenderTarget(motionVectors);
+            SetCommon(capture, motionVectors, depth);
+            Draw(capture, RepairPass, false);
+        }
 
+        // Into the capture, after the hooks: what the upscalers read.
+        internal void RecordAudit(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
+        {
+            if (!active || !continuous || motionVectors == null || depth == null) return;
+            stats.SetData(zeros);
+            capture.SetRenderTarget(target);
+            capture.SetRandomWriteTarget(1, stats);
+            SetCommon(capture, motionVectors, depth);
+            capture.SetGlobalFloat(BadPixelsId, BadPixels);
+            Draw(capture, AuditPass, true);
+            capture.ClearRandomWriteTargets();
+            bool withStep = stepped;
+            capture.RequestAsyncReadback(stats, request => Read(request, withStep));
+        }
+
+        // After both: this frame's matrices become the previous ones.
+        internal void End()
+        {
+            if (!active) return;
             foreach (Drawn d in drawn)
                 if (d.Renderer != null) previousModel[d.Renderer] = d.Renderer.localToWorldMatrix;
             previousViewProjection = viewProjection;
             previousFrame = Time.frameCount;
-
             if (Time.unscaledTime - windowStart >= ReportSeconds) Report();
         }
 
-        private bool Prepare(Vector2Int size)
+        private void SetCommon(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
+        {
+            capture.SetGlobalMatrix(RasterId, raster);
+            capture.SetGlobalMatrix(ViewProjectionId, viewProjection);
+            capture.SetGlobalMatrix(PreviousViewProjectionId, previousViewProjection);
+            capture.SetGlobalVector(TexelId, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
+            capture.SetGlobalTexture(MotionId, motionVectors);
+            capture.SetGlobalTexture(DepthId, depth);
+        }
+
+        private void Draw(CommandBuffer capture, int pass, bool withPart)
+        {
+            foreach (Drawn d in drawn)
+            {
+                Matrix4x4 before;
+                if (d.Renderer == null || !d.Renderer.enabled || !d.Renderer.gameObject.activeInHierarchy
+                    || !previousModel.TryGetValue(d.Renderer, out before))
+                    continue;
+                capture.SetGlobalMatrix(PreviousModelId, before);
+                if (withPart) capture.SetGlobalFloat(PartId, d.Part);
+                for (int s = 0; s < d.Submeshes; s++) capture.DrawRenderer(d.Renderer, material, s, pass);
+            }
+        }
+
+        private bool Prepare(Vector2Int renderSize)
         {
             if (state != null) return false;
             if (material == null)
@@ -195,28 +241,33 @@ namespace ReDefinition.Upscaler
                 if (shader == null)
                 {
                     state = error;
-                    Debug.Log(Log.Tag + " Vessel motion vector check left out: " + error + ".");
+                    Debug.Log(Log.Tag + " The vessel's own motion vectors left out: " + error + ".");
                     return false;
                 }
-                material = new Material(shader) { name = "ReDefinition motion audit", hideFlags = HideFlags.DontSave };
+                material = new Material(shader) { name = "ReDefinition vessel motion", hideFlags = HideFlags.DontSave };
+                if (material.passCount <= RepairPass)
+                {
+                    state = FsrShaderBundle.MotionAuditShaderName + " in the shader bundle is older than this build";
+                    Debug.Log(Log.Tag + " The vessel's own motion vectors left out: " + state + ".");
+                    return false;
+                }
             }
             if (stats == null) stats = new ComputeBuffer(MaxParts * 4, sizeof(uint));
             bool created;
-            if (!UpscalerMasks.Ensure(ref target, size, RenderTextureFormat.R8, "ReDefinition_MotionAudit", out created))
-                return false;
-            return true;
+            return UpscalerMasks.Ensure(ref target, renderSize, RenderTextureFormat.R8, "ReDefinition_MotionAudit",
+                                        out created);
         }
 
-        private void Choose(Vessel active)
+        private void Choose(Vessel vessel)
         {
-            drawnFor = active;
-            partCount = active.parts.Count;
+            drawnFor = vessel;
+            partCount = vessel.parts.Count;
             drawn.Clear();
             parts.Clear();
             previousModel.Clear();
-            for (int p = 0; p < active.parts.Count && p < MaxParts; p++)
+            for (int p = 0; p < vessel.parts.Count && p < MaxParts; p++)
             {
-                Part part = active.parts[p];
+                Part part = vessel.parts[p];
                 parts.Add(part);
                 if (part == null) continue;
                 foreach (MeshRenderer renderer in part.GetComponentsInChildren<MeshRenderer>(true))
@@ -240,7 +291,7 @@ namespace ReDefinition.Upscaler
             for (int i = 0; i < tallies.Length; i++) tallies[i] = null;
         }
 
-        private void Read(AsyncGPUReadbackRequest request, bool stepped)
+        private void Read(AsyncGPUReadbackRequest request, bool withStep)
         {
             if (request.hasError) return;
             NativeArray<uint> data = request.GetData<uint>();
@@ -261,7 +312,7 @@ namespace ReDefinition.Upscaler
             pixelsRead += pixels;
             badRead += bad;
             bool badFrame = bad > BadFrameShare * pixels;
-            if (stepped)
+            if (withStep)
             {
                 framesWithStep++;
                 if (badFrame) badFramesWithStep++;
@@ -280,7 +331,8 @@ namespace ReDefinition.Upscaler
             if (framesRead > 0)
             {
                 StringBuilder sb = new StringBuilder();
-                sb.Append(Log.Tag).Append(" Vessel motion vectors per pixel, last ")
+                sb.Append(Log.Tag).Append(" Vessel motion vectors per pixel, ")
+                  .Append(repairedThisWindow ? "written by ReDefinition" : "as Unity wrote them").Append(", last ")
                   .Append(elapsed.ToString("0.0", CultureInfo.InvariantCulture)).Append(" s, ")
                   .Append(framesRead).Append(" frame(s): ").Append(pixelsRead).Append(" pixels, ")
                   .Append(Percent(badRead, pixelsRead)).Append(" off by more than ")
@@ -294,6 +346,7 @@ namespace ReDefinition.Upscaler
             }
             framesRead = framesWithStep = framesWithoutStep = badFramesWithStep = badFramesWithoutStep = skipped = 0;
             pixelsRead = badRead = 0;
+            repairedThisWindow = false;
             for (int i = 0; i < tallies.Length; i++) tallies[i] = null;
         }
 

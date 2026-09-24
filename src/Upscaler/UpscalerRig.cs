@@ -163,7 +163,7 @@ namespace ReDefinition.Upscaler
         private readonly CloudMotionVectors cloudMotion = new CloudMotionVectors();
         private readonly ScaledSpaceMotion scaledMotion = new ScaledSpaceMotion();
         private readonly MotionVectorAudit motionAudit = new MotionVectorAudit();
-        private readonly VesselMotionAudit vesselAudit = new VesselMotionAudit();
+        private readonly VesselMotionVectors vesselMotion = new VesselMotionVectors();
         private readonly SkinnedMotionVectors skinned = new SkinnedMotionVectors();
         private int skinnedSeenLoads = -1;
         private static bool loggedPassThroughMsaa;
@@ -668,13 +668,13 @@ namespace ReDefinition.Upscaler
         {
             GameEvents.onFloatingOriginShift.Add(OnFloatingOriginShift);
             motionAudit.Enable();
-            vesselAudit.Enable();
+            vesselMotion.Enable();
         }
 
-        // Counts KSP's physics steps for VesselMotionAudit.
+        // Counts KSP's physics steps for VesselMotionVectors.
         private void FixedUpdate()
         {
-            VesselMotionAudit.CountPhysicsStep();
+            VesselMotionVectors.CountPhysicsStep();
         }
 
         // A rig can go without Teardown: destroyed with its camera when a scene
@@ -687,7 +687,7 @@ namespace ReDefinition.Upscaler
         {
             GameEvents.onFloatingOriginShift.Remove(OnFloatingOriginShift);
             motionAudit.Disable();
-            vesselAudit.Disable();
+            vesselMotion.Disable();
             Teardown();
         }
 

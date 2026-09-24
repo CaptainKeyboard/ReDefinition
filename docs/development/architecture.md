@@ -168,7 +168,8 @@ The rules the store follows: [settings-store.md](settings-store.md).
 | `UpscalerMasks.cs` | FSR 3's transparency and reactive masks |
 | `EveCloudMotion.cs`, `CloudMotionVectors.cs` | EVE's clouds jittered, and their motion vectors blended into the captured ones |
 | `ScaledSpaceMotion.cs` | the distant planets' motion vectors, computed from the scaled bodies' transforms where the scene camera draws nothing |
-| `MotionVectorAudit.cs`, `VesselMotionAudit.cs` | instruments: the captured motion vectors against the true motion, at sample points and on every vessel pixel |
+| `VesselMotionVectors.cs` | the active vessel's motion vectors written by the rig, and checked on every pixel |
+| `MotionVectorAudit.cs` | an instrument: the captured motion vectors against the true motion at sample points |
 | `TufxPostProcessing.cs` | TUFX's effects split around the upscaler |
 | `HostStack.cs` | other mods' temporal and spatial antialiasing switched off, and what Scatterer's TAA leaves behind |
 | `ScattererCompatibility.cs`, `EveCompatibility.cs` | Scatterer's godrays and EVE's clouds sized for redirected cameras |

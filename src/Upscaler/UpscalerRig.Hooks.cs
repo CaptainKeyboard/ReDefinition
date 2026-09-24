@@ -32,8 +32,8 @@ namespace ReDefinition.Upscaler
 
         // Unity calls it on the components of a camera's object before that camera culls:
         // the rig sits on the scene camera. By then the frame's state is decided
-        // (SharedFrame), which a handler reads, and the distant planets are placed
-        // (ScaledSpaceMotion).
+        // (SharedFrame), which a handler reads, and the distant planets and the active
+        // vessel are placed (ScaledSpaceMotion, VesselMotionVectors).
         private void OnPreCull()
         {
             if (lowRes == null || captureBuffer == null) return;
@@ -42,10 +42,15 @@ namespace ReDefinition.Upscaler
             if (motionVectorHooksFrame == Time.frameCount) return;
             motionVectorHooksFrame = Time.frameCount;
             SharedFrame.EnsureBegun();
+            // The vessel's own motion vectors before the hooks, so a mod's for a part
+            // are drawn over them.
+            vesselMotion.Begin(cam, renderSize);
+            vesselMotion.RecordRepair(captureBuffer, motionVectors, depthCopy);
             RecordMotionVectorHooks();
-            // After the hooks: it reads the motion vectors as the upscaler gets them.
+            // After the hooks: they read the motion vectors as the upscaler gets them.
             motionAudit.Record(captureBuffer, cam, motionVectors, depthCopy, renderSize);
-            vesselAudit.Record(captureBuffer, cam, motionVectors, depthCopy, renderSize);
+            vesselMotion.RecordAudit(captureBuffer, motionVectors, depthCopy);
+            vesselMotion.End();
         }
 
         // Into the capture at BeforeImageEffects, after Unity's motion vectors and

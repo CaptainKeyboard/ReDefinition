@@ -10,9 +10,15 @@
   seconds in flight, on the active vessel and on the ground around it, in pixels.
 - **A log line checking the vessel's motion vectors on every pixel** about every ten
   seconds in flight, per part, with the frames where they were off.
+- **Vessel motion vectors in the Debug tab**, not saved: written by ReDefinition, or
+  Unity's own for a comparison.
 
 ### Fixed
 
+- **The aircraft's edges no longer flicker with DLSS presets L and M, nor with FSR 3 and
+  frame generation.** On a fast run up to a percent of the vessel's pixels carried the
+  ground's motion instead of its own; ReDefinition now writes the vessel's motion vectors
+  itself, checked against Unity's.
 - **`ReDefinitionMotionVector` in the shader include writes `y` the right way up.** It
   flipped `y` where Unity does not for a camera that renders into a render texture, as
   the scene camera does while ReDefinition runs, so motion drawn with it pointed the

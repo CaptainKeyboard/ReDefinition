@@ -148,29 +148,36 @@ namespace ReDefinition.MotionVectorCheck
                 label, pixels, covered, unityMean.x, unityMean.y, oursMean.x, oursMean.y));
         }
 
-        // Hidden/ReDefinition/MotionAudit, as VesselMotionAudit in the plugin draws it, over
+        // Hidden/ReDefinition/MotionAudit, as VesselMotionVectors in the plugin draws it, over
         // the sphere moved in this frame: once with the sphere's previous matrix, where
         // it must find Unity's motion vectors right, and once with the current matrix in
-        // its place, where it must find them wrong.
+        // its place, where it must find them wrong; then pass 1 writes them into empty
+        // motion vectors, where pass 0 must find them right.
         private IEnumerator Audit()
         {
             Matrix4x4 previousViewProjection = ViewProjection();
             Matrix4x4 previousModel = sphere.transform.localToWorldMatrix;
             sphere.transform.position += new Vector3(0.3f, 0.2f, 0f);
             yield return new WaitForEndOfFrame();
-            AuditLine("audit", previousViewProjection, previousModel);
-            AuditLine("auditWrong", previousViewProjection, sphere.transform.localToWorldMatrix);
+            AuditLine("audit", previousViewProjection, previousModel, unityMotion);
+            AuditLine("auditWrong", previousViewProjection, sphere.transform.localToWorldMatrix, unityMotion);
+
+            // Pass 1 into motion vectors that hold none, as the rig's RGHalf ones: pass 0
+            // must then find them right.
+            RenderTexture written = new RenderTexture(Width, Height, 0, RenderTextureFormat.RGHalf);
+            Graphics.Blit(Texture2D.blackTexture, written);
+            Material repair = new Material(motionAudit);
+            CommandBuffer draw = new CommandBuffer { name = "MotionVectorCheck repair" };
+            draw.SetRenderTarget(written);
+            SetAuditGlobals(draw, previousViewProjection, previousModel, written);
+            draw.DrawRenderer(sphere.GetComponent<Renderer>(), repair, 0, 1);
+            Graphics.ExecuteCommandBuffer(draw);
+            AuditLine("repair", previousViewProjection, previousModel, written);
         }
 
-        private void AuditLine(string label, Matrix4x4 previousViewProjection, Matrix4x4 previousModel)
+        private void SetAuditGlobals(CommandBuffer draw, Matrix4x4 previousViewProjection, Matrix4x4 previousModel,
+                                     RenderTexture motion)
         {
-            if (auditTarget == null) auditTarget = new RenderTexture(Width, Height, 0, RenderTextureFormat.R8);
-            ComputeBuffer stats = new ComputeBuffer(4, sizeof(uint));
-            stats.SetData(new uint[4]);
-            Material audit = new Material(motionAudit);
-            CommandBuffer draw = new CommandBuffer { name = "MotionVectorCheck audit" };
-            draw.SetRenderTarget(auditTarget);
-            draw.SetRandomWriteTarget(1, stats);
             draw.SetGlobalMatrix("_AuditRasterViewProjection",
                 GL.GetGPUProjectionMatrix(cam.projectionMatrix, true) * cam.worldToCameraMatrix);
             draw.SetGlobalMatrix("_AuditViewProjection", ViewProjection());
@@ -179,8 +186,21 @@ namespace ReDefinition.MotionVectorCheck
             draw.SetGlobalFloat("_AuditPart", 0f);
             draw.SetGlobalFloat("_AuditBadPixels", 1f);
             draw.SetGlobalVector("_AuditTexel", new Vector4(1f / Width, 1f / Height, Width, Height));
-            draw.SetGlobalTexture("_AuditMotion", unityMotion);
+            draw.SetGlobalTexture("_AuditMotion", motion);
             draw.SetGlobalTexture("_AuditDepth", sceneDepth);
+        }
+
+        private void AuditLine(string label, Matrix4x4 previousViewProjection, Matrix4x4 previousModel,
+                               RenderTexture motion)
+        {
+            if (auditTarget == null) auditTarget = new RenderTexture(Width, Height, 0, RenderTextureFormat.R8);
+            ComputeBuffer stats = new ComputeBuffer(4, sizeof(uint));
+            stats.SetData(new uint[4]);
+            Material audit = new Material(motionAudit);
+            CommandBuffer draw = new CommandBuffer { name = "MotionVectorCheck audit" };
+            draw.SetRenderTarget(auditTarget);
+            draw.SetRandomWriteTarget(1, stats);
+            SetAuditGlobals(draw, previousViewProjection, previousModel, motion);
             draw.DrawRenderer(sphere.GetComponent<Renderer>(), audit, 0, 0);
             draw.ClearRandomWriteTargets();
             Graphics.ExecuteCommandBuffer(draw);
