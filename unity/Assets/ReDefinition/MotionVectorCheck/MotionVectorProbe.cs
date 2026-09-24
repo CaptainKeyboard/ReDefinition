@@ -18,13 +18,14 @@ namespace ReDefinition.MotionVectorCheck
     {
         public Shader cloudMotion;
         public Shader surface;
+        public Shader motionAudit;
 
         private const int Width = 320, Height = 180;
         private const int StillFrames = 30;
 
         private Camera cam;
         private GameObject sphere;
-        private RenderTexture color, unityMotion, farDepth, noMotion, computed;
+        private RenderTexture color, unityMotion, sceneDepth, farDepth, noMotion, computed, auditTarget;
         private Material pass;
         private readonly StringBuilder result = new StringBuilder();
 
@@ -47,6 +48,9 @@ namespace ReDefinition.MotionVectorCheck
             unityMotion = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGBFloat);
             CommandBuffer capture = new CommandBuffer { name = "MotionVectorCheck capture" };
             capture.Blit(BuiltinRenderTextureType.MotionVectors, unityMotion);
+            sceneDepth = new RenderTexture(Width, Height, 0, RenderTextureFormat.RFloat);
+            // As the rig captures it: in the deferred path the only source that holds depth.
+            capture.Blit(BuiltinRenderTextureType.ResolvedDepth, sceneDepth);
             cam.AddCommandBuffer(CameraEvent.BeforeImageEffects, capture);
 
             sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -73,6 +77,8 @@ namespace ReDefinition.MotionVectorCheck
             for (int i = 0; i < StillFrames; i++) yield return null;
             yield return Measure("object", () => sphere.transform.position += new Vector3(0.3f, 0.2f, 0f));
             yield return ReadBack();
+            for (int i = 0; i < StillFrames; i++) yield return null;
+            yield return Audit();
 
             System.IO.File.WriteAllText(path, result.ToString());
             Application.Quit();
@@ -140,6 +146,49 @@ namespace ReDefinition.MotionVectorCheck
             Vector2 oursMean = pixels > 0 ? oursSum / pixels : Vector2.zero;
             result.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5} {6}",
                 label, pixels, covered, unityMean.x, unityMean.y, oursMean.x, oursMean.y));
+        }
+
+        // Hidden/ReDefinition/MotionAudit, as VesselMotionAudit in the plugin draws it, over
+        // the sphere moved in this frame: once with the sphere's previous matrix, where
+        // it must find Unity's motion vectors right, and once with the current matrix in
+        // its place, where it must find them wrong.
+        private IEnumerator Audit()
+        {
+            Matrix4x4 previousViewProjection = ViewProjection();
+            Matrix4x4 previousModel = sphere.transform.localToWorldMatrix;
+            sphere.transform.position += new Vector3(0.3f, 0.2f, 0f);
+            yield return new WaitForEndOfFrame();
+            AuditLine("audit", previousViewProjection, previousModel);
+            AuditLine("auditWrong", previousViewProjection, sphere.transform.localToWorldMatrix);
+        }
+
+        private void AuditLine(string label, Matrix4x4 previousViewProjection, Matrix4x4 previousModel)
+        {
+            if (auditTarget == null) auditTarget = new RenderTexture(Width, Height, 0, RenderTextureFormat.R8);
+            ComputeBuffer stats = new ComputeBuffer(4, sizeof(uint));
+            stats.SetData(new uint[4]);
+            Material audit = new Material(motionAudit);
+            CommandBuffer draw = new CommandBuffer { name = "MotionVectorCheck audit" };
+            draw.SetRenderTarget(auditTarget);
+            draw.SetRandomWriteTarget(1, stats);
+            draw.SetGlobalMatrix("_AuditRasterViewProjection",
+                GL.GetGPUProjectionMatrix(cam.projectionMatrix, true) * cam.worldToCameraMatrix);
+            draw.SetGlobalMatrix("_AuditViewProjection", ViewProjection());
+            draw.SetGlobalMatrix("_AuditPreviousViewProjection", previousViewProjection);
+            draw.SetGlobalMatrix("_AuditPreviousModel", previousModel);
+            draw.SetGlobalFloat("_AuditPart", 0f);
+            draw.SetGlobalFloat("_AuditBadPixels", 1f);
+            draw.SetGlobalVector("_AuditTexel", new Vector4(1f / Width, 1f / Height, Width, Height));
+            draw.SetGlobalTexture("_AuditMotion", unityMotion);
+            draw.SetGlobalTexture("_AuditDepth", sceneDepth);
+            draw.DrawRenderer(sphere.GetComponent<Renderer>(), audit, 0, 0);
+            draw.ClearRandomWriteTargets();
+            Graphics.ExecuteCommandBuffer(draw);
+            uint[] data = new uint[4];
+            stats.GetData(data);
+            stats.Release();
+            result.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3}",
+                label, data[0], data[1], data[3] / 16f));
         }
 
         // How MotionVectorAudit in the plugin addresses a pixel: a viewport position,

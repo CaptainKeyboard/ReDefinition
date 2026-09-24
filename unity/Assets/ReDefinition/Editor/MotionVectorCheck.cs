@@ -28,6 +28,7 @@ namespace ReDefinition.EditorTools
     {
         private const string ScenePath = "Assets/ReDefinition/MotionVectorCheck/MotionVectorCheck.unity";
         private const string ShaderPath = "Assets/ReDefinition/Shaders/ReDefinitionCloudMotion.shader";
+        private const string AuditShaderPath = "Assets/ReDefinition/Shaders/ReDefinitionMotionAudit.shader";
         private const string PlayerDirectory = "../build/motion-vector-check";
         private const int TimeoutMilliseconds = 120000;
 
@@ -68,7 +69,8 @@ namespace ReDefinition.EditorTools
             probe.cloudMotion = AssetDatabase.LoadAssetAtPath<Shader>(ShaderPath);
             // Standard writes depth, which Unity's camera motion reads.
             probe.surface = Shader.Find("Standard");
-            if (probe.cloudMotion == null || probe.surface == null)
+            probe.motionAudit = AssetDatabase.LoadAssetAtPath<Shader>(AuditShaderPath);
+            if (probe.cloudMotion == null || probe.surface == null || probe.motionAudit == null)
             {
                 problems.Add("the shaders for the probe did not load.");
                 return null;
@@ -123,10 +125,26 @@ namespace ReDefinition.EditorTools
             string[] lines = File.ReadAllLines(resultPath);
             int cases = 0;
             bool readback = false;
+            int audits = 0;
             foreach (string line in lines)
             {
                 Debug.Log("ReDefinition motion vector check: " + line);
                 string[] f = line.Split(' ');
+                if (f.Length == 4 && (f[0] == "audit" || f[0] == "auditWrong"))
+                {
+                    audits++;
+                    long audited = long.Parse(f[1], CultureInfo.InvariantCulture);
+                    long bad = long.Parse(f[2], CultureInfo.InvariantCulture);
+                    if (audited < 100)
+                        problems.Add(f[0] + ": the audit found only " + audited + " of the sphere's pixels.");
+                    else if (f[0] == "audit" && bad > 0.02 * audited)
+                        problems.Add("audit: " + bad + " of " + audited + " pixels off, where Unity's motion vectors are"
+                                     + " right; the vessel check would report errors that are not there.");
+                    else if (f[0] == "auditWrong" && bad < 0.9 * audited)
+                        problems.Add("auditWrong: only " + bad + " of " + audited + " pixels off, where the motion"
+                                     + " vectors were compared with none; the vessel check would miss errors.");
+                    continue;
+                }
                 if (f.Length == 3 && f[0] == "readback")
                 {
                     readback = true;
@@ -157,6 +175,7 @@ namespace ReDefinition.EditorTools
             }
             if (cases != 2) problems.Add("the result has " + cases + " of 2 cases.");
             if (!readback) problems.Add("the result has no readback line.");
+            if (audits != 2) problems.Add("the result has " + audits + " of 2 audit lines.");
         }
 
         private static float Float(string text)

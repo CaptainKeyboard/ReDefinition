@@ -8,6 +8,8 @@
   to compare how DLSS's models treat a scene. Default lets DLSS choose for each mode.
 - **A log line comparing the motion vectors with the true motion** about every ten
   seconds in flight, on the active vessel and on the ground around it, in pixels.
+- **A log line checking the vessel's motion vectors on every pixel** about every ten
+  seconds in flight, per part, with the frames where they were off.
 
 ### Fixed
 

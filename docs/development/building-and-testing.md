@@ -174,6 +174,11 @@ the sphere next to those pass 2 of the cloud motion shader computes. The exit co
 when the pass misses more than 5% of the sphere's pixels or its mean differs from
 Unity's by more than 3%. The log shows both values for each case.
 
+Three more cases check the instruments. A readback of the sphere's centre must find the
+sphere at the row the in-game checks read. The vessel check's shader, drawn over the
+moving sphere with its previous matrix, must find more than 98% of the sphere's pixels
+right, and drawn with the current matrix in its place, more than 90% wrong.
+
 ## Build the proxy
 
 You need MSVC with the C++ workload and a Windows 10 SDK. The CMake that comes with Visual

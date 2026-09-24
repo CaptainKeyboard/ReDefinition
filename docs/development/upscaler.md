@@ -333,6 +333,15 @@ In the diagnostics window's *Debug* tab
   the samples, the mean and largest difference from what was read in pixels, the mean
   motion, and the worst sample. Frames with an origin shift or a reset are left out.
   `MotionVectorCheck` in the Unity project checks the pixel addressing it relies on.
+* **Vessel motion vectors per pixel**, about every ten seconds in flight
+  (`VesselMotionAudit`): every frame, each mesh renderer of the active vessel is drawn
+  once more at the end of the capture with `Hidden/ReDefinition/MotionAudit`, rasterised
+  with the scene camera's jittered projection. Where its depth is the captured depth, the
+  shader computes the motion vector Unity writes for it from the renderer's previous
+  matrix and compares it with the captured one; per part, a buffer counts pixels, pixels
+  off by more than a pixel and the largest error. The line gives the share off, the
+  frames with more than 0.5% off, apart for frames with and without a physics step, and
+  the parts most off. Skinned renderers and materials above queue 2500 are left out.
 * **Motion vector check on fast turns**, with frame generation: a fast turn asks the proxy
   for its motion vector check at once, and a line says what the camera did.
 * **Write diagnostics to log**: what the cameras, the inputs, the masks, the proxy's
