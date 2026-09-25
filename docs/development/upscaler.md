@@ -307,6 +307,15 @@ the difference. Left alone: a frame with a history reset, and whatever is drawn 
 shadow, such as engine plumes or dust, which leaves the HUD-less image with it. The
 Debug switch **Vessel shadow in frame generation**, not saved, turns it off.
 
+The light map covers the bounds of the vessel's renderers. Renderers whose bounds are not
+finite, longer than 250 m on a side or farther than 500 m from the vessel neither size it
+nor are drawn into it (`CasterBounds`): in flight one renderer of a spaceplane reported
+extents of 10^18 m, and a map that wide never found the lit ground next to the shadow.
+Every ten seconds the log reads back one frame's samples: how many lie in shadow in
+Unity's mask, in the vessel's shadow, weighted, and on lit ground to compare with.
+**Record the screen** writes the layer's inputs and results of one frame into a folder
+ending in `-shadow`.
+
 ### EVE's volumetric clouds
 
 EVE casts the clouds' rays through the projection Unity binds, but reprojects their

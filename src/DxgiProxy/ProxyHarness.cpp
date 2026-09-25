@@ -77,31 +77,10 @@ namespace
     constexpr UINT kFeatureWidth = 120;
     constexpr UINT kFeatureHeight = 60;
 
-    // REDEFINITION_HARNESS_DETAIL: a still scene of fine grain in place of the
-    // changing colour, to compare the sharpness of generated and rendered frames
-    // in the screen recording. REDEFINITION_HARNESS_JITTER: the packet carries a
-    // jitter sequence, as the rig sends it.
-    constexpr UINT kDetailX = 120;
-    constexpr UINT kDetailY = 100;
-    constexpr UINT kDetailWidth = 400;
-    constexpr UINT kDetailHeight = 240;
-
     bool EnvironmentSet(const wchar_t* name)
     {
         wchar_t value[8] = {};
         return GetEnvironmentVariableW(name, value, 8) > 0 && value[0] != L'0';
-    }
-
-    float Halton(UINT index, UINT base)
-    {
-        float result = 0.0f;
-        float fraction = 1.0f;
-        for (UINT i = index + 1; i > 0; i /= base)
-        {
-            fraction /= static_cast<float>(base);
-            result += fraction * static_cast<float>(i % base);
-        }
-        return result;
     }
 
     // Generated frames show as extra presents. Thresholds well clear of both
@@ -400,17 +379,20 @@ namespace
         FramePacket packet = {};
         std::vector<uint32_t> colour;   // the frame as presented: RGBA8, half size, rows top-down
         std::vector<uint32_t> hudLess;  // what frame generation gets as the HUD-less image
-        std::vector<float> depth;       // half size, rows bottom-up as Unity renders
-        std::vector<uint32_t> motion;   // R16G16 half floats, half size, rows bottom-up
+        std::vector<float> depth;       // half the render size, rows bottom-up as Unity renders
+        std::vector<uint32_t> motion;   // R16G16 half floats, half the render size, rows bottom-up
     };
 
-    bool LoadReplay(const std::wstring& folder, UINT& width, UINT& height, std::vector<ReplayFrame>& frames)
+    // width and height the replay's display size, renderWidth and renderHeight its render
+    // size: each half the dumped one.
+    bool LoadReplay(const std::wstring& folder, UINT& width, UINT& height, UINT& renderWidth, UINT& renderHeight,
+                    std::vector<ReplayFrame>& frames)
     {
         FILE* file = nullptr;
         if (_wfopen_s(&file, (folder + L"\\frames.txt").c_str(), L"rb") != 0 || file == nullptr)
             return false;
         char line[2048];
-        UINT fullWidth = 0, fullHeight = 0;
+        UINT fullWidth = 0, fullHeight = 0, depthWidth = 0, depthHeight = 0;
         while (fgets(line, sizeof(line), file))
         {
             ReplayFrame* f = frames.empty() ? nullptr : &frames.back();
@@ -419,10 +401,10 @@ namespace
             {
                 frames.emplace_back();
                 FramePacket& p = frames.back().packet;
-                unsigned int index = 0, packetIndex = 0, reset = 0;
+                unsigned int index = 0, packetIndex = 0, reset = 0, packetWidth = 0, packetHeight = 0;
                 int flipped = 0;
                 sscanf_s(line, "frame %u packetIndex %u render %ux%u reset %u jitter %f %f mvScale %f %f near %f far %f fov %f dtMs %f flipped %d",
-                         &index, &packetIndex, &fullWidth, &fullHeight, &reset, &p.jitterX, &p.jitterY,
+                         &index, &packetIndex, &packetWidth, &packetHeight, &reset, &p.jitterX, &p.jitterY,
                          &p.motionVectorScaleX, &p.motionVectorScaleY, &p.nearPlane, &p.farPlane,
                          &p.verticalFovRadians, &p.frameTimeDeltaMs, &flipped);
             }
@@ -433,6 +415,10 @@ namespace
                          &p.position[1], &p.position[2], &p.up[0], &p.up[1], &p.up[2], &p.right[0], &p.right[1],
                          &p.right[2], &p.forward[0], &p.forward[1], &p.forward[2]);
             }
+            else if (strncmp(line, "texture colour ", 15) == 0 && fullWidth == 0)
+                sscanf_s(line, "texture colour %ux%u", &fullWidth, &fullHeight);
+            else if (strncmp(line, "texture depth ", 14) == 0 && depthWidth == 0)
+                sscanf_s(line, "texture depth %ux%u", &depthWidth, &depthHeight);
             else if (f != nullptr && strncmp(line, "viewToClip ", 11) == 0) matrix = f->packet.viewToClip;
             else if (f != nullptr && strncmp(line, "clipToView ", 11) == 0) matrix = f->packet.clipToView;
             else if (f != nullptr && strncmp(line, "clipToPrevClip ", 15) == 0) matrix = f->packet.clipToPrevClip;
@@ -447,47 +433,45 @@ namespace
             }
         }
         fclose(file);
-        if (frames.empty() || fullWidth < 64 || fullHeight < 64)
+        if (frames.empty() || fullWidth < 64 || fullHeight < 64 || depthWidth < 64 || depthHeight < 64)
             return false;
 
         width = fullWidth / 2;
         height = fullHeight / 2;
+        renderWidth = depthWidth / 2;
+        renderHeight = depthHeight / 2;
         const size_t full = static_cast<size_t>(fullWidth) * fullHeight;
-        std::vector<uint32_t> colour(full), motion(full);
-        std::vector<float> depth(full);
+        const size_t rendered = static_cast<size_t>(depthWidth) * depthHeight;
+        std::vector<uint32_t> colour(full), presented(full), motion(rendered);
+        std::vector<float> depth(rendered);
         for (size_t n = 0; n < frames.size(); ++n)
         {
-            auto read = [&](const wchar_t* name, void* target) -> bool
+            auto read = [&](const wchar_t* name, void* target, size_t texels) -> bool
             {
                 wchar_t path[64];
                 swprintf_s(path, L"\\%s-%02zu.bin", name, n);
                 FILE* raw = nullptr;
                 if (_wfopen_s(&raw, (folder + path).c_str(), L"rb") != 0 || raw == nullptr)
                     return false;
-                const size_t got = fread(target, 4, full, raw);
+                const size_t got = fread(target, 4, texels, raw);
                 fclose(raw);
-                return got == full;
+                return got == texels;
             };
-            if (!read(L"colour", colour.data()) || !read(L"depth", depth.data()) || !read(L"motion", motion.data()))
+            if (!read(L"colour", colour.data(), full) || !read(L"depth", depth.data(), rendered)
+                || !read(L"motion", motion.data(), rendered))
                 return false;
-            std::vector<uint32_t> presented(full);
-            const bool withFrame = read(L"frame", presented.data());
+            const bool withFrame = read(L"frame", presented.data(), full);
 
+            // Colour: the 2x2 mean, of the frame as presented and of the HUD-less image.
             ReplayFrame& f = frames[n];
             f.colour.resize(static_cast<size_t>(width) * height);
             f.hudLess.resize(f.colour.size());
-            f.depth.resize(f.colour.size());
-            f.motion.resize(f.colour.size());
             for (UINT y = 0; y < height; ++y)
             {
                 for (UINT x = 0; x < width; ++x)
                 {
-                    // Colour: the 2x2 mean. Depth and motion: one texel, the nearest
-                    // surface of the four, so an edge keeps one surface's values.
                     uint32_t sum[4] = {};
                     uint32_t shown[4] = {};
-                    size_t nearest = 0;
-                    float nearestDepth = -1.0f;
                     for (UINT dy = 0; dy < 2; ++dy)
                         for (UINT dx = 0; dx < 2; ++dx)
                         {
@@ -497,15 +481,32 @@ namespace
                                 sum[c] += (colour[i] >> (8 * c)) & 0xFFu;
                                 shown[c] += ((withFrame ? presented[i] : colour[i]) >> (8 * c)) & 0xFFu;
                             }
-                            if (depth[i] > nearestDepth) { nearestDepth = depth[i]; nearest = i; }
                         }
                     f.hudLess[static_cast<size_t>(y) * width + x] = (sum[0] / 4) | ((sum[1] / 4) << 8)
                                                                      | ((sum[2] / 4) << 16) | 0xFF000000u;
                     f.colour[static_cast<size_t>(y) * width + x] = (shown[0] / 4) | ((shown[1] / 4) << 8)
                                                                     | ((shown[2] / 4) << 16) | 0xFF000000u;
-                    // The dump's depth and motion rows are top-down (flipped for frame
-                    // generation); the proxy flips again, so they go in as Unity has them.
-                    const size_t target = static_cast<size_t>(height - 1 - y) * width + x;
+                }
+            }
+
+            // Depth and motion: one texel of each 2x2, the nearest surface of the four,
+            // so an edge keeps one surface's values. The dump's rows are top-down (flipped
+            // for frame generation); the proxy flips again, so they go in as Unity has them.
+            f.depth.resize(static_cast<size_t>(renderWidth) * renderHeight);
+            f.motion.resize(f.depth.size());
+            for (UINT y = 0; y < renderHeight; ++y)
+            {
+                for (UINT x = 0; x < renderWidth; ++x)
+                {
+                    size_t nearest = 0;
+                    float nearestDepth = -1.0f;
+                    for (UINT dy = 0; dy < 2; ++dy)
+                        for (UINT dx = 0; dx < 2; ++dx)
+                        {
+                            const size_t i = static_cast<size_t>(y * 2 + dy) * depthWidth + x * 2 + dx;
+                            if (depth[i] > nearestDepth) { nearestDepth = depth[i]; nearest = i; }
+                        }
+                    const size_t target = static_cast<size_t>(renderHeight - 1 - y) * renderWidth + x;
                     f.depth[target] = depth[nearest];
                     f.motion[target] = motion[nearest];
                 }
@@ -513,10 +514,10 @@ namespace
             FramePacket& p = f.packet;
             p.size = sizeof(FramePacket);
             p.magic = kPacketMagic;
-            p.renderWidth = width;
-            p.renderHeight = height;
-            p.motionVectorScaleX = -static_cast<float>(width);
-            p.motionVectorScaleY = -static_cast<float>(height);
+            p.renderWidth = renderWidth;
+            p.renderHeight = renderHeight;
+            p.motionVectorScaleX = -static_cast<float>(renderWidth);
+            p.motionVectorScaleY = -static_cast<float>(renderHeight);
             p.jitterX *= 0.5f;
             p.jitterY *= 0.5f;
         }
@@ -539,9 +540,11 @@ namespace
     {
         UINT width = 0, height = 0;
         std::vector<ReplayFrame> frames;
-        if (!LoadReplay(folder, width, height, frames))
+        UINT renderWidth = 0, renderHeight = 0;
+        if (!LoadReplay(folder, width, height, renderWidth, renderHeight, frames))
             return Fail("reading the input dump", E_FAIL);
-        printf("      replay: %zu frames at %ux%u\n", frames.size(), width, height);
+        printf("      replay: %zu frames at %ux%u, rendered at %ux%u\n", frames.size(), width, height, renderWidth,
+               renderHeight);
         // The HUD-less image as the frame itself: frame generation as it was before
         // VesselShadowLayer, for the same frames.
         if (EnvironmentSet(L"REDEFINITION_REPLAY_PLAIN_HUDLESS"))
@@ -649,11 +652,11 @@ namespace
         const auto renderEvent = reinterpret_cast<RenderEventFn>(getRenderEvent());
         setEnabled(1);
 
-        auto texture = [&](DXGI_FORMAT format, ComPtr<ID3D11Texture2D>& out) -> HRESULT
+        auto texture = [&](UINT w, UINT h, DXGI_FORMAT format, ComPtr<ID3D11Texture2D>& out) -> HRESULT
         {
             D3D11_TEXTURE2D_DESC t = {};
-            t.Width = width;
-            t.Height = height;
+            t.Width = w;
+            t.Height = h;
             t.MipLevels = 1;
             t.ArraySize = 1;
             t.Format = format;
@@ -663,8 +666,9 @@ namespace
             return device->CreateTexture2D(&t, nullptr, &out);
         };
         ComPtr<ID3D11Texture2D> depth, motion, hudLess;
-        if (FAILED(texture(DXGI_FORMAT_R32_FLOAT, depth)) || FAILED(texture(DXGI_FORMAT_R16G16_FLOAT, motion))
-            || FAILED(texture(DXGI_FORMAT_R8G8B8A8_UNORM, hudLess)))
+        if (FAILED(texture(renderWidth, renderHeight, DXGI_FORMAT_R32_FLOAT, depth))
+            || FAILED(texture(renderWidth, renderHeight, DXGI_FORMAT_R16G16_FLOAT, motion))
+            || FAILED(texture(width, height, DXGI_FORMAT_R8G8B8A8_UNORM, hudLess)))
             return Fail("creating the replay inputs", E_FAIL);
         registerInputs(depth.Get(), motion.Get(), hudLess.Get());
 
@@ -686,8 +690,8 @@ namespace
                 ReplayFrame& f = frames[n];
                 context->UpdateSubresource(backBuffer.Get(), 0, nullptr, f.colour.data(), width * 4, 0);
                 context->UpdateSubresource(hudLess.Get(), 0, nullptr, f.hudLess.data(), width * 4, 0);
-                context->UpdateSubresource(depth.Get(), 0, nullptr, f.depth.data(), width * 4, 0);
-                context->UpdateSubresource(motion.Get(), 0, nullptr, f.motion.data(), width * 4, 0);
+                context->UpdateSubresource(depth.Get(), 0, nullptr, f.depth.data(), renderWidth * 4, 0);
+                context->UpdateSubresource(motion.Get(), 0, nullptr, f.motion.data(), renderWidth * 4, 0);
                 FramePacket packet = f.packet;
                 packet.frameIndex = ++frameIndex;
                 packet.reset = n == 0 ? 1u : 0u;
@@ -718,8 +722,8 @@ namespace
                         ReplayFrame& f = frames[n];
                         context->UpdateSubresource(backBuffer.Get(), 0, nullptr, f.colour.data(), width * 4, 0);
                         context->UpdateSubresource(hudLess.Get(), 0, nullptr, f.hudLess.data(), width * 4, 0);
-                        context->UpdateSubresource(depth.Get(), 0, nullptr, f.depth.data(), width * 4, 0);
-                        context->UpdateSubresource(motion.Get(), 0, nullptr, f.motion.data(), width * 4, 0);
+                        context->UpdateSubresource(depth.Get(), 0, nullptr, f.depth.data(), renderWidth * 4, 0);
+                        context->UpdateSubresource(motion.Get(), 0, nullptr, f.motion.data(), renderWidth * 4, 0);
                         FramePacket packet = f.packet;
                         packet.frameIndex = ++frameIndex;
                         packet.reset = n == 0 ? 1u : 0u;
@@ -915,9 +919,6 @@ int main()
     LoadFn load = nullptr;
     ComPtr<ID3D11Texture2D> ui;
     ComPtr<ID3D11Texture2D> feature;
-    ComPtr<ID3D11Texture2D> detail;
-    const bool detailScene = EnvironmentSet(L"REDEFINITION_HARNESS_DETAIL");
-    const bool jitterSequence = EnvironmentSet(L"REDEFINITION_HARNESS_JITTER");
     ComPtr<ID3D11Texture2D> hudLessCopy;
     Inputs inputs;
     FramePacket packet = {};
@@ -963,24 +964,6 @@ int main()
                                  0xFF000000u, feature);
         if (FAILED(hr))
             return Fail("CreateTexture2D for the scene feature", hr);
-
-        if (detailScene)
-        {
-            hr = CreateFilledTexture(device.Get(), kDetailWidth, kDetailHeight, DXGI_FORMAT_R8G8B8A8_UNORM,
-                                     0u, detail);
-            if (FAILED(hr))
-                return Fail("CreateTexture2D for the detail scene", hr);
-            std::vector<uint32_t> grain(static_cast<size_t>(kDetailWidth) * kDetailHeight);
-            uint32_t seed = 12345u;
-            for (uint32_t& texel : grain)
-            {
-                seed = seed * 1664525u + 1013904223u;
-                const uint32_t v = 64u + ((seed >> 24) & 0x7Fu);
-                texel = 0xFF000000u | (v << 16) | (v << 8) | v;
-            }
-            context->UpdateSubresource(detail.Get(), 0, nullptr, grain.data(), kDetailWidth * 4, 0);
-            printf("      detail scene: still grain, jitter %s\n", jitterSequence ? "sequence" : "none");
-        }
     }
 
     // The rig's inputs at a given size: depth, motion vectors and the HUD-less
@@ -1065,8 +1048,7 @@ int main()
         const float t = static_cast<float>(frameNumber % kFrames) / kFrames;
         ++frameNumber;
         const float colour[4] = { t, 0.2f, 1.0f - t, 1.0f };
-        const float still[4] = { 0.3f, 0.3f, 0.3f, 1.0f };
-        context->ClearRenderTargetView(rtv.Get(), detailScene ? still : colour);
+        context->ClearRenderTargetView(rtv.Get(), colour);
 
         if (renderEvent != nullptr)
         {
@@ -1074,17 +1056,6 @@ int main()
             const D3D11_BOX featureBox = { 0, 0, 0, kFeatureWidth, kFeatureHeight, 1 };
             context->CopySubresourceRegion(backBuffer.Get(), 0, kFeatureX, kFeatureY, 0,
                                            feature.Get(), 0, &featureBox);
-            if (detail)
-            {
-                const D3D11_BOX detailBox = { 0, 0, 0, kDetailWidth, kDetailHeight, 1 };
-                context->CopySubresourceRegion(backBuffer.Get(), 0, kDetailX, kDetailY, 0,
-                                               detail.Get(), 0, &detailBox);
-            }
-            if (jitterSequence)
-            {
-                packet.jitterX = Halton(frameNumber % 8, 2) - 0.5f;
-                packet.jitterY = Halton(frameNumber % 8, 3) - 0.5f;
-            }
 
             // The scene is finished: the rig blits the backbuffer into its
             // HUD-less texture here. Then this frame's packet, then the "UI"
@@ -1146,7 +1117,7 @@ int main()
         if (direct < uiShare - 0.005f || direct > uiShare + 0.005f)
             return Fail("the HUD-less copy differs from the frame by something other than the UI", E_FAIL);
         const float mirroredExpected = uiShare + 2.0f * featureShare;
-        if (!detailScene && (mirrored < mirroredExpected - 0.005f || mirrored > mirroredExpected + 0.005f))
+        if (mirrored < mirroredExpected - 0.005f || mirrored > mirroredExpected + 0.005f)
             return Fail("the HUD-less copy was flipped, or the scene feature is missing", E_FAIL);
     }
 

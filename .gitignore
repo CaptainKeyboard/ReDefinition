@@ -20,5 +20,8 @@ unity/*.sln
 third_party/amd/*.dll
 third_party/amd/*.part
 
+# Python's bytecode caches from the tools.
+__pycache__/
+
 # Claude Code: local settings and worktrees.
 .claude/

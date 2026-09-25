@@ -111,11 +111,14 @@ def shadow_edges(dump, refs, items):
     import analyze_fg_inputs as A
     frames = A.load_frames(dump)
     H, W = frames[0]["colour"].shape
-    half = lambda a: a.reshape(H // 2, 2, W // 2, 2).mean((1, 3))
     mid = len(frames) // 2
     m = frames[mid]["motion"]
-    speed = half(np.hypot(m[..., 0] * W, m[..., 1] * H))
-    ground = (speed > 6) & (half(frames[mid]["depth"].astype(np.float32)) > 0)
+    # Motion and depth at the render size, looked up for each pixel of the half-size replay.
+    rows = np.arange(H // 2) * m.shape[0] // (H // 2)
+    cols = np.arange(W // 2) * m.shape[1] // (W // 2)
+    at = lambda a: a[rows][:, cols]
+    speed = at(np.hypot(m[..., 0] * W, m[..., 1] * H))
+    ground = (speed > 6) & (at(frames[mid]["depth"].astype(np.float32)) > 0)
     soft = [blur(r, 4) for r in refs]
     gy, gx = np.gradient(soft[mid])
     edge = (np.hypot(gx, gy) > 1.2) & ground

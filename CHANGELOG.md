@@ -15,7 +15,8 @@
 - **Record the screen in the Debug tab.** Half a second of what the monitor shows, frame
   generation's frames included, into `ReDefinitionCaptures` beside `KSP_x64.exe`, with
   eight consecutive frames of what frame generation receives: colour, depth, motion
-  vectors and the camera. The game stalls briefly while these are written.
+  vectors and the camera, and one frame of the vessel shadow's inputs and results. The
+  game stalls briefly while these are written.
 
 ### Fixed
 
