@@ -15,6 +15,10 @@
 
 ### Fixed
 
+- **Firefly's and TUFX's own windows open from the Advanced buttons.** A mod that hides
+  KSP's interface and shows it again without saying so, QuickIVA at the start of a
+  flight, left KSP's interface marked hidden, and these two draw only while it is
+  marked shown. ReDefinition marks it shown again where it is on screen.
 - **The aircraft's edges no longer flicker with DLSS presets L and M, nor with FSR 3 and
   frame generation.** On a fast run up to a percent of the vessel's pixels carried the
   ground's motion instead of its own; ReDefinition now writes the vessel's motion vectors

@@ -116,9 +116,10 @@ A tab ends with an *Advanced* row where a bundled mod puts its own window there.
 the mods bundled today that is *Planets*, for Scatterer, EVE and Parallax, and
 *Effects*, for Firefly, TUFX and Distant Object.
 
-A button opens that mod's own window beside ReDefinition's, with an X at its top right
-to close it. A change you make there shows up in ReDefinition's rows. A change
-you make here shows up there once you apply it.
+A button opens that mod's own window where the mod places it, with an X at its top
+right to close it. Firefly's opens at the left edge of the screen. A change you make
+there shows up in ReDefinition's rows. A change you make here shows up there once you
+apply it.
 
 While their settings are bundled here, the toolbar buttons of those mods are hidden.
 Waterfall's button opens its effect editor rather than settings, so it stays, and so do

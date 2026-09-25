@@ -113,6 +113,40 @@ namespace ReDefinition.Window
             return mod != null && lastDrawn.TryGetValue(mod, out drawn) && Time.unscaledTime - drawn <= 1f;
         }
 
+        // A mod's own window opened from ReDefinition's window, and when: a second
+        // later the log says whether it was drawn, and where -- a window drawn off
+        // the screen or not at all looks the same to the player.
+        private static readonly Dictionary<IBundledMod, float> expected = new Dictionary<IBundledMod, float>();
+        private static readonly List<IBundledMod> due = new List<IBundledMod>();
+
+        internal static void ExpectOpening(IBundledMod mod)
+        {
+            if (mod != null) expected[mod] = Time.unscaledTime;
+        }
+
+        // From ModWindowsAddon's Update.
+        internal static void ReportOpening()
+        {
+            if (expected.Count == 0) return;
+            due.Clear();
+            foreach (KeyValuePair<IBundledMod, float> entry in expected)
+                if (Time.unscaledTime - entry.Value >= 1f) due.Add(entry.Key);
+            foreach (IBundledMod mod in due)
+            {
+                expected.Remove(mod);
+                string where = null;
+                foreach (Closable closable in known.Values)
+                    if (closable.Mod == mod && Time.frameCount - closable.Frame <= 2)
+                        where = closable.Area.ToString();
+                Debug.Log(Log.Tag + " " + mod.ModName + "'s own window, a second after opening: "
+                          + (!RecentlyOpen(mod) ? "not drawn (KSP's interface marked "
+                               + (KSP.UI.UIMasterController.Instance != null
+                                  && KSP.UI.UIMasterController.Instance.IsUIShowing ? "shown" : "hidden") + ")."
+                             : "drawn" + (where != null ? " at " + where : "") + ", screen "
+                               + Screen.width + "x" + Screen.height + "."));
+            }
+        }
+
         internal static void Install()
         {
             MethodInfo layout = typeof(GUILayout).GetMethod("DoWindow", BindingFlags.NonPublic | BindingFlags.Static);

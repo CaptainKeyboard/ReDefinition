@@ -115,9 +115,18 @@ namespace ReDefinition.Window
         {
             ApplicationLauncherButton button = ButtonOf(mod);
             if (button == null) return false;
+            // Mods that draw only while KSP's interface shows (KspUiState).
+            KspUiState.ResyncShown();
+            string before = button.toggleButton != null ? button.toggleButton.CurrentState.ToString() : "no toggle";
             if (button.toggleButton != null && button.toggleButton.CurrentState == KSP.UI.UIRadioButton.State.True)
                 button.SetFalse(true);
             button.SetTrue(true);
+            string after = button.toggleButton != null ? button.toggleButton.CurrentState.ToString() : "no toggle";
+            // Whether the window then shows is told a second later (ModWindowClose.ReportOpening).
+            Debug.Log(Log.Tag + " " + mod.ModName + "'s own window opened through its toolbar button ('"
+                      + button.name + "', scenes " + button.VisibleInScenes + ", state " + before + " -> " + after
+                      + ").");
+            ModWindowClose.ExpectOpening(mod);
             return true;
         }
 

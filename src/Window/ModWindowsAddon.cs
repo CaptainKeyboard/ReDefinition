@@ -85,6 +85,8 @@ namespace ReDefinition.Window
                 }
             }
 
+            ModWindowClose.ReportOpening();
+
             if (Time.unscaledTime < nextTick) return;
             nextTick = Time.unscaledTime + TickInterval;
             ToolbarTakeover.Refresh();

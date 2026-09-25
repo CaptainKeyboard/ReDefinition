@@ -124,6 +124,7 @@ namespace ReDefinition.Window
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon == null) return;
+            KspUiState.ResyncShown();
 
             try
             {
