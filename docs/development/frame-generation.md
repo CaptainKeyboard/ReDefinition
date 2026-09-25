@@ -153,11 +153,11 @@ From NVIDIA's ProgrammingGuideDLSS_G.md and the Streamline headers:
 * **Object separation.** `minRelativeLinearDepthObjectSeparation`, "the minimum depth
   difference between two objects in screen-space", is taken in linear depth, `1 / depth`
   with inverted depth, about the distance over the near plane (`sl_consts.h`). Its default
-  of 40 comes to 8.4 m at KSP's near plane in flight, 0.21 m (`FlightCamera`, decompiled),
-  so an aircraft and the runway under it counted as one object. The header: "smaller
-  thresholds are useful when depth units are unusually compressed". The proxy sets it
-  from `fgObjectSeparationMetres` in its ini, 1 m by default, divided by each frame's near
-  plane.
+  of 40 comes to 8.4 m at KSP's near plane in flight, 0.21 m (`FlightCamera`, decompiled).
+  The header: "smaller thresholds are useful when depth units are unusually compressed".
+  `fgObjectSeparationMetres` in the proxy's ini sets it in metres, divided by each frame's
+  near plane; 0, the default, keeps Streamline's. On the runway, 1 m and the default made
+  no measurable difference.
 * **Options.** On with as many generated frames as the GPU reports it can make, and no more
   than the display allows (below); off when the mod has it off or no inputs arrived.
   Resources are kept while off. Options take effect "in the next Present() call that

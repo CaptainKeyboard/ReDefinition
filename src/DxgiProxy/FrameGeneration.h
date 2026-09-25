@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <string>
 #include <vector>
 
 namespace sl
@@ -146,6 +147,10 @@ namespace redefinition
         // request is good for kCheckRequestMs; a check that cannot start by then is
         // dropped with a line, never run later on frames without the turn.
         void RequestCheck() { checkRequestedAt = GetTickCount64(); }
+
+        // The inputs of the next frames consecutive frames, as frame generation
+        // receives them, written into folder (FrameGenerationDump.cpp).
+        void StartInputDump(int frames, const std::wstring& folder);
 
         // How the last attempt to make the context went (EnsureContextLocked).
         static constexpr int kContextFine = 0;       // made, or not yet tried
@@ -376,6 +381,19 @@ namespace redefinition
         bool FlipLocked(Input& input);
 
         void CheckHudLessLocked(bool copied);
+        void DumpInputsLocked(bool copied);
+
+        // The input dump: staging copies of colour, depth and motion vectors with
+        // their packet, taken on consecutive frames, written once all are taken.
+        struct DumpFrame
+        {
+            FramePacket packet = {};
+            bool flipped = false;
+            Microsoft::WRL::ComPtr<ID3D11Texture2D> staging[3];
+        };
+        std::vector<DumpFrame> dumpTaken;
+        int dumpToTake = 0;
+        std::wstring dumpFolder;
         bool CreateCheckTexturesLocked();
         void ReleaseCheckLocked();
         // Sizes are those of the staging textures that were mapped, never the

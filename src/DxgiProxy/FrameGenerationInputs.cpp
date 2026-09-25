@@ -495,6 +495,7 @@ namespace redefinition
         }
 
         CheckHudLessLocked(copying);
+        DumpInputsLocked(copying);
     }
 
     void FrameGeneration::RegisterBackBuffer(const void* caller, ID3D11Texture2D* backBuffer)

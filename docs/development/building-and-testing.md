@@ -226,12 +226,57 @@ to it. Environment variables add what the player brings:
 | `REDEFINITION_DLSS_DIR` | `nvngx_dlss.dll` | the DLSS upscaler |
 | `REDEFINITION_AMD_UPSCALER_DIR` | `amd_fidelityfx_upscaler_dx12.dll` | AMD's upscaler |
 
+`REDEFINITION_HARNESS_DETAIL=1` draws still grain in place of the changing colour, and
+`REDEFINITION_HARNESS_JITTER=1` sends a jitter sequence with it.
+
 One swapchain has one frame generation, so a run with `REDEFINITION_STREAMLINE_DIR` and
 one without cover both. DLSS frame generation generates only while the harness window has
 the focus.
 
 Run the harness after every change to the proxy. It prints a `PASS` line for each part
 that ran, or one `FAIL` line.
+
+## Replay the game's frames through frame generation
+
+**Record the screen** in the Debug tab also writes eight consecutive frames of what frame
+generation receives into a folder ending in `-inputs`: colour, depth, motion vectors and
+each frame's packet (`FrameGenerationDump.cpp`).
+
+```
+python toolsnalyze_fg_inputs.py <folder>
+```
+
+It checks the inputs against each other: the previous frame's colour fetched where each
+motion vector points, with the vectors as delivered, scaled and reversed; the vectors
+against the camera motion from depth and `clipToPrevClip`; how much of the frame has
+depth.
+
+```
+tools
+eplay_fg.ps1 <folder> [NAME=1 ...]
+```
+
+It plays the folder through DLSS frame generation in the harness, at half its size, and
+records the screen. The recording is cut to the replay window at once and the rest of
+the screen deleted; it prints the detail of rendered and generated frames. The window
+has to stay in front, otherwise nothing is recorded. `REDEFINITION_STREAMLINE_DIR` must
+be set. Each `NAME` changes one input:
+
+| Variable | Changes |
+|---|---|
+| `REDEFINITION_REPLAY_NO_JITTER` | jitter 0 |
+| `REDEFINITION_REPLAY_NO_MOTION` | every motion vector 0 |
+| `REDEFINITION_REPLAY_STILL_CAMERA` | `clipToPrevClip` the identity |
+| `REDEFINITION_REPLAY_FLAT_DEPTH` | one depth wherever anything is drawn |
+| `REDEFINITION_REPLAY_SHADOW_MOTION` | the vessel's motion on the ground darker than the lit runway |
+
+```
+python tools\make_fg_test_dump.py <folder> <speed> [--perspective] [--jitter PX] [--noise GREY]
+```
+
+It writes such a folder with known inputs: grain moving `<speed>` pixels a frame on the
+left half with exact motion vectors, still on the right. `--perspective` makes the speed
+grow from the top to the bottom, `--jitter` and `--noise` change each frame's content.
 
 ## Audit the frame generation fields
 

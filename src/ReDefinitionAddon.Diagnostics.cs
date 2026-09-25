@@ -273,11 +273,6 @@ namespace ReDefinition
             }
             GUI.enabled = enabled;
 
-            // Not saved: the other mods' effects off while the game runs (ForeignEffects),
-            // to tell a fault of ReDefinition's from another mod's.
-            if (SwitchRow("Other mods' effects", ForeignEffects.Off ? "off" : "on"))
-                ForeignEffects.Set(!ForeignEffects.Off);
-
             // Not saved: the vessel and the camera drawn between the physics steps
             // (RenderInterpolation).
             if (SwitchRow("Render interpolation", RenderInterpolation.Enabled ? "on" : "off"))

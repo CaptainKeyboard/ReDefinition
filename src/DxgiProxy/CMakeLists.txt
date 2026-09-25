@@ -44,6 +44,7 @@ add_library(ReDefinitionProxy SHARED
     FrameGeneration.cpp
     FrameGeneration.h
     FrameGenerationCheck.cpp
+    FrameGenerationDump.cpp
     FrameGenerationInputs.cpp
     FrameGenerationDlss.cpp
     LoadMonitor.cpp

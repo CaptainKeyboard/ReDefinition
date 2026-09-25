@@ -12,21 +12,29 @@
   seconds in flight, per part, with the frames where they were off.
 - **Vessel motion vectors in the Debug tab**, not saved: written by ReDefinition, or
   Unity's own for a comparison.
+- **Record the screen in the Debug tab.** Half a second of what the monitor shows, frame
+  generation's frames included, into `ReDefinitionCaptures` beside `KSP_x64.exe`, with
+  eight consecutive frames of what frame generation receives: colour, depth, motion
+  vectors and the camera. The game stalls briefly while these are written.
 
 ### Fixed
 
-- **DLSS frame generation tells the aircraft and the runway under it apart.** NVIDIA's
-  default for the depth difference between two objects came to 8.4 m at KSP's near plane,
-  so the generated frames treated both as one surface and the shadows on the runway
-  flickered. The proxy now sets it to 1 m, `fgObjectSeparationMetres` in its ini.
+- **The active vessel moves smoothly between physics steps.** KSP moves parts only on a
+  physics step, 50 a second, so at about 59 frames a second one frame in six showed the
+  vessel and the camera standing still, and frame generation made its worst frames next
+  to those. ReDefinition now draws the vessel where it is between its last two steps;
+  the physics keep their own positions. Render interpolation in the Debug tab switches it
+  off.
+- **Parts drawn in the forward pass have depth and motion vectors.** Unity's depth
+  texture holds only what the deferred pass draws; ReDefinition writes the vessel's
+  depth for the others.
 - **Firefly's and TUFX's own windows open from the Advanced buttons.** A mod that hides
   KSP's interface and shows it again without saying so, QuickIVA at the start of a
   flight, left KSP's interface marked hidden, and these two draw only while it is
   marked shown. ReDefinition marks it shown again where it is on screen.
-- **The aircraft's edges no longer flicker with DLSS presets L and M, nor with FSR 3 and
-  frame generation.** On a fast run up to a percent of the vessel's pixels carried the
-  ground's motion instead of its own; ReDefinition now writes the vessel's motion vectors
-  itself, checked against Unity's.
+- **The vessel's own motion vectors.** On a fast run up to a percent of the vessel's
+  pixels carried the ground's motion instead of its own; ReDefinition now writes the
+  vessel's motion vectors itself, 0.15 % of its pixels more than a pixel off in flight.
 - **`ReDefinitionMotionVector` in the shader include writes `y` the right way up.** It
   flipped `y` where Unity does not for a camera that renders into a render texture, as
   the scene camera does while ReDefinition runs, so motion drawn with it pointed the

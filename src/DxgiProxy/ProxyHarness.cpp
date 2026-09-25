@@ -47,6 +47,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <algorithm>
 #include <vector>
 
 using Microsoft::WRL::ComPtr;
@@ -75,6 +76,33 @@ namespace
     constexpr UINT kFeatureY = 20;
     constexpr UINT kFeatureWidth = 120;
     constexpr UINT kFeatureHeight = 60;
+
+    // REDEFINITION_HARNESS_DETAIL: a still scene of fine grain in place of the
+    // changing colour, to compare the sharpness of generated and rendered frames
+    // in the screen recording. REDEFINITION_HARNESS_JITTER: the packet carries a
+    // jitter sequence, as the rig sends it.
+    constexpr UINT kDetailX = 120;
+    constexpr UINT kDetailY = 100;
+    constexpr UINT kDetailWidth = 400;
+    constexpr UINT kDetailHeight = 240;
+
+    bool EnvironmentSet(const wchar_t* name)
+    {
+        wchar_t value[8] = {};
+        return GetEnvironmentVariableW(name, value, 8) > 0 && value[0] != L'0';
+    }
+
+    float Halton(UINT index, UINT base)
+    {
+        float result = 0.0f;
+        float fraction = 1.0f;
+        for (UINT i = index + 1; i > 0; i /= base)
+        {
+            fraction /= static_cast<float>(base);
+            result += fraction * static_cast<float>(i % base);
+        }
+        return result;
+    }
 
     // Generated frames show as extra presents. Thresholds well clear of both
     // one and two, so a present or two still in flight at the end of a phase
@@ -360,9 +388,403 @@ namespace
     };
 }
 
+namespace
+{
+    // REDEFINITION_HARNESS_REPLAY=<folder>: an input dump from the game
+    // (FrameGenerationDump.cpp) played through frame generation again and again, at
+    // half its size, while the screen is recorded -- frame generation's output for the
+    // game's own frames, without the game. REDEFINITION_REPLAY_SHADOW_MOTION=1 gives
+    // the pixels of the vessel's shadow the vessel's motion (the mask is taken from
+    // the colour: ground darker than the lit runway near the vessel).
+    struct ReplayFrame
+    {
+        FramePacket packet = {};
+        std::vector<uint32_t> colour;   // RGBA8, half size, rows top-down
+        std::vector<float> depth;       // half size, rows bottom-up as Unity renders
+        std::vector<uint32_t> motion;   // R16G16 half floats, half size, rows bottom-up
+    };
+
+    bool LoadReplay(const std::wstring& folder, UINT& width, UINT& height, std::vector<ReplayFrame>& frames)
+    {
+        FILE* file = nullptr;
+        if (_wfopen_s(&file, (folder + L"\\frames.txt").c_str(), L"rb") != 0 || file == nullptr)
+            return false;
+        char line[2048];
+        UINT fullWidth = 0, fullHeight = 0;
+        while (fgets(line, sizeof(line), file))
+        {
+            ReplayFrame* f = frames.empty() ? nullptr : &frames.back();
+            float* matrix = nullptr;
+            if (strncmp(line, "frame ", 6) == 0)
+            {
+                frames.emplace_back();
+                FramePacket& p = frames.back().packet;
+                unsigned int index = 0, packetIndex = 0, reset = 0;
+                int flipped = 0;
+                sscanf_s(line, "frame %u packetIndex %u render %ux%u reset %u jitter %f %f mvScale %f %f near %f far %f fov %f dtMs %f flipped %d",
+                         &index, &packetIndex, &fullWidth, &fullHeight, &reset, &p.jitterX, &p.jitterY,
+                         &p.motionVectorScaleX, &p.motionVectorScaleY, &p.nearPlane, &p.farPlane,
+                         &p.verticalFovRadians, &p.frameTimeDeltaMs, &flipped);
+            }
+            else if (f != nullptr && strncmp(line, "position ", 9) == 0)
+            {
+                FramePacket& p = f->packet;
+                sscanf_s(line, "position %f %f %f up %f %f %f right %f %f %f forward %f %f %f", &p.position[0],
+                         &p.position[1], &p.position[2], &p.up[0], &p.up[1], &p.up[2], &p.right[0], &p.right[1],
+                         &p.right[2], &p.forward[0], &p.forward[1], &p.forward[2]);
+            }
+            else if (f != nullptr && strncmp(line, "viewToClip ", 11) == 0) matrix = f->packet.viewToClip;
+            else if (f != nullptr && strncmp(line, "clipToView ", 11) == 0) matrix = f->packet.clipToView;
+            else if (f != nullptr && strncmp(line, "clipToPrevClip ", 15) == 0) matrix = f->packet.clipToPrevClip;
+            else if (f != nullptr && strncmp(line, "prevClipToClip ", 15) == 0) matrix = f->packet.prevClipToClip;
+            if (matrix != nullptr)
+            {
+                const char* cursor = strchr(line, ' ');
+                for (int i = 0; i < 16 && cursor != nullptr; ++i)
+                {
+                    matrix[i] = strtof(cursor, const_cast<char**>(&cursor));
+                }
+            }
+        }
+        fclose(file);
+        if (frames.empty() || fullWidth < 64 || fullHeight < 64)
+            return false;
+
+        width = fullWidth / 2;
+        height = fullHeight / 2;
+        const size_t full = static_cast<size_t>(fullWidth) * fullHeight;
+        std::vector<uint32_t> colour(full), motion(full);
+        std::vector<float> depth(full);
+        for (size_t n = 0; n < frames.size(); ++n)
+        {
+            auto read = [&](const wchar_t* name, void* target) -> bool
+            {
+                wchar_t path[64];
+                swprintf_s(path, L"\\%s-%02zu.bin", name, n);
+                FILE* raw = nullptr;
+                if (_wfopen_s(&raw, (folder + path).c_str(), L"rb") != 0 || raw == nullptr)
+                    return false;
+                const size_t got = fread(target, 4, full, raw);
+                fclose(raw);
+                return got == full;
+            };
+            if (!read(L"colour", colour.data()) || !read(L"depth", depth.data()) || !read(L"motion", motion.data()))
+                return false;
+
+            ReplayFrame& f = frames[n];
+            f.colour.resize(static_cast<size_t>(width) * height);
+            f.depth.resize(f.colour.size());
+            f.motion.resize(f.colour.size());
+            for (UINT y = 0; y < height; ++y)
+            {
+                for (UINT x = 0; x < width; ++x)
+                {
+                    // Colour: the 2x2 mean. Depth and motion: one texel, the nearest
+                    // surface of the four, so an edge keeps one surface's values.
+                    uint32_t sum[4] = {};
+                    size_t nearest = 0;
+                    float nearestDepth = -1.0f;
+                    for (UINT dy = 0; dy < 2; ++dy)
+                        for (UINT dx = 0; dx < 2; ++dx)
+                        {
+                            const size_t i = static_cast<size_t>(y * 2 + dy) * fullWidth + x * 2 + dx;
+                            for (int c = 0; c < 4; ++c)
+                                sum[c] += (colour[i] >> (8 * c)) & 0xFFu;
+                            if (depth[i] > nearestDepth) { nearestDepth = depth[i]; nearest = i; }
+                        }
+                    f.colour[static_cast<size_t>(y) * width + x] = (sum[0] / 4) | ((sum[1] / 4) << 8)
+                                                                    | ((sum[2] / 4) << 16) | 0xFF000000u;
+                    // The dump's depth and motion rows are top-down (flipped for frame
+                    // generation); the proxy flips again, so they go in as Unity has them.
+                    const size_t target = static_cast<size_t>(height - 1 - y) * width + x;
+                    f.depth[target] = depth[nearest];
+                    f.motion[target] = motion[nearest];
+                }
+            }
+            FramePacket& p = f.packet;
+            p.size = sizeof(FramePacket);
+            p.magic = kPacketMagic;
+            p.renderWidth = width;
+            p.renderHeight = height;
+            p.motionVectorScaleX = -static_cast<float>(width);
+            p.motionVectorScaleY = -static_cast<float>(height);
+            p.jitterX *= 0.5f;
+            p.jitterY *= 0.5f;
+        }
+        return true;
+    }
+
+    // The vessel's shadow on the ground, from the colour: darker than the lit
+    // runway, not the vessel itself (motion near zero is the vessel), within the
+    // lower part of the picture. The vessel's motion there: the median motion of
+    // the vessel's own pixels.
+    void GiveShadowVesselMotion(ReplayFrame& f, UINT width, UINT height)
+    {
+        auto half = [](uint16_t h) { return HalfToFloat(h); };
+        std::vector<float> luminance(f.colour.size());
+        for (size_t i = 0; i < f.colour.size(); ++i)
+        {
+            const uint32_t c = f.colour[i];
+            luminance[i] = 0.299f * (c & 0xFF) + 0.587f * ((c >> 8) & 0xFF) + 0.114f * ((c >> 16) & 0xFF);
+        }
+        // Box blur, radius 6, so the runway's grain does not decide.
+        std::vector<float> blurred(luminance.size()), row(luminance.size());
+        const int r = 6;
+        for (UINT y = 0; y < height; ++y)
+            for (UINT x = 0; x < width; ++x)
+            {
+                float s = 0; int n = 0;
+                for (int d = -r; d <= r; ++d)
+                {
+                    const int xx = static_cast<int>(x) + d;
+                    if (xx >= 0 && xx < static_cast<int>(width)) { s += luminance[static_cast<size_t>(y) * width + xx]; ++n; }
+                }
+                row[static_cast<size_t>(y) * width + x] = s / n;
+            }
+        for (UINT y = 0; y < height; ++y)
+            for (UINT x = 0; x < width; ++x)
+            {
+                float s = 0; int n = 0;
+                for (int d = -r; d <= r; ++d)
+                {
+                    const int yy = static_cast<int>(y) + d;
+                    if (yy >= 0 && yy < static_cast<int>(height)) { s += row[static_cast<size_t>(yy) * width + x]; ++n; }
+                }
+                blurred[static_cast<size_t>(y) * width + x] = s / n;
+            }
+
+        // Motion rows are bottom-up; colour rows top-down.
+        auto motionAt = [&](UINT x, UINT yTop) -> uint32_t& { return f.motion[static_cast<size_t>(height - 1 - yTop) * width + x]; };
+        std::vector<float> lit;
+        std::vector<uint32_t> vesselMotion;
+        for (UINT y = height / 3; y < height; y += 2)
+            for (UINT x = 0; x < width; x += 2)
+            {
+                const uint32_t m = motionAt(x, y);
+                const float mx = half(static_cast<uint16_t>(m & 0xFFFF)) * width;
+                const float my = half(static_cast<uint16_t>(m >> 16)) * height;
+                if (std::fabs(mx) + std::fabs(my) < 2.0f) vesselMotion.push_back(m);
+                else lit.push_back(blurred[static_cast<size_t>(y) * width + x]);
+            }
+        if (lit.empty() || vesselMotion.empty())
+            return;
+        std::sort(lit.begin(), lit.end());
+        const float litLevel = lit[lit.size() * 9 / 10];
+        const float darkLevel = lit[lit.size() / 50];
+        const float threshold = darkLevel + 0.6f * (litLevel - darkLevel);
+        const uint32_t vessel = vesselMotion[vesselMotion.size() / 2];
+        size_t changed = 0;
+        for (UINT y = height / 3; y < height; ++y)
+            for (UINT x = 0; x < width; ++x)
+            {
+                uint32_t& m = motionAt(x, y);
+                const float mx = half(static_cast<uint16_t>(m & 0xFFFF)) * width;
+                const float my = half(static_cast<uint16_t>(m >> 16)) * height;
+                if (std::fabs(mx) + std::fabs(my) < 2.0f)
+                    continue;
+                if (blurred[static_cast<size_t>(y) * width + x] < threshold)
+                {
+                    m = vessel;
+                    ++changed;
+                }
+            }
+        printf("      shadow motion: %zu pixels given the vessel's motion (threshold %.0f, lit %.0f)\n", changed,
+               threshold, litLevel);
+    }
+
+    int RunReplay(const std::wstring& folder)
+    {
+        UINT width = 0, height = 0;
+        std::vector<ReplayFrame> frames;
+        if (!LoadReplay(folder, width, height, frames))
+            return Fail("reading the input dump", E_FAIL);
+        printf("      replay: %zu frames at %ux%u\n", frames.size(), width, height);
+        if (EnvironmentSet(L"REDEFINITION_REPLAY_SHADOW_MOTION"))
+            for (ReplayFrame& f : frames)
+                GiveShadowVesselMotion(f, width, height);
+        // Variations, one cause at a time: no jitter; no motion vectors.
+        if (EnvironmentSet(L"REDEFINITION_REPLAY_NO_JITTER"))
+            for (ReplayFrame& f : frames)
+                f.packet.jitterX = f.packet.jitterY = 0.0f;
+        if (EnvironmentSet(L"REDEFINITION_REPLAY_NO_MOTION"))
+            for (ReplayFrame& f : frames)
+                std::fill(f.motion.begin(), f.motion.end(), 0u);
+        // The camera said to stand still: clip to previous clip is the identity.
+        if (EnvironmentSet(L"REDEFINITION_REPLAY_STILL_CAMERA"))
+            for (ReplayFrame& f : frames)
+                for (int i = 0; i < 16; ++i)
+                    f.packet.clipToPrevClip[i] = f.packet.prevClipToClip[i] = (i % 5 == 0) ? 1.0f : 0.0f;
+        // One depth everywhere, where anything is drawn.
+        if (EnvironmentSet(L"REDEFINITION_REPLAY_FLAT_DEPTH"))
+            for (ReplayFrame& f : frames)
+                for (float& d : f.depth)
+                    if (d > 0.0f) d = 0.01f;
+
+        wchar_t streamlineBuffer[MAX_PATH] = {};
+        GetEnvironmentVariableW(L"REDEFINITION_STREAMLINE_DIR", streamlineBuffer, MAX_PATH);
+        const IniKey streamlineKey(L"streamlineDirectory");
+        streamlineKey.Set(streamlineBuffer[0] != 0 ? streamlineBuffer : nullptr);
+        const IniKey fgVSync(L"fgVSync");
+        fgVSync.Set(L"0");
+
+        const HMODULE dxgi = LoadLibraryW(L"dxgi.dll");
+        if (dxgi == nullptr)
+            return Fail("LoadLibrary(dxgi.dll)", HRESULT_FROM_WIN32(GetLastError()));
+        using CreateFactory2Fn = HRESULT(WINAPI*)(UINT, REFIID, void**);
+        const auto createFactory2 = reinterpret_cast<CreateFactory2Fn>(GetProcAddress(dxgi, "CreateDXGIFactory2"));
+        ComPtr<IDXGIFactory2> factory;
+        HRESULT hr = createFactory2(0, IID_PPV_ARGS(&factory));
+        if (FAILED(hr))
+            return Fail("CreateDXGIFactory2", hr);
+        ComPtr<IDXGIAdapter1> adapter = NvidiaAdapter(factory.Get());
+        ComPtr<ID3D11Device> device;
+        ComPtr<ID3D11DeviceContext> context;
+        hr = D3D11CreateDevice(adapter.Get(), adapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE, nullptr, 0,
+                               nullptr, 0, D3D11_SDK_VERSION, &device, nullptr, &context);
+        if (FAILED(hr))
+            return Fail("D3D11CreateDevice", hr);
+
+        WNDCLASSEXW wc = {};
+        wc.cbSize = sizeof(wc);
+        wc.lpfnWndProc = WindowProc;
+        wc.hInstance = GetModuleHandleW(nullptr);
+        wc.lpszClassName = L"ReDefinitionProxyReplay";
+        RegisterClassExW(&wc);
+        RECT rect = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+        AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
+        const HWND window = CreateWindowExW(0, wc.lpszClassName, L"ReDefinition replay", WS_OVERLAPPEDWINDOW, 0, 0,
+                                            rect.right - rect.left, rect.bottom - rect.top, nullptr, nullptr,
+                                            wc.hInstance, nullptr);
+        ShowWindow(window, SW_SHOW);
+        SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        {
+            const HWND foreground = GetForegroundWindow();
+            const DWORD foregroundThread = foreground != nullptr ? GetWindowThreadProcessId(foreground, nullptr) : 0;
+            const DWORD ownThread = GetCurrentThreadId();
+            const bool joined = foregroundThread != 0 && foregroundThread != ownThread
+                                && AttachThreadInput(ownThread, foregroundThread, TRUE);
+            SetForegroundWindow(window);
+            BringWindowToTop(window);
+            SetFocus(window);
+            if (joined)
+                AttachThreadInput(ownThread, foregroundThread, FALSE);
+            PumpMessages();
+        }
+
+        DXGI_SWAP_CHAIN_DESC1 desc = {};
+        desc.Width = width;
+        desc.Height = height;
+        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        desc.SampleDesc.Count = 1;
+        desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
+        desc.BufferCount = 2;
+        desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+        desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING | DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH
+                   | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+        ComPtr<IDXGISwapChain1> swapChain;
+        hr = factory->CreateSwapChainForHwnd(device.Get(), window, &desc, nullptr, nullptr, &swapChain);
+        if (FAILED(hr))
+            return Fail("CreateSwapChainForHwnd", hr);
+        ComPtr<IDXGISwapChain2> swapChain2;
+        swapChain.As(&swapChain2);
+        const HANDLE waitable = swapChain2 ? swapChain2->GetFrameLatencyWaitableObject() : nullptr;
+        ComPtr<ID3D11Texture2D> backBuffer;
+        hr = swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+        if (FAILED(hr))
+            return Fail("GetBuffer(0)", hr);
+
+        const auto getRenderEvent = reinterpret_cast<GetRenderEventFn>(GetProcAddress(dxgi, "KspFgGetRenderEventFunc"));
+        const auto setEnabled = reinterpret_cast<SetEnabledFn>(GetProcAddress(dxgi, "KspFgSetEnabled"));
+        const auto registerInputs = reinterpret_cast<RegisterInputsFn>(GetProcAddress(dxgi, "KspFgRegisterInputs3"));
+        const auto status = reinterpret_cast<StatusFn>(GetProcAddress(dxgi, "KspFgStatus"));
+        using RecordFn = int(__cdecl*)(int);
+        using RecordStateFn = int(__cdecl*)(char*, int);
+        const auto record = reinterpret_cast<RecordFn>(GetProcAddress(dxgi, "KspRecordScreen"));
+        const auto recordState = reinterpret_cast<RecordStateFn>(GetProcAddress(dxgi, "KspRecordScreenState"));
+        if (!getRenderEvent || !setEnabled || !registerInputs || !status || !record || !recordState)
+            return Fail("proxy exports missing", E_FAIL);
+        const auto renderEvent = reinterpret_cast<RenderEventFn>(getRenderEvent());
+        setEnabled(1);
+
+        auto texture = [&](DXGI_FORMAT format, ComPtr<ID3D11Texture2D>& out) -> HRESULT
+        {
+            D3D11_TEXTURE2D_DESC t = {};
+            t.Width = width;
+            t.Height = height;
+            t.MipLevels = 1;
+            t.ArraySize = 1;
+            t.Format = format;
+            t.SampleDesc.Count = 1;
+            t.Usage = D3D11_USAGE_DEFAULT;
+            t.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            return device->CreateTexture2D(&t, nullptr, &out);
+        };
+        ComPtr<ID3D11Texture2D> depth, motion, hudLess;
+        if (FAILED(texture(DXGI_FORMAT_R32_FLOAT, depth)) || FAILED(texture(DXGI_FORMAT_R16G16_FLOAT, motion))
+            || FAILED(texture(DXGI_FORMAT_R8G8B8A8_UNORM, hudLess)))
+            return Fail("creating the replay inputs", E_FAIL);
+        registerInputs(depth.Get(), motion.Get(), hudLess.Get());
+
+        // Each dumped frame once per round; the first of a round is a reset, the jump
+        // back from the last being no motion.
+        const int rounds = 20;
+        uint32_t frameIndex = 0;
+        bool recording = false;
+        char state[512] = {};
+        for (int round = 0; round < rounds || (recording && strncmp(state, "running", 7) == 0); ++round)
+        {
+            if (recording)
+                recordState(state, sizeof(state));
+            for (size_t n = 0; n < frames.size(); ++n)
+            {
+                PumpMessages();
+                if (waitable != nullptr)
+                    WaitForSingleObject(waitable, 1000);
+                ReplayFrame& f = frames[n];
+                context->UpdateSubresource(backBuffer.Get(), 0, nullptr, f.colour.data(), width * 4, 0);
+                context->UpdateSubresource(hudLess.Get(), 0, nullptr, f.colour.data(), width * 4, 0);
+                context->UpdateSubresource(depth.Get(), 0, nullptr, f.depth.data(), width * 4, 0);
+                context->UpdateSubresource(motion.Get(), 0, nullptr, f.motion.data(), width * 4, 0);
+                FramePacket packet = f.packet;
+                packet.frameIndex = ++frameIndex;
+                packet.reset = n == 0 ? 1u : 0u;
+                renderEvent(kPacketEvent, &packet);
+                hr = swapChain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+                if (FAILED(hr))
+                    return Fail("Present during the replay", hr);
+                // Presented at about the game's pace, so pacing is not what differs.
+                Sleep(15);
+            }
+            // Only the replay's own window may be recorded: the recorder takes the
+            // foreground window, and anything else there is not the harness's.
+            if (round == rounds / 2 && !recording)
+            {
+                if (GetForegroundWindow() != window)
+                {
+                    printf("      the replay window is not in front: nothing recorded\n");
+                    break;
+                }
+                recording = record(static_cast<int>(frames.size()) * 4) == 1;
+            }
+        }
+        char line[512] = {};
+        status(line, sizeof(line));
+        printf("      replay done  [%s]\n", line);
+        recordState(line, sizeof(line));
+        printf("      recording: %s\n", line);
+        return 0;
+    }
+}
+
 int main()
 {
     printf("ReDefinition proxy harness\n");
+
+    {
+        wchar_t replayFolder[MAX_PATH] = {};
+        if (GetEnvironmentVariableW(L"REDEFINITION_HARNESS_REPLAY", replayFolder, MAX_PATH) > 0)
+            return RunReplay(replayFolder);
+    }
 
     // Before the proxy loads, so it starts with these whatever the ini next to
     // the harness says. fgVSync=0: the game's sync interval passes through, the
@@ -526,6 +948,9 @@ int main()
     LoadFn load = nullptr;
     ComPtr<ID3D11Texture2D> ui;
     ComPtr<ID3D11Texture2D> feature;
+    ComPtr<ID3D11Texture2D> detail;
+    const bool detailScene = EnvironmentSet(L"REDEFINITION_HARNESS_DETAIL");
+    const bool jitterSequence = EnvironmentSet(L"REDEFINITION_HARNESS_JITTER");
     ComPtr<ID3D11Texture2D> hudLessCopy;
     Inputs inputs;
     FramePacket packet = {};
@@ -571,6 +996,24 @@ int main()
                                  0xFF000000u, feature);
         if (FAILED(hr))
             return Fail("CreateTexture2D for the scene feature", hr);
+
+        if (detailScene)
+        {
+            hr = CreateFilledTexture(device.Get(), kDetailWidth, kDetailHeight, DXGI_FORMAT_R8G8B8A8_UNORM,
+                                     0u, detail);
+            if (FAILED(hr))
+                return Fail("CreateTexture2D for the detail scene", hr);
+            std::vector<uint32_t> grain(static_cast<size_t>(kDetailWidth) * kDetailHeight);
+            uint32_t seed = 12345u;
+            for (uint32_t& texel : grain)
+            {
+                seed = seed * 1664525u + 1013904223u;
+                const uint32_t v = 64u + ((seed >> 24) & 0x7Fu);
+                texel = 0xFF000000u | (v << 16) | (v << 8) | v;
+            }
+            context->UpdateSubresource(detail.Get(), 0, nullptr, grain.data(), kDetailWidth * 4, 0);
+            printf("      detail scene: still grain, jitter %s\n", jitterSequence ? "sequence" : "none");
+        }
     }
 
     // The rig's inputs at a given size: depth, motion vectors and the HUD-less
@@ -655,7 +1098,8 @@ int main()
         const float t = static_cast<float>(frameNumber % kFrames) / kFrames;
         ++frameNumber;
         const float colour[4] = { t, 0.2f, 1.0f - t, 1.0f };
-        context->ClearRenderTargetView(rtv.Get(), colour);
+        const float still[4] = { 0.3f, 0.3f, 0.3f, 1.0f };
+        context->ClearRenderTargetView(rtv.Get(), detailScene ? still : colour);
 
         if (renderEvent != nullptr)
         {
@@ -663,6 +1107,17 @@ int main()
             const D3D11_BOX featureBox = { 0, 0, 0, kFeatureWidth, kFeatureHeight, 1 };
             context->CopySubresourceRegion(backBuffer.Get(), 0, kFeatureX, kFeatureY, 0,
                                            feature.Get(), 0, &featureBox);
+            if (detail)
+            {
+                const D3D11_BOX detailBox = { 0, 0, 0, kDetailWidth, kDetailHeight, 1 };
+                context->CopySubresourceRegion(backBuffer.Get(), 0, kDetailX, kDetailY, 0,
+                                               detail.Get(), 0, &detailBox);
+            }
+            if (jitterSequence)
+            {
+                packet.jitterX = Halton(frameNumber % 8, 2) - 0.5f;
+                packet.jitterY = Halton(frameNumber % 8, 3) - 0.5f;
+            }
 
             // The scene is finished: the rig blits the backbuffer into its
             // HUD-less texture here. Then this frame's packet, then the "UI"
@@ -724,7 +1179,7 @@ int main()
         if (direct < uiShare - 0.005f || direct > uiShare + 0.005f)
             return Fail("the HUD-less copy differs from the frame by something other than the UI", E_FAIL);
         const float mirroredExpected = uiShare + 2.0f * featureShare;
-        if (mirrored < mirroredExpected - 0.005f || mirrored > mirroredExpected + 0.005f)
+        if (!detailScene && (mirrored < mirroredExpected - 0.005f || mirrored > mirroredExpected + 0.005f))
             return Fail("the HUD-less copy was flipped, or the scene feature is missing", E_FAIL);
     }
 
@@ -891,6 +1346,27 @@ int main()
             printf("      screen recording while DLSS frame generation runs: %s\n", state);
             if (std::strncmp(state, "done", 4) != 0)
                 return Fail("the screen recording did not finish", E_FAIL);
+
+            // The cut-out is larger than the harness window and holds whatever else is
+            // on the screen: only that it ran is tested, so the files go again.
+            const std::string done(state);
+            const size_t from = done.find("done: ");
+            const size_t to = done.find(" (", from);
+            if (from != std::string::npos && to != std::string::npos)
+            {
+                const std::string folder = done.substr(from + 6, to - from - 6);
+                WIN32_FIND_DATAA found = {};
+                const HANDLE search = FindFirstFileA((folder + "\\*").c_str(), &found);
+                if (search != INVALID_HANDLE_VALUE)
+                {
+                    do
+                        if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                            DeleteFileA((folder + "\\" + found.cFileName).c_str());
+                    while (FindNextFileA(search, &found));
+                    FindClose(search);
+                }
+                RemoveDirectoryA(folder.c_str());
+            }
         }
 
         // Mode changes while it generates, as the toolbar makes them.

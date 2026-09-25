@@ -131,9 +131,9 @@ namespace redefinition
         // metres (FrameGenerationDlss.cpp). Streamline takes it in linear depth,
         // 1 / depth with inverted depth, which is about the distance over the near
         // plane; its default of 40 is 8.4 m at KSP's near plane in flight, 0.21 m
-        // (FlightCamera, decompiled), so an aircraft and the runway under it count as
-        // one object. 0 keeps Streamline's default.
-        float fgObjectSeparationMetres = 1.0f;
+        // (FlightCamera, decompiled). 0 keeps Streamline's default. On the runway,
+        // 1 m and the default made no measurable difference.
+        float fgObjectSeparationMetres = 0.0f;
 
         // Frame pacing. FSR's swapchain owns the timing of generated frames, and
         // these are its documented defaults. Hybrid spin, which AMD's header calls

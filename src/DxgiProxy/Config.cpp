@@ -118,7 +118,7 @@ namespace redefinition
             if (target.reportSeconds < 1)
                 target.reportSeconds = 1;
 
-            target.fgObjectSeparationMetres = ReadFloat(L"fgObjectSeparationMetres", file, 1.0f);
+            target.fgObjectSeparationMetres = ReadFloat(L"fgObjectSeparationMetres", file, 0.0f);
             target.fgPacingSafetyMarginMs = ReadFloat(L"fgPacingSafetyMarginMs", file, 0.1f);
             target.fgPacingVarianceFactor = ReadFloat(L"fgPacingVarianceFactor", file, 0.1f);
             target.fgPacingHybridSpin = ReadFlag(L"fgPacingHybridSpin", file, false);

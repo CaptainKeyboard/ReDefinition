@@ -145,7 +145,10 @@ extern "C"
                    now.wSecond);
         const std::wstring root = redefinition::ExecutableDirectory() + L"\\ReDefinitionCaptures";
         CreateDirectoryW(root.c_str(), nullptr);
-        return redefinition::StartScreenRecording(frames, root + L"\\" + stamp) ? 1 : 0;
+        const bool started = redefinition::StartScreenRecording(frames, root + L"\\" + stamp);
+        if (started)
+            redefinition::FrameGeneration::Get().StartInputDump(8, root + L"\\" + stamp + L"-inputs");
+        return started ? 1 : 0;
     }
 
     __declspec(dllexport) int KspRecordScreenState(char* buffer, int size)
