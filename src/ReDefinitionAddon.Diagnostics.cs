@@ -278,6 +278,14 @@ namespace ReDefinition
             if (SwitchRow("Other mods' effects", ForeignEffects.Off ? "off" : "on"))
                 ForeignEffects.Set(!ForeignEffects.Off);
 
+            // Not saved: the vessel and the camera drawn between the physics steps
+            // (RenderInterpolation).
+            if (SwitchRow("Render interpolation", RenderInterpolation.Enabled ? "on" : "off"))
+            {
+                RenderInterpolation.Enabled = !RenderInterpolation.Enabled;
+                Debug.Log(Log.Tag + " Render interpolation " + (RenderInterpolation.Enabled ? "on." : "off."));
+            }
+
             // Half a second of what the monitor shows, frame generation's frames included,
             // into ReDefinitionCaptures beside KSP_x64.exe (ScreenRecordingBridge).
             // Five seconds after the click, time to close the windows and turn the camera.
