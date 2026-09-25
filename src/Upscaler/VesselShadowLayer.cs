@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using ReDefinition.Core;
 using ReDefinition.Shared;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -132,6 +133,16 @@ namespace ReDefinition.Upscaler
         private Vector2Int size;
         private int framesDrawn;
         private int framesSkipped;
+
+        // What the frame's passes found, read back once a report: a sample grid over the
+        // mask and the weight, so the log says which step holds where the shadow is not
+        // taken out.
+        private const int SampleWidth = 160;
+        private const int SampleHeight = 90;
+        private RenderTexture maskSample;
+        private RenderTexture weightSample;
+        private bool sampleRequested;
+        private string sampleLine = "not read yet";
         private float windowStart = -1f;
 
         internal void Disable()
@@ -142,6 +153,8 @@ namespace ReDefinition.Upscaler
             UpscalerRig.Release(ref weight);
             UpscalerRig.Release(ref shadowed);
             UpscalerRig.Release(ref lit);
+            UpscalerRig.Release(ref maskSample);
+            UpscalerRig.Release(ref weightSample);
             if (material != null) Object.Destroy(material);
             material = null;
             casters.Clear();
@@ -259,6 +272,7 @@ namespace ReDefinition.Upscaler
             capture.SetGlobalVector(ReachId, new Vector4(TakePartMetres * LightMapSize / (2f * radius), 0f, 0f, 0f));
             capture.SetGlobalVector(ReceiverShiftId, receiverShift);
             capture.Blit(depth, weight, material, WeightPass);
+            if (!sampleRequested) RequestSample(capture);
 
             KeepModels();
             previousViewProjection = viewProjection;
@@ -455,6 +469,65 @@ namespace ReDefinition.Upscaler
             return texture.Create();
         }
 
+        private void RequestSample(CommandBuffer capture)
+        {
+            if (maskSample == null)
+            {
+                maskSample = new RenderTexture(SampleWidth, SampleHeight, 0, RenderTextureFormat.ARGBHalf)
+                    { name = "ReDefinition_VesselShadowMaskSample", filterMode = FilterMode.Point };
+                weightSample = new RenderTexture(SampleWidth, SampleHeight, 0, RenderTextureFormat.ARGBHalf)
+                    { name = "ReDefinition_VesselShadowWeightSample", filterMode = FilterMode.Point };
+                maskSample.Create();
+                weightSample.Create();
+            }
+            sampleRequested = true;
+            capture.Blit(mask, maskSample);
+            capture.Blit(weight, weightSample);
+            NativeArray<ushort> maskData = default(NativeArray<ushort>);
+            bool haveMask = false;
+            capture.RequestAsyncReadback(maskSample, request =>
+            {
+                if (request.hasError) return;
+                maskData = new NativeArray<ushort>(request.GetData<ushort>(), Allocator.Persistent);
+                haveMask = true;
+            });
+            capture.RequestAsyncReadback(weightSample, request =>
+            {
+                if (!request.hasError && haveMask)
+                    Summarise(maskData, request.GetData<ushort>());
+                if (maskData.IsCreated) maskData.Dispose();
+            });
+        }
+
+        // Per sample: Unity's mask (r), the share of the sun the vessel takes (g), the
+        // weight (r), lit ground near the shadow (b).
+        private void Summarise(NativeArray<ushort> maskData, NativeArray<ushort> weightData)
+        {
+            int samples = SampleWidth * SampleHeight, shadowed = 0, taken = 0, weighted = 0, lit = 0;
+            float maskMin = 1f;
+            double weightSum = 0;
+            for (int i = 0; i < samples; i++)
+            {
+                float m = Mathf.HalfToFloat(maskData[i * 4]);
+                float w = Mathf.HalfToFloat(weightData[i * 4]);
+                float g = Mathf.HalfToFloat(weightData[i * 4 + 1]);
+                float b = Mathf.HalfToFloat(weightData[i * 4 + 2]);
+                if (m < maskMin) maskMin = m;
+                if (m < 0.9f) shadowed++;
+                if (g > 0.1f) taken++;
+                if (w > 0.1f)
+                {
+                    weighted++;
+                    weightSum += w;
+                }
+                if (b > 0.5f) lit++;
+            }
+            sampleLine = string.Format(CultureInfo.InvariantCulture,
+                "of {0} samples, {1} in shadow in Unity's mask (lowest {2:0.00}), {3} in the vessel's shadow, {4} weighted"
+                + " (mean {5:0.00}), {6} lit ground to compare with",
+                samples, shadowed, maskMin, taken, weighted, weighted > 0 ? weightSum / weighted : 0.0, lit);
+        }
+
         private void Report()
         {
             float elapsed = Time.unscaledTime - windowStart;
@@ -463,6 +536,8 @@ namespace ReDefinition.Upscaler
                       + elapsed.ToString("0.0", CultureInfo.InvariantCulture) + " s: " + framesDrawn + " frame(s) drawn, "
                       + framesSkipped + " left out (reset, no light or no vessel); light '"
                       + (light != null ? light.name : "none") + "', " + casters.Count + " caster(s).");
+            Debug.Log(Log.Tag + " Vessel shadow for frame generation, one frame: " + sampleLine + ".");
+            sampleRequested = false;
             framesDrawn = framesSkipped = 0;
         }
     }

@@ -55,9 +55,13 @@ namespace ReDefinition.Upscaler
             // The frame with the active vessel's shadow taken out where frame generation
             // would drag it along with the ground (VesselShadowLayer), or the frame as it is.
             hudLessWithShadow = VesselShadowLayer.Enabled;
-            if (!hudLessWithShadow
-                || !vesselShadow.Compose(hudLessBuffer, BuiltinRenderTextureType.CameraTarget, hudLessCopy, renderSize))
-                hudLessBuffer.Blit(BuiltinRenderTextureType.CameraTarget, hudLessCopy);
+            bool composed = hudLessWithShadow
+                            && vesselShadow.Compose(hudLessBuffer, BuiltinRenderTextureType.CameraTarget, hudLessCopy, renderSize);
+            if (!composed) hudLessBuffer.Blit(BuiltinRenderTextureType.CameraTarget, hudLessCopy);
+            Debug.Log(Log.Tag + " HUD-less copy: " + (composed ? "with the vessel's shadow taken out (VesselShadowLayer)"
+                                                              : hudLessWithShadow ? "the frame as it is -- the vessel shadow's"
+                                                                                    + " composition could not be set up"
+                                                                                  : "the frame as it is") + ".");
 
             // AfterEverything: after the presenter's OnRenderImage blit, and
             // after an effect camera's own drawing.
