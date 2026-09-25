@@ -15,6 +15,10 @@
 
 ### Fixed
 
+- **DLSS frame generation tells the aircraft and the runway under it apart.** NVIDIA's
+  default for the depth difference between two objects came to 8.4 m at KSP's near plane,
+  so the generated frames treated both as one surface and the shadows on the runway
+  flickered. The proxy now sets it to 1 m, `fgObjectSeparationMetres` in its ini.
 - **Firefly's and TUFX's own windows open from the Advanced buttons.** A mod that hides
   KSP's interface and shows it again without saying so, QuickIVA at the start of a
   flight, left KSP's interface marked hidden, and these two draw only while it is

@@ -202,6 +202,14 @@ namespace redefinition
         constants.motionVectorsDilated = sl::Boolean::eFalse;
         constants.motionVectorsJittered = sl::Boolean::eFalse;
         constants.orthographicProjection = sl::Boolean::eFalse;
+        // Streamline's "minimum depth difference between two objects in
+        // screen-space", in linear depth: "if depthInverted is true: lin_depth =
+        // 1 / depth", which is about the distance over the near plane (sl_consts.h).
+        // Its default of 40 near planes is 8.4 m at KSP's 0.21 m in flight: an
+        // aircraft and the runway under it would count as one object. The header:
+        // "smaller thresholds are useful when depth units are unusually compressed".
+        if (cfg.fgObjectSeparationMetres > 0.0f && packet.nearPlane > 0.0f)
+            constants.minRelativeLinearDepthObjectSeparation = cfg.fgObjectSeparationMetres / packet.nearPlane;
         // Coming back from off is a discontinuity, as for FSR.
         constants.reset = packet.reset != 0 || resumed ? sl::Boolean::eTrue : sl::Boolean::eFalse;
 

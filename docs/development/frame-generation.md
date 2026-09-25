@@ -150,6 +150,14 @@ From NVIDIA's ProgrammingGuideDLSS_G.md and the Streamline headers:
 * **Tags.** Depth, motion vectors and HUD-less colour, tagged `eValidUntilPresent`, in
   `COMMON` state between uses; the motion vector scale as Streamline's normalisation by the
   texture's size.
+* **Object separation.** `minRelativeLinearDepthObjectSeparation`, "the minimum depth
+  difference between two objects in screen-space", is taken in linear depth, `1 / depth`
+  with inverted depth, about the distance over the near plane (`sl_consts.h`). Its default
+  of 40 comes to 8.4 m at KSP's near plane in flight, 0.21 m (`FlightCamera`, decompiled),
+  so an aircraft and the runway under it counted as one object. The header: "smaller
+  thresholds are useful when depth units are unusually compressed". The proxy sets it
+  from `fgObjectSeparationMetres` in its ini, 1 m by default, divided by each frame's near
+  plane.
 * **Options.** On with as many generated frames as the GPU reports it can make, and no more
   than the display allows (below); off when the mod has it off or no inputs arrived.
   Resources are kept while off. Options take effect "in the next Present() call that
@@ -267,4 +275,5 @@ many parts and re-entry. It does not pay on the pad at 80-90 fps.
 | What the fence back costs | frame times with and without, in the same scene |
 | The HUD-less check's own cost | the report's max column, once per interval |
 | Frame pacing per profile | measured once the tiers are on real GPUs |
+| Whether the object separation takes out the flicker of the aircraft's shadows on the runway with presets L and M | a fast run on the runway with frame generation, the value at 1 m and at 0 |
 | DLSS-G in flight: status, generated frames per rendered frame, latency | the proxy's "DLSS frame generation" and frame time lines from a flight |

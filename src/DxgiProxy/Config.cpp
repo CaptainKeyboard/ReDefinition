@@ -74,6 +74,7 @@ namespace redefinition
                  + " fgVSync=" + (c.fgVSync ? "1" : "0")
                  + " fgHalfRefreshLimit=" + (c.fgHalfRefreshLimit ? "1" : "0")
                  + " fgAsyncWorkloads=" + (c.fgAsyncWorkloads ? "1" : "0")
+                 + " fgObjectSeparationMetres=" + std::to_string(c.fgObjectSeparationMetres)
                  + " pacing=" + std::to_string(c.fgPacingSafetyMarginMs) + "/"
                  + std::to_string(c.fgPacingVarianceFactor)
                  + (c.fgPacingHybridSpin ? "/spin" : "")
@@ -117,6 +118,7 @@ namespace redefinition
             if (target.reportSeconds < 1)
                 target.reportSeconds = 1;
 
+            target.fgObjectSeparationMetres = ReadFloat(L"fgObjectSeparationMetres", file, 1.0f);
             target.fgPacingSafetyMarginMs = ReadFloat(L"fgPacingSafetyMarginMs", file, 0.1f);
             target.fgPacingVarianceFactor = ReadFloat(L"fgPacingVarianceFactor", file, 0.1f);
             target.fgPacingHybridSpin = ReadFlag(L"fgPacingHybridSpin", file, false);
