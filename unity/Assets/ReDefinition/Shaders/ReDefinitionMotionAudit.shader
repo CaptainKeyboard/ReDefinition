@@ -136,5 +136,46 @@ Shader "Hidden/ReDefinition/MotionAudit"
             }
             ENDCG
         }
+
+        // 2: the renderer's depth into the captured depth, where it is nearer than what
+        // is there. Unity's depth sources in the deferred path -- ResolvedDepth, Depth,
+        // _CameraDepthTexture -- hold what the deferred pass drew and nothing of what the
+        // forward pass draws after it (MotionVectorCheck, measured). Reversed depth on
+        // Direct3D 11: nearer is larger, kept by BlendOp Max.
+        Pass
+        {
+            ZTest Always
+            ZWrite Off
+            Cull Off
+            ColorMask R
+            Blend One One
+            BlendOp Max
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 3.5
+            #include "UnityCG.cginc"
+
+            float4x4 _AuditRasterViewProjection;
+
+            struct v2f
+            {
+                float4 pos : SV_POSITION;
+            };
+
+            v2f vert (float4 vertex : POSITION)
+            {
+                v2f o;
+                o.pos = mul(_AuditRasterViewProjection, mul(unity_ObjectToWorld, float4(vertex.xyz, 1.0)));
+                return o;
+            }
+
+            float4 frag (v2f i) : SV_Target
+            {
+                return float4(i.pos.z, 0.0, 0.0, 0.0);
+            }
+            ENDCG
+        }
     }
 }

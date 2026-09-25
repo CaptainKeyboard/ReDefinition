@@ -179,7 +179,9 @@ sphere's centre must find the sphere at the row the in-game checks read. The ves
 check's shader, drawn over the moving sphere with its previous matrix, must find more
 than 98% of the sphere's pixels right, and drawn with the current matrix in its place,
 more than 90% wrong. Its pass that writes the vessel's motion vectors, drawn into empty
-ones, must leave more than 98% of the sphere's pixels right.
+ones, must leave more than 98% of the sphere's pixels right. A cube drawn only in the
+forward pass must be missing from `ResolvedDepth`, present in the camera's own depth
+buffer, and written into the depth by the vessel's depth pass within 1% of that value.
 
 ## Build the proxy
 

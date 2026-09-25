@@ -19,6 +19,8 @@ namespace ReDefinition.MotionVectorCheck
         public Shader cloudMotion;
         public Shader surface;
         public Shader motionAudit;
+        // Opaque, and drawn in the forward path only: it has no deferred pass.
+        public Shader forwardOnly;
 
         private const int Width = 320, Height = 180;
         private const int StillFrames = 30;
@@ -79,6 +81,7 @@ namespace ReDefinition.MotionVectorCheck
             yield return ReadBack();
             for (int i = 0; i < StillFrames; i++) yield return null;
             yield return Audit();
+            yield return DepthSources();
 
             System.IO.File.WriteAllText(path, result.ToString());
             Application.Quit();
@@ -153,6 +156,71 @@ namespace ReDefinition.MotionVectorCheck
         // it must find Unity's motion vectors right, and once with the current matrix in
         // its place, where it must find them wrong; then pass 1 writes them into empty
         // motion vectors, where pass 0 must find them right.
+        // Which of the camera's depth sources hold an opaque object drawn in the forward
+        // path after the deferred one: a cube with a forward-only shader in front of the
+        // sphere. The rig captures ResolvedDepth; frame generation and the vessel checks
+        // read it. One line: the depth each source holds at the cube's centre, where 0 is
+        // the far plane.
+        private IEnumerator DepthSources()
+        {
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.transform.position = new Vector3(0f, 0f, -5f);
+            cube.transform.localScale = Vector3.one;
+            cube.GetComponent<Renderer>().sharedMaterial = new Material(forwardOnly) { color = Color.red };
+
+            RenderTexture resolved = new RenderTexture(Width, Height, 0, RenderTextureFormat.RFloat);
+            RenderTexture plain = new RenderTexture(Width, Height, 0, RenderTextureFormat.RFloat);
+            RenderTexture global = new RenderTexture(Width, Height, 0, RenderTextureFormat.RFloat);
+            CommandBuffer sources = new CommandBuffer { name = "MotionVectorCheck depth sources" };
+            sources.Blit(BuiltinRenderTextureType.ResolvedDepth, resolved);
+            sources.Blit(BuiltinRenderTextureType.Depth, plain);
+            sources.Blit(new RenderTargetIdentifier("_CameraDepthTexture"), global);
+            cam.AddCommandBuffer(CameraEvent.BeforeImageEffects, sources);
+            for (int i = 0; i < 3; i++) yield return null;
+            yield return new WaitForEndOfFrame();
+            cam.RemoveCommandBuffer(CameraEvent.BeforeImageEffects, sources);
+
+            Vector3 viewport = cam.WorldToViewportPoint(cube.transform.position);
+            int x = Mathf.FloorToInt(viewport.x * Width), y = Mathf.FloorToInt(viewport.y * Height);
+            Texture2D rr = Read(resolved, TextureFormat.RFloat), pr = Read(plain, TextureFormat.RFloat),
+                      gr = Read(global, TextureFormat.RFloat);
+            float red = Read(color, TextureFormat.RGBAHalf).GetPixel(x, y).r;
+            Vector3 s = cam.WorldToViewportPoint(sphere.transform.position);
+            int sx = Mathf.FloorToInt(s.x * Width), sy = Mathf.FloorToInt(s.y * Height);
+            // Reversed depth: near / distance, about 0.3 / 5 at the cube's front face.
+            result.AppendLine(string.Format(CultureInfo.InvariantCulture,
+                "depthSources {0} {1} {2} cubeRed {3} sphere {4} {5} {6}",
+                rr.GetPixel(x, y).r, pr.GetPixel(x, y).r, gr.GetPixel(x, y).r, red,
+                rr.GetPixel(sx, sy).r, pr.GetPixel(sx, sy).r, gr.GetPixel(sx, sy).r));
+
+            // The camera's own depth buffer, made a depth texture of its own that can be
+            // read: the colour and the depth set apart (SetTargetBuffers).
+            RenderTexture depthTarget = new RenderTexture(Width, Height, 24, RenderTextureFormat.Depth);
+            depthTarget.Create();
+            cam.SetTargetBuffers(color.colorBuffer, depthTarget.depthBuffer);
+            for (int i = 0; i < 3; i++) yield return null;
+            yield return new WaitForEndOfFrame();
+            RenderTexture fromTarget = new RenderTexture(Width, Height, 0, RenderTextureFormat.RFloat);
+            Graphics.Blit(depthTarget, fromTarget);
+            Texture2D tr = Read(fromTarget, TextureFormat.RFloat);
+            result.AppendLine(string.Format(CultureInfo.InvariantCulture, "depthTarget {0} sphere {1}",
+                tr.GetPixel(x, y).r, tr.GetPixel(sx, sy).r));
+            cam.targetTexture = color;
+
+            // Pass 2 of Hidden/ReDefinition/MotionAudit draws the cube's depth into the
+            // resolved depth that lacks it, as VesselMotionVectors does for the vessel.
+            CommandBuffer write = new CommandBuffer { name = "MotionVectorCheck depth write" };
+            write.SetRenderTarget(resolved);
+            write.SetGlobalMatrix("_AuditRasterViewProjection",
+                GL.GetGPUProjectionMatrix(cam.projectionMatrix, true) * cam.worldToCameraMatrix);
+            write.DrawRenderer(cube.GetComponent<Renderer>(), new Material(motionAudit), 0, 2);
+            Graphics.ExecuteCommandBuffer(write);
+            Texture2D wr = Read(resolved, TextureFormat.RFloat);
+            result.AppendLine(string.Format(CultureInfo.InvariantCulture, "depthWrite {0} sphere {1}",
+                wr.GetPixel(x, y).r, wr.GetPixel(sx, sy).r));
+            Destroy(cube);
+        }
+
         private IEnumerator Audit()
         {
             Matrix4x4 previousViewProjection = ViewProjection();

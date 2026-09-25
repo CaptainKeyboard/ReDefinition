@@ -70,6 +70,7 @@ namespace ReDefinition.EditorTools
             // Standard writes depth, which Unity's camera motion reads.
             probe.surface = Shader.Find("Standard");
             probe.motionAudit = AssetDatabase.LoadAssetAtPath<Shader>(AuditShaderPath);
+            probe.forwardOnly = Shader.Find("Unlit/Color");
             if (probe.cloudMotion == null || probe.surface == null || probe.motionAudit == null)
             {
                 problems.Add("the shaders for the probe did not load.");
@@ -126,6 +127,7 @@ namespace ReDefinition.EditorTools
             int cases = 0;
             bool readback = false;
             int audits = 0;
+            float depthTarget = -1f, depthWritten = -1f;
             foreach (string line in lines)
             {
                 Debug.Log("ReDefinition motion vector check: " + line);
@@ -146,6 +148,25 @@ namespace ReDefinition.EditorTools
                     else if (f[0] == "auditWrong" && bad < 0.9 * audited)
                         problems.Add("auditWrong: only " + bad + " of " + audited + " pixels off, where the motion"
                                      + " vectors were compared with none; the vessel check would miss errors.");
+                    continue;
+                }
+                if (f.Length == 4 && f[0] == "depthTarget")
+                {
+                    depthTarget = Float(f[1]);
+                    continue;
+                }
+                if (f.Length == 4 && f[0] == "depthWrite")
+                {
+                    depthWritten = Float(f[1]);
+                    continue;
+                }
+                if (f.Length > 4 && f[0] == "depthSources")
+                {
+                    // Unity's depth sources in the deferred path lack what the forward
+                    // pass draws; the vessel's depth is written for that reason.
+                    if (Float(f[1]) != 0f)
+                        problems.Add("depthSources: ResolvedDepth holds the forward-only cube (" + f[1] + "); the"
+                                     + " vessel's depth pass may no longer be needed.");
                     continue;
                 }
                 if (f.Length == 3 && f[0] == "readback")
@@ -179,6 +200,11 @@ namespace ReDefinition.EditorTools
             if (cases != 2) problems.Add("the result has " + cases + " of 2 cases.");
             if (!readback) problems.Add("the result has no readback line.");
             if (audits != 3) problems.Add("the result has " + audits + " of 3 audit lines.");
+            if (depthTarget <= 0f)
+                problems.Add("depthTarget: the camera's own depth buffer shows no forward-only cube.");
+            else if (Mathf.Abs(depthWritten - depthTarget) > 0.01f * depthTarget)
+                problems.Add("depthWrite: the depth pass wrote " + depthWritten + " where the camera's depth buffer holds "
+                             + depthTarget + ".");
         }
 
         private static float Float(string text)

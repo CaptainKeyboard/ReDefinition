@@ -9,7 +9,18 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Upscaler
 {
-    // The active vessel's motion vectors, written by the rig and checked on every pixel.
+    // The active vessel's depth and motion vectors, written by the rig and checked on
+    // every pixel.
+    //
+    // The depth first. Unity's depth sources in the deferred path -- ResolvedDepth, which
+    // the rig captures, Depth and _CameraDepthTexture -- hold what the deferred pass drew
+    // and nothing of what the forward pass draws after it: measured in MotionVectorCheck
+    // with a forward-only cube in front of a deferred sphere, 0 at the cube in all three.
+    // Parts KSP draws in the forward pass were missing from the depth every upscaler and
+    // frame generation read; in NVIDIA's alignment test the parts under the vessel showed
+    // through it, and frame generation placed the whole vessel wrong from some angles.
+    // Pass 2 writes each of the vessel's renderers' depth into the captured depth where
+    // it is nearer, skinned ones included.
     //
     // Measured on the runway with DLSS presets L and M: while the aircraft rolled fast,
     // 0.5 to 1.2% of its pixels, in up to a quarter of the frames, carried Unity's
@@ -39,6 +50,7 @@ namespace ReDefinition.Upscaler
     {
         private const int AuditPass = 0;
         private const int RepairPass = 1;
+        private const int DepthPass = 2;
         private const int MaxParts = 256;
         private const float BadPixels = 1f;
         private const float BadFrameShare = 0.005f;
@@ -73,6 +85,9 @@ namespace ReDefinition.Upscaler
         }
 
         private readonly List<Drawn> drawn = new List<Drawn>();
+        // Every opaque renderer of the vessel, skinned ones too: their depth needs no
+        // previous pose.
+        private readonly List<Drawn> depthDrawn = new List<Drawn>();
         private readonly List<Part> parts = new List<Part>();
         private readonly Dictionary<Renderer, Matrix4x4> previousModel = new Dictionary<Renderer, Matrix4x4>();
         private readonly PartTally[] tallies = new PartTally[MaxParts];
@@ -171,6 +186,19 @@ namespace ReDefinition.Upscaler
             if (!continuous) skipped++;
         }
 
+        // Into the capture, before the repair, which tests against it.
+        internal void RecordDepth(CommandBuffer capture, RenderTexture depth)
+        {
+            if (!active || !RepairEnabled || depth == null) return;
+            capture.SetRenderTarget(depth);
+            capture.SetGlobalMatrix(RasterId, raster);
+            foreach (Drawn d in depthDrawn)
+            {
+                if (d.Renderer == null || !d.Renderer.enabled || !d.Renderer.gameObject.activeInHierarchy) continue;
+                for (int s = 0; s < d.Submeshes; s++) capture.DrawRenderer(d.Renderer, material, s, DepthPass);
+            }
+        }
+
         // Into the capture, before the other mods' motion vector hooks.
         internal void RecordRepair(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
         {
@@ -245,7 +273,7 @@ namespace ReDefinition.Upscaler
                     return false;
                 }
                 material = new Material(shader) { name = "ReDefinition vessel motion", hideFlags = HideFlags.DontSave };
-                if (material.passCount <= RepairPass)
+                if (material.passCount <= DepthPass)
                 {
                     state = FsrShaderBundle.MotionAuditShaderName + " in the shader bundle is older than this build";
                     Debug.Log(Log.Tag + " The vessel's own motion vectors left out: " + state + ".");
@@ -263,6 +291,7 @@ namespace ReDefinition.Upscaler
             drawnFor = vessel;
             partCount = vessel.parts.Count;
             drawn.Clear();
+            depthDrawn.Clear();
             parts.Clear();
             previousModel.Clear();
             for (int p = 0; p < vessel.parts.Count && p < MaxParts; p++)
@@ -270,25 +299,43 @@ namespace ReDefinition.Upscaler
                 Part part = vessel.parts[p];
                 parts.Add(part);
                 if (part == null) continue;
+                foreach (SkinnedMeshRenderer skinned in part.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                {
+                    if (skinned == null || skinned.sharedMesh == null || !Opaque(skinned.sharedMaterials)) continue;
+                    depthDrawn.Add(new Drawn
+                    {
+                        Renderer = skinned,
+                        Part = p,
+                        Submeshes = Mathf.Min(skinned.sharedMaterials.Length, skinned.sharedMesh.subMeshCount),
+                    });
+                }
                 foreach (MeshRenderer renderer in part.GetComponentsInChildren<MeshRenderer>(true))
                 {
                     if (renderer == null) continue;
                     MeshFilter filter = renderer.GetComponent<MeshFilter>();
                     if (filter == null || filter.sharedMesh == null) continue;
                     Material[] materials = renderer.sharedMaterials;
-                    bool opaque = materials.Length > 0;
-                    foreach (Material m in materials)
-                        if (m == null || m.renderQueue > 2500) opaque = false;
-                    if (!opaque) continue;
-                    drawn.Add(new Drawn
+                    if (!Opaque(materials)) continue;
+                    Drawn entry = new Drawn
                     {
                         Renderer = renderer,
                         Part = p,
                         Submeshes = Mathf.Min(materials.Length, filter.sharedMesh.subMeshCount),
-                    });
+                    };
+                    drawn.Add(entry);
+                    depthDrawn.Add(entry);
                 }
             }
             for (int i = 0; i < tallies.Length; i++) tallies[i] = null;
+        }
+
+        // Materials that write depth and motion vectors: none above queue 2500.
+        private static bool Opaque(Material[] materials)
+        {
+            if (materials == null || materials.Length == 0) return false;
+            foreach (Material m in materials)
+                if (m == null || m.renderQueue > 2500) return false;
+            return true;
         }
 
         private void Read(AsyncGPUReadbackRequest request, bool withStep)

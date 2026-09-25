@@ -305,12 +305,12 @@ namespace ReDefinition
             }
             GUI.enabled = enabled;
 
-            // Not saved: the active vessel's motion vectors written by the rig
+            // Not saved: the active vessel's depth and motion vectors written by the rig
             // (VesselMotionVectors), for a look with Unity's own.
-            if (SwitchRow("Vessel motion vectors", VesselMotionVectors.RepairEnabled ? "written" : "Unity's"))
+            if (SwitchRow("Vessel depth and motion vectors", VesselMotionVectors.RepairEnabled ? "written" : "Unity's"))
             {
                 VesselMotionVectors.RepairEnabled = !VesselMotionVectors.RepairEnabled;
-                Debug.Log(Log.Tag + " Vessel motion vectors "
+                Debug.Log(Log.Tag + " Vessel depth and motion vectors "
                           + (VesselMotionVectors.RepairEnabled ? "written by ReDefinition." : "as Unity writes them."));
             }
 

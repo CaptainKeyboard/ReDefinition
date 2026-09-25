@@ -45,6 +45,7 @@ namespace ReDefinition.Upscaler
             // The vessel's own motion vectors before the hooks, so a mod's for a part
             // are drawn over them.
             vesselMotion.Begin(cam, renderSize);
+            vesselMotion.RecordDepth(captureBuffer, depthCopy);
             vesselMotion.RecordRepair(captureBuffer, motionVectors, depthCopy);
             RecordMotionVectorHooks();
             // After the hooks: they read the motion vectors as the upscaler gets them.

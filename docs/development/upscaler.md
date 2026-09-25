@@ -224,6 +224,16 @@ pixels. Most were on the canards, the elevons, the nose and the landing gear. At
 standstill both agree and it does not show. The upscalers blend in the wrong history at
 those edges, and they flicker.
 
+Unity's depth sources in the deferred path, `ResolvedDepth`, `Depth` and
+`_CameraDepthTexture`, hold what the deferred pass drew and nothing of what the forward
+pass draws after it. Measured in `MotionVectorCheck` with a forward-only cube in front of
+a deferred sphere: 0 at the cube in all three, 0.0664 in the camera's own depth buffer.
+Parts KSP draws in the forward pass were missing from the depth every upscaler and frame
+generation read. In NVIDIA's alignment test the parts under the vessel showed through it.
+Pass 2 of `Hidden/ReDefinition/MotionAudit` writes each of the vessel's opaque renderers'
+depth into the captured depth where it is nearer, skinned ones included, before the motion
+vectors are written. The check writes the cube's depth the same way and finds 0.0664.
+
 `VesselMotionVectors` draws each mesh renderer of the active vessel once more at the end
 of the capture with `Hidden/ReDefinition/MotionAudit`, rasterised with the scene camera's
 jittered projection. Where its depth is the captured depth, pass 1 writes the motion
@@ -232,7 +242,8 @@ through the renderer's previous matrix and the previous view-projection. It runs
 the other mods' hooks, so a mod's own motion vectors for a part stay on top. Skinned
 renderers and materials above queue 2500 are left out, and so are frames after an origin
 shift or a reset. NVIDIA's guide suggests drawing the motion vectors of problem objects
-separately (3.6.4). The Debug tab's *Vessel motion vectors* switches back to Unity's.
+separately (3.6.4).
+The Debug tab's *Vessel depth and motion vectors* switches both back to Unity's.
 
 ### EVE's volumetric clouds
 
