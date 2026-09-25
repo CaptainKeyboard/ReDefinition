@@ -183,11 +183,13 @@ ones, must leave more than 98% of the sphere's pixels right. A cube drawn only i
 forward pass must be missing from `ResolvedDepth`, present in the camera's own depth
 buffer, and written into the depth by the vessel's depth pass within 1% of that value.
 
-Two cases check the vessel's shadow for frame generation (`VesselShadowLayer`): a red
+Three cases check the vessel's shadow for frame generation (`VesselShadowLayer`): a red
 block over a white ground under a light with soft shadows. In the first the block and the
-camera move together, in the second only the camera. In both the pass must find more
-than 90% of the ground in the block's shadow and take less than 2% more from lit
-ground. Where the camera follows the block, the mean weight must keep the shadow in place
+camera move together, in the second only the camera. In the third the ground is moved
+back instead, as Krakensbane does, and everything is moved by a few metres on top, as the
+floating origin does, both reported as KSP reports them. In all three the pass must find
+more than 90% of the ground in the block's shadow and take less than 2% more from lit
+ground. Where the shadow stands on the screen, the mean weight must keep it in place
 (above 0.8), and after the composition the shadowed ground must reach 93 to 107% of its
 brightness in the same frame rendered without the block's shadow, the lit ground
 unchanged. Where only the camera moves, the weight must leave the shadow to the motion

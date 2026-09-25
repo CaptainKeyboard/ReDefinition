@@ -299,10 +299,13 @@ It works per pixel, since a shadow has no one motion:
 The light is the brightest enabled directional light with shadows that lights layer 15.
 With several stars (Kopernicus), only that one's shadow is handled. Its direction is read
 in the scene camera's `OnPreRender`, where Unity has built the cascades from it
-(`CameraRedirect`). Left alone: a frame with a floating origin shift or a history reset,
-and whatever is drawn over the shadow, such as engine plumes or dust, which leaves the
-HUD-less image with it. The Debug switch **Vessel shadow in frame generation**, not saved,
-turns it off.
+(`CameraRedirect`). The floating origin and Krakensbane move the world between frames:
+the vessel and the camera by minus `SharedFrame.OriginShift`, the ground by minus
+`BodyShift`, which holds the Krakensbane step in fast flight. The previous frame's
+matrices are carried across by the first, and the surface the shadow fell on lay off by
+the difference. Left alone: a frame with a history reset, and whatever is drawn over the
+shadow, such as engine plumes or dust, which leaves the HUD-less image with it. The
+Debug switch **Vessel shadow in frame generation**, not saved, turns it off.
 
 ### EVE's volumetric clouds
 

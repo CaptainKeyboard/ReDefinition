@@ -12,7 +12,12 @@ namespace ReDefinition.MotionVectorCheck
     // chase: the block and the camera move together, as a camera following a vessel; the
     // shadow stands on the screen while the ground runs, so the weight must choose the
     // shadow's own place. parked: the block stands, the camera moves; the shadow moves with
-    // the ground, so the weight must leave it to the motion vectors. One line each: the
+    // the ground, so the weight must leave it to the motion vectors. krakensbane: as chase,
+    // but the way KSP's Krakensbane does it -- the block and the camera stay, the ground is
+    // moved back by the step, and the step is reported as the bodies' shift, which the
+    // plugin takes from SharedFrame. On top of it the floating origin moves everything,
+    // block, camera and ground, by a few metres, reported as the origin shift: the frame
+    // before must be carried across it, or the shadow seems to jump. One line each: the
     // ground pixels in the block's shadow (Unity's mask), those the pass found in it, those
     // it found outside it, the mean choice over the shadow, and the shadowed ground's
     // brightness before and after the composition against the same frame rendered without
@@ -51,26 +56,38 @@ namespace ReDefinition.MotionVectorCheck
             for (int i = 0; i < StillFrames; i++) yield return null;
 
             Material material = new Material(vesselShadow);
-            // chase: 0.4 m a frame for block and camera; parked: the camera alone.
-            yield return ShadowCase("shadowChase", material, sun, mask, block, true);
+            Vector3 step = new Vector3(0.4f, 0f, 0f);
+            yield return ShadowCase("shadowChase", material, sun, mask, block, ground, step, step, Vector3.zero,
+                                    Vector3.zero, Vector3.zero);
             for (int i = 0; i < StillFrames; i++) yield return null;
-            yield return ShadowCase("shadowParked", material, sun, mask, block, false);
+            yield return ShadowCase("shadowParked", material, sun, mask, block, ground, Vector3.zero, step, Vector3.zero,
+                                    Vector3.zero, Vector3.zero);
+            for (int i = 0; i < StillFrames; i++) yield return null;
+            Vector3 origin = new Vector3(3f, 0.5f, -2f);
+            yield return ShadowCase("shadowKrakensbane", material, sun, mask, block, ground, -origin, -origin,
+                                    -origin - step, origin, origin + step);
 
             sun.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, maskCopy);
             Destroy(ground);
             Destroy(block);
         }
 
+        // originShift and bodyShift as SharedFrame reports them: the vessel and the camera
+        // were moved by minus the first, the ground by minus the second.
         private IEnumerator ShadowCase(string label, Material material, Light sun, RenderTexture mask,
-                                       GameObject block, bool withBlock)
+                                       GameObject block, GameObject ground, Vector3 blockStep, Vector3 cameraStep,
+                                       Vector3 groundStep, Vector3 originShift, Vector3 bodyShift)
         {
             Matrix4x4 previousViewProjection = ViewProjection();
             Renderer blockRenderer = block.GetComponent<Renderer>();
             Matrix4x4 previousModel = blockRenderer.localToWorldMatrix;
-            Vector3 step = new Vector3(0.4f, 0f, 0f);
-            if (withBlock) block.transform.position += step;
-            cam.transform.position += step;
+            block.transform.position += blockStep;
+            cam.transform.position += cameraStep;
+            ground.transform.position += groundStep;
             yield return new WaitForEndOfFrame();
+            // As VesselShadowLayer.Begin and Record carry the frame before across a shift.
+            previousViewProjection = previousViewProjection * Matrix4x4.Translate(originShift);
+            previousModel = Matrix4x4.Translate(-originShift) * previousModel;
 
             // As VesselShadowLayer.Record: the light map over the caster's bounds.
             Vector3 towardsLight = -sun.transform.forward;
@@ -111,6 +128,7 @@ namespace ReDefinition.MotionVectorCheck
             draw.SetGlobalVector("_VesselShadowTexel", new Vector4(1f / Width, 1f / Height, Width, Height));
             draw.SetGlobalVector("_VesselShadowParams", new Vector4(sun.shadowStrength, 1f / LightMapSize, 0.15f, 3f * LightMapSize / (2f * radius)));
             draw.SetGlobalVector("_VesselShadowReach", new Vector4(0.5f * LightMapSize / (2f * radius), 0f, 0f, 0f));
+            draw.SetGlobalVector("_VesselShadowReceiverShift", bodyShift - originShift);
             draw.Blit(sceneDepth, weight, material, 1);
 
             // As VesselShadowLayer.Compose, the display size the render size here.

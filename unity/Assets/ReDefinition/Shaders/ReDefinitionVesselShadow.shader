@@ -113,6 +113,9 @@ Shader "Hidden/ReDefinition/VesselShadow"
             // x how far from a point the vessel may stand in the light and still take part
             // in its shadow -- as wide as the soft edge Unity draws -- in light map texels.
             float4 _VesselShadowReach;
+            // Where the surface lay in the frame before against this frame's coordinates,
+            // after the origin shift: the Krakensbane step in fast flight.
+            float3 _VesselShadowReceiverShift;
 
             float3 WorldAt(float2 uv)
             {
@@ -195,8 +198,9 @@ Shader "Hidden/ReDefinition/VesselShadow"
 
                 // Where this bit of shadow lay in the frame before: the occluding point, as
                 // far along the light as the light map says, moved as it moved, and its
-                // shadow along the light onto the surface here -- a plane through this
-                // point with the surface's normal, from the depth around it.
+                // shadow along the light onto the surface as it lay then -- a plane with the
+                // surface's normal, from the depth around it, through this point where the
+                // origin shift had it.
                 float3 towardsLight = _VesselShadowLight.xyz;
                 float3 occluding = world + towardsLight * (distance - occluder);
                 float3 dx = WorldAt(uv + float2(_VesselShadowTexel.x, 0.0)) - world;
@@ -207,7 +211,8 @@ Shader "Hidden/ReDefinition/VesselShadow"
                 if (abs(facing) > 0.05)
                 {
                     float3 occludingBefore = occluding + moved;
-                    float along = dot(occludingBefore - world, normal) / facing;
+                    float3 surfaceBefore = world + _VesselShadowReceiverShift;
+                    float along = dot(occludingBefore - surfaceBefore, normal) / facing;
                     before = occludingBefore - towardsLight * along;
                 }
 

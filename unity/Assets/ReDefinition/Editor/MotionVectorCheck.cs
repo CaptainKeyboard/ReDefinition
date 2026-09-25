@@ -153,7 +153,7 @@ namespace ReDefinition.EditorTools
                                      + " vectors were compared with none; the vessel check would miss errors.");
                     continue;
                 }
-                if (f.Length == 8 && (f[0] == "shadowChase" || f[0] == "shadowParked"))
+                if (f.Length == 8 && (f[0] == "shadowChase" || f[0] == "shadowParked" || f[0] == "shadowKrakensbane"))
                 {
                     shadowCases++;
                     JudgeShadow(f, problems);
@@ -209,7 +209,7 @@ namespace ReDefinition.EditorTools
             if (cases != 2) problems.Add("the result has " + cases + " of 2 cases.");
             if (!readback) problems.Add("the result has no readback line.");
             if (audits != 3) problems.Add("the result has " + audits + " of 3 audit lines.");
-            if (shadowCases != 2) problems.Add("the result has " + shadowCases + " of 2 shadow cases.");
+            if (shadowCases != 3) problems.Add("the result has " + shadowCases + " of 3 shadow cases.");
             if (depthTarget <= 0f)
                 problems.Add("depthTarget: the camera's own depth buffer shows no forward-only cube.");
             else if (Mathf.Abs(depthWritten - depthTarget) > 0.01f * depthTarget)
@@ -236,18 +236,18 @@ namespace ReDefinition.EditorTools
                 problems.Add(f[0] + ": the pass found " + found + " of " + inShadow + " shadowed pixels.");
             if (outside > 0.02f * inShadow)
                 problems.Add(f[0] + ": the pass took " + outside + " lit pixels for the block's shadow.");
-            if (f[0] == "shadowChase")
+            if (f[0] == "shadowChase" || f[0] == "shadowKrakensbane")
             {
                 if (choice < 0.8f)
-                    problems.Add("shadowChase: mean choice " + choice + "; a shadow standing on the screen must stay in place.");
+                    problems.Add(f[0] + ": mean choice " + choice + "; a shadow standing on the screen must stay in place.");
                 if (before > 0.85f)
-                    problems.Add("shadowChase: the shadowed ground is " + before + " of its brightness without the"
+                    problems.Add(f[0] + ": the shadowed ground is " + before + " of its brightness without the"
                                  + " shadow; there is hardly a shadow to take out.");
                 if (after < 0.93f || after > 1.07f)
-                    problems.Add("shadowChase: after the composition the shadowed ground is " + after + " of its"
+                    problems.Add(f[0] + ": after the composition the shadowed ground is " + after + " of its"
                                  + " brightness without the shadow; it must come out near 1.");
                 if (litChange > 0.01f)
-                    problems.Add("shadowChase: the lit ground changed by " + litChange + " on average.");
+                    problems.Add(f[0] + ": the lit ground changed by " + litChange + " on average.");
             }
             else if (choice > 0.2f)
                 problems.Add("shadowParked: mean choice " + choice + "; a shadow moving with the ground must be left to it.");

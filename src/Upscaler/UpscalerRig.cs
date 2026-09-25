@@ -672,7 +672,6 @@ namespace ReDefinition.Upscaler
             GameEvents.onFloatingOriginShift.Add(OnFloatingOriginShift);
             motionAudit.Enable();
             vesselMotion.Enable();
-            vesselShadow.Enable();
         }
 
         // Counts KSP's physics steps for VesselMotionVectors.

@@ -42,9 +42,15 @@ namespace ReDefinition.Upscaler
     // shadow is handled. Its direction is read in the scene camera's OnPreRender, after
     // every OnPreCull, where Unity has built the shadow cascades from it (CameraRedirect).
     //
-    // Left alone: a frame with a floating origin shift or a history reset since the one
-    // before, and anything drawn over the shadow (engine plumes, dust), which is taken out
-    // with it where the shadow is.
+    // KSP's floating origin and Krakensbane move the world between frames: the vessel and
+    // the camera by minus SharedFrame.OriginShift, the ground and the bodies by minus
+    // BodyShift, which holds the Krakensbane step in fast flight. The previous frame's
+    // view-projection and part matrices are carried into this frame's coordinates by the
+    // first, and the surface the shadow fell on lay off by the difference of the two.
+    //
+    // Left alone: a frame with a history reset since the one before, and anything drawn
+    // over the shadow (engine plumes, dust), which is taken out with it where the shadow
+    // is.
     internal sealed class VesselShadowLayer
     {
         private const int LightMapSize = 1024;
@@ -84,6 +90,7 @@ namespace ReDefinition.Upscaler
         private static readonly int TexelId = Shader.PropertyToID("_VesselShadowTexel");
         private static readonly int ParamsId = Shader.PropertyToID("_VesselShadowParams");
         private static readonly int ReachId = Shader.PropertyToID("_VesselShadowReach");
+        private static readonly int ReceiverShiftId = Shader.PropertyToID("_VesselShadowReceiverShift");
         private static readonly int WeightId = Shader.PropertyToID("_VesselShadowWeight");
         private static readonly int ShadowedId = Shader.PropertyToID("_VesselShadowShadowed");
         private static readonly int LitId = Shader.PropertyToID("_VesselShadowLit");
@@ -111,8 +118,6 @@ namespace ReDefinition.Upscaler
         private CommandBuffer maskBuffer;
         private Light light;
         private float lightSearch;
-        private bool subscribed;
-        private bool shifted;
 
         // This frame's, from Begin.
         private bool active;
@@ -120,26 +125,17 @@ namespace ReDefinition.Upscaler
         private Matrix4x4 viewProjection;
         private Matrix4x4 rasterInverse;
         private Matrix4x4 previousViewProjection;
+        // This frame's origin shift, and where the surface lay before against the vessel.
+        private Vector3 originShift;
+        private Vector3 receiverShift;
         private int previousFrame = -10;
         private Vector2Int size;
         private int framesDrawn;
         private int framesSkipped;
         private float windowStart = -1f;
 
-        internal void Enable()
-        {
-            if (subscribed) return;
-            GameEvents.onFloatingOriginShift.Add(OnShift);
-            subscribed = true;
-        }
-
         internal void Disable()
         {
-            if (subscribed)
-            {
-                GameEvents.onFloatingOriginShift.Remove(OnShift);
-                subscribed = false;
-            }
             DetachLight();
             UpscalerRig.Release(ref lightMap);
             UpscalerRig.Release(ref mask);
@@ -153,19 +149,12 @@ namespace ReDefinition.Upscaler
             castersOf = null;
         }
 
-        private void OnShift(Vector3d offset, Vector3d nonFrame)
-        {
-            shifted = true;
-        }
-
-        // In the scene camera's OnPreCull: its matrices without the jitter, which
-        // CameraRedirect adds in OnPreRender, and whether the frame before describes the
-        // motion to this one.
+        // In the scene camera's OnPreCull, after SharedFrame has begun the frame: its
+        // matrices without the jitter, which CameraRedirect adds in OnPreRender, whether the
+        // frame before describes the motion to this one, and the origin shift between them.
         internal void Begin(Camera camera, Vector2Int renderSize)
         {
             active = false;
-            bool wasShifted = shifted;
-            shifted = false;
             if (!Enabled || camera == null || !HighLogic.LoadedSceneIsFlight || FlightGlobals.ActiveVessel == null
                 || !Prepare(renderSize))
             {
@@ -181,8 +170,13 @@ namespace ReDefinition.Upscaler
                 ? Matrix4x4.Translate(new Vector3(CameraRedirect.JitterNdc.x, CameraRedirect.JitterNdc.y, 0f)) * projection
                 : projection;
             rasterInverse = (GL.GetGPUProjectionMatrix(jittered, false) * view).inverse;
-            continuous = previousFrame == Time.frameCount - 1 && !wasShifted && SharedFrame.RigResetReason == null;
+            continuous = previousFrame == Time.frameCount - 1 && SharedFrame.RigResetReason == null;
             if (!continuous) previousViewProjection = thisViewProjection;
+            // A point the shift moved lay at its position now plus the shift.
+            originShift = SharedFrame.Shifted ? (Vector3)SharedFrame.OriginShift : Vector3.zero;
+            receiverShift = SharedFrame.Shifted ? (Vector3)(SharedFrame.BodyShift - SharedFrame.OriginShift) : Vector3.zero;
+            if (continuous && SharedFrame.Shifted)
+                previousViewProjection = previousViewProjection * Matrix4x4.Translate(originShift);
             viewProjection = thisViewProjection;
             previousFrame = Time.frameCount;
             size = renderSize;
@@ -243,7 +237,10 @@ namespace ReDefinition.Upscaler
                     || c.Renderer.shadowCastingMode == ShadowCastingMode.Off)
                     continue;
                 Matrix4x4 before;
-                if (!previousModel.TryGetValue(c.Renderer, out before)) before = c.Renderer.localToWorldMatrix;
+                if (previousModel.TryGetValue(c.Renderer, out before))
+                    before = Matrix4x4.Translate(-originShift) * before;
+                else
+                    before = c.Renderer.localToWorldMatrix;
                 capture.SetGlobalMatrix(PreviousModelId, before);
                 for (int s = 0; s < c.Submeshes; s++) capture.DrawRenderer(c.Renderer, material, s, CasterPass);
             }
@@ -260,6 +257,7 @@ namespace ReDefinition.Upscaler
             capture.SetGlobalVector(ParamsId, new Vector4(Mathf.Max(light.shadowStrength, 1e-3f), 1f / LightMapSize,
                                                               DepthBias, NearReachMetres * LightMapSize / (2f * radius)));
             capture.SetGlobalVector(ReachId, new Vector4(TakePartMetres * LightMapSize / (2f * radius), 0f, 0f, 0f));
+            capture.SetGlobalVector(ReceiverShiftId, receiverShift);
             capture.Blit(depth, weight, material, WeightPass);
 
             KeepModels();
@@ -463,7 +461,7 @@ namespace ReDefinition.Upscaler
             windowStart = Time.unscaledTime;
             Debug.Log(Log.Tag + " Vessel shadow for frame generation, last "
                       + elapsed.ToString("0.0", CultureInfo.InvariantCulture) + " s: " + framesDrawn + " frame(s) drawn, "
-                      + framesSkipped + " left out (origin shift, reset, no light or no vessel); light '"
+                      + framesSkipped + " left out (reset, no light or no vessel); light '"
                       + (light != null ? light.name : "none") + "', " + casters.Count + " caster(s).");
             framesDrawn = framesSkipped = 0;
         }
