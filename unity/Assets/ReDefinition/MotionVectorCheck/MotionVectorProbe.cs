@@ -14,13 +14,14 @@ namespace ReDefinition.MotionVectorCheck
     // depth at the far plane everywhere. One line per case goes to the result file: the
     // sphere's pixels, how many of them the pass covered, and the mean of both motion
     // vectors over them.
-    public class MotionVectorProbe : MonoBehaviour
+    public partial class MotionVectorProbe : MonoBehaviour
     {
         public Shader cloudMotion;
         public Shader surface;
         public Shader motionAudit;
         // Opaque, and drawn in the forward path only: it has no deferred pass.
         public Shader forwardOnly;
+        public Shader vesselShadow;
 
         private const int Width = 320, Height = 180;
         private const int StillFrames = 30;
@@ -82,6 +83,7 @@ namespace ReDefinition.MotionVectorCheck
             for (int i = 0; i < StillFrames; i++) yield return null;
             yield return Audit();
             yield return DepthSources();
+            yield return ShadowCases();
 
             System.IO.File.WriteAllText(path, result.ToString());
             Application.Quit();

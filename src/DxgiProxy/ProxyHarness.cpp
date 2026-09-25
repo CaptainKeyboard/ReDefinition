@@ -393,13 +393,13 @@ namespace
     // REDEFINITION_HARNESS_REPLAY=<folder>: an input dump from the game
     // (FrameGenerationDump.cpp) played through frame generation again and again, at
     // half its size, while the screen is recorded -- frame generation's output for the
-    // game's own frames, without the game. REDEFINITION_REPLAY_SHADOW_MOTION=1 gives
-    // the pixels of the vessel's shadow the vessel's motion (the mask is taken from
-    // the colour: ground darker than the lit runway near the vessel).
+    // game's own frames, without the game. The frame as presented is the dump's frame
+    // where it has one, the HUD-less image its colour.
     struct ReplayFrame
     {
         FramePacket packet = {};
-        std::vector<uint32_t> colour;   // RGBA8, half size, rows top-down
+        std::vector<uint32_t> colour;   // the frame as presented: RGBA8, half size, rows top-down
+        std::vector<uint32_t> hudLess;  // what frame generation gets as the HUD-less image
         std::vector<float> depth;       // half size, rows bottom-up as Unity renders
         std::vector<uint32_t> motion;   // R16G16 half floats, half size, rows bottom-up
     };
@@ -470,9 +470,12 @@ namespace
             };
             if (!read(L"colour", colour.data()) || !read(L"depth", depth.data()) || !read(L"motion", motion.data()))
                 return false;
+            std::vector<uint32_t> presented(full);
+            const bool withFrame = read(L"frame", presented.data());
 
             ReplayFrame& f = frames[n];
             f.colour.resize(static_cast<size_t>(width) * height);
+            f.hudLess.resize(f.colour.size());
             f.depth.resize(f.colour.size());
             f.motion.resize(f.colour.size());
             for (UINT y = 0; y < height; ++y)
@@ -482,6 +485,7 @@ namespace
                     // Colour: the 2x2 mean. Depth and motion: one texel, the nearest
                     // surface of the four, so an edge keeps one surface's values.
                     uint32_t sum[4] = {};
+                    uint32_t shown[4] = {};
                     size_t nearest = 0;
                     float nearestDepth = -1.0f;
                     for (UINT dy = 0; dy < 2; ++dy)
@@ -489,11 +493,16 @@ namespace
                         {
                             const size_t i = static_cast<size_t>(y * 2 + dy) * fullWidth + x * 2 + dx;
                             for (int c = 0; c < 4; ++c)
+                            {
                                 sum[c] += (colour[i] >> (8 * c)) & 0xFFu;
+                                shown[c] += ((withFrame ? presented[i] : colour[i]) >> (8 * c)) & 0xFFu;
+                            }
                             if (depth[i] > nearestDepth) { nearestDepth = depth[i]; nearest = i; }
                         }
-                    f.colour[static_cast<size_t>(y) * width + x] = (sum[0] / 4) | ((sum[1] / 4) << 8)
-                                                                    | ((sum[2] / 4) << 16) | 0xFF000000u;
+                    f.hudLess[static_cast<size_t>(y) * width + x] = (sum[0] / 4) | ((sum[1] / 4) << 8)
+                                                                     | ((sum[2] / 4) << 16) | 0xFF000000u;
+                    f.colour[static_cast<size_t>(y) * width + x] = (shown[0] / 4) | ((shown[1] / 4) << 8)
+                                                                    | ((shown[2] / 4) << 16) | 0xFF000000u;
                     // The dump's depth and motion rows are top-down (flipped for frame
                     // generation); the proxy flips again, so they go in as Unity has them.
                     const size_t target = static_cast<size_t>(height - 1 - y) * width + x;
@@ -514,82 +523,16 @@ namespace
         return true;
     }
 
-    // The vessel's shadow on the ground, from the colour: darker than the lit
-    // runway, not the vessel itself (motion near zero is the vessel), within the
-    // lower part of the picture. The vessel's motion there: the median motion of
-    // the vessel's own pixels.
-    void GiveShadowVesselMotion(ReplayFrame& f, UINT width, UINT height)
+    // Windows gives the foreground only to the process that had the last input; an
+    // Alt press and release of its own counts as that. The Alt goes to the window in
+    // front at that moment.
+    void BringToFront(HWND window)
     {
-        auto half = [](uint16_t h) { return HalfToFloat(h); };
-        std::vector<float> luminance(f.colour.size());
-        for (size_t i = 0; i < f.colour.size(); ++i)
-        {
-            const uint32_t c = f.colour[i];
-            luminance[i] = 0.299f * (c & 0xFF) + 0.587f * ((c >> 8) & 0xFF) + 0.114f * ((c >> 16) & 0xFF);
-        }
-        // Box blur, radius 6, so the runway's grain does not decide.
-        std::vector<float> blurred(luminance.size()), row(luminance.size());
-        const int r = 6;
-        for (UINT y = 0; y < height; ++y)
-            for (UINT x = 0; x < width; ++x)
-            {
-                float s = 0; int n = 0;
-                for (int d = -r; d <= r; ++d)
-                {
-                    const int xx = static_cast<int>(x) + d;
-                    if (xx >= 0 && xx < static_cast<int>(width)) { s += luminance[static_cast<size_t>(y) * width + xx]; ++n; }
-                }
-                row[static_cast<size_t>(y) * width + x] = s / n;
-            }
-        for (UINT y = 0; y < height; ++y)
-            for (UINT x = 0; x < width; ++x)
-            {
-                float s = 0; int n = 0;
-                for (int d = -r; d <= r; ++d)
-                {
-                    const int yy = static_cast<int>(y) + d;
-                    if (yy >= 0 && yy < static_cast<int>(height)) { s += row[static_cast<size_t>(yy) * width + x]; ++n; }
-                }
-                blurred[static_cast<size_t>(y) * width + x] = s / n;
-            }
-
-        // Motion rows are bottom-up; colour rows top-down.
-        auto motionAt = [&](UINT x, UINT yTop) -> uint32_t& { return f.motion[static_cast<size_t>(height - 1 - yTop) * width + x]; };
-        std::vector<float> lit;
-        std::vector<uint32_t> vesselMotion;
-        for (UINT y = height / 3; y < height; y += 2)
-            for (UINT x = 0; x < width; x += 2)
-            {
-                const uint32_t m = motionAt(x, y);
-                const float mx = half(static_cast<uint16_t>(m & 0xFFFF)) * width;
-                const float my = half(static_cast<uint16_t>(m >> 16)) * height;
-                if (std::fabs(mx) + std::fabs(my) < 2.0f) vesselMotion.push_back(m);
-                else lit.push_back(blurred[static_cast<size_t>(y) * width + x]);
-            }
-        if (lit.empty() || vesselMotion.empty())
-            return;
-        std::sort(lit.begin(), lit.end());
-        const float litLevel = lit[lit.size() * 9 / 10];
-        const float darkLevel = lit[lit.size() / 50];
-        const float threshold = darkLevel + 0.6f * (litLevel - darkLevel);
-        const uint32_t vessel = vesselMotion[vesselMotion.size() / 2];
-        size_t changed = 0;
-        for (UINT y = height / 3; y < height; ++y)
-            for (UINT x = 0; x < width; ++x)
-            {
-                uint32_t& m = motionAt(x, y);
-                const float mx = half(static_cast<uint16_t>(m & 0xFFFF)) * width;
-                const float my = half(static_cast<uint16_t>(m >> 16)) * height;
-                if (std::fabs(mx) + std::fabs(my) < 2.0f)
-                    continue;
-                if (blurred[static_cast<size_t>(y) * width + x] < threshold)
-                {
-                    m = vessel;
-                    ++changed;
-                }
-            }
-        printf("      shadow motion: %zu pixels given the vessel's motion (threshold %.0f, lit %.0f)\n", changed,
-               threshold, litLevel);
+        keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY, 0);
+        keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+        SetForegroundWindow(window);
+        BringWindowToTop(window);
+        SetFocus(window);
     }
 
     int RunReplay(const std::wstring& folder)
@@ -599,9 +542,11 @@ namespace
         if (!LoadReplay(folder, width, height, frames))
             return Fail("reading the input dump", E_FAIL);
         printf("      replay: %zu frames at %ux%u\n", frames.size(), width, height);
-        if (EnvironmentSet(L"REDEFINITION_REPLAY_SHADOW_MOTION"))
+        // The HUD-less image as the frame itself: frame generation as it was before
+        // VesselShadowLayer, for the same frames.
+        if (EnvironmentSet(L"REDEFINITION_REPLAY_PLAIN_HUDLESS"))
             for (ReplayFrame& f : frames)
-                GiveShadowVesselMotion(f, width, height);
+                f.hudLess = f.colour;
         // Variations, one cause at a time: no jitter; no motion vectors.
         if (EnvironmentSet(L"REDEFINITION_REPLAY_NO_JITTER"))
             for (ReplayFrame& f : frames)
@@ -663,9 +608,7 @@ namespace
             const DWORD ownThread = GetCurrentThreadId();
             const bool joined = foregroundThread != 0 && foregroundThread != ownThread
                                 && AttachThreadInput(ownThread, foregroundThread, TRUE);
-            SetForegroundWindow(window);
-            BringWindowToTop(window);
-            SetFocus(window);
+            BringToFront(window);
             if (joined)
                 AttachThreadInput(ownThread, foregroundThread, FALSE);
             PumpMessages();
@@ -742,7 +685,7 @@ namespace
                     WaitForSingleObject(waitable, 1000);
                 ReplayFrame& f = frames[n];
                 context->UpdateSubresource(backBuffer.Get(), 0, nullptr, f.colour.data(), width * 4, 0);
-                context->UpdateSubresource(hudLess.Get(), 0, nullptr, f.colour.data(), width * 4, 0);
+                context->UpdateSubresource(hudLess.Get(), 0, nullptr, f.hudLess.data(), width * 4, 0);
                 context->UpdateSubresource(depth.Get(), 0, nullptr, f.depth.data(), width * 4, 0);
                 context->UpdateSubresource(motion.Get(), 0, nullptr, f.motion.data(), width * 4, 0);
                 FramePacket packet = f.packet;
@@ -759,6 +702,32 @@ namespace
             // foreground window, and anything else there is not the harness's.
             if (round == rounds / 2 && !recording)
             {
+                // Waits up to two minutes for the window to be brought to the front
+                // (a click on it), replaying meanwhile.
+                const ULONGLONG waitUntil = GetTickCount64() + 120000;
+                if (GetForegroundWindow() != window)
+                    printf("      waiting for the replay window to be in front: click on it\n");
+                while (GetForegroundWindow() != window && GetTickCount64() < waitUntil)
+                {
+                    BringToFront(window);
+                    for (size_t n = 0; n < frames.size(); ++n)
+                    {
+                        PumpMessages();
+                        if (waitable != nullptr)
+                            WaitForSingleObject(waitable, 1000);
+                        ReplayFrame& f = frames[n];
+                        context->UpdateSubresource(backBuffer.Get(), 0, nullptr, f.colour.data(), width * 4, 0);
+                        context->UpdateSubresource(hudLess.Get(), 0, nullptr, f.hudLess.data(), width * 4, 0);
+                        context->UpdateSubresource(depth.Get(), 0, nullptr, f.depth.data(), width * 4, 0);
+                        context->UpdateSubresource(motion.Get(), 0, nullptr, f.motion.data(), width * 4, 0);
+                        FramePacket packet = f.packet;
+                        packet.frameIndex = ++frameIndex;
+                        packet.reset = n == 0 ? 1u : 0u;
+                        renderEvent(kPacketEvent, &packet);
+                        swapChain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+                        Sleep(15);
+                    }
+                }
                 if (GetForegroundWindow() != window)
                 {
                     printf("      the replay window is not in front: nothing recorded\n");
@@ -875,9 +844,7 @@ int main()
         const DWORD ownThread = GetCurrentThreadId();
         const bool joined = foregroundThread != 0 && foregroundThread != ownThread
                             && AttachThreadInput(ownThread, foregroundThread, TRUE);
-        SetForegroundWindow(window);
-        BringWindowToTop(window);
-        SetFocus(window);
+        BringToFront(window);
         if (joined)
             AttachThreadInput(ownThread, foregroundThread, FALSE);
         PumpMessages();

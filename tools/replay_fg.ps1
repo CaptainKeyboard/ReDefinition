@@ -15,7 +15,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $bin = Join-Path $root 'build\DxgiProxy\Release'
-$names = @('REDEFINITION_REPLAY_SHADOW_MOTION', 'REDEFINITION_REPLAY_NO_JITTER', 'REDEFINITION_REPLAY_NO_MOTION', 'REDEFINITION_REPLAY_STILL_CAMERA', 'REDEFINITION_REPLAY_FLAT_DEPTH')
+$names = @('REDEFINITION_REPLAY_NO_JITTER', 'REDEFINITION_REPLAY_NO_MOTION', 'REDEFINITION_REPLAY_STILL_CAMERA', 'REDEFINITION_REPLAY_FLAT_DEPTH', 'REDEFINITION_REPLAY_PLAIN_HUDLESS')
 foreach ($n in $names) { Remove-Item "Env:$n" -ErrorAction SilentlyContinue }
 foreach ($v in $Variables) {
     $pair = $v.Split('=', 2)

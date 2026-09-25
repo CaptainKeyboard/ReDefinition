@@ -383,13 +383,14 @@ namespace redefinition
         void CheckHudLessLocked(bool copied);
         void DumpInputsLocked(bool copied);
 
-        // The input dump: staging copies of colour, depth and motion vectors with
-        // their packet, taken on consecutive frames, written once all are taken.
+        // The input dump: staging copies of the HUD-less colour, depth, motion vectors
+        // and the frame as presented, with their packet, taken on consecutive frames,
+        // written once all are taken.
         struct DumpFrame
         {
             FramePacket packet = {};
             bool flipped = false;
-            Microsoft::WRL::ComPtr<ID3D11Texture2D> staging[3];
+            Microsoft::WRL::ComPtr<ID3D11Texture2D> staging[4];
         };
         std::vector<DumpFrame> dumpTaken;
         int dumpToTake = 0;

@@ -330,6 +330,15 @@ namespace ReDefinition
                           + (VesselMotionVectors.RepairEnabled ? "written by ReDefinition." : "as Unity writes them."));
             }
 
+            // Not saved: the active vessel's shadow kept out of frame generation's motion
+            // (VesselShadowLayer).
+            if (SwitchRow("Vessel shadow in frame generation", VesselShadowLayer.Enabled ? "kept in place" : "moved"))
+            {
+                VesselShadowLayer.Enabled = !VesselShadowLayer.Enabled;
+                Debug.Log(Log.Tag + " Vessel shadow in frame generation "
+                          + (VesselShadowLayer.Enabled ? "kept in place where that is the smaller error." : "moved with the ground."));
+            }
+
             if (SwitchRow("Skinned motion vectors", skinnedMotionVectors ? "forced" : "as set"))
                 SetSkinnedMotionVectors(!skinnedMotionVectors);
 

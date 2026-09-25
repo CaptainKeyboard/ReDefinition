@@ -70,7 +70,7 @@ which are hooked by SL", ProgrammingGuideManualHooking.md) **[doc]**.
 | colour | the backbuffer itself: FSR through `frameGenerationCallback`, DLSS-G from its swapchain | `R8G8B8A8_UNORM` |
 | depth | the rig's depth copy | `R32_FLOAT`, which is on the NT sharing whitelist where `D32_FLOAT` is not |
 | motion vectors | the rig's motion vectors | `R16G16_FLOAT` |
-| HUD-less colour | a `Blit` of the backbuffer recorded at `CameraEvent.AfterEverything` on the presenter and each effect camera after it | the backbuffer's own |
+| HUD-less colour | a copy of the backbuffer recorded at `CameraEvent.AfterEverything` on the presenter and each effect camera after it, the active vessel's shadow taken out where frame generation would drag it (`VesselShadowLayer`) | the backbuffer's own |
 | camera | jitter, planes, field of view, position and basis, and for DLSS-G the view and projection matrices without jitter (`StreamlineCamera`) | one packet per frame through a render event, size and magic checked |
 
 Unity does not create its render textures shareable, so the proxy creates shared twins

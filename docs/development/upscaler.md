@@ -263,6 +263,47 @@ positions a step old. `StepInterpolator` holds the arithmetic; its test runs 600
 millimetre, where the positions alone stand still in 80 to 120 of them. Left alone: a
 floating origin shift, a jump over 50 m, a packed vessel, Krakensbane, IVA and map view.
 
+### The active vessel's shadow
+
+Frame generation moves each pixel of the HUD-less image with its motion vector, the motion
+of the surface. The vessel's shadow on that surface moves with the vessel. Under a vessel
+the camera follows, the shadow stands on the screen while the ground runs, and the
+generated frames dragged it along with the ground: in a recording on the runway, the
+shadow of a canard 90 px off in every generated frame, or gone. `VesselShadowLayer` takes
+the shadow out of the HUD-less image where that is the smaller error. DLSS frame
+generation then treats the difference to the frame, the shadow, like the interface and
+does not move it. NVIDIA describes the HUD-less image only as a guide for the interface;
+that it keeps the shadow in place was measured in the harness replay, not promised.
+
+It works per pixel, since a shadow has no one motion:
+
+* **Whose shadow.** The vessel's renderers are drawn from the light into a map of their
+  distance along the light and how far they moved since the previous frame. A pixel counts
+  where the vessel blocks the light within 0.5 m of it. Terrain, buildings, grass and
+  clouds never count.
+* **How much of it.** Unity's own screen-space shadow mask for the light, copied at
+  `LightEvent.AfterScreenspaceMask`, holds the soft edge, the cascades and the filtering
+  as drawn. Unity lights a point with ambient plus direct times the mask; with the
+  shadow strength that gives the share of the sun the vessel takes.
+* **Where it lay before.** The occluding point, as far along the light as the map says,
+  moved as its renderer moved, projected along the light onto a plane through the
+  surface point. Left in place the shadow is off by its own screen motion, moved with the
+  surface by the difference to the surface's motion vector. The weight is the one error
+  squared over both: 1 where the shadow stands, 0 where it moves with the ground, as under
+  a vessel standing still and a turning camera.
+* **How dark full shadow is.** The mean colour in full shadow against lit ground within
+  3 m of it, per channel, from mip chains of both at half the display size. Whatever the
+  sun's colour, the shadow strength, the atmosphere or the post-processing do is measured
+  in the finished image.
+
+The light is the brightest enabled directional light with shadows that lights layer 15.
+With several stars (Kopernicus), only that one's shadow is handled. Its direction is read
+in the scene camera's `OnPreRender`, where Unity has built the cascades from it
+(`CameraRedirect`). Left alone: a frame with a floating origin shift or a history reset,
+and whatever is drawn over the shadow, such as engine plumes or dust, which leaves the
+HUD-less image with it. The Debug switch **Vessel shadow in frame generation**, not saved,
+turns it off.
+
 ### EVE's volumetric clouds
 
 EVE casts the clouds' rays through the projection Unity binds, but reprojects their

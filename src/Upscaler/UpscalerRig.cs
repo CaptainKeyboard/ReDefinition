@@ -164,6 +164,9 @@ namespace ReDefinition.Upscaler
         private readonly ScaledSpaceMotion scaledMotion = new ScaledSpaceMotion();
         private readonly MotionVectorAudit motionAudit = new MotionVectorAudit();
         private readonly VesselMotionVectors vesselMotion = new VesselMotionVectors();
+        private readonly VesselShadowLayer vesselShadow = new VesselShadowLayer();
+        // VesselShadowLayer.Enabled as the HUD-less capture was recorded with it.
+        private bool hudLessWithShadow;
         private readonly SkinnedMotionVectors skinned = new SkinnedMotionVectors();
         private int skinnedSeenLoads = -1;
         private static bool loggedPassThroughMsaa;
@@ -669,6 +672,7 @@ namespace ReDefinition.Upscaler
             GameEvents.onFloatingOriginShift.Add(OnFloatingOriginShift);
             motionAudit.Enable();
             vesselMotion.Enable();
+            vesselShadow.Enable();
         }
 
         // Counts KSP's physics steps for VesselMotionVectors.
@@ -688,6 +692,7 @@ namespace ReDefinition.Upscaler
             GameEvents.onFloatingOriginShift.Remove(OnFloatingOriginShift);
             motionAudit.Disable();
             vesselMotion.Disable();
+            vesselShadow.Disable();
             Teardown();
         }
 
@@ -784,6 +789,9 @@ namespace ReDefinition.Upscaler
                 if (wantHudLess) AttachHudLessCapture(presenterObject.GetComponent<Camera>(), true);
                 else DetachHudLessCapture();
             }
+            // The vessel's shadow switched in or out of the HUD-less copy (VesselShadowLayer).
+            else if (hudLessBuffer != null && hudLessWithShadow != VesselShadowLayer.Enabled && presenterObject != null)
+                AttachHudLessCapture(presenterObject.GetComponent<Camera>(), false);
             RefreshOverlay();
 
             if (Bypass)

@@ -19,6 +19,12 @@
 
 ### Fixed
 
+- **Frame generation leaves the vessel's shadow where it is.** Under a vessel the camera
+  follows, the shadow stands on the screen while the ground runs, and every generated
+  frame dragged it along with the ground or lost it. ReDefinition now takes the active
+  vessel's shadow out of the image frame generation moves, pixel by pixel where that is
+  the smaller error, so it is kept in place like the interface. Vessel shadow in frame
+  generation in the Debug tab switches it off.
 - **The active vessel moves smoothly between physics steps.** KSP moves parts only on a
   physics step, 50 a second, so at about 59 frames a second one frame in six showed the
   vessel and the camera standing still, and frame generation made its worst frames next

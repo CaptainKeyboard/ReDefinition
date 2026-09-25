@@ -29,6 +29,7 @@ namespace ReDefinition.EditorTools
         private const string ScenePath = "Assets/ReDefinition/MotionVectorCheck/MotionVectorCheck.unity";
         private const string ShaderPath = "Assets/ReDefinition/Shaders/ReDefinitionCloudMotion.shader";
         private const string AuditShaderPath = "Assets/ReDefinition/Shaders/ReDefinitionMotionAudit.shader";
+        private const string ShadowShaderPath = "Assets/ReDefinition/Shaders/ReDefinitionVesselShadow.shader";
         private const string PlayerDirectory = "../build/motion-vector-check";
         private const int TimeoutMilliseconds = 120000;
 
@@ -71,7 +72,8 @@ namespace ReDefinition.EditorTools
             probe.surface = Shader.Find("Standard");
             probe.motionAudit = AssetDatabase.LoadAssetAtPath<Shader>(AuditShaderPath);
             probe.forwardOnly = Shader.Find("Unlit/Color");
-            if (probe.cloudMotion == null || probe.surface == null || probe.motionAudit == null)
+            probe.vesselShadow = AssetDatabase.LoadAssetAtPath<Shader>(ShadowShaderPath);
+            if (probe.cloudMotion == null || probe.surface == null || probe.motionAudit == null || probe.vesselShadow == null)
             {
                 problems.Add("the shaders for the probe did not load.");
                 return null;
@@ -128,6 +130,7 @@ namespace ReDefinition.EditorTools
             bool readback = false;
             int audits = 0;
             float depthTarget = -1f, depthWritten = -1f;
+            int shadowCases = 0;
             foreach (string line in lines)
             {
                 Debug.Log("ReDefinition motion vector check: " + line);
@@ -148,6 +151,12 @@ namespace ReDefinition.EditorTools
                     else if (f[0] == "auditWrong" && bad < 0.9 * audited)
                         problems.Add("auditWrong: only " + bad + " of " + audited + " pixels off, where the motion"
                                      + " vectors were compared with none; the vessel check would miss errors.");
+                    continue;
+                }
+                if (f.Length == 8 && (f[0] == "shadowChase" || f[0] == "shadowParked"))
+                {
+                    shadowCases++;
+                    JudgeShadow(f, problems);
                     continue;
                 }
                 if (f.Length == 4 && f[0] == "depthTarget")
@@ -200,11 +209,48 @@ namespace ReDefinition.EditorTools
             if (cases != 2) problems.Add("the result has " + cases + " of 2 cases.");
             if (!readback) problems.Add("the result has no readback line.");
             if (audits != 3) problems.Add("the result has " + audits + " of 3 audit lines.");
+            if (shadowCases != 2) problems.Add("the result has " + shadowCases + " of 2 shadow cases.");
             if (depthTarget <= 0f)
                 problems.Add("depthTarget: the camera's own depth buffer shows no forward-only cube.");
             else if (Mathf.Abs(depthWritten - depthTarget) > 0.01f * depthTarget)
                 problems.Add("depthWrite: the depth pass wrote " + depthWritten + " where the camera's depth buffer holds "
                              + depthTarget + ".");
+        }
+
+        // VesselShadowLayer: the block's shadow found and nothing else; left in place where the
+        // camera follows the block, to the motion vectors where it stands; the shadowed ground
+        // brought to its brightness in the same frame without the shadow, the lit ground
+        // unchanged.
+        private static void JudgeShadow(string[] f, List<string> problems)
+        {
+            int inShadow = int.Parse(f[1], CultureInfo.InvariantCulture);
+            int found = int.Parse(f[2], CultureInfo.InvariantCulture);
+            int outside = int.Parse(f[3], CultureInfo.InvariantCulture);
+            float choice = Float(f[4]), before = Float(f[5]), after = Float(f[6]), litChange = Float(f[7]);
+            if (inShadow < 200)
+            {
+                problems.Add(f[0] + ": the block's shadow covers only " + inShadow + " ground pixels.");
+                return;
+            }
+            if (found < 0.9f * inShadow)
+                problems.Add(f[0] + ": the pass found " + found + " of " + inShadow + " shadowed pixels.");
+            if (outside > 0.02f * inShadow)
+                problems.Add(f[0] + ": the pass took " + outside + " lit pixels for the block's shadow.");
+            if (f[0] == "shadowChase")
+            {
+                if (choice < 0.8f)
+                    problems.Add("shadowChase: mean choice " + choice + "; a shadow standing on the screen must stay in place.");
+                if (before > 0.85f)
+                    problems.Add("shadowChase: the shadowed ground is " + before + " of its brightness without the"
+                                 + " shadow; there is hardly a shadow to take out.");
+                if (after < 0.93f || after > 1.07f)
+                    problems.Add("shadowChase: after the composition the shadowed ground is " + after + " of its"
+                                 + " brightness without the shadow; it must come out near 1.");
+                if (litChange > 0.01f)
+                    problems.Add("shadowChase: the lit ground changed by " + litChange + " on average.");
+            }
+            else if (choice > 0.2f)
+                problems.Add("shadowParked: mean choice " + choice + "; a shadow moving with the ground must be left to it.");
         }
 
         private static float Float(string text)

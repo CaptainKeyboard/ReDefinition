@@ -52,7 +52,12 @@ namespace ReDefinition.Upscaler
             if (!FrameGenerationBridge.Available || presenterCam == null || hudLessCopy == null) return;
 
             hudLessBuffer = new CommandBuffer { name = "ReDefinition.HudLessCapture" };
-            hudLessBuffer.Blit(BuiltinRenderTextureType.CameraTarget, hudLessCopy);
+            // The frame with the active vessel's shadow taken out where frame generation
+            // would drag it along with the ground (VesselShadowLayer), or the frame as it is.
+            hudLessWithShadow = VesselShadowLayer.Enabled;
+            if (!hudLessWithShadow
+                || !vesselShadow.Compose(hudLessBuffer, BuiltinRenderTextureType.CameraTarget, hudLessCopy, renderSize))
+                hudLessBuffer.Blit(BuiltinRenderTextureType.CameraTarget, hudLessCopy);
 
             // AfterEverything: after the presenter's OnRenderImage blit, and
             // after an effect camera's own drawing.

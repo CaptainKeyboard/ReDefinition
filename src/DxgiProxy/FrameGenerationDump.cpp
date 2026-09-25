@@ -1,7 +1,7 @@
 // Frame generation's input dump (FrameGeneration): for a few consecutive rendered
 // frames, the HUD-less colour, depth and motion vectors exactly as frame generation
-// receives them, and each frame's packet, written into a folder for analysis away
-// from the game. The copies are taken on consecutive frames; they are read back and
+// receives them, the frame as presented, and each frame's packet, written into a
+// folder for analysis away from the game. The copies are taken on consecutive frames; they are read back and
 // written only once all of them are taken, so writing cannot break the sequence.
 
 #include "FrameGeneration.h"
@@ -74,20 +74,23 @@ namespace redefinition
             DumpFrame frame;
             frame.packet = packet;
             frame.flipped = flippedLastCopy;
-            Input* inputs[3] = { &hudLess, &depth, &motion };
-            for (int i = 0; i < 3; ++i)
+            ID3D11Texture2D* sources[4] = { S(hudLess).Valid() ? S(hudLess).d3d11.Get() : nullptr,
+                                            S(depth).Valid() ? S(depth).d3d11.Get() : nullptr,
+                                            S(motion).Valid() ? S(motion).d3d11.Get() : nullptr,
+                                            backBuffer11.Get() };
+            for (int i = 0; i < 4; ++i)
             {
-                if (!S(*inputs[i]).Valid())
+                if (sources[i] == nullptr)
                     continue;
                 D3D11_TEXTURE2D_DESC desc = {};
-                S(*inputs[i]).d3d11->GetDesc(&desc);
+                sources[i]->GetDesc(&desc);
                 desc.Usage = D3D11_USAGE_STAGING;
                 desc.BindFlags = 0;
                 desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
                 desc.MiscFlags = 0;
                 if (FAILED(device11->CreateTexture2D(&desc, nullptr, &frame.staging[i])))
                     continue;
-                context11->CopyResource(frame.staging[i].Get(), S(*inputs[i]).d3d11.Get());
+                context11->CopyResource(frame.staging[i].Get(), sources[i]);
             }
             dumpTaken.push_back(frame);
             if (--dumpToTake == 0)
@@ -113,7 +116,7 @@ namespace redefinition
             }
 
         CreateDirectoryW(dumpFolder.c_str(), nullptr);
-        static const wchar_t* const names[3] = { L"colour", L"depth", L"motion" };
+        static const wchar_t* const names[4] = { L"colour", L"depth", L"motion", L"frame" };
         std::string text = "# per frame: index, packet fields, then the three textures as raw rows\n";
         for (size_t f = 0; f < dumpTaken.size(); ++f)
         {
@@ -136,7 +139,7 @@ namespace redefinition
             AppendMatrix(text, "clipToPrevClip", p.clipToPrevClip);
             AppendMatrix(text, "prevClipToClip", p.prevClipToClip);
 
-            for (int i = 0; i < 3; ++i)
+            for (int i = 0; i < 4; ++i)
             {
                 if (!frame.staging[i])
                     continue;

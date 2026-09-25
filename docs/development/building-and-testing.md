@@ -183,6 +183,16 @@ ones, must leave more than 98% of the sphere's pixels right. A cube drawn only i
 forward pass must be missing from `ResolvedDepth`, present in the camera's own depth
 buffer, and written into the depth by the vessel's depth pass within 1% of that value.
 
+Two cases check the vessel's shadow for frame generation (`VesselShadowLayer`): a red
+block over a white ground under a light with soft shadows. In the first the block and the
+camera move together, in the second only the camera. In both the pass must find more
+than 90% of the ground in the block's shadow and take less than 2% more from lit
+ground. Where the camera follows the block, the mean weight must keep the shadow in place
+(above 0.8), and after the composition the shadowed ground must reach 93 to 107% of its
+brightness in the same frame rendered without the block's shadow, the lit ground
+unchanged. Where only the camera moves, the weight must leave the shadow to the motion
+vectors (below 0.2).
+
 ## Build the proxy
 
 You need MSVC with the C++ workload and a Windows 10 SDK. The CMake that comes with Visual
@@ -239,11 +249,11 @@ that ran, or one `FAIL` line.
 ## Replay the game's frames through frame generation
 
 **Record the screen** in the Debug tab also writes eight consecutive frames of what frame
-generation receives into a folder ending in `-inputs`: colour, depth, motion vectors and
-each frame's packet (`FrameGenerationDump.cpp`).
+generation receives into a folder ending in `-inputs`: the HUD-less colour, depth, motion
+vectors, the frame as presented and each frame's packet (`FrameGenerationDump.cpp`).
 
 ```
-python toolsnalyze_fg_inputs.py <folder>
+python tools\analyze_fg_inputs.py <folder>
 ```
 
 It checks the inputs against each other: the previous frame's colour fetched where each
@@ -252,8 +262,7 @@ against the camera motion from depth and `clipToPrevClip`; how much of the frame
 depth.
 
 ```
-tools
-eplay_fg.ps1 <folder> [NAME=1 ...]
+tools\replay_fg.ps1 <folder> [NAME=1 ...]
 ```
 
 It plays the folder through DLSS frame generation in the harness, at half its size, and
@@ -268,7 +277,7 @@ be set. Each `NAME` changes one input:
 | `REDEFINITION_REPLAY_NO_MOTION` | every motion vector 0 |
 | `REDEFINITION_REPLAY_STILL_CAMERA` | `clipToPrevClip` the identity |
 | `REDEFINITION_REPLAY_FLAT_DEPTH` | one depth wherever anything is drawn |
-| `REDEFINITION_REPLAY_SHADOW_MOTION` | the vessel's motion on the ground darker than the lit runway |
+| `REDEFINITION_REPLAY_PLAIN_HUDLESS` | the frame itself as the HUD-less image, as before the vessel's shadow was taken out |
 
 ```
 python tools\make_fg_test_dump.py <folder> <speed> [--perspective] [--jitter PX] [--noise GREY]
