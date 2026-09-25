@@ -4,8 +4,10 @@
 
 ### Added
 
-- **DLSS preset in the diagnostics window's Debug tab**, not saved: Default, K, L or M,
-  to compare how DLSS's models treat a scene. Default lets DLSS choose for each mode.
+- **DLSS model in the settings window.** *High* is NVIDIA's model L, the sharper and more
+  stable image with less ghosting; *Fast* is model M, closer in speed to DLSS's standard
+  models. High by default; the profile Low takes Fast. It replaces the DLSS preset switch
+  in the Debug tab.
 - **A log line comparing the motion vectors with the true motion** about every ten
   seconds in flight, on the active vessel and on the ground around it, in pixels.
 - **A log line checking the vessel's motion vectors on every pixel** about every ten

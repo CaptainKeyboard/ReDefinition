@@ -81,6 +81,24 @@ namespace ReDefinition
                 Read = settings => settings.Quality.ToString(),
                 Write = (settings, value) => settings.Quality = Mode(value),
             },
+            // Fast on the left, High on the right. Low takes Fast: NVIDIA states it is the
+            // quicker of the two.
+            new ModuleSetting
+            {
+                Key = "dlssModel",
+                Title = "DLSS model",
+                Kind = SettingKind.Quality,
+                Order = 25,
+                Control = SettingControl.Choice,
+                Choices = new[] { DlssModel.Fast.ToString(), DlssModel.High.ToString() },
+                Label = value => DlssModels.Name(DlssModelOf(value)),
+                Tooltip = "Which of NVIDIA's DLSS models reconstructs the image, in every mode; DLSS only.\n"
+                          + "High (preset L): the sharper, more stable image with less ghosting, at more GPU time.\n"
+                          + "Fast (preset M): similar in quality, closer in speed to DLSS's standard models.",
+                Read = settings => settings.DlssModel.ToString(),
+                Write = (settings, value) => settings.DlssModel = DlssModelOf(value),
+                Interactable = settings => settings.Backend == UpscalerBackend.Dlss,
+            },
             new ModuleSetting
             {
                 Key = "sharpness",
@@ -226,6 +244,11 @@ namespace ReDefinition
             string[] names = new string[last + 1];
             for (int i = 0; i <= last; i++) names[i] = ((Fsr3Upscaler.QualityMode)(last - i)).ToString();
             return names;
+        }
+
+        private static DlssModel DlssModelOf(string name)
+        {
+            return (DlssModel)System.Enum.Parse(typeof(DlssModel), name, true);
         }
 
         private static UpscalerBackend Backend(string name)

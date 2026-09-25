@@ -39,6 +39,7 @@ namespace ReDefinition
         // of KSP's screens (PauseMenuEntry, MainMenuEntry).
         public bool ReplaceKspSettings;
         public UpscalerBackend Backend = UpscalerBackend.Fsr3;
+        public DlssModel DlssModel = DlssModel.High;
 
         // The hotkeys, as KeyCombination writes them. Unbound until the player
         // sets one in the Keys tab: KSP's own bindings fire on their key whatever
@@ -82,6 +83,7 @@ namespace ReDefinition
             settings.ReactiveMask = Enum(node, "reactiveMask", settings.ReactiveMask);
             settings.FrameGeneration = Bool(node, "frameGeneration", settings.FrameGeneration);
             settings.Backend = Enum(node, "technique", settings.Backend);
+            settings.DlssModel = Enum(node, "dlssModel", settings.DlssModel);
             settings.UpscalerKey = Binding(node, "upscalerKey", settings.UpscalerKey);
             settings.DiagnosticsKey = Binding(node, "diagnosticsKey", settings.DiagnosticsKey);
             settings.CameraListKey = Binding(node, "cameraListKey", settings.CameraListKey);
@@ -110,6 +112,7 @@ namespace ReDefinition
             node.AddValue("reactiveMask", ReactiveMask);
             node.AddValue("frameGeneration", FrameGeneration);
             node.AddValue("technique", Backend);
+            node.AddValue("dlssModel", DlssModel);
             node.AddValue("upscalerKey", UpscalerKey);
             node.AddValue("diagnosticsKey", DiagnosticsKey);
             node.AddValue("cameraListKey", CameraListKey);
@@ -137,7 +140,7 @@ namespace ReDefinition
               .Append(PauseWhileOpen).Append('|').Append(ReplaceKspSettings).Append('|')
               .Append(Jitter).Append('|').Append(SkinnedMotionVectors).Append('|').Append(TufxAfterUpscaling).Append('|')
               .Append(TransparencyMask).Append('|').Append(ReactiveMask).Append('|')
-              .Append(FrameGeneration).Append('|').Append(Backend).Append('|')
+              .Append(FrameGeneration).Append('|').Append(Backend).Append('|').Append(DlssModel).Append('|')
               .Append(UpscalerKey).Append('|').Append(DiagnosticsKey).Append('|').Append(CameraListKey).Append('|')
               .Append(SettingsWindowKey);
             return sb.ToString();

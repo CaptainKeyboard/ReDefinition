@@ -91,8 +91,13 @@ packet to the proxy on Unity's render thread (`src/Bridges/NativeUpscalerLink.cs
 size (NVIDIA's DLSS Programming Guide 3.6.1, 3.7.3; AMD's `ffx_upscale.h`) **[doc]**.
 
 * **DLSS** (`src/DxgiProxy/Dlss.cpp`, `src/Bridges/DlssBridge.cs`) runs through NGX on
-  Unity's Direct3D 11 device, with auto exposure, and the render preset the player chose.
-  Default lets the DLSS library choose. DLSS sharpens nothing itself, so with sharpness
+  Unity's Direct3D 11 device, with auto exposure, and the model the player chose
+  (`DlssModel`): *High* asks for preset L, *Fast* for preset M, in every mode. NVIDIA's
+  guide (31 March 2026, 3.12): L "Delivers a sharper, more stable image with less ghosting
+  than Preset J, K but are more expensive performance wise", M "similar image quality
+  improvements as Preset L but closer in speed to Presets J, K". The proxy creates the
+  feature anew when the preset changes, so a change takes effect at once. The profile Low
+  takes *Fast*. DLSS sharpens nothing itself, so with sharpness
   above 0 it writes into the input of FSR 3's RCAS pass (`RcasSharpener`), which writes the
   output. DLSS renders at the size it asks for, and another size makes a new rig.
 * **AMD's DLL** (`src/DxgiProxy/AmdUpscaler.cpp`, `src/Bridges/AmdUpscalerBridge.cs`) runs

@@ -23,6 +23,7 @@ from it. The interface is drawn on top at full resolution and stays sharp.
 | Upscaler | on or off |
 | Technique | *FSR 3*, *DLSS* or *AMD FSR (DLL)*. If the chosen one cannot run, FSR 3 runs in its place, and the diagnostics window says why |
 | Mode | *AA only*, at the right end, renders at full resolution and uses the upscaler as temporal antialiasing. This is what the profiles choose. Further left, the scene renders smaller by the factor shown and is reconstructed. DLSS renders at the size it asks for in each mode, and *1.2x*, which DLSS does not have, runs as DLSS's *Quality* |
+| DLSS model | DLSS only, in every mode. *High* is NVIDIA's model L: the sharper, more stable image with less ghosting, at more GPU time. *Fast* is model M: similar in quality, closer in speed to DLSS's standard models. The profile Low takes *Fast*, the others *High* |
 | Sharpness | how hard the image is sharpened after the upscaler, for every technique, from 0 to 1.2. 0 switches it off. Above 1.0 goes past what the sharpening was made for, and AMD's DLL stops at 1.0 |
 
 The six modes, and how much smaller the scene renders in each:

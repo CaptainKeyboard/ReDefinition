@@ -58,7 +58,7 @@ the flight, and in the main menu, the space centre and the editors.
 |---|---|
 | *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed |
 | *Audio* | KSP's volumes and its sound normalizer |
-| *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, Sharpness, Frame generation, *NVIDIA DLSS files*; ambient light boosts |
+| *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, DLSS model, Sharpness, Frame generation, *NVIDIA DLSS files*; ambient light boosts |
 | *Graphics* | a status line, and one button per graphics profile with a sentence about it; its tooltip says what it sets |
 | *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*; *Effects* -- the graphics mods' features and KSP's own |
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
@@ -287,7 +287,7 @@ Some of them another mod holds for itself:
 ## The section in KSP's settings dialog
 
 It holds Upscaler, Technique, Mode with all six modes and their scale factors, DLSS
-preset, Sharpness and Frame generation. What the dialog shows is a copy, set on *Apply*
+model, Sharpness and Frame generation. What the dialog shows is a copy, set on *Apply*
 or *Accept*, as KSP's own graphics settings are. The dialog and the settings window use
 the same settings file. The main menu's settings screen has no ReDefinition section.
 
@@ -307,7 +307,7 @@ chosen technique cannot run, it names the reason, and after a failure it offers
 | Section | Holds |
 |---|---|
 | Measure | for troubleshooting and bug reports: the frame rates with the upscaler on and off, the load of the main thread, the render thread and the GPU, *Write diagnostics to log*, *Without upscaler (bypass)*, and *Motion vector check on fast turns* with frame generation, which is not saved. The load is measured only while this tab is open |
-| What the upscaler receives | switches for a bug report, each explained by its tooltip: Render interpolation, not saved; Vessel shadow in frame generation, not saved; Record the screen, into `ReDefinitionCaptures` beside `KSP_x64.exe`; Jitter; EVE clouds: jitter and motion vectors, not saved; Mipmap bias; DLSS preset, not saved; Vessel depth and motion vectors, not saved; Skinned motion vectors; TUFX after upscaling; Auto exposure for FSR 3 and AMD; Transparency mask and Reactive mask for FSR 3 |
+| What the upscaler receives | switches for a bug report, each explained by its tooltip: Render interpolation, not saved; Vessel shadow in frame generation, not saved; Record the screen, into `ReDefinitionCaptures` beside `KSP_x64.exe`; Jitter; EVE clouds: jitter and motion vectors, not saved; Mipmap bias; Vessel depth and motion vectors, not saved; Skinned motion vectors; TUFX after upscaling; Auto exposure for FSR 3 and AMD; Transparency mask and Reactive mask for FSR 3 |
 | Game settings while upscaling | LOD bias compensation, MSAA forced off, Anisotropic filtering forced |
 | Interface for mods | *Hook probe, into the log*: registers a handler on each place a mod can add to the frame and writes one line per scene into `KSP.log` for each. It draws nothing, and it is never saved |
 | FSR 3 internals | *FSR's debug view*, in development builds only |

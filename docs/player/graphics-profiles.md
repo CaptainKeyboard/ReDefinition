@@ -51,7 +51,7 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
 
 | Tier | What it sets |
 |---|---|
-| Low | every visual mod on, at its lowest useful level |
+| Low | every visual mod on, at its lowest useful level, and DLSS's faster model |
 | Medium | clouds, ocean and scatter a step below the mods' defaults |
 | **High** | every mod as its authors ship it |
 | Ultra | Scatterer's High preset, finer clouds, tessellation and scatter |

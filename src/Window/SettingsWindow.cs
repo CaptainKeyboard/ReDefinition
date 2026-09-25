@@ -957,7 +957,7 @@ namespace ReDefinition.Window
         // Field by field, since the status line asks every frame.
         private static bool SameUpscaler(OwnSettings a, OwnSettings b)
         {
-            return a.Enabled == b.Enabled && a.Quality == b.Quality && a.Sharpness == b.Sharpness
+            return a.Enabled == b.Enabled && a.Quality == b.Quality && a.DlssModel == b.DlssModel && a.Sharpness == b.Sharpness
                    && a.MipmapBias == b.MipmapBias && a.CompensateLodBias == b.CompensateLodBias
                    && a.DisableMsaa == b.DisableMsaa && a.ForceAnisotropic == b.ForceAnisotropic && a.Jitter == b.Jitter
                    && a.SkinnedMotionVectors == b.SkinnedMotionVectors

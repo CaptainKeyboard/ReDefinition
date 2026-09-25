@@ -19,6 +19,30 @@ namespace ReDefinition.Bridges
         M = 13,
     }
 
+    // The DLSS model the player chooses, in every mode. NVIDIA's DLSS Programming Guide
+    // (31 March 2026, 3.12): Preset L "Delivers a sharper, more stable image with less
+    // ghosting than Preset J, K but are more expensive performance wise"; Preset M
+    // "Delivers similar image quality improvements as Preset L but closer in speed to
+    // Presets J, K".
+    internal enum DlssModel
+    {
+        High,
+        Fast,
+    }
+
+    internal static class DlssModels
+    {
+        internal static DlssPreset Preset(DlssModel model)
+        {
+            return model == DlssModel.Fast ? DlssPreset.M : DlssPreset.L;
+        }
+
+        internal static string Name(DlssModel model)
+        {
+            return model == DlssModel.Fast ? "Fast (M)" : "High (L)";
+        }
+    }
+
     // The managed half of DLSS; the native half is Dlss.h in the dxgi.dll proxy, which
     // evaluates DLSS on Unity's own D3D11 device (NativeUpscalerLink).
     //
