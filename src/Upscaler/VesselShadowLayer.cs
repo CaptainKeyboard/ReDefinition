@@ -235,7 +235,7 @@ namespace ReDefinition.Upscaler
             if (vessel != castersOf || vessel.parts.Count != castersPartCount) ChooseCasters(vessel);
 
             Bounds bounds;
-            if (!continuous || !CasterBounds(out bounds))
+            if (!continuous || !CastersBounds(vessel.transform.position, out bounds))
             {
                 framesSkipped++;
                 DumpState(!continuous ? "not continuous with the frame before" : "no caster");
@@ -260,10 +260,11 @@ namespace ReDefinition.Upscaler
             capture.ClearRenderTarget(true, true, new Color(0f, 0f, 0f, 1e9f));
             capture.SetGlobalMatrix(LightRasterId, lightRaster);
             capture.SetGlobalVector(LightId, lightVector);
+            Vector3 anchor = vessel.transform.position;
             foreach (Caster c in casters)
             {
                 if (c.Renderer == null || !c.Renderer.enabled || !c.Renderer.gameObject.activeInHierarchy
-                    || c.Renderer.shadowCastingMode == ShadowCastingMode.Off)
+                    || c.Renderer.shadowCastingMode == ShadowCastingMode.Off || !CasterBounds.Plausible(c.Renderer.bounds, anchor))
                     continue;
                 Matrix4x4 before;
                 if (previousModel.TryGetValue(c.Renderer, out before))
@@ -332,19 +333,24 @@ namespace ReDefinition.Upscaler
                 if (c.Renderer != null) previousModel[c.Renderer] = c.Renderer.localToWorldMatrix;
         }
 
-        private bool CasterBounds(out Bounds bounds)
+        private bool CastersBounds(Vector3 anchor, out Bounds bounds)
         {
             bounds = default(Bounds);
             bool any = false;
             foreach (Caster c in casters)
             {
-                if (c.Renderer == null || !c.Renderer.enabled || !c.Renderer.gameObject.activeInHierarchy) continue;
-                if (!any) bounds = c.Renderer.bounds;
-                else bounds.Encapsulate(c.Renderer.bounds);
+                if (c.Renderer == null || !c.Renderer.enabled || !c.Renderer.gameObject.activeInHierarchy
+                    || c.Renderer.shadowCastingMode == ShadowCastingMode.Off)
+                    continue;
+                Bounds b = c.Renderer.bounds;
+                if (!CasterBounds.Plausible(b, anchor)) continue;
+                if (!any) bounds = b;
+                else bounds.Encapsulate(b);
                 any = true;
             }
             return any;
         }
+
 
         private void ChooseCasters(Vessel vessel)
         {
@@ -652,6 +658,27 @@ namespace ReDefinition.Upscaler
             Debug.Log(Log.Tag + " Vessel shadow for frame generation, one frame: " + sampleLine + ".");
             sampleRequested = false;
             framesDrawn = framesSkipped = 0;
+        }
+    }
+
+    // Which renderer bounds may size VesselShadowLayer's light map: finite, no side longer
+    // than MaxExtentMetres, the centre within MaxDistanceMetres of the vessel. Measured in
+    // flight: one of a spaceplane's 74 renderers reported extents of 10^18 m, which made the
+    // light map as wide, its texels larger than the vessel, and the lit ground next to the
+    // shadow was never found. Such renderers are effects and are not drawn into the map.
+    internal static class CasterBounds
+    {
+        internal const float MaxExtentMetres = 250f;
+        internal const float MaxDistanceMetres = 500f;
+
+        internal static bool Plausible(Bounds bounds, Vector3 anchor)
+        {
+            Vector3 c = bounds.center, e = bounds.extents;
+            float sum = c.x + c.y + c.z + e.x + e.y + e.z;
+            if (float.IsNaN(sum) || float.IsInfinity(sum)) return false;
+            float half = MaxExtentMetres * 0.5f;
+            return e.x <= half && e.y <= half && e.z <= half
+                   && (c - anchor).sqrMagnitude <= MaxDistanceMetres * MaxDistanceMetres;
         }
     }
 }
