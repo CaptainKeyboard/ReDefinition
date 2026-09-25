@@ -33,8 +33,7 @@ namespace ReDefinition.Settings
 
         // By mod id, what every profile sets for the installed registered mods among
         // `mods`, whatever the setting's kind: their ALL_PROFILES blocks that fit the
-        // installed build -- what makes a mod fit ReDefinition, its own antialiasing
-        // off among it.
+        // installed build -- what makes a mod fit ReDefinition.
         internal static Dictionary<string, Dictionary<string, string>> SelectAll(IEnumerable<IBundledMod> mods)
         {
             Dictionary<string, Dictionary<string, string>> selected = new Dictionary<string, Dictionary<string, string>>();

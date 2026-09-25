@@ -215,9 +215,15 @@ namespace ReDefinition
 
         // Other visual mods run temporal filters of their own, which conflict with
         // the upscaler (HostStack). General shows the verdict; Debug the lines
-        // behind it.
+        // behind it. With the upscaler off their antialiasing is theirs
+        // (SyncHostStack), and there is nothing to judge.
         private void DrawHostStackSummary()
         {
+            if (!ProfileChosen() || PassThroughWanted)
+            {
+                GUILayout.Label("Other visual mods: their own antialiasing, while the upscaler is off.");
+                return;
+            }
             if (Event.current.type == EventType.Layout) HostStack.Refresh(false);
 
             int problems = 0;
