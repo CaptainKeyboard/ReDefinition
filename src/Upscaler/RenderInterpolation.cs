@@ -6,8 +6,8 @@ using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
-    // The active vessel and the flight camera, drawn where they are between the last two
-    // physics steps rather than where the last step left them.
+    // The active vessel drawn where it is between the last two physics steps rather
+    // than where the last step left it.
     //
     // KSP steps physics at 50 Hz and sets no Rigidbody.interpolation on the parts
     // (decompiled), so the vessel, and the camera riding on it, move only on a physics
@@ -20,12 +20,17 @@ namespace ReDefinition.Upscaler
     // part positions from the transforms, which would then lag by up to a step.
     //
     // So only for the length of the frame's drawing: as the first camera culls, the
-    // vessel's topmost part transforms, and the flight camera where it does not hang on
-    // one of them, are moved by the offset from the last step's position to the one
-    // interpolated for this frame, (previous - current) * (1 - alpha), alpha being the
-    // part of a step since the last one, as Unity interpolates; at the end of the frame
-    // their local positions go back exactly as they were, before the next physics step.
-    // Translation only: the camera's orientation is KSP's.
+    // vessel's topmost part transforms are moved by the offset from the last step's
+    // position to the one interpolated for this frame, (previous - current) *
+    // (1 - alpha), alpha being the part of a step since the last one, as Unity
+    // interpolates; at the end of the frame their local positions go back exactly as
+    // they were, before the next physics step. Translation only.
+    //
+    // The camera is never moved by itself. Following the vessel, KSP hangs its pivot
+    // on the vessel (FlightCamera: pivot.SetParent(target)), so it moves along with the
+    // parts; a camera that does not hang on the vessel -- one standing free, CameraTools'
+    // -- does not follow it and stays where it is. Other vessels are left as KSP draws
+    // them.
     //
     // Left alone: a frame with a floating origin shift, a jump of more than 50 m, a packed
     // vessel, Krakensbane moving the world instead of the vessel, IVA and map view.
@@ -133,10 +138,6 @@ namespace ReDefinition.Upscaler
 
             foreach (Transform t in partTransforms)
                 if (!UnderAnother(t)) Move(t);
-
-            FlightCamera flight = FlightCamera.fetch;
-            if (flight != null && !UnderAnother(flight.transform) && !partTransforms.Contains(flight.transform))
-                Move(flight.transform);
 
             framesShifted++;
             float length = offset.magnitude;

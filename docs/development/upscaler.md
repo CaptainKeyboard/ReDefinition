@@ -252,10 +252,12 @@ KSP steps physics at 50 Hz and sets no `Rigidbody.interpolation` on the parts
 frames a second one in six has no step. The screen recording on the runway measured the
 ground's shift between shown frames at 4 to 7 px, then twice 0, about nine times a second.
 Frame generation's worst frames were the ones right after such a standstill.
-`RenderInterpolation` moves the vessel's topmost part transforms, and the flight camera
-where it does not hang on one of them, by `(previous - current) * (1 - alpha)` as the
-frame's first camera culls, and puts their local positions back at the end of the frame,
-before the next physics step. Unity's own interpolation would leave KSP's physics reading
+`RenderInterpolation` moves the active vessel's topmost part transforms by
+`(previous - current) * (1 - alpha)` as the frame's first camera culls, and puts their
+local positions back at the end of the frame, before the next physics step. The camera is
+never moved by itself: following the vessel, KSP hangs its pivot on the vessel, so it
+moves along; a camera standing free does not follow the vessel and stays. Other vessels
+are left as KSP draws them. Unity's own interpolation would leave KSP's physics reading
 positions a step old. `StepInterpolator` holds the arithmetic; its test runs 600 frames at
 59 per second over 50 Hz steps and finds every frame moved by the same distance to a
 millimetre, where the positions alone stand still in 80 to 120 of them. Left alone: a
