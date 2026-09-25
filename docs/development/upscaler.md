@@ -369,6 +369,14 @@ In the diagnostics window's *Debug* tab
   buffer counts pixels, pixels off by more than a pixel and the largest error. The line
   says whether the rig wrote them, and gives the share off, the frames with more than
   0.5% off, apart for frames with and without a physics step, and the parts most off.
+* **Record the screen**: five seconds after the click, the proxy records half a second of
+  what the monitor shows through DXGI desktop duplication, frame generation's frames
+  included, as PNG files of a 1600x900 cut-out around the middle of the game window, with
+  `frames.txt` giving each frame's present time. The harness records 40 frames while DLSS
+  frame generation runs.
+* **Other mods' effects** (`ForeignEffects`), not saved: the other mods' components on the
+  scene cameras off, and their command buffers taken off those cameras and the lights every
+  frame; logged by kind. What a mod changed as the game loaded stays.
 * **Motion vector check on fast turns**, with frame generation: a fast turn asks the proxy
   for its motion vector check at once, and a line says what the camera did.
 * **Write diagnostics to log**: what the cameras, the inputs, the masks, the proxy's

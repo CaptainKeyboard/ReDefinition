@@ -865,6 +865,34 @@ int main()
                             : "DLSS frame generation on, but no frames were generated",
                         E_FAIL);
 
+        // The screen recording (ScreenRecorder.h) while it generates: the frames the
+        // monitor shows, into ReDefinitionCaptures beside the harness.
+        {
+            using RecordFn = int(__cdecl*)(int);
+            using RecordStateFn = int(__cdecl*)(char*, int);
+            HMODULE proxy = GetModuleHandleW(L"dxgi.dll");
+            auto record = reinterpret_cast<RecordFn>(GetProcAddress(proxy, "KspRecordScreen"));
+            auto recordState = reinterpret_cast<RecordStateFn>(GetProcAddress(proxy, "KspRecordScreenState"));
+            if (record == nullptr || recordState == nullptr)
+                return Fail("the proxy exports no screen recording", E_FAIL);
+            if (record(40) != 1)
+                return Fail("the screen recording did not start", E_FAIL);
+            char state[256] = {};
+            for (int wait = 0; wait < 40; ++wait)
+            {
+                float ignored = 0.0f;
+                hr = presentsPerFrame(0.1f, ignored);
+                if (FAILED(hr))
+                    return Fail("Present during the screen recording", hr);
+                recordState(state, sizeof(state));
+                if (std::strncmp(state, "running", 7) != 0)
+                    break;
+            }
+            printf("      screen recording while DLSS frame generation runs: %s\n", state);
+            if (std::strncmp(state, "done", 4) != 0)
+                return Fail("the screen recording did not finish", E_FAIL);
+        }
+
         // Mode changes while it generates, as the toolbar makes them.
         const UINT sizes[2][2] = { { kWidth * 2 / 3, kHeight * 2 / 3 }, { kWidth / 2, kHeight / 2 } };
         for (UINT change = 0; change < 8; ++change)

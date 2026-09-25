@@ -17,6 +17,8 @@
 #include "LoadMonitor.h"
 #include "Log.h"
 #include "NvidiaGpu.h"
+#include "ScreenRecorder.h"
+#include "FileUtil.h"
 #include "Streamline.h"
 #include "SwapChainProxy.h"
 
@@ -129,6 +131,28 @@ extern "C"
     __declspec(dllexport) void KspFgRetryContext()
     {
         redefinition::FrameGeneration::Get().RetryContext();
+    }
+
+    // The Debug tab's screen recording (ScreenRecorder.h): frames the monitor shows,
+    // generated ones included, into ReDefinitionCaptures\<time> beside KSP_x64.exe. 0
+    // where a recording already runs.
+    __declspec(dllexport) int KspRecordScreen(int frames)
+    {
+        SYSTEMTIME now = {};
+        GetLocalTime(&now);
+        wchar_t stamp[32];
+        swprintf_s(stamp, L"%04u%02u%02u-%02u%02u%02u", now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute,
+                   now.wSecond);
+        const std::wstring root = redefinition::ExecutableDirectory() + L"\\ReDefinitionCaptures";
+        CreateDirectoryW(root.c_str(), nullptr);
+        return redefinition::StartScreenRecording(frames, root + L"\\" + stamp) ? 1 : 0;
+    }
+
+    __declspec(dllexport) int KspRecordScreenState(char* buffer, int size)
+    {
+        const std::string state = redefinition::ScreenRecordingState();
+        if (buffer != nullptr && size > 0) strncpy_s(buffer, static_cast<size_t>(size), state.c_str(), _TRUNCATE);
+        return static_cast<int>(state.size());
     }
 
     // A HUD-less and motion vector check at once, rather than after reportSeconds:

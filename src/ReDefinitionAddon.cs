@@ -143,8 +143,18 @@ namespace ReDefinition
             }
         }
 
+        // When the Debug tab's screen recording starts; 0 when none is waiting.
+        private float recordingAt;
+
         private void Update()
         {
+            if (recordingAt > 0f && Time.unscaledTime >= recordingAt)
+            {
+                recordingAt = 0f;
+                bool started = ScreenRecordingBridge.Start(60);
+                Debug.Log(Log.Tag + " Screen recording " + (started ? "started." : "not started: "
+                                                                    + ScreenRecordingBridge.State() + "."));
+            }
             if (HighLogic.LoadedScene != lastScene)
             {
                 lastScene = HighLogic.LoadedScene;
