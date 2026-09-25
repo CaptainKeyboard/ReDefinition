@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.Text;
 using ReDefinition.Core;
 using ReDefinition.Shared;
 using Unity.Collections;
@@ -143,6 +145,17 @@ namespace ReDefinition.Upscaler
         private RenderTexture weightSample;
         private bool sampleRequested;
         private string sampleLine = "not read yet";
+
+        // The Debug tab's screen recording: the next frame's inputs and results of the
+        // layer written beside it, to follow each step away from the game.
+        private static string dumpFolder;
+
+        internal static void DumpNextFrame()
+        {
+            dumpFolder = Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"),
+                                      System.DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)
+                                      + "-shadow");
+        }
         private float windowStart = -1f;
 
         internal void Disable()
@@ -204,6 +217,7 @@ namespace ReDefinition.Upscaler
         {
             if (!active || depth == null || motionVectors == null)
             {
+                DumpState("not active: " + (Enabled ? "no flight scene, vessel, shader or textures" : "switched off"));
                 Clear(capture);
                 return;
             }
@@ -214,6 +228,7 @@ namespace ReDefinition.Upscaler
             if (light == null || vessel == null)
             {
                 framesSkipped++;
+                DumpState(light == null ? "no light" : "no vessel");
                 Clear(capture);
                 return;
             }
@@ -223,6 +238,7 @@ namespace ReDefinition.Upscaler
             if (!continuous || !CasterBounds(out bounds))
             {
                 framesSkipped++;
+                DumpState(!continuous ? "not continuous with the frame before" : "no caster");
                 Clear(capture);
                 KeepModels();
                 previousViewProjection = viewProjection;
@@ -273,6 +289,8 @@ namespace ReDefinition.Upscaler
             capture.SetGlobalVector(ReceiverShiftId, receiverShift);
             capture.Blit(depth, weight, material, WeightPass);
             if (!sampleRequested) RequestSample(capture);
+            if (dumpFolder != null)
+                Dump(capture, depth, motionVectors, bounds, radius, lightRaster, lightSample, lightVector);
 
             KeepModels();
             previousViewProjection = viewProjection;
@@ -467,6 +485,101 @@ namespace ReDefinition.Upscaler
                 filterMode = FilterMode.Bilinear,
             };
             return texture.Create();
+        }
+
+        // Without a frame drawn: why, and the light and settings, so the dump says it.
+        private void DumpState(string reason)
+        {
+            if (dumpFolder == null) return;
+            string folder = dumpFolder;
+            dumpFolder = null;
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, "state.txt"), "not drawn: " + reason + "\n" + Settings());
+        }
+
+        private string Settings()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("frame ").Append(Time.frameCount).Append('\n');
+            sb.Append("renderSize ").Append(size.x).Append(' ').Append(size.y).Append('\n');
+            if (light != null)
+            {
+                Vector3 f = light.transform.forward;
+                sb.Append("light ").Append(light.name).Append(" forward ").Append(V(f)).Append(" shadows ").Append(light.shadows)
+                  .Append(" strength ").Append(F(light.shadowStrength)).Append(" bias ").Append(F(light.shadowBias))
+                  .Append(" normalBias ").Append(F(light.shadowNormalBias)).Append(" resolution ").Append(light.shadowResolution)
+                  .Append(" customResolution ").Append(light.shadowCustomResolution).Append(" cullingMask ")
+                  .Append(light.cullingMask).Append(" intensity ").Append(F(light.intensity)).Append('\n');
+                CommandBuffer[] buffers = light.GetCommandBuffers(LightEvent.AfterScreenspaceMask);
+                sb.Append("afterScreenspaceMask");
+                foreach (CommandBuffer b in buffers) sb.Append(" '").Append(b.name).Append('\'');
+                sb.Append('\n');
+            }
+            else
+                sb.Append("light none\n");
+            sb.Append("quality shadows ").Append(QualitySettings.shadows).Append(" distance ")
+              .Append(F(QualitySettings.shadowDistance)).Append(" cascades ").Append(QualitySettings.shadowCascades)
+              .Append(" projection ").Append(QualitySettings.shadowProjection).Append('\n');
+            sb.Append("casters ").Append(casters.Count).Append(" continuous ").Append(continuous)
+              .Append(" originShift ").Append(V(originShift)).Append(" receiverShift ").Append(V(receiverShift)).Append('\n');
+            sb.Append("sample ").Append(sampleLine).Append('\n');
+            return sb.ToString();
+        }
+
+        private void Dump(CommandBuffer capture, RenderTexture depth, RenderTexture motionVectors, Bounds bounds, float radius,
+                          Matrix4x4 lightRaster, Matrix4x4 lightSample, Vector4 lightVector)
+        {
+            string folder = dumpFolder;
+            dumpFolder = null;
+            Directory.CreateDirectory(folder);
+            StringBuilder sb = new StringBuilder(Settings());
+            sb.Append("bounds ").Append(V(bounds.center)).Append(' ').Append(V(bounds.extents)).Append(" radius ")
+              .Append(F(radius)).Append('\n');
+            sb.Append("lightVector ").Append(F(lightVector.x)).Append(' ').Append(F(lightVector.y)).Append(' ')
+              .Append(F(lightVector.z)).Append(' ').Append(F(lightVector.w)).Append('\n');
+            M(sb, "lightRaster", lightRaster);
+            M(sb, "lightSample", lightSample);
+            M(sb, "rasterInverse", rasterInverse);
+            M(sb, "viewProjection", viewProjection);
+            M(sb, "previousViewProjection", previousViewProjection);
+            sb.Append("textures: mask R8, weight RGBA half, lightMap RGBA float ").Append(LightMapSize)
+              .Append(", depth and motion as the rig holds them: ").Append(depth.format).Append(' ')
+              .Append(motionVectors.format).Append('\n');
+            File.WriteAllText(Path.Combine(folder, "state.txt"), "drawn\n" + sb);
+            Save(capture, mask, Path.Combine(folder, "mask.bin"));
+            Save(capture, weight, Path.Combine(folder, "weight.bin"));
+            Save(capture, lightMap, Path.Combine(folder, "lightmap.bin"));
+            Save(capture, depth, Path.Combine(folder, "depth.bin"));
+            Save(capture, motionVectors, Path.Combine(folder, "motion.bin"));
+            Debug.Log(Log.Tag + " Vessel shadow for frame generation: this frame's inputs and results into " + folder + ".");
+        }
+
+        private static void Save(CommandBuffer capture, RenderTexture texture, string path)
+        {
+            capture.RequestAsyncReadback(texture, request =>
+            {
+                if (request.hasError) return;
+                File.WriteAllBytes(path, request.GetData<byte>().ToArray());
+            });
+        }
+
+        private static string F(float value)
+        {
+            return value.ToString("R", CultureInfo.InvariantCulture);
+        }
+
+        private static string V(Vector3 v)
+        {
+            return F(v.x) + " " + F(v.y) + " " + F(v.z);
+        }
+
+        private static void M(StringBuilder sb, string name, Matrix4x4 m)
+        {
+            sb.Append(name);
+            for (int r = 0; r < 4; r++)
+                for (int c = 0; c < 4; c++)
+                    sb.Append(' ').Append(F(m[r, c]));
+            sb.Append('\n');
         }
 
         private void RequestSample(CommandBuffer capture)
