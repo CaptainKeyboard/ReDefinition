@@ -278,21 +278,20 @@ namespace ReDefinition
         }
 
         // The other mods' antialiasing, and what Scatterer's TAA leaves behind, are
-        // taken for the upscaler while a graphics profile is chosen, and handed back when it
-        // goes (HostStack) -- with the upscaler switched off too, and not at every
-        // toggle of it, which would compare the frame rate against another set of
-        // effects. Taken where the cameras it configures exist: once a rig runs, or
-        // in flight and the editors. Taken earlier, at the main menu say, HostStack
-        // would record Scatterer's state before Scatterer has set itself up. What a
-        // later scene builds anew is taken once a second, each with its own record
-        // (HostStack.Reassert).
+        // taken while the upscaler runs, and handed back when it stops (HostStack):
+        // without the upscaler, the mods' own antialiasing is the only one there
+        // is. Frame generation alone leaves it to them. Taken where the cameras it
+        // configures exist: once a rig runs, or in flight and the editors. Taken
+        // earlier, at the main menu say, HostStack would record Scatterer's state
+        // before Scatterer has set itself up. What a later scene builds anew is
+        // taken once a second, each with its own record (HostStack.Reassert).
         private void SyncHostStack()
         {
-            bool chosen = ProfileChosen();
-            if (chosen && !HostStack.Applied
+            bool upscaling = ProfileChosen() && !PassThroughWanted;
+            if (upscaling && !HostStack.Applied
                 && (rig != null || HighLogic.LoadedSceneIsFlight || HighLogic.LoadedSceneIsEditor))
                 hostStackMessage = HostStack.Apply();
-            else if (!chosen && HostStack.Applied)
+            else if (!upscaling && HostStack.Applied)
                 hostStackMessage = HostStack.Restore();
         }
 

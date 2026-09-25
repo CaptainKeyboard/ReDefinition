@@ -58,16 +58,18 @@ technique again.
 
 ### What ReDefinition changes for it
 
-While a graphics profile is chosen, ReDefinition switches off what other mods bring for
+While the upscaler runs, ReDefinition switches off what KSP and other mods bring for
 antialiasing. A second temporal filter in front of the upscaler would average the image
 twice:
 
+* KSP's own MSAA;
 * Scatterer's TAA and SMAA;
 * TUFX's antialiasing;
 * Deferred's SMAA in the editors;
 * Kerbal Frame Generator's frame blend, where it is installed.
 
-Choosing no profile gives each of them back what it had, unless it was changed since.
+With the upscaler off, frame generation alone included, each gets back what it had,
+unless it was changed since. Their own settings stay as they are.
 
 While the upscaler runs, ReDefinition also keeps EVE's clouds, kerbals and flags from
 smearing, draws TUFX's bloom, colour grading, depth of field, motion blur and grain

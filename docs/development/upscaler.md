@@ -144,8 +144,8 @@ The files the player needs, and where they go: [player/installing.md](../player/
 * **Game-wide quality settings** (`QualityOverrides`). While the upscaler runs, the LOD
   bias is multiplied by display height over render height, since Unity picks LODs by
   covered pixels. The mipmap bias is FSR's own `log2(render / display) - 1` and a
-  different quantity. MSAA is held at off, and every profile sets KSP's own setting
-  off as well (`ALL_PROFILES` in `KSP.cfg`). Anisotropic filtering is forced on so
+  different quantity. MSAA is held at off; KSP's own setting is left as it is, and
+  comes back when the upscaler stops. Anisotropic filtering is forced on so
   the negative mipmap bias does not shimmer. Shadow distance and cascades are left alone. KSP's
   `SetQualityLevel` resets these, and `OnGameSettingsApplied` puts them back. Where KSP
   writes a value there other than ReDefinition's, that value becomes the one restored when
@@ -159,8 +159,9 @@ The files the player needs, and where they go: [player/installing.md](../player/
 
 An upscaler is a temporal filter. A second one in front of it averages the image twice, and
 both jitter the same projection. `HostStack` reads the other mods' state by reflection, so
-no mod is a reference, and, while a graphics profile is chosen, puts that state into what
-the upscaler needs:
+no mod is a reference, and, while the upscaler runs, puts that state into what
+the upscaler needs. Without the upscaler, frame generation alone included, the mods keep
+their own antialiasing, and `HostStack.Restore` hands back what it took:
 
 * TUFX's antialiasing to `None`, on the profile and on the live `PostProcessLayer`s.
 * Scatterer's `TemporalAntiAliasing` and SMAA off, and Deferred's SMAA in the editors.
@@ -169,7 +170,7 @@ the upscaler needs:
   reconstructs from. The buffer outlives the component and is taken off too. Deferred adds
   a fresh copy on every editor scene load, so the editors are checked once a second.
 * Kerbal Frame Generator's frame blend off, if installed. Its switch is only in memory,
-  and it goes back on when no profile is chosen, where it still holds the value written
+  and it goes back on when the upscaler stops, where it still holds the value written
   here.
 
 EVE's temporal upscaling for its clouds is EVE's own reconstruction and stays.

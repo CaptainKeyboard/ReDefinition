@@ -23,7 +23,7 @@ graphics mods; any mod can join with a config file.
 * **Profiles from Low to Max.** One choice sets up all installed mods together; High is
   the mod authors' own defaults.
 * **Compatible settings.** What a mod requires of other settings is kept in every
-  profile, and other mods' antialiasing is switched off while a profile is chosen.
+  profile, and other mods' antialiasing is switched off while the upscaler runs.
 * **Reset and restore.** Back to the defaults, or back to each mod's settings from before
   ReDefinition.
 * **Open to other mods.** A mod or visual pack joins with a config file in its own folder.

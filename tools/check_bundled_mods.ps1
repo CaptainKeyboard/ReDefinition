@@ -412,14 +412,24 @@ try {
         }
     }
 
-    # What conflicts with the upscaler, switched off by every profile on every build
-    # it concerns: a profile that left one on would antialias or jitter the image a
-    # second time in front of the upscaler. The reset may turn them on -- it switches ReDefinition off.
-    $conflicts = @(
-        @{ Mod = 'scatterer'; Key = 'useTemporalAntiAliasing'; Value = 'False'; Build = $null },
-        @{ Mod = 'scatterer'; Key = 'useSubpixelMorphologicalAntialiasing'; Value = 'False'; Build = $null },
-        @{ Mod = 'deferred'; Key = 'useSmaaInEditors'; Value = 'False'; Build = $null }
+    # The other mods' antialiasing is taken at run time while the upscaler runs
+    # (HostStack) and is theirs without it: no profile sets it.
+    $runtimeOnly = @(
+        @{ Mod = 'ksp'; Key = 'ANTI_ALIASING' },
+        @{ Mod = 'scatterer'; Key = 'useTemporalAntiAliasing' },
+        @{ Mod = 'scatterer'; Key = 'useSubpixelMorphologicalAntialiasing' },
+        @{ Mod = 'deferred'; Key = 'useSmaaInEditors' }
     )
+    foreach ($c in $runtimeOnly) {
+        $r = @($registrations | Where-Object { $_.Name -ceq $c.Mod })[0]
+        if ($null -eq $r) { continue }
+        foreach ($block in @($r.AllProfiles) + @($r.Profiles)) {
+            if ($block.Values.ContainsKey($c.Key)) { $refused += "$($c.Mod).$($c.Key): a profile block sets it; HostStack or QualityOverrides takes it while the upscaler runs" }
+        }
+    }
+
+    # What Volumetric Clouds needs, set by every profile on its build.
+    $conflicts = @()
     foreach ($scene in 'profileFlight', 'profileMap', 'profileInternal', 'profileEditor', 'profileSpaceCenter', 'profileTrackingStation', 'profileMainMenu') {
         $conflicts += @{ Mod = 'tufx'; Key = $scene; Value = 'Blackrack_TUFX'; Build = 'volumetric' }
     }
@@ -448,7 +458,7 @@ try {
 
     foreach ($r in $refused) { "      $r" }
     if ($unchecked.Count -gt 0) { "note  not installed here, so their profile values are not checked: " + (@($unchecked) -join ', ') }
-    Expect "the shipped profiles read without a problem, the registrations set quality settings for them with values the game takes -- High its deviations only -- and every profile switches off what fights FSR ($($profileNames.Count) profiles, $blocks blocks, $allBlocks for every profile, $($conflicts.Count) conflicts)" (($refused.Count -eq 0) -and ($profileNames.Count -ge 5) -and ($blocks -ge 20) -and ($allBlocks -ge 3))
+    Expect "the shipped profiles read without a problem, the registrations set quality settings for them with values the game takes -- High its deviations only -- every profile sets what Volumetric Clouds needs, and none sets the antialiasing taken at run time ($($profileNames.Count) profiles, $blocks blocks, $allBlocks for every profile, $($conflicts.Count) required values)" (($refused.Count -eq 0) -and ($profileNames.Count -ge 5) -and ($blocks -ge 20) -and ($allBlocks -ge 1))
 }
 catch {
     $script:lastThrow = "profile check threw: " + $_.Exception.GetBaseException().Message

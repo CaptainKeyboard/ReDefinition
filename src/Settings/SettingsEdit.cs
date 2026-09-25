@@ -247,11 +247,13 @@ namespace ReDefinition.Settings
 
         // Fills the rows of every tab with the profile's values and switches the
         // bundling on, which a profile needs; nothing is set until Apply. False
-        // where the profile is not known.
+        // where the profile is not known. After the reset nothing is handed back:
+        // a row the profile leaves keeps the reset's default.
         public bool ChooseProfile(string name)
         {
             Dictionary<BundledSetting, string> values;
             if (name == null || !profileValues.TryGetValue(name, out values)) return false;
+            values = OwnValues(name, values);
 
             foreach (KeyValuePair<BundledSetting, string> pair in values) Change(pair.Key.Key, pair.Value);
             List<string> filledBefore = new List<string>(filled.Keys);
@@ -273,6 +275,18 @@ namespace ReDefinition.Settings
             Bundled = true;
             Profile = name;
             return true;
+        }
+
+        // A profile's values as choosing it fills them in: without its hand-backs
+        // while a reset is chosen.
+        private Dictionary<BundledSetting, string> OwnValues(string name, Dictionary<BundledSetting, string> values)
+        {
+            HashSet<BundledSetting> released;
+            if (!Resetting || !profileReleased.TryGetValue(name, out released) || released.Count == 0) return values;
+            Dictionary<BundledSetting, string> own = new Dictionary<BundledSetting, string>();
+            foreach (KeyValuePair<BundledSetting, string> pair in values)
+                if (!released.Contains(pair.Key)) own[pair.Key] = pair.Value;
+            return own;
         }
 
         // A change made meanwhile outside the window -- in a mod's own window, in
@@ -364,7 +378,7 @@ namespace ReDefinition.Settings
             }
 
             Dictionary<BundledSetting, string> values;
-            int differ = profileValues.TryGetValue(Profile, out values) ? differences(values) : 0;
+            int differ = profileValues.TryGetValue(Profile, out values) ? differences(OwnValues(Profile, values)) : 0;
             if (differ == 0) return "Profile: " + chosenTitle + rest + toSet;
             return "Custom, changed from " + chosenTitle + " in " + differ + (differ == 1 ? " setting" : " settings")
                    + rest + toSet;
@@ -376,7 +390,9 @@ namespace ReDefinition.Settings
         // where the row shows no change: in the main menu a per-save mod's row
         // shows its own answer, and the saves still hold the choice kept here. A profile's value
         // the mod holds already is set where the mod holding it is not all a
-        // choice needs (`holds`).
+        // choice needs (`holds`), and always with a reset: KSP's own reset
+        // (KspReset) runs before these steps and puts KSP's defaults over what
+        // the row was read with.
         public IEnumerable<Step> Steps(IEnumerable<BundledSetting> settings, Func<BundledSetting, string, bool> holds)
         {
             foreach (BundledSetting setting in settings)
@@ -389,7 +405,8 @@ namespace ReDefinition.Settings
                 bool release = isFilled && from == Origin.Released;
                 bool fromProfile = isFilled && from == Origin.Profile;
                 bool reset = isFilled && from == Origin.Reset;
-                if (!reset && !release && SettingValues.Same(value, before) && (!fromProfile || holds(setting, value)))
+                if (!reset && !release && SettingValues.Same(value, before)
+                    && (!fromProfile || (!Resetting && holds(setting, value))))
                     continue;
                 yield return new Step
                 {

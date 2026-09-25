@@ -71,6 +71,14 @@
 
 ### Changed
 
+- **Reset chooses High.** It sets every setting to its default as before, KSP's except
+  the screen resolution, and then chooses the profile High over them, so choosing High
+  afterwards changes nothing. ReDefinition is active afterwards, with the upscaler at
+  *AA only*.
+- **The other mods' antialiasing is switched off only while the upscaler runs.** No
+  profile changes KSP's MSAA, Scatterer's TAA and SMAA or Deferred's editor SMAA in their
+  settings any more; with the upscaler off, frame generation alone included, they
+  antialias the image as they are set.
 - **The pause button works in the space centre and the tracking station too**, where
   game time runs as well. There it stops Unity's time scale and gives it back through
   KSP's time warp, as KSP does when it unpauses a flight.

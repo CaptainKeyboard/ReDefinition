@@ -30,7 +30,7 @@ Every claim here carries its mark: **[src]**, **[doc]**, **[meas]** or **[open]*
   whose members ReDefinition finds by name and signature
   ([modders/registering-a-mod.md](../modders/registering-a-mod.md)).
 * **Takes nothing away.** A mod's own implementation stays as it is. What ReDefinition
-  switches off in another mod it switches off only while a graphics profile is chosen, and
+  switches off in another mod it switches off only while the upscaler runs, and
   gives back afterwards (`src/Upscaler/HostStack.cs`).
 * **Useful on its own.** Each part serves ReDefinition's own features too.
 

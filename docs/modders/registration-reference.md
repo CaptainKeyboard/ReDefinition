@@ -219,7 +219,7 @@ PROFILE
 }
 ALL_PROFILES
 {
-    useTemporalAntiAliasing = False
+    ownMotionVectorShader = False
 }
 ```
 
@@ -228,8 +228,13 @@ only; any other setting in it is reported and left out. A setting no block of a 
 names keeps its default there.
 
 An `ALL_PROFILES` block holds what every profile sets, of any kind: what your mod needs
-changed to run with the upscaler. Its values take precedence over the `PROFILE`
+changed to run with ReDefinition. Its values take precedence over the `PROFILE`
 blocks', and what installed mods require takes precedence over both.
+
+Antialiasing does not belong there: without the upscaler it is the only antialiasing
+there is. A mod with its own temporal or spatial antialiasing switches it off while
+`ReDefinition.Api.Frame.UpscalerActive` is true
+([shared-foundation.md](shared-foundation.md)).
 
 `build` limits either block to one of your builds. The blocks are taken as the
 `DEFAULTS` blocks are: those for every build first, then those for the installed build.

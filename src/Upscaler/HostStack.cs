@@ -186,8 +186,7 @@ namespace ReDefinition.Upscaler
             else if (taa.Count == 0)
             {
                 // None running is the state the upscaler needs -- whether Scatterer's file has
-                // useTemporalAntiAliasing = False, as every profile sets it, or its
-                // components are switched off.
+                // useTemporalAntiAliasing = False or its components are switched off.
                 lines.Add(Info("Scatterer TAA", switchedOff > 0 ? "off (" + switchedOff + " switched off)" : "off"));
             }
             else

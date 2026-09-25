@@ -793,7 +793,7 @@ namespace ReDefinition.Window
         {
             DialogGUIButton reset = new DialogGUIButton("Reset", ConfirmReset, ResetWidth, 30f, false);
             reset.tooltipText = "Every setting back to its default: KSP's as KSP's own Reset sets them, and the mods'.\n"
-                                + "ReDefinition is off until a profile is chosen. Asks first, and says what it resets.";
+                                + "Then the profile High over them. Asks first, and says what it resets.";
             return reset;
         }
 
@@ -825,9 +825,10 @@ namespace ReDefinition.Window
                            + (model.Bundled ? " Their settings stay in this window." : " Their settings are bundled in this window.")
                            + "\n\n";
             }
-            message += "ReDefinition's own settings go back to theirs, with the upscaler and frame generation off. No"
-                       + " graphics profile is chosen afterwards: the upscaler and frame generation stay off, and the"
-                       + " other mods keep their own antialiasing, until one is.\n\n"
+            message += "ReDefinition's own settings go back to theirs, with frame generation off.\n\n"
+                       + "Then the graphics profile High is chosen over the defaults, as its button chooses it: the"
+                       + " quality settings as High has them, what the mods need of KSP's settings, and the upscaler"
+                       + " at AA only.\n\n"
                        + "The rows are only filled in: Apply or Accept sets them, Cancel leaves everything as it was."
                        + " \"Restore settings from before ReDefinition\" under Mods and toolbar brings back what the mods"
                        + " had before ReDefinition first changed them.\n\nThe key bindings go back to their defaults"
@@ -842,10 +843,10 @@ namespace ReDefinition.Window
         }
 
         // Fills every setting with its mod's default (SettingsEdit.ChooseDefaults),
-        // and ReDefinition's own settings with theirs: the upscaler and frame
-        // generation off, since no profile is chosen afterwards. With no defaults
+        // and ReDefinition's own settings with theirs, then chooses High over
+        // them, so that choosing High afterwards changes nothing. With no defaults
         // for the other mods -- none installed, or the game still loading -- the
-        // profile goes all the same.
+        // rows stay as they are and High is chosen all the same.
         private static void ChooseDefaults()
         {
             List<string> problems = new List<string>();
@@ -868,8 +869,15 @@ namespace ReDefinition.Window
             ResetKeyBindings();
             ResetAxes();
             ClearLayoutPending();
+            GraphicsProfile high = ProfileApplier.Find(profiles, DefaultProfile);
+            if (high != null) ChooseProfile(high);
+            else Debug.LogWarning(Log.Tag + " Reset: the profile '" + DefaultProfile + "' is not installed; no profile chosen.");
             status = null;
         }
+
+        // The profile the reset chooses over the defaults: the one that is the
+        // defaults (ReDefinition-Profiles.cfg).
+        private const string DefaultProfile = "high";
 
         private static void ChooseProfile(GraphicsProfile profile)
         {

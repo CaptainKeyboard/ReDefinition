@@ -166,12 +166,10 @@ namespace ReDefinition.Tests
             BundledSetting byHand = Setting("byHand");
             BundledSetting unchanged = Setting("unchanged");
             BundledSetting handedBack = Setting("handedBack");
-            BundledSetting reset = Setting("reset");
             BundledSetting profileHeld = Setting("profileHeld");
             BundledSetting profileNotHeld = Setting("profileNotHeld");
             SettingsEdit edit = Opened(Row(byHand.Key, "1"), Row(unchanged.Key, "1"), Row(handedBack.Key, "1"),
-                Row(reset.Key, "1"), Row(profileHeld.Key, "1"), Row(profileNotHeld.Key, "1"));
-            edit.ChooseDefaults(new Dictionary<BundledSetting, string> { { reset, "1" } });
+                Row(profileHeld.Key, "1"), Row(profileNotHeld.Key, "1"));
             Profile(edit, "high",
                 new Dictionary<BundledSetting, string> { { handedBack, "1" }, { profileHeld, "1" }, { profileNotHeld, "1" } },
                 handedBack);
@@ -179,19 +177,67 @@ namespace ReDefinition.Tests
             edit.Change(byHand.Key, "2");
 
             List<SettingsEdit.Step> steps = edit.Steps(
-                new[] { byHand, unchanged, handedBack, reset, profileHeld, profileNotHeld },
+                new[] { byHand, unchanged, handedBack, profileHeld, profileNotHeld },
                 (setting, value) => setting == profileHeld).ToList();
 
-            Assert.AreEqual(4, steps.Count);
+            Assert.AreEqual(3, steps.Count);
             Assert.AreEqual(byHand, steps[0].Setting);
             Assert.AreEqual(SettingsEdit.StepKind.Set, steps[0].Kind);
             Assert.AreEqual("2", steps[0].Value);
             Assert.AreEqual(handedBack, steps[1].Setting);
             Assert.AreEqual(SettingsEdit.StepKind.Release, steps[1].Kind);
-            Assert.AreEqual(reset, steps[2].Setting);
+            Assert.AreEqual(profileNotHeld, steps[2].Setting, "a per-save value the save holds is set as the choice");
+            Assert.AreEqual(SettingsEdit.StepKind.Set, steps[2].Kind);
+        }
+
+        // The reset chooses High over the defaults: every row High fills is set,
+        // even one that held High's value as the window opened -- KSP's own reset
+        // runs first and puts KSP's defaults there -- and nothing is handed back.
+        [TestMethod]
+        public void AResetSetsEveryRowOfItsProfileAndHandsNothingBack()
+        {
+            BundledSetting reset = Setting("reset");
+            BundledSetting profileHeld = Setting("ksp.TEXTURE_QUALITY");
+            BundledSetting handedBack = Setting("handedBack");
+            SettingsEdit edit = Opened(Row(reset.Key, "2"), Row(profileHeld.Key, "0"), Row(handedBack.Key, "5"));
+            edit.ChooseDefaults(new Dictionary<BundledSetting, string>
+            {
+                { reset, "1" }, { profileHeld, "1" }, { handedBack, "3" },
+            });
+            Profile(edit, "high",
+                new Dictionary<BundledSetting, string> { { profileHeld, "0" }, { handedBack, "9" } },
+                handedBack);
+            edit.ChooseProfile("high");
+
+            Assert.AreEqual("0", Pending(edit, profileHeld.Key));
+            Assert.AreEqual("3", Pending(edit, handedBack.Key), "the reset's default, not what the mod had before");
+
+            List<SettingsEdit.Step> steps = edit.Steps(new[] { reset, profileHeld, handedBack },
+                (setting, value) => true).ToList();
+
+            Assert.AreEqual(3, steps.Count);
+            Assert.AreEqual(SettingsEdit.StepKind.Reset, steps[0].Kind);
+            Assert.AreEqual(profileHeld, steps[1].Setting);
+            Assert.AreEqual(SettingsEdit.StepKind.Set, steps[1].Kind);
+            Assert.AreEqual("0", steps[1].Value);
+            Assert.AreEqual(handedBack, steps[2].Setting);
             Assert.AreEqual(SettingsEdit.StepKind.Reset, steps[2].Kind);
-            Assert.AreEqual(profileNotHeld, steps[3].Setting, "a per-save value the save holds is set as the choice");
-            Assert.AreEqual(SettingsEdit.StepKind.Set, steps[3].Kind);
+            Assert.AreEqual("3", steps[2].Value);
+        }
+
+        // What the reset leaves where High hands back counts as High's: the status
+        // line names High, not Custom.
+        [TestMethod]
+        public void AfterTheResetTheStatusLineIsHighsOwn()
+        {
+            BundledSetting handedBack = Setting("handedBack");
+            SettingsEdit edit = Opened(Row(handedBack.Key, "5"));
+            edit.ChooseDefaults(new Dictionary<BundledSetting, string> { { handedBack, "3" } });
+            Profile(edit, "high", new Dictionary<BundledSetting, string> { { handedBack, "9" } }, handedBack);
+            edit.ChooseProfile("high");
+
+            Assert.AreEqual("Profile: High, every other setting back to its default -- Apply or Accept sets it",
+                edit.Status("", true, false, "High", values => values.Count));
         }
 
         [TestMethod]

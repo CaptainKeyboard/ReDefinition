@@ -43,7 +43,7 @@ screen are the exception: *Reset* keeps them, where KSP's reset sets 1280 x
 |---|---|---|
 | quality | how good and how costly the picture is | a `PROFILE` block sets these |
 | taste | the look an author or a visual pack chose | never set by a `PROFILE` block |
-| other | interface, input, debug, physics and compatibility switches, and the antialiasing the upscaler owns | never set by a `PROFILE` block |
+| other | interface, input, debug, physics and compatibility switches, and antialiasing | never set by a `PROFILE` block |
 
 An `ALL_PROFILES` block may set a setting of any kind, for what a mod needs changed to
 run with the upscaler. *Reset* sets every kind.
@@ -83,7 +83,7 @@ run with the upscaler. *Reset* sets every kind.
 | `REFLECTION_PROBE_TEXTURE_RESOLUTION` | quality | 1 | |
 | `SYNC_VBL` | other | 1 | the monitor's |
 | `FRAMERATE_LIMIT` | other | 120 | the monitor's |
-| `ANTI_ALIASING` | other | 2 | every profile sets it off, and the upscaler holds it there while it runs |
+| `ANTI_ALIASING` | other | 2 | the upscaler holds MSAA off while it runs |
 | `AMBIENTLIGHT_BOOSTFACTOR` | taste | 0 | |
 | `AMBIENTLIGHT_BOOSTFACTOR_MAPONLY` | taste | 0 | |
 | `AMBIENTLIGHT_BOOSTFACTOR_EDITONLY` | taste | 0 | |
@@ -163,9 +163,9 @@ ReDefinition drops the row and names it in the log.
 | `oceanMeshResolution` | quality | 6 | 6 |
 | `useLowResolutionAtmosphere` | other | False | False |
 
-The SMAA and TAA rows are Scatterer's antialiasing: every graphics profile sets both
-off (`ALL_PROFILES`), and while a profile is chosen ReDefinition also switches their
-components off at run time, whatever the file says.
+The SMAA and TAA rows are Scatterer's antialiasing. No profile sets them: while the
+upscaler runs, ReDefinition switches their components off at run time, whatever the
+file says.
 
 ## EVE, Volumetric Clouds build only
 

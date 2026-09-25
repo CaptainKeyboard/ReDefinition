@@ -71,15 +71,17 @@ ReDefinition leaves these to the mod, and drops or limits the row instead:
 * Deferred caps KSP's reflection refresh and resolution at every scene load.
 * Kopernicus can enforce a terrain shader quality level.
 
-## Set by ReDefinition while a profile is chosen
+## Set by ReDefinition
 
-These are not requirements of other mods. The upscaler does the antialiasing, so every
-profile switches KSP's own antialiasing and Scatterer's TAA and SMAA and Deferred's
-editor SMAA off. With
-Volumetric Clouds installed, every profile also sets TUFX's *Blackrack_TUFX* profile in
-every scene. All four go through the `ALL_PROFILES` blocks in their registrations. While the
-upscaler runs it also holds Unity's MSAA at off, so that KSP's own settings screen
-cannot put it back in the middle of a flight.
+These are not requirements of other mods. With Volumetric Clouds installed, every
+profile sets TUFX's *Blackrack_TUFX* profile in every scene, through the `ALL_PROFILES`
+block in TUFX's registration.
+
+The antialiasing is not set in any profile. While the upscaler runs, ReDefinition
+switches off KSP's MSAA, Scatterer's TAA and SMAA, Deferred's editor SMAA and TUFX's
+antialiasing at run time, and holds Unity's MSAA at off so that KSP's own settings
+screen cannot put it back in the middle of a flight. When the upscaler stops, each gets
+back what it had.
 
 ## Dependencies, not requirements
 

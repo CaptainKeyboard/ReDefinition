@@ -28,15 +28,13 @@ All of this is **[src]**, from ReDefinition's own code:
   result. Frame generation's HUD-less copy is taken at `AfterEverything` on the
   presenter, and on `FXCamera` and `FXDepthCamera` where they draw after it.
 * **ReDefinition switches off** what runs a second temporal or spatial filter in front of
-  the upscaler, while a graphics profile is chosen: Scatterer's TAA and SMAA
+  the upscaler, while the upscaler runs: Scatterer's TAA and SMAA
   components, Deferred's SMAA in the editors, the antialiasing of TUFX's
   post-processing layers, and Kerbal Frame Generator's frame blend.
 * It also clears what Scatterer's TAA leaves behind: its motion vector shader,
   two shader globals, and vessel renderers set to `ForceNoMotion`. Every change holds
-  for the current run and is handed back once no profile is chosen. What a later scene
-  builds anew is taken once a second. The profiles set Scatterer's TAA and SMAA and
-  Deferred's editor SMAA off in the mods' own settings as well, through
-  `ALL_PROFILES`.
+  for the current run and is handed back once the upscaler stops. What a later scene
+  builds anew is taken once a second. The mods' own settings are not changed for it.
 * The history resets on the rig's setup, and whenever the flight camera's target, its
   parent or the kerbal of the IVA view changes. A change of camera mode rebuilds the
   rig.

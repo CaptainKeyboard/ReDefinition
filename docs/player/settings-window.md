@@ -210,17 +210,18 @@ costs frame time, and switches the upscaler on. What each profile sets:
 [graphics-profiles.md](graphics-profiles.md).
 
 *Reset* asks first and names what it resets. It fills the rows with every
-setting's default, the settings without a row included. Those defaults are what the
+setting's default, the settings without a row included, and then chooses High over
+them, so that choosing High afterwards changes nothing. Those defaults are what the
 mods' releases ship. With Volumetric Clouds installed, the defaults of EVE, Scatterer
 and TUFX are the ones its author ships. All of KSP's settings go back to what KSP
 ships, as KSP's own *Reset* sets them, its keys and axes included. The screen
 resolution and full screen stay as they are: KSP's own reset would set 1280 x 720 in a
 window.
 
-After a reset, ReDefinition's own settings are at their defaults and no profile is
-chosen: the upscaler and frame generation are off, and the other mods keep their own
-antialiasing until you choose a profile. A setting without a known default, KSP's
-terrain shader quality, stays as it is. Every default and its source:
+After a reset, High is chosen: the upscaler runs at *AA only*, frame generation is
+off, and KSP's settings are at KSP's defaults except where High and the installed mods
+ask for more: full textures, the highest terrain detail and shaders, and reflections at
+Low. Every default and its source:
 [reference/mod-defaults.md](../reference/mod-defaults.md).
 
 ## Put the mods back as they were

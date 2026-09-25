@@ -60,7 +60,7 @@ one.
 
 | File | Role |
 |---|---|
-| `ReDefinitionAddon.cs` | the add-on's lifecycle: builds and tears down the rig per scene and camera mode, the hotkeys, HostStack while a profile is chosen, the hooks of the lower layers |
+| `ReDefinitionAddon.cs` | the add-on's lifecycle: builds and tears down the rig per scene and camera mode, the hotkeys, HostStack while the upscaler runs, the hooks of the lower layers |
 | `ReDefinitionAddon.Settings.cs` | the settings: what each change does, loading, saving, applying from a settings view |
 | `ReDefinitionAddon.Diagnostics.cs` | the diagnostics window, *General* and *Debug* |
 | `ReDefinitionAddon.FrameRates.cs` | frame rates with and without the upscaler, rendered and presented, with the load behind them |
@@ -112,7 +112,10 @@ the same ones.
 A profile's own name, its title and ReDefinition's module values come from its
 `GRAPHICS_PROFILE` node (`GraphicsProfile.cs`, `ProfileLibrary.cs`).
 
-The reset takes the defaults and the requirements only. `ProfileApplier.cs` combines the
+The reset takes the defaults and the requirements, then chooses High over them
+(`SettingsWindow.ChooseDefaults`). While a reset is chosen, a profile hands nothing back,
+and *Apply* sets every row the profile filled, since `KspReset` has put KSP's defaults
+there first. `ProfileApplier.cs` combines the
 layers for the registered mods, and `ModuleProfiles.cs` in `src/` does it for
 ReDefinition's own modules. `ProfileReport.cs` lists the profiles in the log at the main
 menu.

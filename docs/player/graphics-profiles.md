@@ -7,8 +7,9 @@ tab.
 
 Five profiles, Low, Medium, High, Ultra and Max, set the quality of KSP's own graphics
 and of every bundled mod together. Choosing one also makes ReDefinition active: the
-upscaler runs at *AA only*, and the other mods' antialiasing is switched off for it
-([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)).
+upscaler runs at *AA only*, and while it runs the other mods' antialiasing is switched
+off for it ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)).
+*Reset* chooses High.
 
 ## What a profile sets
 
@@ -31,12 +32,11 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
   KSP's highest terrain detail, KSP's own scatter off, and reflections at 256 at most
   and not off. With Volumetric Clouds, it is a TUFX flight profile with ambient
   occlusion. Low sets terrain detail *Low*, and *High* where Parallax is installed.
-* Every profile switches off KSP's own antialiasing and Scatterer's TAA and SMAA and
-  Deferred's editor SMAA, because the upscaler does the antialiasing. KSP's row is in
-  its own settings screen, and the choice is put back by *Restore settings from before
-  ReDefinition*. With Volumetric Clouds installed, every
-  profile sets TUFX's *Blackrack_TUFX* profile in every scene, the one Volumetric
-  Clouds is made with.
+* No profile changes the antialiasing settings of KSP or the mods. While the upscaler
+  runs, ReDefinition switches that antialiasing off itself, because the upscaler does
+  the antialiasing. With the upscaler off, each keeps its own. With Volumetric Clouds
+  installed, every profile sets TUFX's *Blackrack_TUFX* profile in every scene, the one
+  Volumetric Clouds is made with.
 * A setting another mod holds is left to that mod. Firefly holds KSP's aerodynamic FX,
   Deferred KSP's reflection refresh and resolution, and Kopernicus the terrain shader
   quality where its config enforces a level or warns about one.
