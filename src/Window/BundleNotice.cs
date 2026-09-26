@@ -60,10 +60,10 @@ namespace ReDefinition.Window
             }
 
             string message =
-                "ReDefinition brings FSR 3 upscaling and frame generation to KSP, and the graphics settings of " + list
+                "ReDefinition brings FSR and DLSS upscaling and frame generation to KSP, and the graphics settings of " + list
                 + " into one window, sorted by feature -- open it with ReDefinition's toolbar button.\n\n"
                 + "It does nothing until a graphics profile is chosen. A profile sets these mods up to work together"
-                + " with FSR and switches the upscaler on. High is made for an RTX 3080 or 4080 at 1440p; Low, Medium,"
+                + " with the upscaler and switches it on. High is every mod as its authors ship it; Low, Medium,"
                 + " Ultra and Max are under \"Profiles\" in the window.\n\n"
                 + "With a profile, their settings are changed from ReDefinition's window and saved in each mod, as its"
                 + " own window would save them"

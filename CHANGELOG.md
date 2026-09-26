@@ -84,8 +84,7 @@
   KSP's time warp, as KSP does when it unpauses a flight.
 - **ReDefinition's toolbar button is not in the main menu any more**: the
   *ReDefinition* entry under *Settings* opens the window there.
-- **The DLSS preset is gone**: DLSS runs the model its library chooses for each mode.
-  **Sharpness** runs from 0 to 1.2. Each profile shows one sentence and the hardware
+- **Sharpness** runs from 0 to 1.2. Each profile shows one sentence and the hardware
   beside its button; what it sets is in its tooltip. **The profiles name no graphics
   card any more**: which tier a card holds has not been measured. The groups show no count. The window
   is thinner than KSP's own dialogs while a flight runs behind it, with a shadow under
@@ -162,12 +161,6 @@
   ReDefinition's window. The main menu's panels offer the same switches. The choice is
   kept in `bundled.cfg` as `buttonsKept`, so a mod installed later follows the rule
   rather than an old file.
-- **Every graphics profile switches KSP's own antialiasing off**, as it already did for
-  Scatterer's, TUFX's and Deferred's. The upscaler does the antialiasing, and MSAA
-  resolves before the capture, which takes the smoothed edges the upscaler reconstructs
-  from. KSP's settings screen shows it off now, instead of a value that was overruled
-  while the upscaler ran. *Restore settings from before ReDefinition* puts your choice
-  back, and the upscaler still holds MSAA off while it runs.
 - `tools/check_bundled_mods.ps1` reports a check it cannot ask, because the mod that
   answers it is not installed, as a note rather than a failure. The same for
   ToolbarControl.
