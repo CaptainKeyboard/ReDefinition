@@ -69,11 +69,11 @@ What the keys say about your mod:
 Start KSP, open ReDefinition from the toolbar, and go to the *Effects* tab. Your row
 is there, with your mod's name beside it.
 
-Change it and press *Apply*. ReDefinition writes the value into your field.
+Change it and press *Accept*. ReDefinition writes the value into your field.
 
 ## 4. Let your own mod save it
 
-*Apply* already keeps the value: with no `save` key, ReDefinition holds it and sets it
+*Accept* already keeps the value: with no `save` key, ReDefinition holds it and sets it
 at every start and scene change. Your mod's own file knows nothing of it.
 
 If your mod saves its settings itself, name the method your own window saves with:
@@ -82,7 +82,7 @@ If your mod saves its settings itself, name the method your own window saves wit
     save = MyMod.Settings.Save
 ```
 
-Now *Apply* sets the field and calls that method, exactly as if the player had used
+Now *Accept* sets the field and calls that method, exactly as if the player had used
 your own window. Your file and ReDefinition's window then always agree.
 
 ## 5. Let the profiles set it

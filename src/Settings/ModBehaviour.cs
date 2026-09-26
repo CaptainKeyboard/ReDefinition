@@ -56,6 +56,14 @@ namespace ReDefinition.Settings
             return null;
         }
 
+        // A default only the running game can tell, for a setting whose default
+        // depends on it -- KSP's UI scale on the screen's height; null keeps the
+        // registration's.
+        public virtual string Default(RegisteredMod mod, string setting)
+        {
+            return null;
+        }
+
         // As the mod's own window saves, before a `save` the registration names.
         public virtual void Save(RegisteredMod mod)
         {

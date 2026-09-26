@@ -16,10 +16,10 @@
 | row | A setting's line in the window, in one of the tabs. Some settings a profile sets have no row. |
 | tab | One page of the window: *Gameplay*, *Audio*, *Display*, *Graphics* with *Detail* under it, *Controls* with *Axes* and *Devices* under it, and *Mods / Toolbar*. The last one is titled *Mods and toolbar (!)* while a mod has settings the window cannot show. |
 | control | What a row looks like: a toggle, a slider, a list of choices, a key binding, or a plain value, which is kept but has no row. |
-| *Apply*, *Accept*, *Cancel* | *Apply* sets what was changed. *Accept* sets it and closes the window. *Cancel* closes it without setting anything. |
+| *Accept*, *Cancel*, *Close* | *Accept* sets what was changed, *Cancel* puts the rows back; neither closes the window. *Close*, shown while nothing is changed, closes it. |
 | *Custom* | The status on the *Graphics* tab once a row was changed after a profile was applied. |
 | *Advanced* | The row at the end of the *Planets* and *Effects* tabs, with a button for each bundled mod whose own settings window ReDefinition can open. |
-| the settings window | ReDefinition's main window, with the tabs, *Apply*, *Accept* and *Cancel*. |
+| the settings window | ReDefinition's main window, with the tabs, *Reset*, and *Accept* and *Cancel* or *Close*. |
 | the diagnostics window | ReDefinition's second window, opened with *Diagnostics*. It holds the frame rate, what the upscaler receives, and the switches for finding out what happens. |
 | member path | Where a value lives, written as in C#: `Deferred.Deferred.settings.useScreenSpaceReflections`. |
 | behaviour | Code that answers for settings a member path cannot reach. Either one of ReDefinition's own seven, named without a dot (`Tufx`, `Scatterer`, `Eve`, `Ksp`, `DistantObject`, `Firefly`, `ParallaxScatter`), or a type the mod itself brings, named with its namespace. |

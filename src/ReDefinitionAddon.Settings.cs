@@ -243,6 +243,24 @@ namespace ReDefinition
             get { return replaceKspSettings; }
         }
 
+        // Before KSP quits for a restart: the settings on disk now, not at the
+        // next check.
+        internal void SaveSettingsNow()
+        {
+            SaveSettingsIfChanged(true);
+        }
+
+        // The first start's answer to take control: KSP's Settings buttons open
+        // ReDefinition's window from the next menu on. Saved at once, since the
+        // main menu is loaded again right after.
+        internal void TakeKspSettings()
+        {
+            if (replaceKspSettings) return;
+            replaceKspSettings = true;
+            Debug.Log(Log.Tag + " KSP's Settings buttons open ReDefinition's window (Replace original settings).");
+            SaveSettingsIfChanged(true);
+        }
+
         internal bool PauseWhileOpen
         {
             get { return pauseWhileOpen; }

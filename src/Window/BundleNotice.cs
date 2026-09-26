@@ -7,9 +7,12 @@ using UnityEngine;
 namespace ReDefinition.Window
 {
     // The main menu's word about ReDefinition. The first time: ReDefinition does
-    // nothing until a graphics profile is chosen, so the question is High now or
-    // later -- High bundles the graphics mods here and switches the upscaler on,
-    // later leaves every mod as it is. A mod installed after that follows the
+    // nothing until a graphics profile is chosen, so the question is whether it
+    // takes control now or later. Taking control applies High, which bundles the
+    // graphics mods here and switches the upscaler on, makes KSP's Settings
+    // buttons open ReDefinition's window, sets KSP's UI scale to the screen where
+    // it is still KSP's 100 %, and loads the main menu again, which then leads to
+    // the window. Later leaves every mod as it is. A mod installed after that follows the
     // answer given: bundled, it is named in a short note; kept apart, nothing is
     // said. The bundling can be changed under "Mods and toolbar" in the window.
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
@@ -63,8 +66,9 @@ namespace ReDefinition.Window
                 "ReDefinition brings FSR and DLSS upscaling and frame generation to KSP, and the graphics settings of " + list
                 + " into one window, sorted by feature -- open it with ReDefinition's toolbar button.\n\n"
                 + "It does nothing until a graphics profile is chosen. A profile sets these mods up to work together"
-                + " with the upscaler and switches it on. High is every mod as its authors ship it; Low, Medium,"
-                + " Ultra and Max are under \"Profiles\" in the window.\n\n"
+                + " with the upscaler and switches it on. Taking control chooses High, every mod as its authors ship"
+                + " it, and makes KSP's Settings buttons open ReDefinition's window; Low, Medium, Ultra and Max are"
+                + " under \"Graphics\" in the window.\n\n"
                 + "With a profile, their settings are changed from ReDefinition's window and saved in each mod, as its"
                 + " own window would save them"
                 + (withButton.Count > 0
@@ -76,7 +80,7 @@ namespace ReDefinition.Window
 
             List<DialogGUIBase> rows = ToolbarRows();
             rows.Add(new DialogGUIHorizontalLayout(0f, 30f, 8f, new RectOffset(), TextAnchor.MiddleCenter,
-                new DialogGUIButton("Use High", () => Choose(fresh, "high"), true),
+                new DialogGUIButton("Let ReDefinition take control", () => Choose(fresh, "high"), true),
                 new DialogGUIButton("Later", () => Choose(fresh, null), true)));
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionBundleNotice", message,
                 "ReDefinition", HighLogic.UISkin, 540f, rows.ToArray());
@@ -174,10 +178,40 @@ namespace ReDefinition.Window
                 return;
             }
 
-            Debug.Log(Log.Tag + " Main menu notice answered: the profile '" + profileName + "'.");
+            Debug.Log(Log.Tag + " Main menu notice answered: take control, with the profile '" + profileName + "'.");
             ModuleProfiles.ApplyNow(profile, profiles, problems);
             Debug.Log(Log.Tag + " Graphics profile '" + profile.Title + "' applied from the main menu.");
             ProfileApplier.Report("Graphics profile from the main menu", problems);
+
+            UiScaleForTheScreen();
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon == null) return;
+            addon.TakeKspSettings();
+            // The menu is built anew, so that its Settings entry leads to the window.
+            HighLogic.LoadScene(GameScenes.MAINMENU);
+        }
+
+        // KSP's UI scale to its default for this screen (KspBehaviour.Default), where
+        // it still holds KSP's own 100 %: a scale the player chose stays.
+        private static void UiScaleForTheScreen()
+        {
+            BundledSetting setting = BundledSettings.Find("ksp.UI_SCALE");
+            if (setting == null) return;
+            try
+            {
+                string now = setting.Read();
+                string wanted = null;
+                Dictionary<string, string> ksp;
+                if (ModDefaults.Values(new List<string>()).TryGetValue("ksp", out ksp)) ksp.TryGetValue("UI_SCALE", out wanted);
+                if (now == null || wanted == null || !SettingValues.Same(now, "1") || SettingValues.Same(now, wanted)) return;
+                setting.Write(wanted);
+                setting.Owner.Save();
+                Debug.Log(Log.Tag + " KSP's UI scale set to " + wanted + " for the screen's height.");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " KSP's UI scale could not be set for the screen: " + e.Message);
+            }
         }
     }
 }

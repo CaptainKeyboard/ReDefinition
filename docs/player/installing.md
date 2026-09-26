@@ -32,12 +32,13 @@ ReDefinition's file hands on to Windows everything it does not need itself.
 Only one `dxgi.dll` can sit there. If you already have another one, ReShade's for
 example, move it away first.
 
-**3. Start KSP.** ReDefinition is in when its button is in the toolbar of the main
-menu.
+**3. Start KSP.** ReDefinition is in when the main menu has a *ReDefinition* entry
+under *Settings*.
 
 **4. Choose a graphics profile.** Until you do, ReDefinition changes nothing: no
 upscaler, no frame generation, and every mod keeps its own settings. The main menu
-offers *Use High* at the first start, and the *Graphics* tab has all five
+offers *Let ReDefinition take control* at the first start, which chooses High, and
+the *Graphics* tab has all five
 ([graphics-profiles.md](graphics-profiles.md)).
 
 ## Install with CKAN

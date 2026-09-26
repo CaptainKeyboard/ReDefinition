@@ -110,6 +110,29 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // KSP's interface at the size the screen's height asks for, where KSP's own
+        // default is 100 % on every screen.
+        public override string Default(RegisteredMod mod, string setting)
+        {
+            if (setting != "UI_SCALE") return null;
+            try
+            {
+                return UiScaleFor(GameSettings.SCREEN_RESOLUTION_HEIGHT);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        // 100 % below 1440 lines, 150 % from 1440, 200 % from 2160 (4K).
+        internal static string UiScaleFor(int height)
+        {
+            if (height >= 2160) return "2";
+            if (height >= 1440) return "1.5";
+            return "1";
+        }
+
         // Versioning asks the game's own object, which is there only in the game.
         public override string Version(RegisteredMod mod)
         {

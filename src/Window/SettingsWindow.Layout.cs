@@ -109,10 +109,10 @@ namespace ReDefinition.Window
 
             DialogGUIButton rebind = new DialogGUIButton("Bind keys to this layout ...", ConfirmRebind, ControlWidth + 60f,
                 RowHeight + 6f, false);
-            rebind.tooltipText = "Sets every one of KSP's keys to the chosen layout's preset at Apply.";
+            rebind.tooltipText = "Sets every one of KSP's keys to the chosen layout's preset at Accept.";
             rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(NameWidth), rebind,
-                new DialogGUILabel(() => rebindPending ? "<color=#f18a24>  at Apply</color>" : "", true)));
+                new DialogGUILabel(() => rebindPending ? "<color=#f18a24>  at Accept</color>" : "", true)));
             return rows.ToArray();
         }
 
@@ -132,15 +132,15 @@ namespace ReDefinition.Window
             MultiOptionDialog confirm = new MultiOptionDialog("ReDefinitionRebindLayout",
                 Localizer.Format("#autoLOC_6001211", LayoutTitle(layout)), "Keyboard layout", HighLogic.UISkin, 380f,
                 new DialogGUIHorizontalLayout(
-                    new DialogGUIButton("Bind at Apply", () =>
+                    new DialogGUIButton("Bind at Accept", () =>
                     {
                         layoutPending = layout;
                         rebindPending = true;
                     }, 140f, 30f, true),
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton("Cancel", () => { }, 100f, 30f, true)));
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                confirm, false, HighLogic.UISkin, true));
+            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin, true)));
         }
 
         // Before KSP's keys from the Keys tab: a rebind sets them all to the

@@ -109,7 +109,7 @@ build it had. At the first scene of a run, a mod that is not in it, or one whose
 has changed, is given that profile's values: the build's defaults, the profile's blocks,
 what every profile sets, and what other mods require. Only that mod
 (`ProfileApplier.CatchUpNewMods`). A mod installed after a profile was chosen is set up
-without the player pressing *Apply*, and what the player changed in the other mods is
+without the player pressing *Accept*, and what the player changed in the other mods is
 left alone.
 
 ## A mod that cannot take a value yet
@@ -187,5 +187,5 @@ ReDefinition keeps no migration for its own stored formats, which change in plac
 `SettingsWindow.SyncFromMods` reads four times a second while the settings window is open.
 It reads the rows shown, every setting of a mod whose own window is open, and all of KSP's
 settings once KSP's own settings screen has applied. The rest are read as the window opens
-and after *Apply*. A value changed elsewhere shows in its row, and a row the player has
+and after *Accept*. A value changed elsewhere shows in its row, and a row the player has
 changed but not applied is left alone.

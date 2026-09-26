@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 -- 2026-09-26
 
 ### Added
 
@@ -71,6 +71,24 @@
 
 ### Changed
 
+- **Close, or Accept and Cancel.** The settings window shows *Close* while nothing is
+  changed. A change brings *Accept* and *Cancel* in its place: *Accept* sets what the
+  window holds, *Cancel* puts every row back, and neither closes the window. *Apply* is
+  gone.
+- **Save and restart.** Where a change takes effect only at a start, a button left of
+  *Accept* applies it and starts KSP again: *Save and restart* where a game is loaded,
+  which saves it first as KSP does, *Apply and restart* in the main menu. In flight it
+  saves only where KSP allows saving at that moment; in the editors the vessel goes into
+  KSP's auto-saved ship.
+- **Let ReDefinition take control.** The first start's button, formerly *Use High*,
+  also makes KSP's *Settings* buttons open ReDefinition's window and loads the main menu
+  again, so that its *Settings* leads there at once.
+- **KSP's UI scale follows the screen.** Its default is 150 % from 1440 lines and 200 %
+  from 2160 (4K), and 100 % below: *Reset* sets it, and taking control at the first
+  start sets it where the scale is still KSP's own 100 %.
+- **Dialogs over the settings window stand apart from it**: the screen behind them is
+  darkened, and they are drawn opaque with a light edge. In NVIDIA's download the
+  licences are links in one row rather than buttons.
 - **Reset chooses High.** It sets every setting to its default as before, KSP's except
   the screen resolution, and then chooses the profile High over them, so choosing High
   afterwards changes nothing. ReDefinition is active afterwards, with the upscaler at

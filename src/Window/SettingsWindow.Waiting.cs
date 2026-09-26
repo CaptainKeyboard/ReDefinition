@@ -58,6 +58,14 @@ namespace ReDefinition.Window
         private static float waitingAt = -10f;
         private static string waitingLine = "";
         private static string waitingTooltip = "";
+        private static bool waitingRestart;
+
+        // Whether a change, applied or not, waits for a restart.
+        private static bool RestartWaiting()
+        {
+            RefreshWaiting();
+            return waitingRestart;
+        }
 
         private static void RefreshWaiting()
         {
@@ -67,6 +75,7 @@ namespace ReDefinition.Window
             waitingAt = now;
 
             List<BundledSetting> waiting = Waiting();
+            waitingRestart = false;
             if (waiting.Count == 0)
             {
                 waitingLine = "";
@@ -76,6 +85,7 @@ namespace ReDefinition.Window
 
             bool restart = false;
             foreach (BundledSetting setting in waiting) restart |= setting.Window == ApplyWindow.Restart;
+            waitingRestart = restart;
             string line = waiting.Count == 1
                 ? waiting[0].Title + ": " + BundledStore.When(waiting[0].Window)
                 : waiting.Count + " changes take effect " + (restart ? "after a restart" : "from the next scene on");
@@ -103,11 +113,7 @@ namespace ReDefinition.Window
                 RefreshWaiting();
                 notice.tooltipText = waitingTooltip.Length > 0 ? waitingTooltip : " ";
             };
-            // KSP's own ClearButtonImage is internal; the field it sets, before the
-            // button is built, hides the background (DialogGUIButton.Create).
-            System.Reflection.FieldInfo clear = typeof(DialogGUIButton).GetField("clearButtonImage",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            if (clear != null) clear.SetValue(notice, true);
+            DialogOverWindow.ClearBackground(notice);
             return notice;
         }
     }

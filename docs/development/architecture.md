@@ -114,7 +114,7 @@ A profile's own name, its title and ReDefinition's module values come from its
 
 The reset takes the defaults and the requirements, then chooses High over them
 (`SettingsWindow.ChooseDefaults`). While a reset is chosen, a profile hands nothing back,
-and *Apply* sets every row the profile filled, since `KspReset` has put KSP's defaults
+and *Accept* sets every row the profile filled, since `KspReset` has put KSP's defaults
 there first. `ProfileApplier.cs` combines the
 layers for the registered mods, and `ModuleProfiles.cs` in `src/` does it for
 ReDefinition's own modules. `ProfileReport.cs` lists the profiles in the log at the main
@@ -142,7 +142,7 @@ The rules the store follows: [settings-store.md](settings-store.md).
 
 | File | Role |
 |---|---|
-| `SettingsEdit.cs` | the settings window's edit model: rows, where their values came from, filling from a profile or the reset, the status line, *Apply* as steps; free of Unity, tested |
+| `SettingsEdit.cs` | the settings window's edit model: rows, where their values came from, filling from a profile or the reset, the status line, *Accept* as steps; free of Unity, tested |
 | `WindowLayout.cs` | which settings show in which tab, in what order; the *Advanced* buttons |
 
 ## The upscaler, `src/Upscaler` and `src/Fsr3`
@@ -237,8 +237,12 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 The settings window is built the way KSP builds its own in-game settings dialog,
 `MiniSettings`. That dialog is a `MultiOptionDialog` in the `MiniSettingsSkin`. It holds a
 scroll list of its own, section buttons in the skin's first custom style, and
-*Apply*, *Accept* and *Cancel* with KSP's own strings `#autoLOC_149512` to
-`#autoLOC_149514`.
+*Apply*, *Accept* and *Close* with KSP's own strings `#autoLOC_149512` to
+`#autoLOC_149514`. ReDefinition's window takes *Accept* and *Close* from there and
+*Cancel* from `#autoLOC_174783`, and shows *Accept* and *Cancel* only while something
+waits for them, *Close* otherwise. `GameRestart.cs` is its *Save and restart*: KSP's
+own save, then a hidden PowerShell that waits for KSP to end and starts it again.
+`DialogOverWindow.cs` darkens the screen behind a dialog over the window.
 
 `DialogGUIToggle` and `DialogGUISlider` take their state from their getters every frame,
 so a row always shows what its setting holds. One scroll list serves every tab, and

@@ -27,11 +27,23 @@ The four hotkeys you can set are in the *Controls* tab, in this order: *Upscaler
 off*, *Settings window*, *Diagnostics window* and *Camera list to the log*.
 
 The window is built from KSP's own dialog elements, so a UI theme such as ZTheme themes
-it as well. It edits copies of the values. *Apply* sets what you changed, *Accept* sets
-it and closes, *Cancel* closes without setting anything. Clicks on the window do not
-reach the scene behind it.
+it as well. It edits copies of the values. At the bottom right it shows *Close* while
+nothing is changed. A change brings *Accept* and *Cancel* in its place: *Accept* sets
+what you changed, *Cancel* puts every row back, and neither closes the window. Once
+nothing waits any more, *Close* is back. Clicks on the window do not reach the scene
+behind it.
 
-*Reset* is at the bottom left, beside those three, on every tab.
+*Reset* is at the bottom left, on every tab.
+
+Where a change takes effect only at a start, a button left of *Accept* sets it and
+starts KSP again. In the main menu it is *Apply and restart*. Where a game is loaded it
+is *Save and restart*, and it saves the game first, as KSP saves it. In flight that
+works only where KSP allows saving at that moment; otherwise it says why and does
+nothing. In the editors the vessel you are building goes into KSP's *Auto-Saved Ship*
+first.
+
+A question the window asks, and NVIDIA's download, stands over the window with the
+screen behind it darkened. The window behind it takes no clicks until you answer.
 
 ## The pause button
 
@@ -40,8 +52,9 @@ button in the window's title row holds game time while the window is open. It sh
 bars while the game runs and a triangle while it is held, so it shows what a click
 does.
 
-Closing the window lets the game run again, whether you close it with *Accept*, with
-*Cancel*, with Escape or with the toolbar button. Only KSP's own pause menu keeps it
+Closing the window lets the game run again, whether you close it with *Close*, with
+Escape or with the toolbar button. Escape and the toolbar button drop changes that
+wait for *Accept*. Only KSP's own pause menu keeps it
 paused, since that pause is not this window's. Your choice is kept, so the next time
 you open the window it holds the flight again.
 
@@ -75,18 +88,18 @@ word is looked for on its own, in any order: *wobble camera* finds *Camera wobbl
 external*. While it holds text, the window shows every tab with a match, each under its
 name, and only the matching rows; *x* empties it.
 
-A blue dot before a row's name marks a change that waits for *Apply*, and a blue dot
+A blue dot before a row's name marks a change that waits for *Accept*, and a blue dot
 after a tab's name a tab with such a change, there or under it.
 
 In *Gameplay*, *Detail*, *Axes* and *Devices* the rows are in groups that open and fold,
 as the sections of *Controls* do. The first group of each tab is open at first.
 
 The status line on *Graphics* names the chosen profile, shows *Custom* where rows were
-changed since, and says what still waits for *Apply*.
+changed since, and says what still waits for *Accept*.
 
 Each row's tooltip says what the setting does, and the grey name at its right which
-mod holds it. A change that does not take effect at once is said in yellow between
-*Reset* and *Apply*, from the moment you make it until it arrives: from the next scene
+mod holds it. A change that does not take effect at once is said in yellow beside
+*Reset*, from the moment you make it until it arrives: from the next scene
 on, or after a restart. Its tooltip names each setting that waits.
 
 The *Diagnostics* button below the tabs opens the diagnostics window.
@@ -108,7 +121,7 @@ Under *Controls*, *Axes*, click an axis's button and move the stick, trigger or 
 controller: the first axis that moves more than half its range is taken. Escape
 cancels, *x* clears the binding. Sensitivity and deadzone work as in KSP's own input
 screen. *Bind keys to this layout*, at the top of *Controls*, sets every one of KSP's keys
-to the chosen keyboard layout's preset at *Apply*.
+to the chosen keyboard layout's preset at *Accept*.
 
 ## Reach a mod's own window
 
@@ -144,7 +157,7 @@ To set a binding:
 3. Set the modifiers with the switches *Ctrl*, *Alt* and *Shift* beside the row. One
    click takes the left one (*L Ctrl*), a second the right one (*R Ctrl*), a third
    none.
-4. Press *Apply* or *Accept*.
+4. Press *Accept*.
 
 A binding holds up to two modifiers. A switch is grey while no key is set, and where the
 binding already holds as many modifiers as it can. The modifiers come from the switches
@@ -204,8 +217,8 @@ Where each mod keeps its settings:
 
 ## Choose a profile, or reset
 
-Choosing a profile fills the rows of every tab with its values, and *Apply* or *Accept*
-sets them. A row you change afterwards makes the choice *Custom*. A profile sets what
+Choosing a profile fills the rows of every tab with its values, and *Accept* sets
+them. A row you change afterwards makes the choice *Custom*. A profile sets what
 costs frame time, and switches the upscaler on. What each profile sets:
 [graphics-profiles.md](graphics-profiles.md).
 
@@ -232,7 +245,7 @@ current value into `bundled.cfg`. For TUFX and Distant Object it does so once pe
 *Restore settings from before ReDefinition*, under *Mods / Toolbar*, asks first, puts
 every one of those values back, saves each in its mod and clears the profile. A save
 that is not loaded gets its values back the next time you load it. The button is greyed
-out while changes wait for *Apply*.
+out while changes wait for *Accept*.
 
 When you choose another profile, a setting the previous profile set and the new one
 does not goes back to its value from before ReDefinition, unless you changed it since.
@@ -248,13 +261,15 @@ for every save, and Deferred's and Waterfall's settings.
 *Per mod* under it folds out one switch per mod. A mod is in that list where it has a
 button of its own and ReDefinition's *Advanced* button opens its window in its place;
 the others have nothing to hide and are not listed. Switched off, a mod keeps its button
-and its settings stay in this window all the same. The choices wait for *Apply*, like
+and its settings stay in this window all the same. The choices wait for *Accept*, like
 every other row, and the main menu's panel offers the same switches.
 
-At the first start, the main menu explains ReDefinition and offers *Use High*, which
-chooses the High profile and bundles the mods, or *Later*, which leaves every mod as it
-is until you choose a profile. A graphics mod installed later follows that choice, with
-a short note when it is bundled.
+At the first start, the main menu explains ReDefinition and offers *Let ReDefinition
+take control* or *Later*. Taking control chooses the High profile and bundles the mods,
+switches *Replace original settings* on, sets KSP's UI scale for your screen where it is
+still KSP's 100 %, and loads the main menu again, whose *Settings* then opens this
+window. *Later* leaves every mod as it is until you choose a profile. A graphics mod
+installed later follows that choice, with a short note when it is bundled.
 
 ## What the installed mods require
 

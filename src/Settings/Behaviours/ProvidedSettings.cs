@@ -23,6 +23,8 @@ namespace ReDefinition.Settings.Behaviours
     //                                            the mod can take values now
     //   void Save()                              as the mod's own window saves
     //   string[] Choices(string name)            a list only the running mod knows
+    //   string Default(string name)              a default only the running game
+    //                                            can tell; null keeps `default`
     //   string Version                           property, field or method
     //
     // Static members are called on the type. For members that are not, a static
@@ -46,6 +48,7 @@ namespace ReDefinition.Settings.Behaviours
         private readonly MethodInfo write;
         private readonly MethodInfo save;
         private readonly MethodInfo choices;
+        private readonly MethodInfo defaultOf;
         private readonly MemberInfo ready;
         private readonly MemberInfo version;
         private readonly MemberInfo instance;
@@ -63,6 +66,8 @@ namespace ReDefinition.Settings.Behaviours
             save = Method(type, "Save", Type.EmptyTypes);
             choices = Method(type, "Choices", new[] { typeof(string) });
             if (choices != null && choices.ReturnType != typeof(string[])) choices = null;
+            defaultOf = Method(type, "Default", new[] { typeof(string) });
+            if (defaultOf != null && defaultOf.ReturnType != typeof(string)) defaultOf = null;
             ready = Member("Ready", typeof(bool), Any);
             version = Member("Version", typeof(string), Any);
             // Of the type itself: a static member named Instance that holds something
@@ -201,6 +206,13 @@ namespace ReDefinition.Settings.Behaviours
             setting.ValueType = null;
             setting.ChoicesSource = () => Choices(name);
             return true;
+        }
+
+        public override string Default(RegisteredMod mod, string setting)
+        {
+            object target;
+            if (defaultOf == null || !Target(defaultOf.IsStatic, out target)) return null;
+            return defaultOf.Invoke(target, new object[] { setting }) as string;
         }
 
         private string[] Choices(string name)

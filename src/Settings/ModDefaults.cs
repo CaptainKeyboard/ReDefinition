@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 
 namespace ReDefinition.Settings
 {
@@ -104,6 +105,23 @@ namespace ReDefinition.Settings
                     {
                         values[pair.Key] = pair.Value;
                         readFrom[pair.Key] = block.Version ?? registration.Version;
+                    }
+                }
+                // Over the registration's: what the behaviour works out in the game.
+                ModBehaviour behaviour = registered.MainBehaviour;
+                if (behaviour != null)
+                {
+                    foreach (string name in new List<string>(values.Keys))
+                    {
+                        string own = null;
+                        try
+                        {
+                            own = behaviour.Default(registered, name);
+                        }
+                        catch (Exception)
+                        {
+                        }
+                        if (own != null) values[name] = own;
                     }
                 }
                 foreach (KeyValuePair<string, string> pair in readFrom)

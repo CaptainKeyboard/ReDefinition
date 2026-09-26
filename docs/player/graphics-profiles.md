@@ -43,7 +43,7 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
 * A row you change after applying a profile makes the choice *Custom*. The profile it
   came from is still named.
 * A mod you install later is set up by the profile you have chosen, at the next start,
-  without pressing *Apply*. The same where a mod's build changes, as it does when
+  without pressing *Accept*. The same where a mod's build changes, as it does when
   Volumetric Clouds brings its own EVE and Scatterer. Only those mods are set; what you
   changed in the others stays.
 

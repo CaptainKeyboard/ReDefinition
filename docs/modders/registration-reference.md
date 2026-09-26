@@ -243,7 +243,7 @@ The profiles themselves are in `GameData/ReDefinition/Profiles`. A block for a
 profile that is not there is reported and does nothing.
 
 A player who installs your mod after choosing a profile gets these values at the next
-start, without pressing *Apply*, and so does one whose installed build of your mod
+start, without pressing *Accept*, and so does one whose installed build of your mod
 changes ([player/graphics-profiles.md](../player/graphics-profiles.md)).
 
 A visual pack changes these values with ModuleManager. `:HAS[#build[volumetric]]` picks
@@ -272,10 +272,11 @@ ReDefinition:
 | `bool Ready` | no | Whether your mod can take values now, as `ready` says it for a path. Given for the mod, it gates every setting of your mod, member paths included; given for one setting, that setting alone. |
 | `void Save()` | no | Saves as your own window saves. Called before a `save` the registration names. |
 | `string[] Choices(string name)` | no | A list only the running mod knows. `null` leaves the setting the control its value's type gives. |
+| `string Default(string name)` | no | A default only the running game can tell, such as one that depends on the screen. *Reset* and the profiles take it over the setting's `default`; `null` keeps `default`. |
 | `string Version` | no | Your mod's version, where the registration cannot tell it. |
 
 `Ready` and `Version` may be a property, a field or a method without parameters. The
-other four are methods, with the signatures above.
+other five are methods, with the signatures above.
 
 ReDefinition calls static members on the type. For members that are not static, it uses
 a static `Instance` of that type where your type has one, and otherwise makes the type

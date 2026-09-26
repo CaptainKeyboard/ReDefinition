@@ -361,7 +361,7 @@ namespace ReDefinition.Settings
                              Func<Dictionary<BundledSetting, string>, int> differences)
         {
             bool unapplied = Unapplied(upscalerPending, enabled, applied);
-            string toSet = unapplied ? " -- Apply or Accept sets it" : "";
+            string toSet = unapplied ? " -- Accept sets it" : "";
             if (Resetting && string.IsNullOrEmpty(Profile))
                 return "Every setting of the bundled mods back to its default" + toSet;
             // A profile chosen after the reset sets its own rows, and the reset

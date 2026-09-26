@@ -84,6 +84,7 @@ run with the upscaler. *Reset* sets every kind.
 | `SYNC_VBL` | other | 1 | the monitor's |
 | `FRAMERATE_LIMIT` | other | 120 | the monitor's |
 | `ANTI_ALIASING` | other | 2 | the upscaler holds MSAA off while it runs |
+| `UI_SCALE` | other | 1; 1.5 from 1440 lines, 2 from 2160 | KSP's own default is 1 on every screen; ReDefinition's follows the screen's height |
 | `AMBIENTLIGHT_BOOSTFACTOR` | taste | 0 | |
 | `AMBIENTLIGHT_BOOSTFACTOR_MAPONLY` | taste | 0 | |
 | `AMBIENTLIGHT_BOOSTFACTOR_EDITONLY` | taste | 0 | |

@@ -114,7 +114,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(edit.FilledBy(lights.Key, "True", out from));
             Assert.AreEqual(SettingsEdit.Origin.Reset, from);
             Assert.AreEqual("False", Pending(edit, ocean.Key));
-            Assert.AreEqual("Profile: High, every other setting back to its default -- Apply or Accept sets it",
+            Assert.AreEqual("Profile: High, every other setting back to its default -- Accept sets it",
                 edit.Status("", true, false, "High", values => 0));
         }
 
@@ -236,7 +236,7 @@ namespace ReDefinition.Tests
             Profile(edit, "high", new Dictionary<BundledSetting, string> { { handedBack, "9" } }, handedBack);
             edit.ChooseProfile("high");
 
-            Assert.AreEqual("Profile: High, every other setting back to its default -- Apply or Accept sets it",
+            Assert.AreEqual("Profile: High, every other setting back to its default -- Accept sets it",
                 edit.Status("", true, false, "High", values => values.Count));
         }
 
@@ -248,17 +248,17 @@ namespace ReDefinition.Tests
 
             Assert.AreEqual("No profile chosen. High is the one to start with.", edit.Status("", true, false, null, v => 0));
             edit.Change(ocean.Key, "False");
-            Assert.AreEqual("No profile chosen -- Apply or Accept sets it", edit.Status("", true, false, null, v => 0));
+            Assert.AreEqual("No profile chosen -- Accept sets it", edit.Status("", true, false, null, v => 0));
 
             edit.Change(ocean.Key, "True");
             Profile(edit, "high", new Dictionary<BundledSetting, string> { { ocean, "True" } });
             edit.ChooseProfile("high");
             Assert.AreEqual("Profile: High", edit.Status("high", true, false, "High", v => 0));
-            Assert.AreEqual("Custom, changed from High in 2 settings -- Apply or Accept sets it",
+            Assert.AreEqual("Custom, changed from High in 2 settings -- Accept sets it",
                 edit.Status("", true, false, "High", v => 2));
 
             edit.Profile = "gone";
-            Assert.AreEqual("The profile 'gone' is not installed any more -- Apply or Accept sets it",
+            Assert.AreEqual("The profile 'gone' is not installed any more -- Accept sets it",
                 edit.Status("high", true, false, null, v => 0));
         }
 

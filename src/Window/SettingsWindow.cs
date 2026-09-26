@@ -39,6 +39,7 @@ namespace ReDefinition.Window
         private const float SourceWidth = 70f;
         private const float RowHeight = 18f;
         private const float ResetWidth = 80f;
+        private const float RestartWidth = 140f;
 
         private static PopupDialog dialog;
         private static SettingCategory current = SettingCategory.Profiles;
@@ -291,12 +292,65 @@ namespace ReDefinition.Window
                     TextAnchor.UpperLeft, tabList, scroll),
                 new DialogGUIHorizontalLayout(
                     ResetButton(),
-                    WaitingNotice(WindowWidth - 20f - ResetWidth - 3f * 80f - 24f),
+                    WaitingNotice(WindowWidth - 20f - ResetWidth - RestartWidth - 2f * 80f - 32f),
                     new DialogGUIFlexibleSpace(),
-                    new DialogGUIButton(Localizer.Format("#autoLOC_149512"), Apply, 80f, 30f, false),
-                    new DialogGUIButton(Localizer.Format("#autoLOC_149513"), Apply, 80f, 30f, true),
-                    new DialogGUIButton(Localizer.Format("#autoLOC_149514"), () => { }, 80f, 30f, true)),
+                    RestartButton(),
+                    PendingButton(Localizer.Format("#autoLOC_149513"), Apply, true),
+                    PendingButton(Localizer.Format("#autoLOC_174783"), Discard, true),
+                    PendingButton(Localizer.Format("#autoLOC_149514"), () => { }, false)),
             };
+        }
+
+        // Accept and Cancel while something waits for them, Close otherwise. Accept
+        // and Cancel keep the window open; Close closes it.
+        private static DialogGUIButton PendingButton(string label, Callback onClick, bool whilePending)
+        {
+            DialogGUIButton button = new DialogGUIButton(label, onClick, 80f, 30f, !whilePending);
+            button.OptionEnabledCondition = () => Unapplied() == whilePending;
+            return button;
+        }
+
+        // Where a change waits for a restart: applied, then KSP saved where a game
+        // is loaded and started again (GameRestart).
+        private static DialogGUIButton RestartButton()
+        {
+            DialogGUIButton button = new DialogGUIButton(
+                () => GameRestart.SavesGame ? "Save and restart" : "Apply and restart", ApplyAndRestart, RestartWidth, 30f,
+                false);
+            button.tooltipText = "Applies what the window holds and starts KSP again, for the changes that take effect"
+                                 + " only at a start. Where a game is loaded, it is saved first.";
+            button.OptionEnabledCondition = () => GameRestart.Available && RestartWaiting();
+            return button;
+        }
+
+        private static void ApplyAndRestart()
+        {
+            if (Unapplied()) Apply();
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon != null) addon.SaveSettingsNow();
+            GameRestart.SaveAndRestart();
+        }
+
+        // Cancel: every row back to what the game and the mods hold now, nothing
+        // set, and the window stays open.
+        private static void Discard()
+        {
+            KeyCapture.Stop();
+            AxisCapture.Stop();
+            kspPending.Clear();
+            axisPending.Clear();
+            ClearLayoutPending();
+            if (edit != null && edit.Before != null) edit.After = edit.Before.Clone();
+            try
+            {
+                ReadBundled();
+                LoadProfiles();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " The window's rows could not be read again: " + e);
+            }
+            status = null;
         }
 
         private static string Title(SettingCategory category)
@@ -713,12 +767,23 @@ namespace ReDefinition.Window
             return all;
         }
 
-        // Whether anything in the window still waits for Apply.
+        // Whether anything in the window still waits for Accept -- asked by the
+        // buttons in every frame, so worked out once a frame.
+        private static int unappliedFrame = -1;
+        private static bool unapplied;
+
         private static bool Unapplied()
         {
-            // KSP's key bindings and axes wait in their tabs until Apply as well.
-            return kspPending.Count > 0 || axisPending.Count > 0 || layoutPending != null
-                   || model.Unapplied(UpscalerPending(), BundledSettings.Enabled, BundledSettings.ProfileName);
+            int frame = Time.frameCount;
+            if (frame == unappliedFrame) return unapplied;
+            unappliedFrame = frame;
+            // KSP's key bindings and axes wait in their tabs as well, and so does
+            // every setting of ReDefinition's own, the upscaler's and the rest.
+            unapplied = kspPending.Count > 0 || AxesDiffer() || layoutPending != null
+                        || (edit != null && edit.Before != null && edit.After != null
+                            && edit.Before.Snapshot() != edit.After.Snapshot())
+                        || model.Unapplied(UpscalerPending(), BundledSettings.Enabled, BundledSettings.ProfileName);
+            return unapplied;
         }
 
         private static bool UpscalerPending()
@@ -775,7 +840,7 @@ namespace ReDefinition.Window
                 DialogGUIToggleButton choose = new DialogGUIToggleButton(() => model.Profile == shown.Name, shown.Title,
                     on => { if (on) ChooseProfile(shown); }, 110f, 30f);
                 // A sentence and the hardware beside the button; everything it sets in its tooltip.
-                choose.tooltipText = shown.Description + "\nApply or Accept sets it; a row changed afterwards makes it"
+                choose.tooltipText = shown.Description + "\nAccept sets it; a row changed afterwards makes it"
                                      + " Custom.";
                 string beside = (shown.Summary.Length > 0 ? shown.Summary : shown.Title)
                                 + (shown.Hardware.Length > 0 ? "\n<color=#9a9a9a>" + shown.Hardware + "</color>" : "");
@@ -829,7 +894,7 @@ namespace ReDefinition.Window
                        + "Then the graphics profile High is chosen over the defaults, as its button chooses it: the"
                        + " quality settings as High has them, what the mods need of KSP's settings, and the upscaler"
                        + " at AA only.\n\n"
-                       + "The rows are only filled in: Apply or Accept sets them, Cancel leaves everything as it was."
+                       + "The rows are only filled in: Accept sets them, Cancel puts them back as they were."
                        + " \"Restore settings from before ReDefinition\" under Mods and toolbar brings back what the mods"
                        + " had before ReDefinition first changed them.\n\nThe key bindings go back to their defaults"
                        + " too: ReDefinition's own and the mods'.";
@@ -837,9 +902,9 @@ namespace ReDefinition.Window
             MultiOptionDialog confirm = new MultiOptionDialog("ReDefinitionReset", message,
                 "Reset", HighLogic.UISkin, 460f,
                 new DialogGUIButton("Reset", ChooseDefaults, true),
-                new DialogGUIButton(Localizer.Format("#autoLOC_149514"), () => { }, true));
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                confirm, false, HighLogic.UISkin));
+                new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { }, true));
+            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin)));
         }
 
         // Fills every setting with its mod's default (SettingsEdit.ChooseDefaults),
@@ -1005,7 +1070,7 @@ namespace ReDefinition.Window
             DialogGUIButton restore = new DialogGUIButton("Restore settings from before ReDefinition", ConfirmRestore,
                 300f, 30f, false);
             restore.tooltipText = "Every setting ReDefinition has changed goes back to what its mod had before, and is"
-                                  + " saved there.\nApply or cancel the changes made here first.";
+                                  + " saved there.\nAccept or cancel the changes made here first.";
             restore.OptionInteractableCondition = () => BundledSettings.CanRestore && !Unapplied();
 
             List<DialogGUIBase> rows = new List<DialogGUIBase>
@@ -1153,9 +1218,9 @@ namespace ReDefinition.Window
                 + "TUFX and Distant Object get theirs back in every save as it loads.",
                 "Restore settings from before ReDefinition", HighLogic.UISkin, 420f,
                 new DialogGUIButton("Restore", Restore, true),
-                new DialogGUIButton(Localizer.Format("#autoLOC_149514"), () => { }, true));
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                confirm, false, HighLogic.UISkin));
+                new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { }, true));
+            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin)));
         }
 
         private static void Restore()
@@ -1164,7 +1229,7 @@ namespace ReDefinition.Window
             // meanwhile would be lost with the rows read again.
             if (Visible && Unapplied())
             {
-                ScreenMessages.PostScreenMessage("Apply or cancel the changes in ReDefinition's window first, then restore.",
+                ScreenMessages.PostScreenMessage("Accept or cancel the changes in ReDefinition's window first, then restore.",
                     5f);
                 return;
             }

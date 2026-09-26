@@ -181,26 +181,37 @@ namespace ReDefinition.Window
                       + " settings."
                     : "");
 
-            List<DialogGUIBase> buttons = new List<DialogGUIBase>
+            // The licences as links in one row, the two answers as buttons below.
+            List<DialogGUIBase> links = new List<DialogGUIBase>
             {
-                new DialogGUIButton("RTX SDKs License", () => Application.OpenURL(NvidiaFiles.RtxLicenceUrl), false),
+                new DialogGUIFlexibleSpace(),
+                DialogOverWindow.Link("RTX SDKs License", () => Application.OpenURL(NvidiaFiles.RtxLicenceUrl), 120f),
             };
             if (frameGeneration)
             {
-                buttons.Add(new DialogGUIButton("Reflex license", () => Application.OpenURL(NvidiaFiles.ReflexLicenceUrl),
-                    false));
-                buttons.Add(new DialogGUIButton("Streamline license",
-                    () => Application.OpenURL(NvidiaFiles.StreamlineLicenceUrl), false));
-                buttons.Add(new DialogGUIButton("Third-party licenses",
-                    () => Application.OpenURL(NvidiaFiles.ThirdPartyLicencesUrl), false));
+                links.Add(DialogOverWindow.Link("Reflex license", () => Application.OpenURL(NvidiaFiles.ReflexLicenceUrl),
+                    100f));
+                links.Add(DialogOverWindow.Link("Streamline license",
+                    () => Application.OpenURL(NvidiaFiles.StreamlineLicenceUrl), 120f));
+                links.Add(DialogOverWindow.Link("Third-party licenses",
+                    () => Application.OpenURL(NvidiaFiles.ThirdPartyLicencesUrl), 130f));
             }
-            buttons.Add(new DialogGUIButton("Accept and download", () => Start(entries), true));
-            buttons.Add(new DialogGUIButton(Localizer.Format("#autoLOC_149514"), () => { }, true));
+            links.Add(new DialogGUIFlexibleSpace());
+
+            DialogGUIBase[] rows =
+            {
+                new DialogGUIHorizontalLayout(links.ToArray()),
+                new DialogGUIHorizontalLayout(
+                    new DialogGUIFlexibleSpace(),
+                    new DialogGUIButton("Accept and download", () => Start(entries), 200f, 30f, true),
+                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { }, 120f, 30f, true),
+                    new DialogGUIFlexibleSpace()),
+            };
 
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionNvidiaDownload", message, "NVIDIA's DLSS files",
-                HighLogic.UISkin, 520f, buttons.ToArray());
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                dialog, false, HighLogic.UISkin));
+                HighLogic.UISkin, 520f, rows);
+            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin)));
         }
 
         private static void Start(List<NvidiaFiles.Entry> entries)
