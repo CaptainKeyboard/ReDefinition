@@ -50,6 +50,16 @@ namespace ReDefinition
         public string CameraListKey = KeyCombination.NoneText;
         public string SettingsWindowKey = KeyCombination.NoneText;
 
+        // The engineer view in the VAB and the SPH (EditorEngineer): the summary
+        // line beside the parts list, stages without delta-v in the table, the
+        // thrust along the vessel's axis rather than the engines' full thrust, the
+        // part under the mouse, and the key that opens the view.
+        public bool EngineerSummary = true;
+        public bool EngineerAllStages;
+        public bool EngineerVectoredThrust;
+        public bool EngineerPartDetails = true;
+        public string EngineerKey = KeyCombination.NoneText;
+
         private const string RootName = "ReDefinition";
 
         public static string Path
@@ -88,6 +98,11 @@ namespace ReDefinition
             settings.DiagnosticsKey = Binding(node, "diagnosticsKey", settings.DiagnosticsKey);
             settings.CameraListKey = Binding(node, "cameraListKey", settings.CameraListKey);
             settings.SettingsWindowKey = Binding(node, "settingsWindowKey", settings.SettingsWindowKey);
+            settings.EngineerSummary = Bool(node, "engineerSummary", settings.EngineerSummary);
+            settings.EngineerAllStages = Bool(node, "engineerAllStages", settings.EngineerAllStages);
+            settings.EngineerVectoredThrust = Bool(node, "engineerVectoredThrust", settings.EngineerVectoredThrust);
+            settings.EngineerPartDetails = Bool(node, "engineerPartDetails", settings.EngineerPartDetails);
+            settings.EngineerKey = Binding(node, "engineerKey", settings.EngineerKey);
             return settings;
         }
 
@@ -117,6 +132,11 @@ namespace ReDefinition
             node.AddValue("diagnosticsKey", DiagnosticsKey);
             node.AddValue("cameraListKey", CameraListKey);
             node.AddValue("settingsWindowKey", SettingsWindowKey);
+            node.AddValue("engineerSummary", EngineerSummary);
+            node.AddValue("engineerAllStages", EngineerAllStages);
+            node.AddValue("engineerVectoredThrust", EngineerVectoredThrust);
+            node.AddValue("engineerPartDetails", EngineerPartDetails);
+            node.AddValue("engineerKey", EngineerKey);
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -142,7 +162,9 @@ namespace ReDefinition
               .Append(TransparencyMask).Append('|').Append(ReactiveMask).Append('|')
               .Append(FrameGeneration).Append('|').Append(Backend).Append('|').Append(DlssModel).Append('|')
               .Append(UpscalerKey).Append('|').Append(DiagnosticsKey).Append('|').Append(CameraListKey).Append('|')
-              .Append(SettingsWindowKey);
+              .Append(SettingsWindowKey).Append('|').Append(EngineerSummary).Append('|').Append(EngineerAllStages)
+              .Append('|').Append(EngineerVectoredThrust).Append('|').Append(EngineerPartDetails).Append('|')
+              .Append(EngineerKey);
             return sb.ToString();
         }
 

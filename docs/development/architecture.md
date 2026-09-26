@@ -41,6 +41,7 @@ uses its own layer and the layers below it, never one above.
 | 4 | `src/` | `ReDefinition` | the add-on, ReDefinition's own settings and modules |
 | 4 | `src/Window` | `ReDefinition.Window` | the settings window, the *Controls* tab, the toolbar, KSP's settings dialog and pause menu, the other mods' windows |
 | 4 | `src/Api` | `ReDefinition.Api` | the public interface for mods |
+| 5 | `src/Engineer` | `ReDefinition.Engineer` | the engineer view in the VAB and the SPH |
 
 ## How a lower layer reaches a higher one
 
@@ -250,6 +251,20 @@ shows one at a time.
 
 The window copies `MiniSettings` so that a UI theme such as ZTheme, which replaces
 KSP's UI textures by name, themes it with the rest of KSP's dialogs.
+
+## The engineer view, `src/Engineer`
+
+| File | Role |
+|---|---|
+| `EditorEngineer.cs` | the add-on in the editors: the mode button, opening and closing the view, the key, the notice about Kerbal Engineer Redux |
+| `EditorReadout.cs` | the vessel as the view shows it, read from KSP's delta-v simulation, with parts, costs, thrust torque, RCS and resources worked out beside it |
+| `EngineerPanel.cs` | the view, built from KSP's dialog elements into the parts panel |
+| `EngineerSummary.cs` | the line beside the parts list |
+| `PartDetails.cs` | the part under the mouse |
+| `StageTable.cs`, `EngineerFormat.cs` | the stage table and how numbers are written; free of Unity, tested |
+
+How it sits in KSP's editor, and where Kerbal Engineer Redux's build view went:
+[engineer.md](engineer.md).
 
 ## The proxy, `src/DxgiProxy`
 

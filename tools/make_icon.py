@@ -1,4 +1,5 @@
-"""Draws the mod's pictures: the toolbar icon, and the planet for a forum post.
+"""Draws the mod's pictures: the toolbar icon, the engineer view's button, and the
+planet for a forum post.
 
     python tools/make_icon.py
 
@@ -191,6 +192,59 @@ def draw_sliders():
     return image
 
 
+# The engineer view's button in the editor's mode bar, beside KSP's parts, actions,
+# crew and cargo buttons: the same kind of tile -- a grey frame, a teal face lit from
+# the top, a glyph -- drawn anew here, with "Δv" as its glyph. One tile per state the
+# button takes: normal, pointed at, active (the view is open), and locked.
+TILE_FRAME = (103, 103, 103, 255)
+TILE_STATES = {
+    "Normal": ((0, 150, 166), (0, 88, 99), (14, 44, 50, 255)),
+    "Hover": ((40, 205, 220), (0, 120, 132), (249, 255, 242, 255)),
+    "Active": ((70, 222, 236), (0, 140, 152), (249, 255, 242, 255)),
+    "Disabled": ((22, 74, 82), (10, 40, 46), (40, 60, 64, 255)),
+}
+ENGINEER_TILES = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "EngineerButton_%s.png")
+
+
+def draw_engineer_tile(face_top, face_bottom, glyph):
+    image = Image.new("RGBA", (BIG, BIG), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    left, top, right, bottom = 22, 14, BIG - 22, BIG - 50
+    chamfer = 150
+    outline = [(left, top), (right, top), (right, bottom - chamfer), (right - chamfer, bottom),
+               (left + chamfer, bottom), (left, bottom - chamfer)]
+    draw.polygon(outline, fill=TILE_FRAME)
+
+    inset = 40
+    face = [(left + inset, top + inset), (right - inset, top + inset), (right - inset, bottom - chamfer),
+            (right - chamfer, bottom - inset), (left + chamfer, bottom - inset), (left + inset, bottom - chamfer)]
+    mask = Image.new("L", (BIG, BIG), 0)
+    ImageDraw.Draw(mask).polygon(face, fill=255)
+    ramp = Image.new("RGBA", (BIG, BIG))
+    ramp_draw = ImageDraw.Draw(ramp)
+    for y in range(BIG):
+        f = min(1.0, max(0.0, (y - top) / float(bottom - top)))
+        colour = tuple(int(face_top[i] + (face_bottom[i] - face_top[i]) * f) for i in range(3)) + (255,)
+        ramp_draw.line([(0, y), (BIG, y)], fill=colour)
+    image.paste(ramp, (0, 0), mask)
+    # A light band at the top of the face, as the stock tiles have.
+    band = Image.new("RGBA", (BIG, BIG), (255, 255, 255, 0))
+    ImageDraw.Draw(band).rectangle([left + inset, top + inset, right - inset, top + inset + 70], fill=(255, 255, 255, 46))
+    band_mask = ImageChops.multiply(mask, Image.new("L", (BIG, BIG), 255))
+    image = Image.alpha_composite(image, Image.composite(band, Image.new("RGBA", (BIG, BIG), (0, 0, 0, 0)), band_mask))
+
+    draw = ImageDraw.Draw(image)
+    # Δ: a triangle drawn as a thick outline; v: two strokes meeting at the foot.
+    stroke = 62
+    cx, base, apex = 390, 700, 300
+    half = 190
+    tri = [(cx, apex), (cx + half, base), (cx - half, base)]
+    draw.line(tri + [tri[0]], fill=glyph, width=stroke, joint="curve")
+    vx, vtop, vbottom, vhalf = 690, 470, 700, 105
+    draw.line([(vx - vhalf, vtop), (vx, vbottom), (vx + vhalf, vtop)], fill=glyph, width=stroke - 8, joint="curve")
+    return image
+
+
 def draw_planet():
     mask = disc_mask()
     light = direction_ramp(SOFTNESS, FLOOR)
@@ -213,6 +267,11 @@ def main():
     os.makedirs(os.path.dirname(IN_GAME), exist_ok=True)
     draw_sliders().resize((128, 128), Image.LANCZOS).save(IN_GAME)
     print("in the game:", os.path.relpath(IN_GAME, ROOT))
+
+    for state, (face_top, face_bottom, glyph) in TILE_STATES.items():
+        path = ENGINEER_TILES % state
+        draw_engineer_tile(face_top, face_bottom, glyph).resize((128, 128), Image.LANCZOS).save(path)
+        print("in the game:", os.path.relpath(path, ROOT))
 
     planet = draw_planet()
     os.makedirs(LARGE, exist_ok=True)

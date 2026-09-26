@@ -79,8 +79,14 @@ namespace ReDefinition.Window
 
                 foreach (ApplicationLauncherButton button in ModButtons())
                 {
-                    // Hidden already -- unless the mod has set its scenes again.
-                    if (button == null || button.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER) continue;
+                    if (button == null) continue;
+                    // Hidden already -- unless the mod has set its scenes again, or
+                    // the launcher has switched it on again in a new layout.
+                    if (button.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER)
+                    {
+                        KeepOff(button);
+                        continue;
+                    }
                     IBundledMod mod = CachedOwner(button);
                     if (mod != null && WouldHide(mod)) Hide(button, mod);
                 }
@@ -224,6 +230,33 @@ namespace ReDefinition.Window
                           + " ReDefinition's window.");
         }
 
+        // A button hidden here that stands on again. When a scene starts, KSP's
+        // launcher moves every button into its new layout and switches each on
+        // there (SpawnSimpleLayout, UIList.AddItem); DetermineVisibility then moves
+        // a button only between its shown and hidden lists, so one in the hidden
+        // list already stays on screen (ApplicationLauncher, decompiled). It is
+        // switched off as the launcher's SetHidden does it.
+        private static void KeepOff(ApplicationLauncherButton button)
+        {
+            if (!hidden.ContainsKey(button) || !button.gameObject.activeSelf) return;
+            button.gameObject.SetActive(false);
+            if (scaleModList == null)
+                scaleModList = typeof(ApplicationLauncher).GetMethod("ScaleModList", TypeLookup.Any, null, Type.EmptyTypes,
+                    null);
+            if (scaleModList != null) scaleModList.Invoke(ApplicationLauncher.Instance, null);
+        }
+
+        private static MethodInfo scaleModList;
+
+        // The counterpart of KeepOff: the launcher switches a button on only as it
+        // moves it from its hidden list, so one switched off here while it stood in
+        // the shown list is switched on here.
+        private static void SwitchOnWhereShown(ApplicationLauncherButton button)
+        {
+            if (button.gameObject.activeSelf || !ApplicationLauncher.Instance.ShouldBeVisible(button)) return;
+            button.gameObject.SetActive(true);
+        }
+
         private static IBundledMod CachedOwner(ApplicationLauncherButton button)
         {
             IBundledMod mod;
@@ -246,7 +279,9 @@ namespace ReDefinition.Window
                 if (mod == null || !WouldHide(mod)) continue;
 
                 ApplicationLauncherButton stock = tcStock.GetValue(control) as ApplicationLauncherButton;
-                if (stock != null && stock.VisibleInScenes != ApplicationLauncher.AppScenes.NEVER) Hide(stock, mod);
+                if (stock == null) continue;
+                if (stock.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER) KeepOff(stock);
+                else Hide(stock, mod);
             }
         }
 
@@ -292,6 +327,7 @@ namespace ReDefinition.Window
             try
             {
                 if (button.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER) button.VisibleInScenes = scenes;
+                SwitchOnWhereShown(button);
             }
             catch (Exception e)
             {
@@ -324,6 +360,7 @@ namespace ReDefinition.Window
                     // and that would leave every button after it hidden.
                     if (pair.Key.VisibleInScenes != ApplicationLauncher.AppScenes.NEVER) continue;
                     pair.Key.VisibleInScenes = pair.Value;
+                    SwitchOnWhereShown(pair.Key);
                     shown++;
                 }
                 catch (Exception e)

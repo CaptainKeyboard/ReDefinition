@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **An engineer view in the VAB and the SPH.** A button with *Δv* on it, next to KSP's
+  mode buttons above the parts list, opens a view in the parts list's place: delta-v,
+  delta-v left, TWR and burn time for every stage, and on a click each stage's impulse,
+  thrust, mass, parts, cost and thrust torque. Below them RCS, the resources on board and
+  the part under the mouse. The numbers come from KSP's own delta-v simulation, for a
+  body and sea level, an altitude or vacuum, the same situation KSP's delta-v app uses.
+  A line beside the parts list sums the vessel up. Its settings are under
+  *Mods / Toolbar*, its key in *Controls*. If Kerbal Engineer Redux is installed,
+  ReDefinition recommends uninstalling it: the view covers its build window.
+
+### Fixed
+
+- **Bundled mods' toolbar buttons stay hidden across scenes.** At every scene start KSP's
+  launcher moves its buttons into a new layout and shows each there, a hidden one too,
+  and nothing hid it again: the buttons of the bundled mods came back in the main menu,
+  the space centre and in flight until *Hide all from toolbar* was switched off and on.
+  ReDefinition now switches such a button off again as soon as the launcher is ready.
+
 ## 0.1.3 -- 2026-09-26
 
 ### Added

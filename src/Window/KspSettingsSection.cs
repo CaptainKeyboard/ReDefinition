@@ -261,8 +261,15 @@ namespace ReDefinition.Window
         // switch without a value column, a slider or a list with one.
         internal static DialogGUIBase[] Rows(Edit edit, Layout layout)
         {
+            return Rows(edit, layout, SettingCategory.General);
+        }
+
+        // The rows of one tab: the upscaler's under General, the engineer view's
+        // under Mods / Toolbar.
+        internal static DialogGUIBase[] Rows(Edit edit, Layout layout, SettingCategory tab)
+        {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            foreach (ModuleSetting setting in OurModules.Rows())
+            foreach (ModuleSetting setting in OurModules.Rows(tab))
             {
                 ModuleSetting shown = setting;
                 Func<string> value = shown.Control == SettingControl.Toggle ? null : (Func<string>)(() => Shown(edit, shown));
@@ -300,8 +307,10 @@ namespace ReDefinition.Window
                     f => setting.Write(edit.After, setting.Choices[Mathf.Clamp(Mathf.RoundToInt(f), 0, last)]));
             }
             control.tooltipText = TooltipText.Wrap(setting.Tooltip
-                                                   + "\nLocked while no graphics profile is chosen in ReDefinition's window.");
-            control.OptionInteractableCondition = () => edit.ProfileChosen()
+                                                   + (setting.NeedsProfile
+                                                       ? "\nLocked while no graphics profile is chosen in ReDefinition's window."
+                                                       : ""));
+            control.OptionInteractableCondition = () => (!setting.NeedsProfile || edit.ProfileChosen())
                                                         && (setting.Interactable == null || setting.Interactable(edit.After));
             return control;
         }

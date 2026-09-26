@@ -37,6 +37,11 @@ namespace ReDefinition
 
         // A profile sets quality only, as for the other mods.
         public SettingKind Kind = SettingKind.Other;
+
+        // Whether the row can be changed only while a graphics profile is chosen:
+        // the upscaler's and frame generation's, which only a profile makes
+        // active. The engineer view's are the player's at any time.
+        public bool NeedsProfile = true;
         public SettingControl Control = SettingControl.Toggle;
 
         // Slider: its range, whether it snaps to whole numbers, and into how many

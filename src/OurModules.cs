@@ -200,10 +200,77 @@ namespace ReDefinition
                 Tooltip = "Writes the scene's cameras, with their depth and what they render, into KSP.log.",
                 Read = settings => settings.CameraListKey,
                 Write = (settings, value) => settings.CameraListKey = value,
+            },
+            new ModuleSetting
+            {
+                Key = "engineerKey",
+                Title = "Engineer view (VAB / SPH)",
+                Order = 50,
+                Row = SettingCategory.Keys,
+                Control = SettingControl.Binding,
+                NeedsProfile = false,
+                Tooltip = "Opens and closes the engineer view in the VAB and the SPH, as its button above the parts list does.",
+                Read = settings => settings.EngineerKey,
+                Write = (settings, value) => settings.EngineerKey = value,
+            });
+
+        // The engineer view in the VAB and the SPH (Engineer/EditorEngineer): the
+        // player's own view, so no profile sets it and none is needed to change it.
+        public static readonly IGraphicsModule Engineer = new GraphicsModule("engineer", "Engineer",
+            new ModuleSetting
+            {
+                Key = "engineerSummary",
+                Title = "Summary line",
+                Order = 10,
+                Row = SettingCategory.Interface,
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "A line beside the parts list in the VAB and the SPH: the vessel's delta-v, its TWR at launch,\n"
+                          + "its mass and its parts, for the situation the engineer view is set to.",
+                Read = settings => SettingValues.Text(settings.EngineerSummary),
+                Write = (settings, value) => settings.EngineerSummary = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "engineerAllStages",
+                Title = "Stages without delta-v",
+                Order = 20,
+                Row = SettingCategory.Interface,
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Also lists the stages that burn nothing -- decouplers, parachutes -- in the engineer view's table.",
+                Read = settings => SettingValues.Text(settings.EngineerAllStages),
+                Write = (settings, value) => settings.EngineerAllStages = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "engineerVectoredThrust",
+                Title = "Thrust along the vessel",
+                Order = 30,
+                Row = SettingCategory.Interface,
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The thrust and TWR of each stage along the vessel's axis, which angled engines lose part of,\n"
+                          + "rather than the engines' full thrust. KSP's own delta-v app shows the full thrust.",
+                Read = settings => SettingValues.Text(settings.EngineerVectoredThrust),
+                Write = (settings, value) => settings.EngineerVectoredThrust = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "engineerPartDetails",
+                Title = "Part under the mouse",
+                Order = 40,
+                Row = SettingCategory.Interface,
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The engineer view shows the part the mouse points at on the vessel: mass, cost, engine,\n"
+                          + "resources as filled.",
+                Read = settings => SettingValues.Text(settings.EngineerPartDetails),
+                Write = (settings, value) => settings.EngineerPartDetails = bool.Parse(value),
             });
 
         public static readonly IList<IGraphicsModule> All =
-            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys }.AsReadOnly();
+            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys, Engineer }.AsReadOnly();
 
         public static IGraphicsModule Find(string name)
         {

@@ -27,6 +27,9 @@ graphics mods; any mod can join with a config file.
 * **Reset and restore.** Back to the defaults, or back to each mod's settings from before
   ReDefinition.
 * **Open to other mods.** A mod or visual pack joins with a config file in its own folder.
+* **Engineer view in the VAB and SPH.** A mode beside the parts list with delta-v, TWR and
+  burn time per stage, RCS, resources and the part under the mouse, from KSP's own
+  delta-v simulation.
 
 ### Added to the game
 

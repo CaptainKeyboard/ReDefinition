@@ -24,6 +24,14 @@
 | member path | Where a value lives, written as in C#: `Deferred.Deferred.settings.useScreenSpaceReflections`. |
 | behaviour | Code that answers for settings a member path cannot reach. Either one of ReDefinition's own seven, named without a dot (`Tufx`, `Scatterer`, `Eve`, `Ksp`, `DistantObject`, `Firefly`, `ParallaxScatter`), or a type the mod itself brings, named with its namespace. |
 
+## The editor
+
+| Word | Means |
+|---|---|
+| engineer view | The mode of the VAB and the SPH that shows delta-v, TWR and burn time per stage, RCS, the resources and the part under the mouse. Its button, with *Δv* on it, is next to KSP's mode buttons above the parts list. |
+| summary line | The line beside the parts list with the vessel's delta-v, TWR at launch, mass and parts. A click on it opens the engineer view. |
+| situation | Where the engineer view's numbers are for: a body, and sea level, an altitude in its atmosphere, or vacuum. It is the situation of KSP's own delta-v app. |
+
 ## The store
 
 | Word | Means |

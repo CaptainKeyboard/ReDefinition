@@ -398,6 +398,7 @@ namespace ReDefinition.Window
                 rows.Add(Searchable(ReplaceRow(), "Replace original settings KSP menu"));
                 foreach (DialogGUIBase row in InterfaceRows())
                     rows.Add(Searchable(row, "Mods toolbar bundle hide restore before ReDefinition"));
+                AddEngineer(rows);
             }
             if (category == SettingCategory.Keys)
             {
@@ -478,12 +479,10 @@ namespace ReDefinition.Window
                 new DialogGUILabel("<color=#9a9a9a>ReDefinition</color>", SourceWidth));
         }
 
-        // ReDefinition's upscaler and frame generation, NVIDIA's files, and the
-        // rows other mods register as General: Display's upscaling section.
-        private static void AddUpscaling(List<DialogGUIBase> rows)
+        // ReDefinition's own rows, laid out as the bundled mods' are.
+        private static KspSettingsSection.Layout OwnLayout()
         {
-            rows.Add(SectionHeading("Upscaling"));
-            DialogGUIBase[] own = KspSettingsSection.Rows(edit, new KspSettingsSection.Layout
+            return new KspSettingsSection.Layout
             {
                 Name = NameWidth,
                 Control = ControlWidth,
@@ -492,7 +491,34 @@ namespace ReDefinition.Window
                 Source = "ReDefinition",
                 SourceWidth = SourceWidth,
                 Marked = Marked,
-            });
+            };
+        }
+
+        // The engineer view's rows under Mods / Toolbar (OurModules.Engineer).
+        private static void AddEngineer(List<DialogGUIBase> rows)
+        {
+            rows.Add(SectionHeading("Engineer (VAB / SPH)"));
+            DialogGUIBase[] own = KspSettingsSection.Rows(edit, OwnLayout(), SettingCategory.Interface);
+            List<ModuleSetting> titles = OurModules.Rows(SettingCategory.Interface);
+            for (int i = 0; i < own.Length; i++)
+                rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Engineer") + " engineer VAB SPH delta-v"));
+        }
+
+        // Whether a row of the engineer view waits for Accept.
+        private static bool EngineerPending()
+        {
+            if (edit == null || edit.Before == null || edit.After == null) return false;
+            foreach (ModuleSetting setting in OurModules.Rows(SettingCategory.Interface))
+                if (setting.Read(edit.Before) != setting.Read(edit.After)) return true;
+            return false;
+        }
+
+        // ReDefinition's upscaler and frame generation, NVIDIA's files, and the
+        // rows other mods register as General: Display's upscaling section.
+        private static void AddUpscaling(List<DialogGUIBase> rows)
+        {
+            rows.Add(SectionHeading("Upscaling"));
+            DialogGUIBase[] own = KspSettingsSection.Rows(edit, OwnLayout());
             // One row per module setting, in the same order (KspSettingsSection.Rows).
             List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows());
             for (int i = 0; i < own.Length; i++)
