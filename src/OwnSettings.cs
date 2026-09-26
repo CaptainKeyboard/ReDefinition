@@ -60,6 +60,10 @@ namespace ReDefinition
         public bool EngineerPartDetails = true;
         public string EngineerKey = KeyCombination.NoneText;
 
+        // How far the navball stands from the bottom centre, in the flight UI's
+        // units: negative to the left (NavballDrag).
+        public float NavballOffset;
+
         private const string RootName = "ReDefinition";
 
         public static string Path
@@ -103,6 +107,7 @@ namespace ReDefinition
             settings.EngineerVectoredThrust = Bool(node, "engineerVectoredThrust", settings.EngineerVectoredThrust);
             settings.EngineerPartDetails = Bool(node, "engineerPartDetails", settings.EngineerPartDetails);
             settings.EngineerKey = Binding(node, "engineerKey", settings.EngineerKey);
+            settings.NavballOffset = Float(node, "navballOffset", settings.NavballOffset);
             return settings;
         }
 
@@ -137,6 +142,7 @@ namespace ReDefinition
             node.AddValue("engineerVectoredThrust", EngineerVectoredThrust);
             node.AddValue("engineerPartDetails", EngineerPartDetails);
             node.AddValue("engineerKey", EngineerKey);
+            node.AddValue("navballOffset", NavballOffset.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -164,7 +170,8 @@ namespace ReDefinition
               .Append(UpscalerKey).Append('|').Append(DiagnosticsKey).Append('|').Append(CameraListKey).Append('|')
               .Append(SettingsWindowKey).Append('|').Append(EngineerSummary).Append('|').Append(EngineerAllStages)
               .Append('|').Append(EngineerVectoredThrust).Append('|').Append(EngineerPartDetails).Append('|')
-              .Append(EngineerKey);
+              .Append(EngineerKey).Append('|')
+              .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture));
             return sb.ToString();
         }
 

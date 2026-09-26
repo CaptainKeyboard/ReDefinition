@@ -13,6 +13,10 @@
   A line beside the parts list sums the vessel up. Its settings are under
   *Mods / Toolbar*, its key in *Controls*. If Kerbal Engineer Redux is installed,
   ReDefinition recommends uninstalling it: the view covers its build window.
+- **The navball moves sideways.** Drag its show/hide button left or right in flight; the
+  SAS switches, the autopilot modes and the gauges move with it, and it stays on the
+  screen. A click still shows and hides it. The position is kept, and *Navball position*
+  under *Mods / Toolbar* sets it or puts it back in the centre.
 
 ### Fixed
 

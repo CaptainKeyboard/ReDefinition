@@ -42,6 +42,7 @@ uses its own layer and the layers below it, never one above.
 | 4 | `src/Window` | `ReDefinition.Window` | the settings window, the *Controls* tab, the toolbar, KSP's settings dialog and pause menu, the other mods' windows |
 | 4 | `src/Api` | `ReDefinition.Api` | the public interface for mods |
 | 5 | `src/Engineer` | `ReDefinition.Engineer` | the engineer view in the VAB and the SPH |
+| 5 | `src/Flight` | `ReDefinition.Flight` | the flight UI: the navball moved sideways |
 
 ## How a lower layer reaches a higher one
 
@@ -265,6 +266,22 @@ KSP's UI textures by name, themes it with the rest of KSP's dialogs.
 
 How it sits in KSP's editor, and where Kerbal Engineer Redux's build view went:
 [engineer.md](engineer.md).
+
+## The flight UI, `src/Flight`
+
+| File | Role |
+|---|---|
+| `NavballDrag.cs` | the navball moved by dragging its show/hide button, and to the position the settings hold |
+
+KSP's navball is one group, `NavballFrame`, in the flight UI: the ball, its show/hide
+button, the SAS and RCS switches, the autopilot modes, the gauges and the delta-v gauge
+**[src]**. `NavBallToggle.panel`, a `UIPanelTransitionToggle`, shows and hides it by
+setting its `panelTransform` to one of two stored positions, and animates from a position
+it keeps privately **[src]**. A move shifts that transform, both stored positions and the
+kept one by the same amount, so that showing and hiding keep the new place. The drag
+handler on the button sets `eligibleForClick` to false as the drag begins. The press and
+the drag are on one object, and without that the input module would still click the
+button.
 
 ## The proxy, `src/DxgiProxy`
 

@@ -398,7 +398,7 @@ namespace ReDefinition.Window
                 rows.Add(Searchable(ReplaceRow(), "Replace original settings KSP menu"));
                 foreach (DialogGUIBase row in InterfaceRows())
                     rows.Add(Searchable(row, "Mods toolbar bundle hide restore before ReDefinition"));
-                AddEngineer(rows);
+                AddOwnInterfaceRows(rows);
             }
             if (category == SettingCategory.Keys)
             {
@@ -494,17 +494,26 @@ namespace ReDefinition.Window
             };
         }
 
-        // The engineer view's rows under Mods / Toolbar (OurModules.Engineer).
-        private static void AddEngineer(List<DialogGUIBase> rows)
+        // ReDefinition's own rows under Mods / Toolbar, under their headings: the
+        // engineer view's, the flight UI's (OurModules.Engineer, FlightUi).
+        private static void AddOwnInterfaceRows(List<DialogGUIBase> rows)
         {
-            rows.Add(SectionHeading("Engineer (VAB / SPH)"));
             DialogGUIBase[] own = KspSettingsSection.Rows(edit, OwnLayout(), SettingCategory.Interface);
-            List<ModuleSetting> titles = OurModules.Rows(SettingCategory.Interface);
-            for (int i = 0; i < own.Length; i++)
-                rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Engineer") + " engineer VAB SPH delta-v"));
+            List<ModuleSetting> settings = OurModules.Rows(SettingCategory.Interface);
+            string section = null;
+            for (int i = 0; i < own.Length && i < settings.Count; i++)
+            {
+                if (settings[i].Section != null && settings[i].Section != section)
+                {
+                    section = settings[i].Section;
+                    rows.Add(SectionHeading(section));
+                }
+                rows.Add(Searchable(own[i], settings[i].Title + " " + (section ?? "") + " ReDefinition"));
+            }
         }
 
-        // Whether a row of the engineer view waits for Accept.
+        // Whether one of ReDefinition's own rows under Mods / Toolbar waits for
+        // Accept.
         private static bool EngineerPending()
         {
             if (edit == null || edit.Before == null || edit.After == null) return false;

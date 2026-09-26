@@ -131,6 +131,7 @@ namespace ReDefinition
             settings.EngineerAllStages = from.EngineerAllStages;
             settings.EngineerVectoredThrust = from.EngineerVectoredThrust;
             settings.EngineerPartDetails = from.EngineerPartDetails;
+            settings.NavballOffset = from.NavballOffset;
         }
 
         // What a view changed of the hotkeys, and nothing else: KSP's settings
@@ -148,6 +149,15 @@ namespace ReDefinition
             if (before.EngineerVectoredThrust != after.EngineerVectoredThrust)
                 settings.EngineerVectoredThrust = after.EngineerVectoredThrust;
             if (before.EngineerPartDetails != after.EngineerPartDetails) settings.EngineerPartDetails = after.EngineerPartDetails;
+            if (before.NavballOffset != after.NavballOffset) settings.NavballOffset = after.NavballOffset;
+        }
+
+        // Where the navball stands; NavballDrag moves it there and writes it as
+        // the navball is dragged. Saved at the next check, as every change is.
+        internal float NavballOffset
+        {
+            get { return settings.NavballOffset; }
+            set { settings.NavballOffset = value; }
         }
 
         // The settings as they stand, for what reads them every frame without a

@@ -42,6 +42,10 @@ namespace ReDefinition
         // the upscaler's and frame generation's, which only a profile makes
         // active. The engineer view's are the player's at any time.
         public bool NeedsProfile = true;
+
+        // The heading the row stands under in its tab, where the tab groups
+        // ReDefinition's own rows (Mods / Toolbar: the engineer view, flight).
+        public string Section;
         public SettingControl Control = SettingControl.Toggle;
 
         // Slider: its range, whether it snaps to whole numbers, and into how many

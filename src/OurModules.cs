@@ -223,6 +223,7 @@ namespace ReDefinition
                 Title = "Summary line",
                 Order = 10,
                 Row = SettingCategory.Interface,
+                Section = EngineerSection,
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
                 Tooltip = "A line beside the parts list in the VAB and the SPH: the vessel's delta-v, its TWR at launch,\n"
@@ -236,6 +237,7 @@ namespace ReDefinition
                 Title = "Stages without delta-v",
                 Order = 20,
                 Row = SettingCategory.Interface,
+                Section = EngineerSection,
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
                 Tooltip = "Also lists the stages that burn nothing -- decouplers, parachutes -- in the engineer view's table.",
@@ -248,6 +250,7 @@ namespace ReDefinition
                 Title = "Thrust along the vessel",
                 Order = 30,
                 Row = SettingCategory.Interface,
+                Section = EngineerSection,
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
                 Tooltip = "The thrust and TWR of each stage along the vessel's axis, which angled engines lose part of,\n"
@@ -261,6 +264,7 @@ namespace ReDefinition
                 Title = "Part under the mouse",
                 Order = 40,
                 Row = SettingCategory.Interface,
+                Section = EngineerSection,
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
                 Tooltip = "The engineer view shows the part the mouse points at on the vessel: mass, cost, engine,\n"
@@ -269,8 +273,43 @@ namespace ReDefinition
                 Write = (settings, value) => settings.EngineerPartDetails = bool.Parse(value),
             });
 
+        private const string EngineerSection = "Engineer (VAB / SPH)";
+
+        // The flight UI's own: where the navball stands (Flight/NavballDrag).
+        public static readonly IGraphicsModule FlightUi = new GraphicsModule("flightUi", "Flight",
+            new ModuleSetting
+            {
+                Key = "navballOffset",
+                Title = "Navball position",
+                // After the engineer view's rows, so that the tab keeps each
+                // section together (Rows sorts every module's rows by order).
+                Order = 100,
+                Row = SettingCategory.Interface,
+                Section = "Flight",
+                Control = SettingControl.Slider,
+                Min = -1200f,
+                Max = 1200f,
+                WholeNumbers = true,
+                NeedsProfile = false,
+                Label = NavballLabel,
+                Tooltip = "Where the navball stands along the bottom of the screen, with its SAS switches and gauges.\n"
+                          + "Dragging its show/hide button in flight moves it as well. It stops at the screen's edges.",
+                Read = settings => settings.NavballOffset.ToString("0", CultureInfo.InvariantCulture),
+                Write = (settings, value) =>
+                    settings.NavballOffset = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+            });
+
+        private static string NavballLabel(string value)
+        {
+            float offset;
+            if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out offset)) return value;
+            int whole = (int)System.Math.Round(offset);
+            if (whole == 0) return "Centre";
+            return System.Math.Abs(whole).ToString(CultureInfo.InvariantCulture) + (whole < 0 ? " left" : " right");
+        }
+
         public static readonly IList<IGraphicsModule> All =
-            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys, Engineer }.AsReadOnly();
+            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys, Engineer, FlightUi }.AsReadOnly();
 
         public static IGraphicsModule Find(string name)
         {

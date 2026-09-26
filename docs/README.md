@@ -18,6 +18,7 @@ beside it.
 | choose a graphics profile and see what it sets | [player/graphics-profiles.md](player/graphics-profiles.md) |
 | set up upscaling or frame generation, and know what they cost | [player/upscaler-and-frame-generation.md](player/upscaler-and-frame-generation.md) |
 | see delta-v, TWR and burn time per stage while you build | [player/engineer.md](player/engineer.md) |
+| move the navball to the left or right | [player/navball.md](player/navball.md) |
 
 ## For mod and visual pack authors
 
