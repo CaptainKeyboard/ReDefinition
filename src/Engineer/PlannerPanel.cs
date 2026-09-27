@@ -92,7 +92,8 @@ namespace ReDefinition.Engineer
             rows.AddRange(view.Rows());
             DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(0, 0, 0, 12),
                 TextAnchor.UpperLeft, rows.ToArray());
-            root = new DialogGUIScrollList(new Vector2(width + Scrollbar, 200f), false, true, layout);
+            root = new DialogGUIScrollList(new Vector2(width + Scrollbar, Mathf.Max(200f, content.rect.height)), false, true,
+                layout);
             Stack<Transform> layouts = new Stack<Transform>();
             layouts.Push(content);
             root.Create(ref layouts, skin);
@@ -104,6 +105,8 @@ namespace ReDefinition.Engineer
                 scroll.offsetMin = Vector2.zero;
                 scroll.offsetMax = Vector2.zero;
             }
+            ScrollRect list = root.uiItem != null ? root.uiItem.GetComponentInChildren<ScrollRect>() : null;
+            if (list != null) list.verticalNormalizedPosition = 1f;
             view.Finish();
             Debug.Log(Log.Tag + " Planner made from the crew panel: " + frame.sizeDelta.x.ToString("0") + " wide, rows "
                       + width.ToString("0") + " wide.");
@@ -158,6 +161,7 @@ namespace ReDefinition.Engineer
         {
             if (root == null || !Shown) return;
             view.Update();
+            view.Keep();
             root.Update();
         }
     }

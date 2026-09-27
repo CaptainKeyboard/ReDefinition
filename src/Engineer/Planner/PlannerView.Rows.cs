@@ -22,7 +22,7 @@ namespace ReDefinition.Engineer
         private const float Icon = 24f;
         private const float Timeline = 20f;
         private const float LetterWidth = 14f;
-        private const float Speed = 84f;
+        private const float Speed = 96f;
         private const float BarHeight = 10f;
         private const float RowHeight = 20f;
         private const float Cell = 38f;
@@ -316,7 +316,7 @@ namespace ReDefinition.Engineer
         private string LegTitle(int leg)
         {
             if (!Ready() || leg + 1 >= state.Stops.Count) return "";
-            return Letter(leg) + " " + BodyName(leg) + "  →  " + Letter(leg + 1) + " " + BodyName(leg + 1);
+            return Letter(leg) + " " + BodyName(leg) + "  to  " + Letter(leg + 1) + " " + BodyName(leg + 1);
         }
 
         private string LegDetail(int index)

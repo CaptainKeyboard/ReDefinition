@@ -18,11 +18,30 @@ namespace ReDefinition.Engineer
             foreach (KeyValuePair<Part, Color> part in parts)
             {
                 if (part.Key == null) continue;
-                part.Key.SetHighlightType(Part.HighlightType.AlwaysOn);
-                part.Key.SetHighlightColor(part.Value);
-                part.Key.SetHighlight(true, false);
+                Apply(part.Key, part.Value);
                 marked[part.Key] = part.Value;
             }
+        }
+
+        // Every frame: in the game the mark went when the pointer passed over a
+        // marked part, so whatever turns a part's highlight off or recolours
+        // it, the mark is put back at once.
+        internal void Refresh()
+        {
+            foreach (KeyValuePair<Part, Color> part in marked)
+                if (part.Key != null && !Holds(part.Key, part.Value)) Apply(part.Key, part.Value);
+        }
+
+        private static void Apply(Part part, Color color)
+        {
+            part.SetHighlightType(Part.HighlightType.AlwaysOn);
+            part.SetHighlightColor(color);
+            part.SetHighlight(true, false);
+        }
+
+        private static bool Holds(Part part, Color color)
+        {
+            return part.highlightType == Part.HighlightType.AlwaysOn && part.HighlightActive && part.highlightColor == color;
         }
 
         internal void Clear()
@@ -43,7 +62,7 @@ namespace ReDefinition.Engineer
             {
                 Color color;
                 if (part.Key == null || !parts.TryGetValue(part.Key, out color) || color != part.Value) return false;
-                if (part.Key.highlightType != Part.HighlightType.AlwaysOn) return false;
+                if (!Holds(part.Key, color)) return false;
             }
             return true;
         }

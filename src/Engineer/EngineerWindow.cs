@@ -132,6 +132,7 @@ namespace ReDefinition.Engineer
                 if (!plannerOpen) MarkSelected(readout);
             }
             Clamp();
+            highlight.Refresh();
             if (root != null) root.Update();
             card.Update(!view.Folded && (settings == null || settings.EngineerPartDetails));
         }

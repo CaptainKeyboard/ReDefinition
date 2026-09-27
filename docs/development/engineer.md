@@ -57,8 +57,10 @@ readout, the selection or the table's form changes.
 
 A click on a stage's row marks the parts that burn in it with KSP's own part
 highlighter (`PartHighlight`: `Part.SetHighlightType`, `SetHighlightColor`,
-`SetHighlightDefault`) **[src]**. While the planner is open or the window is folded, the
-window marks nothing, since the planner colours the parts itself.
+`SetHighlightDefault`) **[src]**. In the game, a mark went when the pointer passed over a
+marked part. So every frame, a mark that is no longer on in its colour is set again.
+While the planner is open or the window is folded, the window marks nothing, since the
+planner colours the parts itself.
 
 The window and the planner share the list of bodies (`BodyPicker`). Whoever opens it
 owns it, and only the owner's closing closes it.
@@ -71,24 +73,25 @@ hidden while the pointer is over a window, and while a part hangs on the mouse
 ## How the planner sits in the editor
 
 KSP's mode buttons are four `Button`s in the editor's top bar: `partPanelBtn`,
-`actionPanelBtn`, `crewPanelBtn` and `cargoPanelBtn` in `EditorLogic` **[src]**. They are
-48 units wide, placed by hand rather than by a layout group. Each draws its tile, 128 by
-107 pixels, as its own sprite with sprite swap, and keeps its aspect (`Image` with
-`preserveAspect`). The editor scene shows this (`sharedassets6`, read with UnityPy)
-**[src]**. The active mode's button is the one KSP makes not interactable, so its
-disabled sprite is the active tile. KSP places the buttons once, from the anchors
-`crewBtnOrigPos`, `cargoBtnOrigPos` and `editorBtnOrigPos` **[src]**.
+`actionPanelBtn`, `crewPanelBtn` and `cargoPanelBtn` in `EditorLogic` **[src]**. They are 48
+units wide, placed by hand rather than by a layout group. Each draws its tile as its own sprite
+with sprite swap, and keeps its aspect (`Image` with `preserveAspect`). A tile's sprite is 128
+by 128 pixels, and its picture, 107 high, sits 19 pixels under the top (the sprite's texture
+rectangle and its offset). The editor scene shows this (`sharedassets6`, read with UnityPy)
+**[src]**. The active mode's button is the one KSP makes not interactable, so its disabled
+sprite is the active tile. KSP places the buttons once, from the anchors `crewBtnOrigPos`,
+`cargoBtnOrigPos` and `editorBtnOrigPos` **[src]**.
 
-`EditorEngineer` copies the cargo button and gives the copy its own four tiles in the
-same form and colours (`GameData/ReDefinition/Icons/EngineerButton_*.png`, drawn by
-`tools/make_icon.py`). It puts the copy right after the cargo button among its siblings.
-Every frame, before the canvases draw, it sets the copy one step right of the last
-visible mode button and the switch-editor button one step further. It also gives the
-copy the cargo button's size, anchors, scale and image settings. The first frame writes
-both buttons' measures to `KSP.log`, in a line that starts with `Mode buttons:`. KSP sets
-its buttons' interactable state only on events, such as a changed input lock or a mode
-switch (`EditorLogic.UpdateUI`) **[src]**. So while the planner is open, `EditorEngineer`
-keeps the parts button clickable. On closing, it hands the buttons back to `UpdateUI`.
+`EditorEngineer` copies the cargo button and gives the copy its own four tiles in the same
+size, form, place and colours (`GameData/ReDefinition/Icons/EngineerButton_*.png`, drawn by
+`tools/make_icon.py`). It puts the copy right after the cargo button among its siblings. Every
+frame, before the canvases draw, it sets the copy one step right of the last visible mode
+button and the switch-editor button one step further. It also gives the copy the cargo button's
+size, anchors, scale and image settings. The first frame writes both buttons' measures to
+`KSP.log`, in a line that starts with `Mode buttons:`. KSP sets its buttons' interactable state
+only on events, such as a changed input lock or a mode switch (`EditorLogic.UpdateUI`)
+**[src]**. So while the planner is open, `EditorEngineer` keeps the parts button clickable. On
+closing, it hands the buttons back to `UpdateUI`.
 
 KSP's four panels in the editor are `UIPanelTransition`s that its panel manager,
 `EditorPanels.panelManager`, brings in and out (`EditorPanels.ShowCrewAssignment` and its

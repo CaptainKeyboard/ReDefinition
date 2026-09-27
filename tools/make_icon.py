@@ -203,6 +203,10 @@ def draw_sliders():
 # 128x107 tile, then the colour). One tile per state the button takes: normal, pointed
 # at, active (the view is open), and locked.
 TILE_SIZE = (128, 107)
+# KSP's tile sprites are 128x128, the picture 107 high and 19 pixels under the top: the
+# sprites' texture rectangle and its offset in sharedassets6, read with UnityPy. The
+# button keeps the sprite's aspect, so the square places the picture as KSP's are.
+TILE_TOP = 19
 TILE_SCALE = 8
 TILE_STATES = {
     "Normal": ([(4, (182, 235, 239)), (10, (24, 186, 200)), (44, (23, 185, 199)), (52, (0, 161, 175)),
@@ -417,7 +421,9 @@ def main():
 
     for state, (face_stops, glyph, rim) in TILE_STATES.items():
         path = ENGINEER_TILES % state
-        draw_engineer_tile(face_stops, glyph, rim).resize(TILE_SIZE, Image.LANCZOS).save(path)
+        tile = Image.new("RGBA", (128, 128), (0, 0, 0, 0))
+        tile.paste(draw_engineer_tile(face_stops, glyph, rim).resize(TILE_SIZE, Image.LANCZOS), (0, TILE_TOP))
+        tile.save(path)
         print("in the game:", os.path.relpath(path, ROOT))
 
     for name, drawing in PLANNER_DRAWINGS.items():

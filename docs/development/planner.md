@@ -44,9 +44,10 @@ used. Symbols are `GameData/ReDefinition/Icons/Planner_*.png`, white on clear, d
 a formula that fails at a UI scale of 200 % (`PopupDialog.OnRectTransformDimensionsChange`)
 **[src]**.
 
-While the planner is open, every stage's engines and tanks show in the stage's colour on
-the vessel. A selected leg leaves only the stages that pay for it, a selected stage only
-that one.
+While the planner is open, every stage's engines and tanks show in the stage's colour on the
+vessel, pushed to full saturation and brightness so it reads through KSP's soft highlight
+(`PlannerColors.Vivid`). A selected leg leaves only the stages that pay for it, a selected
+stage only that one.
 
 The planner has room for 9 stops, so eight legs side by side in the fuel plan within the crew
 panel's width, and 30 stages. It is worked out again four times a second while it is open. The

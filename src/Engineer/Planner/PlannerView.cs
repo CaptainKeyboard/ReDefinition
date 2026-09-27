@@ -119,6 +119,12 @@ namespace ReDefinition.Engineer
             Evaluate();
         }
 
+        // Every frame while the planner is open.
+        internal void Keep()
+        {
+            highlight.Refresh();
+        }
+
         // The planner closes: nothing stays coloured, the list of bodies goes.
         internal void Flush()
         {
@@ -206,7 +212,8 @@ namespace ReDefinition.Engineer
 
         private static string LegName(int leg)
         {
-            return Letter(leg) + "→" + Letter(leg + 1);
+            // KSP's font has no arrow.
+            return Letter(leg) + "-" + Letter(leg + 1);
         }
 
         private string BodyName(int index)
@@ -333,7 +340,7 @@ namespace ReDefinition.Engineer
                     && !budget.Uses.Exists(use => use.Stage == number && use.Leg == selectedLeg)) continue;
                 List<Part> list;
                 if (!burningParts.TryGetValue(number, out list)) continue;
-                Color color = PlannerColors.Stage(i);
+                Color color = PlannerColors.Vivid(PlannerColors.Stage(i));
                 foreach (Part part in list)
                     if (part != null) parts[part] = color;
             }
