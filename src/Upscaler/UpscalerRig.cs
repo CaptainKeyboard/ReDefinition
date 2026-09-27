@@ -105,8 +105,6 @@ namespace ReDefinition.Upscaler
         // film grain and the like -- drawn over the upscaler's output instead of
         // into the image it receives (TufxPostProcessing). Live.
         public bool TufxAfterUpscaling = true;
-        // This frame: TufxAfterUpscaling in effect, TUFX's effects moved after the upscaler.
-        private bool tufxSplit;
 
         // The masks FSR 3 takes beside colour, depth and motion vectors
         // (UpscalerMasks). Off by default. Live.
@@ -402,8 +400,7 @@ namespace ReDefinition.Upscaler
             scaledMotion.Attach(redirects, renderSize);
 
             // Before the first frame renders: TUFX's layers are split from it on.
-            tufxSplit = TufxAfterUpscaling && !DebugView && !PassThrough;
-            tufx.Refresh(redirects, cam, tufxSplit, EffectiveHdr, displaySize);
+            tufx.Refresh(redirects, cam, TufxAfterUpscaling && !DebugView && !PassThrough, EffectiveHdr, displaySize);
 
             nativeLink = Bypass || PassThrough ? null : UpscalerBackends.Link(Backend);
             if (Backend == UpscalerBackend.Dlss && !Bypass && !PassThrough && Sharpening && shaders != null && upscaled != null)
@@ -485,7 +482,7 @@ namespace ReDefinition.Upscaler
             // (ScaledSpaceMotion), then EVE's clouds over it.
             if (scaledMotion.Active)
             {
-                scaledMotion.Merge(captureBuffer, depthCopy, renderSize, tufxSplit);
+                scaledMotion.Merge(captureBuffer, depthCopy, renderSize);
                 cloudMotion.Capture(captureBuffer, scaledMotion.Merged, motionVectors, depthCopy);
             }
             else

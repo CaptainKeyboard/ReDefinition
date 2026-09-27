@@ -235,8 +235,8 @@ that ground somewhere else each frame, and the image shimmered, with jitter off 
 and the previous one, and makes one matrix from this frame's clip space into the previous
 frame's. The difference of the two positions is taken in double precision; the distance
 from the origin enters only through the single-precision transform positions, about a
-centimetre at 150 km. The projections are the ones without jitter, read in `OnPreCull`
-before `CameraRedirect` jitters them. `ScaledSpaceMotion` sets the matrix as
+centimetre at 150 km. The projections are built from the camera's planes and field of
+view, free of any jitter. `UnityMotionRepair` sets the matrix as `Camera 00` culls, as
 `_ReDefinitionSceneClipToPrevClip`, and the camera's turn alone as
 `_ReDefinitionSkyClipToPrevClip`, with the near and far plane and the view depth from which
 they apply, 500 m, in `_ReDefinitionSceneRange`.
@@ -249,9 +249,8 @@ a vessel in orbit a kilometre from the active one would otherwise move by the ca
 travel against the body. Beyond 20 km such a vessel is at least that far from the camera
 and a few pixels large. The active vessel is written after this in any case. Where
 `Camera 00` drew nothing and no scaled body is met, the sky gets the camera's turn alone.
-Both matrices are off while the distant planets' pass is off, for the first frame, after a
-skipped frame or a reset of the rig's history, after a change of main body and while there
-is no main body.
+Both matrices are off for the first frame, after a skipped frame or a reset of the rig's
+history, after a change of main body and while there is no main body.
 
 Measured in `MotionVectorCheck` with a camera at the position of the dumps, near 0.21 m,
 far 750 km, a sphere 150 km ahead and a move of 10 m sideways and 6 m up: pass 2's vectors
@@ -275,17 +274,27 @@ a jump of 150 km, KSP's near and far plane, a frame without the camera, Scattere
 replacement motion vector shader, instanced draws into the camera, and a second camera with
 motion vectors into the same target before it.
 
-Once the capture has copied the buffer, `ScaledSpaceMotion` clears it to -100. Where the
-next frame's copy still holds that value, pass 2 takes the camera's own move: through
-`_ReDefinitionSceneClipToPrevClip` where something is drawn, whatever its distance, and
-the camera's turn where nothing is. Other vessels there get the motion of ground, and so
-does the active vessel in frames its repair leaves out. Every 30 frames a row across the
-middle of the copy is read back, and while pixels with that value turn up, a line every
-ten seconds gives in how many of the checked frames and what share of their pixels. The
-buffer is cleared only while the distant planets' pass runs, and not while TUFX's effects
-run before the upscaler, whose motion blur reads it.
+With ReDefinition's upscaler off, Scatterer's TAA and TUFX's antialiasing read the same
+buffer, and the scatter flickered as well. `UnityMotionRepair` therefore repairs the
+buffer itself, in flight, whether the upscaler runs or not. At the end of `Camera 00`'s
+frame (`AfterEverything`) it clears the buffer to -100. At `BeforeImageEffectsOpaque` of
+the next frame, after Unity writes its motion vectors and before Deferred's reflections,
+Scatterer's TAA at `AfterForwardAlpha`, TUFX and the rig's capture at `BeforeImageEffects`
+read them, it copies the buffer and `ResolvedDepth`, and pass 3 of the cloud motion shader
+writes the copy back: Unity's value where Unity wrote one, and where the copy still holds
+-100 the camera's own move, through `_ReDefinitionSceneClipToPrevClip` where something is
+drawn and the camera's turn where nothing is. Other vessels there get the motion of ground,
+and so does the active vessel in frames its repair leaves out. Every 30 frames a row across
+the middle of the copy is read back, and while pixels with that value turn up, a line every
+ten seconds gives in how many of the checked frames and what share of their pixels. In the
+flight after the first version of this, 97 to 100% of the pixels were unwritten from the
+start. The Debug tab switches it off for a comparison (*Motion vector repair*, not saved):
+the clear stops at once and the repair runs one frame longer to take the last one out,
+and the matrices stay for pass 2. With the shader bundle missing or too old it stays off
+for the scene.
 `MotionVectorCheck` checks that Unity writes every pixel of a cleared buffer in the next
-frame, and that pass 2 takes the camera's move on every pixel that still holds the value.
+frame and the repair keeps it, and that pass 3 gives the camera's move on every pixel
+cleared after Unity wrote it.
 
 ### The active vessel
 

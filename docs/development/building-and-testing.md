@@ -201,10 +201,13 @@ Pass 2 must lie within 0.01 px of the parallax worked out for each pixel, and ne
 pixels must differ by less than 0.01 px on average. Its mean must lie within 3% of
 Unity's. The log shows how much Unity's own vectors differ from one pixel to the next.
 
-The capture clears Unity's motion vector buffer after copying it, as the plugin does. In
-the camera and the object case no pixel may still hold that value a frame later. Where the
-far case's copy holds it everywhere, pass 2 must give the camera's own move within
-0.001 px on average.
+The check camera carries the plugin's motion vector repair (`UnityMotionRepair`): the
+buffer cleared at the end of every frame, and pass 3 at `BeforeImageEffectsOpaque`. In the
+camera and the object case a copy right after the clear must hold the cleared value on every
+pixel, and no pixel of the next frame's copy at the repair may still hold it: Unity has
+written every pixel anew, and the repair kept its values. One more case clears
+what Unity wrote right before the repair and moves the camera; pass 3 must then give the
+camera's move within 0.01 px on average over a sphere ahead.
 
 ## Build the proxy
 

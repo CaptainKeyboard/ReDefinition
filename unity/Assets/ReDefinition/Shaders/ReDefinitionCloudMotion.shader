@@ -95,9 +95,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
         // body, from the depth and the camera's move against that body; where it
         // drew nothing and no body is met, the camera's turn alone. Unity's own
         // there is noise, worked out in single precision from world positions a
-        // hundred kilometres and more from the origin. Where the copy of Unity's
-        // still holds the value the plugin cleared it to after the frame before,
-        // Unity has not written the pixel: the same, the camera's own move.
+        // hundred kilometres and more from the origin.
         Pass
         {
             ZTest Always
@@ -166,11 +164,9 @@ Shader "Hidden/ReDefinition/CloudMotion"
                 bool nothing = depth >= 1.0;
             #endif
                 bool precise = _ReDefinitionSceneRange.w > 0.5;
-                bool missing = sceneMotion.x < -50.0;
-                if (missing) sceneMotion = float2(0.0, 0.0);
                 if (!nothing)
                 {
-                    if (precise && (missing || SceneDistance(depth) > _ReDefinitionSceneRange.z))
+                    if (precise && SceneDistance(depth) > _ReDefinitionSceneRange.z)
                         return float4(SceneMotion(_ReDefinitionSceneClipToPrevClip, uv, depth), 0.0, 0.0);
                     return float4(sceneMotion, 0.0, 0.0);
                 }
@@ -217,6 +213,54 @@ Shader "Hidden/ReDefinition/CloudMotion"
                 half4 motion = ReDefinitionMotionVector(mul(_ReDefinitionScaledViewProjection, now),
                                                         mul(_ReDefinitionScaledPreviousViewProjection, before));
                 return float4(motion.xy, 0.0, 0.0);
+            }
+            ENDCG
+        }
+
+        // 3: at the scene camera's BeforeImageEffectsOpaque, before anything reads
+        // Unity's motion vectors, back into them (UnityMotionRepair in the plugin):
+        // where the copy still holds the value the plugin cleared the buffer to at
+        // the end of the frame before, Unity has not written the pixel, and the
+        // camera's own move takes its place -- against the main body where
+        // something is drawn, the camera's turn alone where nothing is. Unity's
+        // own everywhere else.
+        Pass
+        {
+            ZTest Always
+            ZWrite Off
+            Cull Off
+
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment frag
+            #pragma target 3.5
+            #include "UnityCG.cginc"
+            #include "../Include/ReDefinition.cginc"
+
+            sampler2D _ReDefinitionRepairMotion;
+            sampler2D _ReDefinitionRepairDepth;
+            float4 _ReDefinitionRepairTexel;
+            float4x4 _ReDefinitionSceneClipToPrevClip;
+            float4x4 _ReDefinitionSkyClipToPrevClip;
+            float4 _ReDefinitionSceneRange;
+
+            float4 frag (v2f_img i) : SV_Target
+            {
+                float2 uv = i.pos.xy * _ReDefinitionRepairTexel.xy;
+                float2 unityMotion = tex2D(_ReDefinitionRepairMotion, uv).xy;
+                if (unityMotion.x >= -50.0)
+                    return float4(unityMotion, 0.0, 0.0);
+                if (_ReDefinitionSceneRange.w < 0.5)
+                    return float4(0.0, 0.0, 0.0, 0.0);
+                float depth = tex2D(_ReDefinitionRepairDepth, uv).r;
+            #if UNITY_REVERSED_Z
+                bool nothing = depth <= 0.0;
+            #else
+                bool nothing = depth >= 1.0;
+            #endif
+                float4 clip = float4(uv * 2.0 - 1.0, depth, 1.0);
+                float4 before = mul(nothing ? _ReDefinitionSkyClipToPrevClip : _ReDefinitionSceneClipToPrevClip, clip);
+                return float4(ReDefinitionMotionVector(clip, before).xy, 0.0, 0.0);
             }
             ENDCG
         }

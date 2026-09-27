@@ -132,7 +132,7 @@ namespace ReDefinition.EditorTools
             float depthTarget = -1f, depthWritten = -1f;
             int shadowCases = 0;
             bool farCase = false;
-            bool missingCase = false;
+            bool repairCase = false;
             int unwrittenCases = 0;
             foreach (string line in lines)
             {
@@ -168,22 +168,28 @@ namespace ReDefinition.EditorTools
                     JudgeFar(f, problems);
                     continue;
                 }
-                if (f.Length == 3 && f[0] == "unwritten")
+                if (f.Length == 5 && f[0] == "unwritten")
                 {
                     unwrittenCases++;
+                    if (f[3] != f[4])
+                        problems.Add("unwritten: the mark at the end of the frame reached " + f[3] + " of " + f[4]
+                                     + " pixels of the motion vector buffer in the " + f[1] + " case.");
                     if (f[2] != "0")
                         problems.Add("unwritten: " + f[2] + " pixels of Unity's motion vectors in the " + f[1]
                                      + " case still hold the value they were cleared to a frame before.");
                     continue;
                 }
-                if (f.Length == 3 && f[0] == "missing")
+                if (f.Length == 5 && f[0] == "repair")
                 {
-                    missingCase = true;
-                    if (int.Parse(f[1], CultureInfo.InvariantCulture) < 500)
-                        problems.Add("missing: the ground covers only " + f[1] + " pixels.");
-                    else if (Float(f[2]) > 0.001f)
-                        problems.Add("missing: where Unity wrote no motion vectors, pass 2 lies " + f[2]
-                                     + " px from the camera's own move on average.");
+                    repairCase = true;
+                    int repaired = int.Parse(f[1], CultureInfo.InvariantCulture);
+                    if (repaired < 100)
+                        problems.Add("repair: the sphere covers only " + repaired + " pixels.");
+                    else if (f[2] != f[3])
+                        problems.Add("repair: the copy holds the cleared value on " + f[2] + " of " + f[3] + " pixels after they were cleared; the case shows nothing.");
+                    else if (Float(f[4]) > 0.01f)
+                        problems.Add("repair: where Unity wrote no motion vectors, pass 3 lies " + f[4]
+                                     + " px from the camera's move on average.");
                     continue;
                 }
                 if (f.Length == 4 && f[0] == "depthTarget")
@@ -239,7 +245,7 @@ namespace ReDefinition.EditorTools
             if (shadowCases != 3) problems.Add("the result has " + shadowCases + " of 3 shadow cases.");
             if (!farCase) problems.Add("the result has no far case.");
             if (unwrittenCases != 2) problems.Add("the result has " + unwrittenCases + " of 2 lines on unwritten pixels.");
-            if (!missingCase) problems.Add("the result has no case for motion vectors Unity did not write.");
+            if (!repairCase) problems.Add("the result has no case for motion vectors Unity did not write.");
             if (depthTarget <= 0f)
                 problems.Add("depthTarget: the camera's own depth buffer shows no forward-only cube.");
             else if (Mathf.Abs(depthWritten - depthTarget) > 0.01f * depthTarget)

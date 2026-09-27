@@ -1,0 +1,318 @@
+using System.Globalization;
+using ReDefinition.Core;
+using ReDefinition.Shared;
+using Unity.Collections;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace ReDefinition.Upscaler
+{
+    // Unity's motion vectors of the flight camera, repaired where Unity has not written
+    // them, for everything that reads them: the upscalers and frame generation, and with
+    // ReDefinition's upscaler off Scatterer's TAA, TUFX's effects and Deferred's
+    // reflections.
+    //
+    // In KSP, Camera 00's motion vector buffer is at times not written for many frames:
+    // the ground then carries the same vectors frame after frame, whatever the camera
+    // does. Measured in the recordings' frame generation inputs after zooming out to the
+    // farthest and back, and from the start of other flights at 97 to 100% of the
+    // pixels. What stops Unity is not known (docs/development/upscaler.md).
+    //
+    // At the end of the camera's frame the buffer is cleared to Missing. At
+    // BeforeImageEffectsOpaque of the next, after Unity writes its motion vectors and
+    // before anything reads them, a copy is taken, and pass 3 of the cloud motion shader
+    // writes it back with the camera's own move where it still holds Missing: against
+    // the main body where something is drawn (SceneMotion), the camera's turn alone where
+    // nothing is. Both matrices are set here as the camera culls; pass 2 uses the first
+    // for far ground as well (ScaledSpaceMotion). A row of the copy is read back every
+    // CheckEvery frames, and the share of unwritten pixels logged every ten seconds while
+    // there are any.
+    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    public sealed class UnityMotionRepair : MonoBehaviour
+    {
+        private const int RepairPass = 3;
+        private const int CheckEvery = 30;
+        private const float ReportSeconds = 10f;
+
+        // From this view depth on, pass 2 replaces the scene camera's own motion vectors
+        // by those of points fixed to the main body, while the camera stands farther
+        // than FarFromOrigin from the world's origin: Unity's are noise there, worked
+        // out in single precision from world positions that far out. Nearer to the
+        // camera, other vessels, kerbals and debris keep Unity's, which moves them as
+        // objects; the active vessel is repaired after this in any case
+        // (VesselMotionVectors). Nearer to the origin, Unity's are precise and stay
+        // everywhere: a vessel in orbit a kilometre from the active one would otherwise
+        // move by the camera's travel against the body. Beyond it, such a vessel is at
+        // least that far from the camera and a few pixels large.
+        private const float PreciseFrom = 500f;
+        private const float FarFromOrigin = 20000f;
+
+        // Far outside the range of a motion vector in viewport units; half precision
+        // holds it exactly. The shader tests for below -50.
+        private static readonly Color Missing = new Color(-100f, -100f, 0f, 0f);
+
+        private static readonly int SceneClipToPrevClipId = Shader.PropertyToID("_ReDefinitionSceneClipToPrevClip");
+        private static readonly int SkyClipToPrevClipId = Shader.PropertyToID("_ReDefinitionSkyClipToPrevClip");
+        private static readonly int SceneRangeId = Shader.PropertyToID("_ReDefinitionSceneRange");
+        private static readonly int RepairMotionId = Shader.PropertyToID("_ReDefinitionRepairMotion");
+        private static readonly int RepairDepthId = Shader.PropertyToID("_ReDefinitionRepairDepth");
+        private static readonly int RepairTexelId = Shader.PropertyToID("_ReDefinitionRepairTexel");
+
+        // The Debug switch; on at every start.
+        internal static bool Enabled = true;
+
+        private Camera attached;
+        // Set once the shader cannot be had: not tried again in this scene.
+        private bool unavailable;
+        // Taken off: the mark is gone, the repair runs once more to take its value out
+        // of the buffer, and is removed after that frame.
+        private int retireAfter = -1;
+        private CommandBuffer repair;
+        private CommandBuffer mark;
+        private Material material;
+        private string state;
+        private RenderTexture motionCopy;
+        private RenderTexture depthCopy;
+        private Vector2Int size;
+        private int preparedFrame = -1;
+
+        private Matrix4x4 previousProjection;
+        private Vector3d previousPosition;
+        private Quaternion previousRotation;
+        private Quaternion previousWorldRotation;
+        private CelestialBody previousBody;
+        private int previousFrame = -1;
+        private bool havePrevious;
+
+        private int checkedFrames, missingFrames;
+        private double missingShare;
+        private float windowStart = -1f;
+
+        private void Start()
+        {
+            Camera.onPreCull += OnAnyPreCull;
+        }
+
+        private void OnDestroy()
+        {
+            Camera.onPreCull -= OnAnyPreCull;
+            Detach();
+            Shader.SetGlobalVector(SceneRangeId, Vector4.zero);
+            if (material != null) Destroy(material);
+            material = null;
+        }
+
+        private void OnAnyPreCull(Camera cam)
+        {
+            Camera main = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+            if (cam == null || cam != main) return;
+            if (preparedFrame == Time.frameCount) return;
+            preparedFrame = Time.frameCount;
+
+            // Pass 2 reads them for far ground whether the repair runs or not.
+            UpdateMatrices(cam);
+
+            if (attached != null && attached != cam) Detach();
+            if (retireAfter >= 0)
+            {
+                if (Time.frameCount > retireAfter) Detach();
+                else
+                {
+                    RecordRepair();
+                    return;
+                }
+            }
+            if (!Enabled || unavailable)
+            {
+                Retire();
+                return;
+            }
+
+            if (attached == null) Attach(cam);
+            if (attached == null) return;
+            Vector2Int now = new Vector2Int(cam.pixelWidth, cam.pixelHeight);
+            bool created;
+            if (!UpscalerMasks.Ensure(ref motionCopy, now, RenderTextureFormat.RGHalf, "ReDefinition_RepairMotion", out created)
+                || !UpscalerMasks.Ensure(ref depthCopy, now, RenderTextureFormat.RFloat, "ReDefinition_RepairDepth", out created))
+            {
+                SetState("its textures could not be created");
+                // Without them the last mark cannot be repaired: taken out as none.
+                repair.Clear();
+                repair.SetRenderTarget(BuiltinRenderTextureType.MotionVectors);
+                repair.ClearRenderTarget(false, true, Color.clear);
+                attached.RemoveCommandBuffer(CameraEvent.AfterEverything, mark);
+                retireAfter = Time.frameCount;
+                return;
+            }
+            size = now;
+
+            RecordRepair();
+            ReportMissing();
+        }
+
+        private void Attach(Camera cam)
+        {
+            Detach();
+            if (material == null)
+            {
+                string error;
+                Shader shader = FsrShaderBundle.LoadShader(FsrShaderBundle.CloudMotionShaderName, out error);
+                if (shader == null)
+                {
+                    unavailable = true;
+                    SetState(error);
+                    return;
+                }
+                material = new Material(shader) { name = "ReDefinition motion vector repair", hideFlags = HideFlags.DontSave };
+                if (material.passCount <= RepairPass)
+                {
+                    Destroy(material);
+                    material = null;
+                    unavailable = true;
+                    SetState(FsrShaderBundle.CloudMotionShaderName + " in the shader bundle is older than this build");
+                    return;
+                }
+            }
+            repair = new CommandBuffer { name = "ReDefinition.RepairMotionVectors" };
+            mark = new CommandBuffer { name = "ReDefinition.MarkMotionVectors" };
+            mark.SetRenderTarget(BuiltinRenderTextureType.MotionVectors);
+            mark.ClearRenderTarget(false, true, Missing);
+            cam.AddCommandBuffer(CameraEvent.BeforeImageEffectsOpaque, repair);
+            cam.AddCommandBuffer(CameraEvent.AfterEverything, mark);
+            attached = cam;
+            retireAfter = -1;
+            SetState(null);
+        }
+
+        // Switched off: the mark comes off at once, and the repair takes this frame's
+        // mark out of the buffer before it goes, so what reads the buffer next sees
+        // Unity's own motion vectors, or none, never the mark.
+        private void Retire()
+        {
+            if (attached == null) return;
+            attached.RemoveCommandBuffer(CameraEvent.AfterEverything, mark);
+            retireAfter = Time.frameCount + 1;
+        }
+
+        private void Detach()
+        {
+            if (attached != null)
+            {
+                if (repair != null) attached.RemoveCommandBuffer(CameraEvent.BeforeImageEffectsOpaque, repair);
+                if (mark != null) attached.RemoveCommandBuffer(CameraEvent.AfterEverything, mark);
+            }
+            attached = null;
+            if (repair != null) repair.Release();
+            if (mark != null) mark.Release();
+            repair = null;
+            mark = null;
+            UpscalerRig.Release(ref motionCopy);
+            UpscalerRig.Release(ref depthCopy);
+            retireAfter = -1;
+        }
+
+        // This frame's: Unity's motion vectors and depth copied, and written back with the
+        // camera's move where Unity left them.
+        private void RecordRepair()
+        {
+            repair.Clear();
+            repair.Blit(BuiltinRenderTextureType.MotionVectors, motionCopy);
+            repair.Blit(BuiltinRenderTextureType.ResolvedDepth, depthCopy);
+            repair.SetGlobalTexture(RepairMotionId, motionCopy);
+            repair.SetGlobalTexture(RepairDepthId, depthCopy);
+            repair.SetGlobalVector(RepairTexelId, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
+            repair.Blit(Texture2D.blackTexture, BuiltinRenderTextureType.MotionVectors, material, RepairPass);
+            if (Time.frameCount % CheckEvery == 0) CheckMissing();
+        }
+
+        // The camera's move against the main body, and its turn, from this frame's clip
+        // space into the previous frame's (SceneMotion). The projection is built from
+        // the camera's planes and field of view, free of any jitter a mod has put on
+        // it; KSP's flight camera keeps Unity's own.
+        private void UpdateMatrices(Camera cam)
+        {
+            CelestialBody body = FlightGlobals.currentMainBody;
+            if (body == null)
+            {
+                havePrevious = false;
+                Shader.SetGlobalVector(SceneRangeId, Vector4.zero);
+                return;
+            }
+            Matrix4x4 projection = GL.GetGPUProjectionMatrix(
+                Matrix4x4.Perspective(cam.fieldOfView, cam.aspect, cam.nearClipPlane, cam.farClipPlane), false);
+            Quaternion toBody = SceneMotion.Conjugate(body.transform.rotation);
+            // Where the body's ground is drawn this frame: its transform, which KSP
+            // places with the scene.
+            Vector3d position = SceneMotion.Rotate(toBody,
+                (Vector3d)cam.transform.position - (Vector3d)body.transform.position);
+            Quaternion rotation = toBody * cam.transform.rotation;
+            Quaternion worldRotation = cam.transform.rotation;
+
+            bool ready = havePrevious && previousBody == body
+                         && previousFrame == Time.frameCount - 1 && SharedFrame.RigResetReason == null;
+            Matrix4x4 clipToPrevious = ready
+                ? SceneMotion.ClipToPreviousClip(projection, previousProjection, position, rotation,
+                    previousPosition, previousRotation)
+                : Matrix4x4.identity;
+            Matrix4x4 skyToPrevious = ready
+                ? SceneMotion.ClipToPreviousClip(projection, previousProjection, Vector3d.zero, worldRotation,
+                    Vector3d.zero, previousWorldRotation)
+                : Matrix4x4.identity;
+            bool far = cam.transform.position.magnitude > FarFromOrigin;
+            Shader.SetGlobalMatrix(SceneClipToPrevClipId, clipToPrevious);
+            Shader.SetGlobalMatrix(SkyClipToPrevClipId, skyToPrevious);
+            Shader.SetGlobalVector(SceneRangeId, new Vector4(cam.nearClipPlane, cam.farClipPlane,
+                far ? PreciseFrom : float.MaxValue, ready ? 1f : 0f));
+
+            previousProjection = projection;
+            previousPosition = position;
+            previousRotation = rotation;
+            previousWorldRotation = worldRotation;
+            previousBody = body;
+            previousFrame = Time.frameCount;
+            havePrevious = true;
+        }
+
+        // A row across the middle of the copy: the share of pixels Unity left unwritten.
+        private void CheckMissing()
+        {
+            int width = size.x;
+            repair.RequestAsyncReadback(motionCopy, 0, 0, width, size.y / 2, 1, 0, 1, request =>
+            {
+                if (request.hasError) return;
+                NativeArray<ushort> data = request.GetData<ushort>();
+                int missing = 0, pixels = data.Length / 2;
+                for (int i = 0; i < pixels; i++)
+                    if (Mathf.HalfToFloat(data[i * 2]) < -50f) missing++;
+                checkedFrames++;
+                if (missing > 0) missingFrames++;
+                missingShare += pixels > 0 ? (double)missing / pixels : 0.0;
+            });
+        }
+
+        private void ReportMissing()
+        {
+            if (windowStart < 0f) windowStart = Time.unscaledTime;
+            if (Time.unscaledTime - windowStart < ReportSeconds) return;
+            windowStart = Time.unscaledTime;
+            if (missingFrames > 0)
+                Debug.Log(Log.Tag + " Unity's motion vectors not written, last "
+                          + ReportSeconds.ToString("0", CultureInfo.InvariantCulture) + " s: in " + missingFrames
+                          + " of " + checkedFrames + " checked frames, "
+                          + (missingShare / missingFrames * 100.0).ToString("0.0", CultureInfo.InvariantCulture)
+                          + "% of their pixels; the camera's own move written there.");
+            checkedFrames = 0;
+            missingFrames = 0;
+            missingShare = 0.0;
+        }
+
+        // Each change once.
+        private void SetState(string now)
+        {
+            if (now == state) return;
+            state = now;
+            Debug.Log(Log.Tag + " Motion vector repair: "
+                      + (now == null ? "on the flight camera." : "left out -- " + now + "."));
+        }
+    }
+}

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using ReDefinition.Core;
-using ReDefinition.Shared;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -30,17 +29,6 @@ namespace ReDefinition.Upscaler
     //
     // What a shader moves -- EVE's two-dimensional cloud layers drifting over the
     // planet -- keeps the planet's motion under it.
-    //
-    // In KSP, Camera 00's motion vector buffer is at times not written for many
-    // frames: the ground then carries the same vectors frame after frame, whatever
-    // the camera does (measured in the recordings' frame generation inputs after
-    // zooming out to the farthest and back, and in the audit from the start of a
-    // flight). Once copied, the buffer is therefore cleared to Missing. Where the next
-    // frame's copy still holds it, Unity has not written that pixel, and pass 2 takes
-    // the camera's own move instead: against the main body where something is drawn
-    // (SceneMotion), the camera's turn where nothing is. A row of the copy is read
-    // back every CheckEvery frames and the share of such pixels logged every ten
-    // seconds while there are any.
     internal sealed class ScaledSpaceMotion
     {
         private const string CameraName = "Camera ScaledSpace";
@@ -57,34 +45,9 @@ namespace ReDefinition.Upscaler
         private static readonly int PreviousViewProjectionId = Shader.PropertyToID("_ReDefinitionScaledPreviousViewProjection");
         private static readonly int InverseViewProjectionId = Shader.PropertyToID("_ReDefinitionScaledInverseViewProjection");
         private static readonly int CameraPositionId = Shader.PropertyToID("_ReDefinitionScaledCameraPosition");
-        private static readonly int SceneClipToPrevClipId = Shader.PropertyToID("_ReDefinitionSceneClipToPrevClip");
-        private static readonly int SceneRangeId = Shader.PropertyToID("_ReDefinitionSceneRange");
-        private static readonly int SkyClipToPrevClipId = Shader.PropertyToID("_ReDefinitionSkyClipToPrevClip");
-
-        // From this distance on, the scene camera's own motion vectors are
-        // replaced by those of points fixed to the main body (SceneMotion), while
-        // the camera stands farther than FarFromOrigin from the world's origin.
-        // Nearer to the camera, other vessels, kerbals and debris keep Unity's,
-        // which moves them as objects; the active vessel is repaired after this in
-        // any case (VesselMotionVectors). Nearer to the origin, Unity's are precise
-        // and stay everywhere: a vessel in orbit a kilometre from the active one
-        // would otherwise move by the camera's travel against the body. Beyond it,
-        // such a vessel is at least that far from the camera and a few pixels
-        // large.
-        private const float PreciseFrom = 500f;
-        private const float FarFromOrigin = 20000f;
 
         private const string NotLogged = "not logged";
         private static string loggedState = NotLogged;
-
-        // Far outside the range of a motion vector in viewport units; half precision
-        // holds it exactly. The shader tests for below -50.
-        private static readonly Color Missing = new Color(-100f, -100f, 0f, 0f);
-        private const int CheckEvery = 30;
-        private const float ReportSeconds = 10f;
-        private int checkedFrames, missingFrames;
-        private double missingShare;
-        private float windowStart = -1f;
 
         private struct Body
         {
@@ -107,13 +70,6 @@ namespace ReDefinition.Upscaler
         private Shader outdatedShader;
         private Matrix4x4 previousViewProjection;
         private bool havePrevious;
-        private Matrix4x4 previousSceneProjection;
-        private Vector3d previousScenePosition;
-        private Quaternion previousSceneRotation;
-        private Quaternion previousSceneWorldRotation;
-        private CelestialBody previousSceneBody;
-        private int previousSceneFrame = -1;
-        private bool haveScenePrevious;
         private int updatedFrame = -1;
 
         // Whether this frame's capture takes the distant planets' motion.
@@ -151,65 +107,22 @@ namespace ReDefinition.Upscaler
 
         // In the scene camera's capture: its motion vectors into a copy, and the
         // distant planets' over them where it drew nothing.
-        // `clearAfterCopy`: false while TUFX's effects run on the scene camera before the
-        // capture, whose motion blur reads Unity's buffer and would take Missing for a
-        // motion.
-        internal void Merge(CommandBuffer capture, RenderTexture depth, Vector2Int size, bool clearAfterCopy)
+        internal void Merge(CommandBuffer capture, RenderTexture depth, Vector2Int size)
         {
             capture.Blit(BuiltinRenderTextureType.MotionVectors, scene);
-            if (clearAfterCopy)
-            {
-                capture.SetRenderTarget(BuiltinRenderTextureType.MotionVectors);
-                capture.ClearRenderTarget(false, true, Missing);
-                if (Time.frameCount % CheckEvery == 0) CheckMissing(capture, size);
-            }
-            ReportMissing();
             capture.SetGlobalVector(TexelId, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
             capture.SetGlobalTexture(UnityMotionId, scene);
             capture.SetGlobalTexture(SceneDepthId, depth);
             capture.Blit(Texture2D.blackTexture, merged, material, MergePass);
         }
 
-        // A row across the middle of the copy: the share of pixels Unity left unwritten.
-        private void CheckMissing(CommandBuffer capture, Vector2Int size)
-        {
-            capture.RequestAsyncReadback(scene, 0, 0, size.x, size.y / 2, 1, 0, 1, request =>
-            {
-                if (request.hasError) return;
-                Unity.Collections.NativeArray<ushort> data = request.GetData<ushort>();
-                int missing = 0, pixels = data.Length / 2;
-                for (int i = 0; i < pixels; i++)
-                    if (Mathf.HalfToFloat(data[i * 2]) < -50f) missing++;
-                checkedFrames++;
-                if (missing > 0) missingFrames++;
-                missingShare += pixels > 0 ? (double)missing / pixels : 0.0;
-            });
-        }
-
-        private void ReportMissing()
-        {
-            if (windowStart < 0f) windowStart = Time.unscaledTime;
-            if (Time.unscaledTime - windowStart < ReportSeconds) return;
-            windowStart = Time.unscaledTime;
-            if (missingFrames > 0)
-                Debug.Log(Log.Tag + " Unity's motion vectors not written, last " + ReportSeconds.ToString("0")
-                          + " s: in " + missingFrames + " of " + checkedFrames + " checked frames, "
-                          + (missingShare / missingFrames * 100.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)
-                          + "% of their pixels on average; the camera's own move taken there.");
-            checkedFrames = 0;
-            missingFrames = 0;
-            missingShare = 0.0;
-        }
-
         // As the scene camera culls, once a frame: the bodies in view and the
-        // scaled camera, as this frame draws them, and the scene camera's move
-        // against the main body. Globals, read by the capture at the scene
-        // camera's BeforeImageEffects.
-        internal void Update(Camera scene)
+        // scaled camera, as this frame draws them. Globals, read by the capture at
+        // the scene camera's BeforeImageEffects.
+        internal void Update()
         {
             if (!Active || camera == null || updatedFrame == Time.frameCount) return;
             updatedFrame = Time.frameCount;
-            UpdateScene(scene);
 
             // Its jitter is taken back by now: the scaled camera rendered before
             // the scene camera culls (CameraRedirect.OnPostRender).
@@ -274,64 +187,11 @@ namespace ReDefinition.Upscaler
             havePrevious = true;
         }
 
-        // The scene camera's clip space into the frame before's, against the main
-        // body (SceneMotion); off where there is no body or no frame before to
-        // compare with, and across a change of body.
-        private void UpdateScene(Camera scene)
-        {
-            CelestialBody body = FlightGlobals.currentMainBody;
-            if (scene == null || body == null)
-            {
-                haveScenePrevious = false;
-                Shader.SetGlobalVector(SceneRangeId, Vector4.zero);
-                return;
-            }
-            // OnPreCull: CameraRedirect jitters the projection only in OnPreRender.
-            Matrix4x4 projection = GL.GetGPUProjectionMatrix(scene.projectionMatrix, false);
-            Quaternion toBody = SceneMotion.Conjugate(body.transform.rotation);
-            // Where the body's ground is drawn this frame: its transform, which KSP
-            // places with the scene.
-            Vector3d position = SceneMotion.Rotate(toBody,
-                (Vector3d)scene.transform.position - (Vector3d)body.transform.position);
-            Quaternion rotation = toBody * scene.transform.rotation;
-
-            Quaternion worldRotation = scene.transform.rotation;
-
-            bool ready = haveScenePrevious && previousSceneBody == body
-                         && previousSceneFrame == Time.frameCount - 1 && SharedFrame.RigResetReason == null;
-            Matrix4x4 clipToPrevious = ready
-                ? SceneMotion.ClipToPreviousClip(projection, previousSceneProjection, position, rotation,
-                    previousScenePosition, previousSceneRotation)
-                : Matrix4x4.identity;
-            // Where nothing is drawn and no body met, the sky: at infinity, moved
-            // only by the camera's turn.
-            Matrix4x4 skyToPrevious = ready
-                ? SceneMotion.ClipToPreviousClip(projection, previousSceneProjection, Vector3d.zero, worldRotation,
-                    Vector3d.zero, previousSceneWorldRotation)
-                : Matrix4x4.identity;
-            bool far = scene.transform.position.magnitude > FarFromOrigin;
-            Shader.SetGlobalMatrix(SceneClipToPrevClipId, clipToPrevious);
-            Shader.SetGlobalMatrix(SkyClipToPrevClipId, skyToPrevious);
-            Shader.SetGlobalVector(SceneRangeId, new Vector4(scene.nearClipPlane, scene.farClipPlane,
-                far ? PreciseFrom : float.MaxValue, ready ? 1f : 0f));
-
-            previousSceneProjection = projection;
-            previousScenePosition = position;
-            previousSceneRotation = rotation;
-            previousSceneWorldRotation = worldRotation;
-            previousSceneBody = body;
-            previousSceneFrame = Time.frameCount;
-            haveScenePrevious = true;
-        }
-
         internal void Detach()
         {
             Active = false;
             camera = null;
             havePrevious = false;
-            haveScenePrevious = false;
-            previousSceneBody = null;
-            Shader.SetGlobalVector(SceneRangeId, Vector4.zero);
             updatedFrame = -1;
             previousLocalToWorld.Clear();
             UpscalerRig.Release(ref scene);

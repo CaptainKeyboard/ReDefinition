@@ -287,6 +287,14 @@ namespace ReDefinition
                 Debug.Log(Log.Tag + " Render interpolation " + (RenderInterpolation.Enabled ? "on." : "off."));
             }
 
+            // Not saved: Unity's motion vectors written with the camera's move where Unity
+            // left them (UnityMotionRepair).
+            if (SwitchRow("Motion vector repair", UnityMotionRepair.Enabled ? "on" : "off"))
+            {
+                UnityMotionRepair.Enabled = !UnityMotionRepair.Enabled;
+                Debug.Log(Log.Tag + " Motion vector repair " + (UnityMotionRepair.Enabled ? "on." : "off."));
+            }
+
             // Half a second of what the monitor shows, frame generation's frames included,
             // into ReDefinitionCaptures beside KSP_x64.exe (ScreenRecordingBridge).
             // Five seconds after the click, time to close the windows and turn the camera.

@@ -54,10 +54,6 @@ namespace ReDefinition.MotionVectorCheck
             sceneDepth = new RenderTexture(Width, Height, 0, RenderTextureFormat.RFloat);
             // As the rig captures it: in the deferred path the only source that holds depth.
             capture.Blit(BuiltinRenderTextureType.ResolvedDepth, sceneDepth);
-            // As the plugin clears it once copied (ScaledSpaceMotion): Unity has to write
-            // every pixel anew in the next frame.
-            capture.SetRenderTarget(BuiltinRenderTextureType.MotionVectors);
-            capture.ClearRenderTarget(false, true, new Color(-100f, -100f, 0f, 0f));
             cam.AddCommandBuffer(CameraEvent.BeforeImageEffects, capture);
 
             sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -75,6 +71,7 @@ namespace ReDefinition.MotionVectorCheck
             Graphics.Blit(Texture2D.blackTexture, farDepth);
             Graphics.Blit(Texture2D.blackTexture, noMotion);
             pass = new Material(cloudMotion);
+            AttachRepair();
 
             result.AppendLine("device " + SystemInfo.graphicsDeviceType + " uvStartsAtTop "
                               + SystemInfo.graphicsUVStartsAtTop + " passes " + pass.passCount);
@@ -89,6 +86,7 @@ namespace ReDefinition.MotionVectorCheck
             yield return DepthSources();
             yield return ShadowCases();
             yield return FarCase();
+            yield return RepairCase();
 
             System.IO.File.WriteAllText(path, result.ToString());
             Application.Quit();
@@ -137,12 +135,17 @@ namespace ReDefinition.MotionVectorCheck
             Texture2D image = Read(color, TextureFormat.RGBAHalf);
             Texture2D unity = Read(unityMotion, TextureFormat.RGBAFloat);
             Texture2D ours = Read(computed, TextureFormat.RGBAFloat);
+            Texture2D repairSeen = Read(repairCopy, TextureFormat.RGHalf);
+            Texture2D marked = Read(markedCopy, TextureFormat.RGHalf);
             Vector2 unitySum = Vector2.zero, oursSum = Vector2.zero;
-            int pixels = 0, covered = 0, unwritten = 0;
+            int pixels = 0, covered = 0, unwritten = 0, markedPixels = 0;
             for (int y = 0; y < Height; y++)
                 for (int x = 0; x < Width; x++)
-                    if (unity.GetPixel(x, y).r < -50f) unwritten++;
-            result.AppendLine("unwritten " + label + " " + unwritten);
+                {
+                    if (repairSeen.GetPixel(x, y).r < -50f) unwritten++;
+                    if (marked.GetPixel(x, y).r < -50f) markedPixels++;
+                }
+            result.AppendLine("unwritten " + label + " " + unwritten + " " + markedPixels + " " + Width * Height);
             for (int y = 0; y < Height; y++)
             {
                 for (int x = 0; x < Width; x++)
