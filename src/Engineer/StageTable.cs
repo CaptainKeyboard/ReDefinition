@@ -20,6 +20,12 @@ namespace ReDefinition.Engineer
         public double StartMass;
         public double EndMass;
 
+        // In vacuum, whatever situation is chosen: what the planner budgets with.
+        public double DeltaVVacuum;
+        public double ThrustVacuum;
+        // The engines that burn in it, as "2 x LV-T45"; empty where none do.
+        public string Engines = "";
+
         // What is dropped with this stage, and what is attached while it burns.
         public int OwnParts;
         public int AttachedParts;

@@ -32,6 +32,9 @@ namespace ReDefinition.Engineer
         }
 
         public List<StageRow> Stages = new List<StageRow>();
+        // By stage number: the engines that burn in it and the parts whose
+        // propellant it burns (PartsBurning).
+        public Dictionary<int, List<Part>> BurningParts = new Dictionary<int, List<Part>>();
         public List<ResourceLine> Resources = new List<ResourceLine>();
         public RcsLine Rcs;
 
@@ -72,6 +75,7 @@ namespace ReDefinition.Engineer
             {
                 if (info == null) continue;
                 rows.Add(RowOf(info, partInfos, vectoredThrust));
+                readout.BurningParts[info.stage] = PartsBurning(info, partInfos);
             }
             readout.Stages = StageTable.Complete(rows);
             readout.TotalDeltaV = StageTable.TotalDeltaV(readout.Stages);
@@ -92,6 +96,9 @@ namespace ReDefinition.Engineer
                 BurnTime = info.stageBurnTime,
                 StartMass = info.startMass,
                 EndMass = info.endMass,
+                DeltaVVacuum = info.deltaVinVac,
+                ThrustVacuum = vectoredThrust ? info.vectoredThrustVac : info.thrustVac,
+                Engines = EnginesOf(info),
             };
             // KSP's TWR is of the full thrust; with the vectored thrust the ratio
             // follows it.
@@ -115,6 +122,46 @@ namespace ReDefinition.Engineer
             }
             row.ThrustTorque = ThrustTorque(info, partInfos);
             return row;
+        }
+
+        // The engines active in the stage, and every part that has less
+        // propellant at the stage's end than at its start: KSP's simulation keeps
+        // that per part and stage (DeltaVPartInfo.stageFuelMass, decompiled).
+        private static List<Part> PartsBurning(DeltaVStageInfo info, List<DeltaVPartInfo> partInfos)
+        {
+            List<Part> parts = new List<Part>();
+            if (info.enginesActiveInStage != null)
+                foreach (DeltaVEngineInfo engine in info.enginesActiveInStage)
+                    if (engine != null && engine.engine != null && engine.engine.part != null && !parts.Contains(engine.engine.part))
+                        parts.Add(engine.engine.part);
+            if (partInfos == null) return parts;
+            foreach (DeltaVPartInfo partInfo in partInfos)
+            {
+                if (partInfo == null || partInfo.part == null || partInfo.stageFuelMass == null) continue;
+                DeltaVPartInfo.PartStageFuelMass fuel;
+                if (!partInfo.stageFuelMass.TryGetValue(info.stage, out fuel) || fuel == null) continue;
+                if (fuel.startMass - fuel.endMass > 1e-4f && !parts.Contains(partInfo.part)) parts.Add(partInfo.part);
+            }
+            return parts;
+        }
+
+        // The engines burning in a stage by title, counted: "2 x LV-T45, 1 x Spark".
+        private static string EnginesOf(DeltaVStageInfo info)
+        {
+            if (info.enginesActiveInStage == null || info.enginesActiveInStage.Count == 0) return "";
+            Dictionary<string, int> counts = new Dictionary<string, int>();
+            List<string> order = new List<string>();
+            foreach (DeltaVEngineInfo engine in info.enginesActiveInStage)
+            {
+                Part part = engine != null && engine.engine != null ? engine.engine.part : null;
+                string title = part != null && part.partInfo != null ? part.partInfo.title : "engine";
+                int count;
+                if (!counts.TryGetValue(title, out count)) order.Add(title);
+                counts[title] = count + 1;
+            }
+            List<string> text = new List<string>();
+            foreach (string title in order) text.Add(counts[title] + " x " + title);
+            return string.Join(", ", text.ToArray());
         }
 
         // As ShipConstruct.GetShipCosts does it for the whole vessel: the part's

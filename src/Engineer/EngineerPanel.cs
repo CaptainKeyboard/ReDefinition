@@ -14,8 +14,9 @@ namespace ReDefinition.Engineer
     // with the panel as the layout's parent, decompiled) and updated here, as a
     // PopupDialog updates its dialog every frame.
     //
-    // From the top: the situation the numbers are for, the vessel as a whole, the
-    // stages, RCS, the resources, and the part under the mouse. The situation is
+    // Two tabs. Engineer, from the top: the situation the numbers are for, the
+    // vessel as a whole, the stages, RCS, the resources, and the part under the
+    // mouse. Planner: a route and the fuel for it (PlannerView). The situation is
     // KSP's delta-v app's own (DeltaVGlobals.DeltaVAppValues), and KSP's staging
     // stack follows it. KSP's delta-v app reads it only as it opens
     // (DeltaVAppSituation.Awake, decompiled): while it stands open it keeps
@@ -33,6 +34,9 @@ namespace ReDefinition.Engineer
         private GameObject host;
         private DialogGUIBase root;
         private float width;
+
+        private bool planner;
+        private PlannerView plannerView;
 
         private readonly HashSet<int> expanded = new HashSet<int>();
         private List<StageRow> shown = new List<StageRow>();
@@ -75,17 +79,33 @@ namespace ReDefinition.Engineer
             width = panelWidth - Padding * 2f - 18f;
 
             UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
+            List<DialogGUIBase> engineer = new List<DialogGUIBase>();
+            engineer.AddRange(SituationRows());
+            engineer.AddRange(VesselRows());
+            engineer.AddRange(StageRows());
+            engineer.AddRange(RcsRows());
+            engineer.AddRange(ResourceRows());
+            engineer.AddRange(PartRows());
+            engineer.AddRange(NoticeRows());
+            DialogGUIVerticalLayout engineerTab = new DialogGUIVerticalLayout(width, -1f, 3f, new RectOffset(), TextAnchor.UpperLeft,
+                engineer.ToArray());
+            engineerTab.OptionEnabledCondition = () => !planner;
+
+            plannerView = new PlannerView(owner, width);
+            DialogGUIVerticalLayout plannerTab = new DialogGUIVerticalLayout(width, -1f, 3f, new RectOffset(), TextAnchor.UpperLeft,
+                plannerView.Rows().ToArray());
+            plannerTab.OptionEnabledCondition = () => planner;
+
+            float half = (width - 4f) / 2f;
             List<DialogGUIBase> rows = new List<DialogGUIBase>
             {
                 new DialogGUIContentSizer(ContentSizeFitter.FitMode.Unconstrained, ContentSizeFitter.FitMode.PreferredSize, true),
+                new DialogGUIHorizontalLayout(width, RowHeight + 6f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                    new DialogGUIToggleButton(() => !planner, "Engineer", on => { if (on) planner = false; }, half, RowHeight + 6f),
+                    new DialogGUIToggleButton(() => planner, "Planner", on => { if (on) planner = true; }, half, RowHeight + 6f)),
+                engineerTab,
+                plannerTab,
             };
-            rows.AddRange(SituationRows());
-            rows.AddRange(VesselRows());
-            rows.AddRange(StageRows());
-            rows.AddRange(RcsRows());
-            rows.AddRange(ResourceRows());
-            rows.AddRange(PartRows());
-            rows.AddRange(NoticeRows());
 
             DialogGUIVerticalLayout content = new DialogGUIVerticalLayout(width, -1f, 3f,
                 new RectOffset((int)Padding, (int)Padding, 6, 10), TextAnchor.UpperLeft, rows.ToArray());
@@ -108,10 +128,12 @@ namespace ReDefinition.Engineer
         internal void Show(bool on)
         {
             if (host != null) host.SetActive(on);
+            if (!on && plannerView != null) plannerView.Flush();
         }
 
         internal void Destroy()
         {
+            if (plannerView != null) plannerView.Dispose();
             if (host != null) UnityEngine.Object.Destroy(host);
             host = null;
         }
@@ -121,7 +143,12 @@ namespace ReDefinition.Engineer
             if (host == null || root == null) return;
             EditorReadout readout = owner.Readout ?? new EditorReadout();
             shown = StageTable.Shown(readout.Stages, settings != null && settings.EngineerAllStages);
-            if (settings == null || settings.EngineerPartDetails) TrackPart();
+            if (!planner && (settings == null || settings.EngineerPartDetails)) TrackPart();
+            if (plannerView != null)
+            {
+                if (planner) plannerView.Update();
+                else plannerView.Idle();
+            }
             root.Update();
         }
 

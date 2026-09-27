@@ -29,6 +29,10 @@
 | Word | Means |
 |---|---|
 | engineer view | The mode of the VAB and the SPH that shows delta-v, TWR and burn time per stage, RCS, the resources and the part under the mouse. Its button, with *Δv* on it, is next to KSP's mode buttons above the parts list. |
+| planner | The second tab of the engineer view. It lays out a route from stop to stop, works out the delta-v of each leg and assigns the vessel's stages to the legs. |
+| stop | A place on the planner's route: a body, on its surface or in an orbit at an altitude. |
+| leg | The flight from one stop of the planner's route to the next. |
+| lander | In the planner, the stages that fly down and back up alone while the rest of the vessel waits, and are then carried on. |
 | summary line | The line beside the parts list with the vessel's delta-v, TWR at launch, mass and parts. A click on it opens the engineer view. |
 | navball position | How far the navball stands from the bottom centre of the flight screen. Dragging its show/hide button sets it, and so does *Navball position* in the settings window. |
 | situation | Where the engineer view's numbers are for: a body, and sea level, an altitude in its atmosphere, or vacuum. It is the situation of KSP's own delta-v app. |

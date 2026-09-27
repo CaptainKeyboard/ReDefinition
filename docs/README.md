@@ -18,6 +18,7 @@ beside it.
 | choose a graphics profile and see what it sets | [player/graphics-profiles.md](player/graphics-profiles.md) |
 | set up upscaling or frame generation, and know what they cost | [player/upscaler-and-frame-generation.md](player/upscaler-and-frame-generation.md) |
 | see delta-v, TWR and burn time per stage while you build | [player/engineer.md](player/engineer.md) |
+| plan a mission and check the vessel carries enough fuel | [player/planner.md](player/planner.md) |
 | move the navball to the left or right | [player/navball.md](player/navball.md) |
 
 ## For mod and visual pack authors
@@ -51,6 +52,7 @@ beside it.
 | understand the settings store | [development/settings-store.md](development/settings-store.md) |
 | understand the interface for mods | [development/shared-foundation.md](development/shared-foundation.md) |
 | understand the engineer view in the editor | [development/engineer.md](development/engineer.md) |
+| understand the planner's route and fuel budget | [development/planner.md](development/planner.md) |
 | write or change a page here | [development/writing-these-pages.md](development/writing-these-pages.md) |
 | see what is done, open or settled | [project/status.md](project/status.md), [project/reviews.md](project/reviews.md) |
 

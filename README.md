@@ -30,6 +30,8 @@ graphics mods; any mod can join with a config file.
 * **Engineer view in the VAB and SPH.** A mode beside the parts list with delta-v, TWR and
   burn time per stage, RCS, resources and the part under the mouse, from KSP's own
   delta-v simulation.
+* **Mission planner.** Lay out a route such as Kerbin → Mun → Minmus → Kerbin, and see
+  whether your stages carry enough fuel for every leg, with the parts they use marked green.
 
 ### Added to the game
 

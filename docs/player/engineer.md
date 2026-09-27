@@ -10,6 +10,9 @@ mouse. It is a mode of the editor, next to KSP's own parts, action groups, crew 
 modes. The numbers come from KSP's own delta-v simulation, so they always match the
 delta-v KSP shows in its staging stack.
 
+The view has two tabs. *Engineer* is described on this page. *Planner* plans a route and
+checks the fuel for it: see [planner.md](planner.md).
+
 ## Open the view
 
 1. In the VAB or the SPH, look at the mode buttons above the parts list.
