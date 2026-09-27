@@ -51,7 +51,7 @@ beside it.
 | understand frame generation | [development/frame-generation.md](development/frame-generation.md) |
 | understand the settings store | [development/settings-store.md](development/settings-store.md) |
 | understand the interface for mods | [development/shared-foundation.md](development/shared-foundation.md) |
-| understand the engineer view in the editor | [development/engineer.md](development/engineer.md) |
+| understand the engineer window and the planner's place in the editor | [development/engineer.md](development/engineer.md) |
 | understand the planner's route and fuel budget | [development/planner.md](development/planner.md) |
 | write or change a page here | [development/writing-these-pages.md](development/writing-these-pages.md) |
 | see what is done, open or settled | [project/status.md](project/status.md), [project/reviews.md](project/reviews.md) |

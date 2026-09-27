@@ -8,7 +8,7 @@ using UnityEngine;
 namespace ReDefinition.Engineer
 {
     // One vessel's plan: its route, the margin, whether plane changes count, the
-    // stages kept for a leg, the lander and who flies each leg. Kept per vessel name in
+    // stages pinned to legs, the lander and who flies each leg. Kept per vessel name in
     // GameData/ReDefinition/PluginData/planner.cfg, so that a craft brings its
     // plan back when it is loaded into the editor again.
     internal sealed class PlannerState
@@ -16,7 +16,57 @@ namespace ReDefinition.Engineer
         public readonly List<RouteStop> Stops = new List<RouteStop>();
         public double Margin = 0.1;
         public bool PlaneChanges;
-        public readonly Dictionary<int, int> Kept = new Dictionary<int, int>();
+        // Stage number to the legs it is pinned to (StageBudget).
+        public readonly Dictionary<int, HashSet<int>> Pins = new Dictionary<int, HashSet<int>>();
+
+        internal bool IsPinned(int stage, int leg)
+        {
+            HashSet<int> legs;
+            return Pins.TryGetValue(stage, out legs) && legs.Contains(leg);
+        }
+
+        internal void Pin(int stage, int leg, bool on)
+        {
+            HashSet<int> legs;
+            if (!Pins.TryGetValue(stage, out legs))
+            {
+                if (!on) return;
+                legs = new HashSet<int>();
+                Pins[stage] = legs;
+            }
+            if (on) legs.Add(leg);
+            else legs.Remove(leg);
+            if (legs.Count == 0) Pins.Remove(stage);
+        }
+
+        // The legs after a removed stop move up by one. The leg into it and the
+        // leg out of it become one leg: it keeps the pins of neither, since it
+        // costs what neither did, and who flies it as the leg out of it.
+        internal void RemoveStop(int index)
+        {
+            Dictionary<int, HashSet<int>> pins = new Dictionary<int, HashSet<int>>();
+            foreach (KeyValuePair<int, HashSet<int>> pair in Pins)
+            {
+                HashSet<int> legs = new HashSet<int>();
+                foreach (int leg in pair.Value)
+                {
+                    if (leg == index || leg == index - 1) continue;
+                    legs.Add(leg > index ? leg - 1 : leg);
+                }
+                if (legs.Count > 0) pins[pair.Key] = legs;
+            }
+            Pins.Clear();
+            foreach (KeyValuePair<int, HashSet<int>> pair in pins) Pins[pair.Key] = pair.Value;
+
+            Dictionary<int, LegMode> modes = new Dictionary<int, LegMode>();
+            foreach (KeyValuePair<int, LegMode> pair in Modes)
+            {
+                if (pair.Key == index - 1 || (index == 0 && pair.Key == 0)) continue;
+                modes[pair.Key >= index ? pair.Key - 1 : pair.Key] = pair.Value;
+            }
+            Modes.Clear();
+            foreach (KeyValuePair<int, LegMode> pair in modes) Modes[pair.Key] = pair.Value;
+        }
         // The highest stage of the lander, -1 for none (StageBudget).
         public int Lander = -1;
         public readonly Dictionary<int, LegMode> Modes = new Dictionary<int, LegMode>();
@@ -67,7 +117,7 @@ namespace ReDefinition.Engineer
             }
             catch (Exception e)
             {
-                Debug.LogWarning(Log.Tag + " The engineer view's plans could not be read: " + e.Message);
+                Debug.LogWarning(Log.Tag + " The planner's plans could not be read: " + e.Message);
             }
             return Default(bodies);
         }
@@ -91,7 +141,7 @@ namespace ReDefinition.Engineer
             }
             catch (Exception e)
             {
-                Debug.LogWarning(Log.Tag + " The engineer view's plan could not be saved: " + e.Message);
+                Debug.LogWarning(Log.Tag + " The planner's plan could not be saved: " + e.Message);
             }
         }
 
@@ -134,12 +184,13 @@ namespace ReDefinition.Engineer
                 stopNode.AddValue("altitude", stop.Altitude.ToString("0", CultureInfo.InvariantCulture));
                 stopNode.AddValue("useAtmosphere", stop.UseAtmosphere);
             }
-            foreach (KeyValuePair<int, int> pair in Kept)
-            {
-                ConfigNode keep = node.AddNode("KEEP");
-                keep.AddValue("stage", pair.Key);
-                keep.AddValue("leg", pair.Value);
-            }
+            foreach (KeyValuePair<int, HashSet<int>> pair in Pins)
+                foreach (int leg in pair.Value)
+                {
+                    ConfigNode pin = node.AddNode("PIN");
+                    pin.AddValue("stage", pair.Key);
+                    pin.AddValue("leg", leg);
+                }
             foreach (KeyValuePair<int, LegMode> pair in Modes)
             {
                 if (pair.Value == LegMode.Whole) continue;
@@ -187,14 +238,14 @@ namespace ReDefinition.Engineer
                 if (bool.TryParse(stopNode.GetValue("useAtmosphere"), out useAtmosphere)) stop.UseAtmosphere = useAtmosphere;
                 state.Stops.Add(stop);
             }
-            // With a stop gone, the legs are not the ones the stages were kept
-            // for and the modes set for.
+            // With a stop gone, the legs are not the ones the stages were pinned
+            // to and the modes set for.
             if (skipped) return state;
-            foreach (ConfigNode keep in node.GetNodes("KEEP"))
+            foreach (ConfigNode pin in node.GetNodes("PIN"))
             {
                 int stage, leg;
-                if (int.TryParse(keep.GetValue("stage"), out stage) && int.TryParse(keep.GetValue("leg"), out leg))
-                    state.Kept[stage] = leg;
+                if (int.TryParse(pin.GetValue("stage"), out stage) && int.TryParse(pin.GetValue("leg"), out leg) && leg >= 0)
+                    state.Pin(stage, leg, true);
             }
             foreach (ConfigNode modeNode in node.GetNodes("MODE"))
             {

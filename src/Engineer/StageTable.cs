@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace ReDefinition.Engineer
 {
-    // One stage of the vessel in the editor, as the engineer view lists it: what
+    // One stage of the vessel in the editor, as the engineer window lists it: what
     // KSP's own delta-v simulation gives for it (VesselDeltaV) and what is worked
     // out beside it. Stages are numbered as KSP numbers them: the highest fires
     // first, stage 0 last.
@@ -41,7 +41,7 @@ namespace ReDefinition.Engineer
         public double TwrMax;
     }
 
-    // The table the engineer view shows, worked out from the stages: delta-v left
+    // The table the engineer window shows, worked out from the stages: delta-v left
     // from each stage on, and the thrust-to-weight ratio at each stage's end. Free
     // of Unity, tested.
     internal static class StageTable

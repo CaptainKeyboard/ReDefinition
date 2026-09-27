@@ -1,12 +1,12 @@
 # The planner
 
-**For:** anyone changing the planner tab of the engineer view.
+**For:** anyone changing the planner in the VAB and the SPH.
 **You need:** the repository, and `src/Engineer/Planner` open.
 **You get:** how the planner works out a route's delta-v, how it assigns the vessel's
 stages to the legs, and where its plans are kept.
 
-The player's side is in [player/planner.md](../player/planner.md). The engineer view it
-lives in is explained in [engineer.md](engineer.md).
+The player's side is in [player/planner.md](../player/planner.md). How the planner's
+panel sits in KSP's editor is in [engineer.md](engineer.md).
 
 ## The parts of the planner
 
@@ -16,37 +16,41 @@ lives in is explained in [engineer.md](engineer.md).
 | `src/Engineer/Planner/StageBudget.cs` | which stage pays for which leg, on the mass the stages push. Free of Unity |
 | `src/Engineer/Planner/PlannerBodies.cs` | the bodies of the loaded system, read from `FlightGlobals.Bodies` |
 | `src/Engineer/Planner/PlannerState.cs` | one vessel's plan, and its file |
-| `src/Engineer/Planner/PlannerView.cs` | the tab's plan: loading, saving, working it out, the choices the rows make |
-| `src/Engineer/Planner/PlannerView.Rows.cs` | the tab's rows, built from KSP's dialog elements as the engineer tab is |
-| `src/Engineer/Planner/PlannerWidgets.cs` | the symbols on KSP's buttons, the coloured bars, the stage colours and the list of bodies |
-| `src/Engineer/Planner/PartHighlight.cs` | marks the parts of a selected leg or stage green on the vessel |
+| `src/Engineer/Planner/PlannerView.cs` | the plan: loading, saving, working it out, the choices the rows make, the colours on the vessel |
+| `src/Engineer/Planner/PlannerView.Rows.cs` | the planner's rows, built from KSP's dialog elements |
+| `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the pin marks, the stage colours and the list of bodies |
+| `src/Engineer/Planner/PartHighlight.cs` | colours parts on the vessel with KSP's part highlighter |
+| `src/Engineer/PlannerPanel.cs` | the panel the rows stand in, over the parts panel |
 
-## How the tab is drawn
+## How the planner is drawn
 
-The tab uses no text to explain itself. The route is a line of stops with a bar for each
-leg. The bar's length is the leg's delta-v, on one scale for all legs, and its colours
-are the stages that pay for it. Choices are symbols laid on KSP's own buttons and
-toggles (`PlannerWidgets.IconToggle`, `IconButton`). So the buttons keep the skin's
-states and a UI theme such as ZTheme reaches them as it reaches KSP's dialogs. The
-symbols are `GameData/ReDefinition/Icons/Planner_*.png`, white on clear, drawn by
-`tools/make_icon.py`. A bar is a row of `DialogGUIImage`s whose widths and colours
-`SegmentBar` sets after they are created. The body list is a small `PopupDialog` by the
-pointer (`BodyPicker`), shielded from the editor's clicks.
+The planner uses no text to explain itself. From the top:
 
-`DialogGUIToggle.Update` sets each toggle to its value every frame. Unity reports it
-as a change whenever the value differs from the toggle's state: after a click, and when
-a hidden toggle is shown again **[src]**. So every toggle's action only acts on a real
-change. A `DialogGUIToggleButton` gets a label only for a fixed text, so the stage
-buttons carry a `DialogGUILabel` of their own **[src]**.
+* The route is a line of stops with a bar for each leg. The bar's length is the leg's
+  delta-v, on one scale for all legs, and its colours are the stages that pay for it. A
+  bar is a row of `DialogGUIImage`s whose widths and colours `SegmentBar` sets after they
+  are created.
+* One bar sums up the route, with the margin and the plane changes under it.
+* The fuel plan is a table of stages by legs. A cell is a button of KSP's skin with the
+  delta-v the stage gives to the leg, in the stage's colour. A pin is a symbol in the
+  cell's corner (`IconMark`).
+* The details of the selected leg or stage close the panel.
 
-The tab has room for 12 stops, 40 stages in the list, and 24 stages in a leg's bar and
-among its buttons. The body list opens in the middle of the screen. KSP places a dialog
-elsewhere through a formula that fails at a UI scale of 200 %
-(`PopupDialog.OnRectTransformDimensionsChange`) **[src]**.
+Choices are buttons of KSP's skin whose text is lit green while their option is chosen.
+The skin's pressed state of a toggle button reads the other way round, so it is not
+used. Symbols are `GameData/ReDefinition/Icons/Planner_*.png`, white on clear, drawn by
+`tools/make_icon.py`. The body list is a small `PopupDialog` in the middle of the screen
+(`BodyPicker`), shielded from the editor's clicks. KSP places a dialog elsewhere through
+a formula that fails at a UI scale of 200 % (`PopupDialog.OnRectTransformDimensionsChange`)
+**[src]**.
 
-`EngineerPanel` holds both tabs. Each is a vertical layout that shows while its tab is
-chosen. The planner is worked out again four times a second while its tab is open. The
-two free-of-Unity parts have unit tests in `tests/ReDefinition.Tests/PlannerTests.cs`.
+While the planner is open, every stage's engines and tanks show in the stage's colour on
+the vessel. A selected leg leaves only the stages that pay for it, a selected stage only
+that one.
+
+The planner has room for 10 stops, so nine legs side by side in the fuel plan, and 30
+stages. It is worked out again four times a second while it is open. The two
+free-of-Unity parts have unit tests in `tests/ReDefinition.Tests/PlannerTests.cs`.
 
 ## Where the bodies come from
 
@@ -117,18 +121,32 @@ another stage's engines. The staging and the fuel lines set that.
 `EditorReadout.BurningParts` lists, per stage, the parts that burn in it. These are the
 engines active in the stage (`DeltaVStageInfo.enginesActiveInStage`). They are also the
 parts that hold less propellant at the stage's end than at its start. KSP's simulation
-keeps that per part and stage in `DeltaVPartInfo.stageFuelMass` **[src]**. The view marks
-the parts of a selected leg or stage with `PartHighlight`. It sets KSP's own part
-highlighter to always on in green, and back to its default when the mark goes
-(`Part.SetHighlightType`, `SetHighlightColor`, `SetHighlightDefault`) **[src]**.
+keeps that per part and stage in `DeltaVPartInfo.stageFuelMass` **[src]**. `PartHighlight`
+colours them with KSP's own part highlighter, always on in a colour per part, and back
+to its default when the colour goes (`Part.SetHighlightType`, `SetHighlightColor`,
+`SetHighlightDefault`) **[src]**.
 
-### Kept stages
+### Pins
 
-The player can keep a stage for a leg. The legs before it then do not burn it, nor any
-stage after it in KSP's order, the lander's included. KSP can only fire stages in order.
-When that leg comes, the stages before the kept one are dropped with what they still
-hold. The result lists that as `Dropped`, in delta-v at the mass the stage pushes at
-that moment. While the lander flies alone, the rest waits and drops nothing.
+The player can pin a stage to one or more legs:
+
+* A leg with pins burns its pinned stages only, in KSP's order. If they are not enough,
+  the rest of the leg is short.
+* When a pinned stage fires, the stages before it in its group are dropped with what
+  they still hold. The result lists that as `Dropped`, in delta-v at the mass the stage
+  pushes at that moment.
+* A leg without pins burns in KSP's order and stops before a stage pinned to a later
+  leg, and so before every stage after it, the lander's included. KSP can only fire
+  stages in order.
+* A pinned stage that is already dropped or burnt out when its leg comes goes into
+  `Unreachable`, as stage and leg.
+* While the lander flies alone, the rest waits and drops nothing. A pin of the rest's
+  stage on such a leg is unreachable too.
+* A leg of the whole vessel with a pinned stage of the lander stages the rest away
+  first, with what it holds, as KSP's order has it. If the lander still flies alone
+  later, the rest stays attached instead: the lander docks to it again.
+* A leg stops at the first pins that pay for it. The pinned stages after them keep
+  their fuel.
 
 ### A lander
 
@@ -138,8 +156,8 @@ first stage with delta-v. The stages without delta-v fired just before it count 
 lander (`PlannerView.LanderTop`), since the decoupler's stage is among them. The
 lander's mass is its top stage's start mass: what KSP's staging leaves once the stages
 before it are gone. So the lander's decoupler or docking port has to be in one of those
-stages. If it is not, the
-lander's mass includes the rest, and the planner underestimates the lander. The last
+stages. If it is not, the lander's mass includes the rest, and the planner
+underestimates the lander. The last
 stage of the rest is not dropped when it runs empty, because the lander returns to it.
 It goes when the whole vessel starts to burn the lander's stages and no leg of the
 lander alone is ahead. KSP's own simulation drops it at that point.
@@ -148,7 +166,7 @@ Each leg is flown in one of three ways (`LegMode`):
 
 | Mode | Stages that burn | Mass they push |
 |---|---|---|
-| `Whole` | the rest first, then the lander's, unless a kept stage of the rest holds them back | everything still attached |
+| `Whole` | the rest first, then the lander's, unless a pinned stage of the rest holds them back | everything still attached |
 | `Lander` | the lander's | the lander alone |
 | `WithoutLander` | the rest's | the rest alone. The lander stays behind with what it holds, and no later leg has it |
 
@@ -176,7 +194,7 @@ PLAN
         altitude = 0
         useAtmosphere = False
     }
-    KEEP
+    PIN
     {
         stage = 3
         leg = 2
@@ -191,18 +209,19 @@ PLAN
 
 Bodies are kept by the name the game knows them by (`CelestialBody.bodyName`), which
 does not change with the language. If a body of the plan is not in the loaded system,
-its stop is left out. The kept stages and the modes then go too, because the legs are
-not the same. The vessel's name is kept escaped (`Uri.EscapeDataString`), because a
+its stop is left out. The pins and the modes then go too, because the legs are not the
+same. A stop that is removed takes the pins and the mode of the legs into it and out of
+it along. The vessel's name is kept escaped (`Uri.EscapeDataString`), because a
 config file reads `//` as a comment. If there are 200 plans, the oldest goes.
 
-A change is written 1.5 seconds after the last one, when the view closes, and when the
-editor closes. When KSP loads a vessel or starts a new one (`GameEvents.onEditorLoad`,
+A change is written 1.5 seconds after the last one, when the planner closes, and when
+the editor closes. When KSP loads a vessel or starts a new one (`GameEvents.onEditorLoad`,
 `onEditorRestart`) **[src]**, the planner loads that vessel's plan, or the default. A
 craft merged into the vessel changes nothing. If the vessel is renamed, its plan goes
 on under the new name.
 
-The plan keeps a kept stage or the lander even while the vessel does not have that
-stage, for example while the player takes the vessel apart. Such a setting counts for
+The plan keeps a pin or the lander even while the vessel does not have that stage, for
+example while the player takes the vessel apart. Such a setting counts for
 nothing until the stage is back.
 
 ## Where the approach comes from

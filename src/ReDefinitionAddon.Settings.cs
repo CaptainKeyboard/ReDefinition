@@ -127,7 +127,7 @@ namespace ReDefinition
             settings.DiagnosticsKey = from.DiagnosticsKey;
             settings.CameraListKey = from.CameraListKey;
             settings.EngineerKey = from.EngineerKey;
-            settings.EngineerSummary = from.EngineerSummary;
+            settings.EngineerWindow = from.EngineerWindow;
             settings.EngineerAllStages = from.EngineerAllStages;
             settings.EngineerVectoredThrust = from.EngineerVectoredThrust;
             settings.EngineerPartDetails = from.EngineerPartDetails;
@@ -144,7 +144,7 @@ namespace ReDefinition
             if (before.DiagnosticsKey != after.DiagnosticsKey) settings.DiagnosticsKey = after.DiagnosticsKey;
             if (before.CameraListKey != after.CameraListKey) settings.CameraListKey = after.CameraListKey;
             if (before.EngineerKey != after.EngineerKey) settings.EngineerKey = after.EngineerKey;
-            if (before.EngineerSummary != after.EngineerSummary) settings.EngineerSummary = after.EngineerSummary;
+            if (before.EngineerWindow != after.EngineerWindow) settings.EngineerWindow = after.EngineerWindow;
             if (before.EngineerAllStages != after.EngineerAllStages) settings.EngineerAllStages = after.EngineerAllStages;
             if (before.EngineerVectoredThrust != after.EngineerVectoredThrust)
                 settings.EngineerVectoredThrust = after.EngineerVectoredThrust;

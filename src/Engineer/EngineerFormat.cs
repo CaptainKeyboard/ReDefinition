@@ -3,7 +3,7 @@ using System.Globalization;
 
 namespace ReDefinition.Engineer
 {
-    // How the engineer view writes its numbers: in the invariant culture, with
+    // How the engineer window and the planner write its numbers: in the invariant culture, with
     // thousands separators, and in the units KSP's own delta-v app uses -- m/s, kN,
     // tonnes, seconds. Free of Unity, tested.
     internal static class EngineerFormat

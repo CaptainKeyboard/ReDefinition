@@ -1,11 +1,14 @@
-# The engineer view
+# The engineer window and the planner's place in the editor
 
-**For:** anyone changing the engineer view in the VAB and the SPH.
+**For:** anyone changing the engineer window or the planner's panel in the VAB and the
+SPH.
 **You need:** the repository, and `src/Engineer` open.
-**You get:** where the view's numbers come from, how it sits in KSP's editor, and where
-each part of Kerbal Engineer Redux's build view went.
+**You get:** where the numbers come from, how the window and the planner sit in KSP's
+editor, and where each part of Kerbal Engineer Redux's build view went.
 
-The player's side is in [player/engineer.md](../player/engineer.md).
+The player's side is in [player/engineer.md](../player/engineer.md) and
+[player/planner.md](../player/planner.md). How the planner works out a route is in
+[planner.md](planner.md).
 
 ## Where the numbers come from
 
@@ -15,68 +18,89 @@ editor itself, in `VesselDeltaV` on `ShipConstruct.vesselDeltaV` **[src]**. Its
 impulse, thrust and TWR, each at sea level, in vacuum and in the chosen situation,
 together with its start, end and dry mass and its burn time **[src]**. The situation is
 `DeltaVGlobals.DeltaVAppValues`: a body, sea level, an altitude or vacuum. KSP's delta-v
-app writes it and then calls `SetCalcsDirty(true)` **[src]**. The engineer view does the
-same, and KSP's staging stack follows. KSP's delta-v app reads the situation only as it
-opens (`DeltaVAppSituation.Awake`), and a change in it writes all of its own values back
-**[src]**. While it stands open, it can show another situation than the view.
+app writes it and then calls `SetCalcsDirty(true)` **[src]**. `EngineerSituation` does
+the same, and KSP's staging stack follows. KSP's delta-v app reads the situation only as
+it opens (`DeltaVAppSituation.Awake`), and a change in it writes all of its own values
+back **[src]**. While it stands open, it can show another situation than the window.
 
-`EditorReadout` reads the simulation four times a second while the view or its summary
-line is shown. It adds what KSP does not give:
+`EditorReadout` reads the simulation four times a second. It adds what KSP does not
+give:
 
 | Worked out | How |
 |---|---|
 | parts and cost of each stage | from `DeltaVPartInfo.decoupleStage`: a part is attached while a stage burns if KSP decouples it at that stage or later, and dropped with it if it decouples at it. This is the test `DeltaVStageInfo.ProcessParts` uses **[src]**. Costs are counted as `ShipConstruct.GetShipCosts` counts them **[src]** |
 | TWR at the end of a stage | the TWR KSP gives at the start, times start mass over end mass (`StageTable`) |
-| delta-v left | the stage's delta-v and that of every stage after it (`StageTable`) |
 | thrust torque | the sum of every burning engine's thrust about the centre of mass of what is attached. The thrust pushes against a thrust transform's forward axis |
+| the parts that burn in a stage | the engines active in it, and the parts that hold less propellant at its end than at its start (`DeltaVPartInfo.stageFuelMass`) **[src]** |
 | RCS | the RCS thrusters and their propellant on what is left at the last stage, with Tsiolkovsky's equation and KSP's g0, 9.80665 m/s² |
 | resources | every part's resources, summed by name |
-| part details | `PartDetails`, from the part's modules, read again four times a second. `Mouse.HoveredPart` is a raycast that ignores the UI **[src]**, so the part is not read while the pointer is over a window |
+| part details | `PartDetails`, from the part's modules |
 | mass and cost | `ShipConstruct.GetShipMass` and `GetShipCosts` with `ShipConstruction.ShipManifest`, so the crew and their inventory count as KSP's cost widget and mass limit count them **[src]** |
 
 `StageTable` and `EngineerFormat` do not depend on Unity and have unit tests
 (`tests/ReDefinition.Tests/EngineerTests.cs`).
 
-## How the view sits in KSP's editor
+## How the engineer window sits in the editor
+
+`EngineerWindow` is a panel of KSP's dialog elements in the editor's UI, beside the parts panel
+rather than inside it. It shows while the parts list is shown, and the vessel is read only
+while it or the planner needs it. Its background is the skin's window sprite, so a UI theme
+such as ZTheme reaches it as it reaches KSP's dialogs. It is anchored at the bottom centre of
+the screen and moved by dragging its background (`WindowDrag`). Unity hands a drag to the first
+handler above the pointer: a button takes none, so the drag moves the window, and the table's
+scroll list takes it for itself. The window rebuilds its elements when it is folded, opened or
+switched between compact and full. Its place and those choices are kept in
+`GameData/ReDefinition/PluginData/engineer.cfg`. Every frame it is kept on the screen, whatever
+the screen's size or the UI scale was when its place was saved. The table's rows are labels, as
+the header is, so their columns line up. The rows' texts are written again only when the
+readout, the selection or the table's form changes.
+
+A click on a stage's row marks the parts that burn in it with KSP's own part
+highlighter (`PartHighlight`: `Part.SetHighlightType`, `SetHighlightColor`,
+`SetHighlightDefault`) **[src]**. While the planner is open or the window is folded, the
+window marks nothing, since the planner colours the parts itself.
+
+The window and the planner share the list of bodies (`BodyPicker`). Whoever opens it
+owns it, and only the owner's closing closes it.
+
+`PartCard` shows the part under the pointer in a card beside it. `Mouse.HoveredPart` is
+a raycast from the editor's camera that ignores the UI **[src]**, so the card stays
+hidden while the pointer is over a window, and while a part hangs on the mouse
+(`EditorLogic.SelectedPart`).
+
+## How the planner sits in the editor
 
 KSP's mode buttons are four `Button`s in the editor's top bar: `partPanelBtn`,
 `actionPanelBtn`, `crewPanelBtn` and `cargoPanelBtn` in `EditorLogic` **[src]**. They are
-48 units wide, placed by hand rather than by a layout group, and each draws its tile as
-its own sprite with sprite swap. The editor scene shows this (`sharedassets6`, read with
-UnityPy) **[src]**. The active mode's button is the one KSP makes not interactable, so its
+48 units wide, placed by hand rather than by a layout group. Each draws its tile, 128 by
+107 pixels, as its own sprite with sprite swap, and keeps its aspect (`Image` with
+`preserveAspect`). The editor scene shows this (`sharedassets6`, read with UnityPy)
+**[src]**. The active mode's button is the one KSP makes not interactable, so its
 disabled sprite is the active tile. KSP places the buttons once, from the anchors
 `crewBtnOrigPos`, `cargoBtnOrigPos` and `editorBtnOrigPos` **[src]**.
 
-KSP's tiles are 128 by 107 pixels: a grey tab on each side and a teal face that narrows
-at the foot. KSP draws them into the 48 by 48 buttons, and a bar drawn after the buttons
-covers their lower part **[src]**. `EditorEngineer` copies the cargo button and gives the
-copy its own four tiles in the same form and colours
-(`GameData/ReDefinition/Icons/EngineerButton_*.png`, drawn by `tools/make_icon.py`). It
-puts the copy right after the cargo button among the bar's children, so the bar covers
-it as it covers KSP's. It sets the copy one step right of the last visible mode button,
-and the switch-editor button one step further. It does this every frame, before the
-canvases draw, so the row follows whatever KSP does to it. KSP sets its buttons' interactable state only on events,
-such as a changed input lock or a mode switch (`EditorLogic.UpdateUI`) **[src]**. So while
-the view is open, `EditorEngineer` keeps the parts button clickable. On closing, it hands
-the buttons back to `UpdateUI`.
+`EditorEngineer` copies the cargo button and gives the copy its own four tiles in the
+same form and colours (`GameData/ReDefinition/Icons/EngineerButton_*.png`, drawn by
+`tools/make_icon.py`). It puts the copy right after the cargo button among its siblings.
+Every frame, before the canvases draw, it sets the copy one step right of the last
+visible mode button and the switch-editor button one step further. It also gives the
+copy the cargo button's size, anchors, scale and image settings. The first frame writes
+both buttons' measures to `KSP.log`, in a line that starts with `Mode buttons:`. KSP sets
+its buttons' interactable state only on events, such as a changed input lock or a mode
+switch (`EditorLogic.UpdateUI`) **[src]**. So while the planner is open, `EditorEngineer`
+keeps the parts button clickable. On closing, it hands the buttons back to `UpdateUI`.
 
-The view itself is built from KSP's dialog elements into the parts panel,
-`EditorPanels.partsEditor`, over the parts list. It covers the panel from the top of the
-list's sorting row down (`EditorPartList.partListSorter`, `partListScrollRect`), and the
-search bar above stays KSP's. The list's icons are the parts themselves, drawn by a
-camera over the UI, so no panel covers them. The grids that hold them (`partGrid`,
-`subassemblyGrid`, `variantGrid`) are switched off while the view stands open, and put
-back as they were when it closes. The list itself stays on, because it starts coroutines
-on its own object **[src]**. `EngineerPanel` creates it as a
-`PopupDialog` creates its content, with `DialogGUIBase.Create` and the panel as the
-layout's parent, and updates it every frame as a `PopupDialog` does **[src]**. So it
-slides with the panel, scales with KSP's UI and takes a UI theme such as ZTheme. The
-summary line (`EngineerSummary`) stands beside the panel rather than inside it, where the
-panel's mask could cut it off. Every frame it is moved right of the panel, under the mode
-buttons. It is a label, not a button, because a button's text is bold in the skin.
+`PlannerPanel` stands over the whole parts panel, `EditorPanels.partsEditor`: its
+categories, its search bar and its list. It is the last child of the panel's parent, so
+it draws over the panel and takes its clicks. It is set over the panel every frame, at
+the panel's width or its own, whichever is wider, so it slides with the panel. The
+list's icons are the parts themselves, drawn by a camera over the UI, so no panel covers
+them. The grids that hold them (`partGrid`, `subassemblyGrid`, `variantGrid`) are
+switched off while the planner is open, and put back as they were when it closes. The
+list itself stays on, because it starts coroutines on its own object **[src]**.
 
-Opening the view from another mode switches KSP to the parts mode first
-(`EditorLogic.SelectPanelParts`). Any change of mode closes the view
+Opening the planner from another mode switches KSP to the parts mode first
+(`EditorLogic.SelectPanelParts`). Any change of mode closes it
 (`GameEvents.onEditorScreenChange`), and so does KSP's parts button.
 
 ## What Kerbal Engineer Redux's build view became
@@ -87,21 +111,22 @@ editor part offers (`KerbalEngineer/Editor` in its repository, version 1.1.9.5)
 
 | Kerbal Engineer | Here |
 |---|---|
-| stage table: parts, cost, mass, Isp, thrust, torque, TWR (max), delta-v, burn time | *Stages*: delta-v, delta-v left, TWR and burn time per row; the rest in the row's details |
-| RCS columns per stage | *RCS, last stage* |
-| body list | *<* and *>* over every body |
+| build window with a stage table: parts, cost, mass, Isp, thrust, torque, TWR (max), delta-v, burn time | the engineer window's table, the same columns |
+| compact mode: stage, TWR, delta-v | *Compact*: stage, delta-v, TWR, burn time |
+| RCS columns per stage | *RCS*: the RCS thrusters of the last stage |
+| body list | the body's name, which opens the list of bodies |
 | atmospheric switch and altitude slider | *Sea level*, *Altitude* and *Vacuum*, KSP's delta-v app's situation |
 | Mach slider | left out. KSP's simulation takes no Mach number, so air-breathing engines are computed as KSP computes them |
 | *All stages* | the setting *Stages without delta-v* |
-| compact mode, and the overlay's vessel tab | the summary line |
+| the overlay's vessel tab | the window's totals line, and its folded line |
 | the overlay's resources tab | *Resources* |
-| part information on hover | *Part under the mouse* |
+| part information on hover | the card beside the pointer |
 | vectored thrust | the setting *Thrust along the vessel*, from KSP's `vectoredThrustActual` |
 | Real Fuels residuals, simulation log, minimum simulation delay | left out, since KSP runs the simulation |
 | GUI size | KSP's own UI scale |
-| overlay position | left out: the view has a fixed place |
-| key bindings | *Engineer view (VAB / SPH)* in the *Controls* tab |
-| flight engineer and its settings | not part of the editor view |
+| window position | dragging the window; it keeps its place |
+| key bindings | *Engineer window (VAB / SPH)* in the *Controls* tab |
+| flight engineer and its settings | not part of the editor |
 
 What KSP already shows in place stays KSP's. The delta-v in the staging stack, the
 engineer's report and the parts list's tooltips are not shown a second time. The stage
@@ -109,4 +134,4 @@ table repeats KSP's per-stage numbers on purpose: comparing the stages needs the
 side in one place, and since they are KSP's own, they cannot disagree.
 
 When Kerbal Engineer is installed, `EditorEngineer` recommends uninstalling it once per
-game start, and the view says so at its bottom.
+game start.

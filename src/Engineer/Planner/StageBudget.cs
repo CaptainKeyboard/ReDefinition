@@ -35,9 +35,14 @@ namespace ReDefinition.Engineer
     // one: what KSP's staging leaves once the stages above it are gone. The last
     // stage above it stays attached while the lander is away, and goes once the
     // whole vessel burns the lander's stages with no leg of the lander alone
-    // ahead. A stage the player keeps for a leg is not touched before that leg,
-    // nor any stage after it in KSP's order; what the stages before it still hold
-    // when it takes over is dropped. Free of Unity, tested.
+    // ahead.
+    //
+    // The player can pin a stage to one or more legs. A leg with pins burns its
+    // pinned stages only, in KSP's order; the stages before one of them are
+    // dropped with what they still hold as it fires. A leg without pins burns in
+    // KSP's order and stops before a stage pinned to a later leg, since KSP
+    // cannot fire what comes after it either. A pinned stage already staged away
+    // when its leg comes is reported as unreachable. Free of Unity, tested.
     internal static class StageBudget
     {
         internal sealed class StageUse
@@ -60,6 +65,8 @@ namespace ReDefinition.Engineer
             public readonly Dictionary<int, double> Left = new Dictionary<int, double>();
             public readonly Dictionary<int, double> Dropped = new Dictionary<int, double>();
             public readonly HashSet<int> LeftBehind = new HashSet<int>();
+            // Pins whose stage is gone when their leg comes, as stage and leg.
+            public readonly List<KeyValuePair<int, int>> Unreachable = new List<KeyValuePair<int, int>>();
 
             public double TotalShort
             {
@@ -85,19 +92,19 @@ namespace ReDefinition.Engineer
         private const double Tiny = 1e-9;
 
         // `legs`: what each leg needs; `margin`: 0.1 for ten per cent more;
-        // `kept`: stage number to the leg it is kept for; `lander`: the highest
-        // stage of the lander, -1 for none; `modes`: who flies each leg, Whole
-        // where it is missing.
+        // `pins`: stage number to the legs it is pinned to; `lander`: the
+        // highest stage of the lander, -1 for none; `modes`: who flies each leg,
+        // Whole where it is missing.
         internal static Result Allocate(IList<BudgetStage> stages, IList<double> legs, double margin,
-                                        IDictionary<int, int> kept, int lander, IList<LegMode> modes)
+                                        IDictionary<int, HashSet<int>> pins, int lander, IList<LegMode> modes)
         {
-            return new Run(stages, kept, lander).Allocate(legs, margin, modes);
+            return new Run(stages, pins, lander).Allocate(legs, margin, modes);
         }
 
         private sealed class Run
         {
             private readonly List<BudgetStage> order;
-            private readonly IDictionary<int, int> kept;
+            private readonly IDictionary<int, HashSet<int>> pins;
             private readonly double[] fuel;
             private readonly double[] exhaust;
             private readonly double[] drop;
@@ -113,11 +120,11 @@ namespace ReDefinition.Engineer
             private int landerAt;
             private Result result;
 
-            internal Run(IList<BudgetStage> stages, IDictionary<int, int> kept, int lander)
+            internal Run(IList<BudgetStage> stages, IDictionary<int, HashSet<int>> pins, int lander)
             {
                 order = new List<BudgetStage>(stages);
                 order.Sort((a, b) => b.Number.CompareTo(a.Number));
-                this.kept = kept;
+                this.pins = pins;
                 int count = order.Count;
                 fuel = new double[count];
                 exhaust = new double[count];
@@ -164,13 +171,33 @@ namespace ReDefinition.Engineer
                     LegMode mode = ModeOf(modes, leg);
 
                     if (mode == LegMode.WithoutLander) LeaveLander();
-                    // While the lander flies alone, the rest waits and stages
-                    // nothing.
-                    if (mode != LegMode.Lander) TakeOver(ref mainAt, 0, firstLander, leg, false, false);
-                    if (hasLander && !landerGone)
-                        TakeOver(ref landerAt, firstLander, order.Count, leg, true, mode == LegMode.Lander);
 
-                    if (mode == LegMode.Lander)
+                    if (HasPins(leg))
+                    {
+                        // While the lander flies alone, the rest waits and
+                        // stages nothing.
+                        if (mode != LegMode.Lander) BurnPinned(ref mainAt, 0, firstLander, false, false, leg, ref need);
+                        else ReportPinned(0, firstLander, leg);
+                        if (hasLander && !landerGone)
+                        {
+                            // The whole vessel fires a pinned stage of the
+                            // lander: in KSP's order the rest's stages go
+                            // first, with what they hold, unless the lander
+                            // still flies alone later and docks to the rest
+                            // again; then the rest rides along.
+                            if (mode == LegMode.Whole && leg > lastAlone && need > 1e-6 && PinnedIn(firstLander, order.Count, leg))
+                            {
+                                DropGroup(ref mainAt, firstLander, false);
+                                DropRest();
+                            }
+                            BurnPinned(ref landerAt, firstLander, order.Count, true, mode == LegMode.Lander, leg, ref need);
+                        }
+                        else if (hasLander)
+                        {
+                            ReportPinned(firstLander, order.Count, leg);
+                        }
+                    }
+                    else if (mode == LegMode.Lander)
                     {
                         if (!landerGone) Burn(ref landerAt, order.Count, true, true, leg, ref need);
                     }
@@ -213,25 +240,110 @@ namespace ReDefinition.Engineer
                 return alone ? landerMass : total;
             }
 
-            // True where a stage kept for a later leg stopped the burn.
+            private bool HasPins(int leg)
+            {
+                if (pins == null) return false;
+                foreach (KeyValuePair<int, HashSet<int>> pin in pins)
+                    if (pin.Value != null && pin.Value.Contains(leg)) return true;
+                return false;
+            }
+
+            private bool IsPinned(int stage, int leg)
+            {
+                HashSet<int> legs;
+                return pins != null && pins.TryGetValue(order[stage].Number, out legs) && legs != null && legs.Contains(leg);
+            }
+
+            // Pinned to a leg after this one: a leg without pins stops before it.
+            private bool Reserved(int stage, int leg)
+            {
+                HashSet<int> legs;
+                if (pins == null || !pins.TryGetValue(order[stage].Number, out legs) || legs == null) return false;
+                foreach (int pinned in legs)
+                    if (pinned > leg) return true;
+                return false;
+            }
+
+            private bool PinnedIn(int start, int end, int leg)
+            {
+                for (int i = start; i < end; i++)
+                    if (IsPinned(i, leg)) return true;
+                return false;
+            }
+
+            // The rest of a group is staged away with what it holds.
+            private void DropGroup(ref int at, int end, bool inLander)
+            {
+                while (at < end)
+                {
+                    if (fuel[at] > Tiny)
+                    {
+                        result.Dropped[order[at].Number] = DeltaV(at, Mass(false));
+                        Remove(fuel[at], inLander);
+                        fuel[at] = 0.0;
+                    }
+                    Next(ref at, end, inLander);
+                }
+            }
+
+            // A group's stages pinned to this leg, in KSP's order, until the
+            // leg is paid for: the ones before each are dropped with what they
+            // hold as it fires; one already passed has nothing for the leg.
+            private void BurnPinned(ref int at, int start, int end, bool inLander, bool alone, int leg, ref double need)
+            {
+                for (int i = start; i < end; i++)
+                {
+                    if (need <= 1e-6) return;
+                    if (!IsPinned(i, leg)) continue;
+                    if (i < at)
+                    {
+                        result.Unreachable.Add(new KeyValuePair<int, int>(order[i].Number, leg));
+                        continue;
+                    }
+                    while (at < i)
+                    {
+                        if (fuel[at] > Tiny)
+                        {
+                            result.Dropped[order[at].Number] = DeltaV(at, Mass(alone));
+                            Remove(fuel[at], inLander);
+                            fuel[at] = 0.0;
+                        }
+                        Next(ref at, end, inLander);
+                    }
+                    if (need > 1e-6) BurnOne(at, inLander, alone, leg, ref need);
+                    if (fuel[at] <= Tiny || exhaust[at] <= 0.0) Next(ref at, end, inLander);
+                }
+            }
+
+            // Pins of a group that cannot fly this leg: the rest's while the
+            // lander flies alone, the lander's once it stayed behind.
+            private void ReportPinned(int start, int end, int leg)
+            {
+                for (int i = start; i < end; i++)
+                    if (IsPinned(i, leg)) result.Unreachable.Add(new KeyValuePair<int, int>(order[i].Number, leg));
+            }
+
+            private void BurnOne(int at, bool inLander, bool alone, int leg, ref double need)
+            {
+                if (fuel[at] <= Tiny || exhaust[at] <= 0.0) return;
+                double mass = Mass(alone);
+                double full = DeltaV(at, mass);
+                double take = Math.Min(need, full);
+                double burnt = take >= full - 1e-9 ? fuel[at] : mass * (1.0 - Math.Exp(-take / exhaust[at]));
+                result.Uses.Add(new StageUse { Stage = order[at].Number, Leg = leg, DeltaV = take, Mass = mass });
+                Remove(burnt, inLander);
+                fuel[at] -= burnt;
+                if (take >= full - 1e-9) fuel[at] = 0.0;
+                need -= take;
+            }
+
+            // True where a stage pinned to a later leg stopped the burn.
             private bool Burn(ref int at, int end, bool inLander, bool alone, int leg, ref double need)
             {
                 while (need > 1e-6 && at < end)
                 {
-                    int keptLeg;
-                    if (kept != null && kept.TryGetValue(order[at].Number, out keptLeg) && keptLeg > leg) return true;
-                    if (fuel[at] > Tiny && exhaust[at] > 0.0)
-                    {
-                        double mass = Mass(alone);
-                        double full = DeltaV(at, mass);
-                        double take = Math.Min(need, full);
-                        double burnt = take >= full - 1e-9 ? fuel[at] : mass * (1.0 - Math.Exp(-take / exhaust[at]));
-                        result.Uses.Add(new StageUse { Stage = order[at].Number, Leg = leg, DeltaV = take, Mass = mass });
-                        Remove(burnt, inLander);
-                        fuel[at] -= burnt;
-                        if (take >= full - 1e-9) fuel[at] = 0.0;
-                        need -= take;
-                    }
+                    if (Reserved(at, leg)) return true;
+                    BurnOne(at, inLander, alone, leg, ref need);
                     if (fuel[at] > Tiny && exhaust[at] > 0.0) return false;
                     Next(ref at, end, inLander);
                 }
@@ -244,29 +356,6 @@ namespace ReDefinition.Engineer
             {
                 if (at + 1 < end) Remove(drop[at], inLander);
                 at++;
-            }
-
-            // A stage kept for this leg takes over here: the ones before it in its
-            // group are dropped with what they still hold.
-            private void TakeOver(ref int at, int start, int end, int leg, bool inLander, bool alone)
-            {
-                if (kept == null) return;
-                int keptAt = -1;
-                for (int i = start; i < end; i++)
-                {
-                    int keptLeg;
-                    if (kept.TryGetValue(order[i].Number, out keptLeg) && keptLeg == leg) { keptAt = i; break; }
-                }
-                while (at < keptAt)
-                {
-                    if (fuel[at] > Tiny)
-                    {
-                        result.Dropped[order[at].Number] = DeltaV(at, Mass(alone));
-                        Remove(fuel[at], inLander);
-                        fuel[at] = 0.0;
-                    }
-                    Next(ref at, end, inLander);
-                }
             }
 
             // The rest flies on without the lander: it stays where it is, with

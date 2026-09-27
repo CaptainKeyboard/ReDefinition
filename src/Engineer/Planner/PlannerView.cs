@@ -4,10 +4,10 @@ using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // The engineer view's second tab (docs/player/planner.md): a route from stop
-    // to stop, A -> B -> C, what each leg costs, and which of the vessel's stages
-    // pays for it. This half holds the plan and works it out; the rows are in
-    // PlannerView.Rows.cs.
+    // The planner (docs/player/planner.md): a route from stop to stop, A -> B ->
+    // C, what each leg costs, and which of the vessel's stages pays for it, by
+    // itself or as the player pins them. This half holds the plan and works it
+    // out; the rows are in PlannerView.Rows.cs.
     internal sealed partial class PlannerView
     {
         private const float Interval = 0.25f;
@@ -34,21 +34,20 @@ namespace ReDefinition.Engineer
         private List<StageRow> stages = new List<StageRow>();
         private List<StageRow> allStages = new List<StageRow>();
         private int[] meetings = new int[0];
-        // The lander and the kept stages as far as the vessel has those stages
-        // now. The plan keeps what the player set, for a stage that is back
-        // after the vessel was taken apart.
+        // The lander as far as the vessel has that stage now. The plan keeps
+        // what the player set, for a stage that is back after the vessel was
+        // taken apart; so it does with the pins.
         private int lander = -1;
         private List<int> landerChoices = new List<int>();
-        private Dictionary<int, int> kept = new Dictionary<int, int>();
-        // Each leg's details, written once per evaluation rather than each frame.
-        private string[] legDetails = new string[0];
-        private readonly HashSet<int> openLegs = new HashSet<int>();
         private Dictionary<int, List<Part>> burningParts = new Dictionary<int, List<Part>>();
+        // The selected leg's details, written once per evaluation.
+        private string legDetail = "";
 
-        // The leg or the stage whose parts are marked on the vessel; -1 for none.
+        // The leg or the stage whose parts alone are coloured on the vessel; -1
+        // for none, when every stage shows its colour.
         private int selectedLeg = -1;
         private int selectedStage = -1;
-        private readonly PartHighlight highlight = new PartHighlight(new Color(0.35f, 1f, 0.35f));
+        private readonly PartHighlight highlight = new PartHighlight();
 
         internal PlannerView(EditorEngineer owner, float width)
         {
@@ -67,7 +66,6 @@ namespace ReDefinition.Engineer
         internal void Dispose()
         {
             Flush();
-            BodyPicker.Close();
             GameEvents.onEditorLoad.Remove(OnEditorLoad);
             GameEvents.onEditorRestart.Remove(OnEditorRestart);
         }
@@ -101,7 +99,6 @@ namespace ReDefinition.Engineer
                 state = PlannerState.Load(name, bodies);
                 vessel = name;
                 reload = false;
-                openLegs.Clear();
                 selectedLeg = -1;
                 selectedStage = -1;
                 nextEvaluation = 0f;
@@ -122,17 +119,11 @@ namespace ReDefinition.Engineer
             Evaluate();
         }
 
-        // The tab is not shown: nothing stays marked on the vessel.
-        internal void Idle()
-        {
-            highlight.Clear();
-            BodyPicker.Close();
-        }
-
+        // The planner closes: nothing stays coloured, the list of bodies goes.
         internal void Flush()
         {
             highlight.Clear();
-            BodyPicker.Close();
+            BodyPicker.Close(this);
             if (state != null && vessel != null && bodies != null && saveAt > 0f) state.Save(vessel, bodies);
             saveAt = -1f;
         }
@@ -145,6 +136,8 @@ namespace ReDefinition.Engineer
             stages = allStages.FindAll(row => row.DeltaVVacuum > 0.5);
 
             legs = RoutePlanner.Legs(bodies.Bodies, state.Stops, state.PlaneChanges);
+            if (selectedLeg >= legs.Count) selectedLeg = -1;
+            if (selectedStage >= 0 && !stages.Exists(row => row.Number == selectedStage)) selectedStage = -1;
             List<double> needs = new List<double>();
             foreach (Leg leg in legs) needs.Add(leg.DeltaV);
             List<BudgetStage> available = new List<BudgetStage>();
@@ -153,22 +146,27 @@ namespace ReDefinition.Engineer
                 {
                     Number = row.Number, StartMass = row.StartMass, EndMass = row.EndMass, DeltaV = row.DeltaVVacuum,
                 });
-            // A kept stage the vessel does not have now, or a leg the route does
-            // not have, counts for nothing; nor does a lander that is not a stage
-            // of it.
-            kept = new Dictionary<int, int>();
-            foreach (KeyValuePair<int, int> pair in state.Kept)
-                if (stages.Exists(row => row.Number == pair.Key) && pair.Value < legs.Count) kept[pair.Key] = pair.Value;
+            // A pin to a stage the vessel does not have now, or to a leg the
+            // route does not have, counts for nothing; nor does a lander that is
+            // not a stage of it.
+            Dictionary<int, HashSet<int>> pins = new Dictionary<int, HashSet<int>>();
+            foreach (KeyValuePair<int, HashSet<int>> pair in state.Pins)
+            {
+                if (!stages.Exists(row => row.Number == pair.Key)) continue;
+                HashSet<int> legsOf = new HashSet<int>();
+                foreach (int leg in pair.Value) if (leg < legs.Count) legsOf.Add(leg);
+                if (legsOf.Count > 0) pins[pair.Key] = legsOf;
+            }
             landerChoices = LanderChoices();
             lander = state.Lander >= 0 && landerChoices.Contains(state.Lander) ? state.Lander : -1;
             List<LegMode> modes = HasLander() ? state.ModeList(legs.Count) : null;
-            budget = StageBudget.Allocate(available, needs, state.Margin, kept, lander, modes);
+            budget = StageBudget.Allocate(available, needs, state.Margin, pins, lander, modes);
             meetings = modes != null ? RoutePlanner.Meetings(state.Stops, modes) : new int[legs.Count];
             if (modes == null) for (int i = 0; i < meetings.Length; i++) meetings[i] = -1;
             burningParts = readout.BurningParts;
-            legDetails = new string[legs.Count];
-            for (int leg = 0; leg < legs.Count; leg++) legDetails[leg] = LegDetail(leg);
+            legDetail = selectedLeg >= 0 ? LegDetail(selectedLeg) : "";
             UpdateBars();
+            UpdatePins();
             Mark();
         }
 
@@ -206,6 +204,11 @@ namespace ReDefinition.Engineer
             return ((char)('A' + index)).ToString();
         }
 
+        private static string LegName(int leg)
+        {
+            return Letter(leg) + "→" + Letter(leg + 1);
+        }
+
         private string BodyName(int index)
         {
             if (!Shown(index)) return "";
@@ -236,7 +239,7 @@ namespace ReDefinition.Engineer
         private void PickBody(int index)
         {
             if (!Shown(index)) return;
-            BodyPicker.Show(bodies, state.Stops[index].Body, body => SetBody(index, body));
+            BodyPicker.Show(this, bodies, state.Stops[index].Body, body => SetBody(index, body));
         }
 
         private void SetBody(int index, int body)
@@ -268,10 +271,10 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
-        private void SetAtmosphere(int index, bool on)
+        private void ToggleAtmosphere(int index)
         {
-            if (!Shown(index) || state.Stops[index].UseAtmosphere == on) return;
-            state.Stops[index].UseAtmosphere = on && HasAtmosphere(index);
+            if (!Shown(index) || !HasAtmosphere(index)) return;
+            state.Stops[index].UseAtmosphere = !state.Stops[index].UseAtmosphere;
             Changed();
         }
 
@@ -291,47 +294,21 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index) || state.Stops.Count <= 2) return;
             // The list of bodies is for a stop that may be another one now.
-            BodyPicker.Close();
+            BodyPicker.Close(this);
             state.Stops.RemoveAt(index);
-            // A kept stage follows its leg, or lets go where the leg went.
-            Dictionary<int, int> moved = new Dictionary<int, int>();
-            foreach (KeyValuePair<int, int> pair in state.Kept)
-            {
-                if (pair.Value == index || pair.Value == index - 1) continue;
-                moved[pair.Key] = pair.Value > index ? pair.Value - 1 : pair.Value;
-            }
-            state.Kept.Clear();
-            foreach (KeyValuePair<int, int> pair in moved) state.Kept[pair.Key] = pair.Value;
-            // The leg into the removed stop goes, the one out of it becomes the
-            // leg into the next.
-            Dictionary<int, LegMode> modes = new Dictionary<int, LegMode>();
-            foreach (KeyValuePair<int, LegMode> pair in state.Modes)
-            {
-                if (pair.Key == index - 1 || (index == 0 && pair.Key == 0)) continue;
-                modes[pair.Key >= index ? pair.Key - 1 : pair.Key] = pair.Value;
-            }
-            state.Modes.Clear();
-            foreach (KeyValuePair<int, LegMode> pair in modes) state.Modes[pair.Key] = pair.Value;
-            openLegs.Clear();
+            state.RemoveStop(index);
             selectedLeg = -1;
             Changed();
         }
 
-        // ------------------------------------------------------------------ legs
+        // -------------------------------------------------------------- choosing
 
-        // Opening a leg marks its parts; closing the marked one clears the mark.
-        private void ToggleLeg(int index)
+        private void SelectLeg(int leg)
         {
-            if (openLegs.Remove(index))
-            {
-                if (selectedLeg == index) selectedLeg = -1;
-            }
-            else
-            {
-                openLegs.Add(index);
-                selectedLeg = index;
-                selectedStage = -1;
-            }
+            if (!Ready() || leg >= legs.Count) return;
+            selectedLeg = selectedLeg == leg ? -1 : leg;
+            selectedStage = -1;
+            legDetail = selectedLeg >= 0 ? LegDetail(selectedLeg) : "";
             Mark();
         }
 
@@ -340,47 +317,41 @@ namespace ReDefinition.Engineer
             if (index >= stages.Count) return;
             int number = stages[index].Number;
             selectedStage = selectedStage == number ? -1 : number;
-            if (selectedStage >= 0) selectedLeg = -1;
             Mark();
         }
 
-        // The engines and tanks of the selected stage, or of every stage that
-        // pays for the selected leg.
+        // Each stage's engines and the tanks it burns, in the stage's colour: all
+        // of them, the ones that pay for the selected leg, or the selected stage.
         private void Mark()
         {
-            HashSet<int> numbers = new HashSet<int>();
-            if (selectedStage >= 0) numbers.Add(selectedStage);
-            else if (selectedLeg >= 0 && budget != null && selectedLeg < legs.Count)
-                foreach (StageBudget.StageUse use in budget.Uses)
-                    if (use.Leg == selectedLeg) numbers.Add(use.Stage);
-            HashSet<Part> parts = new HashSet<Part>();
-            foreach (int number in numbers)
+            Dictionary<Part, Color> parts = new Dictionary<Part, Color>();
+            for (int i = 0; i < stages.Count; i++)
             {
+                int number = stages[i].Number;
+                if (selectedStage >= 0 && number != selectedStage) continue;
+                if (selectedStage < 0 && selectedLeg >= 0 && budget != null
+                    && !budget.Uses.Exists(use => use.Stage == number && use.Leg == selectedLeg)) continue;
                 List<Part> list;
-                if (burningParts.TryGetValue(number, out list))
-                    foreach (Part part in list)
-                        if (part != null) parts.Add(part);
+                if (!burningParts.TryGetValue(number, out list)) continue;
+                Color color = PlannerColors.Stage(i);
+                foreach (Part part in list)
+                    if (part != null) parts[part] = color;
             }
             highlight.Show(parts);
         }
 
-        private bool IsKept(int stageIndex, int leg)
+        // The player pins a stage to a leg, or takes the pin away.
+        private void TogglePin(int stageIndex, int leg)
         {
-            int keptLeg;
-            return Ready() && stageIndex < stages.Count && state.Kept.TryGetValue(stages[stageIndex].Number, out keptLeg)
-                   && keptLeg == leg;
+            if (!Ready() || stageIndex >= stages.Count || leg >= legs.Count) return;
+            int number = stages[stageIndex].Number;
+            state.Pin(number, leg, !state.IsPinned(number, leg));
+            Changed();
         }
 
-        // A toggle calls this whenever its value differs from the plan's, after
-        // a click and when it is shown again: only a change counts.
-        private void SetKept(int stageIndex, int leg, bool on)
+        private bool IsPinned(int stageIndex, int leg)
         {
-            if (!Ready() || stageIndex >= stages.Count || on == IsKept(stageIndex, leg)) return;
-            int stage = stages[stageIndex].Number;
-            if (on) state.Kept[stage] = leg;
-            else if (IsKept(stageIndex, leg)) state.Kept.Remove(stage);
-            else return;
-            Changed();
+            return Ready() && stageIndex < stages.Count && state.IsPinned(stages[stageIndex].Number, leg);
         }
 
         // A launch or a powered landing needs the thrust to lift the vessel at
@@ -443,17 +414,14 @@ namespace ReDefinition.Engineer
             return choices;
         }
 
-        // Switched on, the stage and every stage KSP fires after it become the
-        // lander. Switched off, the lander's first stage with delta-v leaves no
-        // lander; a stage further down makes the lander start there. A toggle
-        // calls this whenever its value differs from the plan's, after a click
-        // and when it is shown again: only a change counts.
-        private void SetLander(int stageIndex, bool on)
+        // The stage and every stage KSP fires after it become the lander; on the
+        // lander's first stage with delta-v again, there is no lander.
+        private void ToggleLander(int stageIndex)
         {
             if (!Ready() || stageIndex >= stages.Count) return;
             int number = stages[stageIndex].Number;
-            if (!landerChoices.Contains(number) || on == IsLanderStage(number)) return;
-            state.Lander = !on && number == FirstBurning(lander) ? -1 : LanderTop(number);
+            if (!landerChoices.Contains(number)) return;
+            state.Lander = number == FirstBurning(lander) ? -1 : LanderTop(number);
             lander = state.Lander;
             Changed();
         }
@@ -473,6 +441,7 @@ namespace ReDefinition.Engineer
         // The lander's first stage with delta-v, -1 for none.
         private int FirstBurning(int top)
         {
+            if (top < 0) return -1;
             foreach (StageRow row in stages)
                 if (row.Number <= top) return row.Number;
             return -1;
@@ -494,8 +463,8 @@ namespace ReDefinition.Engineer
 
         private void SetMargin(float percent)
         {
-            double margin = System.Math.Round(percent) / 100.0;
-            if (!Ready() || System.Math.Abs(margin - state.Margin) < 1e-6) return;
+            double margin = Math.Round(percent) / 100.0;
+            if (!Ready() || Math.Abs(margin - state.Margin) < 1e-6) return;
             state.Margin = margin;
             Changed();
         }

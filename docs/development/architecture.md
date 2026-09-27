@@ -41,7 +41,7 @@ uses its own layer and the layers below it, never one above.
 | 4 | `src/` | `ReDefinition` | the add-on, ReDefinition's own settings and modules |
 | 4 | `src/Window` | `ReDefinition.Window` | the settings window, the *Controls* tab, the toolbar, KSP's settings dialog and pause menu, the other mods' windows |
 | 4 | `src/Api` | `ReDefinition.Api` | the public interface for mods |
-| 5 | `src/Engineer` | `ReDefinition.Engineer` | the engineer view in the VAB and the SPH |
+| 5 | `src/Engineer` | `ReDefinition.Engineer` | the engineer window and the planner in the VAB and the SPH |
 | 5 | `src/Flight` | `ReDefinition.Flight` | the flight UI: the navball moved sideways |
 
 ## How a lower layer reaches a higher one
@@ -253,18 +253,20 @@ shows one at a time.
 The window copies `MiniSettings` so that a UI theme such as ZTheme, which replaces
 KSP's UI textures by name, themes it with the rest of KSP's dialogs.
 
-## The engineer view, `src/Engineer`
+## The engineer window and the planner, `src/Engineer`
 
 | File | Role |
 |---|---|
-| `EditorEngineer.cs` | the add-on in the editors: the mode button, opening and closing the view, the key, the notice about Kerbal Engineer Redux |
-| `EditorReadout.cs` | the vessel as the view shows it, read from KSP's delta-v simulation, with parts, costs, thrust torque, RCS and resources worked out beside it |
-| `EngineerPanel.cs` | the view, built from KSP's dialog elements into the parts panel |
-| `EngineerSummary.cs` | the line beside the parts list |
-| `PartDetails.cs` | the part under the mouse |
+| `EditorEngineer.cs` | the add-on in the editors: the planner's mode button, opening and closing the planner, the engineer window, the key, the notice about Kerbal Engineer Redux |
+| `EditorReadout.cs` | the vessel as both show it, read from KSP's delta-v simulation, with parts, costs, thrust torque, the parts that burn in each stage, RCS and resources worked out beside it |
+| `EngineerWindow.cs` | the engineer window: the stage table, its place and how it is shown |
+| `EngineerSituation.cs` | the body and situation the numbers are for, KSP's delta-v app's own |
+| `PartCard.cs`, `PartDetails.cs` | the card with the part under the pointer, and what it lists |
+| `PlannerPanel.cs` | the planner's panel over the parts panel |
+| `Planner/` | the planner's route, fuel budget, plans and rows ([planner.md](planner.md)) |
 | `StageTable.cs`, `EngineerFormat.cs` | the stage table and how numbers are written; free of Unity, tested |
 
-How it sits in KSP's editor, and where Kerbal Engineer Redux's build view went:
+How both sit in KSP's editor, and where Kerbal Engineer Redux's build view went:
 [engineer.md](engineer.md).
 
 ## The flight UI, `src/Flight`

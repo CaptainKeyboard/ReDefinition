@@ -221,29 +221,96 @@ namespace ReDefinition.Tests
             Assert.AreEqual(3300.0 - Exhaust * System.Math.Log(2.0), result.Short[0], 1e-6);
         }
 
-        [TestMethod]
-        public void AKeptStageWaitsForItsLegAndBlocksTheStagesAfterIt()
+        // Stage and leg pairs: the stage pinned to the leg.
+        private static Dictionary<int, HashSet<int>> Pins(params int[] stageThenLeg)
         {
-            // Stage 1 is kept for the landing (leg 2).
-            List<BudgetStage> stages = new List<BudgetStage> { Stage(2, 20, 14), Stage(1, 10, 6), Stage(0, 4, 3) };
-            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 500.0, 100000.0, 600.0 }, 0.0,
-                new Dictionary<int, int> { { 1, 2 } }, -1, null);
+            Dictionary<int, HashSet<int>> pins = new Dictionary<int, HashSet<int>>();
+            for (int i = 0; i + 1 < stageThenLeg.Length; i += 2)
+            {
+                if (!pins.ContainsKey(stageThenLeg[i])) pins[stageThenLeg[i]] = new HashSet<int>();
+                pins[stageThenLeg[i]].Add(stageThenLeg[i + 1]);
+            }
+            return pins;
+        }
 
-            Assert.AreEqual(0.0, Used(result, 1, 1), "leg 1 may not reach into the kept stage");
+        [TestMethod]
+        public void AStagePinnedToALaterLegStopsTheLegsBeforeIt()
+        {
+            // Stage 1 is pinned to the landing (leg 2).
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(2, 20, 14), Stage(1, 10, 6), Stage(0, 4, 3) };
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 500.0, 100000.0, 600.0 }, 0.0, Pins(1, 2), -1, null);
+
+            Assert.AreEqual(0.0, Used(result, 1, 1), "leg 1 may not reach into the pinned stage");
             Assert.AreEqual(0.0, Used(result, 1, 0), "nor into the stages after it");
             Assert.AreEqual(600.0, Used(result, 2, 1), 1e-6);
         }
 
         [TestMethod]
-        public void WhatAStageHoldsWhenAKeptStageTakesOverIsDropped()
+        public void WhatTheStagesBeforeAPinnedOneHoldIsDropped()
         {
             List<BudgetStage> stages = new List<BudgetStage> { Stage(1, 20, 12), Stage(0, 8, 4) };
-            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 400.0, 600.0 }, 0.0,
-                new Dictionary<int, int> { { 0, 1 } }, -1, null);
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 400.0, 600.0 }, 0.0, Pins(0, 1), -1, null);
 
             Assert.IsTrue(result.Dropped[1] > 0.0);
             Assert.AreEqual(600.0, Used(result, 1, 0), 1e-6);
             Assert.AreEqual(0.0, result.TotalShort);
+        }
+
+        [TestMethod]
+        public void ALegWithPinsBurnsOnlyItsPinnedStages()
+        {
+            // Leg 0 pinned to stage 2 alone, which cannot pay all of it.
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(2, 20, 16), Stage(1, 10, 6), Stage(0, 4, 3) };
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 5000.0 }, 0.0, Pins(2, 0), -1, null);
+
+            Assert.AreEqual(stages[0].DeltaV, Used(result, 0, 2), 1e-6);
+            Assert.AreEqual(0.0, Used(result, 0, 1) + Used(result, 0, 0), "no stage it is not pinned to");
+            Assert.AreEqual(5000.0 - stages[0].DeltaV, result.Short[0], 1e-6);
+        }
+
+        [TestMethod]
+        public void OneStagePinnedToTheLandingAndTheClimbServesBoth()
+        {
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(1, 20, 12), Stage(0, 8, 4) };
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 500.0, 600.0, 600.0 }, 0.0, Pins(0, 1, 0, 2), -1,
+                null);
+
+            Assert.AreEqual(600.0, Used(result, 1, 0), 1e-6);
+            Assert.AreEqual(600.0, Used(result, 2, 0), 1e-6);
+            Assert.AreEqual(0.0, result.TotalShort);
+        }
+
+        [TestMethod]
+        public void ALegPaidForByItsFirstPinLeavesTheNextPinnedStageUntouched()
+        {
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(2, 20, 12), Stage(1, 8, 6), Stage(0, 4, 3) };
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 500.0, 100000.0 }, 0.0, Pins(2, 0, 1, 0), -1, null);
+
+            Assert.AreEqual(500.0, Used(result, 0, 2), 1e-6);
+            Assert.IsFalse(result.Dropped.ContainsKey(2), "stage 2 keeps its fuel for the next leg");
+            Assert.IsTrue(Used(result, 1, 2) > 0.0, "and burns it there");
+        }
+
+        [TestMethod]
+        public void APinnedLanderStageOnALegOfTheWholeVesselStagesTheRestAwayFirst()
+        {
+            StageBudget.Result result = StageBudget.Allocate(Mothership(), new[] { 500.0 }, 0.0, Pins(0, 0), 0,
+                new[] { LegMode.Whole });
+
+            Assert.IsTrue(result.Dropped.ContainsKey(1), "the rest goes with what it holds");
+            Assert.AreEqual(4.0, result.Uses.Single(u => u.Leg == 0).Mass, 1e-9, "the lander pushes only itself");
+        }
+
+        [TestMethod]
+        public void APinToAStageAlreadyStagedAwayIsUnreachable()
+        {
+            // Leg 0 is pinned to stage 0, which drops stage 1; leg 1 is pinned to
+            // stage 1, gone by then.
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(1, 20, 12), Stage(0, 8, 4) };
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 300.0, 300.0 }, 0.0, Pins(0, 0, 1, 1), -1, null);
+
+            Assert.IsTrue(result.Unreachable.Any(pin => pin.Key == 1 && pin.Value == 1));
+            Assert.AreEqual(300.0, result.Short[1], 1e-6);
         }
 
         // A mothership (stage 1, 12 t of which 6 t propellant, 2 t structure
@@ -329,13 +396,13 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void AKeptStageOfTheRestHoldsBackTheLanderToo()
+        public void APinnedStageOfTheRestHoldsBackTheLanderToo()
         {
             List<BudgetStage> stages = new List<BudgetStage> { Stage(3, 16, 12), Stage(2, 10, 8), Stage(1, 5, 4), Stage(0, 3, 2) };
             StageBudget.Result result = StageBudget.Allocate(stages, new[] { 100000.0, 100.0, 100.0 }, 0.0,
-                new Dictionary<int, int> { { 2, 2 } }, 1, new[] { LegMode.Whole, LegMode.Whole, LegMode.Whole });
+                Pins(2, 2), 1, new[] { LegMode.Whole, LegMode.Whole, LegMode.Whole });
 
-            Assert.AreEqual(0.0, Used(result, 0, 1) + Used(result, 0, 0), "the lander waits behind the kept stage");
+            Assert.AreEqual(0.0, Used(result, 0, 1) + Used(result, 0, 0), "the lander waits behind the pinned stage");
             Assert.AreEqual(100.0, Used(result, 2, 2), 1e-6);
         }
 

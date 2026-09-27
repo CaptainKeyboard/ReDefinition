@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // What the engineer view shows of the vessel in the editor, read from KSP's
+    // What the engineer window and the planner show of the vessel in the editor, read from KSP's
     // own delta-v simulation (ShipConstruct.vesselDeltaV, VesselDeltaV,
     // DeltaVStageInfo; decompiled) for the situation its delta-v app holds
     // (DeltaVGlobals.DeltaVAppValues: body, sea level, altitude or vacuum). KSP

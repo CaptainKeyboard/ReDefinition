@@ -204,12 +204,12 @@ namespace ReDefinition
             new ModuleSetting
             {
                 Key = "engineerKey",
-                Title = "Engineer view (VAB / SPH)",
+                Title = "Engineer window (VAB / SPH)",
                 Order = 50,
                 Row = SettingCategory.Keys,
                 Control = SettingControl.Binding,
                 NeedsProfile = false,
-                Tooltip = "Opens and closes the engineer view in the VAB and the SPH, as its button above the parts list does.",
+                Tooltip = "Folds and opens the engineer window in the VAB and the SPH.",
                 Read = settings => settings.EngineerKey,
                 Write = (settings, value) => settings.EngineerKey = value,
             });
@@ -219,17 +219,16 @@ namespace ReDefinition
         public static readonly IGraphicsModule Engineer = new GraphicsModule("engineer", "Engineer",
             new ModuleSetting
             {
-                Key = "engineerSummary",
-                Title = "Summary line",
+                Key = "engineerWindow",
+                Title = "Engineer window",
                 Order = 10,
                 Row = SettingCategory.Interface,
                 Section = EngineerSection,
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
-                Tooltip = "A line beside the parts list in the VAB and the SPH: the vessel's delta-v, its TWR at launch,\n"
-                          + "its mass and its parts, for the situation the engineer view is set to.",
-                Read = settings => SettingValues.Text(settings.EngineerSummary),
-                Write = (settings, value) => settings.EngineerSummary = bool.Parse(value),
+                Tooltip = "The window with the vessel's stages in the VAB and the SPH.",
+                Read = settings => SettingValues.Text(settings.EngineerWindow),
+                Write = (settings, value) => settings.EngineerWindow = bool.Parse(value),
             },
             new ModuleSetting
             {
@@ -240,7 +239,7 @@ namespace ReDefinition
                 Section = EngineerSection,
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
-                Tooltip = "Also lists the stages that burn nothing -- decouplers, parachutes -- in the engineer view's table.",
+                Tooltip = "Also lists the stages that burn nothing, such as decouplers and parachutes.",
                 Read = settings => SettingValues.Text(settings.EngineerAllStages),
                 Write = (settings, value) => settings.EngineerAllStages = bool.Parse(value),
             },
@@ -267,8 +266,7 @@ namespace ReDefinition
                 Section = EngineerSection,
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
-                Tooltip = "The engineer view shows the part the mouse points at on the vessel: mass, cost, engine,\n"
-                          + "resources as filled.",
+                Tooltip = "A card beside the pointer with the part it rests on: mass, cost, engine, resources.",
                 Read = settings => SettingValues.Text(settings.EngineerPartDetails),
                 Write = (settings, value) => settings.EngineerPartDetails = bool.Parse(value),
             });

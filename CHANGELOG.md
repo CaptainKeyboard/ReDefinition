@@ -4,22 +4,23 @@
 
 ### Added
 
-- **An engineer view in the VAB and the SPH.** A button with *Δv* on it, next to KSP's
-  mode buttons above the parts list, opens a view in the parts list's place: delta-v,
-  delta-v left, TWR and burn time for every stage, and on a click each stage's impulse,
-  thrust, mass, parts, cost and thrust torque. Below them RCS, the resources on board and
-  the part under the mouse. The numbers come from KSP's own delta-v simulation, for a
-  body and sea level, an altitude or vacuum, the same situation KSP's delta-v app uses.
-  A line beside the parts list sums the vessel up. Its settings are under
-  *Mods / Toolbar*, its key in *Controls*. If Kerbal Engineer Redux is installed,
-  ReDefinition recommends uninstalling it: the view covers its build window.
-- **A mission planner in the engineer view.** Its *Planner* tab lays out a route from
-  stop to stop, A → B → C, on the surface or in an orbit of any body the game has
-  loaded. It works out each leg's delta-v and shows which of the vessel's stages pay
-  for it, counting the mass each stage pushes at that moment. Stages can be kept for a
-  leg, and a lander can fly alone while the rest waits and be carried on to the next
-  destination. A click on a leg or a stage marks its engines and tanks green on the
-  vessel. The plan is kept per vessel.
+- **An engineer window in the VAB and the SPH.** A window at the bottom of the screen
+  shows the vessel's stages as Kerbal Engineer Redux's build window does, while you
+  build: parts, cost, mass, Isp, thrust, torque, TWR, delta-v and burn time per stage,
+  or four columns in its compact form. It sums the vessel up, adds RCS and the resources
+  on a click, and a card beside the pointer shows the part it rests on. The numbers come
+  from KSP's own delta-v simulation, for a body and sea level, an altitude or vacuum,
+  the same situation KSP's delta-v app uses. Drag it anywhere, or fold it to one line.
+  Its settings are under *Mods / Toolbar*, its key in *Controls*. If Kerbal Engineer
+  Redux is installed, ReDefinition recommends uninstalling it.
+- **A mission planner in the VAB and the SPH.** A button with *Δv* on it, next to KSP's
+  mode buttons, opens it in the parts list's place. It lays out a route from stop to
+  stop, A → B → C, on the surface or in an orbit of any body the game has loaded,
+  works out each leg's delta-v and shares the vessel's stages out over the legs,
+  counting the mass each stage pushes at that moment. The fuel plan shows what each
+  stage gives to each leg; a click on a cell pins the stage to the leg. A lander can fly
+  alone while the rest waits and be carried on to the next destination. The vessel's
+  engines and tanks show in the colours of their stages. The plan is kept per vessel.
 - **The navball moves sideways.** Drag its show/hide button left or right in flight; the
   SAS switches, the autopilot modes and the gauges move with it, and it stays on the
   screen. A click still shows and hides it. The position is kept, and *Navball position*
