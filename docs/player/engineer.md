@@ -67,9 +67,9 @@ situation.
 
 ## The summary line
 
-While the parts list is open, a line beside it shows the vessel's delta-v, its TWR at
-launch, its mass and its parts. It follows the situation chosen in the view. Click it to
-open the view.
+While the parts list is open, a line right of it, under the mode buttons, shows the
+vessel's delta-v, its TWR at launch, its mass and its parts. It follows the situation
+chosen in the view. Click it to open the view.
 
 ## Settings
 

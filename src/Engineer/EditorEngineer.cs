@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections;
 using System;
 using KSP.UI;
@@ -95,6 +96,7 @@ namespace ReDefinition.Engineer
             GameEvents.onEditorScreenChange.Remove(OnScreenChange);
             Canvas.willRenderCanvases -= KeepButtons;
             if (editor != null && editor.partPanelBtn != null) editor.partPanelBtn.onClick.RemoveListener(OnPartsButton);
+            ShowPartList(true);
             if (panel != null) panel.Destroy();
             if (summary != null) summary.Destroy();
             if (button != null) Destroy(button.gameObject);
@@ -179,6 +181,7 @@ namespace ReDefinition.Engineer
                 panel.Show(true);
                 open = true;
                 EditorPanels.Instance.searchField.Transition("Out");
+                ShowPartList(false);
                 if (PartListTooltipMasterController.Instance != null) PartListTooltipMasterController.Instance.HideTooltip();
                 nextRefresh = 0f;
             }
@@ -193,11 +196,38 @@ namespace ReDefinition.Engineer
             if (!open) return;
             open = false;
             if (panel != null) panel.Show(false);
+            ShowPartList(true);
             if (editor != null && editor.editorScreen == EditorScreen.Parts && EditorPanels.Instance != null)
                 EditorPanels.Instance.searchField.Transition("In");
             // The parts button was made clickable while the view stood open; KSP
             // sets its buttons as they belong again.
             if (editor != null) editor.UpdateUI();
+        }
+
+        // The parts list's icons are the parts themselves, drawn by a camera
+        // over the UI, so the view cannot cover them: the grids that hold them
+        // are switched off while the view stands open, and put back as they
+        // were. The list itself stays on, since it starts coroutines on its own
+        // object (EditorPartList, decompiled).
+        private readonly Dictionary<GameObject, bool> hiddenGrids = new Dictionary<GameObject, bool>();
+
+        private void ShowPartList(bool on)
+        {
+            if (on)
+            {
+                foreach (KeyValuePair<GameObject, bool> grid in hiddenGrids)
+                    if (grid.Key != null) grid.Key.SetActive(grid.Value);
+                hiddenGrids.Clear();
+                return;
+            }
+            EditorPartList list = EditorPartList.Instance;
+            if (list == null) return;
+            foreach (RectTransform grid in new[] { list.partGrid, list.subassemblyGrid, list.variantGrid })
+            {
+                if (grid == null || hiddenGrids.ContainsKey(grid.gameObject)) continue;
+                hiddenGrids[grid.gameObject] = grid.gameObject.activeSelf;
+                grid.gameObject.SetActive(false);
+            }
         }
 
         private void OnScreenChange(EditorScreen screen)
@@ -238,6 +268,10 @@ namespace ReDefinition.Engineer
                 DestroyImmediate(behaviour);
             }
             copy.transform.SetParent(cargo.transform.parent, false);
+            // Right after the cargo button among its siblings: the bar drawn
+            // after the mode buttons covers their lower part, and would not
+            // cover the copy if it came last.
+            copy.transform.SetSiblingIndex(cargo.transform.GetSiblingIndex() + 1);
             Destroy(holder);
             copy.name = "ButtonPanelEngineer";
             copy.SetActive(true);

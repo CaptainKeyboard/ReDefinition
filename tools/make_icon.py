@@ -196,55 +196,82 @@ def draw_sliders():
 
 
 # The engineer view's button in the editor's mode bar, beside KSP's parts, actions,
-# crew and cargo buttons: the same kind of tile -- a grey frame, a teal face lit from
-# the top, a glyph -- drawn anew here, with "Δv" as its glyph. One tile per state the
-# button takes: normal, pointed at, active (the view is open), and locked.
-TILE_FRAME = (103, 103, 103, 255)
+# crew and cargo buttons, in the form of their tiles: 128x107, a grey tab on each side,
+# a teal face lit from the top that narrows at the foot, a glyph, "Δv" here. KSP draws
+# the tiles into 48x48 buttons that a bar covers from below, so only their top shows.
+# The colours follow KSP's cargo tile, read at its face's left edge row by row (y in the
+# 128x107 tile, then the colour). One tile per state the button takes: normal, pointed
+# at, active (the view is open), and locked.
+TILE_SIZE = (128, 107)
+TILE_SCALE = 8
 TILE_STATES = {
-    "Normal": ((0, 150, 166), (0, 88, 99), (14, 44, 50, 255)),
-    "Hover": ((40, 205, 220), (0, 120, 132), (249, 255, 242, 255)),
-    "Active": ((70, 222, 236), (0, 140, 152), (249, 255, 242, 255)),
-    "Disabled": ((22, 74, 82), (10, 40, 46), (40, 60, 64, 255)),
+    "Normal": ([(4, (182, 235, 239)), (10, (24, 186, 200)), (44, (23, 185, 199)), (52, (0, 161, 175)),
+                (60, (0, 142, 158)), (68, (0, 129, 141)), (95, (0, 105, 116))],
+               (11, 36, 43, 255), (87, 118, 126, 255)),
+    "Hover": ([(4, (82, 210, 228)), (12, (31, 189, 212)), (20, (4, 153, 168)), (28, (0, 136, 149)),
+               (36, (0, 111, 123)), (44, (0, 94, 102)), (60, (0, 84, 92)), (68, (0, 55, 60)), (95, (0, 45, 50))],
+              (245, 255, 235, 255), (0, 55, 60, 255)),
+    "Active": ([(4, (211, 253, 255)), (12, (99, 248, 255)), (44, (65, 246, 255)), (52, (4, 227, 255)),
+                (60, (0, 218, 236)), (68, (0, 200, 219)), (95, (0, 170, 186))],
+               (245, 255, 235, 255), (0, 90, 100, 255)),
+    "Disabled": ([(4, (130, 163, 170)), (12, (96, 137, 141)), (20, (59, 100, 104)), (28, (49, 87, 89)),
+                  (36, (37, 75, 77)), (44, (31, 65, 64)), (52, (24, 57, 64)), (68, (20, 53, 60)), (95, (16, 44, 50))],
+                 (41, 52, 55, 255), (61, 102, 105, 255)),
 }
+TAB_GREY = [(4, 229), (20, 170), (40, 139), (60, 110), (68, 90)]
 ENGINEER_TILES = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "EngineerButton_%s.png")
 
 
-def draw_engineer_tile(face_top, face_bottom, glyph):
-    image = Image.new("RGBA", (BIG, BIG), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    left, top, right, bottom = 22, 14, BIG - 22, BIG - 50
-    chamfer = 150
-    outline = [(left, top), (right, top), (right, bottom - chamfer), (right - chamfer, bottom),
-               (left + chamfer, bottom), (left, bottom - chamfer)]
-    draw.polygon(outline, fill=TILE_FRAME)
+def ramp_at(stops, y):
+    if y <= stops[0][0]:
+        return stops[0][1]
+    for (y0, c0), (y1, c1) in zip(stops, stops[1:]):
+        if y <= y1:
+            f = (y - y0) / float(y1 - y0)
+            if isinstance(c0, tuple):
+                return tuple(int(c0[i] + (c1[i] - c0[i]) * f) for i in range(3))
+            return int(c0 + (c1 - c0) * f)
+    return stops[-1][1]
 
-    inset = 40
-    face = [(left + inset, top + inset), (right - inset, top + inset), (right - inset, bottom - chamfer),
-            (right - chamfer, bottom - inset), (left + chamfer, bottom - inset), (left + inset, bottom - chamfer)]
-    mask = Image.new("L", (BIG, BIG), 0)
+
+def draw_engineer_tile(face_stops, glyph, rim):
+    k = TILE_SCALE
+    w, h = TILE_SIZE[0] * k, TILE_SIZE[1] * k
+    image = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+
+    # The grey tabs on both sides, darker toward the foot.
+    tabs = Image.new("RGBA", (w, h))
+    tabs_draw = ImageDraw.Draw(tabs)
+    for y in range(h):
+        grey = ramp_at(TAB_GREY, y / float(k))
+        tabs_draw.line([(0, y), (w, y)], fill=(grey, grey, grey, 255))
+    tab_mask = Image.new("L", (w, h), 0)
+    tab_draw = ImageDraw.Draw(tab_mask)
+    tab_draw.rounded_rectangle([8 * k, 2 * k, 18 * k, 68 * k], radius=3 * k, fill=255)
+    tab_draw.rounded_rectangle([110 * k, 2 * k, 120 * k, 68 * k], radius=3 * k, fill=255)
+    image.paste(tabs, (0, 0), tab_mask)
+
+    # The face, narrowing at the foot.
+    face = [(17 * k, 2 * k), (111 * k, 2 * k), (111 * k, 70 * k), (96 * k, 95 * k), (32 * k, 95 * k), (17 * k, 70 * k)]
+    mask = Image.new("L", (w, h), 0)
     ImageDraw.Draw(mask).polygon(face, fill=255)
-    ramp = Image.new("RGBA", (BIG, BIG))
+    ramp = Image.new("RGBA", (w, h))
     ramp_draw = ImageDraw.Draw(ramp)
-    for y in range(BIG):
-        f = min(1.0, max(0.0, (y - top) / float(bottom - top)))
-        colour = tuple(int(face_top[i] + (face_bottom[i] - face_top[i]) * f) for i in range(3)) + (255,)
-        ramp_draw.line([(0, y), (BIG, y)], fill=colour)
+    for y in range(h):
+        ramp_draw.line([(0, y), (w, y)], fill=ramp_at(face_stops, y / float(k)) + (255,))
     image.paste(ramp, (0, 0), mask)
-    # A light band at the top of the face, as the stock tiles have.
-    band = Image.new("RGBA", (BIG, BIG), (255, 255, 255, 0))
-    ImageDraw.Draw(band).rectangle([left + inset, top + inset, right - inset, top + inset + 70], fill=(255, 255, 255, 46))
-    band_mask = ImageChops.multiply(mask, Image.new("L", (BIG, BIG), 255))
-    image = Image.alpha_composite(image, Image.composite(band, Image.new("RGBA", (BIG, BIG), (0, 0, 0, 0)), band_mask))
 
+    # Δv, a rim around the strokes as the stock glyphs have.
     draw = ImageDraw.Draw(image)
-    # Δ: a triangle drawn as a thick outline; v: two strokes meeting at the foot.
-    stroke = 62
-    cx, base, apex = 390, 700, 300
-    half = 190
+    stroke = 6 * k
+    cx, base, apex, half = 52 * k, 72 * k, 22 * k, 20 * k
     tri = [(cx, apex), (cx + half, base), (cx - half, base)]
+    vx, vtop, vbottom, vhalf = 84 * k, 46 * k, 72 * k, 10 * k
+    vee = [(vx - vhalf, vtop), (vx, vbottom), (vx + vhalf, vtop)]
+    draw.line(tri + [tri[0]], fill=rim, width=stroke + 2 * k, joint="curve")
+    draw.line(vee, fill=rim, width=stroke + 2 * k, joint="curve")
     draw.line(tri + [tri[0]], fill=glyph, width=stroke, joint="curve")
-    vx, vtop, vbottom, vhalf = 690, 470, 700, 105
-    draw.line([(vx - vhalf, vtop), (vx, vbottom), (vx + vhalf, vtop)], fill=glyph, width=stroke - 8, joint="curve")
+    draw.line(vee, fill=glyph, width=stroke, joint="curve")
     return image
 
 
@@ -388,9 +415,9 @@ def main():
     draw_sliders().resize((128, 128), Image.LANCZOS).save(IN_GAME)
     print("in the game:", os.path.relpath(IN_GAME, ROOT))
 
-    for state, (face_top, face_bottom, glyph) in TILE_STATES.items():
+    for state, (face_stops, glyph, rim) in TILE_STATES.items():
         path = ENGINEER_TILES % state
-        draw_engineer_tile(face_top, face_bottom, glyph).resize((128, 128), Image.LANCZOS).save(path)
+        draw_engineer_tile(face_stops, glyph, rim).resize(TILE_SIZE, Image.LANCZOS).save(path)
         print("in the game:", os.path.relpath(path, ROOT))
 
     for name, drawing in PLANNER_DRAWINGS.items():

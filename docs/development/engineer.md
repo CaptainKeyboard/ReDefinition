@@ -47,22 +47,33 @@ UnityPy) **[src]**. The active mode's button is the one KSP makes not interactab
 disabled sprite is the active tile. KSP places the buttons once, from the anchors
 `crewBtnOrigPos`, `cargoBtnOrigPos` and `editorBtnOrigPos` **[src]**.
 
-`EditorEngineer` copies the cargo button and gives the copy its own four tiles
+KSP's tiles are 128 by 107 pixels: a grey tab on each side and a teal face that narrows
+at the foot. KSP draws them into the 48 by 48 buttons, and a bar drawn after the buttons
+covers their lower part **[src]**. `EditorEngineer` copies the cargo button and gives the
+copy its own four tiles in the same form and colours
 (`GameData/ReDefinition/Icons/EngineerButton_*.png`, drawn by `tools/make_icon.py`). It
-sets the copy one step right of the last visible mode button, and the switch-editor
-button one step further. It does this every frame, before the canvases draw, so the row
-follows whatever KSP does to it. KSP sets its buttons' interactable state only on events,
+puts the copy right after the cargo button among the bar's children, so the bar covers
+it as it covers KSP's. It sets the copy one step right of the last visible mode button,
+and the switch-editor button one step further. It does this every frame, before the
+canvases draw, so the row follows whatever KSP does to it. KSP sets its buttons' interactable state only on events,
 such as a changed input lock or a mode switch (`EditorLogic.UpdateUI`) **[src]**. So while
 the view is open, `EditorEngineer` keeps the parts button clickable. On closing, it hands
 the buttons back to `UpdateUI`.
 
 The view itself is built from KSP's dialog elements into the parts panel,
-`EditorPanels.partsEditor`, over the parts list. `EngineerPanel` creates it as a
+`EditorPanels.partsEditor`, over the parts list. It covers the panel from the top of the
+list's sorting row down (`EditorPartList.partListSorter`, `partListScrollRect`), and the
+search bar above stays KSP's. The list's icons are the parts themselves, drawn by a
+camera over the UI, so no panel covers them. The grids that hold them (`partGrid`,
+`subassemblyGrid`, `variantGrid`) are switched off while the view stands open, and put
+back as they were when it closes. The list itself stays on, because it starts coroutines
+on its own object **[src]**. `EngineerPanel` creates it as a
 `PopupDialog` creates its content, with `DialogGUIBase.Create` and the panel as the
 layout's parent, and updates it every frame as a `PopupDialog` does **[src]**. So it
 slides with the panel, scales with KSP's UI and takes a UI theme such as ZTheme. The
 summary line (`EngineerSummary`) stands beside the panel rather than inside it, where the
-panel's mask could cut it off. It is moved to the panel's top right corner every frame.
+panel's mask could cut it off. Every frame it is moved right of the panel, under the mode
+buttons. It is a label, not a button, because a button's text is bold in the skin.
 
 Opening the view from another mode switches KSP to the parts mode first
 (`EditorLogic.SelectPanelParts`). Any change of mode closes the view

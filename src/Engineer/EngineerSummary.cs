@@ -8,14 +8,14 @@ namespace ReDefinition.Engineer
 {
     // One line beside the parts list while the engineer view is closed: the
     // vessel's delta-v, its TWR at launch, its mass and its parts, for the
-    // situation the view is set to. It stands at the parts panel's top right
-    // corner, set there every frame so that it slides with the panel -- beside
-    // the panel rather than inside it, where the panel's mask could cut it off --
-    // and a click on it opens the view.
+    // situation the view is set to. It stands right of the parts panel, under
+    // the editor's mode buttons, and is set there every frame so that it slides
+    // with the panel. It is beside the panel rather than inside it, where the
+    // panel's mask could cut it off. A click on it opens the view.
     internal sealed class EngineerSummary
     {
-        private const float Width = 390f;
-        private const float Height = 24f;
+        private const float Width = 300f;
+        private const float Height = 20f;
         private const string Warning = "#ff9a3d";
 
         private readonly EditorEngineer owner;
@@ -50,11 +50,15 @@ namespace ReDefinition.Engineer
             Image background = host.GetComponent<Image>();
             background.color = new Color(0.08f, 0.09f, 0.10f, 0.78f);
 
+            // A label rather than a button: a button's text is bold in the skin.
+            // The click is taken by a button on the line's own background.
+            Button click = host.AddComponent<Button>();
+            click.transition = Selectable.Transition.None;
+            click.onClick.AddListener(() => owner.Open());
+
             UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
-            DialogGUIButton line = new DialogGUIButton(Text, () => owner.Open(), Width, Height, false);
-            DialogOverWindow.ClearBackground(line);
-            line.tooltipText = "Opens the engineer view: every stage, RCS, the resources and the part under the mouse.";
-            root = new DialogGUIHorizontalLayout(Width, Height, 0f, new RectOffset(), TextAnchor.MiddleLeft, line);
+            DialogGUILabel line = new DialogGUILabel(Text, Width - 12f, Height);
+            root = new DialogGUIHorizontalLayout(Width, Height, 0f, new RectOffset(6, 6, 0, 0), TextAnchor.MiddleLeft, line);
 
             Stack<Transform> layouts = new Stack<Transform>();
             layouts.Push(host.transform);
@@ -85,8 +89,16 @@ namespace ReDefinition.Engineer
             {
                 panel.GetWorldCorners(corners);
                 RectTransform rect = (RectTransform)host.transform;
-                rect.position = corners[2];
-                rect.localPosition += new Vector3(8f, -6f, 0f);
+                Vector3 at = corners[2];
+                // Under the mode buttons where they reach below the panel's top.
+                Button cargo = EditorLogic.fetch != null ? EditorLogic.fetch.cargoPanelBtn : null;
+                if (cargo != null)
+                {
+                    ((RectTransform)cargo.transform).GetWorldCorners(corners);
+                    at.y = Mathf.Min(at.y, corners[0].y);
+                }
+                rect.position = at;
+                rect.localPosition += new Vector3(8f, -4f, 0f);
             }
             root.Update();
         }
@@ -104,7 +116,7 @@ namespace ReDefinition.Engineer
             StageRow first = StageTable.FirstBurning(readout.Stages);
             string twr = first == null ? "--" : EngineerFormat.Ratio(first.Twr);
             if (first != null && first.Twr < 1.0) twr = "<color=" + Warning + ">" + twr + "</color>";
-            return "  Δv " + (readout.Simulated ? EngineerFormat.Speed(readout.TotalDeltaV) : "--") + "    TWR " + twr + "    "
+            return "Δv " + (readout.Simulated ? EngineerFormat.Speed(readout.TotalDeltaV) : "--") + "    TWR " + twr + "    "
                    + EngineerFormat.Mass(readout.WetMass) + "    " + EngineerFormat.Count(readout.Parts) + " parts";
         }
     }

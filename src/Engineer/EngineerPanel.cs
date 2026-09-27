@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 using System;
+using KSP.UI.Screens;
 using ReDefinition.Window;
 using UnityEngine;
 using UnityEngine.UI;
@@ -65,17 +66,20 @@ namespace ReDefinition.Engineer
             host = new GameObject("ReDefinitionEngineerView", typeof(RectTransform), typeof(Image));
             RectTransform rect = (RectTransform)host.transform;
             rect.SetParent(parent, false);
+            // From the top of the parts list's sorting row down: the search
+            // bar above it stays KSP's.
+            Rect area = ListArea(parent);
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
+            rect.offsetMin = area.min - parent.rect.min;
+            rect.offsetMax = area.max - parent.rect.max;
             rect.SetAsLastSibling();
             Image background = host.GetComponent<Image>();
             background.color = new Color(0.12f, 0.13f, 0.14f, 1f);
             background.raycastTarget = true;
 
-            float panelWidth = Mathf.Max(200f, parent.rect.width);
-            float panelHeight = Mathf.Max(200f, parent.rect.height);
+            float panelWidth = Mathf.Max(200f, area.width);
+            float panelHeight = Mathf.Max(200f, area.height);
             width = panelWidth - Padding * 2f - 18f;
             Debug.Log(Core.Log.Tag + " Engineer view built " + panelWidth.ToString("0") + " wide, rows " + width.ToString("0") + ".");
 
@@ -127,6 +131,33 @@ namespace ReDefinition.Engineer
                 scroll.offsetMax = Vector2.zero;
             }
             host.SetActive(false);
+        }
+
+        // The panel's width, and from the bottom of the parts list up to the top
+        // of its sorting row (EditorPartList.partListScrollRect, partListSorter),
+        // in the panel's own space. The whole panel where the list is not found.
+        private static Rect ListArea(RectTransform parent)
+        {
+            Rect whole = parent.rect;
+            EditorPartList list = EditorPartList.Instance;
+            if (list == null || list.partListScrollRect == null) return whole;
+            Rect scroll = LocalRect(parent, (RectTransform)list.partListScrollRect.transform);
+            float top = scroll.yMax;
+            if (list.partListSorter != null)
+                top = Mathf.Max(top, LocalRect(parent, (RectTransform)list.partListSorter.transform).yMax);
+            float bottom = Mathf.Max(whole.yMin, scroll.yMin);
+            top = Mathf.Min(whole.yMax, top);
+            if (top - bottom < 200f) return whole;
+            return Rect.MinMaxRect(whole.xMin, bottom, whole.xMax, top);
+        }
+
+        private static Rect LocalRect(RectTransform parent, RectTransform child)
+        {
+            Vector3[] corners = new Vector3[4];
+            child.GetWorldCorners(corners);
+            Vector3 min = parent.InverseTransformPoint(corners[0]);
+            Vector3 max = parent.InverseTransformPoint(corners[2]);
+            return Rect.MinMaxRect(Mathf.Min(min.x, max.x), Mathf.Min(min.y, max.y), Mathf.Max(min.x, max.x), Mathf.Max(min.y, max.y));
         }
 
         internal void Show(bool on)
