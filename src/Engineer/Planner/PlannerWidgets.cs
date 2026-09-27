@@ -128,6 +128,34 @@ namespace ReDefinition.Engineer
             });
         }
 
+        // A scroll list as KSP's own panels show one. Its content is held at
+        // the top edge: KSP's content sizer lets it keep its last height, and
+        // rows hidden after it was laid out shrank it about its middle,
+        // leaving a gap above the first row. Its background, a lighter box of
+        // KSP's scroll view prefab, is cleared, so that the panel it stands in
+        // shows one background.
+        internal static void Settle(DialogGUIScrollList list)
+        {
+            if (list == null || list.uiItem == null) return;
+            Image own = list.uiItem.GetComponent<Image>();
+            if (own != null) own.color = Color.clear;
+            ScrollRect scroll = list.uiItem.GetComponentInChildren<ScrollRect>();
+            if (scroll == null || scroll.content == null) return;
+            scroll.content.anchorMin = new Vector2(scroll.content.anchorMin.x, 1f);
+            scroll.content.anchorMax = new Vector2(scroll.content.anchorMax.x, 1f);
+            scroll.content.pivot = new Vector2(scroll.content.pivot.x, 1f);
+            scroll.content.anchoredPosition = new Vector2(scroll.content.anchoredPosition.x, 0f);
+            scroll.verticalNormalizedPosition = 1f;
+        }
+
+        // KSP's scroll view insets its content 4 units at each side, and its
+        // vertical bar, 16 wide, stands 3 units in from the right edge (the
+        // prefab, read with UnityPy): what a row may fill of a list this wide.
+        internal static float RowRoom(float listWidth)
+        {
+            return listWidth - 4f - 19f;
+        }
+
         // A symbol alone, tinted, as a mark in a row.
         internal static DialogGUIImage Icon(string icon, float size, Color tint)
         {
@@ -205,8 +233,8 @@ namespace ReDefinition.Engineer
         }
     }
 
-    // A small symbol in the top left corner of a button, shown or hidden: the
-    // pin on a cell of the fuel plan.
+    // A small symbol in the top right corner of a button, shown or hidden: the
+    // pin on a cell of the fuel plan, clear of its centred figure.
     internal sealed class IconMark
     {
         private GameObject mark;
@@ -221,9 +249,9 @@ namespace ReDefinition.Engineer
                 mark = new GameObject("ReDefinitionMark", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
                 RectTransform rect = (RectTransform)mark.transform;
                 rect.SetParent(element.uiItem.transform, false);
-                rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
-                rect.pivot = new Vector2(0f, 1f);
-                rect.anchoredPosition = new Vector2(1f, -1f);
+                rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
+                rect.pivot = new Vector2(1f, 1f);
+                rect.anchoredPosition = new Vector2(-1f, -1f);
                 rect.sizeDelta = new Vector2(size, size);
                 mark.GetComponent<LayoutElement>().ignoreLayout = true;
                 Image image = mark.GetComponent<Image>();
@@ -330,6 +358,8 @@ namespace ReDefinition.Engineer
             UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
             const float width = 200f;
             const float rowHeight = 22f;
+            float listWidth = width - 20f;
+            float rowWidth = PlannerWidgets.RowRoom(listWidth) - 8f;
 
             List<DialogGUIBase> rows = new List<DialogGUIBase>
             {
@@ -341,20 +371,21 @@ namespace ReDefinition.Engineer
                 int depth = Depth(bodies, body);
                 string name = bodies.Bodies[body].Name;
                 DialogGUIButton button = new DialogGUIButton(body == current ? "<b>" + name + "</b>" : name,
-                    () => { Close(); chosen(picked); }, width - 24f - depth * 14f, rowHeight, false);
-                rows.Add(new DialogGUIHorizontalLayout(width - 24f, rowHeight, 0f, new RectOffset(depth * 14, 0, 0, 0),
+                    () => { Close(); chosen(picked); }, rowWidth - depth * 14f, rowHeight, false);
+                rows.Add(new DialogGUIHorizontalLayout(rowWidth, rowHeight, 0f, new RectOffset(depth * 14, 0, 0, 0),
                     TextAnchor.MiddleLeft, button));
             }
             float height = Mathf.Min(440f, bodies.Order.Count * (rowHeight + 2f) + 16f);
-            DialogGUIVerticalLayout list = new DialogGUIVerticalLayout(width - 24f, -1f, 2f, new RectOffset(4, 4, 4, 4),
+            DialogGUIVerticalLayout list = new DialogGUIVerticalLayout(rowWidth, -1f, 2f, new RectOffset(4, 4, 4, 4),
                 TextAnchor.UpperLeft, rows.ToArray());
 
-            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionPlannerBodies", "", "", skin,
-                new Rect(0.5f, 0.5f, width, height + 40f),
-                new DialogGUIScrollList(new Vector2(width - 8f, height), false, true, list),
-                new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), Close, width - 8f, rowHeight, false));
+            DialogGUIScrollList scroll = new DialogGUIScrollList(new Vector2(listWidth, height), false, true, list);
+            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionPlannerBodies", "", "Body", skin,
+                new Rect(0.5f, 0.5f, width, height + 60f), scroll,
+                new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), Close, listWidth, rowHeight, false));
             open = UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog,
                 false, skin, false));
+            PlannerWidgets.Settle(scroll);
         }
 
         internal static void Close()

@@ -12,7 +12,9 @@ namespace ReDefinition.Engineer
     // while a part hangs on the mouse.
     internal sealed class PartCard
     {
-        private const float Width = 280f;
+        // Wide enough that "Reaction wheel, pitch / yaw / roll" and its value
+        // stand side by side.
+        private const float Width = 380f;
         private const float Delay = 0.35f;
         private const float Interval = 0.25f;
         private const string Dim = "#9a9a9a";
@@ -135,7 +137,7 @@ namespace ReDefinition.Engineer
                 text.Append('\n');
                 string name = line.Detail ? "    " + line.Name : line.Name;
                 if (line.Value.Length == 0) text.Append("<color=" + Dim + ">").Append(name).Append("</color>");
-                else text.Append(name).Append("<pos=50%>").Append(line.Value);
+                else text.Append(name).Append("<pos=52%>").Append(line.Value);
             }
             return text.ToString();
         }

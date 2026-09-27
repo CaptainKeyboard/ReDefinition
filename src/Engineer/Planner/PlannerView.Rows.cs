@@ -66,8 +66,11 @@ namespace ReDefinition.Engineer
 
         private IEnumerable<DialogGUIBase> StopRows(int index)
         {
+            // KSP's layouts take no width of their own (DialogGUILayoutBase,
+            // decompiled): the space after the dot makes the column as wide as
+            // the timeline's.
             DialogGUIHorizontalLayout dot = new DialogGUIHorizontalLayout(Timeline, Icon, 0f, new RectOffset(4, 0, 0, 0),
-                TextAnchor.MiddleLeft, PlannerWidgets.Icon("Dot", 12f, PlannerColors.Line));
+                TextAnchor.MiddleLeft, PlannerWidgets.Icon("Dot", 12f, PlannerColors.Line), new DialogGUISpace(Timeline - 16f));
             // The body's button takes the room the others leave: the dot, the
             // letter, three choices, the cross and the gaps between the seven.
             float bodyWidth = Mathf.Max(100f, width - Timeline - LetterWidth - 62f - 52f - 76f - Icon - 4f * 7f - 2f);
@@ -80,12 +83,16 @@ namespace ReDefinition.Engineer
             DialogGUIButton air = Choice(() => Kind(index) == StopKind.Surface ? "Chutes" : "Aerobrake", () => UsesAtmosphere(index),
                 () => ToggleAtmosphere(index), 76f);
             air.OptionEnabledCondition = () => index > 0 && HasAtmosphere(index);
+            // Its room where it is hidden, so that the cross stands in one
+            // column on every stop.
+            DialogGUISpace noAir = new DialogGUISpace(76f);
+            noAir.OptionEnabledCondition = () => !(index > 0 && HasAtmosphere(index));
             DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveStop(index), Icon, "Remove", after);
             remove.OptionEnabledCondition = () => Ready() && state.Stops.Count > 2;
 
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 4f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, dot, new DialogGUILabel(() => "<b>" + Letter(index) + "</b>", LetterWidth), body, surface,
-                orbit, air, remove);
+                orbit, air, noAir, remove);
             row.OptionEnabledCondition = () => Shown(index);
             yield return row;
 
@@ -101,7 +108,7 @@ namespace ReDefinition.Engineer
         private static DialogGUIBase TimelineLine(float height)
         {
             return new DialogGUIHorizontalLayout(Timeline, height, 0f, new RectOffset(9, 0, 0, 0), TextAnchor.MiddleLeft,
-                PlannerWidgets.Block(2f, height, PlannerColors.Line));
+                PlannerWidgets.Block(2f, height, PlannerColors.Line), new DialogGUISpace(Timeline - 11f));
         }
 
         // A button of KSP's skin whose text is lit while its option is chosen.
@@ -264,7 +271,7 @@ namespace ReDefinition.Engineer
             bool pinned = IsPinned(stage, leg);
             if (used < 0.5) return pinned ? "<color=" + Warning + ">0</color>" : "";
             string colour = PlannerColors.Hex(PlannerColors.Stage(stage));
-            string figure = cellWidth >= 64f ? EngineerFormat.Speed(used) : Short(used);
+            string figure = cellWidth >= 72f ? EngineerFormat.Speed(used) : Short(used);
             string text = "<size=90%><color=" + colour + ">" + figure + "</color></size>";
             return pinned ? "<b>" + text + "</b>" : text;
         }

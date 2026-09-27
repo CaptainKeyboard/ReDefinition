@@ -48,8 +48,11 @@ while it or the planner needs it. Its background is the skin's window sprite, so
 such as ZTheme reaches it as it reaches KSP's dialogs. It is anchored at the bottom centre of
 the screen and moved by dragging its background (`WindowDrag`). Unity hands a drag to the first
 handler above the pointer: a button takes none, so the drag moves the window, and the table's
-scroll list takes it for itself. The window rebuilds its elements when it is folded, opened or
-switched between compact and full. Its place and those choices are kept in
+scroll list takes it for itself. The table's scroll list is settled as the planner's is
+(`PlannerWidgets.Settle`), its rows as wide as the scroll view leaves them, and the header in
+by the same 4 units. The part card is 380 units wide, so the longest names and their values
+stand side by side. The window rebuilds its elements when it is folded, opened or switched
+between compact and full. Its place and those choices are kept in
 `GameData/ReDefinition/PluginData/engineer.cfg`. Every frame it is kept on the screen, whatever
 the screen's size or the UI scale was when its place was saved. The table's rows are labels, as
 the header is, so their columns line up. The rows' texts are written again only when the

@@ -20,8 +20,6 @@ namespace ReDefinition.Engineer
     // as a PopupDialog creates its content (DialogGUIBase.Create, decompiled).
     internal sealed class PlannerPanel
     {
-        private const float Scrollbar = 18f;
-
         private readonly EditorEngineer owner;
         private UIPanelTransition transition;
         private UIPanelTransitionManager manager;
@@ -83,7 +81,8 @@ namespace ReDefinition.Engineer
 
             UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
             RectTransform frame = (RectTransform)copy.transform;
-            float width = Mathf.Max(200f, frame.sizeDelta.x + content.sizeDelta.x) - Scrollbar;
+            float listWidth = Mathf.Max(200f, frame.sizeDelta.x + content.sizeDelta.x);
+            float width = PlannerWidgets.RowRoom(listWidth);
             view = new PlannerView(owner, width);
             List<DialogGUIBase> rows = new List<DialogGUIBase>
             {
@@ -92,8 +91,9 @@ namespace ReDefinition.Engineer
             rows.AddRange(view.Rows());
             DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(0, 0, 0, 12),
                 TextAnchor.UpperLeft, rows.ToArray());
-            root = new DialogGUIScrollList(new Vector2(width + Scrollbar, Mathf.Max(200f, content.rect.height)), false, true,
-                layout);
+            DialogGUIScrollList list = new DialogGUIScrollList(new Vector2(listWidth, Mathf.Max(200f, content.rect.height)), false,
+                true, layout);
+            root = list;
             Stack<Transform> layouts = new Stack<Transform>();
             layouts.Push(content);
             root.Create(ref layouts, skin);
@@ -108,19 +108,7 @@ namespace ReDefinition.Engineer
             // The content is laid out with every row first and shrinks as the
             // rows the plan does not need hide. It is held at its top edge, so
             // that it shrinks from the bottom.
-            // The scroll view brings a background of its own, a lighter box
-            // inside the panel's; the crew panel shows one background only.
-            Image own = root.uiItem != null ? root.uiItem.GetComponent<Image>() : null;
-            if (own != null) own.color = Color.clear;
-            ScrollRect list = root.uiItem != null ? root.uiItem.GetComponentInChildren<ScrollRect>() : null;
-            if (list != null && list.content != null)
-            {
-                list.content.anchorMin = new Vector2(list.content.anchorMin.x, 1f);
-                list.content.anchorMax = new Vector2(list.content.anchorMax.x, 1f);
-                list.content.pivot = new Vector2(list.content.pivot.x, 1f);
-                list.content.anchoredPosition = new Vector2(list.content.anchoredPosition.x, 0f);
-                list.verticalNormalizedPosition = 1f;
-            }
+            PlannerWidgets.Settle(list);
             view.Finish();
             Debug.Log(Log.Tag + " Planner made from the crew panel: " + frame.sizeDelta.x.ToString("0") + " wide, rows "
                       + width.ToString("0") + " wide.");

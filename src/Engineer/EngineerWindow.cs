@@ -21,7 +21,9 @@ namespace ReDefinition.Engineer
         private const int MaxStages = 40;
         private const float RowHeight = 18f;
         private const float FullWidth = 660f;
-        private const float CompactWidth = 330f;
+        // As wide as the compact toolbar: KSP's layouts take the width of
+        // their elements, not the one they are given.
+        private const float CompactWidth = 380f;
         private const float FoldedWidth = 300f;
         private const float TableHeight = 260f;
         private const string Good = "#8fdc7a";
@@ -37,6 +39,7 @@ namespace ReDefinition.Engineer
         private int selectedStage = -1;
         private readonly PartHighlight highlight = new PartHighlight();
         private PartCard card;
+        private DialogGUIScrollList tableList;
         private List<StageRow> shown = new List<StageRow>();
         // The rows' texts, written again only when the readout, the selection
         // or the form of the table changes.
@@ -184,8 +187,15 @@ namespace ReDefinition.Engineer
         private void Build()
         {
             rebuild = false;
-            if (root != null && root.uiItem != null) UnityEngine.Object.Destroy(root.uiItem);
+            // Out of the layout at once: Destroy takes effect at the frame's
+            // end, and the old rows would be laid out with the new for a frame.
+            if (root != null && root.uiItem != null)
+            {
+                root.uiItem.SetActive(false);
+                UnityEngine.Object.Destroy(root.uiItem);
+            }
             float width = view.Folded ? FoldedWidth : view.Compact ? CompactWidth : FullWidth;
+            tableList = null;
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             if (view.Folded)
             {
@@ -198,19 +208,24 @@ namespace ReDefinition.Engineer
                 rows.Add(Toolbar(width));
                 rows.Add(AltitudeRow(width));
                 rows.Add(new DialogGUILabel(TotalsText, width, RowHeight));
-                rows.Add(new DialogGUILabel(() => "<color=" + Dim + ">" + Header() + "</color>", width - 18f, RowHeight));
+                // The header over the rows: as wide as they are, and in by the
+                // 4 units the scroll view insets them.
+                float rowWidth = PlannerWidgets.RowRoom(width);
+                rows.Add(new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(4, 0, 0, 0), TextAnchor.MiddleLeft,
+                    new DialogGUILabel(() => "<color=" + Dim + ">" + Header() + "</color>", rowWidth, RowHeight)));
                 List<DialogGUIBase> table = new List<DialogGUIBase>
                 {
                     new DialogGUIContentSizer(ContentSizeFitter.FitMode.Unconstrained, ContentSizeFitter.FitMode.PreferredSize, true),
                 };
-                for (int i = 0; i < MaxStages; i++) table.Add(StageRowFor(i, width - 18f));
+                for (int i = 0; i < MaxStages; i++) table.Add(StageRowFor(i, rowWidth));
                 DialogGUILabel empty = new DialogGUILabel(() => "<color=" + Dim + ">"
                                                                 + ((owner.Readout ?? new EditorReadout()).HasShip ? "No stage burns anything yet."
-                                                                    : "Place a part to see the stages.") + "</color>", width - 18f, RowHeight);
+                                                                    : "Place a part to see the stages.") + "</color>", rowWidth, RowHeight);
                 empty.OptionEnabledCondition = () => shown.Count == 0;
                 table.Add(empty);
-                rows.Add(new DialogGUIScrollList(new Vector2(width, TableHeight), false, true,
-                    new DialogGUIVerticalLayout(width - 18f, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft, table.ToArray())));
+                tableList = new DialogGUIScrollList(new Vector2(width, TableHeight), false, true,
+                    new DialogGUIVerticalLayout(rowWidth, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft, table.ToArray()));
+                rows.Add(tableList);
                 DialogGUILabel rcs = new DialogGUILabel(RcsText, width, RowHeight);
                 rcs.OptionEnabledCondition = () => view.Rcs && !view.Compact;
                 rows.Add(rcs);
@@ -224,6 +239,7 @@ namespace ReDefinition.Engineer
             Stack<Transform> layouts = new Stack<Transform>();
             layouts.Push(host.transform);
             root.Create(ref layouts, skin);
+            PlannerWidgets.Settle(tableList);
             after.Run();
             lastSelected = -2;
         }
@@ -329,7 +345,7 @@ namespace ReDefinition.Engineer
 
         // KER's columns, and the four of its compact mode (KerbalEngineer's
         // BuildAdvanced, read).
-        private static readonly int[] FullAt = { 0, 8, 17, 28, 40, 49, 60, 70, 80, 91 };
+        private static readonly int[] FullAt = { 0, 7, 15, 25, 35, 43, 52, 60, 74, 88 };
         private static readonly int[] CompactAt = { 0, 22, 52, 74 };
 
         private string Columns(string[] cells)

@@ -252,6 +252,7 @@ namespace ReDefinition.Engineer
         private bool ModeSwitchAllowed()
         {
             if (!InputLockManager.IsUnlocked(ControlTypes.EDITOR_MODE_SWITCH)) return false;
+            if (PanelsSliding()) return false;
             if (editor.editorScreen == EditorScreen.Parts) return true;
             return editor.partPanelBtn != null && editor.partPanelBtn.interactable;
         }
@@ -344,6 +345,38 @@ namespace ReDefinition.Engineer
             return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
         }
 
+        // While a panel slides in or out, no mode button can be clicked. KSP
+        // locks its buttons for its own transitions, but the planner's pass
+        // its lock by; a mode chosen during one left the planner standing
+        // beside the new panel (UIPanelTransitionManager, decompiled). KSP
+        // sets the buttons as they belong again once the panels stand still.
+        private bool locked;
+
+        private static bool PanelsSliding()
+        {
+            EditorPanels panels = EditorPanels.Instance;
+            if (panels == null || panels.panelManager == null || panels.panelManager.panels == null) return false;
+            foreach (UIPanelTransition panel in panels.panelManager.panels)
+                if (panel != null && panel.Transitioning) return true;
+            return false;
+        }
+
+        private void LockWhileSliding()
+        {
+            if (PanelsSliding())
+            {
+                locked = true;
+                foreach (Button mode in new[] { editor.partPanelBtn, editor.actionPanelBtn, editor.crewPanelBtn, editor.cargoPanelBtn })
+                    if (mode != null) mode.interactable = false;
+                button.interactable = false;
+            }
+            else if (locked)
+            {
+                locked = false;
+                editor.UpdateUI();
+            }
+        }
+
         // Before the canvases draw, after every Update and LateUpdate: the row's
         // places, and which buttons can be clicked. KSP sets its buttons'
         // interactable state in its own update; the open view makes the parts
@@ -366,6 +399,7 @@ namespace ReDefinition.Engineer
                 }
                 button.interactable = !open && allowed;
                 if (open && editor.partPanelBtn != null) editor.partPanelBtn.interactable = allowed;
+                LockWhileSliding();
             }
             catch (Exception e)
             {
