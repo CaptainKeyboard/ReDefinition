@@ -82,16 +82,31 @@ rectangle and its offset). The editor scene shows this (`sharedassets6`, read wi
 sprite is the active tile. KSP places the buttons once, from the anchors `crewBtnOrigPos`,
 `cargoBtnOrigPos` and `editorBtnOrigPos` **[src]**.
 
-`EditorEngineer` copies the cargo button and gives the copy its own four tiles in the same
-size, form, place and colours (`GameData/ReDefinition/Icons/EngineerButton_*.png`, drawn by
-`tools/make_icon.py`). It puts the copy right after the cargo button among its siblings. Every
-frame, before the canvases draw, it sets the copy one step right of the last visible mode
-button and the switch-editor button one step further. It also gives the copy the cargo button's
-size, anchors, scale and image settings. The first frame writes both buttons' measures to
-`KSP.log`, in a line that starts with `Mode buttons:`. KSP sets its buttons' interactable state
-only on events, such as a changed input lock or a mode switch (`EditorLogic.UpdateUI`)
-**[src]**. So while the planner is open, `EditorEngineer` keeps the parts button clickable. On
-closing, it hands the buttons back to `UpdateUI`.
+`EditorEngineer` copies the cargo button and puts the copy right before it among its
+siblings. The buttons overlap, and KSP's order draws each over the left edge of the one
+to its right: the parts button, leftmost, comes last **[src]**. Every frame, before the
+canvases draw, it sets the copy one step right of the last visible mode button and the
+switch-editor button one step further, and gives the copy the cargo button's size,
+anchors, scale and image settings. The first frame writes both buttons' measures to
+`KSP.log`, in a line that starts with `Mode buttons:`. KSP sets its buttons'
+interactable state only on events, such as a changed input lock or a mode switch
+(`EditorLogic.UpdateUI`) **[src]**. So while the planner is open, `EditorEngineer` keeps
+the parts button clickable. On closing, it hands the buttons back to `UpdateUI`.
+
+The copy's tiles are made in the game from the cargo button's tiles as they are
+(`ModeButtonTiles`). A UI theme such as ZTheme replaces those through HUDReplacer, which
+swaps the pixels of a texture by its name as the scene's UI is ready
+(`onLevelWasLoadedGUIReady`); the cargo tiles are one texture, `VABCargo_Button`, with a
+sprite per state (HUDReplacer's and ZTheme's sources, read) **[src]**. So the copy has
+the theme's flat tiles where ZTheme is installed, and KSP's own where it is not. For
+each state, the tile is copied through a render texture, since textures are not
+readable from the CPU. Each row of its face is painted over between the face's own
+colours at its edges, which takes the cargo glyph off. "Δv" is laid on in the colour of
+that glyph, centred on the face at two thirds of its height, from a mask drawn by
+`tools/make_icon.py` (`GameData/ReDefinition/Icons/EngineerGlyph_Fill.png`). The tiles
+are made again after the scene's UI is ready and a second later, whichever comes after
+the theme. Where a tile cannot be made, the copy falls back to the tiles
+`tools/make_icon.py` draws after KSP's (`EngineerButton_*.png`).
 
 KSP's four panels in the editor are `UIPanelTransition`s that its panel manager,
 `EditorPanels.panelManager`, brings in and out (`EditorPanels.ShowCrewAssignment` and its

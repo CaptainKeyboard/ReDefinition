@@ -87,6 +87,11 @@ namespace ReDefinition.Engineer
             {
                 Debug.LogWarning(Log.Tag + " The engineer window and the planner could not be added to the editor: " + e);
             }
+            // A UI theme such as ZTheme swaps the pixels of KSP's textures as the
+            // scene's UI is ready (HUDReplacer, onLevelWasLoadedGUIReady): the
+            // planner button's tiles are made again after it.
+            GameEvents.onLevelWasLoadedGUIReady.Add(OnGuiReady);
+            StartCoroutine(TilesAgainLater());
             if (KerbalEngineerInstalled && !kerNoticeShown)
             {
                 kerNoticeShown = true;
@@ -97,6 +102,7 @@ namespace ReDefinition.Engineer
         private void OnDestroy()
         {
             GameEvents.onEditorScreenChange.Remove(OnScreenChange);
+            GameEvents.onLevelWasLoadedGUIReady.Remove(OnGuiReady);
             Canvas.willRenderCanvases -= KeepButtons;
             if (editor != null && editor.partPanelBtn != null) editor.partPanelBtn.onClick.RemoveListener(OnPartsButton);
             if (panel != null) panel.Destroy();
@@ -267,10 +273,12 @@ namespace ReDefinition.Engineer
                 DestroyImmediate(behaviour);
             }
             copy.transform.SetParent(cargo.transform.parent, false);
-            // Right after the cargo button among its siblings: the bar drawn
-            // after the mode buttons covers their lower part, and would not
-            // cover the copy if it came last.
-            copy.transform.SetSiblingIndex(cargo.transform.GetSiblingIndex() + 1);
+            // Right before the cargo button among its siblings. The mode buttons
+            // overlap, and KSP's order draws each over the left edge of the one
+            // to its right: the parts button, leftmost, comes last (the editor
+            // scene's Top Bar, read with UnityPy). So the cargo button is drawn
+            // over the copy's left edge, as over its other neighbours'.
+            copy.transform.SetSiblingIndex(cargo.transform.GetSiblingIndex());
             Destroy(holder);
             copy.name = "ButtonPanelEngineer";
             copy.SetActive(true);
@@ -280,27 +288,53 @@ namespace ReDefinition.Engineer
             TooltipController_Text tooltip = copy.GetComponent<TooltipController_Text>();
             if (tooltip != null) tooltip.textString = "Planner";
 
-            Sprite normal = Tile("Normal");
-            Sprite hover = Tile("Hover");
-            tileActive = Tile("Active");
-            tileDisabled = Tile("Disabled");
-            Image image = copy.GetComponent<Image>();
-            if (normal != null && image != null)
-            {
-                image.sprite = normal;
-                button.transition = Selectable.Transition.SpriteSwap;
-                SpriteState states = button.spriteState;
-                states.highlightedSprite = hover;
-                states.pressedSprite = tileActive;
-                states.disabledSprite = tileActive;
-                button.spriteState = states;
-            }
-            else
-            {
-                Debug.LogWarning(Log.Tag + " The engineer button's tiles are missing from GameData/ReDefinition/Icons;"
-                                 + " it shows KSP's cargo tile.");
-            }
+            Tiles(cargo);
             KeepButtons();
+        }
+
+        // The copy's tiles, made from the cargo button's tiles as they are: KSP's
+        // own, or a UI theme's (ModeButtonTiles). Made again if the cargo
+        // button's tile changes, as when a theme sets its own after the editor
+        // starts. The drawn tiles stand in where one cannot be made.
+        private Sprite madeFrom;
+
+        private void OnGuiReady(GameScenes scene)
+        {
+            madeFrom = null;
+        }
+
+        private IEnumerator TilesAgainLater()
+        {
+            yield return new WaitForSecondsRealtime(1f);
+            madeFrom = null;
+        }
+
+        private void Tiles(Button cargo)
+        {
+            Image source = cargo != null ? cargo.GetComponent<Image>() : null;
+            Image image = button != null ? button.GetComponent<Image>() : null;
+            if (source == null || image == null || source.sprite == madeFrom) return;
+            madeFrom = source.sprite;
+            SpriteState from = cargo.spriteState;
+            Sprite normal = ModeButtonTiles.From(source.sprite) ?? Tile("Normal");
+            Sprite hover = ModeButtonTiles.From(from.highlightedSprite) ?? Tile("Hover");
+            Sprite pressed = ModeButtonTiles.From(from.pressedSprite) ?? Tile("Active");
+            tileActive = ModeButtonTiles.From(from.disabledSprite) ?? Tile("Active");
+            tileDisabled = tileActive;
+            if (normal == null)
+            {
+                Debug.LogWarning(Log.Tag + " The planner button's tiles could not be made; it shows the cargo tile.");
+                return;
+            }
+            image.sprite = normal;
+            button.transition = Selectable.Transition.SpriteSwap;
+            SpriteState states = button.spriteState;
+            states.highlightedSprite = hover;
+            states.selectedSprite = hover;
+            states.pressedSprite = pressed;
+            states.disabledSprite = open ? tileActive : tileDisabled;
+            button.spriteState = states;
+            Debug.Log(Log.Tag + " Planner button tiles made from " + source.sprite.name + ".");
         }
 
         private static Sprite Tile(string state)
@@ -321,6 +355,7 @@ namespace ReDefinition.Engineer
             {
                 Place();
                 Match(editor.cargoPanelBtn);
+                Tiles(editor.cargoPanelBtn);
                 bool allowed = ModeSwitchAllowed();
                 SpriteState states = button.spriteState;
                 Sprite disabled = open ? tileActive : tileDisabled;

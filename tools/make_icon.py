@@ -238,6 +238,27 @@ def ramp_at(stops, y):
     return stops[-1][1]
 
 
+# The glyph alone, for the game to lay on the cargo button's tiles as they are, KSP's or
+# a theme's: "Δv" as a mask, white on clear. ModeButtonTiles fits it into the tile's
+# face and tints it in the colour of the glyph it replaces.
+GLYPH_MASKS = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "EngineerGlyph_%s.png")
+
+
+def draw_glyph_mask(border):
+    k = TILE_SCALE
+    image = Image.new("RGBA", (128 * k, 128 * k), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    top = TILE_TOP
+    stroke = 8 * k + 2 * border * k
+    cx, base, apex, half = 52 * k, (72 + top) * k, (22 + top) * k, 20 * k
+    tri = [(cx, apex), (cx + half, base), (cx - half, base)]
+    vx, vtop, vbottom, vhalf = 84 * k, (46 + top) * k, (72 + top) * k, 10 * k
+    vee = [(vx - vhalf, vtop), (vx, vbottom), (vx + vhalf, vtop)]
+    draw.line(tri + [tri[0]], fill=WHITE, width=stroke, joint="curve")
+    draw.line(vee, fill=WHITE, width=stroke, joint="curve")
+    return image.resize((128, 128), Image.LANCZOS)
+
+
 def draw_engineer_tile(face_stops, glyph, rim):
     k = TILE_SCALE
     w, h = TILE_SIZE[0] * k, TILE_SIZE[1] * k
@@ -418,6 +439,11 @@ def main():
     os.makedirs(os.path.dirname(IN_GAME), exist_ok=True)
     draw_sliders().resize((128, 128), Image.LANCZOS).save(IN_GAME)
     print("in the game:", os.path.relpath(IN_GAME, ROOT))
+
+    for name, border in (("Fill", 0),):
+        path = GLYPH_MASKS % name
+        draw_glyph_mask(border).save(path)
+        print("in the game:", os.path.relpath(path, ROOT))
 
     for state, (face_stops, glyph, rim) in TILE_STATES.items():
         path = ENGINEER_TILES % state

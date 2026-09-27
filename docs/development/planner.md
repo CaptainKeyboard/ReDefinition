@@ -51,7 +51,9 @@ vessel, pushed to full saturation and brightness so it reads through KSP's soft 
 (`PlannerColors.Vivid`). A selected leg leaves only the stages that pay for it, a selected
 stage only that one.
 
-The planner has room for 9 stops, so eight legs side by side in the fuel plan within the crew
+The rows are laid out all at once, and the ones the plan does not need hide after. The scroll
+list's content is therefore held at its top edge, so that it shrinks from the bottom. The
+planner has room for 9 stops, so eight legs side by side in the fuel plan within the crew
 panel's width, and 30 stages. It is worked out again four times a second while it is open. The
 two free-of-Unity parts have unit tests in `tests/ReDefinition.Tests/PlannerTests.cs`.
 
