@@ -478,6 +478,13 @@ In the diagnostics window's *Debug* tab
   this and the previous frame's view-projection. The line gives, for vessel and ground,
   the samples, the mean and largest difference from what was read in pixels, the mean
   motion, and the worst sample. Frames with an origin shift or a reset are left out.
+  It also gives how far Unity's own record of the previous frame's camera
+  (`Camera.previousViewProjectionMatrix`) places the vessel and a point 1 km ahead from
+  where the previous frame's camera placed them, in pixels. When the ground is off by
+  more than 10 px on average, a second line, at most once a minute, lists what decides
+  the scene camera's motion vectors: its state and `depthTextureMode`, the command
+  buffers on each of its events, the motion vector shader, the globals of Scatterer's
+  replacement for it, and the camera's components (`CameraSurvey.WriteMotionSources`).
   `MotionVectorCheck` in the Unity project checks the pixel addressing it relies on.
 * **Vessel motion vectors per pixel**, about every ten seconds in flight
   (`VesselMotionVectors`): pass 0 of the same shader, after the hooks, compares the motion

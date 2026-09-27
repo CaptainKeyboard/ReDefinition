@@ -30,6 +30,13 @@ namespace ReDefinition.Upscaler
     // texture is laid out; MotionVectorCheck in the Unity project checks that
     // addressing against a rendered sphere. The motion vectors are the rig's
     // encoding, y up (ReDefinitionMotionVector).
+    //
+    // Alongside, every frame: how far Unity's own record of the previous frame's
+    // camera (Camera.previousViewProjectionMatrix), from which it works out the
+    // camera's motion, places the vessel and a point 1 km ahead from where the
+    // previous frame's camera placed them. When the ground is off by more than
+    // SourcesFromError on average, the camera's state and everything that writes into
+    // its frame goes to the log once a minute (CameraSurvey.WriteMotionSources).
     internal sealed class MotionVectorAudit
     {
         private const int FrameSpacing = 5;
@@ -80,7 +87,14 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        private const float SourcesFromError = 10f;
+        private const float SourcesInterval = 60f;
+
         private readonly Tally vessel = new Tally();
+        private float unityPreviousOff;
+        private int unityPreviousFrames;
+        private float nextSources;
+        private Camera reportCamera;
         private readonly Tally ground = new Tally();
         private readonly List<Part> parts = new List<Part>();
         private readonly Dictionary<Part, Matrix4x4> previousPart = new Dictionary<Part, Matrix4x4>();
@@ -175,6 +189,20 @@ namespace ReDefinition.Upscaler
                     });
                 }
             }
+
+            if (continuous)
+            {
+                // Viewport positions: GL.GetGPUProjectionMatrix(..., false) changes only
+                // the depth, so x and y compare with Unity's matrix as they are.
+                Matrix4x4 unityPrevious = camera.previousViewProjectionMatrix;
+                Vector3 ahead = camera.transform.position + camera.transform.forward * 1000f;
+                float off = Mathf.Max(
+                    Vector2.Distance(Viewport(unityPrevious, active.CoMD), Viewport(previousViewProjection, active.CoMD)),
+                    Vector2.Distance(Viewport(unityPrevious, ahead), Viewport(previousViewProjection, ahead)));
+                unityPreviousOff = Mathf.Max(unityPreviousOff, float.IsNaN(off) ? float.MaxValue : off * size.x);
+                unityPreviousFrames++;
+            }
+            reportCamera = camera;
 
             foreach (Part part in parts)
                 if (part != null) previousPart[part] = part.transform.localToWorldMatrix;
@@ -305,8 +333,20 @@ namespace ReDefinition.Upscaler
             Append(sb, vessel);
             sb.Append("; ground ");
             Append(sb, ground);
-            sb.Append("; ").Append(skippedFrames).Append(" frame(s) left out for an origin shift or a reset.");
+            sb.Append("; ").Append(skippedFrames).Append(" frame(s) left out for an origin shift or a reset");
+            if (unityPreviousFrames > 0)
+                sb.Append("; Unity's previous camera off by up to ")
+                  .Append(unityPreviousOff.ToString("0.00", CultureInfo.InvariantCulture)).Append(" px");
+            sb.Append('.');
             Debug.Log(sb.ToString());
+            if (ground.Count > 0 && ground.ErrorSum / ground.Count > SourcesFromError
+                && Time.unscaledTime >= nextSources && reportCamera != null)
+            {
+                nextSources = Time.unscaledTime + SourcesInterval;
+                CameraSurvey.WriteMotionSources(reportCamera);
+            }
+            unityPreviousOff = 0f;
+            unityPreviousFrames = 0;
             vessel.Clear();
             ground.Clear();
             skippedFrames = 0;
