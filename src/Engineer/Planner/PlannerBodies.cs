@@ -7,7 +7,7 @@ namespace ReDefinition.Engineer
 {
     // The bodies of the loaded system as the planner needs them (PlannerBody),
     // from FlightGlobals.Bodies: the stock system or whatever Kopernicus
-    // loads. The order the planner steps through them: the star, then each body
+    // loads. The order the planner lists them in: the star, then each body
     // followed by its moons, each level by the size of its orbit.
     internal sealed class PlannerBodies
     {
@@ -100,15 +100,6 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < Bodies.Count; i++)
                 if (Bodies[i].Id == id) return i;
             return -1;
-        }
-
-        // The next or the previous body in the order.
-        internal int Step(int body, int direction)
-        {
-            if (Order.Count == 0) return body;
-            int at = Order.IndexOf(body);
-            int next = ((at < 0 ? 0 : at) + direction + Order.Count) % Order.Count;
-            return Order[next];
         }
 
         // How high an orbit may be: inside the body's sphere of influence.

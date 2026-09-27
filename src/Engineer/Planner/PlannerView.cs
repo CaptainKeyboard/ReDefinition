@@ -1,30 +1,22 @@
 using System.Collections.Generic;
-using System.Text;
 using System;
-using ReDefinition.Window;
 using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
     // The engineer view's second tab (docs/player/planner.md): a route from stop
     // to stop, A -> B -> C, what each leg costs, and which of the vessel's stages
-    // pays for it. Built from KSP's dialog elements like the first tab, with a
-    // fixed number of rows for the stops and stages, shown as the plan needs
-    // them.
-    internal sealed class PlannerView
+    // pays for it. This half holds the plan and works it out; the rows are in
+    // PlannerView.Rows.cs.
+    internal sealed partial class PlannerView
     {
-        private const int MaxStops = 12;
-        private const int MaxStages = 60;
-        private const float RowHeight = 18f;
-        private const string Warning = "#ff9a3d";
-        private const string Good = "#8fdc7a";
-        private const string Dim = "#9a9a9a";
         private const float Interval = 0.25f;
         private const float SaveDelay = 1.5f;
         private const double AltitudeStep = 10000.0;
 
         private readonly EditorEngineer owner;
         private readonly float width;
+        private readonly AfterCreate after = new AfterCreate();
 
         private PlannerBodies bodies;
         private PlannerState state;
@@ -38,6 +30,7 @@ namespace ReDefinition.Engineer
         // What the plan comes to, worked out a few times a second.
         private List<Leg> legs = new List<Leg>();
         private StageBudget.Result budget;
+        // The stages with delta-v, in firing order, and all of them.
         private List<StageRow> stages = new List<StageRow>();
         private List<StageRow> allStages = new List<StageRow>();
         private int[] meetings = new int[0];
@@ -45,7 +38,10 @@ namespace ReDefinition.Engineer
         // now. The plan keeps what the player set, for a stage that is back
         // after the vessel was taken apart.
         private int lander = -1;
+        private List<int> landerChoices = new List<int>();
         private Dictionary<int, int> kept = new Dictionary<int, int>();
+        // Each leg's details, written once per evaluation rather than each frame.
+        private string[] legDetails = new string[0];
         private readonly HashSet<int> openLegs = new HashSet<int>();
         private Dictionary<int, List<Part>> burningParts = new Dictionary<int, List<Part>>();
 
@@ -62,9 +58,16 @@ namespace ReDefinition.Engineer
             GameEvents.onEditorRestart.Add(OnEditorRestart);
         }
 
+        // Once the rows are created: symbols on the buttons, the bars' images.
+        internal void Finish()
+        {
+            after.Run();
+        }
+
         internal void Dispose()
         {
             Flush();
+            BodyPicker.Close();
             GameEvents.onEditorLoad.Remove(OnEditorLoad);
             GameEvents.onEditorRestart.Remove(OnEditorRestart);
         }
@@ -78,134 +81,6 @@ namespace ReDefinition.Engineer
         private void OnEditorRestart()
         {
             reload = true;
-        }
-
-        // ------------------------------------------------------------------ rows
-
-        internal List<DialogGUIBase> Rows()
-        {
-            List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            rows.Add(Heading("Route"));
-            rows.Add(Note("Add destinations in the order you fly them. Each leg shows what it costs and which stages pay for it."));
-            for (int i = 0; i < MaxStops; i++)
-            {
-                rows.AddRange(StopRows(i));
-                rows.AddRange(LegRows(i));
-            }
-            DialogGUIButton add = new DialogGUIButton("+ Add destination", AddStop, width, RowHeight + 6f, false);
-            add.OptionEnabledCondition = () => Ready() && state.Stops.Count < MaxStops;
-            rows.Add(add);
-
-            rows.Add(Heading("Fuel"));
-            DialogGUISlider margin = new DialogGUISlider(() => (float)(Ready() ? state.Margin * 100.0 : 10.0), 0f, 50f, true,
-                width - 150f, RowHeight, value => { if (Ready()) { state.Margin = value / 100.0; Changed(); } });
-            rows.Add(new DialogGUIHorizontalLayout(width, RowHeight + 2f, 6f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel("Margin", 60f), margin,
-                new DialogGUILabel(() => (Ready() ? (state.Margin * 100.0).ToString("0") : "10") + " %", 70f)));
-            DialogGUIToggle planes = new DialogGUIToggle(() => Ready() && state.PlaneChanges, "Count plane changes",
-                on => { if (Ready()) { state.PlaneChanges = on; Changed(); } }, width);
-            planes.tooltipText = "Adds the burn that matches the orbits' tilt between two planets or two moons.\n"
-                                 + "Leave it off if you launch in the window and correct on the way.";
-            rows.Add(planes);
-            rows.Add(new DialogGUILabel(SummaryText, true, true));
-
-            rows.Add(Heading("Stages"));
-            rows.Add(Note("Stages burn in KSP's order. Keep a stage for a leg and the legs before it do not touch it."));
-            DialogGUIButton lander = new DialogGUIButton(LanderText, StepLander, width, RowHeight + 4f, false);
-            lander.tooltipText = "A lander that flies down and back up alone while the rest of the vessel waits in orbit,\n"
-                                 + "and is carried on to the next destination. Pick the lander's highest stage:\n"
-                                 + "it and the stages after it are the lander. Its decoupler or docking port\n"
-                                 + "has to be in that stage, so that KSP's staging separates it there.";
-            lander.OptionEnabledCondition = () => Ready() && allStages.Count > 1;
-            rows.Add(lander);
-            for (int i = 0; i < MaxStages; i++) rows.AddRange(StageRows(i));
-            rows.Add(Note("The planner counts each stage's delta-v in vacuum. Launches and landings are estimates from the body's gravity, rotation and atmosphere."));
-            return rows;
-        }
-
-        private IEnumerable<DialogGUIBase> StopRows(int index)
-        {
-            float arrow = 24f;
-            float remove = 22f;
-            DialogGUIButton previous = new DialogGUIButton("<", () => StepBody(index, -1), arrow, RowHeight + 2f, false);
-            DialogGUIButton next = new DialogGUIButton(">", () => StepBody(index, 1), arrow, RowHeight + 2f, false);
-            DialogGUIButton delete = new DialogGUIButton("x", () => RemoveStop(index), remove, RowHeight + 2f, false);
-            delete.tooltipText = "Removes this stop from the route.";
-            delete.OptionInteractableCondition = () => Ready() && state.Stops.Count > 2;
-            DialogGUIHorizontalLayout first = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(0, 0, 4, 0),
-                TextAnchor.MiddleLeft,
-                new DialogGUILabel(() => "<b>" + Letter(index) + "</b>", 18f),
-                previous,
-                new DialogGUILabel(() => "<b>" + BodyName(index) + "</b>", width - 18f - arrow * 2f - remove - 20f),
-                next, delete);
-            first.OptionEnabledCondition = () => Shown(index);
-            yield return first;
-
-            float kind = 64f;
-            DialogGUIToggleButton surface = new DialogGUIToggleButton(() => Kind(index) == StopKind.Surface, "Surface",
-                on => { if (on) SetKind(index, StopKind.Surface); }, kind, RowHeight + 2f);
-            DialogGUIToggleButton orbit = new DialogGUIToggleButton(() => Kind(index) == StopKind.Orbit, "Orbit",
-                on => { if (on) SetKind(index, StopKind.Orbit); }, kind, RowHeight + 2f);
-            DialogGUIButton lower = new DialogGUIButton("-", () => StepAltitude(index, -1), 20f, RowHeight + 2f, false);
-            DialogGUIButton higher = new DialogGUIButton("+", () => StepAltitude(index, 1), 20f, RowHeight + 2f, false);
-            lower.OptionEnabledCondition = () => Kind(index) == StopKind.Orbit;
-            higher.OptionEnabledCondition = () => Kind(index) == StopKind.Orbit;
-            lower.tooltipText = "Lowers the orbit by 10 km, down to the lowest safe one.";
-            higher.tooltipText = "Raises the orbit by 10 km.";
-            DialogGUIToggle air = new DialogGUIToggle(() => UsesAtmosphere(index), () => Kind(index) == StopKind.Surface ? "Chutes" : "Aerobrake",
-                on => SetAtmosphere(index, on), 90f);
-            air.tooltipText = "Arriving here uses the atmosphere: aerobraking into the orbit,\n"
-                              + "or a heat shield and parachutes for the landing. Needs an atmosphere.";
-            air.OptionInteractableCondition = () => HasAtmosphere(index) && index > 0;
-            DialogGUIHorizontalLayout second = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(22, 0, 0, 0),
-                TextAnchor.MiddleLeft, surface, orbit, lower,
-                new DialogGUILabel(() => Kind(index) == StopKind.Orbit ? AltitudeText(index) : "", 60f), higher, air);
-            second.OptionEnabledCondition = () => Shown(index);
-            yield return second;
-        }
-
-        private IEnumerable<DialogGUIBase> LegRows(int index)
-        {
-            DialogGUIButton line = new DialogGUIButton(() => LegText(index), () => ToggleLeg(index), width, RowHeight + 2f, false);
-            DialogOverWindow.ClearBackground(line);
-            line.tooltipText = "Shows the burns of this leg and the stages that pay for them,\n"
-                               + "and marks their engines and tanks green on the vessel.";
-            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                line);
-            row.OptionEnabledCondition = () => Ready() && index + 1 < state.Stops.Count;
-            yield return row;
-
-            DialogGUIButton mode = new DialogGUIButton(() => ModeText(index), () => StepMode(index), width - 26f, RowHeight + 2f, false);
-            mode.tooltipText = "Who flies this leg: the whole vessel, the lander alone while the rest waits,\n"
-                               + "or the rest without the lander, which stays behind for good.";
-            DialogGUIHorizontalLayout modeRow = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 0f, new RectOffset(26, 0, 0, 0),
-                TextAnchor.MiddleLeft, mode);
-            modeRow.OptionEnabledCondition = () => Ready() && index + 1 < state.Stops.Count && HasLander();
-            yield return modeRow;
-
-            DialogGUIHorizontalLayout detail = new DialogGUIHorizontalLayout(width, -1f, 0f, new RectOffset(26, 0, 0, 4),
-                TextAnchor.UpperLeft, new DialogGUILabel(() => LegDetail(index), true, true));
-            detail.OptionEnabledCondition = () => Ready() && index + 1 < state.Stops.Count && openLegs.Contains(index);
-            yield return detail;
-        }
-
-        private IEnumerable<DialogGUIBase> StageRows(int index)
-        {
-            DialogGUIButton keep = new DialogGUIButton(() => KeepText(index), () => StepKeep(index), 96f, RowHeight + 2f, false);
-            keep.tooltipText = "Keeps this stage for a leg: the legs before it do not use it, nor any stage after it.\n"
-                               + "Auto burns it in KSP's order.";
-            DialogGUIButton label = new DialogGUIButton(() => StageText(index), () => SelectStage(index), width - 100f, RowHeight + 2f,
-                false);
-            DialogOverWindow.ClearBackground(label);
-            label.tooltipText = "Marks this stage's engines and the tanks it burns green on the vessel.";
-            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                label, keep);
-            row.OptionEnabledCondition = () => index < stages.Count;
-            yield return row;
-            DialogGUIHorizontalLayout detail = new DialogGUIHorizontalLayout(width, -1f, 0f, new RectOffset(26, 0, 0, 2),
-                TextAnchor.UpperLeft, new DialogGUILabel(() => StageDetail(index), true, true));
-            detail.OptionEnabledCondition = () => index < stages.Count;
-            yield return detail;
         }
 
         // ---------------------------------------------------------------- update
@@ -251,11 +126,13 @@ namespace ReDefinition.Engineer
         internal void Idle()
         {
             highlight.Clear();
+            BodyPicker.Close();
         }
 
         internal void Flush()
         {
             highlight.Clear();
+            BodyPicker.Close();
             if (state != null && vessel != null && bodies != null && saveAt > 0f) state.Save(vessel, bodies);
             saveAt = -1f;
         }
@@ -282,18 +159,27 @@ namespace ReDefinition.Engineer
             kept = new Dictionary<int, int>();
             foreach (KeyValuePair<int, int> pair in state.Kept)
                 if (stages.Exists(row => row.Number == pair.Key) && pair.Value < legs.Count) kept[pair.Key] = pair.Value;
-            lander = state.Lander >= 0 && LanderChoices().Contains(state.Lander) ? state.Lander : -1;
+            landerChoices = LanderChoices();
+            lander = state.Lander >= 0 && landerChoices.Contains(state.Lander) ? state.Lander : -1;
             List<LegMode> modes = HasLander() ? state.ModeList(legs.Count) : null;
             budget = StageBudget.Allocate(available, needs, state.Margin, kept, lander, modes);
             meetings = modes != null ? RoutePlanner.Meetings(state.Stops, modes) : new int[legs.Count];
             if (modes == null) for (int i = 0; i < meetings.Length; i++) meetings[i] = -1;
             burningParts = readout.BurningParts;
+            legDetails = new string[legs.Count];
+            for (int leg = 0; leg < legs.Count; leg++) legDetails[leg] = LegDetail(leg);
+            UpdateBars();
             Mark();
         }
 
         private bool Ready()
         {
             return state != null && bodies != null;
+        }
+
+        private bool Worked()
+        {
+            return Ready() && budget != null;
         }
 
         private static string VesselName()
@@ -347,13 +233,19 @@ namespace ReDefinition.Engineer
             return Shown(index) ? RoutePlanner.Km(state.Stops[index].Altitude) : "";
         }
 
-        private void StepBody(int index, int direction)
+        private void PickBody(int index)
         {
             if (!Shown(index)) return;
+            BodyPicker.Show(bodies, state.Stops[index].Body, body => SetBody(index, body));
+        }
+
+        private void SetBody(int index, int body)
+        {
+            if (!Shown(index) || body < 0 || body >= bodies.Bodies.Count) return;
             RouteStop stop = state.Stops[index];
-            stop.Body = bodies.Step(stop.Body, direction);
-            stop.Altitude = bodies.Bodies[stop.Body].LowOrbitAltitude;
-            if (!bodies.Bodies[stop.Body].HasAtmosphere) stop.UseAtmosphere = false;
+            stop.Body = body;
+            stop.Altitude = bodies.Bodies[body].LowOrbitAltitude;
+            if (!bodies.Bodies[body].HasAtmosphere) stop.UseAtmosphere = false;
             Changed();
         }
 
@@ -383,8 +275,7 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
-        // A new stop where the route ends: the same body, in its low orbit, ready
-        // to be moved on with < and >.
+        // A new stop where the route ends: the same body, in its low orbit.
         private void AddStop()
         {
             if (!Ready() || state.Stops.Count >= MaxStops) return;
@@ -399,6 +290,8 @@ namespace ReDefinition.Engineer
         private void RemoveStop(int index)
         {
             if (!Shown(index) || state.Stops.Count <= 2) return;
+            // The list of bodies is for a stop that may be another one now.
+            BodyPicker.Close();
             state.Stops.RemoveAt(index);
             // A kept stage follows its leg, or lets go where the leg went.
             Dictionary<int, int> moved = new Dictionary<int, int>();
@@ -425,11 +318,6 @@ namespace ReDefinition.Engineer
         }
 
         // ------------------------------------------------------------------ legs
-
-        private string LegName(int leg)
-        {
-            return Letter(leg) + " → " + Letter(leg + 1);
-        }
 
         // Opening a leg marks its parts; closing the marked one clears the mark.
         private void ToggleLeg(int index)
@@ -476,66 +364,38 @@ namespace ReDefinition.Engineer
             highlight.Show(parts);
         }
 
-        private string LegText(int index)
+        private bool IsKept(int stageIndex, int leg)
         {
-            if (!Ready() || index >= legs.Count || budget == null) return "";
-            double need = budget.Needed[index];
-            string speed = EngineerFormat.Speed(legs[index].DeltaV);
-            if (selectedLeg == index) speed = "<color=" + Good + ">" + speed + "</color>";
-            string text = "      ↓  " + (openLegs.Contains(index) ? "- " : "+ ") + speed;
-            if (state.Margin > 0.0) text += " <color=" + Dim + ">(" + EngineerFormat.Speed(need) + " with margin)</color>";
-            string by = StagesOf(index);
-            if (by.Length > 0) text += "  <color=" + Dim + ">" + by + "</color>";
-            if (budget.Short[index] > 0.5) text += "  <color=" + Warning + ">short " + EngineerFormat.Speed(budget.Short[index]) + "</color>";
-            if (index < meetings.Length && meetings[index] >= 0) text += "  <color=" + Warning + ">!</color>";
-            return text;
+            int keptLeg;
+            return Ready() && stageIndex < stages.Count && state.Kept.TryGetValue(stages[stageIndex].Number, out keptLeg)
+                   && keptLeg == leg;
         }
 
-        private string StagesOf(int leg)
+        // A toggle calls this whenever its value differs from the plan's, after
+        // a click and when it is shown again: only a change counts.
+        private void SetKept(int stageIndex, int leg, bool on)
         {
-            List<string> names = new List<string>();
-            foreach (StageBudget.StageUse use in budget.Uses)
-                if (use.Leg == leg && !names.Contains("S" + use.Stage)) names.Add("S" + use.Stage);
-            return string.Join(", ", names.ToArray());
-        }
-
-        private string LegDetail(int index)
-        {
-            if (!Ready() || index >= legs.Count || budget == null) return "";
-            StringBuilder text = new StringBuilder();
-            foreach (LegLine line in legs[index].Lines)
-            {
-                if (text.Length > 0) text.Append('\n');
-                text.Append(line.Name).Append("<pos=62%>").Append(EngineerFormat.Speed(line.DeltaV));
-            }
-            foreach (StageBudget.StageUse use in budget.Uses)
-            {
-                if (use.Leg != index) continue;
-                text.Append('\n').Append("<color=" + Dim + ">from S").Append(use.Stage).Append("</color><pos=62%>")
-                    .Append(EngineerFormat.Speed(use.DeltaV));
-            }
-            if (index < meetings.Length && meetings[index] >= 0)
-                text.Append('\n').Append("<color=" + Warning + ">The rest of the vessel waits at ").Append(Letter(meetings[index]))
-                    .Append(": this leg has to start there.</color>");
-            string warning = ThrustWarning(index);
-            if (warning.Length > 0) text.Append('\n').Append("<color=" + Warning + ">").Append(warning).Append("</color>");
-            if (budget.Short[index] > 0.5)
-                text.Append('\n').Append("<color=" + Warning + ">No stage covers the last ")
-                    .Append(EngineerFormat.Speed(budget.Short[index])).Append(" of this leg.</color>");
-            return text.ToString();
+            if (!Ready() || stageIndex >= stages.Count || on == IsKept(stageIndex, leg)) return;
+            int stage = stages[stageIndex].Number;
+            if (on) state.Kept[stage] = leg;
+            else if (IsKept(stageIndex, leg)) state.Kept.Remove(stage);
+            else return;
+            Changed();
         }
 
         // A launch or a powered landing needs the thrust to lift the vessel at
-        // that body: the first stage the leg burns, full, at its surface gravity.
-        private string ThrustWarning(int leg)
+        // that body: the first stage the leg burns, at its surface gravity, and
+        // the last one for the landing.
+        private List<string> ThrustWarnings(int leg)
         {
-            if (leg >= legs.Count) return "";
+            List<string> warnings = new List<string>();
+            if (leg >= legs.Count) return warnings;
             RouteStop from = state.Stops[leg];
             RouteStop to = state.Stops[leg + 1];
             bool launch = from.Kind == StopKind.Surface;
             bool landing = to.Kind == StopKind.Surface && !(to.UseAtmosphere && bodies.Bodies[to.Body].HasAtmosphere
                                                              && bodies.Bodies[to.Body].SurfacePressure >= 0.2);
-            if (!launch && !landing) return "";
+            if (!launch && !landing) return warnings;
             StageBudget.StageUse first = null;
             StageBudget.StageUse lastUsed = null;
             foreach (StageBudget.StageUse use in budget.Uses)
@@ -544,79 +404,22 @@ namespace ReDefinition.Engineer
                 if (first == null) first = use;
                 lastUsed = use;
             }
-            List<string> warnings = new List<string>();
-            if (launch && first != null) AddTwrWarning(warnings, first, from.Body, "launch");
-            if (landing && lastUsed != null) AddTwrWarning(warnings, lastUsed, to.Body, "landing");
-            return string.Join("\n", warnings.ToArray());
+            if (launch && first != null) AddTwrWarning(warnings, first, from.Body, true);
+            if (landing && lastUsed != null) AddTwrWarning(warnings, lastUsed, to.Body, false);
+            return warnings;
         }
 
         // The thrust in vacuum over the weight the stage pushes as it starts its
         // part of the leg.
-        private void AddTwrWarning(List<string> warnings, StageBudget.StageUse use, int body, string what)
+        private void AddTwrWarning(List<string> warnings, StageBudget.StageUse use, int body, bool launch)
         {
             StageRow row = stages.Find(s => s.Number == use.Stage);
             PlannerBody planner = bodies.Bodies[body];
             double gravity = planner.Mu / (planner.Radius * planner.Radius);
             if (row == null || use.Mass <= 0.0 || gravity <= 0.0) return;
             double twr = row.ThrustVacuum / (use.Mass * gravity);
-            double needed = planner.HasAtmosphere && what == "launch" ? 1.2 : 1.0;
-            if (twr < needed)
-                warnings.Add("S" + row.Number + " has a TWR of " + EngineerFormat.Ratio(twr) + " at " + planner.Name
-                             + ": too weak for the " + what + ".");
-        }
-
-        // ---------------------------------------------------------------- stages
-
-        private string StageText(int index)
-        {
-            if (index >= stages.Count || budget == null) return "";
-            StageRow row = stages[index];
-            string lander = IsLanderStage(row.Number) ? " <color=" + Dim + ">lander</color>" : "";
-            string name = selectedStage == row.Number ? "<color=" + Good + ">S" + row.Number + "</color>" : "S" + row.Number;
-            StringBuilder text = new StringBuilder("<b>" + name + "</b>" + lander + "  " + EngineerFormat.Speed(row.DeltaVVacuum));
-            double left;
-            double dropped;
-            bool behind = budget.LeftBehind.Contains(row.Number);
-            if (budget.Dropped.TryGetValue(row.Number, out dropped))
-                text.Append("  <color=" + Dim + ">" + (behind ? "left behind" : "dropped") + " with " + EngineerFormat.Speed(dropped) + "</color>");
-            else if (behind)
-                text.Append("  <color=" + Dim + ">left behind</color>");
-            else if (budget.Left.TryGetValue(row.Number, out left) && left > 0.5)
-                text.Append("  <color=" + Good + ">" + EngineerFormat.Speed(left) + " left</color>");
-            return text.ToString();
-        }
-
-        private string StageDetail(int index)
-        {
-            if (index >= stages.Count || budget == null) return "";
-            StageRow row = stages[index];
-            StringBuilder text = new StringBuilder();
-            if (row.Engines.Length > 0) text.Append("<color=" + Dim + ">").Append(row.Engines).Append("</color>");
-            List<string> uses = new List<string>();
-            foreach (StageBudget.StageUse use in budget.Uses)
-                if (use.Stage == row.Number) uses.Add(LegName(use.Leg) + " " + EngineerFormat.Speed(use.DeltaV));
-            if (uses.Count > 0) text.Append(text.Length > 0 ? "\n" : "").Append(string.Join(",  ", uses.ToArray()));
-            else text.Append(text.Length > 0 ? "\n" : "").Append("<color=" + Dim + ">not needed for the route</color>");
-            return text.ToString();
-        }
-
-        private string KeepText(int index)
-        {
-            if (index >= stages.Count || !Ready()) return "";
-            int leg;
-            return state.Kept.TryGetValue(stages[index].Number, out leg) && leg < legs.Count ? "For " + LegName(leg) : "Auto";
-        }
-
-        // Auto, then each leg in turn.
-        private void StepKeep(int index)
-        {
-            if (index >= stages.Count || !Ready() || legs.Count == 0) return;
-            int stage = stages[index].Number;
-            int leg;
-            if (!state.Kept.TryGetValue(stage, out leg)) state.Kept[stage] = 0;
-            else if (leg + 1 < legs.Count) state.Kept[stage] = leg + 1;
-            else state.Kept.Remove(stage);
-            Changed();
+            double needed = planner.HasAtmosphere && launch ? 1.2 : 1.0;
+            if (twr < needed) warnings.Add("S" + row.Number + " TWR " + EngineerFormat.Ratio(twr) + " at " + planner.Name);
         }
 
         // ---------------------------------------------------------------- lander
@@ -640,22 +443,39 @@ namespace ReDefinition.Engineer
             return choices;
         }
 
-        private string LanderText()
+        // Switched on, the stage and every stage KSP fires after it become the
+        // lander. Switched off, the lander's first stage with delta-v leaves no
+        // lander; a stage further down makes the lander start there. A toggle
+        // calls this whenever its value differs from the plan's, after a click
+        // and when it is shown again: only a change counts.
+        private void SetLander(int stageIndex, bool on)
         {
-            if (!HasLander()) return "Lander: <b>none</b>";
-            return "Lander: <b>" + (lander == 0 ? "S0" : "S" + lander + " to S0") + "</b>";
-        }
-
-        // None, then the smallest lander, then each larger one.
-        private void StepLander()
-        {
-            if (!Ready()) return;
-            List<int> choices = LanderChoices();
-            choices.Sort();
-            int at = choices.IndexOf(lander);
-            state.Lander = at + 1 < choices.Count ? choices[at + 1] : -1;
+            if (!Ready() || stageIndex >= stages.Count) return;
+            int number = stages[stageIndex].Number;
+            if (!landerChoices.Contains(number) || on == IsLanderStage(number)) return;
+            state.Lander = !on && number == FirstBurning(lander) ? -1 : LanderTop(number);
             lander = state.Lander;
             Changed();
+        }
+
+        // The stage the lander starts at, for its first stage with delta-v: the
+        // stages without delta-v fired just before it, the one with the
+        // lander's decoupler among them, belong to it. Without them, the
+        // decoupler's stage would count to the rest, and the rest would be
+        // dropped with it.
+        private int LanderTop(int number)
+        {
+            int at = allStages.FindIndex(row => row.Number == number);
+            while (at > 1 && allStages[at - 1].DeltaVVacuum <= 0.5) at--;
+            return at >= 0 ? allStages[at].Number : number;
+        }
+
+        // The lander's first stage with delta-v, -1 for none.
+        private int FirstBurning(int top)
+        {
+            foreach (StageRow row in stages)
+                if (row.Number <= top) return row.Number;
+            return -1;
         }
 
         private LegMode Mode(int leg)
@@ -664,68 +484,41 @@ namespace ReDefinition.Engineer
             return Ready() && state.Modes.TryGetValue(leg, out mode) ? mode : LegMode.Whole;
         }
 
-        private string ModeText(int leg)
+        private void SetMode(int leg, LegMode mode)
         {
-            switch (Mode(leg))
-            {
-                case LegMode.Lander: return "<color=" + Dim + ">flown by</color> the lander alone";
-                case LegMode.WithoutLander: return "<color=" + Dim + ">flown by</color> the rest, the lander stays";
-                default: return "<color=" + Dim + ">flown by</color> the whole vessel";
-            }
-        }
-
-        private void StepMode(int leg)
-        {
-            if (!Ready()) return;
-            LegMode next = (LegMode)(((int)Mode(leg) + 1) % 3);
-            if (next == LegMode.Whole) state.Modes.Remove(leg);
-            else state.Modes[leg] = next;
+            if (!Ready() || Mode(leg) == mode) return;
+            if (mode == LegMode.Whole) state.Modes.Remove(leg);
+            else state.Modes[leg] = mode;
             Changed();
         }
 
-        // --------------------------------------------------------------- summary
-
-        private string SummaryText()
+        private void SetMargin(float percent)
         {
-            if (!Ready() || budget == null) return "";
+            double margin = System.Math.Round(percent) / 100.0;
+            if (!Ready() || System.Math.Abs(margin - state.Margin) < 1e-6) return;
+            state.Margin = margin;
+            Changed();
+        }
+
+        private void SetPlaneChanges(bool on)
+        {
+            if (!Ready() || on == state.PlaneChanges) return;
+            state.PlaneChanges = on;
+            Changed();
+        }
+
+        private double TotalNeeded()
+        {
             double needed = 0.0;
-            foreach (double value in budget.Needed) needed += value;
+            if (budget != null) foreach (double value in budget.Needed) needed += value;
+            return needed;
+        }
+
+        private double TotalHas()
+        {
             double has = 0.0;
             foreach (StageRow row in stages) has += row.DeltaVVacuum;
-            StringBuilder text = new StringBuilder();
-            text.Append("The route needs<pos=52%>").Append(EngineerFormat.Speed(needed));
-            text.Append("\nThe vessel has<pos=52%>").Append(EngineerFormat.Speed(has));
-            if (stages.Count == 0)
-            {
-                text.Append("\n<color=" + Warning + ">The vessel burns nothing yet.</color>");
-                return text.ToString();
-            }
-            double shortBy = budget.TotalShort;
-            if (shortBy > 0.5)
-            {
-                int first = Array.FindIndex(budget.Short, value => value > 0.5);
-                text.Append("\n<color=" + Warning + "><b>Short by ").Append(EngineerFormat.Speed(shortBy)).Append("</b>, from ")
-                    .Append(LegName(first)).Append(" on.</color>");
-            }
-            else
-            {
-                text.Append("\n<color=" + Good + "><b>Enough fuel</b>, ").Append(EngineerFormat.Speed(budget.TotalLeft))
-                    .Append(" left over.</color>");
-            }
-            return text.ToString();
-        }
-
-        // ---------------------------------------------------------------- pieces
-
-        private DialogGUIBase Heading(string title)
-        {
-            return new DialogGUIHorizontalLayout(width, RowHeight + 6f, 0f, new RectOffset(0, 0, 6, 0), TextAnchor.LowerLeft,
-                new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", width, RowHeight));
-        }
-
-        private DialogGUIBase Note(string text)
-        {
-            return new DialogGUILabel("<color=" + Dim + ">" + text + "</color>", true, true);
+            return has;
         }
     }
 }

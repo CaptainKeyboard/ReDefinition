@@ -77,6 +77,7 @@ namespace ReDefinition.Engineer
             float panelWidth = Mathf.Max(200f, parent.rect.width);
             float panelHeight = Mathf.Max(200f, parent.rect.height);
             width = panelWidth - Padding * 2f - 18f;
+            Debug.Log(Core.Log.Tag + " Engineer view built " + panelWidth.ToString("0") + " wide, rows " + width.ToString("0") + ".");
 
             UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
             List<DialogGUIBase> engineer = new List<DialogGUIBase>();
@@ -92,7 +93,9 @@ namespace ReDefinition.Engineer
             engineerTab.OptionEnabledCondition = () => !planner;
 
             plannerView = new PlannerView(owner, width);
-            DialogGUIVerticalLayout plannerTab = new DialogGUIVerticalLayout(width, -1f, 3f, new RectOffset(), TextAnchor.UpperLeft,
+            // No gap between the planner's rows, so that its route reads as one
+            // line from stop to stop.
+            DialogGUIVerticalLayout plannerTab = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft,
                 plannerView.Rows().ToArray());
             plannerTab.OptionEnabledCondition = () => planner;
 
@@ -114,6 +117,7 @@ namespace ReDefinition.Engineer
             Stack<Transform> layouts = new Stack<Transform>();
             layouts.Push(host.transform);
             root.Create(ref layouts, skin);
+            plannerView.Finish();
             RectTransform scroll = root.uiItem != null ? root.uiItem.transform as RectTransform : null;
             if (scroll != null)
             {

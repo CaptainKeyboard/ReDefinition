@@ -1,5 +1,5 @@
-"""Draws the mod's pictures: the toolbar icon, the engineer view's button, and the
-planet for a forum post.
+"""Draws the mod's pictures: the toolbar icon, the engineer view's button, the
+planner's symbols, and the planet for a forum post.
 
     python tools/make_icon.py
 
@@ -9,6 +9,9 @@ launcher. It says what the button opens -- every graphics mod's settings on one 
 KSP draws the button in a square box, so the icon fills its square. It goes to
 GameData/ReDefinition/Icons/ReDefinitionIcon.png at 128x128, the size Kopernicus ships
 and hands to AddModApplication.
+
+**The planner's symbols** are white on clear, 64x64, for KSP's buttons to show them over
+their own background: GameData/ReDefinition/Icons/Planner_*.png.
 
 **The picture for a page** is "Re:" on a planet's night side, the atmosphere lit at the
 lower right. It is too fine for a toolbar button but carries a forum post or a mod site,
@@ -245,6 +248,123 @@ def draw_engineer_tile(face_top, face_bottom, glyph):
     return image
 
 
+# The planner's symbols: white on clear, so that a button's own background shows
+# through and the code can tint them. Each is drawn at 512 and stored at 64.
+PLANNER_ICONS = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "Planner_%s.png")
+PLANNER_SIZE = 512
+WHITE = (255, 255, 255, 255)
+
+
+def planner_canvas():
+    image = Image.new("RGBA", (PLANNER_SIZE, PLANNER_SIZE), (0, 0, 0, 0))
+    return image, ImageDraw.Draw(image)
+
+
+def draw_surface():
+    # A flag on the ground.
+    image, draw = planner_canvas()
+    draw.rounded_rectangle([60, 400, 452, 440], radius=20, fill=WHITE)
+    draw.rectangle([170, 90, 202, 410], fill=WHITE)
+    draw.polygon([(202, 96), (380, 150), (202, 206)], fill=WHITE)
+    return image
+
+
+def draw_orbit():
+    # A body with a ring around it and a craft on the ring.
+    image, draw = planner_canvas()
+    draw.ellipse([186, 186, 326, 326], fill=WHITE)
+    draw.ellipse([46, 136, 466, 376], outline=WHITE, width=30)
+    draw.ellipse([390, 150, 460, 220], fill=WHITE)
+    return image
+
+
+def draw_chute():
+    # A parachute's canopy, its lines and the capsule under it.
+    image, draw = planner_canvas()
+    draw.pieslice([56, 40, 456, 360], 180, 360, fill=WHITE)
+    for x in (80, 256, 432):
+        draw.line([(x, 200), (256, 380)], fill=WHITE, width=18)
+    draw.polygon([(206, 380), (306, 380), (330, 460), (182, 460)], fill=WHITE)
+    return image
+
+
+def draw_aerobrake():
+    # A path that dips into a body's air and leaves it again.
+    image, draw = planner_canvas()
+    draw.pieslice([-200, 400, 712, 1200], 180, 360, fill=WHITE)
+    draw.arc([-280, 300, 792, 1300], 195, 345, fill=WHITE, width=14)
+    path = [(40 + i * 8, 60 + 0.0021 * (40 + i * 8 - 256) ** 2 * -1 + 280) for i in range(0, 53)]
+    draw.line(path, fill=WHITE, width=30, joint="curve")
+    end = path[-1]
+    draw.polygon([(end[0] + 30, end[1] - 50), (end[0] - 36, end[1] - 14), (end[0] + 14, end[1] + 30)], fill=WHITE)
+    return image
+
+
+def lander(draw, cx, top, scale=1.0):
+    w, h = 110 * scale, 90 * scale
+    draw.polygon([(cx - w * 0.6, top), (cx + w * 0.6, top), (cx + w, top + h), (cx - w, top + h)], fill=WHITE)
+    leg = 26 * scale
+    draw.line([(cx - w * 0.8, top + h), (cx - w * 1.5, top + h * 2.1)], fill=WHITE, width=int(leg))
+    draw.line([(cx + w * 0.8, top + h), (cx + w * 1.5, top + h * 2.1)], fill=WHITE, width=int(leg))
+
+
+def rocket(draw, cx, top, bottom):
+    half = 62
+    draw.rectangle([cx - half, top, cx + half, bottom - 50], fill=WHITE)
+    draw.polygon([(cx - 40, bottom - 50), (cx + 40, bottom - 50), (cx + 70, bottom), (cx - 70, bottom)], fill=WHITE)
+
+
+def draw_whole():
+    # The lander on top of the rest.
+    image, draw = planner_canvas()
+    lander(draw, 256, 40, 0.85)
+    rocket(draw, 256, 230, 470)
+    return image
+
+
+def draw_lander():
+    image, draw = planner_canvas()
+    lander(draw, 256, 150, 1.4)
+    return image
+
+
+def draw_rest():
+    # The rest, its top open where the lander sat.
+    image, draw = planner_canvas()
+    rocket(draw, 256, 150, 470)
+    draw.line([(170, 110), (342, 110)], fill=WHITE, width=18)
+    return image
+
+
+def draw_dot():
+    image, draw = planner_canvas()
+    draw.ellipse([96, 96, 416, 416], fill=WHITE)
+    return image
+
+
+def draw_pin():
+    # A map pin: keeps a stage for a leg.
+    image, draw = planner_canvas()
+    draw.ellipse([126, 40, 386, 300], fill=WHITE)
+    draw.polygon([(150, 230), (362, 230), (256, 480)], fill=WHITE)
+    draw.ellipse([206, 120, 306, 220], fill=(0, 0, 0, 0))
+    return image
+
+
+def draw_remove():
+    image, draw = planner_canvas()
+    draw.line([(130, 130), (382, 382)], fill=WHITE, width=56)
+    draw.line([(382, 130), (130, 382)], fill=WHITE, width=56)
+    return image
+
+
+PLANNER_DRAWINGS = {
+    "Surface": draw_surface, "Orbit": draw_orbit, "Chute": draw_chute, "Aerobrake": draw_aerobrake,
+    "Whole": draw_whole, "Lander": draw_lander, "Rest": draw_rest, "Dot": draw_dot, "Pin": draw_pin,
+    "Remove": draw_remove,
+}
+
+
 def draw_planet():
     mask = disc_mask()
     light = direction_ramp(SOFTNESS, FLOOR)
@@ -271,6 +391,11 @@ def main():
     for state, (face_top, face_bottom, glyph) in TILE_STATES.items():
         path = ENGINEER_TILES % state
         draw_engineer_tile(face_top, face_bottom, glyph).resize((128, 128), Image.LANCZOS).save(path)
+        print("in the game:", os.path.relpath(path, ROOT))
+
+    for name, drawing in PLANNER_DRAWINGS.items():
+        path = PLANNER_ICONS % name
+        drawing().resize((64, 64), Image.LANCZOS).save(path)
         print("in the game:", os.path.relpath(path, ROOT))
 
     planet = draw_planet()

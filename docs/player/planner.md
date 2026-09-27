@@ -22,32 +22,37 @@ when you load the vessel again.
 ## Lay out the route
 
 A new vessel starts with two stops: *A* on the surface of Kerbin, *B* in a low orbit
-around it.
+around it. The route reads from top to bottom, one dot per stop.
 
 | Control | Does |
 |---|---|
-| *<* and *>* | choose the body of the stop |
-| *Surface* / *Orbit* | land on the body, or stay in orbit around it |
-| *-* and *+* | lower or raise the orbit by 10 km. The lowest is just above the atmosphere or the highest terrain |
-| *Aerobrake* | on an orbit: slow down in the atmosphere instead of with the engines, when arriving from another body or from a higher orbit |
-| *Chutes* | on the surface: land with a heat shield and parachutes. On thin air, such as Duna's, the engines still slow the last part |
-| *x* | remove the stop |
+| the body's name | opens the list of bodies to choose from, each planet with its moons under it |
+| flag | land on the body |
+| ring | stay in orbit around it. Below the stop, *-* and *+* lower or raise the orbit by 10 km, down to the lowest safe one |
+| parachute | on a surface with air: land with a heat shield and parachutes. On thin air, such as Duna's, the engines still slow the last part |
+| dipping path | on an orbit around a body with air: slow down in the atmosphere instead of with the engines |
+| cross | remove the stop |
 | *+ Add destination* | add a stop at the end of the route |
 
 A mission to the Mun and back looks like this:
 
-1. *A*: Kerbin, *Surface*
-2. *B*: Kerbin, *Orbit*
-3. *C*: Mun, *Orbit*
-4. *D*: Mun, *Surface*
-5. *E*: Mun, *Orbit*
-6. *F*: Kerbin, *Surface*, with *Chutes*
+1. *A*: Kerbin, flag
+2. *B*: Kerbin, ring
+3. *C*: Mun, ring
+4. *D*: Mun, flag
+5. *E*: Mun, ring
+6. *F*: Kerbin, flag, with the parachute
 
 ## Read the legs
 
-Between two stops, a line shows the leg's delta-v and the stages that pay for it. If
-the planner adds a margin, the line shows the delta-v with the margin as well. Click the
-line to see the burns the leg is made of:
+Between two stops, a bar shows the leg. Its length is the leg's delta-v, on the same
+scale for every leg. Its colours are the stages that pay for it, in the colours of the
+*Stages* list. Red is what no stage covers. The figure beside the bar is the leg's
+delta-v with the margin. It turns orange if the leg runs short or starts in the wrong
+place.
+
+Click the bar or the figure to open the leg. It shows the burns the leg is made of,
+what each stage gives to it, and a warning where a stage is too weak to launch or land:
 
 | Burn | Is |
 |---|---|
@@ -59,28 +64,23 @@ line to see the burns the leg is made of:
 | *Landing* | from the low orbit down to the surface |
 | *Plane change* | turning the orbit to the tilt of the target's orbit |
 
-Under the burns, the details show how much each stage gives to the leg. They also warn
-you if a stage is too weak to launch or land on that body. A leg that no stage can pay
-for in full shows *short* and the missing delta-v in orange.
+## Check the fuel
 
-## Set the margin and plane changes
+Under the route, one bar sums up the whole mission: the stages' colours for what they
+burn, grey for what is left over, red for what is missing. Under it, green with a *+*
+is what is left over at the end, orange with a *-* is what is missing. Then come what
+the route needs and what the vessel has.
 
 | Setting | Does |
 |---|---|
 | *Margin* | adds a share to every leg, for steering, corrections and a late burn. 10 % is a common choice |
-| *Count plane changes* | adds the burn that matches the tilt of the target's orbit. Leave it off if you launch into the right plane or correct on the way |
-
-Below them, the planner sums up: what the route needs, what the vessel has, and whether
-it is enough. If it is not enough, it names the first leg that runs short.
+| *Plane changes* | adds the burn that matches the tilt of the target's orbit. Leave it off if you launch into the right plane or correct on the way |
 
 ## See which stage pays for what
 
-The *Stages* list shows every stage that has delta-v, in the order KSP fires them. For
-each stage it shows:
-
-* its delta-v in vacuum, and its engines
-* the legs it pays for, and how much for each
-* what it still has at the end of the route, or what it held when it was dropped
+The *Stages* list shows every stage that has delta-v, in the order KSP fires them, each
+in its colour. A row shows the stage's delta-v in vacuum, what it has left at the end of
+the route or whether it was dropped, and its engines.
 
 Stages burn in KSP's order, and a stage burns until it is empty. The fuel a stage has
 left after one leg goes on into the next. The same engines and tanks can serve the
@@ -90,9 +90,9 @@ further.
 
 ### See the parts on the vessel
 
-Click a leg, and the engines and tanks that pay for it light up green on the vessel.
-Click a stage in the *Stages* list, and its engines and the tanks it burns light up
-instead. Click it again, or close the leg, to clear the mark. The mark goes when you
+Open a leg, and the engines and tanks that pay for it light up green on the vessel.
+Click a stage's name in the *Stages* list, and its engines and the tanks it burns light
+up instead. Click it again, or close the leg, to clear the mark. The mark goes when you
 switch to the engineer tab or close the view.
 
 ### Why tanks go with stages
@@ -103,32 +103,32 @@ other engines, change the staging.
 
 ### Keep a stage for a leg
 
-The button beside a stage says *Auto*: the stage burns when its turn comes. Click it to
-keep the stage for one leg, for example *For C → D* for the descent stage of a lander.
-The legs before that one do not touch the stage, nor any stage KSP fires after it.
-When the kept stage takes over, the stages before it are dropped, with whatever they
-still hold. The planner shows that as *dropped with …*.
+An open leg shows the stages as buttons beside a pin. Press a stage there to keep it for
+this leg, for example the descent stage of a lander for the landing. The legs before do
+not touch the stage, nor any stage KSP fires after it. When the kept stage takes over,
+the stages before it are dropped, with whatever they still hold. Press it again to let
+it burn in its turn.
 
-This is how a vessel with its own ascent stage looks. A mission to Eve needs a large
-stage for the climb back to orbit. Keep it for the leg from Eve's surface to its orbit,
-and the planner does not burn it on the way there.
+A mission to Eve needs a large stage for the climb back to orbit. Keep it for the leg
+from Eve's surface to its orbit, and the planner does not burn it on the way there.
 
 ### Plan a lander that is used more than once
 
 A vessel can carry a lander that flies down and back up alone while the rest waits in
 orbit. The lander then docks again and goes on to the next destination.
 
-1. Put the lander's decoupler or docking port in the lander's highest stage, so that
-   KSP's staging separates it there.
-2. In the *Stages* list, click *Lander* until it names that stage, for example
-   *S2 to S0*.
-3. Under each leg, set who flies it:
+1. Put the lander's decoupler or docking port in the stage right before the lander's
+   first engines fire, so that KSP's staging separates it there.
+2. In the *Stages* list, press the lander symbol on the lander's first stage with
+   engines. It lights up on that stage and every stage after it. The stage with the
+   decoupler counts to the lander as well.
+3. Beside each leg, three symbols now set who flies it:
 
-   | Choice | Means |
+   | Symbol | Means |
    |---|---|
-   | *the whole vessel* | the lander rides along; the rest of the vessel burns first |
-   | *the lander alone* | the lander flies; the rest waits where the lander left it |
-   | *the rest, the lander stays* | the rest flies on without the lander, which stays behind for good |
+   | lander on a rocket | the whole vessel: the lander rides along, the rest burns first |
+   | lander | the lander alone: the rest waits where the lander left it |
+   | rocket with an open top | the rest without the lander, which stays behind for good |
 
 A mission to the Mun and Minmus with one lander:
 
@@ -144,8 +144,8 @@ A mission to the Mun and Minmus with one lander:
 
 The lander pushes only its own mass while it flies alone. When the whole vessel flies
 on, it carries the lander with the fuel the lander has left. If a leg of the whole
-vessel does not start where the rest waits, the leg shows a *!*. Its details name the
-stop where the rest is.
+vessel does not start where the rest waits, its figure turns orange. The open leg names
+the stop where the rest is.
 
 ## What the numbers are
 

@@ -16,8 +16,33 @@ lives in is explained in [engineer.md](engineer.md).
 | `src/Engineer/Planner/StageBudget.cs` | which stage pays for which leg, on the mass the stages push. Free of Unity |
 | `src/Engineer/Planner/PlannerBodies.cs` | the bodies of the loaded system, read from `FlightGlobals.Bodies` |
 | `src/Engineer/Planner/PlannerState.cs` | one vessel's plan, and its file |
-| `src/Engineer/Planner/PlannerView.cs` | the tab, built from KSP's dialog elements as the engineer tab is |
+| `src/Engineer/Planner/PlannerView.cs` | the tab's plan: loading, saving, working it out, the choices the rows make |
+| `src/Engineer/Planner/PlannerView.Rows.cs` | the tab's rows, built from KSP's dialog elements as the engineer tab is |
+| `src/Engineer/Planner/PlannerWidgets.cs` | the symbols on KSP's buttons, the coloured bars, the stage colours and the list of bodies |
 | `src/Engineer/Planner/PartHighlight.cs` | marks the parts of a selected leg or stage green on the vessel |
+
+## How the tab is drawn
+
+The tab uses no text to explain itself. The route is a line of stops with a bar for each
+leg. The bar's length is the leg's delta-v, on one scale for all legs, and its colours
+are the stages that pay for it. Choices are symbols laid on KSP's own buttons and
+toggles (`PlannerWidgets.IconToggle`, `IconButton`). So the buttons keep the skin's
+states and a UI theme such as ZTheme reaches them as it reaches KSP's dialogs. The
+symbols are `GameData/ReDefinition/Icons/Planner_*.png`, white on clear, drawn by
+`tools/make_icon.py`. A bar is a row of `DialogGUIImage`s whose widths and colours
+`SegmentBar` sets after they are created. The body list is a small `PopupDialog` by the
+pointer (`BodyPicker`), shielded from the editor's clicks.
+
+`DialogGUIToggle.Update` sets each toggle to its value every frame. Unity reports it
+as a change whenever the value differs from the toggle's state: after a click, and when
+a hidden toggle is shown again **[src]**. So every toggle's action only acts on a real
+change. A `DialogGUIToggleButton` gets a label only for a fixed text, so the stage
+buttons carry a `DialogGUILabel` of their own **[src]**.
+
+The tab has room for 12 stops, 40 stages in the list, and 24 stages in a leg's bar and
+among its buttons. The body list opens in the middle of the screen. KSP places a dialog
+elsewhere through a formula that fails at a UI scale of 200 %
+(`PopupDialog.OnRectTransformDimensionsChange`) **[src]**.
 
 `EngineerPanel` holds both tabs. Each is a vertical layout that shows while its tab is
 chosen. The planner is worked out again four times a second while its tab is open. The
@@ -28,9 +53,9 @@ two free-of-Unity parts have unit tests in `tests/ReDefinition.Tests/PlannerTest
 `PlannerBodies.Read` takes every body from `FlightGlobals.Bodies`: its gravitational
 parameter, radius, rotation period, atmosphere depth and sea-level pressure, and its
 orbit's semi-major axis and inclination **[src]**. So the planner works for whatever
-system is loaded, the stock one or one a Kopernicus planet pack builds. The order the
-*<* and *>* buttons step through is the star, then each body followed by its moons, by
-the size of their orbits.
+system is loaded, the stock one or one a Kopernicus planet pack builds. The list of
+bodies shows the star, then each body followed by its moons, by the size of their
+orbits.
 
 A body's low orbit is 10 km above its atmosphere. On a body without air it is 5 km
 above the highest terrain, `pqsController.radiusMax` **[src]**. If a body has no
@@ -108,9 +133,12 @@ that moment. While the lander flies alone, the rest waits and drops nothing.
 ### A lander
 
 The player can name the lander's highest stage. That stage and every stage after it
-form the lander, and the stages before it form the rest. The lander's mass is that
-stage's start mass: what KSP's staging leaves once the stages before it are gone. So
-the lander's decoupler or docking port has to be in that stage. If it is not, the
+form the lander, and the stages before it form the rest. The player marks the lander's
+first stage with delta-v. The stages without delta-v fired just before it count to the
+lander (`PlannerView.LanderTop`), since the decoupler's stage is among them. The
+lander's mass is its top stage's start mass: what KSP's staging leaves once the stages
+before it are gone. So the lander's decoupler or docking port has to be in one of those
+stages. If it is not, the
 lander's mass includes the rest, and the planner underestimates the lander. The last
 stage of the rest is not dropped when it runs empty, because the lander returns to it.
 It goes when the whole vessel starts to burn the lander's stages and no leg of the
