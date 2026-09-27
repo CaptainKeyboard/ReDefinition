@@ -31,9 +31,11 @@ The planner uses no text to explain itself. From the top:
   bar is a row of `DialogGUIImage`s whose widths and colours `SegmentBar` sets after they
   are created.
 * One bar sums up the route, with the margin and the plane changes under it.
-* The fuel plan is a table of stages by legs. A cell is a button of KSP's skin with the
-  delta-v the stage gives to the leg, in the stage's colour. A pin is a symbol in the
-  cell's corner (`IconMark`).
+* The fuel plan is a table of stages by legs. Its columns share the room the stage and
+  left columns leave, over the legs there are (`Sizer`), so the table fills the panel's width;
+  a column with room shows the whole figure. A cell is a button of KSP's skin with the delta-v
+  the stage gives to the leg, in the stage's colour. A pin is a symbol in the cell's corner
+  (`IconMark`).
 * The details of the selected leg or stage close the panel.
 
 Choices are buttons of KSP's skin whose text is lit green while their option is chosen.

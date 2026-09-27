@@ -163,6 +163,48 @@ namespace ReDefinition.Engineer
         }
     }
 
+    // Elements whose width is set after they are created: the fuel plan's
+    // columns, as wide as the panel's room over the legs there are.
+    internal sealed class Sizer
+    {
+        private readonly List<DialogGUIBase> elements = new List<DialogGUIBase>();
+        private float width = -1f;
+
+        internal Sizer(AfterCreate after)
+        {
+            after.Add(() =>
+            {
+                float wanted = width;
+                width = -1f;
+                if (wanted > 0f) Set(wanted);
+            });
+        }
+
+        internal T Add<T>(T element) where T : DialogGUIBase
+        {
+            elements.Add(element);
+            return element;
+        }
+
+        internal void Set(float wanted)
+        {
+            if (Mathf.Abs(wanted - width) < 0.5f) return;
+            width = wanted;
+            foreach (DialogGUIBase element in elements)
+            {
+                if (element.uiItem == null) continue;
+                LayoutElement layout = element.uiItem.GetComponent<LayoutElement>();
+                if (layout != null)
+                {
+                    layout.minWidth = wanted;
+                    layout.preferredWidth = wanted;
+                }
+                RectTransform rect = element.uiItem.transform as RectTransform;
+                if (rect != null) rect.sizeDelta = new Vector2(wanted, rect.sizeDelta.y);
+            }
+        }
+    }
+
     // A small symbol in the top left corner of a button, shown or hidden: the
     // pin on a cell of the fuel plan.
     internal sealed class IconMark

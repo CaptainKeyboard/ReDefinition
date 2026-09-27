@@ -37,9 +37,12 @@ namespace ReDefinition.Engineer
         private readonly SegmentBar[] legBars = new SegmentBar[MaxStops];
         private SegmentBar totalBar;
         private readonly IconMark[,] pinMarks = new IconMark[MaxStages, MaxStops];
+        private Sizer columns;
+        private float cellWidth = Cell;
 
         internal List<DialogGUIBase> Rows()
         {
+            columns = new Sizer(after);
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(Heading("Route"));
             for (int i = 0; i < MaxStops; i++)
@@ -65,7 +68,10 @@ namespace ReDefinition.Engineer
         {
             DialogGUIHorizontalLayout dot = new DialogGUIHorizontalLayout(Timeline, Icon, 0f, new RectOffset(4, 0, 0, 0),
                 TextAnchor.MiddleLeft, PlannerWidgets.Icon("Dot", 12f, PlannerColors.Line));
-            DialogGUIButton body = new DialogGUIButton(() => "<b>" + BodyName(index) + "</b>", () => PickBody(index), 120f,
+            // The body's button takes the room the others leave: the dot, the
+            // letter, three choices, the cross and the gaps between the seven.
+            float bodyWidth = Mathf.Max(100f, width - Timeline - LetterWidth - 62f - 52f - 76f - Icon - 4f * 7f - 2f);
+            DialogGUIButton body = new DialogGUIButton(() => "<b>" + BodyName(index) + "</b>", () => PickBody(index), bodyWidth,
                 Icon, false);
             body.tooltipText = "Body";
             DialogGUIButton surface = Choice("Surface", () => Kind(index) == StopKind.Surface, () => SetKind(index, StopKind.Surface),
@@ -79,7 +85,7 @@ namespace ReDefinition.Engineer
 
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 4f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, dot, new DialogGUILabel(() => "<b>" + Letter(index) + "</b>", LetterWidth), body, surface,
-                orbit, air, new DialogGUIFlexibleSpace(), remove);
+                orbit, air, remove);
             row.OptionEnabledCondition = () => Shown(index);
             yield return row;
 
@@ -185,7 +191,8 @@ namespace ReDefinition.Engineer
             for (int leg = 0; leg < MaxStops - 1; leg++)
             {
                 int at = leg;
-                DialogGUIButton header = new DialogGUIButton(() => HeaderText(at), () => SelectLeg(at), Cell, RowHeight, false);
+                DialogGUIButton header = columns.Add(new DialogGUIButton(() => HeaderText(at), () => SelectLeg(at), Cell, RowHeight,
+                    false));
                 DialogOverWindow.ClearBackground(header);
                 header.OptionEnabledCondition = () => Ready() && at < legs.Count;
                 cells.Add(header);
@@ -211,8 +218,8 @@ namespace ReDefinition.Engineer
             for (int leg = 0; leg < MaxStops - 1; leg++)
             {
                 int at = leg;
-                DialogGUIButton cell = new DialogGUIButton(() => CellText(index, at), () => TogglePin(index, at), Cell, RowHeight,
-                    false);
+                DialogGUIButton cell = columns.Add(new DialogGUIButton(() => CellText(index, at), () => TogglePin(index, at), Cell,
+                    RowHeight, false));
                 cell.tooltipText = "Pin";
                 cell.OptionEnabledCondition = () => Ready() && at < legs.Count;
                 pinMarks[index, at] = new IconMark(cell, "Pin", 12f, after);
@@ -252,7 +259,8 @@ namespace ReDefinition.Engineer
             bool pinned = IsPinned(stage, leg);
             if (used < 0.5) return pinned ? "<color=" + Warning + ">0</color>" : "";
             string colour = PlannerColors.Hex(PlannerColors.Stage(stage));
-            string text = "<size=90%><color=" + colour + ">" + Short(used) + "</color></size>";
+            string figure = cellWidth >= 64f ? EngineerFormat.Speed(used) : Short(used);
+            string text = "<size=90%><color=" + colour + ">" + figure + "</color></size>";
             return pinned ? "<b>" + text + "</b>" : text;
         }
 
@@ -390,7 +398,10 @@ namespace ReDefinition.Engineer
         private void UpdateBars()
         {
             if (!Worked()) return;
-            float room = Mathf.Max(40f, width - Timeline - Speed - 4f * 4f - (HasLander() ? 44f + 56f + 44f + 12f : 0f));
+            // What the row leaves the bar: the line, the figure and, with a
+            // lander, three choices, with the gaps between them, and a seam of
+            // one unit between the bar's pieces.
+            float room = Mathf.Max(40f, width - Timeline - Speed - 4f * 3f - 4f - (HasLander() ? 44f + 56f + 44f + 4f * 3f : 0f));
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
             for (int leg = 0; leg < MaxStops; leg++)
@@ -399,12 +410,20 @@ namespace ReDefinition.Engineer
                 List<KeyValuePair<float, Color>> pieces = new List<KeyValuePair<float, Color>>();
                 if (leg < legs.Count)
                 {
+                    int count = budget.Uses.FindAll(use => use.Leg == leg).Count + (budget.Short[leg] > 0.5 ? 1 : 0);
+                    float barRoom = Mathf.Max(20f, room - count);
                     foreach (StageBudget.StageUse use in budget.Uses)
-                        if (use.Leg == leg) pieces.Add(Piece(use.DeltaV / longest * room, StageColour(use.Stage)));
-                    if (budget.Short[leg] > 0.5) pieces.Add(Piece(budget.Short[leg] / longest * room, PlannerColors.Short));
+                        if (use.Leg == leg) pieces.Add(Piece(use.DeltaV / longest * barRoom, StageColour(use.Stage)));
+                    if (budget.Short[leg] > 0.5) pieces.Add(Piece(budget.Short[leg] / longest * barRoom, PlannerColors.Short));
                 }
                 legBars[leg].Set(pieces);
             }
+
+            // The fuel plan's columns share what the stage and left columns
+            // leave, over the legs there are.
+            int shown = Mathf.Max(1, legs.Count);
+            cellWidth = Mathf.Clamp((width - StageColumn - LeftColumn - 2f * (shown + 1)) / shown, Cell, 140f);
+            if (columns != null) columns.Set(cellWidth);
 
             if (totalBar == null) return;
             List<KeyValuePair<double, Color>> parts = new List<KeyValuePair<double, Color>>();
