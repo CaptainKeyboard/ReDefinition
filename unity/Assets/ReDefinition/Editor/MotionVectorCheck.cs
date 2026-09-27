@@ -131,6 +131,7 @@ namespace ReDefinition.EditorTools
             int audits = 0;
             float depthTarget = -1f, depthWritten = -1f;
             int shadowCases = 0;
+            bool farCase = false;
             foreach (string line in lines)
             {
                 Debug.Log("ReDefinition motion vector check: " + line);
@@ -157,6 +158,12 @@ namespace ReDefinition.EditorTools
                 {
                     shadowCases++;
                     JudgeShadow(f, problems);
+                    continue;
+                }
+                if (f.Length == 10 && f[0] == "far")
+                {
+                    farCase = true;
+                    JudgeFar(f, problems);
                     continue;
                 }
                 if (f.Length == 4 && f[0] == "depthTarget")
@@ -210,11 +217,41 @@ namespace ReDefinition.EditorTools
             if (!readback) problems.Add("the result has no readback line.");
             if (audits != 3) problems.Add("the result has " + audits + " of 3 audit lines.");
             if (shadowCases != 3) problems.Add("the result has " + shadowCases + " of 3 shadow cases.");
+            if (!farCase) problems.Add("the result has no far case.");
             if (depthTarget <= 0f)
                 problems.Add("depthTarget: the camera's own depth buffer shows no forward-only cube.");
             else if (Mathf.Abs(depthWritten - depthTarget) > 0.01f * depthTarget)
                 problems.Add("depthWrite: the depth pass wrote " + depthWritten + " where the camera's depth buffer holds "
                              + depthTarget + ".");
+        }
+
+        // SceneMotion: the ground 150 km away, seen from 150 km from the origin after a move of
+        // 10 m sideways and 6 m up, moves by its parallax, the same over neighbouring pixels, and
+        // on average as Unity's vectors in this player show it, `y` up. Unity's own spread is
+        // logged for comparison.
+        private static void JudgeFar(string[] f, List<string> problems)
+        {
+            int pixels = int.Parse(f[1], CultureInfo.InvariantCulture);
+            float unityJump = Float(f[2]), oursJump = Float(f[3]), oursError = Float(f[4]), expected = Float(f[5]);
+            Vector2 unity = new Vector2(Float(f[6]), Float(f[7]));
+            Vector2 ours = new Vector2(Float(f[8]), Float(f[9]));
+            Debug.Log("ReDefinition motion vector check: far: Unity's vectors differ by " + unityJump
+                      + " px between neighbouring pixels, pass 2's by " + oursJump + " px; parallax " + expected + " px.");
+            if (pixels < 500)
+            {
+                problems.Add("far: the ground covers only " + pixels + " pixels.");
+                return;
+            }
+            if (Mathf.Abs(expected) < 1e-3f)
+                problems.Add("far: the move gives no parallax (" + expected + " px).");
+            if (oursError > 0.01f)
+                problems.Add("far: pass 2 lies " + oursError + " px from the parallax on average.");
+            if (oursJump > 0.01f)
+                problems.Add("far: pass 2's vectors differ by " + oursJump + " px between neighbouring pixels.");
+            if (Mathf.Abs(unity.y) < 1e-3f)
+                problems.Add("far: Unity's motion vectors show no vertical motion (" + Show(unity) + ").");
+            if ((ours - unity).magnitude > RelativeTolerance * unity.magnitude)
+                problems.Add("far: computed " + Show(ours) + ", Unity " + Show(unity) + ".");
         }
 
         // VesselShadowLayer: the block's shadow found and nothing else; left in place where the

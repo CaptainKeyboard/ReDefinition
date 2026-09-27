@@ -90,7 +90,12 @@ Shader "Hidden/ReDefinition/CloudMotion"
         // 2: at BeforeImageEffects, before the clouds: where the scene camera drew
         // nothing, the motion of the nearest distant body the scaled camera's ray
         // meets, on its surface or in the atmosphere around it; the scene camera's
-        // own everywhere else (ScaledSpaceMotion in the plugin).
+        // own everywhere else (ScaledSpaceMotion in the plugin). Where the scene
+        // camera drew something far away, the motion of a point fixed to the main
+        // body, from the depth and the camera's move against that body; where it
+        // drew nothing and no body is met, the camera's turn alone. Unity's own
+        // there is noise, worked out in single precision from world positions a
+        // hundred kilometres and more from the origin.
         Pass
         {
             ZTest Always
@@ -121,6 +126,32 @@ Shader "Hidden/ReDefinition/CloudMotion"
             float4x4 _ReDefinitionScaledPreviousViewProjection;
             float4x4 _ReDefinitionScaledInverseViewProjection;
             float4 _ReDefinitionScaledCameraPosition;
+            // The scene camera's clip space, as GL.GetGPUProjectionMatrix(..., false)
+            // gives it without jitter, into the frame before's, through the
+            // camera's move against the main body.
+            float4x4 _ReDefinitionSceneClipToPrevClip;
+            // The same for points at infinity: the camera's turn alone.
+            float4x4 _ReDefinitionSkyClipToPrevClip;
+            // Near and far plane, the distance from which the scene camera's own
+            // motion is replaced, and 1 while this frame has the matrices above.
+            float4 _ReDefinitionSceneRange;
+
+            float SceneDistance(float depth)
+            {
+                float nearPlane = _ReDefinitionSceneRange.x;
+                float farPlane = _ReDefinitionSceneRange.y;
+            #if UNITY_REVERSED_Z
+                return nearPlane * farPlane / (depth * (farPlane - nearPlane) + nearPlane);
+            #else
+                return nearPlane * farPlane / (farPlane - depth * (farPlane - nearPlane));
+            #endif
+            }
+
+            float2 SceneMotion(float4x4 clipToPrevClip, float2 uv, float depth)
+            {
+                float4 clip = float4(uv * 2.0 - 1.0, depth, 1.0);
+                return ReDefinitionMotionVector(clip, mul(clipToPrevClip, clip)).xy;
+            }
 
             float4 frag (v2f_img i) : SV_Target
             {
@@ -132,8 +163,17 @@ Shader "Hidden/ReDefinition/CloudMotion"
             #else
                 bool nothing = depth >= 1.0;
             #endif
-                if (!nothing || _ReDefinitionBodyCount < 0.5)
+                bool precise = _ReDefinitionSceneRange.w > 0.5;
+                if (!nothing)
+                {
+                    if (precise && SceneDistance(depth) > _ReDefinitionSceneRange.z)
+                        return float4(SceneMotion(_ReDefinitionSceneClipToPrevClip, uv, depth), 0.0, 0.0);
                     return float4(sceneMotion, 0.0, 0.0);
+                }
+                // Where nothing is drawn and no body met: the sky.
+                float2 empty = precise ? SceneMotion(_ReDefinitionSkyClipToPrevClip, uv, depth) : sceneMotion;
+                if (_ReDefinitionBodyCount < 0.5)
+                    return float4(empty, 0.0, 0.0);
 
                 // The pixel's viewport position, y up: a blit into a render
                 // texture addresses it as the camera drew it.
@@ -166,7 +206,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
                     }
                 }
                 if (index < 0)
-                    return float4(sceneMotion, 0.0, 0.0);
+                    return float4(empty, 0.0, 0.0);
 
                 float4 now = float4(origin + direction * nearest, 1.0);
                 float4 before = mul(_ReDefinitionBodyMotions[index], now);

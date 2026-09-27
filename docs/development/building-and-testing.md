@@ -195,6 +195,12 @@ brightness in the same frame rendered without the block's shadow, the lit ground
 unchanged. Where only the camera moves, the weight must leave the shadow to the motion
 vectors (below 0.2).
 
+One case checks the far ground (`SceneMotion`): a camera 150 km from the origin, with
+KSP's near and far plane, a sphere 150 km ahead, and a move of 10 m sideways and 6 m up.
+Pass 2 must lie within 0.01 px of the parallax worked out for each pixel, and neighbouring
+pixels must differ by less than 0.01 px on average. Its mean must lie within 3% of
+Unity's. The log shows how much Unity's own vectors differ from one pixel to the next.
+
 ## Build the proxy
 
 You need MSVC with the C++ workload and a Windows 10 SDK. The CMake that comes with Visual

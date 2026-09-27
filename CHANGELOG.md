@@ -28,6 +28,11 @@
 
 ### Fixed
 
+- **Far ground no longer shimmers under the upscaler.** Zoomed out far, over the Mun
+  for example, the far side of the ground, or the whole body, trembled and kept
+  trembling. Unity's motion vectors there are imprecise so far from the origin;
+  ReDefinition now computes them itself for the sky, and for the ground more than
+  500 m away while the camera is more than 20 km out.
 - **Bundled mods' toolbar buttons stay hidden across scenes.** At every scene start KSP's
   launcher moves its buttons into a new layout and shows each there, a hidden one too,
   and nothing hid it again: the buttons of the bundled mods came back in the main menu,

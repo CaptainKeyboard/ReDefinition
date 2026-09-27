@@ -173,6 +173,7 @@ The rules the store follows: [settings-store.md](settings-store.md).
 | `UpscalerMasks.cs` | FSR 3's transparency and reactive masks |
 | `EveCloudMotion.cs`, `CloudMotionVectors.cs` | EVE's clouds jittered, and their motion vectors blended into the captured ones |
 | `ScaledSpaceMotion.cs` | the distant planets' motion vectors, computed from the scaled bodies' transforms where the scene camera draws nothing |
+| `SceneMotion.cs` | the scene camera's move against the main body as one clip-space matrix, in double precision, for the motion vectors of far ground |
 | `VesselMotionVectors.cs` | the active vessel's motion vectors written by the rig, and checked on every pixel |
 | `MotionVectorAudit.cs` | an instrument: the captured motion vectors against the true motion at sample points |
 | `TufxPostProcessing.cs` | TUFX's effects split around the upscaler |

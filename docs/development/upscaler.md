@@ -221,6 +221,45 @@ Measured in a Unity 2019.4.18f1 player on Direct3D 11, with a moving sphere draw
 camera that renders into a render texture: the pass writes on exactly the sphere's pixels,
 with the values Unity's own motion vectors carry there, `y` up.
 
+### The far ground
+
+Unity works out `Camera 00`'s motion vectors in single precision from world positions.
+Zoomed out over the Mun, the camera stands about 150 km from the origin and looks at
+ground 60 to 200 km away. Measured in two dumps of frame generation's inputs from that
+view: the camera moved by 0.001 px a frame, Unity's vectors on that ground averaged
+2.3 px, and neighbouring pixels differed by up to 5 px. Where `Camera 00` drew nothing and
+no body was met, they reached about 21,000 px. The upscaler reprojected every pixel of
+that ground somewhere else each frame, and the image shimmered, with jitter off as well.
+
+`SceneMotion` takes the camera's position and turn against the main body in this frame
+and the previous one, and makes one matrix from this frame's clip space into the previous
+frame's. The difference of the two positions is taken in double precision; the distance
+from the origin enters only through the single-precision transform positions, about a
+centimetre at 150 km. The projections are the ones without jitter, read in `OnPreCull`
+before `CameraRedirect` jitters them. `ScaledSpaceMotion` sets the matrix as
+`_ReDefinitionSceneClipToPrevClip`, and the camera's turn alone as
+`_ReDefinitionSkyClipToPrevClip`, with the near and far plane and the view depth from which
+they apply, 500 m, in `_ReDefinitionSceneRange`.
+
+Pass 2 of the cloud motion shader writes the motion of a point fixed to the body where
+`Camera 00` drew something at a view depth beyond 500 m, while the camera stands more
+than 20 km from the origin. Nearer to the camera, Unity's own stay: other vessels, kerbals
+and debris move as objects. Nearer to the origin, Unity's are precise and stay everywhere;
+a vessel in orbit a kilometre from the active one would otherwise move by the camera's
+travel against the body. Beyond 20 km such a vessel is at least that far from the camera
+and a few pixels large. The active vessel is written after this in any case. Where
+`Camera 00` drew nothing and no scaled body is met, the sky gets the camera's turn alone.
+Both matrices are off while the distant planets' pass is off, for the first frame, after a
+skipped frame or a reset of the rig's history, after a change of main body and while there
+is no main body.
+
+Measured in `MotionVectorCheck` with a camera at the position of the dumps, near 0.21 m,
+far 750 km, a sphere 150 km ahead and a move of 10 m sideways and 6 m up: pass 2's vectors
+lie on average 4·10⁻⁶ px from the parallax worked out for each pixel, and their mean 2%
+from Unity's. That player does not show Unity's noise: its sphere is one object near its
+own origin, KSP's terrain many quads far from theirs. The noise is only in the game's
+dumps. The player sets its own matrix; `SceneMotionTests` check the plugin's.
+
 ### The active vessel
 
 Measured on the runway with DLSS presets L and M: while the aircraft rolled fast, 0.5 to

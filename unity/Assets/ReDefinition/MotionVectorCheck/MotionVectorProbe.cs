@@ -84,6 +84,7 @@ namespace ReDefinition.MotionVectorCheck
             yield return Audit();
             yield return DepthSources();
             yield return ShadowCases();
+            yield return FarCase();
 
             System.IO.File.WriteAllText(path, result.ToString());
             Application.Quit();
