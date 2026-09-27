@@ -260,6 +260,33 @@ from Unity's. That player does not show Unity's noise: its sphere is one object 
 own origin, KSP's terrain many quads far from theirs. The noise is only in the game's
 dumps. The player sets its own matrix; `SceneMotionTests` check the plugin's.
 
+### Motion vectors Unity does not write
+
+In the game, `Camera 00`'s motion vector buffer is at times not written for many frames.
+Measured in two recordings after zooming out to the farthest and back in: the camera stood
+still, and the ground's motion vectors were the same bit for bit in all 16 frames of both,
+although one view showed ground 0.5 km away and the other 9 km, each pointing to the middle
+of the picture. The audit read the same values in every window from the zoom on, and in
+another flight from its start. The upscalers reprojected the ground from far off, and
+Parallax's scatter, with its fine detail, flickered. No installed mod takes
+`MotionVectors` off the camera or writes into the buffer (their assemblies decompiled,
+KSP's included), and a Unity 2019.4.18f1 player writes every pixel anew after each of these:
+a jump of 150 km, KSP's near and far plane, a frame without the camera, Scatterer's
+replacement motion vector shader, instanced draws into the camera, and a second camera with
+motion vectors into the same target before it.
+
+Once the capture has copied the buffer, `ScaledSpaceMotion` clears it to -100. Where the
+next frame's copy still holds that value, pass 2 takes the camera's own move: through
+`_ReDefinitionSceneClipToPrevClip` where something is drawn, whatever its distance, and
+the camera's turn where nothing is. Other vessels there get the motion of ground, and so
+does the active vessel in frames its repair leaves out. Every 30 frames a row across the
+middle of the copy is read back, and while pixels with that value turn up, a line every
+ten seconds gives in how many of the checked frames and what share of their pixels. The
+buffer is cleared only while the distant planets' pass runs, and not while TUFX's effects
+run before the upscaler, whose motion blur reads it.
+`MotionVectorCheck` checks that Unity writes every pixel of a cleared buffer in the next
+frame, and that pass 2 takes the camera's move on every pixel that still holds the value.
+
 ### The active vessel
 
 Measured on the runway with DLSS presets L and M: while the aircraft rolled fast, 0.5 to

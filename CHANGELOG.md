@@ -33,6 +33,11 @@
   trembling. Unity's motion vectors there are imprecise so far from the origin;
   ReDefinition now computes them itself for the sky, and for the ground more than
   500 m away while the camera is more than 20 km out.
+- **No more flicker on the ground after zooming out and back in.** Unity at times stops
+  writing the camera's motion vectors, and the upscaler then reprojects the ground from
+  far off; Parallax's scatter showed it most. In flight, ReDefinition now notices the
+  pixels Unity left unwritten and takes the camera's own movement there, and says so in
+  `KSP.log`.
 - **Bundled mods' toolbar buttons stay hidden across scenes.** At every scene start KSP's
   launcher moves its buttons into a new layout and shows each there, a hidden one too,
   and nothing hid it again: the buttons of the bundled mods came back in the main menu,

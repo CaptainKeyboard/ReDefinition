@@ -54,6 +54,10 @@ namespace ReDefinition.MotionVectorCheck
             sceneDepth = new RenderTexture(Width, Height, 0, RenderTextureFormat.RFloat);
             // As the rig captures it: in the deferred path the only source that holds depth.
             capture.Blit(BuiltinRenderTextureType.ResolvedDepth, sceneDepth);
+            // As the plugin clears it once copied (ScaledSpaceMotion): Unity has to write
+            // every pixel anew in the next frame.
+            capture.SetRenderTarget(BuiltinRenderTextureType.MotionVectors);
+            capture.ClearRenderTarget(false, true, new Color(-100f, -100f, 0f, 0f));
             cam.AddCommandBuffer(CameraEvent.BeforeImageEffects, capture);
 
             sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -134,7 +138,11 @@ namespace ReDefinition.MotionVectorCheck
             Texture2D unity = Read(unityMotion, TextureFormat.RGBAFloat);
             Texture2D ours = Read(computed, TextureFormat.RGBAFloat);
             Vector2 unitySum = Vector2.zero, oursSum = Vector2.zero;
-            int pixels = 0, covered = 0;
+            int pixels = 0, covered = 0, unwritten = 0;
+            for (int y = 0; y < Height; y++)
+                for (int x = 0; x < Width; x++)
+                    if (unity.GetPixel(x, y).r < -50f) unwritten++;
+            result.AppendLine("unwritten " + label + " " + unwritten);
             for (int y = 0; y < Height; y++)
             {
                 for (int x = 0; x < Width; x++)

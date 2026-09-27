@@ -30,6 +30,17 @@ namespace ReDefinition.Upscaler
     //
     // What a shader moves -- EVE's two-dimensional cloud layers drifting over the
     // planet -- keeps the planet's motion under it.
+    //
+    // In KSP, Camera 00's motion vector buffer is at times not written for many
+    // frames: the ground then carries the same vectors frame after frame, whatever
+    // the camera does (measured in the recordings' frame generation inputs after
+    // zooming out to the farthest and back, and in the audit from the start of a
+    // flight). Once copied, the buffer is therefore cleared to Missing. Where the next
+    // frame's copy still holds it, Unity has not written that pixel, and pass 2 takes
+    // the camera's own move instead: against the main body where something is drawn
+    // (SceneMotion), the camera's turn where nothing is. A row of the copy is read
+    // back every CheckEvery frames and the share of such pixels logged every ten
+    // seconds while there are any.
     internal sealed class ScaledSpaceMotion
     {
         private const string CameraName = "Camera ScaledSpace";
@@ -65,6 +76,15 @@ namespace ReDefinition.Upscaler
 
         private const string NotLogged = "not logged";
         private static string loggedState = NotLogged;
+
+        // Far outside the range of a motion vector in viewport units; half precision
+        // holds it exactly. The shader tests for below -50.
+        private static readonly Color Missing = new Color(-100f, -100f, 0f, 0f);
+        private const int CheckEvery = 30;
+        private const float ReportSeconds = 10f;
+        private int checkedFrames, missingFrames;
+        private double missingShare;
+        private float windowStart = -1f;
 
         private struct Body
         {
@@ -131,13 +151,54 @@ namespace ReDefinition.Upscaler
 
         // In the scene camera's capture: its motion vectors into a copy, and the
         // distant planets' over them where it drew nothing.
-        internal void Merge(CommandBuffer capture, RenderTexture depth, Vector2Int size)
+        // `clearAfterCopy`: false while TUFX's effects run on the scene camera before the
+        // capture, whose motion blur reads Unity's buffer and would take Missing for a
+        // motion.
+        internal void Merge(CommandBuffer capture, RenderTexture depth, Vector2Int size, bool clearAfterCopy)
         {
             capture.Blit(BuiltinRenderTextureType.MotionVectors, scene);
+            if (clearAfterCopy)
+            {
+                capture.SetRenderTarget(BuiltinRenderTextureType.MotionVectors);
+                capture.ClearRenderTarget(false, true, Missing);
+                if (Time.frameCount % CheckEvery == 0) CheckMissing(capture, size);
+            }
+            ReportMissing();
             capture.SetGlobalVector(TexelId, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
             capture.SetGlobalTexture(UnityMotionId, scene);
             capture.SetGlobalTexture(SceneDepthId, depth);
             capture.Blit(Texture2D.blackTexture, merged, material, MergePass);
+        }
+
+        // A row across the middle of the copy: the share of pixels Unity left unwritten.
+        private void CheckMissing(CommandBuffer capture, Vector2Int size)
+        {
+            capture.RequestAsyncReadback(scene, 0, 0, size.x, size.y / 2, 1, 0, 1, request =>
+            {
+                if (request.hasError) return;
+                Unity.Collections.NativeArray<ushort> data = request.GetData<ushort>();
+                int missing = 0, pixels = data.Length / 2;
+                for (int i = 0; i < pixels; i++)
+                    if (Mathf.HalfToFloat(data[i * 2]) < -50f) missing++;
+                checkedFrames++;
+                if (missing > 0) missingFrames++;
+                missingShare += pixels > 0 ? (double)missing / pixels : 0.0;
+            });
+        }
+
+        private void ReportMissing()
+        {
+            if (windowStart < 0f) windowStart = Time.unscaledTime;
+            if (Time.unscaledTime - windowStart < ReportSeconds) return;
+            windowStart = Time.unscaledTime;
+            if (missingFrames > 0)
+                Debug.Log(Log.Tag + " Unity's motion vectors not written, last " + ReportSeconds.ToString("0")
+                          + " s: in " + missingFrames + " of " + checkedFrames + " checked frames, "
+                          + (missingShare / missingFrames * 100.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)
+                          + "% of their pixels on average; the camera's own move taken there.");
+            checkedFrames = 0;
+            missingFrames = 0;
+            missingShare = 0.0;
         }
 
         // As the scene camera culls, once a frame: the bodies in view and the

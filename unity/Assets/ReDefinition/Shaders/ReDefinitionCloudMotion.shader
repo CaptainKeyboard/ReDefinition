@@ -95,7 +95,9 @@ Shader "Hidden/ReDefinition/CloudMotion"
         // body, from the depth and the camera's move against that body; where it
         // drew nothing and no body is met, the camera's turn alone. Unity's own
         // there is noise, worked out in single precision from world positions a
-        // hundred kilometres and more from the origin.
+        // hundred kilometres and more from the origin. Where the copy of Unity's
+        // still holds the value the plugin cleared it to after the frame before,
+        // Unity has not written the pixel: the same, the camera's own move.
         Pass
         {
             ZTest Always
@@ -164,9 +166,11 @@ Shader "Hidden/ReDefinition/CloudMotion"
                 bool nothing = depth >= 1.0;
             #endif
                 bool precise = _ReDefinitionSceneRange.w > 0.5;
+                bool missing = sceneMotion.x < -50.0;
+                if (missing) sceneMotion = float2(0.0, 0.0);
                 if (!nothing)
                 {
-                    if (precise && SceneDistance(depth) > _ReDefinitionSceneRange.z)
+                    if (precise && (missing || SceneDistance(depth) > _ReDefinitionSceneRange.z))
                         return float4(SceneMotion(_ReDefinitionSceneClipToPrevClip, uv, depth), 0.0, 0.0);
                     return float4(sceneMotion, 0.0, 0.0);
                 }

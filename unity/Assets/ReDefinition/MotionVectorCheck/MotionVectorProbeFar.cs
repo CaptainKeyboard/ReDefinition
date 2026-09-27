@@ -70,12 +70,27 @@ namespace ReDefinition.MotionVectorCheck
             Shader.SetGlobalTexture("_ReDefinitionCloudSceneDepth", farDepthCapture);
             RenderTexture farComputed = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGBFloat);
             Graphics.Blit(Texture2D.blackTexture, farComputed, pass, 2);
+
+            // Unity's motion vectors not written: the copy still holds the value the
+            // plugin cleared it to. With the distance from which the camera's own move
+            // is taken out of reach, pass 2 must take it for exactly those pixels.
+            RenderTexture missingMotion = new RenderTexture(Width, Height, 0, RenderTextureFormat.RGHalf);
+            RenderTexture previousActive = RenderTexture.active;
+            RenderTexture.active = missingMotion;
+            GL.Clear(false, true, new Color(-100f, -100f, 0f, 0f));
+            RenderTexture.active = previousActive;
+            Shader.SetGlobalTexture("_ReDefinitionUnityMotion", missingMotion);
+            Shader.SetGlobalVector("_ReDefinitionSceneRange", new Vector4(far.nearClipPlane, far.farClipPlane, float.MaxValue, 1f));
+            RenderTexture missingComputed = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGBFloat);
+            Graphics.Blit(Texture2D.blackTexture, missingComputed, pass, 2);
             Shader.SetGlobalVector("_ReDefinitionSceneRange", Vector4.zero);
 
             Texture2D image = Read(farColor, TextureFormat.RGBAHalf);
             Texture2D unity = Read(farMotion, TextureFormat.RGBAFloat);
             Texture2D ours = Read(farComputed, TextureFormat.RGBAFloat);
             Texture2D depth = Read(farDepthCapture, TextureFormat.RFloat);
+            Texture2D missing = Read(missingComputed, TextureFormat.RGBAFloat);
+            double missingOff = 0.0;
             double unityJump = 0.0, oursJump = 0.0, oursError = 0.0, expectedSum = 0.0;
             int pixels = 0, pairs = 0;
             Vector2 unitySum = Vector2.zero, oursSum = Vector2.zero;
@@ -92,6 +107,7 @@ namespace ReDefinition.MotionVectorCheck
                     double expected = (clip.x / clip.w - before.x / before.w) * 0.5 * Width;
                     double o = ours.GetPixel(x, y).r * Width;
                     oursError += System.Math.Abs(o - expected);
+                    missingOff += System.Math.Abs(missing.GetPixel(x, y).r * Width - o);
                     unitySum += (Vector2)(Vector4)unity.GetPixel(x, y) * Width;
                     oursSum += (Vector2)(Vector4)ours.GetPixel(x, y) * Width;
                     expectedSum += expected;
@@ -110,6 +126,8 @@ namespace ReDefinition.MotionVectorCheck
                 pixels, pairs > 0 ? unityJump / pairs : -1.0, pairs > 0 ? oursJump / pairs : -1.0,
                 pixels > 0 ? oursError / pixels : -1.0, pixels > 0 ? expectedSum / pixels : 0.0,
                 unityMean.x, unityMean.y, oursMean.x, oursMean.y));
+            result.AppendLine(string.Format(CultureInfo.InvariantCulture, "missing {0} {1}",
+                pixels, pixels > 0 ? missingOff / pixels : -1.0));
 
             far.RemoveCommandBuffer(CameraEvent.BeforeImageEffects, capture);
             Destroy(ground);
