@@ -20,7 +20,7 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 | `src/Engineer/Planner/PlannerView.Rows.cs` | the planner's rows, built from KSP's dialog elements |
 | `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the pin marks, the stage colours and the list of bodies |
 | `src/Engineer/Planner/PartHighlight.cs` | colours parts on the vessel with KSP's part highlighter |
-| `src/Engineer/PlannerPanel.cs` | the panel the rows stand in, over the parts panel |
+| `src/Engineer/PlannerPanel.cs` | the panel the rows stand in, made as KSP's crew panel is |
 
 ## How the planner is drawn
 
@@ -48,9 +48,9 @@ While the planner is open, every stage's engines and tanks show in the stage's c
 the vessel. A selected leg leaves only the stages that pay for it, a selected stage only
 that one.
 
-The planner has room for 10 stops, so nine legs side by side in the fuel plan, and 30
-stages. It is worked out again four times a second while it is open. The two
-free-of-Unity parts have unit tests in `tests/ReDefinition.Tests/PlannerTests.cs`.
+The planner has room for 9 stops, so eight legs side by side in the fuel plan within the crew
+panel's width, and 30 stages. It is worked out again four times a second while it is open. The
+two free-of-Unity parts have unit tests in `tests/ReDefinition.Tests/PlannerTests.cs`.
 
 ## Where the bodies come from
 

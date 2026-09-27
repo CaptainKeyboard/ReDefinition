@@ -262,7 +262,7 @@ KSP's UI textures by name, themes it with the rest of KSP's dialogs.
 | `EngineerWindow.cs` | the engineer window: the stage table, its place and how it is shown |
 | `EngineerSituation.cs` | the body and situation the numbers are for, KSP's delta-v app's own |
 | `PartCard.cs`, `PartDetails.cs` | the card with the part under the pointer, and what it lists |
-| `PlannerPanel.cs` | the planner's panel over the parts panel |
+| `PlannerPanel.cs` | the planner's panel, made as KSP's crew panel is |
 | `Planner/` | the planner's route, fuel budget, plans and rows ([planner.md](planner.md)) |
 | `StageTable.cs`, `EngineerFormat.cs` | the stage table and how numbers are written; free of Unity, tested |
 

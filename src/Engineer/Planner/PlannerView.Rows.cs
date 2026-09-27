@@ -16,7 +16,7 @@ namespace ReDefinition.Engineer
     // number of rows and cells, shown as the plan needs them.
     internal sealed partial class PlannerView
     {
-        private const int MaxStops = 10;
+        private const int MaxStops = 9;
         private const int MaxStages = 30;
         private const int MaxPieces = 24;
         private const float Icon = 24f;
@@ -29,7 +29,7 @@ namespace ReDefinition.Engineer
         // The swatch, the stage's name and the lander's button, with the gaps
         // between them.
         private const float StageColumn = 72f;
-        private const float LeftColumn = 62f;
+        private const float LeftColumn = 56f;
         private const string Warning = "#f18a24";
         private const string Good = "#8fdc7a";
         private const string Dim = "#9a9a9a";

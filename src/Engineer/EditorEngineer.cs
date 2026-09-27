@@ -99,7 +99,6 @@ namespace ReDefinition.Engineer
             GameEvents.onEditorScreenChange.Remove(OnScreenChange);
             Canvas.willRenderCanvases -= KeepButtons;
             if (editor != null && editor.partPanelBtn != null) editor.partPanelBtn.onClick.RemoveListener(OnPartsButton);
-            ShowPartList(true);
             if (panel != null) panel.Destroy();
             if (window != null) window.Destroy();
             BodyPicker.Close();
@@ -160,15 +159,32 @@ namespace ReDefinition.Engineer
 
         internal void Toggle()
         {
-            if (open) Close();
+            if (open) Close(true);
             else Open();
         }
 
         internal void Open()
         {
             if (open || editor == null || !ModeSwitchAllowed()) return;
+            try
+            {
+                if (panel == null) panel = PlannerPanel.Create(this);
+                if (panel == null) return;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " The planner could not be made: " + e);
+                return;
+            }
+            open = true;
+            if (window != null) window.ClearMark();
+            if (PartListTooltipMasterController.Instance != null) PartListTooltipMasterController.Instance.HideTooltip();
+            nextRefresh = 0f;
             if (editor.editorScreen != EditorScreen.Parts)
             {
+                // KSP counts the planner as part of the parts mode: switch to
+                // it first, and bring the planner in once the parts list is in,
+                // so that the two transitions do not run against each other.
                 switching = true;
                 try
                 {
@@ -178,76 +194,51 @@ namespace ReDefinition.Engineer
                 {
                     switching = false;
                 }
-                if (editor.editorScreen != EditorScreen.Parts) return;
+                if (editor.editorScreen != EditorScreen.Parts)
+                {
+                    open = false;
+                    return;
+                }
+                StartCoroutine(BringInWhenSettled());
+                return;
             }
-
-            try
-            {
-                if (panel == null) panel = PlannerPanel.Create(this, EditorPanels.Instance.partsEditor.transform as RectTransform);
-                if (panel == null) return;
-                panel.Show(true);
-                open = true;
-                if (window != null) window.ClearMark();
-                EditorPanels.Instance.searchField.Transition("Out");
-                ShowPartList(false);
-                if (PartListTooltipMasterController.Instance != null) PartListTooltipMasterController.Instance.HideTooltip();
-                nextRefresh = 0f;
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " The planner could not be opened: " + e);
-            }
+            panel.BringIn();
         }
 
-        internal void Close()
+        private IEnumerator BringInWhenSettled()
+        {
+            UIPanelTransition parts = EditorPanels.Instance != null ? EditorPanels.Instance.partsEditor : null;
+            float until = Time.unscaledTime + 3f;
+            while (parts != null && (parts.Transitioning || parts.State != "In") && Time.unscaledTime < until) yield return null;
+            if (open && panel != null) panel.BringIn();
+        }
+
+        // `toParts`: back to the parts list, as KSP's parts button asks; any
+        // other mode KSP brings in itself, and takes the planner out with it.
+        internal void Close(bool toParts)
         {
             if (!open) return;
             open = false;
-            if (panel != null) panel.Show(false);
-            ShowPartList(true);
-            if (editor != null && editor.editorScreen == EditorScreen.Parts && EditorPanels.Instance != null)
-                EditorPanels.Instance.searchField.Transition("In");
-            // The parts button was made clickable while the view stood open; KSP
-            // sets its buttons as they belong again.
+            if (panel != null)
+            {
+                panel.Closed();
+                if (toParts) panel.BackToParts();
+            }
+            // The parts button was made clickable while the planner stood
+            // open; KSP sets its buttons as they belong again.
             if (editor != null) editor.UpdateUI();
-        }
-
-        // The parts list's icons are the parts themselves, drawn by a camera
-        // over the UI, so the view cannot cover them: the grids that hold them
-        // are switched off while the view stands open, and put back as they
-        // were. The list itself stays on, since it starts coroutines on its own
-        // object (EditorPartList, decompiled).
-        private readonly Dictionary<GameObject, bool> hiddenGrids = new Dictionary<GameObject, bool>();
-
-        private void ShowPartList(bool on)
-        {
-            if (on)
-            {
-                foreach (KeyValuePair<GameObject, bool> grid in hiddenGrids)
-                    if (grid.Key != null) grid.Key.SetActive(grid.Value);
-                hiddenGrids.Clear();
-                return;
-            }
-            EditorPartList list = EditorPartList.Instance;
-            if (list == null) return;
-            foreach (RectTransform grid in new[] { list.partGrid, list.subassemblyGrid, list.variantGrid })
-            {
-                if (grid == null || hiddenGrids.ContainsKey(grid.gameObject)) continue;
-                hiddenGrids[grid.gameObject] = grid.gameObject.activeSelf;
-                grid.gameObject.SetActive(false);
-            }
         }
 
         private void OnScreenChange(EditorScreen screen)
         {
-            if (!switching) Close();
+            if (!switching) Close(false);
         }
 
         // KSP's parts button, which the open view makes clickable again: it
         // leads back to the parts list.
         private void OnPartsButton()
         {
-            Close();
+            Close(true);
         }
 
         // As KSP allows its own mode buttons: not while a part is held, nor while

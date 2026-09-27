@@ -90,17 +90,29 @@ its buttons' interactable state only on events, such as a changed input lock or 
 switch (`EditorLogic.UpdateUI`) **[src]**. So while the planner is open, `EditorEngineer`
 keeps the parts button clickable. On closing, it hands the buttons back to `UpdateUI`.
 
-`PlannerPanel` stands over the whole parts panel, `EditorPanels.partsEditor`: its
-categories, its search bar and its list. It is the last child of the panel's parent, so
-it draws over the panel and takes its clicks. It is set over the panel every frame, at
-the panel's width or its own, whichever is wider, so it slides with the panel. The
-list's icons are the parts themselves, drawn by a camera over the UI, so no panel covers
-them. The grids that hold them (`partGrid`, `subassemblyGrid`, `variantGrid`) are
-switched off while the planner is open, and put back as they were when it closes. The
-list itself stays on, because it starts coroutines on its own object **[src]**.
+KSP's four panels in the editor are `UIPanelTransition`s that its panel manager,
+`EditorPanels.panelManager`, brings in and out (`EditorPanels.ShowCrewAssignment` and its
+siblings) **[src]**. Bringing one in takes out every other panel the manager lists in
+`UIPanelTransitionManager.panels` **[src]**. The crew panel is 500 units wide and holds a
+background, `BackgroundMain`, and a content area, `anchorCrewManagement`, inset 10 units
+at the sides and 44 from the top (the editor scene, read with UnityPy) **[src]**.
+
+`PlannerPanel` copies the crew panel under an inactive holder, so that nothing of the
+crew panel wakes up in the copy. It empties the content area, clears the transition's
+events, and puts the copy right after the crew panel among its siblings. It then adds
+the copy to the manager's `panels`. So KSP brings the planner in and out as it does its
+own panels, with the same background and the same transition: bringing it in takes the
+parts list and its categories out, and bringing in any other panel takes the planner
+out. The parts list's icons, the parts themselves drawn by a camera over the UI, go out
+with the list. The planner's rows are built into the content area.
+
+KSP still counts the parts mode as the one shown while the planner is in. Its own
+`ShowPartsList` would therefore do nothing, and KSP's parts button brings the parts list
+back through the panel manager itself (`PlannerPanel.BackToParts`).
 
 Opening the planner from another mode switches KSP to the parts mode first
-(`EditorLogic.SelectPanelParts`). Any change of mode closes it
+(`EditorLogic.SelectPanelParts`), and brings the planner in once the parts list is in, so
+that the two transitions do not run against each other. Any change of mode closes it
 (`GameEvents.onEditorScreenChange`), and so does KSP's parts button.
 
 ## What Kerbal Engineer Redux's build view became

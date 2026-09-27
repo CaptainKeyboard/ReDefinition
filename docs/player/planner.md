@@ -13,8 +13,8 @@ game has loaded, so it also works with planet packs.
 ## Open the planner
 
 Click the button with *Δv* on it, to the right of KSP's mode buttons above the parts
-list. The planner takes the place of the parts list. To go back, click KSP's parts
-button, or any other mode button.
+list. The planner slides in where the parts list was, as KSP's crew panel does. To go
+back, click KSP's parts button, or any other mode button.
 
 While the planner is open, the vessel's engines and tanks show in the colours of their
 stages. The plan belongs to the vessel. It is saved under the vessel's name and comes
@@ -33,7 +33,7 @@ around it.
 | *Chutes* | on a surface with air: land with a heat shield and parachutes. On thin air, such as Duna's, the engines still slow the last part |
 | *Aerobrake* | on an orbit around a body with air: slow down in the atmosphere instead of with the engines |
 | cross | remove the stop |
-| *+ Add destination* | add a stop at the end of the route |
+| *+ Add destination* | add a stop at the end of the route, up to nine stops |
 
 Between two stops, a bar shows the leg. Its length is the leg's delta-v, on the same
 scale for every leg. Its colours are the stages that pay for it. Red is what no stage
