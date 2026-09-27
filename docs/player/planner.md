@@ -117,7 +117,7 @@ orbit. The lander then docks again and goes on to the next destination.
 2. In the fuel plan, click *L* on the lander's first stage with engines. It lights up on
    that stage and every stage after it. The stage with the decoupler counts to the lander
    as well. Click it again to have no lander.
-3. Beside each leg, three buttons now set who flies it:
+3. Under each leg, three buttons now set who flies it:
 
    | Button | Means |
    |---|---|

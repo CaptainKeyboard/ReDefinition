@@ -40,8 +40,10 @@ namespace ReDefinition.Engineer
         private int lander = -1;
         private List<int> landerChoices = new List<int>();
         private Dictionary<int, List<Part>> burningParts = new Dictionary<int, List<Part>>();
-        // The selected leg's details, written once per evaluation.
-        private string legDetail = "";
+        // The selected leg's or stage's details, written once per evaluation
+        // and on each selection.
+        private string detailTitle = "";
+        private string[] detailLines = new string[0];
 
         // The leg or the stage whose parts alone are coloured on the vessel; -1
         // for none, when every stage shows its colour.
@@ -170,7 +172,7 @@ namespace ReDefinition.Engineer
             meetings = modes != null ? RoutePlanner.Meetings(state.Stops, modes) : new int[legs.Count];
             if (modes == null) for (int i = 0; i < meetings.Length; i++) meetings[i] = -1;
             burningParts = readout.BurningParts;
-            legDetail = selectedLeg >= 0 ? LegDetail(selectedLeg) : "";
+            RefreshDetail();
             UpdateBars();
             UpdatePins();
             Mark();
@@ -315,7 +317,7 @@ namespace ReDefinition.Engineer
             if (!Ready() || leg >= legs.Count) return;
             selectedLeg = selectedLeg == leg ? -1 : leg;
             selectedStage = -1;
-            legDetail = selectedLeg >= 0 ? LegDetail(selectedLeg) : "";
+            RefreshDetail();
             Mark();
         }
 
@@ -324,6 +326,7 @@ namespace ReDefinition.Engineer
             if (index >= stages.Count) return;
             int number = stages[index].Number;
             selectedStage = selectedStage == number ? -1 : number;
+            RefreshDetail();
             Mark();
         }
 

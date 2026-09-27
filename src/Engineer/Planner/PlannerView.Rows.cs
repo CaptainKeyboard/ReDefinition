@@ -132,16 +132,21 @@ namespace ReDefinition.Engineer
             DialogGUIButton rest = ModeChoice(index, LegMode.WithoutLander, "Rest", 44f);
 
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                TimelineLine(Icon + 2f), bar.Layout, new DialogGUIFlexibleSpace(), speed, whole, alone, rest);
+                TimelineLine(Icon + 2f), bar.Layout, new DialogGUIFlexibleSpace(), speed);
             row.OptionEnabledCondition = () => Ready() && index + 1 < state.Stops.Count;
             yield return row;
+
+            // Who flies the leg, on a line of its own under it, where the
+            // vessel carries a lander.
+            DialogGUIHorizontalLayout modes = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                TimelineLine(RowHeight + 4f), new DialogGUISpace(LetterWidth), whole, alone, rest);
+            modes.OptionEnabledCondition = () => Ready() && index + 1 < state.Stops.Count && HasLander();
+            yield return modes;
         }
 
         private DialogGUIButton ModeChoice(int leg, LegMode mode, string label, float buttonWidth)
         {
-            DialogGUIButton button = Choice(label, () => Mode(leg) == mode, () => SetMode(leg, mode), buttonWidth);
-            button.OptionEnabledCondition = HasLander;
-            return button;
+            return Choice(label, () => Mode(leg) == mode, () => SetMode(leg, mode), buttonWidth);
         }
 
         private string LegSpeed(int index)
@@ -299,26 +304,47 @@ namespace ReDefinition.Engineer
 
         // --------------------------------------------------------------- details
 
+        // The selected leg's or stage's details, one line to a row of a fixed
+        // height: a label of several lines whose text changes is not given its
+        // height by KSP's layout, and ran over the rows below it.
+        private const int MaxDetailLines = 32;
+
         private IEnumerable<DialogGUIBase> DetailRows()
         {
-            DialogGUIBase stageHeading = new DialogGUIHorizontalLayout(width, RowHeight + 6f, 0f, new RectOffset(0, 0, 8, 0),
-                TextAnchor.LowerLeft, new DialogGUILabel(() => "<b>" + StageTitle() + "</b>", width, RowHeight));
-            stageHeading.OptionEnabledCondition = () => selectedStage >= 0;
-            yield return stageHeading;
-            DialogGUIHorizontalLayout stage = new DialogGUIHorizontalLayout(width, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft,
-                new DialogGUILabel(StageDetail, true, true));
-            stage.OptionEnabledCondition = () => selectedStage >= 0;
-            yield return stage;
+            DialogGUIBase heading = new DialogGUIHorizontalLayout(width, RowHeight + 8f, 0f, new RectOffset(0, 0, 8, 0),
+                TextAnchor.LowerLeft, new DialogGUILabel(() => "<b>" + detailTitle + "</b>", width, RowHeight));
+            heading.OptionEnabledCondition = () => detailTitle.Length > 0;
+            yield return heading;
+            for (int i = 0; i < MaxDetailLines; i++)
+            {
+                int line = i;
+                DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                    new DialogGUILabel(() => line < detailLines.Length ? detailLines[line] : "", width, RowHeight));
+                row.OptionEnabledCondition = () => line < detailLines.Length;
+                yield return row;
+            }
+        }
 
-            DialogGUIBase legHeading = new DialogGUIHorizontalLayout(width, RowHeight + 6f, 0f, new RectOffset(0, 0, 8, 0),
-                TextAnchor.LowerLeft, new DialogGUILabel(() => selectedLeg >= 0 ? "<b>" + LegTitle(selectedLeg) + "</b>" : "", width,
-                    RowHeight));
-            legHeading.OptionEnabledCondition = () => selectedLeg >= 0 && selectedStage < 0;
-            yield return legHeading;
-            DialogGUIHorizontalLayout leg = new DialogGUIHorizontalLayout(width, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft,
-                new DialogGUILabel(() => legDetail, true, true));
-            leg.OptionEnabledCondition = () => selectedLeg >= 0 && selectedStage < 0;
-            yield return leg;
+        private void RefreshDetail()
+        {
+            string text;
+            if (selectedStage >= 0)
+            {
+                detailTitle = StageTitle();
+                text = StageDetail();
+            }
+            else if (selectedLeg >= 0)
+            {
+                detailTitle = LegTitle(selectedLeg);
+                text = LegDetail(selectedLeg);
+            }
+            else
+            {
+                detailTitle = "";
+                text = "";
+            }
+            detailLines = text.Length > 0 ? text.Split('\n') : new string[0];
+            if (detailLines.Length > MaxDetailLines) System.Array.Resize(ref detailLines, MaxDetailLines);
         }
 
         private string LegTitle(int leg)
@@ -370,7 +396,9 @@ namespace ReDefinition.Engineer
             if (at < 0 || !Worked()) return "";
             StageRow row = stages[at];
             StringBuilder text = new StringBuilder();
-            if (row.Engines.Length > 0) text.Append(row.Engines);
+            // One engine type to a line.
+            if (row.Engines.Length > 0) text.Append("<color=" + Dim + ">").Append(row.Engines.Replace(", ", "</color>\n<color=" + Dim + ">"))
+                .Append("</color>");
             foreach (StageBudget.StageUse use in budget.Uses)
                 if (use.Stage == row.Number)
                     text.Append('\n').Append(LegName(use.Leg)).Append("<pos=60%>").Append(EngineerFormat.Speed(use.DeltaV));
@@ -401,7 +429,7 @@ namespace ReDefinition.Engineer
             // What the row leaves the bar: the line, the figure and, with a
             // lander, three choices, with the gaps between them, and a seam of
             // one unit between the bar's pieces.
-            float room = Mathf.Max(40f, width - Timeline - Speed - 4f * 3f - 4f - (HasLander() ? 44f + 56f + 44f + 4f * 3f : 0f));
+            float room = Mathf.Max(40f, width - Timeline - Speed - 4f * 3f - 8f);
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
             for (int leg = 0; leg < MaxStops; leg++)

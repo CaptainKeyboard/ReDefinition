@@ -36,7 +36,9 @@ The planner uses no text to explain itself. From the top:
   a column with room shows the whole figure. A cell is a button of KSP's skin with the delta-v
   the stage gives to the leg, in the stage's colour. A pin is a symbol in the cell's corner
   (`IconMark`).
-* The details of the selected leg or stage close the panel.
+* The details of the selected leg or stage close the panel, one line to a row of a fixed
+  height. A label of several lines whose text changes is not given its height by KSP's
+  layout, and ran over the rows below it.
 
 Choices are buttons of KSP's skin whose text is lit green while their option is chosen.
 The skin's pressed state of a toggle button reads the other way round, so it is not
@@ -50,6 +52,10 @@ While the planner is open, every stage's engines and tanks show in the stage's c
 vessel, pushed to full saturation and brightness so it reads through KSP's soft highlight
 (`PlannerColors.Vivid`). A selected leg leaves only the stages that pay for it, a selected
 stage only that one.
+
+The scroll view's own background is cleared, so the panel shows one background, as the
+crew panel does. The planner takes itself out when KSP brings in another panel, since KSP's
+cargo mode, which brings in the parts list and the cargo panel together, left it standing.
 
 The rows are laid out all at once, and the ones the plan does not need hide after. The scroll
 list's content is therefore held at its top edge, so that it shrinks from the bottom. The

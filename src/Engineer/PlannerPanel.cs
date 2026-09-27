@@ -108,6 +108,10 @@ namespace ReDefinition.Engineer
             // The content is laid out with every row first and shrinks as the
             // rows the plan does not need hide. It is held at its top edge, so
             // that it shrinks from the bottom.
+            // The scroll view brings a background of its own, a lighter box
+            // inside the panel's; the crew panel shows one background only.
+            Image own = root.uiItem != null ? root.uiItem.GetComponent<Image>() : null;
+            if (own != null) own.color = Color.clear;
             ScrollRect list = root.uiItem != null ? root.uiItem.GetComponentInChildren<ScrollRect>() : null;
             if (list != null && list.content != null)
             {
@@ -149,9 +153,12 @@ namespace ReDefinition.Engineer
             panels.updatePartsListMode();
         }
 
+        // Out by itself: KSP's cargo mode brings the parts list and the cargo
+        // panel in together and left the planner standing in the game.
         internal void Closed()
         {
             if (view != null) view.Flush();
+            if (transition != null && transition.State != "Out") manager.Dismiss(transition);
         }
 
         internal void Destroy()
