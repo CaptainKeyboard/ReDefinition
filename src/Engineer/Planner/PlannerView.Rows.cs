@@ -28,6 +28,8 @@ namespace ReDefinition.Engineer
         private const float Square = RowHeight + 2f;
         // What a stop's and a step's rows leave free at their right end.
         private const float RowEnd = 2f;
+        // The line between a stop's Surface and Orbit and a further choice.
+        private const float Divider = 1f;
         private const float Speed = 96f;
         private const float BarHeight = 10f;
         private const float RowHeight = 20f;
@@ -98,9 +100,11 @@ namespace ReDefinition.Engineer
             // The body's button ends where a step's place does, so that Surface stands
             // over who flies a step; the room the others leave stands after the
             // choices, so that the cross ends where a step's "..." does: 2 units short
-            // of the rows' room. Eight elements, seven gaps.
+            // of the rows' room. Nine elements and eight gaps with the atmosphere's
+            // choice and the line before it, set off from Surface and Orbit.
             const float bodyWidth = Place - LetterWidth - 4f;
-            float room = Mathf.Max(0f, width - Timeline - LetterWidth - bodyWidth - 62f - 52f - 76f - Square - 4f * 7f - RowEnd);
+            float room = Mathf.Max(0f, width - Timeline - LetterWidth - bodyWidth - 62f - 52f - Divider - 76f - Square - 4f * 8f
+                                       - RowEnd);
             DialogGUIButton body = new DialogGUIButton(() => "<b>" + BodyName(index) + "</b>", () => PickBody(index), bodyWidth,
                 RowHeight + 2f, false);
             bodyButtons[index] = body;
@@ -114,9 +118,11 @@ namespace ReDefinition.Engineer
                 () => ToggleAtmosphere(index), 76f);
             air.OptionEnabledCondition = () => index > 0 && HasAtmosphere(index);
             air.tooltipText = "Use the atmosphere: parachutes to land, or aerobraking into orbit, instead of the engines.";
-            // Its room where it is hidden, so that the cross stands in one
-            // column on every stop.
-            DialogGUISpace noAir = new DialogGUISpace(76f);
+            DialogGUIBase divider = PlannerWidgets.Block(Divider, RowHeight - 4f, PlannerColors.Line);
+            divider.OptionEnabledCondition = air.OptionEnabledCondition;
+            // Its room and the line's where it is hidden, so that the cross stands in
+            // one column on every stop.
+            DialogGUISpace noAir = new DialogGUISpace(Divider + 4f + 76f);
             noAir.OptionEnabledCondition = () => !(index > 0 && HasAtmosphere(index));
             DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveStop(index), Square, Square, 14f,
                 "Remove this destination.", after);
@@ -124,7 +130,7 @@ namespace ReDefinition.Engineer
 
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 4f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, dot, new DialogGUILabel(() => "<b>" + Letter(index) + "</b>", LetterWidth), body, surface,
-                orbit, air, noAir, new DialogGUISpace(room), remove);
+                orbit, divider, air, noAir, new DialogGUISpace(room), remove);
             row.OptionEnabledCondition = () => Shown(index);
             yield return row;
 
