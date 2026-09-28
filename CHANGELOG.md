@@ -4,6 +4,9 @@
 
 ### Added
 
+- **Grip for landing legs.** Every landing leg has a *Traction* choice in its part menu,
+  Default to Extreme Grip, as the grip pads have, so that a lander stays put on a slope.
+  Needs ModuleManager.
 - **Readable on large screens.** What KSP leaves at a fixed number of pixels now takes
   its UI scale: the map's icons and labels, the orbit lines, the labels over vessels, the
   maneuver node's gizmo, the editor's move and rotate gizmos, and other mods' windows.

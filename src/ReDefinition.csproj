@@ -194,12 +194,14 @@
          this build ships is removed from the game first, so that a file dropped
          from the repository leaves the game: the profiles with the prefix
          ReDefinition- (one a player put there by hand stays) and the
-         registrations in Mods, which other mods ship in folders of their own.
+         registrations in Mods, which other mods ship in folders of their own, and
+         the ModuleManager patches in Patches.
          PluginData is never touched. -->
     <ItemGroup>
       <_StaticGameData Include="$(MSBuildThisFileDirectory)..\GameData\**\*.*" />
       <_ShippedInGame Include="$(KspGameData)\$(ModName)\Profiles\ReDefinition-*.cfg" />
       <_ShippedInGame Include="$(KspGameData)\$(ModName)\Mods\*.cfg" />
+      <_ShippedInGame Include="$(KspGameData)\$(ModName)\Patches\*.cfg" />
     </ItemGroup>
     <Delete Files="@(_ShippedInGame)" />
     <Copy SourceFiles="@(_StaticGameData)" DestinationFolder="$(KspGameData)\%(RecursiveDir)" />

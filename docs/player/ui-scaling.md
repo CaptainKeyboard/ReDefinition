@@ -20,8 +20,8 @@ the size they have on 1080p. ReDefinition gives them the UI scale too:
 | other mods' windows | everywhere |
 
 In the R&D building, the tech tree opens at one and a half times its size and zooms in
-to two and a half. Its nodes take the UI scale and the zoom, twice their size at 150 %, the tiles under *Available Parts* 1.2
-times.
+to two and a half. Its nodes grow with the UI scale and the zoom, to twice their size at
+150 %, and the tiles under *Available Parts* are 1.2 times their size.
 
 With a UI scale above 1, KSP counts room for more crew portraits along the bottom of the
 screen than fit there. ReDefinition counts them at the size they are drawn.
