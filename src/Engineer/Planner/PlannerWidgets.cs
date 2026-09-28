@@ -463,6 +463,8 @@ namespace ReDefinition.Engineer
     internal static class Dropdown
     {
         private const float RowHeight = 24f;
+        // Kept free between the list and the screen's edges.
+        private const float Margin = 8f;
         private static readonly Color Background = new Color(0.13f, 0.13f, 0.14f, 0.98f);
         private static GameObject blocker;
         private static GameObject list;
@@ -494,27 +496,36 @@ namespace ReDefinition.Engineer
             clear.color = new Color(0f, 0f, 0f, 0f);
             blocker.AddComponent<Button>().onClick.AddListener(Close);
 
+            // Where it fits: under the button, over it, or else moved onto the screen;
+            // with a scroll bar where it is taller than the screen. In the root
+            // canvas's own units.
+            RectTransform rootRect = (RectTransform)root;
+            Rect screen = rootRect.rect;
+            Vector3[] corners = new Vector3[4];
+            at.GetWorldCorners(corners);
+            Vector2 under = rootRect.InverseTransformPoint(corners[0]);
+            Vector2 over = rootRect.InverseTransformPoint(corners[1]);
+            float height = choices.Count * RowHeight + (choices.Count - 1) * 2f + 8f;
+            float highest = screen.height - 2f * Margin;
+            bool scrolls = height > highest;
+            if (scrolls) height = highest;
+            float top;
+            if (under.y - height >= screen.yMin + Margin) top = under.y;
+            else if (over.y + height <= screen.yMax - Margin) top = over.y + height;
+            else top = Mathf.Min(screen.yMax - Margin, Mathf.Max(screen.yMin + Margin + height, under.y));
+            float left = Mathf.Min(under.x, screen.xMax - Margin - width - 8f);
+
             list = new GameObject("ReDefinitionDropdown", typeof(RectTransform));
             list.transform.SetParent(root, false);
             RectTransform box = (RectTransform)list.transform;
             box.pivot = new Vector2(0f, 1f);
             box.anchorMin = box.anchorMax = new Vector2(0.5f, 0.5f);
-            box.sizeDelta = new Vector2(width + 8f, choices.Count * (RowHeight + 2f) + 6f);
-            // Under the button, or over it where the list would leave the screen.
-            Vector3[] corners = new Vector3[4];
-            at.GetWorldCorners(corners);
-            box.position = corners[0];
-            Vector3[] own = new Vector3[4];
-            Vector3[] screen = new Vector3[4];
-            box.GetWorldCorners(own);
-            ((RectTransform)root).GetWorldCorners(screen);
-            if (own[0].y < screen[0].y)
-            {
-                box.pivot = Vector2.zero;
-                box.position = corners[1];
-            }
+            box.sizeDelta = new Vector2(width + 8f, height);
+            box.localPosition = new Vector3(left, top, 0f);
             list.AddComponent<Image>().color = Background;
 
+            // A scroll list's bar takes room from the rows (PlannerWidgets.RowRoom).
+            float rowWidth = scrolls ? PlannerWidgets.RowRoom(width + 8f) - 8f : width;
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             foreach (Choice choice in choices)
             {
@@ -523,20 +534,33 @@ namespace ReDefinition.Engineer
                 {
                     Close();
                     picked.Pick();
-                }, width - choice.Indent, RowHeight, false);
+                }, rowWidth - choice.Indent, RowHeight, false);
                 button.tooltipText = choice.Tooltip;
                 rows.Add(choice.Indent > 0f
-                    ? new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset((int)choice.Indent, 0, 0, 0),
+                    ? new DialogGUIHorizontalLayout(rowWidth, RowHeight, 0f, new RectOffset((int)choice.Indent, 0, 0, 0),
                         TextAnchor.MiddleLeft, button)
                     : (DialogGUIBase)button);
             }
-            DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(width, -1f, 2f, new RectOffset(4, 4, 4, 4),
+            DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(rowWidth, -1f, 2f, new RectOffset(4, 4, 4, 4),
                 TextAnchor.UpperLeft, rows.ToArray());
+            DialogGUIBase content = layout;
+            DialogGUIScrollList scroll = null;
+            if (scrolls)
+            {
+                List<DialogGUIBase> sized = new List<DialogGUIBase>
+                {
+                    new DialogGUIContentSizer(ContentSizeFitter.FitMode.Unconstrained, ContentSizeFitter.FitMode.PreferredSize, true),
+                    layout,
+                };
+                scroll = new DialogGUIScrollList(new Vector2(width + 8f, height), false, true,
+                    new DialogGUIVerticalLayout(rowWidth, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft, sized.ToArray()));
+                content = scroll;
+            }
             Stack<Transform> layouts = new Stack<Transform>();
             layouts.Push(list.transform);
             UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
-            layout.Create(ref layouts, skin);
-            RectTransform inner = layout.uiItem != null ? layout.uiItem.transform as RectTransform : null;
+            content.Create(ref layouts, skin);
+            RectTransform inner = content.uiItem != null ? content.uiItem.transform as RectTransform : null;
             if (inner != null)
             {
                 inner.anchorMin = Vector2.zero;
@@ -544,6 +568,7 @@ namespace ReDefinition.Engineer
                 inner.offsetMin = Vector2.zero;
                 inner.offsetMax = Vector2.zero;
             }
+            if (scroll != null) PlannerWidgets.Settle(scroll);
             DialogTooltips.Attach(new DialogGUIBase[] { layout });
         }
 
