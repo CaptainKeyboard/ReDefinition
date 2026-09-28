@@ -11,12 +11,25 @@ namespace ReDefinition.Flight
     // Here each open gizmo's screenSize is 128 times GameSettings.UI_SCALE. A
     // gizmo KSP shrinks to minimise it (screenSize 0) is left to shrink. Its
     // handles and their drag distances follow its size, as KSP works them out
-    // from its transform.
+    // from its transform. With DMagic's Maneuver Node Evolved installed, which sizes
+    // the gizmo from the same field by settings of its own
+    // (BetterManeuvering.ManeuverController), this stays off.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ManeuverGizmoScale : MonoBehaviour
     {
         private const float KspSize = 128f;
         private bool logged;
+
+        private void Start()
+        {
+            foreach (AssemblyLoader.LoadedAssembly loaded in AssemblyLoader.loadedAssemblies)
+            {
+                if (loaded.assembly == null || loaded.assembly.GetType("BetterManeuvering.ManeuverController", false) == null) continue;
+                Debug.Log(Log.Tag + " Maneuver Node Evolved sizes the maneuver gizmo; ReDefinition leaves it to it.");
+                enabled = false;
+                return;
+            }
+        }
 
         private void Update()
         {
