@@ -19,7 +19,7 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 | `src/Engineer/Planner/PlannerState.cs` | one vessel's plan, and its file |
 | `src/Engineer/Planner/PlannerView.cs` | the plan: loading, saving, working it out, the choices the rows make, the colours on the vessel |
 | `src/Engineer/Planner/PlannerView.Rows.cs` | the planner's rows, built from KSP's dialog elements |
-| `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the pin marks, the stage colours and the list of bodies |
+| `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the pin marks, the stage colours, the list of bodies and the list of who can fly a step (`ChoiceList`) |
 | `src/Engineer/Planner/PartHighlight.cs` | colours parts on the vessel with KSP's part highlighter |
 | `src/Engineer/PlannerPanel.cs` | the panel the rows stand in, made as KSP's crew panel is |
 
@@ -33,13 +33,14 @@ The planner uses no text to explain itself. From the top:
 * The route is a line of stops, an orbit's altitude under it as a field
   (`DialogGUITextInput`); while it has the keyboard, the game's controls are locked
   (`PlannerView.Keep`), so that the digits do not reach the editor's shortcuts. Between two
-  stops, each step on a row: where it goes, *Ship*, *Lander* and *Capsule* where the
-  vessel has them, the player's own choice bold and underlined, and *...* for
-  its further choices; under it its bar, a row of `DialogGUIImage`s whose widths and
-  colours `SegmentBar` sets after they are created, and its delta-v; a grey line where
+  stops, each step on one row in fixed columns: where it goes; who flies it, a button that
+  opens the list of who can (`ChoiceList`), where the vessel has a lander or a capsule,
+  the player's own choice bold and underlined; its bar, a row of `DialogGUIImage`s whose
+  widths and colours `SegmentBar` sets after they are created; its delta-v; and *...* for
+  its further choices. Around it only where there is something: a grey line where
   something leaves at its start, *The lander docks with the rest* with *Refuel* where it
-  docks at its end, the further choices in groups of their own (*Lander*, *Way down*,
-  *Payload*), and a line for each problem that blocks it
+  docks at its end, the further choices in groups of their own (*Way down*, *Payload*),
+  and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
 * One bar sums up the route, with the margin and the plane changes under it.
 * The fuel plan is a table of stages by legs. Its columns share the room the stage and

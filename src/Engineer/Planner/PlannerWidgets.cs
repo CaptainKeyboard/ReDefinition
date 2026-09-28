@@ -408,4 +408,62 @@ namespace ReDefinition.Engineer
             return depth;
         }
     }
+
+    // One entry of a ChoiceList.
+    internal sealed class Choice
+    {
+        public string Label;
+        public string Tooltip;
+        public bool Current;
+        public Callback Pick;
+    }
+
+    // A small list to pick one of a few choices from, in the middle of the screen,
+    // as the list of bodies (BodyPicker); the current one in bold.
+    internal static class ChoiceList
+    {
+        private static PopupDialog open;
+        private static object owner;
+
+        internal static void Show(object by, string title, List<Choice> choices)
+        {
+            Close();
+            owner = by;
+            if (choices == null || choices.Count == 0) return;
+            UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
+            const float width = 200f;
+            const float rowHeight = 24f;
+            float rowWidth = width - 20f;
+            List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            foreach (Choice choice in choices)
+            {
+                Choice picked = choice;
+                DialogGUIButton button = new DialogGUIButton(choice.Current ? "<b>" + choice.Label + "</b>" : choice.Label,
+                    () => { Close(); picked.Pick(); }, rowWidth, rowHeight, false);
+                button.tooltipText = choice.Tooltip;
+                rows.Add(button);
+            }
+            rows.Add(new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), Close, rowWidth, rowHeight, false));
+            DialogGUIVerticalLayout list = new DialogGUIVerticalLayout(rowWidth, -1f, 4f, new RectOffset(0, 0, 0, 0),
+                TextAnchor.UpperLeft, rows.ToArray());
+            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionPlannerChoice", "", title, skin,
+                new Rect(0.5f, 0.5f, width, rows.Count * (rowHeight + 4f) + 50f), list);
+            open = UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog,
+                false, skin, false));
+            ReDefinition.Window.DialogTooltips.Attach(new DialogGUIBase[] { list });
+        }
+
+        internal static void Close()
+        {
+            if (open != null) open.Dismiss();
+            open = null;
+            owner = null;
+        }
+
+        // Closes the list only if `by` opened it.
+        internal static void Close(object by)
+        {
+            if (owner == by) Close();
+        }
+    }
 }

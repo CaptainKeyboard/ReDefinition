@@ -34,7 +34,9 @@ namespace ReDefinition.Engineer
         private const int MaxTail = 4;
         private const float LeftColumn = 56f;
         // Where a step goes, and the room left of a bar.
-        private const float Place = 150f;
+        private const float Place = 140f;
+        private const float VehicleButton = 84f;
+        private const float StepSpeed_ = 72f;
         private const float OptionLabel = 84f;
         private const float BarIndent = 16f;
         private const int MaxWarnings = 3;
@@ -157,10 +159,12 @@ namespace ReDefinition.Engineer
 
         // ----------------------------------------------------------------- steps
 
-        // A step on the way from destination `leg` to the next: where it goes, who
-        // flies it and its further choices behind "..."; its bar and delta-v; what
-        // leaves at its start and docks at its end; the choices, each group on a line
-        // of its own; and in red what blocks it.
+        // A step on the way from destination `leg` to the next, on one line in fixed
+        // columns: where it goes, who flies it (a button opening the list of who can),
+        // its bar, its delta-v and "..." for its further choices. Around it only where
+        // there is something: a grey line where something leaves at its start or the
+        // lander docks at its end, the further choices while "..." is open, and in red
+        // what blocks it.
         private IEnumerable<DialogGUIBase> StepRows(int leg, StepRole role)
         {
             System.Func<bool> shown = () => Slot(leg, role) >= 0;
@@ -172,33 +176,26 @@ namespace ReDefinition.Engineer
             leaves.OptionEnabledCondition = () => SeparationText(leg, role).Length > 0;
             yield return leaves;
 
-            DialogGUIButton ship = VehicleChoice(leg, role, Vehicle.Ship, "Ship", 44f, "The whole vessel flies this step.");
-            DialogGUIButton lander = VehicleChoice(leg, role, Vehicle.Lander, "Lander", 56f,
-                "The lander flies this step alone while the rest waits.");
-            DialogGUIButton capsule = VehicleChoice(leg, role, Vehicle.Capsule, "Capsule", 62f,
-                "The capsule flies this step alone and leaves the rest of the vessel behind.");
-            ship.OptionEnabledCondition = () => HasLander() || HasCapsule();
-            lander.OptionEnabledCondition = HasLander;
-            capsule.OptionEnabledCondition = HasCapsule;
+            DialogGUIButton vehicle = new DialogGUIButton(() => VehicleText(leg, role), () => PickVehicle(leg, role), VehicleButton,
+                RowHeight + 2f, false);
+            vehicle.tooltipText = "Who flies this step: click to choose.";
+            vehicle.OptionEnabledCondition = () => HasLander() || HasCapsule();
+            SegmentBar bar = new SegmentBar(MaxPieces, BarHeight, after);
+            stepBars[leg, (int)role] = bar;
+            PlannerWidgets.Clickable(bar.Layout, () => SelectLeg(leg), after);
+            DialogGUIButton speed = new DialogGUIButton(() => StepSpeed(leg, role), () => SelectLeg(leg), StepSpeed_, RowHeight, false);
+            DialogOverWindow.ClearBackground(speed);
             DialogGUIButton open = new DialogGUIButton(() => more[leg, (int)role] ? "<b><color=" + Good + ">...</color></b>" : "...",
                 () => more[leg, (int)role] = !more[leg, (int)role], Icon, RowHeight + 2f, false);
             open.tooltipText = "More options for this step.";
             open.OptionEnabledCondition = () => HasMore(leg, role);
+            DialogGUISpace noMore = new DialogGUISpace(Icon);
+            noMore.OptionEnabledCondition = () => !HasMore(leg, role);
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                TimelineLine(Icon + 2f), new DialogGUILabel(() => StepPlace(leg, role), Place), ship, lander, capsule, open);
+                TimelineLine(Icon + 2f), new DialogGUILabel(() => StepPlace(leg, role), Place), vehicle, bar.Layout,
+                new DialogGUIFlexibleSpace(), speed, open, noMore);
             row.OptionEnabledCondition = shown;
             yield return row;
-
-            SegmentBar bar = new SegmentBar(MaxPieces, BarHeight, after);
-            stepBars[leg, (int)role] = bar;
-            PlannerWidgets.Clickable(bar.Layout, () => SelectLeg(leg), after);
-            DialogGUIButton speed = new DialogGUIButton(() => StepSpeed(leg, role), () => SelectLeg(leg), Speed, RowHeight, false);
-            DialogOverWindow.ClearBackground(speed);
-            DialogGUIHorizontalLayout bars = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
-                TextAnchor.MiddleLeft, TimelineLine(RowHeight + 2f), new DialogGUISpace(BarIndent), bar.Layout,
-                new DialogGUIFlexibleSpace(), speed);
-            bars.OptionEnabledCondition = shown;
-            yield return bars;
 
             DialogGUIButton refuel = Choice("Refuel", () => Refuels(leg, role), () => ToggleRefuel(leg, role), 64f);
             refuel.tooltipText = "Fill the lander's tanks from the rest of the vessel when it docks.";
@@ -209,12 +206,7 @@ namespace ReDefinition.Engineer
             yield return docks;
 
             // Behind "...", each on a line of its own, as they concern different
-            // things: leaving the lander, the way down, a payload.
-            DialogGUIButton leave = VehicleChoice(leg, role, Vehicle.Rest, "Fly on without it", 132f,
-                "The vessel flies on without the lander, which stays here for good.");
-            leave.OptionEnabledCondition = HasLander;
-            yield return OptionLine(leg, role, "Lander", () => HasLander(), leave);
-
+            // things: the way down, a payload.
             DialogGUIButton straight = Choice("Straight in", () => !OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, false), 88f);
             straight.tooltipText = "Go straight into the atmosphere and land from there.";
             DialogGUIButton orbitFirst = Choice("Orbit first", () => OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, true), 84f);
@@ -254,19 +246,13 @@ namespace ReDefinition.Engineer
             return line;
         }
 
-        // Who flies the step, lit green; the player's own choice bold and underlined,
-        // and a click on it gives the choice back to the planner.
-        private DialogGUIButton VehicleChoice(int leg, StepRole role, Vehicle vehicle, string label, float buttonWidth,
-                                              string tooltip)
+        // Who flies the step: green, bold and underlined where the player chose it.
+        private string VehicleText(int leg, StepRole role)
         {
-            DialogGUIButton button = new DialogGUIButton(() =>
-            {
-                if (StepVehicle(leg, role) != vehicle) return "<color=" + Dim + ">" + label + "</color>";
-                return StepChosen(leg, role) ? "<b><u><color=" + Good + ">" + label + "</color></u></b>"
-                    : "<color=" + Good + ">" + label + "</color>";
-            }, () => ChooseVehicle(leg, role, vehicle), buttonWidth, RowHeight + 2f, false);
-            button.tooltipText = tooltip;
-            return button;
+            int index = Slot(leg, role);
+            if (index < 0) return "";
+            string name = VehicleName(steps[index].Vehicle);
+            return steps[index].Chosen ? "<b><u><color=" + Good + ">" + name + "</color></u></b>" : "<color=" + Good + ">" + name + "</color>";
         }
 
         private bool StepChosen(int leg, StepRole role)
@@ -328,7 +314,7 @@ namespace ReDefinition.Engineer
 
         private bool HasMore(int leg, StepRole role)
         {
-            return Slot(leg, role) >= 0 && (HasLander() || IntoTheAir(leg, role) || Arrives(leg, role));
+            return Slot(leg, role) >= 0 && (IntoTheAir(leg, role) || Arrives(leg, role));
         }
 
         // Who flies the step, as a name.
@@ -661,9 +647,11 @@ namespace ReDefinition.Engineer
         private void UpdateBars()
         {
             if (!Worked()) return;
-            // What the bar's row leaves the bar: the line, the indent and the figure,
-            // with the gaps between them, and a seam of one unit between its pieces.
-            float room = Mathf.Max(40f, width - Timeline - BarIndent - Speed - 4f * 3f - 8f);
+            // What the step's row leaves the bar: the line, the place, who flies, the
+            // figure and "...", with the gaps between them, and a seam of one unit
+            // between its pieces.
+            float room = Mathf.Max(40f, width - Timeline - Place - (HasLander() || HasCapsule() ? VehicleButton + 4f : 0f)
+                                        - StepSpeed_ - Icon - 4f * 5f - 8f);
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
             for (int leg = 0; leg < MaxStops; leg++)

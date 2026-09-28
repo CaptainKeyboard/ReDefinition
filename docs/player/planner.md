@@ -39,8 +39,9 @@ around it.
 
 Every button says in its tooltip what it does.
 
-Between two stops come the steps of the way from one to the next, each on a row that
-names where it goes:
+Between two stops come the steps of the way from one to the next, one row each: where it
+goes, who flies it, its bar, its delta-v with the margin, and *...* where it has further
+choices. The steps are:
 
 | Step | Comes |
 |---|---|
@@ -49,19 +50,16 @@ names where it goes:
 | *To …'s air* | across to a body where the next stop is a landing on parachutes: straight into its atmosphere, with no orbit |
 | *To … surface* | the landing on the next stop |
 
-Under each step, a bar and the step's delta-v with the margin. The bar's length is the
-delta-v, on the same scale for every step. Its colours are the stages that pay for it.
-Red is what no stage covers. The figure turns red if something blocks the step, and a
-red line under it says what: too little fuel, too little thrust
-to lift off or land, no parachutes or no heat shield on what lands, or a lander that is
-not where it has to be. Where nothing is wrong, there is no such line.
+The bar's length is the step's delta-v, on the same scale for every step. Its colours
+are the stages that pay for it. Red is what no stage covers. The figure turns red if
+something blocks the step, and a red line under it says what: too little fuel, too
+little thrust to lift off or land, no parachutes or no heat shield on what lands, or a
+lander that is not where it has to be. Where nothing is wrong, there is no such line.
 
-A step with *...* on its row has further choices; *...* shows and hides them, each
-group on a line of its own:
+*...* shows and hides the step's further choices, each group on a line of its own:
 
 | Line | Choice | Does |
 |---|---|---|
-| *Lander* | *Fly on without it* | the vessel flies on without the lander, which stays where it is for good |
 | *Way down* | *Straight in* / *Orbit first* | on the way to a landing on parachutes on another body: straight into its atmosphere, or into a low orbit first |
 | *Payload* | *Leave payload* | on the last step to a stop: what the vessel separates next, with no engines of its own, such as a satellite, stays there. The stage carrying it burns on with the fuel it has left. If there is no such payload, a red line says so |
 
@@ -150,9 +148,10 @@ landing on its parachutes.
 3. Click *C* on the capsule's stage: the first stage of the capsule, with engines or
    without, usually the one of its parachutes. It lights up on that stage and every stage
    after it. Click it again to have no capsule.
-4. Every step now shows *Ship*, *Lander* and *Capsule*: who flies it, lit green. The
-   planner sets them itself; a click sets one yourself, and it is then bold and
-   underlined. Clicking the underlined one again gives it back to the planner.
+4. Every step now shows on a button who flies it, green. The planner sets it itself. A
+   click on the button opens the list of who can: *Ship*, *Lander*, *Without lander*,
+   *Capsule*. What you pick there is bold and underlined; *Planner's choice* in the list
+   gives the step back to the planner.
 
 What happens follows from who flies one step after another:
 
@@ -161,7 +160,7 @@ What happens follows from who flies one step after another:
 | *Ship*, then *Lander* | the lander leaves the rest, which waits where it is. A grey line says where |
 | *Lander*, then *Ship* | the lander docks with the rest at the end of its step: *Docks with the rest*, with 50 m/s for the rendezvous, and the burn to the rest's orbit where it ended in another orbit of that body. Anywhere else a red line says it is not where the rest waits |
 | *Lander*, and no *Ship* after | the lander flies on by itself; the rest stays where it waited |
-| *Fly on without it*, behind *...* | the vessel flies on without the lander, which stays where it is for good |
+| *Without lander* | the vessel flies on without the lander, which stays where it is for good |
 | *Capsule* | the capsule leaves whatever flew the step before, for good. No step of the ship or the lander can follow |
 
 Where the lander climbs from a surface and the rest waits in an orbit of that body, the
