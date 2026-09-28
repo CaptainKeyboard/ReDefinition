@@ -164,8 +164,8 @@ What happens follows from who flies one step after another:
 | *Capsule* | the capsule leaves whatever flew the step before, for good. No step of the ship or the lander can follow |
 
 Where the lander climbs from a surface and the rest waits in an orbit of that body, the
-lander climbs to the rest's own orbit. *Refuel* on the line *The lander docks with the
-rest* fills the lander up from the rest's tanks as it docks.
+lander climbs to the rest's own orbit. *Refuel* on the line *Docks with the rest*
+ fills the lander up from the rest's tanks as it docks.
 
 By itself, the planner has the lander land wherever the route goes on after the landing,
 whoever stands on a surface fly up from it, the whole vessel fly on across to another
@@ -212,7 +212,7 @@ Laythe, and the capsule landing at home:
    can be stops as well; the lander climbs back to the rest either way.
 2. *L* on the lander's first stage, *C* on the capsule's. *Lander* on the steps *To Laythe
    surface* and *To Vall surface*; the last one, home, is the capsule's by itself.
-3. *Refuel* on the line *The lander docks with the rest* after Laythe.
+3. *Refuel* on the line *Docks with the rest* after Laythe.
 
 The lander pushes only its own mass while it flies alone. When the whole vessel flies
 on, it carries the lander with the fuel the lander has left, or refilled.

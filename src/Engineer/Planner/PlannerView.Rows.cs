@@ -43,7 +43,8 @@ namespace ReDefinition.Engineer
         private const float Place = 145f;
         private const float VehicleButton = 84f;
         private const float StepSpeed_ = 72f;
-        private const float OptionLabel = 84f;
+        // A further choice's name, so that its buttons start under who flies the step.
+        private const float OptionLabel = Place - BarIndent - 4f;
         private const float BarIndent = 16f;
         private const int MaxWarnings = 3;
         private const string Warning = "#f18a24";
@@ -253,7 +254,7 @@ namespace ReDefinition.Engineer
             refuel.tooltipText = "Fill the lander's tanks from the rest of the vessel when it docks.";
             DialogGUIHorizontalLayout docks = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight + 4f), new DialogGUISpace(BarIndent),
-                new DialogGUILabel("<color=" + Dim + ">The lander docks with the rest</color>", 200f), refuel);
+                new DialogGUILabel("<color=" + Dim + ">Docks with the rest</color>", OptionLabel), refuel);
             docks.OptionEnabledCondition = () => Docks(leg, role);
             yield return docks;
 

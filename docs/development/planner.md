@@ -39,7 +39,7 @@ The planner uses no text to explain itself. From the top:
   lander or a capsule, the player's own choice bold and underlined; its bar, a row of
   `DialogGUIImage`s whose widths and colours `SegmentBar` sets after they are created; its
   delta-v; and *...* for its further choices. Around it only where there is something: a
-  grey line where something leaves at its start, *The lander docks with the rest* with
+  grey line where something leaves at its start, *Docks with the rest* with
   *Refuel* where it docks at its end, the further choices in groups of their own (*Way
   down*, *Payload*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
