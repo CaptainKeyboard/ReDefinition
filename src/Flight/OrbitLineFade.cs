@@ -6,16 +6,18 @@ using UnityEngine;
 
 namespace ReDefinition.Flight
 {
-    // The orbit lines at their opacity at once as the map opens. KSP fades a
-    // body's or another vessel's orbit line in and out by how far the camera is
-    // from it (OrbitRendererBase.SplineOpacityUpdate, 0.25 a second), and does so
-    // only while it draws the map (DrawOrbit; decompiled). A line starts at full
-    // opacity (Start), so on the first opening of the map, and on each opening
-    // after the camera moved, the planets' orbits show across a close view and
-    // take four seconds to fade out. For a second from the first update after the
-    // map opens, and after the tracking station loads, a fade is taken to its end
-    // at once; afterwards it fades as in KSP. The second starts at the first
-    // update, not at the event, so that frames between the two do not use it up.
+    // The planets' orbit lines at their opacity at once as the map opens. KSP
+    // fades a body's or another vessel's orbit line in and out by how far the
+    // camera is from it (OrbitRendererBase.SplineOpacityUpdate, 0.25 a second),
+    // and does so only while it draws the map (DrawOrbit; decompiled). A line
+    // starts at full opacity (Start), so on the first opening of the map, and on
+    // each opening after the camera moved, the planets' orbits show across a close
+    // view and take four seconds to fade out. For a second from the first update
+    // after the map opens, and after the tracking station loads, a planet's line
+    // (a body's about the sun) is taken to the end of its fade at once; moons' and
+    // vessels' lines, and every line afterwards, fade as in KSP. The second starts
+    // at the first update, not at the event, so that frames between the two do
+    // not use it up.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class OrbitLineFade : MonoBehaviour
     {
@@ -67,11 +69,12 @@ namespace ReDefinition.Flight
         {
             open = false;
             Debug.Log(Log.Tag + " Orbit lines: " + snapped + " of " + updates
-                      + " opacity updates in the map's first second taken to their end.");
+                      + " planets' opacity updates in the map's first second taken to their end.");
         }
 
-        // A fade this frame taken to its end: out to 0, in to 1.
-        private static void OpacityPostfix(ref float ___lineOpacity, float __state)
+        // A fade this frame taken to its end: out to 0, in to 1. Moons' and
+        // vessels' lines fade as in KSP.
+        private static void OpacityPostfix(OrbitRendererBase __instance, ref float ___lineOpacity, float __state)
         {
             float now = Time.unscaledTime;
             if (pending)
@@ -89,6 +92,9 @@ namespace ReDefinition.Flight
                 Report();
                 return;
             }
+            CelestialBody body = __instance.celestialBody;
+            if (body == null || Planetarium.fetch == null || body.referenceBody != Planetarium.fetch.Sun || body == Planetarium.fetch.Sun)
+                return;
             updates++;
             if (___lineOpacity == __state) return;
             ___lineOpacity = ___lineOpacity < __state ? 0f : 1f;
