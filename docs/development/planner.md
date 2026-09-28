@@ -122,7 +122,8 @@ plan lists those after the last stage with delta-v); it leaves whatever flew the
 before for good, and a step of anything else after it is a `Problem`. The player sets it
 per step (`RouteStop.By`, by role, on the stop the step leads to), or `RouteSteps.Build`
 works it out: the capsule once it has left; the capsule for a landing on parachutes on the
-last stop; from a surface whoever stands on it; across to another body `Ship` where the
+last stop where what carries it is in the air; a landing short of the last stop the
+lander; from a surface whoever stands on it; across to another body `Ship` where the
 lander is in an orbit of the body the rest waits at; otherwise whoever flew the step
 before. `Build` walks the steps and keeps where the rest and the lander are:
 

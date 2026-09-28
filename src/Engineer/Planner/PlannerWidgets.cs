@@ -136,9 +136,16 @@ namespace ReDefinition.Engineer
         // A button of KSP's skin with a symbol on it.
         internal static DialogGUIButton IconButton(string icon, Callback click, float size, string tip, AfterCreate after)
         {
-            DialogGUIButton button = new DialogGUIButton("", click, size, size, false);
+            return IconButton(icon, click, size, size, size, tip, after);
+        }
+
+        // A button of `width` by `height` with a symbol of `symbol` units on it.
+        internal static DialogGUIButton IconButton(string icon, Callback click, float width, float height, float symbol, string tip,
+                                                   AfterCreate after)
+        {
+            DialogGUIButton button = new DialogGUIButton("", click, width, height, false);
             button.tooltipText = tip;
-            after.Add(() => AddIcon(button.uiItem, icon, size, Color.white));
+            after.Add(() => AddIcon(button.uiItem, icon, symbol, Color.white));
             return button;
         }
 
@@ -445,6 +452,8 @@ namespace ReDefinition.Engineer
         public string Tooltip;
         public bool Current;
         public Callback Pick;
+        // Room left of it, for a list with levels: a moon under its planet.
+        public float Indent;
     }
 
     // A list that folds out under a button, to pick one of a few choices; the
@@ -514,9 +523,12 @@ namespace ReDefinition.Engineer
                 {
                     Close();
                     picked.Pick();
-                }, width, RowHeight, false);
+                }, width - choice.Indent, RowHeight, false);
                 button.tooltipText = choice.Tooltip;
-                rows.Add(button);
+                rows.Add(choice.Indent > 0f
+                    ? new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset((int)choice.Indent, 0, 0, 0),
+                        TextAnchor.MiddleLeft, button)
+                    : (DialogGUIBase)button);
             }
             DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(width, -1f, 2f, new RectOffset(4, 4, 4, 4),
                 TextAnchor.UpperLeft, rows.ToArray());

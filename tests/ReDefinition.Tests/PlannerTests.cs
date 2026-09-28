@@ -724,5 +724,15 @@ namespace ReDefinition.Tests
             Assert.AreEqual(2.0, use.Mass, 1e-9, "the capsule alone");
             Assert.IsTrue(result.Dropped.ContainsKey(1), "the rest left with what it holds");
         }
+
+        [TestMethod]
+        public void ALandingShortOfTheEndIsTheLandersByItself()
+        {
+            // Kerbin surface, Mun surface, Kerbin surface with Chutes; a lander marked,
+            // nothing clicked on the steps: the lander lands on the Mun, climbs back,
+            // docks, and the whole vessel comes home.
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Surface(Mun), Surface(Kerbin, true) };
+            Assert.AreEqual("1L:S 1T:S 1L:L< 2L:L> 2T:S 2L:S", Shape(RouteSteps.Build(Stock(), goals, true, false)));
+        }
     }
 }

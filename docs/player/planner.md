@@ -29,13 +29,13 @@ around it.
 
 | Control | Does |
 |---|---|
-| the body's name | opens the list of bodies, each planet with its moons under it |
+| the body's name | folds out the list of bodies under it, each planet with its moons under it |
 | *Surface* / *Orbit* | land on the body, or stay in orbit around it. The chosen one is lit green |
 | *-*, the field and *+* | under an orbit: its altitude in kilometres. Type it, or lower or raise it by 10 km. It stays between the lowest safe orbit and the edge of the body's sphere of influence |
 | *Chutes* | on a surface with air: land with a heat shield and parachutes. On thin air, such as Duna's, the engines still slow the last part. On the last stop it is set by itself where the vessel, or its capsule, carries parachutes |
 | *Aerobrake* | on an orbit around a body with air: slow down in the atmosphere instead of with the engines |
 | cross | remove the stop |
-| *+ Add destination* | add a stop at the end of the route, up to eleven stops |
+| *+*, after the next letter under the last stop | add a stop at the end of the route, up to eleven stops |
 
 Every button says in its tooltip what it does.
 
@@ -167,11 +167,12 @@ Where the lander climbs from a surface and the rest waits in an orbit of that bo
 lander climbs to the rest's own orbit. *Refuel* on the line *The lander docks with the
 rest* fills the lander up from the rest's tanks as it docks.
 
-By itself, the planner has whoever stands on a surface fly up from it, the whole vessel
-fly on across to another body where the lander has come back to the rest, and otherwise
-whoever flew the step before. A landing on parachutes on the last stop is the capsule's.
-So a lander clicked to land somewhere climbs back, docks and is carried on without
-further clicks, and the capsule comes home by itself.
+By itself, the planner has the lander land wherever the route goes on after the landing,
+whoever stands on a surface fly up from it, the whole vessel fly on across to another
+body where the lander has come back to the rest, and otherwise whoever flew the step
+before. A landing on parachutes on the last stop is the capsule's where what carries it
+is in the air. So a lander lands, climbs back, docks and is carried on without a click,
+and the capsule comes home by itself.
 
 For a landing on parachutes on another body, the step across ends in its air, and the
 vessel goes straight in. *...* on that step offers *Orbit first* on the line *Way down*:
@@ -182,7 +183,7 @@ brake into a low orbit before the landing.
 A vessel to Minmus and home, without a lander:
 
 1. *B*: pick Minmus, click *Surface*.
-2. *+ Add destination*, pick Kerbin, click *Surface*. *Chutes* comes on by itself, as it
+2. *+* under the last stop, pick Kerbin, click *Surface*. *Chutes* comes on by itself, as it
    does on every last stop with air where the vessel carries parachutes.
 
 A satellite left in a synchronous orbit, the upper stage with the capsule landing at home.
@@ -190,7 +191,7 @@ Stage the satellite's decoupler right after the upper stage's engines:
 
 1. *B*: type 2863 into the altitude field.
 2. On the step to *B*, click *...* and *Leave payload*.
-3. *+ Add destination*, click *Surface*; *Chutes* comes on by itself.
+3. *+* under the last stop, click *Surface*; *Chutes* comes on by itself.
 
 A lander that lands on Duna and flies home by itself, leaving the transfer stage in
 Duna's orbit:

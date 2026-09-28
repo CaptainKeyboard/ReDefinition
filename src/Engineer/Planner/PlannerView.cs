@@ -343,10 +343,26 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // The body buttons of the stops, for the list to fold out under.
+        private readonly DialogGUIBase[] bodyButtons = new DialogGUIBase[MaxStops];
+
         private void PickBody(int index)
         {
             if (!Shown(index)) return;
-            BodyPicker.Show(this, bodies, state.Stops[index].Body, body => SetBody(index, body));
+            // As a list under the body's button, each moon under its planet.
+            List<Choice> choices = new List<Choice>();
+            foreach (int body in bodies.Order)
+            {
+                int picked = body;
+                int depth = 0;
+                for (int at = bodies.Bodies[body].Parent; at >= 0 && depth < 8; at = bodies.Bodies[at].Parent) depth++;
+                choices.Add(new Choice
+                {
+                    Label = bodies.Bodies[body].Name, Current = body == state.Stops[index].Body, Indent = depth * 12f,
+                    Pick = () => SetBody(index, picked),
+                });
+            }
+            Dropdown.Show(this, bodyButtons[index], choices, 150f);
         }
 
         private void SetBody(int index, int body)

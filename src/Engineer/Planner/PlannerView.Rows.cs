@@ -24,6 +24,8 @@ namespace ReDefinition.Engineer
         private const float Icon = 24f;
         private const float Timeline = 20f;
         private const float LetterWidth = 14f;
+        // Every button's height, and the size of the square ones: the cross, "..." and +.
+        private const float Square = RowHeight + 2f;
         private const float Speed = 96f;
         private const float BarHeight = 10f;
         private const float RowHeight = 20f;
@@ -71,10 +73,7 @@ namespace ReDefinition.Engineer
                 foreach (StepRole role in Roles)
                     rows.AddRange(StepBlock(i, role));
             }
-            DialogGUIButton add = new DialogGUIButton("+ Add destination", AddStop, width, RowHeight + 4f, false);
-            add.tooltipText = "Add a destination at the end of the route.";
-            add.OptionEnabledCondition = () => Ready() && state.Stops.Count < MaxStops;
-            rows.Add(add);
+            rows.Add(AddRow());
 
             rows.AddRange(SummaryRows());
             rows.Add(Heading("Fuel plan"));
@@ -94,11 +93,13 @@ namespace ReDefinition.Engineer
             // the timeline's.
             DialogGUIHorizontalLayout dot = new DialogGUIHorizontalLayout(Timeline, Icon, 0f, new RectOffset(4, 0, 0, 0),
                 TextAnchor.MiddleLeft, PlannerWidgets.Icon("Dot", 12f, PlannerColors.Line), new DialogGUISpace(Timeline - 16f));
-            // The body's button takes the room the others leave: the dot, the
-            // letter, three choices, the cross and the gaps between the seven.
-            float bodyWidth = Mathf.Max(100f, width - Timeline - LetterWidth - 62f - 52f - 76f - Icon - 4f * 7f - 2f);
+            // The body's button as wide as a body's name needs; the room the others
+            // leave stands after the choices, so that the cross stays at the right.
+            const float bodyWidth = 120f;
+            float room = Mathf.Max(0f, width - Timeline - LetterWidth - bodyWidth - 62f - 52f - 76f - Square - 4f * 8f - 2f);
             DialogGUIButton body = new DialogGUIButton(() => "<b>" + BodyName(index) + "</b>", () => PickBody(index), bodyWidth,
-                Icon, false);
+                RowHeight + 2f, false);
+            bodyButtons[index] = body;
             body.tooltipText = "Choose the body of this destination.";
             DialogGUIButton surface = Choice("Surface", () => Kind(index) == StopKind.Surface, () => SetKind(index, StopKind.Surface),
                 62f);
@@ -113,13 +114,13 @@ namespace ReDefinition.Engineer
             // column on every stop.
             DialogGUISpace noAir = new DialogGUISpace(76f);
             noAir.OptionEnabledCondition = () => !(index > 0 && HasAtmosphere(index));
-            DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveStop(index), Icon, "Remove this destination.",
-                after);
+            DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveStop(index), Square, Square, 14f,
+                "Remove this destination.", after);
             remove.OptionEnabledCondition = () => Ready() && state.Stops.Count > 2;
 
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 4f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, dot, new DialogGUILabel(() => "<b>" + Letter(index) + "</b>", LetterWidth), body, surface,
-                orbit, air, noAir, remove);
+                orbit, air, noAir, new DialogGUISpace(room), remove);
             row.OptionEnabledCondition = () => Shown(index);
             yield return row;
 
@@ -128,11 +129,11 @@ namespace ReDefinition.Engineer
             {
                 SetAltitude(index, text);
                 return text;
-            }, () => AltitudeKm(index), TMPro.TMP_InputField.ContentType.DecimalNumber, RowHeight);
-            typed.size = new Vector2(72f, RowHeight);
-            DialogGUIButton lower = new DialogGUIButton("-", () => StepAltitude(index, -1), 22f, RowHeight, false);
+            }, () => AltitudeKm(index), TMPro.TMP_InputField.ContentType.DecimalNumber, Square);
+            typed.size = new Vector2(72f, Square);
+            DialogGUIButton lower = new DialogGUIButton("-", () => StepAltitude(index, -1), Square, Square, false);
             lower.tooltipText = "Lower the orbit by 10 km.";
-            DialogGUIButton raise = new DialogGUIButton("+", () => StepAltitude(index, 1), 22f, RowHeight, false);
+            DialogGUIButton raise = new DialogGUIButton("+", () => StepAltitude(index, 1), Square, Square, false);
             raise.tooltipText = "Raise the orbit by 10 km.";
             altitudeFields.Add(typed);
             DialogGUIHorizontalLayout altitude = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
@@ -140,6 +141,21 @@ namespace ReDefinition.Engineer
                 lower, typed, new DialogGUILabel("<color=" + Dim + ">km</color>", 24f), raise);
             altitude.OptionEnabledCondition = () => Shown(index) && Kind(index) == StopKind.Orbit;
             yield return altitude;
+        }
+
+        // After the last stop: its dot, the next letter and "+" to add it there.
+        private DialogGUIBase AddRow()
+        {
+            DialogGUIHorizontalLayout dot = new DialogGUIHorizontalLayout(Timeline, Icon, 0f, new RectOffset(4, 0, 0, 0),
+                TextAnchor.MiddleLeft, PlannerWidgets.Icon("Dot", 12f, PlannerColors.Line), new DialogGUISpace(Timeline - 16f));
+            DialogGUIButton add = new DialogGUIButton("<b>+</b>", AddStop, Square, Square, false);
+            add.tooltipText = "Add a destination at the end of the route.";
+            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 4f, 4f, new RectOffset(0, 0, 2, 0),
+                TextAnchor.MiddleLeft, dot,
+                new DialogGUILabel(() => "<b><color=" + Dim + ">" + (Ready() ? Letter(state.Stops.Count) : "") + "</color></b>", LetterWidth),
+                add);
+            row.OptionEnabledCondition = () => Ready() && state.Stops.Count < MaxStops;
+            return row;
         }
 
         private static DialogGUIBase TimelineLine(float height)
@@ -163,22 +179,22 @@ namespace ReDefinition.Engineer
 
         // ----------------------------------------------------------------- steps
 
-        // A step's rows on a lighter background, right of the timeline, with a gap to
-        // the next step through which the timeline runs on: one block per step between
-        // two destinations.
+        // A step's rows on a lighter background, right of the timeline, with a gap before
+        // it through which the timeline runs on: one block per step between two
+        // destinations.
         private IEnumerable<DialogGUIBase> StepBlock(int leg, StepRole role)
         {
             System.Func<bool> shown = () => Slot(leg, role) >= 0;
+            DialogGUIHorizontalLayout gap = new DialogGUIHorizontalLayout(width, 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                TimelineLine(4f));
+            gap.OptionEnabledCondition = shown;
+            yield return gap;
             List<DialogGUIBase> inner = new List<DialogGUIBase>(StepRows(leg, role));
             DialogGUIVerticalLayout block = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft,
                 inner.ToArray());
             block.OptionEnabledCondition = shown;
             Tint.Behind(block, PlannerColors.StepBackground, Timeline, width, after);
             yield return block;
-            DialogGUIHorizontalLayout gap = new DialogGUIHorizontalLayout(width, 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                TimelineLine(4f));
-            gap.OptionEnabledCondition = shown;
-            yield return gap;
         }
 
         // A step on the way from destination `leg` to the next, on one line in fixed
@@ -201,7 +217,7 @@ namespace ReDefinition.Engineer
             DialogGUIButton vehicle = null;
             vehicle = new DialogGUIButton(() => VehicleText(leg, role), () => PickVehicle(leg, role, vehicle), VehicleButton,
                 RowHeight + 2f, false);
-            vehicle.tooltipText = "Who flies this step: click to choose.";
+            vehicle.tooltipText = "Select which part of the vessel flies this step.";
             vehicle.OptionEnabledCondition = () => HasLander() || HasCapsule();
             SegmentBar bar = new SegmentBar(MaxPieces, BarHeight, after);
             stepBars[leg, (int)role] = bar;
@@ -209,10 +225,10 @@ namespace ReDefinition.Engineer
             DialogGUIButton speed = new DialogGUIButton(() => StepSpeed(leg, role), () => SelectLeg(leg), StepSpeed_, RowHeight, false);
             DialogOverWindow.ClearBackground(speed);
             DialogGUIButton open = new DialogGUIButton(() => more[leg, (int)role] ? "<b><color=" + Good + ">...</color></b>" : "...",
-                () => more[leg, (int)role] = !more[leg, (int)role], Icon, RowHeight + 2f, false);
+                () => more[leg, (int)role] = !more[leg, (int)role], Square, Square, false);
             open.tooltipText = "More options for this step.";
             open.OptionEnabledCondition = () => HasMore(leg, role);
-            DialogGUISpace noMore = new DialogGUISpace(Icon);
+            DialogGUISpace noMore = new DialogGUISpace(Square);
             noMore.OptionEnabledCondition = () => !HasMore(leg, role);
             Sizer filler = new Sizer(after);
             barFillers[leg, (int)role] = filler;
@@ -676,7 +692,7 @@ namespace ReDefinition.Engineer
             // figure and "...", with the gaps between them, and a seam of one unit
             // between its pieces.
             float room = Mathf.Max(40f, width - Timeline - Place - (HasLander() || HasCapsule() ? VehicleButton + 4f : 0f)
-                                        - StepSpeed_ - Icon - 4f * 5f - 8f);
+                                        - StepSpeed_ - Square - 4f * 5f - 8f);
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
             for (int leg = 0; leg < MaxStops; leg++)

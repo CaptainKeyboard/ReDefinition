@@ -54,7 +54,8 @@ namespace ReDefinition.Engineer
     // is the capsule's where the vessel has one. Who flies a step is the player's choice
     // (RouteStop.By), or else: from a surface whoever stands on it; across to another
     // body the whole vessel where the lander waits with the rest, so that it docks;
-    // otherwise whoever flew the step before. From that, the lander leaves the rest
+    // a landing short of the route's end the lander; otherwise whoever flew the step
+    // before. From that, the lander leaves the rest
     // where a step of the lander follows one of the whole vessel; it docks where a
     // step of the whole vessel follows, and has to be where the rest waits for that;
     // a rest that is never met again is left where it waited. The lander climbs to
@@ -150,6 +151,9 @@ namespace ReDefinition.Engineer
                 && Carrier(walk).Kind == StopKind.Entry)
                 return Vehicle.Capsule;
             if (!hasLander) return Vehicle.Ship;
+            // A landing short of the route's end: the lander's, the rest waiting in
+            // orbit, as that is what a lander is for.
+            if (role == StepRole.Land && !last && !walk.LanderLeft) return Vehicle.Lander;
             if (role == StepRole.Launch)
             {
                 // Whoever stands on that surface.
