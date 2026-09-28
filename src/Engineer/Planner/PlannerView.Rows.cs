@@ -83,8 +83,7 @@ namespace ReDefinition.Engineer
 
         // A section: what it is in the column of a step's place, its parts on a button
         // from the column of who flies a step, its cross where a stop's cross is; under
-        // it, what it does: a lander docks again or flies on alone, a satellite stays at
-        // a destination; and in red what is wrong with it.
+        // a satellite where it stays; and in red what is wrong with it.
         private IEnumerable<DialogGUIBase> SectionRows(int row)
         {
             DialogGUIButton group = null;
@@ -100,18 +99,6 @@ namespace ReDefinition.Engineer
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel(() => SectionLabel(row), Place), group, remove);
             line.OptionEnabledCondition = () => RowSection(row) != null;
             yield return line;
-
-            DialogGUIButton docks = new DialogGUIButton(() => ReturnsText(row, true, "Docks again"), () => SetReturns(row, true), 104f,
-                Square, false);
-            docks.tooltipText = "The lander comes back to the rest and docks, and the whole vessel flies on.";
-            DialogGUIButton alone = new DialogGUIButton(() => ReturnsText(row, false, "Flies on alone"), () => SetReturns(row, false),
-                112f, Square, false);
-            alone.tooltipText = "The lander flies on by itself and leaves the rest behind.";
-            DialogGUIHorizontalLayout returns = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
-                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">Afterwards</color>", Place),
-                docks, alone);
-            returns.OptionEnabledCondition = () => IsKind(row, SectionKind.Lander);
-            yield return returns;
 
             DialogGUIButton stop = null;
             stop = new DialogGUIButton(() => DeployText(row), () => PickDeployStop(row, stop), PartButtonWidth, Square, false);

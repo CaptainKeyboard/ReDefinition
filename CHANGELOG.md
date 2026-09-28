@@ -23,7 +23,7 @@
   separate; the planner adds a crewed vessel's capsule and an uncrewed vessel's one
   satellite by itself. Each step says who flies it, the whole vessel or one section,
   set by the planner or by you; a lander leaves the rest, docks with it again and can be
-  refilled from it, or flies on alone, as you set it; a satellite stays at its
+  refilled from it, or flies on alone, as the step after it says; a satellite stays at its
   destination; the capsule comes home alone. The planner shares the vessel's stages out
   over the steps, counting the mass each stage pushes at that moment. The fuel plan lists
   every step with what it needs and what is left after it, in red what it lacks; a step

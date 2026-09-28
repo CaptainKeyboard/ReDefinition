@@ -30,7 +30,7 @@ who can fly a step. *+* adds one, and the list of its parts folds out right afte
 | Section | Is | Row under it |
 |---|---|---|
 | *Capsule* | what comes home alone at the end, usually on its parachutes | a red line where it has no parachutes |
-| *Lander* | what lands while the rest waits | *Afterwards*: *Docks again*, it comes back to the rest and docks, and the whole vessel flies on; or *Flies on alone*, it goes on by itself and leaves the rest behind |
+| *Lander* | what lands while the rest waits | none: whether it docks again or flies on alone, the step after it says |
 | *Satellite* | what stays at a destination | *Deployed at*: the destination where it stays; the rest flies on without it |
 
 A vessel can have several of each, such as two landers or three satellites; they are
@@ -47,11 +47,11 @@ The planner adds two sections by itself, shown as *Automatic* with what it found
 * On an uncrewed vessel, the satellite, where one part with a probe core and no landing
   legs leaves the launch stage behind. With several, you add them yourself.
 
-A lander you always add yourself. *Afterwards* is *Docks again* by itself where a docking
-port separates the lander, *Flies on alone* where a decoupler does. *Deployed at* is by
-itself the first orbit the route reaches before it lands or ends. What you pick is bold
-and underlined; picking it again gives it back to the planner. A section the planner
-added and you removed stays away.
+A lander you always add yourself. Whether it docks again or flies on alone, the steps
+after it say (see *Plan with sections*). *Deployed at* is by itself the first orbit the
+route reaches before it lands or ends. What you pick is bold and underlined; picking it
+again gives it back to the planner. A section the planner added and you removed stays
+away.
 
 ## Lay out the route
 
@@ -172,25 +172,24 @@ What happens follows from who flies one step after another:
 | From one step to the next | Happens |
 |---|---|
 | *Ship*, then a section | the section leaves the vessel, which waits where it is, and takes the sections that are part of it along. A grey line says where |
-| a lander that docks, then *Ship* | the lander docks with the rest at the end of its step: *Docks with the rest*, with 50 m/s for the rendezvous, and the burn to the rest's orbit where it ended in another orbit of that body. Anywhere else a red line says it is not where the rest waits |
-| a section, and no *Ship* after | it flies on by itself; the rest stays where it waited |
-| *Without lander* | the vessel flies on without the lander, which stays where it is for good |
+| a section, then *Ship*, with steps of other sections in between or not | the section docks with the rest at the end of its step: *Docks with the rest*, with 50 m/s for the rendezvous, and the burn to the rest's orbit where it ended in another orbit of that body; a lander climbing from a surface climbs to the rest's own orbit. Anywhere else a red line says it is not where the rest waits |
+| a section, then the same section | it flies on by itself, and climbs to its own destination; the rest stays where it waited. Where the whole vessel flies on later without leaving it behind, a red line says it is not where the rest waits |
+| *Without lander* | the vessel flies on without the lander, which stays where it is for good; one back where the rest waits docks first, so its climb counts the rendezvous |
 | the capsule | it leaves whatever flew the step before, for good. Nothing else can fly after it |
 | a satellite's destination reached | the satellite stays there, with what it weighs; the rest flies on lighter |
 
-Where a lander that docks climbs from a surface and the rest waits in an orbit of that
-body, it climbs to the rest's own orbit. *Refuel* on the line *Docks with the rest* fills
+So whether a lander docks again or flies on alone is the choice on the step after it, and
+can differ from one landing to the next. *Refuel* on the line *Docks with the rest* fills
 it up from the rest's tanks as it docks; the button beside it picks the stage of the rest
 the refill comes from first, among those that still hold fuel there, or the rest in the
-order KSP fires its stages. A lander that docks and is then left, *Without lander*,
-docks first, so its climb counts the rendezvous.
+order KSP fires its stages.
 
 By itself, the planner has a lander land wherever the route goes on after the landing,
 whoever stands on a surface fly up from it, the whole vessel fly on across to another body
-where a lander that docks again has come back to the rest, and otherwise whoever flew the
-step before. A landing on parachutes on the last stop is the capsule's where what carries
-it is in the air. So a lander lands, climbs back, and docks and is carried on or flies on
-by itself without a click, and the capsule comes home by itself.
+where a lander that a docking port separates has come back to the rest, and otherwise
+whoever flew the step before. A landing on parachutes on the last stop is the capsule's
+where what carries it is in the air. So a lander lands, climbs back, and docks and is
+carried on or flies on by itself without a click, and the capsule comes home by itself.
 
 For a landing on parachutes on another body, the step across ends in its air, and the
 vessel goes straight in. *...* on that step offers *Orbit first* on the line *Way down*:
@@ -219,8 +218,8 @@ in the transfer orbit:
 The Kerbal X to the Mun and home, its upper stage with the legs landing:
 
 1. *B*: pick the Mun, *Surface*. *+*, Kerbin, *Surface*.
-2. *+* under *Sections*, *Lander*, and pick the pod with the upper stage. *Afterwards* is
-   *Flies on alone*; the capsule, found by itself, lands at home.
+2. *+* under *Sections*, *Lander*, and pick the pod with the upper stage. A decoupler
+   separates it, so it flies home by itself; the capsule, found by itself, lands at home.
 
 A lander that lands on the Mun and docks again, the capsule on the mothership coming
 home, the lander left in the Mun's orbit:
@@ -236,8 +235,9 @@ Duna's orbit:
 
 1. *B*: pick Duna, *Orbit*. *C*: Duna, *Surface*. *D*: Kerbin, *Surface*. *Chutes* comes
    on by itself on both.
-2. Add the lander; *Afterwards* is *Flies on alone* where a decoupler separates it. The
-   landing on Duna and the way home are then the lander's.
+2. Add the lander. Where a decoupler separates it, the landing on Duna and the way home
+   are the lander's by itself; where a docking port does, pick *Lander* on *To Kerbin's
+   air*.
 
 A mission from Kerbin to Jool with one lander for Laythe and Vall, refilled after
 Laythe, and the capsule landing at home:

@@ -1363,6 +1363,50 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void TheStepAfterALandersClimbSaysWhetherItDocks()
+        {
+            // The rest waits in a 500 km Mun orbit; the lander lands and climbs. With the
+            // whole vessel flying home after it, it climbs to the rest and docks; with the
+            // lander flying home itself, it climbs to its own low orbit and goes on.
+            RouteStop home = Surface(Kerbin, true);
+            List<RouteStop> goals = new List<RouteStop> { Orbit(Kerbin, 80000), Orbit(Mun, 500000), Surface(Mun), home };
+            List<RouteStep> docks = Route(Stock(), goals, true, false);
+            home.By[(int)StepRole.Transfer] = LanderFlies.Code;
+            List<RouteStep> alone = Route(Stock(), goals, true, false);
+
+            Assert.AreEqual("1T:S 2L:L< 3L:L> 3T:S 3L:S", Shape(docks));
+            Assert.AreEqual(500000.0, docks[2].To.Altitude, "up to the rest");
+            Assert.AreEqual("1T:S 2L:L< 3L:L 3T:L 3L:L", Shape(alone));
+            Assert.AreEqual(Stock()[Mun].LowOrbitAltitude, alone[2].To.Altitude, "up to its own low orbit");
+            Assert.IsFalse(alone[2].Leg.Lines.Any(line => line.Name == "Rendezvous and docking"));
+            Assert.IsTrue(docks.All(step => step.Problem == null) && alone.All(step => step.Problem == null));
+        }
+
+        [TestMethod]
+        public void TwoLandersOneAfterTheOtherBothDockAsTheVesselFliesOn()
+        {
+            // Lander 1 lands and climbs; the player sends lander 2 down right after; then
+            // the whole vessel flies home. Both climb to the rest and dock.
+            List<RouteSection> sections = new List<RouteSection>
+            {
+                new RouteSection { Id = 1, Kind = SectionKind.Lander, Name = "Lander 1", Docks = true },
+                new RouteSection { Id = 4, Kind = SectionKind.Lander, Name = "Lander 2", Docks = true },
+            };
+            RouteStop second = Choose(Surface(Mun), StepRole.Land, Flyer.Alone(4));
+            List<RouteStop> goals = new List<RouteStop>
+            {
+                Orbit(Kerbin, 80000), Orbit(Mun, 500000), Surface(Mun), Orbit(Mun, 500000), second, Orbit(Mun, 500000),
+                Choose(Orbit(Kerbin, 80000), StepRole.Transfer, Flyer.Ship),
+            };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, sections, false);
+
+            Assert.AreEqual("1T:S 2L:L< 3L:L> 4L:X4< 5L:X4> 6T:S", Shape(steps));
+            Assert.AreEqual(500000.0, steps[2].To.Altitude, "lander 1 climbs to the rest, though lander 2 flies next");
+            Assert.IsTrue(steps[5].Flying.Contains(1) && steps[5].Flying.Contains(4), "both carried home");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
+        }
+
+        [TestMethod]
         public void ALandingShortOfTheEndIsTheLandersByItself()
         {
             // Kerbin surface, Mun surface, Kerbin surface with Chutes; a lander marked,

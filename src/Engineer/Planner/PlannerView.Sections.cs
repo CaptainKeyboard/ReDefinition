@@ -91,9 +91,7 @@ namespace ReDefinition.Engineer
             foreach (LiveSection section in live)
             {
                 section.DeployAt = DeployStop(section.Plan);
-                section.Docks = section.Plan.Returns == PlannerState.Automatic
-                    ? section.Group != null && section.Group.DockingPort
-                    : section.Plan.Returns == PlannerState.Docks;
+                section.Docks = section.Group != null && section.Group.DockingPort;
             }
 
             partGroups = new int[facts.Count];
@@ -447,7 +445,7 @@ namespace ReDefinition.Engineer
             if (!Ready() || state.Sections.Count >= MaxSections) return;
             List<Choice> choices = new List<Choice>();
             AddKind(choices, SectionKind.Capsule, "A part that comes home alone at the end, usually on its parachutes.", button);
-            AddKind(choices, SectionKind.Lander, "A part that lands while the rest waits, and docks again or flies on alone.", button);
+            AddKind(choices, SectionKind.Lander, "A part that lands while the rest waits.", button);
             AddKind(choices, SectionKind.Satellite, "A part that stays at a destination.", button);
             Dropdown.Show(this, button, choices, 150f);
         }
@@ -474,27 +472,6 @@ namespace ReDefinition.Engineer
             if (state.Sections.Contains(section.Plan)) state.RemoveSection(section.Plan);
             else state.Dismissed.Add(section.Plan.Kind);
             Changed();
-        }
-
-        // A lander docks again, or flies on alone: green where it holds; bold and
-        // underlined where the player set it.
-        private string ReturnsText(int row, bool docks, string label)
-        {
-            LiveSection section = RowSection(row);
-            if (section == null || section.Docks != docks) return "<color=" + Dim + ">" + label + "</color>";
-            return section.Plan.Returns == PlannerState.Automatic
-                ? "<color=" + Good + ">" + label + "</color>"
-                : "<b><u><color=" + Good + ">" + label + "</color></u></b>";
-        }
-
-        // The player's choice; the same choice again gives it back to the planner.
-        private void SetReturns(int row, bool docks)
-        {
-            LiveSection section = RowSection(row);
-            if (section == null) return;
-            string wanted = docks ? PlannerState.Docks : PlannerState.Alone;
-            section.Plan.Returns = section.Plan.Returns == wanted ? PlannerState.Automatic : wanted;
-            Keep(section.Plan);
         }
 
         private bool IsKind(int row, SectionKind kind)

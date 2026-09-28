@@ -8,7 +8,7 @@ using UnityEngine;
 namespace ReDefinition.Engineer
 {
     // A section of the vessel as the player adds it: what it is for, which of the
-    // vessel's parts it is, and for a lander and a satellite what they do.
+    // vessel's parts it is, and for a satellite where it stays.
     internal sealed class PlannedSection
     {
         // 1 and up, the same for as long as the plan keeps the section.
@@ -17,9 +17,6 @@ namespace ReDefinition.Engineer
         // A part group's key (PartGroupChoice.Key), Automatic for what the planner
         // finds, empty where none is picked yet.
         public string Group = "";
-        // A lander: Docks, Alone, or Automatic for what separates it (a docking port
-        // docks).
-        public string Returns = PlannerState.Automatic;
         // A satellite: the destination it stays at, -1 for the last orbit before the
         // route lands or ends.
         public int DeployAt = -1;
@@ -33,8 +30,6 @@ namespace ReDefinition.Engineer
     internal sealed class PlannerState
     {
         internal const string Automatic = "Automatic";
-        internal const string Docks = "Docks";
-        internal const string Alone = "Alone";
 
         public readonly List<RouteStop> Stops = new List<RouteStop>();
         public double Margin = 0.1;
@@ -217,7 +212,6 @@ namespace ReDefinition.Engineer
                 sectionNode.AddValue("id", section.Id);
                 sectionNode.AddValue("kind", section.Kind);
                 sectionNode.AddValue("group", section.Group);
-                sectionNode.AddValue("returns", section.Returns);
                 sectionNode.AddValue("deployAt", section.DeployAt);
             }
             foreach (RouteStop stop in Stops)
@@ -273,8 +267,6 @@ namespace ReDefinition.Engineer
                 {
                     Id = id, Kind = (SectionKind)Enum.Parse(typeof(SectionKind), kind), Group = sectionNode.GetValue("group") ?? "",
                 };
-                string returns = sectionNode.GetValue("returns");
-                if (returns == Docks || returns == Alone) loaded.Returns = returns;
                 if (int.TryParse(sectionNode.GetValue("deployAt"), out deployAt)) loaded.DeployAt = Math.Max(-1, deployAt);
                 state.Sections.Add(loaded);
                 if (id < FoundCapsule) state.nextId = Math.Max(state.nextId, id + 1);

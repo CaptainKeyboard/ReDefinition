@@ -34,7 +34,7 @@ The planner uses no text to explain itself. From the top:
   tooltip once the rows are created.
 * *Sections*, up to six rows, each with what it is in the column of a step's place, its
   parts on a button from the column of who flies a step, and its cross where a stop's
-  cross is; under a lander *Afterwards*, under a satellite *Deployed at*, and a red line
+  cross is; under a satellite *Deployed at*, and a red line
   for a capsule without parachutes or a section overlapping another. *+* opens the list
   of kinds, and the new section's list of parts right after. A list of parts folds out
   as wide as its button: *Automatic* where the planner finds that kind, with what it
@@ -133,24 +133,29 @@ a *Circularise* for that.
 Each step is flown by a `Flyer`: the whole vessel (`Ship`); one section alone, with the
 sections that are part of it (`Alone`); or the vessel leaving a section behind for good
 (`Without`). A section (`RouteSection`) is part of another or of the rest (`Parent`),
-docks again or not (`Docks`), and a satellite stays at a destination (`DeployAt`). The
+docks again by itself or not (`Docks`, where a docking port separates it), and a satellite
+stays at a destination (`DeployAt`). The
 player sets who flies per step (`RouteStop.By`, by role, on the stop the step leads to,
 as `Flyer.Code`), or `RouteSteps.Build` works it out: the capsule once it has left; a
 capsule for a landing on parachutes on the last stop where what carries it is in the
 air; for a landing short of the last stop the lander that flew last, else the first; from
 a surface whoever stands on it; across to another body `Ship` where a lander that docks is
 in an orbit of the body the rest waits at; otherwise whoever flew the step before.
-`Build` walks the steps and keeps where the rest and each section are:
+`Build` works out who flies each step first, then walks the steps again with those, as a
+section's climb goes to the rest's own orbit only where it docks after it: where the next
+step of the whole vessel, or the one that leaves it behind, comes before it flies again
+itself or a capsule leaves (`Rejoins`), steps of other sections in between. It
+keeps where the rest and each section are:
 
 | Step flown by | While | Then |
 |---|---|---|
 | `Ship` | every section is with the rest | the whole vessel flies |
-| `Ship` | a section that docks is away, where the rest waits or in another orbit of that body | its last step `Docks`, with the burn to the rest's orbit where it ended in another one, 50 m/s for the rendezvous where the rest is in orbit, and is refilled where its stop's `Refuel` is set for that step |
-| `Ship` | a section that docks is away, elsewhere | a `Problem`: it is not where the rest waits |
+| `Ship` | a section is away, where the rest waits or in another orbit of that body | its last step `Docks`, with the burn to the rest's orbit where it ended in another one, 50 m/s for the rendezvous where the rest is in orbit, and is refilled where its stop's `Refuel` is set for that step |
+| `Ship` | a section is away, elsewhere | a `Problem`: it is not where the rest waits |
 | `Alone` | the section is with what carries it | it `Separates` (`Leaver`, `LeavesFrom`), and the rest waits where it is |
 | `Alone` | the section is away | it flies on from where it is; a rest never met again stays where it waited |
 | `Alone` | a capsule, for the first time | everything else is gone for good (`Gone`): dropped where it was with the capsule, left where it waited |
-| `Without` | | the section stays where it is for good (`Gone`, `Stays`); one that docks and is back where the rest waits docks first; a later step of it is a `Problem` and costs nothing |
+| `Without` | | the section stays where it is for good (`Gone`, `Stays`); where it flew the step before and is back where the rest waits, it docks first; a later step of it is a `Problem` and costs nothing |
 
 At the end of the last step to a satellite's `DeployAt`, the satellite stays there
 (`Deploys`), carried there or flown there itself, with the sections part of it; a lander
@@ -311,12 +316,11 @@ player sets something on it (`PlannerState.Keep`), under a fixed id (`FoundCapsu
   that leave the launch stage's engines behind, the one inside no other, where there is
   exactly one (`VesselShape.AutoSatellite`).
 
-A lander is always the player's. Its *Afterwards* docks again by itself where a docking
-port separates it. A satellite's *Deployed at* is by itself the first orbit the route
-reaches before it lands or ends. A section overlapping one before it counts for nothing;
-the lists offer only parts that fit the other sections, a lander's only with engines. A
-list closes when the vessel's groups change under it, as with undo. What was found goes
-to `KSP.log` once per change, in a line that starts with `Planner found from`.
+A lander is always the player's. A satellite's *Deployed at* is by itself the first orbit
+the route reaches before it lands or ends. A section overlapping one before it counts for
+nothing; the lists offer only parts that fit the other sections, a lander's only with
+engines. A list closes when the vessel's groups change under it, as with undo. What was
+found goes to `KSP.log` once per change, in a line that starts with `Planner found from`.
 
 After a step marked for it, a section that docks is refilled (`Refuelled`): each of its
 stages still there up to the propellant it held at the start, taken from the stage the
@@ -341,7 +345,6 @@ PLAN
         id = 1
         kind = Capsule
         group = Automatic
-        returns = Automatic
         deployAt = -1
     }
     SECTION
@@ -349,7 +352,6 @@ PLAN
         id = 2
         kind = Lander
         group = 1822461803:under
-        returns = Docks
         deployAt = -1
     }
     STOP
@@ -374,7 +376,7 @@ PLAN
 ```
 
 A `SECTION`'s `group` is a part choice's key, `Automatic`, or empty where none is picked;
-`returns` is `Docks`, `Alone` or `Automatic`; `deployAt` a stop, -1 for the planner's.
+`deployAt` a stop, -1 for the planner's.
 `dismissed` lists the kinds the planner added and the player removed. `by` is `Auto`,
 `Ship`, `Section` or `Without` with a section's id; `refuelFrom` a stage, -1 for KSP's
 order; `by`, `refuel` and `refuelFrom` are per

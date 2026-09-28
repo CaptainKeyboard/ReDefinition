@@ -35,7 +35,8 @@ namespace ReDefinition.Engineer
         public string Name = "";
         // The section it is part of, 0 for the rest.
         public int Parent;
-        // It comes back to what carried it and docks.
+        // By itself, it comes back to what carried it and docks: the whole vessel flies
+        // on after it where it meets the rest (a docking port separates it).
         public bool Docks;
         // A satellite: the destination it stays at, -1 for none.
         public int DeployAt = -1;
@@ -134,16 +135,19 @@ namespace ReDefinition.Engineer
     // The steps of a route (docs/development/planner.md). Between two destinations
     // come the steps the way needs, each flown by the whole vessel, one of its
     // sections alone, or the vessel leaving a section behind. A section alone takes the
-    // sections that are part of it along; it docks again where it is one that docks
-    // (a lander, as set) and the whole vessel flies on; a satellite stays at its
-    // destination; a capsule leaves everything else for good. Who flies a step is the
+    // sections that are part of it along; where the whole vessel flies the step after
+    // it, it docks first, and where the vessel leaves it behind then, it docks and is
+    // left from there; a satellite stays at its destination; a capsule leaves
+    // everything else for good. Who flies each step is worked out first, as a
+    // section's climb goes to the rest's own orbit only where it docks after it. Who flies a step is the
     // player's choice (RouteStop.By), or else: the capsule once it has left; the capsule
     // for a landing on parachutes on the last destination, where what carries it is in
     // the air already; a lander for a landing short of the route's end; from a surface
     // whoever stands on it; across to another body the whole vessel where a lander that
     // docks waits in an orbit of the body the rest is at; otherwise whoever flew the
-    // step before. A section that docks climbs to the rest's own orbit where the rest
-    // waits around the body it starts from. Free of Unity, tested.
+    // step before. A section climbs to the rest's own orbit where the rest waits around
+    // the body it starts from and the whole vessel flies on after it. Free of Unity,
+    // tested.
     internal static class RouteSteps
     {
         // Finding the rest in its orbit and docking, over the climb to that orbit.
@@ -168,6 +172,11 @@ namespace ReDefinition.Engineer
             internal Flyer Last = Flyer.Ship;
             // The capsule that has left everything else, 0 for none.
             internal int CapsuleOut;
+            // The step being flown, and whether a section's climb on it is followed by
+            // its docking; null while who flies is still being worked out, when a
+            // section that docks by itself is taken to.
+            internal int Index;
+            internal System.Func<int, bool> Returns;
 
             internal SectionState Of(int id)
             {
@@ -225,9 +234,40 @@ namespace ReDefinition.Engineer
         internal static List<RouteStep> Build(IList<PlannerBody> bodies, IList<RouteStop> goals, IList<RouteSection> sections,
                                               bool planeChanges)
         {
+            // Who flies each step first; then the steps again with those, each climb of a
+            // section going to the rest where the step after it docks it.
+            List<RouteStep> first = Walkthrough(bodies, goals, sections, planeChanges, null, null);
+            if (sections == null || sections.Count == 0) return first;
+            List<RouteStep> flown = first;
+            return Walkthrough(bodies, goals, sections, planeChanges, first, index => Rejoins(flown, sections, index));
+        }
+
+        // A section that flies step `index` docks after it: the next step of the whole
+        // vessel, or the one that leaves it behind, comes before it flies again itself or
+        // a capsule leaves; the steps of other sections in between wait with it.
+        private static bool Rejoins(List<RouteStep> flown, IList<RouteSection> sections, int index)
+        {
+            if (index >= flown.Count || flown[index].Flyer.Kind != FlyerKind.Alone) return false;
+            int id = flown[index].Flyer.Section;
+            for (int next = index + 1; next < flown.Count; next++)
+            {
+                Flyer flyer = flown[next].Flyer;
+                if (flyer.Kind != FlyerKind.Alone) return true;
+                if (flyer.Section == id) return false;
+                foreach (RouteSection section in sections)
+                    if (section != null && section.Id == flyer.Section && section.Kind == SectionKind.Capsule) return false;
+            }
+            return false;
+        }
+
+        // The steps, their flyers the player's or the planner's; or, with `flown`, the
+        // ones worked out before.
+        private static List<RouteStep> Walkthrough(IList<PlannerBody> bodies, IList<RouteStop> goals, IList<RouteSection> sections,
+                                                   bool planeChanges, List<RouteStep> flown, System.Func<int, bool> returns)
+        {
             List<RouteStep> steps = new List<RouteStep>();
             if (goals.Count == 0) return steps;
-            Walk walk = new Walk { Rest = goals[0] };
+            Walk walk = new Walk { Rest = goals[0], Returns = returns };
             if (sections != null)
                 foreach (RouteSection section in sections)
                 {
@@ -247,7 +287,9 @@ namespace ReDefinition.Engineer
                     int by = goal.By[(int)role];
                     Flyer chosen = Flyer.FromCode(by);
                     bool isChosen = by >= 0 && Available(walk, chosen);
-                    Flyer flyer = isChosen ? chosen : Default(bodies, walk, role, from, goal, g == goals.Count - 1);
+                    Flyer flyer = flown != null && steps.Count < flown.Count ? flown[steps.Count].Flyer
+                        : isChosen ? chosen : Default(bodies, walk, role, from, goal, g == goals.Count - 1);
+                    walk.Index = steps.Count;
                     RouteStep step = Fly(bodies, walk, g, role, flyer, from, goal, planeChanges);
                     step.Chosen = isChosen;
                     step.WantsRefuel = goal.Refuel[(int)role];
@@ -333,8 +375,8 @@ namespace ReDefinition.Engineer
                     if (!state.Gone && state.Away && OnSurface(state.At, from)) return Flyer.Alone(state.Section.Id);
                 return Usable(walk, walk.Last) ? walk.Last : Flyer.Ship;
             }
-            // A lander that docks, in an orbit of the body the rest waits at: it docks,
-            // and the whole vessel flies on.
+            // A section that docks by itself, in an orbit of the body the rest waits at:
+            // it docks, and the whole vessel flies on.
             if (role == StepRole.Transfer && walk.Last.Kind == FlyerKind.Alone)
             {
                 SectionState flew = walk.Of(walk.Last.Section);
@@ -388,29 +430,25 @@ namespace ReDefinition.Engineer
             }
             else
             {
+                // Where the vessel leaves a section behind that flew the step before and is
+                // back where the rest waits, it docks first, as a lander whose crew comes
+                // over.
                 if (flyer.Kind == FlyerKind.Without)
                 {
-                    // A section that docks and is back where the rest waits docks first,
-                    // and is left from there, as a lander whose crew comes over.
                     SectionState left = walk.Of(flyer.Section);
-                    if (left != null && left.Away && !left.Gone && left.Section.Docks && walk.Carrier(left.Section.Id) == 0
-                        && (SamePlace(left.At, walk.Rest) || Meets(left.At, walk.Rest)) && left.LastStep != null)
-                        Dock(bodies, walk, left);
+                    if (left != null && walk.Last.Is(FlyerKind.Alone, flyer.Section) && Returns(walk, left)) Dock(bodies, walk, left);
                     LeaveBehind(bodies, walk, step, flyer.Section);
                 }
-                // Sections away that come back dock with the rest before the whole vessel
-                // flies on: in the rest's orbit, or on its way to it from another one
-                // around the same body.
+                // Every section away comes back as the whole vessel flies on: it docks with
+                // the rest, in the rest's orbit or on its way to it from another one around
+                // the same body; anywhere else it is not where the rest waits.
                 foreach (SectionState state in walk.Order)
                 {
-                    // A section that docks, part of the rest or of a section still with it.
-                    if (!state.Away || state.Gone || !state.Section.Docks || walk.Carrier(state.Section.Id) != 0) continue;
-                    if ((SamePlace(state.At, walk.Rest) || Meets(state.At, walk.Rest)) && state.LastStep != null)
-                        Dock(bodies, walk, state);
-                    else if (flyer.Kind == FlyerKind.Ship)
-                        step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " is not where the rest waits, at "
-                                       + Place(bodies, walk.Rest);
-                    if (flyer.Kind == FlyerKind.Ship) state.Away = false;
+                    if (!state.Away || state.Gone || walk.Carrier(state.Section.Id) != 0) continue;
+                    if (Returns(walk, state)) Dock(bodies, walk, state);
+                    else step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " is not where the rest waits, at "
+                                   + Place(bodies, walk.Rest);
+                    state.Away = false;
                 }
                 start = walk.Rest;
             }
@@ -496,6 +534,13 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // Back where the rest waits, to dock: in its orbit, or in another orbit of the
+        // same body.
+        private static bool Returns(Walk walk, SectionState state)
+        {
+            return state.LastStep != null && (SamePlace(state.At, walk.Rest) || Meets(state.At, walk.Rest));
+        }
+
         // A section docks with the rest at the end of its last step: the burn to the
         // rest's orbit where it ended in another one, and the rendezvous.
         private static void Dock(IList<PlannerBody> bodies, Walk walk, SectionState state)
@@ -548,8 +593,8 @@ namespace ReDefinition.Engineer
         }
 
         // Where a step goes: the destination itself where the step reaches it; the
-        // body's low orbit, or the rest's own orbit where a section that docks climbs
-        // to it; into the air for a landing on parachutes straight from the way across;
+        // body's low orbit, or the rest's own orbit where a section climbs to it to dock
+        // after; into the air for a landing on parachutes straight from the way across;
         // on the way across, where the player splits it.
         private static RouteStop Target(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, Flyer flyer)
         {
@@ -557,7 +602,8 @@ namespace ReDefinition.Engineer
             if (role == StepRole.Launch)
             {
                 SectionState state = flyer.Kind == FlyerKind.Alone ? walk.Of(flyer.Section) : null;
-                if (state != null && state.Section.Docks && state.Away)
+                bool docks = state != null && (walk.Returns != null ? walk.Returns(walk.Index) : state.Section.Docks);
+                if (state != null && docks && state.Away)
                 {
                     RouteStop rest = walk.Location(state.Section.Parent);
                     if (rest.Kind == StopKind.Orbit && rest.Body == from.Body) return rest;
