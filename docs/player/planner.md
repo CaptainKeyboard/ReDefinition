@@ -2,13 +2,14 @@
 
 **For:** players building a vessel for a mission to one or more destinations.
 **You need:** ReDefinition installed, and a vessel in the VAB or the SPH.
-**You get:** how to lay out a route, see what each leg costs, check that the stages
+**You get:** how to lay out a route, see what each step costs, check that the stages
 carry enough fuel, and set yourself which stage pays for which leg.
 
-The planner lays out a route the way a map app lays out a trip: A → B → C → D. It works
-out the delta-v of every leg and shares the vessel's stages out over the legs. You can
-leave that to the planner, or pin stages to legs yourself. It works with the bodies the
-game has loaded, so it also works with planet packs.
+The planner lays out a route the way a map app lays out a trip: A → B → C → D. For each
+destination you say who flies there, the whole vessel or its lander. The planner works
+out the steps that follow from it, what each costs, and shares the vessel's stages out
+over them. You can leave that to the planner, or pin stages to legs yourself. It works
+with the bodies the game has loaded, so it also works with planet packs.
 
 ## Open the planner
 
@@ -33,12 +34,16 @@ around it.
 | *Chutes* | on a surface with air: land with a heat shield and parachutes. On thin air, such as Duna's, the engines still slow the last part |
 | *Aerobrake* | on an orbit around a body with air: slow down in the atmosphere instead of with the engines |
 | cross | remove the stop |
+| *Ship* / *Lander* | with a lander set (see below): who flies to this stop |
 | *+ Add destination* | add a stop at the end of the route, up to nine stops |
 
-Between two stops, a bar shows the leg. Its length is the leg's delta-v, on the same
-scale for every leg. Its colours are the stages that pay for it. Red is what no stage
-covers. The figure beside the bar is the leg's delta-v with the margin. It turns orange
-if something is wrong with the leg.
+Between two stops, the steps of the way from one to the next, a bar each. A bar's
+length is the step's delta-v, on the same scale for every step. Its colours are the
+stages that pay for it. Red is what no stage covers. The figure beside the bar is the
+step's delta-v with the margin. It turns red if something blocks the step, and a red
+line under the step says what: too little fuel, too little thrust to lift off
+or land, no parachutes or no heat shield on what lands. Where nothing is wrong, there is
+no such line.
 
 ## Check the fuel
 
@@ -61,7 +66,7 @@ in orange, what it held when it was dropped.
 
 | Click | Does |
 |---|---|
-| a leg's name at the top of a column, its bar or its figure | shows the leg's burns, the stages that pay for it and any warning, and colours only those stages on the vessel |
+| a leg's name at the top of a column, a step's bar or its figure | shows each step of the leg with its burns, the stages that pay for it with their TWR at that body, and any warning, and colours only those stages on the vessel |
 | a stage's name | shows its engines and the legs it pays for, and colours only that stage on the vessel |
 | the same again | shows every stage in its colour again |
 
@@ -76,6 +81,8 @@ The burns of a leg are:
 | *Raise or lower the orbit* | from one orbit to another around the same body |
 | *Landing* | from the low orbit down to the surface |
 | *Plane change* | turning the orbit to the tilt of the target's orbit |
+| *Deorbit into the air* | from an orbit down into the atmosphere, for a landing on parachutes |
+| *Rendezvous and docking* | the lander finding the rest in its orbit, 50 m/s over the climb |
 
 ## How the planner shares out the stages
 
@@ -117,30 +124,41 @@ orbit. The lander then docks again and goes on to the next destination.
 2. In the fuel plan, click *L* on the lander's first stage with engines. It lights up on
    that stage and every stage after it. The stage with the decoupler counts to the lander
    as well. Click it again to have no lander.
-3. Under each leg, three buttons now set who flies it:
+3. Under each destination, *Ship* or *Lander* now sets who flies there. The steps in
+   between follow from it:
 
-   | Button | Means |
+   | Step | Is |
    |---|---|
-   | *Ship* | the whole vessel: the lander rides along, the rest burns first |
-   | *Lander* | the lander alone: the rest waits where the lander left it |
-   | *Rest* | the rest without the lander, which stays behind for good |
+   | *Ship* | the whole vessel: the lander rides along, its fuel kept for its own steps |
+   | *Lander* | the lander alone, from where the rest waits |
+   | *Dock* | the lander, away, back up to the rest and docked |
+   | *Rest* | the rest on its own, once the lander stays behind |
 
-A mission to the Mun and Minmus with one lander:
+   Where the lander lands on another body, the whole vessel carries it into an orbit of
+   that body first, and waits there. For a landing on parachutes it carries it straight
+   into the air instead, and is left there.
 
-| Leg | Flown by |
+Some steps offer a choice on a line under them:
+
+| Choice | Does |
 |---|---|
-| Kerbin orbit → Mun orbit | *Ship* |
-| Mun orbit → Mun surface | *Lander* |
-| Mun surface → Mun orbit | *Lander* |
-| Mun orbit → Minmus orbit | *Ship* |
-| Minmus orbit → Minmus surface | *Lander* |
-| Minmus surface → Minmus orbit | *Lander* |
-| Minmus orbit → Kerbin surface | *Ship* |
+| *Dock* / *Stays* | the lander comes back and docks, or stays where it is while the rest flies on |
+| *Refuel* | once docked, the lander is filled up from the rest's tanks |
+| *Direct* / *Orbit first* | for a landing on parachutes: the vessel goes straight into the air, or brakes into an orbit before the lander leaves |
+
+A mission from Kerbin to the Mun's surface and back, the lander landing at home on its
+parachutes:
+
+| Destination | Flown by | Steps before it |
+|---|---|---|
+| A Kerbin, surface | | |
+| B Kerbin, orbit | *Ship* | *Ship*: the launch |
+| C Mun, orbit | *Ship* | *Ship*: transfer and capture |
+| D Mun, surface | *Lander* | *Lander*: the landing, the rest waiting in the Mun's orbit |
+| E Kerbin, surface, *Chutes* | *Lander* | *Dock*: up to the rest; *Ship*: home into Kerbin's air; *Lander*: down on its parachutes |
 
 The lander pushes only its own mass while it flies alone. When the whole vessel flies
-on, it carries the lander with the fuel the lander has left. If a leg of the whole
-vessel does not start where the rest waits, its figure turns orange. The leg's details
-name the stop where the rest is.
+on, it carries the lander with the fuel the lander has left, or refilled.
 
 ## What the numbers are
 
@@ -152,6 +170,8 @@ name the stop where the rest is.
 * The planner counts every stage in vacuum. The launch burns in air, where the engines
   give less. To see a stage's delta-v at sea level, choose *Sea level* in the
   [engineer window](engineer.md).
-* A launch warning compares the thrust in vacuum with the body's surface gravity. Check
-  the launch stage's TWR at sea level in the engineer window as well.
-* The planner does not count refuelling, mining or fuel moved between vessels.
+* The TWR in the details, and the warnings on a launch or a powered landing, compare
+  the thrust in vacuum with the body's surface gravity. Check the launch stage's TWR at
+  sea level in the engineer window as well.
+* Refuelling counts only between the lander and the rest. Mining and fuel from other
+  vessels do not count.

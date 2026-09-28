@@ -2,8 +2,8 @@
 
 **For:** anyone changing the planner in the VAB and the SPH.
 **You need:** the repository, and `src/Engineer/Planner` open.
-**You get:** how the planner works out a route's delta-v, how it assigns the vessel's
-stages to the legs, and where its plans are kept.
+**You get:** how the planner turns a route into steps and works out their delta-v, how
+it assigns the vessel's stages to them, and where its plans are kept.
 
 The player's side is in [player/planner.md](../player/planner.md). How the planner's
 panel sits in KSP's editor is in [engineer.md](engineer.md).
@@ -12,8 +12,9 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 
 | File | Does |
 |---|---|
-| `src/Engineer/Planner/RoutePlanner.cs` | the delta-v of each leg of a route, and where a lander meets the rest of the vessel. Free of Unity |
-| `src/Engineer/Planner/StageBudget.cs` | which stage pays for which leg, on the mass the stages push. Free of Unity |
+| `src/Engineer/Planner/RoutePlanner.cs` | the delta-v of the way from one point to another. Free of Unity |
+| `src/Engineer/Planner/RouteSteps.cs` | the steps between the destinations, from who flies to each. Free of Unity |
+| `src/Engineer/Planner/StageBudget.cs` | which stage pays for which step, on the mass the stages push, and the lander refilled from the rest. Free of Unity |
 | `src/Engineer/Planner/PlannerBodies.cs` | the bodies of the loaded system, read from `FlightGlobals.Bodies` |
 | `src/Engineer/Planner/PlannerState.cs` | one vessel's plan, and its file |
 | `src/Engineer/Planner/PlannerView.cs` | the plan: loading, saving, working it out, the choices the rows make, the colours on the vessel |
@@ -26,10 +27,13 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 
 The planner uses no text to explain itself. From the top:
 
-* The route is a line of stops with a bar for each leg. The bar's length is the leg's
-  delta-v, on one scale for all legs, and its colours are the stages that pay for it. A
-  bar is a row of `DialogGUIImage`s whose widths and colours `SegmentBar` sets after they
-  are created.
+* The route is a line of stops. Under each stop after the first, with a lander set, the
+  choice of who flies there. Between two stops, a row for each step with who flies it
+  and a bar: its length the step's delta-v, on one scale for all steps, its colours the
+  stages that pay for it. A bar is a row of `DialogGUIImage`s whose widths and colours
+  `SegmentBar` sets after they are created. Under a step, the choices it offers, and a
+  line for each problem that blocks it (`PlannerView.StepWarnings`), up to three,
+  in red, shown only while there is one.
 * One bar sums up the route, with the margin and the plane changes under it.
 * The fuel plan is a table of stages by legs. Its columns share the room the stage and
   left columns leave, over the legs there are (`Sizer`), so the table fills the panel's width;
@@ -37,8 +41,11 @@ The planner uses no text to explain itself. From the top:
   the stage gives to the leg, in the stage's colour. A pin is a symbol in the cell's corner
   (`IconMark`).
 * The details of the selected leg or stage close the panel, one line to a row of a fixed
-  height. A label of several lines whose text changes is not given its height by KSP's
-  layout, and ran over the rows below it.
+  height. A leg's details list each of its steps with its burns and the stages that pay
+  for it, each with its TWR: the thrust in vacuum over the weight it pushes, at the
+  surface gravity of the body the step starts from where it lifts off, of the one it
+  goes to otherwise. A label of several lines whose text changes is not given its
+  height by KSP's layout, and ran over the rows below it.
 
 Choices are buttons of KSP's skin whose text is lit green while their option is chosen.
 The skin's pressed state of a toggle button reads the other way round, so it is not
@@ -70,8 +77,9 @@ left it standing.
 The rows are laid out all at once, and the ones the plan does not need hide after. The scroll
 list's content is therefore held at its top edge, so that it shrinks from the bottom. The
 planner has room for 9 stops, so eight legs side by side in the fuel plan within the crew
-panel's width, and 30 stages. It is worked out again four times a second while it is open. The
-two free-of-Unity parts have unit tests in `tests/ReDefinition.Tests/PlannerTests.cs`.
+panel's width, three steps per leg, and 30 stages. It is worked out again four times a second
+while it is open. The free-of-Unity parts have unit tests in
+`tests/ReDefinition.Tests/PlannerTests.cs`.
 
 ## Where the bodies come from
 
@@ -88,9 +96,32 @@ terrain, it is a twentieth of its radius plus 5 km. The altitude is kept inside 
 sphere of influence and rounded up to whole kilometres. The first read writes every
 body's low orbit to `KSP.log`, in a line that starts with `Planner low orbits:`.
 
-## How a leg's delta-v is worked out
+## How the route becomes steps
 
-A leg goes from one stop to the next. `RoutePlanner.LegOf` adds its burns:
+The player sets for each stop who flies there, the whole vessel or its lander
+(`RouteStop.Vehicle`). `RouteSteps.Build` walks the stops and keeps where the rest and
+the lander are. Between two stops it puts up to three steps, in this order (`StepRole`):
+
+| Step | Comes where | Flown as |
+|---|---|---|
+| `Return` | the lander is away, and the next stop is the whole vessel's, or the lander's on another body | `Lander`, from where the lander is to the rest, with 50 m/s for the rendezvous and docking where the rest is in orbit |
+| `Approach` | the next stop is a landing of the lander on a body the rest is not in orbit of | `Whole`, to a low orbit of that body; for a landing on parachutes, straight into its air (`StopKind.Entry`), and the rest is left there |
+| `Main` | always | `Whole` to a stop of the whole vessel, `WithoutLander` once the lander stayed behind, `Lander` to a stop of the lander |
+
+A lander already on the stop's body hops there alone. Three choices of a stop change
+its steps: `LanderStays` leaves the lander where it is and lets the rest fly on;
+`Refuel` fills the lander up from the rest once it has docked; `OrbitFirst` brakes into
+the orbit instead of going straight into the air. A step that cannot be flown carries a
+`Problem`: the lander was left behind, or the rest went into the air.
+
+Without a lander, every step is a `Main` step of the whole vessel. The fuel plan's
+columns stay the legs between two stops; a pin on a leg is set on its steps
+(`PlannerView.StepPins`): a stage of the lander on the lander's steps, a stage of the
+rest on the others, and on a leg without a step of the lander on all of them.
+
+## How a step's delta-v is worked out
+
+`RoutePlanner.LegOf` adds the burns from one point to the next:
 
 | Burn | Worked out as |
 |---|---|
@@ -100,6 +131,7 @@ A leg goes from one stop to the next. `RoutePlanner.LegOf` adds its burns:
 | landing | the launch without the atmosphere's share. With parachutes, 0 on air of 0.2 atm or more, and a share of 30 % of the orbital speed that falls to 0 at 0.2 atm |
 | aerobraking | 3 % of the circular speed at the arrival orbit, for raising the periapsis out of the air |
 | plane change | 2 × v × sin(Δi / 2), with v the slower of the transfer's two ends. Δi is the tilt between the two orbits around the common parent. Between a body and its own moon, it is the moon's tilt |
+| into the air | from another body, the transfer without a capture; from an orbit of the body, the burn down to half the atmosphere's depth. The landing from there is the landing's share alone |
 
 The launch figure is fitted, not simulated. The factors come from the stock system's
 known launch figures: Kerbin 3,400 m/s, Duna 1,450, Eve 8,000, Laythe 2,900, the Mun
@@ -114,7 +146,7 @@ at the far end is the same burn the other way round. For the stock system this g
 Kerbin to the Mun as 856 + 310 m/s, and Kerbin to Duna as 1,072 + 616 m/s. That matches
 the community delta-v maps **[meas]**.
 
-## How the stages pay for the legs
+## How the stages pay for the steps
 
 `StageBudget.Allocate` takes each stage from KSP's delta-v simulation: its start mass,
 its end mass and its delta-v in vacuum (`DeltaVStageInfo.startMass`, `endMass`,
@@ -126,7 +158,7 @@ its end mass and its delta-v in vacuum (`DeltaVStageInfo.startMass`, `endMass`,
 | exhaust velocity | delta-v ÷ ln(start mass ÷ end mass), which is Tsiolkovsky's equation solved for it |
 | mass dropped before the next stage | start mass less propellant less the next stage's start mass |
 
-It then walks the route leg by leg and carries the vessel's mass along. For each burn,
+It then walks the steps one by one and carries the vessel's mass along. For each burn,
 the propellant a stage spends is the mass it pushes × (1 − e^(−Δv ÷ exhaust velocity)).
 A stage burns until its propellant is gone. What it has left after one leg goes on into
 the next. When a stage is empty, the next one fires, and the mass KSP drops with it
@@ -183,18 +215,17 @@ stage of the rest is not dropped when it runs empty, because the lander returns 
 It goes when the whole vessel starts to burn the lander's stages and no leg of the
 lander alone is ahead. KSP's own simulation drops it at that point.
 
-Each leg is flown in one of three ways (`LegMode`):
+Each step is flown in one of three ways (`LegMode`):
 
 | Mode | Stages that burn | Mass they push |
 |---|---|---|
 | `Whole` | the rest first, then the lander's, unless a pinned stage of the rest holds them back | everything still attached |
 | `Lander` | the lander's | the lander alone |
-| `WithoutLander` | the rest's | the rest alone. The lander stays behind with what it holds, and no later leg has it |
+| `WithoutLander` | the rest's | the rest alone. The lander stays behind with what it holds, and no later step has it |
 
-`RoutePlanner.Meetings` checks that the route fits the modes. The rest waits at the
-stop where the lander left it. The next leg the rest flies has to start at that stop.
-It counts as the same stop if it is the same body and kind, and an orbit's altitude is
-within 10 % or 1 km.
+After a step marked for it, the lander is refilled (`Refuelled`): each of its stages
+still attached up to the propellant it held at the start, taken from the rest's stages
+in KSP's order, the one burning first. The mass moves from the rest to the lander.
 
 ## Where the plans are kept
 
@@ -214,26 +245,25 @@ PLAN
         kind = Surface
         altitude = 0
         useAtmosphere = False
+        vehicle = Ship
+        landerStays = False
+        refuel = False
+        orbitFirst = False
     }
     PIN
     {
         stage = 3
         leg = 2
     }
-    MODE
-    {
-        leg = 2
-        mode = Lander
-    }
 }
 ```
 
 Bodies are kept by the name the game knows them by (`CelestialBody.bodyName`), which
 does not change with the language. If a body of the plan is not in the loaded system,
-its stop is left out. The pins and the modes then go too, because the legs are not the
-same. A stop that is removed takes the pins and the mode of the legs into it and out of
-it along. The vessel's name is kept escaped (`Uri.EscapeDataString`), because a
-config file reads `//` as a comment. If there are 200 plans, the oldest goes.
+its stop is left out. The pins then go too, because the legs are not the same. A stop
+that is removed takes the pins of the legs into it and out of it along. The vessel's
+name is kept escaped (`Uri.EscapeDataString`), because a config file reads `//` as a
+comment. If there are 200 plans, the oldest goes.
 
 A change is written 1.5 seconds after the last one, when the planner closes, and when
 the editor closes. When KSP loads a vessel or starts a new one (`GameEvents.onEditorLoad`,

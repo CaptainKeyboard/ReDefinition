@@ -32,10 +32,22 @@ namespace ReDefinition.Engineer
         }
     }
 
+    // Entry is no destination the player picks: the vessel on its way down into a
+    // body's air, with no orbit, where the rest of it is left before a lander
+    // lands with parachutes (RouteSteps).
     internal enum StopKind
     {
         Surface,
         Orbit,
+        Entry,
+    }
+
+    // Who flies to a destination: the whole vessel, or the lander, the rest
+    // waiting where it is (RouteSteps).
+    internal enum Vehicle
+    {
+        Ship,
+        Lander,
     }
 
     // One point of the route: a body, on its surface or in a circular orbit.
@@ -48,6 +60,14 @@ namespace ReDefinition.Engineer
         // Arriving here uses the body's atmosphere: aerobraking into the orbit, or
         // parachutes and heat shield for a landing.
         public bool UseAtmosphere;
+        public Vehicle Vehicle = Vehicle.Ship;
+        // For the steps before this destination (RouteSteps): the lander, away,
+        // does not come back to the rest; it comes back and is refilled from the
+        // rest's tanks; the vessel brakes into an orbit before the lander lands
+        // with parachutes, rather than going straight down into the air.
+        public bool LanderStays;
+        public bool Refuel;
+        public bool OrbitFirst;
 
         public RouteStop Copy()
         {
@@ -129,6 +149,21 @@ namespace ReDefinition.Engineer
 
             double arriveRadius = OrbitRadius(end, to);
 
+            // On the way down into the air: the landing is all that is left.
+            if (from.Kind == StopKind.Entry && from.Body == to.Body)
+            {
+                if (to.Kind == StopKind.Surface) leg.Add("Landing", Landing(end, to.UseAtmosphere));
+                return leg;
+            }
+            if (to.Kind == StopKind.Entry && from.Body == to.Body)
+            {
+                // From an orbit down to a periapsis in the air.
+                double deorbit, unused;
+                Hohmann(start.Mu, departRadius, end.Radius + end.AtmosphereDepth * AerobrakeDepth, out deorbit, out unused);
+                leg.Add("Deorbit into the air", deorbit);
+                return leg;
+            }
+
             if (from.Body == to.Body)
             {
                 if (from.Kind == StopKind.Surface && to.Kind == StopKind.Surface)
@@ -176,7 +211,11 @@ namespace ReDefinition.Engineer
                 leg.Add("Transfer burn", Leave(bodies, up, startChild, from.Body, departRadius,
                     Math.Abs(departSpeed - Circular(parent.Mu, inner))));
 
-            if (endChild < 0)
+            if (to.Kind == StopKind.Entry)
+            {
+                // Straight into the air: nothing to capture.
+            }
+            else if (endChild < 0)
             {
                 double capture = Math.Abs(Circular(parent.Mu, outer) - arriveSpeed);
                 leg.Add(to.UseAtmosphere && end.HasAtmosphere ? "Aerobraking, then circularise" : "Capture into orbit",
@@ -275,7 +314,7 @@ namespace ReDefinition.Engineer
 
         private static double OrbitRadius(PlannerBody body, RouteStop stop)
         {
-            double altitude = stop.Kind == StopKind.Surface ? body.LowOrbitAltitude : Math.Max(stop.Altitude, 0.0);
+            double altitude = stop.Kind != StopKind.Orbit ? body.LowOrbitAltitude : Math.Max(stop.Altitude, 0.0);
             return body.Radius + altitude;
         }
 
@@ -300,39 +339,6 @@ namespace ReDefinition.Engineer
         {
             int at = chain.IndexOf(ancestor);
             return at > 0 ? chain[at - 1] : -1;
-        }
-
-        // Where the vessel carries a lander: for each leg, the stop at which the
-        // rest of the vessel waits when that leg needs it there and it is not,
-        // -1 where the leg is fine. The rest waits where the lander left it; a
-        // leg the whole vessel flies has to start there, and so does a leg
-        // without the lander.
-        internal static int[] Meetings(IList<RouteStop> stops, IList<LegMode> modes)
-        {
-            int legs = Math.Max(0, stops.Count - 1);
-            int[] meetings = new int[legs];
-            int waiting = -1;
-            bool gone = false;
-            for (int leg = 0; leg < legs; leg++)
-            {
-                meetings[leg] = -1;
-                LegMode mode = modes != null && leg < modes.Count ? modes[leg] : LegMode.Whole;
-                if (mode == LegMode.Lander)
-                {
-                    if (waiting < 0 && !gone) waiting = leg;
-                    continue;
-                }
-                if (waiting >= 0 && !gone && !SamePlace(stops[waiting], stops[leg])) meetings[leg] = waiting;
-                waiting = -1;
-                if (mode == LegMode.WithoutLander) gone = true;
-            }
-            return meetings;
-        }
-
-        private static bool SamePlace(RouteStop a, RouteStop b)
-        {
-            if (a.Body != b.Body || a.Kind != b.Kind) return false;
-            return a.Kind == StopKind.Surface || Math.Abs(a.Altitude - b.Altitude) <= Math.Max(1000.0, a.Altitude * 0.1);
         }
 
         internal static string Km(double metres)

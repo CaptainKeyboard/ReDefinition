@@ -42,7 +42,11 @@ namespace ReDefinition.Engineer
     // dropped with what they still hold as it fires. A leg without pins burns in
     // KSP's order and stops before a stage pinned to a later leg, since KSP
     // cannot fire what comes after it either. A pinned stage already staged away
-    // when its leg comes is reported as unreachable. Free of Unity, tested.
+    // when its leg comes is reported as unreachable.
+    //
+    // After a leg marked for it, the lander, docked again, is refilled from the
+    // rest: each of its stages still attached up to what it held at the start, from
+    // the rest's stages in KSP's order, the one burning first. Free of Unity, tested.
     internal static class StageBudget
     {
         internal sealed class StageUse
@@ -67,6 +71,8 @@ namespace ReDefinition.Engineer
             public readonly HashSet<int> LeftBehind = new HashSet<int>();
             // Pins whose stage is gone when their leg comes, as stage and leg.
             public readonly List<KeyValuePair<int, int>> Unreachable = new List<KeyValuePair<int, int>>();
+            // Per leg: the propellant moved into the lander after it, in tonnes.
+            public double[] Refuelled;
 
             public double TotalShort
             {
@@ -95,10 +101,12 @@ namespace ReDefinition.Engineer
         // `pins`: stage number to the legs it is pinned to; `lander`: the
         // highest stage of the lander, -1 for none; `modes`: who flies each leg,
         // Whole where it is missing.
+        // `refuelAfter`: per leg, whether the lander is refilled once it is over.
         internal static Result Allocate(IList<BudgetStage> stages, IList<double> legs, double margin,
-                                        IDictionary<int, HashSet<int>> pins, int lander, IList<LegMode> modes)
+                                        IDictionary<int, HashSet<int>> pins, int lander, IList<LegMode> modes,
+                                        IList<bool> refuelAfter = null)
         {
-            return new Run(stages, pins, lander).Allocate(legs, margin, modes);
+            return new Run(stages, pins, lander).Allocate(legs, margin, modes, refuelAfter);
         }
 
         private sealed class Run
@@ -106,6 +114,7 @@ namespace ReDefinition.Engineer
             private readonly List<BudgetStage> order;
             private readonly IDictionary<int, HashSet<int>> pins;
             private readonly double[] fuel;
+            private readonly double[] capacity;
             private readonly double[] exhaust;
             private readonly double[] drop;
             // The main group is [0, firstLander), the lander [firstLander, count).
@@ -127,6 +136,7 @@ namespace ReDefinition.Engineer
                 this.pins = pins;
                 int count = order.Count;
                 fuel = new double[count];
+                capacity = new double[count];
                 exhaust = new double[count];
                 drop = new double[count];
                 for (int i = 0; i < count; i++)
@@ -136,6 +146,7 @@ namespace ReDefinition.Engineer
                     if (order[i].DeltaV > 0.5 && end > 0.0 && start > end)
                     {
                         fuel[i] = start - end;
+                        capacity[i] = fuel[i];
                         exhaust[i] = order[i].DeltaV / Math.Log(start / end);
                     }
                     // What goes when the next stage fires: all but the propellant
@@ -157,9 +168,12 @@ namespace ReDefinition.Engineer
                 landerAt = firstLander;
             }
 
-            internal Result Allocate(IList<double> legs, double margin, IList<LegMode> modes)
+            internal Result Allocate(IList<double> legs, double margin, IList<LegMode> modes, IList<bool> refuelAfter)
             {
-                result = new Result { Needed = new double[legs.Count], Short = new double[legs.Count] };
+                result = new Result
+                {
+                    Needed = new double[legs.Count], Short = new double[legs.Count], Refuelled = new double[legs.Count],
+                };
                 int lastAlone = -1;
                 for (int leg = 0; leg < legs.Count; leg++)
                     if (ModeOf(modes, leg) == LegMode.Lander) lastAlone = leg;
@@ -213,9 +227,34 @@ namespace ReDefinition.Engineer
                         }
                     }
                     result.Short[leg] = need > 1e-6 ? need : 0.0;
+                    if (refuelAfter != null && leg < refuelAfter.Count && refuelAfter[leg]) result.Refuelled[leg] = Refuel();
                 }
                 Finish();
                 return result;
+            }
+
+            // The lander, docked, filled up from the rest's tanks, as far as they
+            // hold it.
+            private double Refuel()
+            {
+                if (!hasLander || landerGone) return 0.0;
+                double moved = 0.0;
+                int from = mainAt;
+                for (int i = landerAt; i < order.Count; i++)
+                {
+                    double wanted = capacity[i] - fuel[i];
+                    while (wanted > Tiny && from < firstLander)
+                    {
+                        double take = Math.Min(wanted, fuel[from]);
+                        fuel[from] -= take;
+                        fuel[i] += take;
+                        wanted -= take;
+                        moved += take;
+                        if (fuel[from] <= Tiny) from++;
+                    }
+                }
+                landerMass += moved;
+                return moved;
             }
 
             private LegMode ModeOf(IList<LegMode> modes, int leg)

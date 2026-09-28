@@ -7,8 +7,9 @@ using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // One vessel's plan: its route, the margin, whether plane changes count, the
-    // stages pinned to legs, the lander and who flies each leg. Kept per vessel name in
+    // One vessel's plan: its route, with who flies to each destination and the
+    // choices for the steps before it, the margin, whether plane changes count, the
+    // stages pinned to legs and the lander. Kept per vessel name in
     // GameData/ReDefinition/PluginData/planner.cfg, so that a craft brings its
     // plan back when it is loaded into the editor again.
     internal sealed class PlannerState
@@ -41,7 +42,7 @@ namespace ReDefinition.Engineer
 
         // The legs after a removed stop move up by one. The leg into it and the
         // leg out of it become one leg: it keeps the pins of neither, since it
-        // costs what neither did, and who flies it as the leg out of it.
+        // costs what neither did.
         internal void RemoveStop(int index)
         {
             Dictionary<int, HashSet<int>> pins = new Dictionary<int, HashSet<int>>();
@@ -57,30 +58,10 @@ namespace ReDefinition.Engineer
             }
             Pins.Clear();
             foreach (KeyValuePair<int, HashSet<int>> pair in pins) Pins[pair.Key] = pair.Value;
-
-            Dictionary<int, LegMode> modes = new Dictionary<int, LegMode>();
-            foreach (KeyValuePair<int, LegMode> pair in Modes)
-            {
-                if (pair.Key == index - 1 || (index == 0 && pair.Key == 0)) continue;
-                modes[pair.Key >= index ? pair.Key - 1 : pair.Key] = pair.Value;
-            }
-            Modes.Clear();
-            foreach (KeyValuePair<int, LegMode> pair in modes) Modes[pair.Key] = pair.Value;
         }
+
         // The highest stage of the lander, -1 for none (StageBudget).
         public int Lander = -1;
-        public readonly Dictionary<int, LegMode> Modes = new Dictionary<int, LegMode>();
-
-        internal List<LegMode> ModeList(int legs)
-        {
-            List<LegMode> list = new List<LegMode>();
-            for (int leg = 0; leg < legs; leg++)
-            {
-                LegMode mode;
-                list.Add(Modes.TryGetValue(leg, out mode) ? mode : LegMode.Whole);
-            }
-            return list;
-        }
 
         private const string FileName = "planner.cfg";
         private const int MaxPlans = 200;
@@ -183,6 +164,10 @@ namespace ReDefinition.Engineer
                 stopNode.AddValue("kind", stop.Kind);
                 stopNode.AddValue("altitude", stop.Altitude.ToString("0", CultureInfo.InvariantCulture));
                 stopNode.AddValue("useAtmosphere", stop.UseAtmosphere);
+                stopNode.AddValue("vehicle", stop.Vehicle);
+                stopNode.AddValue("landerStays", stop.LanderStays);
+                stopNode.AddValue("refuel", stop.Refuel);
+                stopNode.AddValue("orbitFirst", stop.OrbitFirst);
             }
             foreach (KeyValuePair<int, HashSet<int>> pair in Pins)
                 foreach (int leg in pair.Value)
@@ -191,13 +176,6 @@ namespace ReDefinition.Engineer
                     pin.AddValue("stage", pair.Key);
                     pin.AddValue("leg", leg);
                 }
-            foreach (KeyValuePair<int, LegMode> pair in Modes)
-            {
-                if (pair.Value == LegMode.Whole) continue;
-                ConfigNode mode = node.AddNode("MODE");
-                mode.AddValue("leg", pair.Key);
-                mode.AddValue("mode", pair.Value);
-            }
             return node;
         }
 
@@ -223,12 +201,11 @@ namespace ReDefinition.Engineer
                     continue;
                 }
                 RouteStop stop = new RouteStop { Body = body };
-                StopKind kind;
-                if (Enum.IsDefined(typeof(StopKind), stopNode.GetValue("kind") ?? ""))
-                {
-                    kind = (StopKind)Enum.Parse(typeof(StopKind), stopNode.GetValue("kind"));
-                    stop.Kind = kind;
-                }
+                string kind = stopNode.GetValue("kind") ?? "";
+                if (Enum.IsDefined(typeof(StopKind), kind) && kind != StopKind.Entry.ToString())
+                    stop.Kind = (StopKind)Enum.Parse(typeof(StopKind), kind);
+                string vehicle = stopNode.GetValue("vehicle") ?? "";
+                if (Enum.IsDefined(typeof(Vehicle), vehicle)) stop.Vehicle = (Vehicle)Enum.Parse(typeof(Vehicle), vehicle);
                 double altitude;
                 stop.Altitude = double.TryParse(stopNode.GetValue("altitude"), NumberStyles.Float, CultureInfo.InvariantCulture,
                     out altitude)
@@ -236,23 +213,19 @@ namespace ReDefinition.Engineer
                     : bodies.Bodies[body].LowOrbitAltitude;
                 bool useAtmosphere;
                 if (bool.TryParse(stopNode.GetValue("useAtmosphere"), out useAtmosphere)) stop.UseAtmosphere = useAtmosphere;
+                bool flag;
+                if (bool.TryParse(stopNode.GetValue("landerStays"), out flag)) stop.LanderStays = flag;
+                if (bool.TryParse(stopNode.GetValue("refuel"), out flag)) stop.Refuel = flag;
+                if (bool.TryParse(stopNode.GetValue("orbitFirst"), out flag)) stop.OrbitFirst = flag;
                 state.Stops.Add(stop);
             }
-            // With a stop gone, the legs are not the ones the stages were pinned
-            // to and the modes set for.
+            // With a stop gone, the legs are not the ones the stages were pinned to.
             if (skipped) return state;
             foreach (ConfigNode pin in node.GetNodes("PIN"))
             {
                 int stage, leg;
                 if (int.TryParse(pin.GetValue("stage"), out stage) && int.TryParse(pin.GetValue("leg"), out leg) && leg >= 0)
                     state.Pin(stage, leg, true);
-            }
-            foreach (ConfigNode modeNode in node.GetNodes("MODE"))
-            {
-                int leg;
-                string mode = modeNode.GetValue("mode") ?? "";
-                if (int.TryParse(modeNode.GetValue("leg"), out leg) && Enum.IsDefined(typeof(LegMode), mode))
-                    state.Modes[leg] = (LegMode)Enum.Parse(typeof(LegMode), mode);
             }
             return state;
         }

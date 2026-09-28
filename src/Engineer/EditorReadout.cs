@@ -36,6 +36,11 @@ namespace ReDefinition.Engineer
         // propellant it burns (PartsBurning).
         public Dictionary<int, List<Part>> BurningParts = new Dictionary<int, List<Part>>();
         public List<ResourceLine> Resources = new List<ResourceLine>();
+        // For each parachute and each heat shield, the stage KSP decouples it at
+        // (DeltaVPartInfo.decoupleStage, -1 for never): attached while a stage burns
+        // where this is no higher than that stage's number.
+        public List<int> ParachuteStages = new List<int>();
+        public List<int> HeatShieldStages = new List<int>();
         public RcsLine Rcs;
 
         public double TotalDeltaV;
@@ -78,6 +83,15 @@ namespace ReDefinition.Engineer
                 readout.BurningParts[info.stage] = PartsBurning(info, partInfos);
             }
             readout.Stages = StageTable.Complete(rows);
+            if (partInfos != null)
+                foreach (DeltaVPartInfo partInfo in partInfos)
+                {
+                    if (partInfo == null || partInfo.part == null) continue;
+                    // RealChute's parachutes are a module of their own.
+                    if (partInfo.part.HasModuleImplementing<ModuleParachute>() || partInfo.part.Modules.Contains("RealChuteModule"))
+                        readout.ParachuteStages.Add(partInfo.decoupleStage);
+                    if (partInfo.part.HasModuleImplementing<ModuleAblator>()) readout.HeatShieldStages.Add(partInfo.decoupleStage);
+                }
             readout.TotalDeltaV = StageTable.TotalDeltaV(readout.Stages);
             readout.Rcs = RcsOf(readout.Stages, partInfos);
             return readout;

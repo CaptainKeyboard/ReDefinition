@@ -4,10 +4,11 @@ using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // The planner (docs/player/planner.md): a route from stop to stop, A -> B ->
-    // C, what each leg costs, and which of the vessel's stages pays for it, by
-    // itself or as the player pins them. This half holds the plan and works it
-    // out; the rows are in PlannerView.Rows.cs.
+    // The planner (docs/player/planner.md): a route from destination to
+    // destination, A -> B -> C, who flies to each, the steps that follow from it
+    // between them (RouteSteps), what each step costs, and which of the vessel's
+    // stages pays for it, by itself or as the player pins them to a leg. This half
+    // holds the plan and works it out; the rows are in PlannerView.Rows.cs.
     internal sealed partial class PlannerView
     {
         private const float Interval = 0.25f;
@@ -27,19 +28,24 @@ namespace ReDefinition.Engineer
         private float nextEvaluation;
         private float saveAt = -1f;
 
-        // What the plan comes to, worked out a few times a second.
-        private List<Leg> legs = new List<Leg>();
+        // What the plan comes to, worked out a few times a second: the steps, and
+        // for each leg (the way from one destination to the next) and role the step
+        // there, -1 where there is none.
+        private List<RouteStep> steps = new List<RouteStep>();
+        private readonly int[,] slots = new int[MaxStops, 3];
+        private List<string>[] warnings = new List<string>[0];
         private StageBudget.Result budget;
         // The stages with delta-v, in firing order, and all of them.
         private List<StageRow> stages = new List<StageRow>();
         private List<StageRow> allStages = new List<StageRow>();
-        private int[] meetings = new int[0];
         // The lander as far as the vessel has that stage now. The plan keeps
         // what the player set, for a stage that is back after the vessel was
         // taken apart; so it does with the pins.
         private int lander = -1;
         private List<int> landerChoices = new List<int>();
         private Dictionary<int, List<Part>> burningParts = new Dictionary<int, List<Part>>();
+        private List<int> parachuteStages = new List<int>();
+        private List<int> heatShieldStages = new List<int>();
         // The selected leg's or stage's details, written once per evaluation
         // and on each selection.
         private string detailTitle = "";
@@ -143,35 +149,38 @@ namespace ReDefinition.Engineer
             allStages.Sort((a, b) => b.Number.CompareTo(a.Number));
             stages = allStages.FindAll(row => row.DeltaVVacuum > 0.5);
 
-            legs = RoutePlanner.Legs(bodies.Bodies, state.Stops, state.PlaneChanges);
-            if (selectedLeg >= legs.Count) selectedLeg = -1;
+            // A lander that is not a stage of the vessel now counts for nothing.
+            landerChoices = LanderChoices();
+            lander = state.Lander >= 0 && landerChoices.Contains(state.Lander) ? state.Lander : -1;
+            steps = RouteSteps.Build(bodies.Bodies, state.Stops, HasLander(), state.PlaneChanges);
+            for (int leg = 0; leg < MaxStops; leg++)
+                for (int role = 0; role < 3; role++) slots[leg, role] = -1;
+            for (int i = 0; i < steps.Count; i++)
+                if (steps[i].Segment < MaxStops) slots[steps[i].Segment, (int)steps[i].Role] = i;
+            if (selectedLeg >= Legs) selectedLeg = -1;
             if (selectedStage >= 0 && !stages.Exists(row => row.Number == selectedStage)) selectedStage = -1;
+
             List<double> needs = new List<double>();
-            foreach (Leg leg in legs) needs.Add(leg.DeltaV);
+            List<LegMode> modes = new List<LegMode>();
+            List<bool> refuel = new List<bool>();
+            foreach (RouteStep step in steps)
+            {
+                needs.Add(step.Leg.DeltaV);
+                modes.Add(step.Mode);
+                refuel.Add(step.RefuelAfter);
+            }
             List<BudgetStage> available = new List<BudgetStage>();
             foreach (StageRow row in allStages)
                 available.Add(new BudgetStage
                 {
                     Number = row.Number, StartMass = row.StartMass, EndMass = row.EndMass, DeltaV = row.DeltaVVacuum,
                 });
-            // A pin to a stage the vessel does not have now, or to a leg the
-            // route does not have, counts for nothing; nor does a lander that is
-            // not a stage of it.
-            Dictionary<int, HashSet<int>> pins = new Dictionary<int, HashSet<int>>();
-            foreach (KeyValuePair<int, HashSet<int>> pair in state.Pins)
-            {
-                if (!stages.Exists(row => row.Number == pair.Key)) continue;
-                HashSet<int> legsOf = new HashSet<int>();
-                foreach (int leg in pair.Value) if (leg < legs.Count) legsOf.Add(leg);
-                if (legsOf.Count > 0) pins[pair.Key] = legsOf;
-            }
-            landerChoices = LanderChoices();
-            lander = state.Lander >= 0 && landerChoices.Contains(state.Lander) ? state.Lander : -1;
-            List<LegMode> modes = HasLander() ? state.ModeList(legs.Count) : null;
-            budget = StageBudget.Allocate(available, needs, state.Margin, pins, lander, modes);
-            meetings = modes != null ? RoutePlanner.Meetings(state.Stops, modes) : new int[legs.Count];
-            if (modes == null) for (int i = 0; i < meetings.Length; i++) meetings[i] = -1;
+            budget = StageBudget.Allocate(available, needs, state.Margin, StepPins(), lander, modes, refuel);
             burningParts = readout.BurningParts;
+            parachuteStages = readout.ParachuteStages;
+            heatShieldStages = readout.HeatShieldStages;
+            warnings = new List<string>[steps.Count];
+            for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
             RefreshDetail();
             UpdateBars();
             UpdatePins();
@@ -185,7 +194,42 @@ namespace ReDefinition.Engineer
 
         private bool Worked()
         {
-            return Ready() && budget != null;
+            return Ready() && budget != null && budget.Needed.Length == steps.Count;
+        }
+
+        // The ways from one destination to the next: the fuel plan's columns.
+        private int Legs
+        {
+            get { return Ready() ? state.Stops.Count - 1 : 0; }
+        }
+
+        private int Slot(int leg, StepRole role)
+        {
+            return Worked() && leg >= 0 && leg < MaxStops ? slots[leg, (int)role] : -1;
+        }
+
+        // The pins, set on a leg, on its steps: the lander's stages on the lander's
+        // steps, the rest's on the others; on a leg the lander has no step of, every
+        // pinned stage on it. A pin to a stage the vessel does not have now, or to a
+        // leg the route does not have, counts for nothing.
+        private Dictionary<int, HashSet<int>> StepPins()
+        {
+            Dictionary<int, HashSet<int>> pins = new Dictionary<int, HashSet<int>>();
+            foreach (KeyValuePair<int, HashSet<int>> pair in state.Pins)
+            {
+                if (!stages.Exists(row => row.Number == pair.Key)) continue;
+                bool ofLander = IsLanderStage(pair.Key);
+                HashSet<int> onSteps = new HashSet<int>();
+                for (int i = 0; i < steps.Count; i++)
+                {
+                    RouteStep step = steps[i];
+                    if (!pair.Value.Contains(step.Segment)) continue;
+                    bool landerFlies = steps.Exists(other => other.Segment == step.Segment && other.Mode == LegMode.Lander);
+                    if (step.Mode == LegMode.Lander ? ofLander : !landerFlies || !ofLander) onSteps.Add(i);
+                }
+                if (onSteps.Count > 0) pins[pair.Key] = onSteps;
+            }
+            return pins;
         }
 
         private static string VesselName()
@@ -314,7 +358,7 @@ namespace ReDefinition.Engineer
 
         private void SelectLeg(int leg)
         {
-            if (!Ready() || leg >= legs.Count) return;
+            if (!Ready() || leg >= Legs) return;
             selectedLeg = selectedLeg == leg ? -1 : leg;
             selectedStage = -1;
             RefreshDetail();
@@ -339,8 +383,8 @@ namespace ReDefinition.Engineer
             {
                 int number = stages[i].Number;
                 if (selectedStage >= 0 && number != selectedStage) continue;
-                if (selectedStage < 0 && selectedLeg >= 0 && budget != null
-                    && !budget.Uses.Exists(use => use.Stage == number && use.Leg == selectedLeg)) continue;
+                if (selectedStage < 0 && selectedLeg >= 0 && Worked()
+                    && !budget.Uses.Exists(use => use.Stage == number && steps[use.Leg].Segment == selectedLeg)) continue;
                 List<Part> list;
                 if (!burningParts.TryGetValue(number, out list)) continue;
                 Color color = PlannerColors.Vivid(PlannerColors.Stage(i));
@@ -353,7 +397,7 @@ namespace ReDefinition.Engineer
         // The player pins a stage to a leg, or takes the pin away.
         private void TogglePin(int stageIndex, int leg)
         {
-            if (!Ready() || stageIndex >= stages.Count || leg >= legs.Count) return;
+            if (!Ready() || stageIndex >= stages.Count || leg >= Legs) return;
             int number = stages[stageIndex].Number;
             state.Pin(number, leg, !state.IsPinned(number, leg));
             Changed();
@@ -364,43 +408,88 @@ namespace ReDefinition.Engineer
             return Ready() && stageIndex < stages.Count && state.IsPinned(stages[stageIndex].Number, leg);
         }
 
-        // A launch or a powered landing needs the thrust to lift the vessel at
-        // that body: the first stage the leg burns, at its surface gravity, and
-        // the last one for the landing.
-        private List<string> ThrustWarnings(int leg)
+        // What stands in the way of a step, for a line under it; empty where
+        // nothing does.
+        private List<string> StepWarnings(int index)
         {
-            List<string> warnings = new List<string>();
-            if (leg >= legs.Count) return warnings;
-            RouteStop from = state.Stops[leg];
-            RouteStop to = state.Stops[leg + 1];
-            bool launch = from.Kind == StopKind.Surface;
-            bool landing = to.Kind == StopKind.Surface && !(to.UseAtmosphere && bodies.Bodies[to.Body].HasAtmosphere
-                                                             && bodies.Bodies[to.Body].SurfacePressure >= 0.2);
-            if (!launch && !landing) return warnings;
+            List<string> list = new List<string>();
+            RouteStep step = steps[index];
+            if (step.Problem != null) list.Add(step.Problem);
+            if (budget.Short[index] > 0.5) list.Add("Short of " + EngineerFormat.Speed(budget.Short[index]));
+            foreach (KeyValuePair<int, int> pin in budget.Unreachable)
+                if (pin.Value == index) list.Add("S" + pin.Key + " has nothing left here");
+
+            // A launch or a powered landing needs the thrust to lift the vessel at
+            // that body: the first stage the step burns, and the last one for the
+            // landing.
+            bool launch = step.From.Kind == StopKind.Surface;
+            bool landing = step.To.Kind == StopKind.Surface && !Chutes(step.To);
             StageBudget.StageUse first = null;
             StageBudget.StageUse lastUsed = null;
             foreach (StageBudget.StageUse use in budget.Uses)
             {
-                if (use.Leg != leg) continue;
+                if (use.Leg != index) continue;
                 if (first == null) first = use;
                 lastUsed = use;
             }
-            if (launch && first != null) AddTwrWarning(warnings, first, from.Body, true);
-            if (landing && lastUsed != null) AddTwrWarning(warnings, lastUsed, to.Body, false);
-            return warnings;
+            if (launch && first != null && Twr(first, step.From.Body) < (bodies.Bodies[step.From.Body].HasAtmosphere ? 1.2 : 1.0))
+                list.Add("S" + first.Stage + " cannot lift off " + bodies.Bodies[step.From.Body].Name + ", TWR "
+                         + EngineerFormat.Ratio(Twr(first, step.From.Body)));
+            if (landing && lastUsed != null && Twr(lastUsed, step.To.Body) < 1.0)
+                list.Add("S" + lastUsed.Stage + " cannot land on " + bodies.Bodies[step.To.Body].Name + ", TWR "
+                         + EngineerFormat.Ratio(Twr(lastUsed, step.To.Body)));
+
+            // Parachutes for a landing on them; a heat shield where it comes down
+            // from another body.
+            if (step.To.Kind == StopKind.Surface && step.To.UseAtmosphere && bodies.Bodies[step.To.Body].HasAtmosphere)
+            {
+                string who = step.Mode == LegMode.Lander ? "the lander" : "the vessel";
+                if (!Carries(parachuteStages, step.Mode)) list.Add("No parachutes on " + who);
+                if (FromAfar(index) && !Carries(heatShieldStages, step.Mode)) list.Add("No heat shield on " + who);
+            }
+            return list;
+        }
+
+        // Parachutes that leave nothing to burn: air thick enough to land on them.
+        private bool Chutes(RouteStop stop)
+        {
+            PlannerBody body = bodies.Bodies[stop.Body];
+            return stop.UseAtmosphere && body.HasAtmosphere && body.SurfacePressure >= 0.2;
+        }
+
+        // The landing comes in from another body: straight, or carried by the rest
+        // just before.
+        private bool FromAfar(int index)
+        {
+            RouteStep step = steps[index];
+            if (step.From.Body != step.To.Body) return true;
+            int approach = slots[step.Segment, (int)StepRole.Approach];
+            return step.Role == StepRole.Main && approach >= 0 && steps[approach].From.Body != steps[approach].To.Body;
+        }
+
+        // A part of that kind on what lands: the lander's where it lands alone, the
+        // rest's once the lander stayed behind, anywhere on the vessel otherwise. The
+        // rest's parts are decoupled above the lander's top stage.
+        private bool Carries(List<int> decoupleStages, LegMode mode)
+        {
+            foreach (int stage in decoupleStages)
+            {
+                if (mode == LegMode.Lander && stage > lander) continue;
+                if (mode == LegMode.WithoutLander && stage <= lander) continue;
+                return true;
+            }
+            return false;
         }
 
         // The thrust in vacuum over the weight the stage pushes as it starts its
-        // part of the leg.
-        private void AddTwrWarning(List<string> warnings, StageBudget.StageUse use, int body, bool launch)
+        // part of the step, at the body's surface.
+        private double Twr(StageBudget.StageUse use, int body)
         {
             StageRow row = stages.Find(s => s.Number == use.Stage);
             PlannerBody planner = bodies.Bodies[body];
             double gravity = planner.Mu / (planner.Radius * planner.Radius);
-            if (row == null || use.Mass <= 0.0 || gravity <= 0.0) return;
-            double twr = row.ThrustVacuum / (use.Mass * gravity);
-            double needed = planner.HasAtmosphere && launch ? 1.2 : 1.0;
-            if (twr < needed) warnings.Add("S" + row.Number + " TWR " + EngineerFormat.Ratio(twr) + " at " + planner.Name);
+            if (row == null || use.Mass <= 0.0 || gravity <= 0.0) return 0.0;
+            return row.ThrustVacuum / (use.Mass * gravity);
         }
 
         // ---------------------------------------------------------------- lander
@@ -457,17 +546,52 @@ namespace ReDefinition.Engineer
             return -1;
         }
 
-        private LegMode Mode(int leg)
+        private Vehicle VehicleOf(int index)
         {
-            LegMode mode;
-            return Ready() && state.Modes.TryGetValue(leg, out mode) ? mode : LegMode.Whole;
+            return Shown(index) ? state.Stops[index].Vehicle : Vehicle.Ship;
         }
 
-        private void SetMode(int leg, LegMode mode)
+        private void SetVehicle(int index, Vehicle vehicle)
         {
-            if (!Ready() || Mode(leg) == mode) return;
-            if (mode == LegMode.Whole) state.Modes.Remove(leg);
-            else state.Modes[leg] = mode;
+            if (!Shown(index) || state.Stops[index].Vehicle == vehicle) return;
+            state.Stops[index].Vehicle = vehicle;
+            Changed();
+        }
+
+        // The choices for the steps before a destination (RouteStop).
+        private bool LanderStays(int index)
+        {
+            return Shown(index) && state.Stops[index].LanderStays;
+        }
+
+        private void SetLanderStays(int index, bool stays)
+        {
+            if (!Shown(index) || state.Stops[index].LanderStays == stays) return;
+            state.Stops[index].LanderStays = stays;
+            Changed();
+        }
+
+        private bool Refuels(int index)
+        {
+            return Shown(index) && state.Stops[index].Refuel;
+        }
+
+        private void ToggleRefuel(int index)
+        {
+            if (!Shown(index)) return;
+            state.Stops[index].Refuel = !state.Stops[index].Refuel;
+            Changed();
+        }
+
+        private bool OrbitFirst(int index)
+        {
+            return Shown(index) && state.Stops[index].OrbitFirst;
+        }
+
+        private void SetOrbitFirst(int index, bool orbit)
+        {
+            if (!Shown(index) || state.Stops[index].OrbitFirst == orbit) return;
+            state.Stops[index].OrbitFirst = orbit;
             Changed();
         }
 
