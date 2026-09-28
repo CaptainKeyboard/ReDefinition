@@ -252,7 +252,9 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index)) return "";
             int body = state.Stops[index].Body;
-            return body >= 0 && body < bodies.Bodies.Count ? bodies.Bodies[body].Name : "<color=" + Problem + ">Destination</color>";
+            if (body >= 0 && body < bodies.Bodies.Count) return bodies.Bodies[body].Name;
+            // Not picked yet: the first destination says what it wants, the others a plain "+".
+            return index == 1 ? "<color=" + Problem + ">Destination</color>" : "+";
         }
 
         private StopKind Kind(int index)
