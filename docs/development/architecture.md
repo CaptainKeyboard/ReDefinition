@@ -335,6 +335,7 @@ Design and measurements: [frame-generation.md](frame-generation.md).
 | `tools/check_bundled_mods.ps1`, `tools/check_profile_parser.ps1`, `tools/check_key_bindings.ps1` | checks against the installed mods and KSP's own `ConfigNode` |
 | `tools/check_docs.ps1` | the rules the pages under `docs/` follow |
 | `tools/port_fsr3_shaders.py`, `tools/audit_ffx_fields.py`, `tools/fetch_amd_runtime.py` | the FSR shaders from FSR3Unity's, the frame generation field audit, AMD's runtime for the package |
+| `tools/craft_stages.py` | the stock crafts' stages worked out offline, for the planner's tests (`StockCrafts.cs`) |
 
 How to build and run all of it: [building-and-testing.md](building-and-testing.md).
 

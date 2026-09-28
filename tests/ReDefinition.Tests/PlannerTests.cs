@@ -13,7 +13,7 @@ namespace ReDefinition.Tests
         private const int Sun = 0, Kerbin = 1, Mun = 2, Minmus = 3, Duna = 4, Eve = 5, Laythe = 6, Tylo = 7;
 
         // The stock bodies, as KSP 1.12.5 defines them.
-        private static List<PlannerBody> Stock()
+        internal static List<PlannerBody> Stock()
         {
             return new List<PlannerBody>
             {
@@ -58,12 +58,12 @@ namespace ReDefinition.Tests
             };
         }
 
-        private static RouteStop Orbit(int body, double altitude)
+        internal static RouteStop Orbit(int body, double altitude)
         {
             return new RouteStop { Body = body, Kind = StopKind.Orbit, Altitude = altitude };
         }
 
-        private static RouteStop Surface(int body, bool atmosphere = false)
+        internal static RouteStop Surface(int body, bool atmosphere = false)
         {
             return new RouteStop { Body = body, Kind = StopKind.Surface, UseAtmosphere = atmosphere };
         }

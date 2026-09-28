@@ -395,6 +395,30 @@ player names first (`RouteStop.RefuelFrom`, `BudgetStep.RefuelFrom`; the list of
 rest's stages that hold fuel then, `Result.Tankers`), then from the rest's stages in KSP's
 order. The mass moves from the rest to it, whatever the propellant.
 
+## Checking the planner against the stock crafts
+
+`tools/craft_stages.py` works out the stages of the stock crafts as KSP's delta-v
+simulation gives them, without the game. It reads the craft files (`Ships/VAB/*.craft`:
+each part's `istg`, links, fuel lines and resources) and the parts as the game loads them
+(`GameData/ModuleManager.ConfigCache`, and `Squad/zDeprecated` for parts old crafts still
+use). A part drops when the first decoupler between it and the root fires. Liquid fuel
+flows through crossfeeding parts and fuel lines, the tanks dropped soonest first; solid
+fuel stays in its part. A stage ends when its engines are dry, or when the engines the
+next stage drops are. Air-breathing engines are left out, and so are the Making History
+parts, which the cache does not hold. For the Kerbal X and the Learstar A1 its figures
+match the game's within 0.2 % **[meas]**.
+
+```
+python tools/craft_stages.py "<KSP folder>" tests/ReDefinition.Tests/StockCrafts.cs "Kerbal X" "Learstar A1" ...
+```
+
+`StockCraftTests` flies each craft through the planner's model as `PlannerView.Evaluate`
+does, with the sections found by themselves and a 10 % margin, and checks it against its
+description: the orbital crafts reach a low Kerbin orbit and lift off at a TWR of 1.2 or
+more, the trainers do not, the AeroEquus reaches the Mun, the PT Munsplorer lands on the
+Mun and on Minmus and comes home, and the Kerbal X does so only without a margin. The
+flights are written to the test log.
+
 ## Where the plans are kept
 
 `PlannerState` keeps one plan per vessel name in
