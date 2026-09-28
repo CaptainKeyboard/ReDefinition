@@ -25,9 +25,9 @@ back when you load the vessel again.
 ## Add the vessel's sections
 
 *Vessel* at the top first shows the vessel as built: its mass, the fuel in it, its delta-v
-in vacuum, its parts and its cost. Below that it lists the vessel's sections: the parts of
-it that fly on their own. They decide who can fly a step. *+* adds one, and the list of
-its parts folds out right after:
+in vacuum. Below that it lists the vessel's sections: the parts of it that fly on their
+own. They decide who can fly a step. *+* adds one, and the list of its parts folds out
+right after:
 
 | Section | Is | Row under it |
 |---|---|---|
@@ -60,6 +60,14 @@ or ends. What you pick is bold and underlined; picking it again gives it back to
 planner. A section the planner added and you removed stays away.
 
 ## Lay out the route
+
+The planner has four parts, each under its own header: *Vessel*, *Route*, *Fuel plan* and
+*Thrust*. At the top of *Route* are two settings:
+
+| Setting | Does |
+|---|---|
+| *Fuel margin* | adds a share to every step, for steering, corrections and a late burn. 10 % is a common choice |
+| *Plane changes* | adds the burn that matches the tilt of the target's orbit, such as 6° for Minmus. Leave it off if you launch into the right plane or correct on the way |
 
 A new vessel starts with two stops: *A* on the surface of Kerbin, *B* in a low orbit
 around it.
@@ -105,15 +113,10 @@ of a step, and which satellite stays at its end.
 
 ## Check the fuel
 
-Under the route, one bar sums up the mission: the stages' colours for what they burn,
-grey for what is left over, red for what is missing. Under it, green with a *+* is what
-is left at the end, orange with a *-* is what is missing. Then come what the route
-needs and what the vessel has.
-
-| Setting | Does |
-|---|---|
-| *Margin* | adds a share to every leg, for steering, corrections and a late burn. 10 % is a common choice |
-| *Plane changes* | adds the burn that matches the tilt of the target's orbit. Leave it off if you launch into the right plane or correct on the way |
+At the bottom of *Route*, one bar sums up the mission: the stages' colours for what they
+burn, grey for what is left over, red for what is missing. Under it, *Left* shows in
+green with a *+* what is left at the end, or in orange with a *-* what is missing.
+*Needed* shows what the route needs and what the vessel has.
 
 ## Read the fuel plan
 

@@ -62,29 +62,71 @@ namespace ReDefinition.Engineer
         {
             altitudeFields.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            rows.Add(Heading("Vessel"));
-            foreach (bool first in new[] { true, false })
-            {
-                bool line = first;
-                DialogGUILabel vesselLine = new DialogGUILabel(() => VesselText(line), width - RowEnd, RowHeight);
-                vesselLine.tooltipText = "The vessel as built: its mass and the fuel in it, its delta-v in vacuum, its parts and its cost.";
-                rows.Add(new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft, vesselLine));
-            }
-            for (int i = 0; i < MaxSections; i++) rows.AddRange(SectionRows(i));
-            rows.Add(AddSectionRow());
-            rows.Add(Heading("Route"));
+
+            List<DialogGUIBase> vessel = new List<DialogGUIBase>();
+            DialogGUILabel vesselLine = new DialogGUILabel(VesselText, width - SectionInset - RowEnd, RowHeight);
+            vesselLine.tooltipText = "The vessel as built: its mass, the fuel in it and its delta-v in vacuum.";
+            vessel.Add(new DialogGUIHorizontalLayout(width, RowHeight + 2f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(SectionInset), vesselLine));
+            for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));
+            vessel.Add(AddSectionRow());
+            rows.AddRange(Section(Heading("Vessel"), vessel, null));
+
+            List<DialogGUIBase> route = new List<DialogGUIBase>();
+            route.Add(SettingsRow());
+            route.Add(new DialogGUISpace(4f));
             for (int i = 0; i < MaxStops; i++)
             {
-                rows.AddRange(StopRows(i));
+                route.AddRange(StopRows(i));
                 foreach (StepRole role in Roles)
-                    rows.AddRange(StepBlock(i, role));
+                    route.AddRange(StepBlock(i, role));
             }
-            rows.Add(AddRow());
+            route.Add(AddRow());
+            route.AddRange(SummaryRows());
+            rows.AddRange(Section(Heading("Route"), route, null));
 
-            rows.AddRange(SummaryRows());
-            rows.AddRange(FuelRows());
-            rows.AddRange(ThrustRows());
+            rows.AddRange(Section(CollapsibleHeading("Fuel plan", () => fuelShown, () => fuelShown = !fuelShown,
+                "Show or hide the delta-v each step needs and what remains after it.", FuelSummary), FuelRows(), () => fuelShown));
+            rows.AddRange(Section(CollapsibleHeading("Thrust", () => thrustShown, () => thrustShown = !thrustShown,
+                "Show or hide the thrust-to-weight ratio of launches and landings and the duration of each burn.", ThrustSummary),
+                ThrustRows(), () => thrustShown));
             return rows;
+        }
+
+        // A part of the planner as KSP's crew and cargo panels show theirs: a lighter
+        // header bar, and under it its rows on a darker box, hidden with `shown` where
+        // it folds; a gap before the next.
+        private const float SectionGap = 10f;
+        private const float HeaderHeight = 26f;
+        private const float SectionInset = 8f;
+        private static readonly Color HeaderColour = new Color(1f, 1f, 1f, 0.10f);
+        private static readonly Color BoxColour = new Color(0f, 0f, 0f, 0.22f);
+
+        private IEnumerable<DialogGUIBase> Section(DialogGUIBase header, IEnumerable<DialogGUIBase> rows, System.Func<bool> shown)
+        {
+            yield return header;
+            DialogGUIVerticalLayout box = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(0, 0, 6, 8), TextAnchor.UpperLeft,
+                new List<DialogGUIBase>(rows).ToArray());
+            if (shown != null) box.OptionEnabledCondition = shown;
+            Tint.Behind(box, BoxColour, 0f, width, after);
+            yield return box;
+            yield return new DialogGUISpace(SectionGap);
+        }
+
+        // The route's settings: the fuel margin and the plane changes.
+        private DialogGUIBase SettingsRow()
+        {
+            DialogGUILabel label = new DialogGUILabel("Fuel margin", 84f, RowHeight);
+            label.tooltipText = "Extra delta-v added to every step as a reserve for piloting losses and corrections.";
+            DialogGUISlider margin = new DialogGUISlider(() => (float)(Ready() ? state.Margin * 100.0 : 10.0), 0f, 50f, true,
+                width - SectionInset - 84f - 44f - 136f - 6f * 4f - RowEnd, RowHeight, SetMargin);
+            margin.tooltipText = label.tooltipText;
+            DialogGUIToggle planes = new DialogGUIToggle(() => Ready() && state.PlaneChanges, "Plane changes", SetPlaneChanges, 136f);
+            planes.tooltipText = "Add the delta-v to match the target's orbital inclination on each transfer, such as 6° for "
+                                 + "Minmus. Off, all orbits are taken as lying in one plane.";
+            return new DialogGUIHorizontalLayout(width, RowHeight + 4f, 6f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(SectionInset - 6f), label, margin,
+                new DialogGUILabel(() => (Ready() ? (state.Margin * 100.0).ToString("0") : "10") + " %", 44f), planes);
         }
 
         // -------------------------------------------------------------- sections
@@ -125,14 +167,11 @@ namespace ReDefinition.Engineer
 
         }
 
-        // "Mass 45.20 t   Fuel 33.10 t   Δv 5,230 m/s", then "Parts 42   Cost 38,500".
-        private string VesselText(bool first)
+        // "Mass 45.20 t   Fuel 33.10 t   Δv 5,230 m/s".
+        private string VesselText()
         {
             EditorReadout readout = owner.Readout;
             if (readout == null || !readout.HasShip) return "";
-            if (!first)
-                return "<color=" + Dim + ">Parts</color> " + EngineerFormat.Count(readout.Parts) + "<pos=35%><color=" + Dim + ">Cost</color> "
-                       + EngineerFormat.Cost(readout.Cost);
             double deltaV = 0.0;
             foreach (StageRow row in readout.Stages) deltaV += row.DeltaVVacuum;
             return "<color=" + Dim + ">Mass</color> " + EngineerFormat.Mass(readout.WetMass) + "<pos=35%><color=" + Dim + ">Fuel</color> "
@@ -471,13 +510,6 @@ namespace ReDefinition.Engineer
             yield return new DialogGUIHorizontalLayout(width, BarHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 totalBar.Layout, new DialogGUIFlexibleSpace());
             yield return new DialogGUILabel(SummaryText, width, RowHeight);
-
-            DialogGUISlider margin = new DialogGUISlider(() => (float)(Ready() ? state.Margin * 100.0 : 10.0), 0f, 50f, true,
-                width - 260f, RowHeight, SetMargin);
-            DialogGUIToggle planes = new DialogGUIToggle(() => Ready() && state.PlaneChanges, "Plane changes", SetPlaneChanges, 140f);
-            yield return new DialogGUIHorizontalLayout(width, RowHeight + 4f, 6f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel("Margin", 56f), margin,
-                new DialogGUILabel(() => (Ready() ? (state.Margin * 100.0).ToString("0") : "10") + " %", 44f), planes);
         }
 
         private string SummaryText()
@@ -486,8 +518,8 @@ namespace ReDefinition.Engineer
             string balance = budget.TotalShort > 0.5
                 ? "<color=" + Warning + ">-" + EngineerFormat.Speed(budget.TotalShort) + "</color>"
                 : "<color=" + Good + ">+" + EngineerFormat.Speed(budget.TotalLeft) + "</color>";
-            return "<b>" + balance + "</b><pos=30%>" + EngineerFormat.Speed(TotalNeeded()) + " <color=" + Dim + ">of</color> "
-                   + EngineerFormat.Speed(TotalHas());
+            return "<color=" + Dim + ">Left</color> <b>" + balance + "</b><pos=40%><color=" + Dim + ">Needed</color> "
+                   + EngineerFormat.Speed(TotalNeeded()) + " <color=" + Dim + ">of</color> " + EngineerFormat.Speed(TotalHas());
         }
 
         // ------------------------------------------------------------- fuel plan
@@ -513,8 +545,6 @@ namespace ReDefinition.Engineer
 
         private IEnumerable<DialogGUIBase> FuelRows()
         {
-            yield return CollapsibleHeading("Fuel plan", () => fuelShown, () => fuelShown = !fuelShown,
-                "Show or hide the delta-v each step needs and what remains after it.", FuelSummary);
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
                 DimLabel("Left after", FuelLeft));
@@ -859,8 +889,6 @@ namespace ReDefinition.Engineer
 
         private IEnumerable<DialogGUIBase> ThrustRows()
         {
-            yield return CollapsibleHeading("Thrust", () => thrustShown, () => thrustShown = !thrustShown,
-                "Show or hide the thrust-to-weight ratio of launches and landings and the duration of each burn.", ThrustSummary);
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
                 DimLabel("Has", FuelLeft));
@@ -1192,9 +1220,10 @@ namespace ReDefinition.Engineer
             DialogGUIButton button = new DialogGUIButton(() => shown() ? "<b><color=" + Good + ">-</color></b>" : "+", toggle, Square,
                 Square, false);
             button.tooltipText = tooltip;
-            DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(width, Square + 8f, 4f, new RectOffset(0, 0, 8, 0),
-                TextAnchor.LowerLeft, button, new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", HeadingTitle, RowHeight),
-                new DialogGUILabel(() => Worked() ? summary() : "", width - Square - HeadingTitle - 4f * 2f - RowEnd, RowHeight));
+            DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(width, HeaderHeight, 4f, new RectOffset(2, 0, 0, 0),
+                TextAnchor.MiddleLeft, button, new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", HeadingTitle, RowHeight),
+                new DialogGUILabel(() => Worked() ? summary() : "", width - 2f - Square - HeadingTitle - 4f * 2f - RowEnd, RowHeight));
+            Tint.Behind(heading, HeaderColour, 0f, width, after);
             PlannerWidgets.Clickable(heading, toggle, after);
             return heading;
         }
@@ -1308,8 +1337,10 @@ namespace ReDefinition.Engineer
 
         private DialogGUIBase Heading(string title)
         {
-            return new DialogGUIHorizontalLayout(width, RowHeight + 8f, 0f, new RectOffset(0, 0, 8, 0), TextAnchor.LowerLeft,
-                new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", width, RowHeight));
+            DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(width, HeaderHeight, 0f, new RectOffset((int)SectionInset, 0, 0, 0),
+                TextAnchor.MiddleLeft, new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", width - SectionInset, RowHeight));
+            Tint.Behind(heading, HeaderColour, 0f, width, after);
+            return heading;
         }
     }
 }

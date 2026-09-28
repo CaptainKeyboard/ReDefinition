@@ -33,16 +33,16 @@ The planner uses no text to explain itself. From the top:
 * Every choice carries a tooltip of one sentence. KSP's button prefab has no tooltip
   controller, so `DialogTooltips.Attach` adds the game's own to every element with a
   tooltip once the rows are created.
-* *Vessel*: two lines on the vessel as built (`PlannerView.VesselText`: `EditorReadout`
-  mass, fuel mass without crew, parts, cost, and the stages' delta-v in vacuum), then up
-  to six rows, each with what it is in the column of a step's place, its parts on a button
-  from the column of who flies a step, and its cross where a stop's cross is; under a
-  satellite *Deployed at*, and a red line for a capsule without parachutes or a section
-  overlapping another. *+* opens the list of kinds, and the new section's list of parts
-  right after. A list of parts folds out as wide as its button: *Automatic* where the
-  planner finds that kind, with what it found in brackets, and the parts that can fly
-  apart. An entry lights its parts on the vessel while the pointer is on it
-  (`Choice.Hover`, an `EventTrigger` on the entry's button).
+* *Vessel*: a line on the vessel as built (`PlannerView.VesselText`: `EditorReadout` mass,
+  fuel mass without crew and the stages' delta-v in vacuum), then up to six rows, each
+  with what it is in the column of a step's place, its parts on a button from the column
+  of who flies a step, and its cross where a stop's cross is; under a satellite *Deployed
+  at*, and a red line for a capsule without parachutes or a section overlapping another.
+  *+* opens the list of kinds, and the new section's list of parts right after. A list of
+  parts folds out as wide as its button: *Automatic* where the planner finds that kind,
+  with what it found in brackets, and the parts that can fly apart. An entry lights its
+  parts on the vessel while the pointer is on it (`Choice.Hover`, an `EventTrigger` on the
+  entry's button).
 * The route is a line of stops, an orbit's altitude under it as a field
   (`DialogGUITextInput`); while it has the keyboard, the game's controls are locked
   (`PlannerView.Keep`), so that the digits do not reach the editor's shortcuts. Between
@@ -56,7 +56,10 @@ The planner uses no text to explain itself. From the top:
   it docks at its end, a grey line for the satellites that stay there, the further choices
   in groups of their own (*Burns*, *Way down*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
-* One bar sums up the route, with the margin and the plane changes under it.
+* Each part (*Vessel*, *Route*, *Fuel plan*, *Thrust*) is a header bar, lighter, and a
+  box, darker, holding its rows (`PlannerView.Section`, colours drawn by `Tint.Behind`);
+  the box of a folded part hides. *Route* starts with *Fuel margin* and *Plane changes*
+  and ends with one bar summing up the route.
 * *Fuel plan* and *Thrust* are headings with *+* and *-* before the title, the whole
   heading answering a click (`PlannerWidgets.Clickable`), and a summary beside it: the
   steps short of fuel, the steps with too low a TWR and the burns too long.
