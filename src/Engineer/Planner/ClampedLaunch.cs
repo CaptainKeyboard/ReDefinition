@@ -19,9 +19,10 @@ namespace ReDefinition.Engineer
         // the lift-off, numbered as the last held stage, and what burns on after it,
         // numbered as the releasing stage, so that the order by number stays the order
         // they burn in; `labels` names them ("S4+3", then "S4" or "S3").
-        // `gravity`: at the launch body's surface, in m/s².
+        // `gravity`: at the launch body's surface, in m/s²; `launchBody`: its name, for the
+        // thrust in its air (StageRow.ThrustAtSurface), null for vacuum.
         internal static List<StageRow> Parallel(List<StageRow> rows, IList<PartFacts> parts, Dictionary<int, string> labels,
-                                                double gravity)
+                                                double gravity, string launchBody = null)
         {
             int release = int.MinValue;
             bool clamps = false;
@@ -33,16 +34,21 @@ namespace ReDefinition.Engineer
                 }
             if (!clamps)
             {
+                // After the jets' part of the launch, the rockets light in the air, not
+                // on the pad.
+                if (rows.Exists(row => row.Air)) return rows;
                 // The first stage with engines, too weak to lift the vessel, and the
                 // next one with engines, which the player fires at once.
-                List<StageRow> burning = rows.FindAll(row => row.DeltaVVacuum > 0.5 && row.ThrustVacuum > 0.0);
+                List<StageRow> burning = rows.FindAll(row => !row.Air && row.DeltaVVacuum > 0.5 && row.ThrustVacuum > 0.0);
                 if (burning.Count < 2 || gravity <= 0.0) return rows;
-                if (burning[0].ThrustVacuum >= burning[0].StartMass * gravity) return rows;
+                double thrust;
+                if (launchBody == null || !burning[0].ThrustAtSurface.TryGetValue(launchBody, out thrust)) thrust = burning[0].ThrustVacuum;
+                if (thrust >= burning[0].StartMass * gravity) return rows;
                 release = burning[1].Number;
             }
             if (release < 0) return rows;
             StageRow freed = rows.Find(row => row.Number == release);
-            List<StageRow> held = rows.FindAll(row => row.Number > release && row.DeltaVVacuum > 0.5 && row.ThrustVacuum > 0.0);
+            List<StageRow> held = rows.FindAll(row => !row.Air && row.Number > release && row.DeltaVVacuum > 0.5 && row.ThrustVacuum > 0.0);
             if (freed == null || held.Count == 0 || freed.DeltaVVacuum <= 0.5 || freed.ThrustVacuum <= 0.0) return rows;
             // Only a vessel that drops nothing on the pad, from the first held stage to
             // the release: otherwise the clamps are staged elsewhere than at lift-off.

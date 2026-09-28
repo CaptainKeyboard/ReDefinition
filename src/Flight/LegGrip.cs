@@ -18,10 +18,10 @@ namespace ReDefinition.Flight
     {
         private const float DefaultFriction = 0.4f;
 
-        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "Traction")]
-        [UI_ChooseOption(options = new[] { "Default", "MediumGrip", "HighGrip", "ExtremeGrip" },
-            display = new[] { "Default", "Medium Grip", "High Grip", "Extreme Grip" },
-            affectSymCounterparts = UI_Scene.All, scene = UI_Scene.All)]
+        private static readonly string[] Grips = { "Default", "MediumGrip", "HighGrip", "ExtremeGrip" };
+        private static readonly string[] Names = { "Default", "Medium Grip", "High Grip", "Extreme Grip" };
+
+        [KSPField(isPersistant = true)]
         public string grip = "Default";
 
         private ModuleWheelBase wheel;
@@ -29,6 +29,35 @@ namespace ReDefinition.Flight
         public override void OnStart(StartState state)
         {
             wheel = part.FindModuleImplementing<ModuleWheelBase>();
+            Label();
+        }
+
+        // A button that steps through the grips, as the grip pads' does in the editor
+        // (ModulePhysicMaterial.ChangePhysicMaterial: "Traction: Medium Grip"), the
+        // legs placed in symmetry with it.
+        [KSPEvent(guiActiveEditor = true, guiName = "Traction")]
+        public void ChangeGrip()
+        {
+            int at = System.Array.IndexOf(Grips, grip);
+            string next = Grips[(at + 1) % Grips.Length];
+            Set(next);
+            foreach (Part counterpart in part.symmetryCounterparts)
+            {
+                ReDefinitionLegGrip other = counterpart != null ? counterpart.FindModuleImplementing<ReDefinitionLegGrip>() : null;
+                if (other != null) other.Set(next);
+            }
+        }
+
+        private void Set(string value)
+        {
+            grip = value;
+            Label();
+        }
+
+        private void Label()
+        {
+            int at = System.Array.IndexOf(Grips, grip);
+            Events["ChangeGrip"].guiName = "Traction: " + Names[at < 0 ? 0 : at];
         }
 
         // Every physics frame: KSP puts the multiplier back to 1 where it sets up

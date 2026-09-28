@@ -194,8 +194,10 @@ namespace ReDefinition.Engineer
         {
             EditorReadout readout = owner.Readout;
             if (readout == null || !readout.HasShip) return "";
+            // The planner's stages: its own, with the jets' part of the launch, where an
+            // engine breathes air.
             double deltaV = 0.0;
-            foreach (StageRow row in readout.Stages) deltaV += row.DeltaVVacuum;
+            foreach (StageRow row in allStages) deltaV += row.DeltaVVacuum;
             return "<color=" + Dim + ">Mass</color> " + EngineerFormat.Mass(readout.WetMass) + "<pos=34%><color=" + Dim + ">Fuel</color> "
                    + EngineerFormat.Mass(readout.FuelMass) + "<pos=67%><color=" + Dim + ">Δv</color> " + EngineerFormat.Speed(deltaV);
         }
@@ -739,6 +741,8 @@ namespace ReDefinition.Engineer
             };
             DialogGUIButton use = Choice("Use", () => Burnable(step, row), () => ToggleSaved(step, number()), UseButton);
             use.tooltipText = "Burn this stage in this step. When off, this stage and the ones after it are kept for a later step.";
+            // The jets' part of the launch is no stage to keep or drop.
+            use.OptionInteractableCondition = () => !AirStage(number());
             // Lit where it holds; to be switched off even where the stage can no longer
             // be dropped, the last one of what flies the step.
             DialogGUIButton drop = Choice("Drop after", () =>
@@ -750,7 +754,7 @@ namespace ReDefinition.Engineer
             drop.OptionInteractableCondition = () =>
             {
                 StageBudget.StepStage stage = FuelStage(step, row);
-                return stage != null && (stage.CanDrop || DropsAfter(step, stage.Stage));
+                return stage != null && !AirStage(stage.Stage) && (stage.CanDrop || DropsAfter(step, stage.Stage));
             };
             float room = Mathf.Max(0f, width - Timeline - Swatch - StageName_ - StageGives - StageKeeps - StageTwr - UseButton - DropButton
                                        - 4f * 8f - RowEnd);
@@ -760,6 +764,12 @@ namespace ReDefinition.Engineer
                 new DialogGUILabel(() => StageTwrText(step, row), StageTwr), new DialogGUISpace(room), use, drop);
             line.OptionEnabledCondition = () => FuelIsOpen(step) && FuelStage(step, row) != null;
             return line;
+        }
+
+        private bool AirStage(int number)
+        {
+            StageRow row = allStages.Find(s => s.Number == number);
+            return row != null && row.Air;
         }
 
         // Use is lit where the stage can burn on the step: not kept for later, nor behind
@@ -848,7 +858,7 @@ namespace ReDefinition.Engineer
             if (use == null) return "";
             int body = launch ? routeStep.From.Body : routeStep.To.Body;
             double twr = TwrAt(use.Stage, use.Mass, body, true);
-            double least = launch && bodies.Bodies[body].HasAtmosphere ? 1.2 : 1.0;
+            double least = launch && Runway(use.Stage) ? 0.0 : launch && bodies.Bodies[body].HasAtmosphere ? 1.2 : 1.0;
             StageBudget.StageUse first = budget.Uses.Find(item => item.Leg == step);
             StageBudget.StageUse last = budget.Uses.FindLast(item => item.Leg == step);
             bool decides = launch ? use == first : use == last;
@@ -980,10 +990,12 @@ namespace ReDefinition.Engineer
             }
         }
 
-        // What docks, and its RCS for the last metres.
+        // What docks, and its RCS for the last metres; the electric charge an ion engine
+        // burns over the step against what the vessel holds.
         private void AddNotes(ThrustStep entry)
         {
             RouteStep step = steps[entry.Step];
+            ElectricNote(entry);
             if (step.Docks && step.Flyer.Kind == FlyerKind.Alone)
             {
                 LiveSection section = SectionById(step.Flyer.Section);
@@ -1003,6 +1015,34 @@ namespace ReDefinition.Engineer
                     entry.Notes.Add("<color=" + Dim + ">RCS of the " + who + " for docking: " + EngineerFormat.Speed(deltaV) + ", "
                                     + EngineerFormat.Force(thrust) + "</color>");
             }
+        }
+
+        private void ElectricNote(ThrustStep entry)
+        {
+            double charge = 0.0, rate = 0.0;
+            foreach (StageBudget.StageUse use in entry.Uses)
+            {
+                StageRow row = stages.Find(s => s.Number == use.Stage);
+                if (row == null || row.ElectricRate <= 0.0 || row.ThrustVacuum <= 0.0) continue;
+                double exhaust = row.StartMass > row.EndMass && row.EndMass > 0.0
+                    ? row.DeltaVVacuum / System.Math.Log(row.StartMass / row.EndMass)
+                    : 0.0;
+                double seconds = exhaust * (use.Mass - use.EndMass) / row.ThrustVacuum;
+                charge += row.ElectricRate * seconds;
+                rate = System.Math.Max(rate, row.ElectricRate);
+            }
+            if (charge <= 0.0) return;
+            double held = owner.Readout != null ? owner.Readout.ElectricCharge : 0.0;
+            string text = "Electric charge: " + rate.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "/s, "
+                          + charge.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + " over the burns; the vessel holds "
+                          + held.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+            if (charge > held)
+            {
+                entry.Notes.Add("<color=" + Warning + ">" + text + ", so it needs power while it burns</color>");
+                entry.Warns = true;
+            }
+            else
+                entry.Notes.Add("<color=" + Dim + ">" + text + "</color>");
         }
 
         private bool Launches(RouteStep step)
@@ -1103,10 +1143,14 @@ namespace ReDefinition.Engineer
             yield return body;
         }
 
-        // What a lift-off or a set-down needs: 1.2 from a body with air, 1 otherwise.
+        // What a lift-off or a set-down needs: 1.2 from a body with air, 1 otherwise;
+        // nothing along a runway.
         private double TwrNeeded(ThrustStep entry)
         {
-            return Launches(steps[entry.Step]) && bodies.Bodies[entry.Body].HasAtmosphere ? 1.2 : 1.0;
+            bool launch = Launches(steps[entry.Step]);
+            StageBudget.StageUse deciding = Deciding(entry);
+            if (launch && deciding != null && Runway(deciding.Stage)) return 0.0;
+            return launch && bodies.Bodies[entry.Body].HasAtmosphere ? 1.2 : 1.0;
         }
 
         // The stage that lifts off or sets down: the first of a launch, the last of a
@@ -1120,7 +1164,8 @@ namespace ReDefinition.Engineer
         private string ThrustNeedsText(ThrustStep entry)
         {
             if (entry == null) return "";
-            string text = entry.Twr ? "TWR " + EngineerFormat.Ratio(TwrNeeded(entry)) : "< " + Percent(MaxShare) + " orbit";
+            string text = !entry.Twr ? "< " + Percent(MaxShare) + " orbit"
+                : TwrNeeded(entry) <= 0.0 ? "Runway" : "TWR " + EngineerFormat.Ratio(TwrNeeded(entry));
             return "<color=" + Dim + ">" + text + "</color>";
         }
 

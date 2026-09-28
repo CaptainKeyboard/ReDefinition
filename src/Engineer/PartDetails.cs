@@ -125,21 +125,30 @@ namespace ReDefinition.Engineer
             return perSecond.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " " + resource + "/s";
         }
 
+        // Each propellant with its share of the flow by mass; one of no mass, such as
+        // electric charge, and the air a jet takes in, which KSP's delta-v leaves out as
+        // well, without.
         private static string Propellants(List<Propellant> propellants)
         {
-            float total = 0f;
-            foreach (Propellant propellant in propellants) total += propellant.ratio;
+            double total = 0.0;
+            foreach (Propellant propellant in propellants) total += propellant.ratio * Density(propellant);
             StringBuilder text = new StringBuilder();
             foreach (Propellant propellant in propellants)
             {
                 if (text.Length > 0) text.Append(", ");
                 string name = propellant.displayName ?? propellant.name;
                 text.Append(name);
-                if (propellants.Count > 1 && total > 0f)
-                    text.Append(' ').Append((propellant.ratio / total * 100f).ToString("0", System.Globalization.CultureInfo.InvariantCulture))
+                double mass = propellant.ratio * Density(propellant);
+                if (propellants.Count > 1 && total > 0.0 && mass > 0.0)
+                    text.Append(' ').Append((mass / total * 100.0).ToString("0", System.Globalization.CultureInfo.InvariantCulture))
                         .Append('%');
             }
             return text.ToString();
+        }
+
+        private static double Density(Propellant propellant)
+        {
+            return propellant.resourceDef != null && propellant.name != "IntakeAir" ? propellant.resourceDef.density : 0.0;
         }
     }
 }

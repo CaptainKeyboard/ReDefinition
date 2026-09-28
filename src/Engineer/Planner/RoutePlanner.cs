@@ -25,6 +25,11 @@ namespace ReDefinition.Engineer
         public double SphereOfInfluence = double.PositiveInfinity;
         // Above the atmosphere or the highest ground.
         public double LowOrbitAltitude;
+        // Its air holds oxygen (CelestialBody.atmosphereContainsOxygen), and the
+        // speed of sound in it where the pressure is AirLaunch.HighAir of its sea
+        // level's, in m/s.
+        public bool Oxygen;
+        public double SpeedOfSound;
 
         public bool HasAtmosphere
         {

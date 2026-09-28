@@ -30,6 +30,12 @@ namespace ReDefinition.Engineer
         public bool Legs;
         public bool Parachute;
         public bool HeatShield;
+        // A wing: a lifting surface (ModuleLiftingSurface) that is no pod or heat
+        // shield, which carry one for their body's lift. Wheels: landing gear, not a
+        // landing leg. With both the vessel can take off along a runway, below a TWR
+        // of 1.
+        public bool Lift;
+        public bool Wheels;
         // Seats for crew (Part.CrewCapacity).
         public int Crew;
         // A launch clamp: it stays on the ground, part of nothing that flies.
@@ -41,12 +47,13 @@ namespace ReDefinition.Engineer
         public double Mass;
         public double DryMass;
         // Its RCS thrusters: their thrust in vacuum in kN at their thrust limit, that
-        // thrust over their vacuum Isp (so that thrusters combine), and the
-        // propellants they burn; the mass of each resource any RCS thruster on the
-        // vessel burns that the part holds, in tonnes.
+        // thrust over their vacuum Isp (so that thrusters combine), and per mix of
+        // propellants they burn (its names joined), per propellant that flow's share
+        // of it by mass (StageTable.UsablePropellant); the mass of each resource any RCS
+        // thruster on the vessel burns that the part holds, in tonnes.
         public double RcsThrust;
         public double RcsThrustOverIsp;
-        public readonly HashSet<string> RcsBurns = new HashSet<string>();
+        public readonly Dictionary<string, Dictionary<string, double>> RcsMix = new Dictionary<string, Dictionary<string, double>>();
         public readonly Dictionary<string, double> RcsResources = new Dictionary<string, double>();
         // By stage number: its resources' mass as the stage starts and as it ends.
         public readonly Dictionary<int, double[]> StageFuel = new Dictionary<int, double[]>();
@@ -105,6 +112,18 @@ namespace ReDefinition.Engineer
             }
             choices.Sort((a, b) => a.Mass.CompareTo(b.Mass));
             return choices;
+        }
+
+        // Wings and landing gear: the vessel takes off along a runway.
+        internal static bool Runway(IList<PartFacts> parts)
+        {
+            bool wings = false, wheels = false;
+            foreach (PartFacts part in parts)
+            {
+                wings |= part.Lift && !part.Clamp;
+                wheels |= part.Wheels && !part.Clamp;
+            }
+            return wings && wheels;
         }
 
         // The vessel has seats for crew in a command part.

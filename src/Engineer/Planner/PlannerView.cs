@@ -43,6 +43,12 @@ namespace ReDefinition.Engineer
         private List<StageRow> stages = new List<StageRow>();
         private List<StageRow> allStages = new List<StageRow>();
         private readonly PartHighlight highlight = new PartHighlight();
+        // The stages AirLaunch.Plan gave for this readout and launch.
+        private EditorReadout planned;
+        private PlannerBody plannedLaunch;
+        private string plannedLaunchId;
+        private List<StageRow> plannedStages = new List<StageRow>();
+        private int plannedAir = -1;
 
         internal PlannerView(EditorEngineer owner, float width)
         {
@@ -164,10 +170,23 @@ namespace ReDefinition.Engineer
         private void Evaluate()
         {
             EditorReadout readout = owner.Readout ?? new EditorReadout();
-            allStages = new List<StageRow>(readout.Stages);
-            allStages.Sort((a, b) => b.Number.CompareTo(a.Number));
             stageLabels.Clear();
-            allStages = ClampedLaunch.Parallel(allStages, readout.PartFacts, stageLabels, LaunchGravity());
+            // The planner's own simulation only where the vessel or the launch changed.
+            PlannerBody launch = LaunchSurface();
+            string launchId = LaunchBody();
+            if (readout != planned || launch != plannedLaunch || launchId != plannedLaunchId)
+            {
+                plannedStages = AirLaunch.Plan(readout.Stages, readout.PartFacts, readout.Sim, readout.Density, launch, launchId,
+                    out plannedAir);
+                planned = readout;
+                plannedLaunch = launch;
+                plannedLaunchId = launchId;
+            }
+            int airRow = plannedAir;
+            allStages = new List<StageRow>(plannedStages);
+            allStages.Sort((a, b) => b.Number.CompareTo(a.Number));
+            if (airRow >= 0) stageLabels[airRow] = "Air";
+            allStages = ClampedLaunch.Parallel(allStages, readout.PartFacts, stageLabels, LaunchGravity(), LaunchBody());
             stages = allStages.FindAll(row => row.DeltaVVacuum > 0.5);
 
             Detect(readout.PartFacts);
@@ -184,6 +203,7 @@ namespace ReDefinition.Engineer
                 available.Add(new BudgetStage
                 {
                     Number = row.Number, StartMass = row.StartMass, EndMass = row.EndMass, DeltaV = row.DeltaVVacuum,
+                    Solid = row.Solid, FirstStepOnly = row.Air,
                 });
             budget = StageBudget.Allocate(available, BudgetSteps(), state.Margin, plans,
                 VesselShape.Split(available, parts, valid.ConvertAll(section => section.Group)));
@@ -200,6 +220,21 @@ namespace ReDefinition.Engineer
             if (!Ready() || state.Stops.Count == 0 || state.Stops[0].Body < 0) return StageTable.StandardGravity;
             PlannerBody body = bodies.Bodies[state.Stops[0].Body];
             return body.Mu / (body.Radius * body.Radius);
+        }
+
+        // The body the route lifts off from, where it starts on a surface; null else.
+        private PlannerBody LaunchSurface()
+        {
+            if (!Ready() || state.Stops.Count == 0 || state.Stops[0].Body < 0 || state.Stops[0].Kind != StopKind.Surface) return null;
+            return bodies.Bodies[state.Stops[0].Body];
+        }
+
+        // The name of the route's first body, whose air the vessel lifts off in; null
+        // for none picked.
+        private string LaunchBody()
+        {
+            if (!Ready() || state.Stops.Count == 0 || state.Stops[0].Body < 0) return null;
+            return bodies.Bodies[state.Stops[0].Body].Id;
         }
 
         private bool Ready()
@@ -541,7 +576,8 @@ namespace ReDefinition.Engineer
                 lastUsed = use;
             }
             double liftOff = first != null ? TwrAt(first.Stage, first.Mass, step.From.Body, true) : 0.0;
-            if (launch && first != null && liftOff < (bodies.Bodies[step.From.Body].HasAtmosphere ? 1.2 : 1.0))
+            bool runway = first != null && Runway(first.Stage);
+            if (launch && first != null && !runway && liftOff < (bodies.Bodies[step.From.Body].HasAtmosphere ? 1.2 : 1.0))
                 list.Add("TWR " + EngineerFormat.Ratio(liftOff) + " of " + StageLabel(first.Stage) + " is too low to lift off " + RouteSteps.At(bodies.Bodies, step.From).Substring(3));
             double setDown = lastUsed != null ? TwrAt(lastUsed.Stage, lastUsed.Mass, step.To.Body, true) : 0.0;
             if (landing && lastUsed != null && setDown < 1.0)
@@ -593,6 +629,14 @@ namespace ReDefinition.Engineer
             double surface;
             if (air && planner.HasAtmosphere && row.ThrustAtSurface.TryGetValue(planner.Id, out surface)) thrust = surface;
             return thrust / (mass * gravity);
+        }
+
+        // Lifting off on air-breathing engines with wings and wheels: along a runway,
+        // at any TWR.
+        private bool Runway(int stage)
+        {
+            StageRow row = stages.Find(s => s.Number == stage);
+            return row != null && row.Air && VesselShape.Runway(parts);
         }
 
         // The air at a body's surface, in atmospheres; 0 where it has none.

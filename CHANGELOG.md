@@ -4,8 +4,9 @@
 
 ### Added
 
-- **Grip for landing legs.** Every landing leg has a *Traction* choice in its part menu,
-  Default to Extreme Grip, as the grip pads have, so that a lander stays put on a slope.
+- **Grip for landing legs.** Every landing leg has a *Traction* button in its part menu,
+  in the VAB and the SPH, from Default to Extreme Grip, as the grip pads have, so that a
+  lander stays put on a slope.
   Needs ModuleManager.
 - **Readable on large screens.** What KSP leaves at a fixed number of pixels now takes
   its UI scale: the map's icons and labels, the orbit lines, the labels over vessels, the
@@ -53,6 +54,14 @@
 
 ### Fixed
 
+- **The planner with jets, the RAPIER, other propellants and solid boosters.** Jets and a
+  RAPIER in its air-breathing mode counted for nothing, and a jet stage above rockets left
+  them no fuel. The planner now works out the stages itself where an engine breathes air,
+  and lets the jets fly the first part of a launch from Kerbin or Laythe; a spaceplane
+  lifts off along the runway. RCS that burns liquid fuel and oxidizer counts what it can
+  burn in its mix, at its thrust limit. A stage of solid boosters burns out on the step it
+  starts on. A tank's separation motor no longer counts as an engine, and an ion engine
+  shows the electric charge it needs against what the vessel holds.
 - **Far ground no longer shimmers under the upscaler.** Zoomed out far, over the Mun
   for example, the far side of the ground, or the whole body, trembled and kept
   trembling. Unity's motion vectors there are imprecise so far from the origin;

@@ -6,8 +6,11 @@ KSP's simulation does: a part drops when the first decoupler between it and the
 root fires; liquid fuel flows through crossfeeding parts and fuel lines, the tanks
 dropped soonest first; solid fuel stays in its part; a stage ends when its engines
 are dry, or when the engines the next stage drops are. Air-breathing engines are
-left out. Writes each craft's stage rows and part facts as C# for the planner's
-tests (tests/ReDefinition.Tests/StockCrafts.cs).
+left out, as KSP gives them no thrust in vacuum; a RAPIER counts in its
+air-breathing mode, KSP's default, so not at all. Writes each craft's stage rows,
+part facts and the parts as the planner's own simulation takes them (StageSim) as
+C# for the planner's tests (tests/ReDefinition.Tests/StockCrafts.cs). Crafts are
+looked for in Ships/VAB, then Ships/SPH.
 
 Usage: python tools/craft_stages.py <KSP folder> <output .cs> <craft name>...
 """
@@ -127,11 +130,19 @@ class Game:
         return self.loose.get(name)
 
 
+AIR = ('IntakeAir',)
+IGNORED = ('IntakeAir', 'ElectricCharge')
+
+
 class Engine:
     def __init__(self, module, craft_module):
         self.thrust = number(value(module, 'maxThrust'))
         percent = number(value(craft_module, 'thrustPercentage', '100'), 100.0) if craft_module else 100.0
         self.thrust *= percent / 100.0
+        self.solid = ((value(module, 'throttleLocked', 'False') or '').lower() == 'true'
+                      or (value(module, 'allowShutdown', 'True') or '').lower() == 'false')
+        vel = children(module, 'velCurve')
+        self.vel = sorted(tuple(number(x) for x in k.split()[:2]) for k in values(vel[0], 'key')) if vel else []
         curve = children(module, 'atmosphereCurve')
         keys = [tuple(number(x) for x in k.split()[:2]) for k in values(curve[0], 'key')] if curve else []
         keys.sort()
@@ -142,6 +153,27 @@ class Engine:
                 if p0 <= 1.0 <= p1:
                     self.isp_sea = i0 + (i1 - i0) * (1.0 - p0) / (p1 - p0)
         self.propellants = [(value(p, 'name'), number(value(p, 'ratio'))) for p in children(module, 'PROPELLANT')]
+        self.flows = {value(p, 'name'): value(p, 'resourceFlowMode') for p in children(module, 'PROPELLANT')}
+        self.air = any(name in AIR for name, _ in self.propellants)
+        self.title = value(module, 'engineID') or ''
+
+    def mach_limit(self):
+        """Where the thrust over Mach falls to half its peak, past the peak; no more
+        than Mach 1 for an engine whose peak lies below Mach 1.5 (StageSim's
+        AirLaunch.MachLimit, on the keys joined by straight lines)."""
+        if len(self.vel) < 2:
+            return 0.0
+        peak_at, peak = max(self.vel, key=lambda k: k[1])
+        limit = self.vel[-1][0]
+        for (m0, v0), (m1, v1) in zip(self.vel, self.vel[1:]):
+            if m1 <= peak_at:
+                continue
+            if v1 < peak / 2.0 <= v0 or (v0 >= peak / 2.0 and v1 < peak / 2.0):
+                limit = m0 + (m1 - m0) * (v0 - peak / 2.0) / (v0 - v1)
+                break
+        if peak_at < 1.5:
+            limit = min(limit, 1.0)
+        return limit
 
 
 class Part:
@@ -181,21 +213,44 @@ def load_craft(game, path):
         part.crew = int(number(value(cfg, 'CrewCapacity'), 0))
         part.parachute = 'ModuleParachute' in names
         part.heatshield = 'ModuleAblator' in names
+        part.lift = (('ModuleLiftingSurface' in names or 'ModuleControlSurface' in names) and not part.command
+                     and not part.heatshield)
+        part.wheels = any(value(m, 'name') == 'ModuleWheelBase' and (value(m, 'wheelType') or '').upper() != 'LEG'
+                          for m in modules)
         part.legs = any(value(m, 'name') == 'ModuleWheelBase' and (value(m, 'wheelType') or '').upper() == 'LEG'
                         for m in modules)
         part.engines = []
         seen_engine = False
-        for m in modules:
+        part.is_engine = False
+        part.rocket = None
+        part.air = None
+        multi = 'MultiModeEngine' in names
+        engine_modules = [m for m in modules if (value(m, 'name') or '').startswith('ModuleEngines')]
+        for m in engine_modules:
             mname = value(m, 'name') or ''
-            if mname.startswith('ModuleEngines') and not seen_engine:
-                engine = Engine(m, craft_modules.get(mname))
+            engine = Engine(m, craft_modules.get(mname))
+            non_thrust = (value(m, 'nonThrustMotor', 'False') or '').lower() == 'true'
+            if not non_thrust:
+                part.is_engine = True
+            if not seen_engine:
                 seen_engine = True
-                if engine.thrust > 0 and engine.isp > 0 and all(p != 'IntakeAir' for p, _ in engine.propellants):
+                if engine.thrust > 0 and engine.isp > 0 and not engine.air:
                     part.engines.append(engine)
-        part.is_engine = seen_engine
+            # The planner's own simulation: the rocket mode, and the air-breathing
+            # mode that goes furthest, of a multi-mode engine; else the first
+            # engine, as KSP.
+            if non_thrust or engine.thrust <= 0 or engine.isp <= 0:
+                continue
+            if engine.air and (multi or m is engine_modules[0]):
+                if part.air is None or engine.mach_limit() > part.air.mach_limit():
+                    part.air = engine
+            elif not engine.air and part.rocket is None and (multi or m is engine_modules[0]):
+                part.rocket = engine
+        part.crossfeed_fuel_lines = []
         part.amount = {}
         for r in children(node, 'RESOURCE'):
             part.amount[value(r, 'name')] = number(value(r, 'amount'))
+        part.initial = dict(part.amount)
         part.fuel_line_target = None
         pdata = children(node, 'PARTDATA')
         if pdata and value(pdata[0], 'tgt') is not None:
@@ -261,6 +316,7 @@ def simulate(game, parts):
         start = sum(mass_of(game, parts[i]) for i in attached)
         start_fuel = {i: mass_of(game, parts[i]) - parts[i].dry for i in attached}
         lit = [p for p in active if feeds(game, parts, attached, p)]
+        first_lit = list(lit)
         thrust = sum(e.thrust for p in lit for e in p.engines)
         surface = sum(e.thrust * e.isp_sea / e.isp for p in lit for e in p.engines)
         dropped_next = {p.index for p in parts if p.decouple == stage - 1 and p.index in attached}
@@ -296,7 +352,8 @@ def simulate(game, parts):
             now = mass_of(game, parts[i]) - parts[i].dry
             if start_fuel[i] - now > 1e-6:
                 fuel[(i, stage)] = (start_fuel[i], now)
-        rows.append(dict(number=stage, start=start, end=end, dv=dv, thrust=thrust, surface=surface, time=time))
+        solid = bool(first_lit) and all(e.solid for p in first_lit for e in p.engines) and dv > 0
+        rows.append(dict(number=stage, start=start, end=end, dv=dv, thrust=thrust, surface=surface, time=time, solid=solid))
     return rows, fuel
 
 
@@ -342,7 +399,43 @@ def cs_number(x):
     return repr(round(x, 4)) if isinstance(x, float) else str(x)
 
 
-def emit(name, parts, rows, fuel, game_parts_mass):
+FLOWS = {'NO_FLOW': 'SimFlow.Own', 'STACK_PRIORITY_SEARCH': 'SimFlow.Stack', 'STAGE_STACK_FLOW': 'SimFlow.Stack',
+         'STAGE_STACK_FLOW_BALANCE': 'SimFlow.Stack'}
+
+
+def sim_engine(game, engine, kind):
+    props = []
+    for pname, ratio in engine.propellants:
+        density, mode = game.resources.get(pname, (0.0, 'ALL_VESSEL'))
+        if pname in IGNORED or density <= 0:
+            continue
+        mode = engine.flows.get(pname) or mode
+        props.append('Prop("%s", %s, %s)' % (pname, cs_number(ratio), FLOWS.get(mode, 'SimFlow.Vessel')))
+    if kind == 'rocket':
+        sea = engine.thrust * engine.isp_sea / engine.isp if engine.isp > 0 else 0.0
+        return 'Rocket(%s, %s, %s, %s, %s)' % (cs_number(engine.thrust), cs_number(engine.isp), cs_number(sea),
+                                               str(engine.solid).lower(), ', '.join(props))
+    # Standing at sea level: the thrust and Isp the configs give at Mach 0 and 1 atm.
+    return 'AirEngine(%s, %s, %s, %s)' % (cs_number(engine.thrust), cs_number(engine.isp_sea), cs_number(engine.mach_limit()),
+                                         ', '.join(props))
+
+
+def emit_sim(game, parts):
+    out = ['                Sim = new List<SimPart>', '                {']
+    for p in parts:
+        amounts = ', '.join('{ "%s", %s }' % (n, cs_number(a)) for n, a in sorted(p.initial.items())
+                            if game.resources.get(n, (0.0, ''))[0] > 0)
+        sources = ', '.join(str(i) for i in (p.fuel_line_source or []))
+        rocket = sim_engine(game, p.rocket, 'rocket') if p.rocket else 'null'
+        air = sim_engine(game, p.air, 'air') if p.air else 'null'
+        out.append('                    SimPartOf(%d, %d, %d, %s, %s, %s, new Dictionary<string, double> { %s }, new int[] { %s }, %s, %s),'
+                   % (p.parent, p.decouple, p.istg, str(p.clamp).lower(), str(p.crossfeed).lower(), cs_number(p.dry),
+                      amounts, sources, rocket, air))
+    out.append('                },')
+    return out
+
+
+def emit(name, parts, rows, fuel, game_parts_mass, game):
     out = []
     out.append('            new StockCraft')
     out.append('            {')
@@ -350,8 +443,9 @@ def emit(name, parts, rows, fuel, game_parts_mass):
     out.append('                Rows = new List<StageRow>')
     out.append('                {')
     for r in rows:
-        out.append('                    Row(%d, %s, %s, %s, %s, %s),' % (r['number'], cs_number(r['start']), cs_number(r['end']),
-                                                                       cs_number(r['dv']), cs_number(r['thrust']), cs_number(r['surface'])))
+        out.append('                    Row(%d, %s, %s, %s, %s, %s, %s),' % (r['number'], cs_number(r['start']), cs_number(r['end']),
+                                                                           cs_number(r['dv']), cs_number(r['thrust']), cs_number(r['surface']),
+                                                                           str(r['solid']).lower()))
     out.append('                },')
     out.append('                Parts = new List<PartFacts>')
     out.append('                {')
@@ -360,11 +454,13 @@ def emit(name, parts, rows, fuel, game_parts_mass):
                                for (i, s), (a, b) in sorted(fuel.items()) if i == p.index)
         sep = ('Separation.DockingPort' if p.docking else 'Separation.Anchored' if p.anchored
                else 'Separation.Decoupler' if p.decoupler else 'Separation.None')
-        out.append('                    Facts(%d, %d, %d, %s, %s, "%s", %s, %s, %s, %s, %s, %s, %d, %s, new Dictionary<int, double[]> { %s }),'
+        out.append('                    Facts(%d, %d, %d, %s, %s, "%s", %s, %s, %s, %s, %s, %s, %s, %s, %d, %s, new Dictionary<int, double[]> { %s }),'
                    % (p.parent, p.decouple, p.istg, cs_number(game_parts_mass[p.index]), cs_number(p.dry), p.name,
                       str(p.command).lower(), str(p.is_engine).lower(), str(p.legs).lower(), str(p.parachute).lower(),
-                      str(p.heatshield).lower(), str(p.clamp).lower(), p.crew, sep, stage_fuel))
+                      str(p.heatshield).lower(), str(p.lift).lower(), str(p.wheels).lower(), str(p.clamp).lower(), p.crew, sep,
+                      stage_fuel))
     out.append('                },')
+    out.extend(emit_sim(game, parts))
     out.append('            },')
     return '\n'.join(out)
 
@@ -375,11 +471,13 @@ def main():
     blocks = []
     for name in sys.argv[3:]:
         path = os.path.join(ksp, 'Ships', 'VAB', name + '.craft')
+        if not os.path.exists(path):
+            path = os.path.join(ksp, 'Ships', 'SPH', name + '.craft')
         parts = load_craft(game, path)
         masses = {p.index: mass_of(game, p) for p in parts}
         rows, fuel = simulate(game, parts)
         rows = [r for r in rows]
-        blocks.append(emit(name, parts, rows, fuel, masses))
+        blocks.append(emit(name, parts, rows, fuel, masses, game))
         print(name + ':')
         for r in rows:
             if r['dv'] > 0.5 or r['thrust'] > 0:
@@ -388,6 +486,10 @@ def main():
               '// the game loads them (GameData/ModuleManager.ConfigCache). Do not edit.\n'
               'using System.Collections.Generic;\nusing ReDefinition.Engineer;\n\n'
               'namespace ReDefinition.Tests\n{\n    internal static partial class StockCrafts\n    {\n'
+              '        internal static readonly Dictionary<string, double> Density = new Dictionary<string, double>\n        {\n'
+              + ''.join('            { "%s", %s },\n' % (n, cs_number(d)) for n, (d, _) in sorted(game.resources.items())
+                        if d > 0 and n not in IGNORED)
+              + '        };\n\n'
               '        internal static readonly List<StockCraft> All = new List<StockCraft>\n        {\n')
     footer = '\n        };\n    }\n}\n'
     open(target, 'w', encoding='utf-8', newline='\r\n').write(header + '\n'.join(blocks) + footer)

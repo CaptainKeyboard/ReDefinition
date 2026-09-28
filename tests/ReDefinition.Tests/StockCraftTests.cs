@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -14,33 +15,79 @@ namespace ReDefinition.Tests
         public string Name;
         public List<StageRow> Rows;
         public List<PartFacts> Parts;
+        // As the planner's own simulation takes them (StageSim).
+        public List<SimPart> Sim;
     }
 
     internal static partial class StockCrafts
     {
-        private static StageRow Row(int number, double start, double end, double deltaV, double thrust, double seaLevel)
+        private static StageRow Row(int number, double start, double end, double deltaV, double thrust, double seaLevel, bool solid)
         {
             StageRow row = new StageRow
             {
                 Number = number, StartMass = start, EndMass = end, DeltaV = deltaV, DeltaVVacuum = deltaV, ThrustVacuum = thrust,
-                Thrust = seaLevel, HasEngines = thrust > 0.0,
+                Thrust = seaLevel, HasEngines = thrust > 0.0, Solid = solid,
             };
             row.ThrustAtSurface["Kerbin"] = seaLevel;
             return row;
         }
 
         private static PartFacts Facts(int parent, int decouple, int fires, double mass, double dry, string title, bool command,
-                                       bool engine, bool legs, bool parachute, bool heatShield, bool clamp, int crew,
+                                       bool engine, bool legs, bool parachute, bool heatShield, bool lift, bool wheels, bool clamp, int crew,
                                        Separation separator, Dictionary<int, double[]> fuel)
         {
             PartFacts facts = new PartFacts
             {
                 Parent = parent, DecoupleStage = decouple, ActivatesAt = fires, Mass = mass, DryMass = dry, Title = title,
-                Command = command, Engine = engine, Legs = legs, Parachute = parachute, HeatShield = heatShield, Clamp = clamp,
-                Crew = crew, Separator = separator,
+                Command = command, Engine = engine, Legs = legs, Parachute = parachute, HeatShield = heatShield, Lift = lift, Wheels = wheels,
+                Clamp = clamp, Crew = crew, Separator = separator,
             };
             foreach (KeyValuePair<int, double[]> stage in fuel) facts.StageFuel[stage.Key] = stage.Value;
             return facts;
+        }
+
+        private static SimPart SimPartOf(int parent, int decouple, int fires, bool clamp, bool crossfeed, double dry,
+                                         Dictionary<string, double> amount, int[] fuelLineSources, SimEngine rocket, SimEngine air)
+        {
+            SimPart part = new SimPart
+            {
+                Parent = parent, DecoupleStage = decouple, ActivatesAt = fires, Clamp = clamp, Crossfeed = crossfeed, Fixed = dry,
+                Rocket = rocket, Air = air,
+            };
+            foreach (KeyValuePair<string, double> held in amount) part.Amount[held.Key] = held.Value;
+            part.FuelLineSources.AddRange(fuelLineSources);
+            return part;
+        }
+
+        private static SimEngine Rocket(double thrust, double isp, double seaLevel, bool solid, params SimPropellant[] propellants)
+        {
+            SimEngine engine = new SimEngine { Thrust = thrust, Isp = isp, Solid = solid };
+            engine.ThrustAtSurface["Kerbin"] = seaLevel;
+            engine.Propellants.AddRange(propellants);
+            return engine;
+        }
+
+        // Standing at Kerbin's sea level.
+        private static SimEngine AirEngine(double thrust, double isp, double mach, params SimPropellant[] propellants)
+        {
+            SimEngine engine = new SimEngine { Thrust = thrust, Isp = isp, Mach = mach };
+            engine.ThrustAtSurface["Kerbin"] = thrust;
+            engine.Propellants.AddRange(propellants);
+            return engine;
+        }
+
+        private static SimPropellant Prop(string name, double ratio, SimFlow flow)
+        {
+            return new SimPropellant { Name = name, Ratio = ratio, Flow = flow };
+        }
+
+        // The parts with their children, as the game's part tree has them.
+        internal static List<SimPart> Linked(List<SimPart> parts)
+        {
+            foreach (SimPart part in parts) part.Children.Clear();
+            for (int i = 0; i < parts.Count; i++)
+                if (parts[i].Parent >= 0) parts[parts[i].Parent].Children.Add(i);
+            return parts;
         }
 
         internal static StockCraft Named(string name)
@@ -66,6 +113,8 @@ namespace ReDefinition.Tests
             public List<RouteStep> Steps;
             public StageBudget.Result Budget;
             public double LiftOff;
+            // Air-breathing engines and wings: it takes off along the runway.
+            public bool Runway;
             public double Short;
             public string Report;
         }
@@ -76,8 +125,14 @@ namespace ReDefinition.Tests
             PlannerBody home = bodies[Kerbin];
             double gravity = home.Mu / (home.Radius * home.Radius);
             Dictionary<int, string> labels = new Dictionary<int, string>();
-            List<StageRow> rows = craft.Rows.OrderByDescending(row => row.Number).ToList();
-            rows = ClampedLaunch.Parallel(rows, craft.Parts, labels, gravity);
+            // As PlannerView.Evaluate: the planner's own stages where an engine breathes
+            // air, then the stages lit on the pad together.
+            int airRow;
+            List<StageRow> rows = AirLaunch.Plan(craft.Rows, craft.Parts, StockCrafts.Linked(craft.Sim), StockCrafts.Density,
+                goals[0].Kind == StopKind.Surface ? home : null, "Kerbin", out airRow);
+            if (airRow >= 0) labels[airRow] = "Air";
+            rows = rows.OrderByDescending(row => row.Number).ToList();
+            rows = ClampedLaunch.Parallel(rows, craft.Parts, labels, gravity, "Kerbin");
 
             // The sections the planner finds by itself: capsules first, then the others.
             List<PartFacts> parts = craft.Parts;
@@ -118,7 +173,8 @@ namespace ReDefinition.Tests
             }
             List<BudgetStage> available = rows.Select(row => new BudgetStage
             {
-                Number = row.Number, StartMass = row.StartMass, EndMass = row.EndMass, DeltaV = row.DeltaVVacuum,
+                Number = row.Number, StartMass = row.StartMass, EndMass = row.EndMass, DeltaV = row.DeltaVVacuum, Solid = row.Solid,
+                FirstStepOnly = row.Air,
             }).ToList();
             List<StagePlan> plans = steps.Select(step => new StagePlan()).ToList();
             StageBudget.Result budget = StageBudget.Allocate(available, budgetSteps, margin, plans, VesselShape.Split(available, parts, chosen));
@@ -127,11 +183,16 @@ namespace ReDefinition.Tests
             StageBudget.StageUse first = budget.Uses.FirstOrDefault(use => use.Leg == 0);
             StageRow lifting = first != null ? rows.Find(row => row.Number == first.Stage) : null;
             flight.LiftOff = lifting != null ? lifting.ThrustAtSurface["Kerbin"] / (first.Mass * gravity) : 0.0;
+            flight.Runway = lifting != null && lifting.Air && VesselShape.Runway(parts);
             flight.Short = budget.Short.Sum();
 
             StringBuilder text = new StringBuilder();
-            text.AppendFormat(CultureInfo.InvariantCulture, "{0}: lift-off TWR {1:0.00}, sections {2}", craft.Name, flight.LiftOff,
-                sections.Count == 0 ? "none" : string.Join(", ", sections.Select(section => section.Name)));
+            text.AppendFormat(CultureInfo.InvariantCulture, "{0}: lift-off TWR {1:0.00}{2}, sections {3}", craft.Name, flight.LiftOff,
+                flight.Runway ? " (runway)" : "", sections.Count == 0 ? "none" : string.Join(", ", sections.Select(section => section.Name)));
+            foreach (StageRow row in rows.Where(row => row.DeltaVVacuum > 0.5))
+                text.AppendFormat(CultureInfo.InvariantCulture, "\n  {0}: {1:0.00} t -> {2:0.00} t, {3:0} m/s, {4:0} kN{5}",
+                    labels.ContainsKey(row.Number) ? labels[row.Number] : "S" + row.Number, row.StartMass, row.EndMass, row.DeltaVVacuum,
+                    row.ThrustVacuum, row.Solid ? ", solid" : "");
             for (int i = 0; i < steps.Count; i++)
             {
                 string by = string.Join("+", budget.Uses.Where(use => use.Leg == i)
@@ -229,6 +290,44 @@ namespace ReDefinition.Tests
             Flight kerbalX = Log(Fly(StockCrafts.Named("Kerbal X"), MunAndBack()));
             Assert.IsTrue(kerbalX.Short > 0.5 && kerbalX.Short < 150.0, "Kerbal X short by little with a margin");
             Assert.IsTrue(Log(Fly(StockCrafts.Named("Kerbal X"), MunAndBack(), 0.0)).Short < 0.5, "Kerbal X to the Mun and home without one");
+        }
+
+        // The planner's own simulation against the offline model for every craft whose
+        // engines breathe no air, where both burn the same engines.
+        [TestMethod]
+        public void TheOwnSimulationMatchesTheOfflineModel()
+        {
+            foreach (StockCraft craft in StockCrafts.All.Where(craft => craft.Sim.All(part => part.Air == null)))
+            {
+                StageSim.Result result = StageSim.Run(StockCrafts.Linked(craft.Sim), StockCrafts.Density, 0.0, "Kerbin");
+                foreach (StageRow expected in craft.Rows)
+                {
+                    StageSim.Row row = result.Rows.Single(r => r.Number == expected.Number);
+                    string what = craft.Name + " S" + expected.Number;
+                    Assert.AreEqual(expected.StartMass, row.StartMass, Math.Max(0.01, expected.StartMass * 0.002), what + " start");
+                    Assert.AreEqual(expected.EndMass, row.EndMass, Math.Max(0.01, expected.EndMass * 0.002), what + " end");
+                    Assert.AreEqual(expected.DeltaVVacuum, row.DeltaV, Math.Max(2.0, expected.DeltaVVacuum * 0.01), what + " delta-v");
+                    Assert.AreEqual(expected.Solid, row.Solid, what + " solid");
+                }
+            }
+        }
+
+        // "A Prototype Spaceplane capable of reaching Orbit" (Dove, a RAPIER); "a
+        // spaceplane capable of reaching orbit, if flown correctly" (Aeris 4A, two
+        // Whiplashes and an aerospike); "capable of sub-orbital flights" (Ravenspear
+        // Mk3, jets only).
+        [TestMethod]
+        public void TheSpaceplanesAsTheirDescriptionsHaveThem()
+        {
+            foreach (string name in new[] { "Dove", "Aeris 4A" })
+            {
+                Flight flight = Log(Fly(StockCrafts.Named(name), ToOrbit()));
+                Assert.IsTrue(flight.Runway, name + " takes off along the runway");
+                Assert.IsTrue(flight.Short < 0.5, name + " reaches orbit:\n" + flight.Report);
+            }
+            Flight ravenspear = Log(Fly(StockCrafts.Named("Ravenspear Mk3"), ToOrbit()));
+            Assert.IsTrue(ravenspear.Short > 0.5, "Ravenspear Mk3 does not reach orbit:\n" + ravenspear.Report);
+            foreach (string name in new[] { "Stratolauncher", "Satellite Launcher" }) Log(Fly(StockCrafts.Named(name), ToOrbit()));
         }
 
         [TestMethod]

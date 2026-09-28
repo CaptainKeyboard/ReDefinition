@@ -14,6 +14,7 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 |---|---|
 | `src/Engineer/Planner/RoutePlanner.cs` | the delta-v of the way from one point to another. Free of Unity |
 | `src/Engineer/Planner/RouteSteps.cs` | the steps between the destinations, who flies each, and where the lander leaves and docks. Free of Unity |
+| `src/Engineer/Planner/StageSim.cs` | the vessel's stages worked out as KSP's simulation does, with the air-breathing engines' part of the launch (`AirLaunch`), where an engine breathes air. Free of Unity |
 | `src/Engineer/Planner/ClampedLaunch.cs` | the stages lit while launch clamps hold the vessel, burning together with the stage that releases them. Free of Unity |
 | `src/Engineer/Planner/BurnCheck.cs` | how long each burn in orbit takes with the stages that fly it, against its orbit. Free of Unity |
 | `src/Engineer/Planner/StageBudget.cs` | which stage pays for which step, on the mass the stages push, the stages saved or dropped on a step, and the lander refilled from the rest. Free of Unity |
@@ -245,6 +246,56 @@ at the far end is the same burn the other way round. For the stock system this g
 Kerbin to the Mun as 856 + 310 m/s, and Kerbin to Duna as 1,072 + 616 m/s. That matches
 the community delta-v maps **[meas]**.
 
+## Engines that breathe air
+
+KSP's delta-v simulation gives an engine that takes in `IntakeAir` no thrust in vacuum
+(`ModuleEngines.MaxThrustOutputVac`), so a stage of jets has a vacuum delta-v of 0; it
+ignores `IntakeAir` and `ElectricCharge` as propellants (`DeltaVGlobals.PropellantsToIgnore`)
+and lets the jets drain the liquid fuel they reach, which leaves the rockets sharing those
+tanks nothing. A RAPIER counts in its running mode, air-breathing by default
+(`MultiModeEngine.runningPrimary`) **[src]**.
+
+Where an engine breathes air (a propellant `IntakeAir` or what the vessel's
+`ModuleResourceIntake`s gather), `EditorReadout.SimOf` reads the parts for `StageSim`,
+and `AirLaunch.Plan` takes its stages instead of KSP's:
+
+* `StageSim.Run` follows `tools/craft_stages.py`: a stage drops what it decouples, lights
+  the rocket engines activated by then that reach every propellant, and burns until they
+  are dry or the engines the next stage drops are. A resource comes from its own part
+  (`NO_FLOW`), the parts reached through crossfeed and fuel lines (`STACK_PRIORITY_SEARCH`,
+  `STAGE_STACK_FLOW`, `STAGE_STACK_FLOW_BALANCE`) or any part, from those dropped soonest,
+  evenly; worked out from one tank running dry to the next. Only rocket modes burn there:
+  a RAPIER's closed cycle; of another part, the first engine, as KSP. A locked tank's
+  resources are dead weight. `StockCraftTests` checks it against the offline model for
+  every stock craft without air-breathing engines, within 0.2 % of the masses and 1 % of
+  the delta-v, which the model steps in 0.05 s.
+* Where the route starts on a surface of a body with oxygen (`PlannerBody.Oxygen`), the
+  air-breathing engines lit first, with the first stage that lights any engine, burn
+  before any stage, as the row *Air*, numbered one above the highest stage
+  (`StageRow.Air`, `BudgetStage.FirstStepOnly`: what it has not burnt after the first
+  step counts no more). Their share of the launch is `RoutePlanner.Launch` times the
+  speed they reach over the orbital speed of the low orbit less the ground's own,
+  at most all of it (`AirLaunch.Share`). The speed is the Mach number where the thrust
+  over Mach (`velCurve`) falls to half its peak past the peak, or where the curve ends,
+  Mach 1 at most for an
+  engine whose peak lies below Mach 1.5 (`AirLaunch.MachLimit`), times the speed of sound
+  where the pressure is 5 % of the sea level's (`PlannerBody.SpeedOfSound`, from
+  `GetPressure`, `GetTemperature`, `GetDensity`, `GetSpeedOfSound`). On the keys joined by
+  straight lines that gives about Mach 4.5 for the Whiplash, 5.2 for the RAPIER, 2.8 for
+  the Panther in wet mode. The propellant
+  for it, `m (1 - e^(-Δv / v_e))` at the engines' standing thrust and Isp at the body's
+  sea level, is drawn from the tanks they reach as the stages draw theirs.
+* A launch whose first stage is *Air*, on a vessel with wings (`PartFacts.Lift`: a
+  `ModuleLiftingSurface` on no command part or heat shield, which carry one for their
+  body's lift) and landing gear (`Wheels`: a `ModuleWheelBase` that is no leg), needs no
+  TWR: it lifts off along a runway (`VesselShape.Runway`). The stages after it light in
+  the air, so `ClampedLaunch` leaves them apart.
+* `AirLaunch.Plan` runs only when the readout or the launch body changes.
+
+`StockCraftTests` flies the stock spaceplanes: the Dove (a RAPIER) and the Aeris 4A (two
+Whiplashes and an aerospike) reach a low Kerbin orbit, as their descriptions say; the
+Ravenspear Mk3, jets only, does not.
+
 ## How the stages pay for the steps
 
 Before the budget, `ClampedLaunch.Parallel` rewrites the stages lit while launch clamps
@@ -257,7 +308,9 @@ delta-v and masses), both burn from the full mass until the first is empty: the 
 row, numbered as the last held stage. What is left burns on alone in a second row,
 numbered as the releasing stage, so that the order by number stays the burn order: the
 core after the boosters' mass is dropped where its engines decouple later than theirs,
-else the boosters. `PlannerView.StageLabel` names them *S4+3* and *S4* or *S3*. It applies
+else the boosters. `PlannerView.StageLabel` names them *S4+3* and *S4* or *S3*. The
+first stage's thrust against its weight is taken in the launch body's air
+(`StageRow.ThrustAtSurface`), and the *Air* row takes no part. It applies
 only where nothing is dropped on the pad from the first held stage to the release, and
 where the core's tanks are dry as KSP starts the releasing stage; stages on the pad
 between them that burn nothing go. `VesselShape.Split` still shares the rows out by KSP's
@@ -273,6 +326,9 @@ its end mass and its delta-v in vacuum (`DeltaVStageInfo.startMass`, `endMass`,
 | propellant | start mass less end mass |
 | exhaust velocity | delta-v ÷ ln(start mass ÷ end mass), which is Tsiolkovsky's equation solved for it |
 | mass dropped before the next stage | start mass less propellant less the next stage's start mass |
+
+A stage whose engines all burn out once lit (`ModuleEngines.throttleLocked` or
+`!allowShutdown`, `StageRow.Solid`) gives all it has to the step it starts on.
 
 It then walks the steps one by one and carries the vessel's mass along. For each burn,
 the propellant a stage spends is the mass it pushes × (1 − e^(−Δv ÷ exhaust velocity)).
@@ -404,8 +460,11 @@ each part's `istg`, links, fuel lines and resources) and the parts as the game l
 use). A part drops when the first decoupler between it and the root fires. Liquid fuel
 flows through crossfeeding parts and fuel lines, the tanks dropped soonest first; solid
 fuel stays in its part. A stage ends when its engines are dry, or when the engines the
-next stage drops are. Air-breathing engines are left out. For the Kerbal X and the
-Learstar A1 its figures match the game's within 0.2 % **[meas]**.
+next stage drops are. Air-breathing engines are left out, as KSP leaves them out in
+vacuum; a RAPIER counts in its air-breathing mode, so not at all. For the Kerbal X and the
+Learstar A1 its figures match the game's within 0.2 % **[meas]**. It also writes each
+part as `StageSim` takes it, with its rocket and air-breathing modes, from the VAB or the
+SPH.
 
 ```
 python tools/craft_stages.py "<KSP folder>" tests/ReDefinition.Tests/StockCrafts.cs "Kerbal X" "Learstar A1" ...

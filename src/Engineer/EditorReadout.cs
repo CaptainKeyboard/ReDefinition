@@ -40,12 +40,19 @@ namespace ReDefinition.Engineer
         // (VesselShape).
         public List<PartFacts> PartFacts = new List<PartFacts>();
         public RcsLine Rcs;
+        // The parts as the planner's own simulation takes them (StageSim), and per
+        // resource its density in tonnes per unit; null where no engine breathes air
+        // and KSP's stages are the planner's.
+        public List<SimPart> Sim;
+        public Dictionary<string, double> Density;
 
         public double TotalDeltaV;
         public double WetMass;
         public double DryMass;
         // The resources in it, without crew (ShipConstruct.GetShipMass).
         public double FuelMass;
+        // The electric charge the vessel holds as it starts, in units.
+        public double ElectricCharge;
         public double Cost;
         public int Parts;
         public bool HasShip;
@@ -69,6 +76,8 @@ namespace ReDefinition.Engineer
             readout.DryMass = dryMass;
             readout.FuelMass = fuelMass;
             readout.Resources = ResourcesOf(ship.parts);
+            foreach (Part part in ship.parts)
+                if (part != null && part.Resources.Contains("ElectricCharge")) readout.ElectricCharge += part.Resources["ElectricCharge"].amount;
 
             VesselDeltaV deltaV = ship.vesselDeltaV;
             List<DeltaVStageInfo> infos = deltaV != null ? deltaV.OperatingStageInfo : null;
@@ -85,6 +94,12 @@ namespace ReDefinition.Engineer
             }
             readout.Stages = StageTable.Complete(rows);
             readout.PartFacts = FactsOf(ship.parts, partInfos);
+            HashSet<string> air = AirResources(ship.parts);
+            if (BreathesAir(ship.parts, air))
+            {
+                readout.Density = new Dictionary<string, double>();
+                readout.Sim = SimOf(ship.parts, readout.PartFacts, air, readout.Density, TopStart(readout.Stages));
+            }
             readout.TotalDeltaV = StageTable.TotalDeltaV(readout.Stages);
             readout.Rcs = RcsOf(readout.Stages, partInfos);
             return readout;
@@ -134,11 +149,14 @@ namespace ReDefinition.Engineer
                     DecoupleStage = info != null ? info.decoupleStage : -1,
                     ActivatesAt = part.inverseStage,
                     Command = part.HasModuleImplementing<ModuleCommand>(),
-                    Engine = part.HasModuleImplementing<ModuleEngines>(),
+                    Engine = HasThrust(part),
                     Legs = legs,
                     // RealChute's parachutes are a module of their own.
                     Parachute = part.HasModuleImplementing<ModuleParachute>() || part.Modules.Contains("RealChuteModule"),
                     HeatShield = part.HasModuleImplementing<ModuleAblator>(),
+                    Lift = part.HasModuleImplementing<ModuleLiftingSurface>() && !part.HasModuleImplementing<ModuleCommand>()
+                           && !part.HasModuleImplementing<ModuleAblator>(),
+                    Wheels = part.FindModulesImplementing<ModuleWheelBase>().Exists(wheel => wheel != null && wheel.wheelType != WheelType.LEG),
                     Clamp = part.HasModuleImplementing<LaunchClamp>(),
                     Crew = part.CrewCapacity,
                     Separator = part.HasModuleImplementing<ModuleDockingNode>() ? Separation.DockingPort
@@ -159,13 +177,13 @@ namespace ReDefinition.Engineer
                     double power = rcs.thrusterPower * rcs.thrustPercentage * 0.01;
                     fact.RcsThrust += power;
                     fact.RcsThrustOverIsp += power / isp;
-                    if (rcs.propellants != null)
-                        foreach (Propellant propellant in rcs.propellants) fact.RcsBurns.Add(propellant.name);
+                    AddMix(fact.RcsMix, rcs.propellants, power / isp);
                 }
                 for (int i = 0; i < part.Resources.Count; i++)
                 {
                     PartResource resource = part.Resources[i];
-                    if (resource == null || resource.info == null || !rcsPropellants.Contains(resource.resourceName)) continue;
+                    if (resource == null || resource.info == null || !resource.flowState
+                        || !rcsPropellants.Contains(resource.resourceName)) continue;
                     double held;
                     fact.RcsResources.TryGetValue(resource.resourceName, out held);
                     fact.RcsResources[resource.resourceName] = held + resource.amount * resource.info.density;
@@ -179,6 +197,219 @@ namespace ReDefinition.Engineer
                 facts.Add(fact);
             }
             return facts;
+        }
+
+        // ------------------------------------------------------ own simulation
+
+        // The resources engines take in from the air: IntakeAir, as KSP's simulation
+        // knows it (DeltaVGlobals.PropellantsToIgnore), and whatever the vessel's
+        // intakes gather (ModuleResourceIntake.resourceName), a mod's own air.
+        private static HashSet<string> AirResources(List<Part> parts)
+        {
+            HashSet<string> air = new HashSet<string> { "IntakeAir" };
+            foreach (Part part in parts)
+                if (part != null)
+                    foreach (ModuleResourceIntake intake in part.FindModulesImplementing<ModuleResourceIntake>())
+                        if (intake != null && !string.IsNullOrEmpty(intake.resourceName)) air.Add(intake.resourceName);
+            return air;
+        }
+
+        private static bool BreathesAir(List<Part> parts, HashSet<string> air)
+        {
+            foreach (Part part in parts)
+                if (part != null)
+                    foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                        if (engine != null && engine.propellants != null && engine.propellants.Exists(p => p != null && air.Contains(p.name)))
+                            return true;
+            return false;
+        }
+
+        // Every part as StageSim takes it, in the order of `facts`: its place, how
+        // fuel crosses it, its resources that can flow, and its engine's rocket and
+        // air-breathing modes. A fuel line (CModuleFuelLine on a CompoundPart) feeds
+        // its target from the part it is attached to.
+        // The mass KSP's simulation starts from: its first stage's.
+        private static double TopStart(List<StageRow> rows)
+        {
+            double start = 0.0;
+            int top = int.MinValue;
+            foreach (StageRow row in rows)
+                if (row.Number > top)
+                {
+                    top = row.Number;
+                    start = row.StartMass;
+                }
+            return start;
+        }
+
+        // `start`: KSP's start mass; what it counts beyond the parts and their
+        // resources (the crew) goes to the root part.
+        private static List<SimPart> SimOf(List<Part> parts, List<PartFacts> facts, HashSet<string> air, Dictionary<string, double> density,
+                                           double start)
+        {
+            List<SimPart> sim = new List<SimPart>();
+            Dictionary<Part, int> index = new Dictionary<Part, int>();
+            for (int i = 0; i < parts.Count; i++)
+                if (parts[i] != null) index[parts[i]] = i;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                Part part = parts[i];
+                PartFacts fact = i < facts.Count ? facts[i] : new PartFacts();
+                SimPart simPart = new SimPart
+                {
+                    Parent = fact.Parent, DecoupleStage = fact.DecoupleStage, ActivatesAt = part != null ? part.inverseStage : -1,
+                    Clamp = fact.Clamp, Crossfeed = part == null || part.fuelCrossFeed, Fixed = part != null ? part.mass : 0.0,
+                };
+                sim.Add(simPart);
+                if (part == null) continue;
+                for (int r = 0; r < part.Resources.Count; r++)
+                {
+                    PartResource resource = part.Resources[r];
+                    if (resource == null || resource.info == null) continue;
+                    double unit = resource.info.density;
+                    density[resource.resourceName] = unit;
+                    if (unit <= 0.0) continue;
+                    if (!resource.flowState)
+                    {
+                        simPart.Fixed += resource.amount * unit;
+                        continue;
+                    }
+                    double held;
+                    simPart.Amount.TryGetValue(resource.resourceName, out held);
+                    simPart.Amount[resource.resourceName] = held + resource.amount;
+                }
+                EnginesOf(part, air, simPart);
+            }
+            for (int i = 0; i < sim.Count; i++)
+                if (sim[i].Parent >= 0 && sim[i].Parent < sim.Count) sim[sim[i].Parent].Children.Add(i);
+            double total = 0.0;
+            foreach (SimPart part in sim)
+            {
+                if (part.Clamp) continue;
+                total += part.Fixed;
+                foreach (KeyValuePair<string, double> held in part.Amount)
+                {
+                    double unit;
+                    if (density.TryGetValue(held.Key, out unit)) total += held.Value * unit;
+                }
+            }
+            int root = sim.FindIndex(part => part.Parent < 0 && !part.Clamp);
+            if (root >= 0 && start > 0.0) sim[root].Fixed = Math.Max(0.0, sim[root].Fixed + start - total);
+            for (int i = 0; i < parts.Count; i++)
+            {
+                CompoundPart line = parts[i] as CompoundPart;
+                int target, source;
+                if (line == null || line.target == null || line.parent == null || !line.HasModuleImplementing<CompoundParts.CModuleFuelLine>()) continue;
+                if (index.TryGetValue(line.target, out target) && index.TryGetValue(line.parent, out source))
+                    sim[target].FuelLineSources.Add(source);
+            }
+            return sim;
+        }
+
+        // The part's rocket mode and air-breathing mode: a multi-mode engine's two
+        // (the air-breathing one that goes furthest), else the first engine, as KSP
+        // counts it; not a motor KSP leaves out.
+        private static void EnginesOf(Part part, HashSet<string> air, SimPart simPart)
+        {
+            List<ModuleEngines> engines = part.FindModulesImplementing<ModuleEngines>();
+            bool multi = part.HasModuleImplementing<MultiModeEngine>();
+            for (int e = 0; e < engines.Count; e++)
+            {
+                ModuleEngines engine = engines[e];
+                if (engine == null || (!multi && e > 0) || (engine.nonThrustMotor && !engine.includeinDVCalcs)) continue;
+                bool breathes = engine.propellants != null && engine.propellants.Exists(p => p != null && air.Contains(p.name));
+                SimEngine mode = ModeOf(engine, breathes, air);
+                if (mode == null) continue;
+                if (breathes)
+                {
+                    if (simPart.Air == null || mode.Mach > simPart.Air.Mach) simPart.Air = mode;
+                }
+                else if (simPart.Rocket == null)
+                {
+                    simPart.Rocket = mode;
+                }
+            }
+        }
+
+        private static SimEngine ModeOf(ModuleEngines engine, bool breathes, HashSet<string> air)
+        {
+            if (engine.atmosphereCurve == null || engine.propellants == null) return null;
+            SimEngine mode = new SimEngine
+            {
+                Thrust = engine.maxThrust * engine.thrustPercentage * 0.01, Solid = engine.throttleLocked || !engine.allowShutdown,
+                // A jet's Isp as it breathes the air near the ground; a rocket's in vacuum.
+                Isp = engine.atmosphereCurve.Evaluate(breathes ? 1f : 0f),
+            };
+            foreach (Propellant propellant in engine.propellants)
+            {
+                if (propellant == null || propellant.resourceDef == null || propellant.resourceDef.density <= 0f || air.Contains(propellant.name)
+                    || propellant.name == "ElectricCharge") continue;
+                mode.Propellants.Add(new SimPropellant { Name = propellant.name, Ratio = propellant.ratio, Flow = FlowOf(propellant.GetFlowMode()) });
+            }
+            if (FlightGlobals.Bodies != null)
+                foreach (CelestialBody body in FlightGlobals.Bodies)
+                {
+                    if (body == null || !body.atmosphere || (breathes && !body.atmosphereContainsOxygen)) continue;
+                    mode.ThrustAtSurface[body.bodyName] = engine.MaxThrustOutputAtm(false, true, (float)body.atmPressureASL,
+                        body.atmosphereTemperatureSeaLevel, body.atmDensityASL);
+                }
+            if (breathes)
+                mode.Mach = engine.useVelCurve && engine.velCurve != null
+                    ? AirLaunch.MachLimit(mach => engine.velCurve.Evaluate((float)mach))
+                    : 1.0;
+            return mode.Thrust > 0.0 && mode.Isp > 0.0 && mode.Propellants.Count > 0 ? mode : null;
+        }
+
+        private static SimFlow FlowOf(ResourceFlowMode mode)
+        {
+            switch (mode)
+            {
+                case ResourceFlowMode.NO_FLOW:
+                    return SimFlow.Own;
+                case ResourceFlowMode.STACK_PRIORITY_SEARCH:
+                case ResourceFlowMode.STAGE_STACK_FLOW:
+                case ResourceFlowMode.STAGE_STACK_FLOW_BALANCE:
+                    return SimFlow.Stack;
+                default:
+                    return SimFlow.Vessel;
+            }
+        }
+
+        // An engine KSP's delta-v simulation counts: not a motor that gives no thrust
+        // of its own (a tank's separation motor, an escape tower), unless the player
+        // includes it (ModuleEngines.nonThrustMotor, includeinDVCalcs; VesselDeltaV,
+        // decompiled).
+        internal static bool HasThrust(Part part)
+        {
+            foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                if (engine != null && (!engine.nonThrustMotor || engine.includeinDVCalcs)) return true;
+            return false;
+        }
+
+        // Per propellant, its share by mass of the flow of thrusters whose thrust over
+        // Isp is `weight` (so proportional to their mass flow): its ratio times its
+        // density over the mix's. Resources of no mass (electric charge) take none.
+        internal static void AddMix(Dictionary<string, Dictionary<string, double>> mixes, List<Propellant> propellants, double weight)
+        {
+            if (propellants == null || weight <= 0.0) return;
+            List<string> names = new List<string>();
+            foreach (Propellant propellant in propellants)
+                if (propellant != null && propellant.resourceDef != null && propellant.resourceDef.density > 0f) names.Add(propellant.name);
+            names.Sort(string.CompareOrdinal);
+            string key = string.Join("+", names.ToArray());
+            Dictionary<string, double> mix;
+            if (!mixes.TryGetValue(key, out mix)) mixes[key] = mix = new Dictionary<string, double>();
+            double total = 0.0;
+            foreach (Propellant propellant in propellants)
+                if (propellant != null && propellant.resourceDef != null) total += propellant.ratio * propellant.resourceDef.density;
+            if (total <= 0.0) return;
+            foreach (Propellant propellant in propellants)
+            {
+                if (propellant == null || propellant.resourceDef == null || propellant.resourceDef.density <= 0f) continue;
+                double share;
+                mix.TryGetValue(propellant.name, out share);
+                mix[propellant.name] = share + weight * propellant.ratio * propellant.resourceDef.density / total;
+            }
         }
 
         private static StageRow RowOf(DeltaVStageInfo info, List<DeltaVPartInfo> partInfos, bool vectoredThrust)
@@ -220,7 +451,49 @@ namespace ReDefinition.Engineer
             }
             row.ThrustTorque = ThrustTorque(info, partInfos);
             SurfaceThrust(row, info, vectoredThrust);
+            row.Solid = Solid(info);
+            row.ElectricRate = ElectricRate(info);
             return row;
+        }
+
+        // The electric charge the stage's engines burn at full thrust, in units per
+        // second: each engine's mass flow (thrust over Isp) shared out over its
+        // propellants by ratio and density, which gives the charge, of no mass, its
+        // units by ratio.
+        private static double ElectricRate(DeltaVStageInfo info)
+        {
+            if (info.enginesActiveInStage == null) return 0.0;
+            double rate = 0.0;
+            foreach (DeltaVEngineInfo engineInfo in info.enginesActiveInStage)
+            {
+                ModuleEngines engine = engineInfo != null ? engineInfo.engine : null;
+                if (engine == null || engine.propellants == null || engine.atmosphereCurve == null) continue;
+                double isp = engine.atmosphereCurve.Evaluate(0f);
+                double total = 0.0, charge = 0.0;
+                foreach (Propellant propellant in engine.propellants)
+                {
+                    if (propellant == null) continue;
+                    if (propellant.resourceDef != null) total += propellant.ratio * propellant.resourceDef.density;
+                    if (propellant.name == "ElectricCharge") charge += propellant.ratio;
+                }
+                if (charge <= 0.0 || total <= 0.0 || isp <= 0.0) continue;
+                double flow = engine.maxThrust * engine.thrustPercentage * 0.01 / (isp * StageTable.StandardGravity);
+                rate += flow * charge / total;
+            }
+            return rate;
+        }
+
+        // Every engine of the stage burns out once lit: none can be shut down or
+        // throttled.
+        private static bool Solid(DeltaVStageInfo info)
+        {
+            if (info.enginesActiveInStage == null || info.enginesActiveInStage.Count == 0) return false;
+            foreach (DeltaVEngineInfo engineInfo in info.enginesActiveInStage)
+            {
+                ModuleEngines engine = engineInfo != null ? engineInfo.engine : null;
+                if (engine != null && !engine.throttleLocked && engine.allowShutdown) return false;
+            }
+            return true;
         }
 
         // The stage's thrust at the surface of each body with air, as KSP gives it at
@@ -353,7 +626,7 @@ namespace ReDefinition.Engineer
 
             double thrust = 0.0;
             double ispWeighted = 0.0;
-            HashSet<string> propellants = new HashSet<string>();
+            Dictionary<string, Dictionary<string, double>> mix = new Dictionary<string, Dictionary<string, double>>();
             List<Part> attached = new List<Part>();
             foreach (DeltaVPartInfo partInfo in partInfos)
             {
@@ -364,23 +637,31 @@ namespace ReDefinition.Engineer
                 {
                     if (rcs == null || !rcs.moduleIsEnabled) continue;
                     double isp = rcs.atmosphereCurve != null ? rcs.atmosphereCurve.Evaluate(0f) : 0.0;
-                    thrust += rcs.thrusterPower;
-                    ispWeighted += rcs.thrusterPower / Math.Max(isp, 1e-6);
-                    if (rcs.propellants == null) continue;
-                    foreach (Propellant propellant in rcs.propellants) propellants.Add(propellant.name);
+                    if (isp <= 0.0) continue;
+                    // As ModuleRCS applies it per nozzle (decompiled).
+                    double power = rcs.thrusterPower * rcs.thrustPercentage * 0.01;
+                    thrust += power;
+                    ispWeighted += power / isp;
+                    AddMix(mix, rcs.propellants, power / isp);
                 }
             }
-            if (thrust <= 0.0) return null;
+            if (thrust <= 0.0 || ispWeighted <= 0.0) return null;
 
-            double propellantMass = 0.0;
+            // What the thrusters can burn in their mix, of what the parts still
+            // attached hold; not a locked tank's.
+            Dictionary<string, double> held = new Dictionary<string, double>();
             foreach (Part part in attached)
             {
                 for (int i = 0; i < part.Resources.Count; i++)
                 {
                     PartResource resource = part.Resources[i];
-                    if (propellants.Contains(resource.resourceName)) propellantMass += resource.amount * resource.info.density;
+                    if (resource == null || resource.info == null || !resource.flowState) continue;
+                    double amount;
+                    held.TryGetValue(resource.resourceName, out amount);
+                    held[resource.resourceName] = amount + resource.amount * resource.info.density;
                 }
             }
+            double propellantMass = StageTable.UsablePropellant(mix, held);
 
             // Thrusters of different impulse burn together: the impulse of the
             // whole is the thrust over the mass flow.

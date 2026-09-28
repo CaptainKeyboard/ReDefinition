@@ -47,6 +47,8 @@ namespace ReDefinition.Engineer
                     Inclination = body.orbit != null ? body.orbit.inclination : 0.0,
                     SphereOfInfluence = body.sphereOfInfluence > 0.0 ? body.sphereOfInfluence : double.PositiveInfinity,
                     LowOrbitAltitude = LowOrbit(body),
+                    Oxygen = body.atmosphere && body.atmosphereContainsOxygen,
+                    SpeedOfSound = HighSpeedOfSound(body),
                 });
             }
 
@@ -58,10 +60,32 @@ namespace ReDefinition.Engineer
             {
                 logged = true;
                 List<string> orbits = new List<string>();
-                foreach (int i in read.Order) orbits.Add(read.Bodies[i].Id + " " + RoutePlanner.Km(read.Bodies[i].LowOrbitAltitude));
+                foreach (int i in read.Order)
+                    orbits.Add(read.Bodies[i].Id + " " + RoutePlanner.Km(read.Bodies[i].LowOrbitAltitude)
+                               + (read.Bodies[i].Oxygen ? " (oxygen, sound " + read.Bodies[i].SpeedOfSound.ToString("0") + " m/s high up)" : ""));
                 Debug.Log(Log.Tag + " Planner low orbits: " + string.Join(", ", orbits.ToArray()));
             }
             return read;
+        }
+
+        // The speed of sound where the pressure has fallen to AirLaunch.HighAir of
+        // the sea level's (CelestialBody.GetPressure, GetTemperature, GetDensity,
+        // GetSpeedOfSound); 0 without air.
+        private static double HighSpeedOfSound(CelestialBody body)
+        {
+            if (!body.atmosphere || body.atmosphereDepth <= 0.0) return 0.0;
+            double sea = body.GetPressure(0.0);
+            if (sea <= 0.0) return 0.0;
+            double low = 0.0, high = body.atmosphereDepth;
+            for (int i = 0; i < 40; i++)
+            {
+                double middle = (low + high) / 2.0;
+                if (body.GetPressure(middle) > sea * AirLaunch.HighAir) low = middle;
+                else high = middle;
+            }
+            double pressure = body.GetPressure(low);
+            double density = body.GetDensity(pressure, body.GetTemperature(low));
+            return density > 0.0 ? body.GetSpeedOfSound(pressure, density) : 0.0;
         }
 
         private void AddWithMoons(int body)

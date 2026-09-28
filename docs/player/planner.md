@@ -159,7 +159,7 @@ transfer burn that takes too long can miss its target.
 
 | Column | Shows |
 |---|---|
-| *Needs* | on a launch or a landing on the engines, the TWR it needs: 1.20 to lift off from a body with air, 1.00 otherwise. On other steps, the share of the orbit a burn may take: 17 % |
+| *Needs* | on a launch or a landing on the engines, the TWR it needs: 1.20 to lift off from a body with air, 1.00 otherwise; *Runway* where jets with wings lift off, at any TWR. On other steps, the share of the orbit a burn may take: 17 % |
 | *Has* | on a launch or a landing, the stage that decides and its TWR at the surface, in the air where the body has any: the first stage of a launch, the last of a landing; red below what it needs. On other steps, the burn that takes the largest share of its orbit, with its time and share: orange from 11 %, where it loses 2 % of its delta-v, red from 17 %, where it loses 5 % |
 
 *+* opens a step:
@@ -168,7 +168,7 @@ transfer burn that takes too long can miss its target.
 |---|---|
 | a stage | the vessel's mass as the stage starts its part; the stage's Isp in vacuum; its TWR as it starts its part and as it ends it, in vacuum; *In air* on a launch or a landing where the body has air; its thrust in vacuum; how long it burns in this step |
 | a burn in orbit | its name; how long it takes, its share of the orbit and the orbit's time, and about how much delta-v it loses; red with a *+* where the stages run out before it ends or a stage has no thrust |
-| a note | where a section docks, its RCS for the last metres, in orange where it has no RCS or no RCS propellant |
+| a note | where a section docks, its RCS for the last metres, in orange where it has no RCS or no RCS propellant; where an ion engine burns, the electric charge it takes against what the vessel holds, in orange where that is not enough without solar panels or other power |
 | the body | the body the TWR is against, its surface gravity and its air |
 
 A burn in red also shows as a line under its step on the route. More thrust or less mass
@@ -194,6 +194,26 @@ once the boosters are dropped.
 
 Which tank feeds which engine is set by the vessel's staging and fuel lines, and the
 planner follows it. To give a tank to other engines, change the staging.
+
+A stage of solid rocket boosters cannot be stopped once lit. The planner burns it out on
+the step it starts on, even where that step needs less.
+
+### Jets and the RAPIER
+
+KSP's own delta-v readout gives engines that breathe air nothing: it counts them in
+vacuum. The planner counts them on the launch. Where the route starts on the surface of
+a body whose air holds oxygen, such as Kerbin or Laythe, the jets lit first fly the first
+part of the launch, shown as the stage *Air*. Its share of the launch's delta-v is the
+share of the orbital speed they reach: about 1,350 m/s for the Whiplash, 1,550 m/s for a
+RAPIER, 850 m/s for the Panther, and the speed of sound for the others. From Kerbin that
+is about 2,200 m/s of the launch for the Whiplash and 2,550 m/s for a RAPIER. The fuel
+they burn for it is taken from the tanks they reach, and the stages burn what is left. A
+RAPIER counts as a rocket after that.
+
+A vessel with wings and landing gear lifts off along the runway, so the TWR does not count
+there. Jets
+lit later, and jets on a later launch, such as from Laythe after a trip, are not
+counted.
 
 ## Keep a stage for later, or drop it
 
@@ -316,6 +336,9 @@ on, it carries the lander with the fuel the lander has left, or refilled.
   [engineer window](engineer.md).
 * The TWR compares the thrust with the body's surface gravity: in the air there, the
   thrust KSP's engines give at that body's sea level; otherwise in vacuum.
+* The jets' part of the launch is an estimate from how fast they go, not a flight: it
+  assumes the climb on jets saves the launch its share of the orbital speed. A good
+  climb profile does better, a poor one worse.
 * Burn times are for the thrust in vacuum. A burn's share is of the circular orbit it
   starts from, and what it loses is an estimate for a burn held in one direction and
   centred on its point.

@@ -22,6 +22,8 @@ namespace ReDefinition.Tests
                 {
                     Name = "Kerbin", Parent = Sun, Mu = 3.5316e12, Radius = 600000, RotationPeriod = 21549.425,
                     AtmosphereDepth = 70000, SurfacePressure = 1.0, SemiMajorAxis = 13599840256, LowOrbitAltitude = 80000,
+                    // About the game's speed of sound some 20 km up (PlannerBodies logs its own).
+                    Oxygen = true, SpeedOfSound = 300,
                 },
                 new PlannerBody
                 {

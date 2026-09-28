@@ -4,13 +4,18 @@ using System;
 namespace ReDefinition.Engineer
 {
     // One stage as KSP's delta-v simulation gives it (DeltaVStageInfo): the mass
-    // when it starts and ends burning, and its delta-v in vacuum.
+    // when it starts and ends burning, and its delta-v in vacuum. A solid stage burns
+    // out once lit (StageRow.Solid).
     internal sealed class BudgetStage
     {
         public int Number;
         public double StartMass;
         public double EndMass;
         public double DeltaV;
+        public bool Solid;
+        // Burns on the route's first step only (the air-breathing engines' part of
+        // the launch); what it has not burnt by then counts no more.
+        public bool FirstStepOnly;
     }
 
     // The player's choices for the stages of one leg, by stage number: kept for a
@@ -250,6 +255,8 @@ namespace ReDefinition.Engineer
             private readonly double[,] capacity;
             private readonly double[,] drop;
             private readonly double[] exhaust;
+            private readonly bool[] solid;
+            private readonly bool[] firstOnly;
             private readonly int[] owner;
             // Fired past: what flies no longer comes back to it.
             private readonly bool[] done;
@@ -278,6 +285,8 @@ namespace ReDefinition.Engineer
                 capacity = new double[count, groups];
                 drop = new double[count, groups];
                 exhaust = new double[count];
+                solid = new bool[count];
+                firstOnly = new bool[count];
                 owner = new int[count];
                 done = new bool[count];
                 mass = new double[groups];
@@ -294,6 +303,8 @@ namespace ReDefinition.Engineer
                 for (int i = 0; i < count; i++)
                 {
                     int number = order[i].Number;
+                    solid[i] = order[i].Solid;
+                    firstOnly[i] = order[i].FirstStepOnly;
                     int group;
                     owner[i] = split.Owner.TryGetValue(number, out group) && group >= 0 && group < groups ? group : 0;
                     double start = Math.Max(0.0, order[i].StartMass);
@@ -343,6 +354,7 @@ namespace ReDefinition.Engineer
                 for (leg = 0; leg < steps.Count; leg++)
                 {
                     BudgetStep step = steps[leg];
+                    if (leg == 1) Expire();
                     double need = Math.Max(0.0, step.Need) * (1.0 + Math.Max(0.0, margin));
                     result.Needed[leg] = need;
                     foreach (GoneGroup gone in step.Gone) Leave(gone);
@@ -372,6 +384,23 @@ namespace ReDefinition.Engineer
                 }
                 Finish();
                 return result;
+            }
+
+            // A stage for the first step only is done once that step is over: what it
+            // did not burn stays as dead weight, what KSP drops after it goes.
+            private void Expire()
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    if (!firstOnly[i] || done[i]) continue;
+                    for (int g = 0; g < groups; g++)
+                    {
+                        fuel[i, g] = 0.0;
+                        mass[g] = Math.Max(0.0, mass[g] - drop[i, g]);
+                        drop[i, g] = 0.0;
+                    }
+                    done[i] = true;
+                }
             }
 
             private bool[] Everything()
@@ -461,7 +490,9 @@ namespace ReDefinition.Engineer
                 if (available <= Tiny || exhaust[at] <= 0.0) return;
                 double pushed = MassOf(side);
                 double full = DeltaV(at, available, pushed);
-                double take = Math.Min(need, full);
+                // A solid stage, once lit, gives all it has to this step: what the
+                // step does not need is spent on it all the same.
+                double take = solid[at] ? full : Math.Min(need, full);
                 double burnt = take >= full - 1e-9 ? available : pushed * (1.0 - Math.Exp(-take / exhaust[at]));
                 result.Uses.Add(new StageUse { Stage = order[at].Number, Leg = leg, DeltaV = take, Mass = pushed, EndMass = pushed - burnt });
                 for (int g = 0; g < groups; g++)
@@ -471,7 +502,7 @@ namespace ReDefinition.Engineer
                     fuel[at, g] = Math.Max(0.0, fuel[at, g] - part);
                     mass[g] = Math.Max(0.0, mass[g] - part);
                 }
-                need -= take;
+                need = Math.Max(0.0, need - take);
             }
 
             // The next stage fires: what KSP drops after `at` goes from the side. In the
