@@ -26,6 +26,8 @@ namespace ReDefinition.Engineer
         private const float LetterWidth = 14f;
         // Every button's height, and the size of the square ones: the cross, "..." and +.
         private const float Square = RowHeight + 2f;
+        // What a stop's and a step's rows leave free at their right end.
+        private const float RowEnd = 2f;
         private const float Speed = 96f;
         private const float BarHeight = 10f;
         private const float RowHeight = 20f;
@@ -93,10 +95,12 @@ namespace ReDefinition.Engineer
             // the timeline's.
             DialogGUIHorizontalLayout dot = new DialogGUIHorizontalLayout(Timeline, Icon, 0f, new RectOffset(4, 0, 0, 0),
                 TextAnchor.MiddleLeft, PlannerWidgets.Icon("Dot", 12f, PlannerColors.Line), new DialogGUISpace(Timeline - 16f));
-            // The body's button as wide as a body's name needs; the room the others
-            // leave stands after the choices, so that the cross stays at the right.
-            const float bodyWidth = 120f;
-            float room = Mathf.Max(0f, width - Timeline - LetterWidth - bodyWidth - 62f - 52f - 76f - Square - 4f * 8f - 2f);
+            // The body's button ends where a step's place does, so that Surface stands
+            // over who flies a step; the room the others leave stands after the
+            // choices, so that the cross ends where a step's "..." does: 2 units short
+            // of the rows' room. Eight elements, seven gaps.
+            const float bodyWidth = Place - LetterWidth - 4f;
+            float room = Mathf.Max(0f, width - Timeline - LetterWidth - bodyWidth - 62f - 52f - 76f - Square - 4f * 7f - RowEnd);
             DialogGUIButton body = new DialogGUIButton(() => "<b>" + BodyName(index) + "</b>", () => PickBody(index), bodyWidth,
                 RowHeight + 2f, false);
             bodyButtons[index] = body;
@@ -691,8 +695,10 @@ namespace ReDefinition.Engineer
             // What the step's row leaves the bar: the line, the place, who flies, the
             // figure and "...", with the gaps between them, and a seam of one unit
             // between its pieces.
+            // Six elements and five gaps besides who flies, to end where a stop's
+            // cross does.
             float room = Mathf.Max(40f, width - Timeline - Place - (HasLander() || HasCapsule() ? VehicleButton + 4f : 0f)
-                                        - StepSpeed_ - Square - 4f * 5f - 8f);
+                                        - StepSpeed_ - Square - 4f * 5f - RowEnd);
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
             for (int leg = 0; leg < MaxStops; leg++)
