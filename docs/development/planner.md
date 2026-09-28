@@ -33,7 +33,8 @@ The planner uses no text to explain itself. From the top:
 * The route is a line of stops, an orbit's altitude under it as a field
   (`DialogGUITextInput`); while it has the keyboard, the game's controls are locked
   (`PlannerView.Keep`), so that the digits do not reach the editor's shortcuts. Between two
-  stops, each step on one row in fixed columns: where it goes; who flies it, a button that
+  stops, each step in a block on a lighter background (`Tint`, from the timeline on), with
+  a gap to the next, and in it one row in fixed columns: where it goes; who flies it, a button that
   opens the list of who can (`ChoiceList`), where the vessel has a lander or a capsule,
   the player's own choice bold and underlined; its bar, a row of `DialogGUIImage`s whose
   widths and colours `SegmentBar` sets after they are created; its delta-v; and *...* for

@@ -39,9 +39,9 @@ around it.
 
 Every button says in its tooltip what it does.
 
-Between two stops come the steps of the way from one to the next, one row each: where it
-goes, who flies it, its bar, its delta-v with the margin, and *...* where it has further
-choices. The steps are:
+Between two stops come the steps of the way from one to the next, each on a lighter
+block of its own: a row with where it goes, who flies it, its bar, its delta-v with the
+margin, and *...* where it has further choices, and the lines that belong to it. The steps are:
 
 | Step | Comes |
 |---|---|

@@ -65,7 +65,7 @@ namespace ReDefinition.Engineer
             {
                 rows.AddRange(StopRows(i));
                 foreach (StepRole role in Roles)
-                    rows.AddRange(StepRows(i, role));
+                    rows.AddRange(StepBlock(i, role));
             }
             DialogGUIButton add = new DialogGUIButton("+ Add destination", AddStop, width, RowHeight + 4f, false);
             add.tooltipText = "Add a destination at the end of the route.";
@@ -158,6 +158,24 @@ namespace ReDefinition.Engineer
         }
 
         // ----------------------------------------------------------------- steps
+
+        // A step's rows on a lighter background, right of the timeline, with a gap to
+        // the next step through which the timeline runs on: one block per step between
+        // two destinations.
+        private IEnumerable<DialogGUIBase> StepBlock(int leg, StepRole role)
+        {
+            System.Func<bool> shown = () => Slot(leg, role) >= 0;
+            List<DialogGUIBase> inner = new List<DialogGUIBase>(StepRows(leg, role));
+            DialogGUIVerticalLayout block = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft,
+                inner.ToArray());
+            block.OptionEnabledCondition = shown;
+            Tint.Behind(block, PlannerColors.StepBackground, Timeline, after);
+            yield return block;
+            DialogGUIHorizontalLayout gap = new DialogGUIHorizontalLayout(width, 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                TimelineLine(4f));
+            gap.OptionEnabledCondition = shown;
+            yield return gap;
+        }
 
         // A step on the way from destination `leg` to the next, on one line in fixed
         // columns: where it goes, who flies it (a button opening the list of who can),

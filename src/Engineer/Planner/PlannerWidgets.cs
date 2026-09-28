@@ -42,6 +42,8 @@ namespace ReDefinition.Engineer
         internal static readonly Color Short = new Color(0.90f, 0.28f, 0.30f);
         internal static readonly Color Line = new Color(0.55f, 0.55f, 0.58f);
         internal static readonly Color Spare = new Color(0.40f, 0.40f, 0.43f);
+        // Behind a step: a little lighter than the panel, whatever theme it has.
+        internal static readonly Color StepBackground = new Color(1f, 1f, 1f, 0.07f);
 
         internal static Color Stage(int order)
         {
@@ -66,6 +68,31 @@ namespace ReDefinition.Engineer
 
     // What has to happen once the dialog elements are created: symbols laid on
     // buttons, bars reached for their images.
+    // A background behind an element's rows, from `left` on, once it is created: an
+    // image under its children that takes no part in the layout.
+    internal static class Tint
+    {
+        internal static void Behind(DialogGUIBase element, Color color, float left, AfterCreate after)
+        {
+            after.Add(() =>
+            {
+                if (element.uiItem == null) return;
+                GameObject tint = new GameObject("ReDefinitionTint", typeof(RectTransform));
+                tint.transform.SetParent(element.uiItem.transform, false);
+                tint.transform.SetAsFirstSibling();
+                RectTransform rect = (RectTransform)tint.transform;
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = new Vector2(left, 0f);
+                rect.offsetMax = Vector2.zero;
+                tint.AddComponent<LayoutElement>().ignoreLayout = true;
+                Image image = tint.AddComponent<Image>();
+                image.color = color;
+                image.raycastTarget = false;
+            });
+        }
+    }
+
     internal sealed class AfterCreate
     {
         private readonly List<Action> actions = new List<Action>();
