@@ -33,6 +33,11 @@ namespace ReDefinition.Engineer
         internal const string None = "None";
         public string Lander = Automatic;
         public string Capsule = Automatic;
+        // What the lander does after its flight: Docks, Alone, or Automatic for what
+        // separates it (a docking port docks).
+        internal const string Docks = "Docks";
+        internal const string Alone = "Alone";
+        public string LanderReturns = Automatic;
 
         private const string FileName = "planner.cfg";
         private const int MaxPlans = 200;
@@ -128,6 +133,7 @@ namespace ReDefinition.Engineer
             node.AddValue("margin", Margin.ToString("0.00", CultureInfo.InvariantCulture));
             node.AddValue("planeChanges", PlaneChanges);
             node.AddValue("lander", Lander);
+            node.AddValue("landerReturns", LanderReturns);
             node.AddValue("capsule", Capsule);
             foreach (RouteStop stop in Stops)
             {
@@ -171,6 +177,8 @@ namespace ReDefinition.Engineer
             bool planes;
             if (bool.TryParse(node.GetValue("planeChanges"), out planes)) state.PlaneChanges = planes;
             if (!string.IsNullOrEmpty(node.GetValue("lander"))) state.Lander = node.GetValue("lander");
+            string returns = node.GetValue("landerReturns");
+            if (returns == Docks || returns == Alone) state.LanderReturns = returns;
             if (!string.IsNullOrEmpty(node.GetValue("capsule"))) state.Capsule = node.GetValue("capsule");
             bool skipped = false;
             foreach (ConfigNode stopNode in node.GetNodes("STOP"))

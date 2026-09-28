@@ -51,13 +51,14 @@ namespace ReDefinition.Engineer
 
     // The steps of a route (docs/development/planner.md). Between two destinations
     // come the steps the way needs, each flown by the whole vessel (Ship), its lander
-    // alone, the rest without the lander, or the capsule alone. The capsule is part
-    // of the lander or of the rest, and leaves whatever carries it for good; a landing on parachutes on the last destination
-    // is the capsule's where the vessel has one. Who flies a step is the player's choice
-    // (RouteStop.By), or else: from a surface whoever stands on it; across to another
-    // body the whole vessel where the lander waits with the rest, so that it docks;
-    // a landing short of the route's end the lander; otherwise whoever flew the step
-    // before. From that, the lander leaves the rest
+    // alone, the rest without the lander, or the capsule alone. The lander is the part
+    // that lands; it docks with the rest again, or flies on alone, as set. The capsule
+    // is part of the lander or of the rest, and leaves whatever carries it for good; a
+    // landing on parachutes on the last destination is the capsule's where the vessel
+    // has one. Who flies a step is the player's choice (RouteStop.By), or else: from a
+    // surface whoever stands on it; across to another body the whole vessel where a
+    // lander that docks waits with the rest; a landing short of the route's end the
+    // lander; otherwise whoever flew the step before. From that, the lander leaves the rest
     // where a step of the lander follows one of the whole vessel; it docks where a
     // step of the whole vessel follows, and has to be where the rest waits for that;
     // a rest that is never met again is left where it waited. The lander climbs to
@@ -80,6 +81,7 @@ namespace ReDefinition.Engineer
             internal RouteStop Capsule;
             internal bool HasLander;
             internal bool CapsuleInLander;
+            internal bool LanderDocks;
         }
 
         // Where the capsule is while it has not left: with the lander away where it is
@@ -91,15 +93,18 @@ namespace ReDefinition.Engineer
                 : walk.Rest;
         }
 
-        // `capsuleInLander`: the capsule is part of the lander rather than of the rest.
+        // `capsuleInLander`: the capsule is part of the lander rather than of the rest;
+        // `landerDocks`: the lander docks with the rest again rather than flying on alone.
         internal static List<RouteStep> Build(IList<PlannerBody> bodies, IList<RouteStop> goals, bool hasLander,
-                                              bool planeChanges, bool hasCapsule = false, bool capsuleInLander = true)
+                                              bool planeChanges, bool hasCapsule = false, bool capsuleInLander = true,
+                                              bool landerDocks = true)
         {
             List<RouteStep> steps = new List<RouteStep>();
             if (goals.Count == 0) return steps;
             Walk walk = new Walk
             {
                 Rest = goals[0], Lander = goals[0], HasLander = hasLander, CapsuleInLander = hasLander && capsuleInLander,
+                LanderDocks = landerDocks,
             };
 
             for (int g = 1; g < goals.Count; g++)
@@ -197,8 +202,9 @@ namespace ReDefinition.Engineer
                     ? Vehicle.Lander
                     : walk.Last;
             }
-            // The lander in an orbit of the body the rest waits at: it docks.
-            if (role == StepRole.Transfer && !walk.Together && !walk.LanderLeft && Meets(walk.Lander, walk.Rest))
+            // The lander in an orbit of the body the rest waits at: it docks, where it is
+            // one that docks.
+            if (role == StepRole.Transfer && walk.LanderDocks && !walk.Together && !walk.LanderLeft && Meets(walk.Lander, walk.Rest))
                 return Vehicle.Ship;
             return walk.Last;
         }
@@ -345,8 +351,10 @@ namespace ReDefinition.Engineer
             if (role == StepRole.Land) return goal;
             if (role == StepRole.Launch)
             {
-                // The lander climbs to the rest, where it waits around this body.
-                if (vehicle == Vehicle.Lander && !walk.Together && walk.Rest.Kind == StopKind.Orbit && walk.Rest.Body == from.Body)
+                // A lander that docks again climbs to the rest, where it waits around
+                // this body.
+                if (vehicle == Vehicle.Lander && walk.LanderDocks && !walk.Together && walk.Rest.Kind == StopKind.Orbit
+                    && walk.Rest.Body == from.Body)
                     return walk.Rest;
                 if (from.Body == goal.Body && goal.Kind == StopKind.Orbit) return goal;
                 return LowOrbit(bodies, from.Body);

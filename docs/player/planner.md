@@ -26,9 +26,10 @@ back when you load the vessel again.
 The rows *Lander* and *Capsule* at the top name the parts of the vessel that fly on
 their own. They decide who can fly a step.
 
-| Button | Offers |
+| Row | Offers |
 |---|---|
-| *Lander* | *Automatic*, *None* or a part of the vessel with engines and a command part: it flies alone while the rest waits |
+| *Lander* | *Automatic*, *None* or a part of the vessel with engines and a command part: the part that lands |
+| *Afterwards* | *Docks again*: the lander comes back to the rest and docks, and the whole vessel flies on. *Flies on alone*: the lander goes on by itself and leaves the rest behind |
 | *Capsule* | *Automatic*, *None* or a part of the vessel with a command part: it comes home alone at the end |
 
 The parts in the lists are what a decoupler or a docking port separates, named after
@@ -39,12 +40,13 @@ rest.
 *Automatic* shows in brackets what the planner found on the vessel:
 
 * The capsule is the smallest part with a command part and parachutes.
-* The lander is the smallest part with engines and landing legs that a docking port
-  separates, so that it can come back to the rest.
+* The lander is the smallest part with a command part, engines and landing legs.
+* *Afterwards* is *Docks again* where a docking port separates the lander, *Flies on
+  alone* where a decoupler does.
 
-A plain rocket with a pod and parachutes on top, such as the Kerbal X, has the pod as its
-capsule and no lander. A lander that a decoupler separates and that does not come back,
-you pick yourself. What you pick is bold and underlined.
+The Kerbal X has the pod as its capsule and, with the legs on its upper stage, the pod
+and the upper stage as its lander, which flies on alone. What you pick is bold and
+underlined; picking it again gives it back to the planner.
 
 ## Lay out the route
 
@@ -160,8 +162,9 @@ booster you drop early to lighten the vessel gets *Drop after* on the launch.
 
 ## Plan a lander and a capsule
 
-A vessel can carry a lander that flies alone while the rest waits. The lander then docks
-again and goes on, or flies on by itself and leaves the rest behind. A capsule is what
+A vessel can carry a lander, the part that lands. The rest waits while it flies. The
+lander then docks again and goes on, or flies on by itself and leaves the rest behind, as
+*Afterwards* says. A capsule is what
 comes home at the end: it leaves the rest of the vessel for good, usually for the
 landing on its parachutes.
 
@@ -187,11 +190,11 @@ lander climbs to the rest's own orbit. *Refuel* on the line *Docks with the rest
 fills the lander up from the rest's tanks as it docks.
 
 By itself, the planner has the lander land wherever the route goes on after the landing,
-whoever stands on a surface fly up from it, the whole vessel fly on across to another
-body where the lander has come back to the rest, and otherwise whoever flew the step
-before. A landing on parachutes on the last stop is the capsule's where what carries it
-is in the air. So a lander lands, climbs back, docks and is carried on without a click,
-and the capsule comes home by itself.
+whoever stands on a surface fly up from it, the whole vessel fly on across to another body
+where a lander that docks again has come back to the rest, and otherwise whoever flew the
+step before. A landing on parachutes on the last stop is the capsule's where what carries
+it is in the air. So a lander lands, climbs back, and docks and is carried on or flies on
+by itself without a click, and the capsule comes home by itself.
 
 For a landing on parachutes on another body, the step across ends in its air, and the
 vessel goes straight in. *...* on that step offers *Orbit first* on the line *Way down*:
@@ -234,9 +237,9 @@ Duna's orbit:
 
 1. *B*: pick Duna, *Orbit*. *C*: Duna, *Surface*. *D*: Kerbin, *Surface*. *Chutes* comes
    on by itself on both.
-2. Check that *Lander* names the lander. The landing on Duna is the lander's by itself.
-3. On the step *To Kerbin's air*, pick *Lander* from its button. Without that the lander
-   would dock and the whole vessel fly home.
+2. Check that *Lander* names the lander and *Afterwards* says *Flies on alone*, as it does
+   by itself where a decoupler separates the lander. The landing on Duna and the way home
+   are then the lander's.
 
 A mission from Kerbin to Jool with one lander for Laythe and Vall, refilled after
 Laythe, and the capsule landing at home:

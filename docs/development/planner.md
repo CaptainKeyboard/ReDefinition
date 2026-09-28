@@ -135,8 +135,8 @@ for good, and a step of anything else after it is a `Problem`. The player sets i
 out: the capsule once it has left; the capsule for a landing on parachutes on the last
 stop where what carries it is in the air; a landing short of the last stop the lander;
 from a surface whoever stands on it; across to another body `Ship` where the lander is in
-an orbit of the body the rest waits at; otherwise whoever flew the step before. `Build`
-walks the steps and keeps where the rest and the lander are:
+an orbit of the body the rest waits at and docks again (`landerDocks`); otherwise whoever
+flew the step before. `Build` walks the steps and keeps where the rest and the lander are:
 
 | Step flown by | While | Then |
 |---|---|---|
@@ -290,10 +290,14 @@ among their separators whatever the order, named after its command part, else it
 engine. The plan keeps a choice as its separator's `persistentId` and side.
 
 * The capsule is the lightest choice with a command part and a parachute.
-* The lander is the lightest choice with a command part, an engine and a landing leg
-  that a docking port separates, since a lander that comes back docks. A lander that a
-  decoupler separates and that does not come back is the player's pick; otherwise every
-  rocket with legs on its last stage would count as one.
+* The lander, the part that lands, is the lightest choice with a command part, an engine
+  and a landing leg that a docking port separates or that holds the command part KSP
+  keeps longest (`KeepsLongest`), so that a booster with a probe core and legs does not
+  count.
+* Whether it docks with the rest again (`PlannerState.LanderReturns`, *Afterwards*): as
+  the player sets it, or where a docking port separates it (`PlannerView.LanderDocks`).
+  `RouteSteps.Build` then lets the whole vessel fly on across where the lander meets the
+  rest; a lander that flies on alone goes on by itself, the rest left where it waited.
 * The capsule has to be inside the lander or apart from it; otherwise it counts for
   nothing. The lists offer only what fits the other choice: the lander's list parts with
   a command part and engines. A list closes when the vessel's groups change under it,
@@ -325,6 +329,7 @@ PLAN
     margin = 0.10
     planeChanges = False
     lander = Automatic
+    landerReturns = Automatic
     capsule = 1822461803:over
     STOP
     {
@@ -348,9 +353,9 @@ PLAN
 ```
 
 `lander` and `capsule` are a part choice's key, `None`, or `Automatic`, which a new plan
-starts with. `by` and `refuel` are per step in the order launch, transfer, arrival,
-landing. A `STAGE` is a stage saved on a step (`Save`) or dropped after it
-(`DropAfter`); a stage left to burn has none.
+starts with; `landerReturns` is `Docks`, `Alone` or `Automatic`. `by` and `refuel` are per
+step in the order launch, transfer, arrival, landing. A `STAGE` is a stage saved on a step
+(`Save`) or dropped after it (`DropAfter`); a stage left to burn has none.
 
 Bodies are kept by the name the game knows them by (`CelestialBody.bodyName`), which
 does not change with the language. If a body of the plan is not in the loaded system,

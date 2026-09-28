@@ -58,6 +58,9 @@ namespace ReDefinition.Engineer
         public bool Command;
         public bool Parachute;
         public bool DockingPort;
+        // It holds the command part KSP keeps longest: nothing is staged away from
+        // under it.
+        public bool KeepsLongest;
     }
 
     // The lander and the capsule as parts of the vessel (docs/development/planner.md).
@@ -65,9 +68,10 @@ namespace ReDefinition.Engineer
     // choice, less the launch clamps and the parts KSP stages away before its command
     // part, its legs and its parachutes, and of what is left only the parts still
     // joined to its command part. Automatic: the capsule is the lightest choice with a
-    // command part and parachutes; the lander the lightest one with a command part,
-    // engines and landing legs that a docking port separates, so that it can come
-    // back. The rest is everything else; the capsule is part of the lander or of the
+    // command part and parachutes; the lander, the part that lands, the lightest one
+    // with a command part, engines and landing legs that a docking port separates or
+    // that holds the command part KSP keeps longest, so that no booster with legs
+    // counts. The rest is everything else; the capsule is part of the lander or of the
     // rest. Free of Unity, tested.
     internal static class VesselShape
     {
@@ -76,6 +80,9 @@ namespace ReDefinition.Engineer
             List<PartGroupChoice> choices = new List<PartGroupChoice>();
             Dictionary<string, PartGroupChoice> seen = new Dictionary<string, PartGroupChoice>();
             List<int>[] children = Children(parts);
+            int longest = int.MaxValue;
+            foreach (PartFacts part in parts)
+                if (part.Command) longest = Math.Min(longest, part.DecoupleStage);
             for (int i = 0; i < parts.Count; i++)
             {
                 if (parts[i].Separator == Separation.None) continue;
@@ -89,8 +96,8 @@ namespace ReDefinition.Engineer
                 // A separator with nothing on one side, such as a docking port on a
                 // pod's nose, cuts nothing off.
                 if (!under.Any(at => at != i && !parts[at].Clamp) || !over.Any(at => at != i && !parts[at].Clamp)) continue;
-                Add(choices, seen, parts, Joined(parts, children, Trim(parts, under)), parts[i], "under");
-                Add(choices, seen, parts, Joined(parts, children, Trim(parts, over)), parts[i], "over");
+                Add(choices, seen, parts, Joined(parts, children, Trim(parts, under)), parts[i], "under", longest);
+                Add(choices, seen, parts, Joined(parts, children, Trim(parts, over)), parts[i], "over", longest);
             }
             choices.Sort((a, b) => a.Mass.CompareTo(b.Mass));
             return choices;
@@ -106,7 +113,8 @@ namespace ReDefinition.Engineer
         internal static PartGroupChoice AutoLander(IList<PartGroupChoice> choices, PartGroupChoice capsule)
         {
             foreach (PartGroupChoice choice in choices)
-                if (choice.Command && choice.Engine && choice.Legs && choice.DockingPort && Fits(choice, capsule)) return choice;
+                if (choice.Command && choice.Engine && choice.Legs && (choice.DockingPort || choice.KeepsLongest)
+                    && Fits(choice, capsule)) return choice;
             return null;
         }
 
@@ -226,7 +234,7 @@ namespace ReDefinition.Engineer
         // The same parts cut off by several separators are one choice; a docking port
         // among them lets it come back, whatever the parts' order.
         private static void Add(List<PartGroupChoice> choices, Dictionary<string, PartGroupChoice> seen, IList<PartFacts> parts,
-                                HashSet<int> side, PartFacts separator, string which)
+                                HashSet<int> side, PartFacts separator, string which, int longest)
         {
             if (side.Count == 0 || side.Count == parts.Count(part => !part.Clamp)) return;
             string members = string.Join(",", side.OrderBy(at => at).Select(at => at.ToString()).ToArray());
@@ -247,6 +255,7 @@ namespace ReDefinition.Engineer
                 choice.Legs |= part.Legs;
                 choice.Command |= part.Command;
                 choice.Parachute |= part.Parachute;
+                choice.KeepsLongest |= part.Command && part.DecoupleStage == longest;
                 if (named == null || Rank(part) > Rank(named) || (Rank(part) == Rank(named) && part.Mass > named.Mass)) named = part;
             }
             choice.Name = named.Title + ", " + side.Count + (side.Count == 1 ? " part" : " parts");

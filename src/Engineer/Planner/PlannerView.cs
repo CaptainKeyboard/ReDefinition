@@ -182,7 +182,7 @@ namespace ReDefinition.Engineer
 
             Detect(readout.PartFacts);
             steps = RouteSteps.Build(bodies.Bodies, state.Stops, HasLander(), state.PlaneChanges, HasCapsule(),
-                VesselShape.Inside(capsule, lander));
+                VesselShape.Inside(capsule, lander), LanderDocks());
             for (int leg = 0; leg < MaxStops; leg++)
                 for (int role = 0; role < RouteStop.Roles; role++) slots[leg, role] = -1;
             for (int i = 0; i < steps.Count; i++)
@@ -656,7 +656,7 @@ namespace ReDefinition.Engineer
         {
             if (!Ready()) return;
             List<Choice> choices = new List<Choice>();
-            AddPart(choices, "Automatic", "Find the lander by its engines, landing legs and docking port.",
+            AddPart(choices, "Automatic", "Find the lander by its command part, engines and landing legs.",
                 state.Lander == PlannerState.Automatic, () => SetLander(PlannerState.Automatic), detectedLander);
             AddPart(choices, "None", "The vessel has no lander.", state.Lander == PlannerState.None,
                 () => SetLander(PlannerState.None), null);
@@ -666,7 +666,7 @@ namespace ReDefinition.Engineer
                 // capsule inside it or apart from it.
                 if (!group.Engine || !group.Command || !VesselShape.Fits(group, capsule)) continue;
                 string key = group.Key;
-                AddPart(choices, group.Name, "These parts fly as the lander while the rest waits.", state.Lander == key,
+                AddPart(choices, group.Name, "These parts land as the lander.", state.Lander == key,
                     () => SetLander(key), group);
             }
             Dropdown.Show(this, button, choices, PartButtonWidth);
@@ -708,6 +708,33 @@ namespace ReDefinition.Engineer
 
         // The colour of the parts a list's entry names.
         private static readonly Color Picked = new Color(0.56f, 0.86f, 0.48f);
+
+        // The lander docks with the rest again: as the player set it, or where a
+        // docking port separates it.
+        private bool LanderDocks()
+        {
+            if (!Ready() || state.LanderReturns == PlannerState.Automatic) return lander != null && lander.DockingPort;
+            return state.LanderReturns == PlannerState.Docks;
+        }
+
+        // "Docks again" or "Flies on alone", green where it holds; bold and underlined
+        // where the player set it.
+        private string ReturnsText(bool docks, string label)
+        {
+            if (LanderDocks() != docks) return "<color=" + Dim + ">" + label + "</color>";
+            return state.LanderReturns == PlannerState.Automatic
+                ? "<color=" + Good + ">" + label + "</color>"
+                : "<b><u><color=" + Good + ">" + label + "</color></u></b>";
+        }
+
+        // The player's choice; the same choice again gives it back to the planner.
+        private void SetReturns(bool docks)
+        {
+            if (!Ready()) return;
+            string wanted = docks ? PlannerState.Docks : PlannerState.Alone;
+            state.LanderReturns = state.LanderReturns == wanted ? PlannerState.Automatic : wanted;
+            Changed();
+        }
 
         private void SetLander(string key)
         {

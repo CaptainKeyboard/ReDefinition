@@ -468,13 +468,60 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void ALanderWithoutADockingPortIsTheRestOfTheStackAndNotFoundByItself()
+        public void TheKerbalXsUpperStageWithItsLegsIsTheLander()
         {
-            // The legs on the Kerbal X's upper stage: it would only land as a whole.
+            // The legs on the upper stage: the pod and the upper stage land; the
+            // decoupler under them separates them, so they fly on alone.
             List<PartFacts> parts = KerbalX();
             parts.Add(Part(3, 1, 0.2, "LT-1 Landing Struts", legs: true));
+            List<PartGroupChoice> groups = VesselShape.Candidates(parts);
+            PartGroupChoice capsule = VesselShape.AutoCapsule(groups);
+            PartGroupChoice lander = VesselShape.AutoLander(groups, capsule);
 
-            Assert.IsNull(VesselShape.AutoLander(VesselShape.Candidates(parts), null));
+            Assert.IsNotNull(lander);
+            CollectionAssert.AreEquivalent(new[] { 0, 1, 2, 3, 4, 8 }, lander.Members.ToArray(), "the pod, the upper stage, its legs");
+            Assert.IsFalse(lander.DockingPort);
+            Assert.IsTrue(VesselShape.Inside(capsule, lander), "the pod is the capsule, part of the lander");
+        }
+
+        [TestMethod]
+        public void ABoosterWithAProbeCoreAndLegsIsNoLander()
+        {
+            // The Kerbal X with a radial booster that lands itself: probe core, engine
+            // and legs under a radial decoupler, staged away at launch.
+            List<PartFacts> parts = KerbalX();
+            parts.Add(Part(6, 3, 0.05, "TT-38K", separator: Separation.Anchored));
+            parts.Add(Part(8, 3, 0.1, "OKTO", command: true));
+            parts.Add(Part(9, 3, 1.5, "Swivel", engine: true));
+            parts.Add(Part(9, 3, 0.2, "LT-1 Landing Struts", legs: true));
+            List<PartGroupChoice> groups = VesselShape.Candidates(parts);
+
+            Assert.IsNull(VesselShape.AutoLander(groups, VesselShape.AutoCapsule(groups)));
+        }
+
+        [TestMethod]
+        public void ALanderThatFliesOnAloneClimbsToTheDestinationNotToTheRest()
+        {
+            RouteStop high = Orbit(Mun, 500000);
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Surface(Mun), high };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, true, false, false, true, false);
+
+            Assert.AreEqual(500000.0, steps[3].To.Altitude, "up to the 500 km orbit");
+        }
+
+        [TestMethod]
+        public void ALanderThatFliesOnAloneGoesHomeByItself()
+        {
+            // The Kerbal X to the Mun and home: the lander lands, climbs and flies home
+            // alone, and the capsule lands on its parachutes; no docking.
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Surface(Mun), Surface(Kerbin, true) };
+            List<RouteStep> alone = RouteSteps.Build(Stock(), goals, true, false, true, true, false);
+            List<RouteStep> docks = RouteSteps.Build(Stock(), goals, true, false, true, true, true);
+
+            Assert.AreEqual("1L:S 1T:S 1L:L< 2L:L 2T:L 2L:C<", Shape(alone));
+            Assert.IsFalse(alone.Any(step => step.Docks || step.Leg.Lines.Any(line => line.Name == "Rendezvous and docking")));
+            Assert.IsTrue(alone.All(step => step.Problem == null));
+            Assert.AreEqual("1L:S 1T:S 1L:L< 2L:L> 2T:S 2L:C<", Shape(docks), "one that docks comes back to the rest");
         }
 
         // The pod on top with its parachute (0), a decoupler (1), the lander with a
@@ -509,14 +556,14 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void ADockingPortWithNothingBeyondItCutsNothingOff()
         {
-            // A port on the pod's nose, and legs on the lander stage under the pod:
-            // no lander, as nothing docks there.
+            // A port on the pod's nose, and legs on the lander stage under the pod: the
+            // lander is separated by the decoupler, not by the port.
             List<PartFacts> parts = LanderOnTop(true);
             parts.Add(Part(0, -1, 0.05, "Clamp-O-Tron Jr", separator: Separation.DockingPort));
             List<PartGroupChoice> groups = VesselShape.Candidates(parts);
 
             Assert.IsFalse(groups.Any(group => group.DockingPort), "no cut at the nose port");
-            Assert.IsNull(VesselShape.AutoLander(groups, VesselShape.AutoCapsule(groups)));
+            Assert.IsFalse(VesselShape.AutoLander(groups, VesselShape.AutoCapsule(groups)).DockingPort, "the decoupler separates it");
         }
 
         [TestMethod]

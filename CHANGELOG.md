@@ -22,7 +22,8 @@
   parts its decouplers and docking ports separate, or takes the ones you pick; the
   capsule can ride on the lander or on the mothership. Each step says who flies it, the
   whole vessel, its lander or its capsule, set by the planner or by you; the lander
-  leaves the rest, docks with it again and can be refilled from it, or flies on alone. The planner
+  leaves the rest, docks with it again and can be refilled from it, or flies on alone,
+  as you set it. The planner
   shares the vessel's stages out over the steps, counting the mass each stage pushes at
   that moment. The fuel plan of a step shows the stages it has, what each gives and
   keeps, and lets you save a stage for later or drop it after the step; without a step,

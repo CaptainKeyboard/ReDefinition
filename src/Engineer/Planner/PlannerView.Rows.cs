@@ -74,8 +74,8 @@ namespace ReDefinition.Engineer
             altitudeFields.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(Heading("Vessel"));
-            rows.Add(VesselRow("Lander", LanderText, PickLander,
-                "Select the part of the vessel that lands alone while the rest waits."));
+            rows.Add(VesselRow("Lander", LanderText, PickLander, "Select the part of the vessel that lands."));
+            rows.Add(ReturnsRow());
             rows.Add(VesselRow("Capsule", CapsuleText, PickCapsule,
                 "Select the part of the vessel that comes home alone at the end."));
             rows.Add(Heading("Route"));
@@ -108,6 +108,23 @@ namespace ReDefinition.Engineer
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">" + name + "</color>", Place),
                 button);
             row.OptionEnabledCondition = Ready;
+            return row;
+        }
+
+        // What the lander does after its flight, under the lander's row, its choices in
+        // the column of who flies a step.
+        private DialogGUIBase ReturnsRow()
+        {
+            DialogGUIButton docks = new DialogGUIButton(() => ReturnsText(true, "Docks again"), () => SetReturns(true), 104f, Square,
+                false);
+            docks.tooltipText = "The lander comes back to the rest and docks, and the whole vessel flies on.";
+            DialogGUIButton alone = new DialogGUIButton(() => ReturnsText(false, "Flies on alone"), () => SetReturns(false), 112f,
+                Square, false);
+            alone.tooltipText = "The lander flies on by itself and leaves the rest behind.";
+            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">Afterwards</color>", Place),
+                docks, alone);
+            row.OptionEnabledCondition = HasLander;
             return row;
         }
 
