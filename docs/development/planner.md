@@ -404,9 +404,8 @@ each part's `istg`, links, fuel lines and resources) and the parts as the game l
 use). A part drops when the first decoupler between it and the root fires. Liquid fuel
 flows through crossfeeding parts and fuel lines, the tanks dropped soonest first; solid
 fuel stays in its part. A stage ends when its engines are dry, or when the engines the
-next stage drops are. Air-breathing engines are left out, and so are the Making History
-parts, which the cache does not hold. For the Kerbal X and the Learstar A1 its figures
-match the game's within 0.2 % **[meas]**.
+next stage drops are. Air-breathing engines are left out. For the Kerbal X and the
+Learstar A1 its figures match the game's within 0.2 % **[meas]**.
 
 ```
 python tools/craft_stages.py "<KSP folder>" tests/ReDefinition.Tests/StockCrafts.cs "Kerbal X" "Learstar A1" ...
