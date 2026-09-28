@@ -61,8 +61,9 @@ planner. A section the planner added and you removed stays away.
 
 ## Lay out the route
 
-The planner has four parts, each under its own header: *Vessel*, *Route*, *Fuel plan* and
-*Thrust*. At the top of *Route* are two settings:
+The planner has four parts, each under its own header bar: *Vessel*, *Route*, *Fuel plan*
+and *Thrust*. A click on a header bar folds or opens its part; *+* or *-* at its right
+shows which. Folded, the bar sums the part up. At the top of *Route* are two settings:
 
 | Setting | Does |
 |---|---|
@@ -120,9 +121,8 @@ green with a *+* what is left at the end, or in orange with a *-* what is missin
 
 ## Read the fuel plan
 
-The fuel plan starts folded. The button before *Fuel plan*, or a click on its heading,
-shows and hides it; beside the title it says whether every step has enough fuel. It lists
-every step of the route in its order:
+The fuel plan starts folded. A click on its header bar shows it; beside the title it says
+whether every step has enough fuel. It lists every step of the route in its order:
 
 | Column | Shows |
 |---|---|
@@ -148,7 +148,7 @@ the next.
 
 ## Check the thrust
 
-*Thrust* under the fuel plan, folded and shown as it is, says beside its title whether the
+*Thrust* under the fuel plan, folded at first as well, says beside its title whether the
 thrust is enough everywhere, and lists every step that burns. On a launch and a landing on
 the engines, the thrust has to lift the vessel. On every other burn it has to be done in
 time: the vessel goes on round its orbit while it burns, so the longer a burn takes

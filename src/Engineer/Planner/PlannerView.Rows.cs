@@ -70,7 +70,8 @@ namespace ReDefinition.Engineer
                 new DialogGUISpace(SectionInset), vesselLine));
             for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));
             vessel.Add(AddSectionRow());
-            rows.AddRange(Section(Heading("Vessel"), vessel, null));
+            rows.AddRange(Section(CollapsibleHeading("Vessel", () => vesselShown, () => vesselShown = !vesselShown,
+                "Show or hide the vessel and its sections.", VesselSummary), vessel, () => vesselShown));
 
             List<DialogGUIBase> route = new List<DialogGUIBase>();
             route.Add(SettingsRow());
@@ -83,7 +84,8 @@ namespace ReDefinition.Engineer
             }
             route.Add(AddRow());
             route.AddRange(SummaryRows());
-            rows.AddRange(Section(Heading("Route"), route, null));
+            rows.AddRange(Section(CollapsibleHeading("Route", () => routeShown, () => routeShown = !routeShown,
+                "Show or hide the route.", RouteSummary), route, () => routeShown));
 
             rows.AddRange(Section(CollapsibleHeading("Fuel plan", () => fuelShown, () => fuelShown = !fuelShown,
                 "Show or hide the delta-v each step needs and what remains after it.", FuelSummary), FuelRows(), () => fuelShown));
@@ -101,6 +103,20 @@ namespace ReDefinition.Engineer
         private const float SectionInset = 8f;
         private static readonly Color HeaderColour = new Color(1f, 1f, 1f, 0.10f);
         private static readonly Color BoxColour = new Color(0f, 0f, 0f, 0.22f);
+
+        private bool vesselShown = true;
+        private bool routeShown = true;
+
+        // Folded, the vessel's mass and delta-v, and what the route leaves.
+        private string VesselSummary()
+        {
+            return vesselShown ? "" : VesselText();
+        }
+
+        private string RouteSummary()
+        {
+            return routeShown ? "" : SummaryText();
+        }
 
         private IEnumerable<DialogGUIBase> Section(DialogGUIBase header, IEnumerable<DialogGUIBase> rows, System.Func<bool> shown)
         {
@@ -1210,20 +1226,22 @@ namespace ReDefinition.Engineer
                    + " m/s², " + air + "</color>";
         }
 
-        // A heading that opens and closes what is under it: its button before the
-        // title, the whole heading answering a click, and what is under it in short.
+        // A heading that opens and closes what is under it: the whole bar answers a
+        // click, with its title, what is under it in short, and "+" or "-" at the right.
         private const float HeadingTitle = 90f;
 
         private DialogGUIBase CollapsibleHeading(string title, System.Func<bool> shown, Callback toggle, string tooltip,
                                                  System.Func<string> summary)
         {
-            DialogGUIButton button = new DialogGUIButton(() => shown() ? "<b><color=" + Good + ">-</color></b>" : "+", toggle, Square,
-                Square, false);
-            button.tooltipText = tooltip;
-            DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(width, HeaderHeight, 4f, new RectOffset(2, 0, 0, 0),
-                TextAnchor.MiddleLeft, button, new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", HeadingTitle, RowHeight),
-                new DialogGUILabel(() => Worked() ? summary() : "", width - 2f - Square - HeadingTitle - 4f * 2f - RowEnd, RowHeight));
-            Tint.Behind(heading, HeaderColour, 0f, width, after);
+            DialogGUILabel titleLabel = new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", HeadingTitle, RowHeight);
+            titleLabel.tooltipText = tooltip;
+            DialogGUILabel sign = new DialogGUILabel(() => "<b><size=120%><color=#e0e0e0>" + (shown() ? "-" : "+") + "</color></size></b>",
+                Square, RowHeight);
+            DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(width, HeaderHeight, 4f, new RectOffset((int)SectionInset, 0, 0, 0),
+                TextAnchor.MiddleLeft, titleLabel,
+                new DialogGUILabel(() => Worked() ? summary() : "", width - SectionInset - HeadingTitle - Square - 4f * 2f - RowEnd - 6f,
+                    RowHeight), sign);
+            Tint.Behind(heading, HeaderColour, 0f, width, after, true);
             PlannerWidgets.Clickable(heading, toggle, after);
             return heading;
         }
@@ -1333,14 +1351,6 @@ namespace ReDefinition.Engineer
         {
             int at = stages.FindIndex(row => row.Number == number);
             return at >= 0 ? PlannerColors.Stage(at) : PlannerColors.Spare;
-        }
-
-        private DialogGUIBase Heading(string title)
-        {
-            DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(width, HeaderHeight, 0f, new RectOffset((int)SectionInset, 0, 0, 0),
-                TextAnchor.MiddleLeft, new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", width - SectionInset, RowHeight));
-            Tint.Behind(heading, HeaderColour, 0f, width, after);
-            return heading;
         }
     }
 }

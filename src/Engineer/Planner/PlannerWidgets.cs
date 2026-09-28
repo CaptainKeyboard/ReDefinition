@@ -64,7 +64,10 @@ namespace ReDefinition.Engineer
     // fixed width, since the scroll list stretches its rows under its bar.
     internal static class Tint
     {
-        internal static void Behind(DialogGUIBase element, Color color, float left, float right, AfterCreate after)
+        // `clickable`: the background answers the pointer, so that a click anywhere on
+        // the element reaches its handler.
+        internal static void Behind(DialogGUIBase element, Color color, float left, float right, AfterCreate after,
+                                    bool clickable = false)
         {
             after.Add(() =>
             {
@@ -81,7 +84,7 @@ namespace ReDefinition.Engineer
                 tint.AddComponent<LayoutElement>().ignoreLayout = true;
                 Image image = tint.AddComponent<Image>();
                 image.color = color;
-                image.raycastTarget = false;
+                image.raycastTarget = clickable;
             });
         }
     }

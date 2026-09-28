@@ -57,12 +57,13 @@ The planner uses no text to explain itself. From the top:
   in groups of their own (*Burns*, *Way down*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
 * Each part (*Vessel*, *Route*, *Fuel plan*, *Thrust*) is a header bar, lighter, and a
-  box, darker, holding its rows (`PlannerView.Section`, colours drawn by `Tint.Behind`);
-  the box of a folded part hides. *Route* starts with *Fuel margin* and *Plane changes*
-  and ends with one bar summing up the route.
-* *Fuel plan* and *Thrust* are headings with *+* and *-* before the title, the whole
-  heading answering a click (`PlannerWidgets.Clickable`), and a summary beside it: the
-  steps short of fuel, the steps with too low a TWR and the burns too long.
+  box, darker, holding its rows (`PlannerView.Section`, colours drawn by `Tint.Behind`); a
+  click anywhere on the bar folds the part (`CollapsibleHeading`, its background answering
+  the pointer), *+* or *-* at its right; the box of a folded part hides. *Route* starts
+  with *Fuel margin* and *Plane changes* and ends with one bar summing up the route.
+* The header bars carry a summary: Fuel plan and Thrust always, the steps short of fuel,
+  the steps with too low a TWR and the burns too long; Vessel and Route while folded, the
+  vessel line and the route's balance.
 * The fuel plan: a row per step, up to 30, in the columns of the step rows (where it
   goes, who flies it), with what it needs and what what flew it has left after
   (`StageBudget.Result.LeftAfter`), in red what it lacks or where it has a problem; *+*
