@@ -7,8 +7,8 @@ using UnityEngine;
 
 namespace ReDefinition.Scaling
 {
-    // Installs what scales at KSP's methods (ScalingHooks) and other mods' windows
-    // (ModWindowScale), and turns off other mods' scaling of the same things
+    // Installs what scales at KSP's methods (ScalingHooks, RnDNodeHooks) and other
+    // mods' windows (ModWindowScale), and turns off other mods' scaling of the same things
     // (OtherScalers), once, as the game starts.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ScalingAddon : MonoBehaviour
@@ -18,6 +18,7 @@ namespace ReDefinition.Scaling
             DontDestroyOnLoad(gameObject);
             Install("ui-scaling-hooks", "The editor gizmos, orbit lines and portrait gallery are not scaled", ScalingHooks.Install);
             Install("mod-window-scale-hooks", "Other mods' windows are not scaled", ModWindowScale.Install);
+            Install("rnd-node-hooks", "The R&D tree's nodes are not enlarged", RnDNodeHooks.Install);
             Install("other-scalers", "Other mods' scaling of the same things could not be turned off", OtherScalers.Install);
         }
 
@@ -84,47 +85,6 @@ namespace ReDefinition.Scaling
         private void LateUpdate()
         {
             commNet.At(UiScaling.World);
-        }
-    }
-
-    // In the space centre: the R&D tree opens larger. It lies in the R&D screen's
-    // canvas under the main canvas, so it takes the UI scale as its panels do, but
-    // opens at its own zoom of 1 and zooms in no further (UIGridArea: zoom 1,
-    // zoomMax 1; decompiled), small beside the panels. It opens at 1.5 and zooms in
-    // to 2.5; out to KSP's 0.6. 4kSP's R&D scaler is turned off (OtherScalers).
-    [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
-    public class SpaceCentreScaling : MonoBehaviour
-    {
-        private const float ZoomOpen = 1.5f;
-        private const float ZoomMax = 2.5f;
-        private static readonly System.Reflection.MethodInfo ZoomTo = typeof(UIGridArea).GetMethod("ZoomTo",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        private RDController opened;
-        private bool noted;
-
-        private void Update()
-        {
-            RDController controller = RDController.Instance;
-            if (controller == null || controller == opened || controller.gridArea == null) return;
-            opened = controller;
-            UIGridArea grid = controller.gridArea;
-            grid.zoomMax = ZoomMax;
-            try
-            {
-                if (ZoomTo != null) ZoomTo.Invoke(grid, new object[] { ZoomOpen, true });
-            }
-            catch (Exception e)
-            {
-                CompatibilityLog.Warn("rnd-zoom", "The R&D tree could not open larger (" + CompatibilityLog.Reason(e) + ").");
-            }
-            // KSP enables the zoom-in button by zoom != zoomMax as the tree opens
-            // (UIGridArea.SetZoomButtonState; decompiled).
-            if (grid.zoom_up != null) grid.zoom_up.interactable = true;
-            if (grid.zoom_down != null) grid.zoom_down.interactable = true;
-            if (noted) return;
-            noted = true;
-            Debug.Log(Log.Tag + " UI scaling: the R&D tree opens at " + ZoomOpen.ToString("0.0") + " times, zooms in to "
-                      + ZoomMax.ToString("0.0") + ".");
         }
     }
 

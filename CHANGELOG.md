@@ -7,7 +7,8 @@
 - **Readable on large screens.** What KSP leaves at a fixed number of pixels now takes
   its UI scale: the map's icons and labels, the orbit lines, the labels over vessels, the
   maneuver node's gizmo, the editor's move and rotate gizmos, and other mods' windows.
-  The tech tree opens larger and zooms in further. A row in the settings window sets the
+  The tech tree opens larger and zooms in further, its nodes twice their size and the
+  parts it unlocks 1.2 times. A row in the settings window sets the
   size as a share of the UI scale. Where 4kSP or Maneuver Node Evolved is installed, its
   scaling of the same things is turned off, so nothing grows twice. The UI scale row goes
   up to 400 %, in steps of 10 %.
@@ -49,6 +50,9 @@
 
 ### Fixed
 
+- **No planets' orbits across a close map view.** Opening the map zoomed in on a planet
+  showed the other planets' orbits as a wide, blurred line that took four seconds to fade
+  out. They now take their opacity at once as the map opens.
 - **Far ground no longer shimmers under the upscaler.** Zoomed out far, over the Mun
   for example, the far side of the ground, or the whole body, trembled and kept
   trembling. Unity's motion vectors there are imprecise so far from the origin;

@@ -38,6 +38,32 @@ namespace ReDefinition.Tests
             }
         }
 
+        // The R&D nodes' and the orbit lines' hooks: the method found, and every
+        // field their prefixes and postfixes bind by name.
+        [TestMethod]
+        public void TheRnDAndOrbitLineHooksFindTheirMembers()
+        {
+            AssertFields(RnDNodeHooks.Target(), typeof(RnDNodeHooks), "SetupPrefix", "SetupPostfix");
+            AssertFields(ReDefinition.Flight.OrbitLineFade.Target(), typeof(ReDefinition.Flight.OrbitLineFade), "OpacityPrefix",
+                "OpacityPostfix");
+        }
+
+        private static void AssertFields(MethodBase target, System.Type owner, params string[] hooks)
+        {
+            Assert.IsNotNull(target, owner.Name);
+            foreach (string hook in hooks)
+            {
+                MethodInfo method = owner.GetMethod(hook, BindingFlags.NonPublic | BindingFlags.Static);
+                Assert.IsNotNull(method, hook);
+                foreach (ParameterInfo parameter in method.GetParameters())
+                {
+                    if (!parameter.Name.StartsWith("___")) continue;
+                    Assert.IsNotNull(target.DeclaringType.GetField(parameter.Name.Substring(3),
+                        BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public), hook + ": " + parameter.Name);
+                }
+            }
+        }
+
         // What SpaceCentreScaling and OtherScalers reach by name in KSP.
         [TestMethod]
         public void KspMembersReachedByNameExist()
