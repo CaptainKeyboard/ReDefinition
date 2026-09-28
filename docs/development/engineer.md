@@ -60,11 +60,13 @@ readout, the selection or the table's form changes.
 
 A click on a stage's row marks the parts that burn in it with KSP's own part
 highlighter (`PartHighlight`: `Part.SetHighlightType`, `SetHighlightColor`,
-`SetHighlightDefault`) **[src]**. In the game, a mark went when the pointer passed over a
-marked part. So every frame, a mark that is no longer on in its colour is set again.
-While the planner is open or the window is folded, the window marks nothing. One marker
-at a time: whichever marks parts, the window or the planner, takes the other's marks
-away.
+`SetHighlightDefault`) **[src]**. KSP puts a part's highlight back to its default in
+other places too, so every frame a mark that is no longer on in its colour is set again.
+While the pointer is on a part of the vessel (`Mouse.HoveredPart`, and no window or list
+under it), nothing is marked and KSP highlights as it does without the mod; the window's
+stage is then no longer selected (`PartHighlight.Lost`). While the planner is open or the
+window is folded, the window marks nothing. One marker at a time: whichever marks parts,
+the window or the planner, takes the other's marks away.
 
 The window and the planner share the list of bodies (`BodyPicker`). Whoever opens it
 owns it, and only the owner's closing closes it.

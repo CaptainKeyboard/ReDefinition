@@ -8,11 +8,18 @@ namespace ReDefinition.Engineer
     // KSP's default (on mouse-over) after. Part.SetHighlightType,
     // SetHighlightColor and SetHighlightDefault, decompiled. One marker at a time:
     // whichever marks parts last, the planner or the engineer window, takes the
-    // other's marks away.
+    // other's marks away. While the pointer is on a part of the vessel
+    // (Mouse.HoveredPart), nothing is marked, and KSP highlights as it does
+    // without the mod. A marker whose marks are taken away is told (Lost).
     internal sealed class PartHighlight
     {
         private static PartHighlight current;
+        private static bool pointerLogged;
         private readonly Dictionary<Part, Color> marked = new Dictionary<Part, Color>();
+
+        // Told when the marks are taken away: by the pointer on a part, or by
+        // another marker.
+        internal System.Action Lost;
 
         internal void Show(IDictionary<Part, Color> parts)
         {
@@ -21,7 +28,12 @@ namespace ReDefinition.Engineer
                 Clear();
                 return;
             }
-            if (current != null && current != this) current.Clear();
+            if (PointerOnPart())
+            {
+                Lose();
+                return;
+            }
+            if (current != null && current != this) current.Lose();
             current = this;
             if (Same(parts)) return;
             Clear();
@@ -40,6 +52,16 @@ namespace ReDefinition.Engineer
         internal void Refresh()
         {
             if (current != this) return;
+            if (marked.Count > 0 && PointerOnPart())
+            {
+                if (!pointerLogged)
+                {
+                    pointerLogged = true;
+                    Debug.Log(ReDefinition.Core.Log.Tag + " Pointer on a part: the marks are taken away, KSP highlights it.");
+                }
+                Lose();
+                return;
+            }
             foreach (KeyValuePair<Part, Color> part in marked)
                 if (part.Key != null && !Holds(part.Key, part.Value)) Apply(part.Key, part.Value);
         }
@@ -54,6 +76,22 @@ namespace ReDefinition.Engineer
         private static bool Holds(Part part, Color color)
         {
             return part.highlightType == Part.HighlightType.AlwaysOn && part.HighlightActive && part.highlightColor == color;
+        }
+
+        // The pointer on a part of the vessel, not on a window or list over it.
+        private static bool PointerOnPart()
+        {
+            if (Mouse.HoveredPart == null) return false;
+            UnityEngine.EventSystems.EventSystem events = UnityEngine.EventSystems.EventSystem.current;
+            return events == null || !events.IsPointerOverGameObject();
+        }
+
+        // The marks go, and the marker is told.
+        private void Lose()
+        {
+            bool had = marked.Count > 0;
+            Clear();
+            if (had && Lost != null) Lost();
         }
 
         internal void Clear()

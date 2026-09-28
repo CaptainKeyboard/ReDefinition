@@ -73,7 +73,8 @@ used. Symbols are `GameData/ReDefinition/Icons/Planner_*.png`, white on clear, d
 The planner marks parts on the vessel only while the pointer is on an entry of the
 lander's or the capsule's list: that entry's parts, green. One marker at a time: whoever
 marks parts, the planner or the engineer window, takes the other's marks away
-(`PartHighlight`).
+(`PartHighlight`), and with the pointer on a part of the vessel nothing is marked, so
+that KSP highlights it as it does without the mod.
 
 KSP's layouts take no width of their own: `DialogGUILayoutBase` gives a row the width of
 its elements, not the one it is handed **[src]**. So every row's elements are summed to

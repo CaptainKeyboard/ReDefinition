@@ -88,6 +88,9 @@ namespace ReDefinition.Engineer
             layout.childControlWidth = layout.childControlHeight = true;
             layout.childForceExpandWidth = layout.childForceExpandHeight = false;
             window.card = PartCard.Create(parent, window.skin);
+            // The mark taken away, by the pointer on a part or the planner: the
+            // stage is no longer selected either.
+            window.highlight.Lost = () => window.selectedStage = -1;
             return window;
         }
 
