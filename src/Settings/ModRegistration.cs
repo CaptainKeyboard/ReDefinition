@@ -33,6 +33,8 @@ namespace ReDefinition.Settings
         public float? Max;
         // Null: whole numbers for an int, fractions otherwise.
         public bool? Whole;
+        // The slider's step from min; null: none.
+        public float? Step;
         public string[] Choices;
         public string[] Labels;
         public bool Invert;
@@ -211,7 +213,7 @@ namespace ReDefinition.Settings
         {
             "name", "member", "title", "tooltip", "default", "kind", "row", "order", "takesEffect", "min", "max",
             "whole", "choices", "labels", "invert", "optional", "after", "shaderGlobal", "perSave", "leftOutWith",
-            "rowUnless", "behaviour", "leftOut", "required", "section", "percent", "bundled",
+            "rowUnless", "behaviour", "leftOut", "required", "section", "percent", "bundled", "step",
         };
 
         // A KEY block: a binding instead of a value, so no slider, no list and no
@@ -599,7 +601,12 @@ namespace ReDefinition.Settings
         {
             string minText = Last(node, "min", where, problems);
             string maxText = Last(node, "max", where, problems);
-            if (minText == null && maxText == null) return;
+            string stepText = Last(node, "step", where, problems);
+            if (minText == null && maxText == null)
+            {
+                if (stepText != null) problems.Add(where + ": step without min and max -- ignored.");
+                return;
+            }
             if (minText == null || maxText == null)
             {
                 problems.Add(where + ": min and max go together -- the slider is left out.");
@@ -620,6 +627,15 @@ namespace ReDefinition.Settings
             }
             setting.Min = min;
             setting.Max = max;
+            if (stepText == null) return;
+            float step;
+            if (!float.TryParse(stepText, NumberStyles.Float, CultureInfo.InvariantCulture, out step)
+                || float.IsNaN(step) || float.IsInfinity(step) || step <= 0f)
+            {
+                problems.Add(where + ": step '" + stepText + "' is no number above 0 -- ignored.");
+                return;
+            }
+            setting.Step = step;
         }
 
         private static void ReadChoices(SettingRegistration setting, ConfigNode node, string where, List<string> problems)

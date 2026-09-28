@@ -11,8 +11,8 @@ namespace ReDefinition.Scaling
     // (MapNode.Create's pixelSize, 14 to 32); decompiled. The positions are in
     // pixels too, so the container stays as KSP has it; each node is scaled about
     // its own centre instead (MapNode's own transform, which KSP only moves), and
-    // its icon, caption, hover label and click area grow with it. With 4kSP
-    // installed, which sizes the icons and captions itself, this steps aside.
+    // its icon, caption, hover label and click area grow with it. 4kSP's own sizing
+    // of them is turned off (OtherScalers).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class MapNodeScaleFlight : MapNodeScale
     {
@@ -26,13 +26,6 @@ namespace ReDefinition.Scaling
     public abstract class MapNodeScale : MonoBehaviour
     {
         private bool noted;
-
-        private void Start()
-        {
-            if (!UiScaling.Installed(UiScaling.FourkSpMap)) return;
-            UiScaling.Note("the map's icons and captions", "4kSP");
-            enabled = false;
-        }
 
         private void LateUpdate()
         {
@@ -49,7 +42,7 @@ namespace ReDefinition.Scaling
             }
             if (noted || nodes.Count == 0) return;
             noted = true;
-            UiScaling.Note("the map's icons and captions", null);
+            UiScaling.Note("the map's icons and captions");
         }
     }
 }

@@ -29,8 +29,8 @@ namespace ReDefinition.Scaling
     // GUI.DoWindow within), see the window where it is drawn. Where each scaled
     // window is on the screen is kept for ReDefinition's click shield
     // (UnityMouseEvents): mods that keep clicks from going through test the rect
-    // they passed in, which covers only the unscaled part. With 4kSP's window scaler
-    // installed, which does the same, none of this is installed.
+    // they passed in, which covers only the unscaled part. 4kSP's window scaler,
+    // which does the same, is kept from installing (OtherScalers).
     internal static class ModWindowScale
     {
         private const string HarmonyId = "ReDefinition.ModWindowScale";
@@ -57,11 +57,6 @@ namespace ReDefinition.Scaling
 
         internal static void Install()
         {
-            if (UiScaling.Installed(UiScaling.FourkSpWindows))
-            {
-                UiScaling.Note("other mods' windows", "4kSP");
-                return;
-            }
             List<HarmonyHook> hooks = new List<HarmonyHook>();
             foreach (MethodInfo method in typeof(GUI).GetMethods(BindingFlags.Public | BindingFlags.Static))
                 if ((method.Name == "Window" || method.Name == "ModalWindow") && Hookable(method))

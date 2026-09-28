@@ -3,7 +3,7 @@
 **For:** anyone changing `src/Scaling`.
 **You need:** the repository, and a decompile of KSP's `Assembly-CSharp.dll`.
 **You get:** how KSP applies its UI scale, what it leaves at a fixed number of pixels,
-how each piece is scaled here, and which mods it steps aside for.
+how each piece is scaled here, and which mods' scaling of it is turned off.
 
 The player's side is in [player/ui-scaling.md](../player/ui-scaling.md).
 
@@ -36,7 +36,7 @@ mods follow a new scale at once.
 | editor move and rotate gizmos | `ScreenSpaceObjectScaling.screenSize`, from the prefab, over `Screen.height` | postfix on `GizmoOffset.Attach` and `GizmoRotate.Attach` multiplies it once (`ScalingHooks`) |
 | orbit lines | `OrbitRendererBase.MakeLine`: 5 px; `OrbitTargeter.DottedLineUpdate`: 5 px; `PatchRendering.MakeVector`: its `lineWidth` | postfixes set the Vectrosity line's width to KSP's times `World` |
 | CommNet lines | `CommNetUI.lineWidth2D` 4 and `lineWidth3D` 1, applied every frame | the fields set from KSP's own times `World` (`CommNetLines`) |
-| R&D tree | `UIGridArea.zoomMax` 1; the zoom-in button enabled by `zoom != zoomMax` as the tree opens | 2, and the button enabled (`SpaceCentreScaling`) |
+| R&D tree | in the R&D canvas under the main canvas, so at the UI scale; opens at `UIGridArea.zoom` 1 with `zoomMax` 1, the zoom-in button enabled by `zoom != zoomMax` | opened at 1.5 through `ZoomTo(1.5, true)`, `zoomMax` 2.5, both buttons enabled (`SpaceCentreScaling`) |
 | crew portrait room | `GetMaxGalleryCapacity` divides the screen's pixels by the portrait's width in canvas units | postfix divides by the width at the UI and crew scales |
 | other mods' IMGUI windows | never scaled | `ModWindowScale`, below |
 
@@ -71,16 +71,20 @@ A change of the share shows at once on the map, the labels, CommNet's lines, the
 line and the maneuver gizmo. The orbit and patch lines take it when KSP makes them anew,
 the editor's gizmos when they next appear.
 
-## Mods it steps aside for
+## Other mods' scaling turned off
 
-Each piece looks for the other mod's type once and does nothing where it is loaded:
+ReDefinition's pieces always run. `OtherScalers` patches, as the game starts, the part of
+each mod below that scales the same thing, where that mod's type is loaded. The other
+mods' `Start`s run in the main menu or later, so they are patched before they run. Each
+mod is patched on its own; one that fails is logged under `other-scalers` and leaves the
+others patched.
 
-| Mod | Type | Piece |
+| Mod | Type | Patched |
 |---|---|---|
-| 4kSP, 4kSP Expanded | `FourkSP.FourkSP` | map icons and captions |
-| 4kSP Expanded, R&D | `_4kSP_RnD.RDScalerHarmonyBootstrap` | R&D zoom |
-| 4kSP Expanded, windows | `_4kSP_ModWindows.ModWindowScalerHarmonyBootstrap` | other mods' windows |
-| Maneuver Node Evolved | `BetterManeuvering.ManeuverController` | maneuver gizmo |
+| 4kSP, 4kSP Expanded | `FourkSP.FourkSP` | `UpdateNodes` and `AddToolbarButton` skipped |
+| 4kSP Expanded, R&D | `_4kSP_RnD.RDScalerHarmonyBootstrap`, `_4kSP_RnD.RDSceneScaler` | `Start` skipped: no Harmony patch, no R&D hook; its larger parts-list tiles, zoom to 5 and space centre toolbar window go with them |
+| 4kSP Expanded, windows | `_4kSP_ModWindows.ModWindowScalerHarmonyBootstrap` | `Start` skipped: no Harmony patch |
+| Maneuver Node Evolved | `BetterManeuvering.ManeuverController` | a transpiler turns each store to `ManeuverGizmoBase.screenSize` in `LateUpdate` and `gizmoSpawn` into a call to `OtherScalers.Store`: an open gizmo keeps ReDefinition's size, one KSP collapsed to 0 reopens at it, which keeps *Force Maneuver Node Open*; `baseScale`, `maxScale` and `dynamicScaling` have no effect |
 
 ## Left as KSP draws them
 
@@ -96,5 +100,7 @@ Each piece looks for the other mod's type once and does nothing where it is load
 * The hardware cursor.
 
 WaypointManager and DistantObject scale their own markers and labels by `UI_SCALE`;
-nothing here touches them. KSP.log says once per scene what is scaled, and to which mod
-a piece is left, in lines that start with `UI scaling:`.
+nothing here touches them. KSP.log says once per scene what is scaled, and once per game
+which mod's scaling is turned off, in lines that start with `UI scaling:`. A method of
+another mod not found, or no size store found in Maneuver Node Evolved, is a warning
+under `other-scalers`.

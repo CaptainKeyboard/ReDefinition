@@ -5,8 +5,8 @@ using UnityEngine;
 namespace ReDefinition.Scaling
 {
     // The scale for what KSP draws at a fixed number of pixels, whatever its UI
-    // scale (docs/development/ui-scaling.md), and the mods that already scale the
-    // same things, before which each of these steps aside.
+    // scale (docs/development/ui-scaling.md), and the mods that scale the same
+    // things, whose scaling OtherScalers turns off.
     internal static class UiScaling
     {
         // 4kSP: the map's icons and captions (FourkSP.FourkSP), the R&D screen
@@ -17,7 +17,7 @@ namespace ReDefinition.Scaling
         internal const string FourkSpWindows = "_4kSP_ModWindows.ModWindowScalerHarmonyBootstrap";
         internal const string ManeuverNodeEvolved = "BetterManeuvering.ManeuverController";
 
-        private static readonly Dictionary<string, bool> loaded = new Dictionary<string, bool>();
+        private static readonly Dictionary<string, System.Type> types = new Dictionary<string, System.Type>();
 
         // KSP's UI scale times the player's share of it (OwnSettings.WorldUiScale).
         internal static float World
@@ -26,7 +26,7 @@ namespace ReDefinition.Scaling
             {
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 float share = addon != null ? addon.Live.WorldUiScale / 100f : 1f;
-                return Mathf.Clamp(GameSettings.UI_SCALE * share, 0.25f, 5f);
+                return Mathf.Clamp(GameSettings.UI_SCALE * share, 0.25f, 8f);
             }
         }
 
@@ -40,27 +40,25 @@ namespace ReDefinition.Scaling
             }
         }
 
-        // A mod is installed that defines this type.
-        internal static bool Installed(string type)
+        // The type of an installed mod, by its full name; null where none is loaded.
+        internal static System.Type TypeOf(string name)
         {
-            bool found;
-            if (loaded.TryGetValue(type, out found)) return found;
-            found = false;
+            System.Type found;
+            if (types.TryGetValue(name, out found)) return found;
+            found = null;
             foreach (AssemblyLoader.LoadedAssembly assembly in AssemblyLoader.loadedAssemblies)
-                if (assembly.assembly != null && assembly.assembly.GetType(type, false) != null)
-                {
-                    found = true;
-                    break;
-                }
-            loaded[type] = found;
+            {
+                found = assembly.assembly != null ? assembly.assembly.GetType(name, false) : null;
+                if (found != null) break;
+            }
+            types[name] = found;
             return found;
         }
 
-        // Once per scene and piece: what it scales, or which mod it leaves it to.
-        internal static void Note(string what, string otherMod)
+        // Once per scene and piece: what it scales, at which scale.
+        internal static void Note(string what)
         {
-            Debug.Log(Log.Tag + " UI scaling: " + what
-                      + (otherMod != null ? " left to " + otherMod + "." : " at " + World.ToString("0.00") + "."));
+            Debug.Log(Log.Tag + " UI scaling: " + what + " at " + World.ToString("0.00") + ".");
         }
     }
 }

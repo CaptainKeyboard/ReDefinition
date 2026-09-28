@@ -75,6 +75,23 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void AStepReachesTheSliderAndABadOneIsReported()
+        {
+            List<string> problems = new List<string>();
+            RegisteredMod mod = Build(Registration.Replace("percent = True", "percent = True\n  step = 0.1"), problems);
+            Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
+            Assert.AreEqual(0.1f, mod.Settings[0].Step, 1e-6f);
+
+            foreach (string bad in new[] { "0", "-1", "x" })
+            {
+                List<string> refused = new List<string>();
+                RegisteredMod other = Build(Registration.Replace("percent = True", "percent = True\n  step = " + bad), refused);
+                Assert.AreEqual(1, refused.Count, "step " + bad);
+                Assert.AreEqual(0f, other.Settings[0].Step, "step " + bad);
+            }
+        }
+
+        [TestMethod]
         public void APercentageWithoutARangeIsReported()
         {
             List<string> problems = new List<string>();

@@ -8,7 +8,8 @@ using UnityEngine;
 namespace ReDefinition.Scaling
 {
     // Installs what scales at KSP's methods (ScalingHooks) and other mods' windows
-    // (ModWindowScale), once, as the game starts.
+    // (ModWindowScale), and turns off other mods' scaling of the same things
+    // (OtherScalers), once, as the game starts.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ScalingAddon : MonoBehaviour
     {
@@ -17,6 +18,7 @@ namespace ReDefinition.Scaling
             DontDestroyOnLoad(gameObject);
             Install("ui-scaling-hooks", "The editor gizmos, orbit lines and portrait gallery are not scaled", ScalingHooks.Install);
             Install("mod-window-scale-hooks", "Other mods' windows are not scaled", ModWindowScale.Install);
+            Install("other-scalers", "Other mods' scaling of the same things could not be turned off", OtherScalers.Install);
         }
 
         private static void Install(string key, string what, Action install)
@@ -40,11 +42,6 @@ namespace ReDefinition.Scaling
         private readonly ManeuverGizmos gizmos = new ManeuverGizmos();
         private bool noted;
 
-        private void Start()
-        {
-            gizmos.Start();
-        }
-
         private void LateUpdate()
         {
             float scale = UiScaling.World;
@@ -53,7 +50,7 @@ namespace ReDefinition.Scaling
             gizmos.At(scale);
             if (noted) return;
             noted = true;
-            UiScaling.Note("the vessel labels and CommNet's lines", null);
+            UiScaling.Note("the vessel labels and CommNet's lines");
         }
 
         // KSP keeps each label at the size of a pixel: it parents it keeping its
@@ -90,34 +87,44 @@ namespace ReDefinition.Scaling
         }
     }
 
-    // In the space centre: the R&D tree may be zoomed in to twice its size. KSP
-    // stops it at its own size (UIGridArea.zoomMax 1; decompiled). With 4kSP's R&D
-    // scaler installed, which sets the same, this steps aside.
+    // In the space centre: the R&D tree opens larger. It lies in the R&D screen's
+    // canvas under the main canvas, so it takes the UI scale as its panels do, but
+    // opens at its own zoom of 1 and zooms in no further (UIGridArea: zoom 1,
+    // zoomMax 1; decompiled), small beside the panels. It opens at 1.5 and zooms in
+    // to 2.5; out to KSP's 0.6. 4kSP's R&D scaler is turned off (OtherScalers).
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     public class SpaceCentreScaling : MonoBehaviour
     {
-        private const float ZoomMax = 2f;
-        private bool aside;
+        private const float ZoomOpen = 1.5f;
+        private const float ZoomMax = 2.5f;
+        private static readonly System.Reflection.MethodInfo ZoomTo = typeof(UIGridArea).GetMethod("ZoomTo",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        private RDController opened;
         private bool noted;
-
-        private void Start()
-        {
-            aside = UiScaling.Installed(UiScaling.FourkSpRnD);
-            if (aside) UiScaling.Note("the R&D tree's zoom", "4kSP");
-        }
 
         private void Update()
         {
-            if (aside) return;
             RDController controller = RDController.Instance;
-            if (controller == null || controller.gridArea == null || controller.gridArea.zoomMax >= ZoomMax) return;
-            controller.gridArea.zoomMax = ZoomMax;
+            if (controller == null || controller == opened || controller.gridArea == null) return;
+            opened = controller;
+            UIGridArea grid = controller.gridArea;
+            grid.zoomMax = ZoomMax;
+            try
+            {
+                if (ZoomTo != null) ZoomTo.Invoke(grid, new object[] { ZoomOpen, true });
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("rnd-zoom", "The R&D tree could not open larger (" + CompatibilityLog.Reason(e) + ").");
+            }
             // KSP enables the zoom-in button by zoom != zoomMax as the tree opens
-            // (UIGridArea.SetZoomButtonState; decompiled), so at its own size it is off.
-            if (controller.gridArea.zoom_up != null) controller.gridArea.zoom_up.interactable = true;
+            // (UIGridArea.SetZoomButtonState; decompiled).
+            if (grid.zoom_up != null) grid.zoom_up.interactable = true;
+            if (grid.zoom_down != null) grid.zoom_down.interactable = true;
             if (noted) return;
             noted = true;
-            Debug.Log(Log.Tag + " UI scaling: the R&D tree zooms in to " + ZoomMax.ToString("0") + " times.");
+            Debug.Log(Log.Tag + " UI scaling: the R&D tree opens at " + ZoomOpen.ToString("0.0") + " times, zooms in to "
+                      + ZoomMax.ToString("0.0") + ".");
         }
     }
 
@@ -150,25 +157,25 @@ namespace ReDefinition.Scaling
     // LateUpdate; decompiled). Each gizmo's own screenSize, as it appears, is
     // multiplied by the scale; one KSP shrinks to minimise it (screenSize 0) is left
     // to shrink, and one opened again is a new one. Its handles and their drag
-    // distances follow its size. With DMagic's Maneuver Node Evolved installed,
-    // which sizes the gizmo from the same field (BetterManeuvering.
-    // ManeuverController), this steps aside.
+    // distances follow its size. DMagic's Maneuver Node Evolved's writes to the same
+    // field are removed (OtherScalers), so that the size seen first is KSP's.
     internal sealed class ManeuverGizmos
     {
-        private readonly Dictionary<ManeuverGizmo, float> sizes = new Dictionary<ManeuverGizmo, float>();
+        // Each gizmo's own size as it first appeared open, shared with OtherScalers.
+        private static readonly Dictionary<ManeuverGizmo, float> sizes = new Dictionary<ManeuverGizmo, float>();
         private readonly List<ManeuverGizmo> gone = new List<ManeuverGizmo>();
-        private bool aside;
         private bool logged;
 
-        internal void Start()
+        // The gizmo's size when open, at the current scale; 0 for one not seen open.
+        internal static float OpenSize(ManeuverGizmoBase gizmo)
         {
-            aside = UiScaling.Installed(UiScaling.ManeuverNodeEvolved);
-            if (aside) UiScaling.Note("the maneuver gizmo", "Maneuver Node Evolved");
+            ManeuverGizmo maneuver = gizmo as ManeuverGizmo;
+            float own;
+            return maneuver != null && sizes.TryGetValue(maneuver, out own) ? own * UiScaling.World : 0f;
         }
 
         internal void At(float scale)
         {
-            if (aside) return;
             Vessel vessel = FlightGlobals.ActiveVessel;
             PatchedConicSolver solver = vessel != null ? vessel.patchedConicSolver : null;
             if (solver == null || solver.maneuverNodes == null) return;

@@ -95,10 +95,12 @@ namespace ReDefinition.Settings
         public SettingControl Control;
         public SettingKind Kind = SettingKind.Other;
 
-        // Slider: its range, and whether it snaps to whole numbers.
+        // Slider: its range, whether it snaps to whole numbers, and its step from
+        // Min; 0 for none.
         public float Min;
         public float Max;
         public bool WholeNumbers;
+        public float Step;
 
         // Choice: the values, in the order the control steps through them, and
         // what the window calls them; null labels show the values themselves.

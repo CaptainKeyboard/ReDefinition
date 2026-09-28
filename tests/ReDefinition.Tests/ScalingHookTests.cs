@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using KSP.UI.Screens;
 using ReDefinition.Scaling;
 
 namespace ReDefinition.Tests
@@ -35,6 +36,18 @@ namespace ReDefinition.Tests
                                                         + "." + target.Key.Name);
                 }
             }
+        }
+
+        // What SpaceCentreScaling and OtherScalers reach by name in KSP.
+        [TestMethod]
+        public void KspMembersReachedByNameExist()
+        {
+            MethodInfo zoomTo = typeof(UIGridArea).GetMethod("ZoomTo", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(zoomTo, "UIGridArea.ZoomTo");
+            CollectionAssert.AreEqual(new[] { typeof(float), typeof(bool) },
+                zoomTo.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+            Assert.IsNotNull(typeof(ManeuverGizmoBase).GetField("screenSize",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public), "ManeuverGizmoBase.screenSize");
         }
     }
 }

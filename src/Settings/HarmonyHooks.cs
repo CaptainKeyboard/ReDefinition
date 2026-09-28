@@ -19,14 +19,15 @@ namespace ReDefinition.Settings
         public readonly string Finalizer;
         public readonly int PrefixPriority;
         public readonly int PostfixPriority;
+        public readonly string Transpiler;
 
         public HarmonyHook(MethodBase target, string prefix, string postfix, string finalizer)
-            : this(target, prefix, postfix, finalizer, -1, -1)
+            : this(target, prefix, postfix, finalizer, -1, -1, null)
         {
         }
 
         public HarmonyHook(MethodBase target, string prefix, string postfix, string finalizer, int prefixPriority,
-                           int postfixPriority)
+                           int postfixPriority, string transpiler = null)
         {
             Target = target;
             Prefix = prefix;
@@ -34,6 +35,7 @@ namespace ReDefinition.Settings
             Finalizer = finalizer;
             PrefixPriority = prefixPriority;
             PostfixPriority = postfixPriority;
+            Transpiler = transpiler;
         }
     }
 
@@ -53,7 +55,8 @@ namespace ReDefinition.Settings
                 {
                     if (hook.Target == null) throw new MissingMethodException(owner.Name + ": a method to hook is missing.");
                     harmony.Patch(hook.Target, prefix: Method(owner, hook.Prefix, hook.PrefixPriority),
-                        postfix: Method(owner, hook.Postfix, hook.PostfixPriority), finalizer: Method(owner, hook.Finalizer, -1));
+                        postfix: Method(owner, hook.Postfix, hook.PostfixPriority), transpiler: Method(owner, hook.Transpiler, -1),
+                        finalizer: Method(owner, hook.Finalizer, -1));
                 }
             }
             catch

@@ -61,6 +61,7 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `takesEffect` | no | `NextScene` | `Live`, `NextScene` or `Restart`. The window tells the player. |
 | `min`, `max` | no | -- | A number with both is a slider. |
 | `whole` | no | `True` for an `int`, else `False` | Whether the slider snaps to whole numbers. |
+| `step` | no | none | The slider's step, counted from `min`. Only with `min` and `max`. |
 | `percent` | no | `False` | `True`: the slider's value, from 0 to 1, is shown as a percentage. Only with `min` and `max`. |
 | `choices` | no | an enum's names | A list to choose from, separated by commas. `\,` is a comma inside a choice. |
 | `labels` | no | the choices | What the list shows for each choice, as many as there are choices. |

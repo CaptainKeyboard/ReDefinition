@@ -1320,7 +1320,7 @@ namespace ReDefinition.Window
                         // (DialogGUISlider.Update), and a value it clamps or
                         // rounds on the way is not the player moving it.
                         if (Mirrors(f, PendingFloat(key, setting.Min), setting)) return;
-                        model.Change(key, Format(f, setting.WholeNumbers));
+                        model.Change(key, Format(Stepped(f, setting), setting.WholeNumbers));
                     });
                 value = () => Display(setting, null, null);
             }
@@ -1416,6 +1416,14 @@ namespace ReDefinition.Window
             float expected = Mathf.Clamp(shown, setting.Min, setting.Max);
             if (setting.WholeNumbers) expected = Mathf.Round(expected);
             return Mathf.Approximately(value, expected);
+        }
+
+        // The slider's value on the setting's step from Min, within its range.
+        private static float Stepped(float value, BundledSetting setting)
+        {
+            if (setting.Step <= 0f) return value;
+            float stepped = setting.Min + Mathf.Round((value - setting.Min) / setting.Step) * setting.Step;
+            return Mathf.Clamp(stepped, setting.Min, setting.Max);
         }
 
         private static float ChoiceIndex(string key, string[] choices)

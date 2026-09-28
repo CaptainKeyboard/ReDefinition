@@ -433,6 +433,7 @@ namespace ReDefinition.Settings
             if (entry.Min != null && entry.Max != null)
             {
                 Slider(setting, entry.Min.Value, entry.Max.Value, entry.Whole ?? type == typeof(int));
+                setting.Step = entry.Step ?? 0f;
             }
             else if (entry.Choices != null)
             {

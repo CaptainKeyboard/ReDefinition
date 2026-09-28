@@ -19,12 +19,17 @@ the size they have on 1080p. ReDefinition gives them the UI scale too:
 | the gizmos that move and rotate parts | VAB, SPH, EVA construction |
 | other mods' windows | everywhere |
 
-In the R&D building, the tech tree zooms in to twice its size, not only to its own.
+In the R&D building, the tech tree opens at one and a half times its size and zooms in
+to two and a half.
 
 With a UI scale above 1, KSP counts room for more crew portraits along the bottom of the
 screen than fit there. ReDefinition counts them at the size they are drawn.
 
 ## Set it
+
+The UI scale itself is under *Display*, *Screen*: from 80 to 400 %, in steps of 10 %.
+KSP's own settings screen offers up to 200 %; a larger value stays until its slider is
+moved there.
 
 Open the settings window and its *Interface* tab. Under *Scaling*:
 
@@ -38,14 +43,15 @@ lines take it after the next scene change, the editor's gizmos the next time the
 
 ## Mods that do this already
 
-Where one of these is installed, ReDefinition leaves that part to it:
+Where one of these is installed, ReDefinition turns off its scaling of the same thing, so
+that nothing grows twice. The rest of the mod works as before:
 
-| Mod | Takes over |
+| Mod | Its scaling turned off |
 |---|---|
-| 4kSP or 4kSP Expanded | the map's icons and labels |
-| 4kSP Expanded's R&D part | the tech tree's zoom |
+| 4kSP or 4kSP Expanded | the map's icons and labels, and its toolbar button for them |
+| 4kSP Expanded's R&D part | the tech tree, its larger parts list and its toolbar window |
 | 4kSP Expanded's window part | other mods' windows |
-| Maneuver Node Evolved | the maneuver gizmo |
+| Maneuver Node Evolved | the maneuver gizmo's size and its own size settings; *Force Maneuver Node Open*, snapping and input stay |
 
 Mods that size their own windows keep their size and their own setting for it: MechJeb,
 Kerbal Alarm Clock, RCSBuildAid, KSP Craft Organizer, Kopernicus and others.
