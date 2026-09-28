@@ -17,7 +17,9 @@ namespace ReDefinition.Engineer
         private const double AltitudeStep = 10000.0;
 
         private readonly EditorEngineer owner;
+        // The rows' width, and the parts' boxes around them, a margin wider on each side.
         private readonly float width;
+        private readonly float outer;
         private readonly AfterCreate after = new AfterCreate();
 
         private PlannerBodies bodies;
@@ -45,7 +47,8 @@ namespace ReDefinition.Engineer
         internal PlannerView(EditorEngineer owner, float width)
         {
             this.owner = owner;
-            this.width = width;
+            outer = width;
+            this.width = width - 2f * BoxMargin;
             GameEvents.onEditorLoad.Add(OnEditorLoad);
             GameEvents.onEditorRestart.Add(OnEditorRestart);
         }

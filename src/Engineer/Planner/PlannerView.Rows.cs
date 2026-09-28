@@ -96,7 +96,8 @@ namespace ReDefinition.Engineer
         // it folds; a gap before the next.
         private const float SectionGap = 10f;
         private const float HeaderHeight = 26f;
-        private const float SectionInset = 8f;
+        // Between a box's edge and its rows, on each side.
+        private const float BoxMargin = 8f;
         private static readonly Color HeaderColour = new Color(1f, 1f, 1f, 0.10f);
         private static readonly Color BoxColour = new Color(0f, 0f, 0f, 0.22f);
 
@@ -118,10 +119,10 @@ namespace ReDefinition.Engineer
                                                    System.Func<string> summary, IEnumerable<DialogGUIBase> rows)
         {
             yield return CollapsibleHeading(title, shown, toggle, tooltip, summary);
-            DialogGUIVerticalLayout box = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(0, 0, 8, 10), TextAnchor.UpperLeft,
-                new List<DialogGUIBase>(rows).ToArray());
+            DialogGUIVerticalLayout box = new DialogGUIVerticalLayout(outer, -1f, 0f,
+                new RectOffset((int)BoxMargin, (int)BoxMargin, 8, 10), TextAnchor.UpperLeft, new List<DialogGUIBase>(rows).ToArray());
             box.OptionEnabledCondition = shown;
-            Tint.Behind(box, BoxColour, 0f, width, after, false, Rounded.Get(false, true));
+            Tint.Behind(box, BoxColour, 0f, outer, after, false, Rounded.Get(false, true));
             yield return box;
             yield return new DialogGUISpace(SectionGap);
         }
@@ -138,13 +139,13 @@ namespace ReDefinition.Engineer
             DialogGUILabel label = new DialogGUILabel("Fuel margin", 84f, RowHeight);
             label.tooltipText = "Extra delta-v added to every step as a reserve for piloting losses and corrections.";
             DialogGUISlider margin = new DialogGUISlider(() => (float)(Ready() ? state.Margin * 100.0 : 10.0), 0f, 50f, true,
-                width - SectionInset - 84f - 44f - 136f - 6f * 4f - RowEnd, RowHeight, SetMargin);
+                width - 84f - 44f - 136f - 6f * 3f - RowEnd, RowHeight, SetMargin);
             margin.tooltipText = label.tooltipText;
             DialogGUIToggle planes = new DialogGUIToggle(() => Ready() && state.PlaneChanges, "Plane changes", SetPlaneChanges, 136f);
             planes.tooltipText = "Add the delta-v to match the target's orbital inclination on each transfer, such as 6° for "
                                  + "Minmus. Off, all orbits are taken as lying in one plane.";
             return new DialogGUIHorizontalLayout(width, RowHeight + 4f, 6f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(SectionInset - 6f), label, margin,
+                label, margin,
                 new DialogGUILabel(() => (Ready() ? (state.Margin * 100.0).ToString("0") : "10") + " %", 44f), planes);
         }
 
@@ -530,9 +531,9 @@ namespace ReDefinition.Engineer
             yield return new DialogGUISpace(8f);
             totalBar = new SegmentBar(MaxStages + 2, BarHeight + 4f, after);
             yield return new DialogGUIHorizontalLayout(width, BarHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(SectionInset), totalBar.Layout, new DialogGUIFlexibleSpace());
+                totalBar.Layout, new DialogGUIFlexibleSpace());
             yield return new DialogGUIHorizontalLayout(width, RowHeight + 2f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(SectionInset), new DialogGUILabel(SummaryText, width - SectionInset * 2f, RowHeight));
+                new DialogGUILabel(SummaryText, width - RowEnd, RowHeight));
         }
 
         private string SummaryText()
@@ -556,7 +557,7 @@ namespace ReDefinition.Engineer
         private const int MaxFuelSteps = 30;
         private const int MaxStepStages = 10;
         private const float FuelNeeds = 72f;
-        private const float FuelLeft = 96f;
+        private const float FuelLeft = 80f;
         private const float StageGives = 72f;
         private const float StageKeeps = 110f;
         private const float StageTwr = 40f;
@@ -885,10 +886,10 @@ namespace ReDefinition.Engineer
         // what it needs and what it has; open, each stage it burns with its TWR as it
         // starts and as it ends its part, in the air where the body has any, its thrust
         // and how long it burns, then each burn in orbit and the body.
-        private const float MassColumn = 64f;
+        private const float MassColumn = 60f;
         private const float IspColumn = 44f;
         private const float TwrColumn = 40f;
-        private const float ThrustColumn = 64f;
+        private const float ThrustColumn = 60f;
         private const float BurnColumn = 64f;
         private const int MaxNotes = 3;
         // Thrust off the centre of mass by less than this, in metres, is left alone.
@@ -1247,20 +1248,22 @@ namespace ReDefinition.Engineer
         // A heading that opens and closes what is under it: the whole bar answers a
         // click, with its title, what is under it in short, and "+" or "-" at the right.
         private const float HeadingTitle = 90f;
+        private const float SignEdge = 6f;
 
         private DialogGUIBase CollapsibleHeading(string title, System.Func<bool> shown, Callback toggle, string tooltip,
                                                  System.Func<string> summary)
         {
             DialogGUILabel titleLabel = new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", HeadingTitle, RowHeight);
             titleLabel.tooltipText = tooltip;
-            DialogGUILabel sign = new DialogGUILabel(() => "<b><size=120%><color=#e0e0e0>" + (shown() ? "-" : "+") + "</color></size></b>",
-                Square, RowHeight);
-            DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(width, HeaderHeight, 4f, new RectOffset((int)SectionInset, 0, 0, 0),
+            // The sign at the bar's right end, a little in from its edge.
+            DialogGUILabel sign = new DialogGUILabel(
+                () => "<align=right><b><size=120%><color=#e0e0e0>" + (shown() ? "-" : "+") + "</color></size></b></align>", Square, RowHeight);
+            DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(outer, HeaderHeight, 4f, new RectOffset((int)BoxMargin, 0, 0, 0),
                 TextAnchor.MiddleLeft, titleLabel,
-                new DialogGUILabel(() => Worked() ? summary() : "", width - SectionInset - HeadingTitle - Square - 4f * 2f - RowEnd - 6f,
-                    RowHeight), sign);
+                new DialogGUILabel(() => Worked() ? summary() : "", outer - BoxMargin - HeadingTitle - Square - 4f * 2f - SignEdge, RowHeight),
+                sign);
             headerTints.Add(new KeyValuePair<TintImage, System.Func<bool>>(
-                Tint.Behind(heading, HeaderColour, 0f, width, after, true, Rounded.Get(true, false)), shown));
+                Tint.Behind(heading, HeaderColour, 0f, outer, after, true, Rounded.Get(true, false)), shown));
             PlannerWidgets.Clickable(heading, toggle, after);
             return heading;
         }
@@ -1355,7 +1358,7 @@ namespace ReDefinition.Engineer
             double sum = 0.0;
             foreach (KeyValuePair<double, Color> part in parts) sum += part.Key;
             double scale = System.Math.Max(1.0, System.Math.Max(sum, System.Math.Max(TotalNeeded(), TotalHas())));
-            float usable = Mathf.Max(20f, width - SectionInset * 2f - parts.Count);
+            float usable = Mathf.Max(20f, width - RowEnd - parts.Count);
             List<KeyValuePair<float, Color>> total = new List<KeyValuePair<float, Color>>();
             foreach (KeyValuePair<double, Color> part in parts) total.Add(Piece(part.Key / scale * usable, part.Value));
             totalBar.Set(total);

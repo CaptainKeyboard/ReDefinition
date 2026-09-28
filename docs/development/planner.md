@@ -62,8 +62,11 @@ The planner uses no text to explain itself. From the top:
   bottom (`Rounded`: a 16-pixel white shape with 5-pixel corners, 9-sliced), holding its
   rows (`PlannerView.Section`, colours drawn by `Tint.Behind`); a click anywhere on the
   bar folds the part (`CollapsibleHeading`, its background answering the pointer), *+* or
-  *-* at its right; the box of a folded part hides. *Route* starts with *Fuel margin* and
-  *Plane changes* and ends with one bar summing up the route.
+  *-* at its right; the box of a folded part hides. The rows stand 8 in from the box's
+  edges on each side (`BoxMargin`: `width` is the rows', `outer` the boxes'), so that the
+  buttons at their right end line up; the bar's sign stands 6 in from its edge. *Route*
+  starts with *Fuel margin* and *Plane changes* and ends with one bar summing up the
+  route.
 * The header bars carry a summary: Fuel plan and Thrust always, the steps short of fuel,
   the steps with too low a TWR and the burns too long; Craft always, its mass, fuel and
   delta-v; Route while folded, its balance.
