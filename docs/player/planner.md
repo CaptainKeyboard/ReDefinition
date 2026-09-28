@@ -149,7 +149,7 @@ landing on its parachutes.
    without, usually the one of its parachutes. It lights up on that stage and every stage
    after it. Click it again to have no capsule.
 4. Every step now shows on a button who flies it, green. The planner sets it itself. A
-   click on the button opens the list of who can: *Ship*, *Lander*, *Without lander*,
+   click on the button folds out the list of who can: *Ship*, *Lander*, *Without lander*,
    *Capsule*. What you pick there is bold and underlined; *Planner's choice* in the list
    gives the step back to the planner.
 

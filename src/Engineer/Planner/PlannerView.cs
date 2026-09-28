@@ -165,7 +165,7 @@ namespace ReDefinition.Engineer
             if (typingLocked) InputLockManager.RemoveControlLock(TypingLock);
             typingLocked = false;
             BodyPicker.Close(this);
-            ChoiceList.Close(this);
+            Dropdown.Close(this);
             if (state != null && vessel != null && bodies != null && saveAt > 0f) state.Save(vessel, bodies);
             saveAt = -1f;
         }
@@ -414,7 +414,7 @@ namespace ReDefinition.Engineer
             if (!Shown(index) || state.Stops.Count <= 2) return;
             // The list of bodies is for a stop that may be another one now.
             BodyPicker.Close(this);
-            ChoiceList.Close(this);
+            Dropdown.Close(this);
             state.Stops.RemoveAt(index);
             state.RemoveStop(index);
             System.Array.Clear(more, 0, more.Length);
@@ -653,7 +653,7 @@ namespace ReDefinition.Engineer
 
         // Who can fly a step, for the list the step's button opens: the player's
         // choice, or back to the planner's.
-        private void PickVehicle(int leg, StepRole role)
+        private void PickVehicle(int leg, StepRole role, DialogGUIBase button)
         {
             int index = Slot(leg, role);
             if (index < 0) return;
@@ -675,7 +675,7 @@ namespace ReDefinition.Engineer
                     Label = "Planner's choice", Tooltip = "Let the planner choose who flies this step again.",
                     Pick = () => ChooseVehicle(leg, role, step.Vehicle),
                 });
-            ChoiceList.Show(this, "Who flies", choices);
+            Dropdown.Show(this, button, choices, 132f);
         }
 
         private void AddVehicle(List<Choice> choices, int leg, StepRole role, RouteStep step, Vehicle vehicle, string tooltip)

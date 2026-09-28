@@ -68,11 +68,12 @@ namespace ReDefinition.Engineer
 
     // What has to happen once the dialog elements are created: symbols laid on
     // buttons, bars reached for their images.
-    // A background behind an element's rows, from `left` on, once it is created: an
-    // image under its children that takes no part in the layout.
+    // A background behind an element's rows, from `left` to `right`, once it is
+    // created: an image under its children that takes no part in the layout. Of a
+    // fixed width, since the scroll list stretches its rows under its bar.
     internal static class Tint
     {
-        internal static void Behind(DialogGUIBase element, Color color, float left, AfterCreate after)
+        internal static void Behind(DialogGUIBase element, Color color, float left, float right, AfterCreate after)
         {
             after.Add(() =>
             {
@@ -82,9 +83,10 @@ namespace ReDefinition.Engineer
                 tint.transform.SetAsFirstSibling();
                 RectTransform rect = (RectTransform)tint.transform;
                 rect.anchorMin = Vector2.zero;
-                rect.anchorMax = Vector2.one;
-                rect.offsetMin = new Vector2(left, 0f);
-                rect.offsetMax = Vector2.zero;
+                rect.anchorMax = new Vector2(0f, 1f);
+                rect.pivot = new Vector2(0f, 0.5f);
+                rect.anchoredPosition = new Vector2(left, 0f);
+                rect.sizeDelta = new Vector2(right - left, 0f);
                 tint.AddComponent<LayoutElement>().ignoreLayout = true;
                 Image image = tint.AddComponent<Image>();
                 image.color = color;
@@ -436,7 +438,7 @@ namespace ReDefinition.Engineer
         }
     }
 
-    // One entry of a ChoiceList.
+    // One entry of a Dropdown.
     internal sealed class Choice
     {
         public string Label;
@@ -445,45 +447,100 @@ namespace ReDefinition.Engineer
         public Callback Pick;
     }
 
-    // A small list to pick one of a few choices from, in the middle of the screen,
-    // as the list of bodies (BodyPicker); the current one in bold.
-    internal static class ChoiceList
+    // A list that folds out under a button, to pick one of a few choices; the
+    // current one in bold. Built from KSP's dialog elements on the button's own
+    // canvas, over everything else there, with a clear layer behind it that closes it
+    // on a click anywhere else, so that the click does not reach the editor.
+    internal static class Dropdown
     {
-        private static PopupDialog open;
+        private const float RowHeight = 24f;
+        private static readonly Color Background = new Color(0.13f, 0.13f, 0.14f, 0.98f);
+        private static GameObject blocker;
+        private static GameObject list;
         private static object owner;
 
-        internal static void Show(object by, string title, List<Choice> choices)
+        internal static bool Open
+        {
+            get { return list != null; }
+        }
+
+        internal static void Show(object by, DialogGUIBase anchor, List<Choice> choices, float width)
         {
             Close();
+            if (anchor == null || anchor.uiItem == null || choices == null || choices.Count == 0) return;
+            RectTransform at = anchor.uiItem.transform as RectTransform;
+            Canvas canvas = at != null ? at.GetComponentInParent<Canvas>() : null;
+            if (canvas == null) return;
+            Transform root = canvas.rootCanvas.transform;
             owner = by;
-            if (choices == null || choices.Count == 0) return;
-            UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
-            const float width = 200f;
-            const float rowHeight = 24f;
-            float rowWidth = width - 20f;
+
+            blocker = new GameObject("ReDefinitionDropdownBlocker", typeof(RectTransform));
+            blocker.transform.SetParent(root, false);
+            RectTransform cover = (RectTransform)blocker.transform;
+            cover.anchorMin = Vector2.zero;
+            cover.anchorMax = Vector2.one;
+            cover.offsetMin = new Vector2(-10000f, -10000f);
+            cover.offsetMax = new Vector2(10000f, 10000f);
+            Image clear = blocker.AddComponent<Image>();
+            clear.color = new Color(0f, 0f, 0f, 0f);
+            blocker.AddComponent<Button>().onClick.AddListener(Close);
+
+            list = new GameObject("ReDefinitionDropdown", typeof(RectTransform));
+            list.transform.SetParent(root, false);
+            RectTransform box = (RectTransform)list.transform;
+            box.pivot = new Vector2(0f, 1f);
+            box.anchorMin = box.anchorMax = new Vector2(0.5f, 0.5f);
+            box.sizeDelta = new Vector2(width + 8f, choices.Count * (RowHeight + 2f) + 6f);
+            // Under the button, or over it where the list would leave the screen.
+            Vector3[] corners = new Vector3[4];
+            at.GetWorldCorners(corners);
+            box.position = corners[0];
+            Vector3[] own = new Vector3[4];
+            Vector3[] screen = new Vector3[4];
+            box.GetWorldCorners(own);
+            ((RectTransform)root).GetWorldCorners(screen);
+            if (own[0].y < screen[0].y)
+            {
+                box.pivot = Vector2.zero;
+                box.position = corners[1];
+            }
+            list.AddComponent<Image>().color = Background;
+
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             foreach (Choice choice in choices)
             {
                 Choice picked = choice;
-                DialogGUIButton button = new DialogGUIButton(choice.Current ? "<b>" + choice.Label + "</b>" : choice.Label,
-                    () => { Close(); picked.Pick(); }, rowWidth, rowHeight, false);
+                DialogGUIButton button = new DialogGUIButton(choice.Current ? "<b>" + choice.Label + "</b>" : choice.Label, () =>
+                {
+                    Close();
+                    picked.Pick();
+                }, width, RowHeight, false);
                 button.tooltipText = choice.Tooltip;
                 rows.Add(button);
             }
-            rows.Add(new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), Close, rowWidth, rowHeight, false));
-            DialogGUIVerticalLayout list = new DialogGUIVerticalLayout(rowWidth, -1f, 4f, new RectOffset(0, 0, 0, 0),
+            DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(width, -1f, 2f, new RectOffset(4, 4, 4, 4),
                 TextAnchor.UpperLeft, rows.ToArray());
-            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionPlannerChoice", "", title, skin,
-                new Rect(0.5f, 0.5f, width, rows.Count * (rowHeight + 4f) + 50f), list);
-            open = UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog,
-                false, skin, false));
-            ReDefinition.Window.DialogTooltips.Attach(new DialogGUIBase[] { list });
+            Stack<Transform> layouts = new Stack<Transform>();
+            layouts.Push(list.transform);
+            UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
+            layout.Create(ref layouts, skin);
+            RectTransform inner = layout.uiItem != null ? layout.uiItem.transform as RectTransform : null;
+            if (inner != null)
+            {
+                inner.anchorMin = Vector2.zero;
+                inner.anchorMax = Vector2.one;
+                inner.offsetMin = Vector2.zero;
+                inner.offsetMax = Vector2.zero;
+            }
+            DialogTooltips.Attach(new DialogGUIBase[] { layout });
         }
 
         internal static void Close()
         {
-            if (open != null) open.Dismiss();
-            open = null;
+            if (list != null) UnityEngine.Object.Destroy(list);
+            if (blocker != null) UnityEngine.Object.Destroy(blocker);
+            list = null;
+            blocker = null;
             owner = null;
         }
 

@@ -50,6 +50,10 @@ namespace ReDefinition.Engineer
         private static readonly StepRole[] Roles = { StepRole.Launch, StepRole.Transfer, StepRole.Land };
         // The steps whose further choices are open ("...").
         private readonly bool[,] more = new bool[MaxStops, 3];
+        // After each step's bar, the room its bar leaves, so that the figure stands in
+        // one column: the scroll list stretches its rows under its bar, and a flexible
+        // space would push the figure there.
+        private readonly Sizer[,] barFillers = new Sizer[MaxStops, 3];
         private SegmentBar totalBar;
         private readonly IconMark[,] pinMarks = new IconMark[MaxStages, MaxStops];
         private Sizer columns;
@@ -169,7 +173,7 @@ namespace ReDefinition.Engineer
             DialogGUIVerticalLayout block = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft,
                 inner.ToArray());
             block.OptionEnabledCondition = shown;
-            Tint.Behind(block, PlannerColors.StepBackground, Timeline, after);
+            Tint.Behind(block, PlannerColors.StepBackground, Timeline, width, after);
             yield return block;
             DialogGUIHorizontalLayout gap = new DialogGUIHorizontalLayout(width, 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 TimelineLine(4f));
@@ -194,7 +198,8 @@ namespace ReDefinition.Engineer
             leaves.OptionEnabledCondition = () => SeparationText(leg, role).Length > 0;
             yield return leaves;
 
-            DialogGUIButton vehicle = new DialogGUIButton(() => VehicleText(leg, role), () => PickVehicle(leg, role), VehicleButton,
+            DialogGUIButton vehicle = null;
+            vehicle = new DialogGUIButton(() => VehicleText(leg, role), () => PickVehicle(leg, role, vehicle), VehicleButton,
                 RowHeight + 2f, false);
             vehicle.tooltipText = "Who flies this step: click to choose.";
             vehicle.OptionEnabledCondition = () => HasLander() || HasCapsule();
@@ -209,9 +214,11 @@ namespace ReDefinition.Engineer
             open.OptionEnabledCondition = () => HasMore(leg, role);
             DialogGUISpace noMore = new DialogGUISpace(Icon);
             noMore.OptionEnabledCondition = () => !HasMore(leg, role);
+            Sizer filler = new Sizer(after);
+            barFillers[leg, (int)role] = filler;
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 TimelineLine(Icon + 2f), new DialogGUILabel(() => StepPlace(leg, role), Place), vehicle, bar.Layout,
-                new DialogGUIFlexibleSpace(), speed, open, noMore);
+                filler.Add(new DialogGUISpace(1f)), speed, open, noMore);
             row.OptionEnabledCondition = shown;
             yield return row;
 
@@ -688,6 +695,13 @@ namespace ReDefinition.Engineer
                         if (budget.Short[index] > 0.5) pieces.Add(Piece(budget.Short[index] / longest * barRoom, PlannerColors.Short));
                     }
                     bar.Set(pieces);
+                    // The bar's pieces of a unit or more, with a seam of one between them.
+                    float used = 0f;
+                    int drawn = 0;
+                    foreach (KeyValuePair<float, Color> piece in pieces)
+                        if (piece.Key >= 1f) { used += piece.Key; drawn++; }
+                    used += Mathf.Max(0, drawn - 1);
+                    if (barFillers[leg, role] != null) barFillers[leg, role].Set(Mathf.Max(1f, room - used));
                 }
 
             // The fuel plan's columns share what the stage and left columns
