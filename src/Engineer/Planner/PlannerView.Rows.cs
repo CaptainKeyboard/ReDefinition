@@ -857,10 +857,19 @@ namespace ReDefinition.Engineer
         }
 
         // "S3" in the colour of its stage.
+        // "S4", or "S4+3" for stages that burn together at lift-off (ClampedLaunch).
+        private readonly Dictionary<int, string> stageLabels = new Dictionary<int, string>();
+
+        private string StageLabel(int number)
+        {
+            string label;
+            return stageLabels.TryGetValue(number, out label) ? label : "S" + number;
+        }
+
         private string ColouredStage(int number)
         {
             if (number < 0) return "";
-            return "<b><color=" + PlannerColors.Hex(StageColour(number)) + ">S" + number + "</color></b>";
+            return "<b><color=" + PlannerColors.Hex(StageColour(number)) + ">" + StageLabel(number) + "</color></b>";
         }
 
         // Each open stage row's swatch in the colour of its stage.
@@ -983,7 +992,7 @@ namespace ReDefinition.Engineer
                 StageRow row = stages.Find(item => item.Number == entry.Uses[0].Stage);
                 if (row != null && row.ThrustArm > OffCentre && row.ThrustTorque > row.GimbalTorque)
                 {
-                    entry.Notes.Add("<color=" + Warning + ">Thrust of S" + row.Number + " off-centre by "
+                    entry.Notes.Add("<color=" + Warning + ">Thrust of " + StageLabel(row.Number) + " off-centre by "
                                     + row.ThrustArm.ToString("0.00", CultureInfo.InvariantCulture) + " m, more than its gimbals correct</color>");
                     entry.Warns = true;
                 }
@@ -1139,7 +1148,7 @@ namespace ReDefinition.Engineer
                 StageBudget.StageUse use = Deciding(entry);
                 if (use == null) return "<color=" + Dim + ">No stage</color>";
                 double twr = TwrAt(use.Stage, use.Mass, entry.Body, true);
-                return "<color=" + (twr < TwrNeeded(entry) ? Problem : Good) + ">S" + use.Stage + "  " + EngineerFormat.Ratio(twr) + "</color>";
+                return "<color=" + (twr < TwrNeeded(entry) ? Problem : Good) + ">" + StageLabel(use.Stage) + "  " + EngineerFormat.Ratio(twr) + "</color>";
             }
             if (entry.Longest == null) return "";
             return "<color=" + BurnColour(entry.Longest) + ">" + EngineerFormat.Time(entry.Longest.Seconds) + " "
@@ -1249,7 +1258,7 @@ namespace ReDefinition.Engineer
         // A heading that opens and closes what is under it: the whole bar answers a
         // click, with its title, what is under it in short, and "+" or "-" at the right.
         private const float HeadingTitle = 90f;
-        private const float SignEdge = 6f;
+        private const float SignEdge = 12f;
 
         private DialogGUIBase CollapsibleHeading(string title, System.Func<bool> shown, Callback toggle, string tooltip,
                                                  System.Func<string> summary)

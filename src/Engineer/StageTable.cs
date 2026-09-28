@@ -24,7 +24,7 @@ namespace ReDefinition.Engineer
         public double DeltaVVacuum;
         public double ThrustVacuum;
         // At the surface of each body with air, by its name (CelestialBody.bodyName).
-        public readonly Dictionary<string, double> ThrustAtSurface = new Dictionary<string, double>();
+        public Dictionary<string, double> ThrustAtSurface = new Dictionary<string, double>();
         // The engines that burn in it, as "2 x LV-T45"; empty where none do.
         public string Engines = "";
 
@@ -45,6 +45,14 @@ namespace ReDefinition.Engineer
         // Filled by StageTable.Complete.
         public double DeltaVRemaining;
         public double TwrMax;
+
+        // A copy to change, its thrust at the surfaces its own.
+        internal StageRow Copy()
+        {
+            StageRow copy = (StageRow)MemberwiseClone();
+            copy.ThrustAtSurface = new Dictionary<string, double>(ThrustAtSurface);
+            return copy;
+        }
     }
 
     // The table the engineer window shows, worked out from the stages: delta-v left

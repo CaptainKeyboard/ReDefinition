@@ -14,6 +14,7 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 |---|---|
 | `src/Engineer/Planner/RoutePlanner.cs` | the delta-v of the way from one point to another. Free of Unity |
 | `src/Engineer/Planner/RouteSteps.cs` | the steps between the destinations, who flies each, and where the lander leaves and docks. Free of Unity |
+| `src/Engineer/Planner/ClampedLaunch.cs` | the stages lit while launch clamps hold the vessel, burning together with the stage that releases them. Free of Unity |
 | `src/Engineer/Planner/BurnCheck.cs` | how long each burn in orbit takes with the stages that fly it, against its orbit. Free of Unity |
 | `src/Engineer/Planner/StageBudget.cs` | which stage pays for which step, on the mass the stages push, the stages saved or dropped on a step, and the lander refilled from the rest. Free of Unity |
 | `src/Engineer/Planner/VesselShape.cs` | the parts of the vessel that can fly apart, the lander and the capsule found among them, and the stages shared out over them. Free of Unity |
@@ -248,6 +249,21 @@ Kerbin to the Mun as 856 + 310 m/s, and Kerbin to Duna as 1,072 + 616 m/s. That 
 the community delta-v maps **[meas]**.
 
 ## How the stages pay for the steps
+
+Before the budget, `ClampedLaunch.Parallel` rewrites the stages lit while launch clamps
+hold the vessel. The clamps release at their `ActivatesAt`; every stage with delta-v and a
+higher number (the core) burns together with the releasing stage (the boosters). At the
+summed thrust and flow (flow = vacuum thrust over exhaust speed, the exhaust speed from
+the stage's delta-v and masses), both burn from the full mass until the first is empty:
+the lift-off row, numbered as the last held stage. What is left burns on alone in a second
+row, numbered as the releasing stage, so that the order by number stays the burn order:
+the core after the boosters' mass is dropped where its engines decouple later than theirs,
+else the boosters. `PlannerView.StageLabel` names them *S4+3* and *S4* or *S3*. It applies
+only where nothing is dropped on the pad from the first held stage to the release, and
+where the core's tanks are dry as KSP starts the releasing stage; stages on the pad
+between them that burn nothing go. `VesselShape.Split` still shares the rows out by KSP's
+stage numbers, which is exact while the core and the boosters belong to the same group, as
+launch stages do; a stage kept or dropped is saved by the row's number.
 
 `StageBudget.Allocate` takes each stage from KSP's delta-v simulation: its start mass,
 its end mass and its delta-v in vacuum (`DeltaVStageInfo.startMass`, `endMass`,

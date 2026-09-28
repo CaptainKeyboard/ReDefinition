@@ -1554,5 +1554,87 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1L:S 1T:S 1L:L< 2L:L> 2T:S 2L:C<", Shape(steps));
             Assert.IsTrue(steps.Any(step => step.Problem != null && step.Problem.Contains("no docking port")));
         }
+        // The rocket from the game: S4 lights the core on the pad (2,240 kN, Isp 336 s,
+        // 180 t of fuel), S3 fires four boosters (2,680 kN, Isp 220 s, 56.4 t) and
+        // releases the clamps, S2 drops the boosters (25.5 t).
+        private static List<StageRow> PadRows()
+        {
+            return new List<StageRow>
+            {
+                new StageRow { Number = 4, StartMass = 321.9, EndMass = 141.9, DeltaVVacuum = 336 * 9.80665 * System.Math.Log(321.9 / 141.9), ThrustVacuum = 2240, Thrust = 2240 },
+                new StageRow { Number = 3, StartMass = 141.9, EndMass = 85.5, DeltaVVacuum = 220 * 9.80665 * System.Math.Log(141.9 / 85.5), ThrustVacuum = 2680, Thrust = 2680 },
+                new StageRow { Number = 2, StartMass = 60.0, EndMass = 60.0 },
+                new StageRow { Number = 0, StartMass = 12.0, EndMass = 9.0, DeltaVVacuum = 297, ThrustVacuum = 60 },
+            };
+        }
+
+        private static List<PartFacts> PadParts()
+        {
+            PartFacts core = Part(-1, 1, 5.0, "Core engine", engine: true);
+            core.ActivatesAt = 4;
+            PartFacts booster = Part(0, 3, 3.0, "Booster", engine: true);
+            booster.ActivatesAt = 3;
+            PartFacts clamp = Part(0, -1, 1.0, "Clamp");
+            clamp.Clamp = true;
+            clamp.ActivatesAt = 3;
+            return new List<PartFacts> { core, booster, clamp };
+        }
+
+        [TestMethod]
+        public void EnginesLitOnThePadBurnWithTheBoostersThatReleaseTheClamps()
+        {
+            Dictionary<int, string> labels = new Dictionary<int, string>();
+            List<StageRow> rows = ClampedLaunch.Parallel(PadRows(), PadParts(), labels);
+
+            Assert.AreEqual(4, rows[0].Number, "the lift-off");
+            Near(321.9, rows[0].StartMass, 0.01, "lifts off full");
+            Near(4920, rows[0].ThrustVacuum, 0.1, "at the core's and the boosters' thrust");
+            Near(45.4, rows[0].BurnTime, 0.2, "until the boosters are empty");
+            Near(234.6, rows[0].EndMass, 0.3, "both burning");
+            Assert.AreEqual(3, rows[1].Number, "the core burns on");
+            Near(rows[0].EndMass - 25.5, rows[1].StartMass, 0.01, "after the boosters are dropped");
+            Near(60.0, rows[1].EndMass, 0.01, "down to the mass KSP has after both");
+            Near(2240, rows[1].ThrustVacuum, 0.1, "the core alone");
+            Assert.AreEqual("S4+3", labels[4]);
+            Assert.AreEqual("S4", labels[3]);
+            Assert.AreEqual(2, rows[2].Number);
+            Assert.AreEqual(0, rows[3].Number);
+            Assert.IsTrue(rows[0].ThrustVacuum / (rows[0].StartMass * 9.81) > 1.5, "the vessel lifts off");
+        }
+
+        [TestMethod]
+        public void AStageOnThePadThatBurnsNothingDropsNothing()
+        {
+            // S5 lights the core, S4 does nothing, S3 fires the boosters.
+            List<StageRow> rows = PadRows();
+            rows[0].Number = 5;
+            rows.Insert(1, new StageRow { Number = 4, StartMass = 141.9, EndMass = 141.9 });
+            List<PartFacts> parts = PadParts();
+            parts[0].ActivatesAt = 5;
+            List<StageRow> result = ClampedLaunch.Parallel(rows, parts, new Dictionary<int, string>());
+
+            CollectionAssert.AreEqual(new[] { 5, 3, 2, 0 }, result.Select(row => row.Number).ToArray());
+        }
+
+        [TestMethod]
+        public void ClampsStagedAfterADropLeaveTheStagesAlone()
+        {
+            // Something dropped between the core and the release: not a lift-off.
+            List<StageRow> rows = PadRows();
+            rows[1].StartMass = 120.0;
+            rows[1].DeltaVVacuum = 220 * 9.80665 * System.Math.Log(120.0 / 85.5);
+
+            Assert.AreSame(rows, ClampedLaunch.Parallel(rows, PadParts(), new Dictionary<int, string>()));
+        }
+
+        [TestMethod]
+        public void WithoutLaunchClampsTheStagesStayAsKspBurnsThem()
+        {
+            List<PartFacts> parts = PadParts();
+            parts[2].Clamp = false;
+            List<StageRow> rows = PadRows();
+
+            Assert.AreSame(rows, ClampedLaunch.Parallel(rows, parts, new Dictionary<int, string>()));
+        }
     }
 }

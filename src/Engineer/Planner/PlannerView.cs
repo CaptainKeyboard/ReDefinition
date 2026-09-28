@@ -166,6 +166,8 @@ namespace ReDefinition.Engineer
             EditorReadout readout = owner.Readout ?? new EditorReadout();
             allStages = new List<StageRow>(readout.Stages);
             allStages.Sort((a, b) => b.Number.CompareTo(a.Number));
+            stageLabels.Clear();
+            allStages = ClampedLaunch.Parallel(allStages, readout.PartFacts, stageLabels);
             stages = allStages.FindAll(row => row.DeltaVVacuum > 0.5);
 
             Detect(readout.PartFacts);
@@ -472,7 +474,7 @@ namespace ReDefinition.Engineer
             if (!Shown(leg + 1)) return "";
             int stage = state.Stops[leg + 1].RefuelFrom[(int)role];
             if (stage < 0) return "<color=" + Good + ">from the rest</color>";
-            if (!Tankers(leg, role).Contains(stage)) return "<color=" + Warning + ">S" + stage + " is empty</color>";
+            if (!Tankers(leg, role).Contains(stage)) return "<color=" + Warning + ">" + StageLabel(stage) + " is empty</color>";
             return "<b><u><color=" + Good + ">from S" + stage + "</color></u></b>";
         }
 
@@ -494,7 +496,7 @@ namespace ReDefinition.Engineer
                 int number = tanker;
                 choices.Add(new Choice
                 {
-                    Label = "S" + number, Tooltip = "Refill from this stage first, then from the others.",
+                    Label = StageLabel(number), Tooltip = "Refill from this stage first, then from the others.",
                     Current = from[(int)role] == number, Pick = () => SetTanker(leg, role, number),
                 });
             }
@@ -532,10 +534,10 @@ namespace ReDefinition.Engineer
             }
             double liftOff = first != null ? TwrAt(first.Stage, first.Mass, step.From.Body, true) : 0.0;
             if (launch && first != null && liftOff < (bodies.Bodies[step.From.Body].HasAtmosphere ? 1.2 : 1.0))
-                list.Add("TWR " + EngineerFormat.Ratio(liftOff) + " of S" + first.Stage + " is too low to lift off " + RouteSteps.At(bodies.Bodies, step.From).Substring(3));
+                list.Add("TWR " + EngineerFormat.Ratio(liftOff) + " of " + StageLabel(first.Stage) + " is too low to lift off " + RouteSteps.At(bodies.Bodies, step.From).Substring(3));
             double setDown = lastUsed != null ? TwrAt(lastUsed.Stage, lastUsed.Mass, step.To.Body, true) : 0.0;
             if (landing && lastUsed != null && setDown < 1.0)
-                list.Add("TWR " + EngineerFormat.Ratio(setDown) + " of S" + lastUsed.Stage + " is too low to land " + RouteSteps.At(bodies.Bodies, step.To));
+                list.Add("TWR " + EngineerFormat.Ratio(setDown) + " of " + StageLabel(lastUsed.Stage) + " is too low to land " + RouteSteps.At(bodies.Bodies, step.To));
 
             // Parachutes for a landing on them; a heat shield where it comes down
             // from another body.
