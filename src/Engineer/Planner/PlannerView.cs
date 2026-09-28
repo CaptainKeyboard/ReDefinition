@@ -252,9 +252,7 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index)) return "";
             int body = state.Stops[index].Body;
-            if (body >= 0 && body < bodies.Bodies.Count) return bodies.Bodies[body].Name;
-            // Not picked yet: the first destination says what it wants, the others a plain "+".
-            return index == 1 ? "<color=" + Problem + ">Destination</color>" : "+";
+            return body >= 0 && body < bodies.Bodies.Count ? bodies.Bodies[body].Name : "<color=" + Problem + ">Destination</color>";
         }
 
         private StopKind Kind(int index)
@@ -362,11 +360,16 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
-        // A new stop where the route ends, its body for the player to pick.
+        // A new stop where the route ends: the same body, in its low orbit.
         private void AddStop()
         {
             if (!Ready() || state.Stops.Count >= MaxStops) return;
-            state.Stops.Add(new RouteStop { Body = RouteStop.NoBody, Kind = StopKind.Orbit });
+            RouteStop last = state.Stops[state.Stops.Count - 1];
+            if (last.Body < 0) return;
+            state.Stops.Add(new RouteStop
+            {
+                Body = last.Body, Kind = StopKind.Orbit, Altitude = bodies.Bodies[last.Body].LowOrbitAltitude,
+            });
             Changed();
         }
 

@@ -297,7 +297,8 @@ namespace ReDefinition.Engineer
                 TextAnchor.MiddleLeft, dot,
                 new DialogGUILabel(() => "<b><color=" + Dim + ">" + (Ready() ? Letter(state.Stops.Count) : "") + "</color></b>", LetterWidth),
                 add);
-            row.OptionEnabledCondition = () => Ready() && state.Stops.Count < MaxStops;
+            // Once every destination has its body.
+            row.OptionEnabledCondition = () => Ready() && state.Stops.Count < MaxStops && PickedStops().Count == state.Stops.Count;
             return row;
         }
 

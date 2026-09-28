@@ -72,8 +72,8 @@ At the top of *Route* are two settings:
 | *Plane changes* | adds the burn that matches the tilt of the target's orbit, such as 6° for Minmus. Leave it off if you launch into the right plane or correct on the way |
 
 A new vessel starts with two stops: *A* on the surface of Kerbin, and *B*, whose body
-reads *Destination* in red until you pick one. A stop added with *+* shows *+* on its body button until you pick its body.
-The route runs up to the first stop without a body.
+reads *Destination* in red until you pick one. *+* to add a stop shows once *B* has its
+body.
 
 | Control | Does |
 |---|---|
