@@ -18,7 +18,7 @@ namespace ReDefinition.Engineer
     // shown as the plan needs them.
     internal sealed partial class PlannerView
     {
-        private const int MaxStops = 9;
+        private const int MaxStops = 11;
         private const int MaxStages = 30;
         private const int MaxPieces = 24;
         private const float Icon = 24f;
@@ -27,13 +27,14 @@ namespace ReDefinition.Engineer
         private const float Speed = 96f;
         private const float BarHeight = 10f;
         private const float RowHeight = 20f;
-        private const float Cell = 38f;
+        private const float Cell = 28f;
         // The swatch, the stage's name and the lander's button, with the gaps
         // between them.
         private const float StageColumn = 72f;
         private const float LeftColumn = 56f;
-        // Who flies a step, left of its bar, where the vessel carries a lander.
-        private const float StepLabel = 44f;
+        // Where a step goes, and the room left of a bar.
+        private const float Place = 118f;
+        private const float BarIndent = 16f;
         private const int MaxWarnings = 3;
         private const string Warning = "#f18a24";
         private const string Problem = "#e6474d";
@@ -41,6 +42,10 @@ namespace ReDefinition.Engineer
         private const string Dim = "#9a9a9a";
 
         private readonly SegmentBar[,] stepBars = new SegmentBar[MaxStops, 3];
+        private readonly List<DialogGUITextInput> altitudeFields = new List<DialogGUITextInput>();
+        private static readonly StepRole[] Roles = { StepRole.Launch, StepRole.Transfer, StepRole.Land };
+        // The steps whose further choices are open ("...").
+        private readonly bool[,] more = new bool[MaxStops, 3];
         private SegmentBar totalBar;
         private readonly IconMark[,] pinMarks = new IconMark[MaxStages, MaxStops];
         private Sizer columns;
@@ -49,12 +54,13 @@ namespace ReDefinition.Engineer
         internal List<DialogGUIBase> Rows()
         {
             columns = new Sizer(after);
+            altitudeFields.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(Heading("Route"));
             for (int i = 0; i < MaxStops; i++)
             {
                 rows.AddRange(StopRows(i));
-                foreach (StepRole role in new[] { StepRole.Return, StepRole.Approach, StepRole.Main })
+                foreach (StepRole role in Roles)
                     rows.AddRange(StepRows(i, role));
             }
             DialogGUIButton add = new DialogGUIButton("+ Add destination", AddStop, width, RowHeight + 4f, false);
@@ -103,23 +109,21 @@ namespace ReDefinition.Engineer
             row.OptionEnabledCondition = () => Shown(index);
             yield return row;
 
-            // The orbit's altitude, and who flies there where the vessel carries a
-            // lander.
-            DialogGUIHorizontalLayout altitude = new DialogGUIHorizontalLayout(false, false, 4f, new RectOffset(),
-                TextAnchor.MiddleLeft, new DialogGUIButton("-", () => StepAltitude(index, -1), 22f, RowHeight, false),
-                new DialogGUILabel(() => AltitudeText(index), 64f),
+            // The orbit's altitude: typed in kilometres, or stepped by 10 km.
+            DialogGUITextInput typed = new DialogGUITextInput("", false, 7, text =>
+            {
+                SetAltitude(index, text);
+                return text;
+            }, () => AltitudeKm(index), TMPro.TMP_InputField.ContentType.DecimalNumber, RowHeight);
+            typed.size = new Vector2(72f, RowHeight);
+            altitudeFields.Add(typed);
+            DialogGUIHorizontalLayout altitude = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
+                TextAnchor.MiddleLeft, TimelineLine(RowHeight + 2f), new DialogGUISpace(LetterWidth),
+                new DialogGUIButton("-", () => StepAltitude(index, -1), 22f, RowHeight, false), typed,
+                new DialogGUILabel("<color=" + Dim + ">km</color>", 24f),
                 new DialogGUIButton("+", () => StepAltitude(index, 1), 22f, RowHeight, false));
             altitude.OptionEnabledCondition = () => Shown(index) && Kind(index) == StopKind.Orbit;
-            DialogGUIButton ship = Choice("Ship", () => VehicleOf(index) == Vehicle.Ship, () => SetVehicle(index, Vehicle.Ship), 44f);
-            DialogGUIButton byLander = Choice("Lander", () => VehicleOf(index) == Vehicle.Lander,
-                () => SetVehicle(index, Vehicle.Lander), 56f);
-            ship.OptionEnabledCondition = () => index > 0 && HasLander();
-            byLander.OptionEnabledCondition = () => index > 0 && HasLander();
-            DialogGUIHorizontalLayout second = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
-                TextAnchor.MiddleLeft, TimelineLine(RowHeight + 2f), new DialogGUISpace(LetterWidth), altitude,
-                new DialogGUIFlexibleSpace(), ship, byLander, new DialogGUISpace(Icon));
-            second.OptionEnabledCondition = () => Shown(index) && (Kind(index) == StopKind.Orbit || (index > 0 && HasLander()));
-            yield return second;
+            yield return altitude;
         }
 
         private static DialogGUIBase TimelineLine(float height)
@@ -143,92 +147,151 @@ namespace ReDefinition.Engineer
 
         // ----------------------------------------------------------------- steps
 
-        // A step between destination `leg` and the next: its bar and delta-v, the
-        // choices it offers, and what stands in its way.
+        // A step on the way from destination `leg` to the next: where it goes, who
+        // flies it and its delta-v; its bar; the lander leaving the rest at its start
+        // or docking at its end; the further choices behind "..."; and in red what
+        // blocks it.
         private IEnumerable<DialogGUIBase> StepRows(int leg, StepRole role)
         {
+            System.Func<bool> shown = () => Slot(leg, role) >= 0;
+
+            DialogGUIHorizontalLayout leaves = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+                TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(BarIndent),
+                new DialogGUILabel(() => "<color=" + Dim + ">" + SeparationText(leg, role) + "</color>",
+                    width - Timeline - BarIndent - 8f, RowHeight));
+            leaves.OptionEnabledCondition = () => SeparationText(leg, role).Length > 0;
+            yield return leaves;
+
+            DialogGUIButton ship = VehicleChoice(leg, role, Vehicle.Ship, "Ship", 44f);
+            DialogGUIButton lander = VehicleChoice(leg, role, Vehicle.Lander, "Lander", 56f);
+            DialogGUIButton open = new DialogGUIButton(() => more[leg, (int)role] ? "<b><color=" + Good + ">...</color></b>" : "...",
+                () => more[leg, (int)role] = !more[leg, (int)role], Icon, RowHeight + 2f, false);
+            open.tooltipText = "More";
+            open.OptionEnabledCondition = () => HasMore(leg, role);
+            DialogGUIButton speed = new DialogGUIButton(() => StepSpeed(leg, role), () => SelectLeg(leg), Speed, RowHeight, false);
+            DialogOverWindow.ClearBackground(speed);
+            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                TimelineLine(Icon + 2f), new DialogGUILabel(() => StepPlace(leg, role), Place), ship, lander, open,
+                new DialogGUIFlexibleSpace(), speed);
+            row.OptionEnabledCondition = shown;
+            yield return row;
+
             SegmentBar bar = new SegmentBar(MaxPieces, BarHeight, after);
             stepBars[leg, (int)role] = bar;
             PlannerWidgets.Clickable(bar.Layout, () => SelectLeg(leg), after);
+            DialogGUIHorizontalLayout bars = new DialogGUIHorizontalLayout(width, BarHeight + 6f, 4f, new RectOffset(),
+                TextAnchor.MiddleLeft, TimelineLine(BarHeight + 6f), new DialogGUISpace(BarIndent), bar.Layout,
+                new DialogGUIFlexibleSpace());
+            bars.OptionEnabledCondition = shown;
+            yield return bars;
 
-            DialogGUIButton speed = new DialogGUIButton(() => StepSpeed(leg, role), () => SelectLeg(leg), Speed, RowHeight, false);
-            DialogOverWindow.ClearBackground(speed);
-            DialogGUILabel who = new DialogGUILabel(() => "<color=" + Dim + ">" + StepName(Slot(leg, role)) + "</color>", StepLabel);
-            who.OptionEnabledCondition = HasLander;
+            // The lander docks with the rest at the end of the step, and can be
+            // refilled from it.
+            DialogGUIButton refuel = Choice("Refuel", () => Refuels(leg, role), () => ToggleRefuel(leg, role), 64f);
+            DialogGUIHorizontalLayout docks = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(),
+                TextAnchor.MiddleLeft, TimelineLine(RowHeight + 4f), new DialogGUISpace(BarIndent),
+                new DialogGUILabel("<color=" + Dim + ">Docks with the rest</color>", 150f), refuel);
+            docks.OptionEnabledCondition = () => Docks(leg, role);
+            yield return docks;
 
-            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                TimelineLine(Icon + 2f), who, bar.Layout, new DialogGUIFlexibleSpace(), speed);
-            row.OptionEnabledCondition = () => Slot(leg, role) >= 0;
-            yield return row;
-
-            int goal = leg + 1;
-            List<DialogGUIBase> options = new List<DialogGUIBase> { TimelineLine(RowHeight + 4f), new DialogGUISpace(StepLabel) };
-            if (role == StepRole.Approach)
-            {
-                // Straight into the air above the destination, or into an orbit
-                // first, for a landing on parachutes.
-                options.Add(Choice("Direct", () => !OrbitFirst(goal), () => SetOrbitFirst(goal, false), 60f));
-                options.Add(Choice("Orbit first", () => OrbitFirst(goal), () => SetOrbitFirst(goal, true), 84f));
-            }
-            else
-            {
-                // The lander away comes back and docks, or stays; docked, it is
-                // refilled from the rest.
-                DialogGUIButton dock = Choice("Dock", () => !LanderStays(goal), () => SetLanderStays(goal, false), 52f);
-                DialogGUIButton stays = Choice("Stays", () => LanderStays(goal), () => SetLanderStays(goal, true), 52f);
-                DialogGUIButton refuel = Choice("Refuel", () => Refuels(goal), () => ToggleRefuel(goal), 64f);
-                // To a destination of the lander, the lander always docks first.
-                dock.OptionEnabledCondition = () => VehicleOf(goal) == Vehicle.Ship;
-                stays.OptionEnabledCondition = () => VehicleOf(goal) == Vehicle.Ship;
-                refuel.OptionEnabledCondition = () => !LanderStays(goal) || VehicleOf(goal) == Vehicle.Lander;
-                options.Add(dock);
-                options.Add(stays);
-                options.Add(refuel);
-            }
+            // Behind "...": the rest flying on without the lander; the way down for a
+            // landing on parachutes; a payload left at the destination.
+            DialogGUIButton rest = VehicleChoice(leg, role, Vehicle.Rest, "Rest", 48f);
+            rest.OptionEnabledCondition = HasLander;
+            DialogGUIButton payload = Choice("Leaves payload", () => LeavesPayload(leg + 1), () => ToggleLeavesPayload(leg + 1), 116f);
+            payload.OptionEnabledCondition = () => Arrives(leg, role);
+            DialogGUIButton direct = Choice("Direct", () => !OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, false), 60f);
+            DialogGUIButton orbitFirst = Choice("Orbit first", () => OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, true), 84f);
+            direct.OptionEnabledCondition = () => IntoTheAir(leg, role);
+            orbitFirst.OptionEnabledCondition = () => IntoTheAir(leg, role);
             DialogGUIHorizontalLayout choices = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(),
-                TextAnchor.MiddleLeft, options.ToArray());
-            choices.OptionEnabledCondition = () => HasChoices(leg, role);
+                TextAnchor.MiddleLeft, TimelineLine(RowHeight + 4f), new DialogGUISpace(BarIndent), rest, direct, orbitFirst,
+                payload);
+            choices.OptionEnabledCondition = () => more[leg, (int)role] && HasMore(leg, role);
             yield return choices;
 
             for (int i = 0; i < MaxWarnings; i++)
             {
                 int line = i;
                 DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
-                    TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(StepLabel),
+                    TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(BarIndent),
                     new DialogGUILabel(() => "<color=" + Problem + ">" + WarningText(leg, role, line) + "</color>",
-                        width - Timeline - StepLabel - 8f, RowHeight));
+                        width - Timeline - BarIndent - 8f, RowHeight));
                 warning.OptionEnabledCondition = () => WarningText(leg, role, line).Length > 0;
                 yield return warning;
             }
         }
 
-        // Who flies the step: the lander back to the rest, the whole vessel, the
-        // lander alone, or the rest without it.
+        // Who flies the step, lit: in green as the planner has it, in green and
+        // underlined as the player chose it; shown where the vessel carries a lander.
+        // A click on the one the player chose gives the choice back to the planner.
+        private DialogGUIButton VehicleChoice(int leg, StepRole role, Vehicle vehicle, string label, float buttonWidth)
+        {
+            DialogGUIButton button = new DialogGUIButton(() =>
+            {
+                if (StepVehicle(leg, role) != vehicle) return "<color=" + Dim + ">" + label + "</color>";
+                return StepChosen(leg, role) ? "<b><u><color=" + Good + ">" + label + "</color></u></b>"
+                    : "<color=" + Good + ">" + label + "</color>";
+            }, () => ChooseVehicle(leg, role, vehicle), buttonWidth, RowHeight + 2f, false);
+            button.OptionEnabledCondition = HasLander;
+            return button;
+        }
+
+        private bool StepChosen(int leg, StepRole role)
+        {
+            int index = Slot(leg, role);
+            return index >= 0 && steps[index].Chosen;
+        }
+
+        // The last step to a destination: it arrives there.
+        private bool Arrives(int leg, StepRole role)
+        {
+            int index = Slot(leg, role);
+            return index >= 0 && (index + 1 >= steps.Count || steps[index + 1].Goal != steps[index].Goal);
+        }
+
+        // "Mun surface", "Kerbin's air", "Kerbin orbit".
+        private string StepPlace(int leg, StepRole role)
+        {
+            int index = Slot(leg, role);
+            return index < 0 ? "" : RouteSteps.Place(bodies.Bodies, steps[index].To);
+        }
+
+        private string SeparationText(int leg, StepRole role)
+        {
+            int index = Slot(leg, role);
+            if (index < 0 || !steps[index].Separates) return "";
+            string place = RouteSteps.At(bodies.Bodies, steps[index].From);
+            return steps[index].Vehicle == Vehicle.Lander ? "The lander leaves the rest " + place
+                : "The rest leaves the lander " + place;
+        }
+
+        private bool Docks(int leg, StepRole role)
+        {
+            int index = Slot(leg, role);
+            return index >= 0 && steps[index].Docks;
+        }
+
+        // The way across ends in the air, for a landing on parachutes, or would
+        // without "Orbit first".
+        private bool IntoTheAir(int leg, StepRole role)
+        {
+            int index = Slot(leg, role);
+            if (role != StepRole.Transfer || index < 0 || !Shown(leg + 1)) return false;
+            RouteStop goal = state.Stops[leg + 1];
+            return goal.Kind == StopKind.Surface && goal.UseAtmosphere && bodies.Bodies[goal.Body].HasAtmosphere;
+        }
+
+        private bool HasMore(int leg, StepRole role)
+        {
+            return Slot(leg, role) >= 0 && (HasLander() || IntoTheAir(leg, role) || Arrives(leg, role));
+        }
+
+        // Who flies the step, as a name.
         private string StepName(int index)
         {
             if (!Worked() || index < 0) return "";
-            RouteStep step = steps[index];
-            if (step.Role == StepRole.Return) return "Dock";
-            switch (step.Mode)
-            {
-                case LegMode.Lander: return "Lander";
-                case LegMode.WithoutLander: return "Rest";
-                default: return "Ship";
-            }
-        }
-
-        // Only where the choice changes something: the way back while the lander is
-        // away, and the way down for a landing on parachutes.
-        private bool HasChoices(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            if (index < 0) return false;
-            RouteStep step = steps[index];
-            if (role == StepRole.Return) return true;
-            if (role == StepRole.Approach)
-                return step.To.Kind == StopKind.Entry || (step.To.Kind == StopKind.Orbit && OrbitFirst(leg + 1));
-            // The lander stayed: no step back to choose it on.
-            return step.LanderAway && Slot(leg, StepRole.Return) < 0;
+            return steps[index].Vehicle.ToString();
         }
 
         private string WarningText(int leg, StepRole role, int line)
@@ -448,7 +511,7 @@ namespace ReDefinition.Engineer
         {
             if (!Worked() || leg >= Legs) return "";
             StringBuilder text = new StringBuilder();
-            foreach (StepRole role in new[] { StepRole.Return, StepRole.Approach, StepRole.Main })
+            foreach (StepRole role in Roles)
             {
                 int index = Slot(leg, role);
                 if (index < 0) continue;
@@ -469,6 +532,9 @@ namespace ReDefinition.Engineer
                     text.Append("<pos=36%><color=" + Dim + ">TWR ").Append(EngineerFormat.Ratio(Twr(use, body))).Append("</color>")
                         .Append("<pos=60%>").Append(EngineerFormat.Speed(use.DeltaV));
                 }
+                if (budget.Payload[index] > 1e-3)
+                    text.Append("\n<color=" + Good + ">Payload left here<pos=60%>")
+                        .Append(budget.Payload[index].ToString("0.00", CultureInfo.InvariantCulture)).Append(" t</color>");
                 if (budget.Refuelled[index] > 1e-3)
                     text.Append("\n<color=" + Good + ">Refuelled from the rest<pos=60%>")
                         .Append(budget.Refuelled[index].ToString("0.00", CultureInfo.InvariantCulture)).Append(" t</color>");
@@ -478,15 +544,10 @@ namespace ReDefinition.Engineer
             return text.ToString();
         }
 
-        // "Lander to D Mun", "Ship into Kerbin's air".
+        // "Lander to Mun surface", "Ship to Kerbin's air".
         private string StepTitle(RouteStep step)
         {
-            string body = bodies.Bodies[step.To.Body].Name;
-            if (step.Role == StepRole.Return) return "Lander back to the rest, " + body;
-            if (step.Role == StepRole.Approach)
-                return step.To.Kind == StopKind.Entry ? "Ship into the air of " + body : "Ship to " + body + " orbit";
-            string who = step.Mode == LegMode.Lander ? "Lander" : step.Mode == LegMode.WithoutLander ? "Rest" : "Ship";
-            return who + " to " + Letter(step.Goal) + " " + body;
+            return step.Vehicle + " to " + RouteSteps.Place(bodies.Bodies, step.To);
         }
 
         private string StageTitle()
@@ -535,7 +596,7 @@ namespace ReDefinition.Engineer
             // What the row leaves the bar: the line, the figure and, with a
             // lander, who flies, with the gaps between them, and a seam of one
             // unit between the bar's pieces.
-            float room = Mathf.Max(40f, width - Timeline - Speed - (HasLander() ? StepLabel + 4f : 0f) - 4f * 3f - 8f);
+            float room = Mathf.Max(40f, width - Timeline - BarIndent - 4f * 2f - 8f);
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
             for (int leg = 0; leg < MaxStops; leg++)

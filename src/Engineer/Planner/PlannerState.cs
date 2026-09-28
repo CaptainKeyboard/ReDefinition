@@ -164,10 +164,13 @@ namespace ReDefinition.Engineer
                 stopNode.AddValue("kind", stop.Kind);
                 stopNode.AddValue("altitude", stop.Altitude.ToString("0", CultureInfo.InvariantCulture));
                 stopNode.AddValue("useAtmosphere", stop.UseAtmosphere);
-                stopNode.AddValue("vehicle", stop.Vehicle);
-                stopNode.AddValue("landerStays", stop.LanderStays);
-                stopNode.AddValue("refuel", stop.Refuel);
+                // Per step on the way here, in the order launch, transfer, landing.
+                string[] by = new string[3];
+                for (int i = 0; i < 3; i++) by[i] = stop.By[i] >= 0 ? ((Vehicle)stop.By[i]).ToString() : "Auto";
+                stopNode.AddValue("by", string.Join(", ", by));
+                stopNode.AddValue("refuel", string.Join(", ", Array.ConvertAll(stop.Refuel, flag => flag.ToString())));
                 stopNode.AddValue("orbitFirst", stop.OrbitFirst);
+                stopNode.AddValue("leavesPayload", stop.LeavesPayload);
             }
             foreach (KeyValuePair<int, HashSet<int>> pair in Pins)
                 foreach (int leg in pair.Value)
@@ -204,8 +207,6 @@ namespace ReDefinition.Engineer
                 string kind = stopNode.GetValue("kind") ?? "";
                 if (Enum.IsDefined(typeof(StopKind), kind) && kind != StopKind.Entry.ToString())
                     stop.Kind = (StopKind)Enum.Parse(typeof(StopKind), kind);
-                string vehicle = stopNode.GetValue("vehicle") ?? "";
-                if (Enum.IsDefined(typeof(Vehicle), vehicle)) stop.Vehicle = (Vehicle)Enum.Parse(typeof(Vehicle), vehicle);
                 double altitude;
                 stop.Altitude = double.TryParse(stopNode.GetValue("altitude"), NumberStyles.Float, CultureInfo.InvariantCulture,
                     out altitude)
@@ -213,10 +214,19 @@ namespace ReDefinition.Engineer
                     : bodies.Bodies[body].LowOrbitAltitude;
                 bool useAtmosphere;
                 if (bool.TryParse(stopNode.GetValue("useAtmosphere"), out useAtmosphere)) stop.UseAtmosphere = useAtmosphere;
-                bool flag;
-                if (bool.TryParse(stopNode.GetValue("landerStays"), out flag)) stop.LanderStays = flag;
-                if (bool.TryParse(stopNode.GetValue("refuel"), out flag)) stop.Refuel = flag;
-                if (bool.TryParse(stopNode.GetValue("orbitFirst"), out flag)) stop.OrbitFirst = flag;
+                string[] by = (stopNode.GetValue("by") ?? "").Split(',');
+                string[] refuel = (stopNode.GetValue("refuel") ?? "").Split(',');
+                for (int i = 0; i < 3; i++)
+                {
+                    string name = i < by.Length ? by[i].Trim() : "";
+                    if (Enum.IsDefined(typeof(Vehicle), name)) stop.By[i] = (int)(Vehicle)Enum.Parse(typeof(Vehicle), name);
+                    bool flag;
+                    if (i < refuel.Length && bool.TryParse(refuel[i].Trim(), out flag)) stop.Refuel[i] = flag;
+                }
+                bool orbitFirst;
+                if (bool.TryParse(stopNode.GetValue("orbitFirst"), out orbitFirst)) stop.OrbitFirst = orbitFirst;
+                bool payload;
+                if (bool.TryParse(stopNode.GetValue("leavesPayload"), out payload)) stop.LeavesPayload = payload;
                 state.Stops.Add(stop);
             }
             // With a stop gone, the legs are not the ones the stages were pinned to.

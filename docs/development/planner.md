@@ -13,7 +13,7 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 | File | Does |
 |---|---|
 | `src/Engineer/Planner/RoutePlanner.cs` | the delta-v of the way from one point to another. Free of Unity |
-| `src/Engineer/Planner/RouteSteps.cs` | the steps between the destinations, from who flies to each. Free of Unity |
+| `src/Engineer/Planner/RouteSteps.cs` | the steps between the destinations, who flies each, and where the lander leaves and docks. Free of Unity |
 | `src/Engineer/Planner/StageBudget.cs` | which stage pays for which step, on the mass the stages push, and the lander refilled from the rest. Free of Unity |
 | `src/Engineer/Planner/PlannerBodies.cs` | the bodies of the loaded system, read from `FlightGlobals.Bodies` |
 | `src/Engineer/Planner/PlannerState.cs` | one vessel's plan, and its file |
@@ -27,13 +27,15 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 
 The planner uses no text to explain itself. From the top:
 
-* The route is a line of stops. Under each stop after the first, with a lander set, the
-  choice of who flies there. Between two stops, a row for each step with who flies it
-  and a bar: its length the step's delta-v, on one scale for all steps, its colours the
-  stages that pay for it. A bar is a row of `DialogGUIImage`s whose widths and colours
-  `SegmentBar` sets after they are created. Under a step, the choices it offers, and a
-  line for each problem that blocks it (`PlannerView.StepWarnings`), up to three,
-  in red, shown only while there is one.
+* The route is a line of stops, an orbit's altitude under it as a field
+  (`DialogGUITextInput`); while it has the keyboard, the game's controls are locked
+  (`PlannerView.Keep`), so that the digits do not reach the editor's shortcuts. Between two
+  stops, each step on a row: where it goes, *Ship* and *Lander* where the vessel carries a
+  lander, *...* for its further choices, and its delta-v; under it its bar, a row of
+  `DialogGUIImage`s whose widths and colours `SegmentBar` sets after they are created; a
+  grey line where the lander leaves the rest at its start, *Docks with the rest* with
+  *Refuel* where it docks at its end, and a line for each problem that blocks it
+  (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
 * One bar sums up the route, with the margin and the plane changes under it.
 * The fuel plan is a table of stages by legs. Its columns share the room the stage and
   left columns leave, over the legs there are (`Sizer`), so the table fills the panel's width;
@@ -76,7 +78,7 @@ left it standing.
 
 The rows are laid out all at once, and the ones the plan does not need hide after. The scroll
 list's content is therefore held at its top edge, so that it shrinks from the bottom. The
-planner has room for 9 stops, so eight legs side by side in the fuel plan within the crew
+planner has room for 11 stops, so ten legs side by side in the fuel plan within the crew
 panel's width, three steps per leg, and 30 stages. It is worked out again four times a second
 while it is open. The free-of-Unity parts have unit tests in
 `tests/ReDefinition.Tests/PlannerTests.cs`.
@@ -98,26 +100,41 @@ body's low orbit to `KSP.log`, in a line that starts with `Planner low orbits:`.
 
 ## How the route becomes steps
 
-The player sets for each stop who flies there, the whole vessel or its lander
-(`RouteStop.Vehicle`). `RouteSteps.Build` walks the stops and keeps where the rest and
-the lander are. Between two stops it puts up to three steps, in this order (`StepRole`):
+`RouteSteps.RolesBetween` gives the steps between two stops (`StepRole`): `Launch` after a
+surface, into the low orbit or straight into the next stop's orbit around the same body;
+`Transfer` across to another body, or from one orbit to another around the same one;
+`Land` onto the next stop's surface. A transfer to a landing on parachutes on another
+body ends in its air (`StopKind.Entry`), unless the stop has `OrbitFirst`.
 
-| Step | Comes where | Flown as |
+Each step is flown by a `Vehicle`: `Ship`, the whole vessel; `Lander`, the lander alone;
+or `Rest`, the rest without the lander. The player sets it per step
+(`RouteStop.By`, by role, on the stop the step leads to), or `RouteSteps.Build` works it
+out: from a surface whoever stands on it; across to another body `Ship` where the lander
+has come back to where the rest waits; otherwise whoever flew the step before.
+`Build` walks the steps and keeps where the rest and the lander are:
+
+| Step flown by | While | Then |
 |---|---|---|
-| `Return` | the lander is away, and the next stop is the whole vessel's, or the lander's on another body | `Lander`, from where the lander is to the rest, with 50 m/s for the rendezvous and docking where the rest is in orbit |
-| `Approach` | the next stop is a landing of the lander on a body the rest is not in orbit of | `Whole`, to a low orbit of that body; for a landing on parachutes, straight into its air (`StopKind.Entry`), and the rest is left there |
-| `Main` | always | `Whole` to a stop of the whole vessel, `WithoutLander` once the lander stayed behind, `Lander` to a stop of the lander |
+| `Ship` | the lander is with the rest | the whole vessel flies (`LegMode.Whole`) |
+| `Ship` | the lander is away, where the rest waits or in another orbit of that body | the lander's last step `Docks`, with the burn to the rest's orbit where it ended in another one, 50 m/s for the rendezvous where the rest is in orbit, and is refilled where its stop's `Refuel` is set for that step |
+| `Ship` | the lander is away, elsewhere | a `Problem`: the lander is not where the rest waits |
+| `Lander` | the lander is with the rest | it `Separates`, and the rest waits where it is |
+| `Lander` | the lander is away | it flies on from where it is; a rest never met again stays where it waited |
+| `Rest` | | the lander stays where it is for good (`LegMode.WithoutLander`); a later step of the lander is a `Problem` and costs nothing |
 
-A lander already on the stop's body hops there alone. Three choices of a stop change
-its steps: `LanderStays` leaves the lander where it is and lets the rest fly on;
-`Refuel` fills the lander up from the rest once it has docked; `OrbitFirst` brakes into
-the orbit instead of going straight into the air. A step that cannot be flown carries a
-`Problem`: the lander was left behind, or the rest went into the air.
+A lander that climbs from a surface while the rest waits in an orbit of that body climbs
+to the rest's own orbit. A stop's `LeavesPayload` marks its last step `PayloadAfter`. A
+step of the whole vessel or the rest that starts in the air and is no landing is a
+`Problem`. Without a lander, every step is the whole vessel's.
 
-Without a lander, every step is a `Main` step of the whole vessel. The fuel plan's
-columns stay the legs between two stops; a pin on a leg is set on its steps
-(`PlannerView.StepPins`): a stage of the lander on the lander's steps, a stage of the
+The fuel plan's columns stay the legs between two stops; a pin on a leg is set on its
+steps (`PlannerView.StepPins`): a stage of the lander on the lander's steps, a stage of the
 rest on the others, and on a leg without a step of the lander on all of them.
+
+The five missions of `PlannerTests` (a vessel to Minmus and home; a satellite left in a
+synchronous orbit; a Duna lander flying home by itself; a lander hopping on Minmus from a
+Mun base; a Jool mission with two landings, a refill and a capsule landing at home) are
+set up as the player sets them, and check the steps that come out.
 
 ## How a step's delta-v is worked out
 
@@ -131,7 +148,7 @@ rest on the others, and on a leg without a step of the lander on all of them.
 | landing | the launch without the atmosphere's share. With parachutes, 0 on air of 0.2 atm or more, and a share of 30 % of the orbital speed that falls to 0 at 0.2 atm |
 | aerobraking | 3 % of the circular speed at the arrival orbit, for raising the periapsis out of the air |
 | plane change | 2 × v × sin(Δi / 2), with v the slower of the transfer's two ends. Δi is the tilt between the two orbits around the common parent. Between a body and its own moon, it is the moon's tilt |
-| into the air | from another body, the transfer without a capture; from an orbit of the body, the burn down to half the atmosphere's depth. The landing from there is the landing's share alone |
+| into the air | from another body, the transfer without a capture; from an orbit of the body, the burn down to half the atmosphere's depth, also before a landing on parachutes from that orbit. The landing from there is the landing's share alone |
 
 The launch figure is fitted, not simulated. The factors come from the stock system's
 known launch figures: Kerbin 3,400 m/s, Duna 1,450, Eve 8,000, Laythe 2,900, the Mun
@@ -223,6 +240,13 @@ Each step is flown in one of three ways (`LegMode`):
 | `Lander` | the lander's | the lander alone |
 | `WithoutLander` | the rest's | the rest alone. The lander stays behind with what it holds, and no later step has it |
 
+After a step marked for it, a payload stays behind (`Payload`): what KSP drops when the
+next stage without delta-v after the burning one fires, `drop` of the stage before it. The
+burning stage burns on with what it holds, now lighter. KSP's simulation burns a stage
+until the tanks that separate first are empty (`DeltaVStageInfo`), so an upper stage that
+fires before the satellite's decoupler carries all its fuel in its own stage, with the
+satellite on; the planner takes the satellite off at the stop instead.
+
 After a step marked for it, the lander is refilled (`Refuelled`): each of its stages
 still attached up to the propellant it held at the start, taken from the rest's stages
 in KSP's order, the one burning first. The mass moves from the rest to the lander.
@@ -245,10 +269,10 @@ PLAN
         kind = Surface
         altitude = 0
         useAtmosphere = False
-        vehicle = Ship
-        landerStays = False
-        refuel = False
+        by = Auto, Auto, Lander
+        refuel = False, False, False
         orbitFirst = False
+        leavesPayload = False
     }
     PIN
     {

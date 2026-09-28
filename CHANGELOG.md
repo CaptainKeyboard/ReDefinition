@@ -16,16 +16,16 @@
 - **A mission planner in the VAB and the SPH.** A button with *Δv* on it, next to KSP's
   mode buttons, opens it in the parts list's place. It lays out a route from stop to
   stop, A → B → C, on the surface or in an orbit of any body the game has loaded, and
-  for each stop who flies there, the whole vessel or its lander. The steps in between
-  follow from it and show with their delta-v: the lander landing while the rest waits,
-  climbing back and docking, the vessel carrying it on or straight into the air for a
-  landing on parachutes. The lander can stay behind or be refilled from the rest. The
-  planner shares the vessel's stages out over the steps, counting the mass each stage
-  pushes at that moment; the fuel plan shows what each stage gives to each leg, and a
-  click on a cell pins the stage to the leg. What blocks a step shows in red under it:
-  too little fuel, too little thrust to lift off or land, no parachutes or heat shield.
-  The details give each stage's TWR. The vessel's engines and tanks show in the colours
-  of their stages. The plan is kept per vessel.
+  lists the steps in between: up into an orbit, across to the next body or straight into
+  its air, down onto the surface. Each step says who flies it, the whole vessel or its
+  lander, set by the planner or by a click; the lander leaves the rest, docks with it
+  again and can be refilled from it, or flies on alone. The planner shares the vessel's
+  stages out over the steps, counting the mass each stage pushes at that moment; the
+  fuel plan shows what each stage gives to each leg, and a click on a cell pins the
+  stage to the leg. What blocks a step shows in red under it: too little fuel, too
+  little thrust to lift off or land, no parachutes or heat shield, a lander not where it
+  has to be. The details give each stage's TWR. The vessel's engines and tanks show in
+  the colours of their stages. The plan is kept per vessel.
 - **The navball moves sideways.** Drag its show/hide button left or right in flight; the
   SAS switches, the autopilot modes and the gauges move with it, and it stays on the
   screen. A click still shows and hides it. The position is kept, and *Navball position*

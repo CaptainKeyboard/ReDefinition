@@ -411,88 +411,6 @@ namespace ReDefinition.Tests
             Assert.IsTrue(braked.DeltaV < burnt.DeltaV, braked.DeltaV.ToString("0") + " < " + burnt.DeltaV.ToString("0"));
         }
 
-        private static RouteStop By(RouteStop stop, Vehicle vehicle)
-        {
-            stop.Vehicle = vehicle;
-            return stop;
-        }
-
-        [TestMethod]
-        public void KerbinToTheMunAndBackWithALanderGivesSixSteps()
-        {
-            List<RouteStop> goals = new List<RouteStop>
-            {
-                Surface(Kerbin), Orbit(Kerbin, 80000), Orbit(Mun, 14000), By(Surface(Mun), Vehicle.Lander),
-                By(Surface(Kerbin, true), Vehicle.Lander),
-            };
-            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, true, false);
-
-            CollectionAssert.AreEqual(new[] { StepRole.Main, StepRole.Main, StepRole.Main, StepRole.Return, StepRole.Approach, StepRole.Main },
-                steps.Select(step => step.Role).ToArray());
-            CollectionAssert.AreEqual(new[] { LegMode.Whole, LegMode.Whole, LegMode.Lander, LegMode.Lander, LegMode.Whole, LegMode.Lander },
-                steps.Select(step => step.Mode).ToArray());
-            CollectionAssert.AreEqual(new[] { 1, 2, 3, 4, 4, 4 }, steps.Select(step => step.Goal).ToArray());
-
-            RouteStep back = steps[3];
-            Assert.AreEqual(Mun, back.To.Body, "the lander climbs back to the rest in the Mun's orbit");
-            Assert.IsTrue(back.Leg.Lines.Any(line => line.Name == "Rendezvous and docking"));
-            Near(580 + 20 + RouteSteps.Rendezvous, back.Leg.DeltaV, 60, "the climb and the rendezvous");
-
-            RouteStep home = steps[4];
-            Assert.AreEqual(StopKind.Entry, home.To.Kind, "the whole vessel goes straight into Kerbin's air");
-            Assert.IsFalse(home.Leg.Lines.Any(line => line.Name.StartsWith("Capture") || line.Name.StartsWith("Aerobraking")));
-            Assert.AreEqual(0.0, steps[5].Leg.DeltaV, 1e-9, "the lander lands on its parachutes");
-            Assert.IsTrue(steps.All(step => step.Problem == null));
-        }
-
-        [TestMethod]
-        public void OrbitFirstBrakesIntoAnOrbitBeforeTheLanderLands()
-        {
-            RouteStop home = By(Surface(Kerbin, true), Vehicle.Lander);
-            home.OrbitFirst = true;
-            List<RouteStep> steps = RouteSteps.Build(Stock(), new List<RouteStop> { Orbit(Mun, 14000), home }, true, false);
-
-            Assert.AreEqual(StopKind.Orbit, steps[0].To.Kind);
-            Assert.IsTrue(steps[0].To.UseAtmosphere, "into the orbit by aerobraking");
-            Assert.AreEqual(LegMode.Lander, steps[1].Mode);
-        }
-
-        [TestMethod]
-        public void ALanderOnTheSameBodyHopsWithoutTheRest()
-        {
-            List<RouteStop> goals = new List<RouteStop>
-            {
-                Orbit(Mun, 14000), By(Surface(Mun), Vehicle.Lander), By(Surface(Mun), Vehicle.Lander),
-            };
-            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, true, false);
-
-            Assert.AreEqual(2, steps.Count);
-            Assert.IsTrue(steps.All(step => step.Mode == LegMode.Lander && step.Role == StepRole.Main));
-        }
-
-        [TestMethod]
-        public void ALanderThatStaysLetsTheRestFlyOnWithoutIt()
-        {
-            RouteStop onward = Orbit(Kerbin, 80000);
-            onward.LanderStays = true;
-            List<RouteStop> goals = new List<RouteStop> { Orbit(Mun, 14000), By(Surface(Mun), Vehicle.Lander), onward };
-            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, true, false);
-
-            Assert.AreEqual(2, steps.Count, "no way back for the lander");
-            Assert.AreEqual(LegMode.WithoutLander, steps[1].Mode);
-            Assert.AreEqual(Mun, steps[1].From.Body, "the rest leaves from where it waited");
-        }
-
-        [TestMethod]
-        public void WithoutALanderTheShipFliesEveryStep()
-        {
-            List<RouteStop> goals = new List<RouteStop> { Orbit(Mun, 14000), By(Surface(Mun), Vehicle.Lander), Orbit(Kerbin, 80000) };
-            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, false, false);
-
-            Assert.AreEqual(2, steps.Count);
-            Assert.IsTrue(steps.All(step => step.Mode == LegMode.Whole && step.Role == StepRole.Main));
-        }
-
         [TestMethod]
         public void RefuellingFillsTheLanderFromTheRestAfterItDocks()
         {
@@ -508,19 +426,242 @@ namespace ReDefinition.Tests
             Assert.IsTrue(refilled.Left[1] < plain.Left[1], "from the rest's tanks");
         }
 
-        [TestMethod]
-        public void ALanderLeftBehindCannotFlyOnAndCostsNothing()
+        // ------------------------------------------------ the steps of a route
+        //
+        // Five missions, each set up as the player sets it in the planner: the
+        // destinations, and the steps whose vehicle the player clicks (Choose).
+
+        private static RouteStop Choose(RouteStop stop, StepRole role, Vehicle vehicle)
         {
-            RouteStop onward = Orbit(Mun, 14000);
-            onward.LanderStays = true;
+            stop.By[(int)role] = (int)vehicle;
+            return stop;
+        }
+
+        private static string Shape(IEnumerable<RouteStep> steps)
+        {
+            return string.Join(" ", steps.Select(step => step.Goal + step.Role.ToString().Substring(0, 1) + ":"
+                                                         + step.Vehicle.ToString().Substring(0, 1)
+                                                         + (step.Separates ? "<" : "") + (step.Docks ? ">" : "")));
+        }
+
+        private const int JKerbin = 1, Jool = 2, JLaythe = 3, Vall = 4, JTylo = 5;
+
+        // The Jool system, as KSP 1.12.5 defines it.
+        private static List<PlannerBody> JoolSystem()
+        {
+            List<PlannerBody> stock = Stock();
+            return new List<PlannerBody>
+            {
+                stock[Sun], stock[Kerbin],
+                new PlannerBody
+                {
+                    Name = "Jool", Parent = Sun, Mu = 2.82528e14, Radius = 6000000, RotationPeriod = 36000,
+                    AtmosphereDepth = 200000, SurfacePressure = 15, SemiMajorAxis = 68773560320, Inclination = 1.304,
+                    LowOrbitAltitude = 210000,
+                },
+                new PlannerBody
+                {
+                    Name = "Laythe", Parent = 2, Mu = 1.962e12, Radius = 500000, RotationPeriod = 52980.879,
+                    AtmosphereDepth = 50000, SurfacePressure = 0.6, SemiMajorAxis = 27184000, LowOrbitAltitude = 60000,
+                },
+                new PlannerBody
+                {
+                    Name = "Vall", Parent = 2, Mu = 2.074815e11, Radius = 300000, RotationPeriod = 105962.09,
+                    SemiMajorAxis = 43152000, LowOrbitAltitude = 15000,
+                },
+                new PlannerBody
+                {
+                    Name = "Tylo", Parent = 2, Mu = 2.82528e12, Radius = 600000, RotationPeriod = 211926.36,
+                    SemiMajorAxis = 68500000, LowOrbitAltitude = 17000,
+                },
+            };
+        }
+
+        [TestMethod]
+        public void OneVesselToMinmusAndHomeOnItsParachutes()
+        {
+            // A Kerbin surface, B Minmus surface, C Kerbin surface with Chutes; no lander.
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Surface(Minmus), Surface(Kerbin, true) };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, false, false);
+
+            Assert.AreEqual("1L:S 1T:S 1L:S 2L:S 2T:S 2L:S", Shape(steps));
+            Assert.AreEqual(StopKind.Entry, steps[4].To.Kind, "home straight into Kerbin's air");
+            Assert.AreEqual(0.0, steps[5].Leg.DeltaV, 1e-9, "down on the parachutes");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
+        }
+
+        [TestMethod]
+        public void ASatelliteStaysInItsOrbitAndTheCapsuleComesHome()
+        {
+            // A Kerbin surface, B Kerbin orbit at 2,863 km, C Kerbin surface with Chutes;
+            // the capsule marked as the lander, and the landing clicked to Lander.
+            RouteStop home = Choose(Surface(Kerbin, true), StepRole.Land, Vehicle.Lander);
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Orbit(Kerbin, 2863334), home };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, true, false);
+
+            Assert.AreEqual("1L:S 2L:L<", Shape(steps));
+            Assert.AreEqual(2863334.0, steps[0].To.Altitude, "the launch goes straight up to the destination's orbit");
+            Assert.AreEqual(LegMode.Lander, steps[1].Mode, "the capsule alone; the satellite stays");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
+        }
+
+        [TestMethod]
+        public void TheDunaLanderFliesHomeByItselfAndLeavesTheTransferStage()
+        {
+            // A Kerbin surface, B Duna orbit, C Duna surface with Chutes, D Kerbin surface
+            // with Chutes; the Duna landing clicked to Lander, and the way across home
+            // too, where the planner would have it dock.
+            RouteStop landing = Choose(Surface(Duna, true), StepRole.Land, Vehicle.Lander);
+            RouteStop home = Choose(Surface(Kerbin, true), StepRole.Transfer, Vehicle.Lander);
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Orbit(Duna, 60000), landing, home };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, true, false);
+
+            Assert.AreEqual("1L:S 1T:S 2L:L< 3L:L 3T:L 3L:L", Shape(steps));
+            Assert.AreEqual(60000.0, steps[3].To.Altitude, "up to where the transfer stage waits");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
+
+            // Without the click, the lander docks with the transfer stage, and the
+            // whole vessel flies home.
+            home.By[(int)StepRole.Transfer] = -1;
+            Assert.AreEqual("1L:S 1T:S 2L:L< 3L:L> 3T:S 3L:S", Shape(RouteSteps.Build(Stock(), goals, true, false)));
+        }
+
+        [TestMethod]
+        public void FromAMunBaseALanderHopsOnMinmusAndComesBack()
+        {
+            // A Mun surface, B Minmus orbit, C Minmus surface, D Minmus surface, E Mun
+            // surface; the first Minmus landing clicked to Lander.
+            RouteStop first = Choose(Surface(Minmus), StepRole.Land, Vehicle.Lander);
+            List<RouteStop> goals = new List<RouteStop> { Surface(Mun), Orbit(Minmus, 10000), first, Surface(Minmus), Surface(Mun) };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, true, false);
+
+            Assert.AreEqual("1L:S 1T:S 2L:L< 3L:L 3L:L 4L:L> 4T:S 4L:S", Shape(steps));
+            Assert.AreEqual(Mun, steps[0].From.Body, "the start is the Mun");
+            RouteStep back = steps[5];
+            Assert.IsTrue(back.Leg.Lines.Any(line => line.Name == "Rendezvous and docking"));
+            Assert.IsTrue(steps.All(step => step.Problem == null));
+        }
+
+        [TestMethod]
+        public void AroundJoolTheLanderLandsTwiceIsRefilledAndTheCapsuleLandsAtHome()
+        {
+            // A Kerbin surface, B Kerbin orbit, C Jool orbit with Aerobrake, D Laythe
+            // orbit, E Laythe surface with Chutes, F Vall orbit, G Vall surface, H Tylo
+            // orbit, I Kerbin surface with Chutes. Clicked: the two landings and the
+            // landing at home to Lander, Refuel where the lander docks after Laythe.
+            RouteStop jool = Orbit(Jool, 210000);
+            jool.UseAtmosphere = true;
+            RouteStop laythe = Choose(Surface(JLaythe, true), StepRole.Land, Vehicle.Lander);
+            RouteStop vall = Orbit(Vall, 15000);
+            vall.Refuel[(int)StepRole.Launch] = true;
+            RouteStop vallSurface = Choose(Surface(Vall), StepRole.Land, Vehicle.Lander);
+            RouteStop home = Choose(Surface(JKerbin, true), StepRole.Land, Vehicle.Lander);
             List<RouteStop> goals = new List<RouteStop>
             {
-                Orbit(Mun, 14000), By(Surface(Mun), Vehicle.Lander), onward, By(Surface(Kerbin), Vehicle.Lander),
+                Surface(JKerbin), Orbit(JKerbin, 80000), jool, Orbit(JLaythe, 60000), laythe, vall, vallSurface,
+                Orbit(JTylo, 17000), home,
             };
-            RouteStep stuck = RouteSteps.Build(Stock(), goals, true, false).Last();
+            List<RouteStep> steps = RouteSteps.Build(JoolSystem(), goals, true, false);
 
-            Assert.AreEqual("The lander stayed at B", stuck.Problem);
-            Assert.AreEqual(0.0, stuck.Leg.DeltaV);
+            Assert.AreEqual("1L:S 2T:S 3T:S 4L:L< 5L:L> 5T:S 6L:L< 7L:L> 7T:S 8T:S 8L:L<", Shape(steps));
+            Assert.IsTrue(steps[4].RefuelAfter, "refilled after Laythe");
+            Assert.IsFalse(steps[7].RefuelAfter);
+            Assert.IsTrue(steps[1].Leg.Lines.Any(line => line.Name.StartsWith("Aerobraking")), "into Jool's orbit by aerobraking");
+            Assert.AreEqual(StopKind.Entry, steps[9].To.Kind, "the whole vessel into Kerbin's air");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
+        }
+
+        [TestMethod]
+        public void ALanderThatWasLeftBehindCannotFlyOn()
+        {
+            // The rest flies on without the lander (Rest, behind "..."), and a later step
+            // is clicked to Lander.
+            RouteStop onward = Choose(Orbit(Kerbin, 80000), StepRole.Transfer, Vehicle.Rest);
+            RouteStop later = Choose(Orbit(Minmus, 10000), StepRole.Transfer, Vehicle.Lander);
+            List<RouteStop> goals = new List<RouteStop> { Orbit(Mun, 14000), onward, later };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, true, false);
+
+            Assert.AreEqual(LegMode.WithoutLander, steps[0].Mode);
+            Assert.IsTrue(steps[0].Separates);
+            Assert.AreEqual("The lander stayed at Mun orbit", steps[1].Problem);
+            Assert.AreEqual(0.0, steps[1].Leg.DeltaV, "never flown");
+        }
+
+        [TestMethod]
+        public void TheWholeVesselCannotGoOnWhereTheLanderIsNotWithTheRest()
+        {
+            // The lander flies alone from Kerbin's orbit to the Mun's, and the next
+            // step is clicked to Ship: the rest waits back at Kerbin.
+            RouteStop mun = Choose(Orbit(Mun, 14000), StepRole.Transfer, Vehicle.Lander);
+            RouteStop minmus = Choose(Orbit(Minmus, 10000), StepRole.Transfer, Vehicle.Ship);
+            List<RouteStep> steps = RouteSteps.Build(Stock(), new List<RouteStop> { Orbit(Kerbin, 80000), mun, minmus }, true, false);
+
+            Assert.AreEqual("The lander is not where the rest waits, at Kerbin orbit", steps[1].Problem);
+        }
+
+        [TestMethod]
+        public void ALandingOnParachutesFromAnOrbitGoesDownIntoTheAir()
+        {
+            Leg high = RoutePlanner.LegOf(Stock(), Orbit(Kerbin, 2863334), Surface(Kerbin, true), 0, false);
+            Leg low = RoutePlanner.LegOf(Stock(), Orbit(Kerbin, 80000), Surface(Kerbin, true), 0, false);
+
+            Assert.AreEqual("Deorbit into the air", high.Lines[0].Name);
+            Near(450, high.DeltaV, 40, "from a synchronous orbit");
+            Near(40, low.DeltaV, 25, "from a low orbit");
+        }
+
+        [TestMethod]
+        public void ASatelliteLeftInItsOrbitNoLongerWeighsOnTheUpperStage()
+        {
+            // S3 the booster; S2 the upper stage with the satellite (1 t) and the
+            // capsule on it; S1 separates the satellite, no delta-v; S0 the capsule.
+            List<BudgetStage> stages = new List<BudgetStage>
+            {
+                Stage(3, 20, 12), Stage(2, 6, 3.5), new BudgetStage { Number = 1, StartMass = 2.5, EndMass = 2.5 },
+                new BudgetStage { Number = 0, StartMass = 1.2, EndMass = 1.2 },
+            };
+            double[] legs = { stages[0].DeltaV + 600.0, 400.0 };
+            StageBudget.Result kept = StageBudget.Allocate(stages, legs, 0.0, null, -1, null);
+            StageBudget.Result left = StageBudget.Allocate(stages, legs, 0.0, null, -1, null, null, new[] { true, false });
+
+            Assert.AreEqual(1.0, left.Payload[0], 1e-9, "what S1 separates");
+            Assert.IsTrue(left.LeftBehind.Contains(1));
+            Assert.IsTrue(left.Left[2] > kept.Left[2], "the upper stage goes further without it");
+            Assert.AreEqual(left.Uses.First(u => u.Leg == 1).Mass, kept.Uses.First(u => u.Leg == 1).Mass - 1.0, 1e-9);
+        }
+
+        [TestMethod]
+        public void TheRestLeftBehindByTheLanderHasItsOwnMassLeft()
+        {
+            // Mothership: S1 16 t to 10 t, the lander S0 4 t to 2 t; the lander flies off.
+            LegMode[] modes = { LegMode.Whole, LegMode.Lander };
+            StageBudget.Result result = StageBudget.Allocate(Mothership(), new[] { 500.0, 300.0 }, 0.0, null, 0, modes);
+
+            double mass = 16.0 * System.Math.Exp(-500.0 / Exhaust) - 4.0;
+            double fuel = 6.0 - 16.0 * (1.0 - System.Math.Exp(-500.0 / Exhaust));
+            Assert.AreEqual(Exhaust * System.Math.Log(mass / (mass - fuel)), result.Left[1], 1e-6);
+        }
+
+        [TestMethod]
+        public void TheJoolTourWithEveryOrbitAsADestinationGivesTheSameSteps()
+        {
+            // As listed: Laythe orbit and Vall orbit also after the landings, 11 stops.
+            RouteStop jool = Orbit(Jool, 210000);
+            jool.UseAtmosphere = true;
+            RouteStop laytheBack = Orbit(JLaythe, 60000);
+            laytheBack.Refuel[(int)StepRole.Launch] = true;
+            List<RouteStop> goals = new List<RouteStop>
+            {
+                Surface(JKerbin), Orbit(JKerbin, 80000), jool, Orbit(JLaythe, 60000),
+                Choose(Surface(JLaythe, true), StepRole.Land, Vehicle.Lander), laytheBack, Orbit(Vall, 15000),
+                Choose(Surface(Vall), StepRole.Land, Vehicle.Lander), Orbit(Vall, 15000), Orbit(JTylo, 17000),
+                Choose(Surface(JKerbin, true), StepRole.Land, Vehicle.Lander),
+            };
+            List<RouteStep> steps = RouteSteps.Build(JoolSystem(), goals, true, false);
+
+            Assert.AreEqual("1L:S 2T:S 3T:S 4L:L< 5L:L> 6T:S 7L:L< 8L:L> 9T:S 10T:S 10L:L<", Shape(steps));
+            Assert.IsTrue(steps[4].RefuelAfter, "refilled as it docks after Laythe");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
         }
     }
 }

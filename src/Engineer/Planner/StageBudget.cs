@@ -44,6 +44,10 @@ namespace ReDefinition.Engineer
     // cannot fire what comes after it either. A pinned stage already staged away
     // when its leg comes is reported as unreachable.
     //
+    // After a leg marked for it, a payload stays behind: what KSP separates when
+    // the next stage without delta-v after the one burning fires, while that one
+    // burns on with what it holds.
+    //
     // After a leg marked for it, the lander, docked again, is refilled from the
     // rest: each of its stages still attached up to what it held at the start, from
     // the rest's stages in KSP's order, the one burning first. Free of Unity, tested.
@@ -71,8 +75,10 @@ namespace ReDefinition.Engineer
             public readonly HashSet<int> LeftBehind = new HashSet<int>();
             // Pins whose stage is gone when their leg comes, as stage and leg.
             public readonly List<KeyValuePair<int, int>> Unreachable = new List<KeyValuePair<int, int>>();
-            // Per leg: the propellant moved into the lander after it, in tonnes.
+            // Per leg: the propellant moved into the lander after it, and the payload
+            // left behind after it, in tonnes.
             public double[] Refuelled;
+            public double[] Payload;
 
             public double TotalShort
             {
@@ -101,12 +107,13 @@ namespace ReDefinition.Engineer
         // `pins`: stage number to the legs it is pinned to; `lander`: the
         // highest stage of the lander, -1 for none; `modes`: who flies each leg,
         // Whole where it is missing.
-        // `refuelAfter`: per leg, whether the lander is refilled once it is over.
+        // `refuelAfter`: per leg, whether the lander is refilled once it is over;
+        // `payloadAfter`: whether a payload stays behind once it is over.
         internal static Result Allocate(IList<BudgetStage> stages, IList<double> legs, double margin,
                                         IDictionary<int, HashSet<int>> pins, int lander, IList<LegMode> modes,
-                                        IList<bool> refuelAfter = null)
+                                        IList<bool> refuelAfter = null, IList<bool> payloadAfter = null)
         {
-            return new Run(stages, pins, lander).Allocate(legs, margin, modes, refuelAfter);
+            return new Run(stages, pins, lander).Allocate(legs, margin, modes, refuelAfter, payloadAfter);
         }
 
         private sealed class Run
@@ -124,6 +131,8 @@ namespace ReDefinition.Engineer
             private double total;   // everything still attached, the lander with it
             private double landerMass;
             private bool landerGone;
+            // The lander flew away and has not docked again.
+            private bool apart;
             private bool restDropped;
             private int mainAt;
             private int landerAt;
@@ -168,11 +177,13 @@ namespace ReDefinition.Engineer
                 landerAt = firstLander;
             }
 
-            internal Result Allocate(IList<double> legs, double margin, IList<LegMode> modes, IList<bool> refuelAfter)
+            internal Result Allocate(IList<double> legs, double margin, IList<LegMode> modes, IList<bool> refuelAfter,
+                                     IList<bool> payloadAfter)
             {
                 result = new Result
                 {
                     Needed = new double[legs.Count], Short = new double[legs.Count], Refuelled = new double[legs.Count],
+                    Payload = new double[legs.Count],
                 };
                 int lastAlone = -1;
                 for (int leg = 0; leg < legs.Count; leg++)
@@ -183,6 +194,7 @@ namespace ReDefinition.Engineer
                     double need = Math.Max(0.0, legs[leg]) * (1.0 + Math.Max(0.0, margin));
                     result.Needed[leg] = need;
                     LegMode mode = ModeOf(modes, leg);
+                    apart = hasLander && !landerGone && (mode == LegMode.Lander || (apart && mode != LegMode.Whole));
 
                     if (mode == LegMode.WithoutLander) LeaveLander();
 
@@ -228,9 +240,29 @@ namespace ReDefinition.Engineer
                     }
                     result.Short[leg] = need > 1e-6 ? need : 0.0;
                     if (refuelAfter != null && leg < refuelAfter.Count && refuelAfter[leg]) result.Refuelled[leg] = Refuel();
+                    if (payloadAfter != null && leg < payloadAfter.Count && payloadAfter[leg]) result.Payload[leg] = LeavePayload();
                 }
                 Finish();
                 return result;
+            }
+
+            // What KSP separates when the next stage without delta-v after the burning
+            // one fires stays here; the burning stage burns on with what it holds.
+            private double LeavePayload()
+            {
+                int at = apart ? landerAt : mainAt;
+                int end = apart || at >= firstLander ? order.Count : firstLander;
+                for (int i = at + 1; i < end; i++)
+                {
+                    if (order[i].DeltaV > 0.5) break;
+                    double mass = drop[i - 1];
+                    if (mass <= Tiny) continue;
+                    Remove(mass, at >= firstLander);
+                    drop[i - 1] = 0.0;
+                    result.LeftBehind.Add(order[i].Number);
+                    return mass;
+                }
+                return 0.0;
             }
 
             // The lander, docked, filled up from the rest's tanks, as far as they
@@ -435,7 +467,8 @@ namespace ReDefinition.Engineer
             {
                 for (int i = 0; i < order.Count; i++)
                     if (!result.Dropped.ContainsKey(order[i].Number)) result.Left[order[i].Number] = 0.0;
-                BurnOn(mainAt, firstLander, total);
+                // The rest on its own where the lander flew away and did not come back.
+                BurnOn(mainAt, firstLander, apart ? total - landerMass : total);
                 if (hasLander && !landerGone) BurnOn(landerAt, order.Count, landerMass);
             }
 

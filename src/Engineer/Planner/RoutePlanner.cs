@@ -42,12 +42,13 @@ namespace ReDefinition.Engineer
         Entry,
     }
 
-    // Who flies to a destination: the whole vessel, or the lander, the rest
-    // waiting where it is (RouteSteps).
+    // Who flies a step (RouteSteps): the whole vessel, the lander alone while the
+    // rest waits, or the rest without the lander, which stays behind for good.
     internal enum Vehicle
     {
         Ship,
         Lander,
+        Rest,
     }
 
     // One point of the route: a body, on its surface or in a circular orbit.
@@ -60,18 +61,23 @@ namespace ReDefinition.Engineer
         // Arriving here uses the body's atmosphere: aerobraking into the orbit, or
         // parachutes and heat shield for a landing.
         public bool UseAtmosphere;
-        public Vehicle Vehicle = Vehicle.Ship;
-        // For the steps before this destination (RouteSteps): the lander, away,
-        // does not come back to the rest; it comes back and is refilled from the
-        // rest's tanks; the vessel brakes into an orbit before the lander lands
-        // with parachutes, rather than going straight down into the air.
-        public bool LanderStays;
-        public bool Refuel;
+        // For each step on the way here (by StepRole, RouteSteps): who flies it, as a
+        // Vehicle, -1 where the planner works it out; and whether the lander is
+        // refilled from the rest's tanks when it docks at the step's end.
+        public int[] By = { -1, -1, -1 };
+        public bool[] Refuel = new bool[3];
+        // On the way to a landing on parachutes: into an orbit first, rather than
+        // straight into the air.
         public bool OrbitFirst;
+        // A payload stays here (StageBudget).
+        public bool LeavesPayload;
 
         public RouteStop Copy()
         {
-            return (RouteStop)MemberwiseClone();
+            RouteStop copy = (RouteStop)MemberwiseClone();
+            copy.By = (int[])By.Clone();
+            copy.Refuel = (bool[])Refuel.Clone();
+            return copy;
         }
     }
 
@@ -172,6 +178,14 @@ namespace ReDefinition.Engineer
                     return leg;
                 }
                 double first, second;
+                if (to.Kind == StopKind.Surface && to.UseAtmosphere && end.HasAtmosphere)
+                {
+                    // Down from the orbit into the air, then on the parachutes.
+                    Hohmann(start.Mu, departRadius, end.Radius + end.AtmosphereDepth * AerobrakeDepth, out first, out second);
+                    leg.Add("Deorbit into the air", first);
+                    leg.Add("Landing", Landing(end, true));
+                    return leg;
+                }
                 if (to.Kind == StopKind.Orbit && to.UseAtmosphere && end.HasAtmosphere && arriveRadius < departRadius)
                 {
                     // Down into the upper air, then out of it at the new orbit.

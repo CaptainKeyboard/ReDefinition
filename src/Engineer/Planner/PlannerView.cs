@@ -5,9 +5,9 @@ using UnityEngine;
 namespace ReDefinition.Engineer
 {
     // The planner (docs/player/planner.md): a route from destination to
-    // destination, A -> B -> C, who flies to each, the steps that follow from it
-    // between them (RouteSteps), what each step costs, and which of the vessel's
-    // stages pays for it, by itself or as the player pins them to a leg. This half
+    // destination, A -> B -> C, the steps between them with who flies each
+    // (RouteSteps), what each step costs, and which of the vessel's stages pays for
+    // it, by itself or as the player pins them to a leg. This half
     // holds the plan and works it out; the rows are in PlannerView.Rows.cs.
     internal sealed partial class PlannerView
     {
@@ -110,6 +110,7 @@ namespace ReDefinition.Engineer
                 selectedLeg = -1;
                 selectedStage = -1;
                 nextEvaluation = 0f;
+                System.Array.Clear(more, 0, more.Length);
             }
             else if (name != vessel)
             {
@@ -127,16 +128,37 @@ namespace ReDefinition.Engineer
             Evaluate();
         }
 
-        // Every frame while the planner is open.
+        private const string TypingLock = "ReDefinitionPlannerTyping";
+        private bool typingLocked;
+
+        // Every frame while the planner is open. While an altitude is typed, the
+        // editor's keys are held, so that the digits do not reach its shortcuts.
         internal void Keep()
         {
             highlight.Refresh();
+            bool typing = Typing();
+            if (typing == typingLocked) return;
+            typingLocked = typing;
+            if (typing) InputLockManager.SetControlLock(ControlTypes.All, TypingLock);
+            else InputLockManager.RemoveControlLock(TypingLock);
+        }
+
+        private bool Typing()
+        {
+            foreach (DialogGUITextInput field in altitudeFields)
+            {
+                TMPro.TMP_InputField input = field != null && field.uiItem != null ? field.uiItem.GetComponent<TMPro.TMP_InputField>() : null;
+                if (input != null && input.isFocused) return true;
+            }
+            return false;
         }
 
         // The planner closes: nothing stays coloured, the list of bodies goes.
         internal void Flush()
         {
             highlight.Clear();
+            if (typingLocked) InputLockManager.RemoveControlLock(TypingLock);
+            typingLocked = false;
             BodyPicker.Close(this);
             if (state != null && vessel != null && bodies != null && saveAt > 0f) state.Save(vessel, bodies);
             saveAt = -1f;
@@ -163,11 +185,13 @@ namespace ReDefinition.Engineer
             List<double> needs = new List<double>();
             List<LegMode> modes = new List<LegMode>();
             List<bool> refuel = new List<bool>();
+            List<bool> payload = new List<bool>();
             foreach (RouteStep step in steps)
             {
                 needs.Add(step.Leg.DeltaV);
                 modes.Add(step.Mode);
                 refuel.Add(step.RefuelAfter);
+                payload.Add(step.PayloadAfter);
             }
             List<BudgetStage> available = new List<BudgetStage>();
             foreach (StageRow row in allStages)
@@ -175,7 +199,7 @@ namespace ReDefinition.Engineer
                 {
                     Number = row.Number, StartMass = row.StartMass, EndMass = row.EndMass, DeltaV = row.DeltaVVacuum,
                 });
-            budget = StageBudget.Allocate(available, needs, state.Margin, StepPins(), lander, modes, refuel);
+            budget = StageBudget.Allocate(available, needs, state.Margin, StepPins(), lander, modes, refuel, payload);
             burningParts = readout.BurningParts;
             parachuteStages = readout.ParachuteStages;
             heatShieldStages = readout.HeatShieldStages;
@@ -284,9 +308,23 @@ namespace ReDefinition.Engineer
             return Shown(index) && state.Stops[index].UseAtmosphere && HasAtmosphere(index);
         }
 
-        private string AltitudeText(int index)
+        private string AltitudeKm(int index)
         {
-            return Shown(index) ? RoutePlanner.Km(state.Stops[index].Altitude) : "";
+            return Shown(index) ? (state.Stops[index].Altitude / 1000.0).ToString("0", System.Globalization.CultureInfo.InvariantCulture) : "";
+        }
+
+        // Typed in kilometres, kept between the lowest safe orbit and the edge of the
+        // body's sphere of influence.
+        private void SetAltitude(int index, string text)
+        {
+            double km;
+            if (!Shown(index) || !double.TryParse((text ?? "").Replace(',', '.'), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out km)) return;
+            RouteStop stop = state.Stops[index];
+            double altitude = Math.Max(bodies.Bodies[stop.Body].LowOrbitAltitude, Math.Min(km * 1000.0, bodies.MaxAltitude(stop.Body)));
+            if (Math.Abs(altitude - stop.Altitude) < 0.5) return;
+            stop.Altitude = altitude;
+            Changed();
         }
 
         private void PickBody(int index)
@@ -350,6 +388,7 @@ namespace ReDefinition.Engineer
             BodyPicker.Close(this);
             state.Stops.RemoveAt(index);
             state.RemoveStop(index);
+            System.Array.Clear(more, 0, more.Length);
             selectedLeg = -1;
             Changed();
         }
@@ -418,6 +457,8 @@ namespace ReDefinition.Engineer
             if (budget.Short[index] > 0.5) list.Add("Short of " + EngineerFormat.Speed(budget.Short[index]));
             foreach (KeyValuePair<int, int> pin in budget.Unreachable)
                 if (pin.Value == index) list.Add("S" + pin.Key + " has nothing left here");
+            if (step.PayloadAfter && budget.Payload[index] < 1e-3)
+                list.Add("No payload: a stage without engines that drops it has to follow the burning one");
 
             // A launch or a powered landing needs the thrust to lift the vessel at
             // that body: the first stage the step burns, and the last one for the
@@ -463,8 +504,8 @@ namespace ReDefinition.Engineer
         {
             RouteStep step = steps[index];
             if (step.From.Body != step.To.Body) return true;
-            int approach = slots[step.Segment, (int)StepRole.Approach];
-            return step.Role == StepRole.Main && approach >= 0 && steps[approach].From.Body != steps[approach].To.Body;
+            int across = slots[step.Segment, (int)StepRole.Transfer];
+            return step.Role == StepRole.Land && across >= 0 && steps[across].From.Body != steps[across].To.Body;
         }
 
         // A part of that kind on what lands: the lander's where it lands alone, the
@@ -546,40 +587,48 @@ namespace ReDefinition.Engineer
             return -1;
         }
 
-        private Vehicle VehicleOf(int index)
+        // Who flies a step, as worked out or chosen.
+        private Vehicle StepVehicle(int leg, StepRole role)
         {
-            return Shown(index) ? state.Stops[index].Vehicle : Vehicle.Ship;
+            int index = Slot(leg, role);
+            return index >= 0 ? steps[index].Vehicle : Vehicle.Ship;
         }
 
-        private void SetVehicle(int index, Vehicle vehicle)
+        // The player's choice of who flies a step; the same choice again gives it
+        // back to the planner.
+        private void ChooseVehicle(int leg, StepRole role, Vehicle vehicle)
         {
-            if (!Shown(index) || state.Stops[index].Vehicle == vehicle) return;
-            state.Stops[index].Vehicle = vehicle;
+            int index = Slot(leg, role);
+            if (index < 0 || !Shown(leg + 1)) return;
+            int[] by = state.Stops[leg + 1].By;
+            by[(int)role] = steps[index].Chosen && steps[index].Vehicle == vehicle ? -1 : (int)vehicle;
             Changed();
         }
 
-        // The choices for the steps before a destination (RouteStop).
-        private bool LanderStays(int index)
+        // The lander refilled from the rest when it docks at the end of the step.
+        private bool Refuels(int leg, StepRole role)
         {
-            return Shown(index) && state.Stops[index].LanderStays;
+            return Shown(leg + 1) && state.Stops[leg + 1].Refuel[(int)role];
         }
 
-        private void SetLanderStays(int index, bool stays)
+        private void ToggleRefuel(int leg, StepRole role)
         {
-            if (!Shown(index) || state.Stops[index].LanderStays == stays) return;
-            state.Stops[index].LanderStays = stays;
+            if (!Shown(leg + 1)) return;
+            bool[] refuel = state.Stops[leg + 1].Refuel;
+            refuel[(int)role] = !refuel[(int)role];
             Changed();
         }
 
-        private bool Refuels(int index)
+        // A payload stays at the destination.
+        private bool LeavesPayload(int index)
         {
-            return Shown(index) && state.Stops[index].Refuel;
+            return Shown(index) && state.Stops[index].LeavesPayload;
         }
 
-        private void ToggleRefuel(int index)
+        private void ToggleLeavesPayload(int index)
         {
             if (!Shown(index)) return;
-            state.Stops[index].Refuel = !state.Stops[index].Refuel;
+            state.Stops[index].LeavesPayload = !state.Stops[index].LeavesPayload;
             Changed();
         }
 
