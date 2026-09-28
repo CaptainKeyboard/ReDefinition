@@ -30,6 +30,8 @@ namespace ReDefinition.Engineer
         public bool Legs;
         public bool Parachute;
         public bool HeatShield;
+        // A launch clamp: it stays on the ground, part of nothing that flies.
+        public bool Clamp;
         public Separation Separator;
         public uint Id;
         public string Title = "";
@@ -60,26 +62,35 @@ namespace ReDefinition.Engineer
 
     // The lander and the capsule as parts of the vessel (docs/development/planner.md).
     // Each decoupler and docking port cuts the part tree in two; each side is a
-    // choice, less the parts KSP stages away before its command part, its legs and
-    // its parachutes. Automatic: the capsule is the lightest choice with a command
-    // part and parachutes; the lander the lightest one with engines and landing legs
-    // that a docking port separates, so that it can come back. The rest is everything
-    // else; the capsule is part of the lander or of the rest. Free of Unity, tested.
+    // choice, less the launch clamps and the parts KSP stages away before its command
+    // part, its legs and its parachutes, and of what is left only the parts still
+    // joined to its command part. Automatic: the capsule is the lightest choice with a
+    // command part and parachutes; the lander the lightest one with a command part,
+    // engines and landing legs that a docking port separates, so that it can come
+    // back. The rest is everything else; the capsule is part of the lander or of the
+    // rest. Free of Unity, tested.
     internal static class VesselShape
     {
         internal static List<PartGroupChoice> Candidates(IList<PartFacts> parts)
         {
             List<PartGroupChoice> choices = new List<PartGroupChoice>();
-            HashSet<string> seen = new HashSet<string>();
+            Dictionary<string, PartGroupChoice> seen = new Dictionary<string, PartGroupChoice>();
             List<int>[] children = Children(parts);
             for (int i = 0; i < parts.Count; i++)
             {
                 if (parts[i].Separator == Separation.None) continue;
+                // Of two docking ports joined in the editor, the one under the other
+                // undocks: its cut alone.
+                if (parts[i].Separator == Separation.DockingPort && children[i].Any(child => parts[child].Separator == Separation.DockingPort))
+                    continue;
                 HashSet<int> under = Subtree(children, i);
                 if (parts[i].Separator == Separation.Decoupler) under.Remove(i);
                 HashSet<int> over = new HashSet<int>(Enumerable.Range(0, parts.Count).Where(at => !under.Contains(at)));
-                Add(choices, seen, parts, Trim(parts, under), parts[i], "under");
-                Add(choices, seen, parts, Trim(parts, over), parts[i], "over");
+                // A separator with nothing on one side, such as a docking port on a
+                // pod's nose, cuts nothing off.
+                if (!under.Any(at => at != i && !parts[at].Clamp) || !over.Any(at => at != i && !parts[at].Clamp)) continue;
+                Add(choices, seen, parts, Joined(parts, children, Trim(parts, under)), parts[i], "under");
+                Add(choices, seen, parts, Joined(parts, children, Trim(parts, over)), parts[i], "over");
             }
             choices.Sort((a, b) => a.Mass.CompareTo(b.Mass));
             return choices;
@@ -95,7 +106,7 @@ namespace ReDefinition.Engineer
         internal static PartGroupChoice AutoLander(IList<PartGroupChoice> choices, PartGroupChoice capsule)
         {
             foreach (PartGroupChoice choice in choices)
-                if (choice.Engine && choice.Legs && choice.DockingPort && Fits(choice, capsule)) return choice;
+                if (choice.Command && choice.Engine && choice.Legs && choice.DockingPort && Fits(choice, capsule)) return choice;
             return null;
         }
 
@@ -127,9 +138,11 @@ namespace ReDefinition.Engineer
                 group[i] = capsule != null && capsule.Members.Contains(i) ? PartGroup.Capsule
                     : lander != null && lander.Members.Contains(i) ? PartGroup.Lander : PartGroup.Rest;
 
+            // Launch clamps stay on the ground; KSP's simulation leaves them out.
             double total = 0.0;
             for (int i = 0; i < parts.Count; i++)
             {
+                if (parts[i].Clamp) continue;
                 split.Mass[(int)group[i]] += Math.Max(0.0, parts[i].Mass);
                 total += Math.Max(0.0, parts[i].Mass);
             }
@@ -174,23 +187,55 @@ namespace ReDefinition.Engineer
             return best >= 0 ? (PartGroup?)best : null;
         }
 
-        // A side less the parts KSP stages away before the ones that make it what it
-        // is: its command parts, landing legs and parachutes.
+        // A side less its launch clamps and the parts KSP stages away before the ones
+        // that make it what it is: its command parts, landing legs and parachutes. What
+        // its own engines still carry when they fire stays: a lander's drop tanks.
         private static HashSet<int> Trim(IList<PartFacts> parts, HashSet<int> side)
         {
+            HashSet<int> kept = new HashSet<int>(side.Where(at => !parts[at].Clamp));
             int latest = int.MinValue;
-            foreach (int at in side)
+            foreach (int at in kept)
                 if (parts[at].Command || parts[at].Legs || parts[at].Parachute) latest = Math.Max(latest, parts[at].DecoupleStage);
-            if (latest == int.MinValue) return side;
-            return new HashSet<int>(side.Where(at => parts[at].DecoupleStage <= latest));
+            if (latest == int.MinValue) return kept;
+            int fires = latest;
+            foreach (int at in kept)
+                if (parts[at].Engine && parts[at].DecoupleStage <= latest) fires = Math.Max(fires, parts[at].ActivatesAt);
+            return new HashSet<int>(kept.Where(at => parts[at].DecoupleStage <= fires));
         }
 
-        private static void Add(List<PartGroupChoice> choices, HashSet<string> seen, IList<PartFacts> parts, HashSet<int> side,
-                                PartFacts separator, string which)
+        // Of a trimmed side, the parts still joined in the part tree to its heaviest
+        // command part, or else to its heaviest part: what is cut off by the parts
+        // taken out does not fly with it.
+        private static HashSet<int> Joined(IList<PartFacts> parts, List<int>[] children, HashSet<int> side)
         {
-            if (side.Count == 0 || side.Count == parts.Count) return;
+            if (side.Count == 0) return side;
+            int seed = side.OrderByDescending(at => parts[at].Command ? 1 : 0).ThenByDescending(at => parts[at].Mass).First();
+            HashSet<int> joined = new HashSet<int>();
+            Stack<int> open = new Stack<int>();
+            open.Push(seed);
+            while (open.Count > 0)
+            {
+                int at = open.Pop();
+                if (!side.Contains(at) || !joined.Add(at)) continue;
+                foreach (int child in children[at]) open.Push(child);
+                if (parts[at].Parent >= 0) open.Push(parts[at].Parent);
+            }
+            return joined;
+        }
+
+        // The same parts cut off by several separators are one choice; a docking port
+        // among them lets it come back, whatever the parts' order.
+        private static void Add(List<PartGroupChoice> choices, Dictionary<string, PartGroupChoice> seen, IList<PartFacts> parts,
+                                HashSet<int> side, PartFacts separator, string which)
+        {
+            if (side.Count == 0 || side.Count == parts.Count(part => !part.Clamp)) return;
             string members = string.Join(",", side.OrderBy(at => at).Select(at => at.ToString()).ToArray());
-            if (!seen.Add(members)) return;
+            PartGroupChoice known;
+            if (seen.TryGetValue(members, out known))
+            {
+                known.DockingPort |= separator.Separator == Separation.DockingPort;
+                return;
+            }
             PartGroupChoice choice = new PartGroupChoice { Key = separator.Id + ":" + which, DockingPort = separator.Separator == Separation.DockingPort };
             choice.Members.UnionWith(side);
             PartFacts named = null;
@@ -206,6 +251,7 @@ namespace ReDefinition.Engineer
             }
             choice.Name = named.Title + ", " + side.Count + (side.Count == 1 ? " part" : " parts");
             choices.Add(choice);
+            seen[members] = choice;
         }
 
         // What names a group: a command part before an engine before anything else.

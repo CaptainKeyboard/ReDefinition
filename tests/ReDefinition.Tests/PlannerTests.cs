@@ -477,6 +477,72 @@ namespace ReDefinition.Tests
             Assert.IsNull(VesselShape.AutoLander(VesselShape.Candidates(parts), null));
         }
 
+        // The pod on top with its parachute (0), a decoupler (1), the lander with a
+        // probe core, an engine and legs (2-4), a decoupler (5), the transfer stage (6),
+        // and a launch clamp on it (7).
+        private static List<PartFacts> LanderOnTop(bool clampKnown)
+        {
+            List<PartFacts> parts = new List<PartFacts>
+            {
+                Part(-1, -1, 1.0, "Mk1 Command Pod", command: true), Part(0, 1, 0.05, "TD-06", separator: Separation.Decoupler),
+                Part(1, 1, 0.2, "OKTO", command: true), Part(2, 1, 0.5, "Terrier", engine: true),
+                Part(2, 1, 0.2, "LT-2 Landing Strut", legs: true), Part(3, 3, 0.05, "TD-12", separator: Separation.Decoupler),
+                Part(5, 3, 6.0, "FL-T800"), Part(6, -1, 1.0, "TT18-A Launch Stability Enhancer"),
+            };
+            parts[7].Clamp = clampKnown;
+            return parts;
+        }
+
+        [TestMethod]
+        public void ALanderLeavesOutTheLaunchClampsAndWhatIsNoLongerJoinedToIt()
+        {
+            foreach (bool known in new[] { true, false })
+            {
+                List<PartGroupChoice> groups = VesselShape.Candidates(LanderOnTop(known));
+                PartGroupChoice lander = groups.Single(group => group.Members.Contains(3) && group.Members.Contains(2)
+                                                                && !group.Members.Contains(0));
+                CollectionAssert.AreEquivalent(new[] { 2, 3, 4 }, lander.Members.ToArray(), "clamp known: " + known);
+                Assert.IsFalse(groups.Any(group => group.Members.Contains(7) && group.Command), "no clamp with a command part");
+            }
+        }
+
+        [TestMethod]
+        public void ADockingPortWithNothingBeyondItCutsNothingOff()
+        {
+            // A port on the pod's nose, and legs on the lander stage under the pod:
+            // no lander, as nothing docks there.
+            List<PartFacts> parts = LanderOnTop(true);
+            parts.Add(Part(0, -1, 0.05, "Clamp-O-Tron Jr", separator: Separation.DockingPort));
+            List<PartGroupChoice> groups = VesselShape.Candidates(parts);
+
+            Assert.IsFalse(groups.Any(group => group.DockingPort), "no cut at the nose port");
+            Assert.IsNull(VesselShape.AutoLander(groups, VesselShape.AutoCapsule(groups)));
+        }
+
+        [TestMethod]
+        public void TwoDockingPortsJoinedInTheEditorGiveTheLanderOnce()
+        {
+            List<PartGroupChoice> groups = VesselShape.Candidates(Apollo());
+
+            Assert.IsTrue(groups.Any(group => group.Members.SetEquals(new[] { 6, 7, 8, 9, 10, 11, 12 })), "the lower port's cut");
+            Assert.IsFalse(groups.Any(group => group.Members.SetEquals(new[] { 5, 6, 7, 8, 9, 10, 11, 12 })), "not the upper port's");
+        }
+
+        [TestMethod]
+        public void ALandersDropTanksStayWithIt()
+        {
+            // Radial drop tanks on the descent stage (16), decoupled a stage before its
+            // legs, while its engine fires from that stage on.
+            List<PartFacts> parts = Apollo();
+            parts[12].ActivatesAt = 3;
+            parts.Add(Part(10, 3, 1.0, "FL-T100 drop tank"));
+            PartGroupChoice lander = VesselShape.AutoLander(VesselShape.Candidates(parts), null);
+
+            Assert.IsNotNull(lander);
+            Assert.IsTrue(lander.Members.Contains(16), "the drop tank flies with the lander");
+            Assert.IsFalse(lander.Members.Contains(14), "the transfer stage does not");
+        }
+
         [TestMethod]
         public void AnApolloLanderFliesBetweenTheRestsStages()
         {

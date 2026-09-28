@@ -277,19 +277,27 @@ vessel: `ModuleDockingNode`, `ModuleAnchoredDecoupler` or `ModuleDecouple` **[sr
 
 `VesselShape.Candidates` cuts the part tree at each of those parts, into the side under
 it and the side over it; a decoupler stays with the side over it, a radial decoupler and
-a docking port go with the side under them. Each side loses the parts KSP stages away
-before its command parts, legs and parachutes: those with a higher `decoupleStage`. So
-a lander under a mothership is the lander without the transfer stage under it. Sides
-with the same parts are one choice, named after its command part, else its engine. The
-plan keeps a choice as its separator's `persistentId` and side.
+a docking port go with the side under them. A separator with nothing on one side, such
+as a docking port on a pod's nose, cuts nothing; of two docking ports joined in the
+editor only the lower one cuts, as that one undocks. Each side loses its launch clamps
+(`LaunchClamp`, which KSP's simulation leaves out as well) and the parts KSP stages away
+before its command parts, legs and parachutes: those with a higher `decoupleStage`,
+unless its own engines still carry them when they fire (`Part.inverseStage`), such as a
+lander's drop tanks. Of what is left, only the parts still joined in the part tree to
+its heaviest command part stay. So a lander under a mothership is the lander without
+the transfer stage under it. Sides with the same parts are one choice, a docking port
+among their separators whatever the order, named after its command part, else its
+engine. The plan keeps a choice as its separator's `persistentId` and side.
 
 * The capsule is the lightest choice with a command part and a parachute.
-* The lander is the lightest choice with an engine and a landing leg that a docking port
-  separates, since a lander that comes back docks. A lander that a decoupler separates
-  and that does not come back is the player's pick; otherwise every rocket with legs on
-  its last stage would count as one.
+* The lander is the lightest choice with a command part, an engine and a landing leg
+  that a docking port separates, since a lander that comes back docks. A lander that a
+  decoupler separates and that does not come back is the player's pick; otherwise every
+  rocket with legs on its last stage would count as one.
 * The capsule has to be inside the lander or apart from it; otherwise it counts for
-  nothing.
+  nothing. The lists offer only what fits the other choice: the lander's list parts with
+  a command part and engines. A list closes when the vessel's groups change under it,
+  as with undo.
 
 What was found goes to `KSP.log` once per change, in a line that starts with `Planner
 found from`.

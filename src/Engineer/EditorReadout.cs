@@ -129,6 +129,7 @@ namespace ReDefinition.Engineer
                     // RealChute's parachutes are a module of their own.
                     Parachute = part.HasModuleImplementing<ModuleParachute>() || part.Modules.Contains("RealChuteModule"),
                     HeatShield = part.HasModuleImplementing<ModuleAblator>(),
+                    Clamp = part.HasModuleImplementing<LaunchClamp>(),
                     Separator = part.HasModuleImplementing<ModuleDockingNode>() ? Separation.DockingPort
                         : part.HasModuleImplementing<ModuleAnchoredDecoupler>() ? Separation.Anchored
                         : part.HasModuleImplementing<ModuleDecouple>() ? Separation.Decoupler : Separation.None,

@@ -50,6 +50,8 @@ namespace ReDefinition.Engineer
         private PartGroupChoice detectedCapsule;
         // What the log last said was found, so that it says it once.
         private string detectedLogged;
+        // The groups' keys and sizes as last read.
+        private string groupKeys;
         // The selected leg's or stage's details, written once per evaluation
         // and on each selection.
         private string detailTitle = "";
@@ -158,8 +160,8 @@ namespace ReDefinition.Engineer
             return false;
         }
 
-        // The planner closes: the lists go, then the colours, since a list closing
-        // gives the vessel its stages' colours back.
+        // The planner closes: the lists go, then the marks, since a list closing
+        // takes its entry's marks away through the highlight.
         internal void Flush()
         {
             BodyPicker.Close(this);
@@ -223,6 +225,14 @@ namespace ReDefinition.Engineer
         {
             parts = facts;
             groups = VesselShape.Candidates(facts);
+            // The vessel changed under an open list, as with undo: its entries and
+            // their parts are no longer the vessel's.
+            string keys = string.Join(" ", groups.ConvertAll(group => group.Key + "=" + group.Members.Count).ToArray());
+            if (keys != groupKeys)
+            {
+                if (groupKeys != null) Dropdown.Close(this);
+                groupKeys = keys;
+            }
             detectedCapsule = VesselShape.AutoCapsule(groups);
             capsule = state.Capsule == PlannerState.Automatic ? detectedCapsule : Group(state.Capsule);
             detectedLander = VesselShape.AutoLander(groups, capsule);
@@ -460,11 +470,29 @@ namespace ReDefinition.Engineer
             Mark();
         }
 
-        // The vessel unmarked: the planner marks parts only while the pointer is on
-        // an entry of the lander's or the capsule's list (ShowGroup).
+        // The part group under the pointer in the lander's or the capsule's list, the
+        // only thing the planner marks on the vessel; null for none.
+        private PartGroupChoice litGroup;
+
+        // Its parts lit, or the vessel unmarked. Worked out again with the plan, a
+        // few times a second: the group by its key, as the vessel's parts are read
+        // anew each time.
         private void Mark()
         {
-            highlight.Clear();
+            PartGroupChoice group = litGroup != null ? Group(litGroup.Key) : null;
+            if (group == null || !Dropdown.Open)
+            {
+                litGroup = null;
+                highlight.Clear();
+                return;
+            }
+            Dictionary<Part, Color> lit = new Dictionary<Part, Color>();
+            foreach (int at in group.Members)
+            {
+                Part part = at < parts.Count ? parts[at].Tag as Part : null;
+                if (part != null) lit[part] = Picked;
+            }
+            highlight.Show(lit);
         }
 
         // What the player chose for a stage on the selected step.
@@ -634,7 +662,9 @@ namespace ReDefinition.Engineer
                 () => SetLander(PlannerState.None), null);
             foreach (PartGroupChoice group in groups)
             {
-                if (!group.Engine) continue;
+                // A lander flies alone: engines and a command part of its own; the
+                // capsule inside it or apart from it.
+                if (!group.Engine || !group.Command || !VesselShape.Fits(group, capsule)) continue;
                 string key = group.Key;
                 AddPart(choices, group.Name, "These parts fly as the lander while the rest waits.", state.Lander == key,
                     () => SetLander(key), group);
@@ -652,7 +682,7 @@ namespace ReDefinition.Engineer
                 () => SetCapsule(PlannerState.None), null);
             foreach (PartGroupChoice group in groups)
             {
-                if (!group.Command) continue;
+                if (!group.Command || !VesselShape.Fits(lander, group)) continue;
                 string key = group.Key;
                 AddPart(choices, group.Name, "These parts come home alone at the end.", state.Capsule == key,
                     () => SetCapsule(key), group);
@@ -669,21 +699,11 @@ namespace ReDefinition.Engineer
             });
         }
 
-        // A group's parts lit on the vessel, or the stages' colours back.
+        // The pointer onto a list's entry, or off it.
         private void ShowGroup(PartGroupChoice group)
         {
-            if (group == null)
-            {
-                Mark();
-                return;
-            }
-            Dictionary<Part, Color> lit = new Dictionary<Part, Color>();
-            foreach (int at in group.Members)
-            {
-                Part part = at < parts.Count ? parts[at].Tag as Part : null;
-                if (part != null) lit[part] = Picked;
-            }
-            highlight.Show(lit);
+            litGroup = group;
+            Mark();
         }
 
         // The colour of the parts a list's entry names.

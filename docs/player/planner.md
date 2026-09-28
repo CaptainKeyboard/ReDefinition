@@ -28,7 +28,7 @@ their own. They decide who can fly a step.
 
 | Button | Offers |
 |---|---|
-| *Lander* | *Automatic*, *None* or a part of the vessel with engines: it flies alone while the rest waits |
+| *Lander* | *Automatic*, *None* or a part of the vessel with engines and a command part: it flies alone while the rest waits |
 | *Capsule* | *Automatic*, *None* or a part of the vessel with a command part: it comes home alone at the end |
 
 The parts in the lists are what a decoupler or a docking port separates, named after
