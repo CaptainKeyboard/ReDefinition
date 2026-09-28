@@ -93,7 +93,7 @@ namespace ReDefinition.Engineer
                 LiveSection section = RowSection(row);
                 if (section != null) PickSectionParts(section.Plan, group);
             }, PartButtonWidth - Square - 4f, Square, false);
-            group.tooltipText = "Select the parts of the vessel this section is.";
+            group.tooltipText = "Choose which parts of the vessel form this section.";
             DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveSection(row), Square, Square, 14f,
                 "Remove this section.", after);
             DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
@@ -103,7 +103,7 @@ namespace ReDefinition.Engineer
 
             DialogGUIButton stop = null;
             stop = new DialogGUIButton(() => DeployText(row), () => PickDeployStop(row, stop), PartButtonWidth, Square, false);
-            stop.tooltipText = "Select the destination where the satellite stays.";
+            stop.tooltipText = "Choose the destination where the satellite is deployed.";
             DialogGUIHorizontalLayout deploy = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">Deployed at</color>", Place),
                 stop);
@@ -116,9 +116,12 @@ namespace ReDefinition.Engineer
             warning.OptionEnabledCondition = () => SectionWarning(row).Length > 0;
             yield return warning;
 
+            DialogGUILabel noteText = new DialogGUILabel(() => "<color=" + Dim + ">" + SectionNote(row) + "</color>", PartButtonWidth,
+                RowHeight);
+            noteText.tooltipText = "This lander cannot dock with the rest of the vessel again. After landing, it flies the "
+                                   + "following steps on its own.";
             DialogGUIHorizontalLayout note = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
-                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUISpace(Place),
-                new DialogGUILabel(() => "<color=" + Dim + ">" + SectionNote(row) + "</color>", PartButtonWidth, RowHeight));
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUISpace(Place), noteText);
             note.OptionEnabledCondition = () => SectionNote(row).Length > 0;
             yield return note;
         }
@@ -128,7 +131,7 @@ namespace ReDefinition.Engineer
         {
             DialogGUIButton add = null;
             add = new DialogGUIButton("<b>+</b>", () => PickNewSection(add), Square, Square, false);
-            add.tooltipText = "Add a section of the vessel: a capsule, a lander or a satellite.";
+            add.tooltipText = "Add a section: a capsule, a lander or a satellite.";
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), add);
             row.OptionEnabledCondition = () => Ready() && state.Sections.Count < MaxSections;
@@ -170,7 +173,7 @@ namespace ReDefinition.Engineer
             DialogGUIButton air = Choice(() => Kind(index) == StopKind.Surface ? "Chutes" : "Aerobrake", () => UsesAtmosphere(index),
                 () => ToggleAtmosphere(index), 76f);
             air.OptionEnabledCondition = () => index > 0 && HasAtmosphere(index);
-            air.tooltipText = "Use the atmosphere: parachutes to land, or aerobraking into orbit, instead of the engines.";
+            air.tooltipText = "Use the atmosphere instead of the engines: parachutes for landing, aerobraking for orbit.";
             DialogGUIBase divider = PlannerWidgets.Block(Divider, RowHeight - 4f, PlannerColors.Line);
             divider.OptionEnabledCondition = air.OptionEnabledCondition;
             // Its room and the line's where it is hidden, so that the cross stands in
@@ -281,7 +284,7 @@ namespace ReDefinition.Engineer
             DialogGUIButton vehicle = null;
             vehicle = new DialogGUIButton(() => VehicleText(leg, role), () => PickFlyer(leg, role, vehicle), VehicleButton,
                 RowHeight + 2f, false);
-            vehicle.tooltipText = "Select which part of the vessel flies this step.";
+            vehicle.tooltipText = "Choose which part of the vessel flies this step.";
             vehicle.OptionEnabledCondition = HasSections;
             SegmentBar bar = new SegmentBar(MaxPieces, BarHeight, after);
             stepBars[leg, (int)role] = bar;
@@ -301,10 +304,10 @@ namespace ReDefinition.Engineer
             yield return row;
 
             DialogGUIButton refuel = Choice("Refuel", () => Refuels(leg, role), () => ToggleRefuel(leg, role), 64f);
-            refuel.tooltipText = "Fill this section's tanks from the rest of the vessel when it docks.";
+            refuel.tooltipText = "Refuel this section from the rest of the vessel when it docks.";
             DialogGUIButton tanker = null;
             tanker = new DialogGUIButton(() => TankerText(leg, role), () => PickTanker(leg, role, tanker), 150f, RowHeight + 2f, false);
-            tanker.tooltipText = "Select the stage of the rest the refill comes from first.";
+            tanker.tooltipText = "Choose the stage of the rest of the vessel to refuel from first.";
             tanker.OptionEnabledCondition = () => Refuels(leg, role);
             DialogGUIHorizontalLayout docks = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight + 4f), new DialogGUISpace(BarIndent),
@@ -322,15 +325,15 @@ namespace ReDefinition.Engineer
             // Behind "...", each on a line of its own, as they concern different
             // things: the way down, the burns across.
             DialogGUIButton straight = Choice("Straight in", () => !OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, false), 88f);
-            straight.tooltipText = "Go straight into the atmosphere and land from there.";
+            straight.tooltipText = "Enter the atmosphere directly and land.";
             DialogGUIButton orbitFirst = Choice("Orbit first", () => OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, true), 84f);
-            orbitFirst.tooltipText = "Brake into a low orbit first and land from there.";
+            orbitFirst.tooltipText = "Brake into a low orbit first, then land.";
             yield return OptionLine(leg, role, "Way down", () => IntoTheAir(leg, role), straight, orbitFirst);
 
             DialogGUIButton together = Choice("Together", () => !SplitsBurns(leg + 1), () => SetSplitBurns(leg + 1, false), 88f);
-            together.tooltipText = "Fly the burn that leaves and the one that arrives as one step.";
+            together.tooltipText = "Plan the departure and arrival burns as one step.";
             DialogGUIButton split = Choice("Split", () => SplitsBurns(leg + 1), () => SetSplitBurns(leg + 1, true), 84f);
-            split.tooltipText = "Make the burn that leaves and the one that arrives two steps, each with who flies it.";
+            split.tooltipText = "Plan the departure and arrival burns as separate steps, each with its own flyer.";
             yield return OptionLine(leg, role, "Burns", () => role == StepRole.Transfer && CanSplit(leg), together, split);
 
             for (int i = 0; i < MaxWarnings; i++)
@@ -378,8 +381,7 @@ namespace ReDefinition.Engineer
             return index < 0 ? "" : "To " + RouteSteps.Place(bodies.Bodies, steps[index].To);
         }
 
-        // "The lander leaves the vessel in Mun orbit", "The vessel leaves the lander on
-        // Mun surface".
+        // "The lander separates in Mun orbit", "The lander is left behind on the Mun".
         private string SeparationText(int leg, StepRole role)
         {
             int index = Slot(leg, role);
@@ -387,19 +389,19 @@ namespace ReDefinition.Engineer
             RouteStep step = steps[index];
             string place = RouteSteps.At(bodies.Bodies, step.From);
             string leaver = Lower(FlyerName(Flyer.Alone(step.Leaver)));
-            if (step.Flyer.Kind == FlyerKind.Without) return "The vessel leaves the " + leaver + " " + place;
-            string from = step.LeavesFrom == 0 ? "the vessel" : "the " + Lower(FlyerName(Flyer.Alone(step.LeavesFrom)));
-            return "The " + leaver + " leaves " + from + " " + place;
+            if (step.Flyer.Kind == FlyerKind.Without) return "The " + leaver + " is left behind " + place;
+            if (step.LeavesFrom == 0) return "The " + leaver + " separates " + place;
+            return "The " + leaver + " separates from the " + Lower(FlyerName(Flyer.Alone(step.LeavesFrom))) + " " + place;
         }
 
-        // "The satellite stays here": the sections deployed at the step's end.
+        // "The satellite is deployed here": the sections deployed at the step's end.
         private string DeployedText(int leg, StepRole role)
         {
             int index = Slot(leg, role);
             if (index < 0 || steps[index].Deploys.Count == 0) return "";
             List<string> names = new List<string>();
             foreach (int id in steps[index].Deploys) names.Add(Lower(FlyerName(Flyer.Alone(id))));
-            return "The " + string.Join(", the ", names.ToArray()) + (names.Count == 1 ? " stays here" : " stay here");
+            return "The " + string.Join(", the ", names.ToArray()) + (names.Count == 1 ? " is deployed here" : " are deployed here");
         }
 
         private bool Docks(int leg, StepRole role)
@@ -498,7 +500,7 @@ namespace ReDefinition.Engineer
         private IEnumerable<DialogGUIBase> FuelRows()
         {
             yield return CollapsibleHeading("Fuel plan", () => fuelShown, () => fuelShown = !fuelShown,
-                "Show or hide what each step needs and leaves.", FuelSummary);
+                "Show or hide the delta-v each step needs and what remains after it.", FuelSummary);
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
                 DimLabel("Left after", FuelLeft));
@@ -627,10 +629,10 @@ namespace ReDefinition.Engineer
                     "<color=" + Dim + ">Margin " + (state.Margin * 100.0).ToString("0", CultureInfo.InvariantCulture) + " %</color>",
                     EngineerFormat.Speed(budget.Needed[step] - routeStep.Leg.DeltaV)));
             if (budget.Refuelled[step] > 1e-3)
-                lines.Add(new KeyValuePair<string, string>("<color=" + Good + ">Refilled from the rest</color>",
+                lines.Add(new KeyValuePair<string, string>("<color=" + Good + ">Refuelled from the rest</color>",
                     "<color=" + Good + ">" + budget.Refuelled[step].ToString("0.00", CultureInfo.InvariantCulture) + " t</color>"));
             if (budget.Payload[step] > 1e-3)
-                lines.Add(new KeyValuePair<string, string>("<color=" + Good + ">Left here</color>",
+                lines.Add(new KeyValuePair<string, string>("<color=" + Good + ">Deployed here</color>",
                     "<color=" + Good + ">" + budget.Payload[step].ToString("0.00", CultureInfo.InvariantCulture) + " t</color>"));
             return lines;
         }
@@ -667,7 +669,7 @@ namespace ReDefinition.Engineer
                 return stage != null ? stage.Stage : -1;
             };
             DialogGUIButton use = Choice("Use", () => Burnable(step, row), () => ToggleSaved(step, number()), UseButton);
-            use.tooltipText = "Burn this stage on this step; off, it and the stages after it wait for a later step.";
+            use.tooltipText = "Burn this stage in this step. When off, this stage and the ones after it are kept for a later step.";
             // Lit where it holds; to be switched off even where the stage can no longer
             // be dropped, the last one of what flies the step.
             DialogGUIButton drop = Choice("Drop after", () =>
@@ -675,7 +677,7 @@ namespace ReDefinition.Engineer
                 StageBudget.StepStage stage = FuelStage(step, row);
                 return stage != null && stage.CanDrop && DropsAfter(step, stage.Stage);
             }, () => ToggleDropAfter(step, number()), DropButton);
-            drop.tooltipText = "Drop this stage and the ones before it at the end of this step, with what they still hold.";
+            drop.tooltipText = "Drop this stage and the ones before it at the end of this step, including any fuel left in them.";
             drop.OptionInteractableCondition = () =>
             {
                 StageBudget.StepStage stage = FuelStage(step, row);
@@ -835,7 +837,7 @@ namespace ReDefinition.Engineer
         private IEnumerable<DialogGUIBase> ThrustRows()
         {
             yield return CollapsibleHeading("Thrust", () => thrustShown, () => thrustShown = !thrustShown,
-                "Show or hide whether the thrust lifts the vessel and how long each burn takes.", ThrustSummary);
+                "Show or hide the thrust-to-weight ratio of launches and landings and the duration of each burn.", ThrustSummary);
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
                 DimLabel("Has", FuelLeft));
@@ -919,7 +921,7 @@ namespace ReDefinition.Engineer
         {
             DialogGUIButton open = new DialogGUIButton(() => OpenThrust(row) != null ? "<b><color=" + Good + ">-</color></b>" : "+",
                 () => ToggleThrust(row), Square, Square, false);
-            open.tooltipText = "Show the stages of this step with their thrust, and its burns.";
+            open.tooltipText = "Show the stages of this step with their thrust, and each burn.";
             float room = Mathf.Max(0f, width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - 4f * 6f - RowEnd);
             DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), new DialogGUILabel(() => ThrustAt(row) != null ? FuelPlace(ThrustAt(row).Step) : "", Place),
@@ -997,7 +999,7 @@ namespace ReDefinition.Engineer
             if (entry.Twr)
             {
                 StageBudget.StageUse use = Deciding(entry);
-                if (use == null) return "<color=" + Dim + ">no stage</color>";
+                if (use == null) return "<color=" + Dim + ">No stage</color>";
                 double twr = TwrAt(use.Stage, use.Mass, entry.Body, true);
                 return "<color=" + (twr < TwrNeeded(entry) ? Problem : Good) + ">S" + use.Stage + "  " + EngineerFormat.Ratio(twr) + "</color>";
             }
@@ -1078,16 +1080,16 @@ namespace ReDefinition.Engineer
             return "<color=" + BurnColour(burn) + ">" + text + "</color>";
         }
 
-        // "Mun: 1.63 m/s², no air", "Kerbin: 9.81 m/s², air 1.00 atm".
+        // "Kerbin: surface gravity 9.81 m/s², atmosphere 1.00 atm".
         private string ThrustBodyText(ThrustStep entry)
         {
             if (entry == null) return "";
             PlannerBody body = bodies.Bodies[entry.Body];
             double gravity = body.Mu / (body.Radius * body.Radius);
             string air = SurfaceAir(entry.Body) > 0.0
-                ? "air " + SurfaceAir(entry.Body).ToString("0.00", CultureInfo.InvariantCulture) + " atm"
-                : "no air";
-            return "<color=" + Dim + ">TWR at " + body.Name + ": " + gravity.ToString("0.00", CultureInfo.InvariantCulture)
+                ? "atmosphere " + SurfaceAir(entry.Body).ToString("0.00", CultureInfo.InvariantCulture) + " atm"
+                : "no atmosphere";
+            return "<color=" + Dim + ">" + body.Name + ": surface gravity " + gravity.ToString("0.00", CultureInfo.InvariantCulture)
                    + " m/s², " + air + "</color>";
         }
 
@@ -1108,17 +1110,18 @@ namespace ReDefinition.Engineer
             return heading;
         }
 
-        // "Enough for every step", or the steps short of fuel.
+        // "Enough fuel for every step", or the steps short of fuel.
         private string FuelSummary()
         {
             int shortSteps = 0;
             foreach (double value in budget.Short) if (value > 0.5) shortSteps++;
             return shortSteps == 0
-                ? "<color=" + Good + ">Enough for every step</color>"
+                ? "<color=" + Good + ">Enough fuel for every step</color>"
                 : "<color=" + Problem + ">" + shortSteps + (shortSteps == 1 ? " step" : " steps") + " short of fuel</color>";
         }
 
-        // "Enough thrust", or the steps where it is too little or a burn too long.
+        // "Enough thrust on every step", or the steps where it is too little or a burn
+        // too long.
         private string ThrustSummary()
         {
             int low = 0, slow = 0;
@@ -1133,8 +1136,8 @@ namespace ReDefinition.Engineer
             }
             if (low == 0 && slow == 0) return "<color=" + Good + ">Enough thrust on every step</color>";
             string text = "";
-            if (low > 0) text = low + (low == 1 ? " step" : " steps") + " with too little TWR";
-            if (slow > 0) text += (text.Length > 0 ? ", " : "") + slow + (slow == 1 ? " long burn" : " long burns");
+            if (low > 0) text = "TWR too low on " + low + (low == 1 ? " step" : " steps");
+            if (slow > 0) text += (text.Length > 0 ? ", " : "") + slow + (slow == 1 ? " burn" : " burns") + " too long";
             return "<color=" + (low > 0 ? Problem : Warning) + ">" + text + "</color>";
         }
 

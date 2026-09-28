@@ -187,7 +187,7 @@ namespace ReDefinition.Engineer
                 // From an orbit down to a periapsis in the air.
                 double deorbit, unused;
                 Hohmann(start.Mu, departRadius, end.Radius + end.AtmosphereDepth * AerobrakeDepth, out deorbit, out unused);
-                leg.Add("Deorbit into the air", deorbit, from.Body, departRadius);
+                leg.Add("Deorbit into the atmosphere", deorbit, from.Body, departRadius);
                 return leg;
             }
 
@@ -203,7 +203,7 @@ namespace ReDefinition.Engineer
                 {
                     // Down from the orbit into the air, then on the parachutes.
                     Hohmann(start.Mu, departRadius, end.Radius + end.AtmosphereDepth * AerobrakeDepth, out first, out second);
-                    leg.Add("Deorbit into the air", first, from.Body, departRadius);
+                    leg.Add("Deorbit into the atmosphere", first, from.Body, departRadius);
                     leg.Add("Landing", Landing(end, true));
                     return leg;
                 }
@@ -211,7 +211,7 @@ namespace ReDefinition.Engineer
                 {
                     // Down into the upper air, then out of it at the new orbit.
                     Hohmann(start.Mu, departRadius, end.Radius + end.AtmosphereDepth * AerobrakeDepth, out first, out second);
-                    leg.Add("Deorbit into the air", first, from.Body, departRadius);
+                    leg.Add("Deorbit into the atmosphere", first, from.Body, departRadius);
                     leg.Add("Aerobraking, then circularise", Circular(end.Mu, arriveRadius) * AerobrakeShare, to.Body, arriveRadius);
                     return leg;
                 }

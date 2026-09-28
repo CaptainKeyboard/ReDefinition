@@ -58,7 +58,7 @@ The planner uses no text to explain itself. From the top:
 * One bar sums up the route, with the margin and the plane changes under it.
 * *Fuel plan* and *Thrust* are headings with *+* and *-* before the title, the whole
   heading answering a click (`PlannerWidgets.Clickable`), and a summary beside it: the
-  steps short of fuel, the steps with too little TWR and the long burns.
+  steps short of fuel, the steps with too low a TWR and the burns too long.
 * The fuel plan: a row per step, up to 30, in the columns of the step rows (where it
   goes, who flies it), with what it needs and what what flew it has left after
   (`StageBudget.Result.LeftAfter`), in red what it lacks or where it has a problem; *+*
@@ -167,7 +167,7 @@ are:
 |---|---|---|
 | `Ship` | every section is with the rest | the whole vessel flies |
 | `Ship` | a section is away, where the rest waits or in another orbit of that body | its last step `Docks`, with the burn to the rest's orbit where it ended in another one, 50 m/s for the rendezvous where the rest is in orbit, and is refilled where its stop's `Refuel` is set for that step |
-| `Ship` | a section is away, elsewhere | a `Problem`: it is not where the rest waits |
+| `Ship` | a section is away, elsewhere | a `Problem`: it is not with the rest of the vessel |
 | `Alone` | the section is with what carries it | it `Separates` (`Leaver`, `LeavesFrom`), and the rest waits where it is |
 | `Alone` | the section is away | it flies on from where it is; a rest never met again stays where it waited |
 | `Alone` | a capsule, for the first time | everything else is gone for good (`Gone`): dropped where it was with the capsule, left where it waited |

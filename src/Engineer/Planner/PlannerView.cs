@@ -449,7 +449,7 @@ namespace ReDefinition.Engineer
             if (!Shown(leg + 1)) return "";
             int stage = state.Stops[leg + 1].RefuelFrom[(int)role];
             if (stage < 0) return "<color=" + Good + ">from the rest</color>";
-            if (!Tankers(leg, role).Contains(stage)) return "<color=" + Warning + ">S" + stage + " holds nothing</color>";
+            if (!Tankers(leg, role).Contains(stage)) return "<color=" + Warning + ">S" + stage + " is empty</color>";
             return "<b><u><color=" + Good + ">from S" + stage + "</color></u></b>";
         }
 
@@ -462,7 +462,7 @@ namespace ReDefinition.Engineer
             {
                 new Choice
                 {
-                    Label = "The rest, in KSP's order", Tooltip = "Refill from the rest's stages in the order KSP fires them.",
+                    Label = "Rest, in staging order", Tooltip = "Refuel from the rest of the vessel's stages in the order KSP fires them.",
                     Current = from[(int)role] < 0, Pick = () => SetTanker(leg, role, -1),
                 },
             };
@@ -492,7 +492,7 @@ namespace ReDefinition.Engineer
             List<string> list = new List<string>();
             RouteStep step = steps[index];
             if (step.Problem != null) list.Add(step.Problem);
-            if (budget.Short[index] > 0.5) list.Add("Short of " + EngineerFormat.Speed(budget.Short[index]));
+            if (budget.Short[index] > 0.5) list.Add(EngineerFormat.Speed(budget.Short[index]) + " short");
 
             // A launch or a powered landing needs the thrust to lift the vessel at
             // that body: the first stage the step burns, and the last one for the
@@ -509,10 +509,10 @@ namespace ReDefinition.Engineer
             }
             double liftOff = first != null ? TwrAt(first.Stage, first.Mass, step.From.Body, true) : 0.0;
             if (launch && first != null && liftOff < (bodies.Bodies[step.From.Body].HasAtmosphere ? 1.2 : 1.0))
-                list.Add("S" + first.Stage + " cannot lift off " + bodies.Bodies[step.From.Body].Name + ", TWR " + EngineerFormat.Ratio(liftOff));
+                list.Add("TWR " + EngineerFormat.Ratio(liftOff) + " of S" + first.Stage + " is too low to lift off " + RouteSteps.At(bodies.Bodies, step.From).Substring(3));
             double setDown = lastUsed != null ? TwrAt(lastUsed.Stage, lastUsed.Mass, step.To.Body, true) : 0.0;
             if (landing && lastUsed != null && setDown < 1.0)
-                list.Add("S" + lastUsed.Stage + " cannot land on " + bodies.Bodies[step.To.Body].Name + ", TWR " + EngineerFormat.Ratio(setDown));
+                list.Add("TWR " + EngineerFormat.Ratio(setDown) + " of S" + lastUsed.Stage + " is too low to land " + RouteSteps.At(bodies.Bodies, step.To));
 
             // Parachutes for a landing on them; a heat shield where it comes down
             // from another body.
@@ -526,8 +526,8 @@ namespace ReDefinition.Engineer
             // way, the longest of the step.
             Burn longest = index < thrustOf.Length && thrustOf[index] != null ? thrustOf[index].Longest : null;
             if (longest != null && longest.Loss > BurnCheck.MaxLoss)
-                list.Add(longest.Line.Name + " takes " + EngineerFormat.Time(longest.Seconds) + ", " + Percent(longest.Share) + " of the orbit"
-                         + (longest.Line.Name == RoutePlanner.LeavingBurn ? ": more thrust, or split it over several orbits" : ": more thrust"));
+                list.Add(longest.Line.Name + " too long: " + EngineerFormat.Time(longest.Seconds) + ", " + Percent(longest.Share)
+                         + " of the orbit");
             return list;
         }
 

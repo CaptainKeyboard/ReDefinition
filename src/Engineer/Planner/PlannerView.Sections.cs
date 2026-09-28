@@ -99,7 +99,7 @@ namespace ReDefinition.Engineer
                 section.Group = plan.Group == PlannerState.Automatic ? Detected(plan.Kind) : groups.Find(group => group.Key == plan.Group);
                 foreach (LiveSection before in valid)
                     if (section.Group != null && !VesselShape.Fits(section.Group, before.Group))
-                        section.Problem = "Overlaps the " + Lower(before.Name);
+                        section.Problem = "Shares parts with the " + Lower(before.Name);
                 if (section.Valid) valid.Add(section);
             }
             foreach (LiveSection section in live)
@@ -318,12 +318,12 @@ namespace ReDefinition.Engineer
                 AddFlyer(choices, leg, role, step, Flyer.Alone(section.Plan.Id), FlyTooltip(section.Plan.Kind));
                 if (section.Plan.Kind == SectionKind.Lander)
                     AddFlyer(choices, leg, role, step, Flyer.Without(section.Plan.Id),
-                        "The vessel flies on without the " + Lower(section.Name) + ", which stays where it is for good.");
+                        "The vessel continues without the " + Lower(section.Name) + ", which is left behind for good.");
             }
             if (step.Chosen)
                 choices.Add(new Choice
                 {
-                    Label = "Planner's choice", Tooltip = "Let the planner choose who flies this step again.",
+                    Label = "Planner's choice", Tooltip = "Let the planner decide who flies this step.",
                     Pick = () => ChooseFlyer(leg, role, step.Flyer),
                 });
             Dropdown.Show(this, button, choices, 150f);
@@ -333,9 +333,9 @@ namespace ReDefinition.Engineer
         {
             switch (kind)
             {
-                case SectionKind.Capsule: return "The capsule flies this step alone and leaves the rest of the vessel behind.";
-                case SectionKind.Satellite: return "The satellite flies this step alone and stays where it ends.";
-                default: return "The lander flies this step alone while the rest waits.";
+                case SectionKind.Capsule: return "The capsule flies this step on its own and leaves the rest of the vessel behind.";
+                case SectionKind.Satellite: return "The satellite flies this step on its own and is deployed where it ends.";
+                default: return "The lander flies this step on its own while the rest of the vessel waits.";
             }
         }
 
@@ -379,7 +379,7 @@ namespace ReDefinition.Engineer
             if (section == null) return "";
             if (section.Plan.Group == PlannerState.Automatic)
                 return "<color=" + Good + ">Automatic</color> <color=" + Dim + ">(" + GroupName(section.Group) + ")</color>";
-            if (string.IsNullOrEmpty(section.Plan.Group)) return "<color=" + Warning + ">Pick its parts</color>";
+            if (string.IsNullOrEmpty(section.Plan.Group)) return "<color=" + Warning + ">Choose parts</color>";
             if (section.Group == null) return "<color=" + Dim + ">Not on the vessel</color>";
             return "<b><u><color=" + Good + ">" + section.Group.Name + "</color></u></b>";
         }
@@ -407,7 +407,7 @@ namespace ReDefinition.Engineer
         {
             LiveSection section = RowSection(row);
             if (section == null || !section.Valid || section.Plan.Kind != SectionKind.Lander || section.CanDock) return "";
-            return "No docking port: it flies on alone";
+            return "No docking port";
         }
 
         // The parts that can be the section, each lit on the vessel while the pointer
@@ -433,8 +433,8 @@ namespace ReDefinition.Engineer
                 {
                     Label = "<color=" + Dim + ">No separable part fits</color>",
                     Tooltip = plan.Kind == SectionKind.Lander
-                        ? "A lander needs a command part and engines that a decoupler or docking port separates."
-                        : "A section needs a command part that a decoupler or docking port separates.",
+                        ? "A lander needs a command part and engines, separated from the rest by a decoupler or docking port."
+                        : "A section needs a command part, separated from the rest by a decoupler or docking port.",
                     Pick = () => { },
                 });
             Dropdown.Show(this, button, choices, PartButtonWidth);
@@ -444,9 +444,9 @@ namespace ReDefinition.Engineer
         {
             switch (kind)
             {
-                case SectionKind.Capsule: return "The smallest part with a crewed command part.";
-                case SectionKind.Satellite: return "The one part of an uncrewed vessel with a command part that leaves the launch stage.";
-                default: return "The smallest part with a command part, engines and landing legs whose engines do not fire at launch.";
+                case SectionKind.Capsule: return "The smallest separable part with a crewed command pod, preferably one with parachutes.";
+                case SectionKind.Satellite: return "The only separable part with a probe core that is not part of the launch stage.";
+                default: return "The smallest separable part with a command part, engines and landing legs that does not fire at launch.";
             }
         }
 
@@ -454,9 +454,9 @@ namespace ReDefinition.Engineer
         {
             switch (kind)
             {
-                case SectionKind.Capsule: return "These parts come home alone at the end.";
-                case SectionKind.Satellite: return "These parts stay at their destination.";
-                default: return "These parts land as the lander.";
+                case SectionKind.Capsule: return "These parts return home on their own at the end of the mission.";
+                case SectionKind.Satellite: return "These parts are deployed at their destination.";
+                default: return "These parts form the lander.";
             }
         }
 
@@ -482,9 +482,9 @@ namespace ReDefinition.Engineer
         {
             if (!Ready() || state.Sections.Count >= MaxSections) return;
             List<Choice> choices = new List<Choice>();
-            AddKind(choices, SectionKind.Capsule, "A part that comes home alone at the end, usually on its parachutes.", button);
-            AddKind(choices, SectionKind.Lander, "A part that lands while the rest waits.", button);
-            AddKind(choices, SectionKind.Satellite, "A part that stays at a destination.", button);
+            AddKind(choices, SectionKind.Capsule, "Returns home on its own at the end, usually on parachutes.", button);
+            AddKind(choices, SectionKind.Lander, "Lands while the rest of the vessel waits in orbit.", button);
+            AddKind(choices, SectionKind.Satellite, "Is deployed at a destination.", button);
             Dropdown.Show(this, button, choices, 150f);
         }
 
@@ -528,7 +528,7 @@ namespace ReDefinition.Engineer
         {
             LiveSection section = RowSection(row);
             if (section == null) return "";
-            string place = section.DeployAt >= 1 ? StopText(section.DeployAt) : "no orbit on the route";
+            string place = section.DeployAt >= 1 ? StopText(section.DeployAt) : "No orbit on the route";
             return section.Plan.DeployAt >= 1 && section.Plan.DeployAt < state.Stops.Count
                 ? "<b><u><color=" + Good + ">" + place + "</color></u></b>"
                 : "<color=" + Good + ">Automatic</color> <color=" + Dim + ">(" + place + ")</color>";
@@ -552,7 +552,7 @@ namespace ReDefinition.Engineer
             {
                 new Choice
                 {
-                    Label = "Automatic", Tooltip = "The first orbit the route reaches before it lands or ends.",
+                    Label = "Automatic", Tooltip = "The first orbit on the route before a landing or the end.",
                     Current = plan.DeployAt < 1, Pick = () => SetDeployStop(plan, -1),
                 },
             };
@@ -561,7 +561,7 @@ namespace ReDefinition.Engineer
                 int stop = i;
                 choices.Add(new Choice
                 {
-                    Label = StopText(i), Tooltip = "The satellite stays here; the rest flies on without it.",
+                    Label = StopText(i), Tooltip = "The satellite is deployed here; the rest of the vessel flies on without it.",
                     Current = plan.DeployAt == i, Pick = () => SetDeployStop(plan, stop),
                 });
             }

@@ -53,11 +53,11 @@ The planner adds three sections by itself, shown as *Automatic* with what it fou
   lander you add yourself.
 
 A lander with a docking port docks again after it lands, where the rest has a port as
-well; one without flies on alone, and a grey line under it says so. The steps after it
-change either (see *Plan with sections*). *Deployed at* is by itself the first orbit the
-route reaches before it lands or ends. What you pick is bold and underlined; picking it
-again gives it back to the planner. A section the planner added and you removed stays
-away.
+well; one without flies on alone. *No docking port* under it says so, and its tooltip
+explains it. The steps after it change either (see *Plan with sections*). *Deployed at* is
+by itself the first orbit the route reaches before it lands or ends. What you pick is bold
+and underlined; picking it again gives it back to the planner. A section the planner added
+and you removed stays away.
 
 ## Lay out the route
 
@@ -85,7 +85,7 @@ margin, and *...* where it has further choices, and the lines that belong to it.
 | *To … orbit*, first | after a surface: the launch into the body's low orbit, or straight into the next stop's orbit around the same body |
 | *To … orbit* | across to another body's orbit, or from one orbit to another around the same body |
 | *To … transfer orbit* | where the way across is split: the burn that leaves; the next *To … orbit* is the one that arrives |
-| *To …'s air* | across to a body where the next stop is a landing on parachutes: straight into its atmosphere, with no orbit |
+| *To …'s atmosphere* | across to a body where the next stop is a landing on parachutes: straight into its atmosphere, with no orbit |
 | *To … surface* | the landing on the next stop |
 
 The bar's length is the step's delta-v, on the same scale for every step. Its colours
@@ -207,8 +207,8 @@ What happens follows from who flies one step after another:
 | From one step to the next | Happens |
 |---|---|
 | *Ship*, then a section | the section leaves the vessel, which waits where it is, and takes the sections that are part of it along. A grey line says where |
-| a section, then *Ship*, with steps of other sections in between or not | the section docks with the rest at the end of its step: *Docks with the rest*, with 50 m/s for the rendezvous, and the burn to the rest's orbit where it ended in another orbit of that body; a lander climbing from a surface climbs to the rest's own orbit. Anywhere else a red line says it is not where the rest waits, and one where it has no docking port |
-| a section, then the same section | it flies on by itself, and climbs to its own destination; the rest stays where it waited. Where the whole vessel flies on later without leaving it behind, a red line says it is not where the rest waits |
+| a section, then *Ship*, with steps of other sections in between or not | the section docks with the rest at the end of its step: *Docks with the rest*, with 50 m/s for the rendezvous, and the burn to the rest's orbit where it ended in another orbit of that body; a lander climbing from a surface climbs to the rest's own orbit. Anywhere else a red line says it is not with the rest of the vessel, and one where it has no docking port |
+| a section, then the same section | it flies on by itself, and climbs to its own destination; the rest stays where it waited. Where the whole vessel flies on later without leaving it behind, a red line says it is not with the rest of the vessel |
 | *Without lander* | the vessel flies on without the lander, which stays where it is for good; one back where the rest waits docks first, so its climb counts the rendezvous |
 | the capsule | it leaves whatever flew the step before, for good. Nothing else can fly after it |
 | a satellite's destination reached | the satellite stays there, with what it weighs; the rest flies on lighter |
@@ -263,7 +263,7 @@ home, the lander left in the Mun's orbit:
 1. Stops: Kerbin *Surface*, Kerbin *Orbit*, Mun *Orbit*, Mun *Surface*, Mun *Orbit*,
    Kerbin *Surface*.
 2. Check the lander and that the capsule is the command module.
-3. On the step *To Kerbin's air*, pick *Without lander*. The landing is the capsule's by
+3. On the step *To Kerbin's atmosphere*, pick *Without lander*. The landing is the capsule's by
    itself.
 
 A lander that lands on Duna and flies home by itself, leaving the transfer stage in
@@ -272,8 +272,8 @@ Duna's orbit:
 1. *B*: pick Duna, *Orbit*. *C*: Duna, *Surface*. *D*: Kerbin, *Surface*. *Chutes* comes
    on by itself on both.
 2. Check the lander. The landing on Duna is its own by itself.
-3. Where it has a docking port, pick *Lander* on the step *To Kerbin's air*: without that,
-   it would dock with the transfer stage and the whole vessel fly home.
+3. Where it has a docking port, pick *Lander* on the step *To Kerbin's atmosphere*:
+   without that, it would dock with the transfer stage and the whole vessel fly home.
 
 A mission from Kerbin to Jool with one lander for Laythe and Vall, refilled after
 Laythe, and the capsule landing at home:

@@ -839,7 +839,7 @@ namespace ReDefinition.Tests
             low.UseAtmosphere = true;
             Leg braked = RoutePlanner.LegOf(Stock(), Orbit(Kerbin, 500000), low, 0, false);
 
-            CollectionAssert.AreEqual(new[] { "Deorbit into the air", "Aerobraking, then circularise" },
+            CollectionAssert.AreEqual(new[] { "Deorbit into the atmosphere", "Aerobraking, then circularise" },
                 braked.Lines.Select(line => line.Name).ToArray(), "down where it starts, circularised where it ends");
             Near(1100000, braked.Lines[0].Radius, 1, "the deorbit in the 500 km orbit");
             Assert.IsTrue(braked.DeltaV < burnt.DeltaV, braked.DeltaV.ToString("0") + " < " + burnt.DeltaV.ToString("0"));
@@ -1046,7 +1046,7 @@ namespace ReDefinition.Tests
 
             Assert.AreEqual(WithoutLander.Code, steps[0].Flyer.Code);
             Assert.IsTrue(steps[0].Separates);
-            Assert.AreEqual("The lander stayed at Mun orbit", steps[1].Problem);
+            Assert.AreEqual("The lander was left in Mun orbit", steps[1].Problem);
             Assert.AreEqual(0.0, steps[1].Leg.DeltaV, "never flown");
         }
 
@@ -1059,7 +1059,7 @@ namespace ReDefinition.Tests
             RouteStop minmus = Choose(Orbit(Minmus, 10000), StepRole.Transfer, Flyer.Ship);
             List<RouteStep> steps = Route(Stock(), new List<RouteStop> { Orbit(Kerbin, 80000), mun, minmus }, true, false);
 
-            Assert.AreEqual("The lander is not where the rest waits, at Kerbin orbit", steps[1].Problem);
+            Assert.AreEqual("The lander is not with the rest of the vessel in Kerbin orbit", steps[1].Problem);
         }
 
         [TestMethod]
@@ -1068,7 +1068,7 @@ namespace ReDefinition.Tests
             Leg high = RoutePlanner.LegOf(Stock(), Orbit(Kerbin, 2863334), Surface(Kerbin, true), 0, false);
             Leg low = RoutePlanner.LegOf(Stock(), Orbit(Kerbin, 80000), Surface(Kerbin, true), 0, false);
 
-            Assert.AreEqual("Deorbit into the air", high.Lines[0].Name);
+            Assert.AreEqual("Deorbit into the atmosphere", high.Lines[0].Name);
             Near(450, high.DeltaV, 40, "from a synchronous orbit");
             Near(40, low.DeltaV, 25, "from a low orbit");
         }
@@ -1300,7 +1300,7 @@ namespace ReDefinition.Tests
             List<RouteStop> goals = new List<RouteStop> { Orbit(Kerbin, 80000), Orbit(Mun, 14000), Choose(Surface(Mun), StepRole.Land, LanderFlies) };
             List<RouteStep> steps = RouteSteps.Build(Stock(), goals, sections, false);
 
-            Assert.AreEqual("The satellite is not carried to Mun surface", steps.Last().Problem);
+            Assert.AreEqual("The satellite does not reach Mun surface", steps.Last().Problem);
         }
 
         [TestMethod]

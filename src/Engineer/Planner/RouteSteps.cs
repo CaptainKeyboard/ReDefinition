@@ -415,7 +415,7 @@ namespace ReDefinition.Engineer
             if (flyer.Kind == FlyerKind.Alone)
             {
                 SectionState state = walk.Of(flyer.Section);
-                if (state.Gone) return Nothing(step, walk, "The " + Lower(state.Section.Name) + " stayed at " + state.GoneAt,
+                if (state.Gone) return Nothing(step, walk, "The " + Lower(state.Section.Name) + " was left " + state.GoneAt,
                     Target(bodies, walk, role, from, goal, flyer), g, flyer);
                 if (!state.Away)
                 {
@@ -451,10 +451,10 @@ namespace ReDefinition.Engineer
                     {
                         Dock(bodies, walk, state);
                         if (!state.Section.CanDock)
-                            step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " has no docking port to dock with the rest";
+                            step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " has no docking port";
                     }
-                    else step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " is not where the rest waits, at "
-                                   + Place(bodies, walk.Rest);
+                    else step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " is not with the rest of the vessel "
+                                   + At(bodies, walk.Rest);
                     state.Away = false;
                 }
                 start = walk.Rest;
@@ -463,7 +463,7 @@ namespace ReDefinition.Engineer
             // In the air, all that is left is the landing.
             if (start.Kind == StopKind.Entry && role != StepRole.Land)
                 step.Problem = step.Problem ?? "The " + (flyer.Kind == FlyerKind.Alone ? Lower(walk.Of(flyer.Section).Section.Name) : "rest")
-                               + " went into the air at " + bodies[start.Body].Name;
+                               + " is already in " + Place(bodies, start);
 
             RouteStop to = Target(bodies, walk, role, from, goal, flyer);
             if (to.Kind == StopKind.Transfer) to.Origin = start;
@@ -515,7 +515,7 @@ namespace ReDefinition.Engineer
                 SectionState part = walk.Of(gone);
                 if (part == null || part.Gone) continue;
                 part.Gone = true;
-                part.GoneAt = Place(bodies, at);
+                part.GoneAt = At(bodies, at);
                 step.Gone.Add(new GoneSection { Section = gone, Stays = true });
             }
             state.At = at;
@@ -536,7 +536,7 @@ namespace ReDefinition.Engineer
                 int id = state.Section.Id;
                 if (keeps.Contains(id) || state.Gone) continue;
                 state.Gone = true;
-                state.GoneAt = Place(bodies, walk.Location(id));
+                state.GoneAt = At(bodies, walk.Location(id));
                 step.Gone.Add(new GoneSection { Section = id, Waiting = !with.Contains(id) });
             }
         }
@@ -560,8 +560,8 @@ namespace ReDefinition.Engineer
                 double up, down;
                 PlannerBody body = bodies[walk.Rest.Body];
                 RoutePlanner.Hohmann(body.Mu, body.Radius + state.At.Altitude, body.Radius + walk.Rest.Altitude, out up, out down);
-                last.Leg.Add("To the rest's orbit", up, walk.Rest.Body, body.Radius + state.At.Altitude);
-                last.Leg.Add("Into the rest's orbit", down, walk.Rest.Body, body.Radius + walk.Rest.Altitude);
+                last.Leg.Add("Transfer to the rest's orbit", up, walk.Rest.Body, body.Radius + state.At.Altitude);
+                last.Leg.Add("Match the rest's orbit", down, walk.Rest.Body, body.Radius + walk.Rest.Altitude);
             }
             if (walk.Rest.Kind == StopKind.Orbit) last.Leg.Add("Rendezvous and docking", Rendezvous);
             state.Away = false;
@@ -589,13 +589,13 @@ namespace ReDefinition.Engineer
                             continue;
                         }
                         deployed.Gone = true;
-                        deployed.GoneAt = Place(bodies, step.To);
+                        deployed.GoneAt = At(bodies, step.To);
                         step.Deploys.Add(part);
                     }
                 }
                 else
                 {
-                    step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " is not carried to " + Place(bodies, step.To);
+                    step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " does not reach " + Place(bodies, step.To);
                 }
             }
         }
@@ -660,19 +660,24 @@ namespace ReDefinition.Engineer
             return string.IsNullOrEmpty(name) ? "section" : char.ToLowerInvariant(name[0]) + name.Substring(1);
         }
 
-        // "on Mun surface", "in Kerbin orbit", "in Kerbin's air".
+        // "on the Mun", "in Kerbin orbit", "in Kerbin's atmosphere".
         internal static string At(IList<PlannerBody> bodies, RouteStop stop)
         {
-            return (stop.Kind == StopKind.Surface ? "on " : "in ") + Place(bodies, stop);
+            string name = bodies[stop.Body].Name;
+            if (stop.Kind != StopKind.Surface) return "in " + Place(bodies, stop);
+            return "on " + (name.StartsWith("The ", StringComparison.Ordinal) ? "the " + name.Substring(4) : name);
         }
 
+        // "Mun surface", "Kerbin orbit", "Kerbin's atmosphere": a body named with its
+        // article, as KSP names the Mun, without it.
         internal static string Place(IList<PlannerBody> bodies, RouteStop stop)
         {
             string name = bodies[stop.Body].Name;
+            if (name.StartsWith("The ", StringComparison.Ordinal)) name = name.Substring(4);
             switch (stop.Kind)
             {
                 case StopKind.Surface: return name + " surface";
-                case StopKind.Entry: return name + "'s air";
+                case StopKind.Entry: return name + "'s atmosphere";
                 case StopKind.Transfer: return name + " transfer orbit";
                 default: return name + " orbit";
             }
