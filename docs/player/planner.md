@@ -71,8 +71,9 @@ At the top of *Route* are two settings:
 | *Fuel margin* | adds a share to every step, for steering, corrections and a late burn. 10 % is a common choice |
 | *Plane changes* | adds the burn that matches the tilt of the target's orbit, such as 6° for Minmus. Leave it off if you launch into the right plane or correct on the way |
 
-A new vessel starts with two stops: *A* on the surface of Kerbin, *B* in a low orbit
-around it.
+A new vessel starts with two stops: *A* on the surface of Kerbin, and *B*, whose body
+reads *Destination* in red until you pick one. A stop added with *+* starts the same way.
+The route runs up to the first stop without a body.
 
 | Control | Does |
 |---|---|

@@ -92,18 +92,13 @@ namespace ReDefinition.Engineer
         private const string FileName = "planner.cfg";
         private const int MaxPlans = 200;
 
-        // From the home body's surface to its low orbit: where every mission
-        // starts.
+        // From the home body's surface, where every mission starts, to a destination
+        // the player picks.
         internal static PlannerState Default(PlannerBodies bodies)
         {
             PlannerState state = new PlannerState();
-            int home = bodies.Home;
-            state.Stops.Add(new RouteStop { Body = home, Kind = StopKind.Surface });
-            state.Stops.Add(new RouteStop
-            {
-                Body = home, Kind = StopKind.Orbit,
-                Altitude = home < bodies.Bodies.Count ? bodies.Bodies[home].LowOrbitAltitude : 80000.0,
-            });
+            state.Stops.Add(new RouteStop { Body = bodies.Home, Kind = StopKind.Surface });
+            state.Stops.Add(new RouteStop { Body = RouteStop.NoBody, Kind = StopKind.Orbit });
             return state;
         }
 
@@ -277,10 +272,11 @@ namespace ReDefinition.Engineer
             bool skipped = false;
             foreach (ConfigNode stopNode in node.GetNodes("STOP"))
             {
-                int body = bodies.IndexOf(stopNode.GetValue("body"));
+                string bodyName = stopNode.GetValue("body") ?? "";
+                int body = bodyName.Length == 0 ? RouteStop.NoBody : bodies.IndexOf(bodyName);
                 // A body the loaded system does not have: the plan was made for
                 // another one.
-                if (body < 0)
+                if (body < 0 && bodyName.Length > 0)
                 {
                     skipped = true;
                     continue;
@@ -293,7 +289,7 @@ namespace ReDefinition.Engineer
                 stop.Altitude = double.TryParse(stopNode.GetValue("altitude"), NumberStyles.Float, CultureInfo.InvariantCulture,
                     out altitude)
                     ? altitude
-                    : bodies.Bodies[body].LowOrbitAltitude;
+                    : body >= 0 ? bodies.Bodies[body].LowOrbitAltitude : 0.0;
                 bool useAtmosphere;
                 if (bool.TryParse(stopNode.GetValue("useAtmosphere"), out useAtmosphere)) stop.UseAtmosphere = useAtmosphere;
                 string[] by = (stopNode.GetValue("by") ?? "").Split(',');

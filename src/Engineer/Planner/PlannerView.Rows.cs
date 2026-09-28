@@ -282,7 +282,7 @@ namespace ReDefinition.Engineer
             DialogGUIHorizontalLayout altitude = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight + 2f), new DialogGUISpace(LetterWidth),
                 lower, typed, new DialogGUILabel("<color=" + Dim + ">km</color>", 24f), raise);
-            altitude.OptionEnabledCondition = () => Shown(index) && Kind(index) == StopKind.Orbit;
+            altitude.OptionEnabledCondition = () => HasBody(index) && Kind(index) == StopKind.Orbit;
             yield return altitude;
         }
 
@@ -505,7 +505,7 @@ namespace ReDefinition.Engineer
         // arrives (RouteSteps.Splits).
         private bool CanSplit(int leg)
         {
-            return Shown(leg + 1) && RouteSteps.Splits(bodies.Bodies, state.Stops[leg], state.Stops[leg + 1]);
+            return HasBody(leg) && HasBody(leg + 1) && RouteSteps.Splits(bodies.Bodies, state.Stops[leg], state.Stops[leg + 1]);
         }
 
         private string WarningText(int leg, StepRole role, int line)

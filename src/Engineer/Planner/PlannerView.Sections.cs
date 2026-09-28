@@ -182,7 +182,7 @@ namespace ReDefinition.Engineer
         private int AutoDeployStop()
         {
             for (int i = 1; i < state.Stops.Count; i++)
-                if (state.Stops[i].Kind == StopKind.Orbit && (i == state.Stops.Count - 1 || state.Stops[i + 1].Kind == StopKind.Surface))
+                if (HasBody(i) && state.Stops[i].Kind == StopKind.Orbit && (i == state.Stops.Count - 1 || state.Stops[i + 1].Kind == StopKind.Surface))
                     return i;
             return -1;
         }
@@ -562,6 +562,7 @@ namespace ReDefinition.Engineer
         private string StopText(int index)
         {
             RouteStop stop = state.Stops[index];
+            if (!HasBody(index)) return Letter(index) + "  no destination yet";
             string text = Letter(index) + "  " + RouteSteps.Place(bodies.Bodies, stop);
             if (stop.Kind == StopKind.Orbit) text += ", " + AltitudeKm(index) + " km";
             return text;

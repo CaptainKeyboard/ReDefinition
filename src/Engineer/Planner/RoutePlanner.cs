@@ -48,6 +48,9 @@ namespace ReDefinition.Engineer
     // One point of the route: a body, on its surface or in a circular orbit.
     internal sealed class RouteStop
     {
+        // A destination whose body the player has not picked yet.
+        internal const int NoBody = -1;
+
         public int Body;
         public StopKind Kind = StopKind.Orbit;
         // Above the surface, for an orbit.

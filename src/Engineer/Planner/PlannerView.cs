@@ -169,7 +169,7 @@ namespace ReDefinition.Engineer
             stages = allStages.FindAll(row => row.DeltaVVacuum > 0.5);
 
             Detect(readout.PartFacts);
-            steps = RouteSteps.Build(bodies.Bodies, state.Stops, RouteSections(), state.PlaneChanges);
+            steps = RouteSteps.Build(bodies.Bodies, PickedStops(), RouteSections(), state.PlaneChanges);
             for (int leg = 0; leg < MaxStops; leg++)
                 for (int role = 0; role < RouteStop.Roles; role++) slots[leg, role] = -1;
             for (int i = 0; i < steps.Count; i++)
@@ -226,6 +226,23 @@ namespace ReDefinition.Engineer
             return Ready() && index < state.Stops.Count;
         }
 
+        // The stops up to the first whose body is not picked yet: the route so far.
+        private List<RouteStop> PickedStops()
+        {
+            List<RouteStop> picked = new List<RouteStop>();
+            foreach (RouteStop stop in state.Stops)
+            {
+                if (stop.Body < 0) break;
+                picked.Add(stop);
+            }
+            return picked;
+        }
+
+        private bool HasBody(int index)
+        {
+            return Shown(index) && state.Stops[index].Body >= 0 && state.Stops[index].Body < bodies.Bodies.Count;
+        }
+
         private static string Letter(int index)
         {
             return ((char)('A' + index)).ToString();
@@ -235,7 +252,7 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index)) return "";
             int body = state.Stops[index].Body;
-            return body >= 0 && body < bodies.Bodies.Count ? bodies.Bodies[body].Name : "?";
+            return body >= 0 && body < bodies.Bodies.Count ? bodies.Bodies[body].Name : "<color=" + Problem + ">Destination</color>";
         }
 
         private StopKind Kind(int index)
@@ -245,7 +262,7 @@ namespace ReDefinition.Engineer
 
         private bool HasAtmosphere(int index)
         {
-            return Shown(index) && bodies.Bodies[state.Stops[index].Body].HasAtmosphere;
+            return HasBody(index) && bodies.Bodies[state.Stops[index].Body].HasAtmosphere;
         }
 
         private bool UsesAtmosphere(int index)
@@ -263,7 +280,7 @@ namespace ReDefinition.Engineer
         private void SetAltitude(int index, string text)
         {
             double km;
-            if (!Shown(index) || !double.TryParse((text ?? "").Replace(',', '.'), System.Globalization.NumberStyles.Float,
+            if (!HasBody(index) || !double.TryParse((text ?? "").Replace(',', '.'), System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out km)) return;
             RouteStop stop = state.Stops[index];
             double altitude = Math.Max(bodies.Bodies[stop.Body].LowOrbitAltitude, Math.Min(km * 1000.0, bodies.MaxAltitude(stop.Body)));
@@ -309,7 +326,7 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index) || state.Stops[index].Kind == kind) return;
             state.Stops[index].Kind = kind;
-            if (kind == StopKind.Orbit && state.Stops[index].Altitude <= 0.0)
+            if (kind == StopKind.Orbit && state.Stops[index].Altitude <= 0.0 && HasBody(index))
                 state.Stops[index].Altitude = bodies.Bodies[state.Stops[index].Body].LowOrbitAltitude;
             AutoChutes(index);
             Changed();
@@ -317,7 +334,7 @@ namespace ReDefinition.Engineer
 
         private void StepAltitude(int index, int direction)
         {
-            if (!Shown(index)) return;
+            if (!HasBody(index)) return;
             RouteStop stop = state.Stops[index];
             double lowest = bodies.Bodies[stop.Body].LowOrbitAltitude;
             double altitude = stop.Altitude + direction * AltitudeStep;
@@ -329,6 +346,7 @@ namespace ReDefinition.Engineer
         // what lands there has any, the capsule's where there is one.
         private void AutoChutes(int index)
         {
+            if (!HasBody(index)) return;
             RouteStop stop = state.Stops[index];
             if (index != state.Stops.Count - 1 || index == 0 || stop.Kind != StopKind.Surface
                 || !bodies.Bodies[stop.Body].HasAtmosphere) return;
@@ -342,15 +360,11 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
-        // A new stop where the route ends: the same body, in its low orbit.
+        // A new stop where the route ends, its body for the player to pick.
         private void AddStop()
         {
             if (!Ready() || state.Stops.Count >= MaxStops) return;
-            RouteStop last = state.Stops[state.Stops.Count - 1];
-            state.Stops.Add(new RouteStop
-            {
-                Body = last.Body, Kind = StopKind.Orbit, Altitude = bodies.Bodies[last.Body].LowOrbitAltitude,
-            });
+            state.Stops.Add(new RouteStop { Body = RouteStop.NoBody, Kind = StopKind.Orbit });
             Changed();
         }
 
