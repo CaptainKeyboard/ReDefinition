@@ -186,11 +186,11 @@ lighter, goes further.
 
 Engines you light on the pad while launch clamps hold the vessel burn together with the
 stage that releases the clamps. Without clamps, the same goes for a first stage too weak
-to lift the vessel: you fire the next one at once. KSP's own delta-v readout burns them one after the other,
-as if the core flew alone first. The planner lifts off with both instead, for example
-*S4+3* for the core of stage 4 and the boosters of stage 3, until one of them is empty.
-What burns on after that is shown on its own, such as *S4* for the core once the
-boosters are dropped.
+to lift the vessel: you fire the next one at once. KSP's own delta-v readout burns them
+one after the other, as if the core flew alone first. The planner lifts off with both
+instead, for example *S4+3* for the core of stage 4 and the boosters of stage 3, until one
+of them is empty. What burns on after that is shown on its own, such as *S4* for the core
+once the boosters are dropped.
 
 Which tank feeds which engine is set by the vessel's staging and fuel lines, and the
 planner follows it. To give a tank to other engines, change the staging.
