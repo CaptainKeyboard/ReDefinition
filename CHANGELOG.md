@@ -17,14 +17,17 @@
   mode buttons, opens it in the parts list's place. It lays out a route from stop to
   stop, A → B → C, on the surface or in an orbit of any body the game has loaded, and
   lists the steps in between: up into an orbit, across to the next body or straight into
-  its air, down onto the surface. Each step says who flies it, the whole vessel or its
-  lander, set by the planner or by a click; the lander leaves the rest, docks with it
-  again and can be refilled from it, or flies on alone. The planner shares the vessel's
-  stages out over the steps, counting the mass each stage pushes at that moment; the
-  fuel plan shows what each stage gives to each leg, and a click on a cell pins the
-  stage to the leg. What blocks a step shows in red under it: too little fuel, too
-  little thrust to lift off or land, no parachutes or heat shield, a lander not where it
-  has to be. The details give each stage's TWR. The vessel's engines and tanks show in
+  its air, down onto the surface. The planner finds the vessel's lander and capsule
+  from its parts, or takes the stages you pick. Each step says who flies it, the whole
+  vessel, its lander or its capsule, set by the planner or by you; the lander leaves the
+  rest, docks with it again and can be refilled from it, or flies on alone. The planner
+  shares the vessel's stages out over the steps, counting the mass each stage pushes at
+  that moment. The fuel plan of a step shows the stages it has, what each gives and
+  keeps, and lets you save a stage for later or drop it after the step; without a step,
+  it shows what each stage gives over the route and where it ends. What blocks a step
+  shows in red under it: too little fuel, too little thrust to lift off or land, no
+  parachutes or heat shield, a lander not where it has to be. The step's fuel plan gives
+  each stage's TWR. The vessel's engines and tanks show in
   the colours of their stages. The plan is kept per vessel.
 - **The navball moves sideways.** Drag its show/hide button left or right in flight; the
   SAS switches, the autopilot modes and the gauges move with it, and it stays on the

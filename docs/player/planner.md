@@ -3,14 +3,14 @@
 **For:** players building a vessel for a mission to one or more destinations.
 **You need:** ReDefinition installed, and a vessel in the VAB or the SPH.
 **You get:** how to lay out a route, see what each step costs, check that the stages
-carry enough fuel, and set yourself which stage pays for which leg.
+carry enough fuel, and set yourself which stage burns on which step.
 
 The planner lays out a route the way a map app lays out a trip: A → B → C → D. Between
 two destinations it lists the steps the way needs, up into an orbit, across to the next
 body, down onto its surface, and for each who flies it: the whole vessel or its lander.
 It works out what each step costs and shares the vessel's stages out over them. You can
-leave that to the planner, or pin stages to legs yourself. It works with the bodies the
-game has loaded, so it also works with planet packs.
+leave that to the planner, or save a stage for later or drop it after a step yourself. It
+works with the bodies the game has loaded, so it also works with planet packs.
 
 ## Open the planner
 
@@ -21,6 +21,26 @@ back, click KSP's parts button, or any other mode button.
 While the planner is open, the vessel's engines and tanks show in the colours of their
 stages. The plan belongs to the vessel. It is saved under the vessel's name and comes
 back when you load the vessel again.
+
+## Name the lander and the capsule
+
+The row *Vessel* at the top names the vessel's lander and capsule. They decide who can
+fly a step.
+
+| Button | Offers |
+|---|---|
+| *Lander* | *Automatic*, *None* or a stage: that stage and every stage after it are the lander, which can fly alone while the rest waits |
+| *Capsule* | *Automatic*, *None* or a stage: that stage and every stage after it are the capsule, which comes home alone at the end |
+
+*Automatic* shows in brackets what the planner found on the vessel:
+
+* The capsule is the command part that stays to the end, with everything that stays with
+  it, where that carries parachutes.
+* The lander is the part before the capsule with engines and landing legs, separated by a
+  decoupler or a docking port from a rest that has a command part of its own to wait.
+
+A plain rocket with a pod and parachutes on top, such as the Kerbal X, has its capsule on
+the parachutes' stage and no lander. A stage you pick yourself is bold and underlined.
 
 ## Lay out the route
 
@@ -77,19 +97,23 @@ needs and what the vessel has.
 
 ## Read the fuel plan
 
-The fuel plan is a table. Each row is a stage with delta-v, in the order KSP fires them,
-marked with its colour. The stages after the last one with delta-v, the capsule's
-parachutes for one, follow in grey, without figures. Each column is a leg. A cell shows
-how much delta-v the stage gives to that leg. The last column shows what the stage has
-left at the end, or, in orange, what it held when it was dropped.
+With no step selected, the fuel plan lists every stage with delta-v in the order KSP
+fires them, marked with its colour: what it gives over the whole route, and what it has
+left at the end. In orange is where it was dropped and what it held then; in grey where
+it stays, such as a lander left on a surface.
 
 | Click | Does |
 |---|---|
-| a leg's name at the top of a column, a step's bar or its figure | shows each step of the leg with its burns, the stages that pay for it with their TWR at that body, and any warning, and colours only those stages on the vessel |
-| a stage's name | shows its engines and the legs it pays for, and colours only that stage on the vessel |
-| the same again | shows every stage in its colour again |
+| a step's bar or its figure | shows the fuel plan of that step, and colours only its stages on the vessel |
+| a stage's name | shows its engines and the steps it pays for, and colours only that stage on the vessel |
+| *Whole route*, or the same step again | shows every stage again |
 
-The burns of a leg are:
+For a selected step, the fuel plan lists the stages it still has with fuel: what each
+gives here and what it has left after the step. A stage burnt out or dropped before does
+not show; a stage saved for later does. Under them come the step's burns, the stages
+that pay for it with their TWR at that body, and any warning.
+
+The burns of a step are:
 
 | Burn | Is |
 |---|---|
@@ -114,24 +138,19 @@ lighter, goes further.
 Which tank feeds which engine is set by the vessel's staging and fuel lines, and the
 planner follows it. To give a tank to other engines, change the staging.
 
-## Pin a stage to a leg
+## Save a stage or drop it after a step
 
-Click a cell of the fuel plan to pin that stage to that leg. A pin shows in the cell's
-corner. Click the cell again to take the pin away.
+Select a step, and each of its stages offers three choices:
 
-* A leg with pins burns its pinned stages only, in KSP's order. If they are not enough,
-  the leg runs short.
-* A stage can be pinned to several legs. Pin a lander's descent stage to the landing and
-  to the climb back, and both burn from it.
-* The legs without pins burn in KSP's order and stop before a stage pinned to a later
-  leg, since KSP cannot fire the stages after it either.
-* When a pinned stage fires, the stages before it are dropped with what they still hold.
-  The last column shows that in orange.
-* A pin to a stage that is already dropped when its leg comes turns the leg orange. The
-  leg's details name the stage.
+| Choice | Does |
+|---|---|
+| *Burns* | the stage burns as KSP's staging comes to it. This is where every stage starts |
+| *Save* | the stage does not burn on this step, and nor do the stages after it, since KSP cannot fire them first. If the step then runs short, it turns red |
+| *Drop after* | the stage goes at the end of this step with what it still holds, and so do the stages KSP fires before it. The last stage cannot be dropped |
 
-A mission to Eve needs a large stage for the climb back to orbit. Pin it to the leg from
-Eve's surface to its orbit, and the planner does not burn it on the way there.
+A mission to Eve needs a large stage for the climb back to orbit. Select each step on the
+way there and click *Save* on that stage, and the planner keeps it for the climb. A
+booster you drop early to lighten the vessel gets *Drop after* on the launch.
 
 ## Plan a lander and a capsule
 
@@ -142,13 +161,11 @@ landing on its parachutes.
 
 1. Put the lander's decoupler or docking port in the stage right before the lander's
    first engines fire, so that KSP's staging separates it there.
-2. In the fuel plan, click *L* on the lander's first stage with engines. It lights up on
-   that stage and every stage after it. The stage with the decoupler counts to the lander
-   as well. Click it again to have no lander.
-3. Click *C* on the capsule's stage: the first stage of the capsule, with engines or
-   without, usually the one of its parachutes. It lights up on that stage and every stage
-   after it. Click it again to have no capsule.
-4. Every step now shows on a button who flies it, green. The planner sets it itself. A
+2. Check *Lander* and *Capsule* in the row *Vessel*. Where *Automatic* found the wrong
+   stage or none, pick the lander's first stage, or the capsule's, from the list. The
+   list offers the lander's stages with the decoupler's stage before them, as that counts
+   to the lander as well.
+3. Every step now shows on a button who flies it, green. The planner sets it itself. A
    click on the button folds out the list of who can: *Ship*, *Lander*, *Without lander*,
    *Capsule*. What you pick there is bold and underlined; *Planner's choice* in the list
    gives the step back to the planner.
@@ -165,7 +182,7 @@ What happens follows from who flies one step after another:
 
 Where the lander climbs from a surface and the rest waits in an orbit of that body, the
 lander climbs to the rest's own orbit. *Refuel* on the line *Docks with the rest*
- fills the lander up from the rest's tanks as it docks.
+fills the lander up from the rest's tanks as it docks.
 
 By itself, the planner has the lander land wherever the route goes on after the landing,
 whoever stands on a surface fly up from it, the whole vessel fly on across to another
@@ -198,9 +215,9 @@ Duna's orbit:
 
 1. *B*: pick Duna, *Orbit*. *C*: Duna, *Surface*. *D*: Kerbin, *Surface*. *Chutes* comes
    on by itself on both.
-2. Click *L* on the lander's first stage, then *Lander* on the step *To Duna surface*.
-3. On the step *To Kerbin's air*, click *Lander*. Without that click the lander would dock
-   and the whole vessel fly home.
+2. Check that *Lander* names the lander. The landing on Duna is the lander's by itself.
+3. On the step *To Kerbin's air*, pick *Lander* from its button. Without that the lander
+   would dock and the whole vessel fly home.
 
 A mission from Kerbin to Jool with one lander for Laythe and Vall, refilled after
 Laythe, and the capsule landing at home:
@@ -210,8 +227,8 @@ Laythe, and the capsule landing at home:
    *Surface*. *Chutes* comes on by itself on Laythe and Kerbin, each the last stop when
    it is set. A Laythe *Orbit* and a Vall *Orbit* after the landings
    can be stops as well; the lander climbs back to the rest either way.
-2. *L* on the lander's first stage, *C* on the capsule's. *Lander* on the steps *To Laythe
-   surface* and *To Vall surface*; the last one, home, is the capsule's by itself.
+2. Check *Lander* and *Capsule* in the row *Vessel*. The landings on Laythe and Vall are
+   the lander's by itself; the last step, home, is the capsule's.
 3. *Refuel* on the line *Docks with the rest* after Laythe.
 
 The lander pushes only its own mass while it flies alone. When the whole vessel flies
@@ -227,7 +244,7 @@ on, it carries the lander with the fuel the lander has left, or refilled.
 * The planner counts every stage in vacuum. The launch burns in air, where the engines
   give less. To see a stage's delta-v at sea level, choose *Sea level* in the
   [engineer window](engineer.md).
-* The TWR in the details, and the warnings on a launch or a powered landing, compare
+* The TWR under a step's stages, and the warnings on a launch or a powered landing, compare
   the thrust in vacuum with the body's surface gravity. Check the launch stage's TWR at
   sea level in the engineer window as well.
 * Refuelling counts only between the lander and the rest. Mining and fuel from other

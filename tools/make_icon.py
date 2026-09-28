@@ -394,15 +394,6 @@ def draw_dot():
     return image
 
 
-def draw_pin():
-    # A map pin: keeps a stage for a leg.
-    image, draw = planner_canvas()
-    draw.ellipse([126, 40, 386, 300], fill=WHITE)
-    draw.polygon([(150, 230), (362, 230), (256, 480)], fill=WHITE)
-    draw.ellipse([206, 120, 306, 220], fill=(0, 0, 0, 0))
-    return image
-
-
 def draw_remove():
     image, draw = planner_canvas()
     draw.line([(130, 130), (382, 382)], fill=WHITE, width=56)
@@ -412,7 +403,7 @@ def draw_remove():
 
 PLANNER_DRAWINGS = {
     "Surface": draw_surface, "Orbit": draw_orbit, "Chute": draw_chute, "Aerobrake": draw_aerobrake,
-    "Whole": draw_whole, "Lander": draw_lander, "Rest": draw_rest, "Dot": draw_dot, "Pin": draw_pin,
+    "Whole": draw_whole, "Lander": draw_lander, "Rest": draw_rest, "Dot": draw_dot,
     "Remove": draw_remove,
 }
 

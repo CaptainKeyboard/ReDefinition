@@ -269,42 +269,6 @@ namespace ReDefinition.Engineer
         }
     }
 
-    // A small symbol in the top right corner of a button, shown or hidden: the
-    // pin on a cell of the fuel plan, clear of its centred figure.
-    internal sealed class IconMark
-    {
-        private GameObject mark;
-        private bool on;
-
-        internal IconMark(DialogGUIBase element, string icon, float size, AfterCreate after)
-        {
-            after.Add(() =>
-            {
-                Sprite sprite = PlannerIcons.Get(icon);
-                if (element.uiItem == null || sprite == null) return;
-                mark = new GameObject("ReDefinitionMark", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-                RectTransform rect = (RectTransform)mark.transform;
-                rect.SetParent(element.uiItem.transform, false);
-                rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
-                rect.pivot = new Vector2(1f, 1f);
-                rect.anchoredPosition = new Vector2(-1f, -1f);
-                rect.sizeDelta = new Vector2(size, size);
-                mark.GetComponent<LayoutElement>().ignoreLayout = true;
-                Image image = mark.GetComponent<Image>();
-                image.sprite = sprite;
-                image.preserveAspect = true;
-                image.raycastTarget = false;
-                mark.SetActive(on);
-            });
-        }
-
-        internal void Set(bool show)
-        {
-            on = show;
-            if (mark != null && mark.activeSelf != show) mark.SetActive(show);
-        }
-    }
-
     // A bar of coloured pieces side by side, each as wide as it is given: a
     // leg's stages, or the whole route's. A fixed number of pieces, the unused
     // ones hidden.

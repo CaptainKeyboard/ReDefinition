@@ -41,6 +41,9 @@ namespace ReDefinition.Engineer
         // where this is no higher than that stage's number.
         public List<int> ParachuteStages = new List<int>();
         public List<int> HeatShieldStages = new List<int>();
+        // Every part as the planner finds the lander and the capsule by it
+        // (VesselShape).
+        public List<PartFacts> PartFacts = new List<PartFacts>();
         public RcsLine Rcs;
 
         public double TotalDeltaV;
@@ -91,10 +94,30 @@ namespace ReDefinition.Engineer
                     if (partInfo.part.HasModuleImplementing<ModuleParachute>() || partInfo.part.Modules.Contains("RealChuteModule"))
                         readout.ParachuteStages.Add(partInfo.decoupleStage);
                     if (partInfo.part.HasModuleImplementing<ModuleAblator>()) readout.HeatShieldStages.Add(partInfo.decoupleStage);
+                    readout.PartFacts.Add(FactsOf(partInfo));
                 }
             readout.TotalDeltaV = StageTable.TotalDeltaV(readout.Stages);
             readout.Rcs = RcsOf(readout.Stages, partInfos);
             return readout;
+        }
+
+        // Landing legs are wheels of the LEG type (ModuleWheelBase.wheelType);
+        // decouplers and docking ports both separate a vessel (IStageSeparator).
+        private static PartFacts FactsOf(DeltaVPartInfo partInfo)
+        {
+            Part part = partInfo.part;
+            bool legs = false;
+            foreach (ModuleWheelBase wheel in part.FindModulesImplementing<ModuleWheelBase>())
+                if (wheel != null && wheel.wheelType == WheelType.LEG) legs = true;
+            return new PartFacts
+            {
+                DecoupleStage = partInfo.decoupleStage,
+                Command = part.HasModuleImplementing<ModuleCommand>(),
+                Engine = part.HasModuleImplementing<ModuleEngines>(),
+                Legs = legs,
+                Parachute = part.HasModuleImplementing<ModuleParachute>() || part.Modules.Contains("RealChuteModule"),
+                Separator = part.FindModuleImplementing<IStageSeparator>() != null,
+            };
         }
 
         private static StageRow RowOf(DeltaVStageInfo info, List<DeltaVPartInfo> partInfos, bool vectoredThrust)

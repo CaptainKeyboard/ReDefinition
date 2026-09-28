@@ -68,6 +68,9 @@ namespace ReDefinition.Engineer
         // refilled from the rest's tanks when it docks at the step's end.
         public int[] By = { -1, -1, -1 };
         public bool[] Refuel = new bool[3];
+        // For each step on the way here: the stages the player saves on it or drops
+        // after it (StageBudget).
+        public StagePlan[] Stages = { new StagePlan(), new StagePlan(), new StagePlan() };
         // On the way to a landing on parachutes: into an orbit first, rather than
         // straight into the air.
         public bool OrbitFirst;
@@ -79,6 +82,7 @@ namespace ReDefinition.Engineer
             RouteStop copy = (RouteStop)MemberwiseClone();
             copy.By = (int[])By.Clone();
             copy.Refuel = (bool[])Refuel.Clone();
+            copy.Stages = Array.ConvertAll(Stages, plan => plan.Copy());
             return copy;
         }
     }

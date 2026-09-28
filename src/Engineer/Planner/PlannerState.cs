@@ -8,62 +8,31 @@ using UnityEngine;
 namespace ReDefinition.Engineer
 {
     // One vessel's plan: its route, with who flies to each destination and the
-    // choices for the steps before it, the margin, whether plane changes count, the
-    // stages pinned to legs and the lander. Kept per vessel name in
-    // GameData/ReDefinition/PluginData/planner.cfg, so that a craft brings its
-    // plan back when it is loaded into the editor again.
+    // choices for the steps before it, the stages saved or dropped on each step, the
+    // margin, whether plane changes count, the lander and the capsule. Kept per
+    // vessel name in GameData/ReDefinition/PluginData/planner.cfg, so that a craft
+    // brings its plan back when it is loaded into the editor again.
     internal sealed class PlannerState
     {
         public readonly List<RouteStop> Stops = new List<RouteStop>();
         public double Margin = 0.1;
         public bool PlaneChanges;
-        // Stage number to the legs it is pinned to (StageBudget).
-        public readonly Dictionary<int, HashSet<int>> Pins = new Dictionary<int, HashSet<int>>();
 
-        internal bool IsPinned(int stage, int leg)
-        {
-            HashSet<int> legs;
-            return Pins.TryGetValue(stage, out legs) && legs.Contains(leg);
-        }
-
-        internal void Pin(int stage, int leg, bool on)
-        {
-            HashSet<int> legs;
-            if (!Pins.TryGetValue(stage, out legs))
-            {
-                if (!on) return;
-                legs = new HashSet<int>();
-                Pins[stage] = legs;
-            }
-            if (on) legs.Add(leg);
-            else legs.Remove(leg);
-            if (legs.Count == 0) Pins.Remove(stage);
-        }
-
-        // The legs after a removed stop move up by one. The leg into it and the
-        // leg out of it become one leg: it keeps the pins of neither, since it
-        // costs what neither did.
+        // The stop at `index` is gone (Stops.RemoveAt): the steps into the stop
+        // after it now start elsewhere and cost what they did not, so their stages
+        // burn as KSP fires them again.
         internal void RemoveStop(int index)
         {
-            Dictionary<int, HashSet<int>> pins = new Dictionary<int, HashSet<int>>();
-            foreach (KeyValuePair<int, HashSet<int>> pair in Pins)
-            {
-                HashSet<int> legs = new HashSet<int>();
-                foreach (int leg in pair.Value)
-                {
-                    if (leg == index || leg == index - 1) continue;
-                    legs.Add(leg > index ? leg - 1 : leg);
-                }
-                if (legs.Count > 0) pins[pair.Key] = legs;
-            }
-            Pins.Clear();
-            foreach (KeyValuePair<int, HashSet<int>> pair in pins) Pins[pair.Key] = pair.Value;
+            if (index < 0 || index >= Stops.Count) return;
+            Stops[index].Stages = new[] { new StagePlan(), new StagePlan(), new StagePlan() };
         }
 
-        // The highest stage of the lander and of the capsule, -1 for none
-        // (StageBudget).
-        public int Lander = -1;
-        public int Capsule = -1;
+        // The highest stage of the lander and of the capsule, None for none,
+        // Automatic for what the vessel's parts give (VesselShape).
+        internal const int Automatic = -2;
+        internal const int None = -1;
+        public int Lander = Automatic;
+        public int Capsule = Automatic;
 
         private const string FileName = "planner.cfg";
         private const int MaxPlans = 200;
@@ -174,15 +143,21 @@ namespace ReDefinition.Engineer
                 stopNode.AddValue("refuel", string.Join(", ", Array.ConvertAll(stop.Refuel, flag => flag.ToString())));
                 stopNode.AddValue("orbitFirst", stop.OrbitFirst);
                 stopNode.AddValue("leavesPayload", stop.LeavesPayload);
-            }
-            foreach (KeyValuePair<int, HashSet<int>> pair in Pins)
-                foreach (int leg in pair.Value)
+                for (int i = 0; i < 3; i++)
                 {
-                    ConfigNode pin = node.AddNode("PIN");
-                    pin.AddValue("stage", pair.Key);
-                    pin.AddValue("leg", leg);
+                    foreach (int stage in stop.Stages[i].Save) AddStage(stopNode, (StepRole)i, stage, "Save");
+                    foreach (int stage in stop.Stages[i].DropAfter) AddStage(stopNode, (StepRole)i, stage, "DropAfter");
                 }
+            }
             return node;
+        }
+
+        private static void AddStage(ConfigNode stopNode, StepRole role, int stage, string choice)
+        {
+            ConfigNode node = stopNode.AddNode("STAGE");
+            node.AddValue("step", role);
+            node.AddValue("stage", stage);
+            node.AddValue("choice", choice);
         }
 
         private static PlannerState FromNode(ConfigNode node, PlannerBodies bodies)
@@ -194,9 +169,9 @@ namespace ReDefinition.Engineer
             bool planes;
             if (bool.TryParse(node.GetValue("planeChanges"), out planes)) state.PlaneChanges = planes;
             int lander;
-            if (int.TryParse(node.GetValue("lander"), out lander)) state.Lander = Math.Max(-1, lander);
+            if (int.TryParse(node.GetValue("lander"), out lander)) state.Lander = Math.Max(Automatic, lander);
             int capsule;
-            if (int.TryParse(node.GetValue("capsule"), out capsule)) state.Capsule = Math.Max(-1, capsule);
+            if (int.TryParse(node.GetValue("capsule"), out capsule)) state.Capsule = Math.Max(Automatic, capsule);
             bool skipped = false;
             foreach (ConfigNode stopNode in node.GetNodes("STOP"))
             {
@@ -232,15 +207,20 @@ namespace ReDefinition.Engineer
                 if (bool.TryParse(stopNode.GetValue("orbitFirst"), out orbitFirst)) stop.OrbitFirst = orbitFirst;
                 bool payload;
                 if (bool.TryParse(stopNode.GetValue("leavesPayload"), out payload)) stop.LeavesPayload = payload;
+                // With a stop before it gone, the steps here are not the ones the
+                // stages were chosen for.
+                if (!skipped)
+                    foreach (ConfigNode stageNode in stopNode.GetNodes("STAGE"))
+                    {
+                        string step = stageNode.GetValue("step") ?? "";
+                        int stage;
+                        if (!Enum.IsDefined(typeof(StepRole), step) || !int.TryParse(stageNode.GetValue("stage"), out stage)) continue;
+                        StagePlan plan = stop.Stages[(int)(StepRole)Enum.Parse(typeof(StepRole), step)];
+                        string choice = stageNode.GetValue("choice");
+                        if (choice == "Save") plan.Save.Add(stage);
+                        else if (choice == "DropAfter") plan.DropAfter.Add(stage);
+                    }
                 state.Stops.Add(stop);
-            }
-            // With a stop gone, the legs are not the ones the stages were pinned to.
-            if (skipped) return state;
-            foreach (ConfigNode pin in node.GetNodes("PIN"))
-            {
-                int stage, leg;
-                if (int.TryParse(pin.GetValue("stage"), out stage) && int.TryParse(pin.GetValue("leg"), out leg) && leg >= 0)
-                    state.Pin(stage, leg, true);
             }
             return state;
         }

@@ -14,12 +14,13 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 |---|---|
 | `src/Engineer/Planner/RoutePlanner.cs` | the delta-v of the way from one point to another. Free of Unity |
 | `src/Engineer/Planner/RouteSteps.cs` | the steps between the destinations, who flies each, and where the lander leaves and docks. Free of Unity |
-| `src/Engineer/Planner/StageBudget.cs` | which stage pays for which step, on the mass the stages push, and the lander refilled from the rest. Free of Unity |
+| `src/Engineer/Planner/StageBudget.cs` | which stage pays for which step, on the mass the stages push, the stages saved or dropped on a step, and the lander refilled from the rest. Free of Unity |
+| `src/Engineer/Planner/VesselShape.cs` | the lander and the capsule found from the vessel's parts. Free of Unity |
 | `src/Engineer/Planner/PlannerBodies.cs` | the bodies of the loaded system, read from `FlightGlobals.Bodies` |
 | `src/Engineer/Planner/PlannerState.cs` | one vessel's plan, and its file |
 | `src/Engineer/Planner/PlannerView.cs` | the plan: loading, saving, working it out, the choices the rows make, the colours on the vessel |
 | `src/Engineer/Planner/PlannerView.Rows.cs` | the planner's rows, built from KSP's dialog elements |
-| `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the pin marks, the stage colours, the list of bodies and the list that folds out under a button (`Dropdown`) |
+| `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the stage colours, the list of bodies and the list that folds out under a button (`Dropdown`) |
 | `src/Engineer/Planner/PartHighlight.cs` | colours parts on the vessel with KSP's part highlighter |
 | `src/Engineer/PlannerPanel.cs` | the panel the rows stand in, made as KSP's crew panel is |
 
@@ -30,6 +31,9 @@ The planner uses no text to explain itself. From the top:
 * Every choice carries a tooltip of one sentence. KSP's button prefab has no tooltip
   controller, so `DialogTooltips.Attach` adds the game's own to every element with a
   tooltip once the rows are created.
+* The row *Vessel* holds two buttons under which the list of the lander's and the
+  capsule's choices folds out: *Automatic*, with what `VesselShape` found in brackets,
+  *None*, and the stages.
 * The route is a line of stops, an orbit's altitude under it as a field
   (`DialogGUITextInput`); while it has the keyboard, the game's controls are locked
   (`PlannerView.Keep`), so that the digits do not reach the editor's shortcuts. Between
@@ -44,30 +48,29 @@ The planner uses no text to explain itself. From the top:
   down*, *Payload*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
 * One bar sums up the route, with the margin and the plane changes under it.
-* The fuel plan is a table of stages by legs. Its columns share the room the stage and
-  left columns leave, over the legs there are (`Sizer`), so the table fills the panel's width;
-  a column with room shows the whole figure. A cell is a button of KSP's skin with the delta-v
-  the stage gives to the leg, in the stage's colour. A pin is a symbol in the cell's corner
-  (`IconMark`).
-* The details of the selected leg or stage close the panel, one line to a row of a fixed
-  height. A leg's details list each of its steps with its burns and the stages that pay
-  for it, each with its TWR: the thrust in vacuum over the weight it pushes, at the
-  surface gravity of the body the step starts from where it lifts off, of the one it
-  goes to otherwise. A label of several lines whose text changes is not given its
-  height by KSP's layout, and ran over the rows below it.
+* The fuel plan has two sets of rows, of which one shows. With a step selected (its bar
+  or its figure), a row per stage the step has with propellant as it starts
+  (`StageBudget.Result.Stages`): what it gives here, what it has left after, and *Burns*,
+  *Save* and *Drop after*, which end where a stop's cross does. With none, a row per
+  stage with delta-v: what it gives over the route, and what it has left at the end, or
+  where it was dropped or stays (`GoneAfter`). A row's swatch is a `SegmentBar` of one
+  piece, coloured after the rows are created for the stage the row shows then.
+* The details close the panel, one line to a row of a fixed height: under a selected
+  step its burns and the stages that pay for it, each with its TWR (the thrust in vacuum
+  over the weight it pushes, at the surface gravity of the body the step starts from
+  where it lifts off, of the one it goes to otherwise), and its warnings; for a selected
+  stage its engines and the steps it pays for. A label of several lines whose text
+  changes is not given its height by KSP's layout, and ran over the rows below it.
 
 Choices are buttons of KSP's skin whose text is lit green while their option is chosen.
 The skin's pressed state of a toggle button reads the other way round, so it is not
 used. Symbols are `GameData/ReDefinition/Icons/Planner_*.png`, white on clear, drawn by
-`tools/make_icon.py`. The body list is a small `PopupDialog` in the middle of the screen
-(`BodyPicker`), shielded from the editor's clicks. KSP places a dialog elsewhere through
-a formula that fails at a UI scale of 200 % (`PopupDialog.OnRectTransformDimensionsChange`)
-**[src]**.
+`tools/make_icon.py`. The list of bodies folds out under the body's button (`Dropdown`).
 
 While the planner is open, every stage's engines and tanks show in the stage's colour on the
 vessel, pushed to full saturation and brightness so it reads through KSP's soft highlight
-(`PlannerColors.Vivid`). A selected leg leaves only the stages that pay for it, a selected
-stage only that one.
+(`PlannerColors.Vivid`). A selected step leaves only the stages it has, a selected stage
+only that one.
 
 KSP's layouts take no width of their own: `DialogGUILayoutBase` gives a row the width of
 its elements, not the one it is handed **[src]**. So every row's elements are summed to
@@ -76,7 +79,7 @@ the room the scroll view leaves: it insets its content 4 units at each side, and
 `PlannerWidgets.RowRoom` gives that room. The list reaches out from the crew panel's
 content area to 2 units short of the panel's right edge, so that its bar sits there as the
 parts list's does; in the 488 units that gives it is 465. A button hidden from a row
-leaves a space of its width, so that the crosses of all stops line upin one column. While
+leaves a space of its width, so that the crosses of all stops line up in one column. While
 any panel slides, every mode button is locked, since the planner's transitions pass KSP's
 own lock by, and a mode chosen during one left the planner standing.
 
@@ -87,10 +90,9 @@ left it standing.
 
 The rows are laid out all at once, and the ones the plan does not need hide after. The scroll
 list's content is therefore held at its top edge, so that it shrinks from the bottom. The
-planner has room for 11 stops, so ten legs side by side in the fuel plan within the crew
-panel's width, three steps per leg, and 30 stages. It is worked out again four times a second
-while it is open. The free-of-Unity parts have unit tests in
-`tests/ReDefinition.Tests/PlannerTests.cs`.
+planner has room for 11 stops, three steps between two of them, and 30 stages. It is
+worked out again four times a second while it is open. The free-of-Unity parts have unit
+tests in `tests/ReDefinition.Tests/PlannerTests.cs`.
 
 ## Where the bodies come from
 
@@ -117,15 +119,15 @@ body ends in its air (`StopKind.Entry`), unless the stop has `OrbitFirst`.
 
 Each step is flown by a `Vehicle`: `Ship`, the whole vessel; `Lander`, the lander alone;
 `Rest`, the rest without the lander; or `Capsule`, the capsule alone. The capsule is the
-stages from the one the player marks with *C*, which may be one without delta-v (the fuel
-plan lists those after the last stage with delta-v); it leaves whatever flew the step
-before for good, and a step of anything else after it is a `Problem`. The player sets it
-per step (`RouteStop.By`, by role, on the stop the step leads to), or `RouteSteps.Build`
-works it out: the capsule once it has left; the capsule for a landing on parachutes on the
-last stop where what carries it is in the air; a landing short of the last stop the
-lander; from a surface whoever stands on it; across to another body `Ship` where the
-lander is in an orbit of the body the rest waits at; otherwise whoever flew the step
-before. `Build` walks the steps and keeps where the rest and the lander are:
+stages from the one `VesselShape` finds or the player picks, which may be one without
+delta-v; it leaves whatever flew the step before for good, and a step of anything else
+after it is a `Problem`. The player sets it per step (`RouteStop.By`, by role, on the stop
+the step leads to), or `RouteSteps.Build` works it out: the capsule once it has left; the
+capsule for a landing on parachutes on the last stop where what carries it is in the air;
+a landing short of the last stop the lander; from a surface whoever stands on it; across
+to another body `Ship` where the lander is in an orbit of the body the rest waits at;
+otherwise whoever flew the step before. `Build` walks the steps and keeps where the rest
+and the lander are:
 
 | Step flown by | While | Then |
 |---|---|---|
@@ -140,10 +142,6 @@ A lander that climbs from a surface while the rest waits in an orbit of that bod
 to the rest's own orbit. A stop's `LeavesPayload` marks its last step `PayloadAfter`. A
 step of the whole vessel or the rest that starts in the air and is no landing is a
 `Problem`. Without a lander, every step is the whole vessel's.
-
-The fuel plan's columns stay the legs between two stops; a pin on a leg is set on its
-steps (`PlannerView.StepPins`): a stage of the lander on the lander's steps, a stage of the
-rest on the others, and on a leg without a step of the lander on all of them.
 
 The five missions of `PlannerTests` (a vessel to Minmus and home; a satellite left in a
 synchronous orbit; a Duna lander flying home by itself; a lander hopping on Minmus from a
@@ -210,34 +208,32 @@ colours them with KSP's own part highlighter, always on in a colour per part, an
 to its default when the colour goes (`Part.SetHighlightType`, `SetHighlightColor`,
 `SetHighlightDefault`) **[src]**.
 
-### Pins
+### Saving and dropping a stage
 
-The player can pin a stage to one or more legs:
+The player sets per step, by stage number (`StagePlan`, kept on the stop the step leads
+to, by role):
 
-* A leg with pins burns its pinned stages only, in KSP's order. If they are not enough,
-  the rest of the leg is short.
-* When a pinned stage fires, the stages before it in its group are dropped with what
-  they still hold. The result lists that as `Dropped`, in delta-v at the mass the stage
-  pushes at that moment.
-* A leg without pins burns in KSP's order and stops before a stage pinned to a later
-  leg, and so before every stage after it, the lander's included. KSP can only fire
-  stages in order.
-* A pinned stage that is already dropped or burnt out when its leg comes goes into
-  `Unreachable`, as stage and leg.
-* While the lander flies alone, the rest waits and drops nothing. A pin of the rest's
-  stage on such a leg is unreachable too.
-* A leg of the whole vessel with a pinned stage of the lander stages the rest away
-  first, with what it holds, as KSP's order has it. If the lander still flies alone
-  later, the rest stays attached instead: the lander docks to it again.
-* A leg stops at the first pins that pay for it. The pinned stages after them keep
-  their fuel.
+* *Save*: the step stops before the stage, and so before every stage after it, the
+  lander's included. KSP can only fire stages in order. What the step then lacks is
+  `Short`.
+* *Drop after*: at the step's end, after a refill and a payload, the stage goes with
+  what it holds, and so does every stage before it on the same vessel; where the lander
+  is attached, the rest goes first, as KSP's order has it. The result lists each as
+  `Dropped`, in delta-v at the mass the stage pushes then, with the step in `GoneAfter`.
+  The last stage of what flies the step cannot be dropped (`StepStage.CanDrop`).
+
+Per step, `Result.Stages` lists the stages of what flies it that hold propellant as it
+starts: the lander's alone while it flies alone, the main group's with the lander's
+where it is attached. Each has what it gives to the step, and what it still gives after:
+burning on in order from there, as at the route's end, or what it held where it was
+dropped.
 
 ### A lander
 
-The player can name the lander's highest stage. That stage and every stage after it
-form the lander, and the stages before it form the rest. The player marks the lander's
-first stage with delta-v. The stages without delta-v fired just before it count to the
-lander (`PlannerView.LanderTop`), since the decoupler's stage is among them. The
+The lander is the stage `VesselShape` finds, or the one the player picks, and every
+stage after it; the stages before it form the rest. The player's list offers the
+lander's first stages with the stages without delta-v fired just before them
+(`PlannerView.LanderTop`), since the decoupler's stage is among them. The
 lander's mass is its top stage's start mass: what KSP's staging leaves once the stages
 before it are gone. So the lander's decoupler or docking port has to be in one of those
 stages. If it is not, the lander's mass includes the rest, and the planner
@@ -250,12 +246,32 @@ Each step is flown in one of three ways (`LegMode`):
 
 | Mode | Stages that burn | Mass they push |
 |---|---|---|
-| `Whole` | the rest first, then the lander's, unless a pinned stage of the rest holds them back | everything still attached |
+| `Whole` | the rest first, then the lander's, unless a saved stage of the rest holds them back | everything still attached |
 | `Lander` | the lander's | the lander alone |
 | `WithoutLander` | the rest's | the rest alone. The lander stays behind with what it holds, and no later step has it |
 
 The first step of the capsule (`LegMode.Capsule`) leaves every other stage with what it
 holds (`Dropped`); the capsule then pushes its own start mass, and only its stages burn.
+
+### Finding the lander and the capsule
+
+`EditorReadout.PartFacts` gives each part's `DeltaVPartInfo.decoupleStage` and whether it
+has a `ModuleCommand`, a `ModuleEngines`, a landing leg (`ModuleWheelBase` of
+`WheelType.LEG`), a parachute, or a decoupler or docking port (`IStageSeparator`)
+**[src]**. A part is attached while a stage burns whose number is no lower than its
+`decoupleStage`, so the parts fall into groups by it, and the stage for a group is the
+highest one at which nothing of the next group is left (`VesselShape.StageOf`), never the
+first:
+
+* The capsule is the group of the command part with the lowest `decoupleStage`, with
+  everything decoupled no later, where that carries a parachute.
+* The lander is the fewest groups from the capsule up with an engine and a landing leg,
+  where the rest keeps a command part, and the lander or the group next to it has a
+  decoupler or a docking port. Without the command part on the rest, a rocket with
+  legs on its last stage would count as a lander.
+
+What was found goes to `KSP.log` once per change, in a line that starts with `Planner
+found from`.
 
 After a step marked for it, a payload stays behind (`Payload`): what KSP drops when the
 next stage without delta-v after the burning one fires, `drop` of the stage before it. The
@@ -279,7 +295,7 @@ PLAN
     vessel = Mun Lander
     margin = 0.10
     planeChanges = False
-    lander = 1
+    lander = -2
     capsule = 0
     STOP
     {
@@ -291,19 +307,25 @@ PLAN
         refuel = False, False, False
         orbitFirst = False
         leavesPayload = False
-    }
-    PIN
-    {
-        stage = 3
-        leg = 2
+        STAGE
+        {
+            step = Launch
+            stage = 3
+            choice = DropAfter
+        }
     }
 }
 ```
 
+`lander` and `capsule` are a stage, -1 for none, or -2 for *Automatic*, which a new plan
+starts with. A `STAGE` is a stage saved on a step (`Save`) or dropped after it
+(`DropAfter`); a stage left to burn has none.
+
 Bodies are kept by the name the game knows them by (`CelestialBody.bodyName`), which
 does not change with the language. If a body of the plan is not in the loaded system,
-its stop is left out. The pins then go too, because the legs are not the same. A stop
-that is removed takes the pins of the legs into it and out of it along. The vessel's
+its stop is left out, and the stages chosen on the stops after it go too, because
+their steps are not the same. A stop that is removed takes the stages chosen on the steps
+into the stop after it along (`PlannerState.RemoveStop`). The vessel's
 name is kept escaped (`Uri.EscapeDataString`), because a config file reads `//` as a
 comment. If there are 200 plans, the oldest goes.
 
@@ -313,7 +335,8 @@ the editor closes. When KSP loads a vessel or starts a new one (`GameEvents.onEd
 craft merged into the vessel changes nothing. If the vessel is renamed, its plan goes
 on under the new name.
 
-The plan keeps a pin or the lander even while the vessel does not have that stage, for
+The plan keeps a stage's choice or the lander even while the vessel does not have that
+stage, for
 example while the player takes the vessel apart. Such a setting counts for
 nothing until the stage is back.
 
