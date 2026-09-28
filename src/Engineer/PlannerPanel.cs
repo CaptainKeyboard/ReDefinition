@@ -40,6 +40,9 @@ namespace ReDefinition.Engineer
             return planner;
         }
 
+        // What is left between the list and the panel's right edge.
+        private const float EdgeGap = 2f;
+
         private bool Build(EditorPanels panels)
         {
             UIPanelTransition crew = panels.crew;
@@ -81,7 +84,10 @@ namespace ReDefinition.Engineer
 
             UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
             RectTransform frame = (RectTransform)copy.transform;
-            float listWidth = Mathf.Max(200f, frame.sizeDelta.x + content.sizeDelta.x);
+            // The content area stands in from the panel's right edge; the list reaches
+            // out to it, so that its bar sits at the edge as the parts list's does.
+            float reach = Mathf.Max(0f, -content.offsetMax.x - EdgeGap);
+            float listWidth = Mathf.Max(200f, frame.sizeDelta.x + content.sizeDelta.x + reach);
             float width = PlannerWidgets.RowRoom(listWidth);
             view = new PlannerView(owner, width);
             List<DialogGUIBase> rows = new List<DialogGUIBase>
@@ -104,7 +110,7 @@ namespace ReDefinition.Engineer
                 scroll.anchorMin = Vector2.zero;
                 scroll.anchorMax = Vector2.one;
                 scroll.offsetMin = Vector2.zero;
-                scroll.offsetMax = Vector2.zero;
+                scroll.offsetMax = new Vector2(reach, 0f);
             }
             // The content is laid out with every row first and shrinks as the
             // rows the plan does not need hide. It is held at its top edge, so

@@ -69,14 +69,16 @@ vessel, pushed to full saturation and brightness so it reads through KSP's soft 
 (`PlannerColors.Vivid`). A selected leg leaves only the stages that pay for it, a selected
 stage only that one.
 
-KSP's layouts take no width of their own: `DialogGUILayoutBase` gives a row the width of its
-elements, not the one it is handed **[src]**. So every row's elements are summed to the room
-the scroll view leaves: it insets its content 4 units at each side, and its bar, 16 wide,
-stands 3 units in from the right edge (the prefab, read with UnityPy) **[src]**.
-`PlannerWidgets.RowRoom` gives that room; in the crew panel's 480 units it is 457. A button
-hidden from a row leaves a space of its width, so that the crosses of all stops line upin one
-column. While any panel slides, every mode button is locked, since the planner's transitions
-pass KSP's own lock by, and a mode chosen during one left the planner standing.
+KSP's layouts take no width of their own: `DialogGUILayoutBase` gives a row the width of
+its elements, not the one it is handed **[src]**. So every row's elements are summed to
+the room the scroll view leaves: it insets its content 4 units at each side, and its bar,
+16 wide, stands 3 units in from the right edge (the prefab, read with UnityPy) **[src]**.
+`PlannerWidgets.RowRoom` gives that room. The list reaches out from the crew panel's
+content area to 2 units short of the panel's right edge, so that its bar sits there as the
+parts list's does; in the 488 units that gives it is 465. A button hidden from a row
+leaves a space of its width, so that the crosses of all stops line upin one column. While
+any panel slides, every mode button is locked, since the planner's transitions pass KSP's
+own lock by, and a mode chosen during one left the planner standing.
 
 The scroll view's own background is cleared (`PlannerWidgets.Settle`), so the panel shows one
 background, as the crew panel does. The planner takes itself out when KSP brings in another

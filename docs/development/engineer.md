@@ -118,14 +118,15 @@ siblings) **[src]**. Bringing one in takes out every other panel the manager lis
 background, `BackgroundMain`, and a content area, `anchorCrewManagement`, inset 10 units
 at the sides and 44 from the top (the editor scene, read with UnityPy) **[src]**.
 
-`PlannerPanel` copies the crew panel under an inactive holder, so that nothing of the
-crew panel wakes up in the copy. It empties the content area, clears the transition's
-events, and puts the copy right after the crew panel among its siblings. It then adds
-the copy to the manager's `panels`. So KSP brings the planner in and out as it does its
-own panels, with the same background and the same transition: bringing it in takes the
-parts list and its categories out, and bringing in any other panel takes the planner
-out. The parts list's icons, the parts themselves drawn by a camera over the UI, go out
-with the list. The planner's rows are built into the content area.
+`PlannerPanel` copies the crew panel under an inactive holder, so that nothing of the crew
+panel wakes up in the copy. It empties the content area, clears the transition's events,
+lets its list reach out to 2 units short of the panel's right edge, and puts the copy
+right after the crew panel among its siblings. It then adds the copy to the manager's
+`panels`. So KSP brings the planner in and out as it does its own panels, with the same
+background and the same transition: bringing it in takes the parts list and its categories
+out, and bringing in any other panel takes the planner out. The parts list's icons, the
+parts themselves drawn by a camera over the UI, go out with the list. The planner's rows
+are built into the content area.
 
 KSP still counts the parts mode as the one shown while the planner is in. Its own
 `ShowPartsList` would therefore do nothing, and KSP's parts button brings the parts list
