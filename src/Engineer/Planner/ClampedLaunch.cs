@@ -3,8 +3,10 @@ using System.Collections.Generic;
 
 namespace ReDefinition.Engineer
 {
-    // Stages fired while the launch clamps still hold the vessel, and the stage that
-    // releases them, as they burn in flight: together (docs/development/planner.md).
+    // Stages fired while the vessel still stands on the pad, and the stage that lifts
+    // it off, as they burn in flight: together (docs/development/planner.md). The pad
+    // holds it while launch clamps do, or, without clamps, while the engines lit
+    // cannot lift its weight.
     // KSP's delta-v simulation burns every stage after the one before; engines lit
     // on the pad would burn their tanks alone before the boosters that fire with the
     // clamps. Here the held stages (the core) and the releasing stage (the boosters)
@@ -17,11 +19,27 @@ namespace ReDefinition.Engineer
         // the lift-off, numbered as the last held stage, and what burns on after it,
         // numbered as the releasing stage, so that the order by number stays the order
         // they burn in; `labels` names them ("S4+3", then "S4" or "S3").
-        internal static List<StageRow> Parallel(List<StageRow> rows, IList<PartFacts> parts, Dictionary<int, string> labels)
+        // `gravity`: at the launch body's surface, in m/s².
+        internal static List<StageRow> Parallel(List<StageRow> rows, IList<PartFacts> parts, Dictionary<int, string> labels,
+                                                double gravity)
         {
             int release = int.MinValue;
+            bool clamps = false;
             foreach (PartFacts part in parts)
-                if (part.Clamp) release = Math.Max(release, part.ActivatesAt);
+                if (part.Clamp)
+                {
+                    clamps = true;
+                    release = Math.Max(release, part.ActivatesAt);
+                }
+            if (!clamps)
+            {
+                // The first stage with engines, too weak to lift the vessel, and the
+                // next one with engines, which the player fires at once.
+                List<StageRow> burning = rows.FindAll(row => row.DeltaVVacuum > 0.5 && row.ThrustVacuum > 0.0);
+                if (burning.Count < 2 || gravity <= 0.0) return rows;
+                if (burning[0].ThrustVacuum >= burning[0].StartMass * gravity) return rows;
+                release = burning[1].Number;
+            }
             if (release < 0) return rows;
             StageRow freed = rows.Find(row => row.Number == release);
             List<StageRow> held = rows.FindAll(row => row.Number > release && row.DeltaVVacuum > 0.5 && row.ThrustVacuum > 0.0);
@@ -75,8 +93,6 @@ namespace ReDefinition.Engineer
                 first.ThrustAtSurface[body.Key] = thrust + body.Value;
             }
             first.ThrustTorque = core.ThrustTorque + freed.ThrustTorque;
-            first.GimbalTorque = core.GimbalTorque + freed.GimbalTorque;
-            first.ThrustArm = first.Thrust > 0.0 ? (core.ThrustArm * core.Thrust + freed.ThrustArm * freed.Thrust) / first.Thrust : 0.0;
             first.Number = core.Number;
 
             // What burns on: the core, after the boosters are dropped where the core

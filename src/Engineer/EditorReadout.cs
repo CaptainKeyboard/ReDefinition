@@ -218,10 +218,7 @@ namespace ReDefinition.Engineer
                     row.OwnCost += cost;
                 }
             }
-            double thrustSum, gimbal;
-            row.ThrustTorque = ThrustTorque(info, partInfos, out thrustSum, out gimbal);
-            row.ThrustArm = thrustSum > 0.0 ? row.ThrustTorque / thrustSum : 0.0;
-            row.GimbalTorque = gimbal;
+            row.ThrustTorque = ThrustTorque(info, partInfos);
             SurfaceThrust(row, info, vectoredThrust);
             return row;
         }
@@ -310,14 +307,8 @@ namespace ReDefinition.Engineer
         // what is attached at its start, at full thrust: zero for a vessel whose
         // thrust runs through its centre of mass. KSP's exhaust leaves along a
         // thrust transform's forward axis, and the thrust pushes the other way.
-        // Also the engines' thrust summed, and the most torque their gimbals give: at
-        // each nozzle, its thrust times the sine of its gimbal's range at the
-        // gimbal limiter, times its distance from the centre of mass.
-        private static double ThrustTorque(DeltaVStageInfo info, List<DeltaVPartInfo> partInfos, out double thrustSum,
-                                           out double gimbalTorque)
+        private static double ThrustTorque(DeltaVStageInfo info, List<DeltaVPartInfo> partInfos)
         {
-            thrustSum = 0.0;
-            gimbalTorque = 0.0;
             if (info.enginesActiveInStage == null || info.enginesActiveInStage.Count == 0 || partInfos == null) return 0.0;
 
             Vector3 weighted = Vector3.zero;
@@ -339,9 +330,6 @@ namespace ReDefinition.Engineer
                 ModuleEngines engine = engineInfo != null ? engineInfo.engine : null;
                 if (engine == null || engine.thrustTransforms == null || engine.thrustTransforms.Count == 0) continue;
                 float thrust = engineInfo.thrustActual;
-                thrustSum += thrust;
-                ModuleGimbal gimbal = engine.part != null ? engine.part.FindModuleImplementing<ModuleGimbal>() : null;
-                double range = gimbal != null && !gimbal.gimbalLock ? gimbal.gimbalRange * gimbal.gimbalLimiter * 0.01 : 0.0;
                 for (int i = 0; i < engine.thrustTransforms.Count; i++)
                 {
                     Transform nozzle = engine.thrustTransforms[i];
@@ -351,7 +339,6 @@ namespace ReDefinition.Engineer
                         : 1f / engine.thrustTransforms.Count;
                     Vector3 force = -nozzle.forward * thrust * share;
                     torque += Vector3.Cross(nozzle.position - centre, force);
-                    gimbalTorque += thrust * share * Math.Sin(range * Math.PI / 180.0) * (nozzle.position - centre).magnitude;
                 }
             }
             return torque.magnitude;

@@ -37,10 +37,6 @@ namespace ReDefinition.Engineer
         // Of the engines burning in this stage, about the centre of mass at its
         // start: how much their thrust turns the vessel.
         public double ThrustTorque;
-        // The thrust's lever about that centre, in metres (ThrustTorque over the sum
-        // of the engines' thrust), and the most torque its gimbals can set against it.
-        public double ThrustArm;
-        public double GimbalTorque;
 
         // Filled by StageTable.Complete.
         public double DeltaVRemaining;

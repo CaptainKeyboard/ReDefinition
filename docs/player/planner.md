@@ -168,7 +168,7 @@ transfer burn that takes too long can miss its target.
 |---|---|
 | a stage | the vessel's mass as the stage starts its part; the stage's Isp in vacuum; its TWR as it starts its part and as it ends it, in vacuum; *In air* on a launch or a landing where the body has air; its thrust in vacuum; how long it burns in this step |
 | a burn in orbit | its name; how long it takes, its share of the orbit and the orbit's time, and about how much delta-v it loses; red with a *+* where the stages run out before it ends or a stage has no thrust |
-| a note | on a launch, in orange, a launch stage whose thrust runs beside the centre of mass by more than its gimbals can correct; where a section docks, its RCS for the last metres, in orange where it has no RCS or no RCS propellant |
+| a note | where a section docks, its RCS for the last metres, in orange where it has no RCS or no RCS propellant |
 | the body | the body the TWR is against, its surface gravity and its air |
 
 A burn in red also shows as a line under its step on the route. More thrust or less mass
@@ -185,7 +185,8 @@ mass each stage pushes at that moment, so a stage that burns later, when the ves
 lighter, goes further.
 
 Engines you light on the pad while launch clamps hold the vessel burn together with the
-stage that releases the clamps. KSP's own delta-v readout burns them one after the other,
+stage that releases the clamps. Without clamps, the same goes for a first stage too weak
+to lift the vessel: you fire the next one at once. KSP's own delta-v readout burns them one after the other,
 as if the core flew alone first. The planner lifts off with both instead, for example
 *S4+3* for the core of stage 4 and the boosters of stage 3, until one of them is empty.
 What burns on after that is shown on its own, such as *S4* for the core once the

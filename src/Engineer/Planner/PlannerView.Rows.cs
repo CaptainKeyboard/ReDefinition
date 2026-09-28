@@ -32,7 +32,7 @@ namespace ReDefinition.Engineer
         private const float RowHeight = 20f;
         // The fuel plan's stage rows: the swatch, the stage's name, Drop after.
         private const float Swatch = 8f;
-        private const float StageName_ = 32f;
+        private const float StageName_ = 38f;
         private const float DropButton = 80f;
         // Where a step goes, and the room left of a bar.
         private const float Place = 145f;
@@ -560,7 +560,7 @@ namespace ReDefinition.Engineer
         private const float FuelNeeds = 72f;
         private const float FuelLeft = 80f;
         private const float StageGives = 72f;
-        private const float StageKeeps = 110f;
+        private const float StageKeeps = 104f;
         private const float StageTwr = 40f;
         private const float UseButton = 48f;
         private readonly SegmentBar[,] fuelSwatches = new SegmentBar[MaxFuelSteps, MaxStepStages];
@@ -898,12 +898,10 @@ namespace ReDefinition.Engineer
         // and how long it burns, then each burn in orbit and the body.
         private const float MassColumn = 60f;
         private const float IspColumn = 44f;
-        private const float TwrColumn = 40f;
+        private const float TwrColumn = 38f;
         private const float ThrustColumn = 60f;
         private const float BurnColumn = 64f;
         private const int MaxNotes = 3;
-        // Thrust off the centre of mass by less than this, in metres, is left alone.
-        private const double OffCentre = 0.05;
         private const float BurnName = 180f;
 
         // A step as the thrust section shows it, worked out with the budget.
@@ -982,21 +980,10 @@ namespace ReDefinition.Engineer
             }
         }
 
-        // What docks, and its RCS for the last metres; a launch stage whose thrust
-        // runs beside the centre of mass.
+        // What docks, and its RCS for the last metres.
         private void AddNotes(ThrustStep entry)
         {
             RouteStep step = steps[entry.Step];
-            if (Launches(step) && entry.Uses.Count > 0)
-            {
-                StageRow row = stages.Find(item => item.Number == entry.Uses[0].Stage);
-                if (row != null && row.ThrustArm > OffCentre && row.ThrustTorque > row.GimbalTorque)
-                {
-                    entry.Notes.Add("<color=" + Warning + ">Thrust of " + StageLabel(row.Number) + " off-centre by "
-                                    + row.ThrustArm.ToString("0.00", CultureInfo.InvariantCulture) + " m, more than its gimbals correct</color>");
-                    entry.Warns = true;
-                }
-            }
             if (step.Docks && step.Flyer.Kind == FlyerKind.Alone)
             {
                 LiveSection section = SectionById(step.Flyer.Section);

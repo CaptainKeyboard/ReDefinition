@@ -88,10 +88,7 @@ The planner uses no text to explain itself. From the top:
   needs and the deciding stage's TWR (`PlannerView.TwrAt`); on other steps the largest
   share of its orbit a burn takes (`BurnCheck`). Open, each stage it burns with its TWR as
   it starts and ends (`StageUse.Mass`, `EndMass`), in the air, its thrust and burn time;
-  each burn in orbit; notes (`AddNotes`): a launch stage whose thrust torque
-  (`StageRow.ThrustTorque`, lever `ThrustArm` above 0.05 m) exceeds what its gimbals give
-  (`GimbalTorque`: thrust times the sine of the gimbal range at its limiter, times the
-  nozzle's distance from the centre of mass), and the RCS of a section that docks
+  each burn in orbit; notes (`AddNotes`): the RCS of a section that docks
   (`PartFacts.RcsThrust` at the thrust limit, `RcsThrustOverIsp`, `RcsBurns`,
   `RcsResources` from `ModuleRCS`: the resources its own thrusters burn in the parts still
   attached, no more than the section's mass after the step holds over their dry mass); the
@@ -251,13 +248,15 @@ the community delta-v maps **[meas]**.
 ## How the stages pay for the steps
 
 Before the budget, `ClampedLaunch.Parallel` rewrites the stages lit while launch clamps
-hold the vessel. The clamps release at their `ActivatesAt`; every stage with delta-v and a
-higher number (the core) burns together with the releasing stage (the boosters). At the
-summed thrust and flow (flow = vacuum thrust over exhaust speed, the exhaust speed from
-the stage's delta-v and masses), both burn from the full mass until the first is empty:
-the lift-off row, numbered as the last held stage. What is left burns on alone in a second
-row, numbered as the releasing stage, so that the order by number stays the burn order:
-the core after the boosters' mass is dropped where its engines decouple later than theirs,
+hold the vessel. The clamps release at their `ActivatesAt`; without clamps, a first stage
+with engines whose vacuum thrust cannot lift its start mass at the launch body's surface
+is held until the next stage with engines; every stage with delta-v and a higher number
+(the core) burns together with the releasing stage (the boosters). At the summed thrust
+and flow (flow = vacuum thrust over exhaust speed, the exhaust speed from the stage's
+delta-v and masses), both burn from the full mass until the first is empty: the lift-off
+row, numbered as the last held stage. What is left burns on alone in a second row,
+numbered as the releasing stage, so that the order by number stays the burn order: the
+core after the boosters' mass is dropped where its engines decouple later than theirs,
 else the boosters. `PlannerView.StageLabel` names them *S4+3* and *S4* or *S3*. It applies
 only where nothing is dropped on the pad from the first held stage to the release, and
 where the core's tanks are dry as KSP starts the releasing stage; stages on the pad

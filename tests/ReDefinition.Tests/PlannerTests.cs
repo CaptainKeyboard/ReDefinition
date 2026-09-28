@@ -1554,17 +1554,18 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1L:S 1T:S 1L:L< 2L:L> 2T:S 2L:C<", Shape(steps));
             Assert.IsTrue(steps.Any(step => step.Problem != null && step.Problem.Contains("no docking port")));
         }
-        // The rocket from the game: S4 lights the core on the pad (2,240 kN, Isp 336 s,
-        // 180 t of fuel), S3 fires four boosters (2,680 kN, Isp 220 s, 56.4 t) and
-        // releases the clamps, S2 drops the boosters (25.5 t).
+        // The stock Learstar A1 as KSP's delta-v simulation gives it (Ships/VAB/Learstar
+        // A1.craft): S4 lights the Rhino core and two Thuds on the pad (2,240 kN, Isp
+        // 336 s, 180 t of fuel), S3 fires four Kickbacks (2,680 kN, Isp 220 s, 75 t of
+        // solid fuel) and releases the clamps, S2 drops the boosters (18.3 t).
         private static List<StageRow> PadRows()
         {
             return new List<StageRow>
             {
                 new StageRow { Number = 4, StartMass = 321.9, EndMass = 141.9, DeltaVVacuum = 336 * 9.80665 * System.Math.Log(321.9 / 141.9), ThrustVacuum = 2240, Thrust = 2240 },
-                new StageRow { Number = 3, StartMass = 141.9, EndMass = 85.5, DeltaVVacuum = 220 * 9.80665 * System.Math.Log(141.9 / 85.5), ThrustVacuum = 2680, Thrust = 2680 },
-                new StageRow { Number = 2, StartMass = 60.0, EndMass = 60.0 },
-                new StageRow { Number = 0, StartMass = 12.0, EndMass = 9.0, DeltaVVacuum = 297, ThrustVacuum = 60 },
+                new StageRow { Number = 3, StartMass = 141.9, EndMass = 66.9, DeltaVVacuum = 220 * 9.80665 * System.Math.Log(141.9 / 66.9), ThrustVacuum = 2680, Thrust = 2680 },
+                new StageRow { Number = 2, StartMass = 48.6, EndMass = 48.6 },
+                new StageRow { Number = 0, StartMass = 14.28, EndMass = 12.0, DeltaVVacuum = 570, ThrustVacuum = 158.4 },
             };
         }
 
@@ -1584,16 +1585,16 @@ namespace ReDefinition.Tests
         public void EnginesLitOnThePadBurnWithTheBoostersThatReleaseTheClamps()
         {
             Dictionary<int, string> labels = new Dictionary<int, string>();
-            List<StageRow> rows = ClampedLaunch.Parallel(PadRows(), PadParts(), labels);
+            List<StageRow> rows = ClampedLaunch.Parallel(PadRows(), PadParts(), labels, 9.81);
 
             Assert.AreEqual(4, rows[0].Number, "the lift-off");
             Near(321.9, rows[0].StartMass, 0.01, "lifts off full");
             Near(4920, rows[0].ThrustVacuum, 0.1, "at the core's and the boosters' thrust");
-            Near(45.4, rows[0].BurnTime, 0.2, "until the boosters are empty");
-            Near(234.6, rows[0].EndMass, 0.3, "both burning");
+            Near(60.4, rows[0].BurnTime, 0.1, "until the boosters are empty");
+            Near(205.85, rows[0].EndMass, 0.1, "both burning");
             Assert.AreEqual(3, rows[1].Number, "the core burns on");
-            Near(rows[0].EndMass - 25.5, rows[1].StartMass, 0.01, "after the boosters are dropped");
-            Near(60.0, rows[1].EndMass, 0.01, "down to the mass KSP has after both");
+            Near(187.55, rows[1].StartMass, 0.1, "after the boosters are dropped");
+            Near(48.6, rows[1].EndMass, 0.01, "down to the mass KSP has after both");
             Near(2240, rows[1].ThrustVacuum, 0.1, "the core alone");
             Assert.AreEqual("S4+3", labels[4]);
             Assert.AreEqual("S4", labels[3]);
@@ -1611,7 +1612,7 @@ namespace ReDefinition.Tests
             rows.Insert(1, new StageRow { Number = 4, StartMass = 141.9, EndMass = 141.9 });
             List<PartFacts> parts = PadParts();
             parts[0].ActivatesAt = 5;
-            List<StageRow> result = ClampedLaunch.Parallel(rows, parts, new Dictionary<int, string>());
+            List<StageRow> result = ClampedLaunch.Parallel(rows, parts, new Dictionary<int, string>(), 9.81);
 
             CollectionAssert.AreEqual(new[] { 5, 3, 2, 0 }, result.Select(row => row.Number).ToArray());
         }
@@ -1624,17 +1625,29 @@ namespace ReDefinition.Tests
             rows[1].StartMass = 120.0;
             rows[1].DeltaVVacuum = 220 * 9.80665 * System.Math.Log(120.0 / 85.5);
 
-            Assert.AreSame(rows, ClampedLaunch.Parallel(rows, PadParts(), new Dictionary<int, string>()));
+            Assert.AreSame(rows, ClampedLaunch.Parallel(rows, PadParts(), new Dictionary<int, string>(), 9.81));
         }
 
         [TestMethod]
-        public void WithoutLaunchClampsTheStagesStayAsKspBurnsThem()
+        public void WithoutClampsACoreTooWeakToLiftOffBurnsWithTheNextStage()
+        {
+            // The core alone: TWR 0.71 in vacuum. The player fires the boosters at once.
+            List<PartFacts> parts = PadParts();
+            parts[2].Clamp = false;
+            List<StageRow> rows = ClampedLaunch.Parallel(PadRows(), parts, new Dictionary<int, string>(), 9.81);
+
+            Near(4920, rows[0].ThrustVacuum, 0.1, "lifts off with both");
+        }
+
+        [TestMethod]
+        public void WithoutClampsACoreThatLiftsOffBurnsAlone()
         {
             List<PartFacts> parts = PadParts();
             parts[2].Clamp = false;
             List<StageRow> rows = PadRows();
+            rows[0].ThrustVacuum = 4000;
 
-            Assert.AreSame(rows, ClampedLaunch.Parallel(rows, parts, new Dictionary<int, string>()));
+            Assert.AreSame(rows, ClampedLaunch.Parallel(rows, parts, new Dictionary<int, string>(), 9.81));
         }
     }
 }

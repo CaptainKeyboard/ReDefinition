@@ -167,7 +167,7 @@ namespace ReDefinition.Engineer
             allStages = new List<StageRow>(readout.Stages);
             allStages.Sort((a, b) => b.Number.CompareTo(a.Number));
             stageLabels.Clear();
-            allStages = ClampedLaunch.Parallel(allStages, readout.PartFacts, stageLabels);
+            allStages = ClampedLaunch.Parallel(allStages, readout.PartFacts, stageLabels, LaunchGravity());
             stages = allStages.FindAll(row => row.DeltaVVacuum > 0.5);
 
             Detect(readout.PartFacts);
@@ -192,6 +192,14 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
             UpdateBars();
             Mark();
+        }
+
+        // At the surface of the route's first stop, where the vessel lifts off.
+        private double LaunchGravity()
+        {
+            if (!Ready() || state.Stops.Count == 0 || state.Stops[0].Body < 0) return StageTable.StandardGravity;
+            PlannerBody body = bodies.Bodies[state.Stops[0].Body];
+            return body.Mu / (body.Radius * body.Radius);
         }
 
         private bool Ready()
