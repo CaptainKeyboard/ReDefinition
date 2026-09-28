@@ -33,8 +33,9 @@ The planner uses no text to explain itself. From the top:
 * Every choice carries a tooltip of one sentence. KSP's button prefab has no tooltip
   controller, so `DialogTooltips.Attach` adds the game's own to every element with a
   tooltip once the rows are created.
-* *Vessel*: a line on the vessel as built (`PlannerView.VesselText`: `EditorReadout` mass,
-  fuel mass without crew and the stages' delta-v in vacuum), then up to six rows, each
+* *Craft*: on its header bar the craft as built (`PlannerView.VesselText`: `EditorReadout`
+  mass, fuel mass without crew and the stages' delta-v in vacuum), then up to six section
+  rows, each with a dot as a stop has, its name in a column of 90 (`SectionName`), each
   with what it is in the column of a step's place, its parts on a button from the column
   of who flies a step, and its cross where a stop's cross is; under a satellite *Deployed
   at*, and a red line for a capsule without parachutes or a section overlapping another.
@@ -56,14 +57,16 @@ The planner uses no text to explain itself. From the top:
   it docks at its end, a grey line for the satellites that stay there, the further choices
   in groups of their own (*Burns*, *Way down*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
-* Each part (*Vessel*, *Route*, *Fuel plan*, *Thrust*) is a header bar, lighter, and a
-  box, darker, holding its rows (`PlannerView.Section`, colours drawn by `Tint.Behind`); a
-  click anywhere on the bar folds the part (`CollapsibleHeading`, its background answering
-  the pointer), *+* or *-* at its right; the box of a folded part hides. *Route* starts
-  with *Fuel margin* and *Plane changes* and ends with one bar summing up the route.
+* Each part (*Craft*, *Route*, *Fuel plan*, *Thrust*) is a header bar, lighter, rounded at
+  the top (all round while folded, `ShapeHeaders`), and a box, darker, rounded at the
+  bottom (`Rounded`: a 16-pixel white shape with 5-pixel corners, 9-sliced), holding its
+  rows (`PlannerView.Section`, colours drawn by `Tint.Behind`); a click anywhere on the
+  bar folds the part (`CollapsibleHeading`, its background answering the pointer), *+* or
+  *-* at its right; the box of a folded part hides. *Route* starts with *Fuel margin* and
+  *Plane changes* and ends with one bar summing up the route.
 * The header bars carry a summary: Fuel plan and Thrust always, the steps short of fuel,
-  the steps with too low a TWR and the burns too long; Vessel and Route while folded, the
-  vessel line and the route's balance.
+  the steps with too low a TWR and the burns too long; Craft always, its mass, fuel and
+  delta-v; Route while folded, its balance.
 * The fuel plan: a row per step, up to 30, in the columns of the step rows (where it
   goes, who flies it), with what it needs and what what flew it has left after
   (`StageBudget.Result.LeftAfter`), in red what it lacks or where it has a problem; *+*

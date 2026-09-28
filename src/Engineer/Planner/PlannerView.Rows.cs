@@ -61,21 +61,18 @@ namespace ReDefinition.Engineer
         internal List<DialogGUIBase> Rows()
         {
             altitudeFields.Clear();
+            headerTints.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
 
             List<DialogGUIBase> vessel = new List<DialogGUIBase>();
-            DialogGUILabel vesselLine = new DialogGUILabel(VesselText, width - SectionInset - RowEnd, RowHeight);
-            vesselLine.tooltipText = "The vessel as built: its mass, the fuel in it and its delta-v in vacuum.";
-            vessel.Add(new DialogGUIHorizontalLayout(width, RowHeight + 2f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(SectionInset), vesselLine));
             for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));
             vessel.Add(AddSectionRow());
-            rows.AddRange(Section(CollapsibleHeading("Vessel", () => vesselShown, () => vesselShown = !vesselShown,
-                "Show or hide the vessel and its sections.", VesselSummary), vessel, () => vesselShown));
+            rows.AddRange(Section("Craft", () => vesselShown, () => vesselShown = !vesselShown,
+                "The craft as built: its mass, the fuel in it and its delta-v in vacuum. Below, its sections.", VesselText, vessel));
 
             List<DialogGUIBase> route = new List<DialogGUIBase>();
             route.Add(SettingsRow());
-            route.Add(new DialogGUISpace(4f));
+            route.Add(new DialogGUISpace(6f));
             for (int i = 0; i < MaxStops; i++)
             {
                 route.AddRange(StopRows(i));
@@ -84,14 +81,13 @@ namespace ReDefinition.Engineer
             }
             route.Add(AddRow());
             route.AddRange(SummaryRows());
-            rows.AddRange(Section(CollapsibleHeading("Route", () => routeShown, () => routeShown = !routeShown,
-                "Show or hide the route.", RouteSummary), route, () => routeShown));
+            rows.AddRange(Section("Route", () => routeShown, () => routeShown = !routeShown,
+                "The destinations and the steps between them.", RouteSummary, route));
 
-            rows.AddRange(Section(CollapsibleHeading("Fuel plan", () => fuelShown, () => fuelShown = !fuelShown,
-                "Show or hide the delta-v each step needs and what remains after it.", FuelSummary), FuelRows(), () => fuelShown));
-            rows.AddRange(Section(CollapsibleHeading("Thrust", () => thrustShown, () => thrustShown = !thrustShown,
-                "Show or hide the thrust-to-weight ratio of launches and landings and the duration of each burn.", ThrustSummary),
-                ThrustRows(), () => thrustShown));
+            rows.AddRange(Section("Fuel plan", () => fuelShown, () => fuelShown = !fuelShown,
+                "The delta-v each step needs and what remains after it.", FuelSummary, FuelRows()));
+            rows.AddRange(Section("Thrust", () => thrustShown, () => thrustShown = !thrustShown,
+                "The thrust-to-weight ratio of launches and landings and the duration of each burn.", ThrustSummary, ThrustRows()));
             return rows;
         }
 
@@ -107,26 +103,33 @@ namespace ReDefinition.Engineer
         private bool vesselShown = true;
         private bool routeShown = true;
 
-        // Folded, the vessel's mass and delta-v, and what the route leaves.
-        private string VesselSummary()
-        {
-            return vesselShown ? "" : VesselText();
-        }
-
+        // Folded, what the route leaves.
         private string RouteSummary()
         {
             return routeShown ? "" : SummaryText();
         }
 
-        private IEnumerable<DialogGUIBase> Section(DialogGUIBase header, IEnumerable<DialogGUIBase> rows, System.Func<bool> shown)
+        // The header bars' backgrounds, rounded at the top while their part is open and
+        // all round while it is folded (Keep).
+        private readonly List<KeyValuePair<TintImage, System.Func<bool>>> headerTints =
+            new List<KeyValuePair<TintImage, System.Func<bool>>>();
+
+        private IEnumerable<DialogGUIBase> Section(string title, System.Func<bool> shown, Callback toggle, string tooltip,
+                                                   System.Func<string> summary, IEnumerable<DialogGUIBase> rows)
         {
-            yield return header;
-            DialogGUIVerticalLayout box = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(0, 0, 6, 8), TextAnchor.UpperLeft,
+            yield return CollapsibleHeading(title, shown, toggle, tooltip, summary);
+            DialogGUIVerticalLayout box = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(0, 0, 8, 10), TextAnchor.UpperLeft,
                 new List<DialogGUIBase>(rows).ToArray());
-            if (shown != null) box.OptionEnabledCondition = shown;
-            Tint.Behind(box, BoxColour, 0f, width, after);
+            box.OptionEnabledCondition = shown;
+            Tint.Behind(box, BoxColour, 0f, width, after, false, Rounded.Get(false, true));
             yield return box;
             yield return new DialogGUISpace(SectionGap);
+        }
+
+        private void ShapeHeaders()
+        {
+            foreach (KeyValuePair<TintImage, System.Func<bool>> header in headerTints)
+                header.Key.Shape(Rounded.Get(true, !header.Value()));
         }
 
         // The route's settings: the fuel margin and the plane changes.
@@ -161,8 +164,10 @@ namespace ReDefinition.Engineer
             group.tooltipText = "Choose which parts of the vessel form this section.";
             DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveSection(row), Square, Square, 14f,
                 "Remove this section.", after);
-            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
-                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel(() => SectionLabel(row), Place), group, remove);
+            DialogGUIHorizontalLayout dot = new DialogGUIHorizontalLayout(Timeline, Square, 0f, new RectOffset(4, 0, 0, 0),
+                TextAnchor.MiddleLeft, PlannerWidgets.Icon("Dot", 12f, PlannerColors.Line), new DialogGUISpace(Timeline - 16f));
+            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 4f, 4f, new RectOffset(0, 0, 2, 0),
+                TextAnchor.MiddleLeft, dot, new DialogGUILabel(() => SectionLabel(row), SectionName), group, remove);
             line.OptionEnabledCondition = () => RowSection(row) != null;
             yield return line;
 
@@ -170,13 +175,13 @@ namespace ReDefinition.Engineer
             stop = new DialogGUIButton(() => DeployText(row), () => PickDeployStop(row, stop), PartButtonWidth, Square, false);
             stop.tooltipText = "Choose the destination where the satellite is deployed.";
             DialogGUIHorizontalLayout deploy = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
-                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">Deployed at</color>", Place),
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">Deployed at</color>", SectionName),
                 stop);
             deploy.OptionEnabledCondition = () => IsKind(row, SectionKind.Satellite);
             yield return deploy;
 
             DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
-                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUISpace(Place),
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUISpace(SectionName),
                 new DialogGUILabel(() => "<color=" + Problem + ">" + SectionWarning(row) + "</color>", PartButtonWidth, RowHeight));
             warning.OptionEnabledCondition = () => SectionWarning(row).Length > 0;
             yield return warning;
@@ -190,9 +195,8 @@ namespace ReDefinition.Engineer
             if (readout == null || !readout.HasShip) return "";
             double deltaV = 0.0;
             foreach (StageRow row in readout.Stages) deltaV += row.DeltaVVacuum;
-            return "<color=" + Dim + ">Mass</color> " + EngineerFormat.Mass(readout.WetMass) + "<pos=35%><color=" + Dim + ">Fuel</color> "
-                   + EngineerFormat.Mass(readout.FuelMass) + "<pos=70%><color=" + Dim + ">Δv</color> "
-                   + EngineerFormat.Speed(deltaV);
+            return "<color=" + Dim + ">Mass</color> " + EngineerFormat.Mass(readout.WetMass) + "<pos=34%><color=" + Dim + ">Fuel</color> "
+                   + EngineerFormat.Mass(readout.FuelMass) + "<pos=67%><color=" + Dim + ">Δv</color> " + EngineerFormat.Speed(deltaV);
         }
 
         // "+" to add a section, in the column of a section's name.
@@ -207,10 +211,12 @@ namespace ReDefinition.Engineer
             return row;
         }
 
-        // A section's buttons: from who flies a step to where a stop's cross ends.
+        // A section's name, then its buttons up to where a stop's cross ends.
+        private const float SectionName = 90f;
+
         private float PartButtonWidth
         {
-            get { return Mathf.Max(120f, width - Timeline - Place - 4f * 2f - RowEnd); }
+            get { return Mathf.Max(120f, width - Timeline - SectionName - 4f * 2f - RowEnd); }
         }
 
         // ----------------------------------------------------------------- stops
@@ -524,8 +530,9 @@ namespace ReDefinition.Engineer
             yield return new DialogGUISpace(8f);
             totalBar = new SegmentBar(MaxStages + 2, BarHeight + 4f, after);
             yield return new DialogGUIHorizontalLayout(width, BarHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                totalBar.Layout, new DialogGUIFlexibleSpace());
-            yield return new DialogGUILabel(SummaryText, width, RowHeight);
+                new DialogGUISpace(SectionInset), totalBar.Layout, new DialogGUIFlexibleSpace());
+            yield return new DialogGUIHorizontalLayout(width, RowHeight + 2f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(SectionInset), new DialogGUILabel(SummaryText, width - SectionInset * 2f, RowHeight));
         }
 
         private string SummaryText()
@@ -770,12 +777,23 @@ namespace ReDefinition.Engineer
         // "To Mun orbit".
         private string FuelPlace(int step)
         {
-            return FuelStepShown(step) ? "To " + RouteSteps.Place(bodies.Bodies, steps[step].To) : "";
+            return FuelStepShown(step) ? StepName(step) : "";
         }
 
         private string FuelFlyer(int step)
         {
-            return FuelStepShown(step) ? "<color=" + Dim + ">" + FlyerName(steps[step].Flyer) + "</color>" : "";
+            return FuelStepShown(step) ? StepFlyer(step) : "";
+        }
+
+        // "To Mun orbit", and who flies it, for the fuel plan and the thrust section.
+        private string StepName(int step)
+        {
+            return step >= 0 && step < steps.Count ? "To " + RouteSteps.Place(bodies.Bodies, steps[step].To) : "";
+        }
+
+        private string StepFlyer(int step)
+        {
+            return step >= 0 && step < steps.Count ? "<color=" + Dim + ">" + FlyerName(steps[step].Flyer) + "</color>" : "";
         }
 
         private string FuelNeedsText(int step)
@@ -1028,8 +1046,8 @@ namespace ReDefinition.Engineer
             open.tooltipText = "Show the stages of this step with their thrust, and each burn.";
             float room = Mathf.Max(0f, width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - 4f * 6f - RowEnd);
             DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(Timeline), new DialogGUILabel(() => ThrustAt(row) != null ? FuelPlace(ThrustAt(row).Step) : "", Place),
-                new DialogGUILabel(() => ThrustAt(row) != null ? FuelFlyer(ThrustAt(row).Step) : "", VehicleButton),
+                new DialogGUISpace(Timeline), new DialogGUILabel(() => ThrustAt(row) != null ? StepName(ThrustAt(row).Step) : "", Place),
+                new DialogGUILabel(() => ThrustAt(row) != null ? StepFlyer(ThrustAt(row).Step) : "", VehicleButton),
                 new DialogGUILabel(() => ThrustNeedsText(ThrustAt(row)), FuelNeeds), new DialogGUILabel(() => ThrustHasText(ThrustAt(row)), FuelLeft),
                 new DialogGUISpace(room), open);
             line.OptionEnabledCondition = () => ThrustAt(row) != null;
@@ -1241,7 +1259,8 @@ namespace ReDefinition.Engineer
                 TextAnchor.MiddleLeft, titleLabel,
                 new DialogGUILabel(() => Worked() ? summary() : "", width - SectionInset - HeadingTitle - Square - 4f * 2f - RowEnd - 6f,
                     RowHeight), sign);
-            Tint.Behind(heading, HeaderColour, 0f, width, after, true);
+            headerTints.Add(new KeyValuePair<TintImage, System.Func<bool>>(
+                Tint.Behind(heading, HeaderColour, 0f, width, after, true, Rounded.Get(true, false)), shown));
             PlannerWidgets.Clickable(heading, toggle, after);
             return heading;
         }
@@ -1336,7 +1355,7 @@ namespace ReDefinition.Engineer
             double sum = 0.0;
             foreach (KeyValuePair<double, Color> part in parts) sum += part.Key;
             double scale = System.Math.Max(1.0, System.Math.Max(sum, System.Math.Max(TotalNeeded(), TotalHas())));
-            float usable = Mathf.Max(20f, width - parts.Count);
+            float usable = Mathf.Max(20f, width - SectionInset * 2f - parts.Count);
             List<KeyValuePair<float, Color>> total = new List<KeyValuePair<float, Color>>();
             foreach (KeyValuePair<double, Color> part in parts) total.Add(Piece(part.Key / scale * usable, part.Value));
             totalBar.Set(total);

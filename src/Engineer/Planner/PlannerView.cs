@@ -127,6 +127,7 @@ namespace ReDefinition.Engineer
         internal void Keep()
         {
             highlight.Refresh();
+            ShapeHeaders();
             bool typing = Typing();
             if (typing == typingLocked) return;
             typingLocked = typing;

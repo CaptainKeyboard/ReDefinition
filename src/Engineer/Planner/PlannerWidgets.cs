@@ -65,10 +65,12 @@ namespace ReDefinition.Engineer
     internal static class Tint
     {
         // `clickable`: the background answers the pointer, so that a click anywhere on
-        // the element reaches its handler.
-        internal static void Behind(DialogGUIBase element, Color color, float left, float right, AfterCreate after,
-                                    bool clickable = false)
+        // the element reaches its handler. `sprite`: a shape stretched over it, such
+        // as rounded corners (Rounded). The image once created, to change its shape.
+        internal static TintImage Behind(DialogGUIBase element, Color color, float left, float right, AfterCreate after,
+                                         bool clickable = false, Sprite sprite = null)
         {
+            TintImage made = new TintImage();
             after.Add(() =>
             {
                 if (element.uiItem == null) return;
@@ -85,7 +87,71 @@ namespace ReDefinition.Engineer
                 Image image = tint.AddComponent<Image>();
                 image.color = color;
                 image.raycastTarget = clickable;
+                if (sprite != null)
+                {
+                    image.sprite = sprite;
+                    image.type = Image.Type.Sliced;
+                }
+                made.Image = image;
             });
+            return made;
+        }
+    }
+
+    internal sealed class TintImage
+    {
+        public Image Image;
+
+        // Its shape, set only when it changes.
+        internal void Shape(Sprite sprite)
+        {
+            if (Image == null || Image.sprite == sprite) return;
+            Image.sprite = sprite;
+            Image.type = Image.Type.Sliced;
+        }
+    }
+
+    // A white shape with slightly rounded corners, top, bottom or both, as KSP's crew
+    // panel rounds its lists: 9-sliced, tinted by the image's colour.
+    internal static class Rounded
+    {
+        private const int Size = 16;
+        private const int Radius = 5;
+        private static readonly Sprite[] made = new Sprite[4];
+
+        internal static Sprite Get(bool top, bool bottom)
+        {
+            int key = (top ? 1 : 0) | (bottom ? 2 : 0);
+            if (made[key] == null) made[key] = Make(top, bottom);
+            return made[key];
+        }
+
+        private static Sprite Make(bool top, bool bottom)
+        {
+            Texture2D texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false)
+            {
+                name = "ReDefinitionRounded", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp,
+            };
+            Color32[] pixels = new Color32[Size * Size];
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    float alpha = 1f;
+                    bool left = x < Radius, right = x >= Size - Radius, low = y < Radius, high = y >= Size - Radius;
+                    if ((left || right) && ((low && bottom) || (high && top)))
+                    {
+                        float cx = left ? Radius : Size - Radius;
+                        float cy = low ? Radius : Size - Radius;
+                        float distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(cx, cy));
+                        alpha = Mathf.Clamp01(Radius - distance + 0.5f);
+                    }
+                    pixels[y * Size + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+                }
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            float border = Radius + 1;
+            return Sprite.Create(texture, new Rect(0f, 0f, Size, Size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect,
+                new Vector4(border, border, border, border));
         }
     }
 

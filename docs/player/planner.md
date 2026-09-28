@@ -24,10 +24,10 @@ back when you load the vessel again.
 
 ## Add the vessel's sections
 
-*Vessel* at the top first shows the vessel as built: its mass, the fuel in it, its delta-v
-in vacuum. Below that it lists the vessel's sections: the parts of it that fly on their
-own. They decide who can fly a step. *+* adds one, and the list of its parts folds out
-right after:
+The header bar of *Craft* at the top shows the craft as built: its mass, the fuel in it
+and its delta-v in vacuum. Below it, *Craft* lists the vessel's sections: the parts of it
+that fly on their own. They decide who can fly a step. *+* adds one, and the list of its
+parts folds out right after:
 
 | Section | Is | Row under it |
 |---|---|---|
@@ -61,9 +61,10 @@ planner. A section the planner added and you removed stays away.
 
 ## Lay out the route
 
-The planner has four parts, each under its own header bar: *Vessel*, *Route*, *Fuel plan*
+The planner has four parts, each under its own header bar: *Craft*, *Route*, *Fuel plan*
 and *Thrust*. A click on a header bar folds or opens its part; *+* or *-* at its right
-shows which. Folded, the bar sums the part up. At the top of *Route* are two settings:
+shows which. The bars sum their part up; *Route*'s shows its balance while it is folded.
+At the top of *Route* are two settings:
 
 | Setting | Does |
 |---|---|
@@ -246,7 +247,7 @@ A vessel to Minmus and home, without a lander:
 A satellite left in a synchronous orbit by an uncrewed rocket:
 
 1. *B*: type 2863 into the altitude field.
-2. Check that *Vessel* shows the satellite; *Deployed at* is *B* by itself.
+2. Check that *Craft* shows the satellite; *Deployed at* is *B* by itself.
 
 A satellite with an engine of its own that circularises by itself, the upper stage left
 in the transfer orbit:
@@ -258,7 +259,7 @@ in the transfer orbit:
 The Kerbal X to the Mun and home, its upper stage with the legs landing:
 
 1. *B*: pick the Mun, *Surface*. *+*, Kerbin, *Surface*.
-2. Check that *Vessel* shows the lander, the pod with the upper stage, and the capsule.
+2. Check that *Craft* shows the lander, the pod with the upper stage, and the capsule.
    Without a docking port, the lander flies home by itself; the capsule lands at home.
 
 A lander that lands on the Mun and docks again, the capsule on the mothership coming
