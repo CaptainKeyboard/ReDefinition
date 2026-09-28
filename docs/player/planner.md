@@ -53,11 +53,10 @@ The planner adds three sections by itself, shown as *Automatic* with what it fou
   lander you add yourself.
 
 A lander with a docking port docks again after it lands, where the rest has a port as
-well; one without flies on alone. *No docking port* under it says so, and its tooltip
-explains it. The steps after it change either (see *Plan with sections*). *Deployed at* is
-by itself the first orbit the route reaches before it lands or ends. What you pick is bold
-and underlined; picking it again gives it back to the planner. A section the planner added
-and you removed stays away.
+well; one without flies on alone. The steps after it change either (see *Plan with
+sections*). *Deployed at* is by itself the first orbit the route reaches before it lands
+or ends. What you pick is bold and underlined; picking it again gives it back to the
+planner. A section the planner added and you removed stays away.
 
 ## Lay out the route
 
@@ -117,9 +116,9 @@ needs and what the vessel has.
 
 ## Read the fuel plan
 
-The button before *Fuel plan*, or a click on its heading, shows and hides it; beside the
-title it says whether every step has enough fuel. It lists every step of the route in its
-order:
+The fuel plan starts folded. The button before *Fuel plan*, or a click on its heading,
+shows and hides it; beside the title it says whether every step has enough fuel. It lists
+every step of the route in its order:
 
 | Column | Shows |
 |---|---|
@@ -145,7 +144,7 @@ the next.
 
 ## Check the thrust
 
-*Thrust* under the fuel plan, shown and hidden as it is, says beside its title whether the
+*Thrust* under the fuel plan, folded and shown as it is, says beside its title whether the
 thrust is enough everywhere, and lists every step that burns. On a launch and a landing on
 the engines, the thrust has to lift the vessel. On every other burn it has to be done in
 time: the vessel goes on round its orbit while it burns, so the longer a burn takes

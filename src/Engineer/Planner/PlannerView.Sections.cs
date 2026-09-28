@@ -401,15 +401,6 @@ namespace ReDefinition.Engineer
             return "";
         }
 
-        // What a section's line under it notes: a lander without a docking port flies on
-        // alone.
-        private string SectionNote(int row)
-        {
-            LiveSection section = RowSection(row);
-            if (section == null || !section.Valid || section.Plan.Kind != SectionKind.Lander || section.CanDock) return "";
-            return "No docking port";
-        }
-
         // The parts that can be the section, each lit on the vessel while the pointer
         // is on it: with a command part, a lander's with engines too; none overlapping
         // another section.

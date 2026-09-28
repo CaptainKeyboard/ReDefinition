@@ -116,14 +116,6 @@ namespace ReDefinition.Engineer
             warning.OptionEnabledCondition = () => SectionWarning(row).Length > 0;
             yield return warning;
 
-            DialogGUILabel noteText = new DialogGUILabel(() => "<color=" + Dim + ">" + SectionNote(row) + "</color>", PartButtonWidth,
-                RowHeight);
-            noteText.tooltipText = "This lander cannot dock with the rest of the vessel again. After landing, it flies the "
-                                   + "following steps on its own.";
-            DialogGUIHorizontalLayout note = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
-                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUISpace(Place), noteText);
-            note.OptionEnabledCondition = () => SectionNote(row).Length > 0;
-            yield return note;
         }
 
         // "+" to add a section, in the column of a section's name.
@@ -495,7 +487,7 @@ namespace ReDefinition.Engineer
         private readonly SegmentBar[,] fuelSwatches = new SegmentBar[MaxFuelSteps, MaxStepStages];
         // The steps open, by destination and role.
         private readonly HashSet<int> fuelOpen = new HashSet<int>();
-        private bool fuelShown = true;
+        private bool fuelShown;
 
         private IEnumerable<DialogGUIBase> FuelRows()
         {
@@ -832,7 +824,7 @@ namespace ReDefinition.Engineer
         // Per step, its entry; null where it burns nothing.
         private ThrustStep[] thrustOf = new ThrustStep[0];
         private readonly HashSet<int> thrustOpen = new HashSet<int>();
-        private bool thrustShown = true;
+        private bool thrustShown;
 
         private IEnumerable<DialogGUIBase> ThrustRows()
         {
