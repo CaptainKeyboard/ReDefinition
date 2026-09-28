@@ -24,9 +24,10 @@ back when you load the vessel again.
 
 ## Add the vessel's sections
 
-*Vessel* at the top lists the vessel's sections: the parts of it that fly on their own.
-They decide who can fly a step. *+* adds one, and the list of its parts folds out right
-after:
+*Vessel* at the top first shows the vessel as built: its mass, the fuel in it, its delta-v
+in vacuum, its parts and its cost. Below that it lists the vessel's sections: the parts of
+it that fly on their own. They decide who can fly a step. *+* adds one, and the list of
+its parts folds out right after:
 
 | Section | Is | Row under it |
 |---|---|---|
@@ -160,8 +161,9 @@ transfer burn that takes too long can miss its target.
 
 | Row | Shows |
 |---|---|
-| a stage | its TWR as it starts its part and as it ends it, in vacuum; *In air* on a launch or a landing where the body has air; its thrust in vacuum; how long it burns in this step |
+| a stage | the vessel's mass as the stage starts its part; the stage's Isp in vacuum; its TWR as it starts its part and as it ends it, in vacuum; *In air* on a launch or a landing where the body has air; its thrust in vacuum; how long it burns in this step |
 | a burn in orbit | its name; how long it takes, its share of the orbit and the orbit's time, and about how much delta-v it loses; red with a *+* where the stages run out before it ends or a stage has no thrust |
+| a note | on a launch, in orange, a launch stage whose thrust runs beside the centre of mass by more than its gimbals can correct; where a section docks, its RCS for the last metres, in orange where it has no RCS or no RCS propellant |
 | the body | the body the TWR is against, its surface gravity and its air |
 
 A burn in red also shows as a line under its step on the route. More thrust or less mass

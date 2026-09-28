@@ -44,6 +44,8 @@ namespace ReDefinition.Engineer
         public double TotalDeltaV;
         public double WetMass;
         public double DryMass;
+        // The resources in it, without crew (ShipConstruct.GetShipMass).
+        public double FuelMass;
         public double Cost;
         public int Parts;
         public bool HasShip;
@@ -65,6 +67,7 @@ namespace ReDefinition.Engineer
             readout.Cost = ship.GetShipCosts(out dryCost, out fuelCost, crew);
             readout.WetMass = ship.GetShipMass(out dryMass, out fuelMass, crew);
             readout.DryMass = dryMass;
+            readout.FuelMass = fuelMass;
             readout.Resources = ResourcesOf(ship.parts);
 
             VesselDeltaV deltaV = ship.vesselDeltaV;
@@ -102,6 +105,13 @@ namespace ReDefinition.Engineer
             Dictionary<Part, int> index = new Dictionary<Part, int>();
             for (int i = 0; i < parts.Count; i++)
                 if (parts[i] != null) index[parts[i]] = i;
+            // The propellants any RCS thruster on the vessel burns.
+            HashSet<string> rcsPropellants = new HashSet<string>();
+            foreach (Part part in parts)
+                if (part != null)
+                    foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+                        if (rcs != null && rcs.propellants != null)
+                            foreach (Propellant propellant in rcs.propellants) rcsPropellants.Add(propellant.name);
 
             List<PartFacts> facts = new List<PartFacts>();
             foreach (Part part in parts)
@@ -140,6 +150,26 @@ namespace ReDefinition.Engineer
                     Mass = dry + part.GetResourceMass(),
                     Tag = part,
                 };
+                foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+                {
+                    if (rcs == null || !rcs.moduleIsEnabled) continue;
+                    double isp = rcs.atmosphereCurve != null ? rcs.atmosphereCurve.Evaluate(0f) : 0.0;
+                    if (isp <= 0.0) continue;
+                    // As ModuleRCS applies it per nozzle (decompiled).
+                    double power = rcs.thrusterPower * rcs.thrustPercentage * 0.01;
+                    fact.RcsThrust += power;
+                    fact.RcsThrustOverIsp += power / isp;
+                    if (rcs.propellants != null)
+                        foreach (Propellant propellant in rcs.propellants) fact.RcsBurns.Add(propellant.name);
+                }
+                for (int i = 0; i < part.Resources.Count; i++)
+                {
+                    PartResource resource = part.Resources[i];
+                    if (resource == null || resource.info == null || !rcsPropellants.Contains(resource.resourceName)) continue;
+                    double held;
+                    fact.RcsResources.TryGetValue(resource.resourceName, out held);
+                    fact.RcsResources[resource.resourceName] = held + resource.amount * resource.info.density;
+                }
                 if (info != null && info.stageFuelMass != null)
                     for (int i = 0; i < info.stageFuelMass.Count; i++)
                     {
@@ -188,7 +218,10 @@ namespace ReDefinition.Engineer
                     row.OwnCost += cost;
                 }
             }
-            row.ThrustTorque = ThrustTorque(info, partInfos);
+            double thrustSum, gimbal;
+            row.ThrustTorque = ThrustTorque(info, partInfos, out thrustSum, out gimbal);
+            row.ThrustArm = thrustSum > 0.0 ? row.ThrustTorque / thrustSum : 0.0;
+            row.GimbalTorque = gimbal;
             SurfaceThrust(row, info, vectoredThrust);
             return row;
         }
@@ -277,8 +310,14 @@ namespace ReDefinition.Engineer
         // what is attached at its start, at full thrust: zero for a vessel whose
         // thrust runs through its centre of mass. KSP's exhaust leaves along a
         // thrust transform's forward axis, and the thrust pushes the other way.
-        private static double ThrustTorque(DeltaVStageInfo info, List<DeltaVPartInfo> partInfos)
+        // Also the engines' thrust summed, and the most torque their gimbals give: at
+        // each nozzle, its thrust times the sine of its gimbal's range at the
+        // gimbal limiter, times its distance from the centre of mass.
+        private static double ThrustTorque(DeltaVStageInfo info, List<DeltaVPartInfo> partInfos, out double thrustSum,
+                                           out double gimbalTorque)
         {
+            thrustSum = 0.0;
+            gimbalTorque = 0.0;
             if (info.enginesActiveInStage == null || info.enginesActiveInStage.Count == 0 || partInfos == null) return 0.0;
 
             Vector3 weighted = Vector3.zero;
@@ -300,6 +339,9 @@ namespace ReDefinition.Engineer
                 ModuleEngines engine = engineInfo != null ? engineInfo.engine : null;
                 if (engine == null || engine.thrustTransforms == null || engine.thrustTransforms.Count == 0) continue;
                 float thrust = engineInfo.thrustActual;
+                thrustSum += thrust;
+                ModuleGimbal gimbal = engine.part != null ? engine.part.FindModuleImplementing<ModuleGimbal>() : null;
+                double range = gimbal != null && !gimbal.gimbalLock ? gimbal.gimbalRange * gimbal.gimbalLimiter * 0.01 : 0.0;
                 for (int i = 0; i < engine.thrustTransforms.Count; i++)
                 {
                     Transform nozzle = engine.thrustTransforms[i];
@@ -309,6 +351,7 @@ namespace ReDefinition.Engineer
                         : 1f / engine.thrustTransforms.Count;
                     Vector3 force = -nozzle.forward * thrust * share;
                     torque += Vector3.Cross(nozzle.position - centre, force);
+                    gimbalTorque += thrust * share * Math.Sin(range * Math.PI / 180.0) * (nozzle.position - centre).magnitude;
                 }
             }
             return torque.magnitude;

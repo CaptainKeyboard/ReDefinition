@@ -63,6 +63,13 @@ namespace ReDefinition.Engineer
             altitudeFields.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(Heading("Vessel"));
+            foreach (bool first in new[] { true, false })
+            {
+                bool line = first;
+                DialogGUILabel vesselLine = new DialogGUILabel(() => VesselText(line), width - RowEnd, RowHeight);
+                vesselLine.tooltipText = "The vessel as built: its mass and the fuel in it, its delta-v in vacuum, its parts and its cost.";
+                rows.Add(new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft, vesselLine));
+            }
             for (int i = 0; i < MaxSections; i++) rows.AddRange(SectionRows(i));
             rows.Add(AddSectionRow());
             rows.Add(Heading("Route"));
@@ -116,6 +123,21 @@ namespace ReDefinition.Engineer
             warning.OptionEnabledCondition = () => SectionWarning(row).Length > 0;
             yield return warning;
 
+        }
+
+        // "Mass 45.20 t   Fuel 33.10 t   Δv 5,230 m/s", then "Parts 42   Cost 38,500".
+        private string VesselText(bool first)
+        {
+            EditorReadout readout = owner.Readout;
+            if (readout == null || !readout.HasShip) return "";
+            if (!first)
+                return "<color=" + Dim + ">Parts</color> " + EngineerFormat.Count(readout.Parts) + "<pos=35%><color=" + Dim + ">Cost</color> "
+                       + EngineerFormat.Cost(readout.Cost);
+            double deltaV = 0.0;
+            foreach (StageRow row in readout.Stages) deltaV += row.DeltaVVacuum;
+            return "<color=" + Dim + ">Mass</color> " + EngineerFormat.Mass(readout.WetMass) + "<pos=35%><color=" + Dim + ">Fuel</color> "
+                   + EngineerFormat.Mass(readout.FuelMass) + "<pos=70%><color=" + Dim + ">Δv</color> "
+                   + EngineerFormat.Speed(deltaV);
         }
 
         // "+" to add a section, in the column of a section's name.
@@ -799,9 +821,14 @@ namespace ReDefinition.Engineer
         // what it needs and what it has; open, each stage it burns with its TWR as it
         // starts and as it ends its part, in the air where the body has any, its thrust
         // and how long it burns, then each burn in orbit and the body.
-        private const float TwrColumn = 56f;
-        private const float ThrustColumn = 72f;
+        private const float MassColumn = 64f;
+        private const float IspColumn = 44f;
+        private const float TwrColumn = 40f;
+        private const float ThrustColumn = 64f;
         private const float BurnColumn = 64f;
+        private const int MaxNotes = 3;
+        // Thrust off the centre of mass by less than this, in metres, is left alone.
+        private const double OffCentre = 0.05;
         private const float BurnName = 180f;
 
         // A step as the thrust section shows it, worked out with the budget.
@@ -818,6 +845,10 @@ namespace ReDefinition.Engineer
             public List<Burn> Burns = new List<Burn>();
             // The burn that takes the largest share of its orbit; null where none.
             public Burn Longest;
+            // Lines under its burns, coloured: the RCS of what docks, thrust off the
+            // centre of mass at launch.
+            public readonly List<string> Notes = new List<string>();
+            public bool Warns;
         }
 
         private readonly List<ThrustStep> thrustSteps = new List<ThrustStep>();
@@ -871,9 +902,46 @@ namespace ReDefinition.Engineer
                 entry.Body = Launches(step) ? step.From.Body
                     : entry.Twr ? step.To.Body
                     : entry.Burns.Count > 0 ? entry.Burns[0].Line.Body : step.From.Body;
-                if (step.Leg.DeltaV <= 0.5 || (!entry.Twr && entry.Burns.Count == 0)) continue;
+                AddNotes(entry);
+                if (step.Leg.DeltaV <= 0.5 || (!entry.Twr && entry.Burns.Count == 0 && entry.Notes.Count == 0)) continue;
                 thrustOf[i] = entry;
                 if (thrustSteps.Count < MaxFuelSteps) thrustSteps.Add(entry);
+            }
+        }
+
+        // What docks, and its RCS for the last metres; a launch stage whose thrust
+        // runs beside the centre of mass.
+        private void AddNotes(ThrustStep entry)
+        {
+            RouteStep step = steps[entry.Step];
+            if (Launches(step) && entry.Uses.Count > 0)
+            {
+                StageRow row = stages.Find(item => item.Number == entry.Uses[0].Stage);
+                if (row != null && row.ThrustArm > OffCentre && row.ThrustTorque > row.GimbalTorque)
+                {
+                    entry.Notes.Add("<color=" + Warning + ">Thrust of S" + row.Number + " off-centre by "
+                                    + row.ThrustArm.ToString("0.00", CultureInfo.InvariantCulture) + " m, more than its gimbals correct</color>");
+                    entry.Warns = true;
+                }
+            }
+            if (step.Docks && step.Flyer.Kind == FlyerKind.Alone)
+            {
+                LiveSection section = SectionById(step.Flyer.Section);
+                if (section == null || section.Group == null) return;
+                StageBudget.StageUse last = entry.Uses.Count > 0 ? entry.Uses[entry.Uses.Count - 1] : null;
+                double mass = last != null ? last.EndMass : section.Group.Mass;
+                double thrust, propellant, deltaV;
+                RcsOf(section.Group, last != null ? last.Stage : -1, mass, out thrust, out propellant, out deltaV);
+                string who = Lower(section.Name);
+                if (thrust <= 0.0 || propellant <= 0.0)
+                {
+                    entry.Notes.Add("<color=" + Warning + ">" + (thrust <= 0.0 ? "No RCS on the " + who + " to dock with"
+                                    : "No RCS propellant on the " + who + " to dock with") + "</color>");
+                    entry.Warns = true;
+                }
+                else
+                    entry.Notes.Add("<color=" + Dim + ">RCS of the " + who + " for docking: " + EngineerFormat.Speed(deltaV) + ", "
+                                    + EngineerFormat.Force(thrust) + "</color>");
             }
         }
 
@@ -924,8 +992,9 @@ namespace ReDefinition.Engineer
             yield return line;
 
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("Stage", StageName_), DimLabel("Start", TwrColumn),
-                DimLabel("End", TwrColumn), DimLabel("In air", TwrColumn), DimLabel("Thrust", ThrustColumn), DimLabel("Burns", BurnColumn));
+                new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("Stage", StageName_), DimLabel("Mass", MassColumn),
+                DimLabel("Isp", IspColumn), DimLabel("Start", TwrColumn), DimLabel("End", TwrColumn), DimLabel("In air", TwrColumn),
+                DimLabel("Thrust", ThrustColumn), DimLabel("Burns", BurnColumn));
             names.OptionEnabledCondition = () => OpenThrust(row) != null && OpenThrust(row).Uses.Count > 0;
             yield return names;
 
@@ -935,6 +1004,8 @@ namespace ReDefinition.Engineer
                 DialogGUIHorizontalLayout use = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
                     TextAnchor.MiddleLeft, new DialogGUISpace(Timeline + Swatch + 4f),
                     new DialogGUILabel(() => ThrustStageName(OpenThrust(row), stage), StageName_),
+                    new DialogGUILabel(() => StageMassText(OpenThrust(row), stage), MassColumn),
+                    new DialogGUILabel(() => StageIspText(OpenThrust(row), stage), IspColumn),
                     new DialogGUILabel(() => TwrValue(OpenThrust(row), stage, true, false), TwrColumn),
                     new DialogGUILabel(() => TwrValue(OpenThrust(row), stage, false, false), TwrColumn),
                     new DialogGUILabel(() => TwrValue(OpenThrust(row), stage, true, true), TwrColumn),
@@ -951,6 +1022,17 @@ namespace ReDefinition.Engineer
                     new DialogGUISpace(Timeline + Swatch + 4f), new DialogGUILabel(() => BurnName_(OpenThrust(row), burn), BurnName),
                     new DialogGUILabel(() => BurnText(OpenThrust(row), burn), width - Timeline - Swatch - 4f - BurnName - 4f * 2f - RowEnd));
                 text.OptionEnabledCondition = () => OpenThrust(row) != null && burn < OpenThrust(row).Burns.Count;
+                yield return text;
+            }
+
+            for (int i = 0; i < MaxNotes; i++)
+            {
+                int note = i;
+                DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                    new DialogGUISpace(Timeline + Swatch + 4f),
+                    new DialogGUILabel(() => OpenThrust(row) != null && note < OpenThrust(row).Notes.Count ? OpenThrust(row).Notes[note] : "",
+                        width - Timeline - Swatch - 4f - 4f - RowEnd));
+                text.OptionEnabledCondition = () => OpenThrust(row) != null && note < OpenThrust(row).Notes.Count;
                 yield return text;
             }
 
@@ -1043,6 +1125,21 @@ namespace ReDefinition.Engineer
             return "<color=" + Dim + ">" + EngineerFormat.Ratio(twr) + "</color>";
         }
 
+        // What the vessel weighs as the stage starts its part of the step.
+        private string StageMassText(ThrustStep entry, int stage)
+        {
+            if (entry == null || stage >= entry.Stages.Count) return "";
+            return "<color=" + Dim + ">" + EngineerFormat.Mass(entry.Stages[stage].Mass) + "</color>";
+        }
+
+        // In vacuum: the exhaust speed the stage's delta-v comes from, over g0.
+        private string StageIspText(ThrustStep entry, int stage)
+        {
+            if (entry == null || stage >= entry.Stages.Count) return "";
+            double exhaust = BurnCheck.Exhaust(entry.Stages[stage]);
+            return exhaust > 0.0 ? "<color=" + Dim + ">" + EngineerFormat.Isp(exhaust / StageTable.StandardGravity) + "</color>" : "";
+        }
+
         private string StageThrustText(ThrustStep entry, int stage)
         {
             if (entry == null || stage >= entry.Stages.Count) return "";
@@ -1116,9 +1213,10 @@ namespace ReDefinition.Engineer
         // too long.
         private string ThrustSummary()
         {
-            int low = 0, slow = 0;
+            int low = 0, slow = 0, noted = 0;
             foreach (ThrustStep entry in thrustSteps)
             {
+                if (entry.Warns) noted++;
                 if (entry.Twr)
                 {
                     StageBudget.StageUse use = Deciding(entry);
@@ -1126,10 +1224,11 @@ namespace ReDefinition.Engineer
                 }
                 else if (entry.Longest != null && BurnColour(entry.Longest) != Good) slow++;
             }
-            if (low == 0 && slow == 0) return "<color=" + Good + ">Enough thrust on every step</color>";
+            if (low == 0 && slow == 0 && noted == 0) return "<color=" + Good + ">Enough thrust on every step</color>";
             string text = "";
             if (low > 0) text = "TWR too low on " + low + (low == 1 ? " step" : " steps");
             if (slow > 0) text += (text.Length > 0 ? ", " : "") + slow + (slow == 1 ? " burn" : " burns") + " too long";
+            if (noted > 0) text += (text.Length > 0 ? ", " : "") + noted + (noted == 1 ? " note" : " notes");
             return "<color=" + (low > 0 ? Problem : Warning) + ">" + text + "</color>";
         }
 

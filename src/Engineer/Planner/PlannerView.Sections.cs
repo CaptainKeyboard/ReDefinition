@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -199,6 +200,38 @@ namespace ReDefinition.Engineer
         private static string Lower(string name)
         {
             return string.IsNullOrEmpty(name) ? "" : char.ToLowerInvariant(name[0]) + name.Substring(1);
+        }
+
+        // A section's RCS as it docks, after `stage` burnt (-1 for none): its thrust in
+        // kN, the propellant for it, and the delta-v that gives `mass`, in m/s. Of the
+        // section's parts only those still attached count (DecoupleStage no higher
+        // than the stage), and only the resources their own RCS thrusters burn, no
+        // more than what `mass` still holds over those parts' dry mass.
+        private void RcsOf(PartGroupChoice group, int stage, double mass, out double thrust, out double propellant, out double deltaV)
+        {
+            thrust = 0.0;
+            propellant = 0.0;
+            deltaV = 0.0;
+            if (group == null) return;
+            double overIsp = 0.0, dry = 0.0;
+            HashSet<string> burns = new HashSet<string>();
+            List<int> attached = new List<int>();
+            foreach (int at in group.Members)
+            {
+                if (at < 0 || at >= parts.Count || parts[at].Clamp) continue;
+                if (stage >= 0 && parts[at].DecoupleStage > stage) continue;
+                attached.Add(at);
+                thrust += parts[at].RcsThrust;
+                overIsp += parts[at].RcsThrustOverIsp;
+                burns.UnionWith(parts[at].RcsBurns);
+                dry += parts[at].DryMass;
+            }
+            foreach (int at in attached)
+                foreach (KeyValuePair<string, double> resource in parts[at].RcsResources)
+                    if (burns.Contains(resource.Key)) propellant += resource.Value;
+            propellant = Math.Min(propellant, Math.Max(0.0, mass - dry));
+            if (thrust <= 0.0 || overIsp <= 0.0 || propellant <= 0.0 || mass <= propellant) return;
+            deltaV = thrust / overIsp * StageTable.StandardGravity * Math.Log(mass / (mass - propellant));
         }
 
         private bool HasSections()

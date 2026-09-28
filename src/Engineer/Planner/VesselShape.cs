@@ -40,6 +40,14 @@ namespace ReDefinition.Engineer
         // In tonnes: with its resources as the vessel starts, and without.
         public double Mass;
         public double DryMass;
+        // Its RCS thrusters: their thrust in vacuum in kN at their thrust limit, that
+        // thrust over their vacuum Isp (so that thrusters combine), and the
+        // propellants they burn; the mass of each resource any RCS thruster on the
+        // vessel burns that the part holds, in tonnes.
+        public double RcsThrust;
+        public double RcsThrustOverIsp;
+        public readonly HashSet<string> RcsBurns = new HashSet<string>();
+        public readonly Dictionary<string, double> RcsResources = new Dictionary<string, double>();
         // By stage number: its resources' mass as the stage starts and as it ends.
         public readonly Dictionary<int, double[]> StageFuel = new Dictionary<int, double[]>();
         // The part itself, for the colours on the vessel.

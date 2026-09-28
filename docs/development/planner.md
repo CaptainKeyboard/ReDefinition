@@ -33,15 +33,16 @@ The planner uses no text to explain itself. From the top:
 * Every choice carries a tooltip of one sentence. KSP's button prefab has no tooltip
   controller, so `DialogTooltips.Attach` adds the game's own to every element with a
   tooltip once the rows are created.
-* *Vessel*, up to six rows, each with what it is in the column of a step's place, its
-  parts on a button from the column of who flies a step, and its cross where a stop's
-  cross is; under a satellite *Deployed at*, and a red line
-  for a capsule without parachutes or a section overlapping another. *+* opens the list
-  of kinds, and the new section's list of parts right after. A list of parts folds out
-  as wide as its button: *Automatic* where the planner finds that kind, with what it
-  found in brackets, and the parts that can fly apart. An entry lights its parts on the
-  vessel while the pointer is on it (`Choice.Hover`, an `EventTrigger` on the entry's
-  button).
+* *Vessel*: two lines on the vessel as built (`PlannerView.VesselText`: `EditorReadout`
+  mass, fuel mass without crew, parts, cost, and the stages' delta-v in vacuum), then up
+  to six rows, each with what it is in the column of a step's place, its parts on a button
+  from the column of who flies a step, and its cross where a stop's cross is; under a
+  satellite *Deployed at*, and a red line for a capsule without parachutes or a section
+  overlapping another. *+* opens the list of kinds, and the new section's list of parts
+  right after. A list of parts folds out as wide as its button: *Automatic* where the
+  planner finds that kind, with what it found in brackets, and the parts that can fly
+  apart. An entry lights its parts on the vessel while the pointer is on it
+  (`Choice.Hover`, an `EventTrigger` on the entry's button).
 * The route is a line of stops, an orbit's altitude under it as a field
   (`DialogGUITextInput`); while it has the keyboard, the game's controls are locked
   (`PlannerView.Keep`), so that the digits do not reach the editor's shortcuts. Between
@@ -76,12 +77,19 @@ The planner uses no text to explain itself. From the top:
   needs and the deciding stage's TWR (`PlannerView.TwrAt`); on other steps the largest
   share of its orbit a burn takes (`BurnCheck`). Open, each stage it burns with its TWR as
   it starts and ends (`StageUse.Mass`, `EndMass`), in the air, its thrust and burn time;
-  each burn in orbit; the body. In the air, the thrust at the body's sea level
-  (`StageRow.ThrustAtSurface`: `ModuleEngines.MaxThrustOutputAtm` at each body's
-  `atmPressureASL`, `atmosphereTemperatureSeaLevel` and `atmDensityASL`, as KSP's
-  `DeltaVEngineInfo` does for its delta-v app's body); the warnings of a launch and a
-  landing use the same, and the step's longest burn losing more than 5 % adds a warning,
-  after the others.
+  each burn in orbit; notes (`AddNotes`): a launch stage whose thrust torque
+  (`StageRow.ThrustTorque`, lever `ThrustArm` above 0.05 m) exceeds what its gimbals give
+  (`GimbalTorque`: thrust times the sine of the gimbal range at its limiter, times the
+  nozzle's distance from the centre of mass), and the RCS of a section that docks
+  (`PartFacts.RcsThrust` at the thrust limit, `RcsThrustOverIsp`, `RcsBurns`,
+  `RcsResources` from `ModuleRCS`: the resources its own thrusters burn in the parts still
+  attached, no more than the section's mass after the step holds over their dry mass); the
+  body. The Isp column is the stage's exhaust speed in the budget over g0. In the air, the
+  thrust at the body's sea level (`StageRow.ThrustAtSurface`:
+  `ModuleEngines.MaxThrustOutputAtm` at each body's `atmPressureASL`,
+  `atmosphereTemperatureSeaLevel` and `atmDensityASL`, as KSP's `DeltaVEngineInfo` does
+  for its delta-v app's body); the warnings of a launch and a landing use the same, and
+  the step's longest burn losing more than 5 % adds a warning, after the others.
 
 Choices are buttons of KSP's skin whose text is lit green while their option is chosen.
 The skin's pressed state of a toggle button reads the other way round, so it is not

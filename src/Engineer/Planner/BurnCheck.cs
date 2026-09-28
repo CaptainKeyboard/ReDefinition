@@ -123,7 +123,8 @@ namespace ReDefinition.Engineer
             return exhaust > 0.0 ? mass * Math.Exp(-deltaV / exhaust) : mass;
         }
 
-        private static double Exhaust(BurnStage stage)
+        // The stage's exhaust speed, in m/s; 0 where it gives no delta-v.
+        internal static double Exhaust(BurnStage stage)
         {
             if (stage.DeltaV <= 0.0 || stage.EndMass <= 0.0 || stage.Mass <= stage.EndMass) return 0.0;
             return stage.DeltaV / Math.Log(stage.Mass / stage.EndMass);
