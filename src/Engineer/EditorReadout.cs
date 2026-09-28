@@ -36,11 +36,6 @@ namespace ReDefinition.Engineer
         // propellant it burns (PartsBurning).
         public Dictionary<int, List<Part>> BurningParts = new Dictionary<int, List<Part>>();
         public List<ResourceLine> Resources = new List<ResourceLine>();
-        // For each parachute and each heat shield, the stage KSP decouples it at
-        // (DeltaVPartInfo.decoupleStage, -1 for never): attached while a stage burns
-        // where this is no higher than that stage's number.
-        public List<int> ParachuteStages = new List<int>();
-        public List<int> HeatShieldStages = new List<int>();
         // Every part as the planner finds the lander and the capsule by it
         // (VesselShape).
         public List<PartFacts> PartFacts = new List<PartFacts>();
@@ -86,38 +81,72 @@ namespace ReDefinition.Engineer
                 readout.BurningParts[info.stage] = PartsBurning(info, partInfos);
             }
             readout.Stages = StageTable.Complete(rows);
-            if (partInfos != null)
-                foreach (DeltaVPartInfo partInfo in partInfos)
-                {
-                    if (partInfo == null || partInfo.part == null) continue;
-                    // RealChute's parachutes are a module of their own.
-                    if (partInfo.part.HasModuleImplementing<ModuleParachute>() || partInfo.part.Modules.Contains("RealChuteModule"))
-                        readout.ParachuteStages.Add(partInfo.decoupleStage);
-                    if (partInfo.part.HasModuleImplementing<ModuleAblator>()) readout.HeatShieldStages.Add(partInfo.decoupleStage);
-                    readout.PartFacts.Add(FactsOf(partInfo));
-                }
+            readout.PartFacts = FactsOf(ship.parts, partInfos);
             readout.TotalDeltaV = StageTable.TotalDeltaV(readout.Stages);
             readout.Rcs = RcsOf(readout.Stages, partInfos);
             return readout;
         }
 
-        // Landing legs are wheels of the LEG type (ModuleWheelBase.wheelType);
-        // decouplers and docking ports both separate a vessel (IStageSeparator).
-        private static PartFacts FactsOf(DeltaVPartInfo partInfo)
+        // Every part as the planner finds the lander and the capsule by it: its place
+        // in the part tree, what it is, and its masses from KSP's simulation
+        // (DeltaVPartInfo.decoupleStage, stageFuelMass). Landing legs are wheels of
+        // the LEG type (ModuleWheelBase.wheelType); a docking port separates by its
+        // ModuleDockingNode, a radial decoupler by ModuleAnchoredDecoupler, any other
+        // decoupler by ModuleDecouple.
+        private static List<PartFacts> FactsOf(List<Part> parts, List<DeltaVPartInfo> partInfos)
         {
-            Part part = partInfo.part;
-            bool legs = false;
-            foreach (ModuleWheelBase wheel in part.FindModulesImplementing<ModuleWheelBase>())
-                if (wheel != null && wheel.wheelType == WheelType.LEG) legs = true;
-            return new PartFacts
+            Dictionary<Part, DeltaVPartInfo> infos = new Dictionary<Part, DeltaVPartInfo>();
+            if (partInfos != null)
+                foreach (DeltaVPartInfo info in partInfos)
+                    if (info != null && info.part != null) infos[info.part] = info;
+            Dictionary<Part, int> index = new Dictionary<Part, int>();
+            for (int i = 0; i < parts.Count; i++)
+                if (parts[i] != null) index[parts[i]] = i;
+
+            List<PartFacts> facts = new List<PartFacts>();
+            foreach (Part part in parts)
             {
-                DecoupleStage = partInfo.decoupleStage,
-                Command = part.HasModuleImplementing<ModuleCommand>(),
-                Engine = part.HasModuleImplementing<ModuleEngines>(),
-                Legs = legs,
-                Parachute = part.HasModuleImplementing<ModuleParachute>() || part.Modules.Contains("RealChuteModule"),
-                Separator = part.FindModuleImplementing<IStageSeparator>() != null,
-            };
+                if (part == null)
+                {
+                    facts.Add(new PartFacts());
+                    continue;
+                }
+                bool legs = false;
+                foreach (ModuleWheelBase wheel in part.FindModulesImplementing<ModuleWheelBase>())
+                    if (wheel != null && wheel.wheelType == WheelType.LEG) legs = true;
+                int parent;
+                DeltaVPartInfo info;
+                infos.TryGetValue(part, out info);
+                double dry = part.mass;
+                PartFacts fact = new PartFacts
+                {
+                    Parent = part.parent != null && index.TryGetValue(part.parent, out parent) ? parent : -1,
+                    DecoupleStage = info != null ? info.decoupleStage : -1,
+                    ActivatesAt = part.inverseStage,
+                    Command = part.HasModuleImplementing<ModuleCommand>(),
+                    Engine = part.HasModuleImplementing<ModuleEngines>(),
+                    Legs = legs,
+                    // RealChute's parachutes are a module of their own.
+                    Parachute = part.HasModuleImplementing<ModuleParachute>() || part.Modules.Contains("RealChuteModule"),
+                    HeatShield = part.HasModuleImplementing<ModuleAblator>(),
+                    Separator = part.HasModuleImplementing<ModuleDockingNode>() ? Separation.DockingPort
+                        : part.HasModuleImplementing<ModuleAnchoredDecoupler>() ? Separation.Anchored
+                        : part.HasModuleImplementing<ModuleDecouple>() ? Separation.Decoupler : Separation.None,
+                    Id = part.persistentId,
+                    Title = part.partInfo != null ? part.partInfo.title : part.name,
+                    DryMass = dry,
+                    Mass = dry + part.GetResourceMass(),
+                    Tag = part,
+                };
+                if (info != null && info.stageFuelMass != null)
+                    for (int i = 0; i < info.stageFuelMass.Count; i++)
+                    {
+                        DeltaVPartInfo.PartStageFuelMass stage = info.stageFuelMass.At(i);
+                        if (stage != null) fact.StageFuel[info.stageFuelMass.KeyAt(i)] = new double[] { stage.startMass, stage.endMass };
+                    }
+                facts.Add(fact);
+            }
+            return facts;
         }
 
         private static StageRow RowOf(DeltaVStageInfo info, List<DeltaVPartInfo> partInfos, bool vectoredThrust)

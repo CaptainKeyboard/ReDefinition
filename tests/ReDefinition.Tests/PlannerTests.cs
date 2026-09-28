@@ -385,63 +385,132 @@ namespace ReDefinition.Tests
             Assert.AreEqual(100.0, Used(result, 2, 2), 1e-6);
         }
 
-        private static PartFacts Part(int decoupleStage, bool command = false, bool engine = false, bool legs = false,
-                                      bool parachute = false, bool separator = false)
+        // A part hanging under `parent` in the part tree.
+        private static PartFacts Part(int parent, int decoupleStage, double mass, string title = "part", bool command = false,
+                                      bool engine = false, bool legs = false, bool parachute = false,
+                                      Separation separator = Separation.None)
         {
             return new PartFacts
             {
-                DecoupleStage = decoupleStage, Command = command, Engine = engine, Legs = legs, Parachute = parachute,
-                Separator = separator,
+                Parent = parent, DecoupleStage = decoupleStage, Mass = mass, DryMass = mass, Title = title, Command = command,
+                Engine = engine, Legs = legs, Parachute = parachute, Separator = separator, Id = (uint)(title.GetHashCode() & 0xffff),
             };
         }
 
-        // A pod with a parachute on a stage decoupled at 1, on a booster decoupled
-        // at 3: the Kerbal X's shape.
+        // The Kerbal X's shape: a pod with a parachute on top, a decoupler under it,
+        // the upper stage, another decoupler, the booster.
+        private static List<PartFacts> KerbalX()
+        {
+            return new List<PartFacts>
+            {
+                Part(-1, -1, 0.8, "Mk1 Command Pod", command: true), Part(0, -1, 0.1, "Mk16 Parachute", parachute: true),
+                Part(0, 1, 0.05, "TD-12", separator: Separation.Decoupler), Part(2, 1, 4.5, "FL-T800"),
+                Part(3, 1, 1.5, "LV-909", engine: true), Part(4, 3, 0.05, "TD-25", separator: Separation.Decoupler),
+                Part(5, 3, 18.0, "Rockomax X200-32"), Part(6, 3, 3.0, "Skipper", engine: true),
+            };
+        }
+
+        // Apollo's shape: the command module with its parachute (0, 1), a decoupler,
+        // the service module with its engine and docking port (2-5); the lander under
+        // it by its own docking port (6), its ascent stage (7, 8), a decoupler, its
+        // descent stage with legs (9-12); an adapter and the transfer stage (13-15).
+        private static List<PartFacts> Apollo()
+        {
+            return new List<PartFacts>
+            {
+                Part(-1, -1, 2.0, "Mk1-3 Command Pod", command: true), Part(0, -1, 0.1, "Mk16 Parachute", parachute: true),
+                Part(0, 0, 0.05, "TD-12", separator: Separation.Decoupler), Part(2, 0, 4.0, "FL-T400"),
+                Part(3, 0, 1.0, "LV-909", engine: true), Part(4, 0, 0.1, "Clamp-O-Tron SM", separator: Separation.DockingPort),
+                Part(5, 0, 0.1, "Clamp-O-Tron LM", separator: Separation.DockingPort),
+                Part(6, 0, 1.0, "Mk2 Lander Can", command: true), Part(7, 0, 0.5, "Spark", engine: true),
+                Part(8, 2, 0.05, "TD-06", separator: Separation.Decoupler), Part(9, 2, 2.0, "FL-T200"),
+                Part(10, 2, 0.2, "LT-2 Landing Strut", legs: true), Part(10, 2, 0.5, "Terrier", engine: true),
+                Part(12, 4, 0.05, "TD-25", separator: Separation.Decoupler), Part(13, 4, 6.0, "Rockomax X200-16"),
+                Part(14, 4, 1.5, "Poodle", engine: true),
+            };
+        }
+
         [TestMethod]
         public void TheCapsuleIsThePodThatStaysWithItsParachutes()
         {
-            List<PartFacts> parts = new List<PartFacts>
-            {
-                Part(-1, command: true), Part(-1, parachute: true), Part(1, engine: true, separator: true), Part(3, engine: true),
-            };
-            int[] stages = { 4, 3, 2, 1, 0 };
+            List<PartGroupChoice> groups = VesselShape.Candidates(KerbalX());
+            PartGroupChoice capsule = VesselShape.AutoCapsule(groups);
 
-            Assert.AreEqual(0, VesselShape.Capsule(parts, stages));
-            Assert.AreEqual(-1, VesselShape.Lander(parts, stages, 0), "no landing legs");
+            Assert.IsNotNull(capsule);
+            CollectionAssert.AreEquivalent(new[] { 0, 1 }, capsule.Members.ToArray(), "the decoupler goes with the stage under it");
+            StringAssert.StartsWith(capsule.Name, "Mk1 Command Pod, 2 parts");
+            Assert.IsNull(VesselShape.AutoLander(groups, capsule), "no landing legs");
         }
 
         [TestMethod]
         public void APodWithoutParachutesIsNoCapsule()
         {
-            List<PartFacts> parts = new List<PartFacts> { Part(-1, command: true), Part(1, engine: true, separator: true) };
+            List<PartFacts> parts = KerbalX();
+            parts[1].Parachute = false;
 
-            Assert.AreEqual(-1, VesselShape.Capsule(parts, new[] { 2, 1, 0 }));
+            Assert.IsNull(VesselShape.AutoCapsule(VesselShape.Candidates(parts)));
         }
 
         [TestMethod]
-        public void TheLanderHasEnginesAndLegsAndLeavesARestThatCanWait()
+        public void TheLanderIsWhatItsDockingPortSeparatesWithoutTheStagesDroppedBeforeIt()
         {
-            List<PartFacts> parts = new List<PartFacts>
-            {
-                Part(-1, command: true), Part(0, engine: true, legs: true),
-                Part(2, command: true, separator: true), Part(2, engine: true),
-            };
-            int[] stages = { 3, 2, 1, 0 };
+            List<PartGroupChoice> groups = VesselShape.Candidates(Apollo());
+            PartGroupChoice capsule = VesselShape.AutoCapsule(groups);
+            PartGroupChoice lander = VesselShape.AutoLander(groups, capsule);
 
-            Assert.AreEqual(-1, VesselShape.Capsule(parts, stages), "the pod has no parachutes");
-            Assert.AreEqual(1, VesselShape.Lander(parts, stages, -1));
+            Assert.IsNotNull(lander);
+            CollectionAssert.AreEquivalent(new[] { 6, 7, 8, 9, 10, 11, 12 }, lander.Members.ToArray(),
+                "the lander under its own port, without the transfer stage");
+            StringAssert.StartsWith(lander.Name, "Mk2 Lander Can");
+            CollectionAssert.AreEquivalent(new[] { 0, 1 }, capsule.Members.ToArray());
+            Assert.IsFalse(VesselShape.Inside(capsule, lander), "the capsule belongs to the rest");
+            Assert.IsTrue(VesselShape.Fits(lander, capsule));
         }
 
         [TestMethod]
-        public void LegsOnTheLastStageOfARocketMakeNoLander()
+        public void ALanderWithoutADockingPortIsTheRestOfTheStackAndNotFoundByItself()
         {
-            // The stages below have no command part to wait for it.
-            List<PartFacts> parts = new List<PartFacts>
-            {
-                Part(-1, command: true), Part(0, engine: true, legs: true), Part(2, engine: true, separator: true),
-            };
+            // The legs on the Kerbal X's upper stage: it would only land as a whole.
+            List<PartFacts> parts = KerbalX();
+            parts.Add(Part(3, 1, 0.2, "LT-1 Landing Struts", legs: true));
 
-            Assert.AreEqual(-1, VesselShape.Lander(parts, new[] { 3, 2, 1, 0 }, -1));
+            Assert.IsNull(VesselShape.AutoLander(VesselShape.Candidates(parts), null));
+        }
+
+        [TestMethod]
+        public void AnApolloLanderFliesBetweenTheRestsStages()
+        {
+            // S3 the service module (rest), S2 and S1 the lander's descent and ascent,
+            // S0 the command module (capsule, part of the rest), without engines.
+            List<BudgetStage> stages = new List<BudgetStage>
+            {
+                Stage(3, 18, 12), Stage(2, 12, 10), Stage(1, 9, 8), new BudgetStage { Number = 0, StartMass = 2, EndMass = 2 },
+            };
+            VesselSplit split = new VesselSplit { HasLander = true, HasCapsule = true, CapsuleInLander = false };
+            split.Mass[(int)PartGroup.Rest] = 10;
+            split.Mass[(int)PartGroup.Lander] = 6;
+            split.Mass[(int)PartGroup.Capsule] = 2;
+            PartGroup[] owners = { PartGroup.Capsule, PartGroup.Lander, PartGroup.Lander, PartGroup.Rest };
+            for (int number = 0; number < 4; number++)
+            {
+                split.Owner[number] = owners[number];
+                split.Fuel[number] = VesselSplit.Unit(owners[number]);
+                split.Drop[number] = VesselSplit.Unit(owners[number]);
+            }
+            LegMode[] modes = { LegMode.Whole, LegMode.Lander, LegMode.WithoutLander, LegMode.Capsule };
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 300.0, 1500.0, 300.0, 0.0 }, 0.0, null, split, modes,
+                null, null);
+
+            Assert.AreEqual(18.0, result.Uses.Single(u => u.Leg == 0).Mass, 1e-9, "the whole vessel burns the service module");
+            Assert.AreEqual(6.0, result.Uses.First(u => u.Leg == 1).Mass, 1e-9, "the lander pushes only itself");
+            Assert.AreEqual(2, result.Uses.First(u => u.Leg == 1).Stage);
+            Assert.AreEqual(3.0, result.Uses.Single(u => u.Leg == 1 && u.Stage == 1).Mass, 1e-9, "the ascent stage, the descent dropped");
+            double burnt = 18.0 * (1.0 - System.Math.Exp(-300.0 / Exhaust));
+            StageBudget.StageUse home = result.Uses.Single(u => u.Leg == 2);
+            Assert.AreEqual(3, home.Stage, "the service module again, after the lander's stages");
+            Assert.AreEqual(12.0 - burnt, home.Mass, 1e-6, "the rest with the capsule");
+            Assert.AreEqual(0.0, result.Short[1] + result.Short[2], 1e-6);
+            Assert.IsTrue(result.Dropped.ContainsKey(3), "the service module left with what it holds");
         }
 
         [TestMethod]
@@ -777,6 +846,112 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, use.Stage);
             Assert.AreEqual(2.0, use.Mass, 1e-9, "the capsule alone");
             Assert.IsTrue(result.Dropped.ContainsKey(1), "the rest left with what it holds");
+        }
+
+        [TestMethod]
+        public void FromThePartsTheTransferStageDroppedBeforeTheLanderIsGoneForTheRest()
+        {
+            // The rest: the transfer stage S2 (6 t propellant, 3 t dropped after it) and
+            // the service module S0 (2 t propellant, 2 t dry); the lander S1 between
+            // them (1 t propellant, 2 t dry).
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(2, 16, 10), Stage(1, 7, 6), Stage(0, 4, 2) };
+            VesselSplit split = new VesselSplit { HasLander = true };
+            split.Mass[(int)PartGroup.Rest] = 13;
+            split.Mass[(int)PartGroup.Lander] = 3;
+            PartGroup[] owners = { PartGroup.Rest, PartGroup.Lander, PartGroup.Rest };
+            for (int number = 0; number < 3; number++)
+            {
+                split.Owner[number] = owners[number];
+                split.Fuel[number] = VesselSplit.Unit(owners[number]);
+                split.Drop[number] = VesselSplit.Unit(owners[number]);
+            }
+            LegMode[] modes = { LegMode.Whole, LegMode.Lander, LegMode.WithoutLander };
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { stages[0].DeltaV + 50.0, 100.0, 100.0 }, 0.0, null,
+                split, modes, null, null);
+
+            Assert.AreEqual(4.0, result.Uses.Single(u => u.Leg == 2).Mass, 1e-6, "the service module without the transfer stage");
+        }
+
+        [TestMethod]
+        public void ASplitTransferIsTheBurnThatLeavesAndTheOneThatArrives()
+        {
+            RouteStop high = Orbit(Kerbin, 2863334);
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Orbit(Kerbin, 80000), high };
+            double together = RouteSteps.Build(Stock(), goals, false, false).Sum(step => step.Leg.DeltaV);
+            high.SplitBurns = true;
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, false, false);
+
+            Assert.AreEqual("1L:S 2T:S 2A:S", Shape(steps));
+            Assert.AreEqual(StopKind.Transfer, steps[1].To.Kind);
+            Assert.AreEqual("Kerbin transfer orbit", RouteSteps.Place(Stock(), steps[1].To));
+            Assert.AreEqual(RoutePlanner.LeavingBurn, steps[1].Leg.Lines.Single().Name);
+            Assert.AreEqual("Circularise", steps[2].Leg.Lines.Single().Name);
+            Assert.AreEqual(together, steps.Sum(step => step.Leg.DeltaV), 1e-6, "the same burns, in two steps");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
+        }
+
+        [TestMethod]
+        public void TheSatelliteCircularisesByItselfAfterTheUpperStage()
+        {
+            // Scenario 3: the upper stage burns into the transfer orbit, the satellite,
+            // marked as the capsule, flies the arrival alone.
+            RouteStop high = Choose(Orbit(Kerbin, 2863334), StepRole.Arrive, Vehicle.Capsule);
+            high.SplitBurns = true;
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Orbit(Kerbin, 80000), high };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, false, false, true);
+
+            Assert.AreEqual("1L:S 2T:S 2A:C<", Shape(steps));
+            Assert.AreEqual(LegMode.Capsule, steps[2].Mode);
+            Assert.AreEqual(StopKind.Transfer, steps[2].From.Kind, "it leaves the upper stage on the way up");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
+        }
+
+        [TestMethod]
+        public void AWayStraightIntoTheAirCannotBeSplit()
+        {
+            Assert.IsFalse(RouteSteps.Splits(Stock(), Orbit(Mun, 14000), Surface(Kerbin, true)));
+            Assert.IsTrue(RouteSteps.Splits(Stock(), Orbit(Kerbin, 80000), Orbit(Mun, 14000)));
+        }
+
+        [TestMethod]
+        public void TheApolloCapsuleComesHomeFromTheRestAfterTheLanderIsLeft()
+        {
+            // Scenario 4: Kerbin surface, Kerbin orbit, Mun orbit, Mun surface, Mun
+            // orbit, Kerbin surface with Chutes; the way home clicked to Without lander.
+            // The capsule is part of the rest.
+            RouteStop home = Choose(Surface(Kerbin, true), StepRole.Transfer, Vehicle.Rest);
+            List<RouteStop> goals = new List<RouteStop>
+            {
+                Surface(Kerbin), Orbit(Kerbin, 80000), Orbit(Mun, 14000), Surface(Mun), Orbit(Mun, 14000), home,
+            };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, true, false, true, false);
+
+            Assert.AreEqual("1L:S 2T:S 3L:L< 4L:L 5T:R 5L:C<", Shape(steps));
+            Assert.AreEqual(StopKind.Entry, steps[5].From.Kind, "the capsule leaves the rest in Kerbin's air");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
+        }
+
+        [TestMethod]
+        public void AroundJoolTheLanderIsUsedTwiceAndLeftBeforeTheCapsuleComesHome()
+        {
+            // Scenario 5: the lander lands on Laythe and Vall, docks and is refilled
+            // after Laythe; the way home clicked to Without lander; the capsule is part
+            // of the mothership and lands at home by itself.
+            RouteStop jool = Orbit(Jool, 210000);
+            jool.UseAtmosphere = true;
+            RouteStop laytheBack = Orbit(JLaythe, 60000);
+            laytheBack.Refuel[(int)StepRole.Launch] = true;
+            RouteStop home = Choose(Surface(JKerbin, true), StepRole.Transfer, Vehicle.Rest);
+            List<RouteStop> goals = new List<RouteStop>
+            {
+                Surface(JKerbin), Orbit(JKerbin, 80000), jool, Orbit(JLaythe, 60000), Surface(JLaythe, true), laytheBack,
+                Orbit(Vall, 15000), Surface(Vall), Orbit(Vall, 15000), home,
+            };
+            List<RouteStep> steps = RouteSteps.Build(JoolSystem(), goals, true, false, true, false);
+
+            Assert.AreEqual("1L:S 2T:S 3T:S 4L:L< 5L:L> 6T:S 7L:L< 8L:L 9T:R 9L:C<", Shape(steps));
+            Assert.IsTrue(steps[4].RefuelAfter, "refilled as it docks after Laythe");
+            Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
         [TestMethod]

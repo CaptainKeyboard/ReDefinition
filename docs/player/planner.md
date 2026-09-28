@@ -24,23 +24,28 @@ back when you load the vessel again.
 
 ## Name the lander and the capsule
 
-The row *Vessel* at the top names the vessel's lander and capsule. They decide who can
-fly a step.
+The rows *Lander* and *Capsule* at the top name the parts of the vessel that fly on
+their own. They decide who can fly a step.
 
 | Button | Offers |
 |---|---|
-| *Lander* | *Automatic*, *None* or a stage: that stage and every stage after it are the lander, which can fly alone while the rest waits |
-| *Capsule* | *Automatic*, *None* or a stage: that stage and every stage after it are the capsule, which comes home alone at the end |
+| *Lander* | *Automatic*, *None* or a part of the vessel with engines: it flies alone while the rest waits |
+| *Capsule* | *Automatic*, *None* or a part of the vessel with a command part: it comes home alone at the end |
+
+The parts in the lists are what a decoupler or a docking port separates, named after
+their command part or engine, with their number of parts. While the pointer is on an
+entry, its parts light up on the vessel. The capsule can be part of the lander or of the
+rest.
 
 *Automatic* shows in brackets what the planner found on the vessel:
 
-* The capsule is the command part that stays to the end, with everything that stays with
-  it, where that carries parachutes.
-* The lander is the part before the capsule with engines and landing legs, separated by a
-  decoupler or a docking port from a rest that has a command part of its own to wait.
+* The capsule is the smallest part with a command part and parachutes.
+* The lander is the smallest part with engines and landing legs that a docking port
+  separates, so that it can come back to the rest.
 
-A plain rocket with a pod and parachutes on top, such as the Kerbal X, has its capsule on
-the parachutes' stage and no lander. A stage you pick yourself is bold and underlined.
+A plain rocket with a pod and parachutes on top, such as the Kerbal X, has the pod as its
+capsule and no lander. A lander that a decoupler separates and that does not come back,
+you pick yourself. What you pick is bold and underlined.
 
 ## Lay out the route
 
@@ -67,6 +72,7 @@ margin, and *...* where it has further choices, and the lines that belong to it.
 |---|---|
 | *To … orbit*, first | after a surface: the launch into the body's low orbit, or straight into the next stop's orbit around the same body |
 | *To … orbit* | across to another body's orbit, or from one orbit to another around the same body |
+| *To … transfer orbit* | where the way across is split: the burn that leaves; the next *To … orbit* is the one that arrives |
 | *To …'s air* | across to a body where the next stop is a landing on parachutes: straight into its atmosphere, with no orbit |
 | *To … surface* | the landing on the next stop |
 
@@ -80,6 +86,7 @@ lander that is not where it has to be. Where nothing is wrong, there is no such 
 
 | Line | Choice | Does |
 |---|---|---|
+| *Burns* | *Together* / *Split* | on the way across to an orbit: one step, or two, the burn that leaves and the one that arrives, each with who flies it. So the upper stage can make the transfer burn and the satellite circularise by itself |
 | *Way down* | *Straight in* / *Orbit first* | on the way to a landing on parachutes on another body: straight into its atmosphere, or into a low orbit first |
 | *Payload* | *Leave payload* | on the last step to a stop: what the vessel separates next, with no engines of its own, such as a satellite, stays there. The stage carrying it burns on with the fuel it has left. If there is no such payload, a red line says so |
 
@@ -118,10 +125,10 @@ The burns of a step are:
 | Burn | Is |
 |---|---|
 | *Launch to … orbit* | from the surface into the low orbit, with the losses to gravity and air |
-| *Transfer burn* | leaving the orbit toward the next body |
+| *Transfer burn* | leaving the orbit toward the next body, or toward another orbit around the same body |
 | *Capture into orbit* | slowing down at the next body into its orbit |
 | *Aerobraking, then circularise* | the small burn left after the atmosphere has slowed the vessel |
-| *Raise or lower the orbit* | from one orbit to another around the same body |
+| *Circularise* | at the new orbit around the same body |
 | *Landing* | from the low orbit down to the surface |
 | *Plane change* | turning the orbit to the tilt of the target's orbit |
 | *Deorbit into the air* | from an orbit down into the atmosphere, for a landing on parachutes |
@@ -159,13 +166,9 @@ again and goes on, or flies on by itself and leaves the rest behind. A capsule i
 comes home at the end: it leaves the rest of the vessel for good, usually for the
 landing on its parachutes.
 
-1. Put the lander's decoupler or docking port in the stage right before the lander's
-   first engines fire, so that KSP's staging separates it there.
-2. Check *Lander* and *Capsule* in the row *Vessel*. Where *Automatic* found the wrong
-   stage or none, pick the lander's first stage, or the capsule's, from the list. The
-   list offers the lander's stages with the decoupler's stage before them, as that counts
-   to the lander as well.
-3. Every step now shows on a button who flies it, green. The planner sets it itself. A
+1. Check *Lander* and *Capsule* at the top. Where *Automatic* found the wrong part or
+   none, pick it from the list.
+2. Every step now shows on a button who flies it, green. The planner sets it itself. A
    click on the button folds out the list of who can: *Ship*, *Lander*, *Without lander*,
    *Capsule*. What you pick there is bold and underlined; *Planner's choice* in the list
    gives the step back to the planner.
@@ -209,6 +212,23 @@ Stage the satellite's decoupler right after the upper stage's engines:
 1. *B*: type 2863 into the altitude field.
 2. On the step to *B*, click *...* and *Leave payload*.
 3. *+* under the last stop, click *Surface*; *Chutes* comes on by itself.
+
+A satellite with an engine of its own that circularises by itself, the upper stage left
+in the transfer orbit:
+
+1. *Capsule*: pick the satellite.
+2. *B*: *Orbit* at 80 km. *+*, *Orbit*, type 2863.
+3. On the step to *C*, click *...* and *Split*. On *To Kerbin orbit* after *To Kerbin
+   transfer orbit*, pick *Capsule*.
+
+A lander that lands on the Mun and docks again, the capsule on the mothership coming
+home, the lander left in the Mun's orbit:
+
+1. Stops: Kerbin *Surface*, Kerbin *Orbit*, Mun *Orbit*, Mun *Surface*, Mun *Orbit*,
+   Kerbin *Surface*.
+2. Check that *Lander* names the lander and *Capsule* the command module.
+3. On the step *To Kerbin's air*, pick *Without lander*. The landing is the capsule's by
+   itself.
 
 A lander that lands on Duna and flies home by itself, leaving the transfer stage in
 Duna's orbit:

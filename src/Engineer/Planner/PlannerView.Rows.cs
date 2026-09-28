@@ -42,9 +42,6 @@ namespace ReDefinition.Engineer
         private const float BurnsButton = 56f;
         private const float SaveButton = 48f;
         private const float DropButton = 80f;
-        // The Vessel row's names and buttons.
-        private const float PartLabel = 56f;
-        private const float PartButton = 132f;
         // Where a step goes, and the room left of a bar.
         private const float Place = 145f;
         private const float VehicleButton = 84f;
@@ -58,15 +55,15 @@ namespace ReDefinition.Engineer
         private const string Good = "#8fdc7a";
         private const string Dim = "#9a9a9a";
 
-        private readonly SegmentBar[,] stepBars = new SegmentBar[MaxStops, 3];
+        private readonly SegmentBar[,] stepBars = new SegmentBar[MaxStops, RouteStop.Roles];
         private readonly List<DialogGUITextInput> altitudeFields = new List<DialogGUITextInput>();
-        private static readonly StepRole[] Roles = { StepRole.Launch, StepRole.Transfer, StepRole.Land };
+        private static readonly StepRole[] Roles = { StepRole.Launch, StepRole.Transfer, StepRole.Arrive, StepRole.Land };
         // The steps whose further choices are open ("...").
-        private readonly bool[,] more = new bool[MaxStops, 3];
+        private readonly bool[,] more = new bool[MaxStops, RouteStop.Roles];
         // After each step's bar, the room its bar leaves, so that the figure stands in
         // one column: the scroll list stretches its rows under its bar, and a flexible
         // space would push the figure there.
-        private readonly Sizer[,] barFillers = new Sizer[MaxStops, 3];
+        private readonly Sizer[,] barFillers = new Sizer[MaxStops, RouteStop.Roles];
         private SegmentBar totalBar;
         // Each fuel plan row's swatch, in the colour of the stage it shows then.
         private readonly SegmentBar[] stepSwatches = new SegmentBar[MaxStages];
@@ -77,7 +74,10 @@ namespace ReDefinition.Engineer
             altitudeFields.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(Heading("Vessel"));
-            rows.Add(VesselRow());
+            rows.Add(VesselRow("Lander", LanderText, PickLander,
+                "Select the part of the vessel that lands alone while the rest waits."));
+            rows.Add(VesselRow("Capsule", CapsuleText, PickCapsule,
+                "Select the part of the vessel that comes home alone at the end."));
             rows.Add(Heading("Route"));
             for (int i = 0; i < MaxStops; i++)
             {
@@ -95,21 +95,26 @@ namespace ReDefinition.Engineer
 
         // ---------------------------------------------------------------- vessel
 
-        // The lander and the capsule, each "Automatic" with what the parts give,
-        // none, or a stage the player picks: they decide who can fly a step.
-        private DialogGUIBase VesselRow()
+        // The lander or the capsule: "Automatic" with what the planner finds, none, or
+        // a part of the vessel the player picks, from the list under the button. They
+        // decide who can fly a step. The name in the column of a step's place, the
+        // button in the one of who flies it, to where a stop's cross ends.
+        private DialogGUIBase VesselRow(string name, System.Func<string> text, System.Action<DialogGUIBase> pick, string tooltip)
         {
-            DialogGUIButton landerButton = null;
-            landerButton = new DialogGUIButton(LanderText, () => PickLander(landerButton), PartButton, Square, false);
-            landerButton.tooltipText = "Select the stages that separate to land while the rest waits.";
-            DialogGUIButton capsuleButton = null;
-            capsuleButton = new DialogGUIButton(CapsuleText, () => PickCapsule(capsuleButton), PartButton, Square, false);
-            capsuleButton.tooltipText = "Select the stages that come home alone on their parachutes.";
+            DialogGUIButton button = null;
+            button = new DialogGUIButton(text, () => pick(button), PartButtonWidth, Square, false);
+            button.tooltipText = tooltip;
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
-                TextAnchor.MiddleLeft, new DialogGUILabel("<color=" + Dim + ">Lander</color>", PartLabel), landerButton,
-                new DialogGUISpace(8f), new DialogGUILabel("<color=" + Dim + ">Capsule</color>", PartLabel), capsuleButton);
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">" + name + "</color>", Place),
+                button);
             row.OptionEnabledCondition = Ready;
             return row;
+        }
+
+        // The Vessel row's buttons: from who flies a step to where a stop's cross ends.
+        private float PartButtonWidth
+        {
+            get { return Mathf.Max(120f, width - Timeline - Place - 4f * 2f - RowEnd); }
         }
 
         // ----------------------------------------------------------------- stops
@@ -291,6 +296,12 @@ namespace ReDefinition.Engineer
             orbitFirst.tooltipText = "Brake into a low orbit first and land from there.";
             yield return OptionLine(leg, role, "Way down", () => IntoTheAir(leg, role), straight, orbitFirst);
 
+            DialogGUIButton together = Choice("Together", () => !SplitsBurns(leg + 1), () => SetSplitBurns(leg + 1, false), 88f);
+            together.tooltipText = "Fly the burn that leaves and the one that arrives as one step.";
+            DialogGUIButton split = Choice("Split", () => SplitsBurns(leg + 1), () => SetSplitBurns(leg + 1, true), 84f);
+            split.tooltipText = "Make the burn that leaves and the one that arrives two steps, each with who flies it.";
+            yield return OptionLine(leg, role, "Burns", () => role == StepRole.Transfer && CanSplit(leg), together, split);
+
             DialogGUIButton payload = Choice("Leave payload", () => LeavesPayload(leg + 1), () => ToggleLeavesPayload(leg + 1), 112f);
             payload.tooltipText = "Leave the payload here, such as a satellite; the stage carrying it flies on lighter.";
             yield return OptionLine(leg, role, "Payload", () => Arrives(leg, role), payload);
@@ -392,7 +403,14 @@ namespace ReDefinition.Engineer
 
         private bool HasMore(int leg, StepRole role)
         {
-            return Slot(leg, role) >= 0 && (IntoTheAir(leg, role) || Arrives(leg, role));
+            return Slot(leg, role) >= 0 && (IntoTheAir(leg, role) || Arrives(leg, role) || (role == StepRole.Transfer && CanSplit(leg)));
+        }
+
+        // The way across to the next destination has a burn that leaves and one that
+        // arrives (RouteSteps.Splits).
+        private bool CanSplit(int leg)
+        {
+            return Shown(leg + 1) && RouteSteps.Splits(bodies.Bodies, state.Stops[leg], state.Stops[leg + 1]);
         }
 
         private string WarningText(int leg, StepRole role, int line)
@@ -757,7 +775,7 @@ namespace ReDefinition.Engineer
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
             for (int leg = 0; leg < MaxStops; leg++)
-                for (int role = 0; role < 3; role++)
+                for (int role = 0; role < RouteStop.Roles; role++)
                 {
                     SegmentBar bar = stepBars[leg, role];
                     if (bar == null) continue;

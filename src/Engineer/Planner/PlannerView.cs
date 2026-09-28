@@ -32,26 +32,25 @@ namespace ReDefinition.Engineer
         // for each leg (the way from one destination to the next) and role the step
         // there, -1 where there is none.
         private List<RouteStep> steps = new List<RouteStep>();
-        private readonly int[,] slots = new int[MaxStops, 3];
+        private readonly int[,] slots = new int[MaxStops, RouteStop.Roles];
         private List<string>[] warnings = new List<string>[0];
         private StageBudget.Result budget;
         // The stages with delta-v, in firing order, and all of them.
         private List<StageRow> stages = new List<StageRow>();
         private List<StageRow> allStages = new List<StageRow>();
-        // The lander as far as the vessel has that stage now: the player's, or
-        // what the parts give (VesselShape). The plan keeps what the player set,
-        // for a stage that is back after the vessel was taken apart.
-        private int lander = -1;
-        private int detectedLander = -1;
-        private List<int> landerChoices = new List<int>();
-        // The capsule, as the lander; it can start at a stage without delta-v.
-        private int capsule = -1;
-        private int detectedCapsule = -1;
+        // The parts of the vessel that can fly apart (VesselShape), the lander and
+        // the capsule among them: the player's, or what the planner finds where the
+        // player left it to that. The plan keeps what the player set, for a part that
+        // is back after the vessel was taken apart.
+        private List<PartFacts> parts = new List<PartFacts>();
+        private List<PartGroupChoice> groups = new List<PartGroupChoice>();
+        private PartGroupChoice lander;
+        private PartGroupChoice capsule;
+        private PartGroupChoice detectedLander;
+        private PartGroupChoice detectedCapsule;
         // What the log last said was found, so that it says it once.
         private string detectedLogged;
         private Dictionary<int, List<Part>> burningParts = new Dictionary<int, List<Part>>();
-        private List<int> parachuteStages = new List<int>();
-        private List<int> heatShieldStages = new List<int>();
         // The selected leg's or stage's details, written once per evaluation
         // and on each selection.
         private string detailTitle = "";
@@ -160,14 +159,15 @@ namespace ReDefinition.Engineer
             return false;
         }
 
-        // The planner closes: nothing stays coloured, the list of bodies goes.
+        // The planner closes: the lists go, then the colours, since a list closing
+        // gives the vessel its stages' colours back.
         internal void Flush()
         {
+            BodyPicker.Close(this);
+            Dropdown.Close(this);
             highlight.Clear();
             if (typingLocked) InputLockManager.RemoveControlLock(TypingLock);
             typingLocked = false;
-            BodyPicker.Close(this);
-            Dropdown.Close(this);
             if (state != null && vessel != null && bodies != null && saveAt > 0f) state.Save(vessel, bodies);
             saveAt = -1f;
         }
@@ -179,14 +179,11 @@ namespace ReDefinition.Engineer
             allStages.Sort((a, b) => b.Number.CompareTo(a.Number));
             stages = allStages.FindAll(row => row.DeltaVVacuum > 0.5);
 
-            // A lander that is not a stage of the vessel now counts for nothing.
-            landerChoices = LanderChoices();
             Detect(readout.PartFacts);
-            parachuteStages = readout.ParachuteStages;
-            heatShieldStages = readout.HeatShieldStages;
-            steps = RouteSteps.Build(bodies.Bodies, state.Stops, HasLander(), state.PlaneChanges, HasCapsule());
+            steps = RouteSteps.Build(bodies.Bodies, state.Stops, HasLander(), state.PlaneChanges, HasCapsule(),
+                VesselShape.Inside(capsule, lander));
             for (int leg = 0; leg < MaxStops; leg++)
-                for (int role = 0; role < 3; role++) slots[leg, role] = -1;
+                for (int role = 0; role < RouteStop.Roles; role++) slots[leg, role] = -1;
             for (int i = 0; i < steps.Count; i++)
                 if (steps[i].Segment < MaxStops) slots[steps[i].Segment, (int)steps[i].Role] = i;
             if (selectedLeg >= MaxStops || (selectedLeg >= 0 && slots[selectedLeg, (int)selectedRole] < 0)) selectedLeg = -1;
@@ -211,7 +208,8 @@ namespace ReDefinition.Engineer
                 {
                     Number = row.Number, StartMass = row.StartMass, EndMass = row.EndMass, DeltaV = row.DeltaVVacuum,
                 });
-            budget = StageBudget.Allocate(available, needs, state.Margin, plans, lander, modes, refuel, payload, capsule);
+            budget = StageBudget.Allocate(available, needs, state.Margin, plans, VesselShape.Split(available, parts, lander, capsule),
+                modes, refuel, payload);
             burningParts = readout.BurningParts;
             warnings = new List<string>[steps.Count];
             for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
@@ -220,33 +218,36 @@ namespace ReDefinition.Engineer
             Mark();
         }
 
-        // The lander and the capsule: the player's where they are stages of the
-        // vessel now, or what its parts give where the player left them to that.
-        private void Detect(List<PartFacts> parts)
+        // The lander and the capsule: the player's where the vessel has that part
+        // now, or what the planner finds where the player left it to that. A capsule
+        // neither inside the lander nor apart from it counts for nothing.
+        private void Detect(List<PartFacts> facts)
         {
-            List<int> numbers = allStages.ConvertAll(row => row.Number);
-            int chosenLander = state.Lander >= 0 && landerChoices.Contains(state.Lander) ? state.Lander : -1;
-            // A capsule the vessel does not have now counts for nothing, here too.
-            int chosenCapsule = state.Capsule >= 0 && allStages.FindIndex(row => row.Number == state.Capsule) >= 1 ? state.Capsule : -1;
-            detectedCapsule = VesselShape.Capsule(parts, numbers);
-            detectedLander = VesselShape.Lander(parts, numbers, state.Capsule == PlannerState.Automatic ? detectedCapsule : chosenCapsule);
-            if (detectedLander >= 0) detectedLander = LanderTop(detectedLander);
-            if (!landerChoices.Contains(detectedLander)) detectedLander = -1;
-            lander = state.Lander == PlannerState.Automatic ? detectedLander : chosenLander;
-            if (detectedCapsule >= 0 && !CapsuleChoice(detectedCapsule)) detectedCapsule = -1;
-            capsule = state.Capsule == PlannerState.Automatic ? detectedCapsule : chosenCapsule >= 0 && CapsuleChoice(chosenCapsule) ? chosenCapsule : -1;
+            parts = facts;
+            groups = VesselShape.Candidates(facts);
+            detectedCapsule = VesselShape.AutoCapsule(groups);
+            capsule = state.Capsule == PlannerState.Automatic ? detectedCapsule : Group(state.Capsule);
+            detectedLander = VesselShape.AutoLander(groups, capsule);
+            lander = state.Lander == PlannerState.Automatic ? detectedLander : Group(state.Lander);
+            if (!VesselShape.Fits(lander, capsule)) capsule = null;
 
-            string found = "lander " + StageName(detectedLander) + ", capsule " + StageName(detectedCapsule);
-            if (parts.Count > 0 && found != detectedLogged)
+            string found = "lander " + GroupName(detectedLander) + ", capsule " + GroupName(detectedCapsule) + ", " + groups.Count
+                           + " separable groups";
+            if (facts.Count > 0 && found != detectedLogged)
             {
                 detectedLogged = found;
-                Debug.Log(Core.Log.Tag + " Planner found from " + parts.Count + " parts: " + found + ".");
+                Debug.Log(Core.Log.Tag + " Planner found from " + facts.Count + " parts: " + found + ".");
             }
         }
 
-        private static string StageName(int number)
+        private PartGroupChoice Group(string key)
         {
-            return number >= 0 ? "S" + number : "none";
+            return groups.Find(group => group.Key == key);
+        }
+
+        private static string GroupName(PartGroupChoice group)
+        {
+            return group != null ? group.Name : "none";
         }
 
         private bool Ready()
@@ -389,7 +390,7 @@ namespace ReDefinition.Engineer
             RouteStop stop = state.Stops[index];
             if (index != state.Stops.Count - 1 || index == 0 || stop.Kind != StopKind.Surface
                 || !bodies.Bodies[stop.Body].HasAtmosphere) return;
-            if (Carries(parachuteStages, HasCapsule() ? LegMode.Capsule : LegMode.Whole)) stop.UseAtmosphere = true;
+            if (Carries(part => part.Parachute, HasCapsule() ? LegMode.Capsule : LegMode.Whole)) stop.UseAtmosphere = true;
         }
 
         private void ToggleAtmosphere(int index)
@@ -549,8 +550,8 @@ namespace ReDefinition.Engineer
             if (step.To.Kind == StopKind.Surface && step.To.UseAtmosphere && bodies.Bodies[step.To.Body].HasAtmosphere)
             {
                 string who = step.Mode == LegMode.Capsule ? "the capsule" : step.Mode == LegMode.Lander ? "the lander" : "the vessel";
-                if (!Carries(parachuteStages, step.Mode)) list.Add("No parachutes on " + who);
-                if (FromAfar(index) && !Carries(heatShieldStages, step.Mode)) list.Add("No heat shield on " + who);
+                if (!Carries(part => part.Parachute, step.Mode)) list.Add("No parachutes on " + who);
+                if (FromAfar(index) && !Carries(part => part.HeatShield, step.Mode)) list.Add("No heat shield on " + who);
             }
             return list;
         }
@@ -572,16 +573,18 @@ namespace ReDefinition.Engineer
             return step.Role == StepRole.Land && across >= 0 && steps[across].From.Body != steps[across].To.Body;
         }
 
-        // A part of that kind on what lands: the lander's where it lands alone, the
-        // rest's once the lander stayed behind, anywhere on the vessel otherwise. The
-        // rest's parts are decoupled above the lander's top stage.
-        private bool Carries(List<int> decoupleStages, LegMode mode)
+        // A part of that kind on what lands: the capsule's, the lander's where it
+        // lands alone, the rest's once the lander stayed behind, anywhere on the
+        // vessel otherwise.
+        private bool Carries(System.Func<PartFacts, bool> kind, LegMode mode)
         {
-            foreach (int stage in decoupleStages)
+            for (int i = 0; i < parts.Count; i++)
             {
-                if (mode == LegMode.Capsule && stage > capsule) continue;
-                if (mode == LegMode.Lander && stage > lander) continue;
-                if (mode == LegMode.WithoutLander && stage <= lander) continue;
+                if (!kind(parts[i])) continue;
+                bool inLander = lander != null && lander.Members.Contains(i);
+                if (mode == LegMode.Capsule && (capsule == null || !capsule.Members.Contains(i))) continue;
+                if (mode == LegMode.Lander && !inLander) continue;
+                if (mode == LegMode.WithoutLander && inLander) continue;
                 return true;
             }
             return false;
@@ -602,48 +605,17 @@ namespace ReDefinition.Engineer
 
         private bool HasLander()
         {
-            return Ready() && lander >= 0;
+            return Ready() && lander != null;
         }
 
         private bool HasCapsule()
         {
-            return Ready() && capsule >= 0;
+            return Ready() && capsule != null;
         }
 
-        private bool IsCapsuleStage(int number)
-        {
-            return HasCapsule() && number <= capsule;
-        }
-
-        // The capsule can start at any stage but the first, below the lander's top.
-        private bool CapsuleChoice(int number)
-        {
-            int at = allStages.FindIndex(row => row.Number == number);
-            return at >= 1 && (lander < 0 || number < lander);
-        }
-
-        // A lander can start at any stage but the first, something has to wait for
-        // it, and with the stages without delta-v KSP fires just before it: the one
-        // with the lander's decoupler is among them. Without them, the decoupler's
-        // stage would count to the rest, and the rest would be dropped with it.
-        private List<int> LanderChoices()
-        {
-            List<int> choices = new List<int>();
-            for (int i = 1; i < allStages.Count; i++)
-                if (LanderTop(allStages[i].Number) == allStages[i].Number) choices.Add(allStages[i].Number);
-            return choices;
-        }
-
-        // The stage the lander starts at, for a stage with delta-v: the stages
-        // without delta-v fired just before it belong to it.
-        private int LanderTop(int number)
-        {
-            int at = allStages.FindIndex(row => row.Number == number);
-            while (at > 1 && allStages[at - 1].DeltaVVacuum <= 0.5) at--;
-            return at >= 0 ? allStages[at].Number : number;
-        }
-
-        // "Automatic (S2)", "None", "S3": what the Vessel row's buttons show.
+        // "Automatic (Mk1 Lander Can, 12 parts)", "None", "Mk2 Lander Can, 9 parts":
+        // what the Vessel row's buttons show; the player's own choice bold and
+        // underlined, as for who flies a step.
         private string LanderText()
         {
             return Ready() ? ChoiceText(state.Lander, detectedLander, lander) : "";
@@ -654,66 +626,95 @@ namespace ReDefinition.Engineer
             return Ready() ? ChoiceText(state.Capsule, detectedCapsule, capsule) : "";
         }
 
-        private static string ChoiceText(int chosen, int detected, int now)
+        private static string ChoiceText(string chosen, PartGroupChoice detected, PartGroupChoice now)
         {
             if (chosen == PlannerState.Automatic)
-                return "<color=" + Good + ">Automatic</color> <color=" + Dim + ">(" + (detected >= 0 ? "S" + detected : "none") + ")</color>";
-            // A stage the vessel does not have now counts for nothing until it is back.
-            if (chosen >= 0 && now < 0) return "<color=" + Dim + ">S" + chosen + "</color>";
-            if (now < 0) return "<b><u><color=" + Good + ">None</color></u></b>";
-            return "<b><u><color=" + Good + ">S" + now + "</color></u></b>";
+                return "<color=" + Good + ">Automatic</color> <color=" + Dim + ">(" + (detected != null ? detected.Name : "none") + ")</color>";
+            if (chosen == PlannerState.None) return "<b><u><color=" + Good + ">None</color></u></b>";
+            // A part the vessel does not have now counts for nothing until it is back.
+            if (now == null) return "<color=" + Dim + ">Not on the vessel</color>";
+            return "<b><u><color=" + Good + ">" + now.Name + "</color></u></b>";
         }
 
+        // The parts that can fly apart with engines, for the lander; with a command
+        // part, for the capsule. Each shows its parts on the vessel while the pointer
+        // is on it.
         private void PickLander(DialogGUIBase button)
         {
             if (!Ready()) return;
             List<Choice> choices = new List<Choice>();
-            AddPart(choices, "Automatic", "Find the lander by its engines and landing legs.", state.Lander == PlannerState.Automatic,
-                () => SetLander(PlannerState.Automatic));
-            AddPart(choices, "None", "The vessel has no lander.", state.Lander == PlannerState.None, () => SetLander(PlannerState.None));
-            foreach (int number in landerChoices)
+            AddPart(choices, "Automatic", "Find the lander by its engines, landing legs and docking port.",
+                state.Lander == PlannerState.Automatic, () => SetLander(PlannerState.Automatic), detectedLander);
+            AddPart(choices, "None", "The vessel has no lander.", state.Lander == PlannerState.None,
+                () => SetLander(PlannerState.None), null);
+            foreach (PartGroupChoice group in groups)
             {
-                int picked = number;
-                AddPart(choices, "S" + number, "This stage and every stage after it are the lander.", state.Lander == number,
-                    () => SetLander(picked));
+                if (!group.Engine) continue;
+                string key = group.Key;
+                AddPart(choices, group.Name, "These parts fly as the lander while the rest waits.", state.Lander == key,
+                    () => SetLander(key), group);
             }
-            Dropdown.Show(this, button, choices, 132f);
+            Dropdown.Show(this, button, choices, PartButtonWidth);
         }
 
         private void PickCapsule(DialogGUIBase button)
         {
             if (!Ready()) return;
             List<Choice> choices = new List<Choice>();
-            AddPart(choices, "Automatic", "Find the capsule by the command part that stays to the end and its parachutes.",
-                state.Capsule == PlannerState.Automatic, () => SetCapsule(PlannerState.Automatic));
+            AddPart(choices, "Automatic", "Find the capsule by its command part and parachutes.",
+                state.Capsule == PlannerState.Automatic, () => SetCapsule(PlannerState.Automatic), detectedCapsule);
             AddPart(choices, "None", "The vessel has no capsule.", state.Capsule == PlannerState.None,
-                () => SetCapsule(PlannerState.None));
-            foreach (StageRow row in allStages)
+                () => SetCapsule(PlannerState.None), null);
+            foreach (PartGroupChoice group in groups)
             {
-                int picked = row.Number;
-                if (!CapsuleChoice(picked)) continue;
-                AddPart(choices, "S" + picked, "This stage and every stage after it are the capsule.", state.Capsule == picked,
-                    () => SetCapsule(picked));
+                if (!group.Command) continue;
+                string key = group.Key;
+                AddPart(choices, group.Name, "These parts come home alone at the end.", state.Capsule == key,
+                    () => SetCapsule(key), group);
             }
-            Dropdown.Show(this, button, choices, 132f);
+            Dropdown.Show(this, button, choices, PartButtonWidth);
         }
 
-        private static void AddPart(List<Choice> choices, string label, string tooltip, bool current, Callback pick)
+        private void AddPart(List<Choice> choices, string label, string tooltip, bool current, Callback pick, PartGroupChoice group)
         {
-            choices.Add(new Choice { Label = label, Tooltip = tooltip, Current = current, Pick = pick });
+            choices.Add(new Choice
+            {
+                Label = label, Tooltip = tooltip, Current = current, Pick = pick,
+                Hover = on => ShowGroup(on ? group : null),
+            });
         }
 
-        private void SetLander(int number)
+        // A group's parts lit on the vessel, or the stages' colours back.
+        private void ShowGroup(PartGroupChoice group)
         {
-            if (!Ready() || state.Lander == number) return;
-            state.Lander = number;
+            if (group == null)
+            {
+                Mark();
+                return;
+            }
+            Dictionary<Part, Color> lit = new Dictionary<Part, Color>();
+            foreach (int at in group.Members)
+            {
+                Part part = at < parts.Count ? parts[at].Tag as Part : null;
+                if (part != null) lit[part] = Picked;
+            }
+            highlight.Show(lit);
+        }
+
+        // The colour of the parts a list's entry names.
+        private static readonly Color Picked = new Color(0.56f, 0.86f, 0.48f);
+
+        private void SetLander(string key)
+        {
+            if (!Ready() || state.Lander == key) return;
+            state.Lander = key;
             Changed();
         }
 
-        private void SetCapsule(int number)
+        private void SetCapsule(string key)
         {
-            if (!Ready() || state.Capsule == number) return;
-            state.Capsule = number;
+            if (!Ready() || state.Capsule == key) return;
+            state.Capsule = key;
             Changed();
         }
 
@@ -805,6 +806,18 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index)) return;
             state.Stops[index].LeavesPayload = !state.Stops[index].LeavesPayload;
+            Changed();
+        }
+
+        private bool SplitsBurns(int index)
+        {
+            return Shown(index) && state.Stops[index].SplitBurns;
+        }
+
+        private void SetSplitBurns(int index, bool split)
+        {
+            if (!Shown(index) || state.Stops[index].SplitBurns == split) return;
+            state.Stops[index].SplitBurns = split;
             Changed();
         }
 

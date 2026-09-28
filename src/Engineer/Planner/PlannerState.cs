@@ -24,15 +24,15 @@ namespace ReDefinition.Engineer
         internal void RemoveStop(int index)
         {
             if (index < 0 || index >= Stops.Count) return;
-            Stops[index].Stages = new[] { new StagePlan(), new StagePlan(), new StagePlan() };
+            Stops[index].Stages = new[] { new StagePlan(), new StagePlan(), new StagePlan(), new StagePlan() };
         }
 
-        // The highest stage of the lander and of the capsule, None for none,
-        // Automatic for what the vessel's parts give (VesselShape).
-        internal const int Automatic = -2;
-        internal const int None = -1;
-        public int Lander = Automatic;
-        public int Capsule = Automatic;
+        // The lander and the capsule: a part group's key (PartGroupChoice.Key), None
+        // for none, Automatic for what the planner finds (VesselShape).
+        internal const string Automatic = "Automatic";
+        internal const string None = "None";
+        public string Lander = Automatic;
+        public string Capsule = Automatic;
 
         private const string FileName = "planner.cfg";
         private const int MaxPlans = 200;
@@ -136,14 +136,16 @@ namespace ReDefinition.Engineer
                 stopNode.AddValue("kind", stop.Kind);
                 stopNode.AddValue("altitude", stop.Altitude.ToString("0", CultureInfo.InvariantCulture));
                 stopNode.AddValue("useAtmosphere", stop.UseAtmosphere);
-                // Per step on the way here, in the order launch, transfer, landing.
-                string[] by = new string[3];
-                for (int i = 0; i < 3; i++) by[i] = stop.By[i] >= 0 ? ((Vehicle)stop.By[i]).ToString() : "Auto";
+                // Per step on the way here, in the order launch, transfer, arrival,
+                // landing.
+                string[] by = new string[RouteStop.Roles];
+                for (int i = 0; i < RouteStop.Roles; i++) by[i] = stop.By[i] >= 0 ? ((Vehicle)stop.By[i]).ToString() : "Auto";
                 stopNode.AddValue("by", string.Join(", ", by));
                 stopNode.AddValue("refuel", string.Join(", ", Array.ConvertAll(stop.Refuel, flag => flag.ToString())));
                 stopNode.AddValue("orbitFirst", stop.OrbitFirst);
                 stopNode.AddValue("leavesPayload", stop.LeavesPayload);
-                for (int i = 0; i < 3; i++)
+                stopNode.AddValue("splitBurns", stop.SplitBurns);
+                for (int i = 0; i < RouteStop.Roles; i++)
                 {
                     foreach (int stage in stop.Stages[i].Save) AddStage(stopNode, (StepRole)i, stage, "Save");
                     foreach (int stage in stop.Stages[i].DropAfter) AddStage(stopNode, (StepRole)i, stage, "DropAfter");
@@ -168,10 +170,8 @@ namespace ReDefinition.Engineer
                 state.Margin = Math.Max(0.0, Math.Min(margin, 1.0));
             bool planes;
             if (bool.TryParse(node.GetValue("planeChanges"), out planes)) state.PlaneChanges = planes;
-            int lander;
-            if (int.TryParse(node.GetValue("lander"), out lander)) state.Lander = Math.Max(Automatic, lander);
-            int capsule;
-            if (int.TryParse(node.GetValue("capsule"), out capsule)) state.Capsule = Math.Max(Automatic, capsule);
+            if (!string.IsNullOrEmpty(node.GetValue("lander"))) state.Lander = node.GetValue("lander");
+            if (!string.IsNullOrEmpty(node.GetValue("capsule"))) state.Capsule = node.GetValue("capsule");
             bool skipped = false;
             foreach (ConfigNode stopNode in node.GetNodes("STOP"))
             {
@@ -196,7 +196,7 @@ namespace ReDefinition.Engineer
                 if (bool.TryParse(stopNode.GetValue("useAtmosphere"), out useAtmosphere)) stop.UseAtmosphere = useAtmosphere;
                 string[] by = (stopNode.GetValue("by") ?? "").Split(',');
                 string[] refuel = (stopNode.GetValue("refuel") ?? "").Split(',');
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < RouteStop.Roles; i++)
                 {
                     string name = i < by.Length ? by[i].Trim() : "";
                     if (Enum.IsDefined(typeof(Vehicle), name)) stop.By[i] = (int)(Vehicle)Enum.Parse(typeof(Vehicle), name);
@@ -207,6 +207,8 @@ namespace ReDefinition.Engineer
                 if (bool.TryParse(stopNode.GetValue("orbitFirst"), out orbitFirst)) stop.OrbitFirst = orbitFirst;
                 bool payload;
                 if (bool.TryParse(stopNode.GetValue("leavesPayload"), out payload)) stop.LeavesPayload = payload;
+                bool split;
+                if (bool.TryParse(stopNode.GetValue("splitBurns"), out split)) stop.SplitBurns = split;
                 // With a stop before it gone, the steps here are not the ones the
                 // stages were chosen for.
                 if (!skipped)

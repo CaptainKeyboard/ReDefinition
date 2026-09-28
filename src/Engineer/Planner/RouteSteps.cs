@@ -6,11 +6,13 @@ namespace ReDefinition.Engineer
     // The steps on the way from one destination to the next, each to a place of its
     // own: up from the surface into an orbit, across to the next body's orbit or
     // straight into its air (or from one orbit to another around the same body), and
-    // down onto the surface.
+    // down onto the surface. Where the player splits the way across, Transfer is the
+    // burn that leaves and Arrive the burns after it.
     internal enum StepRole
     {
         Launch,
         Transfer,
+        Arrive,
         Land,
     }
 
@@ -49,8 +51,8 @@ namespace ReDefinition.Engineer
 
     // The steps of a route (docs/development/planner.md). Between two destinations
     // come the steps the way needs, each flown by the whole vessel (Ship), its lander
-    // alone, the rest without the lander, or the capsule alone. The capsule leaves
-    // whatever carries it for good; a landing on parachutes on the last destination
+    // alone, the rest without the lander, or the capsule alone. The capsule is part
+    // of the lander or of the rest, and leaves whatever carries it for good; a landing on parachutes on the last destination
     // is the capsule's where the vessel has one. Who flies a step is the player's choice
     // (RouteStop.By), or else: from a surface whoever stands on it; across to another
     // body the whole vessel where the lander waits with the rest, so that it docks;
@@ -77,27 +79,34 @@ namespace ReDefinition.Engineer
             internal RouteStep LastLanderStep;
             internal RouteStop Capsule;
             internal bool HasLander;
+            internal bool CapsuleInLander;
         }
 
-        // Where the capsule is while it has not left: with the lander away, or with
-        // the rest.
+        // Where the capsule is while it has not left: with the lander away where it is
+        // part of the lander, or with the rest.
         private static RouteStop Carrier(Walk walk)
         {
-            return walk.Last == Vehicle.Lander && !walk.Together && !walk.LanderLeft ? walk.Lander : walk.Rest;
+            return walk.CapsuleInLander && walk.Last == Vehicle.Lander && !walk.Together && !walk.LanderLeft
+                ? walk.Lander
+                : walk.Rest;
         }
 
+        // `capsuleInLander`: the capsule is part of the lander rather than of the rest.
         internal static List<RouteStep> Build(IList<PlannerBody> bodies, IList<RouteStop> goals, bool hasLander,
-                                              bool planeChanges, bool hasCapsule = false)
+                                              bool planeChanges, bool hasCapsule = false, bool capsuleInLander = true)
         {
             List<RouteStep> steps = new List<RouteStep>();
             if (goals.Count == 0) return steps;
-            Walk walk = new Walk { Rest = goals[0], Lander = goals[0], HasLander = hasLander };
+            Walk walk = new Walk
+            {
+                Rest = goals[0], Lander = goals[0], HasLander = hasLander, CapsuleInLander = hasLander && capsuleInLander,
+            };
 
             for (int g = 1; g < goals.Count; g++)
             {
                 RouteStop from = goals[g - 1];
                 RouteStop goal = goals[g];
-                foreach (StepRole role in RolesBetween(from, goal))
+                foreach (StepRole role in RolesBetween(bodies, from, goal))
                 {
                     int by = goal.By[(int)role];
                     bool isChosen = by >= 0 && Available((Vehicle)by, hasLander, hasCapsule);
@@ -114,16 +123,42 @@ namespace ReDefinition.Engineer
         }
 
         // The steps the way from one destination to the next needs.
-        internal static List<StepRole> RolesBetween(RouteStop from, RouteStop goal)
+        internal static List<StepRole> RolesBetween(IList<PlannerBody> bodies, RouteStop from, RouteStop goal)
         {
             List<StepRole> roles = new List<StepRole>();
-            bool sameBody = from.Body == goal.Body;
             if (from.Kind == StopKind.Surface) roles.Add(StepRole.Launch);
-            // Across to another body, or from one orbit to another around this one;
-            // a launch straight into the destination's orbit needs no more.
-            if (!sameBody || (from.Kind == StopKind.Orbit && goal.Kind == StopKind.Orbit)) roles.Add(StepRole.Transfer);
+            if (Crosses(from, goal))
+            {
+                roles.Add(StepRole.Transfer);
+                if (goal.SplitBurns && Splits(bodies, from, goal)) roles.Add(StepRole.Arrive);
+            }
             if (goal.Kind == StopKind.Surface) roles.Add(StepRole.Land);
             return roles;
+        }
+
+        // Across to another body, or from one orbit to another around this one; a
+        // launch straight into the destination's orbit needs no more.
+        private static bool Crosses(RouteStop from, RouteStop goal)
+        {
+            return from.Body != goal.Body || (from.Kind == StopKind.Orbit && goal.Kind == StopKind.Orbit);
+        }
+
+        // The way across has a burn that leaves and one that arrives, so that it can be
+        // two steps: not straight into the air, not down into it by aerobraking.
+        internal static bool Splits(IList<PlannerBody> bodies, RouteStop from, RouteStop goal)
+        {
+            if (!Crosses(from, goal)) return false;
+            RouteStop start = from.Kind == StopKind.Surface ? LowOrbit(bodies, from.Body) : from;
+            RouteStop end = Across(bodies, goal);
+            if (end.Kind != StopKind.Orbit) return false;
+            Leg leg = RoutePlanner.LegOf(bodies, start, end, 0, false);
+            bool leaves = false, arrives = false;
+            foreach (LegLine line in leg.Lines)
+            {
+                if (line.Name == RoutePlanner.LeavingBurn) leaves = true;
+                else arrives = true;
+            }
+            return leaves && arrives;
         }
 
         // What the vessel has: a lander to fly alone or leave, a capsule.
@@ -185,7 +220,7 @@ namespace ReDefinition.Engineer
                     walk.Last = vehicle;
                     return step;
                 }
-                if (walk.Capsule == null && walk.LanderLeft && walk.HasLander)
+                if (walk.Capsule == null && walk.LanderLeft && walk.CapsuleInLander)
                 {
                     // The capsule is part of the lander, which stayed behind.
                     step.Problem = "The capsule stayed with the lander at " + walk.LanderLeftAt;
@@ -203,6 +238,7 @@ namespace ReDefinition.Engineer
                 }
                 step.Mode = LegMode.Capsule;
                 RouteStop target = Target(bodies, walk, role, from, goal, vehicle);
+                if (target.Kind == StopKind.Transfer) target.Origin = walk.Capsule;
                 step.From = walk.Capsule;
                 step.To = target;
                 step.Leg = RoutePlanner.LegOf(bodies, walk.Capsule, target, g - 1, planeChanges);
@@ -280,6 +316,7 @@ namespace ReDefinition.Engineer
                 step.Problem = step.Problem ?? "The rest went into the air at " + bodies[start.Body].Name;
 
             RouteStop to = Target(bodies, walk, role, from, goal, vehicle);
+            if (to.Kind == StopKind.Transfer) to.Origin = start;
             step.From = start;
             step.To = to;
             step.Leg = RoutePlanner.LegOf(bodies, start, to, g - 1, planeChanges);
@@ -300,7 +337,8 @@ namespace ReDefinition.Engineer
 
         // Where a step goes: the destination itself where the step reaches it; the
         // body's low orbit, or the rest's own orbit where the lander climbs to it;
-        // into the air for a landing on parachutes straight from the way across.
+        // into the air for a landing on parachutes straight from the way across; on
+        // the way across, where the player splits it.
         private static RouteStop Target(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal,
                                         Vehicle vehicle)
         {
@@ -313,6 +351,16 @@ namespace ReDefinition.Engineer
                 if (from.Body == goal.Body && goal.Kind == StopKind.Orbit) return goal;
                 return LowOrbit(bodies, from.Body);
             }
+            RouteStop across = Across(bodies, goal);
+            if (role == StepRole.Transfer && goal.SplitBurns && Splits(bodies, from, goal))
+                return new RouteStop { Body = across.Body, Kind = StopKind.Transfer, Final = across };
+            return across;
+        }
+
+        // Where the way across ends: the destination's orbit, its air, or its low
+        // orbit before a landing.
+        private static RouteStop Across(IList<PlannerBody> bodies, RouteStop goal)
+        {
             if (goal.Kind == StopKind.Orbit) return goal;
             PlannerBody body = bodies[goal.Body];
             if (goal.UseAtmosphere && body.HasAtmosphere && !goal.OrbitFirst)
@@ -353,6 +401,7 @@ namespace ReDefinition.Engineer
             {
                 case StopKind.Surface: return name + " surface";
                 case StopKind.Entry: return name + "'s air";
+                case StopKind.Transfer: return name + " transfer orbit";
                 default: return name + " orbit";
             }
         }

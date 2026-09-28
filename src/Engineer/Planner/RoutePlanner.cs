@@ -32,14 +32,17 @@ namespace ReDefinition.Engineer
         }
     }
 
-    // Entry is no destination the player picks: the vessel on its way down into a
-    // body's air, with no orbit, where the rest of it is left before a lander
-    // lands with parachutes (RouteSteps).
+    // Entry and Transfer are no destinations the player picks. Entry: the vessel on
+    // its way down into a body's air, with no orbit, where the rest of it is left
+    // before a lander lands with parachutes. Transfer: on the way across after the
+    // burn that leaves, before the one that arrives, where the player splits a
+    // transfer's burns (RouteSteps).
     internal enum StopKind
     {
         Surface,
         Orbit,
         Entry,
+        Transfer,
     }
 
     // Who flies a step (RouteSteps): the whole vessel, the lander alone while the
@@ -63,19 +66,28 @@ namespace ReDefinition.Engineer
         // Arriving here uses the body's atmosphere: aerobraking into the orbit, or
         // parachutes and heat shield for a landing.
         public bool UseAtmosphere;
+        // The steps a way can have: launch, transfer, arrival, landing (StepRole).
+        internal const int Roles = 4;
+
         // For each step on the way here (by StepRole, RouteSteps): who flies it, as a
         // Vehicle, -1 where the planner works it out; and whether the lander is
         // refilled from the rest's tanks when it docks at the step's end.
-        public int[] By = { -1, -1, -1 };
-        public bool[] Refuel = new bool[3];
+        public int[] By = { -1, -1, -1, -1 };
+        public bool[] Refuel = new bool[Roles];
         // For each step on the way here: the stages the player saves on it or drops
         // after it (StageBudget).
-        public StagePlan[] Stages = { new StagePlan(), new StagePlan(), new StagePlan() };
+        public StagePlan[] Stages = { new StagePlan(), new StagePlan(), new StagePlan(), new StagePlan() };
         // On the way to a landing on parachutes: into an orbit first, rather than
         // straight into the air.
         public bool OrbitFirst;
         // A payload stays here (StageBudget).
         public bool LeavesPayload;
+        // The way across here in two steps: the burn that leaves, and the one that
+        // arrives (RouteSteps).
+        public bool SplitBurns;
+        // For a Transfer point: where the way across starts and where it ends.
+        internal RouteStop Origin;
+        internal RouteStop Final;
 
         public RouteStop Copy()
         {
@@ -150,8 +162,16 @@ namespace ReDefinition.Engineer
             return legs;
         }
 
+        // The burn that leaves an orbit on the way across; every other burn of a
+        // transfer arrives.
+        internal const string LeavingBurn = "Transfer burn";
+
         internal static Leg LegOf(IList<PlannerBody> bodies, RouteStop from, RouteStop to, int index, bool planeChanges)
         {
+            // A way across split in two: the burn that leaves, then the rest.
+            if (to.Kind == StopKind.Transfer && to.Final != null) return Part(LegOf(bodies, from, to.Final, index, planeChanges), true);
+            if (from.Kind == StopKind.Transfer && from.Origin != null)
+                return Part(LegOf(bodies, from.Origin, to, index, planeChanges), false);
             Leg leg = new Leg { From = index, To = index + 1 };
             PlannerBody start = bodies[from.Body];
             PlannerBody end = bodies[to.Body];
@@ -200,7 +220,8 @@ namespace ReDefinition.Engineer
                     return leg;
                 }
                 Hohmann(start.Mu, departRadius, arriveRadius, out first, out second);
-                leg.Add("Raise or lower the orbit", first + second);
+                leg.Add(LeavingBurn, first);
+                leg.Add("Circularise", second);
                 if (to.Kind == StopKind.Surface) leg.Add("Landing", Landing(end, to.UseAtmosphere));
                 return leg;
             }
@@ -262,6 +283,15 @@ namespace ReDefinition.Engineer
             }
 
             if (to.Kind == StopKind.Surface) leg.Add("Landing", Landing(end, to.UseAtmosphere));
+            return leg;
+        }
+
+        // The burns of a leg that leave, or the others.
+        private static Leg Part(Leg whole, bool leaving)
+        {
+            Leg leg = new Leg { From = whole.From, To = whole.To };
+            foreach (LegLine line in whole.Lines)
+                if ((line.Name == LeavingBurn) == leaving) leg.Lines.Add(line);
             return leg;
         }
 

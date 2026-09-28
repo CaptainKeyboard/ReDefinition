@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System;
 using ReDefinition.Window;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace ReDefinition.Engineer
@@ -418,6 +419,8 @@ namespace ReDefinition.Engineer
         public Callback Pick;
         // Room left of it, for a list with levels: a moon under its planet.
         public float Indent;
+        // Told when the pointer comes onto the entry and leaves it, or the list closes.
+        public System.Action<bool> Hover;
     }
 
     // A list that folds out under a button, to pick one of a few choices; the
@@ -433,6 +436,8 @@ namespace ReDefinition.Engineer
         private static GameObject blocker;
         private static GameObject list;
         private static object owner;
+        // The entry the pointer is on, told when the list closes.
+        private static Choice hovered;
 
         internal static bool Open
         {
@@ -491,6 +496,7 @@ namespace ReDefinition.Engineer
             // A scroll list's bar takes room from the rows (PlannerWidgets.RowRoom).
             float rowWidth = scrolls ? PlannerWidgets.RowRoom(width + 8f) - 8f : width;
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            List<KeyValuePair<DialogGUIButton, Choice>> hovers = new List<KeyValuePair<DialogGUIButton, Choice>>();
             foreach (Choice choice in choices)
             {
                 Choice picked = choice;
@@ -500,6 +506,7 @@ namespace ReDefinition.Engineer
                     picked.Pick();
                 }, rowWidth - choice.Indent, RowHeight, false);
                 button.tooltipText = choice.Tooltip;
+                if (choice.Hover != null) hovers.Add(new KeyValuePair<DialogGUIButton, Choice>(button, picked));
                 rows.Add(choice.Indent > 0f
                     ? new DialogGUIHorizontalLayout(rowWidth, RowHeight, 0f, new RectOffset((int)choice.Indent, 0, 0, 0),
                         TextAnchor.MiddleLeft, button)
@@ -533,11 +540,39 @@ namespace ReDefinition.Engineer
                 inner.offsetMax = Vector2.zero;
             }
             if (scroll != null) PlannerWidgets.Settle(scroll);
+            foreach (KeyValuePair<DialogGUIButton, Choice> pair in hovers) Hovering(pair.Key, pair.Value);
             DialogTooltips.Attach(new DialogGUIBase[] { layout });
+        }
+
+        // The entry's Hover, from the pointer entering and leaving its button.
+        private static void Hovering(DialogGUIButton button, Choice choice)
+        {
+            if (button.uiItem == null) return;
+            EventTrigger trigger = button.uiItem.GetComponent<EventTrigger>() ?? button.uiItem.AddComponent<EventTrigger>();
+            EventTrigger.Entry enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+            enter.callback.AddListener(data =>
+            {
+                hovered = choice;
+                choice.Hover(true);
+            });
+            EventTrigger.Entry exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+            exit.callback.AddListener(data =>
+            {
+                if (hovered == choice) hovered = null;
+                choice.Hover(false);
+            });
+            trigger.triggers.Add(enter);
+            trigger.triggers.Add(exit);
         }
 
         internal static void Close()
         {
+            if (hovered != null && hovered.Hover != null)
+            {
+                Choice was = hovered;
+                hovered = null;
+                was.Hover(false);
+            }
             if (list != null) UnityEngine.Object.Destroy(list);
             if (blocker != null) UnityEngine.Object.Destroy(blocker);
             list = null;
