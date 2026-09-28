@@ -40,7 +40,7 @@ namespace ReDefinition.Engineer
         private const int MaxTail = 4;
         private const float LeftColumn = 56f;
         // Where a step goes, and the room left of a bar.
-        private const float Place = 140f;
+        private const float Place = 145f;
         private const float VehicleButton = 84f;
         private const float StepSpeed_ = 72f;
         private const float OptionLabel = 84f;
@@ -100,11 +100,11 @@ namespace ReDefinition.Engineer
             // The body's button ends where a step's place does, so that Surface stands
             // over who flies a step; the room the others leave stands after the
             // choices, so that the cross ends where a step's "..." does: 2 units short
-            // of the rows' room. Nine elements and eight gaps with the atmosphere's
-            // choice and the line before it, set off from Surface and Orbit.
-            const float bodyWidth = Place - LetterWidth - 4f;
-            float room = Mathf.Max(0f, width - Timeline - LetterWidth - bodyWidth - 62f - 52f - Divider - 76f - Square - 4f * 8f
-                                       - RowEnd);
+            // of the rows' room. Ten elements and nine gaps: Surface and Orbit set off
+            // by a line from the body before and from the atmosphere's choice after.
+            const float bodyWidth = Place - LetterWidth - Divider - 8f;
+            float room = Mathf.Max(0f, width - Timeline - LetterWidth - bodyWidth - Divider - 62f - 52f - Divider - 76f - Square
+                                       - 4f * 9f - RowEnd);
             DialogGUIButton body = new DialogGUIButton(() => "<b>" + BodyName(index) + "</b>", () => PickBody(index), bodyWidth,
                 RowHeight + 2f, false);
             bodyButtons[index] = body;
@@ -129,8 +129,9 @@ namespace ReDefinition.Engineer
             remove.OptionEnabledCondition = () => Ready() && state.Stops.Count > 2;
 
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 4f, 4f, new RectOffset(0, 0, 2, 0),
-                TextAnchor.MiddleLeft, dot, new DialogGUILabel(() => "<b>" + Letter(index) + "</b>", LetterWidth), body, surface,
-                orbit, divider, air, noAir, new DialogGUISpace(room), remove);
+                TextAnchor.MiddleLeft, dot, new DialogGUILabel(() => "<b>" + Letter(index) + "</b>", LetterWidth), body,
+                PlannerWidgets.Block(Divider, RowHeight - 4f, PlannerColors.Line), surface, orbit, divider, air, noAir,
+                new DialogGUISpace(room), remove);
             row.OptionEnabledCondition = () => Shown(index);
             yield return row;
 
