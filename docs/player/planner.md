@@ -18,8 +18,7 @@ Click the button with *Δv* on it, to the right of KSP's mode buttons above the 
 list. The planner slides in where the parts list was, as KSP's crew panel does. To go
 back, click KSP's parts button, or any other mode button.
 
-While the planner is open, the vessel's engines and tanks show in the colours of their
-stages. The plan belongs to the vessel. It is saved under the vessel's name and comes
+The plan belongs to the vessel. It is saved under the vessel's name and comes
 back when you load the vessel again.
 
 ## Name the lander and the capsule
@@ -111,8 +110,8 @@ it stays, such as a lander left on a surface.
 
 | Click | Does |
 |---|---|
-| a step's bar or its figure | shows the fuel plan of that step, and colours only its stages on the vessel |
-| a stage's name | shows its engines and the steps it pays for, and colours only that stage on the vessel |
+| a step's bar or its figure | shows the fuel plan of that step |
+| a stage's name | shows its engines and the steps it pays for |
 | *Whole route*, or the same step again | shows every stage again |
 
 For a selected step, the fuel plan lists the stages it still has with fuel: what each

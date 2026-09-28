@@ -51,16 +51,6 @@ namespace ReDefinition.Engineer
             return Stages[((order % Stages.Length) + Stages.Length) % Stages.Length];
         }
 
-        // A stage's colour as the vessel shows it: KSP's part highlighter draws
-        // a soft glow, so the colour is pushed to full saturation and
-        // brightness to read on the parts.
-        internal static Color Vivid(Color color)
-        {
-            float h, s, v;
-            Color.RGBToHSV(color, out h, out s, out v);
-            return Color.HSVToRGB(h, Mathf.Min(1f, s * 1.5f + 0.15f), 1f);
-        }
-
         internal static string Hex(Color color)
         {
             return "#" + ColorUtility.ToHtmlStringRGB(color);

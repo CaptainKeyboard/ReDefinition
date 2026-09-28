@@ -62,8 +62,9 @@ A click on a stage's row marks the parts that burn in it with KSP's own part
 highlighter (`PartHighlight`: `Part.SetHighlightType`, `SetHighlightColor`,
 `SetHighlightDefault`) **[src]**. In the game, a mark went when the pointer passed over a
 marked part. So every frame, a mark that is no longer on in its colour is set again.
-While the planner is open or the window is folded, the window marks nothing, since the
-planner colours the parts itself.
+While the planner is open or the window is folded, the window marks nothing. One marker
+at a time: whichever marks parts, the window or the planner, takes the other's marks
+away.
 
 The window and the planner share the list of bodies (`BodyPicker`). Whoever opens it
 owns it, and only the owner's closing closes it.

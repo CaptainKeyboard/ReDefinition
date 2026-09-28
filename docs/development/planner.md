@@ -18,10 +18,10 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 | `src/Engineer/Planner/VesselShape.cs` | the parts of the vessel that can fly apart, the lander and the capsule found among them, and the stages shared out over them. Free of Unity |
 | `src/Engineer/Planner/PlannerBodies.cs` | the bodies of the loaded system, read from `FlightGlobals.Bodies` |
 | `src/Engineer/Planner/PlannerState.cs` | one vessel's plan, and its file |
-| `src/Engineer/Planner/PlannerView.cs` | the plan: loading, saving, working it out, the choices the rows make, the colours on the vessel |
+| `src/Engineer/Planner/PlannerView.cs` | the plan: loading, saving, working it out, the choices the rows make, the parts marked on the vessel |
 | `src/Engineer/Planner/PlannerView.Rows.cs` | the planner's rows, built from KSP's dialog elements |
 | `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the stage colours, the list of bodies and the list that folds out under a button (`Dropdown`) |
-| `src/Engineer/Planner/PartHighlight.cs` | colours parts on the vessel with KSP's part highlighter |
+| `src/Engineer/Planner/PartHighlight.cs` | marks parts on the vessel with KSP's part highlighter, one marker at a time |
 | `src/Engineer/PlannerPanel.cs` | the panel the rows stand in, made as KSP's crew panel is |
 
 ## How the planner is drawn
@@ -70,10 +70,10 @@ The skin's pressed state of a toggle button reads the other way round, so it is 
 used. Symbols are `GameData/ReDefinition/Icons/Planner_*.png`, white on clear, drawn by
 `tools/make_icon.py`. The list of bodies folds out under the body's button (`Dropdown`).
 
-While the planner is open, every stage's engines and tanks show in the stage's colour on the
-vessel, pushed to full saturation and brightness so it reads through KSP's soft highlight
-(`PlannerColors.Vivid`). A selected step leaves only the stages it has, a selected stage
-only that one.
+The planner marks parts on the vessel only while the pointer is on an entry of the
+lander's or the capsule's list: that entry's parts, green. One marker at a time: whoever
+marks parts, the planner or the engineer window, takes the other's marks away
+(`PartHighlight`).
 
 KSP's layouts take no width of their own: `DialogGUILayoutBase` gives a row the width of
 its elements, not the one it is handed **[src]**. So every row's elements are summed to

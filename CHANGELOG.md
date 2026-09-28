@@ -29,8 +29,7 @@
   it shows what each stage gives over the route and where it ends. What blocks a step
   shows in red under it: too little fuel, too little thrust to lift off or land, no
   parachutes or heat shield, a lander not where it has to be. The step's fuel plan gives
-  each stage's TWR. The vessel's engines and tanks show in
-  the colours of their stages. The plan is kept per vessel.
+  each stage's TWR. The plan is kept per vessel.
 - **The navball moves sideways.** Drag its show/hide button left or right in flight; the
   SAS switches, the autopilot modes and the gauges move with it, and it stays on the
   screen. A click still shows and hides it. The position is kept, and *Navball position*

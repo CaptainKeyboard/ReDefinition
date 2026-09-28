@@ -6,15 +6,26 @@ namespace ReDefinition.Engineer
     // Marks parts on the vessel in the editor, each in its own colour, with
     // KSP's own part highlighter: always on in that colour while marked, back to
     // KSP's default (on mouse-over) after. Part.SetHighlightType,
-    // SetHighlightColor and SetHighlightDefault, decompiled.
+    // SetHighlightColor and SetHighlightDefault, decompiled. One marker at a time:
+    // whichever marks parts last, the planner or the engineer window, takes the
+    // other's marks away.
     internal sealed class PartHighlight
     {
+        private static PartHighlight current;
         private readonly Dictionary<Part, Color> marked = new Dictionary<Part, Color>();
 
         internal void Show(IDictionary<Part, Color> parts)
         {
+            if (parts.Count == 0)
+            {
+                Clear();
+                return;
+            }
+            if (current != null && current != this) current.Clear();
+            current = this;
             if (Same(parts)) return;
             Clear();
+            current = this;
             foreach (KeyValuePair<Part, Color> part in parts)
             {
                 if (part.Key == null) continue;
@@ -28,6 +39,7 @@ namespace ReDefinition.Engineer
         // it, the mark is put back at once.
         internal void Refresh()
         {
+            if (current != this) return;
             foreach (KeyValuePair<Part, Color> part in marked)
                 if (part.Key != null && !Holds(part.Key, part.Value)) Apply(part.Key, part.Value);
         }
@@ -49,6 +61,7 @@ namespace ReDefinition.Engineer
             foreach (Part part in marked.Keys)
                 if (part != null) part.SetHighlightDefault();
             marked.Clear();
+            if (current == this) current = null;
         }
 
         // The same parts in the same colours, each still marked: KSP's editor

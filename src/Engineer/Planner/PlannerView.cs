@@ -50,7 +50,6 @@ namespace ReDefinition.Engineer
         private PartGroupChoice detectedCapsule;
         // What the log last said was found, so that it says it once.
         private string detectedLogged;
-        private Dictionary<int, List<Part>> burningParts = new Dictionary<int, List<Part>>();
         // The selected leg's or stage's details, written once per evaluation
         // and on each selection.
         private string detailTitle = "";
@@ -210,7 +209,6 @@ namespace ReDefinition.Engineer
                 });
             budget = StageBudget.Allocate(available, needs, state.Margin, plans, VesselShape.Split(available, parts, lander, capsule),
                 modes, refuel, payload);
-            burningParts = readout.BurningParts;
             warnings = new List<string>[steps.Count];
             for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
             RefreshDetail();
@@ -462,24 +460,11 @@ namespace ReDefinition.Engineer
             Mark();
         }
 
-        // Each stage's engines and the tanks it burns, in the stage's colour: all
-        // of them, the ones the selected step has, or the selected stage.
+        // The vessel unmarked: the planner marks parts only while the pointer is on
+        // an entry of the lander's or the capsule's list (ShowGroup).
         private void Mark()
         {
-            Dictionary<Part, Color> parts = new Dictionary<Part, Color>();
-            int step = Worked() ? SelectedStep() : -1;
-            for (int i = 0; i < stages.Count; i++)
-            {
-                int number = stages[i].Number;
-                if (selectedStage >= 0 && number != selectedStage) continue;
-                if (selectedStage < 0 && step >= 0 && !budget.Stages[step].Exists(stage => stage.Stage == number)) continue;
-                List<Part> list;
-                if (!burningParts.TryGetValue(number, out list)) continue;
-                Color color = PlannerColors.Vivid(PlannerColors.Stage(i));
-                foreach (Part part in list)
-                    if (part != null) parts[part] = color;
-            }
-            highlight.Show(parts);
+            highlight.Clear();
         }
 
         // What the player chose for a stage on the selected step.
