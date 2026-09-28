@@ -130,6 +130,7 @@ namespace ReDefinition.Engineer
                     Parachute = part.HasModuleImplementing<ModuleParachute>() || part.Modules.Contains("RealChuteModule"),
                     HeatShield = part.HasModuleImplementing<ModuleAblator>(),
                     Clamp = part.HasModuleImplementing<LaunchClamp>(),
+                    Crew = part.CrewCapacity,
                     Separator = part.HasModuleImplementing<ModuleDockingNode>() ? Separation.DockingPort
                         : part.HasModuleImplementing<ModuleAnchoredDecoupler>() ? Separation.Anchored
                         : part.HasModuleImplementing<ModuleDecouple>() ? Separation.Decoupler : Separation.None,

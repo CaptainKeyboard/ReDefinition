@@ -3,17 +3,6 @@ using System;
 
 namespace ReDefinition.Engineer
 {
-    // Who flies a leg where the vessel carries a lander or a capsule: the whole
-    // vessel, the lander alone while the rest waits in orbit, the rest without the
-    // lander, which stays behind, or the capsule alone, everything else left.
-    internal enum LegMode
-    {
-        Whole,
-        Lander,
-        WithoutLander,
-        Capsule,
-    }
-
     // One stage as KSP's delta-v simulation gives it (DeltaVStageInfo): the mass
     // when it starts and ends burning, and its delta-v in vacuum.
     internal sealed class BudgetStage
@@ -45,41 +34,47 @@ namespace ReDefinition.Engineer
         }
     }
 
-    // The parts of the vessel that can fly apart: the lander, the capsule, and the
-    // rest, everything else. The capsule is part of the lander or of the rest.
-    internal enum PartGroup
-    {
-        Rest,
-        Lander,
-        Capsule,
-    }
-
-    // How the vessel's mass and stages fall into the rest, the lander and the
-    // capsule (StageBudget). Per stage, by its number: the group whose parts it fires,
+    // How the vessel's mass and stages fall into groups (StageBudget): group 0 the
+    // rest, each other group a section of the vessel (PlannerState.Sections) less the
+    // sections inside it. Per stage, by its number: the group whose parts it fires,
     // and how the propellant it burns and the mass KSP drops after it share out over
-    // the groups. Built from the parts (VesselShape.Split), or from stage numbers,
-    // where the lander and the capsule are each a stage and every stage after it.
+    // the groups. Built from the parts (VesselShape.Split), or from stage numbers
+    // (ByStages).
     internal sealed class VesselSplit
     {
-        internal const int Groups = 3;
-
-        public bool HasLander;
-        public bool HasCapsule;
-        public bool CapsuleInLander;
-        // The rest's part of what KSP drops as the whole vessel starts the lander's
-        // stages is the rest itself, and stays while the lander is to come back
-        // (ByStages). From the parts, it is what KSP drops there, and goes.
-        public bool RestStaysForLander;
         // Per group, in tonnes, as the vessel starts.
-        public readonly double[] Mass = new double[Groups];
+        public readonly double[] Mass;
         // By stage number, per group; shares, summed to one by StageBudget.
         public readonly Dictionary<int, double[]> Fuel = new Dictionary<int, double[]>();
         public readonly Dictionary<int, double[]> Drop = new Dictionary<int, double[]>();
-        public readonly Dictionary<int, PartGroup> Owner = new Dictionary<int, PartGroup>();
+        public readonly Dictionary<int, int> Owner = new Dictionary<int, int>();
+        // What KSP drops as the whole vessel starts the stages of a group that flies
+        // alone later is the rest itself, and stays while that group is to come back
+        // (ByStages). From the parts, it is what KSP drops there, and goes.
+        public bool RestStaysForLander;
 
-        // The lander the stages numbered up to `lander`, the capsule those up to
-        // `capsule`, -1 for none. A lander needs something to leave behind, and
-        // something to be; a capsule inside the lander, or with no lander.
+        internal VesselSplit(int groups)
+        {
+            Mass = new double[Math.Max(1, groups)];
+        }
+
+        public int Groups
+        {
+            get { return Mass.Length; }
+        }
+
+        internal double[] Unit(int group)
+        {
+            double[] shares = new double[Groups];
+            shares[Math.Max(0, Math.Min(group, Groups - 1))] = 1.0;
+            return shares;
+        }
+
+        // The stage-number model, where the vessel has no parts to go by: group 1 the
+        // lander, the stages numbered up to `lander` less the capsule's; group 2 the
+        // capsule, those up to `capsule`; -1 for none. A lander needs something to
+        // leave behind, and something to be; a capsule inside the lander, or with no
+        // lander.
         internal static VesselSplit ByStages(IList<BudgetStage> stages, int lander, int capsule)
         {
             List<BudgetStage> order = new List<BudgetStage>(stages);
@@ -87,26 +82,22 @@ namespace ReDefinition.Engineer
             int count = order.Count;
             int firstLander = First(order, lander);
             int firstCapsule = First(order, capsule);
-            VesselSplit split = new VesselSplit
-            {
-                HasLander = firstLander > 0 && firstLander < count, RestStaysForLander = true,
-            };
-            split.HasCapsule = firstCapsule > 0 && firstCapsule < count && (!split.HasLander || firstCapsule >= firstLander);
-            split.CapsuleInLander = split.HasLander && split.HasCapsule;
+            bool hasLander = firstLander > 0 && firstLander < count;
+            bool hasCapsule = firstCapsule > 0 && firstCapsule < count && (!hasLander || firstCapsule >= firstLander);
+            VesselSplit split = new VesselSplit(3) { RestStaysForLander = true };
             for (int i = 0; i < count; i++)
             {
-                PartGroup owner = split.HasCapsule && i >= firstCapsule ? PartGroup.Capsule
-                    : split.HasLander && i >= firstLander ? PartGroup.Lander : PartGroup.Rest;
+                int owner = hasCapsule && i >= firstCapsule ? 2 : hasLander && i >= firstLander ? 1 : 0;
                 split.Owner[order[i].Number] = owner;
-                split.Fuel[order[i].Number] = Unit(owner);
-                split.Drop[order[i].Number] = Unit(owner);
+                split.Fuel[order[i].Number] = split.Unit(owner);
+                split.Drop[order[i].Number] = split.Unit(owner);
             }
             double start = count > 0 ? Math.Max(0.0, order[0].StartMass) : 0.0;
-            double capsuleMass = split.HasCapsule ? Math.Max(0.0, order[firstCapsule].StartMass) : 0.0;
-            double landerMass = split.HasLander ? Math.Max(0.0, order[firstLander].StartMass) - capsuleMass : 0.0;
-            split.Mass[(int)PartGroup.Capsule] = capsuleMass;
-            split.Mass[(int)PartGroup.Lander] = Math.Max(0.0, landerMass);
-            split.Mass[(int)PartGroup.Rest] = Math.Max(0.0, start - capsuleMass - Math.Max(0.0, landerMass));
+            double capsuleMass = hasCapsule ? Math.Max(0.0, order[firstCapsule].StartMass) : 0.0;
+            double landerMass = hasLander ? Math.Max(0.0, Math.Max(0.0, order[firstLander].StartMass) - capsuleMass) : 0.0;
+            split.Mass[2] = capsuleMass;
+            split.Mass[1] = landerMass;
+            split.Mass[0] = Math.Max(0.0, start - capsuleMass - landerMass);
             return split;
         }
 
@@ -117,44 +108,51 @@ namespace ReDefinition.Engineer
                 if (order[i].Number <= top) return i;
             return order.Count;
         }
-
-        internal static double[] Unit(PartGroup group)
-        {
-            double[] shares = new double[Groups];
-            shares[(int)group] = 1.0;
-            return shares;
-        }
     }
 
-    // Which of the vessel's stages pays for which leg of the route
+    // A group gone for good as a step starts: it stays where it is as a vessel of its
+    // own (a lander left behind) or is only parts that fall away; it was with what
+    // flies, so that what it held goes with it, or waited elsewhere.
+    internal sealed class GoneGroup
+    {
+        public int Group;
+        public bool Stays;
+        public bool Waiting;
+    }
+
+    // One step as the budget sees it: what it needs with no margin, the groups that
+    // fly it, the groups gone for good as it starts, the group refilled from the rest
+    // once it is over, and the groups left at its destination once it is over.
+    internal sealed class BudgetStep
+    {
+        public double Need;
+        public bool[] Side;
+        public readonly List<GoneGroup> Gone = new List<GoneGroup>();
+        public int RefuelGroup = -1;
+        public readonly List<int> Deploy = new List<int>();
+    }
+
+    // Which of the vessel's stages pays for which step of the route
     // (docs/development/planner.md). Worked out on the mass the stages push, so
-    // that a stage burning over several legs, or a lander that lands, returns and
+    // that a stage burning over several steps, or a lander that lands, returns and
     // is carried on to the next body, counts with what it weighs at that moment.
     //
     // Each stage burns its propellant (start mass less end mass) at the exhaust
     // velocity its delta-v gives (Tsiolkovsky backwards). The vessel falls into the
-    // rest, the lander and the capsule (VesselSplit); each stage belongs to the one
-    // whose parts it fires. What flies a leg burns its own stages in KSP's order, the
+    // rest and its sections (VesselSplit); each stage belongs to the group whose parts
+    // it fires. What flies a step burns its own groups' stages in KSP's order, the
     // highest number first, until empty; then what KSP drops before its next stage
-    // fires goes. The whole vessel fires every stage in that order. The rest's parts
-    // that the whole vessel would drop as it starts the lander's stages stay while
-    // a leg of the lander alone is ahead: the lander returns to them.
+    // fires goes. A group gone for good takes its stages with what they hold; a group
+    // deployed stays at the step's destination with what it weighs.
     //
-    // The player can save a stage on a leg: the leg stops before it, and before the
-    // stages after it, since KSP cannot fire those first. The player can drop a
-    // stage after a leg: at the leg's end it goes with what it still holds, and so do
-    // the stages KSP fires before it on what flies the leg.
+    // The player can save a stage on a step: the step stops before it, and before
+    // the stages after it, since KSP cannot fire those first. The player can drop a
+    // stage after a step: at the step's end it goes with what it still holds, and so
+    // do the stages KSP fires before it on what flies the step.
     //
-    // The first leg of the capsule leaves everything else where it is, with what it
-    // holds, and from then on only the capsule's stages burn, pushing the capsule.
-    //
-    // After a leg marked for it, a payload stays behind: what KSP separates when
-    // the next stage without delta-v after the one burning fires, while that one
-    // burns on with what it holds.
-    //
-    // After a leg marked for it, the lander, docked again, is refilled from the
-    // rest: each of its stages up to what it held at the start, from the rest's
-    // stages in KSP's order. Free of Unity, tested.
+    // After a step marked for it, a group, docked again, is refilled from the rest:
+    // each of its stages up to what it held at the start, from the rest's stages in
+    // KSP's order. Free of Unity, tested.
     internal static class StageBudget
     {
         internal sealed class StageUse
@@ -162,30 +160,30 @@ namespace ReDefinition.Engineer
             public int Stage;
             public int Leg;
             public double DeltaV;
-            // What the stage pushes as it starts this part of the leg, in tonnes.
+            // What the stage pushes as it starts this part of the step, in tonnes.
             public double Mass;
         }
 
-        // A stage of what flies a leg, with propellant as the leg starts.
+        // A stage of what flies a step, with propellant as the step starts.
         internal sealed class StepStage
         {
             public int Stage;
-            // What it gives to the leg, and what it still gives once the leg is
+            // What it gives to the step, and what it still gives once the step is
             // over, or what it held where it was dropped then.
             public double Given;
             public double LeftAfter;
             public bool Dropped;
-            // A stage follows it on what flies the leg, so that it can be dropped.
+            // A stage follows it on what flies the step, so that it can be dropped.
             public bool CanDrop;
         }
 
         internal sealed class Result
         {
             public readonly List<StageUse> Uses = new List<StageUse>();
-            // Per leg: what it needs with the margin, and what no stage covers.
+            // Per step: what it needs with the margin, and what no stage covers.
             public double[] Needed;
             public double[] Short;
-            // Per leg: the stages what flies it has with propellant as it starts,
+            // Per step: the stages what flies it has with propellant as it starts,
             // in KSP's order.
             public List<StepStage>[] Stages;
             // Per stage, by its number, as delta-v: what it has at the end of the
@@ -193,11 +191,11 @@ namespace ReDefinition.Engineer
             public readonly Dictionary<int, double> Left = new Dictionary<int, double>();
             public readonly Dictionary<int, double> Dropped = new Dictionary<int, double>();
             public readonly HashSet<int> LeftBehind = new HashSet<int>();
-            // Per stage dropped or left behind: the last leg it was part of, -1 for
+            // Per stage dropped or left behind: the last step it was part of, -1 for
             // none.
             public readonly Dictionary<int, int> GoneAfter = new Dictionary<int, int>();
-            // Per leg: the propellant moved into the lander after it, and the payload
-            // left behind after it, in tonnes.
+            // Per step: the propellant moved into a docked group after it, and the mass
+            // deployed after it, in tonnes.
             public double[] Refuelled;
             public double[] Payload;
 
@@ -223,28 +221,14 @@ namespace ReDefinition.Engineer
         }
 
         private const double Tiny = 1e-9;
-        private const int Groups = VesselSplit.Groups;
 
-        // `lander` and `capsule`: each a stage and every stage after it, -1 for none
-        // (VesselSplit.ByStages).
-        internal static Result Allocate(IList<BudgetStage> stages, IList<double> legs, double margin,
-                                        IList<StagePlan> plans, int lander, IList<LegMode> modes,
-                                        IList<bool> refuelAfter = null, IList<bool> payloadAfter = null, int capsule = -1)
+        // `steps`: what each step needs and who flies it; `margin`: 0.1 for ten per
+        // cent more; `plans`: per step, the stages saved on it and dropped after it;
+        // `split`: the rest and the sections.
+        internal static Result Allocate(IList<BudgetStage> stages, IList<BudgetStep> steps, double margin, IList<StagePlan> plans,
+                                        VesselSplit split)
         {
-            return Allocate(stages, legs, margin, plans, VesselSplit.ByStages(stages, lander, capsule), modes, refuelAfter,
-                payloadAfter);
-        }
-
-        // `legs`: what each leg needs; `margin`: 0.1 for ten per cent more;
-        // `plans`: per leg, the stages saved on it and dropped after it; `split`: the
-        // rest, the lander and the capsule; `modes`: who flies each leg, Whole where
-        // it is missing. `refuelAfter`: per leg, whether the lander is refilled once
-        // it is over; `payloadAfter`: whether a payload stays behind once it is over.
-        internal static Result Allocate(IList<BudgetStage> stages, IList<double> legs, double margin,
-                                        IList<StagePlan> plans, VesselSplit split, IList<LegMode> modes,
-                                        IList<bool> refuelAfter, IList<bool> payloadAfter)
-        {
-            return new Run(stages, plans, split).Allocate(legs, margin, modes, refuelAfter, payloadAfter);
+            return new Run(stages, plans, split).Allocate(steps, margin);
         }
 
         private sealed class Run
@@ -252,26 +236,23 @@ namespace ReDefinition.Engineer
             private readonly List<BudgetStage> order;
             private readonly IList<StagePlan> plans;
             private readonly int count;
+            private readonly int groups;
             private readonly double[,] fuel;
             private readonly double[,] capacity;
             private readonly double[,] drop;
             private readonly double[] exhaust;
-            private readonly PartGroup[] owner;
+            private readonly int[] owner;
             // Fired past: what flies no longer comes back to it.
             private readonly bool[] done;
-            private readonly double[] mass = new double[Groups];
-
-            private readonly bool hasLander;
-            private readonly bool hasCapsule;
-            private readonly bool capsuleInLander;
+            private readonly double[] mass;
+            private readonly bool[] alive;
+            // Per group, the last step it flew, -1 for none.
+            private readonly int[] lastFlown;
             private readonly bool restStaysForLander;
-            private bool landerGone;
-            private bool capsuleOn;
-            // The lander flew away and has not docked again.
-            private bool apart;
-            private int lastAlone = -1;
-            // The leg worked out now.
+            private IList<BudgetStep> steps;
+            // The step worked out now, and what flies it.
             private int leg;
+            private bool[] flying;
             private Result result;
 
             internal Run(IList<BudgetStage> stages, IList<StagePlan> plans, VesselSplit split)
@@ -279,25 +260,31 @@ namespace ReDefinition.Engineer
                 order = new List<BudgetStage>(stages);
                 order.Sort((a, b) => b.Number.CompareTo(a.Number));
                 this.plans = plans;
-                count = order.Count;
-                fuel = new double[count, Groups];
-                capacity = new double[count, Groups];
-                drop = new double[count, Groups];
-                exhaust = new double[count];
-                owner = new PartGroup[count];
-                done = new bool[count];
                 if (split == null) split = VesselSplit.ByStages(stages, -1, -1);
-                hasLander = split.HasLander;
-                hasCapsule = split.HasCapsule;
-                capsuleInLander = split.CapsuleInLander && hasLander;
+                count = order.Count;
+                groups = split.Groups;
+                fuel = new double[count, groups];
+                capacity = new double[count, groups];
+                drop = new double[count, groups];
+                exhaust = new double[count];
+                owner = new int[count];
+                done = new bool[count];
+                mass = new double[groups];
+                alive = new bool[groups];
+                lastFlown = new int[groups];
                 restStaysForLander = split.RestStaysForLander;
-                for (int g = 0; g < Groups; g++) mass[g] = Math.Max(0.0, split.Mass[g]);
+                for (int g = 0; g < groups; g++)
+                {
+                    mass[g] = Math.Max(0.0, split.Mass[g]);
+                    alive[g] = true;
+                    lastFlown[g] = -1;
+                }
 
                 for (int i = 0; i < count; i++)
                 {
                     int number = order[i].Number;
-                    PartGroup group;
-                    owner[i] = split.Owner.TryGetValue(number, out group) ? group : PartGroup.Rest;
+                    int group;
+                    owner[i] = split.Owner.TryGetValue(number, out group) && group >= 0 && group < groups ? group : 0;
                     double start = Math.Max(0.0, order[i].StartMass);
                     double end = Math.Max(0.0, Math.Min(order[i].EndMass, start));
                     double burns = 0.0;
@@ -309,9 +296,9 @@ namespace ReDefinition.Engineer
                     // What goes when the next stage fires: all but the propellant
                     // burnt and what the next stage starts with.
                     double drops = i + 1 < count ? Math.Max(0.0, start - burns - Math.Max(0.0, order[i + 1].StartMass)) : 0.0;
-                    double[] fuelShares = Shares(split.Fuel, number, owner[i]);
-                    double[] dropShares = Shares(split.Drop, number, owner[i]);
-                    for (int g = 0; g < Groups; g++)
+                    double[] fuelShares = Shares(split, split.Fuel, number, owner[i]);
+                    double[] dropShares = Shares(split, split.Drop, number, owner[i]);
+                    for (int g = 0; g < groups; g++)
                     {
                         fuel[i, g] = burns * fuelShares[g];
                         capacity[i, g] = fuel[i, g];
@@ -320,45 +307,44 @@ namespace ReDefinition.Engineer
                 }
             }
 
-            private static double[] Shares(Dictionary<int, double[]> table, int number, PartGroup fallback)
+            private double[] Shares(VesselSplit split, Dictionary<int, double[]> table, int number, int fallback)
             {
                 double[] shares;
-                if (!table.TryGetValue(number, out shares) || shares == null) return VesselSplit.Unit(fallback);
+                if (!table.TryGetValue(number, out shares) || shares == null) return split.Unit(fallback);
                 double sum = 0.0;
-                for (int g = 0; g < Groups && g < shares.Length; g++) sum += Math.Max(0.0, shares[g]);
-                if (sum <= Tiny) return VesselSplit.Unit(fallback);
-                double[] result = new double[Groups];
-                for (int g = 0; g < Groups && g < shares.Length; g++) result[g] = Math.Max(0.0, shares[g]) / sum;
+                for (int g = 0; g < groups && g < shares.Length; g++) sum += Math.Max(0.0, shares[g]);
+                if (sum <= Tiny) return split.Unit(fallback);
+                double[] result = new double[groups];
+                for (int g = 0; g < groups && g < shares.Length; g++) result[g] = Math.Max(0.0, shares[g]) / sum;
                 return result;
             }
 
-            internal Result Allocate(IList<double> legs, double margin, IList<LegMode> modes, IList<bool> refuelAfter,
-                                     IList<bool> payloadAfter)
+            internal Result Allocate(IList<BudgetStep> steps, double margin)
             {
+                this.steps = steps;
                 result = new Result
                 {
-                    Needed = new double[legs.Count], Short = new double[legs.Count], Refuelled = new double[legs.Count],
-                    Payload = new double[legs.Count], Stages = new List<StepStage>[legs.Count],
+                    Needed = new double[steps.Count], Short = new double[steps.Count], Refuelled = new double[steps.Count],
+                    Payload = new double[steps.Count], Stages = new List<StepStage>[steps.Count],
                 };
-                for (int at = 0; at < legs.Count; at++)
-                    if (ModeOf(modes, at) == LegMode.Lander) lastAlone = at;
-
-                for (leg = 0; leg < legs.Count; leg++)
+                flying = Everything();
+                for (leg = 0; leg < steps.Count; leg++)
                 {
-                    double need = Math.Max(0.0, legs[leg]) * (1.0 + Math.Max(0.0, margin));
+                    BudgetStep step = steps[leg];
+                    double need = Math.Max(0.0, step.Need) * (1.0 + Math.Max(0.0, margin));
                     result.Needed[leg] = need;
-                    LegMode mode = ModeOf(modes, leg);
-                    apart = hasLander && !landerGone && !capsuleOn && (mode == LegMode.Lander || (apart && mode != LegMode.Whole));
-
-                    if (mode == LegMode.WithoutLander) LeaveLander();
-                    if (mode == LegMode.Capsule) LeaveForCapsule();
-                    bool[] side = Side(mode);
+                    foreach (GoneGroup gone in step.Gone) Leave(gone);
+                    bool[] side = new bool[groups];
+                    for (int g = 0; g < groups; g++) side[g] = alive[g] && step.Side != null && g < step.Side.Length && step.Side[g];
+                    flying = side;
+                    for (int g = 0; g < groups; g++)
+                        if (side[g]) lastFlown[g] = leg;
                     List<StepStage> present = Present(side);
-                    if (mode != LegMode.Lander || !landerGone) Burn(side, ref need);
+                    Burn(side, ref need);
                     result.Short[leg] = need > 1e-6 ? need : 0.0;
-                    if (refuelAfter != null && leg < refuelAfter.Count && refuelAfter[leg]) result.Refuelled[leg] = Refuel();
-                    if (payloadAfter != null && leg < payloadAfter.Count && payloadAfter[leg]) result.Payload[leg] = LeavePayload(side);
+                    if (step.RefuelGroup > 0) result.Refuelled[leg] = Refuel(step.RefuelGroup);
                     DropAfter(present, side);
+                    foreach (int group in step.Deploy) result.Payload[leg] += Deploy(group);
                     Close(present);
                     result.Stages[leg] = present;
                 }
@@ -366,55 +352,19 @@ namespace ReDefinition.Engineer
                 return result;
             }
 
-            private LegMode ModeOf(IList<LegMode> modes, int at)
+            private bool[] Everything()
             {
-                if (modes == null || at >= modes.Count) return LegMode.Whole;
-                LegMode mode = modes[at];
-                if (mode == LegMode.Capsule) return hasCapsule ? mode : LegMode.Whole;
-                return hasLander ? mode : LegMode.Whole;
-            }
-
-            // ------------------------------------------------------------ sides
-
-            // The groups that fly a leg of this mode.
-            private bool[] Side(LegMode mode)
-            {
-                bool[] side = new bool[Groups];
-                if (capsuleOn)
-                {
-                    side[(int)PartGroup.Capsule] = true;
-                    return side;
-                }
-                bool landerOn = hasLander && !landerGone;
-                // The lander alone; the rest without it; or everything still there,
-                // the lander docked again first where it was away (RouteSteps).
-                side[(int)PartGroup.Rest] = mode != LegMode.Lander;
-                side[(int)PartGroup.Lander] = landerOn && mode != LegMode.WithoutLander;
-                if (hasCapsule) side[(int)PartGroup.Capsule] = capsuleInLander ? side[(int)PartGroup.Lander] : side[(int)PartGroup.Rest];
+                bool[] side = new bool[groups];
+                for (int g = 0; g < groups; g++) side[g] = alive[g];
                 return side;
             }
 
-            // The groups waiting while the lander flies alone.
-            private bool[] Waiting()
-            {
-                bool[] side = new bool[Groups];
-                side[(int)PartGroup.Rest] = true;
-                if (hasCapsule && !capsuleInLander) side[(int)PartGroup.Capsule] = true;
-                return side;
-            }
-
-            private bool[] LanderSide()
-            {
-                bool[] side = new bool[Groups];
-                side[(int)PartGroup.Lander] = true;
-                if (capsuleInLander) side[(int)PartGroup.Capsule] = true;
-                return side;
-            }
+            // ----------------------------------------------------------- sides
 
             private double MassOf(bool[] side)
             {
                 double total = 0.0;
-                for (int g = 0; g < Groups; g++)
+                for (int g = 0; g < groups; g++)
                     if (side[g]) total += mass[g];
                 return total;
             }
@@ -422,7 +372,7 @@ namespace ReDefinition.Engineer
             private double FuelOf(int at, bool[] side)
             {
                 double total = 0.0;
-                for (int g = 0; g < Groups; g++)
+                for (int g = 0; g < groups; g++)
                     if (side[g]) total += fuel[at, g];
                 return total;
             }
@@ -431,7 +381,7 @@ namespace ReDefinition.Engineer
             private int NextOf(bool[] side, int after)
             {
                 for (int i = after + 1; i < count; i++)
-                    if (!done[i] && side[(int)owner[i]]) return i;
+                    if (!done[i] && side[owner[i]]) return i;
                 return -1;
             }
 
@@ -440,7 +390,23 @@ namespace ReDefinition.Engineer
                 return NextOf(side, -1);
             }
 
+            // A later step flies the group without the rest: it comes back to it.
+            private bool AloneAhead(int group)
+            {
+                for (int k = leg + 1; k < steps.Count; k++)
+                {
+                    bool[] side = steps[k].Side;
+                    if (side != null && group < side.Length && side[group] && !side[0]) return true;
+                }
+                return false;
+            }
+
             // ----------------------------------------------------------- burning
+
+            private StagePlan PlanOf(int at)
+            {
+                return plans != null && at >= 0 && at < plans.Count ? plans[at] : null;
+            }
 
             private bool Saved(int at)
             {
@@ -448,12 +414,7 @@ namespace ReDefinition.Engineer
                 return plan != null && plan.Save.Contains(order[at].Number);
             }
 
-            private StagePlan PlanOf(int at)
-            {
-                return plans != null && at >= 0 && at < plans.Count ? plans[at] : null;
-            }
-
-            // True where a stage saved on this leg stopped the burn.
+            // True where a stage saved on this step stopped the burn.
             private bool Burn(bool[] side, ref double need)
             {
                 int at = FirstOf(side);
@@ -481,7 +442,7 @@ namespace ReDefinition.Engineer
                 double take = Math.Min(need, full);
                 double burnt = take >= full - 1e-9 ? available : pushed * (1.0 - Math.Exp(-take / exhaust[at]));
                 result.Uses.Add(new StageUse { Stage = order[at].Number, Leg = leg, DeltaV = take, Mass = pushed });
-                for (int g = 0; g < Groups; g++)
+                for (int g = 0; g < groups; g++)
                 {
                     if (!side[g] || fuel[at, g] <= 0.0) continue;
                     double part = take >= full - 1e-9 ? fuel[at, g] : burnt * fuel[at, g] / available;
@@ -491,18 +452,16 @@ namespace ReDefinition.Engineer
                 need -= take;
             }
 
-            // The next stage fires: what KSP drops after `at` goes from the side. With
-            // the lander as stage numbers, the rest's part of it stays where the
-            // lander's stages come next and a leg of the lander alone is ahead, as the
-            // lander returns to it.
+            // The next stage fires: what KSP drops after `at` goes from the side. In the
+            // stage-number model, the rest's part of it stays where another group's
+            // stages come next and that group flies alone later, as it returns to it.
             private void Pass(int at, int next, bool[] side, bool forced)
             {
                 done[at] = true;
-                for (int g = 0; g < Groups; g++)
+                for (int g = 0; g < groups; g++)
                 {
                     if (!side[g] || drop[at, g] <= 0.0) continue;
-                    bool restStays = !forced && restStaysForLander && g == (int)PartGroup.Rest && hasLander && !landerGone
-                                     && owner[next] != PartGroup.Rest && leg <= lastAlone;
+                    bool restStays = !forced && restStaysForLander && g == 0 && owner[next] != 0 && AloneAhead(owner[next]);
                     if (restStays) continue;
                     mass[g] = Math.Max(0.0, mass[g] - drop[at, g]);
                     drop[at, g] = 0.0;
@@ -515,9 +474,9 @@ namespace ReDefinition.Engineer
                 return exhaust[at] * Math.Log(pushed / (pushed - available));
             }
 
-            // --------------------------------------------------------- the leg
+            // --------------------------------------------------------- the step
 
-            // The stages of what flies the leg that still hold propellant.
+            // The stages of what flies the step that still hold propellant.
             private List<StepStage> Present(bool[] side)
             {
                 List<StepStage> list = new List<StepStage>();
@@ -527,7 +486,7 @@ namespace ReDefinition.Engineer
                 return list;
             }
 
-            // Once the leg is over: what each of its stages gave and still gives.
+            // Once the step is over: what each of its stages gave and still gives.
             private void Close(List<StepStage> present)
             {
                 Dictionary<int, double> left = Remaining();
@@ -541,7 +500,7 @@ namespace ReDefinition.Engineer
                 }
             }
 
-            // The stages the player drops after this leg, with those KSP fires before
+            // The stages the player drops after this step, with those KSP fires before
             // them on what flies it.
             private void DropAfter(List<StepStage> present, bool[] side)
             {
@@ -573,7 +532,7 @@ namespace ReDefinition.Engineer
                 if (available <= Tiny) return;
                 result.Dropped[order[at].Number] = DeltaV(at, available, MassOf(side));
                 result.GoneAfter[order[at].Number] = leg;
-                for (int g = 0; g < Groups; g++)
+                for (int g = 0; g < groups; g++)
                 {
                     if (!side[g]) continue;
                     mass[g] = Math.Max(0.0, mass[g] - fuel[at, g]);
@@ -581,115 +540,87 @@ namespace ReDefinition.Engineer
                 }
             }
 
-            // What KSP separates when the next stage without delta-v after the burning
-            // one fires stays here; the burning stage burns on with what it holds.
-            private double LeavePayload(bool[] side)
+            // A docked group filled up from the rest's tanks, as far as they hold it.
+            private double Refuel(int into)
             {
-                int before = FirstOf(side);
-                if (before < 0) return 0.0;
-                for (int at = NextOf(side, before); at >= 0; before = at, at = NextOf(side, at))
-                {
-                    if (order[at].DeltaV > 0.5) break;
-                    double payload = 0.0;
-                    for (int g = 0; g < Groups; g++)
-                        if (side[g]) payload += drop[before, g];
-                    if (payload <= Tiny) continue;
-                    for (int g = 0; g < Groups; g++)
-                    {
-                        if (!side[g]) continue;
-                        mass[g] = Math.Max(0.0, mass[g] - drop[before, g]);
-                        drop[before, g] = 0.0;
-                    }
-                    result.LeftBehind.Add(order[at].Number);
-                    result.GoneAfter[order[at].Number] = leg;
-                    return payload;
-                }
-                return 0.0;
-            }
-
-            // The lander, docked, filled up from the rest's tanks, as far as they
-            // hold it.
-            private double Refuel()
-            {
-                if (!hasLander || landerGone || capsuleOn) return 0.0;
-                const int lander = (int)PartGroup.Lander, rest = (int)PartGroup.Rest;
+                if (into <= 0 || into >= groups || !alive[into] || !alive[0]) return 0.0;
                 double moved = 0.0;
                 int from = 0;
                 for (int i = 0; i < count; i++)
                 {
-                    // A stage of the lander already fired past is gone.
+                    // A stage already fired past is gone.
                     if (done[i]) continue;
-                    double wanted = capacity[i, lander] - fuel[i, lander];
+                    double wanted = capacity[i, into] - fuel[i, into];
                     while (wanted > Tiny && from < count)
                     {
-                        double take = Math.Min(wanted, fuel[from, rest]);
-                        fuel[from, rest] -= take;
-                        fuel[i, lander] += take;
+                        double take = Math.Min(wanted, fuel[from, 0]);
+                        fuel[from, 0] -= take;
+                        fuel[i, into] += take;
                         wanted -= take;
                         moved += take;
-                        if (fuel[from, rest] <= Tiny) from++;
+                        if (fuel[from, 0] <= Tiny) from++;
                     }
                 }
-                mass[rest] = Math.Max(0.0, mass[rest] - moved);
-                mass[lander] += moved;
+                mass[0] = Math.Max(0.0, mass[0] - moved);
+                mass[into] += moved;
                 return moved;
             }
 
             // --------------------------------------------------------- leaving
 
-            // The rest flies on without the lander: it stays where it is, with
-            // what its stages still hold.
-            private void LeaveLander()
+            // A group gone for good as the step starts: its stages go with what they
+            // hold. What stays is left behind, the stages it owns with it; what was with
+            // what flew is dropped with the delta-v it held.
+            private void Leave(GoneGroup gone)
             {
-                if (!hasLander || landerGone) return;
-                bool[] side = LanderSide();
-                double pushed = MassOf(side);
-                for (int i = FirstOf(side); i >= 0; i = NextOf(side, i))
-                {
-                    result.LeftBehind.Add(order[i].Number);
-                    result.GoneAfter[order[i].Number] = leg - 1;
-                    double available = FuelOf(i, side);
-                    if (available > Tiny) result.Dropped[order[i].Number] = DeltaV(i, available, pushed);
-                    pushed -= available;
-                    for (int g = 0; g < Groups; g++)
-                    {
-                        if (!side[g]) continue;
-                        pushed -= drop[i, g];
-                        fuel[i, g] = 0.0;
-                    }
-                    done[i] = true;
-                }
-                for (int g = 0; g < Groups; g++)
-                    if (side[g]) mass[g] = 0.0;
-                landerGone = true;
-                apart = false;
-            }
-
-            // The capsule flies on alone: what it leaves goes with what it holds; a
-            // part waiting elsewhere stays there.
-            private void LeaveForCapsule()
-            {
-                if (capsuleOn || !hasCapsule) return;
-                bool[] host = apart ? (capsuleInLander ? LanderSide() : Waiting()) : Side(LegMode.Whole);
-                bool[] waiting = apart ? (capsuleInLander ? Waiting() : LanderSide()) : new bool[Groups];
-                const int capsule = (int)PartGroup.Capsule;
+                int group = gone.Group;
+                if (group < 0 || group >= groups || !alive[group]) return;
+                // What stays is a vessel of its own; what falls away pushed with what flew.
+                bool[] with = !gone.Stays && !gone.Waiting && flying[group] ? flying : Single(group);
+                double pushed = MassOf(with);
                 for (int i = 0; i < count; i++)
                 {
-                    for (int g = 0; g < Groups; g++)
-                    {
-                        if (g == capsule || fuel[i, g] <= Tiny) continue;
-                        if (waiting[g]) result.LeftBehind.Add(order[i].Number);
-                        else if (host[g]) result.Dropped[order[i].Number] = DeltaV(i, fuel[i, g], MassOf(host));
-                        result.GoneAfter[order[i].Number] = leg - 1;
-                        fuel[i, g] = 0.0;
-                    }
-                    if (owner[i] != PartGroup.Capsule) done[i] = true;
+                    bool owned = owner[i] == group && !done[i];
+                    bool holds = fuel[i, group] > Tiny;
+                    if (!owned && !holds) continue;
+                    if (gone.Stays || gone.Waiting) result.LeftBehind.Add(order[i].Number);
+                    if (!gone.Waiting && holds) result.Dropped[order[i].Number] = DeltaV(i, fuel[i, group], pushed);
+                    // Where it stays: where it last flew to.
+                    result.GoneAfter[order[i].Number] = gone.Waiting || gone.Stays ? lastFlown[group] : leg - 1;
+                    pushed -= fuel[i, group];
+                    fuel[i, group] = 0.0;
+                    if (owned) done[i] = true;
                 }
-                for (int g = 0; g < Groups; g++)
-                    if (g != capsule) mass[g] = 0.0;
-                capsuleOn = true;
-                landerGone = true;
-                apart = false;
+                mass[group] = 0.0;
+                alive[group] = false;
+            }
+
+            // A group left at the step's destination, with what it weighs.
+            private double Deploy(int group)
+            {
+                if (group <= 0 || group >= groups || !alive[group]) return 0.0;
+                double weight = mass[group];
+                for (int i = 0; i < count; i++)
+                {
+                    if (owner[i] != group && fuel[i, group] <= Tiny) continue;
+                    if (owner[i] == group)
+                    {
+                        result.LeftBehind.Add(order[i].Number);
+                        result.GoneAfter[order[i].Number] = leg;
+                        done[i] = true;
+                    }
+                    fuel[i, group] = 0.0;
+                }
+                mass[group] = 0.0;
+                alive[group] = false;
+                return weight;
+            }
+
+            private bool[] Single(int group)
+            {
+                bool[] side = new bool[groups];
+                side[group] = true;
+                return side;
             }
 
             // ------------------------------------------------------ what is left
@@ -703,18 +634,20 @@ namespace ReDefinition.Engineer
                 foreach (KeyValuePair<int, double> pair in Remaining()) result.Left[pair.Key] = pair.Value;
             }
 
-            // What each stage still attached gives, burning on in order from here:
-            // the lander away and the rest waiting each on their own.
+            // What each stage still there gives, burning on in order from here: what
+            // flies, and what waits elsewhere, each on its own.
             private Dictionary<int, double> Remaining()
             {
                 Dictionary<int, double> left = new Dictionary<int, double>();
-                if (capsuleOn) BurnOn(left, Side(LegMode.Capsule));
-                else if (apart)
+                bool[] waiting = new bool[groups];
+                bool any = false;
+                for (int g = 0; g < groups; g++)
                 {
-                    BurnOn(left, Waiting());
-                    BurnOn(left, LanderSide());
+                    waiting[g] = alive[g] && !flying[g];
+                    any |= waiting[g];
                 }
-                else BurnOn(left, Side(LegMode.Whole));
+                BurnOn(left, flying);
+                if (any) BurnOn(left, waiting);
                 return left;
             }
 
@@ -728,7 +661,7 @@ namespace ReDefinition.Engineer
                         left[order[i].Number] = DeltaV(i, available, pushed);
                     pushed -= available;
                     if (NextOf(side, i) < 0) break;
-                    for (int g = 0; g < Groups; g++)
+                    for (int g = 0; g < groups; g++)
                         if (side[g]) pushed -= drop[i, g];
                 }
             }

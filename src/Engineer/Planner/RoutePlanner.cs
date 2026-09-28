@@ -45,17 +45,6 @@ namespace ReDefinition.Engineer
         Transfer,
     }
 
-    // Who flies a step (RouteSteps): the whole vessel, the lander alone while the
-    // rest waits, the rest without the lander, which stays behind for good, or the
-    // capsule alone, everything else left behind.
-    internal enum Vehicle
-    {
-        Ship,
-        Lander,
-        Rest,
-        Capsule,
-    }
-
     // One point of the route: a body, on its surface or in a circular orbit.
     internal sealed class RouteStop
     {
@@ -70,8 +59,8 @@ namespace ReDefinition.Engineer
         internal const int Roles = 4;
 
         // For each step on the way here (by StepRole, RouteSteps): who flies it, as a
-        // Vehicle, -1 where the planner works it out; and whether the lander is
-        // refilled from the rest's tanks when it docks at the step's end.
+        // Flyer's code, -1 where the planner works it out; and whether a section that
+        // docks at the step's end is refilled from the rest's tanks.
         public int[] By = { -1, -1, -1, -1 };
         public bool[] Refuel = new bool[Roles];
         // For each step on the way here: the stages the player saves on it or drops
@@ -80,8 +69,6 @@ namespace ReDefinition.Engineer
         // On the way to a landing on parachutes: into an orbit first, rather than
         // straight into the air.
         public bool OrbitFirst;
-        // A payload stays here (StageBudget).
-        public bool LeavesPayload;
         // The way across here in two steps: the burn that leaves, and the one that
         // arrives (RouteSteps).
         public bool SplitBurns;

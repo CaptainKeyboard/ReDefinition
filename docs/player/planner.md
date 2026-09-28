@@ -7,7 +7,8 @@ carry enough fuel, and set yourself which stage burns on which step.
 
 The planner lays out a route the way a map app lays out a trip: A → B → C → D. Between
 two destinations it lists the steps the way needs, up into an orbit, across to the next
-body, down onto its surface, and for each who flies it: the whole vessel or its lander.
+body, down onto its surface, and for each who flies it: the whole vessel or one of its
+sections, such as a lander.
 It works out what each step costs and shares the vessel's stages out over them. You can
 leave that to the planner, or save a stage for later or drop it after a step yourself. It
 works with the bodies the game has loaded, so it also works with planet packs.
@@ -21,32 +22,35 @@ back, click KSP's parts button, or any other mode button.
 The plan belongs to the vessel. It is saved under the vessel's name and comes
 back when you load the vessel again.
 
-## Name the lander and the capsule
+## Add the vessel's sections
 
-The rows *Lander* and *Capsule* at the top name the parts of the vessel that fly on
-their own. They decide who can fly a step.
+*Sections* at the top lists the parts of the vessel that fly on their own. They decide
+who can fly a step. *+* adds one, and the list of its parts folds out right after:
 
-| Row | Offers |
-|---|---|
-| *Lander* | *Automatic*, *None* or a part of the vessel with engines and a command part: the part that lands |
-| *Afterwards* | *Docks again*: the lander comes back to the rest and docks, and the whole vessel flies on. *Flies on alone*: the lander goes on by itself and leaves the rest behind |
-| *Capsule* | *Automatic*, *None* or a part of the vessel with a command part: it comes home alone at the end |
+| Section | Is | Row under it |
+|---|---|---|
+| *Capsule* | what comes home alone at the end, usually on its parachutes | a red line where it has no parachutes |
+| *Lander* | what lands while the rest waits | *Afterwards*: *Docks again*, it comes back to the rest and docks, and the whole vessel flies on; or *Flies on alone*, it goes on by itself and leaves the rest behind |
+| *Satellite* | what stays at a destination | *Deployed at*: the destination where it stays; the rest flies on without it |
 
-The parts in the lists are what a decoupler or a docking port separates, named after
-their command part or engine, with their number of parts. While the pointer is on an
-entry, its parts light up on the vessel. The capsule can be part of the lander or of the
-rest.
+A vessel can have several of each, such as two landers or three satellites; they are
+numbered then. The parts in a section's list are what a decoupler or a docking port
+separates, named after their command part or engine, with their number of parts. While
+the pointer is on an entry, its parts light up on the vessel. A section can be part of
+another, such as a capsule on a lander, but two sections cannot share some parts. The
+cross removes a section.
 
-*Automatic* shows in brackets what the planner found on the vessel:
+The planner adds two sections by itself, shown as *Automatic* with what it found:
 
-* The capsule is the smallest part with a command part and parachutes.
-* The lander is the smallest part with a command part, engines and landing legs.
-* *Afterwards* is *Docks again* where a docking port separates the lander, *Flies on
-  alone* where a decoupler does.
+* On a crewed vessel, the capsule: the smallest part with a crewed command part.
+* On an uncrewed vessel, the satellite, where one part with a probe core and no landing
+  legs leaves the launch stage behind. With several, you add them yourself.
 
-The Kerbal X has the pod as its capsule and, with the legs on its upper stage, the pod
-and the upper stage as its lander, which flies on alone. What you pick is bold and
-underlined; picking it again gives it back to the planner.
+A lander you always add yourself. *Afterwards* is *Docks again* by itself where a docking
+port separates the lander, *Flies on alone* where a decoupler does. *Deployed at* is by
+itself the first orbit the route reaches before it lands or ends. What you pick is bold
+and underlined; picking it again gives it back to the planner. A section the planner
+added and you removed stays away.
 
 ## Lay out the route
 
@@ -80,8 +84,10 @@ margin, and *...* where it has further choices, and the lines that belong to it.
 The bar's length is the step's delta-v, on the same scale for every step. Its colours
 are the stages that pay for it. Red is what no stage covers. The figure turns red if
 something blocks the step, and a red line under it says what: too little fuel, too
-little thrust to lift off or land, no parachutes or no heat shield on what lands, or a
-lander that is not where it has to be. Where nothing is wrong, there is no such line.
+little thrust to lift off or land, no parachutes or no heat shield on what lands, a
+lander that is not where it has to be, or a satellite not carried to where it stays.
+Where nothing is wrong, there is no such line. A grey line says what leaves at the start
+of a step, and which satellite stays at its end.
 
 *...* shows and hides the step's further choices, each group on a line of its own:
 
@@ -89,7 +95,6 @@ lander that is not where it has to be. Where nothing is wrong, there is no such 
 |---|---|---|
 | *Burns* | *Together* / *Split* | on the way across to an orbit: one step, or two, the burn that leaves and the one that arrives, each with who flies it. So the upper stage can make the transfer burn and the satellite circularise by itself |
 | *Way down* | *Straight in* / *Orbit first* | on the way to a landing on parachutes on another body: straight into its atmosphere, or into a low orbit first |
-| *Payload* | *Leave payload* | on the last step to a stop: what the vessel separates next, with no engines of its own, such as a satellite, stays there. The stage carrying it burns on with the fuel it has left. If there is no such payload, a red line says so |
 
 ## Check the fuel
 
@@ -160,36 +165,29 @@ A mission to Eve needs a large stage for the climb back to orbit. Select each st
 way there and click *Save* on that stage, and the planner keeps it for the climb. A
 booster you drop early to lighten the vessel gets *Drop after* on the launch.
 
-## Plan a lander and a capsule
+## Plan with sections
 
-A vessel can carry a lander, the part that lands. The rest waits while it flies. The
-lander then docks again and goes on, or flies on by itself and leaves the rest behind, as
-*Afterwards* says. A capsule is what
-comes home at the end: it leaves the rest of the vessel for good, usually for the
-landing on its parachutes.
-
-1. Check *Lander* and *Capsule* at the top. Where *Automatic* found the wrong part or
-   none, pick it from the list.
-2. Every step now shows on a button who flies it, green. The planner sets it itself. A
-   click on the button folds out the list of who can: *Ship*, *Lander*, *Without lander*,
-   *Capsule*. What you pick there is bold and underlined; *Planner's choice* in the list
-   gives the step back to the planner.
+Every step shows on a button who flies it, green, as soon as the vessel has a section.
+The planner sets it itself. A click on the button folds out the list of who can: *Ship*,
+each section by its name, and for a lander *Without lander*. What you pick there is bold
+and underlined; *Planner's choice* in the list gives the step back to the planner.
 
 What happens follows from who flies one step after another:
 
 | From one step to the next | Happens |
 |---|---|
-| *Ship*, then *Lander* | the lander leaves the rest, which waits where it is. A grey line says where |
-| *Lander*, then *Ship* | the lander docks with the rest at the end of its step: *Docks with the rest*, with 50 m/s for the rendezvous, and the burn to the rest's orbit where it ended in another orbit of that body. Anywhere else a red line says it is not where the rest waits |
-| *Lander*, and no *Ship* after | the lander flies on by itself; the rest stays where it waited |
+| *Ship*, then a section | the section leaves the vessel, which waits where it is, and takes the sections that are part of it along. A grey line says where |
+| a lander that docks, then *Ship* | the lander docks with the rest at the end of its step: *Docks with the rest*, with 50 m/s for the rendezvous, and the burn to the rest's orbit where it ended in another orbit of that body. Anywhere else a red line says it is not where the rest waits |
+| a section, and no *Ship* after | it flies on by itself; the rest stays where it waited |
 | *Without lander* | the vessel flies on without the lander, which stays where it is for good |
-| *Capsule* | the capsule leaves whatever flew the step before, for good. No step of the ship or the lander can follow |
+| the capsule | it leaves whatever flew the step before, for good. Nothing else can fly after it |
+| a satellite's destination reached | the satellite stays there, with what it weighs; the rest flies on lighter |
 
-Where the lander climbs from a surface and the rest waits in an orbit of that body, the
-lander climbs to the rest's own orbit. *Refuel* on the line *Docks with the rest*
-fills the lander up from the rest's tanks as it docks.
+Where a lander that docks climbs from a surface and the rest waits in an orbit of that
+body, it climbs to the rest's own orbit. *Refuel* on the line *Docks with the rest* fills
+it up from the rest's tanks as it docks.
 
-By itself, the planner has the lander land wherever the route goes on after the landing,
+By itself, the planner has a lander land wherever the route goes on after the landing,
 whoever stands on a surface fly up from it, the whole vessel fly on across to another body
 where a lander that docks again has come back to the rest, and otherwise whoever flew the
 step before. A landing on parachutes on the last stop is the capsule's where what carries
@@ -208,27 +206,30 @@ A vessel to Minmus and home, without a lander:
 2. *+* under the last stop, pick Kerbin, click *Surface*. *Chutes* comes on by itself, as it
    does on every last stop with air where the vessel carries parachutes.
 
-A satellite left in a synchronous orbit, the upper stage with the capsule landing at home.
-Stage the satellite's decoupler right after the upper stage's engines:
+A satellite left in a synchronous orbit by an uncrewed rocket:
 
 1. *B*: type 2863 into the altitude field.
-2. On the step to *B*, click *...* and *Leave payload*.
-3. *+* under the last stop, click *Surface*; *Chutes* comes on by itself.
+2. Check that *Sections* shows the satellite; *Deployed at* is *B* by itself.
 
 A satellite with an engine of its own that circularises by itself, the upper stage left
 in the transfer orbit:
 
-1. *Capsule*: pick the satellite.
-2. *B*: *Orbit* at 80 km. *+*, *Orbit*, type 2863.
-3. On the step to *C*, click *...* and *Split*. On *To Kerbin orbit* after *To Kerbin
-   transfer orbit*, pick *Capsule*.
+1. *B*: *Orbit* at 80 km. *+*, *Orbit*, type 2863.
+2. On the step to *C*, click *...* and *Split*. On *To Kerbin orbit* after *To Kerbin
+   transfer orbit*, pick the satellite.
+
+The Kerbal X to the Mun and home, its upper stage with the legs landing:
+
+1. *B*: pick the Mun, *Surface*. *+*, Kerbin, *Surface*.
+2. *+* under *Sections*, *Lander*, and pick the pod with the upper stage. *Afterwards* is
+   *Flies on alone*; the capsule, found by itself, lands at home.
 
 A lander that lands on the Mun and docks again, the capsule on the mothership coming
 home, the lander left in the Mun's orbit:
 
 1. Stops: Kerbin *Surface*, Kerbin *Orbit*, Mun *Orbit*, Mun *Surface*, Mun *Orbit*,
    Kerbin *Surface*.
-2. Check that *Lander* names the lander and *Capsule* the command module.
+2. Add the lander; check that the capsule is the command module.
 3. On the step *To Kerbin's air*, pick *Without lander*. The landing is the capsule's by
    itself.
 
@@ -237,9 +238,8 @@ Duna's orbit:
 
 1. *B*: pick Duna, *Orbit*. *C*: Duna, *Surface*. *D*: Kerbin, *Surface*. *Chutes* comes
    on by itself on both.
-2. Check that *Lander* names the lander and *Afterwards* says *Flies on alone*, as it does
-   by itself where a decoupler separates the lander. The landing on Duna and the way home
-   are then the lander's.
+2. Add the lander; *Afterwards* is *Flies on alone* where a decoupler separates it. The
+   landing on Duna and the way home are then the lander's.
 
 A mission from Kerbin to Jool with one lander for Laythe and Vall, refilled after
 Laythe, and the capsule landing at home:
@@ -247,13 +247,13 @@ Laythe, and the capsule landing at home:
 1. Stops: Kerbin *Surface*; Kerbin *Orbit*; Jool *Orbit* with *Aerobrake*; Laythe
    *Orbit*; Laythe *Surface*; Vall *Orbit*; Vall *Surface*; Tylo *Orbit*; Kerbin
    *Surface*. *Chutes* comes on by itself on Laythe and Kerbin, each the last stop when
-   it is set. A Laythe *Orbit* and a Vall *Orbit* after the landings
-   can be stops as well; the lander climbs back to the rest either way.
-2. Check *Lander* and *Capsule* in the row *Vessel*. The landings on Laythe and Vall are
-   the lander's by itself; the last step, home, is the capsule's.
+   it is set. A Laythe *Orbit* and a Vall *Orbit* after the landings can be stops as
+   well; the lander climbs back to the rest either way.
+2. Add the lander; check the capsule. The landings on Laythe and Vall are the lander's
+   by itself; the last step, home, is the capsule's.
 3. *Refuel* on the line *Docks with the rest* after Laythe.
 
-The lander pushes only its own mass while it flies alone. When the whole vessel flies
+A section pushes only its own mass while it flies alone. When the whole vessel flies
 on, it carries the lander with the fuel the lander has left, or refilled.
 
 ## What the numbers are
@@ -269,5 +269,5 @@ on, it carries the lander with the fuel the lander has left, or refilled.
 * The TWR under a step's stages, and the warnings on a launch or a powered landing, compare
   the thrust in vacuum with the body's surface gravity. Check the launch stage's TWR at
   sea level in the engineer window as well.
-* Refuelling counts only between the lander and the rest. Mining and fuel from other
-  vessels do not count.
+* Refuelling counts only between a docked section and the rest. Mining and fuel from
+  other vessels do not count.

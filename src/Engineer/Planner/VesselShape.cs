@@ -30,6 +30,8 @@ namespace ReDefinition.Engineer
         public bool Legs;
         public bool Parachute;
         public bool HeatShield;
+        // Seats for crew (Part.CrewCapacity).
+        public int Crew;
         // A launch clamp: it stays on the ground, part of nothing that flies.
         public bool Clamp;
         public Separation Separator;
@@ -56,23 +58,20 @@ namespace ReDefinition.Engineer
         public bool Engine;
         public bool Legs;
         public bool Command;
+        // A command part with seats for crew.
+        public bool Crewed;
         public bool Parachute;
         public bool DockingPort;
-        // It holds the command part KSP keeps longest: nothing is staged away from
-        // under it.
-        public bool KeepsLongest;
     }
 
-    // The lander and the capsule as parts of the vessel (docs/development/planner.md).
-    // Each decoupler and docking port cuts the part tree in two; each side is a
-    // choice, less the launch clamps and the parts KSP stages away before its command
-    // part, its legs and its parachutes, and of what is left only the parts still
-    // joined to its command part. Automatic: the capsule is the lightest choice with a
-    // command part and parachutes; the lander, the part that lands, the lightest one
-    // with a command part, engines and landing legs that a docking port separates or
-    // that holds the command part KSP keeps longest, so that no booster with legs
-    // counts. The rest is everything else; the capsule is part of the lander or of the
-    // rest. Free of Unity, tested.
+    // The sections of the vessel as parts of it (docs/development/planner.md). Each
+    // decoupler and docking port cuts the part tree in two; each side is a choice, less
+    // the launch clamps and the parts KSP stages away before its command part, its legs
+    // and its parachutes (unless its own engines still carry them), and of what is left
+    // only the parts still joined to its command part. The planner finds a crewed
+    // vessel's capsule and an uncrewed vessel's one satellite by itself; the rest is
+    // the player's pick. Sections lie inside one another or apart, and the vessel
+    // falls into the rest and the sections by them (Split). Free of Unity, tested.
     internal static class VesselShape
     {
         internal static List<PartGroupChoice> Candidates(IList<PartFacts> parts)
@@ -80,9 +79,6 @@ namespace ReDefinition.Engineer
             List<PartGroupChoice> choices = new List<PartGroupChoice>();
             Dictionary<string, PartGroupChoice> seen = new Dictionary<string, PartGroupChoice>();
             List<int>[] children = Children(parts);
-            int longest = int.MaxValue;
-            foreach (PartFacts part in parts)
-                if (part.Command) longest = Math.Min(longest, part.DecoupleStage);
             for (int i = 0; i < parts.Count; i++)
             {
                 if (parts[i].Separator == Separation.None) continue;
@@ -96,79 +92,114 @@ namespace ReDefinition.Engineer
                 // A separator with nothing on one side, such as a docking port on a
                 // pod's nose, cuts nothing off.
                 if (!under.Any(at => at != i && !parts[at].Clamp) || !over.Any(at => at != i && !parts[at].Clamp)) continue;
-                Add(choices, seen, parts, Joined(parts, children, Trim(parts, under)), parts[i], "under", longest);
-                Add(choices, seen, parts, Joined(parts, children, Trim(parts, over)), parts[i], "over", longest);
+                Add(choices, seen, parts, Joined(parts, children, Trim(parts, under)), parts[i], "under");
+                Add(choices, seen, parts, Joined(parts, children, Trim(parts, over)), parts[i], "over");
             }
             choices.Sort((a, b) => a.Mass.CompareTo(b.Mass));
             return choices;
         }
 
+        // The vessel has seats for crew in a command part.
+        internal static bool Crewed(IList<PartFacts> parts)
+        {
+            foreach (PartFacts part in parts)
+                if (part.Command && part.Crew > 0) return true;
+            return false;
+        }
+
+        // A crewed vessel's capsule: the lightest choice with a crewed command part,
+        // parachutes or not.
         internal static PartGroupChoice AutoCapsule(IList<PartGroupChoice> choices)
         {
             foreach (PartGroupChoice choice in choices)
-                if (choice.Command && choice.Parachute) return choice;
+                if (choice.Crewed) return choice;
             return null;
         }
 
-        internal static PartGroupChoice AutoLander(IList<PartGroupChoice> choices, PartGroupChoice capsule)
+        // An uncrewed vessel's satellite: of the choices with a command part and no
+        // landing legs that leave the launch stage's engines behind, the one inside
+        // no other, where there is exactly one such.
+        internal static PartGroupChoice AutoSatellite(IList<PartFacts> parts, IList<PartGroupChoice> choices)
         {
+            int first = int.MinValue;
+            foreach (PartFacts part in parts)
+                if (part.Engine) first = Math.Max(first, part.ActivatesAt);
+            List<PartGroupChoice> found = new List<PartGroupChoice>();
             foreach (PartGroupChoice choice in choices)
-                if (choice.Command && choice.Engine && choice.Legs && (choice.DockingPort || choice.KeepsLongest)
-                    && Fits(choice, capsule)) return choice;
-            return null;
-        }
-
-        // The capsule inside the lander, or apart from it.
-        internal static bool Fits(PartGroupChoice lander, PartGroupChoice capsule)
-        {
-            if (lander == null || capsule == null) return true;
-            if (lander.Key == capsule.Key) return false;
-            return Inside(capsule, lander) || !capsule.Members.Overlaps(lander.Members);
-        }
-
-        internal static bool Inside(PartGroupChoice capsule, PartGroupChoice lander)
-        {
-            return capsule != null && lander != null && capsule.Members.IsSubsetOf(lander.Members);
-        }
-
-        // The vessel's stages shared out over the rest, the lander and the capsule, by
-        // the parts each stage fires, burns and drops; the groups' masses scaled to
-        // KSP's own mass of the whole vessel.
-        internal static VesselSplit Split(IList<BudgetStage> stages, IList<PartFacts> parts, PartGroupChoice lander,
-                                          PartGroupChoice capsule)
-        {
-            VesselSplit split = new VesselSplit
             {
-                HasLander = lander != null, HasCapsule = capsule != null, CapsuleInLander = Inside(capsule, lander),
-            };
-            PartGroup[] group = new PartGroup[parts.Count];
-            for (int i = 0; i < parts.Count; i++)
-                group[i] = capsule != null && capsule.Members.Contains(i) ? PartGroup.Capsule
-                    : lander != null && lander.Members.Contains(i) ? PartGroup.Lander : PartGroup.Rest;
+                if (!choice.Command || choice.Legs) continue;
+                bool launches = false;
+                foreach (int at in choice.Members)
+                    if (parts[at].Engine && parts[at].ActivatesAt == first) launches = true;
+                if (!launches) found.Add(choice);
+            }
+            List<PartGroupChoice> innermost = found.FindAll(choice =>
+                !found.Exists(other => other != choice && other.Members.IsProperSubsetOf(choice.Members)));
+            return innermost.Count == 1 ? innermost[0] : null;
+        }
 
-            // Launch clamps stay on the ground; KSP's simulation leaves them out.
+        // Two sections inside one another or apart; not overlapping.
+        internal static bool Fits(PartGroupChoice a, PartGroupChoice b)
+        {
+            if (a == null || b == null) return true;
+            if (a.Key == b.Key) return false;
+            return a.Members.IsSubsetOf(b.Members) || b.Members.IsSubsetOf(a.Members) || !a.Members.Overlaps(b.Members);
+        }
+
+        // The section a section is part of: the smallest other one holding all its
+        // parts; -1 for the rest.
+        internal static int Parent(IList<PartGroupChoice> sections, int index)
+        {
+            int best = -1;
+            for (int i = 0; i < sections.Count; i++)
+            {
+                if (i == index || sections[i] == null || sections[index] == null) continue;
+                if (!sections[index].Members.IsProperSubsetOf(sections[i].Members)) continue;
+                if (best < 0 || sections[i].Members.Count < sections[best].Members.Count) best = i;
+            }
+            return best;
+        }
+
+        // The vessel's stages shared out over the rest (group 0) and the sections
+        // (group i + 1 for sections[i]), each part in the smallest section holding it,
+        // by the parts each stage fires, burns and drops; the groups' masses scaled to
+        // KSP's own mass of the whole vessel, launch clamps left out as KSP leaves them.
+        internal static VesselSplit Split(IList<BudgetStage> stages, IList<PartFacts> parts, IList<PartGroupChoice> sections)
+        {
+            VesselSplit split = new VesselSplit(sections.Count + 1);
+            int[] group = new int[parts.Count];
+            for (int i = 0; i < parts.Count; i++)
+            {
+                int best = -1;
+                for (int s = 0; s < sections.Count; s++)
+                    if (sections[s] != null && sections[s].Members.Contains(i)
+                        && (best < 0 || sections[s].Members.Count < sections[best].Members.Count)) best = s;
+                group[i] = best + 1;
+            }
+
             double total = 0.0;
             for (int i = 0; i < parts.Count; i++)
             {
                 if (parts[i].Clamp) continue;
-                split.Mass[(int)group[i]] += Math.Max(0.0, parts[i].Mass);
+                split.Mass[group[i]] += Math.Max(0.0, parts[i].Mass);
                 total += Math.Max(0.0, parts[i].Mass);
             }
             double start = stages.Count > 0 ? stages.Max(stage => stage.StartMass) : 0.0;
             if (total > 0.0 && start > 0.0)
-                for (int g = 0; g < VesselSplit.Groups; g++) split.Mass[g] *= start / total;
+                for (int g = 0; g < split.Groups; g++) split.Mass[g] *= start / total;
 
             foreach (BudgetStage stage in stages)
             {
                 int number = stage.Number;
-                double[] fuel = new double[VesselSplit.Groups];
-                double[] drop = new double[VesselSplit.Groups];
-                double[] fired = new double[VesselSplit.Groups];
-                double[] engines = new double[VesselSplit.Groups];
+                double[] fuel = new double[split.Groups];
+                double[] drop = new double[split.Groups];
+                double[] fired = new double[split.Groups];
+                double[] engines = new double[split.Groups];
                 for (int i = 0; i < parts.Count; i++)
                 {
                     PartFacts part = parts[i];
-                    int g = (int)group[i];
+                    if (part.Clamp) continue;
+                    int g = group[i];
                     double[] mass;
                     bool known = part.StageFuel.TryGetValue(number, out mass) && mass != null && mass.Length >= 2;
                     if (known) fuel[g] += Math.Max(0.0, mass[0] - mass[1]);
@@ -179,20 +210,19 @@ namespace ReDefinition.Engineer
                         if (part.Engine) engines[g] += 1.0;
                     }
                 }
-                PartGroup owner = Largest(engines) ?? Largest(fired) ?? Largest(fuel) ?? PartGroup.Rest;
-                split.Owner[number] = owner;
+                split.Owner[number] = Largest(engines) ?? Largest(fired) ?? Largest(fuel) ?? 0;
                 split.Fuel[number] = fuel;
                 split.Drop[number] = drop;
             }
             return split;
         }
 
-        private static PartGroup? Largest(double[] values)
+        private static int? Largest(double[] values)
         {
             int best = -1;
             for (int g = 0; g < values.Length; g++)
                 if (values[g] > 1e-9 && (best < 0 || values[g] > values[best])) best = g;
-            return best >= 0 ? (PartGroup?)best : null;
+            return best >= 0 ? (int?)best : null;
         }
 
         // A side less its launch clamps and the parts KSP stages away before the ones
@@ -234,7 +264,7 @@ namespace ReDefinition.Engineer
         // The same parts cut off by several separators are one choice; a docking port
         // among them lets it come back, whatever the parts' order.
         private static void Add(List<PartGroupChoice> choices, Dictionary<string, PartGroupChoice> seen, IList<PartFacts> parts,
-                                HashSet<int> side, PartFacts separator, string which, int longest)
+                                HashSet<int> side, PartFacts separator, string which)
         {
             if (side.Count == 0 || side.Count == parts.Count(part => !part.Clamp)) return;
             string members = string.Join(",", side.OrderBy(at => at).Select(at => at.ToString()).ToArray());
@@ -254,8 +284,8 @@ namespace ReDefinition.Engineer
                 choice.Engine |= part.Engine;
                 choice.Legs |= part.Legs;
                 choice.Command |= part.Command;
+                choice.Crewed |= part.Command && part.Crew > 0;
                 choice.Parachute |= part.Parachute;
-                choice.KeepsLongest |= part.Command && part.DecoupleStage == longest;
                 if (named == null || Rank(part) > Rank(named) || (Rank(part) == Rank(named) && part.Mass > named.Mass)) named = part;
             }
             choice.Name = named.Title + ", " + side.Count + (side.Count == 1 ? " part" : " parts");

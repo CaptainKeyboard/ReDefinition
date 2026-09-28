@@ -16,30 +16,104 @@ namespace ReDefinition.Engineer
         Land,
     }
 
+    // What a section of the vessel is for (PlannerState.Sections): it only sets what
+    // the planner has it do by itself.
+    internal enum SectionKind
+    {
+        Capsule,
+        Lander,
+        Satellite,
+    }
+
+    // A section of the vessel as the route needs it.
+    internal sealed class RouteSection
+    {
+        // 1 and up; 0 is the rest.
+        public int Id;
+        public SectionKind Kind;
+        // "Lander", "Satellite 2".
+        public string Name = "";
+        // The section it is part of, 0 for the rest.
+        public int Parent;
+        // It comes back to what carried it and docks.
+        public bool Docks;
+        // A satellite: the destination it stays at, -1 for none.
+        public int DeployAt = -1;
+    }
+
+    internal enum FlyerKind
+    {
+        Ship,
+        Alone,
+        Without,
+    }
+
+    // Who flies a step: the whole vessel; one section, with the sections that are part
+    // of it; or the vessel leaving a section where it is for good. Kept in a stop's By
+    // as a number: 0 the whole vessel, 1000 and 2000 on a section's id.
+    internal struct Flyer
+    {
+        public FlyerKind Kind;
+        public int Section;
+
+        public static readonly Flyer Ship = new Flyer();
+
+        public static Flyer Alone(int section)
+        {
+            return new Flyer { Kind = FlyerKind.Alone, Section = section };
+        }
+
+        public static Flyer Without(int section)
+        {
+            return new Flyer { Kind = FlyerKind.Without, Section = section };
+        }
+
+        public int Code
+        {
+            get { return Kind == FlyerKind.Ship ? 0 : (Kind == FlyerKind.Alone ? 1000 : 2000) + Section; }
+        }
+
+        public static Flyer FromCode(int code)
+        {
+            if (code >= 2000) return Without(code - 2000);
+            if (code >= 1000) return Alone(code - 1000);
+            return Ship;
+        }
+
+        public bool Is(FlyerKind kind, int section)
+        {
+            return Kind == kind && (kind == FlyerKind.Ship || Section == section);
+        }
+    }
+
     // One step of the route: who flies it, from where to where, what it costs, and
-    // whether the lander leaves the rest there or docks with it at its end.
+    // what leaves, docks or stays on it.
     internal sealed class RouteStep
     {
-        // The destination it leads to; the leg of the fuel plan is Goal - 1.
+        // The destination it leads to; the leg is Goal - 1.
         public int Goal;
         public StepRole Role;
-        public Vehicle Vehicle;
+        public Flyer Flyer;
         // Set by the player rather than worked out (RouteStop.By).
         public bool Chosen;
-        public LegMode Mode;
         public RouteStop From;
         public RouteStop To;
         public Leg Leg;
-        // At its start, the lander leaves the rest (a step of the lander), or the rest
-        // leaves the lander behind (a step of the rest).
+        // At its start, a section leaves what carried it, or the vessel leaves a
+        // section behind: the section, and what it leaves (0 the rest, else a section).
         public bool Separates;
-        // At its end, the lander docks with the rest, and is refilled from the rest's
-        // tanks where the player wants it.
+        public int Leaver;
+        public int LeavesFrom;
+        // At its end, the section flying it docks with what carried it, and is refilled
+        // from the rest's tanks where the player wants it.
         public bool Docks;
         public bool WantsRefuel;
         public bool RefuelAfter;
-        // It reaches its destination, which keeps a payload (RouteStop.LeavesPayload).
-        public bool PayloadAfter;
+        // What flies it: the rest (0) and sections, by id; the sections gone for good
+        // as it starts; the sections deployed at its end.
+        public readonly HashSet<int> Flying = new HashSet<int>();
+        public readonly List<GoneSection> Gone = new List<GoneSection>();
+        public readonly List<int> Deploys = new List<int>();
         // What makes the step impossible as set, for the player; null where none.
         public string Problem;
 
@@ -49,80 +123,137 @@ namespace ReDefinition.Engineer
         }
     }
 
+    // A section, or the rest (0), gone for good as a step starts (StageBudget.GoneGroup).
+    internal sealed class GoneSection
+    {
+        public int Section;
+        public bool Stays;
+        public bool Waiting;
+    }
+
     // The steps of a route (docs/development/planner.md). Between two destinations
-    // come the steps the way needs, each flown by the whole vessel (Ship), its lander
-    // alone, the rest without the lander, or the capsule alone. The lander is the part
-    // that lands; it docks with the rest again, or flies on alone, as set. The capsule
-    // is part of the lander or of the rest, and leaves whatever carries it for good; a
-    // landing on parachutes on the last destination is the capsule's where the vessel
-    // has one. Who flies a step is the player's choice (RouteStop.By), or else: from a
-    // surface whoever stands on it; across to another body the whole vessel where a
-    // lander that docks waits with the rest; a landing short of the route's end the
-    // lander; otherwise whoever flew the step before. From that, the lander leaves the rest
-    // where a step of the lander follows one of the whole vessel; it docks where a
-    // step of the whole vessel follows, and has to be where the rest waits for that;
-    // a rest that is never met again is left where it waited. The lander climbs to
-    // the rest's own orbit where the rest waits around the body it starts from. Free
-    // of Unity, tested.
+    // come the steps the way needs, each flown by the whole vessel, one of its
+    // sections alone, or the vessel leaving a section behind. A section alone takes the
+    // sections that are part of it along; it docks again where it is one that docks
+    // (a lander, as set) and the whole vessel flies on; a satellite stays at its
+    // destination; a capsule leaves everything else for good. Who flies a step is the
+    // player's choice (RouteStop.By), or else: the capsule once it has left; the capsule
+    // for a landing on parachutes on the last destination, where what carries it is in
+    // the air already; a lander for a landing short of the route's end; from a surface
+    // whoever stands on it; across to another body the whole vessel where a lander that
+    // docks waits in an orbit of the body the rest is at; otherwise whoever flew the
+    // step before. A section that docks climbs to the rest's own orbit where the rest
+    // waits around the body it starts from. Free of Unity, tested.
     internal static class RouteSteps
     {
         // Finding the rest in its orbit and docking, over the climb to that orbit.
         internal const double Rendezvous = 50.0;
 
+        private sealed class SectionState
+        {
+            internal RouteSection Section;
+            // Flying on its own, rather than part of what carries it.
+            internal bool Away;
+            internal bool Gone;
+            internal string GoneAt;
+            internal RouteStop At;
+            internal RouteStep LastStep;
+        }
+
         private sealed class Walk
         {
             internal RouteStop Rest;
-            internal RouteStop Lander;
-            internal bool Together = true;
-            internal bool LanderLeft;
-            internal string LanderLeftAt;
-            internal Vehicle Last = Vehicle.Ship;
-            internal RouteStep LastLanderStep;
-            internal RouteStop Capsule;
-            internal bool HasLander;
-            internal bool CapsuleInLander;
-            internal bool LanderDocks;
+            internal readonly Dictionary<int, SectionState> Sections = new Dictionary<int, SectionState>();
+            internal readonly List<SectionState> Order = new List<SectionState>();
+            internal Flyer Last = Flyer.Ship;
+            // The capsule that has left everything else, 0 for none.
+            internal int CapsuleOut;
+
+            internal SectionState Of(int id)
+            {
+                SectionState state;
+                return Sections.TryGetValue(id, out state) ? state : null;
+            }
+
+            // Where a section is: where it flew to, or wherever what carries it is.
+            internal RouteStop Location(int id)
+            {
+                for (int depth = 0; depth < 32; depth++)
+                {
+                    SectionState state = Of(id);
+                    if (state == null) return Rest;
+                    if (state.Away) return state.At;
+                    id = state.Section.Parent;
+                }
+                return Rest;
+            }
+
+            // The section, or the rest (0), and every section still part of it.
+            internal HashSet<int> Carried(int top)
+            {
+                HashSet<int> set = new HashSet<int> { top };
+                bool grew = true;
+                while (grew)
+                {
+                    grew = false;
+                    foreach (SectionState state in Order)
+                        if (!state.Gone && !state.Away && !set.Contains(state.Section.Id) && set.Contains(state.Section.Parent))
+                        {
+                            set.Add(state.Section.Id);
+                            grew = true;
+                        }
+                }
+                return set;
+            }
+
+            // The section a section is part of that flies on its own, or the rest (0).
+            internal int Carrier(int id)
+            {
+                SectionState state = Of(id);
+                for (int depth = 0; state != null && depth < 32; depth++)
+                {
+                    int parent = state.Section.Parent;
+                    SectionState up = Of(parent);
+                    if (up == null) return 0;
+                    if (up.Away) return parent;
+                    state = up;
+                }
+                return 0;
+            }
         }
 
-        // Where the capsule is while it has not left: with the lander away where it is
-        // part of the lander, or with the rest.
-        private static RouteStop Carrier(Walk walk)
-        {
-            return walk.CapsuleInLander && walk.Last == Vehicle.Lander && !walk.Together && !walk.LanderLeft
-                ? walk.Lander
-                : walk.Rest;
-        }
-
-        // `capsuleInLander`: the capsule is part of the lander rather than of the rest;
-        // `landerDocks`: the lander docks with the rest again rather than flying on alone.
-        internal static List<RouteStep> Build(IList<PlannerBody> bodies, IList<RouteStop> goals, bool hasLander,
-                                              bool planeChanges, bool hasCapsule = false, bool capsuleInLander = true,
-                                              bool landerDocks = true)
+        internal static List<RouteStep> Build(IList<PlannerBody> bodies, IList<RouteStop> goals, IList<RouteSection> sections,
+                                              bool planeChanges)
         {
             List<RouteStep> steps = new List<RouteStep>();
             if (goals.Count == 0) return steps;
-            Walk walk = new Walk
-            {
-                Rest = goals[0], Lander = goals[0], HasLander = hasLander, CapsuleInLander = hasLander && capsuleInLander,
-                LanderDocks = landerDocks,
-            };
+            Walk walk = new Walk { Rest = goals[0] };
+            if (sections != null)
+                foreach (RouteSection section in sections)
+                {
+                    if (section == null || section.Id <= 0 || walk.Sections.ContainsKey(section.Id)) continue;
+                    SectionState state = new SectionState { Section = section, At = goals[0] };
+                    walk.Sections[section.Id] = state;
+                    walk.Order.Add(state);
+                }
 
             for (int g = 1; g < goals.Count; g++)
             {
                 RouteStop from = goals[g - 1];
                 RouteStop goal = goals[g];
-                foreach (StepRole role in RolesBetween(bodies, from, goal))
+                List<StepRole> roles = RolesBetween(bodies, from, goal);
+                foreach (StepRole role in roles)
                 {
                     int by = goal.By[(int)role];
-                    bool isChosen = by >= 0 && Available((Vehicle)by, hasLander, hasCapsule);
-                    Vehicle vehicle = isChosen ? (Vehicle)by
-                        : Default(bodies, walk, role, from, goal, g == goals.Count - 1, hasLander, hasCapsule);
-                    RouteStep step = Fly(bodies, walk, g, role, vehicle, from, goal, planeChanges);
+                    Flyer chosen = Flyer.FromCode(by);
+                    bool isChosen = by >= 0 && Available(walk, chosen);
+                    Flyer flyer = isChosen ? chosen : Default(bodies, walk, role, from, goal, g == goals.Count - 1);
+                    RouteStep step = Fly(bodies, walk, g, role, flyer, from, goal, planeChanges);
                     step.Chosen = isChosen;
                     step.WantsRefuel = goal.Refuel[(int)role];
                     steps.Add(step);
                 }
-                if (steps.Count > 0 && steps[steps.Count - 1].Goal == g) steps[steps.Count - 1].PayloadAfter = goal.LeavesPayload;
+                if (roles.Count > 0) DeployAt(bodies, walk, steps[steps.Count - 1], g);
             }
             return steps;
         }
@@ -166,196 +297,262 @@ namespace ReDefinition.Engineer
             return leaves && arrives;
         }
 
-        // What the vessel has: a lander to fly alone or leave, a capsule.
-        internal static bool Available(Vehicle vehicle, bool hasLander, bool hasCapsule)
+        // Who the vessel has to fly a step: the whole vessel, or a section it has.
+        private static bool Available(Walk walk, Flyer flyer)
         {
-            switch (vehicle)
-            {
-                case Vehicle.Lander:
-                case Vehicle.Rest:
-                    return hasLander;
-                case Vehicle.Capsule:
-                    return hasCapsule;
-                default:
-                    return true;
-            }
+            return flyer.Kind == FlyerKind.Ship || walk.Of(flyer.Section) != null;
         }
 
-        private static Vehicle Default(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal,
-                                       bool last, bool hasLander, bool hasCapsule)
+        private static Flyer Default(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, bool last)
         {
-            if (walk.Capsule != null) return Vehicle.Capsule;
+            if (walk.CapsuleOut != 0) return Flyer.Alone(walk.CapsuleOut);
             // Home on the parachutes: the capsule, where what carries it is in the air
             // already; from an orbit it would have to bring itself down.
-            if (hasCapsule && last && role == StepRole.Land && goal.UseAtmosphere && bodies[goal.Body].HasAtmosphere
-                && Carrier(walk).Kind == StopKind.Entry)
-                return Vehicle.Capsule;
-            if (!hasLander) return Vehicle.Ship;
-            // A landing short of the route's end: the lander's, the rest waiting in
-            // orbit, as that is what a lander is for.
-            if (role == StepRole.Land && !last && !walk.LanderLeft) return Vehicle.Lander;
+            if (last && role == StepRole.Land && goal.UseAtmosphere && bodies[goal.Body].HasAtmosphere)
+                foreach (SectionState state in walk.Order)
+                    if (state.Section.Kind == SectionKind.Capsule && !state.Gone && walk.Location(state.Section.Id).Kind == StopKind.Entry)
+                        return Flyer.Alone(state.Section.Id);
+            // A landing short of the route's end: a lander's, the rest waiting in orbit,
+            // as that is what a lander is for; the one that flew last, else the first.
+            if (role == StepRole.Land && !last)
+            {
+                SectionState flew = walk.Last.Kind == FlyerKind.Alone ? walk.Of(walk.Last.Section) : null;
+                if (flew != null && flew.Section.Kind == SectionKind.Lander && !flew.Gone) return walk.Last;
+                foreach (SectionState state in walk.Order)
+                    if (state.Section.Kind == SectionKind.Lander && !state.Gone) return Flyer.Alone(state.Section.Id);
+            }
             if (role == StepRole.Launch)
             {
-                // Whoever stands on that surface.
-                if (walk.Together) return Vehicle.Ship;
-                return !walk.LanderLeft && walk.Lander.Kind == StopKind.Surface && walk.Lander.Body == from.Body
-                    ? Vehicle.Lander
-                    : walk.Last;
+                // Whoever stands on that surface: the one that flew last, the whole
+                // vessel, or another section there.
+                if (OnSurface(walk.Last.Kind == FlyerKind.Alone ? walk.Location(walk.Last.Section) : walk.Rest, from)
+                    && Usable(walk, walk.Last))
+                    return walk.Last;
+                if (OnSurface(walk.Rest, from)) return Flyer.Ship;
+                foreach (SectionState state in walk.Order)
+                    if (!state.Gone && state.Away && OnSurface(state.At, from)) return Flyer.Alone(state.Section.Id);
+                return Usable(walk, walk.Last) ? walk.Last : Flyer.Ship;
             }
-            // The lander in an orbit of the body the rest waits at: it docks, where it is
-            // one that docks.
-            if (role == StepRole.Transfer && walk.LanderDocks && !walk.Together && !walk.LanderLeft && Meets(walk.Lander, walk.Rest))
-                return Vehicle.Ship;
-            return walk.Last;
+            // A lander that docks, in an orbit of the body the rest waits at: it docks,
+            // and the whole vessel flies on.
+            if (role == StepRole.Transfer && walk.Last.Kind == FlyerKind.Alone)
+            {
+                SectionState flew = walk.Of(walk.Last.Section);
+                if (flew != null && flew.Section.Docks && flew.Away && !flew.Gone && walk.Carrier(flew.Section.Id) == 0
+                    && Meets(flew.At, walk.Rest))
+                    return Flyer.Ship;
+            }
+            return Usable(walk, walk.Last) ? walk.Last : Flyer.Ship;
         }
 
-        private static RouteStep Fly(IList<PlannerBody> bodies, Walk walk, int g, StepRole role, Vehicle vehicle,
-                                     RouteStop from, RouteStop goal, bool planeChanges)
+        // Still there to fly: the whole vessel, or a section not left for good.
+        private static bool Usable(Walk walk, Flyer flyer)
         {
-            RouteStep step = new RouteStep { Goal = g, Role = role, Vehicle = vehicle };
+            if (flyer.Kind != FlyerKind.Alone) return true;
+            SectionState state = walk.Of(flyer.Section);
+            return state != null && !state.Gone;
+        }
+
+        private static bool OnSurface(RouteStop at, RouteStop from)
+        {
+            return at != null && at.Kind == StopKind.Surface && at.Body == from.Body;
+        }
+
+        private static RouteStep Fly(IList<PlannerBody> bodies, Walk walk, int g, StepRole role, Flyer flyer, RouteStop from,
+                                     RouteStop goal, bool planeChanges)
+        {
+            RouteStep step = new RouteStep { Goal = g, Role = role, Flyer = flyer };
+
+            // Once the capsule has left, only it flies.
+            if (walk.CapsuleOut != 0 && !flyer.Is(FlyerKind.Alone, walk.CapsuleOut))
+                return Nothing(step, walk, "The capsule has left the vessel", walk.Location(walk.CapsuleOut), g, flyer);
+
             RouteStop start;
-
-            if (vehicle == Vehicle.Capsule || walk.Capsule != null)
+            if (flyer.Kind == FlyerKind.Alone)
             {
-                if (vehicle != Vehicle.Capsule)
+                SectionState state = walk.Of(flyer.Section);
+                if (state.Gone) return Nothing(step, walk, "The " + Lower(state.Section.Name) + " stayed at " + state.GoneAt,
+                    Target(bodies, walk, role, from, goal, flyer), g, flyer);
+                if (!state.Away)
                 {
-                    step.Problem = "The capsule has left the vessel";
-                    step.Mode = vehicle == Vehicle.Lander ? LegMode.Lander : LegMode.Whole;
-                    step.From = step.To = walk.Capsule;
-                    step.Leg = new Leg { From = g - 1, To = g };
-                    walk.Last = vehicle;
-                    return step;
-                }
-                if (walk.Capsule == null && walk.LanderLeft && walk.CapsuleInLander)
-                {
-                    // The capsule is part of the lander, which stayed behind.
-                    step.Problem = "The capsule stayed with the lander at " + walk.LanderLeftAt;
-                    step.Mode = LegMode.Capsule;
-                    step.From = step.To = walk.Rest;
-                    step.Leg = new Leg { From = g - 1, To = g };
-                    walk.Last = vehicle;
-                    return step;
-                }
-                if (walk.Capsule == null)
-                {
-                    // It leaves whatever flew the step before.
+                    // It leaves whatever carries it.
+                    int carrier = walk.Carrier(flyer.Section);
                     step.Separates = true;
-                    walk.Capsule = Carrier(walk);
+                    step.Leaver = flyer.Section;
+                    step.LeavesFrom = carrier;
+                    state.At = walk.Location(carrier);
+                    state.Away = true;
                 }
-                step.Mode = LegMode.Capsule;
-                RouteStop target = Target(bodies, walk, role, from, goal, vehicle);
-                if (target.Kind == StopKind.Transfer) target.Origin = walk.Capsule;
-                step.From = walk.Capsule;
-                step.To = target;
-                step.Leg = RoutePlanner.LegOf(bodies, walk.Capsule, target, g - 1, planeChanges);
-                walk.Capsule = target;
-                walk.Last = vehicle;
-                return step;
-            }
-
-            if (vehicle == Vehicle.Ship && !walk.LanderLeft)
-            {
-                if (!walk.Together)
-                {
-                    // The lander docks with the rest before the whole vessel flies on: in
-                    // the rest's orbit, or on its way to it from another one around the
-                    // same body.
-                    if ((SamePlace(walk.Lander, walk.Rest) || Meets(walk.Lander, walk.Rest)) && walk.LastLanderStep != null)
-                    {
-                        walk.LastLanderStep.Docks = true;
-                        walk.LastLanderStep.RefuelAfter = walk.LastLanderStep.WantsRefuel;
-                        if (!SamePlace(walk.Lander, walk.Rest))
-                        {
-                            double up, down;
-                            PlannerBody body = bodies[walk.Rest.Body];
-                            RoutePlanner.Hohmann(body.Mu, body.Radius + walk.Lander.Altitude, body.Radius + walk.Rest.Altitude, out up, out down);
-                            walk.LastLanderStep.Leg.Add("To the rest's orbit", up + down);
-                        }
-                        if (walk.Rest.Kind == StopKind.Orbit)
-                            walk.LastLanderStep.Leg.Add("Rendezvous and docking", Rendezvous);
-                    }
-                    else
-                    {
-                        step.Problem = "The lander is not where the rest waits, at " + Place(bodies, walk.Rest);
-                    }
-                    walk.Together = true;
-                }
-                step.Mode = LegMode.Whole;
-                start = walk.Rest;
-            }
-            else if (vehicle == Vehicle.Lander)
-            {
-                if (walk.LanderLeft)
-                {
-                    step.Problem = "The lander stayed at " + walk.LanderLeftAt;
-                    step.Mode = LegMode.Lander;
-                    step.From = step.To = Target(bodies, walk, role, from, goal, vehicle);
-                    step.Leg = new Leg { From = g - 1, To = g };
-                    walk.Last = vehicle;
-                    return step;
-                }
-                if (walk.Together)
-                {
-                    step.Separates = true;
-                    walk.Together = false;
-                    walk.Lander = walk.Rest;
-                }
-                step.Mode = LegMode.Lander;
-                start = walk.Lander;
+                if (state.Section.Kind == SectionKind.Capsule && walk.CapsuleOut == 0) LeaveForCapsule(bodies, walk, step, state);
+                start = state.At;
             }
             else
             {
-                // The rest without the lander, which stays where it is for good.
-                if (!walk.LanderLeft)
+                if (flyer.Kind == FlyerKind.Without) LeaveBehind(bodies, walk, step, flyer.Section);
+                // Sections away that come back dock with the rest before the whole vessel
+                // flies on: in the rest's orbit, or on its way to it from another one
+                // around the same body.
+                foreach (SectionState state in walk.Order)
                 {
-                    step.Separates = walk.Together;
-                    walk.LanderLeft = true;
-                    walk.LanderLeftAt = Place(bodies, walk.Together ? walk.Rest : walk.Lander);
-                    walk.Together = false;
+                    // A section that docks, part of the rest or of a section still with it.
+                    if (!state.Away || state.Gone || !state.Section.Docks || walk.Carrier(state.Section.Id) != 0) continue;
+                    if ((SamePlace(state.At, walk.Rest) || Meets(state.At, walk.Rest)) && state.LastStep != null)
+                        Dock(bodies, walk, state);
+                    else if (flyer.Kind == FlyerKind.Ship)
+                        step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " is not where the rest waits, at "
+                                       + Place(bodies, walk.Rest);
+                    if (flyer.Kind == FlyerKind.Ship) state.Away = false;
                 }
-                step.Mode = LegMode.WithoutLander;
                 start = walk.Rest;
             }
 
             // In the air, all that is left is the landing.
-            if (start.Kind == StopKind.Entry && vehicle != Vehicle.Lander && role != StepRole.Land)
-                step.Problem = step.Problem ?? "The rest went into the air at " + bodies[start.Body].Name;
+            if (start.Kind == StopKind.Entry && role != StepRole.Land)
+                step.Problem = step.Problem ?? "The " + (flyer.Kind == FlyerKind.Alone ? Lower(walk.Of(flyer.Section).Section.Name) : "rest")
+                               + " went into the air at " + bodies[start.Body].Name;
 
-            RouteStop to = Target(bodies, walk, role, from, goal, vehicle);
+            RouteStop to = Target(bodies, walk, role, from, goal, flyer);
             if (to.Kind == StopKind.Transfer) to.Origin = start;
             step.From = start;
             step.To = to;
             step.Leg = RoutePlanner.LegOf(bodies, start, to, g - 1, planeChanges);
+            step.Flying.UnionWith(walk.Carried(flyer.Kind == FlyerKind.Alone ? flyer.Section : 0));
 
-            if (vehicle == Vehicle.Lander)
+            if (flyer.Kind == FlyerKind.Alone)
             {
-                walk.Lander = to;
-                walk.LastLanderStep = step;
+                SectionState state = walk.Of(flyer.Section);
+                state.At = to;
+                state.LastStep = step;
             }
             else
             {
                 walk.Rest = to;
-                if (walk.Together) walk.Lander = to;
             }
-            walk.Last = vehicle;
+            walk.Last = flyer;
             return step;
         }
 
+        // A step that cannot be flown: no burns, and why.
+        private static RouteStep Nothing(RouteStep step, Walk walk, string problem, RouteStop at, int g, Flyer flyer)
+        {
+            step.Problem = problem;
+            step.From = step.To = at;
+            step.Leg = new Leg { From = g - 1, To = g };
+            walk.Last = flyer;
+            return step;
+        }
+
+        // The vessel flies on without a section, which stays where it is for good, with
+        // the sections part of it.
+        private static void LeaveBehind(IList<PlannerBody> bodies, Walk walk, RouteStep step, int id)
+        {
+            SectionState state = walk.Of(id);
+            if (state == null || state.Gone) return;
+            bool attached = !state.Away;
+            RouteStop at = walk.Location(id);
+            if (attached)
+            {
+                step.Separates = true;
+                step.Leaver = id;
+                step.LeavesFrom = walk.Carrier(id);
+            }
+            foreach (int gone in walk.Carried(id))
+            {
+                SectionState part = walk.Of(gone);
+                if (part == null || part.Gone) continue;
+                part.Gone = true;
+                part.GoneAt = Place(bodies, at);
+                step.Gone.Add(new GoneSection { Section = gone, Stays = true });
+            }
+            state.At = at;
+        }
+
+        // The capsule leaves everything else for good: what carried it is dropped, what
+        // waits elsewhere stays there.
+        private static void LeaveForCapsule(IList<PlannerBody> bodies, Walk walk, RouteStep step, SectionState capsule)
+        {
+            int carrier = step.Separates ? step.LeavesFrom : walk.Carrier(capsule.Section.Id);
+            HashSet<int> with = walk.Carried(carrier);
+            HashSet<int> keeps = walk.Carried(capsule.Section.Id);
+            keeps.Add(capsule.Section.Id);
+            walk.CapsuleOut = capsule.Section.Id;
+            step.Gone.Add(new GoneSection { Section = 0, Waiting = !with.Contains(0) });
+            foreach (SectionState state in walk.Order)
+            {
+                int id = state.Section.Id;
+                if (keeps.Contains(id) || state.Gone) continue;
+                state.Gone = true;
+                state.GoneAt = Place(bodies, walk.Location(id));
+                step.Gone.Add(new GoneSection { Section = id, Waiting = !with.Contains(id) });
+            }
+        }
+
+        // A section docks with the rest at the end of its last step: the burn to the
+        // rest's orbit where it ended in another one, and the rendezvous.
+        private static void Dock(IList<PlannerBody> bodies, Walk walk, SectionState state)
+        {
+            RouteStep last = state.LastStep;
+            last.Docks = true;
+            last.RefuelAfter = last.WantsRefuel;
+            if (!SamePlace(state.At, walk.Rest))
+            {
+                double up, down;
+                PlannerBody body = bodies[walk.Rest.Body];
+                RoutePlanner.Hohmann(body.Mu, body.Radius + state.At.Altitude, body.Radius + walk.Rest.Altitude, out up, out down);
+                last.Leg.Add("To the rest's orbit", up + down);
+            }
+            if (walk.Rest.Kind == StopKind.Orbit) last.Leg.Add("Rendezvous and docking", Rendezvous);
+            state.Away = false;
+        }
+
+        // Satellites that stay at this destination stay there, whether carried there or
+        // flown there themselves, with the sections part of them; a lander part of one
+        // leaves it there to fly on its own.
+        private static void DeployAt(IList<PlannerBody> bodies, Walk walk, RouteStep step, int g)
+        {
+            foreach (SectionState state in walk.Order)
+            {
+                if (state.Section.Kind != SectionKind.Satellite || state.Section.DeployAt != g || state.Gone) continue;
+                int id = state.Section.Id;
+                if (step.Flyer.Is(FlyerKind.Alone, id) || step.Flying.Contains(id))
+                {
+                    foreach (int part in walk.Carried(id))
+                    {
+                        SectionState deployed = walk.Of(part);
+                        if (deployed == null) continue;
+                        if (part != id && deployed.Section.Kind == SectionKind.Lander)
+                        {
+                            deployed.Away = true;
+                            deployed.At = step.To;
+                            continue;
+                        }
+                        deployed.Gone = true;
+                        deployed.GoneAt = Place(bodies, step.To);
+                        step.Deploys.Add(part);
+                    }
+                }
+                else
+                {
+                    step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " is not carried to " + Place(bodies, step.To);
+                }
+            }
+        }
+
         // Where a step goes: the destination itself where the step reaches it; the
-        // body's low orbit, or the rest's own orbit where the lander climbs to it;
-        // into the air for a landing on parachutes straight from the way across; on
-        // the way across, where the player splits it.
-        private static RouteStop Target(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal,
-                                        Vehicle vehicle)
+        // body's low orbit, or the rest's own orbit where a section that docks climbs
+        // to it; into the air for a landing on parachutes straight from the way across;
+        // on the way across, where the player splits it.
+        private static RouteStop Target(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, Flyer flyer)
         {
             if (role == StepRole.Land) return goal;
             if (role == StepRole.Launch)
             {
-                // A lander that docks again climbs to the rest, where it waits around
-                // this body.
-                if (vehicle == Vehicle.Lander && walk.LanderDocks && !walk.Together && walk.Rest.Kind == StopKind.Orbit
-                    && walk.Rest.Body == from.Body)
-                    return walk.Rest;
+                SectionState state = flyer.Kind == FlyerKind.Alone ? walk.Of(flyer.Section) : null;
+                if (state != null && state.Section.Docks && state.Away)
+                {
+                    RouteStop rest = walk.Location(state.Section.Parent);
+                    if (rest.Kind == StopKind.Orbit && rest.Body == from.Body) return rest;
+                }
                 if (from.Body == goal.Body && goal.Kind == StopKind.Orbit) return goal;
                 return LowOrbit(bodies, from.Body);
             }
@@ -383,17 +580,21 @@ namespace ReDefinition.Engineer
             return new RouteStop { Body = body, Kind = StopKind.Orbit, Altitude = bodies[body].LowOrbitAltitude };
         }
 
-        // Both in orbits of the same body: the lander can reach the rest.
-        private static bool Meets(RouteStop lander, RouteStop rest)
+        // Both in orbits of the same body: the one can reach the other.
+        private static bool Meets(RouteStop a, RouteStop b)
         {
-            return lander != null && rest != null && lander.Body == rest.Body && lander.Kind == StopKind.Orbit
-                   && rest.Kind == StopKind.Orbit;
+            return a != null && b != null && a.Body == b.Body && a.Kind == StopKind.Orbit && b.Kind == StopKind.Orbit;
         }
 
         internal static bool SamePlace(RouteStop a, RouteStop b)
         {
             if (a == null || b == null || a.Body != b.Body || a.Kind != b.Kind) return false;
             return a.Kind != StopKind.Orbit || Math.Abs(a.Altitude - b.Altitude) <= Math.Max(1000.0, a.Altitude * 0.1);
+        }
+
+        private static string Lower(string name)
+        {
+            return string.IsNullOrEmpty(name) ? "section" : char.ToLowerInvariant(name[0]) + name.Substring(1);
         }
 
         // "on Mun surface", "in Kerbin orbit", "in Kerbin's air".

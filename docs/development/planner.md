@@ -19,6 +19,7 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 | `src/Engineer/Planner/PlannerBodies.cs` | the bodies of the loaded system, read from `FlightGlobals.Bodies` |
 | `src/Engineer/Planner/PlannerState.cs` | one vessel's plan, and its file |
 | `src/Engineer/Planner/PlannerView.cs` | the plan: loading, saving, working it out, the choices the rows make, the parts marked on the vessel |
+| `src/Engineer/Planner/PlannerView.Sections.cs` | the vessel's sections: found, resolved against the parts, named, handed to the route and the budget |
 | `src/Engineer/Planner/PlannerView.Rows.cs` | the planner's rows, built from KSP's dialog elements |
 | `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the stage colours, the list of bodies and the list that folds out under a button (`Dropdown`) |
 | `src/Engineer/Planner/PartHighlight.cs` | marks parts on the vessel with KSP's part highlighter, one marker at a time |
@@ -31,24 +32,27 @@ The planner uses no text to explain itself. From the top:
 * Every choice carries a tooltip of one sentence. KSP's button prefab has no tooltip
   controller, so `DialogTooltips.Attach` adds the game's own to every element with a
   tooltip once the rows are created.
-* The rows *Lander* and *Capsule*, their names in the column of a step's place and their
-  buttons from the column of who flies a step to where a stop's cross ends. Under each
-  button the list of choices folds out, as wide as the button: *Automatic*, with what
-  `VesselShape` found in brackets, *None*, and the parts that can fly apart. An entry
-  lights its parts on the vessel while the pointer is on it (`Choice.Hover`, an
-  `EventTrigger` on the entry's button).
+* *Sections*, up to six rows, each with what it is in the column of a step's place, its
+  parts on a button from the column of who flies a step, and its cross where a stop's
+  cross is; under a lander *Afterwards*, under a satellite *Deployed at*, and a red line
+  for a capsule without parachutes or a section overlapping another. *+* opens the list
+  of kinds, and the new section's list of parts right after. A list of parts folds out
+  as wide as its button: *Automatic* where the planner finds that kind, with what it
+  found in brackets, and the parts that can fly apart. An entry lights its parts on the
+  vessel while the pointer is on it (`Choice.Hover`, an `EventTrigger` on the entry's
+  button).
 * The route is a line of stops, an orbit's altitude under it as a field
   (`DialogGUITextInput`); while it has the keyboard, the game's controls are locked
   (`PlannerView.Keep`), so that the digits do not reach the editor's shortcuts. Between
   two stops, each step in a block on a lighter background (`Tint`, from the timeline on),
   with a gap to the next, and in it one row in fixed columns: where it goes; who flies it,
   a button under which the list of who can folds out (`Dropdown`), where the vessel has a
-  lander or a capsule, the player's own choice bold and underlined; its bar, a row of
+  section, the player's own choice bold and underlined; its bar, a row of
   `DialogGUIImage`s whose widths and colours `SegmentBar` sets after they are created; its
   delta-v; and *...* for its further choices. Around it only where there is something: a
-  grey line where something leaves at its start, *Docks with the rest* with
-  *Refuel* where it docks at its end, the further choices in groups of their own (*Way
-  down*, *Payload*), and a line for each problem that blocks it
+  grey line where something leaves at its start, *Docks with the rest* with *Refuel* where
+  it docks at its end, a grey line for the satellites that stay there, the further choices
+  in groups of their own (*Burns*, *Way down*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
 * One bar sums up the route, with the margin and the plane changes under it.
 * The fuel plan has two sets of rows, of which one shows. With a step selected (its bar
@@ -70,8 +74,8 @@ The skin's pressed state of a toggle button reads the other way round, so it is 
 used. Symbols are `GameData/ReDefinition/Icons/Planner_*.png`, white on clear, drawn by
 `tools/make_icon.py`. The list of bodies folds out under the body's button (`Dropdown`).
 
-The planner marks parts on the vessel only while the pointer is on an entry of the
-lander's or the capsule's list: that entry's parts, green. One marker at a time: whoever
+The planner marks parts on the vessel only while the pointer is on an entry of a
+section's list: that entry's parts, green. One marker at a time: whoever
 marks parts, the planner or the engineer window, takes the other's marks away
 (`PartHighlight`), and with the pointer on a part of the vessel nothing is marked, so
 that KSP highlights it as it does without the mod.
@@ -127,37 +131,45 @@ follows with the other burns: `LegOf` takes each part from the leg of the whole 
 (`RouteStop.Origin`, `Final`). A change of orbit around one body is a *Transfer burn* and
 a *Circularise* for that.
 
-Each step is flown by a `Vehicle`: `Ship`, the whole vessel; `Lander`, the lander alone;
-`Rest`, the rest without the lander; or `Capsule`, the capsule alone. The capsule is part
-of the lander or of the rest (`Build`'s `capsuleInLander`); it leaves whatever carries it
-for good, and a step of anything else after it is a `Problem`. The player sets it per step
-(`RouteStop.By`, by role, on the stop the step leads to), or `RouteSteps.Build` works it
-out: the capsule once it has left; the capsule for a landing on parachutes on the last
-stop where what carries it is in the air; a landing short of the last stop the lander;
-from a surface whoever stands on it; across to another body `Ship` where the lander is in
-an orbit of the body the rest waits at and docks again (`landerDocks`); otherwise whoever
-flew the step before. `Build` walks the steps and keeps where the rest and the lander are:
+Each step is flown by a `Flyer`: the whole vessel (`Ship`); one section alone, with the
+sections that are part of it (`Alone`); or the vessel leaving a section behind for good
+(`Without`). A section (`RouteSection`) is part of another or of the rest (`Parent`),
+docks again or not (`Docks`), and a satellite stays at a destination (`DeployAt`). The
+player sets who flies per step (`RouteStop.By`, by role, on the stop the step leads to,
+as `Flyer.Code`), or `RouteSteps.Build` works it out: the capsule once it has left; a
+capsule for a landing on parachutes on the last stop where what carries it is in the
+air; for a landing short of the last stop the lander that flew last, else the first; from
+a surface whoever stands on it; across to another body `Ship` where a lander that docks is
+in an orbit of the body the rest waits at; otherwise whoever flew the step before.
+`Build` walks the steps and keeps where the rest and each section are:
 
 | Step flown by | While | Then |
 |---|---|---|
-| `Ship` | the lander is with the rest | the whole vessel flies (`LegMode.Whole`) |
-| `Ship` | the lander is away, where the rest waits or in another orbit of that body | the lander's last step `Docks`, with the burn to the rest's orbit where it ended in another one, 50 m/s for the rendezvous where the rest is in orbit, and is refilled where its stop's `Refuel` is set for that step |
-| `Ship` | the lander is away, elsewhere | a `Problem`: the lander is not where the rest waits |
-| `Lander` | the lander is with the rest | it `Separates`, and the rest waits where it is |
-| `Lander` | the lander is away | it flies on from where it is; a rest never met again stays where it waited |
-| `Rest` | | the lander stays where it is for good (`LegMode.WithoutLander`); a later step of the lander is a `Problem` and costs nothing |
+| `Ship` | every section is with the rest | the whole vessel flies |
+| `Ship` | a section that docks is away, where the rest waits or in another orbit of that body | its last step `Docks`, with the burn to the rest's orbit where it ended in another one, 50 m/s for the rendezvous where the rest is in orbit, and is refilled where its stop's `Refuel` is set for that step |
+| `Ship` | a section that docks is away, elsewhere | a `Problem`: it is not where the rest waits |
+| `Alone` | the section is with what carries it | it `Separates` (`Leaver`, `LeavesFrom`), and the rest waits where it is |
+| `Alone` | the section is away | it flies on from where it is; a rest never met again stays where it waited |
+| `Alone` | a capsule, for the first time | everything else is gone for good (`Gone`): dropped where it was with the capsule, left where it waited |
+| `Without` | | the section stays where it is for good (`Gone`, `Stays`); a later step of it is a `Problem` and costs nothing |
 
-A lander that climbs from a surface while the rest waits in an orbit of that body climbs
-to the rest's own orbit. A stop's `LeavesPayload` marks its last step `PayloadAfter`. A
-step of the whole vessel or the rest that starts in the air and is no landing is a
-`Problem`. Without a lander, every step is the whole vessel's.
+At the end of the last step to a satellite's `DeployAt`, the satellite stays there
+(`Deploys`), carried there or flown there itself, with the sections part of it; a lander
+part of it leaves it there and flies on its own. Where it was not carried, a `Problem`
+says so. A section that docks does so where it is part of the rest, or of a section
+still with the rest (`Carrier`). A section that
+docks and climbs from a surface while the rest waits in an orbit of that body climbs to
+the rest's own orbit. A step that starts in the air and is no landing is a `Problem`.
+Without sections, every step is the whole vessel's. Each step names what flies it
+(`Flying`: 0 the rest, else the sections' ids), for the budget and the warnings.
 
 The missions of `PlannerTests` are set up as the player sets them, and check the steps
 that come out: a vessel to Minmus and home; a satellite left in a synchronous orbit, and
 one that circularises by itself after the upper stage's transfer burn; a Duna lander
 flying home by itself; a lander hopping on Minmus from a Mun base; a Mun lander under a
 mothership whose capsule comes home; Jool missions with two landings, a refill and a
-capsule landing at home, the capsule part of the lander or of the mothership.
+capsule landing at home, the capsule part of the lander or of the mothership; a satellite
+deployed, and one not carried to where it stays; two landers.
 
 ## How a step's delta-v is worked out
 
@@ -227,53 +239,50 @@ to, by role):
 * *Save*: the step stops before the stage, and so before every stage after it, the
   lander's included. KSP can only fire stages in order. What the step then lacks is
   `Short`.
-* *Drop after*: at the step's end, after a refill and a payload, the stage goes with
-  what it holds, and so does every stage before it on the same vessel; where the lander
-  is attached, the rest goes first, as KSP's order has it. The result lists each as
-  `Dropped`, in delta-v at the mass the stage pushes then, with the step in `GoneAfter`.
-  The last stage of what flies the step cannot be dropped (`StepStage.CanDrop`).
+* *Drop after*: at the step's end, after a refill, the stage goes with what it holds,
+  and so does every stage before it on what flies the step, in KSP's order. The result
+  lists each as `Dropped`, in delta-v at the mass the stage pushes then, with the step in
+  `GoneAfter`. The last stage of what flies the step cannot be dropped
+  (`StepStage.CanDrop`).
 
 Per step, `Result.Stages` lists the stages of what flies it that hold propellant as it
-starts: the lander's alone while it flies alone, the main group's with the lander's
-where it is attached. Each has what it gives to the step, and what it still gives after:
+starts. Each has what it gives to the step, and what it still gives after:
 burning on in order from there, as at the route's end, or what it held where it was
 dropped.
 
-### The rest, the lander and the capsule
+### The rest and the sections
 
-The vessel falls into the rest, the lander and the capsule (`VesselSplit`, `PartGroup`).
-Each stage belongs to the one whose parts it fires, its engines first; its propellant
-and the mass KSP drops after it share out over the three by the parts that burn and go
-there (`VesselShape.Split`, from `DeltaVPartInfo.stageFuelMass` and `decoupleStage`).
-The groups' masses are the parts' masses, scaled to KSP's start mass of the whole
-vessel. So the lander's stages can lie between the rest's, as they do where it hangs
-under a mothership by a docking port.
+The vessel falls into groups (`VesselSplit`): group 0 the rest, and one per section, less
+the sections inside it, each part in the smallest section holding it. Each stage belongs
+to the group whose parts it fires, its engines first; its propellant and the mass KSP
+drops after it share out over the groups by the parts that burn and go there
+(`VesselShape.Split`, from `DeltaVPartInfo.stageFuelMass` and `decoupleStage`). The
+groups' masses are the parts' masses, scaled to KSP's start mass of the whole vessel,
+launch clamps left out. So a lander's stages can lie between the rest's, as they do where
+it hangs under a mothership by a docking port.
 
-What flies a step burns its own stages in KSP's order, each group's stages only while
-it flies; the whole vessel fires every stage in that order, and what KSP drops after a
-stage goes.
-
-Each step is flown in one of four ways (`LegMode`):
-
-| Mode | Stages that burn | Mass they push |
-|---|---|---|
-| `Whole` | every stage in KSP's order, unless a saved stage holds the ones after it back | everything still there |
-| `Lander` | the lander's | the lander, with the capsule where it is part of it |
-| `WithoutLander` | the rest's | the rest, with the capsule where it is part of it. The lander stays behind with what it holds, and no later step has it |
-| `Capsule` | the capsule's | the capsule. Its first step leaves everything else with what it holds (`Dropped`), or where it waits (`LeftBehind`) |
+The route hands each step to the budget as a `BudgetStep`: what it needs, the groups
+that fly it (`Side`), the groups gone for good as it starts (`Gone`: left as a vessel of
+its own, or dropped with what flew, or left where it waited), the group refilled after
+it, and the groups deployed after it. A group gone for good shows where it last flew
+to. What flies a step burns its own groups' stages in
+KSP's order, and what KSP drops after a stage goes; a section alone pushes only its own
+mass and that of the sections part of it. A deployed group stays with what it weighs
+(`Payload`).
 
 Where the vessel has no parts to go by, as in the unit tests, the lander and the capsule
 are each a stage and every stage after it (`VesselSplit.ByStages`). What KSP drops as the
 whole vessel starts the lander's stages is then the rest itself: it stays while a step of
 the lander alone is ahead, because the lander returns to it (`RestStaysForLander`).
 
-### Finding the lander and the capsule
+### Finding the sections
 
 `EditorReadout.PartFacts` gives each part its parent in the part tree, its
 `DeltaVPartInfo.decoupleStage`, the stage it fires in (`Part.inverseStage`), its masses,
-and whether it has a `ModuleCommand`, a `ModuleEngines`, a landing leg
-(`ModuleWheelBase` of `WheelType.LEG`), a parachute, a heat shield, or separates the
-vessel: `ModuleDockingNode`, `ModuleAnchoredDecoupler` or `ModuleDecouple` **[src]**.
+its seats for crew (`Part.CrewCapacity`), and whether it has a `ModuleCommand`, a
+`ModuleEngines`, a landing leg (`ModuleWheelBase` of `WheelType.LEG`), a parachute, a
+heat shield, or separates the vessel: `ModuleDockingNode`, `ModuleAnchoredDecoupler` or
+`ModuleDecouple` **[src]**.
 
 `VesselShape.Candidates` cuts the part tree at each of those parts, into the side under
 it and the side over it; a decoupler stays with the side over it, a radial decoupler and
@@ -289,33 +298,28 @@ the transfer stage under it. Sides with the same parts are one choice, a docking
 among their separators whatever the order, named after its command part, else its
 engine. The plan keeps a choice as its separator's `persistentId` and side.
 
-* The capsule is the lightest choice with a command part and a parachute.
-* The lander, the part that lands, is the lightest choice with a command part, an engine
-  and a landing leg that a docking port separates or that holds the command part KSP
-  keeps longest (`KeepsLongest`), so that a booster with a probe core and legs does not
-  count.
-* Whether it docks with the rest again (`PlannerState.LanderReturns`, *Afterwards*): as
-  the player sets it, or where a docking port separates it (`PlannerView.LanderDocks`).
-  `RouteSteps.Build` then lets the whole vessel fly on across where the lander meets the
-  rest; a lander that flies on alone goes on by itself, the rest left where it waited.
-* The capsule has to be inside the lander or apart from it; otherwise it counts for
-  nothing. The lists offer only what fits the other choice: the lander's list parts with
-  a command part and engines. A list closes when the vessel's groups change under it,
-  as with undo.
+The planner shows a section of its own where the plan has none of that kind, the player
+has not removed the last of that kind (`PlannerState.Dismissed`, cleared for a new
+craft), and the list has room (`PlannerView.Found`). It is the plan's only once the
+player sets something on it (`PlannerState.Keep`), under a fixed id (`FoundCapsule`,
+`FoundSatellite`), so that a readout of the vessel before a craft loaded writes nothing:
 
-What was found goes to `KSP.log` once per change, in a line that starts with `Planner
-found from`.
+* On a crewed vessel (a command part with seats), the capsule: the lightest choice with
+  a crewed command part, parachutes or not (`VesselShape.AutoCapsule`).
+* On an uncrewed vessel, the satellite: of the choices with a command part and no legs
+  that leave the launch stage's engines behind, the one inside no other, where there is
+  exactly one (`VesselShape.AutoSatellite`).
 
-After a step marked for it, a payload stays behind (`Payload`): what KSP drops when the
-next stage without delta-v after the burning one fires, `drop` of the stage before it. The
-burning stage burns on with what it holds, now lighter. KSP's simulation burns a stage
-until the tanks that separate first are empty (`DeltaVStageInfo`), so an upper stage that
-fires before the satellite's decoupler carries all its fuel in its own stage, with the
-satellite on; the planner takes the satellite off at the stop instead.
+A lander is always the player's. Its *Afterwards* docks again by itself where a docking
+port separates it. A satellite's *Deployed at* is by itself the first orbit the route
+reaches before it lands or ends. A section overlapping one before it counts for nothing;
+the lists offer only parts that fit the other sections, a lander's only with engines. A
+list closes when the vessel's groups change under it, as with undo. What was found goes
+to `KSP.log` once per change, in a line that starts with `Planner found from`.
 
-After a step marked for it, the lander is refilled (`Refuelled`): each of its stages
-still attached up to the propellant it held at the start, taken from the rest's stages
-in KSP's order, the one burning first. The mass moves from the rest to the lander.
+After a step marked for it, a section that docks is refilled (`Refuelled`): each of its
+stages still there up to the propellant it held at the start, taken from the rest's
+stages in KSP's order, the one burning first. The mass moves from the rest to it.
 
 ## Where the plans are kept
 
@@ -328,19 +332,32 @@ PLAN
     vessel = Mun Lander
     margin = 0.10
     planeChanges = False
-    lander = Automatic
-    landerReturns = Automatic
-    capsule = 1822461803:over
+    nextSection = 3
+    SECTION
+    {
+        id = 1
+        kind = Capsule
+        group = Automatic
+        returns = Automatic
+        deployAt = -1
+    }
+    SECTION
+    {
+        id = 2
+        kind = Lander
+        group = 1822461803:under
+        returns = Docks
+        deployAt = -1
+    }
     STOP
     {
         body = Kerbin
         kind = Surface
         altitude = 0
         useAtmosphere = False
-        by = Auto, Auto, Auto, Lander
+        by = Auto, Auto, Auto, Section 2
         refuel = False, False, False, False
         orbitFirst = False
-        leavesPayload = False
         splitBurns = False
         STAGE
         {
@@ -352,8 +369,10 @@ PLAN
 }
 ```
 
-`lander` and `capsule` are a part choice's key, `None`, or `Automatic`, which a new plan
-starts with; `landerReturns` is `Docks`, `Alone` or `Automatic`. `by` and `refuel` are per
+A `SECTION`'s `group` is a part choice's key, `Automatic`, or empty where none is picked;
+`returns` is `Docks`, `Alone` or `Automatic`; `deployAt` a stop, -1 for the planner's.
+`dismissed` lists the kinds the planner added and the player removed. `by` is `Auto`,
+`Ship`, `Section` or `Without` with a section's id; `by` and `refuel` are per
 step in the order launch, transfer, arrival, landing. A `STAGE` is a stage saved on a step
 (`Save`) or dropped after it (`DropAfter`); a stage left to burn has none.
 

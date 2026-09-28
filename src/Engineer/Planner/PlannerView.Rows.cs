@@ -73,11 +73,9 @@ namespace ReDefinition.Engineer
         {
             altitudeFields.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            rows.Add(Heading("Vessel"));
-            rows.Add(VesselRow("Lander", LanderText, PickLander, "Select the part of the vessel that lands."));
-            rows.Add(ReturnsRow());
-            rows.Add(VesselRow("Capsule", CapsuleText, PickCapsule,
-                "Select the part of the vessel that comes home alone at the end."));
+            rows.Add(Heading("Sections"));
+            for (int i = 0; i < MaxSections; i++) rows.AddRange(SectionRows(i));
+            rows.Add(AddSectionRow());
             rows.Add(Heading("Route"));
             for (int i = 0; i < MaxStops; i++)
             {
@@ -93,42 +91,69 @@ namespace ReDefinition.Engineer
             return rows;
         }
 
-        // ---------------------------------------------------------------- vessel
+        // -------------------------------------------------------------- sections
 
-        // The lander or the capsule: "Automatic" with what the planner finds, none, or
-        // a part of the vessel the player picks, from the list under the button. They
-        // decide who can fly a step. The name in the column of a step's place, the
-        // button in the one of who flies it, to where a stop's cross ends.
-        private DialogGUIBase VesselRow(string name, System.Func<string> text, System.Action<DialogGUIBase> pick, string tooltip)
+        // A section: what it is in the column of a step's place, its parts on a button
+        // from the column of who flies a step, its cross where a stop's cross is; under
+        // it, what it does: a lander docks again or flies on alone, a satellite stays at
+        // a destination; and in red what is wrong with it.
+        private IEnumerable<DialogGUIBase> SectionRows(int row)
         {
-            DialogGUIButton button = null;
-            button = new DialogGUIButton(text, () => pick(button), PartButtonWidth, Square, false);
-            button.tooltipText = tooltip;
-            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
-                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">" + name + "</color>", Place),
-                button);
-            row.OptionEnabledCondition = Ready;
-            return row;
-        }
+            DialogGUIButton group = null;
+            group = new DialogGUIButton(() => SectionText(row), () =>
+            {
+                LiveSection section = RowSection(row);
+                if (section != null) PickSectionParts(section.Plan, group);
+            }, PartButtonWidth - Square - 4f, Square, false);
+            group.tooltipText = "Select the parts of the vessel this section is.";
+            DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveSection(row), Square, Square, 14f,
+                "Remove this section.", after);
+            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel(() => SectionLabel(row), Place), group, remove);
+            line.OptionEnabledCondition = () => RowSection(row) != null;
+            yield return line;
 
-        // What the lander does after its flight, under the lander's row, its choices in
-        // the column of who flies a step.
-        private DialogGUIBase ReturnsRow()
-        {
-            DialogGUIButton docks = new DialogGUIButton(() => ReturnsText(true, "Docks again"), () => SetReturns(true), 104f, Square,
-                false);
-            docks.tooltipText = "The lander comes back to the rest and docks, and the whole vessel flies on.";
-            DialogGUIButton alone = new DialogGUIButton(() => ReturnsText(false, "Flies on alone"), () => SetReturns(false), 112f,
+            DialogGUIButton docks = new DialogGUIButton(() => ReturnsText(row, true, "Docks again"), () => SetReturns(row, true), 104f,
                 Square, false);
+            docks.tooltipText = "The lander comes back to the rest and docks, and the whole vessel flies on.";
+            DialogGUIButton alone = new DialogGUIButton(() => ReturnsText(row, false, "Flies on alone"), () => SetReturns(row, false),
+                112f, Square, false);
             alone.tooltipText = "The lander flies on by itself and leaves the rest behind.";
-            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
+            DialogGUIHorizontalLayout returns = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">Afterwards</color>", Place),
                 docks, alone);
-            row.OptionEnabledCondition = HasLander;
+            returns.OptionEnabledCondition = () => IsKind(row, SectionKind.Lander);
+            yield return returns;
+
+            DialogGUIButton stop = null;
+            stop = new DialogGUIButton(() => DeployText(row), () => PickDeployStop(row, stop), PartButtonWidth, Square, false);
+            stop.tooltipText = "Select the destination where the satellite stays.";
+            DialogGUIHorizontalLayout deploy = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">Deployed at</color>", Place),
+                stop);
+            deploy.OptionEnabledCondition = () => IsKind(row, SectionKind.Satellite);
+            yield return deploy;
+
+            DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUISpace(Place),
+                new DialogGUILabel(() => "<color=" + Problem + ">" + SectionWarning(row) + "</color>", PartButtonWidth, RowHeight));
+            warning.OptionEnabledCondition = () => SectionWarning(row).Length > 0;
+            yield return warning;
+        }
+
+        // "+" to add a section, in the column of a section's name.
+        private DialogGUIBase AddSectionRow()
+        {
+            DialogGUIButton add = null;
+            add = new DialogGUIButton("<b>+</b>", () => PickNewSection(add), Square, Square, false);
+            add.tooltipText = "Add a section of the vessel: a capsule, a lander or a satellite.";
+            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), add);
+            row.OptionEnabledCondition = () => Ready() && state.Sections.Count < MaxSections;
             return row;
         }
 
-        // The Vessel row's buttons: from who flies a step to where a stop's cross ends.
+        // A section's buttons: from who flies a step to where a stop's cross ends.
         private float PartButtonWidth
         {
             get { return Mathf.Max(120f, width - Timeline - Place - 4f * 2f - RowEnd); }
@@ -272,10 +297,10 @@ namespace ReDefinition.Engineer
             yield return leaves;
 
             DialogGUIButton vehicle = null;
-            vehicle = new DialogGUIButton(() => VehicleText(leg, role), () => PickVehicle(leg, role, vehicle), VehicleButton,
+            vehicle = new DialogGUIButton(() => VehicleText(leg, role), () => PickFlyer(leg, role, vehicle), VehicleButton,
                 RowHeight + 2f, false);
             vehicle.tooltipText = "Select which part of the vessel flies this step.";
-            vehicle.OptionEnabledCondition = () => HasLander() || HasCapsule();
+            vehicle.OptionEnabledCondition = HasSections;
             SegmentBar bar = new SegmentBar(MaxPieces, BarHeight, after);
             stepBars[leg, (int)role] = bar;
             PlannerWidgets.Clickable(bar.Layout, () => SelectStep(leg, role), after);
@@ -298,15 +323,22 @@ namespace ReDefinition.Engineer
             yield return row;
 
             DialogGUIButton refuel = Choice("Refuel", () => Refuels(leg, role), () => ToggleRefuel(leg, role), 64f);
-            refuel.tooltipText = "Fill the lander's tanks from the rest of the vessel when it docks.";
+            refuel.tooltipText = "Fill this section's tanks from the rest of the vessel when it docks.";
             DialogGUIHorizontalLayout docks = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight + 4f), new DialogGUISpace(BarIndent),
                 new DialogGUILabel("<color=" + Dim + ">Docks with the rest</color>", OptionLabel), refuel);
             docks.OptionEnabledCondition = () => Docks(leg, role);
             yield return docks;
 
+            DialogGUIHorizontalLayout stays = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+                TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(BarIndent),
+                new DialogGUILabel(() => "<color=" + Dim + ">" + DeployedText(leg, role) + "</color>", width - Timeline - BarIndent - 8f,
+                    RowHeight));
+            stays.OptionEnabledCondition = () => DeployedText(leg, role).Length > 0;
+            yield return stays;
+
             // Behind "...", each on a line of its own, as they concern different
-            // things: the way down, a payload.
+            // things: the way down, the burns across.
             DialogGUIButton straight = Choice("Straight in", () => !OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, false), 88f);
             straight.tooltipText = "Go straight into the atmosphere and land from there.";
             DialogGUIButton orbitFirst = Choice("Orbit first", () => OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, true), 84f);
@@ -318,10 +350,6 @@ namespace ReDefinition.Engineer
             DialogGUIButton split = Choice("Split", () => SplitsBurns(leg + 1), () => SetSplitBurns(leg + 1, true), 84f);
             split.tooltipText = "Make the burn that leaves and the one that arrives two steps, each with who flies it.";
             yield return OptionLine(leg, role, "Burns", () => role == StepRole.Transfer && CanSplit(leg), together, split);
-
-            DialogGUIButton payload = Choice("Leave payload", () => LeavesPayload(leg + 1), () => ToggleLeavesPayload(leg + 1), 112f);
-            payload.tooltipText = "Leave the payload here, such as a satellite; the stage carrying it flies on lighter.";
-            yield return OptionLine(leg, role, "Payload", () => Arrives(leg, role), payload);
 
             for (int i = 0; i < MaxWarnings; i++)
             {
@@ -357,7 +385,7 @@ namespace ReDefinition.Engineer
         {
             int index = Slot(leg, role);
             if (index < 0) return "";
-            string name = VehicleName(steps[index].Vehicle);
+            string name = FlyerName(steps[index].Flyer);
             return steps[index].Chosen ? "<b><u><color=" + Good + ">" + name + "</color></u></b>" : "<color=" + Good + ">" + name + "</color>";
         }
 
@@ -367,13 +395,6 @@ namespace ReDefinition.Engineer
             return index >= 0 && steps[index].Chosen;
         }
 
-        // The last step to a destination: it arrives there.
-        private bool Arrives(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            return index >= 0 && (index + 1 >= steps.Count || steps[index + 1].Goal != steps[index].Goal);
-        }
-
         // "To Mun surface", "To Kerbin's air", "To Kerbin orbit".
         private string StepPlace(int leg, StepRole role)
         {
@@ -381,25 +402,28 @@ namespace ReDefinition.Engineer
             return index < 0 ? "" : "To " + RouteSteps.Place(bodies.Bodies, steps[index].To);
         }
 
+        // "The lander leaves the vessel in Mun orbit", "The vessel leaves the lander on
+        // Mun surface".
         private string SeparationText(int leg, StepRole role)
         {
             int index = Slot(leg, role);
             if (index < 0 || !steps[index].Separates) return "";
-            string place = RouteSteps.At(bodies.Bodies, steps[index].From);
-            switch (steps[index].Vehicle)
-            {
-                case Vehicle.Lander: return "The lander leaves the rest " + place;
-                case Vehicle.Capsule:
-                    return (steps[index].From == LanderPlace(index) ? "The capsule leaves the lander " : "The capsule leaves the vessel ") + place;
-                default: return "The vessel leaves the lander " + place;
-            }
+            RouteStep step = steps[index];
+            string place = RouteSteps.At(bodies.Bodies, step.From);
+            string leaver = Lower(FlyerName(Flyer.Alone(step.Leaver)));
+            if (step.Flyer.Kind == FlyerKind.Without) return "The vessel leaves the " + leaver + " " + place;
+            string from = step.LeavesFrom == 0 ? "the vessel" : "the " + Lower(FlyerName(Flyer.Alone(step.LeavesFrom)));
+            return "The " + leaver + " leaves " + from + " " + place;
         }
 
-        // Where the lander was when the step started, for the capsule's line: the
-        // step before is the lander's.
-        private RouteStop LanderPlace(int index)
+        // "The satellite stays here": the sections deployed at the step's end.
+        private string DeployedText(int leg, StepRole role)
         {
-            return index > 0 && steps[index - 1].Vehicle == Vehicle.Lander ? steps[index - 1].To : null;
+            int index = Slot(leg, role);
+            if (index < 0 || steps[index].Deploys.Count == 0) return "";
+            List<string> names = new List<string>();
+            foreach (int id in steps[index].Deploys) names.Add(Lower(FlyerName(Flyer.Alone(id))));
+            return "The " + string.Join(", the ", names.ToArray()) + (names.Count == 1 ? " stays here" : " stay here");
         }
 
         private bool Docks(int leg, StepRole role)
@@ -420,7 +444,7 @@ namespace ReDefinition.Engineer
 
         private bool HasMore(int leg, StepRole role)
         {
-            return Slot(leg, role) >= 0 && (IntoTheAir(leg, role) || Arrives(leg, role) || (role == StepRole.Transfer && CanSplit(leg)));
+            return Slot(leg, role) >= 0 && (IntoTheAir(leg, role) || (role == StepRole.Transfer && CanSplit(leg)));
         }
 
         // The way across to the next destination has a burn that leaves and one that
@@ -741,7 +765,7 @@ namespace ReDefinition.Engineer
         // "Lander to Mun surface", "Without lander to Kerbin's air".
         private string StepTitle(RouteStep step)
         {
-            return VehicleName(step.Vehicle) + " to " + RouteSteps.Place(bodies.Bodies, step.To);
+            return FlyerName(step.Flyer) + " to " + RouteSteps.Place(bodies.Bodies, step.To);
         }
 
         private string StageTitle()
@@ -762,7 +786,7 @@ namespace ReDefinition.Engineer
             foreach (StageBudget.StageUse use in budget.Uses)
                 if (use.Stage == row.Number)
                     text.Append('\n').Append("To ").Append(RouteSteps.Place(bodies.Bodies, steps[use.Leg].To)).Append(" <color=" + Dim + ">")
-                        .Append(VehicleName(steps[use.Leg].Vehicle)).Append("</color><pos=60%>").Append(EngineerFormat.Speed(use.DeltaV));
+                        .Append(FlyerName(steps[use.Leg].Flyer)).Append("</color><pos=60%>").Append(EngineerFormat.Speed(use.DeltaV));
             text.Append('\n').Append(StageEnd(at));
             return text.ToString();
         }
@@ -787,7 +811,7 @@ namespace ReDefinition.Engineer
             // between its pieces.
             // Six elements and five gaps besides who flies, to end where a stop's
             // cross does.
-            float room = Mathf.Max(40f, width - Timeline - Place - (HasLander() || HasCapsule() ? VehicleButton + 4f : 0f)
+            float room = Mathf.Max(40f, width - Timeline - Place - (HasSections() ? VehicleButton + 4f : 0f)
                                         - StepSpeed_ - Square - 4f * 5f - RowEnd);
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
