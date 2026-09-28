@@ -50,10 +50,6 @@
 
 ### Fixed
 
-- **No planets' orbits across a close map view.** Opening the map zoomed in on a planet
-  showed the other planets' orbits as a wide, blurred line that took four seconds to fade
-  out, and zoomed out they were missing for as long. The planets' orbits now show and
-  hide at once; the moons' and vessels' fade as before.
 - **Far ground no longer shimmers under the upscaler.** Zoomed out far, over the Mun
   for example, the far side of the ground, or the whole body, trembled and kept
   trembling. Unity's motion vectors there are imprecise so far from the origin;

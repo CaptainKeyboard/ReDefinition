@@ -38,14 +38,12 @@ namespace ReDefinition.Tests
             }
         }
 
-        // The R&D nodes' and the orbit lines' hooks: the method found, and every
+        // The R&D nodes' hooks: the method found, and every
         // field their prefixes and postfixes bind by name.
         [TestMethod]
-        public void TheRnDAndOrbitLineHooksFindTheirMembers()
+        public void TheRnDNodeHooksFindTheirMembers()
         {
             AssertFields(RnDNodeHooks.Target(), typeof(RnDNodeHooks), "SetupPrefix", "SetupPostfix");
-            AssertFields(ReDefinition.Flight.OrbitLineFade.Target(), typeof(ReDefinition.Flight.OrbitLineFade), "OpacityPrefix",
-                "OpacityPostfix");
         }
 
         private static void AssertFields(MethodBase target, System.Type owner, params string[] hooks)
