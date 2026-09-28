@@ -475,10 +475,21 @@ namespace ReDefinition.Settings.Behaviours
             Application.runInBackground = GameSettings.SIMULATE_IN_BACKGROUND;
             AudioListener.volume = GameSettings.MASTER_VOLUME;
             Highlighting.HighlightingSystem.FxEnabled = GameSettings.HIGHLIGHT_FX;
-            if (KSP.UI.UIMasterController.Instance != null)
+            KSP.UI.UIMasterController master = KSP.UI.UIMasterController.Instance;
+            if (master != null)
             {
-                KSP.UI.UIMasterController.Instance.SetScale(GameSettings.UI_SCALE);
-                KSP.UI.UIMasterController.Instance.SetAppScale(GameSettings.UI_SCALE_APPS * GameSettings.UI_SCALE);
+                bool changed = Mathf.Abs(master.uiScale - GameSettings.UI_SCALE) > 0.001f;
+                master.SetScale(GameSettings.UI_SCALE);
+                master.SetAppScale(GameSettings.UI_SCALE_APPS * GameSettings.UI_SCALE);
+                // As KSP's own settings screen does after a new scale
+                // (GameplaySettingsScreen.Apply; decompiled): the vessel labels,
+                // part action windows, altimeter and other mods follow the event, the
+                // map's icons their container.
+                if (changed && master.mainCanvas != null && master.mainCanvas.renderMode != RenderMode.WorldSpace)
+                {
+                    GameEvents.onUIScaleChange.Fire();
+                    KSP.UI.Screens.Mapview.MapViewCanvasUtil.ResetNodeCanvasContainerScale(GameSettings.UI_SCALE);
+                }
             }
             if (Screen.width != GameSettings.SCREEN_RESOLUTION_WIDTH || Screen.height != GameSettings.SCREEN_RESOLUTION_HEIGHT
                 || Screen.fullScreen != GameSettings.FULLSCREEN)

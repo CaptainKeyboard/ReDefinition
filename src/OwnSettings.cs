@@ -64,6 +64,13 @@ namespace ReDefinition
         // units: negative to the left (NavballDrag).
         public float NavballOffset;
 
+        // What KSP leaves at a fixed number of pixels -- the map's icons and labels,
+        // vessel labels, orbit lines, the maneuver and editor gizmos -- at this share
+        // of KSP's UI scale, in percent (Scaling/UiScaling).
+        public float WorldUiScale = 100f;
+        // Other mods' IMGUI windows at KSP's UI scale (Scaling/ModWindowScale).
+        public bool ScaleModWindows = true;
+
         private const string RootName = "ReDefinition";
 
         public static string Path
@@ -108,6 +115,8 @@ namespace ReDefinition
             settings.EngineerPartDetails = Bool(node, "engineerPartDetails", settings.EngineerPartDetails);
             settings.EngineerKey = Binding(node, "engineerKey", settings.EngineerKey);
             settings.NavballOffset = Float(node, "navballOffset", settings.NavballOffset);
+            settings.WorldUiScale = Float(node, "worldUiScale", settings.WorldUiScale);
+            settings.ScaleModWindows = Bool(node, "scaleModWindows", settings.ScaleModWindows);
             return settings;
         }
 
@@ -143,6 +152,8 @@ namespace ReDefinition
             node.AddValue("engineerPartDetails", EngineerPartDetails);
             node.AddValue("engineerKey", EngineerKey);
             node.AddValue("navballOffset", NavballOffset.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
+            node.AddValue("worldUiScale", WorldUiScale.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
+            node.AddValue("scaleModWindows", ScaleModWindows);
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -171,7 +182,8 @@ namespace ReDefinition
               .Append(SettingsWindowKey).Append('|').Append(EngineerWindow).Append('|').Append(EngineerAllStages)
               .Append('|').Append(EngineerVectoredThrust).Append('|').Append(EngineerPartDetails).Append('|')
               .Append(EngineerKey).Append('|')
-              .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture));
+              .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
+              .Append(WorldUiScale.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(ScaleModWindows);
             return sb.ToString();
         }
 

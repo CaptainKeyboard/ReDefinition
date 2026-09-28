@@ -8,20 +8,32 @@ namespace ReDefinition.Settings
 {
     // One Harmony patch of a bundled mod: the method patched, and the names of
     // the static hooks on the class that installs it -- null where it has none of
-    // that kind.
+    // that kind; and where their order among other patches of the same method
+    // matters, the priority of its prefix and of its postfix (Harmony's Priority:
+    // First 800, Normal 400, Last 0; -1 for Harmony's own).
     internal struct HarmonyHook
     {
         public readonly MethodBase Target;
         public readonly string Prefix;
         public readonly string Postfix;
         public readonly string Finalizer;
+        public readonly int PrefixPriority;
+        public readonly int PostfixPriority;
 
         public HarmonyHook(MethodBase target, string prefix, string postfix, string finalizer)
+            : this(target, prefix, postfix, finalizer, -1, -1)
+        {
+        }
+
+        public HarmonyHook(MethodBase target, string prefix, string postfix, string finalizer, int prefixPriority,
+                           int postfixPriority)
         {
             Target = target;
             Prefix = prefix;
             Postfix = postfix;
             Finalizer = finalizer;
+            PrefixPriority = prefixPriority;
+            PostfixPriority = postfixPriority;
         }
     }
 
@@ -40,8 +52,8 @@ namespace ReDefinition.Settings
                 foreach (HarmonyHook hook in hooks)
                 {
                     if (hook.Target == null) throw new MissingMethodException(owner.Name + ": a method to hook is missing.");
-                    harmony.Patch(hook.Target, prefix: Method(owner, hook.Prefix), postfix: Method(owner, hook.Postfix),
-                        finalizer: Method(owner, hook.Finalizer));
+                    harmony.Patch(hook.Target, prefix: Method(owner, hook.Prefix, hook.PrefixPriority),
+                        postfix: Method(owner, hook.Postfix, hook.PostfixPriority), finalizer: Method(owner, hook.Finalizer, -1));
                 }
             }
             catch
@@ -54,12 +66,14 @@ namespace ReDefinition.Settings
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static HarmonyLib.HarmonyMethod Method(Type owner, string name)
+        private static HarmonyLib.HarmonyMethod Method(Type owner, string name, int priority)
         {
             if (name == null) return null;
             MethodInfo method = owner.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static);
             if (method == null) throw new MissingMethodException(owner.Name, name);
-            return new HarmonyLib.HarmonyMethod(method);
+            HarmonyLib.HarmonyMethod harmonyMethod = new HarmonyLib.HarmonyMethod(method);
+            if (priority >= 0) harmonyMethod.priority = priority;
+            return harmonyMethod;
         }
 
         // A hook's body: its failure is a warning, never an exception thrown

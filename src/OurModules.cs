@@ -297,6 +297,46 @@ namespace ReDefinition
                     settings.NavballOffset = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
             });
 
+        // What KSP leaves unscaled (Scaling/UiScaling).
+        public static readonly IGraphicsModule Scaling = new GraphicsModule("uiScaling", "Scaling",
+            new ModuleSetting
+            {
+                Key = "worldUiScale",
+                Title = "Map, labels and gizmos",
+                Order = 200,
+                Row = SettingCategory.Interface,
+                Section = ScalingSection,
+                Control = SettingControl.Slider,
+                Min = 50f,
+                Max = 200f,
+                WholeNumbers = true,
+                NeedsProfile = false,
+                Label = value => value + " % of the UI scale",
+                Tooltip = "The size of what KSP draws at a fixed number of pixels, whatever its UI scale: the map's icons and "
+                          + "labels, vessel labels, orbit lines, the maneuver gizmo and the editor's move and rotate gizmos.\n"
+                          + "100 % gives them KSP's UI scale, as the rest of the interface has. The orbit lines and the editor's "
+                          + "gizmos take a change when they are next drawn anew.",
+                Read = settings => settings.WorldUiScale.ToString("0", CultureInfo.InvariantCulture),
+                Write = (settings, value) =>
+                    settings.WorldUiScale = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+            },
+            new ModuleSetting
+            {
+                Key = "scaleModWindows",
+                Title = "Other mods' windows",
+                Order = 210,
+                Row = SettingCategory.Interface,
+                Section = ScalingSection,
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Draws other mods' windows at KSP's UI scale. Windows of mods that scale themselves, such as "
+                          + "MechJeb's, stay as they are.",
+                Read = settings => SettingValues.Text(settings.ScaleModWindows),
+                Write = (settings, value) => settings.ScaleModWindows = bool.Parse(value),
+            });
+
+        private const string ScalingSection = "Scaling";
+
         private static string NavballLabel(string value)
         {
             float offset;
@@ -307,7 +347,7 @@ namespace ReDefinition
         }
 
         public static readonly IList<IGraphicsModule> All =
-            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys, Engineer, FlightUi }.AsReadOnly();
+            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys, Engineer, FlightUi, Scaling }.AsReadOnly();
 
         public static IGraphicsModule Find(string name)
         {

@@ -153,7 +153,9 @@ namespace ReDefinition.Window
             {
                 // A bundled mod's own window counts as well: opened through
                 // Advanced beside ReDefinition's, it lets clicks through the same way.
-                bool overMods = ModWindowClose.PointerOverModWindow();
+                // So does a mod's window drawn larger (ModWindowScale), where the
+                // mod's own shield covers only its unscaled part.
+                bool overMods = ModWindowClose.PointerOverModWindow() || Scaling.ModWindowScale.PointerOverScaledWindow();
                 bool over = overMods || OverShieldedWindow();
                 Lock(over);
                 if (over) MaskCameras();

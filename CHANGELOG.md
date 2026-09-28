@@ -4,6 +4,11 @@
 
 ### Added
 
+- **Readable on large screens.** What KSP leaves at a fixed number of pixels now takes
+  its UI scale: the map's icons and labels, the orbit lines, the labels over vessels, the
+  maneuver node's gizmo, the editor's move and rotate gizmos, and other mods' windows.
+  The tech tree zooms in further. A row in the settings window sets the size as a share
+  of the UI scale. Where 4kSP or Maneuver Node Evolved is installed, it keeps its part.
 - **An engineer window in the VAB and the SPH.** A window at the bottom of the screen
   shows the vessel's stages as Kerbal Engineer Redux's build window does, while you
   build: parts, cost, mass, Isp, thrust, torque, TWR, delta-v and burn time per stage,
@@ -42,10 +47,6 @@
 
 ### Fixed
 
-- **The maneuver node's gizmo grows with the UI scale.** KSP drew it at the same number
-  of pixels on every screen, so that on a 4K screen it was half as large as on 1080p and
-  hard to grab. It now grows with the UI scale in KSP's settings as the rest of the
-  interface does. With Maneuver Node Evolved installed, that mod keeps sizing it.
 - **Far ground no longer shimmers under the upscaler.** Zoomed out far, over the Mun
   for example, the far side of the ground, or the whole body, trembled and kept
   trembling. Unity's motion vectors there are imprecise so far from the origin;

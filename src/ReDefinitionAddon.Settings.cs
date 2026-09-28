@@ -132,6 +132,8 @@ namespace ReDefinition
             settings.EngineerVectoredThrust = from.EngineerVectoredThrust;
             settings.EngineerPartDetails = from.EngineerPartDetails;
             settings.NavballOffset = from.NavballOffset;
+            settings.WorldUiScale = from.WorldUiScale;
+            settings.ScaleModWindows = from.ScaleModWindows;
         }
 
         // What a view changed of the hotkeys, and nothing else: KSP's settings
@@ -150,6 +152,8 @@ namespace ReDefinition
                 settings.EngineerVectoredThrust = after.EngineerVectoredThrust;
             if (before.EngineerPartDetails != after.EngineerPartDetails) settings.EngineerPartDetails = after.EngineerPartDetails;
             if (before.NavballOffset != after.NavballOffset) settings.NavballOffset = after.NavballOffset;
+            if (before.WorldUiScale != after.WorldUiScale) settings.WorldUiScale = after.WorldUiScale;
+            if (before.ScaleModWindows != after.ScaleModWindows) settings.ScaleModWindows = after.ScaleModWindows;
         }
 
         // Where the navball stands; NavballDrag moves it there and writes it as
