@@ -42,11 +42,6 @@
 
 ### Fixed
 
-- **The maneuver node's gizmo grows with the UI scale.** KSP drew it at the same number of
-  pixels on every screen, so that on a 4K screen it was half as large as on 1080p and hard
-  to grab. It now grows with the UI scale in KSP's settings, by half as much as the rest
-  of the interface: 1.25 times at a UI scale of 1.5. With Maneuver Node Evolved installed,
-  that mod keeps sizing it.
 - **Far ground no longer shimmers under the upscaler.** Zoomed out far, over the Mun
   for example, the far side of the ground, or the whole body, trembled and kept
   trembling. Unity's motion vectors there are imprecise so far from the origin;
