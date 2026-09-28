@@ -53,10 +53,11 @@ The planner adds three sections by itself, shown as *Automatic* with what it fou
   lander you add yourself.
 
 A lander with a docking port docks again after it lands, where the rest has a port as
-well; one without flies on alone. The steps after it change either (see *Plan with
-sections*). *Deployed at* is by itself the first orbit the route reaches before it lands
-or ends. What you pick is bold and underlined; picking it again gives it back to the
-planner. A section the planner added and you removed stays away.
+well; one without flies on alone, and a grey line under it says so. The steps after it
+change either (see *Plan with sections*). *Deployed at* is by itself the first orbit the
+route reaches before it lands or ends. What you pick is bold and underlined; picking it
+again gives it back to the planner. A section the planner added and you removed stays
+away.
 
 ## Lay out the route
 
@@ -116,8 +117,9 @@ needs and what the vessel has.
 
 ## Read the fuel plan
 
-*+* and *-* on the heading *Fuel plan* show and hide it. It lists every step of the route in
-its order:
+The button before *Fuel plan*, or a click on its heading, shows and hides it; beside the
+title it says whether every step has enough fuel. It lists every step of the route in its
+order:
 
 | Column | Shows |
 |---|---|
@@ -143,11 +145,12 @@ the next.
 
 ## Check the thrust
 
-*Thrust* under the fuel plan, shown and hidden as it is, lists every step that burns. On
-a launch and a landing on the engines, the thrust has to lift the vessel. On every other
-burn it has to be done in time: the vessel goes on round its orbit while it burns, so the
-longer a burn takes against the orbit, the more of it pushes the wrong way. That delta-v
-is lost, and a transfer burn that takes too long can miss its target.
+*Thrust* under the fuel plan, shown and hidden as it is, says beside its title whether the
+thrust is enough everywhere, and lists every step that burns. On a launch and a landing on
+the engines, the thrust has to lift the vessel. On every other burn it has to be done in
+time: the vessel goes on round its orbit while it burns, so the longer a burn takes
+against the orbit, the more of it pushes the wrong way. That delta-v is lost, and a
+transfer burn that takes too long can miss its target.
 
 | Column | Shows |
 |---|---|
@@ -204,7 +207,7 @@ What happens follows from who flies one step after another:
 | From one step to the next | Happens |
 |---|---|
 | *Ship*, then a section | the section leaves the vessel, which waits where it is, and takes the sections that are part of it along. A grey line says where |
-| a section, then *Ship*, with steps of other sections in between or not | the section docks with the rest at the end of its step: *Docks with the rest*, with 50 m/s for the rendezvous, and the burn to the rest's orbit where it ended in another orbit of that body; a lander climbing from a surface climbs to the rest's own orbit. Anywhere else a red line says it is not where the rest waits |
+| a section, then *Ship*, with steps of other sections in between or not | the section docks with the rest at the end of its step: *Docks with the rest*, with 50 m/s for the rendezvous, and the burn to the rest's orbit where it ended in another orbit of that body; a lander climbing from a surface climbs to the rest's own orbit. Anywhere else a red line says it is not where the rest waits, and one where it has no docking port |
 | a section, then the same section | it flies on by itself, and climbs to its own destination; the rest stays where it waited. Where the whole vessel flies on later without leaving it behind, a red line says it is not where the rest waits |
 | *Without lander* | the vessel flies on without the lander, which stays where it is for good; one back where the rest waits docks first, so its climb counts the rendezvous |
 | the capsule | it leaves whatever flew the step before, for good. Nothing else can fly after it |

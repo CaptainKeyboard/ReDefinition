@@ -38,6 +38,8 @@ namespace ReDefinition.Engineer
         // By itself, it comes back to what carried it and docks: the whole vessel flies
         // on after it where it meets the rest (a docking port separates it).
         public bool Docks;
+        // It has a docking port, and the rest one to dock with.
+        public bool CanDock = true;
         // A satellite: the destination it stays at, -1 for none.
         public int DeployAt = -1;
     }
@@ -445,7 +447,12 @@ namespace ReDefinition.Engineer
                 foreach (SectionState state in walk.Order)
                 {
                     if (!state.Away || state.Gone || walk.Carrier(state.Section.Id) != 0) continue;
-                    if (Returns(walk, state)) Dock(bodies, walk, state);
+                    if (Returns(walk, state))
+                    {
+                        Dock(bodies, walk, state);
+                        if (!state.Section.CanDock)
+                            step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " has no docking port to dock with the rest";
+                    }
                     else step.Problem = step.Problem ?? "The " + Lower(state.Section.Name) + " is not where the rest waits, at "
                                    + Place(bodies, walk.Rest);
                     state.Away = false;

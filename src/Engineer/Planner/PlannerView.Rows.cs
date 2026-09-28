@@ -115,6 +115,12 @@ namespace ReDefinition.Engineer
                 new DialogGUILabel(() => "<color=" + Problem + ">" + SectionWarning(row) + "</color>", PartButtonWidth, RowHeight));
             warning.OptionEnabledCondition = () => SectionWarning(row).Length > 0;
             yield return warning;
+
+            DialogGUIHorizontalLayout note = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUISpace(Place),
+                new DialogGUILabel(() => "<color=" + Dim + ">" + SectionNote(row) + "</color>", PartButtonWidth, RowHeight));
+            note.OptionEnabledCondition = () => SectionNote(row).Length > 0;
+            yield return note;
         }
 
         // "+" to add a section, in the column of a section's name.
@@ -492,7 +498,7 @@ namespace ReDefinition.Engineer
         private IEnumerable<DialogGUIBase> FuelRows()
         {
             yield return CollapsibleHeading("Fuel plan", () => fuelShown, () => fuelShown = !fuelShown,
-                "Show or hide what each step needs and leaves.");
+                "Show or hide what each step needs and leaves.", FuelSummary);
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
                 DimLabel("Left after", FuelLeft));
@@ -829,7 +835,7 @@ namespace ReDefinition.Engineer
         private IEnumerable<DialogGUIBase> ThrustRows()
         {
             yield return CollapsibleHeading("Thrust", () => thrustShown, () => thrustShown = !thrustShown,
-                "Show or hide whether the thrust lifts the vessel and how long each burn takes.");
+                "Show or hide whether the thrust lifts the vessel and how long each burn takes.", ThrustSummary);
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
                 DimLabel("Has", FuelLeft));
@@ -1085,15 +1091,51 @@ namespace ReDefinition.Engineer
                    + " m/s², " + air + "</color>";
         }
 
-        // A heading that opens and closes what is under it, its button where a step's
-        // "..." is.
-        private DialogGUIBase CollapsibleHeading(string title, System.Func<bool> shown, Callback toggle, string tooltip)
+        // A heading that opens and closes what is under it: its button before the
+        // title, the whole heading answering a click, and what is under it in short.
+        private const float HeadingTitle = 90f;
+
+        private DialogGUIBase CollapsibleHeading(string title, System.Func<bool> shown, Callback toggle, string tooltip,
+                                                 System.Func<string> summary)
         {
             DialogGUIButton button = new DialogGUIButton(() => shown() ? "<b><color=" + Good + ">-</color></b>" : "+", toggle, Square,
                 Square, false);
             button.tooltipText = tooltip;
-            return new DialogGUIHorizontalLayout(width, Square + 8f, 4f, new RectOffset(0, 0, 8, 0), TextAnchor.LowerLeft,
-                new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", width - Square - 4f - RowEnd, RowHeight), button);
+            DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(width, Square + 8f, 4f, new RectOffset(0, 0, 8, 0),
+                TextAnchor.LowerLeft, button, new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", HeadingTitle, RowHeight),
+                new DialogGUILabel(() => Worked() ? summary() : "", width - Square - HeadingTitle - 4f * 2f - RowEnd, RowHeight));
+            PlannerWidgets.Clickable(heading, toggle, after);
+            return heading;
+        }
+
+        // "Enough for every step", or the steps short of fuel.
+        private string FuelSummary()
+        {
+            int shortSteps = 0;
+            foreach (double value in budget.Short) if (value > 0.5) shortSteps++;
+            return shortSteps == 0
+                ? "<color=" + Good + ">Enough for every step</color>"
+                : "<color=" + Problem + ">" + shortSteps + (shortSteps == 1 ? " step" : " steps") + " short of fuel</color>";
+        }
+
+        // "Enough thrust", or the steps where it is too little or a burn too long.
+        private string ThrustSummary()
+        {
+            int low = 0, slow = 0;
+            foreach (ThrustStep entry in thrustSteps)
+            {
+                if (entry.Twr)
+                {
+                    StageBudget.StageUse use = Deciding(entry);
+                    if (use != null && TwrAt(use.Stage, use.Mass, entry.Body, true) < TwrNeeded(entry)) low++;
+                }
+                else if (entry.Longest != null && BurnColour(entry.Longest) != Good) slow++;
+            }
+            if (low == 0 && slow == 0) return "<color=" + Good + ">Enough thrust on every step</color>";
+            string text = "";
+            if (low > 0) text = low + (low == 1 ? " step" : " steps") + " with too little TWR";
+            if (slow > 0) text += (text.Length > 0 ? ", " : "") + slow + (slow == 1 ? " long burn" : " long burns");
+            return "<color=" + (low > 0 ? Problem : Warning) + ">" + text + "</color>";
         }
 
         // ------------------------------------------------------------------ bars

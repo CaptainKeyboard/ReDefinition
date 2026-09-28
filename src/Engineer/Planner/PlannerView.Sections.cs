@@ -23,6 +23,7 @@ namespace ReDefinition.Engineer
             public string Problem;
             public int DeployAt = -1;
             public bool Docks;
+            public bool CanDock;
 
             public bool Valid
             {
@@ -106,7 +107,8 @@ namespace ReDefinition.Engineer
                 section.DeployAt = DeployStop(section.Plan);
                 // A lander docks again by itself where it can, with docking ports on it
                 // and on the rest; flying on alone is the player's choice.
-                section.Docks = section.Plan.Kind == SectionKind.Lander && VesselShape.CanDock(facts, section.Group);
+                section.CanDock = VesselShape.CanDock(facts, section.Group);
+                section.Docks = section.Plan.Kind == SectionKind.Lander && section.CanDock;
             }
 
             partGroups = new int[facts.Count];
@@ -222,7 +224,8 @@ namespace ReDefinition.Engineer
                 list.Add(new RouteSection
                 {
                     Id = valid[i].Plan.Id, Kind = valid[i].Plan.Kind, Name = valid[i].Name,
-                    Parent = parent >= 0 ? valid[parent].Plan.Id : 0, Docks = valid[i].Docks, DeployAt = valid[i].DeployAt,
+                    Parent = parent >= 0 ? valid[parent].Plan.Id : 0, Docks = valid[i].Docks, CanDock = valid[i].CanDock,
+                    DeployAt = valid[i].DeployAt,
                 });
             }
             return list;
@@ -396,6 +399,15 @@ namespace ReDefinition.Engineer
             if (section.Problem != null) return section.Problem;
             if (section.Plan.Kind == SectionKind.Capsule && !section.Group.Parachute) return "No parachutes on the capsule";
             return "";
+        }
+
+        // What a section's line under it notes: a lander without a docking port flies on
+        // alone.
+        private string SectionNote(int row)
+        {
+            LiveSection section = RowSection(row);
+            if (section == null || !section.Valid || section.Plan.Kind != SectionKind.Lander || section.CanDock) return "";
+            return "No docking port: it flies on alone";
         }
 
         // The parts that can be the section, each lit on the vessel while the pointer

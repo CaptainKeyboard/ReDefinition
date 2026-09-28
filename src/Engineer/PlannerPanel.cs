@@ -90,10 +90,7 @@ namespace ReDefinition.Engineer
             float listWidth = Mathf.Max(200f, frame.sizeDelta.x + content.sizeDelta.x + reach);
             float width = PlannerWidgets.RowRoom(listWidth);
             view = new PlannerView(owner, width);
-            List<DialogGUIBase> rows = new List<DialogGUIBase>
-            {
-                new DialogGUIContentSizer(ContentSizeFitter.FitMode.Unconstrained, ContentSizeFitter.FitMode.PreferredSize, true),
-            };
+            List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.AddRange(view.Rows());
             DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(0, 0, 0, 12),
                 TextAnchor.UpperLeft, rows.ToArray());

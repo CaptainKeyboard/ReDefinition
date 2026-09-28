@@ -156,11 +156,12 @@ namespace ReDefinition.Engineer
         }
 
         // A scroll list as KSP's own panels show one. Its content is held at
-        // the top edge: KSP's content sizer lets it keep its last height, and
-        // rows hidden after it was laid out shrank it about its middle,
-        // leaving a gap above the first row. Its background, a lighter box of
-        // KSP's scroll view prefab, is cleared, so that the panel it stands in
-        // shows one background.
+        // the top edge and always as tall as its rows: KSP's DialogGUIContentSizer
+        // (decompiled) sizes it only while it is taller than the view and then
+        // leaves it at its last height, so a list grown short stays scrollable
+        // into empty room below its rows (as TabScrollList). Its background, a
+        // lighter box of KSP's scroll view prefab, is cleared, so that the panel
+        // it stands in shows one background.
         internal static void Settle(DialogGUIScrollList list)
         {
             if (list == null || list.uiItem == null) return;
@@ -172,6 +173,11 @@ namespace ReDefinition.Engineer
             scroll.content.anchorMax = new Vector2(scroll.content.anchorMax.x, 1f);
             scroll.content.pivot = new Vector2(scroll.content.pivot.x, 1f);
             scroll.content.anchoredPosition = new Vector2(scroll.content.anchoredPosition.x, 0f);
+            ContentSizeFitter fitter = scroll.content.GetComponent<ContentSizeFitter>();
+            if (fitter == null) fitter = scroll.content.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            fitter.enabled = true;
             scroll.verticalNormalizedPosition = 1f;
         }
 
@@ -352,10 +358,7 @@ namespace ReDefinition.Engineer
             float listWidth = width - 20f;
             float rowWidth = PlannerWidgets.RowRoom(listWidth) - 8f;
 
-            List<DialogGUIBase> rows = new List<DialogGUIBase>
-            {
-                new DialogGUIContentSizer(ContentSizeFitter.FitMode.Unconstrained, ContentSizeFitter.FitMode.PreferredSize, true),
-            };
+            List<DialogGUIBase> rows = new List<DialogGUIBase>();
             foreach (int body in bodies.Order)
             {
                 int picked = body;
@@ -510,7 +513,6 @@ namespace ReDefinition.Engineer
             {
                 List<DialogGUIBase> sized = new List<DialogGUIBase>
                 {
-                    new DialogGUIContentSizer(ContentSizeFitter.FitMode.Unconstrained, ContentSizeFitter.FitMode.PreferredSize, true),
                     layout,
                 };
                 scroll = new DialogGUIScrollList(new Vector2(width + 8f, height), false, true,

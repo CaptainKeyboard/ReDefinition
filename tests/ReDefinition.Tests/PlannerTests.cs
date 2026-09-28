@@ -1539,5 +1539,20 @@ namespace ReDefinition.Tests
             Assert.IsTrue(new Burn { Seconds = 90, Period = 1800 }.Loss < BurnCheck.WarnLoss, "a twentieth of the orbit loses little");
             Assert.IsTrue(new Burn { Seconds = 180, Period = 1800 }.Loss < BurnCheck.WarnLoss, "a tenth still under the warning");
         }
+        [TestMethod]
+        public void ALanderWithoutADockingPortCannotDock()
+        {
+            // Set to dock with the rest, as the player can on the step after it.
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Surface(Mun), Surface(Kerbin, true) };
+            List<RouteSection> sections = new List<RouteSection>
+            {
+                new RouteSection { Id = 1, Kind = SectionKind.Lander, Name = "Lander", Docks = true, CanDock = false },
+                new RouteSection { Id = 2, Kind = SectionKind.Capsule, Name = "Capsule", Parent = 1 },
+            };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, sections, false);
+
+            Assert.AreEqual("1L:S 1T:S 1L:L< 2L:L> 2T:S 2L:C<", Shape(steps));
+            Assert.IsTrue(steps.Any(step => step.Problem != null && step.Problem.Contains("no docking port")));
+        }
     }
 }

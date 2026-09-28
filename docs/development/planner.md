@@ -56,8 +56,9 @@ The planner uses no text to explain itself. From the top:
   in groups of their own (*Burns*, *Way down*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
 * One bar sums up the route, with the margin and the plane changes under it.
-* *Fuel plan* and *Thrust* are headings with *+* and *-* where a step's "..." is, showing and
-  hiding what is under them.
+* *Fuel plan* and *Thrust* are headings with *+* and *-* before the title, the whole
+  heading answering a click (`PlannerWidgets.Clickable`), and a summary beside it: the
+  steps short of fuel, the steps with too little TWR and the long burns.
 * The fuel plan: a row per step, up to 30, in the columns of the step rows (where it
   goes, who flies it), with what it needs and what what flew it has left after
   (`StageBudget.Result.LeftAfter`), in red what it lacks or where it has a problem; *+*
@@ -148,18 +149,19 @@ Each step is flown by a `Flyer`: the whole vessel (`Ship`); one section alone, w
 sections that are part of it (`Alone`); or the vessel leaving a section behind for good
 (`Without`). A section (`RouteSection`) is part of another or of the rest (`Parent`),
 docks again by itself or not (`Docks`: a lander with a docking port where the rest has
-one, `VesselShape.CanDock`), and a satellite stays at a destination (`DeployAt`). The
-player sets who flies per step (`RouteStop.By`, by role, on the stop the step leads to,
-as `Flyer.Code`), or `RouteSteps.Build` works it out: the capsule once it has left; a
-capsule for a landing on parachutes on the last stop where what carries it is in the
-air; for a landing short of the last stop the lander that flew last, else the first; from
-a surface whoever stands on it; across to another body `Ship` where a lander that docks is
-in an orbit of the body the rest waits at; otherwise whoever flew the step before.
-`Build` works out who flies each step first, then walks the steps again with those, as a
-section's climb goes to the rest's own orbit only where it docks after it: where the next
-step of the whole vessel, or the one that leaves it behind, comes before it flies again
-itself or a capsule leaves (`Rejoins`), steps of other sections in between. It
-keeps where the rest and each section are:
+one, `VesselShape.CanDock`; a section docking without one is a problem, `CanDock`), and a
+satellite stays at a destination (`DeployAt`). The player sets who flies per step
+(`RouteStop.By`, by role, on the stop the step leads to, as `Flyer.Code`), or
+`RouteSteps.Build` works it out: the capsule once it has left; a capsule for a landing on
+parachutes on the last stop where what carries it is in the air; for a landing short of
+the last stop the lander that flew last, else the first; from a surface whoever stands on
+it; across to another body `Ship` where a lander that docks is in an orbit of the body the
+rest waits at; otherwise whoever flew the step before. `Build` works out who flies each
+step first, then walks the steps again with those, as a section's climb goes to the rest's
+own orbit only where it docks after it: where the next step of the whole vessel, or the
+one that leaves it behind, comes before it flies again itself or a capsule leaves
+(`Rejoins`), steps of other sections in between. It keeps where the rest and each section
+are:
 
 | Step flown by | While | Then |
 |---|---|---|

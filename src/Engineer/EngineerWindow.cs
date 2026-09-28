@@ -216,10 +216,7 @@ namespace ReDefinition.Engineer
                 float rowWidth = PlannerWidgets.RowRoom(width);
                 rows.Add(new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(4, 0, 0, 0), TextAnchor.MiddleLeft,
                     new DialogGUILabel(() => "<color=" + Dim + ">" + Header() + "</color>", rowWidth, RowHeight)));
-                List<DialogGUIBase> table = new List<DialogGUIBase>
-                {
-                    new DialogGUIContentSizer(ContentSizeFitter.FitMode.Unconstrained, ContentSizeFitter.FitMode.PreferredSize, true),
-                };
+                List<DialogGUIBase> table = new List<DialogGUIBase>();
                 for (int i = 0; i < MaxStages; i++) table.Add(StageRowFor(i, rowWidth));
                 DialogGUILabel empty = new DialogGUILabel(() => "<color=" + Dim + ">"
                                                                 + ((owner.Readout ?? new EditorReadout()).HasShip ? "No stage burns anything yet."
