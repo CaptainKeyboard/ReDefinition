@@ -43,6 +43,11 @@ namespace ReDefinition.Engineer
         // taken apart; so it does with the pins.
         private int lander = -1;
         private List<int> landerChoices = new List<int>();
+        // The capsule, as the lander; it can start at a stage without delta-v.
+        private int capsule = -1;
+        // The stages after the last one with delta-v: rows of their own in the fuel
+        // plan, for the capsule.
+        private List<StageRow> tailStages = new List<StageRow>();
         private Dictionary<int, List<Part>> burningParts = new Dictionary<int, List<Part>>();
         private List<int> parachuteStages = new List<int>();
         private List<int> heatShieldStages = new List<int>();
@@ -174,7 +179,12 @@ namespace ReDefinition.Engineer
             // A lander that is not a stage of the vessel now counts for nothing.
             landerChoices = LanderChoices();
             lander = state.Lander >= 0 && landerChoices.Contains(state.Lander) ? state.Lander : -1;
-            steps = RouteSteps.Build(bodies.Bodies, state.Stops, HasLander(), state.PlaneChanges);
+            int lowestBurning = stages.Count > 0 ? stages[stages.Count - 1].Number : int.MaxValue;
+            tailStages = allStages.FindAll(row => row.Number < lowestBurning);
+            capsule = state.Capsule >= 0 && CapsuleChoice(state.Capsule) ? state.Capsule : -1;
+            parachuteStages = readout.ParachuteStages;
+            heatShieldStages = readout.HeatShieldStages;
+            steps = RouteSteps.Build(bodies.Bodies, state.Stops, HasLander(), state.PlaneChanges, HasCapsule());
             for (int leg = 0; leg < MaxStops; leg++)
                 for (int role = 0; role < 3; role++) slots[leg, role] = -1;
             for (int i = 0; i < steps.Count; i++)
@@ -199,10 +209,8 @@ namespace ReDefinition.Engineer
                 {
                     Number = row.Number, StartMass = row.StartMass, EndMass = row.EndMass, DeltaV = row.DeltaVVacuum,
                 });
-            budget = StageBudget.Allocate(available, needs, state.Margin, StepPins(), lander, modes, refuel, payload);
+            budget = StageBudget.Allocate(available, needs, state.Margin, StepPins(), lander, modes, refuel, payload, capsule);
             burningParts = readout.BurningParts;
-            parachuteStages = readout.ParachuteStages;
-            heatShieldStages = readout.HeatShieldStages;
             warnings = new List<string>[steps.Count];
             for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
             RefreshDetail();
@@ -243,13 +251,20 @@ namespace ReDefinition.Engineer
             {
                 if (!stages.Exists(row => row.Number == pair.Key)) continue;
                 bool ofLander = IsLanderStage(pair.Key);
+                bool ofCapsule = IsCapsuleStage(pair.Key);
                 HashSet<int> onSteps = new HashSet<int>();
                 for (int i = 0; i < steps.Count; i++)
                 {
                     RouteStep step = steps[i];
                     if (!pair.Value.Contains(step.Segment)) continue;
                     bool landerFlies = steps.Exists(other => other.Segment == step.Segment && other.Mode == LegMode.Lander);
-                    if (step.Mode == LegMode.Lander ? ofLander : !landerFlies || !ofLander) onSteps.Add(i);
+                    bool capsuleFlies = steps.Exists(other => other.Segment == step.Segment && other.Mode == LegMode.Capsule);
+                    // A stage of the capsule on the capsule's steps where it flies on
+                    // the leg; the lander's on the lander's; the rest's on the others.
+                    bool fits = capsuleFlies && ofCapsule ? step.Mode == LegMode.Capsule
+                        : step.Mode == LegMode.Capsule ? ofCapsule
+                        : step.Mode == LegMode.Lander ? ofLander : !landerFlies || !ofLander;
+                    if (fits) onSteps.Add(i);
                 }
                 if (onSteps.Count > 0) pins[pair.Key] = onSteps;
             }
@@ -340,6 +355,7 @@ namespace ReDefinition.Engineer
             stop.Body = body;
             stop.Altitude = bodies.Bodies[body].LowOrbitAltitude;
             if (!bodies.Bodies[body].HasAtmosphere) stop.UseAtmosphere = false;
+            AutoChutes(index);
             Changed();
         }
 
@@ -349,6 +365,7 @@ namespace ReDefinition.Engineer
             state.Stops[index].Kind = kind;
             if (kind == StopKind.Orbit && state.Stops[index].Altitude <= 0.0)
                 state.Stops[index].Altitude = bodies.Bodies[state.Stops[index].Body].LowOrbitAltitude;
+            AutoChutes(index);
             Changed();
         }
 
@@ -360,6 +377,16 @@ namespace ReDefinition.Engineer
             double altitude = stop.Altitude + direction * AltitudeStep;
             stop.Altitude = Math.Max(lowest, Math.Min(altitude, bodies.MaxAltitude(stop.Body)));
             Changed();
+        }
+
+        // The last destination, a surface with air: home on the parachutes, where
+        // what lands there has any, the capsule's where there is one.
+        private void AutoChutes(int index)
+        {
+            RouteStop stop = state.Stops[index];
+            if (index != state.Stops.Count - 1 || index == 0 || stop.Kind != StopKind.Surface
+                || !bodies.Bodies[stop.Body].HasAtmosphere) return;
+            if (Carries(parachuteStages, HasCapsule() ? LegMode.Capsule : LegMode.Whole)) stop.UseAtmosphere = true;
         }
 
         private void ToggleAtmosphere(int index)
@@ -484,7 +511,7 @@ namespace ReDefinition.Engineer
             // from another body.
             if (step.To.Kind == StopKind.Surface && step.To.UseAtmosphere && bodies.Bodies[step.To.Body].HasAtmosphere)
             {
-                string who = step.Mode == LegMode.Lander ? "the lander" : "the vessel";
+                string who = step.Mode == LegMode.Capsule ? "the capsule" : step.Mode == LegMode.Lander ? "the lander" : "the vessel";
                 if (!Carries(parachuteStages, step.Mode)) list.Add("No parachutes on " + who);
                 if (FromAfar(index) && !Carries(heatShieldStages, step.Mode)) list.Add("No heat shield on " + who);
             }
@@ -515,6 +542,7 @@ namespace ReDefinition.Engineer
         {
             foreach (int stage in decoupleStages)
             {
+                if (mode == LegMode.Capsule && stage > capsule) continue;
                 if (mode == LegMode.Lander && stage > lander) continue;
                 if (mode == LegMode.WithoutLander && stage <= lander) continue;
                 return true;
@@ -543,6 +571,33 @@ namespace ReDefinition.Engineer
         private bool IsLanderStage(int number)
         {
             return HasLander() && number <= lander;
+        }
+
+        private bool HasCapsule()
+        {
+            return Ready() && capsule >= 0;
+        }
+
+        private bool IsCapsuleStage(int number)
+        {
+            return HasCapsule() && number <= capsule;
+        }
+
+        // The capsule can start at any stage but the first, below the lander's top.
+        private bool CapsuleChoice(int number)
+        {
+            int at = allStages.FindIndex(row => row.Number == number);
+            return at >= 1 && (lander < 0 || number < lander);
+        }
+
+        // The stage and every stage KSP fires after it become the capsule; on the
+        // capsule's own stage again, there is none.
+        private void ToggleCapsule(int number)
+        {
+            if (!Ready() || !CapsuleChoice(number)) return;
+            state.Capsule = number == capsule ? -1 : number;
+            capsule = state.Capsule;
+            Changed();
         }
 
         // A lander can start at any stage but the first: something has to wait

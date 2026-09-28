@@ -27,14 +27,17 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 
 The planner uses no text to explain itself. From the top:
 
+* Every choice carries a tooltip of one sentence.
 * The route is a line of stops, an orbit's altitude under it as a field
   (`DialogGUITextInput`); while it has the keyboard, the game's controls are locked
   (`PlannerView.Keep`), so that the digits do not reach the editor's shortcuts. Between two
-  stops, each step on a row: where it goes, *Ship* and *Lander* where the vessel carries a
-  lander, *...* for its further choices, and its delta-v; under it its bar, a row of
-  `DialogGUIImage`s whose widths and colours `SegmentBar` sets after they are created; a
-  grey line where the lander leaves the rest at its start, *Docks with the rest* with
-  *Refuel* where it docks at its end, and a line for each problem that blocks it
+  stops, each step on a row: where it goes, *Ship*, *Lander* and *Capsule* where the
+  vessel has them, the player's own choice marked with a pin (`IconMark`), and *...* for
+  its further choices; under it its bar, a row of `DialogGUIImage`s whose widths and
+  colours `SegmentBar` sets after they are created, and its delta-v; a grey line where
+  something leaves at its start, *The lander docks with the rest* with *Refuel* where it
+  docks at its end, the further choices in groups of their own (*Lander*, *Way down*,
+  *Payload*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
 * One bar sums up the route, with the margin and the plane changes under it.
 * The fuel plan is a table of stages by legs. Its columns share the room the stage and
@@ -107,11 +110,15 @@ surface, into the low orbit or straight into the next stop's orbit around the sa
 body ends in its air (`StopKind.Entry`), unless the stop has `OrbitFirst`.
 
 Each step is flown by a `Vehicle`: `Ship`, the whole vessel; `Lander`, the lander alone;
-or `Rest`, the rest without the lander. The player sets it per step
-(`RouteStop.By`, by role, on the stop the step leads to), or `RouteSteps.Build` works it
-out: from a surface whoever stands on it; across to another body `Ship` where the lander
-has come back to where the rest waits; otherwise whoever flew the step before.
-`Build` walks the steps and keeps where the rest and the lander are:
+`Rest`, the rest without the lander; or `Capsule`, the capsule alone. The capsule is the
+stages from the one the player marks with *C*, which may be one without delta-v (the fuel
+plan lists those after the last stage with delta-v); it leaves whatever flew the step
+before for good, and a step of anything else after it is a `Problem`. The player sets it
+per step (`RouteStop.By`, by role, on the stop the step leads to), or `RouteSteps.Build`
+works it out: the capsule once it has left; the capsule for a landing on parachutes on the
+last stop; from a surface whoever stands on it; across to another body `Ship` where the
+lander is in an orbit of the body the rest waits at; otherwise whoever flew the step
+before. `Build` walks the steps and keeps where the rest and the lander are:
 
 | Step flown by | While | Then |
 |---|---|---|
@@ -240,6 +247,9 @@ Each step is flown in one of three ways (`LegMode`):
 | `Lander` | the lander's | the lander alone |
 | `WithoutLander` | the rest's | the rest alone. The lander stays behind with what it holds, and no later step has it |
 
+The first step of the capsule (`LegMode.Capsule`) leaves every other stage with what it
+holds (`Dropped`); the capsule then pushes its own start mass, and only its stages burn.
+
 After a step marked for it, a payload stays behind (`Payload`): what KSP drops when the
 next stage without delta-v after the burning one fires, `drop` of the stage before it. The
 burning stage burns on with what it holds, now lighter. KSP's simulation burns a stage
@@ -263,6 +273,7 @@ PLAN
     margin = 0.10
     planeChanges = False
     lander = 1
+    capsule = 0
     STOP
     {
         body = Kerbin

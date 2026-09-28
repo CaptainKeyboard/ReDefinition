@@ -663,5 +663,66 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps[4].RefuelAfter, "refilled as it docks after Laythe");
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
+
+        [TestMethod]
+        public void TheCapsuleLandsAtHomeOnItsParachutesByItself()
+        {
+            // A Kerbin surface, B Mun surface, C Kerbin surface with Chutes; a capsule
+            // marked, nothing clicked on the steps.
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Surface(Mun), Surface(Kerbin, true) };
+            List<RouteStep> steps = RouteSteps.Build(Stock(), goals, false, false, true);
+
+            Assert.AreEqual("1L:S 1T:S 1L:S 2L:S 2T:S 2L:C<", Shape(steps));
+            Assert.AreEqual(LegMode.Capsule, steps[5].Mode);
+            Assert.AreEqual(StopKind.Entry, steps[5].From.Kind, "it leaves the vessel in Kerbin's air");
+        }
+
+        [TestMethod]
+        public void NothingButTheCapsuleFliesOnceItHasLeft()
+        {
+            RouteStop home = Choose(Surface(Kerbin, true), StepRole.Land, Vehicle.Capsule);
+            RouteStop onward = Choose(Orbit(Kerbin, 80000), StepRole.Launch, Vehicle.Ship);
+            List<RouteStep> steps = RouteSteps.Build(Stock(), new List<RouteStop> { Orbit(Kerbin, 80000), home, onward }, false, false, true);
+
+            Assert.AreEqual("The capsule has left the vessel", steps[1].Problem);
+        }
+
+        [TestMethod]
+        public void TheCapsuleLeavesEverythingElseWithWhatItHolds()
+        {
+            // S2 the transfer stage, S1 the lander, S0 the capsule without engines.
+            List<BudgetStage> stages = new List<BudgetStage>
+            {
+                Stage(2, 20, 14), Stage(1, 6, 4), new BudgetStage { Number = 0, StartMass = 1.5, EndMass = 1.5 },
+            };
+            LegMode[] modes = { LegMode.Whole, LegMode.Capsule };
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 500.0, 0.0 }, 0.0, null, 1, modes, null, null, 0);
+
+            Assert.IsTrue(result.Dropped.ContainsKey(2) && result.Dropped.ContainsKey(1), "left with what they hold");
+            Assert.AreEqual(0.0, result.TotalShort, 1e-9, "the capsule lands on its parachutes");
+        }
+
+        [TestMethod]
+        public void FromAnOrbitTheVesselBringsTheCapsuleDownRatherThanTheCapsuleItself()
+        {
+            // The satellite's mission with a capsule marked: from 2,863 km the whole
+            // vessel lands; the capsule would have to deorbit on its own.
+            List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Orbit(Kerbin, 2863334), Surface(Kerbin, true) };
+            Assert.AreEqual("1L:S 2L:S", Shape(RouteSteps.Build(Stock(), goals, false, false, true)));
+        }
+
+        [TestMethod]
+        public void TheCapsuleBurnsItsOwnStagesPushingOnlyItself()
+        {
+            // S1 the rest, 20 t to 12 t; S0 the capsule with a small engine, 2 t to 1.5 t.
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(1, 20, 12), Stage(0, 2, 1.5) };
+            StageBudget.Result result = StageBudget.Allocate(stages, new[] { 500.0, 100.0 }, 0.0, null, -1,
+                new[] { LegMode.Whole, LegMode.Capsule }, null, null, 0);
+
+            StageBudget.StageUse use = result.Uses.Single(u => u.Leg == 1);
+            Assert.AreEqual(0, use.Stage);
+            Assert.AreEqual(2.0, use.Mass, 1e-9, "the capsule alone");
+            Assert.IsTrue(result.Dropped.ContainsKey(1), "the rest left with what it holds");
+        }
     }
 }

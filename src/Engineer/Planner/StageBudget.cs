@@ -3,14 +3,15 @@ using System;
 
 namespace ReDefinition.Engineer
 {
-    // Who flies a leg where the vessel carries a lander: the whole vessel, the
-    // lander alone while the rest waits in orbit, or the rest without the lander,
-    // which stays behind.
+    // Who flies a leg where the vessel carries a lander or a capsule: the whole
+    // vessel, the lander alone while the rest waits in orbit, the rest without the
+    // lander, which stays behind, or the capsule alone, everything else left.
     internal enum LegMode
     {
         Whole,
         Lander,
         WithoutLander,
+        Capsule,
     }
 
     // One stage as KSP's delta-v simulation gives it (DeltaVStageInfo): the mass
@@ -43,6 +44,10 @@ namespace ReDefinition.Engineer
     // KSP's order and stops before a stage pinned to a later leg, since KSP
     // cannot fire what comes after it either. A pinned stage already staged away
     // when its leg comes is reported as unreachable.
+    //
+    // The capsule is the stages numbered up to a chosen one, as the lander is; the
+    // first leg of the capsule leaves everything else where it is, with what it
+    // holds, and from then on only the capsule's stages burn, pushing the capsule.
     //
     // After a leg marked for it, a payload stays behind: what KSP separates when
     // the next stage without delta-v after the one burning fires, while that one
@@ -111,9 +116,9 @@ namespace ReDefinition.Engineer
         // `payloadAfter`: whether a payload stays behind once it is over.
         internal static Result Allocate(IList<BudgetStage> stages, IList<double> legs, double margin,
                                         IDictionary<int, HashSet<int>> pins, int lander, IList<LegMode> modes,
-                                        IList<bool> refuelAfter = null, IList<bool> payloadAfter = null)
+                                        IList<bool> refuelAfter = null, IList<bool> payloadAfter = null, int capsule = -1)
         {
-            return new Run(stages, pins, lander).Allocate(legs, margin, modes, refuelAfter, payloadAfter);
+            return new Run(stages, pins, lander, capsule).Allocate(legs, margin, modes, refuelAfter, payloadAfter);
         }
 
         private sealed class Run
@@ -124,9 +129,13 @@ namespace ReDefinition.Engineer
             private readonly double[] capacity;
             private readonly double[] exhaust;
             private readonly double[] drop;
-            // The main group is [0, firstLander), the lander [firstLander, count).
-            private readonly int firstLander;
+            // The main group is [0, firstLander), the lander [firstLander, count);
+            // once the capsule flies alone, the main group is the capsule's stages.
+            private int firstLander;
             private readonly bool hasLander;
+            private readonly int firstCapsule;
+            private readonly bool hasCapsule;
+            private bool capsuleOn;
 
             private double total;   // everything still attached, the lander with it
             private double landerMass;
@@ -138,7 +147,7 @@ namespace ReDefinition.Engineer
             private int landerAt;
             private Result result;
 
-            internal Run(IList<BudgetStage> stages, IDictionary<int, HashSet<int>> pins, int lander)
+            internal Run(IList<BudgetStage> stages, IDictionary<int, HashSet<int>> pins, int lander, int capsule)
             {
                 order = new List<BudgetStage>(stages);
                 order.Sort((a, b) => b.Number.CompareTo(a.Number));
@@ -171,6 +180,12 @@ namespace ReDefinition.Engineer
                 hasLander = firstLander > 0 && firstLander < count;
                 if (!hasLander) firstLander = count;
 
+                firstCapsule = count;
+                if (capsule >= 0)
+                    for (int i = 0; i < count; i++)
+                        if (order[i].Number <= capsule) { firstCapsule = i; break; }
+                hasCapsule = firstCapsule > 0 && firstCapsule < count;
+
                 total = count > 0 ? Math.Max(0.0, order[0].StartMass) : 0.0;
                 landerMass = hasLander ? Math.Max(0.0, order[firstLander].StartMass) : 0.0;
                 mainAt = 0;
@@ -198,7 +213,12 @@ namespace ReDefinition.Engineer
 
                     if (mode == LegMode.WithoutLander) LeaveLander();
 
-                    if (HasPins(leg))
+                    if (mode == LegMode.Capsule)
+                    {
+                        LeaveForCapsule();
+                        if (capsuleOn) Burn(ref mainAt, firstLander, false, false, leg, ref need);
+                    }
+                    else if (HasPins(leg))
                     {
                         // While the lander flies alone, the rest waits and
                         // stages nothing.
@@ -291,7 +311,38 @@ namespace ReDefinition.Engineer
 
             private LegMode ModeOf(IList<LegMode> modes, int leg)
             {
-                return modes != null && leg < modes.Count && hasLander ? modes[leg] : LegMode.Whole;
+                if (modes == null || leg >= modes.Count) return LegMode.Whole;
+                LegMode mode = modes[leg];
+                if (mode == LegMode.Capsule) return hasCapsule ? mode : LegMode.Whole;
+                return hasLander ? mode : LegMode.Whole;
+            }
+
+            // The capsule flies on alone: what it leaves goes with what it holds.
+            private void LeaveForCapsule()
+            {
+                if (capsuleOn || !hasCapsule) return;
+                bool fromLander = apart && hasLander && !landerGone;
+                // Where it burns now: the lander away, the whole vessel into the
+                // lander's stages, or the rest's.
+                int at = fromLander || (hasLander && !landerGone && mainAt >= firstLander) ? landerAt : mainAt;
+                double now = fromLander ? landerMass : total;
+                int from = Math.Max(firstCapsule, at);
+                for (int i = 0; i < from; i++)
+                {
+                    if (fuel[i] <= Tiny) continue;
+                    // The rest waiting elsewhere stays there with what it holds.
+                    if (fromLander && i < firstLander) result.LeftBehind.Add(order[i].Number);
+                    else result.Dropped[order[i].Number] = DeltaV(i, now);
+                    fuel[i] = 0.0;
+                }
+                total = at < firstCapsule ? Math.Min(now, Math.Max(0.0, order[firstCapsule].StartMass)) : now;
+                landerMass = 0.0;
+                landerGone = true;
+                apart = false;
+                restDropped = true;
+                mainAt = from;
+                firstLander = order.Count;
+                capsuleOn = true;
             }
 
             // The whole vessel burns the lander's stages and the lander flies

@@ -43,12 +43,14 @@ namespace ReDefinition.Engineer
     }
 
     // Who flies a step (RouteSteps): the whole vessel, the lander alone while the
-    // rest waits, or the rest without the lander, which stays behind for good.
+    // rest waits, the rest without the lander, which stays behind for good, or the
+    // capsule alone, everything else left behind.
     internal enum Vehicle
     {
         Ship,
         Lander,
         Rest,
+        Capsule,
     }
 
     // One point of the route: a body, on its surface or in a circular orbit.

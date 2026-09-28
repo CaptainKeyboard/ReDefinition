@@ -49,7 +49,9 @@ namespace ReDefinition.Engineer
 
     // The steps of a route (docs/development/planner.md). Between two destinations
     // come the steps the way needs, each flown by the whole vessel (Ship), its lander
-    // alone, or the rest without the lander. Who flies a step is the player's choice
+    // alone, the rest without the lander, or the capsule alone. The capsule leaves
+    // whatever carries it for good; a landing on parachutes on the last destination
+    // is the capsule's where the vessel has one. Who flies a step is the player's choice
     // (RouteStop.By), or else: from a surface whoever stands on it; across to another
     // body the whole vessel where the lander waits with the rest, so that it docks;
     // otherwise whoever flew the step before. From that, the lander leaves the rest
@@ -72,14 +74,23 @@ namespace ReDefinition.Engineer
             internal string LanderLeftAt;
             internal Vehicle Last = Vehicle.Ship;
             internal RouteStep LastLanderStep;
+            internal RouteStop Capsule;
+            internal bool HasLander;
+        }
+
+        // Where the capsule is while it has not left: with the lander away, or with
+        // the rest.
+        private static RouteStop Carrier(Walk walk)
+        {
+            return walk.Last == Vehicle.Lander && !walk.Together && !walk.LanderLeft ? walk.Lander : walk.Rest;
         }
 
         internal static List<RouteStep> Build(IList<PlannerBody> bodies, IList<RouteStop> goals, bool hasLander,
-                                              bool planeChanges)
+                                              bool planeChanges, bool hasCapsule = false)
         {
             List<RouteStep> steps = new List<RouteStep>();
             if (goals.Count == 0) return steps;
-            Walk walk = new Walk { Rest = goals[0], Lander = goals[0] };
+            Walk walk = new Walk { Rest = goals[0], Lander = goals[0], HasLander = hasLander };
 
             for (int g = 1; g < goals.Count; g++)
             {
@@ -88,8 +99,9 @@ namespace ReDefinition.Engineer
                 foreach (StepRole role in RolesBetween(from, goal))
                 {
                     int by = goal.By[(int)role];
-                    bool isChosen = hasLander && by >= 0;
-                    Vehicle vehicle = !hasLander ? Vehicle.Ship : isChosen ? (Vehicle)by : Default(walk, role, from);
+                    bool isChosen = by >= 0 && Available((Vehicle)by, hasLander, hasCapsule);
+                    Vehicle vehicle = isChosen ? (Vehicle)by
+                        : Default(bodies, walk, role, from, goal, g == goals.Count - 1, hasLander, hasCapsule);
                     RouteStep step = Fly(bodies, walk, g, role, vehicle, from, goal, planeChanges);
                     step.Chosen = isChosen;
                     step.WantsRefuel = goal.Refuel[(int)role];
@@ -113,8 +125,31 @@ namespace ReDefinition.Engineer
             return roles;
         }
 
-        private static Vehicle Default(Walk walk, StepRole role, RouteStop from)
+        // What the vessel has: a lander to fly alone or leave, a capsule.
+        internal static bool Available(Vehicle vehicle, bool hasLander, bool hasCapsule)
         {
+            switch (vehicle)
+            {
+                case Vehicle.Lander:
+                case Vehicle.Rest:
+                    return hasLander;
+                case Vehicle.Capsule:
+                    return hasCapsule;
+                default:
+                    return true;
+            }
+        }
+
+        private static Vehicle Default(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal,
+                                       bool last, bool hasLander, bool hasCapsule)
+        {
+            if (walk.Capsule != null) return Vehicle.Capsule;
+            // Home on the parachutes: the capsule, where what carries it is in the air
+            // already; from an orbit it would have to bring itself down.
+            if (hasCapsule && last && role == StepRole.Land && goal.UseAtmosphere && bodies[goal.Body].HasAtmosphere
+                && Carrier(walk).Kind == StopKind.Entry)
+                return Vehicle.Capsule;
+            if (!hasLander) return Vehicle.Ship;
             if (role == StepRole.Launch)
             {
                 // Whoever stands on that surface.
@@ -134,6 +169,43 @@ namespace ReDefinition.Engineer
         {
             RouteStep step = new RouteStep { Goal = g, Role = role, Vehicle = vehicle };
             RouteStop start;
+
+            if (vehicle == Vehicle.Capsule || walk.Capsule != null)
+            {
+                if (vehicle != Vehicle.Capsule)
+                {
+                    step.Problem = "The capsule has left the vessel";
+                    step.Mode = vehicle == Vehicle.Lander ? LegMode.Lander : LegMode.Whole;
+                    step.From = step.To = walk.Capsule;
+                    step.Leg = new Leg { From = g - 1, To = g };
+                    walk.Last = vehicle;
+                    return step;
+                }
+                if (walk.Capsule == null && walk.LanderLeft && walk.HasLander)
+                {
+                    // The capsule is part of the lander, which stayed behind.
+                    step.Problem = "The capsule stayed with the lander at " + walk.LanderLeftAt;
+                    step.Mode = LegMode.Capsule;
+                    step.From = step.To = walk.Rest;
+                    step.Leg = new Leg { From = g - 1, To = g };
+                    walk.Last = vehicle;
+                    return step;
+                }
+                if (walk.Capsule == null)
+                {
+                    // It leaves whatever flew the step before.
+                    step.Separates = true;
+                    walk.Capsule = Carrier(walk);
+                }
+                step.Mode = LegMode.Capsule;
+                RouteStop target = Target(bodies, walk, role, from, goal, vehicle);
+                step.From = walk.Capsule;
+                step.To = target;
+                step.Leg = RoutePlanner.LegOf(bodies, walk.Capsule, target, g - 1, planeChanges);
+                walk.Capsule = target;
+                walk.Last = vehicle;
+                return step;
+            }
 
             if (vehicle == Vehicle.Ship && !walk.LanderLeft)
             {

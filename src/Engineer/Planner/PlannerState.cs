@@ -60,8 +60,10 @@ namespace ReDefinition.Engineer
             foreach (KeyValuePair<int, HashSet<int>> pair in pins) Pins[pair.Key] = pair.Value;
         }
 
-        // The highest stage of the lander, -1 for none (StageBudget).
+        // The highest stage of the lander and of the capsule, -1 for none
+        // (StageBudget).
         public int Lander = -1;
+        public int Capsule = -1;
 
         private const string FileName = "planner.cfg";
         private const int MaxPlans = 200;
@@ -157,6 +159,7 @@ namespace ReDefinition.Engineer
             node.AddValue("margin", Margin.ToString("0.00", CultureInfo.InvariantCulture));
             node.AddValue("planeChanges", PlaneChanges);
             node.AddValue("lander", Lander);
+            node.AddValue("capsule", Capsule);
             foreach (RouteStop stop in Stops)
             {
                 ConfigNode stopNode = node.AddNode("STOP");
@@ -192,6 +195,8 @@ namespace ReDefinition.Engineer
             if (bool.TryParse(node.GetValue("planeChanges"), out planes)) state.PlaneChanges = planes;
             int lander;
             if (int.TryParse(node.GetValue("lander"), out lander)) state.Lander = Math.Max(-1, lander);
+            int capsule;
+            if (int.TryParse(node.GetValue("capsule"), out capsule)) state.Capsule = Math.Max(-1, capsule);
             bool skipped = false;
             foreach (ConfigNode stopNode in node.GetNodes("STOP"))
             {
