@@ -27,12 +27,14 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 
 The planner uses no text to explain itself. From the top:
 
-* Every choice carries a tooltip of one sentence.
+* Every choice carries a tooltip of one sentence. KSP's button prefab has no tooltip
+  controller, so `DialogTooltips.Attach` adds the game's own to every element with a
+  tooltip once the rows are created.
 * The route is a line of stops, an orbit's altitude under it as a field
   (`DialogGUITextInput`); while it has the keyboard, the game's controls are locked
   (`PlannerView.Keep`), so that the digits do not reach the editor's shortcuts. Between two
   stops, each step on a row: where it goes, *Ship*, *Lander* and *Capsule* where the
-  vessel has them, the player's own choice marked with a pin (`IconMark`), and *...* for
+  vessel has them, the player's own choice bold and underlined, and *...* for
   its further choices; under it its bar, a row of `DialogGUIImage`s whose widths and
   colours `SegmentBar` sets after they are created, and its delta-v; a grey line where
   something leaves at its start, *The lander docks with the rest* with *Refuel* where it

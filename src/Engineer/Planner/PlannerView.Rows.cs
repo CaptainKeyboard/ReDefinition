@@ -48,8 +48,6 @@ namespace ReDefinition.Engineer
         private static readonly StepRole[] Roles = { StepRole.Launch, StepRole.Transfer, StepRole.Land };
         // The steps whose further choices are open ("...").
         private readonly bool[,] more = new bool[MaxStops, 3];
-        // The player's own choice of who flies a step, marked as a pin is.
-        private readonly IconMark[,,] chosenMarks = new IconMark[MaxStops, 3, 4];
         private SegmentBar totalBar;
         private readonly IconMark[,] pinMarks = new IconMark[MaxStages, MaxStops];
         private Sizer columns;
@@ -256,16 +254,18 @@ namespace ReDefinition.Engineer
             return line;
         }
 
-        // Who flies the step, lit green; the player's own choice carries a pin in its
-        // corner, and a click on it gives the choice back to the planner.
+        // Who flies the step, lit green; the player's own choice bold and underlined,
+        // and a click on it gives the choice back to the planner.
         private DialogGUIButton VehicleChoice(int leg, StepRole role, Vehicle vehicle, string label, float buttonWidth,
                                               string tooltip)
         {
-            DialogGUIButton button = new DialogGUIButton(() => StepVehicle(leg, role) == vehicle
-                ? "<b><color=" + Good + ">" + label + "</color></b>"
-                : "<color=" + Dim + ">" + label + "</color>", () => ChooseVehicle(leg, role, vehicle), buttonWidth, RowHeight + 2f, false);
+            DialogGUIButton button = new DialogGUIButton(() =>
+            {
+                if (StepVehicle(leg, role) != vehicle) return "<color=" + Dim + ">" + label + "</color>";
+                return StepChosen(leg, role) ? "<b><u><color=" + Good + ">" + label + "</color></u></b>"
+                    : "<color=" + Good + ">" + label + "</color>";
+            }, () => ChooseVehicle(leg, role, vehicle), buttonWidth, RowHeight + 2f, false);
             button.tooltipText = tooltip;
-            chosenMarks[leg, (int)role, (int)vehicle] = new IconMark(button, "Pin", 12f, after);
             return button;
         }
 
@@ -519,14 +519,6 @@ namespace ReDefinition.Engineer
             for (int stage = 0; stage < MaxStages; stage++)
                 for (int leg = 0; leg < MaxStops - 1; leg++)
                     if (pinMarks[stage, leg] != null) pinMarks[stage, leg].Set(IsPinned(stage, leg));
-            for (int leg = 0; leg < MaxStops; leg++)
-                for (int role = 0; role < 3; role++)
-                    for (int vehicle = 0; vehicle < 4; vehicle++)
-                    {
-                        IconMark mark = chosenMarks[leg, role, vehicle];
-                        if (mark != null)
-                            mark.Set(StepChosen(leg, (StepRole)role) && StepVehicle(leg, (StepRole)role) == (Vehicle)vehicle);
-                    }
         }
 
         // --------------------------------------------------------------- details

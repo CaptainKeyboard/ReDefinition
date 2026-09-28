@@ -247,6 +247,8 @@ scroll list of its own, section buttons in the skin's first custom style, and
 waits for them, *Close* otherwise. `GameRestart.cs` is its *Save and restart*: KSP's
 own save, then a hidden PowerShell that waits for KSP to end and starts it again.
 `DialogOverWindow.cs` darkens the screen behind a dialog over the window.
+`DialogTooltips.cs` gives the elements of a created dialog KSP's own tooltip controller,
+which KSP's button prefab does not carry, so that their tooltips show.
 
 `DialogGUIToggle` and `DialogGUISlider` take their state from their getters every frame,
 so a row always shows what its setting holds. One scroll list serves every tab, and

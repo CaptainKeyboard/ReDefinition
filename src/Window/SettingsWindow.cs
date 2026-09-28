@@ -149,6 +149,7 @@ namespace ReDefinition.Window
                     skin, new Rect(0.5f, 0.5f, WindowWidth, WindowHeight), content);
                 dialog = PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), window,
                     false, skin, false);
+                DialogTooltips.Attach(content);
                 // Accept and Cancel dismiss the dialog themselves, and
                 // PopupDialog.Dismiss does not call OnDismiss -- only Escape
                 // does, from PopupDialog.Update (decompiled). Its onDestroy is

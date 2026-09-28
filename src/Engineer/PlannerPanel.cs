@@ -97,6 +97,7 @@ namespace ReDefinition.Engineer
             Stack<Transform> layouts = new Stack<Transform>();
             layouts.Push(content);
             root.Create(ref layouts, skin);
+            ReDefinition.Window.DialogTooltips.Attach(new DialogGUIBase[] { root });
             RectTransform scroll = root.uiItem != null ? root.uiItem.transform as RectTransform : null;
             if (scroll != null)
             {

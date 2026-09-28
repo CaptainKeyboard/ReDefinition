@@ -151,9 +151,8 @@ landing on its parachutes.
    without, usually the one of its parachutes. It lights up on that stage and every stage
    after it. Click it again to have no capsule.
 4. Every step now shows *Ship*, *Lander* and *Capsule*: who flies it, lit green. The
-   planner sets them itself; a click sets one yourself, and a pin in the button's corner
-   marks it, as in the fuel plan. Clicking the pinned one again gives it back to the
-   planner.
+   planner sets them itself; a click sets one yourself, and it is then bold and
+   underlined. Clicking the underlined one again gives it back to the planner.
 
 What happens follows from who flies one step after another:
 
