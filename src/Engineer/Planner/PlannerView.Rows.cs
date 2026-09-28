@@ -1,22 +1,19 @@
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
 using ReDefinition.Window;
 using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
     // The planner's rows, built from KSP's dialog elements, so a UI theme reaches
-    // them as it reaches KSP's dialogs. From the top: the vessel's lander and
-    // capsule; the route as a line of destinations, and between each two the steps
-    // that follow from it, a bar each (its length the step's delta-v, its colours
-    // the stages that pay for it, red what none covers), who flies it, the choices
-    // it offers, and in red what stands in its way; the fuel for the whole route;
-    // and the fuel plan: for the selected step, the stages it has, what each gives
-    // and keeps, and whether it burns, is saved or is dropped after the step; with
-    // no step selected, what each stage gives over the route and where it ends. A
-    // chosen option is lit in its text rather than by the skin's pressed state. A
-    // fixed number of rows, shown as the plan needs them.
+    // them as it reaches KSP's dialogs. From the top: the vessel's sections; the
+    // route as a line of destinations, and between each two the steps that follow
+    // from it, a bar each (its length the step's delta-v, its colours the stages that
+    // pay for it, red what none covers), who flies it, the choices it offers, and in
+    // red what stands in its way; the fuel for the whole route; and the fuel plan,
+    // the steps with what each needs and leaves, each opening to its stages. A chosen
+    // option is lit in its text rather than by the skin's pressed state. A fixed
+    // number of rows, shown as the plan needs them.
     internal sealed partial class PlannerView
     {
         private const int MaxStops = 11;
@@ -33,14 +30,9 @@ namespace ReDefinition.Engineer
         private const float Divider = 1f;
         private const float BarHeight = 10f;
         private const float RowHeight = 20f;
-        // The fuel plan's columns: the swatch, the stage, what it gives, what it
-        // keeps, and the choices for the selected step.
+        // The fuel plan's stage rows: the swatch, the stage's name, Drop after.
         private const float Swatch = 8f;
         private const float StageName_ = 32f;
-        private const float GivesColumn = 72f;
-        private const float LeftColumn = 132f;
-        private const float BurnsButton = 56f;
-        private const float SaveButton = 48f;
         private const float DropButton = 80f;
         // Where a step goes, and the room left of a bar.
         private const float Place = 145f;
@@ -65,9 +57,6 @@ namespace ReDefinition.Engineer
         // space would push the figure there.
         private readonly Sizer[,] barFillers = new Sizer[MaxStops, RouteStop.Roles];
         private SegmentBar totalBar;
-        // Each fuel plan row's swatch, in the colour of the stage it shows then.
-        private readonly SegmentBar[] stepSwatches = new SegmentBar[MaxStages];
-        private readonly SegmentBar[] routeSwatches = new SegmentBar[MaxStages];
 
         internal List<DialogGUIBase> Rows()
         {
@@ -87,7 +76,6 @@ namespace ReDefinition.Engineer
 
             rows.AddRange(SummaryRows());
             rows.AddRange(FuelRows());
-            rows.AddRange(DetailRows());
             return rows;
         }
 
@@ -303,11 +291,7 @@ namespace ReDefinition.Engineer
             vehicle.OptionEnabledCondition = HasSections;
             SegmentBar bar = new SegmentBar(MaxPieces, BarHeight, after);
             stepBars[leg, (int)role] = bar;
-            PlannerWidgets.Clickable(bar.Layout, () => SelectStep(leg, role), after);
-            DialogGUIButton speed = new DialogGUIButton(() => StepSpeed(leg, role), () => SelectStep(leg, role), StepSpeed_, RowHeight,
-                false);
-            speed.tooltipText = "Show the stages of this step in the fuel plan.";
-            DialogOverWindow.ClearBackground(speed);
+            DialogGUILabel speed = new DialogGUILabel(() => StepSpeed(leg, role), StepSpeed_, RowHeight);
             DialogGUIButton open = new DialogGUIButton(() => more[leg, (int)role] ? "<b><color=" + Good + ">...</color></b>" : "...",
                 () => more[leg, (int)role] = !more[leg, (int)role], Square, Square, false);
             open.tooltipText = "More options for this step.";
@@ -324,9 +308,13 @@ namespace ReDefinition.Engineer
 
             DialogGUIButton refuel = Choice("Refuel", () => Refuels(leg, role), () => ToggleRefuel(leg, role), 64f);
             refuel.tooltipText = "Fill this section's tanks from the rest of the vessel when it docks.";
+            DialogGUIButton tanker = null;
+            tanker = new DialogGUIButton(() => TankerText(leg, role), () => PickTanker(leg, role, tanker), 150f, RowHeight + 2f, false);
+            tanker.tooltipText = "Select the stage of the rest the refill comes from first.";
+            tanker.OptionEnabledCondition = () => Refuels(leg, role);
             DialogGUIHorizontalLayout docks = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight + 4f), new DialogGUISpace(BarIndent),
-                new DialogGUILabel("<color=" + Dim + ">Docks with the rest</color>", OptionLabel), refuel);
+                new DialogGUILabel("<color=" + Dim + ">Docks with the rest</color>", OptionLabel), refuel, tanker);
             docks.OptionEnabledCondition = () => Docks(leg, role);
             yield return docks;
 
@@ -387,12 +375,6 @@ namespace ReDefinition.Engineer
             if (index < 0) return "";
             string name = FlyerName(steps[index].Flyer);
             return steps[index].Chosen ? "<b><u><color=" + Good + ">" + name + "</color></u></b>" : "<color=" + Good + ">" + name + "</color>";
-        }
-
-        private bool StepChosen(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            return index >= 0 && steps[index].Chosen;
         }
 
         // "To Mun surface", "To Kerbin's air", "To Kerbin orbit".
@@ -467,7 +449,6 @@ namespace ReDefinition.Engineer
             if (index < 0) return "";
             string speed = EngineerFormat.Speed(budget.Needed[index]);
             if (warnings[index].Count > 0) speed = "<color=" + Problem + ">" + speed + "</color>";
-            else if (selectedLeg == leg && selectedRole == role) speed = "<b><color=" + Good + ">" + speed + "</color></b>";
             return speed;
         }
 
@@ -501,294 +482,300 @@ namespace ReDefinition.Engineer
 
         // ------------------------------------------------------------- fuel plan
 
-        // The heading, with the selected step and a way back to the whole route; the
-        // columns' names; a row per stage for the selected step and one for the
-        // route, of which only one kind shows.
+        // The fuel plan: every step of the route in its order, with who flies it, what
+        // it needs with the margin, and what what flies it has left once it is over, in
+        // red what it lacks. A step opens to the stages it has with fuel as it starts,
+        // each with what it gives there, what it keeps after, its thrust against the
+        // weight it pushes, and whether it is used there and dropped after it. A stage
+        // gone before a step, dropped or burnt out, is no longer among its stages.
+        private const int MaxFuelSteps = 30;
+        private const int MaxStepStages = 10;
+        private const float FuelNeeds = 72f;
+        private const float FuelLeft = 96f;
+        private const float StageGives = 72f;
+        private const float StageKeeps = 110f;
+        private const float StageTwr = 40f;
+        private const float UseButton = 48f;
+        private readonly SegmentBar[,] fuelSwatches = new SegmentBar[MaxFuelSteps, MaxStepStages];
+        // The steps open, by destination and role.
+        private readonly HashSet<int> fuelOpen = new HashSet<int>();
+
         private IEnumerable<DialogGUIBase> FuelRows()
         {
-            DialogGUIButton back = new DialogGUIButton("Whole route", SelectRoute, 100f, Square, false);
-            back.tooltipText = "Show what every stage gives over the whole route.";
-            back.OptionEnabledCondition = () => SelectedStep() >= 0;
-            yield return new DialogGUIHorizontalLayout(width, Square + 8f, 4f, new RectOffset(0, 0, 8, 0), TextAnchor.LowerLeft,
-                new DialogGUILabel(FuelTitle, width - 100f - 4f - RowEnd, RowHeight), back);
+            yield return Heading("Fuel plan");
+            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
+                DimLabel("Left after", FuelLeft));
+            names.OptionEnabledCondition = () => Worked() && steps.Count > 0;
+            yield return names;
+            for (int i = 0; i < MaxFuelSteps; i++)
+                foreach (DialogGUIBase row in FuelStepRows(i))
+                    yield return row;
+            DialogGUIHorizontalLayout more = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline),
+                new DialogGUILabel(() => "<color=" + Dim + ">" + (steps.Count - MaxFuelSteps) + " more steps</color>", width - Timeline));
+            more.OptionEnabledCondition = () => Worked() && steps.Count > MaxFuelSteps;
+            yield return more;
+        }
+
+        private static DialogGUILabel DimLabel(string text, float labelWidth)
+        {
+            return new DialogGUILabel("<color=" + Dim + ">" + text + "</color>", labelWidth);
+        }
+
+        private bool FuelStepShown(int step)
+        {
+            return Worked() && step < steps.Count;
+        }
+
+        private int FuelKey(int step)
+        {
+            return steps[step].Goal * RouteStop.Roles + (int)steps[step].Role;
+        }
+
+        private bool FuelIsOpen(int step)
+        {
+            return FuelStepShown(step) && fuelOpen.Contains(FuelKey(step));
+        }
+
+        private void ToggleFuel(int step)
+        {
+            if (!FuelStepShown(step)) return;
+            int key = FuelKey(step);
+            if (!fuelOpen.Remove(key)) fuelOpen.Add(key);
+            UpdateSwatches();
+        }
+
+        // A stage row of an open step; null for none, and for every row of a closed
+        // one, so that its texts are not written.
+        private StageBudget.StepStage FuelStage(int step, int row)
+        {
+            if (!FuelIsOpen(step) || budget.Stages[step] == null || row >= budget.Stages[step].Count) return null;
+            return budget.Stages[step][row];
+        }
+
+        private int FuelStageCount(int step)
+        {
+            return FuelStepShown(step) && budget.Stages[step] != null ? budget.Stages[step].Count : 0;
+        }
+
+        // A step's row, its stages' names, and a row per stage while it is open. The
+        // columns are those of the steps above: where it goes under a step's place, who
+        // flies it under who flies, the button to open it where "..." is.
+        private IEnumerable<DialogGUIBase> FuelStepRows(int step)
+        {
+            DialogGUIButton open = new DialogGUIButton(() => FuelIsOpen(step) ? "<b><color=" + Good + ">-</color></b>" : "+",
+                () => ToggleFuel(step), Square, Square, false);
+            open.tooltipText = "Show the stages of this step.";
+            open.OptionEnabledCondition = () => FuelStepShown(step);
+            DialogGUISpace noOpen = new DialogGUISpace(Square);
+            noOpen.OptionEnabledCondition = () => !FuelStepShown(step);
+            float room = Mathf.Max(0f, width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - 4f * 6f - RowEnd);
+            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline), new DialogGUILabel(() => FuelPlace(step), Place),
+                new DialogGUILabel(() => FuelFlyer(step), VehicleButton), new DialogGUILabel(() => FuelNeedsText(step), FuelNeeds),
+                new DialogGUILabel(() => FuelLeftText(step), FuelLeft), new DialogGUISpace(room), open, noOpen);
+            row.OptionEnabledCondition = () => FuelStepShown(step);
+            yield return row;
 
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(Swatch), new DialogGUILabel("<color=" + Dim + ">Stage</color>", StageName_),
-                new DialogGUILabel(() => "<color=" + Dim + ">" + (SelectedStep() >= 0 ? "Here" : "Gives") + "</color>", GivesColumn),
-                new DialogGUILabel(() => "<color=" + Dim + ">" + (SelectedStep() >= 0 ? "Left after" : "At the end") + "</color>",
-                    LeftColumn));
-            names.OptionEnabledCondition = () => FuelCount() > 0;
+                new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("Stage", StageName_), DimLabel("Gives", StageGives), DimLabel("Keeps", StageKeeps),
+                DimLabel("TWR", StageTwr));
+            names.OptionEnabledCondition = () => FuelIsOpen(step) && FuelStage(step, 0) != null;
             yield return names;
 
-            for (int i = 0; i < MaxStages; i++) yield return StepStageRow(i);
-            for (int i = 0; i < MaxStages; i++) yield return RouteStageRow(i);
+            for (int i = 0; i < MaxStepStages; i++)
+                yield return FuelStageRow(step, i);
+            DialogGUIHorizontalLayout more = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline + Swatch + 4f),
+                new DialogGUILabel(() => "<color=" + Dim + ">" + (FuelStageCount(step) - MaxStepStages) + " more stages</color>",
+                    width - Timeline - Swatch - 4f));
+            more.OptionEnabledCondition = () => FuelIsOpen(step) && FuelStageCount(step) > MaxStepStages;
+            yield return more;
 
-            DialogGUIHorizontalLayout empty = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel("<color=" + Dim + ">No stage with fuel is left for this step.</color>", width, RowHeight));
-            empty.OptionEnabledCondition = () => SelectedStep() >= 0 && FuelCount() == 0;
-            yield return empty;
+            // What the step is made of: its burns and the margin; what docks and refills,
+            // what stays; and what stands in its way.
+            for (int i = 0; i < MaxFuelLines; i++)
+            {
+                int line = i;
+                DialogGUIHorizontalLayout detail = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+                    TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel(() => FuelLineName(step, line), Place + VehicleButton + 4f),
+                    new DialogGUILabel(() => FuelLineValue(step, line), FuelNeeds));
+                detail.OptionEnabledCondition = () => FuelIsOpen(step) && line < FuelLines(step).Count;
+                yield return detail;
+            }
+            for (int i = 0; i < MaxWarnings; i++)
+            {
+                int line = i;
+                DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+                    TextAnchor.MiddleLeft, new DialogGUISpace(Timeline),
+                    new DialogGUILabel(() => "<color=" + Problem + ">" + FuelWarning(step, line) + "</color>", width - Timeline - 4f - RowEnd));
+                warning.OptionEnabledCondition = () => FuelIsOpen(step) && FuelWarning(step, line).Length > 0;
+                yield return warning;
+            }
         }
 
-        // "Fuel plan", or "Fuel · To Kerbin orbit  3,446 m/s" for the selected step.
-        private string FuelTitle()
+        private const int MaxFuelLines = 8;
+
+        // The lines of an open step, as name and value: each burn, the margin, a
+        // refill, what stays there.
+        private List<KeyValuePair<string, string>> FuelLines(int step)
         {
-            int step = Worked() ? SelectedStep() : -1;
-            if (step < 0) return "<b><color=#e0e0e0>Fuel plan</color></b>";
-            return "<b><color=#e0e0e0>Fuel · To " + RouteSteps.Place(bodies.Bodies, steps[step].To) + "</color></b>  "
-                   + EngineerFormat.Speed(budget.Needed[step]);
+            List<KeyValuePair<string, string>> lines = new List<KeyValuePair<string, string>>();
+            if (!FuelIsOpen(step)) return lines;
+            RouteStep routeStep = steps[step];
+            foreach (LegLine line in routeStep.Leg.Lines)
+                lines.Add(new KeyValuePair<string, string>("<color=" + Dim + ">" + line.Name + "</color>", EngineerFormat.Speed(line.DeltaV)));
+            if (state.Margin > 0.0 && routeStep.Leg.DeltaV > 0.5)
+                lines.Add(new KeyValuePair<string, string>(
+                    "<color=" + Dim + ">Margin " + (state.Margin * 100.0).ToString("0", CultureInfo.InvariantCulture) + " %</color>",
+                    EngineerFormat.Speed(budget.Needed[step] - routeStep.Leg.DeltaV)));
+            if (budget.Refuelled[step] > 1e-3)
+                lines.Add(new KeyValuePair<string, string>("<color=" + Good + ">Refilled from the rest</color>",
+                    "<color=" + Good + ">" + budget.Refuelled[step].ToString("0.00", CultureInfo.InvariantCulture) + " t</color>"));
+            if (budget.Payload[step] > 1e-3)
+                lines.Add(new KeyValuePair<string, string>("<color=" + Good + ">Left here</color>",
+                    "<color=" + Good + ">" + budget.Payload[step].ToString("0.00", CultureInfo.InvariantCulture) + " t</color>"));
+            return lines;
         }
 
-        // The rows the fuel plan shows: the selected step's stages, or every stage
-        // with delta-v.
-        private int FuelCount()
+        private string FuelLineName(int step, int line)
         {
-            if (!Worked()) return 0;
-            int step = SelectedStep();
-            return step >= 0 ? budget.Stages[step].Count : stages.Count;
+            List<KeyValuePair<string, string>> lines = FuelLines(step);
+            return line < lines.Count ? lines[line].Key : "";
         }
 
-        private StageBudget.StepStage StepStageAt(int row)
+        private string FuelLineValue(int step, int line)
         {
-            int step = Worked() ? SelectedStep() : -1;
-            return step >= 0 && row < budget.Stages[step].Count ? budget.Stages[step][row] : null;
+            List<KeyValuePair<string, string>> lines = FuelLines(step);
+            return line < lines.Count ? lines[line].Value : "";
         }
 
-        // A stage of the selected step: what it gives here, what it keeps, and
-        // whether it burns, is saved for later or is dropped once the step is over.
-        private DialogGUIBase StepStageRow(int row)
+        private string FuelWarning(int step, int line)
         {
+            if (!FuelIsOpen(step) || step >= warnings.Length || warnings[step] == null || line >= warnings[step].Count) return "";
+            return warnings[step][line];
+        }
+
+        // A stage of an open step: its swatch in the stage's colour, what it gives here,
+        // what it keeps after or held as it was dropped, its thrust against the weight at
+        // the body of a launch or a landing; Use and Drop after, where a stop's cross
+        // ends.
+        private DialogGUIBase FuelStageRow(int step, int row)
+        {
+            SegmentBar swatch = new SegmentBar(1, RowHeight - 2f, after);
+            fuelSwatches[step, row] = swatch;
             System.Func<int> number = () =>
             {
-                StageBudget.StepStage stage = StepStageAt(row);
+                StageBudget.StepStage stage = FuelStage(step, row);
                 return stage != null ? stage.Stage : -1;
             };
-            SegmentBar swatch = new SegmentBar(1, RowHeight - 2f, after);
-            stepSwatches[row] = swatch;
-            DialogGUIButton burns = Choice("Burns", () => ChoiceOf(number()) == StageChoice.Burns,
-                () => SetChoice(number(), StageChoice.Burns), BurnsButton);
-            burns.tooltipText = "Burn this stage in this step as KSP's staging comes to it.";
-            DialogGUIButton save = Choice("Save", () => ChoiceOf(number()) == StageChoice.Save,
-                () => SetChoice(number(), StageChoice.Save), SaveButton);
-            save.tooltipText = "Keep this stage for a later step: it and the stages after it do not burn here.";
-            DialogGUIButton dropAfter = Choice("Drop after", () => ChoiceOf(number()) == StageChoice.DropAfter,
-                () => SetChoice(number(), StageChoice.DropAfter), DropButton);
-            dropAfter.tooltipText = "Drop this stage and the ones before it at the end of this step, with what they still hold.";
-            dropAfter.OptionInteractableCondition = () =>
+            DialogGUIButton use = Choice("Use", () => Burnable(step, row), () => ToggleSaved(step, number()), UseButton);
+            use.tooltipText = "Burn this stage on this step; off, it and the stages after it wait for a later step.";
+            // Lit where it holds; to be switched off even where the stage can no longer
+            // be dropped, the last one of what flies the step.
+            DialogGUIButton drop = Choice("Drop after", () =>
             {
-                StageBudget.StepStage stage = StepStageAt(row);
-                return stage != null && stage.CanDrop;
+                StageBudget.StepStage stage = FuelStage(step, row);
+                return stage != null && stage.CanDrop && DropsAfter(step, stage.Stage);
+            }, () => ToggleDropAfter(step, number()), DropButton);
+            drop.tooltipText = "Drop this stage and the ones before it at the end of this step, with what they still hold.";
+            drop.OptionInteractableCondition = () =>
+            {
+                StageBudget.StepStage stage = FuelStage(step, row);
+                return stage != null && (stage.CanDrop || DropsAfter(step, stage.Stage));
             };
-            // The choices end where a stop's cross does.
-            float room = Mathf.Max(0f, width - Swatch - StageName_ - GivesColumn - LeftColumn - BurnsButton - SaveButton - DropButton
-                                       - 4f * 7f - RowEnd);
-            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(),
-                TextAnchor.MiddleLeft, swatch.Layout, new DialogGUILabel(() => ColouredStage(number()), StageName_),
-                new DialogGUILabel(() => GivenHere(row), GivesColumn), new DialogGUILabel(() => LeftAfter(row), LeftColumn),
-                new DialogGUISpace(room), burns, save, dropAfter);
-            line.OptionEnabledCondition = () => StepStageAt(row) != null;
+            float room = Mathf.Max(0f, width - Timeline - Swatch - StageName_ - StageGives - StageKeeps - StageTwr - UseButton - DropButton
+                                       - 4f * 8f - RowEnd);
+            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline), swatch.Layout, new DialogGUILabel(() => ColouredStage(number()), StageName_),
+                new DialogGUILabel(() => StageGivesText(step, row), StageGives), new DialogGUILabel(() => StageKeepsText(step, row), StageKeeps),
+                new DialogGUILabel(() => StageTwrText(step, row), StageTwr), new DialogGUISpace(room), use, drop);
+            line.OptionEnabledCondition = () => FuelIsOpen(step) && FuelStage(step, row) != null;
             return line;
         }
 
-        private string GivenHere(int row)
+        // Use is lit where the stage can burn on the step: not kept for later, nor behind
+        // a stage kept for later, as KSP fires the stages in order.
+        private bool Burnable(int step, int row)
         {
-            StageBudget.StepStage stage = StepStageAt(row);
+            StageBudget.StepStage stage = FuelStage(step, row);
+            if (stage == null || Saved(step, stage.Stage)) return false;
+            for (int before = 0; before < row; before++)
+            {
+                StageBudget.StepStage earlier = FuelStage(step, before);
+                if (earlier != null && Saved(step, earlier.Stage)) return false;
+            }
+            return true;
+        }
+
+        // "To Mun orbit".
+        private string FuelPlace(int step)
+        {
+            return FuelStepShown(step) ? "To " + RouteSteps.Place(bodies.Bodies, steps[step].To) : "";
+        }
+
+        private string FuelFlyer(int step)
+        {
+            return FuelStepShown(step) ? "<color=" + Dim + ">" + FlyerName(steps[step].Flyer) + "</color>" : "";
+        }
+
+        private string FuelNeedsText(int step)
+        {
+            return FuelStepShown(step) ? EngineerFormat.Speed(budget.Needed[step]) : "";
+        }
+
+        // What is left once the step is over, green; in red what the step lacks, or
+        // what stands in its way.
+        private string FuelLeftText(int step)
+        {
+            if (!FuelStepShown(step)) return "";
+            if (budget.Short[step] > 0.5) return "<color=" + Problem + ">-" + EngineerFormat.Speed(budget.Short[step]) + "</color>";
+            if (warnings[step].Count > 0) return "<color=" + Problem + ">" + EngineerFormat.Speed(budget.LeftAfter[step]) + "</color>";
+            return "<color=" + Good + ">" + EngineerFormat.Speed(budget.LeftAfter[step]) + "</color>";
+        }
+
+        private string StageGivesText(int step, int row)
+        {
+            StageBudget.StepStage stage = FuelStage(step, row);
             if (stage == null) return "";
             if (stage.Given < 0.5) return "<color=" + Dim + ">0</color>";
             return "<color=" + PlannerColors.Hex(StageColour(stage.Stage)) + ">" + EngineerFormat.Speed(stage.Given) + "</color>";
         }
 
-        private string LeftAfter(int row)
+        // What the stage keeps after the step; in orange what it held as it was dropped.
+        private string StageKeepsText(int step, int row)
         {
-            StageBudget.StepStage stage = StepStageAt(row);
+            StageBudget.StepStage stage = FuelStage(step, row);
             if (stage == null) return "";
             if (stage.Dropped) return "<color=" + Warning + ">dropped, " + EngineerFormat.Speed(stage.LeftAfter) + "</color>";
             if (stage.LeftAfter < 0.5) return "<color=" + Dim + ">empty</color>";
-            return "<color=" + Good + ">" + EngineerFormat.Speed(stage.LeftAfter) + "</color>";
+            return EngineerFormat.Speed(stage.LeftAfter);
         }
 
-        // A stage over the whole route: what it gives, and what it has at the end,
-        // or where it was dropped or left.
-        private DialogGUIBase RouteStageRow(int index)
+        // The stage's thrust against the weight it pushes as it starts its part of the
+        // step, at the surface of the body it lifts off from or lands on; red below what
+        // that needs on the stage that lifts off or sets down, the first of a launch and
+        // the last of a landing, as the warnings have it. Nothing for a stage the step
+        // does not burn, or away from surfaces.
+        private string StageTwrText(int step, int row)
         {
-            SegmentBar swatch = new SegmentBar(1, RowHeight - 2f, after);
-            routeSwatches[index] = swatch;
-            DialogGUIButton name = new DialogGUIButton(() => StageLabel(index), () => SelectStage(index), StageName_, RowHeight, false);
-            name.tooltipText = "Show this stage's engines and what it gives to each step.";
-            DialogOverWindow.ClearBackground(name);
-            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
-                TextAnchor.MiddleLeft, swatch.Layout, name, new DialogGUILabel(() => RouteGiven(index), GivesColumn),
-                new DialogGUILabel(() => StageEnd(index), width - Swatch - StageName_ - GivesColumn - 4f * 3f - RowEnd));
-            line.OptionEnabledCondition = () => Worked() && SelectedStep() < 0 && index < stages.Count;
-            return line;
-        }
-
-        private string RouteGiven(int index)
-        {
-            if (!Worked() || index >= stages.Count) return "";
-            double used = 0.0;
-            foreach (StageBudget.StageUse use in budget.Uses)
-                if (use.Stage == stages[index].Number) used += use.DeltaV;
-            if (used < 0.5) return "<color=" + Dim + ">0</color>";
-            return "<color=" + PlannerColors.Hex(PlannerColors.Stage(index)) + ">" + EngineerFormat.Speed(used) + "</color>";
-        }
-
-        // "1,200 m/s left", "dropped at Kerbin orbit with 300 m/s", "stays at Mun
-        // surface", "used up".
-        private string StageEnd(int index)
-        {
-            if (!Worked() || index >= stages.Count) return "";
-            int number = stages[index].Number;
-            double value;
-            int gone;
-            string place = budget.GoneAfter.TryGetValue(number, out gone) ? GonePlace(gone) : "";
-            if (budget.LeftBehind.Contains(number)) return "<color=" + Dim + ">stays at " + place + "</color>";
-            if (budget.Dropped.TryGetValue(number, out value))
-                return "<color=" + Warning + ">dropped at " + place + " with " + EngineerFormat.Speed(value) + "</color>";
-            if (budget.Left.TryGetValue(number, out value) && value > 0.5)
-                return "<color=" + Good + ">" + EngineerFormat.Speed(value) + " left</color>";
-            return "<color=" + Dim + ">used up</color>";
-        }
-
-        // Where the step a stage last flew with ends; the route's start before the
-        // first.
-        private string GonePlace(int step)
-        {
-            if (steps.Count == 0) return "";
-            return RouteSteps.Place(bodies.Bodies, step >= 0 && step < steps.Count ? steps[step].To : steps[0].From);
-        }
-
-        private string StageLabel(int index)
-        {
-            if (index >= stages.Count) return "";
-            string name = "S" + stages[index].Number;
-            return selectedStage == stages[index].Number ? "<b><u>" + ColouredStage(stages[index].Number) + "</u></b>" : "<b>" + name + "</b>";
-        }
-
-        // Each row's swatch in the colour of the stage it shows.
-        private void UpdateSwatches()
-        {
-            for (int row = 0; row < MaxStages; row++)
-            {
-                StageBudget.StepStage stage = StepStageAt(row);
-                if (stepSwatches[row] != null) stepSwatches[row].Set(Swatches(stage != null ? StageColour(stage.Stage) : Color.clear));
-                if (routeSwatches[row] != null)
-                    routeSwatches[row].Set(Swatches(row < stages.Count ? PlannerColors.Stage(row) : Color.clear));
-            }
-        }
-
-        private static List<KeyValuePair<float, Color>> Swatches(Color color)
-        {
-            return new List<KeyValuePair<float, Color>> { new KeyValuePair<float, Color>(Swatch, color) };
-        }
-
-        // --------------------------------------------------------------- details
-
-        // The selected step's or stage's details, one line to a row of a fixed
-        // height: a label of several lines whose text changes is not given its
-        // height by KSP's layout, and ran over the rows below it.
-        private const int MaxDetailLines = 40;
-
-        private IEnumerable<DialogGUIBase> DetailRows()
-        {
-            DialogGUIBase heading = new DialogGUIHorizontalLayout(width, RowHeight + 8f, 0f, new RectOffset(0, 0, 8, 0),
-                TextAnchor.LowerLeft, new DialogGUILabel(() => "<b>" + detailTitle + "</b>", width, RowHeight));
-            heading.OptionEnabledCondition = () => detailTitle.Length > 0;
-            yield return heading;
-            DialogGUISpace gap = new DialogGUISpace(8f);
-            gap.OptionEnabledCondition = () => detailTitle.Length == 0 && detailLines.Length > 0;
-            yield return gap;
-            for (int i = 0; i < MaxDetailLines; i++)
-            {
-                int line = i;
-                DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUILabel(() => line < detailLines.Length ? detailLines[line] : "", width, RowHeight));
-                row.OptionEnabledCondition = () => line < detailLines.Length;
-                yield return row;
-            }
-        }
-
-        private void RefreshDetail()
-        {
-            string text;
-            int step = Worked() ? SelectedStep() : -1;
-            if (selectedStage >= 0)
-            {
-                detailTitle = StageTitle();
-                text = StageDetail();
-            }
-            else if (step >= 0)
-            {
-                detailTitle = "";
-                text = StepDetail(step);
-            }
-            else
-            {
-                detailTitle = "";
-                text = "";
-            }
-            detailLines = text.Length > 0 ? text.Split('\n') : new string[0];
-            if (detailLines.Length > MaxDetailLines) System.Array.Resize(ref detailLines, MaxDetailLines);
-            UpdateSwatches();
-        }
-
-        // The step's burns, the margin, the stages that pay for it with their thrust
-        // against the weight at that body, and what stands in its way.
-        private string StepDetail(int index)
-        {
-            RouteStep step = steps[index];
-            StringBuilder text = new StringBuilder();
-            text.Append("<b>").Append(StepTitle(step)).Append("</b>");
-            foreach (LegLine line in step.Leg.Lines)
-                text.Append('\n').Append(line.Name).Append("<pos=60%>").Append(EngineerFormat.Speed(line.DeltaV));
-            if (state.Margin > 0.0 && step.Leg.DeltaV > 0.5)
-                text.Append("\n<color=" + Dim + ">Margin ").Append((state.Margin * 100.0).ToString("0")).Append(" %</color><pos=60%>")
-                    .Append(EngineerFormat.Speed(budget.Needed[index] - step.Leg.DeltaV));
-            int body = step.From.Kind == StopKind.Surface ? step.From.Body : step.To.Body;
-            foreach (StageBudget.StageUse use in budget.Uses)
-            {
-                if (use.Leg != index) continue;
-                text.Append('\n').Append(ColouredStage(use.Stage));
-                text.Append("<pos=36%><color=" + Dim + ">TWR ").Append(EngineerFormat.Ratio(Twr(use, body))).Append("</color>")
-                    .Append("<pos=60%>").Append(EngineerFormat.Speed(use.DeltaV));
-            }
-            if (budget.Payload[index] > 1e-3)
-                text.Append("\n<color=" + Good + ">Payload left here<pos=60%>")
-                    .Append(budget.Payload[index].ToString("0.00", CultureInfo.InvariantCulture)).Append(" t</color>");
-            if (budget.Refuelled[index] > 1e-3)
-                text.Append("\n<color=" + Good + ">Refuelled from the rest<pos=60%>")
-                    .Append(budget.Refuelled[index].ToString("0.00", CultureInfo.InvariantCulture)).Append(" t</color>");
-            foreach (string warning in warnings[index])
-                text.Append("\n<color=" + Problem + ">").Append(warning).Append("</color>");
-            return text.ToString();
-        }
-
-        // "Lander to Mun surface", "Without lander to Kerbin's air".
-        private string StepTitle(RouteStep step)
-        {
-            return FlyerName(step.Flyer) + " to " + RouteSteps.Place(bodies.Bodies, step.To);
-        }
-
-        private string StageTitle()
-        {
-            int at = stages.FindIndex(row => row.Number == selectedStage);
-            return at >= 0 ? ColouredStage(selectedStage) + "  " + EngineerFormat.Speed(stages[at].DeltaVVacuum) : "";
-        }
-
-        private string StageDetail()
-        {
-            int at = stages.FindIndex(s => s.Number == selectedStage);
-            if (at < 0 || !Worked()) return "";
-            StageRow row = stages[at];
-            StringBuilder text = new StringBuilder();
-            // One engine type to a line.
-            if (row.Engines.Length > 0) text.Append("<color=" + Dim + ">").Append(row.Engines.Replace(", ", "</color>\n<color=" + Dim + ">"))
-                .Append("</color>");
-            foreach (StageBudget.StageUse use in budget.Uses)
-                if (use.Stage == row.Number)
-                    text.Append('\n').Append("To ").Append(RouteSteps.Place(bodies.Bodies, steps[use.Leg].To)).Append(" <color=" + Dim + ">")
-                        .Append(FlyerName(steps[use.Leg].Flyer)).Append("</color><pos=60%>").Append(EngineerFormat.Speed(use.DeltaV));
-            text.Append('\n').Append(StageEnd(at));
-            return text.ToString();
+            StageBudget.StepStage stage = FuelStage(step, row);
+            if (stage == null) return "";
+            RouteStep routeStep = steps[step];
+            bool launch = routeStep.From.Kind == StopKind.Surface;
+            bool landing = routeStep.To.Kind == StopKind.Surface && !Chutes(routeStep.To);
+            if (!launch && !landing) return "";
+            StageBudget.StageUse use = budget.Uses.Find(item => item.Leg == step && item.Stage == stage.Stage);
+            if (use == null) return "";
+            int body = launch ? routeStep.From.Body : routeStep.To.Body;
+            double twr = Twr(use, body);
+            double least = launch && bodies.Bodies[body].HasAtmosphere ? 1.2 : 1.0;
+            StageBudget.StageUse first = budget.Uses.Find(item => item.Leg == step);
+            StageBudget.StageUse last = budget.Uses.FindLast(item => item.Leg == step);
+            bool decides = launch ? use == first : use == last;
+            string text = EngineerFormat.Ratio(twr);
+            return decides && twr < least ? "<color=" + Problem + ">" + text + "</color>" : "<color=" + Dim + ">" + text + "</color>";
         }
 
         // "S3" in the colour of its stage.
@@ -796,6 +783,22 @@ namespace ReDefinition.Engineer
         {
             if (number < 0) return "";
             return "<b><color=" + PlannerColors.Hex(StageColour(number)) + ">S" + number + "</color></b>";
+        }
+
+        // Each open stage row's swatch in the colour of its stage.
+        private void UpdateSwatches()
+        {
+            for (int step = 0; step < MaxFuelSteps; step++)
+                for (int row = 0; row < MaxStepStages; row++)
+                {
+                    SegmentBar swatch = fuelSwatches[step, row];
+                    if (swatch == null) continue;
+                    StageBudget.StepStage stage = FuelStage(step, row);
+                    swatch.Set(new List<KeyValuePair<float, Color>>
+                    {
+                        new KeyValuePair<float, Color>(Swatch, stage != null ? StageColour(stage.Stage) : Color.clear),
+                    });
+                }
         }
 
         // ------------------------------------------------------------------ bars

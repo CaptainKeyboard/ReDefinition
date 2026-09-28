@@ -107,10 +107,13 @@ namespace ReDefinition.Engineer
             return false;
         }
 
-        // A crewed vessel's capsule: the lightest choice with a crewed command part,
-        // parachutes or not.
+        // A crewed vessel's capsule: the lightest choice with a crewed command part and
+        // parachutes, else the lightest crewed one, so that a crewed lander without them
+        // is not taken for it.
         internal static PartGroupChoice AutoCapsule(IList<PartGroupChoice> choices)
         {
+            foreach (PartGroupChoice choice in choices)
+                if (choice.Crewed && choice.Parachute) return choice;
             foreach (PartGroupChoice choice in choices)
                 if (choice.Crewed) return choice;
             return null;

@@ -233,6 +233,7 @@ namespace ReDefinition.Engineer
                 for (int i = 0; i < RouteStop.Roles; i++) by[i] = FlyerText(stop.By[i]);
                 stopNode.AddValue("by", string.Join(", ", by));
                 stopNode.AddValue("refuel", string.Join(", ", Array.ConvertAll(stop.Refuel, flag => flag.ToString())));
+                stopNode.AddValue("refuelFrom", string.Join(", ", Array.ConvertAll(stop.RefuelFrom, stage => stage.ToString())));
                 stopNode.AddValue("orbitFirst", stop.OrbitFirst);
                 stopNode.AddValue("splitBurns", stop.SplitBurns);
                 for (int i = 0; i < RouteStop.Roles; i++)
@@ -304,11 +305,14 @@ namespace ReDefinition.Engineer
                 if (bool.TryParse(stopNode.GetValue("useAtmosphere"), out useAtmosphere)) stop.UseAtmosphere = useAtmosphere;
                 string[] by = (stopNode.GetValue("by") ?? "").Split(',');
                 string[] refuel = (stopNode.GetValue("refuel") ?? "").Split(',');
+                string[] refuelFrom = (stopNode.GetValue("refuelFrom") ?? "").Split(',');
                 for (int i = 0; i < RouteStop.Roles; i++)
                 {
                     stop.By[i] = i < by.Length ? FlyerCode(by[i]) : -1;
                     bool flag;
                     if (i < refuel.Length && bool.TryParse(refuel[i].Trim(), out flag)) stop.Refuel[i] = flag;
+                    int stage;
+                    if (i < refuelFrom.Length && int.TryParse(refuelFrom[i].Trim(), out stage)) stop.RefuelFrom[i] = Math.Max(-1, stage);
                 }
                 bool orbitFirst;
                 if (bool.TryParse(stopNode.GetValue("orbitFirst"), out orbitFirst)) stop.OrbitFirst = orbitFirst;

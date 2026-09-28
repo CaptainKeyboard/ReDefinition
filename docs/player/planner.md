@@ -2,8 +2,8 @@
 
 **For:** players building a vessel for a mission to one or more destinations.
 **You need:** ReDefinition installed, and a vessel in the VAB or the SPH.
-**You get:** how to lay out a route, see what each step costs, check that the stages
-carry enough fuel, and set yourself which stage burns on which step.
+**You get:** how to lay out a route, see what each step costs, check that every step has
+enough fuel, and set yourself which stage burns on which step.
 
 The planner lays out a route the way a map app lays out a trip: A → B → C → D. Between
 two destinations it lists the steps the way needs, up into an orbit, across to the next
@@ -42,7 +42,8 @@ cross removes a section.
 
 The planner adds two sections by itself, shown as *Automatic* with what it found:
 
-* On a crewed vessel, the capsule: the smallest part with a crewed command part.
+* On a crewed vessel, the capsule: the smallest part with a crewed command part and
+  parachutes, else the smallest crewed one.
 * On an uncrewed vessel, the satellite, where one part with a probe core and no landing
   legs leaves the launch stage behind. With several, you add them yourself.
 
@@ -110,40 +111,34 @@ needs and what the vessel has.
 
 ## Read the fuel plan
 
-With no step selected, the fuel plan lists every stage with delta-v in the order KSP
-fires them, marked with its colour: what it gives over the whole route, and what it has
-left at the end. In orange is where it was dropped and what it held then; in grey where
-it stays, such as a lander left on a surface.
+The fuel plan lists every step of the route in its order:
 
-| Click | Does |
+| Column | Shows |
 |---|---|
-| a step's bar or its figure | shows the fuel plan of that step |
-| a stage's name | shows its engines and the steps it pays for |
-| *Whole route*, or the same step again | shows every stage again |
+| *Step* | where the step goes |
+| *Flown by* | the whole vessel, or the section that flies it |
+| *Needs* | the step's delta-v with the margin |
+| *Left after* | what what flew the step has left once it is over, green: its own stages and those of the sections it carries, burning on in order. Red with a *-*: what the step lacks. Red: the step has a problem, named when it is open |
 
-For a selected step, the fuel plan lists the stages it still has with fuel: what each
-gives here and what it has left after the step. A stage burnt out or dropped before does
-not show; a stage saved for later does. Under them come the step's burns, the stages
-that pay for it with their TWR at that body, and any warning.
+So every step has enough fuel where no figure in *Left after* is red.
 
-The burns of a step are:
+*+* at the end of a step's row opens it: the stages it has with fuel as it starts, then
+the burns it is made of with the margin, what is refilled there and what stays there,
+and in red what blocks it. A stage used up, or dropped on a step before, does not
+show any more. The same stage can show on several steps, as it burns on from one into
+the next.
 
-| Burn | Is |
+| Column | Shows |
 |---|---|
-| *Launch to … orbit* | from the surface into the low orbit, with the losses to gravity and air |
-| *Transfer burn* | leaving the orbit toward the next body, or toward another orbit around the same body |
-| *Capture into orbit* | slowing down at the next body into its orbit |
-| *Aerobraking, then circularise* | the small burn left after the atmosphere has slowed the vessel |
-| *Circularise* | at the new orbit around the same body |
-| *Landing* | from the low orbit down to the surface |
-| *Plane change* | turning the orbit to the tilt of the target's orbit |
-| *Deorbit into the air* | from an orbit down into the atmosphere, for a landing on parachutes |
-| *Rendezvous and docking* | the lander finding the rest in its orbit, 50 m/s over the climb |
+| the colour and *S…* | the stage, in the colour it has on the step's bar |
+| *Gives* | what it gives to this step |
+| *Keeps* | what it has left after the step; *empty* where it is used up; orange *dropped*: what it held as it was dropped |
+| *TWR* | on a launch or a powered landing, its thrust in vacuum against the weight it pushes, at the body's surface; red where the stage that lifts off (the first of a launch) or sets down (the last of a landing) is below 1.2 on a body with air, below 1 otherwise |
 
 ## How the planner shares out the stages
 
 By itself, the planner burns the stages in the order KSP fires them. A stage burns until
-it is empty, and what it has left after one leg goes on into the next. The same engines
+it is empty, and what it has left after one step goes on into the next. The same engines
 and tanks can serve the launch, the transfer and the landing. The planner counts the
 mass each stage pushes at that moment, so a stage that burns later, when the vessel is
 lighter, goes further.
@@ -151,19 +146,19 @@ lighter, goes further.
 Which tank feeds which engine is set by the vessel's staging and fuel lines, and the
 planner follows it. To give a tank to other engines, change the staging.
 
-## Save a stage or drop it after a step
+## Keep a stage for later, or drop it
 
-Select a step, and each of its stages offers three choices:
+Each stage of an open step has two choices:
 
 | Choice | Does |
 |---|---|
-| *Burns* | the stage burns as KSP's staging comes to it. This is where every stage starts |
-| *Save* | the stage does not burn on this step, and nor do the stages after it, since KSP cannot fire them first. If the step then runs short, it turns red |
-| *Drop after* | the stage goes at the end of this step with what it still holds, and so do the stages KSP fires before it. The last stage cannot be dropped |
+| *Use* | on where it starts: the stage burns on this step as KSP's staging comes to it. Off: it does not burn here, and nor do the stages after it, since KSP cannot fire them first, so theirs is dimmed too. If the step then lacks fuel, it turns red |
+| *Drop after* | the stage goes at the end of this step with what it still holds, and so do the stages KSP fires before it. It is not there on the steps after. The last stage cannot be dropped |
 
-A mission to Eve needs a large stage for the climb back to orbit. Select each step on the
-way there and click *Save* on that stage, and the planner keeps it for the climb. A
-booster you drop early to lighten the vessel gets *Drop after* on the launch.
+A mission to Eve needs a large stage for the climb back to orbit. Open each step on the
+way there and switch *Use* off on that stage, and the planner keeps it for the climb. A
+stage you drop once in orbit, to lighten the vessel on the way to the Mun, gets *Drop
+after* on *To Kerbin orbit*; its fuel is then gone for the steps after.
 
 ## Plan with sections
 
@@ -185,7 +180,10 @@ What happens follows from who flies one step after another:
 
 Where a lander that docks climbs from a surface and the rest waits in an orbit of that
 body, it climbs to the rest's own orbit. *Refuel* on the line *Docks with the rest* fills
-it up from the rest's tanks as it docks.
+it up from the rest's tanks as it docks; the button beside it picks the stage of the rest
+the refill comes from first, among those that still hold fuel there, or the rest in the
+order KSP fires its stages. A lander that docks and is then left, *Without lander*,
+docks first, so its climb counts the rendezvous.
 
 By itself, the planner has a lander land wherever the route goes on after the landing,
 whoever stands on a surface fly up from it, the whole vessel fly on across to another body
@@ -269,5 +267,7 @@ on, it carries the lander with the fuel the lander has left, or refilled.
 * The TWR under a step's stages, and the warnings on a launch or a powered landing, compare
   the thrust in vacuum with the body's surface gravity. Check the launch stage's TWR at
   sea level in the engineer window as well.
-* Refuelling counts only between a docked section and the rest. Mining and fuel from
-  other vessels do not count.
+* Refuelling counts only between a docked section and the rest, as mass: it does not tell
+  liquid fuel from oxidizer. A tank that no engine of its own burns belongs to the stage
+  that burns it, so it cannot be picked as the tank a refill comes from. Mining and fuel
+  from other vessels do not count.

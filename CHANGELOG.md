@@ -25,13 +25,14 @@
   set by the planner or by you; a lander leaves the rest, docks with it again and can be
   refilled from it, or flies on alone, as you set it; a satellite stays at its
   destination; the capsule comes home alone. The planner shares the vessel's stages out
-  over the steps, counting the mass each stage pushes at that moment. The fuel plan of a step shows the stages it has, what each gives and
-  keeps, and lets you save a stage for later or drop it after the step; without a step,
-  it shows what each stage gives over the route and where it ends. What blocks a step
+  over the steps, counting the mass each stage pushes at that moment. The fuel plan lists
+  every step with what it needs and what is left after it, in red what it lacks; a step
+  opens to its stages, each with what it gives there, what it keeps and its TWR, to use
+  it there or keep it for later and to drop it after the step; a refill can come from a
+  stage you pick. What blocks a step
   shows in red under it: too little fuel, too little thrust to lift off or land, no
   parachutes or heat shield, a lander not where it has to be, a satellite not carried to
-  where it stays. The step's fuel plan gives
-  each stage's TWR. The plan is kept per vessel.
+  where it stays. The plan is kept per vessel.
 - **The navball moves sideways.** Drag its show/hide button left or right in flight; the
   SAS switches, the autopilot modes and the gauges move with it, and it stays on the
   screen. A click still shows and hides it. The position is kept, and *Navball position*

@@ -129,6 +129,8 @@ namespace ReDefinition.Engineer
         public bool[] Side;
         public readonly List<GoneGroup> Gone = new List<GoneGroup>();
         public int RefuelGroup = -1;
+        // The stage of the rest that refuels it first, by its number; -1 for KSP's order.
+        public int RefuelFrom = -1;
         public readonly List<int> Deploy = new List<int>();
     }
 
@@ -198,6 +200,11 @@ namespace ReDefinition.Engineer
             // deployed after it, in tonnes.
             public double[] Refuelled;
             public double[] Payload;
+            // Per step: the delta-v what flew it still has once it is over.
+            public double[] LeftAfter;
+            // Per step: the rest's stages that still hold propellant as it ends, by their
+            // numbers, for a refill to come from.
+            public List<int>[] Tankers;
 
             public double TotalShort
             {
@@ -246,6 +253,8 @@ namespace ReDefinition.Engineer
             private readonly bool[] done;
             private readonly double[] mass;
             private readonly bool[] alive;
+            // By stage number: what a deployed stage still gives as it stays.
+            private readonly Dictionary<int, double> stayed = new Dictionary<int, double>();
             // Per group, the last step it flew, -1 for none.
             private readonly int[] lastFlown;
             private readonly bool restStaysForLander;
@@ -325,7 +334,8 @@ namespace ReDefinition.Engineer
                 result = new Result
                 {
                     Needed = new double[steps.Count], Short = new double[steps.Count], Refuelled = new double[steps.Count],
-                    Payload = new double[steps.Count], Stages = new List<StepStage>[steps.Count],
+                    Payload = new double[steps.Count], Stages = new List<StepStage>[steps.Count], LeftAfter = new double[steps.Count],
+                    Tankers = new List<int>[steps.Count],
                 };
                 flying = Everything();
                 for (leg = 0; leg < steps.Count; leg++)
@@ -342,10 +352,20 @@ namespace ReDefinition.Engineer
                     List<StepStage> present = Present(side);
                     Burn(side, ref need);
                     result.Short[leg] = need > 1e-6 ? need : 0.0;
-                    if (step.RefuelGroup > 0) result.Refuelled[leg] = Refuel(step.RefuelGroup);
+                    result.Tankers[leg] = new List<int>();
+                    for (int i = 0; i < count; i++)
+                        if (!done[i] && alive[0] && fuel[i, 0] > Tiny) result.Tankers[leg].Add(order[i].Number);
+                    if (step.RefuelGroup > 0) result.Refuelled[leg] = Refuel(step.RefuelGroup, step.RefuelFrom);
                     DropAfter(present, side);
+                    // What flew the step stays there as a whole, a satellite flying itself:
+                    // what it has left is what it holds as it stays.
+                    bool staysWhole = step.Deploy.Count > 0;
+                    for (int g = 0; g < groups; g++)
+                        if (side[g] && !step.Deploy.Contains(g)) staysWhole = false;
+                    if (staysWhole) result.LeftAfter[leg] = SideLeft(side);
                     foreach (int group in step.Deploy) result.Payload[leg] += Deploy(group);
                     Close(present);
+                    if (!staysWhole) result.LeftAfter[leg] = SideLeft(side);
                     result.Stages[leg] = present;
                 }
                 Finish();
@@ -496,6 +516,7 @@ namespace ReDefinition.Engineer
                         if (use.Leg == leg && use.Stage == stage.Stage) stage.Given += use.DeltaV;
                     double value;
                     if (stage.Dropped && result.Dropped.TryGetValue(stage.Stage, out value)) stage.LeftAfter = value;
+                    else if (stayed.TryGetValue(stage.Stage, out value)) stage.LeftAfter = value;
                     else if (left.TryGetValue(stage.Stage, out value)) stage.LeftAfter = value;
                 }
             }
@@ -540,10 +561,16 @@ namespace ReDefinition.Engineer
                 }
             }
 
-            // A docked group filled up from the rest's tanks, as far as they hold it.
-            private double Refuel(int into)
+            // A docked group filled up from the rest's tanks, as far as they hold it: the
+            // stage the player names first, then the others in KSP's order.
+            private double Refuel(int into, int first)
             {
                 if (into <= 0 || into >= groups || !alive[into] || !alive[0]) return 0.0;
+                List<int> sources = new List<int>();
+                int named = order.FindIndex(row => row.Number == first);
+                if (named >= 0) sources.Add(named);
+                for (int i = 0; i < count; i++)
+                    if (i != named) sources.Add(i);
                 double moved = 0.0;
                 int from = 0;
                 for (int i = 0; i < count; i++)
@@ -551,14 +578,15 @@ namespace ReDefinition.Engineer
                     // A stage already fired past is gone.
                     if (done[i]) continue;
                     double wanted = capacity[i, into] - fuel[i, into];
-                    while (wanted > Tiny && from < count)
+                    while (wanted > Tiny && from < sources.Count)
                     {
-                        double take = Math.Min(wanted, fuel[from, 0]);
-                        fuel[from, 0] -= take;
+                        int source = sources[from];
+                        double take = Math.Min(wanted, fuel[source, 0]);
+                        fuel[source, 0] -= take;
                         fuel[i, into] += take;
                         wanted -= take;
                         moved += take;
-                        if (fuel[from, 0] <= Tiny) from++;
+                        if (fuel[source, 0] <= Tiny) from++;
                     }
                 }
                 mass[0] = Math.Max(0.0, mass[0] - moved);
@@ -600,9 +628,15 @@ namespace ReDefinition.Engineer
             {
                 if (group <= 0 || group >= groups || !alive[group]) return 0.0;
                 double weight = mass[group];
+                double pushed = weight;
                 for (int i = 0; i < count; i++)
                 {
                     if (owner[i] != group && fuel[i, group] <= Tiny) continue;
+                    if (fuel[i, group] > Tiny)
+                    {
+                        stayed[order[i].Number] = DeltaV(i, fuel[i, group], pushed);
+                        pushed -= fuel[i, group];
+                    }
                     if (owner[i] == group)
                     {
                         result.LeftBehind.Add(order[i].Number);
@@ -649,6 +683,16 @@ namespace ReDefinition.Engineer
                 BurnOn(left, flying);
                 if (any) BurnOn(left, waiting);
                 return left;
+            }
+
+            // What the side still gives, burning on in order.
+            private double SideLeft(bool[] side)
+            {
+                Dictionary<int, double> left = new Dictionary<int, double>();
+                BurnOn(left, side);
+                double total = 0.0;
+                foreach (double value in left.Values) total += value;
+                return total;
             }
 
             private void BurnOn(Dictionary<int, double> left, bool[] side)

@@ -231,7 +231,11 @@ namespace ReDefinition.Engineer
                     int group = BudgetGroup(gone.Section);
                     if (group >= 0) budgetStep.Gone.Add(new GoneGroup { Group = group, Stays = gone.Stays, Waiting = gone.Waiting });
                 }
-                if (step.RefuelAfter && step.Flyer.Kind == FlyerKind.Alone) budgetStep.RefuelGroup = BudgetGroup(step.Flyer.Section);
+                if (step.RefuelAfter && step.Flyer.Kind == FlyerKind.Alone)
+                {
+                    budgetStep.RefuelGroup = BudgetGroup(step.Flyer.Section);
+                    budgetStep.RefuelFrom = state.Stops[step.Goal].RefuelFrom[(int)step.Role];
+                }
                 foreach (int id in step.Deploys)
                 {
                     int group = BudgetGroup(id);

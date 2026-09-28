@@ -388,7 +388,16 @@ namespace ReDefinition.Engineer
             }
             else
             {
-                if (flyer.Kind == FlyerKind.Without) LeaveBehind(bodies, walk, step, flyer.Section);
+                if (flyer.Kind == FlyerKind.Without)
+                {
+                    // A section that docks and is back where the rest waits docks first,
+                    // and is left from there, as a lander whose crew comes over.
+                    SectionState left = walk.Of(flyer.Section);
+                    if (left != null && left.Away && !left.Gone && left.Section.Docks && walk.Carrier(left.Section.Id) == 0
+                        && (SamePlace(left.At, walk.Rest) || Meets(left.At, walk.Rest)) && left.LastStep != null)
+                        Dock(bodies, walk, left);
+                    LeaveBehind(bodies, walk, step, flyer.Section);
+                }
                 // Sections away that come back dock with the rest before the whole vessel
                 // flies on: in the rest's orbit, or on its way to it from another one
                 // around the same body.

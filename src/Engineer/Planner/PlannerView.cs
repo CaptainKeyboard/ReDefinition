@@ -40,16 +40,6 @@ namespace ReDefinition.Engineer
         // The stages with delta-v, in firing order, and all of them.
         private List<StageRow> stages = new List<StageRow>();
         private List<StageRow> allStages = new List<StageRow>();
-        // The selected leg's or stage's details, written once per evaluation
-        // and on each selection.
-        private string detailTitle = "";
-        private string[] detailLines = new string[0];
-
-        // The step, by its leg and role, or the stage whose parts alone are
-        // coloured on the vessel; -1 for none, when every stage shows its colour.
-        private int selectedLeg = -1;
-        private StepRole selectedRole;
-        private int selectedStage = -1;
         private readonly PartHighlight highlight = new PartHighlight();
 
         internal PlannerView(EditorEngineer owner, float width)
@@ -107,8 +97,7 @@ namespace ReDefinition.Engineer
                 fresh = false;
                 foundCapsule = null;
                 foundSatellite = null;
-                selectedLeg = -1;
-                selectedStage = -1;
+                fuelOpen.Clear();
                 nextEvaluation = 0f;
                 System.Array.Clear(more, 0, more.Length);
             }
@@ -179,8 +168,6 @@ namespace ReDefinition.Engineer
                 for (int role = 0; role < RouteStop.Roles; role++) slots[leg, role] = -1;
             for (int i = 0; i < steps.Count; i++)
                 if (steps[i].Segment < MaxStops) slots[steps[i].Segment, (int)steps[i].Role] = i;
-            if (selectedLeg >= MaxStops || (selectedLeg >= 0 && slots[selectedLeg, (int)selectedRole] < 0)) selectedLeg = -1;
-            if (selectedStage >= 0 && !stages.Exists(row => row.Number == selectedStage)) selectedStage = -1;
 
             List<StagePlan> plans = new List<StagePlan>();
             foreach (RouteStep step in steps) plans.Add(state.Stops[step.Goal].Stages[(int)step.Role]);
@@ -194,7 +181,6 @@ namespace ReDefinition.Engineer
                 VesselShape.Split(available, parts, valid.ConvertAll(section => section.Group)));
             warnings = new List<string>[steps.Count];
             for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
-            RefreshDetail();
             UpdateBars();
             Mark();
         }
@@ -370,46 +356,11 @@ namespace ReDefinition.Engineer
             state.Stops.RemoveAt(index);
             state.RemoveStop(index);
             System.Array.Clear(more, 0, more.Length);
-            selectedLeg = -1;
+            fuelOpen.Clear();
             Changed();
         }
 
         // -------------------------------------------------------------- choosing
-
-        // A step's fuel plan, or the whole route's again on the same step.
-        private void SelectStep(int leg, StepRole role)
-        {
-            if (!Ready() || Slot(leg, role) < 0) return;
-            bool same = selectedLeg == leg && selectedRole == role;
-            selectedLeg = same ? -1 : leg;
-            selectedRole = role;
-            selectedStage = -1;
-            RefreshDetail();
-            Mark();
-        }
-
-        private void SelectRoute()
-        {
-            selectedLeg = -1;
-            selectedStage = -1;
-            RefreshDetail();
-            Mark();
-        }
-
-        // The selected step's index, -1 for none.
-        private int SelectedStep()
-        {
-            return selectedLeg >= 0 ? Slot(selectedLeg, selectedRole) : -1;
-        }
-
-        private void SelectStage(int index)
-        {
-            if (index >= stages.Count) return;
-            int number = stages[index].Number;
-            selectedStage = selectedStage == number ? -1 : number;
-            RefreshDetail();
-            Mark();
-        }
 
         // The part group under the pointer in a section's list, the only thing the
         // planner marks on the vessel; null for none.
@@ -446,35 +397,88 @@ namespace ReDefinition.Engineer
         // The colour of the parts a list's entry names.
         private static readonly Color Picked = new Color(0.56f, 0.86f, 0.48f);
 
-        // What the player chose for a stage on the selected step.
-        private enum StageChoice
+        // The stages the player keeps from a step, or drops after it (StagePlan, kept
+        // on the stop the step leads to, by role).
+        private StagePlan PlanOf(int step)
         {
-            Burns,
-            Save,
-            DropAfter,
+            return step >= 0 && step < steps.Count ? state.Stops[steps[step].Goal].Stages[(int)steps[step].Role] : null;
         }
 
-        private StagePlan SelectedPlan()
+        private bool Saved(int step, int number)
         {
-            int step = SelectedStep();
-            return step >= 0 ? state.Stops[steps[step].Goal].Stages[(int)steps[step].Role] : null;
+            StagePlan plan = PlanOf(step);
+            return plan != null && plan.Save.Contains(number);
         }
 
-        private StageChoice ChoiceOf(int number)
+        private bool DropsAfter(int step, int number)
         {
-            StagePlan plan = SelectedPlan();
-            if (plan == null) return StageChoice.Burns;
-            return plan.Save.Contains(number) ? StageChoice.Save : plan.DropAfter.Contains(number) ? StageChoice.DropAfter : StageChoice.Burns;
+            StagePlan plan = PlanOf(step);
+            return plan != null && plan.DropAfter.Contains(number);
         }
 
-        private void SetChoice(int number, StageChoice choice)
+        private void ToggleSaved(int step, int number)
         {
-            StagePlan plan = SelectedPlan();
-            if (plan == null || number < 0 || ChoiceOf(number) == choice) return;
-            plan.Save.Remove(number);
-            plan.DropAfter.Remove(number);
-            if (choice == StageChoice.Save) plan.Save.Add(number);
-            else if (choice == StageChoice.DropAfter) plan.DropAfter.Add(number);
+            StagePlan plan = PlanOf(step);
+            if (plan == null || number < 0) return;
+            if (!plan.Save.Remove(number)) plan.Save.Add(number);
+            Changed();
+        }
+
+        private void ToggleDropAfter(int step, int number)
+        {
+            StagePlan plan = PlanOf(step);
+            if (plan == null || number < 0) return;
+            if (!plan.DropAfter.Remove(number)) plan.DropAfter.Add(number);
+            Changed();
+        }
+
+        // The rest's stages that hold fuel as the step ends, for its refill.
+        private List<int> Tankers(int leg, StepRole role)
+        {
+            int index = Slot(leg, role);
+            return index >= 0 && budget.Tankers[index] != null ? budget.Tankers[index] : new List<int>();
+        }
+
+        // "from S3", "from the rest": where a refill comes from first; in orange a stage
+        // that holds nothing then, so that the rest gives it in KSP's order.
+        private string TankerText(int leg, StepRole role)
+        {
+            if (!Shown(leg + 1)) return "";
+            int stage = state.Stops[leg + 1].RefuelFrom[(int)role];
+            if (stage < 0) return "<color=" + Good + ">from the rest</color>";
+            if (!Tankers(leg, role).Contains(stage)) return "<color=" + Warning + ">S" + stage + " holds nothing</color>";
+            return "<b><u><color=" + Good + ">from S" + stage + "</color></u></b>";
+        }
+
+        // The rest's stages with fuel at that point, for the refill to come from first.
+        private void PickTanker(int leg, StepRole role, DialogGUIBase button)
+        {
+            if (!Shown(leg + 1)) return;
+            int[] from = state.Stops[leg + 1].RefuelFrom;
+            List<Choice> choices = new List<Choice>
+            {
+                new Choice
+                {
+                    Label = "The rest, in KSP's order", Tooltip = "Refill from the rest's stages in the order KSP fires them.",
+                    Current = from[(int)role] < 0, Pick = () => SetTanker(leg, role, -1),
+                },
+            };
+            foreach (int tanker in Tankers(leg, role))
+            {
+                int number = tanker;
+                choices.Add(new Choice
+                {
+                    Label = "S" + number, Tooltip = "Refill from this stage first, then from the others.",
+                    Current = from[(int)role] == number, Pick = () => SetTanker(leg, role, number),
+                });
+            }
+            Dropdown.Show(this, button, choices, 150f);
+        }
+
+        private void SetTanker(int leg, StepRole role, int stage)
+        {
+            if (!Shown(leg + 1) || state.Stops[leg + 1].RefuelFrom[(int)role] == stage) return;
+            state.Stops[leg + 1].RefuelFrom[(int)role] = stage;
             Changed();
         }
 

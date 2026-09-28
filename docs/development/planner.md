@@ -55,19 +55,18 @@ The planner uses no text to explain itself. From the top:
   in groups of their own (*Burns*, *Way down*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
 * One bar sums up the route, with the margin and the plane changes under it.
-* The fuel plan has two sets of rows, of which one shows. With a step selected (its bar
-  or its figure), a row per stage the step has with propellant as it starts
-  (`StageBudget.Result.Stages`): what it gives here, what it has left after, and *Burns*,
-  *Save* and *Drop after*, which end where a stop's cross does. With none, a row per
-  stage with delta-v: what it gives over the route, and what it has left at the end, or
-  where it was dropped or stays (`GoneAfter`). A row's swatch is a `SegmentBar` of one
-  piece, coloured after the rows are created for the stage the row shows then.
-* The details close the panel, one line to a row of a fixed height: under a selected
-  step its burns and the stages that pay for it, each with its TWR (the thrust in vacuum
-  over the weight it pushes, at the surface gravity of the body the step starts from
-  where it lifts off, of the one it goes to otherwise), and its warnings; for a selected
-  stage its engines and the steps it pays for. A label of several lines whose text
-  changes is not given its height by KSP's layout, and ran over the rows below it.
+* The fuel plan: a row per step, up to 30, in the columns of the step rows (where it
+  goes, who flies it), with what it needs and what what flew it has left after
+  (`StageBudget.Result.LeftAfter`), in red what it lacks or where it has a problem; *+*
+  where a step's "..." is opens it to a row per stage it has with propellant as it
+  starts (`Result.Stages`), up to ten and a line for more: a swatch, a `SegmentBar` of one
+  piece coloured after the rows are created; what it gives there and keeps after, or held
+  as it was dropped or kept as it stayed; its TWR on a launch or a powered landing, red
+  only on the stage the warnings judge; *Use*, dimmed behind a stage kept for later, and
+  *Drop after*, which end where a stop's cross does; then the step's burns and margin, a
+  refill (`Refuelled`) and what stays (`Payload`), and its warnings. A closed step writes
+  no texts for its stage rows. The rows above select nothing: the fuel plan shows what it
+  shows without a click on the route.
 
 Choices are buttons of KSP's skin whose text is lit green while their option is chosen.
 The skin's pressed state of a toggle button reads the other way round, so it is not
@@ -151,7 +150,7 @@ in an orbit of the body the rest waits at; otherwise whoever flew the step befor
 | `Alone` | the section is with what carries it | it `Separates` (`Leaver`, `LeavesFrom`), and the rest waits where it is |
 | `Alone` | the section is away | it flies on from where it is; a rest never met again stays where it waited |
 | `Alone` | a capsule, for the first time | everything else is gone for good (`Gone`): dropped where it was with the capsule, left where it waited |
-| `Without` | | the section stays where it is for good (`Gone`, `Stays`); a later step of it is a `Problem` and costs nothing |
+| `Without` | | the section stays where it is for good (`Gone`, `Stays`); one that docks and is back where the rest waits docks first; a later step of it is a `Problem` and costs nothing |
 
 At the end of the last step to a satellite's `DeployAt`, the satellite stays there
 (`Deploys`), carried there or flown there itself, with the sections part of it; a lander
@@ -236,8 +235,8 @@ to its default when the colour goes (`Part.SetHighlightType`, `SetHighlightColor
 The player sets per step, by stage number (`StagePlan`, kept on the stop the step leads
 to, by role):
 
-* *Save*: the step stops before the stage, and so before every stage after it, the
-  lander's included. KSP can only fire stages in order. What the step then lacks is
+* *Save* (*Use* off): the step stops before the stage, and so before every stage after it,
+  the lander's included. KSP can only fire stages in order. What the step then lacks is
   `Short`.
 * *Drop after*: at the step's end, after a refill, the stage goes with what it holds,
   and so does every stage before it on what flies the step, in KSP's order. The result
@@ -268,7 +267,8 @@ it, and the groups deployed after it. A group gone for good shows where it last 
 to. What flies a step burns its own groups' stages in
 KSP's order, and what KSP drops after a stage goes; a section alone pushes only its own
 mass and that of the sections part of it. A deployed group stays with what it weighs
-(`Payload`).
+(`Payload`); where it flew the step itself, what the step leaves is what it holds as it
+stays.
 
 Where the vessel has no parts to go by, as in the unit tests, the lander and the capsule
 are each a stage and every stage after it (`VesselSplit.ByStages`). What KSP drops as the
@@ -305,7 +305,8 @@ player sets something on it (`PlannerState.Keep`), under a fixed id (`FoundCapsu
 `FoundSatellite`), so that a readout of the vessel before a craft loaded writes nothing:
 
 * On a crewed vessel (a command part with seats), the capsule: the lightest choice with
-  a crewed command part, parachutes or not (`VesselShape.AutoCapsule`).
+  a crewed command part and parachutes, else the lightest crewed one
+  (`VesselShape.AutoCapsule`).
 * On an uncrewed vessel, the satellite: of the choices with a command part and no legs
   that leave the launch stage's engines behind, the one inside no other, where there is
   exactly one (`VesselShape.AutoSatellite`).
@@ -318,8 +319,10 @@ list closes when the vessel's groups change under it, as with undo. What was fou
 to `KSP.log` once per change, in a line that starts with `Planner found from`.
 
 After a step marked for it, a section that docks is refilled (`Refuelled`): each of its
-stages still there up to the propellant it held at the start, taken from the rest's
-stages in KSP's order, the one burning first. The mass moves from the rest to it.
+stages still there up to the propellant it held at the start, taken from the stage the
+player names first (`RouteStop.RefuelFrom`, `BudgetStep.RefuelFrom`; the list offers the
+rest's stages that hold fuel then, `Result.Tankers`), then from the rest's stages in KSP's
+order. The mass moves from the rest to it, whatever the propellant.
 
 ## Where the plans are kept
 
@@ -357,6 +360,7 @@ PLAN
         useAtmosphere = False
         by = Auto, Auto, Auto, Section 2
         refuel = False, False, False, False
+        refuelFrom = -1, -1, -1, -1
         orbitFirst = False
         splitBurns = False
         STAGE
@@ -372,7 +376,8 @@ PLAN
 A `SECTION`'s `group` is a part choice's key, `Automatic`, or empty where none is picked;
 `returns` is `Docks`, `Alone` or `Automatic`; `deployAt` a stop, -1 for the planner's.
 `dismissed` lists the kinds the planner added and the player removed. `by` is `Auto`,
-`Ship`, `Section` or `Without` with a section's id; `by` and `refuel` are per
+`Ship`, `Section` or `Without` with a section's id; `refuelFrom` a stage, -1 for KSP's
+order; `by`, `refuel` and `refuelFrom` are per
 step in the order launch, transfer, arrival, landing. A `STAGE` is a stage saved on a step
 (`Save`) or dropped after it (`DropAfter`); a stage left to burn has none.
 

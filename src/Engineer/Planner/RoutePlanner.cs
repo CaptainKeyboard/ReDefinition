@@ -63,6 +63,9 @@ namespace ReDefinition.Engineer
         // docks at the step's end is refilled from the rest's tanks.
         public int[] By = { -1, -1, -1, -1 };
         public bool[] Refuel = new bool[Roles];
+        // The rest's stage the section is refilled from first, by its number; -1 for
+        // KSP's order.
+        public int[] RefuelFrom = { -1, -1, -1, -1 };
         // For each step on the way here: the stages the player saves on it or drops
         // after it (StageBudget).
         public StagePlan[] Stages = { new StagePlan(), new StagePlan(), new StagePlan(), new StagePlan() };
@@ -81,6 +84,7 @@ namespace ReDefinition.Engineer
             RouteStop copy = (RouteStop)MemberwiseClone();
             copy.By = (int[])By.Clone();
             copy.Refuel = (bool[])Refuel.Clone();
+            copy.RefuelFrom = (int[])RefuelFrom.Clone();
             copy.Stages = Array.ConvertAll(Stages, plan => plan.Copy());
             return copy;
         }

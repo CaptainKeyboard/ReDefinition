@@ -731,6 +731,63 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void EachStepSaysWhatWhatFlewItHasLeft()
+        {
+            // 20 t, stage 1 burns 8 t and drops 4 t; stage 0 burns 4 of the 8 t left.
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(1, 20, 12), Stage(0, 8, 4) };
+            double total = stages.Sum(stage => stage.DeltaV);
+            StageBudget.Result result = Allocate(stages, new[] { 1000.0, 500.0 }, 0.0, null, -1, null);
+
+            Assert.AreEqual(total - 1000.0, result.LeftAfter[0], 1e-6, "all the rest after the first step");
+            Assert.AreEqual(total - 1500.0, result.LeftAfter[1], 1e-6);
+        }
+
+        [TestMethod]
+        public void ARefillComesFromTheStageThePlayerNamesFirst()
+        {
+            // The rest: S3 (4 t propellant) and S2 (4 t); the lander S0 (1 t, burnt on its
+            // own step), refilled from S2 rather than from S3, KSP's first.
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(3, 20, 16), Stage(2, 16, 12), Stage(0, 4, 3) };
+            VesselSplit split = Groups(new[] { 16.0, 4.0 }, 1, 0, 0, 0);
+            split.Owner[3] = 0;
+            split.Fuel[3] = split.Unit(0);
+            split.Drop[3] = split.Unit(0);
+            split.Owner[0] = 1;
+            split.Fuel[0] = split.Unit(1);
+            split.Drop[0] = split.Unit(1);
+            System.Func<int, StageBudget.Result> refill = from =>
+            {
+                BudgetStep alone = Step(Exhaust * System.Math.Log(4.0 / 3.0), 1);
+                alone.RefuelGroup = 1;
+                alone.RefuelFrom = from;
+                return StageBudget.Allocate(stages, new List<BudgetStep> { alone }, 0.0, null, split);
+            };
+            StageBudget.Result named = refill(2);
+            StageBudget.Result inOrder = refill(-1);
+
+            Assert.AreEqual(1.0, named.Refuelled[0], 1e-6, "the lander full again");
+            Assert.IsTrue(named.Left[3] > inOrder.Left[3], "S3 keeps its fuel where S2 gives it");
+            Assert.IsTrue(named.Left[2] < inOrder.Left[2], "and S2 gives it");
+        }
+
+        [TestMethod]
+        public void ASatelliteFlyingItselfKeepsWhatItHoldsAsItStays()
+        {
+            // S1 the upper stage (rest), S0 the satellite with its own engine (group 1,
+            // 2 t with 1 t propellant); the satellite flies its step and stays.
+            List<BudgetStage> stages = new List<BudgetStage> { Stage(1, 12, 6), Stage(0, 2, 1) };
+            VesselSplit split = Groups(new[] { 10.0, 2.0 }, 1, 0);
+            BudgetStep circularise = Step(500.0, 1);
+            circularise.Deploy.Add(1);
+            StageBudget.Result result = StageBudget.Allocate(stages, new List<BudgetStep> { Step(300.0, 0, 1), circularise }, 0.0,
+                null, split);
+
+            double left = Exhaust * System.Math.Log(2.0 / 1.0) - 500.0;
+            Assert.AreEqual(left, result.LeftAfter[1], 1e-6, "what the satellite has left as it stays");
+            Assert.AreEqual(left, result.Stages[1].Single(stage => stage.Stage == 0).LeftAfter, 1e-6);
+        }
+
+        [TestMethod]
         public void TwoLandersEachBurnTheirOwnStages()
         {
             // S3 the mothership (rest), S2 a lander for the Mun (group 1), S1 one for
@@ -1179,7 +1236,8 @@ namespace ReDefinition.Tests
             };
             List<RouteStep> steps = Route(Stock(), goals, true, false, true, false);
 
-            Assert.AreEqual("1L:S 2T:S 3L:L< 4L:L 5T:R 5L:C<", Shape(steps));
+            Assert.AreEqual("1L:S 2T:S 3L:L< 4L:L> 5T:R< 5L:C<", Shape(steps), "the lander docks, and is left from there");
+            Assert.IsTrue(steps[3].Leg.Lines.Any(line => line.Name == "Rendezvous and docking"));
             Assert.AreEqual(StopKind.Entry, steps[5].From.Kind, "the capsule leaves the rest in Kerbin's air");
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
@@ -1202,7 +1260,7 @@ namespace ReDefinition.Tests
             };
             List<RouteStep> steps = Route(JoolSystem(), goals, true, false, true, false);
 
-            Assert.AreEqual("1L:S 2T:S 3T:S 4L:L< 5L:L> 6T:S 7L:L< 8L:L 9T:R 9L:C<", Shape(steps));
+            Assert.AreEqual("1L:S 2T:S 3T:S 4L:L< 5L:L> 6T:S 7L:L< 8L:L> 9T:R< 9L:C<", Shape(steps));
             Assert.IsTrue(steps[4].RefuelAfter, "refilled as it docks after Laythe");
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
