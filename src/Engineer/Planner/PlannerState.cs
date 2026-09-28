@@ -39,10 +39,11 @@ namespace ReDefinition.Engineer
         public readonly HashSet<SectionKind> Dismissed = new HashSet<SectionKind>();
         private int nextId = 1;
 
-        // The ids of the capsule and the satellite the planner finds, as long as they
-        // are its own; the player's sections count up from 1.
+        // The ids of the capsule, the satellite and the lander the planner finds, as
+        // long as they are its own; the player's sections count up from 1.
         internal const int FoundCapsule = 901;
         internal const int FoundSatellite = 902;
+        internal const int FoundLander = 903;
 
         internal PlannedSection AddSection(SectionKind kind, string group)
         {
@@ -58,7 +59,7 @@ namespace ReDefinition.Engineer
         // on it.
         internal void Keep(PlannedSection section)
         {
-            if (section != null && !Sections.Contains(section)) Sections.Add(section);
+            if (section != null && !Sections.Contains(section)) Sections.Insert(0, section);
         }
 
         // A section goes, and with the last of its kind the planner no longer adds one

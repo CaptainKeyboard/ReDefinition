@@ -14,6 +14,7 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 |---|---|
 | `src/Engineer/Planner/RoutePlanner.cs` | the delta-v of the way from one point to another. Free of Unity |
 | `src/Engineer/Planner/RouteSteps.cs` | the steps between the destinations, who flies each, and where the lander leaves and docks. Free of Unity |
+| `src/Engineer/Planner/BurnCheck.cs` | how long each burn in orbit takes with the stages that fly it, against its orbit. Free of Unity |
 | `src/Engineer/Planner/StageBudget.cs` | which stage pays for which step, on the mass the stages push, the stages saved or dropped on a step, and the lander refilled from the rest. Free of Unity |
 | `src/Engineer/Planner/VesselShape.cs` | the parts of the vessel that can fly apart, the lander and the capsule found among them, and the stages shared out over them. Free of Unity |
 | `src/Engineer/Planner/PlannerBodies.cs` | the bodies of the loaded system, read from `FlightGlobals.Bodies` |
@@ -32,7 +33,7 @@ The planner uses no text to explain itself. From the top:
 * Every choice carries a tooltip of one sentence. KSP's button prefab has no tooltip
   controller, so `DialogTooltips.Attach` adds the game's own to every element with a
   tooltip once the rows are created.
-* *Sections*, up to six rows, each with what it is in the column of a step's place, its
+* *Vessel*, up to six rows, each with what it is in the column of a step's place, its
   parts on a button from the column of who flies a step, and its cross where a stop's
   cross is; under a satellite *Deployed at*, and a red line
   for a capsule without parachutes or a section overlapping another. *+* opens the list
@@ -55,6 +56,8 @@ The planner uses no text to explain itself. From the top:
   in groups of their own (*Burns*, *Way down*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
 * One bar sums up the route, with the margin and the plane changes under it.
+* *Fuel plan* and *Thrust* are headings with *+* and *-* where a step's "..." is, showing and
+  hiding what is under them.
 * The fuel plan: a row per step, up to 30, in the columns of the step rows (where it
   goes, who flies it), with what it needs and what what flew it has left after
   (`StageBudget.Result.LeftAfter`), in red what it lacks or where it has a problem; *+*
@@ -67,6 +70,17 @@ The planner uses no text to explain itself. From the top:
   refill (`Refuelled`) and what stays (`Payload`), and its warnings. A closed step writes
   no texts for its stage rows. The rows above select nothing: the fuel plan shows what it
   shows without a click on the route.
+* *Thrust*: a row per step that burns (`PlannerView.UpdateThrust`, worked out with the
+  budget, before the warnings), up to 30. On a launch or a landing on the engines, what it
+  needs and the deciding stage's TWR (`PlannerView.TwrAt`); on other steps the largest
+  share of its orbit a burn takes (`BurnCheck`). Open, each stage it burns with its TWR as
+  it starts and ends (`StageUse.Mass`, `EndMass`), in the air, its thrust and burn time;
+  each burn in orbit; the body. In the air, the thrust at the body's sea level
+  (`StageRow.ThrustAtSurface`: `ModuleEngines.MaxThrustOutputAtm` at each body's
+  `atmPressureASL`, `atmosphereTemperatureSeaLevel` and `atmDensityASL`, as KSP's
+  `DeltaVEngineInfo` does for its delta-v app's body); the warnings of a launch and a
+  landing use the same, and the step's longest burn losing more than 5 % adds a warning,
+  after the others.
 
 Choices are buttons of KSP's skin whose text is lit green while their option is chosen.
 The skin's pressed state of a toggle button reads the other way round, so it is not
@@ -133,8 +147,8 @@ a *Circularise* for that.
 Each step is flown by a `Flyer`: the whole vessel (`Ship`); one section alone, with the
 sections that are part of it (`Alone`); or the vessel leaving a section behind for good
 (`Without`). A section (`RouteSection`) is part of another or of the rest (`Parent`),
-docks again by itself or not (`Docks`, where a docking port separates it), and a satellite
-stays at a destination (`DeployAt`). The
+docks again by itself or not (`Docks`: a lander with a docking port where the rest has
+one, `VesselShape.CanDock`), and a satellite stays at a destination (`DeployAt`). The
 player sets who flies per step (`RouteStop.By`, by role, on the stop the step leads to,
 as `Flyer.Code`), or `RouteSteps.Build` works it out: the capsule once it has left; a
 capsule for a landing on parachutes on the last stop where what carries it is in the
@@ -188,6 +202,17 @@ deployed, and one not carried to where it stays; two landers.
 | aerobraking | 3 % of the circular speed at the arrival orbit, for raising the periapsis out of the air |
 | plane change | 2 × v × sin(Δi / 2), with v the slower of the transfer's two ends. Δi is the tilt between the two orbits around the common parent. Between a body and its own moon, it is the moon's tilt |
 | into the air | from another body, the transfer without a capture; from an orbit of the body, the burn down to half the atmosphere's depth, also before a landing on parachutes from that orbit. The landing from there is the landing's share alone |
+
+Each burn in a circular orbit keeps its body and the orbit's radius (`LegLine.Body`,
+`Radius`): a transfer burn where it leaves, a capture and a circularisation where it
+arrives, a deorbit where it starts; an aerobraking to a lower orbit of one body is the
+deorbit and the circularisation, and a climb to the rest's orbit its two burns.
+`BurnCheck.Burns` takes the step's burns in their order from its stages in theirs, each at
+its vacuum thrust and its exhaust speed (the stage's delta-v over ln(start mass / end
+mass)): a burn of Δv from mass m takes m (1 − e^(−Δv/v_e)) v_e / F. Against the orbit's
+period T, the burn spans the arc a = 2π t / T; held in one direction and centred on its
+point, it keeps sin(a/2) / (a/2) of its delta-v (`Burn.Loss`). Above 2 % lost it is
+orange, above 5 % red and a warning, at about 11 % and 17 % of the orbit.
 
 The launch figure is fitted, not simulated. The factors come from the stock system's
 known launch figures: Kerbin 3,400 m/s, Duna 1,450, Eve 8,000, Laythe 2,900, the Mun
@@ -304,10 +329,10 @@ among their separators whatever the order, named after its command part, else it
 engine. The plan keeps a choice as its separator's `persistentId` and side.
 
 The planner shows a section of its own where the plan has none of that kind, the player
-has not removed the last of that kind (`PlannerState.Dismissed`, cleared for a new
-craft), and the list has room (`PlannerView.Found`). It is the plan's only once the
-player sets something on it (`PlannerState.Keep`), under a fixed id (`FoundCapsule`,
-`FoundSatellite`), so that a readout of the vessel before a craft loaded writes nothing:
+has not removed the last of that kind (`PlannerState.Dismissed`, cleared for a new craft),
+and the list has room (`PlannerView.Found`). It is the plan's only once the player sets
+something on it (`PlannerState.Keep`), under a fixed id (`FoundCapsule`, `FoundSatellite`,
+`FoundLander`), so that a readout of the vessel before a craft loaded writes nothing:
 
 * On a crewed vessel (a command part with seats), the capsule: the lightest choice with
   a crewed command part and parachutes, else the lightest crewed one
@@ -315,12 +340,19 @@ player sets something on it (`PlannerState.Keep`), under a fixed id (`FoundCapsu
 * On an uncrewed vessel, the satellite: of the choices with a command part and no legs
   that leave the launch stage's engines behind, the one inside no other, where there is
   exactly one (`VesselShape.AutoSatellite`).
+* The lander: the lightest choice with a command part, an engine and legs whose engines do
+  not fire with the launch stage (`PartFacts.ActivatesAt`, as for the satellite), so that
+  a booster with legs that lands by itself is none; inside the capsule and the satellite
+  found or apart from them (`VesselShape.AutoLander`).
 
-A lander is always the player's. A satellite's *Deployed at* is by itself the first orbit
-the route reaches before it lands or ends. A section overlapping one before it counts for
-nothing; the lists offer only parts that fit the other sections, a lander's only with
-engines. A list closes when the vessel's groups change under it, as with undo. What was
-found goes to `KSP.log` once per change, in a line that starts with `Planner found from`.
+A found section gives way to the sections the plan has: it is not shown where it overlaps
+one. A second lander is the player's. The rows show capsules first, then the other
+sections as the player added them, what the planner found first of each. A satellite's
+*Deployed at* is by itself the first orbit the route reaches before it lands or ends. A
+section overlapping one before it counts for nothing; the lists offer only parts that fit
+the other sections, a lander's only with engines. A list closes when the vessel's groups
+change under it, as with undo. What was found goes to `KSP.log` once per change, in a line
+that starts with `Planner found from`.
 
 After a step marked for it, a section that docks is refilled (`Refuelled`): each of its
 stages still there up to the propellant it held at the start, taken from the stage the

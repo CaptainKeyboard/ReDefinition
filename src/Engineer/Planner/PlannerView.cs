@@ -97,7 +97,9 @@ namespace ReDefinition.Engineer
                 fresh = false;
                 foundCapsule = null;
                 foundSatellite = null;
+                foundLander = null;
                 fuelOpen.Clear();
+                thrustOpen.Clear();
                 nextEvaluation = 0f;
                 System.Array.Clear(more, 0, more.Length);
             }
@@ -179,6 +181,7 @@ namespace ReDefinition.Engineer
                 });
             budget = StageBudget.Allocate(available, BudgetSteps(), state.Margin, plans,
                 VesselShape.Split(available, parts, valid.ConvertAll(section => section.Group)));
+            UpdateThrust();
             warnings = new List<string>[steps.Count];
             for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
             UpdateBars();
@@ -504,12 +507,12 @@ namespace ReDefinition.Engineer
                 if (first == null) first = use;
                 lastUsed = use;
             }
-            if (launch && first != null && Twr(first, step.From.Body) < (bodies.Bodies[step.From.Body].HasAtmosphere ? 1.2 : 1.0))
-                list.Add("S" + first.Stage + " cannot lift off " + bodies.Bodies[step.From.Body].Name + ", TWR "
-                         + EngineerFormat.Ratio(Twr(first, step.From.Body)));
-            if (landing && lastUsed != null && Twr(lastUsed, step.To.Body) < 1.0)
-                list.Add("S" + lastUsed.Stage + " cannot land on " + bodies.Bodies[step.To.Body].Name + ", TWR "
-                         + EngineerFormat.Ratio(Twr(lastUsed, step.To.Body)));
+            double liftOff = first != null ? TwrAt(first.Stage, first.Mass, step.From.Body, true) : 0.0;
+            if (launch && first != null && liftOff < (bodies.Bodies[step.From.Body].HasAtmosphere ? 1.2 : 1.0))
+                list.Add("S" + first.Stage + " cannot lift off " + bodies.Bodies[step.From.Body].Name + ", TWR " + EngineerFormat.Ratio(liftOff));
+            double setDown = lastUsed != null ? TwrAt(lastUsed.Stage, lastUsed.Mass, step.To.Body, true) : 0.0;
+            if (landing && lastUsed != null && setDown < 1.0)
+                list.Add("S" + lastUsed.Stage + " cannot land on " + bodies.Bodies[step.To.Body].Name + ", TWR " + EngineerFormat.Ratio(setDown));
 
             // Parachutes for a landing on them; a heat shield where it comes down
             // from another body.
@@ -519,6 +522,12 @@ namespace ReDefinition.Engineer
                 if (!Carries(part => part.Parachute, step)) list.Add("No parachutes on " + who);
                 if (FromAfar(index) && !Carries(part => part.HeatShield, step)) list.Add("No heat shield on " + who);
             }
+            // The burn in orbit that takes so long that too much of it pushes the wrong
+            // way, the longest of the step.
+            Burn longest = index < thrustOf.Length && thrustOf[index] != null ? thrustOf[index].Longest : null;
+            if (longest != null && longest.Loss > BurnCheck.MaxLoss)
+                list.Add(longest.Line.Name + " takes " + EngineerFormat.Time(longest.Seconds) + ", " + Percent(longest.Share) + " of the orbit"
+                         + (longest.Line.Name == RoutePlanner.LeavingBurn ? ": more thrust, or split it over several orbits" : ": more thrust"));
             return list;
         }
 
@@ -539,15 +548,25 @@ namespace ReDefinition.Engineer
             return step.Role == StepRole.Land && across >= 0 && steps[across].From.Body != steps[across].To.Body;
         }
 
-        // The thrust in vacuum over the weight the stage pushes as it starts its
-        // part of the step, at the body's surface.
-        private double Twr(StageBudget.StageUse use, int body)
+        // The stage's thrust over the weight of `mass` at the body's surface: in vacuum,
+        // or in the air there where it has any (StageRow.ThrustAtSurface).
+        private double TwrAt(int stage, double mass, int body, bool air)
         {
-            StageRow row = stages.Find(s => s.Number == use.Stage);
+            StageRow row = stages.Find(s => s.Number == stage);
             PlannerBody planner = bodies.Bodies[body];
             double gravity = planner.Mu / (planner.Radius * planner.Radius);
-            if (row == null || use.Mass <= 0.0 || gravity <= 0.0) return 0.0;
-            return row.ThrustVacuum / (use.Mass * gravity);
+            if (row == null || mass <= 0.0 || gravity <= 0.0) return 0.0;
+            double thrust = row.ThrustVacuum;
+            double surface;
+            if (air && planner.HasAtmosphere && row.ThrustAtSurface.TryGetValue(planner.Id, out surface)) thrust = surface;
+            return thrust / (mass * gravity);
+        }
+
+        // The air at a body's surface, in atmospheres; 0 where it has none.
+        private double SurfaceAir(int body)
+        {
+            PlannerBody planner = bodies.Bodies[body];
+            return planner.HasAtmosphere ? planner.SurfacePressure : 0.0;
         }
 
         // A section refilled from the rest when it docks at the end of the step.

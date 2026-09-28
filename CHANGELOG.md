@@ -29,7 +29,9 @@
   every step with what it needs and what is left after it, in red what it lacks; a step
   opens to its stages, each with what it gives there, what it keeps and its TWR, to use
   it there or keep it for later and to drop it after the step; a refill can come from a
-  stage you pick. What blocks a step
+  stage you pick. *Thrust* lists every step that burns: on a launch or a landing on the
+  engines the TWR of the stage that decides, in the air where the body has any; on every
+  other burn how long it takes against its orbit and the delta-v that costs. What blocks a step
   shows in red under it: too little fuel, too little thrust to lift off or land, no
   parachutes or heat shield, a lander not where it has to be, a satellite not carried to
   where it stays. The plan is kept per vessel.

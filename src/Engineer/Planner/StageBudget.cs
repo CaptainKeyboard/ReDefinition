@@ -162,8 +162,10 @@ namespace ReDefinition.Engineer
             public int Stage;
             public int Leg;
             public double DeltaV;
-            // What the stage pushes as it starts this part of the step, in tonnes.
+            // What the stage pushes as it starts this part of the step, and as it ends
+            // it, in tonnes.
             public double Mass;
+            public double EndMass;
         }
 
         // A stage of what flies a step, with propellant as the step starts.
@@ -461,7 +463,7 @@ namespace ReDefinition.Engineer
                 double full = DeltaV(at, available, pushed);
                 double take = Math.Min(need, full);
                 double burnt = take >= full - 1e-9 ? available : pushed * (1.0 - Math.Exp(-take / exhaust[at]));
-                result.Uses.Add(new StageUse { Stage = order[at].Number, Leg = leg, DeltaV = take, Mass = pushed });
+                result.Uses.Add(new StageUse { Stage = order[at].Number, Leg = leg, DeltaV = take, Mass = pushed, EndMass = pushed - burnt });
                 for (int g = 0; g < groups; g++)
                 {
                     if (!side[g] || fuel[at, g] <= 0.0) continue;

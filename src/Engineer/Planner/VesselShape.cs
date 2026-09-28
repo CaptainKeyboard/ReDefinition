@@ -69,8 +69,8 @@ namespace ReDefinition.Engineer
     // the launch clamps and the parts KSP stages away before its command part, its legs
     // and its parachutes (unless its own engines still carry them), and of what is left
     // only the parts still joined to its command part. The planner finds a crewed
-    // vessel's capsule and an uncrewed vessel's one satellite by itself; the rest is
-    // the player's pick. Sections lie inside one another or apart, and the vessel
+    // vessel's capsule, an uncrewed vessel's one satellite and a lander by itself;
+    // the rest is the player's pick. Sections lie inside one another or apart, and the vessel
     // falls into the rest and the sections by them (Split). Free of Unity, tested.
     internal static class VesselShape
     {
@@ -124,21 +124,60 @@ namespace ReDefinition.Engineer
         // no other, where there is exactly one such.
         internal static PartGroupChoice AutoSatellite(IList<PartFacts> parts, IList<PartGroupChoice> choices)
         {
-            int first = int.MinValue;
-            foreach (PartFacts part in parts)
-                if (part.Engine) first = Math.Max(first, part.ActivatesAt);
+            int first = FirstFiring(parts);
             List<PartGroupChoice> found = new List<PartGroupChoice>();
             foreach (PartGroupChoice choice in choices)
-            {
-                if (!choice.Command || choice.Legs) continue;
-                bool launches = false;
-                foreach (int at in choice.Members)
-                    if (parts[at].Engine && parts[at].ActivatesAt == first) launches = true;
-                if (!launches) found.Add(choice);
-            }
+                if (choice.Command && !choice.Legs && !Launches(parts, choice, first)) found.Add(choice);
             List<PartGroupChoice> innermost = found.FindAll(choice =>
                 !found.Exists(other => other != choice && other.Members.IsProperSubsetOf(choice.Members)));
             return innermost.Count == 1 ? innermost[0] : null;
+        }
+
+        // A lander: the lightest choice with a command part, an engine and landing
+        // legs whose engines do not fire with the launch stage, so that no booster with
+        // legs that lands by itself is taken for it; inside the capsule or the
+        // satellite or apart from them, not one of them.
+        internal static PartGroupChoice AutoLander(IList<PartFacts> parts, IList<PartGroupChoice> choices, PartGroupChoice capsule,
+                                                   PartGroupChoice satellite)
+        {
+            int first = FirstFiring(parts);
+            foreach (PartGroupChoice choice in choices)
+                if (choice.Command && choice.Engine && choice.Legs && !Launches(parts, choice, first) && Fits(choice, capsule)
+                    && Fits(choice, satellite))
+                    return choice;
+            return null;
+        }
+
+        // A lander can dock again: a docking port among its parts, and one among the
+        // vessel's others.
+        internal static bool CanDock(IList<PartFacts> parts, PartGroupChoice lander)
+        {
+            if (lander == null) return false;
+            bool inside = false, outside = false;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                if (parts[i].Separator != Separation.DockingPort) continue;
+                if (lander.Members.Contains(i)) inside = true;
+                else outside = true;
+            }
+            return inside && outside;
+        }
+
+        // The stage KSP fires the first engines in.
+        private static int FirstFiring(IList<PartFacts> parts)
+        {
+            int first = int.MinValue;
+            foreach (PartFacts part in parts)
+                if (part.Engine) first = Math.Max(first, part.ActivatesAt);
+            return first;
+        }
+
+        // An engine of the choice fires with the launch stage.
+        private static bool Launches(IList<PartFacts> parts, PartGroupChoice choice, int first)
+        {
+            foreach (int at in choice.Members)
+                if (parts[at].Engine && parts[at].ActivatesAt == first) return true;
+            return false;
         }
 
         // Two sections inside one another or apart; not overlapping.

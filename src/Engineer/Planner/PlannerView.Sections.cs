@@ -39,10 +39,12 @@ namespace ReDefinition.Engineer
         private int[] partGroups = new int[0];
         private PartGroupChoice detectedCapsule;
         private PartGroupChoice detectedSatellite;
-        // The capsule and the satellite the planner finds, shown while it finds them
-        // and kept in the plan only once the player sets something on them.
+        private PartGroupChoice detectedLander;
+        // The capsule, the satellite and the lander the planner finds, shown while it
+        // finds them and kept in the plan only once the player sets something on them.
         private PlannedSection foundCapsule;
         private PlannedSection foundSatellite;
+        private PlannedSection foundLander;
         // What the log last said was found, so that it says it once.
         private string detectedLogged;
         // The groups' keys and sizes as last read.
@@ -67,9 +69,20 @@ namespace ReDefinition.Engineer
             bool crewed = VesselShape.Crewed(facts);
             detectedCapsule = crewed ? VesselShape.AutoCapsule(groups) : null;
             detectedSatellite = crewed ? null : VesselShape.AutoSatellite(facts, groups);
+            detectedLander = VesselShape.AutoLander(facts, groups, detectedCapsule, detectedSatellite);
             List<PlannedSection> plans = new List<PlannedSection>(state.Sections);
             Found(plans, SectionKind.Capsule, detectedCapsule, ref foundCapsule, PlannerState.FoundCapsule);
             Found(plans, SectionKind.Satellite, detectedSatellite, ref foundSatellite, PlannerState.FoundSatellite);
+            Found(plans, SectionKind.Lander, detectedLander, ref foundLander, PlannerState.FoundLander);
+            // Capsules first, then the others as the player added them; what the planner
+            // found first of each.
+            List<PlannedSection> ordered = new List<PlannedSection>();
+            foreach (bool capsules in new[] { true, false })
+                foreach (bool planners in new[] { true, false })
+                    foreach (PlannedSection plan in plans)
+                        if ((plan.Kind == SectionKind.Capsule) == capsules && (plan.Id >= PlannerState.FoundCapsule) == planners)
+                            ordered.Add(plan);
+            plans = ordered;
 
             live.Clear();
             valid.Clear();
@@ -91,7 +104,9 @@ namespace ReDefinition.Engineer
             foreach (LiveSection section in live)
             {
                 section.DeployAt = DeployStop(section.Plan);
-                section.Docks = section.Group != null && section.Group.DockingPort;
+                // A lander docks again by itself where it can, with docking ports on it
+                // and on the rest; flying on alone is the player's choice.
+                section.Docks = section.Plan.Kind == SectionKind.Lander && VesselShape.CanDock(facts, section.Group);
             }
 
             partGroups = new int[facts.Count];
@@ -104,7 +119,8 @@ namespace ReDefinition.Engineer
                 partGroups[i] = best + 1;
             }
 
-            string found = "capsule " + GroupName(detectedCapsule) + ", satellite " + GroupName(detectedSatellite) + ", "
+            string found = "capsule " + GroupName(detectedCapsule) + ", satellite " + GroupName(detectedSatellite) + ", lander "
+                           + GroupName(detectedLander) + ", "
                            + (crewed ? "crewed" : "uncrewed") + ", " + groups.Count + " separable groups, " + valid.Count + " sections";
             if (facts.Count > 0 && found != detectedLogged)
             {
@@ -113,14 +129,21 @@ namespace ReDefinition.Engineer
             }
         }
 
-        // A capsule or satellite the planner found is a section while it finds it: unless
-        // the plan has one of that kind, the player took that kind away, or the list is
-        // full. It goes into the plan only once the player sets something on it (Keep).
+        // A capsule, satellite or lander the planner found is a section while it finds
+        // it: unless the plan has one of that kind or one it overlaps, the player took
+        // that kind away, or the list is full. It goes into the plan only once the player sets something
+        // on it (Keep).
         private void Found(List<PlannedSection> plans, SectionKind kind, PartGroupChoice found, ref PlannedSection section, int id)
         {
             if (found == null || state.Dismissed.Contains(kind) || plans.Count >= MaxSections
                 || plans.Exists(plan => plan.Kind == kind))
                 return;
+            // A guess gives way to the sections the plan has.
+            foreach (PlannedSection plan in plans)
+            {
+                PartGroupChoice group = plan.Group == PlannerState.Automatic ? Detected(plan.Kind) : Group(plan.Group);
+                if (group != null && !VesselShape.Fits(found, group)) return;
+            }
             if (section == null) section = new PlannedSection { Id = id, Kind = kind, Group = PlannerState.Automatic };
             plans.Add(section);
         }
@@ -139,6 +162,7 @@ namespace ReDefinition.Engineer
             {
                 case SectionKind.Capsule: return detectedCapsule;
                 case SectionKind.Satellite: return detectedSatellite;
+                case SectionKind.Lander: return detectedLander;
                 default: return null;
             }
         }
@@ -382,9 +406,8 @@ namespace ReDefinition.Engineer
             if (!Ready() || plan == null) return;
             List<Choice> choices = new List<Choice>();
             PartGroupChoice found = Detected(plan.Kind);
-            if (plan.Kind != SectionKind.Lander)
-                AddPart(choices, "Automatic", AutomaticTooltip(plan.Kind), plan.Group == PlannerState.Automatic,
-                    () => SetSectionGroup(plan, PlannerState.Automatic), found);
+            AddPart(choices, "Automatic", AutomaticTooltip(plan.Kind), plan.Group == PlannerState.Automatic,
+                () => SetSectionGroup(plan, PlannerState.Automatic), found);
             foreach (PartGroupChoice group in groups)
             {
                 if (!group.Command || (plan.Kind == SectionKind.Lander && !group.Engine)) continue;
@@ -393,7 +416,7 @@ namespace ReDefinition.Engineer
                 AddPart(choices, group.Name, PartsTooltip(plan.Kind), plan.Group == key, () => SetSectionGroup(plan, key), group);
             }
             // Nothing that fits: the list says so rather than not opening.
-            if (choices.Count == 0 || (choices.Count == 1 && plan.Kind != SectionKind.Lander && found == null))
+            if (choices.Count == 1 && found == null)
                 choices.Add(new Choice
                 {
                     Label = "<color=" + Dim + ">No separable part fits</color>",
@@ -407,9 +430,12 @@ namespace ReDefinition.Engineer
 
         private static string AutomaticTooltip(SectionKind kind)
         {
-            return kind == SectionKind.Capsule
-                ? "The smallest part with a crewed command part."
-                : "The one part of an uncrewed vessel with a command part that leaves the launch stage.";
+            switch (kind)
+            {
+                case SectionKind.Capsule: return "The smallest part with a crewed command part.";
+                case SectionKind.Satellite: return "The one part of an uncrewed vessel with a command part that leaves the launch stage.";
+                default: return "The smallest part with a command part, engines and landing legs whose engines do not fire at launch.";
+            }
         }
 
         private static string PartsTooltip(SectionKind kind)
@@ -471,6 +497,10 @@ namespace ReDefinition.Engineer
             Dropdown.Close(this);
             if (state.Sections.Contains(section.Plan)) state.RemoveSection(section.Plan);
             else state.Dismissed.Add(section.Plan.Kind);
+            // A found section comes back new, not with what was set on it.
+            if (section.Plan == foundCapsule) foundCapsule = null;
+            if (section.Plan == foundSatellite) foundSatellite = null;
+            if (section.Plan == foundLander) foundLander = null;
             Changed();
         }
 

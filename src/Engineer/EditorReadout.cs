@@ -189,7 +189,32 @@ namespace ReDefinition.Engineer
                 }
             }
             row.ThrustTorque = ThrustTorque(info, partInfos);
+            SurfaceThrust(row, info, vectoredThrust);
             return row;
+        }
+
+        // The stage's thrust at the surface of each body with air, as KSP gives it at
+        // the sea level of its delta-v app's body (DeltaVEngineInfo.CalculateThrustVector:
+        // ModuleEngines.MaxThrustOutputAtm at the body's atmPressureASL,
+        // atmosphereTemperatureSeaLevel and atmDensityASL; decompiled). The vectored
+        // thrust in the same share of the full thrust as in vacuum.
+        private static void SurfaceThrust(StageRow row, DeltaVStageInfo info, bool vectoredThrust)
+        {
+            if (info.enginesActiveInStage == null || FlightGlobals.Bodies == null) return;
+            double share = vectoredThrust && info.thrustVac > 0f ? info.vectoredThrustVac / info.thrustVac : 1.0;
+            foreach (CelestialBody body in FlightGlobals.Bodies)
+            {
+                if (body == null || !body.atmosphere) continue;
+                double thrust = 0.0;
+                foreach (DeltaVEngineInfo engineInfo in info.enginesActiveInStage)
+                {
+                    ModuleEngines engine = engineInfo != null ? engineInfo.engine : null;
+                    if (engine == null) continue;
+                    thrust += engine.MaxThrustOutputAtm(false, true, (float)body.atmPressureASL, body.atmosphereTemperatureSeaLevel,
+                        body.atmDensityASL);
+                }
+                row.ThrustAtSurface[body.bodyName] = thrust * share;
+            }
         }
 
         // The engines active in the stage, and every part that has less

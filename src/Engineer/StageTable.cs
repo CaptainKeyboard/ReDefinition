@@ -23,6 +23,8 @@ namespace ReDefinition.Engineer
         // In vacuum, whatever situation is chosen: what the planner budgets with.
         public double DeltaVVacuum;
         public double ThrustVacuum;
+        // At the surface of each body with air, by its name (CelestialBody.bodyName).
+        public readonly Dictionary<string, double> ThrustAtSurface = new Dictionary<string, double>();
         // The engines that burn in it, as "2 x LV-T45"; empty where none do.
         public string Engines = "";
 

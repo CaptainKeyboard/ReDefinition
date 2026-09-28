@@ -94,6 +94,10 @@ namespace ReDefinition.Engineer
     {
         public string Name;
         public double DeltaV;
+        // A burn in a circular orbit: the body and the orbit's radius, in metres; -1
+        // where it is no such burn (a launch, a landing, a plane change on the way).
+        public int Body = -1;
+        public double Radius;
     }
 
     // What going from one stop to the next costs, burn by burn.
@@ -113,9 +117,9 @@ namespace ReDefinition.Engineer
             }
         }
 
-        internal void Add(string name, double deltaV)
+        internal void Add(string name, double deltaV, int body = -1, double radius = 0.0)
         {
-            if (deltaV > 0.5) Lines.Add(new LegLine { Name = name, DeltaV = deltaV });
+            if (deltaV > 0.5) Lines.Add(new LegLine { Name = name, DeltaV = deltaV, Body = body, Radius = radius });
         }
     }
 
@@ -183,7 +187,7 @@ namespace ReDefinition.Engineer
                 // From an orbit down to a periapsis in the air.
                 double deorbit, unused;
                 Hohmann(start.Mu, departRadius, end.Radius + end.AtmosphereDepth * AerobrakeDepth, out deorbit, out unused);
-                leg.Add("Deorbit into the air", deorbit);
+                leg.Add("Deorbit into the air", deorbit, from.Body, departRadius);
                 return leg;
             }
 
@@ -199,7 +203,7 @@ namespace ReDefinition.Engineer
                 {
                     // Down from the orbit into the air, then on the parachutes.
                     Hohmann(start.Mu, departRadius, end.Radius + end.AtmosphereDepth * AerobrakeDepth, out first, out second);
-                    leg.Add("Deorbit into the air", first);
+                    leg.Add("Deorbit into the air", first, from.Body, departRadius);
                     leg.Add("Landing", Landing(end, true));
                     return leg;
                 }
@@ -207,12 +211,13 @@ namespace ReDefinition.Engineer
                 {
                     // Down into the upper air, then out of it at the new orbit.
                     Hohmann(start.Mu, departRadius, end.Radius + end.AtmosphereDepth * AerobrakeDepth, out first, out second);
-                    leg.Add("Aerobraking, then circularise", first + Circular(end.Mu, arriveRadius) * AerobrakeShare);
+                    leg.Add("Deorbit into the air", first, from.Body, departRadius);
+                    leg.Add("Aerobraking, then circularise", Circular(end.Mu, arriveRadius) * AerobrakeShare, to.Body, arriveRadius);
                     return leg;
                 }
                 Hohmann(start.Mu, departRadius, arriveRadius, out first, out second);
-                leg.Add(LeavingBurn, first);
-                leg.Add("Circularise", second);
+                leg.Add(LeavingBurn, first, from.Body, departRadius);
+                leg.Add("Circularise", second, to.Body, arriveRadius);
                 if (to.Kind == StopKind.Surface) leg.Add("Landing", Landing(end, to.UseAtmosphere));
                 return leg;
             }
@@ -238,30 +243,12 @@ namespace ReDefinition.Engineer
             double arriveSpeed = VisViva(parent.Mu, outer, transferA);
 
             if (startChild < 0)
-                leg.Add("Transfer burn", Math.Abs(departSpeed - Circular(parent.Mu, inner)));
+                leg.Add(LeavingBurn, Math.Abs(departSpeed - Circular(parent.Mu, inner)), from.Body, departRadius);
             else
-                leg.Add("Transfer burn", Leave(bodies, up, startChild, from.Body, departRadius,
-                    Math.Abs(departSpeed - Circular(parent.Mu, inner))));
+                leg.Add(LeavingBurn, Leave(bodies, up, startChild, from.Body, departRadius,
+                    Math.Abs(departSpeed - Circular(parent.Mu, inner))), from.Body, departRadius);
 
-            if (to.Kind == StopKind.Entry)
-            {
-                // Straight into the air: nothing to capture.
-            }
-            else if (endChild < 0)
-            {
-                double capture = Math.Abs(Circular(parent.Mu, outer) - arriveSpeed);
-                leg.Add(to.UseAtmosphere && end.HasAtmosphere ? "Aerobraking, then circularise" : "Capture into orbit",
-                    to.UseAtmosphere && end.HasAtmosphere ? Circular(parent.Mu, outer) * AerobrakeShare : capture);
-            }
-            else
-            {
-                double excess = Math.Abs(Circular(parent.Mu, outer) - arriveSpeed);
-                double capture = Leave(bodies, down, endChild, to.Body, arriveRadius, excess);
-                leg.Add(to.UseAtmosphere && end.HasAtmosphere ? "Aerobraking, then circularise" : "Capture into orbit",
-                    to.UseAtmosphere && end.HasAtmosphere ? Circular(end.Mu, arriveRadius) * AerobrakeShare : capture);
-            }
-
-            // Between two children of the common parent, the tilt between their
+            // On the way across, before the capture. Between two children of the common parent, the tilt between their
             // orbits; between a body and its own moon, the moon's tilt against
             // the low orbit over the body's equator.
             if (planeChanges && (startChild >= 0 || endChild >= 0))
@@ -271,6 +258,24 @@ namespace ReDefinition.Engineer
                 double tilt = Math.Abs(startTilt - endTilt) * Math.PI / 180.0;
                 double slowest = Math.Min(departSpeed, arriveSpeed);
                 leg.Add("Plane change", 2.0 * slowest * Math.Sin(tilt / 2.0));
+            }
+
+            if (to.Kind == StopKind.Entry)
+            {
+                // Straight into the air: nothing to capture.
+            }
+            else if (endChild < 0)
+            {
+                double capture = Math.Abs(Circular(parent.Mu, outer) - arriveSpeed);
+                leg.Add(to.UseAtmosphere && end.HasAtmosphere ? "Aerobraking, then circularise" : "Capture into orbit",
+                    to.UseAtmosphere && end.HasAtmosphere ? Circular(parent.Mu, outer) * AerobrakeShare : capture, to.Body, arriveRadius);
+            }
+            else
+            {
+                double excess = Math.Abs(Circular(parent.Mu, outer) - arriveSpeed);
+                double capture = Leave(bodies, down, endChild, to.Body, arriveRadius, excess);
+                leg.Add(to.UseAtmosphere && end.HasAtmosphere ? "Aerobraking, then circularise" : "Capture into orbit",
+                    to.UseAtmosphere && end.HasAtmosphere ? Circular(end.Mu, arriveRadius) * AerobrakeShare : capture, to.Body, arriveRadius);
             }
 
             if (to.Kind == StopKind.Surface) leg.Add("Landing", Landing(end, to.UseAtmosphere));

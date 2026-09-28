@@ -839,7 +839,9 @@ namespace ReDefinition.Tests
             low.UseAtmosphere = true;
             Leg braked = RoutePlanner.LegOf(Stock(), Orbit(Kerbin, 500000), low, 0, false);
 
-            Assert.IsTrue(braked.Lines.Single().Name.StartsWith("Aerobraking"));
+            CollectionAssert.AreEqual(new[] { "Deorbit into the air", "Aerobraking, then circularise" },
+                braked.Lines.Select(line => line.Name).ToArray(), "down where it starts, circularised where it ends");
+            Near(1100000, braked.Lines[0].Radius, 1, "the deorbit in the 500 km orbit");
             Assert.IsTrue(braked.DeltaV < burnt.DeltaV, braked.DeltaV.ToString("0") + " < " + burnt.DeltaV.ToString("0"));
         }
 
@@ -1414,6 +1416,128 @@ namespace ReDefinition.Tests
             // docks, and the whole vessel comes home.
             List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Surface(Mun), Surface(Kerbin, true) };
             Assert.AreEqual("1L:S 1T:S 1L:L< 2L:L> 2T:S 2L:S", Shape(Route(Stock(), goals, true, false)));
+        }
+
+        [TestMethod]
+        public void TheLanderIsFoundByItself()
+        {
+            // Apollo's lander, whose engines fire after the Poodle's launch stage; the
+            // Kerbal X's upper stage with legs, the capsule inside it.
+            List<PartFacts> apollo = Firing(Apollo(), 15);
+            List<PartGroupChoice> groups = VesselShape.Candidates(apollo);
+            PartGroupChoice lander = VesselShape.AutoLander(apollo, groups, VesselShape.AutoCapsule(groups), null);
+            Assert.IsNotNull(lander);
+            CollectionAssert.AreEquivalent(new[] { 6, 7, 8, 9, 10, 11, 12 }, lander.Members.ToArray());
+            Assert.IsTrue(VesselShape.CanDock(apollo, lander), "ports on the lander and on the rest");
+
+            List<PartFacts> kerbalX = Firing(KerbalX(), 7);
+            kerbalX.Add(Part(3, 1, 0.2, "LT-1 Landing Struts", legs: true));
+            groups = VesselShape.Candidates(kerbalX);
+            lander = VesselShape.AutoLander(kerbalX, groups, VesselShape.AutoCapsule(groups), null);
+            Assert.IsNotNull(lander);
+            CollectionAssert.AreEquivalent(new[] { 0, 1, 2, 3, 4, 8 }, lander.Members.ToArray(), "the pod, the upper stage, its legs");
+            Assert.IsFalse(VesselShape.CanDock(kerbalX, lander), "no docking port: it flies on alone");
+        }
+
+        [TestMethod]
+        public void NoLanderWithoutLegsOrOnABooster()
+        {
+            List<PartFacts> parts = Firing(KerbalX(), 7);
+            List<PartGroupChoice> groups = VesselShape.Candidates(parts);
+            Assert.IsNull(VesselShape.AutoLander(parts, groups, VesselShape.AutoCapsule(groups), null), "no landing legs");
+
+            // A radial booster that lands itself: probe core, engine and legs under a
+            // radial decoupler, its engine firing at launch.
+            parts.Add(Part(6, 3, 0.05, "TT-38K", separator: Separation.Anchored));
+            parts.Add(Part(8, 3, 0.1, "OKTO", command: true));
+            parts.Add(Part(9, 3, 1.5, "Swivel", engine: true));
+            parts.Add(Part(9, 3, 0.2, "LT-1 Landing Struts", legs: true));
+            parts[10].ActivatesAt = 4;
+            groups = VesselShape.Candidates(parts);
+            Assert.IsNull(VesselShape.AutoLander(parts, groups, VesselShape.AutoCapsule(groups), null));
+
+            // Legs on the core stage under the upper stage, which fires at launch.
+            parts = Firing(KerbalX(), 7);
+            parts.Add(Part(6, 3, 0.2, "LT-1 Landing Struts", legs: true));
+            groups = VesselShape.Candidates(parts);
+            PartGroupChoice lander = VesselShape.AutoLander(parts, groups, VesselShape.AutoCapsule(groups), null);
+            Assert.IsTrue(lander == null || !lander.Members.Contains(7), "not with the launch stage's engine");
+        }
+
+        [TestMethod]
+        public void AProbeLanderUnderARelayIsTheLanderNotTheRelay()
+        {
+            // The relay's probe core (0, 1) found as the satellite, a decoupler, the
+            // probe lander with its engine and legs (3-6), a decoupler, the booster.
+            List<PartFacts> parts = new List<PartFacts>
+            {
+                Part(-1, -1, 0.1, "OKTO2", command: true), Part(0, -1, 0.3, "RA-2 Relay Antenna"),
+                Part(0, 1, 0.05, "TD-06", separator: Separation.Decoupler), Part(2, 1, 0.2, "HECS", command: true),
+                Part(3, 1, 0.5, "Spark", engine: true), Part(3, 1, 0.1, "LT-05 Micro Landing Strut", legs: true),
+                Part(3, 1, 0.3, "FL-T100"), Part(4, 3, 0.05, "TD-12", separator: Separation.Decoupler),
+                Part(7, 3, 4.0, "FL-T800"), Part(8, 3, 1.5, "Swivel", engine: true),
+            };
+            parts[4].ActivatesAt = 2;
+            parts[9].ActivatesAt = 4;
+            List<PartGroupChoice> groups = VesselShape.Candidates(parts);
+            PartGroupChoice satellite = VesselShape.AutoSatellite(parts, groups);
+            PartGroupChoice lander = VesselShape.AutoLander(parts, groups, null, satellite);
+
+            Assert.IsNotNull(lander);
+            Assert.IsFalse(lander.Members.Contains(0), "the relay stays");
+            Assert.IsTrue(lander.Members.Contains(3) && lander.Members.Contains(4) && lander.Members.Contains(5));
+        }
+
+        // The parts with the engine at `launch` firing first, the others after it.
+        private static List<PartFacts> Firing(List<PartFacts> parts, int launch)
+        {
+            for (int i = 0; i < parts.Count; i++)
+                if (parts[i].Engine) parts[i].ActivatesAt = i == launch ? 4 : 1;
+            return parts;
+        }
+
+        [TestMethod]
+        public void TheBurnsOfAWayToTheMunKnowTheOrbitTheyBurnIn()
+        {
+            Leg leg = RoutePlanner.LegOf(Stock(), Orbit(Kerbin, 80000), Orbit(Mun, 14000), 0, false);
+            LegLine leave = leg.Lines.Single(line => line.Name == RoutePlanner.LeavingBurn);
+            LegLine capture = leg.Lines.Single(line => line.Name == "Capture into orbit");
+
+            Assert.AreEqual(Kerbin, leave.Body);
+            Near(680000, leave.Radius, 1, "low Kerbin orbit");
+            Assert.AreEqual(Mun, capture.Body);
+            Near(214000, capture.Radius, 1, "low Mun orbit");
+        }
+
+        [TestMethod]
+        public void ABurnTakesAsLongAsItsPropellantFlows()
+        {
+            // One stage of 10 t, 5 t of it propellant, 3000 m/s exhaust speed, 100 kN:
+            // 1000 m/s burn 2.83 t in 85 s; after the plane change 1.93 t are left, 58 s.
+            BurnStage stage = new BurnStage { Stage = 1, Mass = 10, EndMass = 5, DeltaV = 3000 * System.Math.Log(2), Thrust = 100 };
+            Leg leg = new Leg();
+            leg.Add(RoutePlanner.LeavingBurn, 1000, Kerbin, 680000);
+            leg.Add("Plane change", 100);
+            leg.Add("Capture into orbit", 2000, Mun, 214000);
+            List<Burn> burns = BurnCheck.Burns(Stock(), leg, new List<BurnStage> { stage });
+
+            Assert.AreEqual(2, burns.Count, "the plane change on the way is no burn in orbit");
+            Near(85.04, burns[0].Seconds, 0.05, "the transfer burn");
+            Near(1874.8, burns[0].Period, 0.5, "the low Kerbin orbit");
+            Assert.IsFalse(burns[0].Short);
+            Near(57.91, burns[1].Seconds, 0.05, "the capture, as far as the propellant goes");
+            Assert.IsTrue(burns[1].Short);
+            Near(150, stage.Seconds, 0.05, "the stage's own burn time");
+        }
+
+        [TestMethod]
+        public void ALongBurnLosesWhatPointsAwayOverItsArc()
+        {
+            Assert.AreEqual(0.0, new Burn { Seconds = 0, Period = 1800 }.Loss);
+            Near(1.0 - 2.0 / System.Math.PI, new Burn { Seconds = 900, Period = 1800 }.Loss, 1e-9, "half an orbit");
+            Assert.AreEqual(1.0, new Burn { Seconds = 2000, Period = 1800 }.Loss, "more than an orbit");
+            Assert.IsTrue(new Burn { Seconds = 90, Period = 1800 }.Loss < BurnCheck.WarnLoss, "a twentieth of the orbit loses little");
+            Assert.IsTrue(new Burn { Seconds = 180, Period = 1800 }.Loss < BurnCheck.WarnLoss, "a tenth still under the warning");
         }
     }
 }

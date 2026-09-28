@@ -62,7 +62,7 @@ namespace ReDefinition.Engineer
         {
             altitudeFields.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            rows.Add(Heading("Sections"));
+            rows.Add(Heading("Vessel"));
             for (int i = 0; i < MaxSections; i++) rows.AddRange(SectionRows(i));
             rows.Add(AddSectionRow());
             rows.Add(Heading("Route"));
@@ -76,6 +76,7 @@ namespace ReDefinition.Engineer
 
             rows.AddRange(SummaryRows());
             rows.AddRange(FuelRows());
+            rows.AddRange(ThrustRows());
             return rows;
         }
 
@@ -486,14 +487,16 @@ namespace ReDefinition.Engineer
         private readonly SegmentBar[,] fuelSwatches = new SegmentBar[MaxFuelSteps, MaxStepStages];
         // The steps open, by destination and role.
         private readonly HashSet<int> fuelOpen = new HashSet<int>();
+        private bool fuelShown = true;
 
         private IEnumerable<DialogGUIBase> FuelRows()
         {
-            yield return Heading("Fuel plan");
+            yield return CollapsibleHeading("Fuel plan", () => fuelShown, () => fuelShown = !fuelShown,
+                "Show or hide what each step needs and leaves.");
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
                 DimLabel("Left after", FuelLeft));
-            names.OptionEnabledCondition = () => Worked() && steps.Count > 0;
+            names.OptionEnabledCondition = () => fuelShown && Worked() && steps.Count > 0;
             yield return names;
             for (int i = 0; i < MaxFuelSteps; i++)
                 foreach (DialogGUIBase row in FuelStepRows(i))
@@ -501,7 +504,7 @@ namespace ReDefinition.Engineer
             DialogGUIHorizontalLayout more = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline),
                 new DialogGUILabel(() => "<color=" + Dim + ">" + (steps.Count - MaxFuelSteps) + " more steps</color>", width - Timeline));
-            more.OptionEnabledCondition = () => Worked() && steps.Count > MaxFuelSteps;
+            more.OptionEnabledCondition = () => fuelShown && Worked() && steps.Count > MaxFuelSteps;
             yield return more;
         }
 
@@ -512,7 +515,7 @@ namespace ReDefinition.Engineer
 
         private bool FuelStepShown(int step)
         {
-            return Worked() && step < steps.Count;
+            return fuelShown && Worked() && step < steps.Count;
         }
 
         private int FuelKey(int step)
@@ -756,7 +759,7 @@ namespace ReDefinition.Engineer
             StageBudget.StageUse use = budget.Uses.Find(item => item.Leg == step && item.Stage == stage.Stage);
             if (use == null) return "";
             int body = launch ? routeStep.From.Body : routeStep.To.Body;
-            double twr = Twr(use, body);
+            double twr = TwrAt(use.Stage, use.Mass, body, true);
             double least = launch && bodies.Bodies[body].HasAtmosphere ? 1.2 : 1.0;
             StageBudget.StageUse first = budget.Uses.Find(item => item.Leg == step);
             StageBudget.StageUse last = budget.Uses.FindLast(item => item.Leg == step);
@@ -786,6 +789,311 @@ namespace ReDefinition.Engineer
                         new KeyValuePair<float, Color>(Swatch, stage != null ? StageColour(stage.Stage) : Color.clear),
                     });
                 }
+        }
+
+        // ---------------------------------------------------------------- thrust
+
+        // Whether the thrust does the job, for every step that burns: the thrust
+        // against the weight where it decides, a launch and a landing on the engines;
+        // the time each burn in orbit takes against the orbit it is in. Each step with
+        // what it needs and what it has; open, each stage it burns with its TWR as it
+        // starts and as it ends its part, in the air where the body has any, its thrust
+        // and how long it burns, then each burn in orbit and the body.
+        private const float TwrColumn = 56f;
+        private const float ThrustColumn = 72f;
+        private const float BurnColumn = 64f;
+        private const float BurnName = 180f;
+
+        // A step as the thrust section shows it, worked out with the budget.
+        private sealed class ThrustStep
+        {
+            public int Step;
+            // Lifts off or sets down on the engines: its TWR decides.
+            public bool Twr;
+            // The body its TWR is against: the one it lifts off from or sets down on,
+            // else the one of its first burn in orbit.
+            public int Body;
+            public readonly List<StageBudget.StageUse> Uses = new List<StageBudget.StageUse>();
+            public readonly List<BurnStage> Stages = new List<BurnStage>();
+            public List<Burn> Burns = new List<Burn>();
+            // The burn that takes the largest share of its orbit; null where none.
+            public Burn Longest;
+        }
+
+        private readonly List<ThrustStep> thrustSteps = new List<ThrustStep>();
+        // Per step, its entry; null where it burns nothing.
+        private ThrustStep[] thrustOf = new ThrustStep[0];
+        private readonly HashSet<int> thrustOpen = new HashSet<int>();
+        private bool thrustShown = true;
+
+        private IEnumerable<DialogGUIBase> ThrustRows()
+        {
+            yield return CollapsibleHeading("Thrust", () => thrustShown, () => thrustShown = !thrustShown,
+                "Show or hide whether the thrust lifts the vessel and how long each burn takes.");
+            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
+                DimLabel("Has", FuelLeft));
+            names.OptionEnabledCondition = () => thrustShown && Worked() && thrustSteps.Count > 0;
+            yield return names;
+            DialogGUIHorizontalLayout none = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline), DimLabel("No burns on the route.", width - Timeline));
+            none.OptionEnabledCondition = () => thrustShown && Worked() && thrustSteps.Count == 0;
+            yield return none;
+            for (int i = 0; i < MaxFuelSteps; i++)
+                foreach (DialogGUIBase row in ThrustStepRows(i))
+                    yield return row;
+        }
+
+        // The steps that burn, each with its stages and its burns in orbit; before the
+        // warnings, which take the burns that last too long from them.
+        private void UpdateThrust()
+        {
+            thrustSteps.Clear();
+            thrustOf = new ThrustStep[steps.Count];
+            for (int i = 0; i < steps.Count; i++)
+            {
+                RouteStep step = steps[i];
+                ThrustStep entry = new ThrustStep { Step = i, Twr = Launches(step) || LandsOnEngines(step) };
+                foreach (StageBudget.StageUse use in budget.Uses)
+                {
+                    if (use.Leg != i) continue;
+                    entry.Uses.Add(use);
+                    StageRow row = stages.Find(item => item.Number == use.Stage);
+                    entry.Stages.Add(new BurnStage
+                    {
+                        Stage = use.Stage, DeltaV = use.DeltaV, Mass = use.Mass, EndMass = use.EndMass,
+                        Thrust = row != null ? row.ThrustVacuum : 0.0,
+                    });
+                }
+                entry.Burns = BurnCheck.Burns(bodies.Bodies, step.Leg, entry.Stages);
+                foreach (Burn burn in entry.Burns)
+                    if (entry.Longest == null || burn.Share > entry.Longest.Share) entry.Longest = burn;
+                entry.Body = Launches(step) ? step.From.Body
+                    : entry.Twr ? step.To.Body
+                    : entry.Burns.Count > 0 ? entry.Burns[0].Line.Body : step.From.Body;
+                if (step.Leg.DeltaV <= 0.5 || (!entry.Twr && entry.Burns.Count == 0)) continue;
+                thrustOf[i] = entry;
+                if (thrustSteps.Count < MaxFuelSteps) thrustSteps.Add(entry);
+            }
+        }
+
+        private bool Launches(RouteStep step)
+        {
+            return step.From.Kind == StopKind.Surface;
+        }
+
+        private bool LandsOnEngines(RouteStep step)
+        {
+            return step.To.Kind == StopKind.Surface && !Chutes(step.To);
+        }
+
+        // The entry of a row; null for none.
+        private ThrustStep ThrustAt(int row)
+        {
+            return thrustShown && Worked() && row < thrustSteps.Count && thrustSteps[row].Step < steps.Count ? thrustSteps[row] : null;
+        }
+
+        // The entry of an open row; null for none, and for a closed one, so that its
+        // texts are not written.
+        private ThrustStep OpenThrust(int row)
+        {
+            ThrustStep entry = ThrustAt(row);
+            return entry != null && thrustOpen.Contains(FuelKey(entry.Step)) ? entry : null;
+        }
+
+        private void ToggleThrust(int row)
+        {
+            ThrustStep entry = ThrustAt(row);
+            if (entry == null) return;
+            int key = FuelKey(entry.Step);
+            if (!thrustOpen.Remove(key)) thrustOpen.Add(key);
+        }
+
+        private IEnumerable<DialogGUIBase> ThrustStepRows(int row)
+        {
+            DialogGUIButton open = new DialogGUIButton(() => OpenThrust(row) != null ? "<b><color=" + Good + ">-</color></b>" : "+",
+                () => ToggleThrust(row), Square, Square, false);
+            open.tooltipText = "Show the stages of this step with their thrust, and its burns.";
+            float room = Mathf.Max(0f, width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - 4f * 6f - RowEnd);
+            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline), new DialogGUILabel(() => ThrustAt(row) != null ? FuelPlace(ThrustAt(row).Step) : "", Place),
+                new DialogGUILabel(() => ThrustAt(row) != null ? FuelFlyer(ThrustAt(row).Step) : "", VehicleButton),
+                new DialogGUILabel(() => ThrustNeedsText(ThrustAt(row)), FuelNeeds), new DialogGUILabel(() => ThrustHasText(ThrustAt(row)), FuelLeft),
+                new DialogGUISpace(room), open);
+            line.OptionEnabledCondition = () => ThrustAt(row) != null;
+            yield return line;
+
+            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("Stage", StageName_), DimLabel("Start", TwrColumn),
+                DimLabel("End", TwrColumn), DimLabel("In air", TwrColumn), DimLabel("Thrust", ThrustColumn), DimLabel("Burns", BurnColumn));
+            names.OptionEnabledCondition = () => OpenThrust(row) != null && OpenThrust(row).Uses.Count > 0;
+            yield return names;
+
+            for (int i = 0; i < MaxStepStages; i++)
+            {
+                int stage = i;
+                DialogGUIHorizontalLayout use = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
+                    TextAnchor.MiddleLeft, new DialogGUISpace(Timeline + Swatch + 4f),
+                    new DialogGUILabel(() => ThrustStageName(OpenThrust(row), stage), StageName_),
+                    new DialogGUILabel(() => TwrValue(OpenThrust(row), stage, true, false), TwrColumn),
+                    new DialogGUILabel(() => TwrValue(OpenThrust(row), stage, false, false), TwrColumn),
+                    new DialogGUILabel(() => TwrValue(OpenThrust(row), stage, true, true), TwrColumn),
+                    new DialogGUILabel(() => StageThrustText(OpenThrust(row), stage), ThrustColumn),
+                    new DialogGUILabel(() => StageBurnText(OpenThrust(row), stage), BurnColumn));
+                use.OptionEnabledCondition = () => OpenThrust(row) != null && stage < OpenThrust(row).Uses.Count;
+                yield return use;
+            }
+
+            for (int i = 0; i < MaxFuelLines; i++)
+            {
+                int burn = i;
+                DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                    new DialogGUISpace(Timeline + Swatch + 4f), new DialogGUILabel(() => BurnName_(OpenThrust(row), burn), BurnName),
+                    new DialogGUILabel(() => BurnText(OpenThrust(row), burn), width - Timeline - Swatch - 4f - BurnName - 4f * 2f - RowEnd));
+                text.OptionEnabledCondition = () => OpenThrust(row) != null && burn < OpenThrust(row).Burns.Count;
+                yield return text;
+            }
+
+            DialogGUIHorizontalLayout body = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline + Swatch + 4f),
+                new DialogGUILabel(() => ThrustBodyText(OpenThrust(row)), width - Timeline - Swatch - 4f - 4f - RowEnd));
+            body.OptionEnabledCondition = () => OpenThrust(row) != null;
+            yield return body;
+        }
+
+        // What a lift-off or a set-down needs: 1.2 from a body with air, 1 otherwise.
+        private double TwrNeeded(ThrustStep entry)
+        {
+            return Launches(steps[entry.Step]) && bodies.Bodies[entry.Body].HasAtmosphere ? 1.2 : 1.0;
+        }
+
+        // The stage that lifts off or sets down: the first of a launch, the last of a
+        // landing.
+        private StageBudget.StageUse Deciding(ThrustStep entry)
+        {
+            if (entry.Uses.Count == 0) return null;
+            return Launches(steps[entry.Step]) ? entry.Uses[0] : entry.Uses[entry.Uses.Count - 1];
+        }
+
+        private string ThrustNeedsText(ThrustStep entry)
+        {
+            if (entry == null) return "";
+            string text = entry.Twr ? "TWR " + EngineerFormat.Ratio(TwrNeeded(entry)) : "< " + Percent(MaxShare) + " orbit";
+            return "<color=" + Dim + ">" + text + "</color>";
+        }
+
+        // A launch or landing: the deciding stage's TWR at the surface, in the air
+        // where the body has any. Otherwise the burn that takes the largest share of
+        // its orbit: its time and share.
+        private string ThrustHasText(ThrustStep entry)
+        {
+            if (entry == null) return "";
+            if (entry.Twr)
+            {
+                StageBudget.StageUse use = Deciding(entry);
+                if (use == null) return "<color=" + Dim + ">no stage</color>";
+                double twr = TwrAt(use.Stage, use.Mass, entry.Body, true);
+                return "<color=" + (twr < TwrNeeded(entry) ? Problem : Good) + ">S" + use.Stage + "  " + EngineerFormat.Ratio(twr) + "</color>";
+            }
+            if (entry.Longest == null) return "";
+            return "<color=" + BurnColour(entry.Longest) + ">" + EngineerFormat.Time(entry.Longest.Seconds) + " "
+                   + Percent(entry.Longest.Share) + "</color>";
+        }
+
+        // The share of an orbit a burn may take before it loses MaxLoss of its
+        // delta-v.
+        private static readonly double MaxShare = ShareAt(BurnCheck.MaxLoss);
+
+        private static double ShareAt(double loss)
+        {
+            double low = 0.0, high = 1.0;
+            for (int i = 0; i < 40; i++)
+            {
+                double middle = (low + high) / 2.0;
+                if (new Burn { Seconds = middle, Period = 1.0 }.Loss < loss) low = middle;
+                else high = middle;
+            }
+            return low;
+        }
+
+        private static string Percent(double share)
+        {
+            return (share * 100.0).ToString("0", CultureInfo.InvariantCulture) + "%";
+        }
+
+        private static string BurnColour(Burn burn)
+        {
+            if (burn.Short || burn.Loss > BurnCheck.MaxLoss) return Problem;
+            return burn.Loss > BurnCheck.WarnLoss ? Warning : Good;
+        }
+
+        private string ThrustStageName(ThrustStep entry, int stage)
+        {
+            return entry != null && stage < entry.Uses.Count ? ColouredStage(entry.Uses[stage].Stage) : "";
+        }
+
+        // As the stage starts or ends its part, in vacuum, or in the air at the surface
+        // on a launch or landing where the body has any.
+        private string TwrValue(ThrustStep entry, int stage, bool start, bool air)
+        {
+            if (entry == null || stage >= entry.Uses.Count) return "";
+            if (air && (!entry.Twr || SurfaceAir(entry.Body) <= 0.0)) return "";
+            StageBudget.StageUse use = entry.Uses[stage];
+            double twr = TwrAt(use.Stage, start ? use.Mass : use.EndMass, entry.Body, air);
+            return "<color=" + Dim + ">" + EngineerFormat.Ratio(twr) + "</color>";
+        }
+
+        private string StageThrustText(ThrustStep entry, int stage)
+        {
+            if (entry == null || stage >= entry.Stages.Count) return "";
+            return "<color=" + Dim + ">" + entry.Stages[stage].Thrust.ToString("0", CultureInfo.InvariantCulture) + " kN</color>";
+        }
+
+        private string StageBurnText(ThrustStep entry, int stage)
+        {
+            if (entry == null || stage >= entry.Stages.Count) return "";
+            return "<color=" + Dim + ">" + EngineerFormat.Time(entry.Stages[stage].Seconds) + "</color>";
+        }
+
+        // A burn in orbit: its name, then "4m 10s, 13% of 32m 05s, 20 m/s lost".
+        private string BurnName_(ThrustStep entry, int index)
+        {
+            if (entry == null || index >= entry.Burns.Count) return "";
+            return "<color=" + Dim + ">" + entry.Burns[index].Line.Name + "</color>";
+        }
+
+        private string BurnText(ThrustStep entry, int index)
+        {
+            if (entry == null || index >= entry.Burns.Count) return "";
+            Burn burn = entry.Burns[index];
+            string text = EngineerFormat.Time(burn.Seconds) + (burn.Short ? "+" : "") + ", " + Percent(burn.Share) + " of "
+                          + EngineerFormat.Time(burn.Period);
+            if (burn.Loss * burn.Line.DeltaV >= 0.5) text += ", " + EngineerFormat.Speed(burn.Loss * burn.Line.DeltaV) + " lost";
+            return "<color=" + BurnColour(burn) + ">" + text + "</color>";
+        }
+
+        // "Mun: 1.63 m/s², no air", "Kerbin: 9.81 m/s², air 1.00 atm".
+        private string ThrustBodyText(ThrustStep entry)
+        {
+            if (entry == null) return "";
+            PlannerBody body = bodies.Bodies[entry.Body];
+            double gravity = body.Mu / (body.Radius * body.Radius);
+            string air = SurfaceAir(entry.Body) > 0.0
+                ? "air " + SurfaceAir(entry.Body).ToString("0.00", CultureInfo.InvariantCulture) + " atm"
+                : "no air";
+            return "<color=" + Dim + ">TWR at " + body.Name + ": " + gravity.ToString("0.00", CultureInfo.InvariantCulture)
+                   + " m/s², " + air + "</color>";
+        }
+
+        // A heading that opens and closes what is under it, its button where a step's
+        // "..." is.
+        private DialogGUIBase CollapsibleHeading(string title, System.Func<bool> shown, Callback toggle, string tooltip)
+        {
+            DialogGUIButton button = new DialogGUIButton(() => shown() ? "<b><color=" + Good + ">-</color></b>" : "+", toggle, Square,
+                Square, false);
+            button.tooltipText = tooltip;
+            return new DialogGUIHorizontalLayout(width, Square + 8f, 4f, new RectOffset(0, 0, 8, 0), TextAnchor.LowerLeft,
+                new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", width - Square - 4f - RowEnd, RowHeight), button);
         }
 
         // ------------------------------------------------------------------ bars

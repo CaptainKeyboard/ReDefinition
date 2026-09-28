@@ -553,7 +553,8 @@ namespace ReDefinition.Engineer
                 double up, down;
                 PlannerBody body = bodies[walk.Rest.Body];
                 RoutePlanner.Hohmann(body.Mu, body.Radius + state.At.Altitude, body.Radius + walk.Rest.Altitude, out up, out down);
-                last.Leg.Add("To the rest's orbit", up + down);
+                last.Leg.Add("To the rest's orbit", up, walk.Rest.Body, body.Radius + state.At.Altitude);
+                last.Leg.Add("Into the rest's orbit", down, walk.Rest.Body, body.Radius + walk.Rest.Altitude);
             }
             if (walk.Rest.Kind == StopKind.Orbit) last.Leg.Add("Rendezvous and docking", Rendezvous);
             state.Away = false;

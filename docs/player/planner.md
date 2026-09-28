@@ -24,8 +24,9 @@ back when you load the vessel again.
 
 ## Add the vessel's sections
 
-*Sections* at the top lists the parts of the vessel that fly on their own. They decide
-who can fly a step. *+* adds one, and the list of its parts folds out right after:
+*Vessel* at the top lists the vessel's sections: the parts of it that fly on their own.
+They decide who can fly a step. *+* adds one, and the list of its parts folds out right
+after:
 
 | Section | Is | Row under it |
 |---|---|---|
@@ -34,24 +35,28 @@ who can fly a step. *+* adds one, and the list of its parts folds out right afte
 | *Satellite* | what stays at a destination | *Deployed at*: the destination where it stays; the rest flies on without it |
 
 A vessel can have several of each, such as two landers or three satellites; they are
-numbered then. The parts in a section's list are what a decoupler or a docking port
-separates, named after their command part or engine, with their number of parts. While
-the pointer is on an entry, its parts light up on the vessel. A section can be part of
-another, such as a capsule on a lander, but two sections cannot share some parts. The
-cross removes a section.
+numbered then. Capsules come first, then the others in the order you added them. The parts
+in a section's list are what a decoupler or a docking port separates, named after their
+command part or engine, with their number of parts. While the pointer is on an entry, its
+parts light up on the vessel. A section can be part of another, such as a capsule on a
+lander, but two sections cannot share some parts. The cross removes a section.
 
-The planner adds two sections by itself, shown as *Automatic* with what it found:
+The planner adds three sections by itself, shown as *Automatic* with what it found:
 
 * On a crewed vessel, the capsule: the smallest part with a crewed command part and
   parachutes, else the smallest crewed one.
 * On an uncrewed vessel, the satellite, where one part with a probe core and no landing
   legs leaves the launch stage behind. With several, you add them yourself.
+* The lander: the smallest part with a command part, engines and landing legs whose
+  engines do not fire at launch, such as the Kerbal X's upper stage. A booster with legs
+  that lands by itself is none, and a lander gives way to the sections you set. A second
+  lander you add yourself.
 
-A lander you always add yourself. Whether it docks again or flies on alone, the steps
-after it say (see *Plan with sections*). *Deployed at* is by itself the first orbit the
-route reaches before it lands or ends. What you pick is bold and underlined; picking it
-again gives it back to the planner. A section the planner added and you removed stays
-away.
+A lander with a docking port docks again after it lands, where the rest has a port as
+well; one without flies on alone. The steps after it change either (see *Plan with
+sections*). *Deployed at* is by itself the first orbit the route reaches before it lands
+or ends. What you pick is bold and underlined; picking it again gives it back to the
+planner. A section the planner added and you removed stays away.
 
 ## Lay out the route
 
@@ -111,7 +116,8 @@ needs and what the vessel has.
 
 ## Read the fuel plan
 
-The fuel plan lists every step of the route in its order:
+*+* and *-* on the heading *Fuel plan* show and hide it. It lists every step of the route in
+its order:
 
 | Column | Shows |
 |---|---|
@@ -133,7 +139,33 @@ the next.
 | the colour and *S…* | the stage, in the colour it has on the step's bar |
 | *Gives* | what it gives to this step |
 | *Keeps* | what it has left after the step; *empty* where it is used up; orange *dropped*: what it held as it was dropped |
-| *TWR* | on a launch or a powered landing, its thrust in vacuum against the weight it pushes, at the body's surface; red where the stage that lifts off (the first of a launch) or sets down (the last of a landing) is below 1.2 on a body with air, below 1 otherwise |
+| *TWR* | on a launch or a powered landing, its thrust against the weight it pushes at the body's surface, in the air where the body has any; red where the stage that lifts off (the first of a launch) or sets down (the last of a landing) is below 1.2 on a body with air, below 1 otherwise |
+
+## Check the thrust
+
+*Thrust* under the fuel plan, shown and hidden as it is, lists every step that burns. On
+a launch and a landing on the engines, the thrust has to lift the vessel. On every other
+burn it has to be done in time: the vessel goes on round its orbit while it burns, so the
+longer a burn takes against the orbit, the more of it pushes the wrong way. That delta-v
+is lost, and a transfer burn that takes too long can miss its target.
+
+| Column | Shows |
+|---|---|
+| *Needs* | on a launch or a landing on the engines, the TWR it needs: 1.20 to lift off from a body with air, 1.00 otherwise. On other steps, the share of the orbit a burn may take: 17 % |
+| *Has* | on a launch or a landing, the stage that decides and its TWR at the surface, in the air where the body has any: the first stage of a launch, the last of a landing; red below what it needs. On other steps, the burn that takes the largest share of its orbit, with its time and share: orange from 11 %, where it loses 2 % of its delta-v, red from 17 %, where it loses 5 % |
+
+*+* opens a step:
+
+| Row | Shows |
+|---|---|
+| a stage | its TWR as it starts its part and as it ends it, in vacuum; *In air* on a launch or a landing where the body has air; its thrust in vacuum; how long it burns in this step |
+| a burn in orbit | its name; how long it takes, its share of the orbit and the orbit's time, and about how much delta-v it loses; red with a *+* where the stages run out before it ends or a stage has no thrust |
+| the body | the body the TWR is against, its surface gravity and its air |
+
+A burn in red also shows as a line under its step on the route. More thrust or less mass
+shortens a burn. A long burn out of a low orbit can also be split over several passes,
+each at the same point of the orbit and raising the far side further; the planner counts
+it as one.
 
 ## How the planner shares out the stages
 
@@ -186,10 +218,11 @@ order KSP fires its stages.
 
 By itself, the planner has a lander land wherever the route goes on after the landing,
 whoever stands on a surface fly up from it, the whole vessel fly on across to another body
-where a lander that a docking port separates has come back to the rest, and otherwise
-whoever flew the step before. A landing on parachutes on the last stop is the capsule's
-where what carries it is in the air. So a lander lands, climbs back, and docks and is
-carried on or flies on by itself without a click, and the capsule comes home by itself.
+where a lander that can dock has come back to the rest, so that it docks again, and
+otherwise whoever flew the step before. A landing on parachutes on the last stop is the
+capsule's where what carries it is in the air. So a lander lands, climbs back, and docks
+and is carried on or flies on by itself without a click, and the capsule comes home by
+itself.
 
 For a landing on parachutes on another body, the step across ends in its air, and the
 vessel goes straight in. *...* on that step offers *Orbit first* on the line *Way down*:
@@ -206,7 +239,7 @@ A vessel to Minmus and home, without a lander:
 A satellite left in a synchronous orbit by an uncrewed rocket:
 
 1. *B*: type 2863 into the altitude field.
-2. Check that *Sections* shows the satellite; *Deployed at* is *B* by itself.
+2. Check that *Vessel* shows the satellite; *Deployed at* is *B* by itself.
 
 A satellite with an engine of its own that circularises by itself, the upper stage left
 in the transfer orbit:
@@ -218,15 +251,15 @@ in the transfer orbit:
 The Kerbal X to the Mun and home, its upper stage with the legs landing:
 
 1. *B*: pick the Mun, *Surface*. *+*, Kerbin, *Surface*.
-2. *+* under *Sections*, *Lander*, and pick the pod with the upper stage. A decoupler
-   separates it, so it flies home by itself; the capsule, found by itself, lands at home.
+2. Check that *Vessel* shows the lander, the pod with the upper stage, and the capsule.
+   Without a docking port, the lander flies home by itself; the capsule lands at home.
 
 A lander that lands on the Mun and docks again, the capsule on the mothership coming
 home, the lander left in the Mun's orbit:
 
 1. Stops: Kerbin *Surface*, Kerbin *Orbit*, Mun *Orbit*, Mun *Surface*, Mun *Orbit*,
    Kerbin *Surface*.
-2. Add the lander; check that the capsule is the command module.
+2. Check the lander and that the capsule is the command module.
 3. On the step *To Kerbin's air*, pick *Without lander*. The landing is the capsule's by
    itself.
 
@@ -235,9 +268,9 @@ Duna's orbit:
 
 1. *B*: pick Duna, *Orbit*. *C*: Duna, *Surface*. *D*: Kerbin, *Surface*. *Chutes* comes
    on by itself on both.
-2. Add the lander. Where a decoupler separates it, the landing on Duna and the way home
-   are the lander's by itself; where a docking port does, pick *Lander* on *To Kerbin's
-   air*.
+2. Check the lander. The landing on Duna is its own by itself.
+3. Where it has a docking port, pick *Lander* on the step *To Kerbin's air*: without that,
+   it would dock with the transfer stage and the whole vessel fly home.
 
 A mission from Kerbin to Jool with one lander for Laythe and Vall, refilled after
 Laythe, and the capsule landing at home:
@@ -247,7 +280,7 @@ Laythe, and the capsule landing at home:
    *Surface*. *Chutes* comes on by itself on Laythe and Kerbin, each the last stop when
    it is set. A Laythe *Orbit* and a Vall *Orbit* after the landings can be stops as
    well; the lander climbs back to the rest either way.
-2. Add the lander; check the capsule. The landings on Laythe and Vall are the lander's
+2. Check the lander and the capsule. The landings on Laythe and Vall are the lander's
    by itself; the last step, home, is the capsule's.
 3. *Refuel* on the line *Docks with the rest* after Laythe.
 
@@ -264,9 +297,11 @@ on, it carries the lander with the fuel the lander has left, or refilled.
 * The planner counts every stage in vacuum. The launch burns in air, where the engines
   give less. To see a stage's delta-v at sea level, choose *Sea level* in the
   [engineer window](engineer.md).
-* The TWR under a step's stages, and the warnings on a launch or a powered landing, compare
-  the thrust in vacuum with the body's surface gravity. Check the launch stage's TWR at
-  sea level in the engineer window as well.
+* The TWR compares the thrust with the body's surface gravity: in the air there, the
+  thrust KSP's engines give at that body's sea level; otherwise in vacuum.
+* Burn times are for the thrust in vacuum. A burn's share is of the circular orbit it
+  starts from, and what it loses is an estimate for a burn held in one direction and
+  centred on its point.
 * Refuelling counts only between a docked section and the rest, as mass: it does not tell
   liquid fuel from oxidizer. A tank that no engine of its own burns belongs to the stage
   that burns it, so it cannot be picked as the tank a refill comes from. Mining and fuel
