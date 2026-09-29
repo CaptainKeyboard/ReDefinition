@@ -20,7 +20,7 @@ beside it.
 | plan a mission and check the vessel carries enough fuel | [player/planner.md](player/planner.md) |
 | move the navball to the left or right | [player/navball.md](player/navball.md) |
 | keep a lander from sliding on a slope | [player/leg-grip.md](player/leg-grip.md) |
-| see many stage details without tall stages | [player/stage-details.md](player/stage-details.md) |
+| use the delta-v tools and the stage details | [player/stage-details.md](player/stage-details.md) |
 | read the map, labels and mod windows on a large screen | [player/ui-scaling.md](player/ui-scaling.md) |
 
 ## For mod and visual pack authors

@@ -274,7 +274,8 @@ How the planner sits in KSP's editor: [engineer.md](engineer.md).
 | File | Role |
 |---|---|
 | `NavballDrag.cs` | the navball moved by dragging its show/hide button, and to the position the settings hold |
-| `StageInfoColumns.cs` | the stage details of KSP's staging stack in two columns from five values on, in the editors and in flight |
+| `StageInfoColumns.cs` | the stage details of KSP's staging stack in two columns from five values on, and the stack as wide as its stages, in the editors and in flight |
+| `DeltaVTools.cs` | KSP's delta-v tools' button opening every stage's details, and in the editors the tools' situation panel under the lowest stage |
 
 KSP's navball is one group, `NavballFrame`, in the flight UI: the ball, its show/hide
 button, the SAS and RCS switches, the autopilot modes, the gauges and the delta-v gauge

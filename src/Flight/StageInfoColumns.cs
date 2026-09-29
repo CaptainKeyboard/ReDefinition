@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using KSP.UI.Screens;
 using ReDefinition.Core;
+using ReDefinition.Settings;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -24,12 +25,13 @@ namespace ReDefinition.Flight
     // preferredWidth from 0 to InfoPanelWidth), so the lines slide in as before.
     // Checked before the canvases draw, after KSP's own updates of the lines.
     //
-    // KSP's delta-v tools (DeltaVApp) stand beside their button, where the wider
-    // stages run under them: the window is moved left of the stages, frame by
-    // frame, so that it follows them as they slide; back where KSP puts it once
-    // they leave room. And the stages' delta-v, which KSP writes under each stage's
-    // number anyway, is no value to choose: its line (DeltaVAppValues.infoLines,
-    // "DELTAV") is taken out as the game starts (StageDetailsSetup).
+    // The stage list clips what it shows to the stack's own width (its ScrollRect's
+    // Mask; the stack root 250 wide in the editor, 265 in flight, read from the
+    // prefabs), which a stage with details in two columns outgrows: the root is
+    // widened to a stage's full width while details are out, and back to KSP's once
+    // they are in. And the stages' delta-v, which KSP writes under each stage's
+    // number anyway, is no value: its line (DeltaVAppValues.infoLines, "DELTAV") is
+    // taken out as the game starts (StageDetailsSetup).
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     public class StageInfoColumnsEditor : StageInfoColumns
     {
@@ -46,6 +48,7 @@ namespace ReDefinition.Flight
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
+            HarmonyHooks.Safely("deltav-tools", "The delta-v tools' button shows KSP's window as before", DeltaVTools.Install);
         }
 
         // Once KSP has made its lines (DeltaVGlobals.InitInfoLines), before any scene
@@ -61,10 +64,11 @@ namespace ReDefinition.Flight
         private const int MostInOneColumn = 4;
         private const float Gap = 4f;
         private const string DeltaVLine = "DELTAV";
-        private static readonly FieldInfo AppFrameField = typeof(DeltaVApp).GetField("appFrame", Private);
-        private RectTransform movedFrame;
-        private Vector2 placedAt;
-        private Vector2 shiftedTo;
+        // A stage's icons column and the add and delete buttons beside it
+        // (StageGroup's StageIcons, 50; StageManager.plusMinusButtonWidth, 25).
+        private const float BesideDetails = 75f;
+        private RectTransform stack;
+        private float stackWidth = -1f;
 
         // KSP's delta-v line taken out of the values to choose; true once done.
         internal static bool TakeOutDeltaV()
@@ -124,7 +128,7 @@ namespace ReDefinition.Flight
                 TakeOutDeltaV();
                 foreach (StageGroup group in manager.Stages)
                     if (group != null) Arrange(group, column);
-                KeepAppClear(manager);
+                KeepStackWide(manager);
             }
             catch (Exception e)
             {
@@ -248,49 +252,26 @@ namespace ReDefinition.Flight
             }
         }
 
-        // The delta-v tools' window left of the stages where they reach under it: its
-        // right edge a gap left of the leftmost stage, shifted from where KSP placed it
-        // (GenericAppFrame.Reposition), and back there once the stages leave room.
-        private void KeepAppClear(StageManager manager)
+        // The stack at least as wide as its widest stage with its details out, so that
+        // the list's mask clips nothing of it; KSP's own width otherwise.
+        private void KeepStackWide(StageManager manager)
         {
-            DeltaVApp app = DeltaVApp.Instance;
-            MonoBehaviour frame = app != null && AppFrameField != null ? AppFrameField.GetValue(app) as MonoBehaviour : null;
-            RectTransform rect = frame != null ? frame.transform as RectTransform : null;
-            if (rect == null || !rect.gameObject.activeInHierarchy)
+            RectTransform root = manager.transform as RectTransform;
+            if (root == null) return;
+            if (root != stack)
             {
-                movedFrame = null;
-                return;
+                stack = root;
+                stackWidth = root.sizeDelta.x;
             }
-            if (rect != movedFrame || rect.anchoredPosition != shiftedTo)
-            {
-                // KSP placed it anew.
-                movedFrame = rect;
-                placedAt = rect.anchoredPosition;
-            }
-            Vector3[] corners = new Vector3[4];
-            float stagesLeft = float.MaxValue, stagesRight = float.MinValue, stagesBottom = float.MaxValue, stagesTop = float.MinValue;
+            float needed = 0f;
             foreach (StageGroup group in manager.Stages)
             {
-                RectTransform groupRect = group != null ? group.transform as RectTransform : null;
-                if (groupRect == null || !groupRect.gameObject.activeInHierarchy) continue;
-                groupRect.GetWorldCorners(corners);
-                stagesLeft = Mathf.Min(stagesLeft, corners[0].x);
-                stagesRight = Mathf.Max(stagesRight, corners[2].x);
-                stagesBottom = Mathf.Min(stagesBottom, corners[0].y);
-                stagesTop = Mathf.Max(stagesTop, corners[1].y);
+                LayoutElement panel = group != null ? PanelField.GetValue(group) as LayoutElement : null;
+                if (panel == null || !panel.gameObject.activeInHierarchy) continue;
+                needed = Mathf.Max(needed, (float)WidthField.GetValue(group) + BesideDetails);
             }
-            Vector2 wanted = placedAt;
-            if (stagesLeft < float.MaxValue && rect.parent != null)
-            {
-                rect.anchoredPosition = placedAt;
-                rect.GetWorldCorners(corners);
-                bool beside = corners[0].y < stagesTop && corners[1].y > stagesBottom && corners[0].x < stagesRight;
-                float overlap = corners[2].x - (stagesLeft - Gap);
-                float scale = rect.parent.lossyScale.x;
-                if (beside && overlap > 0f && scale > 0f) wanted = placedAt - new Vector2(overlap / scale, 0f);
-            }
-            rect.anchoredPosition = wanted;
-            shiftedTo = wanted;
+            float width = Mathf.Max(stackWidth, needed);
+            if (!Mathf.Approximately(root.sizeDelta.x, width)) root.sizeDelta = new Vector2(width, root.sizeDelta.y);
         }
     }
 }
