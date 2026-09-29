@@ -25,10 +25,7 @@ back when you load the vessel again.
 ## Add the vessel's sections
 
 The header bar of *Craft* at the top shows the craft as built: its mass, the fuel in it
-and its delta-v in vacuum. Where it has RCS thrusters, the line *RCS* under the bar gives
-their delta-v from the RCS propellant on board, their thrust and Isp in vacuum, and their
-TWR at Kerbin's gravity; each section with RCS has the same line under its own. Below it,
-*Craft* lists the vessel's sections: the parts of it that fly on their own. They decide
+and its delta-v in vacuum. Below it, *Craft* lists the vessel's sections: the parts of it that fly on their own. They decide
 who can fly a step. *+* adds one, and the list of its parts folds out right after:
 
 | Section | Is | Row under it |
@@ -104,8 +101,9 @@ margin, and *...* where it has further choices, and the lines that belong to it.
 The bar's length is the step's delta-v, on the same scale for every step. Its colours
 are the stages that pay for it. Red is what no stage covers. The figure turns red if
 something blocks the step, and a red line under it says what: too little fuel, too
-little thrust to lift off or land, no parachutes or no heat shield on what lands, a
-lander that is not where it has to be, or a satellite not carried to where it stays.
+little thrust to lift off or land, too slow a turn, no RCS or RCS propellant to dock
+with, no parachutes or no heat shield on what lands, a lander that is not where it has to
+be, or a satellite not carried to where it stays.
 Where nothing is wrong, there is no such line. A grey line says what leaves at the start
 of a step, and which satellite stays at its end.
 
@@ -171,7 +169,7 @@ transfer burn that takes too long can miss its target.
 |---|---|
 | a stage | the vessel's mass as the stage starts its part; the stage's Isp in vacuum; its TWR as it starts its part and as it ends it, in vacuum; *In air* on a launch or a landing where the body has air; its thrust in vacuum; how long it burns in this step |
 | a burn in orbit | its name; how long it takes, its share of the orbit and the orbit's time, and about how much delta-v it loses; red with a *+* where the stages run out before it ends or a stage has no thrust |
-| a note | how fast what flies the step turns by 90°: on a launch or a landing on its reaction wheels, RCS and the gimbals of the stage that burns, in orbit before its burn on its reaction wheels and RCS alone; in orange where it is slow. Fins are not counted: where they fly through air, a slow turn is no warning. Where a section docks, its RCS for the last metres, in orange where it has no RCS or no RCS propellant; where an ion engine burns, the electric charge it takes against what the vessel holds, in orange where that is not enough without solar panels or other power |
+| a note | how fast what flies the step turns by 90°: on a launch or a landing on its reaction wheels, RCS and the gimbals of the stage that burns, in orbit before its burn on its reaction wheels and RCS alone; in orange where it is slow. Fins are not counted: where they fly through air, a slow turn is no warning. The RCS of what flies the step, as the step starts: the delta-v its RCS propellant gives, its thrust and Isp in vacuum, and its TWR at Kerbin's gravity; where a section docks, for the last metres, in orange where it has no RCS or no RCS propellant; where an ion engine burns, the electric charge it takes against what the vessel holds, in orange where that is not enough without solar panels or other power |
 | the body | the body the TWR is against, its surface gravity and its air |
 
 A burn in red also shows as a line under its step on the route. More thrust or less mass

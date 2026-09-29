@@ -65,11 +65,10 @@ namespace ReDefinition.Engineer
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
 
             List<DialogGUIBase> vessel = new List<DialogGUIBase>();
-            vessel.Add(RcsRow(() => shipRcs));
             for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));
             vessel.Add(AddSectionRow());
             rows.AddRange(Section("Craft", () => vesselShown, () => vesselShown = !vesselShown,
-                "The craft as built: its mass, the fuel in it and its delta-v in vacuum. Below, its RCS and its sections.", VesselText, vessel));
+                "The craft as built: its mass, the fuel in it and its delta-v in vacuum. Below, its sections.", VesselText, vessel));
 
             List<DialogGUIBase> route = new List<DialogGUIBase>();
             route.Add(SettingsRow());
@@ -172,7 +171,6 @@ namespace ReDefinition.Engineer
                 TextAnchor.MiddleLeft, dot, new DialogGUILabel(() => SectionLabel(row), SectionName), group, remove);
             line.OptionEnabledCondition = () => RowSection(row) != null;
             yield return line;
-            yield return RcsRow(() => RowSection(row) != null && row < sectionRcs.Length ? sectionRcs[row] : "");
 
             DialogGUIButton stop = null;
             stop = new DialogGUIButton(() => DeployText(row), () => PickDeployStop(row, stop), PartButtonWidth, Square, false);
@@ -202,54 +200,6 @@ namespace ReDefinition.Engineer
             foreach (StageRow row in allStages) deltaV += row.DeltaVVacuum;
             return "<color=" + Dim + ">Mass</color> " + EngineerFormat.Mass(readout.WetMass) + "<pos=34%><color=" + Dim + ">Fuel</color> "
                    + EngineerFormat.Mass(readout.FuelMass) + "<pos=67%><color=" + Dim + ">Δv</color> " + EngineerFormat.Speed(deltaV);
-        }
-
-        // The RCS of the craft, or of a section under its line: "RCS   45 m/s
-        // 4.0 kN   Isp 240 s   TWR 0.35"; hidden where it has none.
-        private DialogGUIBase RcsRow(System.Func<string> text)
-        {
-            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(Timeline), DimLabel("RCS", SectionName), new DialogGUILabel(text, PartButtonWidth, RowHeight));
-            row.OptionEnabledCondition = () => Ready() && text().Length > 0;
-            return row;
-        }
-
-        private string shipRcs = "";
-        private string[] sectionRcs = new string[0];
-
-        // The craft's RCS and each section's, as they start: the delta-v their RCS
-        // propellant gives them (RcsOf), their thrusters' thrust and combined Isp in
-        // vacuum, and that thrust against their weight at standard gravity, as KSP
-        // and Kerbal Engineer state a TWR in the editor.
-        private void UpdateRcs()
-        {
-            PartGroupChoice all = new PartGroupChoice();
-            for (int i = 0; i < parts.Count; i++)
-                if (!parts[i].Clamp)
-                {
-                    all.Members.Add(i);
-                    all.Mass += parts[i].Mass;
-                }
-            shipRcs = RcsText(all);
-            sectionRcs = new string[live.Count];
-            for (int i = 0; i < live.Count; i++) sectionRcs[i] = live[i].Group != null ? RcsText(live[i].Group) : "";
-        }
-
-        private string RcsText(PartGroupChoice group)
-        {
-            double mass = 0.0, overIsp = 0.0;
-            foreach (int at in group.Members)
-                if (at >= 0 && at < parts.Count && !parts[at].Clamp)
-                {
-                    mass += parts[at].Mass;
-                    overIsp += parts[at].RcsThrustOverIsp;
-                }
-            double thrust, propellant, deltaV;
-            RcsOf(group, -1, mass, out thrust, out propellant, out deltaV);
-            if (thrust <= 0.0 || mass <= 0.0) return "";
-            return EngineerFormat.Speed(deltaV) + "<pos=28%>" + EngineerFormat.Force(thrust) + "<pos=52%><color=" + Dim + ">Isp</color> "
-                   + (overIsp > 0.0 ? EngineerFormat.Isp(thrust / overIsp) : "-") + "<pos=76%><color=" + Dim + ">TWR</color> "
-                   + EngineerFormat.Ratio(thrust / (mass * StageTable.StandardGravity));
         }
 
         // "+" to add a section, in the column of a section's name.
@@ -961,7 +911,7 @@ namespace ReDefinition.Engineer
         private const float TwrColumn = 38f;
         private const float ThrustColumn = 60f;
         private const float BurnColumn = 64f;
-        private const int MaxNotes = 4;
+        private const int MaxNotes = 5;
         private const float BurnName = 180f;
 
         // A step as the thrust section shows it, worked out with the budget.
@@ -986,6 +936,8 @@ namespace ReDefinition.Engineer
             // where unknown; more than TurnLimit is slow.
             public double Turn = double.NaN;
             public double TurnLimit;
+            // A note that gives its RCS alone, no warning.
+            public bool RcsNote;
         }
 
         // How long a turn by 90 degrees may take: at launch and at landing, where the
@@ -1028,9 +980,19 @@ namespace ReDefinition.Engineer
         private readonly System.Text.StringBuilder turnLog = new System.Text.StringBuilder();
         private string turnLogged = "";
 
+        // Per step, what the route says of how it turns and docks; null where nothing.
+        private List<string>[] turnAlerts = new List<string>[0];
+
+        private void Alert(int step, string text)
+        {
+            if (turnAlerts[step] == null) turnAlerts[step] = new List<string>();
+            turnAlerts[step].Add(text);
+        }
+
         private void UpdateThrust()
         {
             turnLog.Length = 0;
+            turnAlerts = new List<string>[steps.Count];
             thrustSteps.Clear();
             thrustOf = new ThrustStep[steps.Count];
             for (int i = 0; i < steps.Count; i++)
@@ -1058,7 +1020,7 @@ namespace ReDefinition.Engineer
                 AddNotes(entry);
                 // A step shows for its launch or landing, its burns, and its notes other
                 // than one that says how it turns without a warning.
-                int notes = entry.Notes.Count - (!double.IsNaN(entry.Turn) && !TurnSlow(entry) ? 1 : 0);
+                int notes = entry.Notes.Count - (!double.IsNaN(entry.Turn) && !TurnSlow(entry) ? 1 : 0) - (entry.RcsNote ? 1 : 0);
                 if (step.Leg.DeltaV <= 0.5 || (!entry.Twr && entry.Burns.Count == 0 && notes == 0)) continue;
                 thrustOf[i] = entry;
                 if (thrustSteps.Count < MaxFuelSteps) thrustSteps.Add(entry);
@@ -1115,6 +1077,9 @@ namespace ReDefinition.Engineer
                     ? Capital(who) + " has nothing to turn " + how + " with: no reaction wheels, RCS or gimballing engines"
                     : Capital(who) + " turns 90° in " + EngineerFormat.Time(entry.Turn) + " " + how + ": slow, more than "
                       + EngineerFormat.Time(entry.TurnLimit)) + "</color>");
+                Alert(entry.Step, double.IsInfinity(entry.Turn)
+                    ? "Nothing on " + who + " to turn " + how + " with"
+                    : Capital(who) + " turns slowly " + how + ": 90° in " + EngineerFormat.Time(entry.Turn) + ", add reaction wheels or RCS");
             }
             else
                 entry.Notes.Add("<color=" + Dim + ">" + Capital(who) + " turns 90° in " + EngineerFormat.Time(entry.Turn) + " " + how + "</color>");
@@ -1141,31 +1106,64 @@ namespace ReDefinition.Engineer
             return "<color=" + (TurnSlow(entry) ? Warning : Good) + ">" + text + "</color>";
         }
 
-        // What docks, and its RCS for the last metres; the electric charge an ion engine
-        // burns over the step against what the vessel holds.
+        // The RCS of what flies the step, as the step starts: the delta-v its RCS
+        // propellant gives it, its thrusters' thrust and combined Isp in vacuum and
+        // their TWR at standard gravity, as Kerbal Engineer states them; where it
+        // docks, for the last metres, in orange and on the route where it has no RCS
+        // or no RCS propellant. The electric charge an ion engine burns over the
+        // step against what the vessel holds.
         private void AddNotes(ThrustStep entry)
         {
             RouteStep step = steps[entry.Step];
             ElectricNote(entry);
-            if (step.Docks && step.Flyer.Kind == FlyerKind.Alone)
+            bool docks = step.Docks && step.Flyer.Kind == FlyerKind.Alone;
+            LiveSection section = step.Flyer.Kind == FlyerKind.Alone ? SectionById(step.Flyer.Section) : null;
+            string who = section != null ? "the " + Lower(section.Name) : "the vessel";
+            StageBudget.StageUse use = docks ? (entry.Uses.Count > 0 ? entry.Uses[entry.Uses.Count - 1] : null)
+                : entry.Uses.Count > 0 ? entry.Uses[0] : null;
+            if (docks && (section == null || section.Group == null)) return;
+            if (!docks && use == null) return;
+            PartGroupChoice flying = new PartGroupChoice();
+            foreach (int at in FlyingParts(step)) flying.Members.Add(at);
+            double mass = use != null ? (docks ? use.EndMass : use.Mass) : section.Group.Mass;
+            int stage = use != null ? use.Stage : -1;
+            double thrust, propellant, deltaV;
+            RcsOf(flying, stage, mass, out thrust, out propellant, out deltaV);
+            if (docks && (thrust <= 0.0 || propellant <= 0.0))
             {
-                LiveSection section = SectionById(step.Flyer.Section);
-                if (section == null || section.Group == null) return;
-                StageBudget.StageUse last = entry.Uses.Count > 0 ? entry.Uses[entry.Uses.Count - 1] : null;
-                double mass = last != null ? last.EndMass : section.Group.Mass;
-                double thrust, propellant, deltaV;
-                RcsOf(section.Group, last != null ? last.Stage : -1, mass, out thrust, out propellant, out deltaV);
-                string who = Lower(section.Name);
-                if (thrust <= 0.0 || propellant <= 0.0)
-                {
-                    entry.Notes.Add("<color=" + Warning + ">" + (thrust <= 0.0 ? "No RCS on the " + who + " to dock with"
-                                    : "No RCS propellant on the " + who + " to dock with") + "</color>");
-                    entry.Warns = true;
-                }
-                else
-                    entry.Notes.Add("<color=" + Dim + ">RCS of the " + who + " for docking: " + EngineerFormat.Speed(deltaV) + ", "
-                                    + EngineerFormat.Force(thrust) + "</color>");
+                string text = (thrust <= 0.0 ? "No RCS on " : "No RCS propellant on ") + who + " to dock with";
+                entry.Notes.Add("<color=" + Warning + ">" + Capital(text) + "</color>");
+                entry.Warns = true;
+                Alert(entry.Step, Capital(text));
+                return;
             }
+            if (thrust <= 0.0) return;
+            double overIsp = 0.0;
+            foreach (int at in flying.Members)
+                if (stage < 0 || parts[at].DecoupleStage <= stage) overIsp += parts[at].RcsThrustOverIsp;
+            entry.Notes.Add("<color=" + Dim + ">RCS of " + who + (docks ? " for docking: " : ": ") + EngineerFormat.Speed(deltaV) + ", "
+                            + EngineerFormat.Force(thrust) + ", Isp " + (overIsp > 0.0 ? EngineerFormat.Isp(thrust / overIsp) : "-")
+                            + ", TWR " + RcsRatio(thrust / (mass * StageTable.StandardGravity)) + "</color>");
+            if (!docks) entry.RcsNote = true;
+        }
+
+        // An RCS TWR, far below 1: to three places where it is under 0.1.
+        private static string RcsRatio(double value)
+        {
+            return value < 0.1 ? value.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) : EngineerFormat.Ratio(value);
+        }
+
+        // The parts of what flies a step, by index.
+        private List<int> FlyingParts(RouteStep step)
+        {
+            List<int> members = new List<int>();
+            for (int i = 0; i < parts.Count && i < partGroups.Length; i++)
+            {
+                int group = partGroups[i];
+                int id = group == 0 ? 0 : valid[group - 1].Plan.Id;
+                if (step.Flying.Contains(id)) members.Add(i);
+            }
+            return members;
         }
 
         private void ElectricNote(ThrustStep entry)

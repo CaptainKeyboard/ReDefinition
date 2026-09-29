@@ -207,7 +207,6 @@ namespace ReDefinition.Engineer
             budget = StageBudget.Allocate(available, BudgetSteps(), state.Margin, plans,
                 VesselShape.Split(available, parts, valid.ConvertAll(section => section.Group)));
             UpdateThrust();
-            UpdateRcs();
             warnings = new List<string>[steps.Count];
             for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
             UpdateBars();
@@ -596,6 +595,9 @@ namespace ReDefinition.Engineer
             if (longest != null && longest.Loss > BurnCheck.MaxLoss)
                 list.Add(longest.Line.Name + " too long: " + EngineerFormat.Time(longest.Seconds) + ", " + Percent(longest.Share)
                          + " of the orbit");
+            // What it turns and docks with (UpdateThrust): too slow a turn, no RCS or
+            // no RCS propellant to dock.
+            if (index < turnAlerts.Length && turnAlerts[index] != null) list.AddRange(turnAlerts[index]);
             return list;
         }
 
