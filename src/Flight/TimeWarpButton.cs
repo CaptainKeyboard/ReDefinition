@@ -21,10 +21,12 @@ namespace ReDefinition.Flight
     // ...), windowOpen, buttonContent, skin.button)`; its source read), which a UI
     // theme's panel does not keep. Here the warp-to-sunrise extension of the time
     // panel's lower row (UIWarpToNextMorning's WarpToSunriseContainer, its bar and its
-    // button; the panel read with UnityPy from sharedassets7) is copied into the warp
-    // row, so that it has the extension's shape, size and theme: right above the
-    // sunrise extension, at the end of the row with the WARP label (Label_Warp),
-    // showing the mod's arrow and opening the mod's window (BetterTimeWarp.UIOpen). The mod's own IMGUI button is not drawn
+    // button; the panel read with UnityPy from sharedassets7) is copied, square, in
+    // the extension's size and theme, showing the mod's arrow and opening the mod's
+    // window (BetterTimeWarp.UIOpen). It keeps one place on the screen: at the end
+    // of the warp row (Label_Warp) while the panel is unfolded, at the end of the
+    // MET row while it is folded, so that the sunrise extension, which shows only
+    // while the panel is unfolded, slides out from under it. The mod's own IMGUI button is not drawn
     // while the copy stands (a transpiler routes its GUI.Toggle through Toggle);
     // where the panel is not found, it stays, right of the WARP label (Place).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
@@ -131,6 +133,10 @@ namespace ReDefinition.Flight
             : null;
 
         private GameObject bar;
+        private RectTransform barRect;
+        private UIHoverSlidePanel slide;
+        // The bar's place in the panel while the panel is unfolded.
+        private Vector3 unfolded;
         private Image icon;
         private TextMeshProUGUI label;
         private MonoBehaviour mod;
@@ -180,6 +186,15 @@ namespace ReDefinition.Flight
             bar = Instantiate(sunrise.gameObject, row, false);
             bar.name = "ReDefinitionTimeWarpBar";
             DestroyImmediate(bar.GetComponent<UIWarpToNextMorning>());
+            // Square: the bar's picture, rounded on its right, replaced by its
+            // colour.
+            Image plate = bar.GetComponent<Image>();
+            if (plate != null)
+            {
+                Color colour;
+                if (Middle(plate.sprite, out colour)) plate.color = plate.color * colour;
+                plate.sprite = null;
+            }
             // The sunrise's tooltip goes with it.
             foreach (TooltipController_Text tooltip in bar.GetComponentsInChildren<TooltipController_Text>(true))
                 DestroyImmediate(tooltip);
@@ -222,23 +237,26 @@ namespace ReDefinition.Flight
             icon.preserveAspect = true;
             icon.raycastTarget = false;
             icon.enabled = false;
-            // Behind the panel's background, as the sunrise extension stands, so that
-            // the background covers its left end.
-            bar.transform.SetSiblingIndex(0);
+            // Over the sunrise extension, which slides out from under it, and behind
+            // the panel's background, which covers its left end as the extension's.
+            Transform mask = source.parent;
+            bar.transform.SetSiblingIndex(mask != null && mask.parent == row ? mask.GetSiblingIndex() + 1 : 0);
 
             // Where the sunrise extension stands, raised by the distance from the
             // lower row to the warp row (from the MET button to the warp gauge).
             // KSP keeps the extension at one place in the panel while the panel
             // slides (UITimeWarpHoverController.LateUpdate: its mask moved against
             // the panel, the extension by as much back).
-            RectTransform barRect = (RectTransform)bar.transform;
+            barRect = (RectTransform)bar.transform;
             barRect.anchorMin = barRect.anchorMax = new Vector2(0.5f, 0.5f);
+            slide = row.GetComponent<UIHoverSlidePanel>();
             Transform gauge = row.Find("TimeWarp");
             if (gauge == null) throw new System.InvalidOperationException("no warp gauge in the time panel");
             Vector3 at = row.InverseTransformPoint(source.position);
-            barRect.localPosition = new Vector3(at.x, at.y + gauge.localPosition.y - met.localPosition.y, 0f);
+            unfolded = new Vector3(at.x, at.y + gauge.localPosition.y - met.localPosition.y, 0f);
+            Hold();
             TimeWarpButton.Replaced = true;
-            Debug.Log(Log.Tag + " Better Time Warp's button in the time panel's warp row at " + barRect.localPosition.ToString("0")
+            Debug.Log(Log.Tag + " Better Time Warp's button in the time panel's warp row at " + unfolded.ToString("0")
                       + ", the sunrise extension at " + at.ToString("0") + "; its face over " + filled.ToString("0.00")
                       + " of the sunrise button's.");
         }
@@ -285,13 +303,47 @@ namespace ReDefinition.Flight
             }
         }
 
+        // At one place on the screen: moved against the panel by as far as the
+        // panel stands from where it stands unfolded (UIHoverSlidePanel moves the
+        // panel's anchoredPosition between positionNormal and positionHovered).
+        private void Hold()
+        {
+            if (barRect == null) return;
+            Vector2 away = slide != null && slide.panel != null ? slide.panel.anchoredPosition - slide.positionHovered : Vector2.zero;
+            barRect.localPosition = unfolded - (Vector3)away;
+        }
+
+        // The colour in the middle of a sprite, read as Opaque reads it.
+        private static bool Middle(Sprite sprite, out Color colour)
+        {
+            colour = Color.white;
+            if (sprite == null || sprite.texture == null) return false;
+            Texture2D texture = sprite.texture;
+            Rect area = sprite.textureRect;
+            RenderTexture copy = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32);
+            RenderTexture before = RenderTexture.active;
+            Texture2D read = new Texture2D(1, 1, TextureFormat.ARGB32, false);
+            try
+            {
+                Graphics.Blit(texture, copy);
+                RenderTexture.active = copy;
+                read.ReadPixels(new Rect(Mathf.Floor(area.center.x), Mathf.Floor(area.center.y), 1f, 1f), 0, 0);
+                read.Apply();
+                colour = read.GetPixel(0, 0);
+                return true;
+            }
+            finally
+            {
+                RenderTexture.active = before;
+                RenderTexture.ReleaseTemporary(copy);
+                Destroy(read);
+            }
+        }
+
         private void LateUpdate()
         {
             if (bar == null || label == null) return;
-            // With the warp row: KSP hides it while the panel is folded
-            // (UITimeWarpHoverController.childrenForDeactivate).
-            bool visible = label.gameObject.activeSelf;
-            if (bar.activeSelf != visible) bar.SetActive(visible);
+            Hold();
             GUIContent content = ContentField != null && mod != null ? ContentField.GetValue(mod) as GUIContent : null;
             Texture2D texture = content != null ? content.image as Texture2D : null;
             if (icon != null && texture != null && texture != shown)
