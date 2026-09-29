@@ -4,6 +4,9 @@
 
 ### Added
 
+- **Vertical and horizontal speed at the navball.** On its right, *V* and *H* show the
+  vessel's speed over the surface in its two parts, in fields like the heading's. The SAS
+  modes stay on its left, as in KSP.
 - **The altimeter switches by itself.** Below 5 km over the ground and on it, it shows the
   height above the ground; above 6 km, the height above sea level. Its switch still
   changes it by hand. *Altimeter switches to the ground* under *Mods / Toolbar*.

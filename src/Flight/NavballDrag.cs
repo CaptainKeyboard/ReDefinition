@@ -37,14 +37,6 @@ namespace ReDefinition.Flight
     // starts and when the crew portraits change; decompiled. After each, the
     // offset is laid on KSP's place again (a postfix, Placed).
     //
-    // The SAS modes (VesselAutopilotUI, under the frame) stand on the side of the
-    // navball that faces the screen's middle: on its left as KSP has them, on its
-    // right, mirrored about the navball's middle, while the navball stands left of
-    // the screen's middle. The buttons keep their order; only their curve turns, so
-    // that it follows the navball's rim on either side: KSP places them one by one,
-    // each row shifted a little along the rim (sharedassets7), and each row's shift
-    // from the rows' mean is turned the other way.
-    //
     // The navball keeps clear of the flight UI's mode buttons on its left
     // (FlightUIModeController.uiModeFrame) and of the crew portraits on its right
     // (UIFrameCrewPortaits), as they stand now, and of the screen's edges: where
@@ -181,18 +173,11 @@ namespace ReDefinition.Flight
             return Mathf.Abs(a - b) < 0.5f || float.IsNaN(a) && float.IsNaN(b);
         }
 
-        // To the offset asked for, as far as the room allows; again where the SAS
-        // modes changed sides on the way, since that changes the navball's width.
+        // To the offset asked for, as far as the room allows.
         private void Settle()
         {
-            for (int pass = 0; pass < 2; pass++)
-            {
-                bool before = mirrored;
-                float wanted = Clamp(requested);
-                if (Mathf.Abs(wanted - applied) >= 0.5f) Shift(wanted - applied);
-                else Sides();
-                if (mirrored == before) return;
-            }
+            float wanted = Clamp(requested);
+            if (Mathf.Abs(wanted - applied) >= 0.5f) Shift(wanted - applied);
         }
 
         private RectTransform Root()
@@ -369,98 +354,12 @@ namespace ReDefinition.Flight
             if (KeptPosition != null && KeptPosition.FieldType == typeof(Vector2))
                 KeptPosition.SetValue(panel, (Vector2)KeptPosition.GetValue(panel) + by);
             applied += dx;
-            Sides();
-        }
-
-        private RectTransform modes;
-        private Vector2 modesAt;
-        private readonly List<RectTransform> buttons = new List<RectTransform>();
-        private readonly List<Vector2> buttonsAt = new List<Vector2>();
-        private bool mirrored;
-
-        // How far the row of button `index` stands from the rows' mean, as KSP placed
-        // them: the rows are the buttons at one height.
-        private float RowShift(int index)
-        {
-            float y = buttonsAt[index].y;
-            float row = 0f, rows = 0f;
-            int inRow = 0, rowCount = 0;
-            Dictionary<int, float> sums = new Dictionary<int, float>();
-            Dictionary<int, int> counts = new Dictionary<int, int>();
-            for (int i = 0; i < buttonsAt.Count; i++)
-            {
-                int key = Mathf.RoundToInt(buttonsAt[i].y);
-                float sum;
-                int count;
-                sums.TryGetValue(key, out sum);
-                counts.TryGetValue(key, out count);
-                sums[key] = sum + buttonsAt[i].x;
-                counts[key] = count + 1;
-            }
-            foreach (KeyValuePair<int, float> pair in sums)
-            {
-                rows += pair.Value / counts[pair.Key];
-                rowCount++;
-            }
-            int own = Mathf.RoundToInt(y);
-            row = sums[own] / counts[own];
-            inRow = counts[own];
-            return inRow > 0 && rowCount > 0 ? row - rows / rowCount : 0f;
-        }
-
-        // The SAS modes on the side of the navball towards the screen's middle.
-        private void Sides()
-        {
-            if (modes == null)
-            {
-                VesselAutopilotUI ui = frame.GetComponentInChildren<VesselAutopilotUI>(true);
-                modes = ui != null ? ui.transform as RectTransform : null;
-                if (modes == null) return;
-                modesAt = modes.anchoredPosition;
-                for (int i = 0; i < modes.childCount; i++)
-                {
-                    RectTransform button = modes.GetChild(i) as RectTransform;
-                    if (button == null) continue;
-                    buttons.Add(button);
-                    buttonsAt.Add(button.anchoredPosition);
-                }
-            }
-            Canvas canvas = frame.GetComponentInParent<Canvas>();
-            Transform root = canvas != null ? canvas.rootCanvas.transform : null;
-            if (root == null) return;
-            Vector3[] corners = new Vector3[4];
-            frame.GetWorldCorners(corners);
-            float middle = root.InverseTransformPoint((corners[0] + corners[2]) / 2f).x;
-            bool right = middle < -1f;
-            if (right == mirrored) return;
-            mirrored = right;
-            modes.anchoredPosition = modesAt;
-            // The buttons keep their order; only the curve turns: each row's shift
-            // from the rows' mean, which bends them along the rim, the other way.
-            for (int i = 0; i < buttons.Count; i++)
-                if (buttons[i] != null)
-                    buttons[i].anchoredPosition = right ? new Vector2(buttonsAt[i].x - 2f * RowShift(i), buttonsAt[i].y) : buttonsAt[i];
-            if (!right) return;
-            // The buttons' span mirrored about the frame's middle, in the frame's own
-            // units, then in the modes' parent's.
-            float left = float.MaxValue, edge = float.MinValue;
-            foreach (RectTransform button in buttons)
-            {
-                if (button == null) continue;
-                button.GetWorldCorners(corners);
-                left = Mathf.Min(left, frame.InverseTransformPoint(corners[0]).x);
-                edge = Mathf.Max(edge, frame.InverseTransformPoint(corners[2]).x);
-            }
-            if (left > edge) return;
-            float centre = frame.rect.center.x;
-            Vector3 shift = frame.TransformVector(new Vector3(2f * centre - edge - left, 0f, 0f));
-            Transform parent = modes.parent != null ? modes.parent : frame;
-            modes.anchoredPosition = modesAt + new Vector2(parent.InverseTransformVector(shift).x, 0f);
         }
 
         // At most as far as keeps what the navball draws within its room (Room),
-        // each side on its own: the SAS modes stand out to one side of the frame
-        // (AutopilotModes, sharedassets7), so the frame's own width is not enough.
+        // each side on its own: the SAS modes stand out on its left (AutopilotModes,
+        // sharedassets7) and the speeds on its right (NavballSpeeds), so the frame's
+        // own width is not enough.
         // Nothing drawn (the navball hidden): the offset as asked.
         private float Clamp(float offset)
         {

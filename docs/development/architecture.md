@@ -275,7 +275,8 @@ How the planner sits in KSP's editor: [engineer.md](engineer.md).
 
 | File | Role |
 |---|---|
-| `NavballDrag.cs` | the navball moved by dragging its show/hide button, and to the position the settings hold; the SAS modes on the side towards the screen's middle |
+| `NavballDrag.cs` | the navball moved by dragging its show/hide button, and to the position the settings hold |
+| `NavballSpeeds.cs` | the vertical and horizontal speed on the navball's right, in copies of its heading field |
 | `AutoAltimeter.cs` | the altimeter switching between sea level and the ground by itself |
 | `FlightStartMode.cs` | a flight starting in KSP's maneuver mode, where the settings say so |
 | `CrewSlotButtons.cs` | the crew portraits' buttons that add and remove a slot, in the look of the staging stack's add and delete buttons |
