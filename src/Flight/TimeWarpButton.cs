@@ -195,26 +195,29 @@ namespace ReDefinition.Flight
                 || met.GetComponent<Button>() == null || met.GetComponent<Image>() == null)
                 throw new System.InvalidOperationException("no sunrise button, background or MET button in the time panel");
 
-            // As wide as the part of the sunrise button its picture fills, which a
-            // theme may draw narrower than the button (ZTheme: about 30 of 43 units,
-            // right of the middle), and centred above it; as high as the warp row,
-            // the upper half of the panel's background.
-            Image sunriseFace = sunriseButton.GetComponent<Image>();
-            Rect filled = Opaque(sunriseFace != null ? sunriseFace.sprite : null);
-            Rect sunriseRect = sunriseButton.rect;
-            // The extension stands at one place in the panel,
+            // As wide as the sunrise extension shows beside the panel: from the
+            // background's right edge to the right end of the extension's bar
+            // picture (ZTheme's bottomBar_plain: see-through left of 60 of its 96
+            // pixels, so 208 to 244); as high as the warp row, the upper half of the
+            // background (0 to -34). The extension stands at one place in the panel,
             // UITimeWarpHoverController.fixedMaskStart: KSP moves its mask to that
             // place less the panel's offset and the extension within the mask by
             // the offset, every LateUpdate (decompiled); where it stands just now
             // depends on whether that has run yet.
             UITimeWarpHoverController hover = row.GetComponent<UITimeWarpHoverController>();
             if (hover == null) throw new System.InvalidOperationException("no hover controller on the time panel");
-            float sunriseX = hover.fixedMaskStart.x + sunriseButton.localPosition.x + sunriseRect.xMin + sunriseRect.width * filled.center.x;
+            Image sunrisePlate = sunrise.GetComponent<Image>();
+            Rect barFilled = Opaque(sunrisePlate != null ? sunrisePlate.sprite : null);
+            Rect containerRect = container.rect;
             Vector3[] corners = new Vector3[4];
             background.GetWorldCorners(corners);
             float bottom = row.InverseTransformPoint(corners[0]).y, top = row.InverseTransformPoint(corners[1]).y;
+            float backgroundRight = row.InverseTransformPoint(corners[2]).x;
             float middle = (bottom + top) / 2f;
-            Vector2 size = new Vector2(sunriseRect.width * filled.width, top - middle);
+            float right = hover.fixedMaskStart.x + containerRect.xMin + containerRect.width * barFilled.xMax;
+            float left = Mathf.Max(backgroundRight, hover.fixedMaskStart.x + containerRect.xMin + containerRect.width * barFilled.xMin);
+            if (right - left < 1f) throw new System.InvalidOperationException("no room for the button beside the time panel");
+            Vector2 size = new Vector2(right - left, top - middle);
 
             // The MET button copied: its look and its states; its text, tooltip and
             // click taken away.
@@ -230,6 +233,7 @@ namespace ReDefinition.Flight
             // face's top and bottom edges but not its rounded corners, stretched
             // over the button.
             Image face = bar.GetComponent<Image>();
+            Rect faceRows = Opaque(face.sprite);
             face.sprite = Middle(face.sprite);
             face.type = Image.Type.Simple;
             face.preserveAspect = false;
@@ -261,30 +265,34 @@ namespace ReDefinition.Flight
             icon.enabled = false;
 
             // The sunrise extension's top right corner squared, in its bar's colour.
-            Image sunrisePlate = sunrise.GetComponent<Image>();
             Color colour;
-            if (!Colour(sunrisePlate != null ? sunrisePlate.sprite : null, Opaque(sunrisePlate != null ? sunrisePlate.sprite : null).center, out colour))
+            if (!Colour(sunrisePlate != null ? sunrisePlate.sprite : null, barFilled.center, out colour))
                 colour = new Color(0.2f, 0.2f, 0.22f, 1f);
             float corner = Square(container, sunrisePlate, (sunrisePlate != null ? sunrisePlate.color : Color.white) * colour);
 
             slide = row.GetComponent<UIHoverSlidePanel>();
-            unfolded = new Vector3(sunriseX, (top + middle) / 2f, 0f);
+            unfolded = new Vector3((left + right) / 2f, (top + middle) / 2f, 0f);
             Hold();
             TimeWarpButton.Replaced = true;
-            Debug.Log(Log.Tag + " Better Time Warp's button, the MET button copied, at the end of the warp row: at "
-                      + unfolded.ToString("0") + " unfolded, " + size.ToString("0.0") + " large; the sunrise button's picture over "
-                      + filled.ToString("0.00") + " of it, the warp row from " + middle.ToString("0.0") + " to " + top.ToString("0.0")
+            Debug.Log(Log.Tag + " Better Time Warp's button, the MET button copied, at the end of the warp row: from x "
+                      + left.ToString("0.0") + " to " + right.ToString("0.0") + ", y " + middle.ToString("0.0") + " to " + top.ToString("0.0")
+                      + " unfolded (the background's right edge " + backgroundRight.ToString("0.0") + ", the sunrise bar's picture over "
+                      + barFilled.ToString("0.00") + "); its face from " + faceRows.ToString("0.00") + " of the MET sprite's height"
                       + "; the sunrise extension's top right corner squared by " + corner.ToString("0.0") + ".");
         }
 
-        // A sprite's middle column, two pixels wide, over its full height; null
-        // stays null.
+        // A sprite's middle column, two pixels wide, over the rows it draws (a
+        // button's picture may leave rows see-through above and below: ZTheme's
+        // MET button three of 27 at the top); null stays null.
         private static Sprite Middle(Sprite sprite)
         {
             if (sprite == null || sprite.texture == null) return sprite;
             Rect area = sprite.textureRect;
+            Rect rows = Opaque(sprite);
             float x = Mathf.Floor(area.x + area.width / 2f) - 1f;
-            return Sprite.Create(sprite.texture, new Rect(x, area.y, 2f, area.height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+            float y = Mathf.Round(area.y + area.height * rows.yMin);
+            float height = Mathf.Max(1f, Mathf.Round(area.height * rows.height));
+            return Sprite.Create(sprite.texture, new Rect(x, y, 2f, height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
         }
 
         // A sprite's pixels, row by row from the bottom, or null where it cannot be
