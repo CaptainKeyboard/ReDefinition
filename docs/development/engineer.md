@@ -28,7 +28,8 @@ give:
 
 | Worked out | How |
 |---|---|
-| parts and cost of each stage | from `DeltaVPartInfo.decoupleStage`: a part is attached while a stage burns if KSP decouples it at that stage or later, and dropped with it if it decouples at it. This is the test `DeltaVStageInfo.ProcessParts` uses **[src]**. Costs are counted as `ShipConstruct.GetShipCosts` counts them **[src]** |
+| parts and cost of each stage | from `DeltaVPartInfo.decoupleStage`: a part is attached while a stage burns if KSP decouples it with a later stage (a number below the stage's, since a decoupler fires as its stage starts), and it is the stage's own if the next stage decouples it **[src]**. Costs are counted as `ShipConstruct.GetShipCosts` counts them **[src]** |
+| the situation's figures | delta-v, Isp, thrust and TWR as KSP's staging stack picks them for the situation: at sea level, at the app's altitude (KSP's "Actual") or in vacuum (`DeltaVStageInfo.GetSituationDeltaV`, `GetSituationISP`, `GetSituationThrust`, `GetSituationTWR`) **[src]** |
 | TWR at the end of a stage | the TWR KSP gives at the start, times start mass over end mass (`StageTable`) |
 | thrust torque | the sum of every burning engine's thrust about the centre of mass of what is attached. The thrust pushes against a thrust transform's forward axis |
 | the parts that burn in a stage | the engines active in it, and the parts that hold less propellant at its end than at its start (`DeltaVPartInfo.stageFuelMass`) **[src]** |

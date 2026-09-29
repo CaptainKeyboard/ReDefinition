@@ -414,14 +414,19 @@ namespace ReDefinition.Engineer
 
         private static StageRow RowOf(DeltaVStageInfo info, List<DeltaVPartInfo> partInfos, bool vectoredThrust)
         {
+            // The figures for the situation chosen, as KSP's staging stack picks them:
+            // at sea level, at the app's altitude ("Actual"), or in vacuum
+            // (DeltaVStageInfo.GetSituation*; decompiled).
+            DeltaVSituationOptions situation = EngineerSituation.Situation();
+            float thrust = info.GetSituationThrust(situation);
             StageRow row = new StageRow
             {
                 Number = info.stage,
                 HasEngines = info.enginesActiveInStage != null && info.enginesActiveInStage.Count > 0,
-                DeltaV = info.deltaVActual,
-                Isp = info.ispActual,
-                Thrust = vectoredThrust ? info.vectoredThrustActual : info.thrustActual,
-                Twr = info.TWRActual,
+                DeltaV = info.GetSituationDeltaV(situation),
+                Isp = info.GetSituationISP(situation),
+                Thrust = vectoredThrust ? info.GetSituationVectoredThrust(situation) : thrust,
+                Twr = info.GetSituationTWR(situation),
                 BurnTime = info.stageBurnTime,
                 StartMass = info.startMass,
                 EndMass = info.endMass,
@@ -431,20 +436,21 @@ namespace ReDefinition.Engineer
             };
             // KSP's TWR is of the full thrust; with the vectored thrust the ratio
             // follows it.
-            if (vectoredThrust && info.thrustActual > 0f) row.Twr = info.TWRActual * info.vectoredThrustActual / info.thrustActual;
+            if (vectoredThrust && thrust > 0f) row.Twr = row.Twr * info.GetSituationVectoredThrust(situation) / thrust;
 
-            // A part is attached while a stage burns where KSP decouples it at
-            // that stage or later (DeltaVStageInfo.ProcessParts: decoupleStage
-            // <= the stage), and dropped with it where it decouples at it.
+            // A part is attached while a stage burns where KSP decouples it with a
+            // later stage (DeltaVPartInfo.decoupleStage below the stage's number: a
+            // decoupler fires as its stage starts), and belongs to the stage where
+            // the next stage drops it.
             if (partInfos != null)
             {
                 foreach (DeltaVPartInfo partInfo in partInfos)
                 {
-                    if (partInfo == null || partInfo.part == null || partInfo.decoupleStage > info.stage) continue;
+                    if (partInfo == null || partInfo.part == null || partInfo.decoupleStage >= info.stage) continue;
                     double cost = PartCost(partInfo.part);
                     row.AttachedParts++;
                     row.AttachedCost += cost;
-                    if (partInfo.decoupleStage != info.stage) continue;
+                    if (partInfo.decoupleStage != info.stage - 1) continue;
                     row.OwnParts++;
                     row.OwnCost += cost;
                 }

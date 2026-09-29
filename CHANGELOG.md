@@ -53,6 +53,9 @@
 
 ### Fixed
 
+- **The engineer window follows *Sea level*, *Altitude* and *Vacuum*.** It showed the
+  figures for the altitude set whatever was chosen. The stage's parts and cost are now
+  those it drops when the next stage fires.
 - **The planner with jets, the RAPIER, other propellants and solid boosters.** Jets and a
   RAPIER in its air-breathing mode counted for nothing, and a jet stage above rockets left
   them no fuel. The planner now works out the stages itself where an engine breathes air,

@@ -50,8 +50,8 @@ stage:
 | Column | Shows |
 |---|---|
 | *Stage* | the stage's number, as KSP's staging stack numbers it |
-| *Parts* | the parts attached while the stage burns, and in brackets the parts it drops |
-| *Cost* | the cost of what the stage drops |
+| *Parts* | the parts attached while the stage burns, and in brackets the stage's own: those dropped when the next stage fires |
+| *Cost* | the cost of the stage's own parts |
 | *Mass* | the vessel's mass when the stage fires |
 | *Isp* | the engines' specific impulse |
 | *Thrust* | the engines' thrust |
