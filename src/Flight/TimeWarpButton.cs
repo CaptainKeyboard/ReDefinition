@@ -5,6 +5,7 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using KSP.UI;
 using KSP.UI.Screens.Flight;
+using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
 using ReDefinition.Scaling;
 using ReDefinition.Settings;
@@ -19,17 +20,18 @@ namespace ReDefinition.Flight
     // (BetterTimeWarp.OnGUI: `GUI.Toggle(new Rect(scale * y, x, ...), windowOpen,
     // buttonContent, skin.button)`; its source read), which a UI theme's panel does
     // not keep, and in every scene its OnGUI runs in, the loading between scenes
-    // too. Here a square button stands at the end of the warp row, as high as the
-    // row and as wide as the warp-to-sunrise button below it
-    // (UIWarpToNextMorning.button; the panel read with UnityPy from sharedassets7),
-    // in the row's colour, showing the mod's arrow and opening the mod's window
-    // (BetterTimeWarp.UIOpen). It keeps one place on the screen: at the end of the
-    // warp row while the panel is unfolded, at the end of the MET row while it is
-    // folded, so that the sunrise button, which shows only while the panel is
-    // unfolded, slides out from under it. The mod's own IMGUI button is not drawn
-    // while it stands (a transpiler routes its GUI.Toggle through Toggle), nor
-    // where there is no time panel; elsewhere it stays, right of the WARP label
-    // (Place).
+    // too. Here a copy of the panel's MET button (its sprites, states and theme;
+    // the panel read with UnityPy from sharedassets7), square, stands at the end of
+    // the warp row: as high as the row, as wide as the warp-to-sunrise button below
+    // it (UIWarpToNextMorning.button) and right above it, showing the mod's arrow
+    // and opening the mod's window (BetterTimeWarp.UIOpen). It keeps one place on
+    // the screen: at the end of the warp row while the panel is unfolded, at the
+    // end of the MET row while it is folded, so that the sunrise extension, which
+    // shows only while the panel is unfolded, slides out from under it; the
+    // extension's top right corner is squared to join it. The mod's own IMGUI
+    // button is not drawn while the copy stands (a transpiler routes its
+    // GUI.Toggle through Toggle), nor where there is no time panel; elsewhere it
+    // stays, right of the WARP label (Place).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class TimeWarpButton : MonoBehaviour
     {
@@ -126,7 +128,7 @@ namespace ReDefinition.Flight
     {
     }
 
-    // The copy of the warp-to-sunrise extension in the warp row (TimeWarpButton).
+    // The copy of the MET button at the end of the warp row (TimeWarpButton).
     public abstract class TimeWarpBar : MonoBehaviour
     {
         // The arrow's size on the button, in KSP's UI units: about the MET
@@ -139,7 +141,7 @@ namespace ReDefinition.Flight
         private GameObject bar;
         private RectTransform barRect;
         private UIHoverSlidePanel slide;
-        // The bar's place in the panel while the panel is unfolded.
+        // The button's place in the panel while the panel is unfolded.
         private Vector3 unfolded;
         private Image icon;
         private TextMeshProUGUI label;
@@ -186,77 +188,64 @@ namespace ReDefinition.Flight
         {
             RectTransform row = label.transform.parent as RectTransform;
             RectTransform sunriseButton = sunrise.button != null ? sunrise.button.transform as RectTransform : null;
-            RectTransform background = row != null ? row.Find("Background") as RectTransform : null;
-            if (row == null || sunriseButton == null || background == null)
-                throw new System.InvalidOperationException("no sunrise button or background in the time panel");
-            Image sunriseFace = sunriseButton.GetComponent<Image>();
             RectTransform container = sunrise.transform as RectTransform;
-            Image sunrisePlate = sunrise.GetComponent<Image>();
-            Transform met = row.Find("METButton");
-            Button metButton = met != null ? met.GetComponent<Button>() : null;
-            Image metFace = met != null ? met.GetComponent<Image>() : null;
-            if (container == null || metButton == null || metFace == null)
-                throw new System.InvalidOperationException("no MET button in the time panel");
+            RectTransform background = row != null ? row.Find("Background") as RectTransform : null;
+            Transform met = row != null ? row.Find("METButton") : null;
+            if (row == null || sunriseButton == null || container == null || background == null || met == null
+                || met.GetComponent<Button>() == null || met.GetComponent<Image>() == null)
+                throw new System.InvalidOperationException("no sunrise button, background or MET button in the time panel");
 
-            // The sunrise extension's shape, square, as high as the warp row (the
-            // upper half of the panel's background): a bar as wide as the
-            // extension's, behind the panel's background as the extension's, which
-            // covers its left end, in the colour of the extension's bar; on it a
-            // face as large as the part of the sunrise button its picture fills,
-            // which a theme may draw smaller than the button (ZTheme: about 30 of
-            // 43 units, right of the middle), right above it.
+            // As wide as the part of the sunrise button its picture fills, which a
+            // theme may draw narrower than the button (ZTheme: about 30 of 43 units,
+            // right of the middle), and centred above it; as high as the warp row,
+            // the upper half of the panel's background.
+            Image sunriseFace = sunriseButton.GetComponent<Image>();
             Rect filled = Opaque(sunriseFace != null ? sunriseFace.sprite : null);
             Rect sunriseRect = sunriseButton.rect;
-            Vector3 faceAt = row.InverseTransformPoint(sunriseButton.TransformPoint(new Vector3(
+            Vector3 sunriseAt = row.InverseTransformPoint(sunriseButton.TransformPoint(new Vector3(
                 sunriseRect.xMin + sunriseRect.width * filled.center.x, 0f, 0f)));
-            Vector3 barAt = row.InverseTransformPoint(container.TransformPoint(new Vector3(container.rect.center.x, 0f, 0f)));
             Vector3[] corners = new Vector3[4];
             background.GetWorldCorners(corners);
             float bottom = row.InverseTransformPoint(corners[0]).y, top = row.InverseTransformPoint(corners[1]).y;
             float middle = (bottom + top) / 2f;
-            Vector2 size = new Vector2(container.rect.width, top - middle);
+            Vector2 size = new Vector2(sunriseRect.width * filled.width, top - middle);
 
-            bar = new GameObject("ReDefinitionTimeWarpBar", typeof(RectTransform), typeof(Image));
-            bar.layer = row.gameObject.layer;
+            // The MET button copied: its look and its states; its text, tooltip and
+            // click taken away.
+            bar = Instantiate(met.gameObject, row, false);
+            bar.name = "ReDefinitionTimeWarpButton";
+            for (int i = bar.transform.childCount - 1; i >= 0; i--) DestroyImmediate(bar.transform.GetChild(i).gameObject);
+            foreach (TooltipController_Text tooltip in bar.GetComponents<TooltipController_Text>()) DestroyImmediate(tooltip);
+            Button button = bar.GetComponent<Button>();
+            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.AddListener(Press);
+
+            // Square: each state's sprite cut to its middle column, which holds the
+            // face's top and bottom edges but not its rounded corners, stretched
+            // over the button.
+            Image face = bar.GetComponent<Image>();
+            face.sprite = Middle(face.sprite);
+            face.type = Image.Type.Simple;
+            face.preserveAspect = false;
+            SpriteState states = button.spriteState;
+            states.highlightedSprite = Middle(states.highlightedSprite);
+            states.pressedSprite = Middle(states.pressedSprite);
+            states.selectedSprite = Middle(states.selectedSprite);
+            states.disabledSprite = Middle(states.disabledSprite);
+            button.spriteState = states;
+
             barRect = (RectTransform)bar.transform;
-            barRect.SetParent(row, false);
             barRect.anchorMin = barRect.anchorMax = barRect.pivot = new Vector2(0.5f, 0.5f);
             barRect.sizeDelta = size;
             // Over the sunrise extension's mask, so that the extension slides out
-            // from under it, and behind the background.
+            // from under it.
             Transform mask = sunrise.transform.parent;
             barRect.SetSiblingIndex(mask != null && mask.parent == row ? mask.GetSiblingIndex() + 1 : 0);
-            Color colour;
-            if (!Colour(sunrisePlate != null ? sunrisePlate.sprite : null, new Vector2(0.25f, 0.5f), out colour))
-                colour = new Color(0.2f, 0.2f, 0.22f, 1f);
-            Image plate = bar.GetComponent<Image>();
-            plate.color = (sunrisePlate != null ? sunrisePlate.color : Color.white) * colour;
-            plate.raycastTarget = true;
-            float corner = Square(container, sunrisePlate, plate.color);
-
-            // The face lights up as the MET button's does: its sprites and states.
-            GameObject faceObject = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button));
-            faceObject.layer = bar.layer;
-            RectTransform faceRect = (RectTransform)faceObject.transform;
-            faceRect.SetParent(barRect, false);
-            faceRect.anchorMin = faceRect.anchorMax = faceRect.pivot = new Vector2(0.5f, 0.5f);
-            faceRect.anchoredPosition = new Vector2(faceAt.x - barAt.x, 0f);
-            faceRect.sizeDelta = new Vector2(sunriseRect.width * filled.width, sunriseRect.height * filled.height);
-            Image face = faceObject.GetComponent<Image>();
-            face.sprite = metFace.sprite;
-            face.type = metFace.type;
-            face.color = metFace.color;
-            Button button = faceObject.GetComponent<Button>();
-            button.targetGraphic = face;
-            button.transition = metButton.transition;
-            button.spriteState = metButton.spriteState;
-            button.colors = metButton.colors;
-            button.onClick.AddListener(Press);
 
             GameObject arrow = new GameObject("Arrow", typeof(RectTransform), typeof(Image));
             arrow.layer = bar.layer;
             RectTransform arrowRect = (RectTransform)arrow.transform;
-            arrowRect.SetParent(faceRect, false);
+            arrowRect.SetParent(barRect, false);
             arrowRect.anchorMin = arrowRect.anchorMax = arrowRect.pivot = new Vector2(0.5f, 0.5f);
             arrowRect.anchoredPosition = Vector2.zero;
             arrowRect.sizeDelta = new Vector2(ArrowSize, ArrowSize);
@@ -265,14 +254,31 @@ namespace ReDefinition.Flight
             icon.raycastTarget = false;
             icon.enabled = false;
 
+            // The sunrise extension's top right corner squared, in its bar's colour.
+            Image sunrisePlate = sunrise.GetComponent<Image>();
+            Color colour;
+            if (!Colour(sunrisePlate != null ? sunrisePlate.sprite : null, new Vector2(0.25f, 0.5f), out colour))
+                colour = new Color(0.2f, 0.2f, 0.22f, 1f);
+            float corner = Square(container, sunrisePlate, (sunrisePlate != null ? sunrisePlate.color : Color.white) * colour);
+
             slide = row.GetComponent<UIHoverSlidePanel>();
-            unfolded = new Vector3(barAt.x, (top + middle) / 2f, 0f);
+            unfolded = new Vector3(sunriseAt.x, (top + middle) / 2f, 0f);
             Hold();
             TimeWarpButton.Replaced = true;
-            Debug.Log(Log.Tag + " Better Time Warp's button in the time panel's warp row: its bar at " + unfolded.ToString("0")
-                      + ", " + size.ToString("0") + " large, in " + colour + "; its face " + faceRect.sizeDelta.ToString("0")
-                      + " large, the sunrise button's picture over " + filled.ToString("0.00") + " of it; the extension's top right corner squared by "
-                      + corner.ToString("0.0") + ".");
+            Debug.Log(Log.Tag + " Better Time Warp's button, the MET button copied, at the end of the warp row: at "
+                      + unfolded.ToString("0") + " unfolded, " + size.ToString("0.0") + " large; the sunrise button's picture over "
+                      + filled.ToString("0.00") + " of it, the warp row from " + middle.ToString("0.0") + " to " + top.ToString("0.0")
+                      + "; the sunrise extension's top right corner squared by " + corner.ToString("0.0") + ".");
+        }
+
+        // A sprite's middle column, two pixels wide, over its full height; null
+        // stays null.
+        private static Sprite Middle(Sprite sprite)
+        {
+            if (sprite == null || sprite.texture == null) return sprite;
+            Rect area = sprite.textureRect;
+            float x = Mathf.Floor(area.x + area.width / 2f) - 1f;
+            return Sprite.Create(sprite.texture, new Rect(x, area.y, 2f, area.height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
         }
 
         // A sprite's pixels, row by row from the bottom, or null where it cannot be

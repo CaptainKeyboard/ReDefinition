@@ -274,7 +274,7 @@ How the planner sits in KSP's editor: [engineer.md](engineer.md).
 | File | Role |
 |---|---|
 | `NavballDrag.cs` | the navball moved by dragging its show/hide button, and to the position the settings hold; the SAS modes on the side towards the screen's middle |
-| `TimeWarpButton.cs` | Better Time Warp Continued's drop-down button as a square twin of the warp-to-sunrise extension at the end of the time panel's warp row, at one place on the screen above the warp-to-sunrise button |
+| `TimeWarpButton.cs` | Better Time Warp Continued's drop-down button as a square copy of the MET button at the end of the time panel's warp row, at one place on the screen above the warp-to-sunrise button |
 | `StageInfoColumns.cs` | the stage details of KSP's staging stack in two columns from five values on, and the stack as wide as its stages, in the editors and in flight |
 | `DeltaVTools.cs` | KSP's delta-v tools' button opening every stage's details, and in the editors the tools' situation panel under the lowest stage |
 
