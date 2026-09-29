@@ -108,6 +108,16 @@ namespace ReDefinition.Engineer
                 scroll.anchorMax = Vector2.one;
                 scroll.offsetMin = Vector2.zero;
                 scroll.offsetMax = new Vector2(reach, 0f);
+                // The wheel scrolls as far as in the parts list: KSP's dialog lists
+                // scroll 10 units a notch (DialogGUIScrollList.Create; decompiled),
+                // its parts list 50 (EditorPartList.partListScrollRect, sharedassets6).
+                ScrollRect rect = scroll.GetComponent<ScrollRect>();
+                ScrollRect parts = EditorPartList.Instance != null ? EditorPartList.Instance.partListScrollRect : null;
+                if (rect != null && parts != null)
+                {
+                    rect.scrollSensitivity = parts.scrollSensitivity;
+                    Debug.Log(Log.Tag + " Planner scrolls " + rect.scrollSensitivity.ToString("0") + " units a wheel notch, as the parts list.");
+                }
             }
             // The content is laid out with every row first and shrinks as the
             // rows the plan does not need hide. It is held at its top edge, so
