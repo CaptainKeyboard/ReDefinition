@@ -206,6 +206,7 @@ A setting you change here is saved in its mod, the way that mod's own window sav
 | KSP | in `settings.cfg`, as KSP's own settings screens save it |
 | Scatterer, EVE, Parallax, Firefly | in their own config files, through their own save routines |
 | TUFX, Distant Object | per save. Your choice counts for every save: it goes into the loaded save, and into every other save as that save loads. A change in their own windows becomes your choice here |
+| Persistent Rotation | in its own config file in flight; the default reference body per save, with its vessels' data. A change outside flight reaches it in the next flight |
 | Deferred, Waterfall | they have no save routine, so ReDefinition keeps the value in `bundled.cfg` and sets it at every start and scene change |
 
 A value a mod cannot take yet waits in `bundled.cfg` and reaches the mod once it can
@@ -268,8 +269,8 @@ At the first start, the main menu explains ReDefinition and offers *Let ReDefini
 take control* or *Later*. Taking control chooses the High profile and bundles the mods,
 switches *Replace original settings* on, sets KSP's UI scale for your screen where it is
 still KSP's 100 %, switches on KSP's *Advanced tweakables*, *Extended burn indicator* and
-*Always show closest approach*, sets *Conic patch limit* to 6, and loads the main menu again, whose *Settings* then opens this
-window. *Later* leaves every mod as it is until you choose a profile. A graphics mod
+*Always show closest approach*, sets *Conic patch limit* to 6, and loads the main menu
+again, whose *Settings* then opens this window. *Later* leaves every mod as it is until you choose a profile. A graphics mod
 installed later follows that choice, with a short note when it is bundled.
 
 ## What the installed mods require

@@ -1,4 +1,4 @@
-# Checks the bundled mods outside the game: loads the installed graphics mods,
+﻿# Checks the bundled mods outside the game: loads the installed graphics mods,
 # then reads every registration in GameData\ReDefinition\Mods and builds its mod
 # with the built DLL -- the reader and the registry the game runs -- and
 # reports whether it found every member it needs, which settings it offers,
@@ -67,6 +67,7 @@ $mods = @{
     'tufx'       = @('TUFX\Plugins', '001_ToolbarControl\Plugins');
     'waterfall'  = @('Waterfall\Plugins');
     'distantobject' = @('DistantObject\Plugins');
+    'persistentrotation' = @('PersistentRotation\Plugins', '000_ClickThroughBlocker\Plugins', '001_ToolbarControl\Plugins');
     # The worked example's mod (docs\modders\examples).
     'trajectories' = @('Trajectories\Plugins');
 }
@@ -112,6 +113,8 @@ $expectedDrops = @{
                     'MISSION_MINIMUM_CANVAS_ZOOM');
     # Its reflection-probe caps, with which it would lower KSP's own settings for good.
     'deferred'  = @('capReflectionProbeRefreshRate', 'capReflectionProbeResolution');
+    # Its visibility mode, which its Awake ignores; its toolbar button is hidden instead.
+    'persistentrotation' = @('visibilityMode');
 }
 
 # Settings one build of a mod does not have, left out without a word (`optional = True`).

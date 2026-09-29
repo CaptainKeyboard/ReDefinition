@@ -302,3 +302,15 @@ one run would leave that lowering for good.
 Its file also holds `situations`, which its `Load` never reads back
 (`DistantFlareClass.Load`, decompiled): not a setting anyone can change, and
 not bundled.
+
+## Persistent Rotation
+
+Its release ships no `PluginData/Config.cfg`: the defaults are its code's
+(`Interface`, `Data`; source at tag 1.9.2.1).
+
+| Key | Kind | Default |
+|---|---|---|
+| `window` | other | shown (`disabled = False`) |
+| `defaultReference` | other | NONE |
+
+Left out: its visibility mode, which its `Awake` ignores, and its windows' places.

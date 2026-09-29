@@ -230,7 +230,8 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | `SettingsWindow.Axes.cs`, `KspAxes.cs`, `AxisCapture.cs` | the *Axes* tab: KSP's joystick and gamepad axes, the copies it edits, and the capture that takes an axis as it moves |
 | `SettingsWindow.Layout.cs` | KSP's keyboard layout at the top of the *Controls* tab |
 | `WindowBackdrop.cs`, `ScrollThrough.cs` | how see-through the window is drawn and the shadow under its text; the mouse wheel passed from a button to the list under it |
-| `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable; the main menu's first question |
+| `ToolbarTakeover.cs`, `BundleNotice.cs` | hiding the bundled mods' toolbar buttons where their window is reachable, and those ReDefinition hides for its own reasons; the main menu's first question |
+| `ToolbarHides.cs` | the toolbar buttons hidden for good where the settings window does what they did: Persistent Rotation's |
 | `ModWindowClose.cs` | the close button on a mod's own settings window, and knowing whether that window is open |
 | `ModWindowsAddon.cs` | when: the close buttons installed, the toolbar looked at, the open settings window following a change made in another window |
 | `UnityMouseEvents.cs` | Unity's mouse events on redirected cameras, and clicks on ReDefinition's windows kept from the scene |

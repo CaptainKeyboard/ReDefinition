@@ -4,6 +4,9 @@
 
 ### Added
 
+- **Persistent Rotation in the settings window.** Under *Gameplay*, *Flight*: whether its
+  window shows in flight, and the default reference body. Its toolbar button, which
+  only showed and hid the window, is hidden.
 - **Recommended KSP settings.** Taking control at the first start and *Reset* switch on
   *Advanced tweakables*, the *Extended burn indicator* and *Always show closest
   approach*, and set the *Conic patch limit* to 6.

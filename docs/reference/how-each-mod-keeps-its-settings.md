@@ -178,6 +178,20 @@ file was just read, so every save gets it as it loads. A postfix on its window's
 `ApplySettings` takes a value changed there into ReDefinition's. Without the hooks the
 rows still work, and a loaded save shows its own values until the next scene change.
 
+## Persistent Rotation
+
+Its two flight add-ons hold its settings, and only in flight. `Interface.instance`
+keeps whether its window shows (`disabled`) and saves it with the windows' places to
+its `PluginData/Config.cfg` (`SaveGUI`), which ReDefinition calls after a change and
+the mod calls itself as the flight scene ends. `Data.instance` keeps the default
+reference body with the vessels' data, per save, and writes it at every game save
+(`Data.Save`). Outside flight there is nothing to read, and a change waits in
+`bundled.cfg`.
+
+Its toolbar button only shows and hides its window, and it makes the button in every
+visibility mode. ReDefinition hides that button always, whether the mods are bundled or
+not (`ToolbarHides`); the row *Persistent Rotation window* does what it did.
+
 ## The mods' toolbar buttons
 
 ReDefinition hides a bundled mod's toolbar button while its settings are in the window,
@@ -191,5 +205,9 @@ button then opens.
   it with `button`.
 * A button made through ToolbarControl is found by the namespace a registration names
   with `toolbarControl`.
+* Better Time Warp Continued's and Persistent Rotation's buttons are hidden by their
+  ToolbarControl namespace for ReDefinition's own reasons, whatever the bundling
+  (`ToolbarTakeover.KeepOwn`): Better Time Warp's until the player keeps it, Persistent
+  Rotation's always.
 * Blizzy's toolbar is left alone. It writes its layout to its own file whenever a
   button's visibility changes.
