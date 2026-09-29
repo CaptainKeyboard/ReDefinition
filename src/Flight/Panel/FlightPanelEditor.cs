@@ -12,8 +12,7 @@ namespace ReDefinition.Flight.Panel
     // of KSP's dialog parts (PopupDialog, MultiOptionDialog), so that a UI theme
     // themes it as it themes KSP's. A change takes effect at once in the tabs and
     // is saved (FlightProfiles.Save); the window is made anew after each, above
-    // the panel. New and removed profiles get their tab with the next flight scene,
-    // since KSP builds the panel's tabs once as it starts. While it is open, the
+    // the panel; a new profile's tab opens (FlightPanel.Refresh). While it is open, the
     // keyboard does not steer the vessel (a control lock), so that typing a name
     // does not stage it.
     internal static class FlightPanelEditor
@@ -70,6 +69,7 @@ namespace ReDefinition.Flight.Panel
                 {
                     profile.Name = text;
                     renamed = true;
+                    FlightPanel.Refresh(editing, false);
                 }
                 return text;
             }, 180f, RowHeight);
@@ -119,10 +119,8 @@ namespace ReDefinition.Flight.Panel
                 Deletable(new DialogGUIButton("Delete profile", () => Delete(profile), 100f, 26f, false), profile),
                 new DialogGUIButton("Defaults", Defaults, 80f, 26f, false),
                 new DialogGUIButton("Close", Close, 70f, 26f, false));
-            DialogGUILabel note = new DialogGUILabel(
-                "<color=#9a9a9a>A new or deleted profile takes its tab with the next flight scene.</color>", Width - 20f, 18f);
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionFlightPanelEditor", "", "Flight panel", HighLogic.UISkin,
-                Width, list, note, buttons);
+                Width, list, buttons);
             shown = PopupDialog.SpawnPopupDialog(Place, Place, dialog, false, HighLogic.UISkin);
             PlannerWidgets.Settle(list);
             InputLockManager.SetControlLock(ControlTypes.KEYBOARDINPUT, Lock);
@@ -196,23 +194,12 @@ namespace ReDefinition.Flight.Panel
             Changed();
         }
 
-        // Every profile tab of the panel, the hidden ones too.
-        private static List<ProfileTab> Tabs()
-        {
-            List<ProfileTab> tabs = new List<ProfileTab>();
-            ManeuverNodeEditorManager manager = ManeuverNodeEditorManager.Instance;
-            if (manager != null && manager.LeftTabs != null)
-                foreach (ManeuverNodeEditorTab tab in manager.LeftTabs)
-                    if (tab is ProfileTab) tabs.Add((ProfileTab)tab);
-            return tabs;
-        }
-
         // Saved, the tabs built anew, and the window made again.
         private static void Changed()
         {
             FlightProfiles.Save();
             renamed = false;
-            foreach (ProfileTab tab in Tabs()) tab.Build();
+            FlightPanel.Refresh(editing);
             Debug.Log(Log.Tag + " Flight panel profile changed.");
             Show();
         }

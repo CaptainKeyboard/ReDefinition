@@ -29,6 +29,10 @@ namespace ReDefinition.Flight.Panel
     // setting says so (OwnSettings.FlightPanelAuto). A tab the player picks stays
     // until the situation changes.
     //
+    // A profile added or deleted in the editor gets or loses its tab at once
+    // (Refresh): ours are taken out of KSP's lists of tabs and buttons and made
+    // anew the way its setupAllTabs makes them.
+    //
     // The prefix is installed once as the game starts (FlightPanelHooks), before
     // any flight scene's panel starts.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
@@ -105,7 +109,7 @@ namespace ReDefinition.Flight.Panel
 
             // Kept under the manager, switched off, so that neither the block nor
             // the tabs' prefabs run.
-            GameObject holder = new GameObject("ReDefinitionPanelTemplates");
+            holder = new GameObject("ReDefinitionPanelTemplates");
             holder.SetActive(false);
             holder.transform.SetParent(manager.transform, false);
             BlockTemplate = Instantiate(block.gameObject, holder.transform, false);
@@ -114,24 +118,33 @@ namespace ReDefinition.Flight.Panel
             int at = tabs.IndexOf(orbit);
             tabs.RemoveAll(tab => tab is ManeuverNodeEditorTabOrbitBasic || tab is ManeuverNodeEditorTabOrbitAdv
                                   || tab is ManeuverNodeEditorTabIntercept);
+            orbitTab = orbit;
+            interceptTab = intercept;
             List<FlightProfile> profiles = FlightProfiles.Current;
-            for (int i = 0; i < profiles.Count; i++)
-            {
-                GameObject template = new GameObject("ReDefinitionProfile_" + profiles[i].Name, typeof(RectTransform));
-                template.transform.SetParent(holder.transform, false);
-                ProfileTab tab = template.AddComponent<ProfileTab>();
-                tab.Profile = i;
-                tab.tabPosition = orbit.tabPosition;
-                tab.tabName = profiles[i].Situation == PanelSituation.Rendezvous ? "Intercept" : "ReDefinition" + profiles[i].Name;
-                tab.tabTooltipCaptionActive = tab.tabTooltipCaptionInactive = profiles[i].Name;
-                tab.updateCooldownSeconds = 0.25f;
-                Sprite on, off;
-                Icons(profiles[i].Situation, orbit, intercept, out on, out off);
-                tab.tabIconOn = on;
-                tab.tabIconOff = off;
-                tabs.Insert(Math.Min(at + i, tabs.Count), tab);
-            }
+            for (int i = 0; i < profiles.Count; i++) tabs.Insert(Math.Min(at + i, tabs.Count), Template(profiles[i], i));
             Debug.Log(Log.Tag + " Flight panel: " + profiles.Count + " profiles in place of KSP's orbit tabs.");
+        }
+
+        private static GameObject holder;
+        private static ManeuverNodeEditorTab orbitTab;
+        private static ManeuverNodeEditorTab interceptTab;
+
+        // The prefab of a profile's tab, the `index`th of FlightProfiles.Current.
+        private static ProfileTab Template(FlightProfile profile, int index)
+        {
+            GameObject template = new GameObject("ReDefinitionProfile_" + profile.Name, typeof(RectTransform));
+            template.transform.SetParent(holder.transform, false);
+            ProfileTab tab = template.AddComponent<ProfileTab>();
+            tab.Profile = index;
+            tab.tabPosition = orbitTab.tabPosition;
+            tab.tabName = profile.Situation == PanelSituation.Rendezvous ? "Intercept" : "ReDefinition" + profile.Name;
+            tab.tabTooltipCaptionActive = tab.tabTooltipCaptionInactive = profile.Name;
+            tab.updateCooldownSeconds = 0.25f;
+            Sprite on, off;
+            Icons(profile.Situation, orbitTab, interceptTab, out on, out off);
+            tab.tabIconOn = on;
+            tab.tabIconOff = off;
+            return tab;
         }
 
         private static readonly FieldInfo LeftButtons =
@@ -163,15 +176,7 @@ namespace ReDefinition.Flight.Panel
             List<ManeuverNodeEditorTabButton> buttons = LeftButtons != null ? LeftButtons.GetValue(manager) as List<ManeuverNodeEditorTabButton> : null;
             if (buttons == null || buttons.Count == 0) return;
             Transform row = buttons[0].transform.parent;
-            RectTransform pane = manager.transform.Find("LeftPane") as RectTransform;
-            float room = pane != null ? pane.rect.width : 185f;
-            float each = Mathf.Min(44f, Mathf.Floor(room / (buttons.Count + 1)));
-            foreach (ManeuverNodeEditorTabButton button in buttons)
-            {
-                UnityEngine.UI.LayoutElement layout = button.GetComponent<UnityEngine.UI.LayoutElement>()
-                                                      ?? button.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
-                layout.preferredWidth = each;
-            }
+            float each = Narrow(manager, buttons);
 
             GameObject pencil = Instantiate(buttons[0].gameObject, row, false);
             pencil.name = "ReDefinitionPanelEdit";
@@ -189,6 +194,110 @@ namespace ReDefinition.Flight.Panel
             KSP.UI.TooltipTypes.TooltipController_Text tooltip = pencil.GetComponent<KSP.UI.TooltipTypes.TooltipController_Text>();
             if (tooltip != null) tooltip.textString = "Edit the flight panel's profiles";
             Debug.Log(Log.Tag + " Flight panel: " + buttons.Count + " tab buttons " + each.ToString("0") + " wide, and a pencil.");
+        }
+
+        // The tab buttons as wide as lets them and the pencil share KSP's pane,
+        // at most KSP's 44.
+        private static float Narrow(ManeuverNodeEditorManager manager, List<ManeuverNodeEditorTabButton> buttons)
+        {
+            RectTransform pane = manager.transform.Find("LeftPane") as RectTransform;
+            float room = pane != null ? pane.rect.width - (current != null ? current.applied : 0f) : 185f;
+            float each = Mathf.Min(44f, Mathf.Floor(room / (buttons.Count + 1)));
+            foreach (ManeuverNodeEditorTabButton button in buttons)
+            {
+                UnityEngine.UI.LayoutElement layout = button.GetComponent<UnityEngine.UI.LayoutElement>()
+                                                      ?? button.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+                layout.preferredWidth = each;
+            }
+            return each;
+        }
+
+        private static readonly FieldInfo LeftTabsParent =
+            typeof(ManeuverNodeEditorManager).GetField("leftTabsParent", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo LeftButtonsParent =
+            typeof(ManeuverNodeEditorManager).GetField("leftTabButtonsParent", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo ButtonPrefab =
+            typeof(ManeuverNodeEditorManager).GetField("tabButtonPrefab", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly MethodInfo SetupTab =
+            typeof(ManeuverNodeEditorTab).GetMethod("Setup", BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(Transform) }, null);
+
+        // The tabs after the editor changed the profiles, `show` the one to open:
+        // where the same profiles stand in the same order, their names on their
+        // buttons and, with `build`, each built anew; otherwise ours taken out of KSP's lists and made
+        // again, their buttons before the pencil.
+        internal static void Refresh(int show, bool build = true)
+        {
+            ManeuverNodeEditorManager manager = ManeuverNodeEditorManager.Instance;
+            List<ManeuverNodeEditorTab> tabs = manager != null ? manager.LeftTabs : null;
+            List<ManeuverNodeEditorTabButton> buttons = manager != null && LeftButtons != null
+                ? LeftButtons.GetValue(manager) as List<ManeuverNodeEditorTabButton> : null;
+            if (tabs == null || buttons == null || buttons.Count != tabs.Count || holder == null || orbitTab == null) return;
+            List<FlightProfile> profiles = FlightProfiles.Current;
+
+            List<ProfileTab> ours = new List<ProfileTab>();
+            foreach (ManeuverNodeEditorTab tab in tabs)
+                if (tab is ProfileTab) ours.Add((ProfileTab)tab);
+            bool same = ours.Count == profiles.Count;
+            for (int i = 0; same && i < ours.Count; i++) same = ours[i].Bound == profiles[i];
+            if (same)
+            {
+                for (int i = 0; i < tabs.Count; i++)
+                {
+                    ProfileTab tab = tabs[i] as ProfileTab;
+                    if (tab == null) continue;
+                    tab.tabTooltipCaptionActive = tab.tabTooltipCaptionInactive = tab.Bound.Name;
+                    if (buttons[i].tooltip != null) buttons[i].tooltip.textString = tab.Bound.Name;
+                    if (build) tab.Build();
+                }
+                return;
+            }
+
+            RectTransform tabsParent = LeftTabsParent != null ? LeftTabsParent.GetValue(manager) as RectTransform : null;
+            RectTransform buttonsParent = LeftButtonsParent != null ? LeftButtonsParent.GetValue(manager) as RectTransform : null;
+            ManeuverNodeEditorTabButton prefab = ButtonPrefab != null ? ButtonPrefab.GetValue(manager) as ManeuverNodeEditorTabButton : null;
+            if (tabsParent == null || buttonsParent == null || prefab == null || SetupTab == null)
+            {
+                Debug.LogWarning(Log.Tag + " The flight panel's tabs follow the profiles with the next flight scene: KSP's panel differs.");
+                return;
+            }
+
+            int at = tabs.FindIndex(tab => tab is ProfileTab);
+            if (at < 0) at = tabs.Count;
+            for (int i = tabs.Count - 1; i >= 0; i--)
+            {
+                if (!(tabs[i] is ProfileTab)) continue;
+                Destroy(tabs[i].gameObject);
+                Destroy(buttons[i].gameObject);
+                tabs.RemoveAt(i);
+                buttons.RemoveAt(i);
+            }
+            // The prefabs too, for KSP's list of them to match.
+            List<ManeuverNodeEditorTab> prefabs = manager.maneuverNodeEditorTabs;
+            int prefabAt = prefabs.FindIndex(tab => tab is ProfileTab);
+            if (prefabAt < 0) prefabAt = prefabs.Count;
+            foreach (ManeuverNodeEditorTab old in prefabs.FindAll(tab => tab is ProfileTab)) Destroy(old.gameObject);
+            prefabs.RemoveAll(tab => tab is ProfileTab);
+
+            Transform pencil = buttonsParent.Find("ReDefinitionPanelEdit");
+            for (int i = 0; i < profiles.Count; i++)
+            {
+                ProfileTab template = Template(profiles[i], i);
+                prefabs.Insert(Math.Min(prefabAt + i, prefabs.Count), template);
+                ProfileTab tab = Instantiate(template.gameObject).GetComponent<ProfileTab>();
+                // Switched off until SetCurrentTab opens one: a tab shown asks the
+                // panel for its width.
+                tab.gameObject.SetActive(false);
+                SetupTab.Invoke(tab, new object[] { tabsParent });
+                tabs.Insert(at + i, tab);
+                ManeuverNodeEditorTabButton button = Instantiate(prefab);
+                button.Setup(buttonsParent, template, manager.OnTabButtonPressed);
+                if (pencil != null) button.transform.SetSiblingIndex(pencil.GetSiblingIndex());
+                buttons.Insert(at + i, button);
+            }
+            Narrow(manager, buttons);
+            int open = at + Mathf.Clamp(show, 0, profiles.Count - 1);
+            if (open < tabs.Count) manager.SetCurrentTab(open, ManeuverNodeEditorTabPosition.LEFT);
+            Debug.Log(Log.Tag + " Flight panel: tabs made anew for " + profiles.Count + " profiles.");
         }
 
         // The profile of the tab shown.

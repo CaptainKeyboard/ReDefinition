@@ -42,9 +42,8 @@ The pencil after the tabs opens the profile of the tab shown:
    leaves your own. The six profiles for the situations cannot be deleted: the panel
    always has one to switch to.
 
-A change shows in the panel at once and is kept for every save. A new or deleted
-profile gets or loses its tab with the next flight scene. A profile of your own shows
-only when you pick it. While the window is open, the keyboard does not steer the vessel.
+A change shows in the panel at once and is kept for every save; a new profile opens in
+its own tab. A profile of your own shows only when you pick it. While the window is open, the keyboard does not steer the vessel.
 
 ## The profile follows the situation
 

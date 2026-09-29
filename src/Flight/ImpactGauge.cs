@@ -22,9 +22,10 @@ namespace ReDefinition.Flight
     public class ImpactGauge : MonoBehaviour
     {
         private const float Interval = 0.25f;
-        // How far out the face reaches, as a share of the picture's half width:
-        // KSP's bezel and ZTheme's start just beyond (read from both pictures).
-        internal const float Face = 0.79f;
+        // How far out the face reaches, as a share of the bezel's outer radius:
+        // ZTheme's bezel starts just beyond, KSP's a little further out (read
+        // from both pictures).
+        internal const float Face = 0.84f;
 
         private TextMeshProUGUI title;
         private TextMeshProUGUI value;
@@ -44,7 +45,8 @@ namespace ReDefinition.Flight
                 foreach (TextMeshProUGUI text in gauge.GetComponentsInChildren<TextMeshProUGUI>(true))
                     if (text.name == "Label_Vert") label = text;
             UnityEngine.UI.Image picture = gauge != null ? gauge.GetComponent<UnityEngine.UI.Image>() : null;
-            if (label == null || picture == null || !Blank(picture))
+            Vector2 centre;
+            if (label == null || picture == null || !Blank(picture, out centre))
             {
                 Debug.Log(Log.Tag + " The time to impact is not shown: KSP's vertical speed gauge, its label or its picture was not found.");
                 yield break;
@@ -55,25 +57,44 @@ namespace ReDefinition.Flight
                 if (child != null) child.gameObject.SetActive(false);
             }
             dim = label.color;
-            title = Copy(label, "ReDefinitionImpactTitle", 11f, label.fontSize * 1.15f, label.color);
+            // The dial's middle on the gauge: neither picture has it in its own.
+            Rect rect = picture.rectTransform.rect;
+            Vector2 middle = new Vector2(centre.x * rect.width, centre.y * rect.height);
+            title = Copy(label, "ReDefinitionImpactTitle", middle + new Vector2(0f, 9f), label.fontSize * 1.15f, label.color);
             title.text = "IMPACT";
-            value = Copy(label, "ReDefinitionImpactTime", -5f, label.fontSize * 2.1f, shown);
+            value = Copy(label, "ReDefinitionImpactTime", middle + new Vector2(0f, -6f), label.fontSize * 2.1f, shown);
             label.gameObject.SetActive(false);
             Debug.Log(Log.Tag + " KSP's vertical speed gauge shows the time to impact.");
         }
 
-        // The gauge's picture with its face painted over; false where the
-        // picture cannot be read.
-        private static bool Blank(UnityEngine.UI.Image image)
+        // The gauge's picture with its face painted over, and where the dial's
+        // middle lies off the picture's, as a share of its size; false where the
+        // picture cannot be read. The dial is the picture's opaque part: its
+        // middle is that part's.
+        private static bool Blank(UnityEngine.UI.Image image, out Vector2 centre)
         {
+            centre = Vector2.zero;
             Sprite sprite = image.sprite;
             int width, height;
             Color32[] pixels = TimeWarpBar.Pixels(sprite, out width, out height);
             if (pixels == null) return false;
+            int left = width, right = -1, bottom = height, top = -1;
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                if (pixels[y * width + x].a < 128) continue;
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (y < bottom) bottom = y;
+                if (y > top) top = y;
+            }
+            if (right < left || top < bottom) return false;
             // The face's colour a little east of the middle, clear of KSP's knob
             // and of the scale's numbers.
             Color32 face = pixels[(height / 2) * width + Mathf.Clamp(Mathf.RoundToInt(width * 0.675f), 0, width - 1)];
-            float cx = (width - 1) / 2f, cy = (height - 1) / 2f, reach = Face * width / 2f;
+            float cx = (left + right) / 2f, cy = (bottom + top) / 2f;
+            float reach = Face * Mathf.Min(right - left + 1, top - bottom + 1) / 2f;
+            centre = new Vector2((cx - (width - 1) / 2f) / width, (cy - (height - 1) / 2f) / height);
             for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
             {
@@ -89,8 +110,8 @@ namespace ReDefinition.Flight
             return true;
         }
 
-        // A copy of the gauge's label, centred across the face at `y` from its middle.
-        private static TextMeshProUGUI Copy(TextMeshProUGUI label, string name, float y, float size, Color colour)
+        // A copy of the gauge's label, centred on `at` from the gauge's middle.
+        private static TextMeshProUGUI Copy(TextMeshProUGUI label, string name, Vector2 at, float size, Color colour)
         {
             GameObject copy = Instantiate(label.gameObject, label.transform.parent, false);
             copy.name = name;
@@ -98,7 +119,7 @@ namespace ReDefinition.Flight
             RectTransform rect = (RectTransform)copy.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(60f, size * 1.4f);
-            rect.anchoredPosition = new Vector2(0f, y);
+            rect.anchoredPosition = at;
             TextMeshProUGUI text = copy.GetComponent<TextMeshProUGUI>();
             text.fontSize = size;
             text.enableAutoSizing = true;
