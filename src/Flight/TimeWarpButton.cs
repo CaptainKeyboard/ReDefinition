@@ -186,14 +186,17 @@ namespace ReDefinition.Flight
             bar = Instantiate(sunrise.gameObject, row, false);
             bar.name = "ReDefinitionTimeWarpBar";
             DestroyImmediate(bar.GetComponent<UIWarpToNextMorning>());
-            // Square: the bar's picture, rounded on its right, replaced by its
-            // colour.
+            // Square: the bar's picture, rounded only on its right, cut to its left
+            // half and stretched over the bar.
             Image plate = bar.GetComponent<Image>();
-            if (plate != null)
+            if (plate != null && plate.sprite != null)
             {
-                Color colour;
-                if (Middle(plate.sprite, out colour)) plate.color = plate.color * colour;
-                plate.sprite = null;
+                Sprite whole = plate.sprite;
+                Rect area = whole.textureRect;
+                plate.sprite = Sprite.Create(whole.texture, new Rect(area.x, area.y, area.width / 2f, area.height),
+                    new Vector2(0.5f, 0.5f), whole.pixelsPerUnit);
+                plate.type = Image.Type.Simple;
+                plate.preserveAspect = false;
             }
             // The sunrise's tooltip goes with it.
             foreach (TooltipController_Text tooltip in bar.GetComponentsInChildren<TooltipController_Text>(true))
@@ -263,7 +266,10 @@ namespace ReDefinition.Flight
 
         // The part of a sprite that is not see-through, as fractions of it: all of
         // it where it cannot be read. The texture is copied through a render
-        // texture, since a theme's textures need not be readable.
+        // texture, since a theme's textures need not be readable; where the
+        // graphics API counts a render texture's rows from the top (Direct3D,
+        // SystemInfo.graphicsUVStartsAtTop), the copy stands upside down, and the
+        // sprite's rows are read from there.
         private static Rect Opaque(Sprite sprite)
         {
             Rect all = new Rect(0f, 0f, 1f, 1f);
@@ -279,14 +285,17 @@ namespace ReDefinition.Flight
             {
                 Graphics.Blit(texture, copy);
                 RenderTexture.active = copy;
-                read.ReadPixels(new Rect(area.x, area.y, width, height), 0, 0);
+                bool flipped = SystemInfo.graphicsUVStartsAtTop;
+                float from = flipped ? texture.height - area.y - height : area.y;
+                read.ReadPixels(new Rect(area.x, from, width, height), 0, 0);
                 read.Apply();
                 Color32[] pixels = read.GetPixels32();
                 int xMin = width, xMax = -1, yMin = height, yMax = -1;
                 for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
                 {
-                    if (pixels[y * width + x].a < 128) continue;
+                    int row = flipped ? height - 1 - y : y;
+                    if (pixels[row * width + x].a < 128) continue;
                     xMin = Mathf.Min(xMin, x);
                     xMax = Mathf.Max(xMax, x);
                     yMin = Mathf.Min(yMin, y);
@@ -311,33 +320,6 @@ namespace ReDefinition.Flight
             if (barRect == null) return;
             Vector2 away = slide != null && slide.panel != null ? slide.panel.anchoredPosition - slide.positionHovered : Vector2.zero;
             barRect.localPosition = unfolded - (Vector3)away;
-        }
-
-        // The colour in the middle of a sprite, read as Opaque reads it.
-        private static bool Middle(Sprite sprite, out Color colour)
-        {
-            colour = Color.white;
-            if (sprite == null || sprite.texture == null) return false;
-            Texture2D texture = sprite.texture;
-            Rect area = sprite.textureRect;
-            RenderTexture copy = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32);
-            RenderTexture before = RenderTexture.active;
-            Texture2D read = new Texture2D(1, 1, TextureFormat.ARGB32, false);
-            try
-            {
-                Graphics.Blit(texture, copy);
-                RenderTexture.active = copy;
-                read.ReadPixels(new Rect(Mathf.Floor(area.center.x), Mathf.Floor(area.center.y), 1f, 1f), 0, 0);
-                read.Apply();
-                colour = read.GetPixel(0, 0);
-                return true;
-            }
-            finally
-            {
-                RenderTexture.active = before;
-                RenderTexture.ReleaseTemporary(copy);
-                Destroy(read);
-            }
         }
 
         private void LateUpdate()
