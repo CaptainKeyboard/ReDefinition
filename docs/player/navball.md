@@ -22,11 +22,28 @@ maneuver shows beside the navball. The stage list does not push it aside: the na
 drawn over it. It keeps its place when you hide and show
 it, in the map view and in every other flight mode. The SAS modes stand on its left, as in
 KSP. On its right, *V* and *H* give the vessel's vertical and horizontal speed over the
-surface, in fields like the heading's. The round gauge beside the altimeter shows, in
-place of KSP's vertical speed dial, *IMPACT* and the time left while the vessel comes down
-on a path that meets the ground; in air that time is short, since drag is not counted.
+surface, in fields like the heading's.
 
 ReDefinition keeps the place for the next flight and the next game start.
+
+## The round gauge
+
+The round gauge beside the altimeter, KSP's vertical speed dial, shows one figure in
+digits. A lit arc shows how far along that figure is. The arc is white while all is well,
+amber when it gets close and red when it is past the limit. Click the gauge for the next
+figure, right-click for the one before. On *AUTO* it picks the figure for what the vessel
+is doing, as the flight panel picks its profile. The gauge keeps your choice.
+
+| Figure | Digits | Arc | Picked on *AUTO* |
+|---|---|---|---|
+| *STAGE* | burn time left in the stage at full thrust | the stage's fuel left; amber below a quarter, red below a tenth | on the way up; in orbit without a maneuver |
+| *BURN* | time until the maneuver's burn starts, then the delta-v left | fills over the last minute before the burn, amber in the last ten seconds; during the burn how much is done, amber in the last tenth | in orbit or on the way to a target, with a maneuver |
+| *IMPACT* | time until the vessel's path meets the ground | how close it is to the last moment to brake; red when it is time to fire | coming down |
+| *CLOSING* | how fast the vessel closes on its target, or on the target's port | half full at a safe speed for the distance: a hundredth of it per second, at least 0.2 m/s; amber above, red at one and a half times | docking; on the way to a target without a maneuver |
+| *AOA* | angle of attack | against the angle where wings lift the most; amber past 60 %, red past 85 % | flying with wings |
+
+The burn starts half its length before the maneuver, as KSP counts it. The time to impact
+leaves drag out, so in air the vessel falls later than the gauge says.
 
 ## Put it back
 

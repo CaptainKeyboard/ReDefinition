@@ -12,9 +12,10 @@
   angle of attack or the angle between docking ports. It switches to the profile for
   what the vessel is doing, and grows to the right for more figures. The pencil after the
   tabs changes a profile's figures and their order, or adds a profile of your own.
-- **Time to impact.** KSP's round vertical speed gauge becomes a digital display: while
-  the vessel comes down on a path that meets the ground, *IMPACT* and the time left; the
-  vertical speed stands at the navball. Drag is not counted.
+- **The round gauge.** KSP's vertical speed dial becomes a digital gauge with a lit arc.
+  It shows the stage's burn time, the countdown and delta-v of the next burn, the time to
+  impact, the closing speed on a target or the angle of attack. It picks the figure for
+  the situation, or the one you click to.
 - **Vertical and horizontal speed at the navball.** On its right, *V* and *H* show the
   vessel's speed over the surface in its two parts, in fields like the heading's. The SAS
   modes stay on its left, as in KSP.

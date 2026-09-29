@@ -43,7 +43,8 @@ The pencil after the tabs opens the profile of the tab shown:
    always has one to switch to.
 
 A change shows in the panel at once and is kept for every save; a new profile opens in
-its own tab. A profile of your own shows only when you pick it. While the window is open, the keyboard does not steer the vessel.
+its own tab. A profile of your own shows only when you pick it. While the window is open,
+the keyboard does not steer the vessel.
 
 ## The profile follows the situation
 
@@ -66,7 +67,7 @@ A profile you pick by its tab stays until the situation changes.
 | Where | Shows |
 |---|---|
 | the altimeter, top centre | the height above the ground below 5 km over it and on it, above sea level from 6 km; its switch still changes it by hand (*Altimeter switches to the ground*) |
-| the round gauge beside it | a digital display in place of KSP's vertical speed gauge: *IMPACT* and the time left while the vessel comes down on a path into the ground, a dash otherwise; the vertical speed stands at the navball |
+| the round gauge beside it | a digital gauge in place of KSP's vertical speed dial, with a lit arc: the stage's burn time, the next burn, the time to impact, the closing speed or the angle of attack, for the situation or as you click ([the navball page](navball.md#the-round-gauge)); the vertical speed stands at the navball |
 | the navball, right | *V* and *H*: the vertical and horizontal speed over the surface |
 | the navball's ball | with a docking port as the target, an orange ring with a cross where the nose has to point for the two ports to face each other |
 
