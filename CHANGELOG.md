@@ -12,9 +12,9 @@
   angle of attack or the angle between docking ports. It switches to the profile for
   what the vessel is doing, and grows to the right for more figures. The pencil after the
   tabs changes a profile's figures and their order, or adds a profile of your own.
-- **Time to impact.** While the vessel comes down on a path that meets the ground, KSP's
-  vertical speed gauge shows *IMPACT* and the time left in digits; its needle still shows
-  the vertical speed. Drag is not counted.
+- **Time to impact.** KSP's round vertical speed gauge becomes a digital display: while
+  the vessel comes down on a path that meets the ground, *IMPACT* and the time left; the
+  vertical speed stands at the navball. Drag is not counted.
 - **Vertical and horizontal speed at the navball.** On its right, *V* and *H* show the
   vessel's speed over the surface in its two parts, in fields like the heading's. The SAS
   modes stay on its left, as in KSP.

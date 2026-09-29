@@ -22,9 +22,9 @@ maneuver shows beside the navball. The stage list does not push it aside: the na
 drawn over it. It keeps its place when you hide and show
 it, in the map view and in every other flight mode. The SAS modes stand on its left, as in
 KSP. On its right, *V* and *H* give the vessel's vertical and horizontal speed over the
-surface, in fields like the heading's. The vertical speed gauge beside the altimeter
-shows, while the vessel comes down on a path that meets the ground, *IMPACT* and the time
-left; in air that time is short, since drag is not counted.
+surface, in fields like the heading's. The round gauge beside the altimeter shows, in
+place of KSP's vertical speed dial, *IMPACT* and the time left while the vessel comes down
+on a path that meets the ground; in air that time is short, since drag is not counted.
 
 ReDefinition keeps the place for the next flight and the next game start.
 

@@ -359,7 +359,7 @@ namespace ReDefinition.Flight
         // texture; its top row, which ends 5 pixels short of the right edge, came
         // last only unturned) and FlightButtonNextMorning.png (the sun's rows from
         // 0.04 to 1.00 of the sprite, as the file has them).
-        private static Color32[] Pixels(Sprite sprite, out int width, out int height)
+        internal static Color32[] Pixels(Sprite sprite, out int width, out int height)
         {
             width = height = 0;
             if (sprite == null || sprite.texture == null) return null;

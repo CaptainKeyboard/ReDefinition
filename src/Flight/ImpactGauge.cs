@@ -7,21 +7,28 @@ using UnityEngine;
 
 namespace ReDefinition.Flight
 {
-    // The time until the vessel hits the ground, as digits on KSP's vertical speed
-    // gauge, whose needle still shows the vertical speed. The gauge (GaugeVerticalSpeed
-    // under the top frame's altimeter: a RotationalGauge from -135 to 135 degrees,
-    // so its needle never crosses the bottom quarter, and the label "VERT SPD" in
-    // KSP's 8-point font; sharedassets7) gets two copies of that label in that
-    // bottom quarter: "IMPACT" and the time. They show only while the vessel comes
-    // down and its path meets the ground (Impact.Seconds); otherwise the gauge is as
-    // KSP has it.
+    // KSP's vertical speed gauge made a digital display of the time until the
+    // vessel hits the ground: the vertical speed stands at the navball
+    // (NavballSpeeds). The gauge (GaugeVerticalSpeed under the top frame's
+    // altimeter, 83 by 85: its picture with the dial's face, scale and bezel, a
+    // needle, a knob, the label "VERT SPD" and the sink rate light; sharedassets7)
+    // keeps its bezel and its light. Its picture is read as it stands, the theme's
+    // where one replaces it, and its face painted over in the face's own colour up
+    // to the bezel, so that scale and numbers go; needle, knob and label are
+    // switched off. Two copies of the label stand on the face: "IMPACT", and the
+    // time, or a dash while the vessel's path does not meet the ground or it is
+    // not coming down (Impact.Seconds).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ImpactGauge : MonoBehaviour
     {
         private const float Interval = 0.25f;
+        // How far out the face reaches, as a share of the picture's half width:
+        // KSP's bezel and ZTheme's start just beyond (read from both pictures).
+        internal const float Face = 0.79f;
 
         private TextMeshProUGUI title;
         private TextMeshProUGUI value;
+        private Color shown = Color.white, dim = Color.grey;
         private float next;
 
         private IEnumerator Start()
@@ -29,44 +36,79 @@ namespace ReDefinition.Flight
             float until = Time.unscaledTime + 15f;
             VerticalSpeedGauge gauge = null;
             while (Time.unscaledTime < until && (gauge = FindObjectOfType<VerticalSpeedGauge>()) == null) yield return null;
+            // A frame more: a theme swaps the gauge's picture as the scene's UI is
+            // ready.
+            yield return null;
             TextMeshProUGUI label = null;
             if (gauge != null)
                 foreach (TextMeshProUGUI text in gauge.GetComponentsInChildren<TextMeshProUGUI>(true))
                     if (text.name == "Label_Vert") label = text;
-            if (label == null)
+            UnityEngine.UI.Image picture = gauge != null ? gauge.GetComponent<UnityEngine.UI.Image>() : null;
+            if (label == null || picture == null || !Blank(picture))
             {
-                Debug.Log(Log.Tag + " The time to impact is not shown: KSP's vertical speed gauge or its label was not found.");
+                Debug.Log(Log.Tag + " The time to impact is not shown: KSP's vertical speed gauge, its label or its picture was not found.");
                 yield break;
             }
-            title = Copy(label, "ReDefinitionImpactTitle", -21f, label.fontSize, label.color);
+            foreach (string part in new[] { "GaugeVerticalSpeedPointerParent", "GaugeVerticalSpeedKnob" })
+            {
+                Transform child = gauge.transform.Find(part);
+                if (child != null) child.gameObject.SetActive(false);
+            }
+            dim = label.color;
+            title = Copy(label, "ReDefinitionImpactTitle", 11f, label.fontSize * 1.15f, label.color);
             title.text = "IMPACT";
-            value = Copy(label, "ReDefinitionImpactTime", -31f, label.fontSize * 1.5f, Color.white);
-            Show(false);
-            Debug.Log(Log.Tag + " The time to impact shows on KSP's vertical speed gauge.");
+            value = Copy(label, "ReDefinitionImpactTime", -5f, label.fontSize * 2.1f, shown);
+            label.gameObject.SetActive(false);
+            Debug.Log(Log.Tag + " KSP's vertical speed gauge shows the time to impact.");
         }
 
-        // A copy of the gauge's label, centred across the gauge at `y` below its middle.
+        // The gauge's picture with its face painted over; false where the
+        // picture cannot be read.
+        private static bool Blank(UnityEngine.UI.Image image)
+        {
+            Sprite sprite = image.sprite;
+            int width, height;
+            Color32[] pixels = TimeWarpBar.Pixels(sprite, out width, out height);
+            if (pixels == null) return false;
+            // The face's colour a little east of the middle, clear of KSP's knob
+            // and of the scale's numbers.
+            Color32 face = pixels[(height / 2) * width + Mathf.Clamp(Mathf.RoundToInt(width * 0.675f), 0, width - 1)];
+            float cx = (width - 1) / 2f, cy = (height - 1) / 2f, reach = Face * width / 2f;
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                float dx = x - cx, dy = y - cy;
+                if (dx * dx + dy * dy > reach * reach) continue;
+                Color32 was = pixels[y * width + x];
+                pixels[y * width + x] = new Color32(face.r, face.g, face.b, was.a);
+            }
+            Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, false);
+            texture.SetPixels32(pixels);
+            texture.Apply();
+            image.sprite = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+            return true;
+        }
+
+        // A copy of the gauge's label, centred across the face at `y` from its middle.
         private static TextMeshProUGUI Copy(TextMeshProUGUI label, string name, float y, float size, Color colour)
         {
             GameObject copy = Instantiate(label.gameObject, label.transform.parent, false);
             copy.name = name;
+            copy.SetActive(true);
             RectTransform rect = (RectTransform)copy.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(50f, size * 1.4f);
+            rect.sizeDelta = new Vector2(60f, size * 1.4f);
             rect.anchoredPosition = new Vector2(0f, y);
             TextMeshProUGUI text = copy.GetComponent<TextMeshProUGUI>();
             text.fontSize = size;
+            text.enableAutoSizing = true;
+            text.fontSizeMax = size;
+            text.fontSizeMin = size * 0.5f;
             text.color = colour;
             text.enableWordWrapping = false;
             text.alignment = TextAlignmentOptions.Center;
             text.raycastTarget = false;
             return text;
-        }
-
-        private void Show(bool shown)
-        {
-            if (title != null && title.gameObject.activeSelf != shown) title.gameObject.SetActive(shown);
-            if (value != null && value.gameObject.activeSelf != shown) value.gameObject.SetActive(shown);
         }
 
         private void Update()
@@ -77,21 +119,17 @@ namespace ReDefinition.Flight
             // Only while it comes down: climbing, or flying level on wings, the
             // ballistic path would warn of a fall that is not happening.
             double seconds = vessel != null && vessel.verticalSpeed < -1.0 ? Impact.Seconds(vessel) : double.NaN;
-            if (double.IsNaN(seconds))
-            {
-                Show(false);
-                return;
-            }
-            value.text = EngineerFormat.Time(seconds);
-            Show(true);
+            bool known = !double.IsNaN(seconds);
+            value.text = known ? EngineerFormat.Time(seconds) : "-";
+            value.color = known ? shown : dim;
         }
     }
 
     // When a vessel's path meets the ground: its orbit, followed from now to its
     // next periapsis, against the height of the ground under each point of it at
     // the time the vessel gets there (CelestialBody.TerrainAltitude, the sea's
-    // surface over water, below the datum where there is no sea; the body turning beneath: the longitude moves west by
-    // its turn since now). Drag is not counted: in air the vessel falls later than
+    // surface over water, below the datum where there is no sea; the body turning
+    // beneath: the longitude moves west by its turn since now). Drag is not counted: in air the vessel falls later than
     // this says. First in steps along the way, then by halving the step where the
     // height over the ground turns negative. NaN where it does not meet the ground:
     // on the ground already, or a periapsis above the highest ground there is.

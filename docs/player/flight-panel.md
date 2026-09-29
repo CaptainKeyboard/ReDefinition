@@ -67,7 +67,7 @@ A profile you pick by its tab stays until the situation changes.
 | Where | Shows |
 |---|---|
 | the altimeter, top centre | the height above the ground below 5 km over it and on it, above sea level from 6 km; its switch still changes it by hand (*Altimeter switches to the ground*) |
-| the vertical speed gauge beside it | its needle as KSP has it; while the vessel comes down on a path into the ground, *IMPACT* and the time left |
+| the round gauge beside it | a digital display in place of KSP's vertical speed gauge: *IMPACT* and the time left while the vessel comes down on a path into the ground, a dash otherwise; the vertical speed stands at the navball |
 | the navball, right | *V* and *H*: the vertical and horizontal speed over the surface |
 | the navball's ball | with a docking port as the target, an orange ring with a cross where the nose has to point for the two ports to face each other |
 
