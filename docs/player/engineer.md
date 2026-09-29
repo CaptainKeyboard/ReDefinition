@@ -88,7 +88,7 @@ The window's settings are in the settings window, in the *Mods / Toolbar* tab un
 
 ## If Kerbal Engineer Redux is installed
 
-The engineer window shows what Kerbal Engineer Redux shows in the editor. Kerbal Engineer
-is no longer developed, and with both installed you see the same numbers twice. When
-ReDefinition finds Kerbal Engineer, it recommends uninstalling it once per game start.
-Uninstall it with CKAN, or delete `GameData/KerbalEngineer`.
+The engineer window shows what Kerbal Engineer Redux shows in the editor, so with both
+installed you see the same numbers twice. When ReDefinition finds Kerbal Engineer, it says
+so once per game start. If you use Kerbal Engineer only while building, uninstall it with
+CKAN or delete `GameData/KerbalEngineer`. Its readouts in flight go with it.

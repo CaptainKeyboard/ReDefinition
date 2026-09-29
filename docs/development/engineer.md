@@ -170,5 +170,6 @@ engineer's report and the parts list's tooltips are not shown a second time. The
 table repeats KSP's per-stage numbers on purpose: comparing the stages needs them side by
 side in one place, and since they are KSP's own, they cannot disagree.
 
-When Kerbal Engineer is installed, `EditorEngineer` recommends uninstalling it once per
-game start.
+When Kerbal Engineer is installed, `EditorEngineer` says once per game start that its
+build window shows the same figures, and that it can go where it is used only while
+building.
