@@ -21,9 +21,9 @@
   modes stay on its left, as in KSP.
 - **The altimeter switches by itself.** Below 5 km over the ground and on it, it shows the
   height above the ground; above 6 km, the height above sea level. Its switch still
-  changes it by hand. *Altimeter switches to the ground* under *Mods / Toolbar*.
+  changes it by hand. *Altimeter switches to the ground* under *Gameplay*, *Flight*.
 - **Flights start in the maneuver mode.** KSP's orbit and maneuver panel is open as a
-  flight starts; *Start flight in maneuver mode* under *Mods / Toolbar* switches it off.
+  flight starts; *Start flight in maneuver mode* under *Gameplay*, *Flight* switches it off.
 - **Persistent Rotation in the settings window.** Under *Gameplay*, *Flight*: whether its
   window shows in flight, and the default reference body. Its toolbar button, which
   only showed and hid the window, is hidden.
@@ -34,8 +34,8 @@
   stack's buttons for stages do, in place of KSP's *|<* and *>|*.
 - **Better Time Warp's button in the time panel.** With Better Time Warp Continued
   installed, its arrow stands at the end of the time warp row, in the panel's look, and
-  opens its window. Its toolbar button is hidden; *Better Time Warp's toolbar button*
-  under *Mods / Toolbar* brings it back.
+  opens its window. Its toolbar button is hidden; *Hide from toolbar* under *Mods / Toolbar*
+  brings it back.
 - **RCS, turning and the TWR at burnout in the VAB and the SPH.** The planner's *Thrust*
   part gives for every step the RCS of what flies it as a stage row, thrust, Isp, TWR and
   burn time, its delta-v in the fuel plan, and how long it takes to turn by 90° on its reaction wheels, RCS and gimbals; the route
@@ -82,8 +82,8 @@
   where it stays. The plan is kept per vessel.
 - **The navball moves sideways.** Drag its show/hide button left or right in flight; the
   SAS switches, the autopilot modes and the gauges move with it, and it stays on the
-  screen. A click still shows and hides it. The position is kept, and *Navball position*
-  under *Mods / Toolbar* sets it or puts it back in the centre.
+  screen. A click still shows and hides it. The position is kept; with another screen resolution the
+  navball goes back to the centre.
 
 ### Fixed
 

@@ -27,8 +27,9 @@ namespace ReDefinition.Flight
     // it keeps privately. A move therefore shifts the panel, both states and that
     // kept position by the same amount, so that showing and hiding keep the new
     // place, in the map view too. The offset is saved in ReDefinition's settings
-    // (OwnSettings.NavballOffset) and applied again in every flight scene; a
-    // change in the settings window moves the navball the same way.
+    // (OwnSettings.NavballOffset) and applied again in every flight scene; on a
+    // screen of another size it goes back to the centre (ReDefinitionAddon.
+    // NavballOffset).
     //
     // KSP places the navball itself, where its own setting has it
     // (FlightUIModeController.SetNavBallHPos, GameSettings.UI_POS_NAVBALL): the

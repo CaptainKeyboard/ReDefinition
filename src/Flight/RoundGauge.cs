@@ -128,7 +128,11 @@ namespace ReDefinition.Flight
             clickRect.anchoredPosition = middle;
             click.GetComponent<Image>().color = Color.clear;
             click.GetComponent<GaugeClick>().Pressed = Step;
-            Debug.Log(Log.Tag + " The round gauge is digital, showing " + mode + ".");
+            Sprite read = picture.sprite;
+            Debug.Log(Log.Tag + " The round gauge is digital, showing " + mode + ": the dial's middle at " + middle.ToString("0.0")
+                      + " of the gauge's " + rect.size.ToString("0.0") + " (pivot " + picture.rectTransform.pivot.ToString("0.00")
+                      + "), the arc " + radius.ToString("0.0") + " out; the picture " + (read != null ? read.rect.size.ToString("0") : "?")
+                      + ", the label under " + label.transform.parent.name + ".");
         }
 
         // The gauge's picture with its face painted over, where the dial's middle

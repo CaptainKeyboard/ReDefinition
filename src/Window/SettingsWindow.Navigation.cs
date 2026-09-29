@@ -214,8 +214,9 @@ namespace ReDefinition.Window
                 if (model.Profile != BundledSettings.ProfileName || model.Resetting) pendingIn.Add(SettingCategory.Profiles);
                 if (kspPending.Count > 0 || layoutPending != null) pendingIn.Add(SettingCategory.Keys);
                 if (AxesDiffer()) pendingIn.Add(SettingCategory.Axes);
-                if (model.Bundled != BundledSettings.Enabled || model.ButtonsPending() || OwnInterfacePending())
+                if (model.Bundled != BundledSettings.Enabled || model.ButtonsPending() || OwnPending(SettingCategory.Interface))
                     pendingIn.Add(SettingCategory.Interface);
+                if (OwnPending(SettingCategory.Gameplay)) pendingIn.Add(SettingCategory.Gameplay);
                 foreach (SettingCategory child in new List<SettingCategory>(pendingIn))
                 {
                     SettingCategory? parent = ParentOf(child);

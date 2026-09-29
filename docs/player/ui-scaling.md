@@ -32,15 +32,12 @@ The UI scale itself is under *Display*, *Screen*: from 80 to 400 %, in steps of 
 KSP's own settings screen offers up to 200 %; a larger value stays until its slider is
 moved there.
 
-Open the settings window and its *Interface* tab. Under *Scaling*:
+The map's icons, the labels, the lines and the gizmos follow it. A new UI scale shows at
+once on the map and the labels; the orbit lines take it after the next scene change, the
+editor's gizmos the next time they appear.
 
-| Row | Does |
-|---|---|
-| *Map, labels and gizmos* | how large the map's icons, the labels, the lines and the gizmos are, as a share of KSP's UI scale. At 100 % they have the UI scale; lower it if they feel too large on a screen you sit close to |
-| *Other mods' windows* | draws other mods' windows at KSP's UI scale. Off, they keep their own size |
-
-A change to *Map, labels and gizmos* shows at once on the map and the labels. The orbit
-lines take it after the next scene change, the editor's gizmos the next time they appear.
+Open the settings window and its *Mods / Toolbar* tab. Under *Scaling*, *Other mods'
+windows* draws other mods' windows at KSP's UI scale. Off, they keep their own size.
 
 ## Mods that do this already
 

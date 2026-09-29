@@ -34,7 +34,7 @@
 | stop | A place on the planner's route: a body, on its surface or in an orbit at an altitude. |
 | leg | The flight from one stop of the planner's route to the next. |
 | lander | In the planner, the stages that fly down and back up alone while the rest of the vessel waits, and are then carried on. |
-| navball position | How far the navball stands from the bottom centre of the flight screen. Dragging its show/hide button sets it, and so does *Navball position* in the settings window. |
+| navball position | How far the navball stands from the bottom centre of the flight screen. Dragging its show/hide button sets it; with another screen resolution it goes back to the centre. |
 | situation | Where KSP's delta-v numbers in the editor are for: a body, and sea level, an altitude in its atmosphere, or vacuum. KSP's delta-v app sets it, and its staging stack follows it. |
 
 ## The store

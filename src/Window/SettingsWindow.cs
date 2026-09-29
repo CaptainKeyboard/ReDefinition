@@ -415,6 +415,8 @@ namespace ReDefinition.Window
             bool folding = Folding(category);
             List<DialogGUIBase> fold = new List<DialogGUIBase>();
             bool firstFold = true;
+            // ReDefinition's own rows join the group of their section.
+            Dictionary<string, List<DialogGUIBase>> own = OwnRowsBySection(category);
             foreach (BundledSetting setting in category == SettingCategory.Keys
                          ? new List<BundledSetting>()
                          : WindowLayout.In(category))
@@ -428,6 +430,7 @@ namespace ReDefinition.Window
                 {
                     if (newSection && fold.Count > 0)
                     {
+                        fold.AddRange(TakeOwn(own, section));
                         AddFold(rows, category, section, fold, firstFold);
                         firstFold = false;
                         fold = new List<DialogGUIBase>();
@@ -447,7 +450,23 @@ namespace ReDefinition.Window
                 rows.Add(row);
             }
             if (!upscalingDone) AddUpscaling(rows);
-            if (folding && fold.Count > 0) AddFold(rows, category, section, fold, firstFold);
+            if (folding && fold.Count > 0)
+            {
+                fold.AddRange(TakeOwn(own, section));
+                AddFold(rows, category, section, fold, firstFold);
+                firstFold = false;
+            }
+            foreach (KeyValuePair<string, List<DialogGUIBase>> left in own)
+            {
+                if (folding)
+                {
+                    AddFold(rows, category, left.Key, left.Value, firstFold);
+                    firstFold = false;
+                    continue;
+                }
+                rows.Add(SectionHeading(left.Key));
+                rows.AddRange(left.Value);
+            }
             if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
                 && category != SettingCategory.Keys)
             {
@@ -495,8 +514,36 @@ namespace ReDefinition.Window
             };
         }
 
+        // ReDefinition's own rows of a tab other than General and Mods / Toolbar,
+        // by the section they join (OurModules: Row, Section): the flight UI's in
+        // Gameplay, with KSP's Flight group.
+        private static Dictionary<string, List<DialogGUIBase>> OwnRowsBySection(SettingCategory category)
+        {
+            Dictionary<string, List<DialogGUIBase>> bySection = new Dictionary<string, List<DialogGUIBase>>();
+            if (edit == null || category == SettingCategory.General || category == SettingCategory.Interface) return bySection;
+            List<ModuleSetting> settings = OurModules.Rows(category);
+            if (settings.Count == 0) return bySection;
+            DialogGUIBase[] rows = KspSettingsSection.Rows(edit, OwnLayout(), category);
+            for (int i = 0; i < rows.Length && i < settings.Count; i++)
+            {
+                string section = settings[i].Section ?? Title(category);
+                List<DialogGUIBase> list;
+                if (!bySection.TryGetValue(section, out list)) bySection[section] = list = new List<DialogGUIBase>();
+                list.Add(Searchable(rows[i], settings[i].Title + " " + section + " ReDefinition"));
+            }
+            return bySection;
+        }
+
+        private static List<DialogGUIBase> TakeOwn(Dictionary<string, List<DialogGUIBase>> own, string section)
+        {
+            List<DialogGUIBase> rows;
+            if (section == null || !own.TryGetValue(section, out rows)) return new List<DialogGUIBase>();
+            own.Remove(section);
+            return rows;
+        }
+
         // ReDefinition's own rows under Mods / Toolbar, under their headings: the
-        // flight UI's and the scaling (OurModules.FlightUi, Scaling).
+        // scaling (OurModules.Scaling).
         private static void AddOwnInterfaceRows(List<DialogGUIBase> rows)
         {
             DialogGUIBase[] own = KspSettingsSection.Rows(edit, OwnLayout(), SettingCategory.Interface);
@@ -513,12 +560,14 @@ namespace ReDefinition.Window
             }
         }
 
-        // Whether one of ReDefinition's own rows under Mods / Toolbar waits for
-        // Accept.
-        private static bool OwnInterfacePending()
+        // Whether one of ReDefinition's own rows in a tab waits for Accept; under
+        // Mods / Toolbar, Better Time Warp's button among the toolbar's too.
+        private static bool OwnPending(SettingCategory category)
         {
             if (edit == null || edit.Before == null || edit.After == null) return false;
-            foreach (ModuleSetting setting in OurModules.Rows(SettingCategory.Interface))
+            if (category == SettingCategory.Interface && edit.Before.TimeWarpToolbarButton != edit.After.TimeWarpToolbarButton)
+                return true;
+            foreach (ModuleSetting setting in OurModules.Rows(category))
                 if (setting.Read(edit.Before) != setting.Read(edit.After)) return true;
             return false;
         }
@@ -1133,20 +1182,28 @@ namespace ReDefinition.Window
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             List<IBundledMod> mods = ButtonMods();
-            if (mods.Count == 0) return rows;
+            // Better Time Warp's button is hidden for ReDefinition's own reason (its
+            // window opens from the time warp row), bundled or not
+            // (OwnSettings.TimeWarpToolbarButton).
+            bool timeWarp = Flight.TimeWarpButton.Installed && edit != null;
+            if (mods.Count == 0 && !timeWarp) return rows;
+            Func<bool> allHidden = () => (mods.Count == 0 || AllButtonsHidden(mods)) && (!timeWarp || TimeWarpHidden);
 
-            DialogGUIToggle all = new DialogGUIToggle(() => AllButtonsHidden(mods),
-                () => KspSettingsSection.StateText(AllButtonsHidden(mods)),
-                hide => { foreach (IBundledMod mod in mods) model.SetButtonHidden(mod.Id, hide); }, ControlWidth);
+            DialogGUIToggle all = new DialogGUIToggle(allHidden, () => KspSettingsSection.StateText(allHidden()), hide =>
+            {
+                foreach (IBundledMod mod in mods) model.SetButtonHidden(mod.Id, hide);
+                if (timeWarp) TimeWarpHidden = hide;
+            }, ControlWidth);
             all.tooltipText = "On: every mod below is hidden from the toolbar while its settings are bundled here.\n"
                               + "Off: every one of them keeps its button.\n"
                               + "It shows On while all of them are hidden.";
-            all.OptionInteractableCondition = () => model.Bundled;
+            all.OptionInteractableCondition = () => model.Bundled || mods.Count == 0;
             rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUILabel("Hide all from toolbar", NameWidth), all));
 
-            string folded = "+  Per mod (" + mods.Count + ")";
-            string open = "-  Per mod (" + mods.Count + ")";
+            int count = mods.Count + (timeWarp ? 1 : 0);
+            string folded = "+  Per mod (" + count + ")";
+            string open = "-  Per mod (" + count + ")";
             DialogGUIButton header = new DialogGUIButton(() => buttonsOpen ? open : folded,
                 () => { buttonsOpen = !buttonsOpen; }, PageWidth - 60f, RowHeight + 6f, false);
             header.tooltipText = "Opens or folds the switch for each mod's own toolbar button.";
@@ -1167,7 +1224,24 @@ namespace ReDefinition.Window
                 row.OptionEnabledCondition = () => buttonsOpen;
                 rows.Add(row);
             }
+            if (timeWarp)
+            {
+                DialogGUIToggle toggle = new DialogGUIToggle(() => TimeWarpHidden,
+                    () => KspSettingsSection.StateText(TimeWarpHidden), hide => TimeWarpHidden = hide, ControlWidth);
+                toggle.tooltipText = "On: Better Time Warp's toolbar button is hidden; the arrow at the end of the time warp row"
+                                     + " opens its window.\nOff: it keeps its button.";
+                DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(),
+                    TextAnchor.MiddleLeft, new DialogGUILabel("    Better Time Warp", NameWidth), toggle);
+                row.OptionEnabledCondition = () => buttonsOpen;
+                rows.Add(row);
+            }
             return rows;
+        }
+
+        private static bool TimeWarpHidden
+        {
+            get { return edit != null && edit.After != null && !edit.After.TimeWarpToolbarButton; }
+            set { if (edit != null && edit.After != null) edit.After.TimeWarpToolbarButton = !value; }
         }
 
         private static bool AllButtonsHidden(List<IBundledMod> mods)

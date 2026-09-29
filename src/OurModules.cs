@@ -202,35 +202,14 @@ namespace ReDefinition
                 Write = (settings, value) => settings.CameraListKey = value,
             });
 
-        // The flight UI's own: where the navball stands (Flight/NavballDrag).
+        // The flight UI's own, in the Gameplay tab with KSP's flight settings.
         public static readonly IGraphicsModule FlightUi = new GraphicsModule("flightUi", "Flight",
-            new ModuleSetting
-            {
-                Key = "navballOffset",
-                Title = "Navball position",
-                // Before the scaling rows, so that the tab keeps each section
-                // together (Rows sorts every module's rows by order).
-                Order = 100,
-                Row = SettingCategory.Interface,
-                Section = "Flight",
-                Control = SettingControl.Slider,
-                Min = -1200f,
-                Max = 1200f,
-                WholeNumbers = true,
-                NeedsProfile = false,
-                Label = NavballLabel,
-                Tooltip = "Where the navball stands along the bottom of the screen, with its SAS switches and gauges.\n"
-                          + "Dragging its show/hide button in flight moves it as well. It stops at the screen's edges.",
-                Read = settings => settings.NavballOffset.ToString("0", CultureInfo.InvariantCulture),
-                Write = (settings, value) =>
-                    settings.NavballOffset = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
-            },
             new ModuleSetting
             {
                 Key = "flightPanelAuto",
                 Title = "Flight panel follows the situation",
                 Order = 104,
-                Row = SettingCategory.Interface,
+                Row = SettingCategory.Gameplay,
                 Section = "Flight",
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
@@ -245,7 +224,7 @@ namespace ReDefinition
                 Key = "autoAltimeter",
                 Title = "Altimeter switches to the ground",
                 Order = 103,
-                Row = SettingCategory.Interface,
+                Row = SettingCategory.Gameplay,
                 Section = "Flight",
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
@@ -260,7 +239,7 @@ namespace ReDefinition
                 Key = "flightStartsInManeuverMode",
                 Title = "Start flight in maneuver mode",
                 Order = 105,
-                Row = SettingCategory.Interface,
+                Row = SettingCategory.Gameplay,
                 Section = "Flight",
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
@@ -268,46 +247,10 @@ namespace ReDefinition
                           + "than in the staging mode. The mode buttons switch it as before.",
                 Read = settings => SettingValues.Text(settings.FlightStartsInManeuverMode),
                 Write = (settings, value) => settings.FlightStartsInManeuverMode = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "timeWarpToolbarButton",
-                Title = "Better Time Warp's toolbar button",
-                Order = 110,
-                Row = SettingCategory.Interface,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Shows Better Time Warp Continued's button on KSP's toolbar. Its window opens from the arrow at the end "
-                          + "of the time warp row as well.",
-                Interactable = settings => Flight.TimeWarpButton.Installed,
-                Read = settings => SettingValues.Text(settings.TimeWarpToolbarButton),
-                Write = (settings, value) => settings.TimeWarpToolbarButton = bool.Parse(value),
             });
 
         // What KSP leaves unscaled (Scaling/UiScaling).
         public static readonly IGraphicsModule Scaling = new GraphicsModule("uiScaling", "Scaling",
-            new ModuleSetting
-            {
-                Key = "worldUiScale",
-                Title = "Map, labels and gizmos",
-                Order = 200,
-                Row = SettingCategory.Interface,
-                Section = ScalingSection,
-                Control = SettingControl.Slider,
-                Min = 50f,
-                Max = 200f,
-                WholeNumbers = true,
-                NeedsProfile = false,
-                Label = value => value + " % of the UI scale",
-                Tooltip = "The size of what KSP draws at a fixed number of pixels, whatever its UI scale: the map's icons and "
-                          + "labels, vessel labels, orbit lines, the maneuver gizmo and the editor's move and rotate gizmos.\n"
-                          + "100 % gives them KSP's UI scale, as the rest of the interface has. The orbit lines and the editor's "
-                          + "gizmos take a change when they are next drawn anew.",
-                Read = settings => settings.WorldUiScale.ToString("0", CultureInfo.InvariantCulture),
-                Write = (settings, value) =>
-                    settings.WorldUiScale = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
-            },
             new ModuleSetting
             {
                 Key = "scaleModWindows",
@@ -324,15 +267,6 @@ namespace ReDefinition
             });
 
         private const string ScalingSection = "Scaling";
-
-        private static string NavballLabel(string value)
-        {
-            float offset;
-            if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out offset)) return value;
-            int whole = (int)System.Math.Round(offset);
-            if (whole == 0) return "Centre";
-            return System.Math.Abs(whole).ToString(CultureInfo.InvariantCulture) + (whole < 0 ? " left" : " right");
-        }
 
         public static readonly IList<IGraphicsModule> All =
             new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys, FlightUi, Scaling }.AsReadOnly();

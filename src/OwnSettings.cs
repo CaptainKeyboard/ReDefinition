@@ -51,13 +51,10 @@ namespace ReDefinition
         public string SettingsWindowKey = KeyCombination.NoneText;
 
         // How far the navball stands from the bottom centre, in the flight UI's
-        // units: negative to the left (NavballDrag).
+        // units: negative to the left (NavballDrag); and the screen, width by
+        // height, it was put there on. On another screen it stands in the centre.
         public float NavballOffset;
-
-        // What KSP leaves at a fixed number of pixels -- the map's icons and labels,
-        // vessel labels, orbit lines, the maneuver and editor gizmos -- at this share
-        // of KSP's UI scale, in percent (Scaling/UiScaling).
-        public float WorldUiScale = 100f;
+        public string NavballScreen = "";
         // Other mods' IMGUI windows at KSP's UI scale (Scaling/ModWindowScale).
         public bool ScaleModWindows = true;
         // Better Time Warp Continued's own toolbar button: hidden while off, since
@@ -109,7 +106,7 @@ namespace ReDefinition
             settings.CameraListKey = Binding(node, "cameraListKey", settings.CameraListKey);
             settings.SettingsWindowKey = Binding(node, "settingsWindowKey", settings.SettingsWindowKey);
             settings.NavballOffset = Float(node, "navballOffset", settings.NavballOffset);
-            settings.WorldUiScale = Float(node, "worldUiScale", settings.WorldUiScale);
+            settings.NavballScreen = node.GetValue("navballScreen") ?? "";
             settings.ScaleModWindows = Bool(node, "scaleModWindows", settings.ScaleModWindows);
             settings.TimeWarpToolbarButton = Bool(node, "timeWarpToolbarButton", settings.TimeWarpToolbarButton);
             settings.FlightStartsInManeuverMode = Bool(node, "flightStartsInManeuverMode", settings.FlightStartsInManeuverMode);
@@ -145,7 +142,7 @@ namespace ReDefinition
             node.AddValue("cameraListKey", CameraListKey);
             node.AddValue("settingsWindowKey", SettingsWindowKey);
             node.AddValue("navballOffset", NavballOffset.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
-            node.AddValue("worldUiScale", WorldUiScale.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
+            node.AddValue("navballScreen", NavballScreen);
             node.AddValue("scaleModWindows", ScaleModWindows);
             node.AddValue("timeWarpToolbarButton", TimeWarpToolbarButton);
             node.AddValue("flightStartsInManeuverMode", FlightStartsInManeuverMode);
@@ -178,7 +175,7 @@ namespace ReDefinition
               .Append(UpscalerKey).Append('|').Append(DiagnosticsKey).Append('|').Append(CameraListKey).Append('|')
               .Append(SettingsWindowKey).Append('|')
               .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
-              .Append(WorldUiScale.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(ScaleModWindows)
+              .Append(NavballScreen).Append('|').Append(ScaleModWindows)
               .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode)
               .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto);
             return sb.ToString();

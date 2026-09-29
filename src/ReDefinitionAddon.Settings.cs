@@ -126,8 +126,6 @@ namespace ReDefinition
             settings.SettingsWindowKey = from.SettingsWindowKey;
             settings.DiagnosticsKey = from.DiagnosticsKey;
             settings.CameraListKey = from.CameraListKey;
-            settings.NavballOffset = from.NavballOffset;
-            settings.WorldUiScale = from.WorldUiScale;
             settings.ScaleModWindows = from.ScaleModWindows;
             settings.TimeWarpToolbarButton = from.TimeWarpToolbarButton;
             settings.FlightStartsInManeuverMode = from.FlightStartsInManeuverMode;
@@ -144,8 +142,6 @@ namespace ReDefinition
             if (before.SettingsWindowKey != after.SettingsWindowKey) settings.SettingsWindowKey = after.SettingsWindowKey;
             if (before.DiagnosticsKey != after.DiagnosticsKey) settings.DiagnosticsKey = after.DiagnosticsKey;
             if (before.CameraListKey != after.CameraListKey) settings.CameraListKey = after.CameraListKey;
-            if (before.NavballOffset != after.NavballOffset) settings.NavballOffset = after.NavballOffset;
-            if (before.WorldUiScale != after.WorldUiScale) settings.WorldUiScale = after.WorldUiScale;
             if (before.ScaleModWindows != after.ScaleModWindows) settings.ScaleModWindows = after.ScaleModWindows;
             if (before.TimeWarpToolbarButton != after.TimeWarpToolbarButton)
                 settings.TimeWarpToolbarButton = after.TimeWarpToolbarButton;
@@ -156,11 +152,31 @@ namespace ReDefinition
         }
 
         // Where the navball stands; NavballDrag moves it there and writes it as
-        // the navball is dragged. Saved at the next check, as every change is.
+        // the navball is dragged. Saved at the next check, as every change is. On
+        // a screen of another size than the one it was put on, the centre, and
+        // that is kept.
         internal float NavballOffset
         {
-            get { return settings.NavballOffset; }
-            set { settings.NavballOffset = value; }
+            get
+            {
+                string screen = ScreenSize;
+                if (settings.NavballScreen != screen)
+                {
+                    settings.NavballOffset = 0f;
+                    settings.NavballScreen = screen;
+                }
+                return settings.NavballOffset;
+            }
+            set
+            {
+                settings.NavballOffset = value;
+                settings.NavballScreen = ScreenSize;
+            }
+        }
+
+        private static string ScreenSize
+        {
+            get { return Screen.width + "x" + Screen.height; }
         }
 
         // The settings as they stand, for what reads them every frame without a

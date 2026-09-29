@@ -10,7 +10,7 @@ the panel picks one.
 KSP's maneuver mode shows a panel at the bottom left. ReDefinition puts its profiles
 there, in place of KSP's three orbit tabs: one tab per profile, in the same row, with
 the same look. A flight starts in the maneuver mode (*Start flight in maneuver mode*
-under *Mods / Toolbar*). The tabs for planning a maneuver node stay as KSP has them.
+under *Gameplay*, *Flight*). The tabs for planning a maneuver node stay as KSP has them.
 
 Each value has a field like KSP's own: its title above, the value below, and a
 second value under it where there are two, such as a height and the time until it.
@@ -48,7 +48,7 @@ the keyboard does not steer the vessel.
 
 ## The profile follows the situation
 
-With *Flight panel follows the situation* on, under *Mods / Toolbar*, the panel switches
+With *Flight panel follows the situation* on, under *Gameplay*, *Flight*, the panel switches
 once a situation has held for a second:
 
 | The vessel | Profile |

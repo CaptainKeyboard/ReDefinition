@@ -19,15 +19,10 @@ namespace ReDefinition.Scaling
 
         private static readonly Dictionary<string, System.Type> types = new Dictionary<string, System.Type>();
 
-        // KSP's UI scale times the player's share of it (OwnSettings.WorldUiScale).
+        // KSP's UI scale.
         internal static float World
         {
-            get
-            {
-                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                float share = addon != null ? addon.Live.WorldUiScale / 100f : 1f;
-                return Mathf.Clamp(GameSettings.UI_SCALE * share, 0.25f, 8f);
-            }
+            get { return Mathf.Clamp(GameSettings.UI_SCALE, 0.25f, 8f); }
         }
 
         // Other mods' IMGUI windows at KSP's UI scale (OwnSettings.ScaleModWindows).

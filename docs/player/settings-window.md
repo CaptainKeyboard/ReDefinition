@@ -69,7 +69,7 @@ the flight, and in the main menu, the space centre and the editors.
 
 | Tab | Rows |
 |---|---|
-| *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Part highlighting*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed. The mods' settings that change how you play, not how it looks: Distant Object's flares and their names and Persistent Rotation under *Flight*, Parallax's scatter collisions and Scatterer's waves that move vessels under *Physics* |
+| *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Part highlighting*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed. The mods' settings that change how you play, not how it looks: Distant Object's flares and their names and Persistent Rotation under *Flight*, and there ReDefinition's own: whether a flight starts in KSP's maneuver mode, whether the flight panel follows the situation ([flight-panel.md](flight-panel.md)) and whether the altimeter switches between sea level and the ground by itself (all on at first); Parallax's scatter collisions and Scatterer's waves that move vessels under *Physics* |
 | *Audio* | KSP's volumes and its sound normalizer; EVE's cloud ambience and thunder volumes |
 | *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, DLSS model, Sharpness, Frame generation, *NVIDIA DLSS files*; ambient light boosts |
 | *Graphics* | a status line, and one button per graphics profile with a sentence about it; its tooltip says what it sets |
@@ -77,7 +77,7 @@ the flight, and in the main menu, the space centre and the editors.
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
 | *Controls*, *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
 | *Controls*, *Devices* | KSP's mouse wheel, Track IR and 6-DOF device |
-| *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, *Restore settings from before ReDefinition*, the navball's position ([navball.md](navball.md)), whether a flight starts in KSP's maneuver mode, whether the flight panel follows the situation ([flight-panel.md](flight-panel.md)) and whether the altimeter switches between sea level and the ground by itself (all on at first), and whether Better Time Warp Continued keeps its toolbar button |
+| *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, *Restore settings from before ReDefinition*, and under *Scaling* whether other mods' windows follow the UI scale ([ui-scaling.md](ui-scaling.md)) |
 
 *Detail* is indented under *Graphics*, and *Axes* and *Devices* under *Controls*. They
 are shown only while their parent or one of its tabs is open. A line sets *Mods / Toolbar* and
@@ -263,7 +263,9 @@ for every save, and Deferred's and Waterfall's settings.
 button of its own and ReDefinition's *Advanced* button opens its window in its place;
 the others have nothing to hide and are not listed. Switched off, a mod keeps its button
 and its settings stay in this window all the same. The choices wait for *Accept*, like
-every other row, and the main menu's panel offers the same switches.
+every other row, and the main menu's panel offers the same switches. Better Time Warp
+Continued is in the list too, bundled or not: the arrow at the end of the time warp row
+opens its window.
 
 At the first start, the main menu explains ReDefinition and offers *Let ReDefinition
 take control* or *Later*. Taking control chooses the High profile and bundles the mods,

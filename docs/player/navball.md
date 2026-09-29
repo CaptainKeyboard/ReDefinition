@@ -45,7 +45,7 @@ is doing, as the flight panel picks its profile. The gauge keeps your choice.
 The burn starts half its length before the maneuver, as KSP counts it. The time to impact
 leaves drag out, so in air the vessel falls later than the gauge says.
 
-## Put it back
+## Where it starts
 
-In the settings window, the *Mods / Toolbar* tab has *Navball position* under *Flight*.
-Set it to *Centre*. The slider moves the navball as well.
+The navball starts in the centre. Where you drag it, it stays, in every flight and after
+the next game start. With another screen resolution, it goes back to the centre.

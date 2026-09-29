@@ -25,8 +25,7 @@ mods follow a new scale at once.
 
 ## What stays at a fixed number of pixels, and how it is scaled
 
-`UiScaling.World` is `GameSettings.UI_SCALE` times the player's share
-(`OwnSettings.WorldUiScale`, 100 % by default).
+`UiScaling.World` is `GameSettings.UI_SCALE`.
 
 | What | KSP's own **[src]** | Here |
 |---|---|---|
