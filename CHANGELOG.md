@@ -4,6 +4,9 @@
 
 ### Added
 
+- **Time to impact.** While the vessel comes down on a path that meets the ground, KSP's
+  vertical speed gauge shows *IMPACT* and the time left in digits; its needle still shows
+  the vertical speed. Drag is not counted.
 - **Vertical and horizontal speed at the navball.** On its right, *V* and *H* show the
   vessel's speed over the surface in its two parts, in fields like the heading's. The SAS
   modes stay on its left, as in KSP.
