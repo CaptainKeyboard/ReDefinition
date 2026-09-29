@@ -1,9 +1,11 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using System;
 using KSP.UI;
 using KSP.UI.Screens.Flight;
 using ReDefinition.Core;
+using ReDefinition.Settings;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -25,12 +27,22 @@ namespace ReDefinition.Flight
     // place, in the map view too. The offset is saved in ReDefinition's settings
     // (OwnSettings.NavballOffset) and applied again in every flight scene; a
     // change in the settings window moves the navball the same way.
+    //
+    // KSP places the navball itself, where its own setting has it
+    // (FlightUIModeController.SetNavBallHPos, GameSettings.UI_POS_NAVBALL): the
+    // panel, its states and the transform set anew, at every change of the flight
+    // UI's mode (the map, docking, maneuvers), a few frames after the flight
+    // starts and when the crew portraits change; decompiled. After each, the
+    // offset is laid on KSP's place again (a postfix, Placed).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class NavballDrag : MonoBehaviour
     {
         private static readonly FieldInfo KeptPosition =
             typeof(UIPanelTransition).GetField("panelPosition", BindingFlags.Instance | BindingFlags.NonPublic);
 
+
+        private static NavballDrag current;
+        private static bool hooked;
 
         private UIPanelTransitionToggle panel;
         private RectTransform frame;
@@ -53,6 +65,17 @@ namespace ReDefinition.Flight
                 if (frame == null || toggle.overrideButton == null) yield break;
                 NavballDragHandle handle = toggle.overrideButton.gameObject.AddComponent<NavballDragHandle>();
                 handle.Owner = this;
+                current = this;
+                if (!hooked)
+                {
+                    hooked = true;
+                    HarmonyHooks.Safely("navball-placed", "The navball's offset is lost when KSP places the navball anew", () =>
+                        HarmonyHooks.Install("ReDefinition.NavballDrag", typeof(NavballDrag), new List<HarmonyHook>
+                        {
+                            new HarmonyHook(typeof(FlightUIModeController).GetMethod("SetNavBallHPos", BindingFlags.Instance | BindingFlags.Public),
+                                null, nameof(Placed), null),
+                        }));
+                }
                 Debug.Log(Log.Tag + " The navball moves sideways by dragging its show/hide button.");
             }
             catch (Exception e)
@@ -60,6 +83,25 @@ namespace ReDefinition.Flight
                 Debug.LogWarning(Log.Tag + " The navball cannot be moved: " + e);
                 panel = null;
             }
+        }
+
+        private void OnDestroy()
+        {
+            if (current == this) current = null;
+        }
+
+        // KSP set the navball where its own setting has it: the offset from there.
+        private static void Placed()
+        {
+            NavballDrag drag = current;
+            if (drag == null || drag.panel == null || drag.frame == null) return;
+            drag.applied = 0f;
+            if (KeptPosition != null && KeptPosition.FieldType == typeof(Vector2) && drag.panel.states != null
+                && drag.panel.StateIndex >= 0 && drag.panel.StateIndex < drag.panel.states.Length)
+                KeptPosition.SetValue(drag.panel, drag.panel.states[drag.panel.StateIndex].position);
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            float wanted = drag.Clamp(addon != null ? addon.NavballOffset : 0f);
+            if (Mathf.Abs(wanted) >= 0.5f) drag.Shift(wanted);
         }
 
         private void Update()
@@ -76,6 +118,14 @@ namespace ReDefinition.Flight
 
         private bool logged;
 
+        // One unit of the frame's offset in the root canvas's units.
+        private float Unit(Transform canvas)
+        {
+            if (canvas == null || frame.parent == null || canvas.lossyScale.x <= 0f) return 1f;
+            float unit = frame.parent.lossyScale.x / canvas.lossyScale.x;
+            return unit > 0f ? unit : 1f;
+        }
+
         // The offset last asked for in the settings.
         private float requested = float.NaN;
 
@@ -85,8 +135,9 @@ namespace ReDefinition.Flight
         {
             if (panel == null || frame == null) return;
             Canvas canvas = frame.GetComponentInParent<Canvas>();
-            float scale = canvas != null && canvas.scaleFactor > 0f ? canvas.scaleFactor : 1f;
-            float target = Clamp(applied + screenDelta / scale);
+            Canvas root = canvas != null ? canvas.rootCanvas : null;
+            float scale = root != null && root.scaleFactor > 0f ? root.scaleFactor : 1f;
+            float target = Clamp(applied + screenDelta / scale / Unit(root != null ? root.transform : null));
             Shift(target - applied);
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon != null) addon.NavballOffset = requested = applied;
@@ -132,8 +183,7 @@ namespace ReDefinition.Flight
             // The frame's offset in the canvas's units: the canvas and the frame's
             // parents are not scaled against each other in KSP's flight UI, but the
             // frame's parent may be.
-            float unit = frame.parent != null && canvasRect.lossyScale.x > 0f ? frame.parent.lossyScale.x / canvasRect.lossyScale.x : 1f;
-            if (unit <= 0f) unit = 1f;
+            float unit = Unit(canvasRect);
             float lowest = applied + (canvasRect.rect.xMin - min) / unit;
             float highest = applied + (canvasRect.rect.xMax - max) / unit;
             if (!logged)
