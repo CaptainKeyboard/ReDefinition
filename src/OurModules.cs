@@ -227,6 +227,21 @@ namespace ReDefinition
             },
             new ModuleSetting
             {
+                Key = "autoAltimeter",
+                Title = "Altimeter switches to the ground",
+                Order = 103,
+                Row = SettingCategory.Interface,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The altimeter shows the height above the ground below 5 km over it and on the ground, and the height "
+                          + "above sea level above 6 km. A click on its switch still changes it by hand, until the height crosses "
+                          + "the other way.",
+                Read = settings => SettingValues.Text(settings.AutoAltimeter),
+                Write = (settings, value) => settings.AutoAltimeter = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
                 Key = "flightStartsInManeuverMode",
                 Title = "Start flight in maneuver mode",
                 Order = 105,

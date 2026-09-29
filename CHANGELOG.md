@@ -4,6 +4,9 @@
 
 ### Added
 
+- **The altimeter switches by itself.** Below 5 km over the ground and on it, it shows the
+  height above the ground; above 6 km, the height above sea level. Its switch still
+  changes it by hand. *Altimeter switches to the ground* under *Mods / Toolbar*.
 - **Flights start in the maneuver mode.** KSP's orbit and maneuver panel is open as a
   flight starts; *Start flight in maneuver mode* under *Mods / Toolbar* switches it off.
 - **Persistent Rotation in the settings window.** Under *Gameplay*, *Flight*: whether its

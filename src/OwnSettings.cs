@@ -65,6 +65,8 @@ namespace ReDefinition
         public bool TimeWarpToolbarButton;
         // The flight scene starts in KSP's maneuver mode (Flight/FlightStartMode).
         public bool FlightStartsInManeuverMode = true;
+        // The altimeter switches between sea level and the ground itself (Flight/AutoAltimeter).
+        public bool AutoAltimeter = true;
 
         private const string RootName = "ReDefinition";
 
@@ -109,6 +111,7 @@ namespace ReDefinition
             settings.ScaleModWindows = Bool(node, "scaleModWindows", settings.ScaleModWindows);
             settings.TimeWarpToolbarButton = Bool(node, "timeWarpToolbarButton", settings.TimeWarpToolbarButton);
             settings.FlightStartsInManeuverMode = Bool(node, "flightStartsInManeuverMode", settings.FlightStartsInManeuverMode);
+            settings.AutoAltimeter = Bool(node, "autoAltimeter", settings.AutoAltimeter);
             return settings;
         }
 
@@ -143,6 +146,7 @@ namespace ReDefinition
             node.AddValue("scaleModWindows", ScaleModWindows);
             node.AddValue("timeWarpToolbarButton", TimeWarpToolbarButton);
             node.AddValue("flightStartsInManeuverMode", FlightStartsInManeuverMode);
+            node.AddValue("autoAltimeter", AutoAltimeter);
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -171,7 +175,8 @@ namespace ReDefinition
               .Append(SettingsWindowKey).Append('|')
               .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
               .Append(WorldUiScale.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(ScaleModWindows)
-              .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode);
+              .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode)
+              .Append('|').Append(AutoAltimeter);
             return sb.ToString();
         }
 
