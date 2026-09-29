@@ -487,7 +487,7 @@ PLAN
 {
     vessel = Mun Lander
     margin = 0.10
-    planeChanges = False
+    planeChanges = True
     nextSection = 3
     SECTION
     {

@@ -33,7 +33,7 @@ namespace ReDefinition.Engineer
 
         public readonly List<RouteStop> Stops = new List<RouteStop>();
         public double Margin = 0.1;
-        public bool PlaneChanges;
+        public bool PlaneChanges = true;
         public readonly List<PlannedSection> Sections = new List<PlannedSection>();
         // The kinds the planner adds by itself that the player took away.
         public readonly HashSet<SectionKind> Dismissed = new HashSet<SectionKind>();
