@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using KSP.UI;
-using KSP.UI.Screens.Flight;
+using TMPro;
 using ReDefinition.Core;
 using ReDefinition.Scaling;
 using ReDefinition.Settings;
@@ -11,22 +11,23 @@ using UnityEngine;
 
 namespace ReDefinition.Flight
 {
-    // Better Time Warp Continued's drop-down button right of the mission time's MET
-    // button. The mod draws it with IMGUI at a place worked out from KSP's stock
+    // Better Time Warp Continued's drop-down button right of the time warp gauge's
+    // "WARP" label. The mod draws it with IMGUI at a place worked out from KSP's stock
     // time panel (BetterTimeWarp.OnGUI: `new Rect(scale * y, x, ...)`, y from 283
     // and the CommNet icons shown; its source read), which a UI theme's panel does
-    // not keep, so the button stands apart from the time. Its Rect is taken here
-    // from where KSP's MET button stands (METDisplay.buttonText's button, through the
-    // UI camera), in the mod's own size: a transpiler routes that one Rect through
-    // Place. Where the MET button is not found, the mod's own place stays.
+    // not keep, so the button stands apart from the gauge. Its Rect is taken here
+    // from where the label's text ends (the gauge's Label_Warp, a TextMeshProUGUI,
+    // read with UnityPy from sharedassets7; through the UI camera), in the mod's own
+    // size: a transpiler routes that one Rect through Place. Where the label is not
+    // found, the mod's own place stays.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class TimeWarpButton : MonoBehaviour
     {
         private const string ModType = "BetterTimeWarp.BetterTimeWarp";
-        // Between the MET button and the drop-down button, in KSP's UI units.
+        // Between the label and the drop-down button, in KSP's UI units.
         private const float Gap = 4f;
 
-        private static RectTransform met;
+        private static TextMeshProUGUI label;
         private static float lookedAt = -10f;
         private static int replaced;
 
@@ -39,7 +40,7 @@ namespace ReDefinition.Flight
                 MethodInfo onGui = mod.GetMethod("OnGUI", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                 HarmonyHooks.Install("ReDefinition.TimeWarpButton", typeof(TimeWarpButton),
                     new List<HarmonyHook> { new HarmonyHook(onGui, null, null, null, -1, -1, nameof(RouteRect)) });
-                Debug.Log(Log.Tag + " Better Time Warp's button placed right of the MET button (" + replaced + " place).");
+                Debug.Log(Log.Tag + " Better Time Warp's button placed right of the WARP label (" + replaced + " place).");
             });
         }
 
@@ -69,32 +70,29 @@ namespace ReDefinition.Flight
             return code;
         }
 
-        // Right of the MET button, centred on it, in screen pixels from the top left
+        // Right of the label's text, centred on it, in screen pixels from the top left
         // as IMGUI counts them; the mod's own place where it is not found.
         private static Rect Place(float x, float y, float width, float height)
         {
-            RectTransform button = Met();
+            TextMeshProUGUI text = Label();
             Camera camera = UIMasterController.Instance != null ? UIMasterController.Instance.uiCamera : null;
-            if (button == null || camera == null || !button.gameObject.activeInHierarchy) return new Rect(x, y, width, height);
-            Vector3[] corners = new Vector3[4];
-            button.GetWorldCorners(corners);
-            Vector2 low = RectTransformUtility.WorldToScreenPoint(camera, corners[0]);
-            Vector2 high = RectTransformUtility.WorldToScreenPoint(camera, corners[2]);
+            if (text == null || camera == null || !text.gameObject.activeInHierarchy) return new Rect(x, y, width, height);
+            Bounds bounds = text.textBounds;
+            RectTransform rect = text.rectTransform;
+            Vector2 end = RectTransformUtility.WorldToScreenPoint(camera, rect.TransformPoint(new Vector3(bounds.max.x, bounds.center.y, 0f)));
             float gap = Gap * GameSettings.UI_SCALE;
-            float middle = Screen.height - (low.y + high.y) / 2f;
-            return new Rect(high.x + gap, middle - height / 2f, width, height);
+            return new Rect(end.x + gap, Screen.height - end.y - height / 2f, width, height);
         }
 
-        // KSP's MET button, looked for again a second after it was not found.
-        private static RectTransform Met()
+        // The gauge's label, looked for again a second after it was not found.
+        private static TextMeshProUGUI Label()
         {
-            if (met != null) return met;
+            if (label != null) return label;
             if (Time.unscaledTime - lookedAt < 1f) return null;
             lookedAt = Time.unscaledTime;
-            METDisplay display = FindObjectOfType<METDisplay>();
-            Transform text = display != null && display.buttonText != null ? display.buttonText.transform : null;
-            met = text != null ? (text.parent as RectTransform ?? text as RectTransform) : null;
-            return met;
+            GameObject found = GameObject.Find("Label_Warp");
+            label = found != null ? found.GetComponent<TextMeshProUGUI>() : null;
+            return label;
         }
     }
 }

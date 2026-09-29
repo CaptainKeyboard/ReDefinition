@@ -38,7 +38,15 @@ namespace ReDefinition.Flight
     // The SAS modes (VesselAutopilotUI, under the frame) stand on the side of the
     // navball that faces the screen's middle: on its left as KSP has them, on its
     // right, mirrored about the navball's middle, while the navball stands left of
-    // the screen's middle.
+    // the screen's middle; each mode's button mirrored within them too, so that
+    // their curve follows the navball's rim on either side (the buttons are placed
+    // one by one about the panel's middle, sharedassets7).
+    //
+    // The navball keeps clear of the flight UI's mode buttons on its left
+    // (FlightUIModeController.uiModeFrame) and of the crew portraits on its right
+    // (UIFrameCrewPortaits), as they stand now, and of the screen's edges: where
+    // either grows (another mode chosen, a portrait slot added), the navball moves
+    // aside, and back towards where it was put once there is room.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class NavballDrag : MonoBehaviour
     {
@@ -106,9 +114,8 @@ namespace ReDefinition.Flight
                 && drag.panel.StateIndex >= 0 && drag.panel.StateIndex < drag.panel.states.Length)
                 KeptPosition.SetValue(drag.panel, drag.panel.states[drag.panel.StateIndex].position);
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            float wanted = drag.Clamp(addon != null ? addon.NavballOffset : 0f);
-            if (Mathf.Abs(wanted) >= 0.5f) drag.Shift(wanted);
-            else drag.Sides();
+            drag.requested = addon != null ? addon.NavballOffset : 0f;
+            drag.Settle();
         }
 
         private void Update()
@@ -116,11 +123,58 @@ namespace ReDefinition.Flight
             if (panel == null || frame == null) return;
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon == null) return;
-            // Worked out only when the setting changes, not every frame.
-            if (Mathf.Abs(addon.NavballOffset - requested) < 0.01f) return;
+            // Worked out again only when the setting or the room around changes.
+            float left, right;
+            Room(out left, out right);
+            if (Mathf.Abs(addon.NavballOffset - requested) < 0.01f && Mathf.Abs(left - roomLeft) < 0.5f
+                && Mathf.Abs(right - roomRight) < 0.5f) return;
             requested = addon.NavballOffset;
-            float wanted = Clamp(requested);
-            if (Mathf.Abs(wanted - applied) >= 0.5f) Shift(wanted - applied);
+            roomLeft = left;
+            roomRight = right;
+            Settle();
+        }
+
+        private float roomLeft = float.NaN, roomRight = float.NaN;
+
+        // To the offset asked for, as far as the room allows; again where the SAS
+        // modes changed sides on the way, since that changes the navball's width.
+        private void Settle()
+        {
+            for (int pass = 0; pass < 2; pass++)
+            {
+                bool before = mirrored;
+                float wanted = Clamp(requested);
+                if (Mathf.Abs(wanted - applied) >= 0.5f) Shift(wanted - applied);
+                else Sides();
+                if (mirrored == before) return;
+            }
+        }
+
+        // The room between the mode buttons and the crew portraits, in the root
+        // canvas's units: the screen's edges where either is not shown.
+        private void Room(out float left, out float right)
+        {
+            Canvas canvas = frame.GetComponentInParent<Canvas>();
+            RectTransform root = canvas != null ? canvas.rootCanvas.transform as RectTransform : null;
+            left = root != null ? root.rect.xMin : 0f;
+            right = root != null ? root.rect.xMax : 0f;
+            FlightUIModeController controller = FlightUIModeController.Instance;
+            if (root == null || controller == null) return;
+            Vector3[] corners = new Vector3[4];
+            RectTransform modes = controller.uiModeFrame != null
+                ? controller.uiModeFrame.panelTransform != null ? controller.uiModeFrame.panelTransform : controller.uiModeFrame.transform as RectTransform
+                : null;
+            if (modes != null && modes.gameObject.activeInHierarchy)
+            {
+                modes.GetWorldCorners(corners);
+                left = Mathf.Max(left, root.InverseTransformPoint(corners[2]).x);
+            }
+            RectTransform crew = controller.UIFrameCrewPortaits != null ? controller.UIFrameCrewPortaits.transform as RectTransform : null;
+            if (crew != null && crew.gameObject.activeInHierarchy)
+            {
+                crew.GetWorldCorners(corners);
+                right = Mathf.Min(right, root.InverseTransformPoint(corners[0]).x);
+            }
         }
 
         private bool logged;
@@ -144,8 +198,8 @@ namespace ReDefinition.Flight
             Canvas canvas = frame.GetComponentInParent<Canvas>();
             Canvas root = canvas != null ? canvas.rootCanvas : null;
             float scale = root != null && root.scaleFactor > 0f ? root.scaleFactor : 1f;
-            float target = Clamp(applied + screenDelta / scale / Unit(root != null ? root.transform : null));
-            Shift(target - applied);
+            requested = Clamp(applied + screenDelta / scale / Unit(root != null ? root.transform : null));
+            Settle();
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon != null) addon.NavballOffset = requested = applied;
         }
@@ -165,6 +219,8 @@ namespace ReDefinition.Flight
 
         private RectTransform modes;
         private Vector2 modesAt;
+        private readonly List<RectTransform> buttons = new List<RectTransform>();
+        private readonly List<Vector2> buttonsAt = new List<Vector2>();
         private bool mirrored;
 
         // The SAS modes on the side of the navball towards the screen's middle.
@@ -176,6 +232,13 @@ namespace ReDefinition.Flight
                 modes = ui != null ? ui.transform as RectTransform : null;
                 if (modes == null) return;
                 modesAt = modes.anchoredPosition;
+                for (int i = 0; i < modes.childCount; i++)
+                {
+                    RectTransform button = modes.GetChild(i) as RectTransform;
+                    if (button == null) continue;
+                    buttons.Add(button);
+                    buttonsAt.Add(button.anchoredPosition);
+                }
             }
             Canvas canvas = frame.GetComponentInParent<Canvas>();
             Transform root = canvas != null ? canvas.rootCanvas.transform : null;
@@ -187,6 +250,10 @@ namespace ReDefinition.Flight
             if (right == mirrored) return;
             mirrored = right;
             modes.anchoredPosition = modesAt;
+            // Each button about the panel's middle, where KSP anchors them.
+            for (int i = 0; i < buttons.Count; i++)
+                if (buttons[i] != null)
+                    buttons[i].anchoredPosition = right ? new Vector2(-buttonsAt[i].x, buttonsAt[i].y) : buttonsAt[i];
             if (!right) return;
             // Mirrored about the frame's middle, in the frame's own units, then in
             // the modes' parent's.
@@ -199,13 +266,13 @@ namespace ReDefinition.Flight
             modes.anchoredPosition = modesAt + new Vector2(parent.InverseTransformVector(shift).x, 0f);
         }
 
-        // At most as far as keeps everything of the navball on the screen, each
-        // side on its own: the SAS modes stand out to the left of the frame
+        // At most as far as keeps everything of the navball within its room (Room),
+        // each side on its own: the SAS modes stand out to one side of the frame
         // (AutopilotModes, sharedassets7), so the frame's own width is not enough.
         // Measured where its pictures and texts stand now (every Graphic under the
         // frame, the hidden ones too, since they show later), in the canvas's own
-        // units against the canvas's edges. Empty holders, which can reach far
-        // beyond what is drawn, do not count.
+        // units. Empty holders, which can reach far beyond what is drawn, do not
+        // count.
         private float Clamp(float offset)
         {
             Canvas canvas = frame.GetComponentInParent<Canvas>();
@@ -228,16 +295,19 @@ namespace ReDefinition.Flight
             // parents are not scaled against each other in KSP's flight UI, but the
             // frame's parent may be.
             float unit = Unit(canvasRect);
-            float lowest = applied + (canvasRect.rect.xMin - min) / unit;
-            float highest = applied + (canvasRect.rect.xMax - max) / unit;
+            float left, right;
+            Room(out left, out right);
+            float lowest = applied + (left - min) / unit;
+            float highest = applied + (right - max) / unit;
             if (!logged)
             {
                 logged = true;
-                Debug.Log(Log.Tag + " Navball drawn from " + min.ToString("0") + " to " + max.ToString("0") + " in a canvas from "
-                          + canvasRect.rect.xMin.ToString("0") + " to " + canvasRect.rect.xMax.ToString("0") + ": it moves from "
+                Debug.Log(Log.Tag + " Navball drawn from " + min.ToString("0") + " to " + max.ToString("0") + " with room from "
+                          + left.ToString("0") + " to " + right.ToString("0") + ": it moves from "
                           + lowest.ToString("0") + " to " + highest.ToString("0") + ".");
             }
-            if (lowest > highest) return applied;
+            // No room either way: in the middle of what there is.
+            if (lowest > highest) return (lowest + highest) / 2f;
             return Mathf.Clamp(offset, lowest, highest);
         }
     }
