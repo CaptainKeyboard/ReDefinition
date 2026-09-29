@@ -62,6 +62,7 @@ namespace ReDefinition.Flight
         private static readonly FieldInfo PanelWidthField = typeof(StageGroup).GetField("InfoPanelWidth", Private);
         private static readonly FieldInfo ShownField = typeof(StageGroup).GetField("infoPanelShown", Private);
         private static readonly FieldInfo PinnedField = typeof(ApplicationLauncher).GetField("lastPinnedButton", Private);
+        private static readonly MethodInfo ClickField = typeof(ApplicationLauncher).GetMethod("MutuallyExclusiveStockApplistCLICK", Private);
         private static readonly MethodInfo InitEnabled = typeof(DeltaVAppValues.InfoLine).GetMethod("InitEnabledValue", Private);
 
         // The situation panel of the scene's tools, for the typing postfix.
@@ -105,8 +106,13 @@ namespace ReDefinition.Flight
         {
             ApplicationLauncherButton button = DeltaVApp.Instance != null ? DeltaVApp.Instance.appLauncherButton : null;
             if (button == null || button.toggleButton == null) return true;
-            if (button.toggleButton.CurrentState == UIRadioButton.State.True) button.SetFalse();
+            if (Pinned(button)) button.SetFalse();
             else button.SetTrue();
+            // As a click on the button does: the launcher's pinned button follows
+            // (ApplicationLauncher.MutuallyExclusiveStockApplistCLICK), and another
+            // pinned app closes.
+            ApplicationLauncher launcher = ApplicationLauncher.Instance;
+            if (launcher != null && ClickField != null) ClickField.Invoke(launcher, new object[] { button.toggleButton });
             return false;
         }
 
