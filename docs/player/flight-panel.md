@@ -49,18 +49,21 @@ the keyboard does not steer the vessel.
 ## The profile follows the situation
 
 With *Flight panel follows the situation* on, under *Gameplay*, *Flight*, the panel switches
-once a situation has held for a second:
+once a new situation has held for two seconds. The first row that fits counts:
 
-| The vessel | Profile |
-|---|---|
-| has a docking port as its target, within 2 km | Docking |
-| comes down without wings, below 20 km over the ground or on a path into it | Landing |
-| has another target and is not on the ground | Rendezvous |
-| flies on wings: wings that lift at least as much as two wing panels, and 0.1 of one per tonne, not counting fins and control surfaces | Air |
-| stands on the ground or climbs | Ascent |
-| is anywhere else | Orbit |
+| The vessel | Profile | Once on, it stays |
+|---|---|---|
+| has a docking port as its target, within 2 km | Docking | to 2.5 km |
+| stands on the ground | Ascent | |
+| flies on wings: wings that lift at least as much as two wing panels, and 0.1 of one per tonne, not counting fins and control surfaces | Air | |
+| comes down faster than 5 m/s without wings, below 20 km over the ground | Landing | while it sinks, hovers or climbs slower than 2 m/s, below 25 km |
+| is in orbit, or came from there and is not landing yet, with a target | Rendezvous | |
+| is in orbit, or came from there and is not landing yet | Orbit | |
+| is anywhere else: climbing, and coasting up to and past the apoapsis before the orbit is closed | Ascent | |
 
-A profile you pick by its tab stays until the situation changes.
+Sinking past the apoapsis while you circularise stays the ascent, and a burn out of orbit
+stays the orbit until the landing starts. A profile you pick by its tab stays until the
+situation changes.
 
 ## The rest of the HUD
 

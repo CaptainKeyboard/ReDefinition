@@ -15,7 +15,7 @@ using UnityEngine.UI;
 namespace ReDefinition.Flight
 {
     // What the round gauge shows (docs/player/navball.md). Auto takes the one for
-    // the situation the flight panel works out (FlightProfiles.Situation).
+    // the situation the flight panel works out (FlightProfiles.Held).
     internal enum GaugeMode
     {
         Auto,
@@ -36,10 +36,21 @@ namespace ReDefinition.Flight
     // On the face: a lit arc of three quarters of a circle, open at the bottom,
     // filled from its left end as far as the value goes, with a dot at its tip,
     // over a dim track; the mode's name, the value, and "AUTO" while the gauge
-    // follows the situation. The arc is white, amber or red as the value is
-    // fine, close or past its limit, and moves to a new value within a fraction of
-    // a second. A click on the gauge goes to the next mode, a right-click to the
-    // one before; the mode is kept (PluginData/gauge.cfg).
+    // follows the situation.
+    //
+    // As FAA AC 23.1311-1C has an electronic dial (9.4, 17.6, 22.7): the digits
+    // and the arc give the same value, the arc on a scale fixed for the mode, so
+    // that the margin to a limit shows at a glance; the limits as marks on the
+    // scale, amber for caution and red for warning, and a limit that moves with
+    // the flight (the moment to brake, a safe closing speed) as a tick on it; the
+    // arc white while the value is fine, amber or red inside those bands. Where
+    // the values span a wide range, the scale is logarithmic, as a vertical speed
+    // indicator's is: fine near zero, compressed high up. The arc moves to a new
+    // value within a fraction of a second.
+    //
+    // A click on the gauge goes to the next mode, a right-click to the one
+    // before; the face lights up under the mouse. The mode is kept
+    // (PluginData/gauge.cfg).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class RoundGauge : MonoBehaviour
     {
@@ -57,11 +68,19 @@ namespace ReDefinition.Flight
         private static readonly Color Close = new Color(1f, 0.72f, 0.2f);
         private static readonly Color Past = new Color(1f, 0.32f, 0.28f);
         private static readonly Color Track = new Color(1f, 1f, 1f, 0.12f);
+        private static readonly Color TrackLit = new Color(1f, 1f, 1f, 0.24f);
+        private static readonly Color CautionBand = new Color(1f, 0.72f, 0.2f, 0.45f);
+        private static readonly Color WarningBand = new Color(1f, 0.32f, 0.28f, 0.5f);
 
         private TextMeshProUGUI title;
         private TextMeshProUGUI value;
         private TextMeshProUGUI auto;
+        private Image track;
+        private Image caution;
+        private Image warning;
         private Image arc;
+        private RectTransform mark;
+        private Image markImage;
         private RectTransform tip;
         private Image tipImage;
         private float radius;
@@ -104,11 +123,19 @@ namespace ReDefinition.Flight
             middle = new Vector2(centre.x * rect.width, centre.y * rect.height);
             radius = reach * rect.width - ArcInset;
 
-            Image track = Ring(picture.transform, "ReDefinitionGaugeTrack", middle);
+            track = Ring(picture.transform, "ReDefinitionGaugeTrack", middle);
             track.fillAmount = Sweep;
             track.color = Track;
+            caution = Ring(picture.transform, "ReDefinitionGaugeCaution", middle);
+            caution.color = CautionBand;
+            warning = Ring(picture.transform, "ReDefinitionGaugeWarning", middle);
+            warning.color = WarningBand;
+            Band(caution, null);
+            Band(warning, null);
             arc = Ring(picture.transform, "ReDefinitionGaugeArc", middle);
             arc.fillAmount = 0f;
+            markImage = Tick(picture.transform);
+            mark = markImage.rectTransform;
             tipImage = Dot(picture.transform);
             tip = tipImage.rectTransform;
 
@@ -127,7 +154,9 @@ namespace ReDefinition.Flight
             clickRect.sizeDelta = new Vector2(2f * radius, 2f * radius);
             clickRect.anchoredPosition = middle;
             click.GetComponent<Image>().color = Color.clear;
-            click.GetComponent<GaugeClick>().Pressed = Step;
+            GaugeClick clicks = click.GetComponent<GaugeClick>();
+            clicks.Pressed = Step;
+            clicks.Hovered = over => track.color = over ? TrackLit : Track;
             Sprite read = picture.sprite;
             Debug.Log(Log.Tag + " The round gauge is digital, showing " + mode + ": the dial's middle at " + middle.ToString("0.0")
                       + " of the gauge's " + rect.size.ToString("0.0") + " (pivot " + picture.rectTransform.pivot.ToString("0.00")
@@ -201,6 +230,43 @@ namespace ReDefinition.Flight
             return image;
         }
 
+        // A band of the scale on the track, from one share of it to another; none
+        // for null.
+        private static void Band(Image band, double[] range)
+        {
+            if (range == null || !(range[1] > range[0]))
+            {
+                band.fillAmount = 0f;
+                return;
+            }
+            float from = Mathf.Clamp01((float)range[0]), to = Mathf.Clamp01((float)range[1]);
+            band.fillAmount = (to - from) * Sweep;
+            band.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -45f - 270f * from);
+        }
+
+        // A limit's tick across the arc.
+        private Image Tick(Transform parent)
+        {
+            GameObject tick = new GameObject("ReDefinitionGaugeMark", typeof(RectTransform), typeof(Image));
+            tick.transform.SetParent(parent, false);
+            RectTransform rect = (RectTransform)tick.transform;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(1.5f, ArcWidth + 3f);
+            Image image = tick.GetComponent<Image>();
+            image.color = Color.clear;
+            image.raycastTarget = false;
+            return image;
+        }
+
+        // Where a share of the scale lies on the arc's middle line, and at which
+        // angle, clockwise from the top.
+        private Vector2 On(float share, out float degrees)
+        {
+            degrees = -135f + 270f * share;
+            float angle = degrees * Mathf.Deg2Rad;
+            return middle + new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * (radius - ArcWidth / 2f);
+        }
+
         private Image Dot(Transform parent)
         {
             GameObject dot = new GameObject("ReDefinitionGaugeTip", typeof(RectTransform), typeof(Image));
@@ -266,6 +332,7 @@ namespace ReDefinition.Flight
             mode = (GaugeMode)((((int)mode + by) % count + count) % count);
             Save();
             next = 0f;
+            Debug.Log(Log.Tag + " The round gauge shows " + mode + ", picked by a click.");
         }
 
         private void Update()
@@ -275,8 +342,8 @@ namespace ReDefinition.Flight
             shownFill = Mathf.MoveTowards(shownFill, wantedFill, Time.unscaledDeltaTime * 2f);
             arc.fillAmount = shownFill * Sweep;
             arc.color = wantedColour;
-            float angle = (-135f + 270f * shownFill) * Mathf.Deg2Rad;
-            tip.anchoredPosition = middle + new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * (radius - ArcWidth / 2f);
+            float degrees;
+            tip.anchoredPosition = On(shownFill, out degrees);
             tipImage.color = shownFill > 0.001f ? Color.white : Color.clear;
 
             if (Time.unscaledTime < next) return;
@@ -288,11 +355,22 @@ namespace ReDefinition.Flight
             Reading reading;
             try
             {
-                reading = Read(shown, frame);
+                reading = Read(shown, frame) ?? new Reading();
             }
             catch (Exception)
             {
                 reading = new Reading();
+            }
+            Band(caution, reading.Caution);
+            Band(warning, reading.Warning);
+            if (double.IsNaN(reading.Mark))
+                markImage.color = Color.clear;
+            else
+            {
+                float at;
+                mark.anchoredPosition = On(Mathf.Clamp01((float)reading.Mark), out at);
+                mark.localRotation = Quaternion.Euler(0f, 0f, -at);
+                markImage.color = Past;
             }
             title.text = Title(shown);
             auto.gameObject.SetActive(mode == GaugeMode.Auto);
@@ -321,7 +399,7 @@ namespace ReDefinition.Flight
         // the way to a target.
         private static GaugeMode ForSituation(ReadoutFrame frame)
         {
-            switch (FlightProfiles.Situation(frame.Vessel))
+            switch (FlightProfiles.Held(frame.Vessel))
             {
                 case PanelSituation.Landing: return GaugeMode.Impact;
                 case PanelSituation.Docking: return GaugeMode.Closing;
@@ -332,12 +410,17 @@ namespace ReDefinition.Flight
             }
         }
 
-        // A value as the gauge shows it: its text (null for none), how far the
-        // arc fills, and 0 fine, 1 close to its limit, 2 past it.
-        internal struct Reading
+        // A value as the gauge shows it: its text (null for none), where it
+        // stands on the mode's scale (0 to 1), its caution and warning bands on
+        // that scale (from, to; null for none), a limit's tick (NaN for none),
+        // and 0 fine, 1 in the caution band, 2 in the warning band.
+        internal sealed class Reading
         {
             internal string Text;
             internal double Fill;
+            internal double[] Caution;
+            internal double[] Warning;
+            internal double Mark = double.NaN;
             internal int Level;
         }
 
@@ -350,35 +433,59 @@ namespace ReDefinition.Flight
                 case GaugeMode.Impact: return ImpactReading(frame);
                 case GaugeMode.Closing: return ClosingReading(frame);
                 case GaugeMode.Attack: return AttackReading(frame);
-                default: return new Reading();
+                default: return null;
             }
         }
 
-        // The stage's burn time left at full thrust (KSP's delta-v simulation,
-        // DeltaVStageInfo.stageBurnTime); the arc that time against the most it
-        // was while it was the stage, so that it runs out with the digits.
-        private static int burnStage = -1;
-        private static Vessel burnVessel;
-        private static double burnMost;
+        // Seconds on a logarithmic scale up to ten minutes: a minute at 64 %, ten
+        // seconds at 37 %.
+        internal static double TimeScale(double seconds)
+        {
+            return Math.Min(1.0, Math.Log(1.0 + Math.Max(0.0, seconds)) / Math.Log(601.0));
+        }
 
+        // Metres per second on a logarithmic scale up to 100 m/s: 1 m/s at 35 %,
+        // 10 m/s at 67 %.
+        internal static double SpeedScale(double speed)
+        {
+            return Math.Min(1.0, Math.Log10(1.0 + Math.Max(0.0, speed) / 0.1) / Math.Log10(1001.0));
+        }
+
+        // The stage's burn time left at full thrust (KSP's delta-v simulation,
+        // DeltaVStageInfo.stageBurnTime). The scale: its tanks, empty to full as
+        // built, the propellants its engines draw where they can reach them
+        // (Part.GetConnectedResourceTotals, each propellant's flow mode), by mass;
+        // at full thrust the time left goes with them. Caution below a quarter,
+        // warning below a tenth.
         private static Reading StageReading(ReadoutFrame frame)
         {
             Vessel vessel = frame.Vessel;
             DeltaVStageInfo stage = vessel.VesselDeltaV != null ? vessel.VesselDeltaV.GetStage(vessel.currentStage) : null;
-            if (stage == null || stage.stageBurnTime <= 0.0) return new Reading();
-            if (vessel != burnVessel || vessel.currentStage != burnStage)
+            if (stage == null || stage.stageBurnTime <= 0.0 || stage.enginesActiveInStage == null) return null;
+            double left = 0.0, full = 0.0;
+            foreach (DeltaVEngineInfo info in stage.enginesActiveInStage)
             {
-                burnVessel = vessel;
-                burnStage = vessel.currentStage;
-                burnMost = 0.0;
+                ModuleEngines engine = info != null ? info.engine : null;
+                if (engine == null || engine.part == null || engine.propellants == null) continue;
+                foreach (Propellant propellant in engine.propellants)
+                {
+                    PartResourceDefinition definition = PartResourceLibrary.Instance.GetDefinition(propellant.id);
+                    if (definition == null || definition.density <= 0.0 || propellant.name == "IntakeAir" || propellant.name == "IntakeAtm")
+                        continue;
+                    double amount, most;
+                    engine.part.GetConnectedResourceTotals(propellant.id, propellant.GetFlowMode(), out amount, out most);
+                    left += amount * definition.density;
+                    full += most * definition.density;
+                }
             }
-            burnMost = Math.Max(burnMost, stage.stageBurnTime);
-            double left = stage.stageBurnTime / burnMost;
+            double share = full > 0.0 ? left / full : 0.0;
             return new Reading
             {
                 Text = EngineerFormat.Time(stage.stageBurnTime),
-                Fill = left,
-                Level = left < 0.1 ? 2 : left < 0.25 ? 1 : 0,
+                Fill = share,
+                Caution = new[] { 0.1, 0.25 },
+                Warning = new[] { 0.0, 0.1 },
+                Level = share < 0.1 ? 2 : share < 0.25 ? 1 : 0,
             };
         }
 
@@ -388,36 +495,46 @@ namespace ReDefinition.Flight
             return solver != null && solver.maneuverNodes != null && solver.maneuverNodes.Count > 0 ? solver.maneuverNodes[0] : null;
         }
 
-        // The next node: before its burn, the time until the burn starts, half
-        // its length before the node (the length by the rocket equation, at the
-        // stage's thrust and Isp in vacuum); the arc fills over the last minute,
-        // amber in the last ten seconds. Once it is due, the delta-v left; the
-        // arc shows how much of it is done, amber in the last tenth.
-        private static ManeuverNode mostFor;
-        private static double most;
+        // The next node. Before its burn, the time until the burn starts, half its
+        // length before the node (the length by the rocket equation, at the
+        // stage's thrust and Isp in vacuum), on the time scale; caution in the
+        // last ten seconds. Once it is due, the delta-v left, against what the
+        // node asked for as the burn started; caution in the last tenth.
+        private static ManeuverNode burnNode;
+        private static double burnStart = double.NaN;
 
         private static Reading BurnReading(ReadoutFrame frame)
         {
             ManeuverNode node = Node(frame.Vessel);
-            if (node == null) return new Reading();
+            if (node == null) return null;
             double left = node.GetBurnVector(frame.Orbit).magnitude;
-            if (node != mostFor)
+            if (node != burnNode)
             {
-                mostFor = node;
-                most = 0.0;
+                burnNode = node;
+                burnStart = double.NaN;
             }
-            most = Math.Max(most, left);
             double length = BurnLength(frame.Vessel, left);
             double until = double.IsNaN(length) ? node.UT - frame.Now : node.UT - frame.Now - length / 2.0;
             if (until > 0.0)
+            {
+                burnStart = double.NaN;
                 return new Reading
                 {
                     Text = "T-" + EngineerFormat.Time(until),
-                    Fill = until < 60.0 ? 1.0 - until / 60.0 : 0.0,
+                    Fill = TimeScale(until),
+                    Caution = new[] { 0.0, TimeScale(10.0) },
                     Level = until < 10.0 ? 1 : 0,
                 };
-            double done = most > 0.0 ? 1.0 - left / most : 0.0;
-            return new Reading { Text = ReadoutMath.Speed(left), Fill = done, Level = done > 0.9 ? 1 : 0 };
+            }
+            if (double.IsNaN(burnStart)) burnStart = left;
+            double share = burnStart > 0.0 ? left / burnStart : 0.0;
+            return new Reading
+            {
+                Text = ReadoutMath.Speed(left),
+                Fill = share,
+                Caution = new[] { 0.0, 0.1 },
+                Level = share < 0.1 ? 1 : 0,
+            };
         }
 
         private static double BurnLength(Vessel vessel, double deltaV)
@@ -429,55 +546,70 @@ namespace ReDefinition.Flight
             return vessel.totalMass * (1.0 - Math.Exp(-deltaV / exhaust)) / flow;
         }
 
-        // The time until the vessel's path meets the ground (Impact.Seconds); the
-        // arc how much of it the last moment to brake has used up (ReadoutFrame.
-        // SuicideBurn): full, and red, when it is time to light.
+        // The time until the vessel's path meets the ground (Impact.Seconds), on
+        // the time scale. The limit: the time to impact left at the last moment to
+        // brake (ReadoutFrame.SuicideBurn: its countdown), a tick with the warning
+        // band below it and caution a third above.
         private static Reading ImpactReading(ReadoutFrame frame)
         {
             double seconds = frame.ImpactSeconds;
-            if (double.IsNaN(seconds)) return new Reading();
+            if (double.IsNaN(seconds)) return null;
             double altitude, countdown, deltaV;
             frame.SuicideBurn(out altitude, out countdown, out deltaV);
-            double used = double.IsNaN(countdown) || seconds <= 0.0 ? 0.0 : countdown <= 0.0 ? 1.0 : 1.0 - countdown / seconds;
-            return new Reading
-            {
-                Text = EngineerFormat.Time(seconds),
-                Fill = used,
-                Level = used >= 0.9 ? 2 : used >= 0.7 ? 1 : 0,
-            };
+            Reading reading = new Reading { Text = EngineerFormat.Time(seconds), Fill = TimeScale(seconds) };
+            if (double.IsNaN(countdown)) return reading;
+            double brake = Math.Max(0.0, seconds - countdown);
+            reading.Mark = TimeScale(brake);
+            reading.Warning = new[] { 0.0, TimeScale(brake) };
+            reading.Caution = new[] { TimeScale(brake), TimeScale(brake * 4.0 / 3.0) };
+            reading.Level = seconds <= brake ? 2 : seconds <= brake * 4.0 / 3.0 ? 1 : 0;
+            return reading;
         }
 
         // How fast the vessel closes on its target, its docking port where it is
-        // one, along the line between them; the arc that speed against a safe one
-        // for the distance, a hundredth of it per second and at least 0.2 m/s,
-        // which fills half of it.
+        // one, along the line between them, on the speed scale. The limit: a safe
+        // speed for the distance, a hundredth of it per second and at least
+        // 0.2 m/s, a tick; caution up to one and a half times it, warning beyond.
         private static Reading ClosingReading(ReadoutFrame frame)
         {
-            if (frame.Target == null) return new Reading();
+            if (frame.Target == null) return null;
             ModuleDockingNode port = frame.TargetPort;
             Vector3d at = port != null && port.nodeTransform != null ? (Vector3d)port.nodeTransform.position : frame.TargetPosition;
             Vector3d line = at - (Vector3d)frame.Vessel.ReferenceTransform.position;
             double distance = line.magnitude;
-            if (distance <= 0.0) return new Reading();
+            if (distance <= 0.0) return null;
             double closing = Vector3d.Dot(frame.RelativeVelocity, line / distance);
             double safe = Math.Max(0.2, distance / 100.0);
             return new Reading
             {
                 Text = ReadoutMath.Speed(closing),
-                Fill = closing / (2.0 * safe),
+                Fill = SpeedScale(closing),
+                Mark = SpeedScale(safe),
+                Caution = new[] { SpeedScale(safe), SpeedScale(1.5 * safe) },
+                Warning = new[] { SpeedScale(1.5 * safe), 1.0 },
                 Level = closing > 1.5 * safe ? 2 : closing > safe ? 1 : 0,
             };
         }
 
-        // The angle of attack; the arc it against the angle where the wings give
-        // the most lift.
+        // The angle of attack, either way, from 0 to 40°. The limit: the angle
+        // where the wings give the most lift, warning beyond it, caution from four
+        // fifths of it.
+        private const double AttackScale = 40.0;
+
         private static Reading AttackReading(ReadoutFrame frame)
         {
             double attack, sideslip;
             frame.AeroAngles(out attack, out sideslip);
-            if (double.IsNaN(attack)) return new Reading();
-            double share = Math.Abs(attack) / Stall;
-            return new Reading { Text = ReadoutMath.Angle(attack), Fill = share, Level = share > 0.85 ? 2 : share > 0.6 ? 1 : 0 };
+            if (double.IsNaN(attack)) return null;
+            double size = Math.Abs(attack);
+            return new Reading
+            {
+                Text = ReadoutMath.Angle(attack),
+                Fill = size / AttackScale,
+                Caution = new[] { 0.8 * Stall / AttackScale, Stall / AttackScale },
+                Warning = new[] { Stall / AttackScale, 1.0 },
+                Level = size > Stall ? 2 : size > 0.8 * Stall ? 1 : 0,
+            };
         }
 
         // Where KSP's lift curve for wings peaks, in degrees (PhysicsGlobals'
@@ -539,10 +671,22 @@ namespace ReDefinition.Flight
         }
     }
 
-    // Clicks on the round gauge: the left button one mode on, the right one back.
-    public class GaugeClick : MonoBehaviour, IPointerClickHandler
+    // Clicks on the round gauge: the left button one mode on, the right one back;
+    // and whether the mouse is over it.
+    public class GaugeClick : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
         internal Action<int> Pressed;
+        internal Action<bool> Hovered;
+
+        public void OnPointerEnter(PointerEventData data)
+        {
+            if (Hovered != null) Hovered(true);
+        }
+
+        public void OnPointerExit(PointerEventData data)
+        {
+            if (Hovered != null) Hovered(false);
+        }
 
         public void OnPointerClick(PointerEventData data)
         {

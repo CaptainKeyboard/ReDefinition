@@ -149,26 +149,100 @@ namespace ReDefinition.Flight.Panel
             }
         }
 
-        // The situation the vessel is in, for the panel to switch to: a docking port
-        // as the target within 2 km, docking; coming down near a body without wings
-        // (below 20 km over the ground, or a periapsis under it), landing, whatever
-        // the target; another target, rendezvous; on wings in the air, flying; on
-        // the ground or climbing, ascent; else orbit, a descent high up included.
-        internal static PanelSituation Situation(Vessel vessel)
+        // What the situation is worked out from.
+        internal struct Facts
+        {
+            internal bool Grounded;
+            // In orbit or escaping (Vessel.Situations ORBITING, ESCAPING).
+            internal bool Orbital;
+            // In the air (Vessel.Situations FLYING).
+            internal bool Flying;
+            internal bool Winged;
+            internal bool Target;
+            // How far the target's docking port is, in metres; NaN without one.
+            internal double Port;
+            internal double VerticalSpeed;
+            internal double OverGround;
+        }
+
+        // Where a situation starts, and the wider bounds it keeps to once it is
+        // on, so that a value about a bound does not switch back and forth.
+        internal const double DockingEnter = 2000.0, DockingLeave = 2500.0;
+        internal const double LandingEnterHeight = 20000.0, LandingLeaveHeight = 25000.0;
+        internal const double LandingEnterSpeed = -5.0, LandingLeaveSpeed = 2.0;
+
+        // The situation the vessel is in, given the one before (null at first):
+        // a docking port as the target within 2 km (kept to 2.5 km), docking; on
+        // the ground, ascent; on wings in the air, flying; coming down faster than
+        // 5 m/s below 20 km over the ground without wings, landing, kept while it
+        // sinks, hovers or climbs slower than 2 m/s below 25 km; in orbit, or
+        // coming from there (a descent from orbit, above the landing's height),
+        // rendezvous with a target and orbit without; else ascent, the climb and
+        // the coast to a periapsis still under the ground included, past the
+        // apoapsis too.
+        internal static PanelSituation Classify(Facts facts, PanelSituation? before)
+        {
+            double dockingReach = before == PanelSituation.Docking ? DockingLeave : DockingEnter;
+            if (!double.IsNaN(facts.Port) && facts.Port < dockingReach) return PanelSituation.Docking;
+            if (facts.Grounded) return PanelSituation.Ascent;
+            if (facts.Flying && facts.Winged) return PanelSituation.Air;
+            bool landing = before == PanelSituation.Landing
+                ? facts.VerticalSpeed < LandingLeaveSpeed && facts.OverGround < LandingLeaveHeight
+                : facts.VerticalSpeed < LandingEnterSpeed && facts.OverGround < LandingEnterHeight;
+            if (landing && !facts.Winged) return PanelSituation.Landing;
+            bool fromSpace = before == PanelSituation.Orbit || before == PanelSituation.Rendezvous || before == PanelSituation.Docking;
+            if (!facts.Orbital && !fromSpace) return PanelSituation.Ascent;
+            return facts.Target ? PanelSituation.Rendezvous : PanelSituation.Orbit;
+        }
+
+        internal static Facts Read(Vessel vessel)
+        {
+            ModuleDockingNode port = vessel.targetObject as ModuleDockingNode;
+            return new Facts
+            {
+                Grounded = vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.PRELAUNCH,
+                Orbital = vessel.situation == Vessel.Situations.ORBITING || vessel.situation == Vessel.Situations.ESCAPING,
+                Flying = vessel.situation == Vessel.Situations.FLYING,
+                Winged = Winged(vessel),
+                Target = vessel.targetObject != null,
+                Port = port != null && port.transform != null ? (port.transform.position - vessel.CoM).magnitude : double.NaN,
+                VerticalSpeed = vessel.verticalSpeed,
+                OverGround = vessel.radarAltitude,
+            };
+        }
+
+        // The situation once it has held for a while: a new one takes over after
+        // two seconds, so that a moment about a bound switches nothing. One for
+        // the panel and the round gauge alike, followed for the active vessel,
+        // afresh for another.
+        internal const float Hold = 2f;
+        private static Vessel heldFor;
+        private static PanelSituation? last;
+        private static PanelSituation held;
+        private static float lastSince;
+        private static int readFrame = -1;
+
+        internal static PanelSituation Held(Vessel vessel)
         {
             if (vessel == null) return PanelSituation.Orbit;
-            ModuleDockingNode port = vessel.targetObject as ModuleDockingNode;
-            if (port != null && port.transform != null && (port.transform.position - vessel.CoM).magnitude < 2000f)
-                return PanelSituation.Docking;
-            bool grounded = vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.PRELAUNCH;
-            bool low = vessel.radarAltitude < 20000.0 || (vessel.orbit != null && vessel.orbit.PeA < 0.0);
-            bool aloft = vessel.situation == Vessel.Situations.FLYING || vessel.situation == Vessel.Situations.SUB_ORBITAL;
-            bool winged = Winged(vessel);
-            if (aloft && vessel.verticalSpeed < -1.0 && low && !winged) return PanelSituation.Landing;
-            if (vessel.targetObject != null && !grounded) return PanelSituation.Rendezvous;
-            if (vessel.situation == Vessel.Situations.FLYING && winged) return PanelSituation.Air;
-            if (grounded || (aloft && vessel.verticalSpeed >= -1.0)) return PanelSituation.Ascent;
-            return PanelSituation.Orbit;
+            if (vessel != heldFor)
+            {
+                heldFor = vessel;
+                last = null;
+                readFrame = -1;
+            }
+            if (readFrame == Time.frameCount) return held;
+            readFrame = Time.frameCount;
+            PanelSituation now = Classify(Read(vessel), last);
+            if (last == null)
+            {
+                held = now;
+                lastSince = Time.unscaledTime;
+            }
+            else if (now != last.Value) lastSince = Time.unscaledTime;
+            else if (now != held && Time.unscaledTime - lastSince >= Hold) held = now;
+            last = now;
+            return held;
         }
 
         // Wings enough to fly on: the lift of its lifting surfaces that are no

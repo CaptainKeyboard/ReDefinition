@@ -24,10 +24,10 @@ namespace ReDefinition.Flight.Panel
     // 4 serve the maneuver modes; sharedassets7, FlightUIModeController's
     // UIPanelStates) by as much again.
     //
-    // It switches to the profile of the situation the vessel is in
-    // (FlightProfiles.Situation) once that has held for a second, while the
-    // setting says so (OwnSettings.FlightPanelAuto). A tab the player picks stays
-    // until the situation changes.
+    // It switches to the profile of the situation the vessel is in once that has
+    // held (FlightProfiles.Held), while the setting says so
+    // (OwnSettings.FlightPanelAuto). A tab the player picks stays until the
+    // situation changes.
     //
     // A profile added or deleted in the editor gets or loses its tab at once
     // (Refresh): ours are taken out of KSP's lists of tabs and buttons and made
@@ -418,8 +418,6 @@ namespace ReDefinition.Flight.Panel
 
         private const float Interval = 0.5f;
         private float next;
-        private PanelSituation? seen;
-        private float seenSince;
         private PanelSituation? chosen;
 
         private void Update()
@@ -430,14 +428,8 @@ namespace ReDefinition.Flight.Panel
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             ManeuverNodeEditorManager manager = ManeuverNodeEditorManager.Instance;
             if (addon == null || !addon.Live.FlightPanelAuto || manager == null || !manager.IsReady || manager.LeftTabs == null) return;
-            PanelSituation situation = FlightProfiles.Situation(FlightGlobals.ActiveVessel);
-            if (seen != situation)
-            {
-                seen = situation;
-                seenSince = Time.unscaledTime;
-                return;
-            }
-            if (Time.unscaledTime - seenSince < 1f || chosen == situation) return;
+            PanelSituation situation = FlightProfiles.Held(FlightGlobals.ActiveVessel);
+            if (chosen == situation) return;
 
             int open = -1;
             for (int i = 0; i < manager.LeftTabs.Count; i++)
