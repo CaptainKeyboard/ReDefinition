@@ -17,11 +17,16 @@ namespace ReDefinition.Flight
     // ToggleInfoPanels) and, in the VAB and the SPH, a window under the lowest
     // stage, above the vessel's total delta-v; pressed again, it closes them. Every
     // value is shown (DeltaVAppValues.InfoLine.Enabled), so the tools need no choice
-    // of values.
+    // of values. A stage whose engines give nothing (a decoupler's, a parachute's:
+    // DeltaVStageInfo.enginesActiveInStage empty) shows no details, and a stage
+    // added while the tools are open opens with the others. While the pointer is on
+    // another app's button, KSP sets this one's toggle off until it leaves
+    // (ApplicationLauncher's mutually exclusive hover); that is no press.
     //
     // The window is KSP's own: its app frame (DeltaVApp.appFramePrefab, titled as
-    // KSP titles the tools) holding its situation panel (situationPrefab) without
-    // its "Vessel Situation" heading: body, atmosphere, altitude and pressure. It
+    // KSP titles the tools) holding its situation panel (situationPrefab), made
+    // compact: without its "Vessel Situation" heading and its row labels, the body
+    // list across the row, the pressure beside the altitude. It
     // stands in the stack's bottom group (the parent of StageManager.
     // deltaVTotalSection, outside the stage list's mask), so it does not scroll with
     // the stages and the list ends above it. It is as wide as a stage with its
@@ -43,8 +48,6 @@ namespace ReDefinition.Flight
     {
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
         private const string TypingLock = "ReDefinitionDeltaVToolsTyping";
-        // A stage's icons column (StageGroup's StageIcons, LayoutElement width 50).
-        private const float IconsWidth = 50f;
         // The app frame's own height beyond its list (DeltaVApp: 27).
         private const float FrameExtra = 27f;
 
@@ -52,6 +55,11 @@ namespace ReDefinition.Flight
         private static readonly FieldInfo SituationPrefabField = typeof(DeltaVApp).GetField("situationPrefab", Private);
         private static readonly FieldInfo PanelField = typeof(StageGroup).GetField("InfoPanelLayout", Private);
         private static readonly FieldInfo PanelWidthField = typeof(StageGroup).GetField("InfoPanelWidth", Private);
+        private static readonly FieldInfo ShownField = typeof(StageGroup).GetField("infoPanelShown", Private);
+        private static readonly FieldInfo StageField = typeof(StageGroup).GetField("stage", Private);
+        private static readonly FieldInfo AppListField = typeof(ApplicationLauncher).GetField("appList", Private);
+        private static readonly FieldInfo ModListField = typeof(ApplicationLauncher).GetField("appListMod", Private);
+        private readonly HashSet<StageGroup> seen = new HashSet<StageGroup>();
 
         private bool open;
         // Closed, while the details still slide out.
@@ -95,12 +103,18 @@ namespace ReDefinition.Flight
                 AllValues();
                 ApplicationLauncherButton button = app.appLauncherButton;
                 bool wanted = button != null && button.toggleButton != null && button.toggleButton.CurrentState == UIRadioButton.State.True;
-                if (wanted != open)
+                if (wanted != open && !OtherHovered(button))
                 {
                     open = wanted;
                     closing = !open;
-                    manager.ToggleInfoPanels(open);
+                    if (open)
+                    {
+                        foreach (StageGroup group in manager.Stages)
+                            if (group != null && Engines(group) != false) group.ToggleInfoPanel(true);
+                    }
+                    else manager.ToggleInfoPanels(false);
                 }
+                Stages(manager);
                 if (HighLogic.LoadedSceneIsEditor) Window(app, manager);
                 KeepTyping();
             }
@@ -110,6 +124,45 @@ namespace ReDefinition.Flight
                 CompatibilityLog.Warn("deltav-tools", "The delta-v tools could not be shown in the staging stack ("
                                                       + CompatibilityLog.Reason(e) + ").");
             }
+        }
+
+        // A stage added while the tools are open opens as well; a stage whose engines
+        // give nothing keeps its details in.
+        private void Stages(StageManager manager)
+        {
+            foreach (StageGroup group in manager.Stages)
+            {
+                if (group == null) continue;
+                bool? engines = Engines(group);
+                bool shown = (bool)ShownField.GetValue(group);
+                if (seen.Add(group) && open && !shown && engines != false) group.ToggleInfoPanel(true);
+                else if (shown && engines == false) group.ToggleInfoPanel(false);
+            }
+            seen.RemoveWhere(group => group == null);
+        }
+
+        // Whether the stage's engines give anything; null before KSP has worked the
+        // stage out.
+        private static bool? Engines(StageGroup group)
+        {
+            DeltaVStageInfo stage = StageField != null ? StageField.GetValue(group) as DeltaVStageInfo : null;
+            if (stage == null || stage.enginesActiveInStage == null) return null;
+            return stage.enginesActiveInStage.Count > 0;
+        }
+
+        // The pointer rests on another app's button.
+        private static bool OtherHovered(ApplicationLauncherButton own)
+        {
+            ApplicationLauncher launcher = ApplicationLauncher.Instance;
+            if (launcher == null) return false;
+            foreach (FieldInfo field in new[] { AppListField, ModListField })
+            {
+                List<ApplicationLauncherButton> buttons = field != null ? field.GetValue(launcher) as List<ApplicationLauncherButton> : null;
+                if (buttons == null) continue;
+                foreach (ApplicationLauncherButton other in buttons)
+                    if (other != null && other != own && other.IsHovering) return true;
+            }
+            return false;
         }
 
         // Every value KSP can show beside the stages.
@@ -126,16 +179,18 @@ namespace ReDefinition.Flight
         private void Window(DeltaVApp app, StageManager manager)
         {
             if (box == null && !Build(app, manager)) return;
-            float target = 0f, now = 0f;
+            float target = 0f, now = 0f, icons = StageInfoColumns.IconsColumn;
             foreach (StageGroup group in manager.Stages)
             {
                 LayoutElement panel = group != null ? PanelField.GetValue(group) as LayoutElement : null;
                 if (panel == null) continue;
                 target = Mathf.Max(target, (float)PanelWidthField.GetValue(group));
-                if (panel.gameObject.activeInHierarchy) now = Mathf.Max(now, panel.preferredWidth);
+                if (!panel.gameObject.activeInHierarchy) continue;
+                now = Mathf.Max(now, panel.preferredWidth);
+                icons = Mathf.Max(icons, StageInfoColumns.IconsWidth(group));
             }
             if (target <= 0f) return;
-            float full = IconsWidth + target;
+            float full = icons + target;
             // Growing and shrinking with the details as they slide.
             float width = full * Mathf.Clamp01(now / target);
             // Only as the tools open or close: a stage opened by itself shows its
@@ -189,12 +244,46 @@ namespace ReDefinition.Flight
 
             situation = Instantiate(situationPrefab);
             situation.transform.SetParent(appFrame.scrollList.transform, false);
-            // Its "Vessel Situation" heading goes: the frame's title names the tools.
-            Transform heading = situation.transform.Find("Header");
-            if (heading != null) heading.gameObject.SetActive(false);
+            Compact(situation.transform);
             holder.SetActive(false);
             Debug.Log(Log.Tag + " Delta-v tools built into the staging stack.");
             return true;
+        }
+
+        // The situation panel in three rows and a slider (the prefab, read with
+        // UnityPy): its heading and the labels of the body, the atmosphere, the
+        // altitude and the pressure go, the body list takes the row, and the pressure
+        // stands at the end of the altitude's row.
+        private static void Compact(Transform panel)
+        {
+            Hide(panel, "Header");
+            Hide(panel, "Body/Body/LabelText");
+            Hide(panel, "Body/Atmosphere");
+            Hide(panel, "Body/AtmosphereControls/Altitude/LabelText");
+            RectTransform dropdown = panel.Find("Body/Body/BodyDropdown") as RectTransform;
+            if (dropdown != null)
+            {
+                dropdown.offsetMin = new Vector2(0f, dropdown.offsetMin.y);
+                dropdown.offsetMax = new Vector2(0f, dropdown.offsetMax.y);
+            }
+            Transform row = panel.Find("Body/AtmosphereControls/Altitude");
+            Transform pressure = panel.Find("Body/Pressure/pressureValue");
+            if (row != null && pressure != null)
+            {
+                pressure.SetParent(row, false);
+                pressure.SetAsLastSibling();
+                LayoutElement layout = pressure.GetComponent<LayoutElement>() ?? pressure.gameObject.AddComponent<LayoutElement>();
+                layout.flexibleWidth = 1f;
+                TextMeshProUGUI text = pressure.GetComponent<TextMeshProUGUI>();
+                if (text != null) text.alignment = TextAlignmentOptions.MidlineRight;
+                Hide(panel, "Body/Pressure");
+            }
+        }
+
+        private static void Hide(Transform panel, string path)
+        {
+            Transform found = panel.Find(path);
+            if (found != null) found.gameObject.SetActive(false);
         }
 
         // The frame's height for its list: the situation panel without its heading.

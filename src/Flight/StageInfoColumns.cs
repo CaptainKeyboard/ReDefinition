@@ -25,6 +25,14 @@ namespace ReDefinition.Flight
     // preferredWidth from 0 to InfoPanelWidth), so the lines slide in as before.
     // Checked before the canvases draw, after KSP's own updates of the lines.
     //
+    // While a stage's details are out, its part icons stand in two columns as
+    // well (StageGroup.IconsUIList, a vertical layout, swapped for a grid of two
+    // columns; its column, StageIcons, and the list as wide as two icons). While
+    // anything is dragged in the stack (StageGroup.IsBeingDragged, StageIcon.
+    // underDrag) every stage keeps KSP's one column: KSP works out where a dragged
+    // icon or stage lands from the heights of the icons one below the other
+    // (StageGroup.GetStageGroupIndex, StageManager.GetStageGroupInsertionIndex).
+    //
     // The stage list clips what it shows to the stack's own width (its ScrollRect's
     // Mask; the stack root 250 wide in the editor, 265 in flight, read from the
     // prefabs), which a stage with details in two columns outgrows: the root is
@@ -64,9 +72,10 @@ namespace ReDefinition.Flight
         private const int MostInOneColumn = 4;
         private const float Gap = 4f;
         private const string DeltaVLine = "DELTAV";
-        // A stage's icons column and the add and delete buttons beside it
-        // (StageGroup's StageIcons, 50; StageManager.plusMinusButtonWidth, 25).
-        private const float BesideDetails = 75f;
+        // The add and delete buttons beside a stage (StageManager.plusMinusButtonWidth).
+        private const float Buttons = 25f;
+        // KSP's icons column (StageGroup's StageIcons, LayoutElement width 50).
+        internal const float IconsColumn = 50f;
         private RectTransform stack;
         private float stackWidth = -1f;
 
@@ -98,6 +107,18 @@ namespace ReDefinition.Flight
         }
 
         private readonly Dictionary<GameObject, Column> columns = new Dictionary<GameObject, Column>();
+
+        // An icon list's own vertical layout and widths, to be put back.
+        private sealed class IconColumn
+        {
+            public RectOffset Padding;
+            public float Spacing;
+            public TextAnchor Alignment;
+            public bool ControlWidth, ControlHeight, ExpandWidth, ExpandHeight;
+            public float ListWidth, ColumnWidth;
+        }
+
+        private readonly Dictionary<GameObject, IconColumn> iconColumns = new Dictionary<GameObject, IconColumn>();
         private bool noted;
         private bool failed;
 
@@ -126,8 +147,9 @@ namespace ReDefinition.Flight
             try
             {
                 TakeOutDeltaV();
+                bool dragging = Dragging(manager);
                 foreach (StageGroup group in manager.Stages)
-                    if (group != null) Arrange(group, column);
+                    if (group != null) Arrange(group, column, dragging);
                 KeepStackWide(manager);
             }
             catch (Exception e)
@@ -137,10 +159,11 @@ namespace ReDefinition.Flight
             }
         }
 
-        private void Arrange(StageGroup group, float column)
+        private void Arrange(StageGroup group, float column, bool dragging)
         {
             LayoutElement panel = PanelField.GetValue(group) as LayoutElement;
             if (panel == null) return;
+            Icons(group, panel.gameObject.activeInHierarchy && !dragging);
             List<StageGroupInfoItem> lines = InfosField.GetValue(group) as List<StageGroupInfoItem>;
             int count = lines != null ? lines.Count : 0;
             GameObject host = panel.gameObject;
@@ -252,6 +275,101 @@ namespace ReDefinition.Flight
             }
         }
 
+        // Something in the stack is dragged: a stage or an icon.
+        private static bool Dragging(StageManager manager)
+        {
+            foreach (StageGroup group in manager.Stages)
+            {
+                if (group == null) continue;
+                if (group.IsBeingDragged) return true;
+                foreach (StageIcon icon in group.Icons)
+                    if (icon != null && icon.underDrag) return true;
+            }
+            return false;
+        }
+
+        // The width of a stage's icons column now, KSP's or two icons wide.
+        internal static float IconsWidth(StageGroup group)
+        {
+            LayoutElement column = ColumnOf(group);
+            return column != null && column.preferredWidth > 0f ? column.preferredWidth : IconsColumn;
+        }
+
+        private static LayoutElement ColumnOf(StageGroup group)
+        {
+            Transform list = group != null ? group.IconsUIList : null;
+            Transform column = list != null && list.parent != null ? list.parent.parent : null;
+            return column != null ? column.GetComponent<LayoutElement>() : null;
+        }
+
+        // The part icons in two columns (`two`) or in KSP's one.
+        private void Icons(StageGroup group, bool two)
+        {
+            RectTransform list = group.IconsUIList;
+            if (list == null) return;
+            GameObject host = list.gameObject;
+            LayoutElement listLayout = host.GetComponent<LayoutElement>();
+            LayoutElement columnLayout = ColumnOf(group);
+            GridLayoutGroup grid = host.GetComponent<GridLayoutGroup>();
+            IconColumn saved;
+            if (!two)
+            {
+                if (grid == null || !iconColumns.TryGetValue(host, out saved)) return;
+                DestroyImmediate(grid);
+                VerticalLayoutGroup vertical = host.AddComponent<VerticalLayoutGroup>();
+                vertical.padding = new RectOffset(saved.Padding.left, saved.Padding.right, saved.Padding.top, saved.Padding.bottom);
+                vertical.spacing = saved.Spacing;
+                vertical.childAlignment = saved.Alignment;
+                vertical.childControlWidth = saved.ControlWidth;
+                vertical.childControlHeight = saved.ControlHeight;
+                vertical.childForceExpandWidth = saved.ExpandWidth;
+                vertical.childForceExpandHeight = saved.ExpandHeight;
+                if (listLayout != null) listLayout.preferredWidth = saved.ListWidth;
+                if (columnLayout != null) columnLayout.preferredWidth = saved.ColumnWidth;
+                iconColumns.Remove(host);
+                return;
+            }
+            if (grid != null) return;
+            VerticalLayoutGroup list1 = host.GetComponent<VerticalLayoutGroup>();
+            Vector2 cell = IconSize(list);
+            if (list1 == null || cell.x <= 0f || cell.y <= 0f) return;
+            saved = new IconColumn
+            {
+                Padding = new RectOffset(list1.padding.left, list1.padding.right, list1.padding.top, list1.padding.bottom),
+                Spacing = list1.spacing, Alignment = list1.childAlignment, ControlWidth = list1.childControlWidth,
+                ControlHeight = list1.childControlHeight, ExpandWidth = list1.childForceExpandWidth,
+                ExpandHeight = list1.childForceExpandHeight, ListWidth = listLayout != null ? listLayout.preferredWidth : -1f,
+                ColumnWidth = columnLayout != null ? columnLayout.preferredWidth : -1f,
+            };
+            iconColumns[host] = saved;
+            DestroyImmediate(list1);
+            grid = host.AddComponent<GridLayoutGroup>();
+            grid.padding = new RectOffset(saved.Padding.left, saved.Padding.right, saved.Padding.top, saved.Padding.bottom);
+            grid.childAlignment = saved.Alignment;
+            grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+            grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 2;
+            grid.spacing = new Vector2(0f, saved.Spacing);
+            grid.cellSize = cell;
+            float width = Mathf.Max(IconsColumn, saved.Padding.left + saved.Padding.right + 2f * cell.x);
+            if (listLayout != null) listLayout.preferredWidth = width;
+            if (columnLayout != null) columnLayout.preferredWidth = width;
+        }
+
+        // As large as KSP's layout made an icon.
+        private static Vector2 IconSize(RectTransform list)
+        {
+            for (int i = 0; i < list.childCount; i++)
+            {
+                RectTransform child = list.GetChild(i) as RectTransform;
+                if (child == null || !child.gameObject.activeSelf || child.GetComponent<StageIcon>() == null) continue;
+                Vector2 size = child.rect.size;
+                if (size.x > 0f && size.y > 0f) return size;
+            }
+            return Vector2.zero;
+        }
+
         // The stack at least as wide as its widest stage with its details out, so that
         // the list's mask clips nothing of it; KSP's own width otherwise.
         private void KeepStackWide(StageManager manager)
@@ -268,7 +386,7 @@ namespace ReDefinition.Flight
             {
                 LayoutElement panel = group != null ? PanelField.GetValue(group) as LayoutElement : null;
                 if (panel == null || !panel.gameObject.activeInHierarchy) continue;
-                needed = Mathf.Max(needed, (float)WidthField.GetValue(group) + BesideDetails);
+                needed = Mathf.Max(needed, (float)WidthField.GetValue(group) + IconsWidth(group) + Buttons);
             }
             float width = Mathf.Max(stackWidth, needed);
             if (!Mathf.Approximately(root.sizeDelta.x, width)) root.sizeDelta = new Vector2(width, root.sizeDelta.y);
