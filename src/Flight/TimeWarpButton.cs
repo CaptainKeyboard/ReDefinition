@@ -5,6 +5,7 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using KSP.UI;
 using KSP.UI.Screens.Flight;
+using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
 using ReDefinition.Scaling;
 using ReDefinition.Settings;
@@ -122,6 +123,9 @@ namespace ReDefinition.Flight
     // The copy of the warp-to-sunrise extension in the warp row (TimeWarpButton).
     public abstract class TimeWarpBar : MonoBehaviour
     {
+        // The arrow's size on the button, in KSP's UI units: about the MET
+        // button's text height (16 points).
+        private const float ArrowSize = 12f;
         private static readonly FieldInfo ContentField = UiScaling.TypeOf(TimeWarpButton.ModType) != null
             ? UiScaling.TypeOf(TimeWarpButton.ModType).GetField("buttonContent", BindingFlags.Instance | BindingFlags.NonPublic)
             : null;
@@ -176,12 +180,40 @@ namespace ReDefinition.Flight
             bar = Instantiate(sunrise.gameObject, row, false);
             bar.name = "ReDefinitionTimeWarpBar";
             DestroyImmediate(bar.GetComponent<UIWarpToNextMorning>());
+            // The sunrise's tooltip goes with it.
+            foreach (TooltipController_Text tooltip in bar.GetComponentsInChildren<TooltipController_Text>(true))
+                DestroyImmediate(tooltip);
             Button button = bar.GetComponentInChildren<Button>(true);
             if (button == null) throw new System.InvalidOperationException("no button in the sunrise extension");
             button.onClick = new Button.ButtonClickedEvent();
             button.onClick.AddListener(Press);
-            icon = button.GetComponent<Image>();
-            if (icon != null) icon.preserveAspect = true;
+
+            // The MET button's face and its hover and press states (its sprites
+            // hold no picture, the sunrise button's hold the sun), with the mod's
+            // arrow on it, as small as the MET button's text.
+            Transform met = row.Find("METButton");
+            Button metButton = met != null ? met.GetComponent<Button>() : null;
+            Image face = button.GetComponent<Image>();
+            Image metFace = met != null ? met.GetComponent<Image>() : null;
+            if (metButton == null || face == null || metFace == null)
+                throw new System.InvalidOperationException("no MET button in the time panel");
+            face.sprite = metFace.sprite;
+            face.color = metFace.color;
+            face.type = metFace.type;
+            button.transition = metButton.transition;
+            button.spriteState = metButton.spriteState;
+            button.colors = metButton.colors;
+            GameObject arrow = new GameObject("Arrow", typeof(RectTransform), typeof(Image));
+            arrow.layer = button.gameObject.layer;
+            RectTransform arrowRect = (RectTransform)arrow.transform;
+            arrowRect.SetParent(button.transform, false);
+            arrowRect.anchorMin = arrowRect.anchorMax = arrowRect.pivot = new Vector2(0.5f, 0.5f);
+            arrowRect.anchoredPosition = Vector2.zero;
+            arrowRect.sizeDelta = new Vector2(ArrowSize, ArrowSize);
+            icon = arrow.GetComponent<Image>();
+            icon.preserveAspect = true;
+            icon.raycastTarget = false;
+            icon.enabled = false;
             // Behind the panel's background, as the sunrise extension stands, so that
             // the background covers its left end.
             bar.transform.SetSiblingIndex(0);
@@ -194,8 +226,7 @@ namespace ReDefinition.Flight
             RectTransform barRect = (RectTransform)bar.transform;
             barRect.anchorMin = barRect.anchorMax = new Vector2(0.5f, 0.5f);
             Transform gauge = row.Find("TimeWarp");
-            Transform met = row.Find("METButton");
-            if (gauge == null || met == null) throw new System.InvalidOperationException("no warp gauge or MET button in the time panel");
+            if (gauge == null) throw new System.InvalidOperationException("no warp gauge in the time panel");
             Vector3 at = row.InverseTransformPoint(source.position);
             barRect.localPosition = new Vector3(at.x, at.y + gauge.localPosition.y - met.localPosition.y, 0f);
             TimeWarpButton.Replaced = true;
@@ -216,6 +247,7 @@ namespace ReDefinition.Flight
             {
                 shown = texture;
                 icon.sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                icon.enabled = true;
             }
         }
 

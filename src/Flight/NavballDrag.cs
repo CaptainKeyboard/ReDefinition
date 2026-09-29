@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System;
 using KSP.UI;
+using KSP.UI.Screens;
 using KSP.UI.Screens.Flight;
 using ReDefinition.Core;
 using ReDefinition.Settings;
@@ -82,6 +83,7 @@ namespace ReDefinition.Flight
                 // frame's own (UITransitionBase.panelTransform).
                 frame = panel.panelTransform != null ? panel.panelTransform : panel.transform as RectTransform;
                 if (frame == null || toggle.overrideButton == null) yield break;
+                DrawOnTop();
                 NavballDragHandle handle = toggle.overrideButton.gameObject.AddComponent<NavballDragHandle>();
                 handle.Owner = this;
                 current = this;
@@ -103,6 +105,31 @@ namespace ReDefinition.Flight
                 Debug.LogWarning(Log.Tag + " The navball cannot be moved: " + e);
                 panel = null;
             }
+        }
+
+        // The navball over the rest of the flight UI, the stage stack above all,
+        // which reaches beside it with its details open. The ball is a mesh
+        // (NavBall, material queue 2995), drawn before the UI's canvas at the same
+        // sorting order, so everything in the canvas covered it. Now the canvas
+        // with the flight UI comes first, then the ball and the navball's other
+        // meshes, then the navball's frame in a canvas of its own.
+        private void DrawOnTop()
+        {
+            Canvas outer = frame.parent != null ? frame.parent.GetComponentInParent<Canvas>() : null;
+            if (outer == null || frame.GetComponent<Canvas>() != null) return;
+            int layer = outer.sortingLayerID, order = outer.sortingOrder;
+            foreach (Renderer mesh in frame.GetComponentsInChildren<Renderer>(true))
+            {
+                mesh.sortingLayerID = layer;
+                mesh.sortingOrder = order + 1;
+            }
+            Canvas own = frame.gameObject.AddComponent<Canvas>();
+            own.overrideSorting = true;
+            own.sortingLayerID = layer;
+            own.sortingOrder = order + 2;
+            frame.gameObject.AddComponent<GraphicRaycaster>();
+            Debug.Log(Log.Tag + " Navball drawn over the flight UI: sorting order " + order + ", its meshes " + (order + 1)
+                      + ", its frame " + (order + 2) + ".");
         }
 
         private void OnDestroy()
@@ -175,7 +202,9 @@ namespace ReDefinition.Flight
         }
 
         // The room between the mode buttons and the crew portraits, in the root
-        // canvas's units: the screen's edges where either draws nothing.
+        // canvas's units: the screen's edges where either draws nothing beside the
+        // navball. Only what stands at the navball's height counts; the stage
+        // stack, which the navball is drawn over (DrawOnTop), does not.
         private void Room(out float left, out float right)
         {
             RectTransform root = Root();
@@ -183,56 +212,124 @@ namespace ReDefinition.Flight
             right = root != null ? root.rect.xMax : 0f;
             FlightUIModeController controller = FlightUIModeController.Instance;
             if (root == null || controller == null) return;
-            float min, max;
-            if (controller.uiModeFrame != null && Extent(controller.uiModeFrame.transform, root, out min, out max))
-                left = Mathf.Max(left, max);
-            if (controller.UIFrameCrewPortaits != null && Extent(controller.UIFrameCrewPortaits.transform, root, out min, out max))
-                right = Mathf.Min(right, min);
+            Rect navball;
+            float low = float.MinValue, high = float.MaxValue;
+            if (Extent(frame, root, null, low, high, out navball))
+            {
+                low = navball.yMin;
+                high = navball.yMax;
+            }
+            Rect found;
+            if (controller.uiModeFrame != null)
+            {
+                Transform modes = controller.uiModeFrame.transform;
+                Transform stack = modes.Find("EVACollapseGroup/StageManagerParent");
+                if (stack == null && StageManager.Instance != null) stack = StageManager.Instance.transform;
+                if (Extent(modes, root, stack, low, high, out found)) left = Mathf.Max(left, found.xMax);
+            }
+            if (controller.UIFrameCrewPortaits != null
+                && Extent(controller.UIFrameCrewPortaits.transform, root, null, low, high, out found))
+                right = Mathf.Min(right, found.xMin);
         }
 
-        // What the navball draws now, in the root canvas's units.
+        // What the navball draws now, sideways, in the root canvas's units.
         private void Drawn(out float min, out float max)
         {
             RectTransform root = Root();
-            if (root == null || !Extent(frame, root, out min, out max)) min = max = float.NaN;
+            Rect found;
+            if (root != null && Extent(frame, root, null, float.MinValue, float.MaxValue, out found))
+            {
+                min = found.xMin;
+                max = found.xMax;
+            }
+            else min = max = float.NaN;
         }
 
         private static readonly Vector3[] Corners = new Vector3[4];
 
-        // How far the pictures and texts under `under` reach that are drawn now:
-        // shown, not see-through, not a mask's shape; a text by its letters. Empty
-        // holders do not count.
-        private static bool Extent(Transform under, RectTransform root, out float min, out float max)
+        // Where the pictures and texts under `under` stand that are drawn now, in
+        // the root canvas's units: shown, not see-through, not a mask's shape, on
+        // the screen, reaching into the height from `low` to `high`, and not under
+        // `skip`. A text counts by its letters, a picture that keeps its aspect by
+        // the part of its rectangle it fills: the throttle and G gauges are square
+        // rectangles (219 wide) around narrow arcs (sprites 92 by 244;
+        // sharedassets7), which reach far beyond the navball's rim. Empty holders
+        // do not count.
+        private static bool Extent(Transform under, RectTransform root, Transform skip, float low, float high, out Rect found)
         {
-            min = float.MaxValue;
-            max = float.MinValue;
+            float xMin = float.MaxValue, xMax = float.MinValue, yMin = float.MaxValue, yMax = float.MinValue;
+            found = Rect.zero;
             if (under == null || !under.gameObject.activeInHierarchy) return false;
+            Rect screen = root.rect;
             foreach (Graphic graphic in under.GetComponentsInChildren<Graphic>(false))
             {
                 if (!graphic.isActiveAndEnabled || graphic.color.a < 0.02f || graphic.canvasRenderer.GetInheritedAlpha() < 0.02f)
                     continue;
+                if (skip != null && graphic.transform.IsChildOf(skip)) continue;
                 Mask mask = graphic.GetComponent<Mask>();
                 if (mask != null && mask.enabled && !mask.showMaskGraphic) continue;
-                TMP_Text text = graphic as TMP_Text;
-                if (text != null)
-                {
-                    if (string.IsNullOrEmpty(text.text)) continue;
-                    Bounds bounds = text.textBounds;
-                    if (bounds.size.x <= 0f) continue;
-                    Corners[0] = text.rectTransform.TransformPoint(bounds.min);
-                    Corners[1] = text.rectTransform.TransformPoint(bounds.max);
-                    Corners[2] = Corners[0];
-                    Corners[3] = Corners[1];
-                }
-                else graphic.rectTransform.GetWorldCorners(Corners);
+                Rect local;
+                if (!Filled(graphic, out local)) continue;
+                float gxMin = float.MaxValue, gxMax = float.MinValue, gyMin = float.MaxValue, gyMax = float.MinValue;
+                Corners[0] = new Vector3(local.xMin, local.yMin, 0f);
+                Corners[1] = new Vector3(local.xMin, local.yMax, 0f);
+                Corners[2] = new Vector3(local.xMax, local.yMax, 0f);
+                Corners[3] = new Vector3(local.xMax, local.yMin, 0f);
                 foreach (Vector3 corner in Corners)
                 {
-                    float x = root.InverseTransformPoint(corner).x;
-                    min = Mathf.Min(min, x);
-                    max = Mathf.Max(max, x);
+                    Vector3 at = root.InverseTransformPoint(graphic.rectTransform.TransformPoint(corner));
+                    gxMin = Mathf.Min(gxMin, at.x);
+                    gxMax = Mathf.Max(gxMax, at.x);
+                    gyMin = Mathf.Min(gyMin, at.y);
+                    gyMax = Mathf.Max(gyMax, at.y);
                 }
+                if (gyMax < low || gyMin > high) continue;
+                if (gxMax < screen.xMin || gxMin > screen.xMax || gyMax < screen.yMin || gyMin > screen.yMax) continue;
+                xMin = Mathf.Min(xMin, gxMin);
+                xMax = Mathf.Max(xMax, gxMax);
+                yMin = Mathf.Min(yMin, gyMin);
+                yMax = Mathf.Max(yMax, gyMax);
             }
-            return min <= max;
+            if (xMin > xMax) return false;
+            found = Rect.MinMaxRect(xMin, yMin, xMax, yMax);
+            return true;
+        }
+
+        // The part of a graphic's rectangle it draws in, in its own units, as
+        // Unity's Image places a simple picture that keeps its aspect
+        // (Image.PreserveSpriteAspectRatio: shrunk along one side, towards the
+        // pivot); a text by its letters.
+        private static bool Filled(Graphic graphic, out Rect local)
+        {
+            local = graphic.rectTransform.rect;
+            TMP_Text text = graphic as TMP_Text;
+            if (text != null)
+            {
+                if (string.IsNullOrEmpty(text.text)) return false;
+                Bounds bounds = text.textBounds;
+                if (bounds.size.x <= 0f) return false;
+                local = Rect.MinMaxRect(bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y);
+                return true;
+            }
+            Image image = graphic as Image;
+            if (image == null || !image.preserveAspect || image.type != Image.Type.Simple || image.sprite == null) return true;
+            Vector2 size = image.sprite.rect.size;
+            if (size.x <= 0f || size.y <= 0f || local.width <= 0f || local.height <= 0f) return true;
+            Vector2 pivot = graphic.rectTransform.pivot;
+            float spriteRatio = size.x / size.y;
+            if (spriteRatio > local.width / local.height)
+            {
+                float height = local.width / spriteRatio;
+                local.y += (local.height - height) * pivot.y;
+                local.height = height;
+            }
+            else
+            {
+                float width = local.height * spriteRatio;
+                local.x += (local.width - width) * pivot.x;
+                local.width = width;
+            }
+            return true;
         }
 
         private bool logged;
@@ -369,7 +466,8 @@ namespace ReDefinition.Flight
         {
             RectTransform canvasRect = Root();
             float min, max;
-            if (canvasRect == null || !Extent(frame, canvasRect, out min, out max)) return offset;
+            Drawn(out min, out max);
+            if (canvasRect == null || float.IsNaN(min)) return offset;
             // The frame's offset in the canvas's units: the canvas and the frame's
             // parents are not scaled against each other in KSP's flight UI, but the
             // frame's parent may be.
