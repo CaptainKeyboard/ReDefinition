@@ -7,8 +7,7 @@
 - **The delta-v tools in the staging stack.** KSP's *Δv* button opens every stage's
   details and, in the VAB and the SPH, a *Δv Tools* window under the lowest stage with
   the body, atmosphere, altitude and pressure; pressed again, it closes them. The details
-  always show every value, in two columns side by side, the part icons as well; stages
-  without thrust show none.
+  always show every value, in two columns side by side, the part icons as well.
 - **Grip for landing legs.** Every landing leg has a *Traction* button in its part menu,
   in the VAB and the SPH, from Default to Extreme Grip, as the grip pads have, so that a
   lander stays put on a slope.

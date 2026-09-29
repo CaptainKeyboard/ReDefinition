@@ -26,8 +26,9 @@ namespace ReDefinition.Flight
     // Checked before the canvases draw, after KSP's own updates of the lines.
     //
     // While a stage's details are out, its part icons stand in two columns as
-    // well (StageGroup.IconsUIList, a vertical layout, swapped for a grid of two
-    // columns; its column, StageIcons, and the list as wide as two icons). While
+    // well (StageGroup.IconsUIList, a vertical layout, swapped for IconColumnsLayout;
+    // its column, StageIcons, and the list as wide as two icons), moving from one
+    // column to two as the details slide in, and back as they slide out. While
     // anything is dragged in the stack (StageGroup.IsBeingDragged, StageIcon.
     // underDrag) every stage keeps KSP's one column: KSP works out where a dragged
     // icon or stage lands from the heights of the icons one below the other
@@ -163,7 +164,9 @@ namespace ReDefinition.Flight
         {
             LayoutElement panel = PanelField.GetValue(group) as LayoutElement;
             if (panel == null) return;
-            Icons(group, panel.gameObject.activeInHierarchy && !dragging);
+            float target = (float)WidthField.GetValue(group);
+            float blend = panel.gameObject.activeInHierarchy && target > 0f ? Mathf.Clamp01(panel.preferredWidth / target) : 0f;
+            Icons(group, dragging ? 0f : blend, dragging);
             List<StageGroupInfoItem> lines = InfosField.GetValue(group) as List<StageGroupInfoItem>;
             int count = lines != null ? lines.Count : 0;
             GameObject host = panel.gameObject;
@@ -302,34 +305,41 @@ namespace ReDefinition.Flight
             return column != null ? column.GetComponent<LayoutElement>() : null;
         }
 
-        // The part icons in two columns (`two`) or in KSP's one.
-        private void Icons(StageGroup group, bool two)
+        // The part icons blended between KSP's one column (0) and two (1); KSP's own
+        // vertical layout back once at one column, and at once while anything is
+        // dragged (`back`).
+        private void Icons(StageGroup group, float blend, bool back)
         {
             RectTransform list = group.IconsUIList;
             if (list == null) return;
             GameObject host = list.gameObject;
             LayoutElement listLayout = host.GetComponent<LayoutElement>();
             LayoutElement columnLayout = ColumnOf(group);
-            GridLayoutGroup grid = host.GetComponent<GridLayoutGroup>();
+            IconColumnsLayout columns2 = host.GetComponent<IconColumnsLayout>();
             IconColumn saved;
-            if (!two)
+            if (columns2 != null && iconColumns.TryGetValue(host, out saved))
             {
-                if (grid == null || !iconColumns.TryGetValue(host, out saved)) return;
-                DestroyImmediate(grid);
-                VerticalLayoutGroup vertical = host.AddComponent<VerticalLayoutGroup>();
-                vertical.padding = new RectOffset(saved.Padding.left, saved.Padding.right, saved.Padding.top, saved.Padding.bottom);
-                vertical.spacing = saved.Spacing;
-                vertical.childAlignment = saved.Alignment;
-                vertical.childControlWidth = saved.ControlWidth;
-                vertical.childControlHeight = saved.ControlHeight;
-                vertical.childForceExpandWidth = saved.ExpandWidth;
-                vertical.childForceExpandHeight = saved.ExpandHeight;
-                if (listLayout != null) listLayout.preferredWidth = saved.ListWidth;
-                if (columnLayout != null) columnLayout.preferredWidth = saved.ColumnWidth;
-                iconColumns.Remove(host);
+                if (back || blend <= 0f)
+                {
+                    DestroyImmediate(columns2);
+                    VerticalLayoutGroup vertical = host.AddComponent<VerticalLayoutGroup>();
+                    vertical.padding = new RectOffset(saved.Padding.left, saved.Padding.right, saved.Padding.top, saved.Padding.bottom);
+                    vertical.spacing = saved.Spacing;
+                    vertical.childAlignment = saved.Alignment;
+                    vertical.childControlWidth = saved.ControlWidth;
+                    vertical.childControlHeight = saved.ControlHeight;
+                    vertical.childForceExpandWidth = saved.ExpandWidth;
+                    vertical.childForceExpandHeight = saved.ExpandHeight;
+                    if (listLayout != null) listLayout.preferredWidth = saved.ListWidth;
+                    if (columnLayout != null) columnLayout.preferredWidth = saved.ColumnWidth;
+                    iconColumns.Remove(host);
+                    return;
+                }
+                columns2.SetBlend(blend);
+                Widen(saved, columns2, blend, listLayout, columnLayout);
                 return;
             }
-            if (grid != null) return;
+            if (back || blend <= 0f) return;
             VerticalLayoutGroup list1 = host.GetComponent<VerticalLayoutGroup>();
             Vector2 cell = IconSize(list);
             if (list1 == null || cell.x <= 0f || cell.y <= 0f) return;
@@ -343,18 +353,22 @@ namespace ReDefinition.Flight
             };
             iconColumns[host] = saved;
             DestroyImmediate(list1);
-            grid = host.AddComponent<GridLayoutGroup>();
-            grid.padding = new RectOffset(saved.Padding.left, saved.Padding.right, saved.Padding.top, saved.Padding.bottom);
-            grid.childAlignment = saved.Alignment;
-            grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
-            grid.startAxis = GridLayoutGroup.Axis.Horizontal;
-            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = 2;
-            grid.spacing = new Vector2(0f, saved.Spacing);
-            grid.cellSize = cell;
-            float width = Mathf.Max(IconsColumn, saved.Padding.left + saved.Padding.right + 2f * cell.x);
-            if (listLayout != null) listLayout.preferredWidth = width;
-            if (columnLayout != null) columnLayout.preferredWidth = width;
+            columns2 = host.AddComponent<IconColumnsLayout>();
+            columns2.padding = new RectOffset(saved.Padding.left, saved.Padding.right, saved.Padding.top, saved.Padding.bottom);
+            columns2.childAlignment = saved.Alignment;
+            columns2.Cell = cell;
+            columns2.Spacing = saved.Spacing;
+            columns2.SetBlend(blend);
+            Widen(saved, columns2, blend, listLayout, columnLayout);
+        }
+
+        // The list and its column from KSP's width to two icons wide, with the blend.
+        private static void Widen(IconColumn saved, IconColumnsLayout layout, float blend, LayoutElement listLayout, LayoutElement columnLayout)
+        {
+            float two = saved.Padding.left + saved.Padding.right + 2f * layout.Cell.x;
+            float width = Mathf.Lerp(saved.ColumnWidth > 0f ? saved.ColumnWidth : IconsColumn, Mathf.Max(IconsColumn, two), blend);
+            if (listLayout != null && !Mathf.Approximately(listLayout.preferredWidth, width)) listLayout.preferredWidth = width;
+            if (columnLayout != null && !Mathf.Approximately(columnLayout.preferredWidth, width)) columnLayout.preferredWidth = width;
         }
 
         // As large as KSP's layout made an icon.

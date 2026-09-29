@@ -24,13 +24,13 @@ their details. In flight KSP works the stages out for where the vessel is, so th
 opens and closes the details only.
 
 A click on a stage's number still opens or closes that stage's details alone. A stage
-added while the tools are open opens with the others. A stage whose engines give nothing,
-such as one that only decouples or opens parachutes, shows no details.
+added while the tools are open opens with the others.
 
 ## The details
 
 Each stage shows its Isp, thrust, TWR, start and end mass, and burn time, always all of
 them, in two columns side by side. Its delta-v stands under the stage's number, as in
 KSP. While the details are out, the stage's part icons stand in two columns as well, so
-that a stage with many parts stays short. While you drag a part or a stage, the icons
+that a stage with many parts stays short. They move into their places as the details
+slide in, and back as they slide out. While you drag a part or a stage, the icons
 go back to one column, so that it drops where you let go.

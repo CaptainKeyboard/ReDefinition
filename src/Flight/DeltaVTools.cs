@@ -17,9 +17,8 @@ namespace ReDefinition.Flight
     // ToggleInfoPanels) and, in the VAB and the SPH, a window under the lowest
     // stage, above the vessel's total delta-v; pressed again, it closes them. Every
     // value is shown (DeltaVAppValues.InfoLine.Enabled), so the tools need no choice
-    // of values. A stage whose engines give nothing (a decoupler's, a parachute's:
-    // DeltaVStageInfo.enginesActiveInStage empty) shows no details, and a stage
-    // added while the tools are open opens with the others. While the pointer is on
+    // of values. A stage added while the tools are open opens with the others.
+    // While the pointer is on
     // another app's button, KSP sets this one's toggle off until it leaves
     // (ApplicationLauncher's mutually exclusive hover); that is no press.
     //
@@ -56,7 +55,6 @@ namespace ReDefinition.Flight
         private static readonly FieldInfo PanelField = typeof(StageGroup).GetField("InfoPanelLayout", Private);
         private static readonly FieldInfo PanelWidthField = typeof(StageGroup).GetField("InfoPanelWidth", Private);
         private static readonly FieldInfo ShownField = typeof(StageGroup).GetField("infoPanelShown", Private);
-        private static readonly FieldInfo StageField = typeof(StageGroup).GetField("stage", Private);
         private static readonly FieldInfo AppListField = typeof(ApplicationLauncher).GetField("appList", Private);
         private static readonly FieldInfo ModListField = typeof(ApplicationLauncher).GetField("appListMod", Private);
         private readonly HashSet<StageGroup> seen = new HashSet<StageGroup>();
@@ -107,12 +105,7 @@ namespace ReDefinition.Flight
                 {
                     open = wanted;
                     closing = !open;
-                    if (open)
-                    {
-                        foreach (StageGroup group in manager.Stages)
-                            if (group != null && Engines(group) != false) group.ToggleInfoPanel(true);
-                    }
-                    else manager.ToggleInfoPanels(false);
+                    manager.ToggleInfoPanels(open);
                 }
                 Stages(manager);
                 if (HighLogic.LoadedSceneIsEditor) Window(app, manager);
@@ -126,28 +119,12 @@ namespace ReDefinition.Flight
             }
         }
 
-        // A stage added while the tools are open opens as well; a stage whose engines
-        // give nothing keeps its details in.
+        // A stage added while the tools are open opens as well.
         private void Stages(StageManager manager)
         {
             foreach (StageGroup group in manager.Stages)
-            {
-                if (group == null) continue;
-                bool? engines = Engines(group);
-                bool shown = (bool)ShownField.GetValue(group);
-                if (seen.Add(group) && open && !shown && engines != false) group.ToggleInfoPanel(true);
-                else if (shown && engines == false) group.ToggleInfoPanel(false);
-            }
+                if (group != null && seen.Add(group) && open && !(bool)ShownField.GetValue(group)) group.ToggleInfoPanel(true);
             seen.RemoveWhere(group => group == null);
-        }
-
-        // Whether the stage's engines give anything; null before KSP has worked the
-        // stage out.
-        private static bool? Engines(StageGroup group)
-        {
-            DeltaVStageInfo stage = StageField != null ? StageField.GetValue(group) as DeltaVStageInfo : null;
-            if (stage == null || stage.enginesActiveInStage == null) return null;
-            return stage.enginesActiveInStage.Count > 0;
         }
 
         // The pointer rests on another app's button.
