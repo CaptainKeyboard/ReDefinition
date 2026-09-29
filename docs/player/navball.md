@@ -16,7 +16,9 @@ the speed and heading, and the delta-v gauge.
 
 A click without dragging still shows and hides the navball. The navball stays on the
 screen: it stops at the left and right edge. It keeps its place when you hide and show
-it, and in the map view.
+it, in the map view and in every other flight mode. The SAS modes stand on the side of
+the navball that faces the middle of the screen: on its right while the navball is left
+of the middle.
 
 ReDefinition keeps the place for the next flight and the next game start.
 
