@@ -62,7 +62,6 @@ registrations.
 | **Astrogator** | HebaruSan | GPL-3.0 | How a toolbar button gets the tooltip KSP's own buttons have: a `TooltipController_Text` on the button's object with the game's `Tooltip_Text` prefab (`TooltipExtensions.cs`) |
 | **ClickThroughBlocker** | linuxgurugamer, chambm, HebaruSan, SteveBenz | LGPL-3.0 | How a per-save setting is made global (its `Global.cfg`); how a window keeps clicks from what lies behind it -- `ALLBUTCAMERAS` locked while the cursor is over one (its `FocusLock`), which this mod's windows do the same way |
 | **RemoteTech** | Peppie84, KSP-TaxiService, Starstrider42, neitsa, d4rksh4de, tomekpiotrowski (RemoteTechnologiesGroup) | GPL-2.0 | An options window of its own in the space centre |
-| **Kerbal Engineer Redux** | CYBUTEK; maintained by jrbudda | GPL-3.0 | Compatibility: where it is installed, a notice says it is no longer needed in the editor |
 | **ZTheme** | zapSNH, OnlyLightMatters, Phantomical | GPL-3.0 | The UI baseline: the settings are built from KSP's own elements so that it themes them |
 | **HUDReplacer** | UltraJohn, Phantomical, Aeurias, zapSNH (KSPModStewards) | GPL-3.0 | How ZTheme reaches KSP's UI; it also patches KSP's IMGUI skin, which the diagnostics window draws with |
 | **FreeIva** | pizzaoverhead, JonnyOThan, Icecovery | GPL-2.0 | Compatibility: its hatches take their clicks through Unity's mouse events, for which the rig lends its cameras' screen |

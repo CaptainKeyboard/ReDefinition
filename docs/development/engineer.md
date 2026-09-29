@@ -101,9 +101,3 @@ Opening the planner from another mode switches KSP to the parts mode first
 (`EditorLogic.SelectPanelParts`). The planner comes in once the parts list is in, so
 that the two transitions do not run against each other. Any change of mode closes it
 (`GameEvents.onEditorScreenChange`), and so does KSP's parts button.
-
-## The notice about Kerbal Engineer Redux
-
-If Kerbal Engineer Redux is installed, `EditorEngineer` says once per game start that it
-is no longer needed: KSP's own staging stack and the planner show the same information.
-Its windows stay as they are.

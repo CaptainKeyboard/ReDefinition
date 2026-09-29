@@ -261,7 +261,7 @@ KSP's UI textures by name, themes it with the rest of KSP's dialogs.
 
 | File | Role |
 |---|---|
-| `EditorEngineer.cs` | the add-on in the editors: the planner's mode button, opening and closing the planner, the notice about Kerbal Engineer Redux |
+| `EditorEngineer.cs` | the add-on in the editors: the planner's mode button, opening and closing the planner |
 | `EditorReadout.cs` | the vessel as the planner takes it, read from KSP's delta-v simulation, with every part and each stage's thrust at the surface worked out beside it |
 | `PlannerPanel.cs` | the planner's panel, made as KSP's crew panel is |
 | `Planner/` | the planner's route, fuel budget, plans and rows ([planner.md](planner.md)) |

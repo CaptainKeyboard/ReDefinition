@@ -1114,7 +1114,7 @@ namespace ReDefinition.Engineer
 
         // The RCS of what flies the step, as the step starts: the delta-v its RCS
         // propellant gives it, its thrusters' thrust and combined Isp in vacuum and
-        // their TWR at standard gravity, as Kerbal Engineer states them; where it
+        // their TWR at standard gravity, as KSP states a TWR in the editor; where it
         // docks, for the last metres, in orange and on the route where it has no RCS
         // or no RCS propellant. The electric charge an ion engine burns over the
         // step against what the vessel holds.
@@ -1161,8 +1161,8 @@ namespace ReDefinition.Engineer
         {
             public double Mass, Thrust, Isp, Propellant, DeltaV;
 
-            // Thrust against weight at standard gravity, as KSP and Kerbal Engineer
-            // state a TWR in the editor, full and with the propellant spent.
+            // Thrust against weight at standard gravity, as KSP states a TWR in the
+            // editor, full and with the propellant spent.
             public double StartTwr
             {
                 get { return Mass > 0.0 ? Thrust / (Mass * StageTable.StandardGravity) : 0.0; }

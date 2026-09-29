@@ -32,8 +32,6 @@ namespace ReDefinition.Engineer
         private const string TilePath = "ReDefinition/Icons/EngineerButton_";
         private const float RefreshInterval = 0.25f;
 
-        private static bool kerNoticeShown;
-
         private EditorLogic editor;
         private Button button;
         private Sprite tileActive;
@@ -47,16 +45,6 @@ namespace ReDefinition.Engineer
         private float nextRefresh;
 
         internal EditorReadout Readout { get; private set; }
-
-        internal static bool KerbalEngineerInstalled
-        {
-            get
-            {
-                foreach (AssemblyLoader.LoadedAssembly loaded in AssemblyLoader.loadedAssemblies)
-                    if (string.Equals(loaded.name, "KerbalEngineer", StringComparison.OrdinalIgnoreCase)) return true;
-                return false;
-            }
-        }
 
         private IEnumerator Start()
         {
@@ -83,11 +71,6 @@ namespace ReDefinition.Engineer
             // planner button's tiles are made again after it.
             GameEvents.onLevelWasLoadedGUIReady.Add(OnGuiReady);
             StartCoroutine(TilesAgainLater());
-            if (KerbalEngineerInstalled && !kerNoticeShown)
-            {
-                kerNoticeShown = true;
-                ShowKerNotice();
-            }
         }
 
         private void OnDestroy()
@@ -430,20 +413,6 @@ namespace ReDefinition.Engineer
             if (step == Vector3.zero) return;
             button.transform.position = last.position + step;
             if (editor.switchEditorBtn != null) editor.switchEditorBtn.transform.position = last.position + step * 2f;
-        }
-
-        // ---------------------------------------------------------------- notice
-
-        private static void ShowKerNotice()
-        {
-            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionKerNotice",
-                "Kerbal Engineer Redux is no longer needed: KSP's own staging stack and ReDefinition's planner show"
-                + " the same information in the VAB and the SPH.",
-                "Kerbal Engineer Redux", HighLogic.UISkin, 440f,
-                new DialogGUIButton("OK", () => { }, true));
-            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin)));
-            Debug.Log(Log.Tag + " Kerbal Engineer Redux is installed; the notice that it is no longer needed was shown.");
         }
     }
 }
