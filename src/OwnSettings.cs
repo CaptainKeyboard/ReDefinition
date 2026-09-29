@@ -63,6 +63,8 @@ namespace ReDefinition
         // Better Time Warp Continued's own toolbar button: hidden while off, since
         // its button stands in the time panel (Flight/TimeWarpButton).
         public bool TimeWarpToolbarButton;
+        // The flight scene starts in KSP's maneuver mode (Flight/FlightStartMode).
+        public bool FlightStartsInManeuverMode = true;
 
         private const string RootName = "ReDefinition";
 
@@ -106,6 +108,7 @@ namespace ReDefinition
             settings.WorldUiScale = Float(node, "worldUiScale", settings.WorldUiScale);
             settings.ScaleModWindows = Bool(node, "scaleModWindows", settings.ScaleModWindows);
             settings.TimeWarpToolbarButton = Bool(node, "timeWarpToolbarButton", settings.TimeWarpToolbarButton);
+            settings.FlightStartsInManeuverMode = Bool(node, "flightStartsInManeuverMode", settings.FlightStartsInManeuverMode);
             return settings;
         }
 
@@ -139,6 +142,7 @@ namespace ReDefinition
             node.AddValue("worldUiScale", WorldUiScale.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
             node.AddValue("scaleModWindows", ScaleModWindows);
             node.AddValue("timeWarpToolbarButton", TimeWarpToolbarButton);
+            node.AddValue("flightStartsInManeuverMode", FlightStartsInManeuverMode);
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -167,7 +171,7 @@ namespace ReDefinition
               .Append(SettingsWindowKey).Append('|')
               .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
               .Append(WorldUiScale.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(ScaleModWindows)
-              .Append('|').Append(TimeWarpToolbarButton);
+              .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode);
             return sb.ToString();
         }
 

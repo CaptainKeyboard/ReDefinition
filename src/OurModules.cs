@@ -227,6 +227,20 @@ namespace ReDefinition
             },
             new ModuleSetting
             {
+                Key = "flightStartsInManeuverMode",
+                Title = "Start flight in maneuver mode",
+                Order = 105,
+                Row = SettingCategory.Interface,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "A flight starts in KSP's maneuver mode, with its orbit and maneuver panel at the bottom left, rather "
+                          + "than in the staging mode. The mode buttons switch it as before.",
+                Read = settings => SettingValues.Text(settings.FlightStartsInManeuverMode),
+                Write = (settings, value) => settings.FlightStartsInManeuverMode = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
                 Key = "timeWarpToolbarButton",
                 Title = "Better Time Warp's toolbar button",
                 Order = 110,

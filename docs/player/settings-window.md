@@ -77,7 +77,7 @@ the flight, and in the main menu, the space centre and the editors.
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
 | *Controls*, *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
 | *Controls*, *Devices* | KSP's mouse wheel, Track IR and 6-DOF device |
-| *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, *Restore settings from before ReDefinition*, the navball's position ([navball.md](navball.md)), and whether Better Time Warp Continued keeps its toolbar button |
+| *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, *Restore settings from before ReDefinition*, the navball's position ([navball.md](navball.md)), whether a flight starts in KSP's maneuver mode (on at first), and whether Better Time Warp Continued keeps its toolbar button |
 
 *Detail* is indented under *Graphics*, and *Axes* and *Devices* under *Controls*. They
 are shown only while their parent or one of its tabs is open. A line sets *Mods / Toolbar* and

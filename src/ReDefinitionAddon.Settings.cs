@@ -130,6 +130,7 @@ namespace ReDefinition
             settings.WorldUiScale = from.WorldUiScale;
             settings.ScaleModWindows = from.ScaleModWindows;
             settings.TimeWarpToolbarButton = from.TimeWarpToolbarButton;
+            settings.FlightStartsInManeuverMode = from.FlightStartsInManeuverMode;
         }
 
         // What a view changed of the hotkeys, and nothing else: KSP's settings
@@ -146,6 +147,8 @@ namespace ReDefinition
             if (before.ScaleModWindows != after.ScaleModWindows) settings.ScaleModWindows = after.ScaleModWindows;
             if (before.TimeWarpToolbarButton != after.TimeWarpToolbarButton)
                 settings.TimeWarpToolbarButton = after.TimeWarpToolbarButton;
+            if (before.FlightStartsInManeuverMode != after.FlightStartsInManeuverMode)
+                settings.FlightStartsInManeuverMode = after.FlightStartsInManeuverMode;
         }
 
         // Where the navball stands; NavballDrag moves it there and writes it as

@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Flights start in the maneuver mode.** KSP's orbit and maneuver panel is open as a
+  flight starts; *Start flight in maneuver mode* under *Mods / Toolbar* switches it off.
 - **Persistent Rotation in the settings window.** Under *Gameplay*, *Flight*: whether its
   window shows in flight, and the default reference body. Its toolbar button, which
   only showed and hid the window, is hidden.
