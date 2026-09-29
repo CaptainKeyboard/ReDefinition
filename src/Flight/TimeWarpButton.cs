@@ -232,6 +232,7 @@ namespace ReDefinition.Flight
             Image plate = bar.GetComponent<Image>();
             plate.color = (sunrisePlate != null ? sunrisePlate.color : Color.white) * colour;
             plate.raycastTarget = true;
+            float corner = Square(container, sunrisePlate, plate.color);
 
             // The face lights up as the MET button's does: its sprites and states.
             GameObject faceObject = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button));
@@ -270,7 +271,8 @@ namespace ReDefinition.Flight
             TimeWarpButton.Replaced = true;
             Debug.Log(Log.Tag + " Better Time Warp's button in the time panel's warp row: its bar at " + unfolded.ToString("0")
                       + ", " + size.ToString("0") + " large, in " + colour + "; its face " + faceRect.sizeDelta.ToString("0")
-                      + " large, the sunrise button's picture over " + filled.ToString("0.00") + " of it.");
+                      + " large, the sunrise button's picture over " + filled.ToString("0.00") + " of it; the extension's top right corner squared by "
+                      + corner.ToString("0.0") + ".");
         }
 
         // A sprite's pixels, row by row from the bottom, or null where it cannot be
@@ -326,6 +328,36 @@ namespace ReDefinition.Flight
             colour = pixels[y * width + x];
             colour.a = 1f;
             return true;
+        }
+
+        // The sunrise extension's rounded top right corner filled square in the
+        // bar's colour, so that it joins the bar above it: a patch in the
+        // extension, under its button, as large as the corner's rounding, which is
+        // how far the sprite's top row stops short of its right edge. Returns that
+        // size in the extension's units, 0 where there is nothing to square.
+        private static float Square(RectTransform container, Image plate, Color colour)
+        {
+            int width, height;
+            Color32[] pixels = Pixels(plate != null ? plate.sprite : null, out width, out height);
+            if (pixels == null) return 0f;
+            int last = -1;
+            for (int x = width - 1; x >= 0 && last < 0; x--)
+                if (pixels[(height - 1) * width + x].a >= 128) last = x;
+            int rounding = width - 1 - last;
+            if (last < 0 || rounding <= 0) return 0f;
+            float size = rounding * container.rect.width / width;
+            GameObject patch = new GameObject("ReDefinitionSquareCorner", typeof(RectTransform), typeof(Image));
+            patch.layer = container.gameObject.layer;
+            RectTransform patchRect = (RectTransform)patch.transform;
+            patchRect.SetParent(container, false);
+            patchRect.SetSiblingIndex(0);
+            patchRect.anchorMin = patchRect.anchorMax = patchRect.pivot = new Vector2(1f, 1f);
+            patchRect.anchoredPosition = Vector2.zero;
+            patchRect.sizeDelta = new Vector2(size, size);
+            Image image = patch.GetComponent<Image>();
+            image.color = colour;
+            image.raycastTarget = false;
+            return size;
         }
 
         // The part of a sprite that is not see-through, as fractions of it: all of
