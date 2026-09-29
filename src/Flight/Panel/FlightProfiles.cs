@@ -46,14 +46,15 @@ namespace ReDefinition.Flight.Panel
         {
             return new List<FlightProfile>
             {
-                Make("Ascent", PanelSituation.Ascent, "apoapsis", "periapsis", "twr", "stageDeltaV", "dynamicPressure", "mach"),
-                Make("Orbit", PanelSituation.Orbit, "apoapsis", "periapsis", "period", "inclination", "eccentricity", "orbitalSpeed"),
-                Make("Rendezvous", PanelSituation.Rendezvous, "closestApproach", "transferWindow", "targetDistance", "relativeSpeed",
-                    "phaseAngle", "relativeInclination", "relativeNodes"),
+                // What players watch in each situation (the reasons: docs/player/flight-panel.md).
+                Make("Ascent", PanelSituation.Ascent, "apoapsis", "periapsis", "twr", "stageDeltaV", "dynamicPressure"),
+                Make("Orbit", PanelSituation.Orbit, "apoapsis", "periapsis", "period", "inclination", "eccentricity", "totalDeltaV"),
+                Make("Rendezvous", PanelSituation.Rendezvous, "closestApproach", "approachSpeed", "relativeSpeed", "targetDistance",
+                    "transferWindow", "phaseAngle", "relativeInclination", "relativeNodes"),
                 Make("Landing", PanelSituation.Landing, "suicideBurn", "altitudeGround", "verticalSpeed", "horizontalSpeed",
-                    "impact", "suicideDeltaV", "slope", "biome"),
-                Make("Docking", PanelSituation.Docking, "portDistance", "closingSpeed", "portAlignment", "relativeSpeed"),
-                Make("Air", PanelSituation.Air, "altitudeSea", "verticalSpeed", "mach", "dynamicPressure", "angleOfAttack", "sideslip"),
+                    "stageDeltaV", "suicideDeltaV", "impact", "slope", "biome"),
+                Make("Docking", PanelSituation.Docking, "portDistance", "closingSpeed", "portAlignment", "rcsDeltaV"),
+                Make("Air", PanelSituation.Air, "altitudeSea", "verticalSpeed", "glideSlope", "angleOfAttack", "mach", "dynamicPressure"),
             };
         }
 

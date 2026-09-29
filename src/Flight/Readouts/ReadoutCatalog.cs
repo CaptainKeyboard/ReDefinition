@@ -115,6 +115,12 @@ namespace ReDefinition.Flight.Readouts
             new Readout { Key = "slope", Title = "SLOPE", Group = Surface, Value = f => ReadoutMath.Angle(f.Slope) },
             new Readout
             {
+                Key = "glideSlope", Title = "GLIDE SLOPE", Group = Air,
+                Value = f => f.Vessel.horizontalSrfSpeed < 1.0 ? "-"
+                    : ReadoutMath.Angle(Math.Atan2(f.Vessel.verticalSpeed, f.Vessel.horizontalSrfSpeed) * 180.0 / Math.PI),
+            },
+            new Readout
+            {
                 Key = "biome", Title = "BIOME", Group = Surface,
                 Value = f => ScienceUtil.GetExperimentBiomeLocalized(f.Body, f.Vessel.latitude, f.Vessel.longitude),
             },
@@ -231,6 +237,11 @@ namespace ReDefinition.Flight.Readouts
             },
             new Readout
             {
+                Key = "approachSpeed", Title = "SPEED AT APPROACH", Group = Rendezvous, Applies = HasTarget,
+                Value = f => ReadoutMath.Speed(f.ApproachSpeed),
+            },
+            new Readout
+            {
                 Key = "phaseAngle", Title = "PHASE ANGLE", Group = Rendezvous, Applies = HasTarget,
                 Value = f =>
                 {
@@ -291,6 +302,11 @@ namespace ReDefinition.Flight.Readouts
                     Vector3d relative = f.RelativeVelocity;
                     return ReadoutMath.Speed((relative - along * Vector3d.Dot(relative, along)).magnitude);
                 },
+            },
+            new Readout
+            {
+                Key = "rcsDeltaV", Title = "RCS ΔV", Group = Docking,
+                Value = f => ReadoutMath.Speed(f.RcsDeltaV),
             },
             new Readout
             {

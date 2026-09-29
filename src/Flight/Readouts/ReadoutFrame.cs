@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ReDefinition.Flight.Readouts
@@ -309,7 +310,57 @@ namespace ReDefinition.Flight.Readouts
             return Vector3d.Cross(orbit.getRelativePositionAtUT(at), orbit.getOrbitalVelocityAtUT(at));
         }
 
+        // The speed against the target at the closest approach, in m/s: both
+        // orbits' velocities at that time (Orbit.getOrbitalVelocityAtUT), where
+        // they go round the same body; NaN otherwise.
+        internal double ApproachSpeed
+        {
+            get
+            {
+                double distance, seconds;
+                ClosestApproach(out distance, out seconds);
+                Orbit target = TargetOrbit;
+                if (double.IsNaN(seconds) || target == null || target.referenceBody != Orbit.referenceBody) return double.NaN;
+                return (Orbit.getOrbitalVelocityAtUT(Now + seconds) - target.getOrbitalVelocityAtUT(Now + seconds)).magnitude;
+            }
+        }
+
         // ------------------------------------------------------------ docking
+
+        // What the RCS propellant on board gives the vessel, in m/s: its RCS
+        // thrusters' combined Isp in vacuum (thrust over the sum of thrust over
+        // Isp, ModuleRCS: thrusterPower at thrustPercentage, atmosphereCurve at 0),
+        // and the mass of every resource they burn that the vessel holds, by the
+        // rocket equation. NaN without RCS.
+        internal double RcsDeltaV
+        {
+            get
+            {
+                double thrust = 0.0, overIsp = 0.0;
+                HashSet<string> burnt = new HashSet<string>();
+                foreach (Part part in Vessel.parts)
+                    foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+                    {
+                        if (rcs == null || !rcs.moduleIsEnabled || !rcs.rcsEnabled) continue;
+                        double isp = rcs.atmosphereCurve != null ? rcs.atmosphereCurve.Evaluate(0f) : 0.0;
+                        double power = rcs.thrusterPower * rcs.thrustPercentage * 0.01;
+                        if (isp <= 0.0 || power <= 0.0) continue;
+                        thrust += power;
+                        overIsp += power / isp;
+                        if (rcs.propellants != null)
+                            foreach (Propellant propellant in rcs.propellants) burnt.Add(propellant.name);
+                    }
+                if (thrust <= 0.0 || overIsp <= 0.0) return double.NaN;
+                double propellantMass = 0.0;
+                foreach (Part part in Vessel.parts)
+                    foreach (PartResource resource in part.Resources)
+                        if (resource != null && resource.info != null && burnt.Contains(resource.resourceName))
+                            propellantMass += resource.amount * resource.info.density;
+                double mass = Vessel.totalMass;
+                if (mass <= propellantMass || propellantMass <= 0.0) return 0.0;
+                return thrust / overIsp * PhysicsGlobals.GravitationalAcceleration * Math.Log(mass / (mass - propellantMass));
+            }
+        }
 
         // The target's docking port, where the target is one.
         internal ModuleDockingNode TargetPort

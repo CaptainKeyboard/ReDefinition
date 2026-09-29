@@ -17,14 +17,14 @@ second value under it where there are two, such as a height and the time until i
 The fields fill columns of the panel's height, and the panel grows to the right when a
 profile holds more than two columns. The mode buttons beside it move along.
 
-| Profile | Shows |
-|---|---|
-| Ascent | apoapsis with the time to it, periapsis with the time to it, TWR now and at full throttle, the stage's delta-v, dynamic pressure, Mach |
-| Orbit | apoapsis and periapsis with their times, period, inclination, eccentricity, orbital speed |
-| Rendezvous | closest approach with its distance and time, the transfer angle with the time to the window, the distance and relative speed to the target, the phase angle, the relative inclination, the time to the relative nodes |
-| Landing | the suicide burn's height and the time to it, height over the ground, vertical and horizontal speed, time to impact, the suicide burn's delta-v, the slope under the vessel, the biome |
-| Docking | the distance to the target port, the speed closing in and sideways, the angle between the ports, the relative speed |
-| Air | height over the sea, vertical speed, Mach, dynamic pressure, angle of attack, sideslip |
+| Profile | Shows | Because |
+|---|---|---|
+| Ascent | apoapsis with the time to it, periapsis with the time to it, TWR now and at full throttle, the stage's delta-v, dynamic pressure | the gravity turn is flown by the time to apoapsis, about 40 s, pitching over when it grows beyond a minute; the periapsis says when the orbit closes; TWR and the stage's delta-v say when to throttle and stage; dynamic pressure warns in the thick air |
+| Orbit | apoapsis and periapsis with their times, period, inclination, eccentricity, the vessel's delta-v | the orbit's shape and when to burn, and what is left for the next manoeuvres |
+| Rendezvous | closest approach with its distance and time, the relative speed there, the relative speed now, the distance to the target, the transfer angle with the time to the window, the phase angle, the relative inclination, the time to the relative nodes | the approach is made by killing the relative speed at the closest approach; before it, the window and the planes are matched |
+| Landing | the suicide burn's height and the time to it, height over the ground, vertical and horizontal speed, the stage's delta-v, the suicide burn's delta-v, time to impact, the slope under the vessel, the biome | first the horizontal speed goes, then the vertical below about 10 m/s near the ground; the two delta-v figures say whether the fuel lasts; slope and biome say whether the spot will do |
+| Docking | the distance to the target port, the speed closing in and sideways, the angle between the ports, the RCS's delta-v | the last metres are flown below about 0.5 m/s, sideways drift killed and the ports lined up, on RCS propellant that often runs short |
+| Air | height over the sea, vertical speed, glide slope, angle of attack, Mach, dynamic pressure | a landing comes in at no more than about 15 degrees with the nose at most about 10 up; Mach and dynamic pressure tell speed and load |
 
 A value that needs a target, or a docking port as the target, shows only while there
 is one.
