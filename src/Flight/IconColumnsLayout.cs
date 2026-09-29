@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using KSP.UI.Screens;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,16 +11,20 @@ namespace ReDefinition.Flight
     // two places, and the list's width and height follow, so that the icons close up
     // as the stage's details slide in (StageInfoColumns). Every icon keeps `Cell`,
     // its size in KSP's column.
+    //
+    // KSP makes room for an icon moved in or out with a placeholder that grows or
+    // shrinks in height (TweeningController.SpawnResizingLayoutElement, a
+    // ResizingLayoutElement among the icons). A placeholder here takes the share of a
+    // place its height is of an icon's, and the icons after it move on by as much:
+    // along the column, and in two columns from one place to the next, so that they
+    // glide into the gap rather than jump.
     public class IconColumnsLayout : LayoutGroup
     {
         public Vector2 Cell;
         public float Spacing;
         public float Blend;
 
-        private float InnerWidth
-        {
-            get { return rectTransform.rect.width - padding.horizontal; }
-        }
+        private readonly List<float> slots = new List<float>();
 
         public override void CalculateLayoutInputHorizontal()
         {
@@ -27,34 +33,68 @@ namespace ReDefinition.Flight
             SetLayoutInputForAxis(width, width, -1f, 0);
         }
 
+        // Where each child starts, in places counted from the first; and how far the
+        // lowest reaches.
         public override void CalculateLayoutInputVertical()
         {
-            int count = rectChildren.Count;
-            float height = padding.vertical + Mathf.Lerp(Rows(count), Rows((count + 1) / 2), Blend);
+            slots.Clear();
+            float at = 0f;
+            float lowest = 0f;
+            for (int i = 0; i < rectChildren.Count; i++)
+            {
+                slots.Add(at);
+                float share = Share(rectChildren[i]);
+                Vector2 single = Single(at), pair = Pair(at);
+                float top = Mathf.Lerp(single.y, pair.y, Blend);
+                lowest = Mathf.Max(lowest, top + Cell.y * share);
+                at += share;
+            }
+            float height = padding.vertical + lowest;
             SetLayoutInputForAxis(height, height, -1f, 1);
         }
 
-        private float Rows(int rows)
+        // A part icon takes a whole place; anything else, KSP's placeholder, the share
+        // its height is of an icon's.
+        private float Share(RectTransform child)
         {
-            return rows <= 0 ? 0f : rows * Cell.y + (rows - 1) * Spacing;
+            if (child.GetComponent<StageIcon>() != null || Cell.y <= 0f) return 1f;
+            return Mathf.Clamp01(LayoutUtility.GetPreferredHeight(child) / Cell.y);
+        }
+
+        // In one column: straight down. In two: from place to place, left then right,
+        // a fraction of a place on the straight line to the next.
+        private Vector2 Single(float slot)
+        {
+            return new Vector2(0f, slot * (Cell.y + Spacing));
+        }
+
+        private Vector2 Pair(float slot)
+        {
+            int whole = Mathf.FloorToInt(slot);
+            float part = slot - whole;
+            return Vector2.Lerp(Place(whole), Place(whole + 1), part);
+        }
+
+        private Vector2 Place(int slot)
+        {
+            return new Vector2((slot % 2) * Cell.x, (slot / 2) * (Cell.y + Spacing));
         }
 
         public override void SetLayoutHorizontal()
         {
-            float inner = InnerWidth;
+            float inner = rectTransform.rect.width - padding.horizontal;
             float single = padding.left + (inner - Cell.x) / 2f;
             float pair = padding.left + (inner - 2f * Cell.x) / 2f;
-            for (int i = 0; i < rectChildren.Count; i++)
-                SetChildAlongAxis(rectChildren[i], 0, Mathf.Lerp(single, pair + (i % 2) * Cell.x, Blend), Cell.x);
+            for (int i = 0; i < rectChildren.Count && i < slots.Count; i++)
+                SetChildAlongAxis(rectChildren[i], 0, Mathf.Lerp(single, pair + Pair(slots[i]).x, Blend), Cell.x);
         }
 
         public override void SetLayoutVertical()
         {
-            for (int i = 0; i < rectChildren.Count; i++)
+            for (int i = 0; i < rectChildren.Count && i < slots.Count; i++)
             {
-                float single = padding.top + i * (Cell.y + Spacing);
-                float pair = padding.top + (i / 2) * (Cell.y + Spacing);
-                SetChildAlongAxis(rectChildren[i], 1, Mathf.Lerp(single, pair, Blend), Cell.y);
+                float y = Mathf.Lerp(Single(slots[i]).y, Pair(slots[i]).y, Blend);
+                SetChildAlongAxis(rectChildren[i], 1, padding.top + y, Cell.y * Share(rectChildren[i]));
             }
         }
 

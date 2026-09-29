@@ -15,24 +15,31 @@ namespace ReDefinition.Flight
     // The tools' button no longer shows KSP's window (DeltaVApp.DisplayApp is
     // skipped): pressed, it opens every stage's details (StageManager.
     // ToggleInfoPanels) and, in the VAB and the SPH, a window under the lowest
-    // stage, above the vessel's total delta-v; pressed again, it closes them. Every
-    // value is shown (DeltaVAppValues.InfoLine.Enabled), so the tools need no choice
-    // of values. A stage added while the tools are open opens with the others.
-    // While the pointer is on
-    // another app's button, KSP sets this one's toggle off until it leaves
-    // (ApplicationLauncher's mutually exclusive hover); that is no press.
+    // stage, above the vessel's total delta-v; pressed again, it closes them. The
+    // button counts as pressed while the launcher holds it as its pinned button
+    // (ApplicationLauncher.lastPinnedButton): KSP turns its toggle off while the
+    // pointer rests on another app's button and on again a frame after it leaves,
+    // which is no press. The total delta-v's button, which opens and closes every
+    // stage too (StageManager.DeltaVButtonClicked), presses the tools' button
+    // instead. Every value is shown (DeltaVAppValues.InfoLine, set without writing
+    // KSP's settings file), so the tools need no choice of values. A stage added
+    // while the tools are open opens with the others, and so do the stages of a
+    // craft loaded or started anew (GameEvents.onEditorStarted, which closes every
+    // stage in KSP).
     //
     // The window is KSP's own: its app frame (DeltaVApp.appFramePrefab, titled as
     // KSP titles the tools) holding its situation panel (situationPrefab), made
     // compact: without its "Vessel Situation" heading and its row labels, the body
-    // list across the row, the pressure beside the altitude. It
-    // stands in the stack's bottom group (the parent of StageManager.
-    // deltaVTotalSection, outside the stage list's mask), so it does not scroll with
-    // the stages and the list ends above it. It is as wide as a stage with its
-    // details, and grows and shrinks with them as KSP slides them in and out, the
-    // frame revealed from the stages' side. In flight KSP works the stages out for
-    // where the vessel is and has no situation to choose, so there the button opens
-    // and closes the details only.
+    // list across the row, the pressure beside the altitude. It stands in the
+    // stack's bottom group (the parent of StageManager.deltaVTotalSection, outside
+    // the stage list's mask), so it does not scroll with the stages and the list
+    // ends above it. Its box is as wide as the widest open stage at every moment of
+    // the slide, and grows in height with it; the frame, at its final size, is
+    // pinned to the box's corner on the stages' side, so it slides in sideways and
+    // from below. The editor's keys wait while its altitude is typed, as for KSP's
+    // own tools' field (a postfix on DeltaVApp.TextFieldHasFocus). In flight KSP
+    // works the stages out for where the vessel is and has no situation to choose,
+    // so there the button opens and closes the details only.
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     public class DeltaVToolsEditor : DeltaVTools
     {
@@ -46,7 +53,6 @@ namespace ReDefinition.Flight
     public abstract class DeltaVTools : MonoBehaviour
     {
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
-        private const string TypingLock = "ReDefinitionDeltaVToolsTyping";
         // The app frame's own height beyond its list (DeltaVApp: 27).
         private const float FrameExtra = 27f;
 
@@ -55,28 +61,37 @@ namespace ReDefinition.Flight
         private static readonly FieldInfo PanelField = typeof(StageGroup).GetField("InfoPanelLayout", Private);
         private static readonly FieldInfo PanelWidthField = typeof(StageGroup).GetField("InfoPanelWidth", Private);
         private static readonly FieldInfo ShownField = typeof(StageGroup).GetField("infoPanelShown", Private);
-        private static readonly FieldInfo AppListField = typeof(ApplicationLauncher).GetField("appList", Private);
-        private static readonly FieldInfo ModListField = typeof(ApplicationLauncher).GetField("appListMod", Private);
-        private readonly HashSet<StageGroup> seen = new HashSet<StageGroup>();
+        private static readonly FieldInfo PinnedField = typeof(ApplicationLauncher).GetField("lastPinnedButton", Private);
+        private static readonly MethodInfo InitEnabled = typeof(DeltaVAppValues.InfoLine).GetMethod("InitEnabledValue", Private);
 
+        // The situation panel of the scene's tools, for the typing postfix.
+        private static DeltaVAppSituation typedIn;
+
+        private readonly HashSet<StageGroup> seen = new HashSet<StageGroup>();
         private bool open;
         // Closed, while the details still slide out.
         private bool closing;
         private bool failed;
-        private bool typing;
+        // A craft was loaded or started anew: every stage opens again a frame later.
+        private int reopenAt = -1;
         private RectTransform box;
         private LayoutElement boxLayout;
         private RectTransform frame;
         private DeltaVAppSituation situation;
         private float height;
 
-        // The button no longer shows KSP's window; installed once as the game starts
-        // (StageDetailsSetup).
+        // As the game starts (StageDetailsSetup): the button no longer shows KSP's
+        // window, the total delta-v presses the button, and the altitude field holds
+        // the editor's keys.
         internal static void Install()
         {
-            MethodInfo display = typeof(DeltaVApp).GetMethod("DisplayApp", Private);
-            HarmonyHooks.Install("ReDefinition.DeltaVTools", typeof(DeltaVTools),
-                new List<HarmonyHook> { new HarmonyHook(display, nameof(SkipWindow), null, null) });
+            HarmonyHooks.Install("ReDefinition.DeltaVTools", typeof(DeltaVTools), new List<HarmonyHook>
+            {
+                new HarmonyHook(typeof(DeltaVApp).GetMethod("DisplayApp", Private), nameof(SkipWindow), null, null),
+                new HarmonyHook(typeof(StageManager).GetMethod("DeltaVButtonClicked", Private), nameof(PressButton), null, null),
+                new HarmonyHook(typeof(DeltaVApp).GetMethod("TextFieldHasFocus", BindingFlags.Instance | BindingFlags.Public), null,
+                    nameof(AlsoTyped), null),
+            });
         }
 
         private static bool SkipWindow()
@@ -84,10 +99,39 @@ namespace ReDefinition.Flight
             return false;
         }
 
+        // The total delta-v's button presses the tools' button, so that both open
+        // and close the same.
+        private static bool PressButton()
+        {
+            ApplicationLauncherButton button = DeltaVApp.Instance != null ? DeltaVApp.Instance.appLauncherButton : null;
+            if (button == null || button.toggleButton == null) return true;
+            if (button.toggleButton.CurrentState == UIRadioButton.State.True) button.SetFalse();
+            else button.SetTrue();
+            return false;
+        }
+
+        private static void AlsoTyped(ref bool __result)
+        {
+            if (!__result && typedIn != null && typedIn.isActiveAndEnabled) __result = typedIn.AltitudeHasFocus();
+        }
+
+        private void Start()
+        {
+            GameEvents.onEditorStarted.Add(EditorStarted);
+            StageInfoColumns.Arranged += Follow;
+        }
+
         private void OnDestroy()
         {
-            if (typing) InputLockManager.RemoveControlLock(TypingLock);
+            GameEvents.onEditorStarted.Remove(EditorStarted);
+            StageInfoColumns.Arranged -= Follow;
+            if (typedIn == situation) typedIn = null;
             if (box != null) Destroy(box.gameObject);
+        }
+
+        private void EditorStarted()
+        {
+            if (open) reopenAt = Time.frameCount + 1;
         }
 
         private void Update()
@@ -99,24 +143,60 @@ namespace ReDefinition.Flight
             try
             {
                 AllValues();
-                ApplicationLauncherButton button = app.appLauncherButton;
-                bool wanted = button != null && button.toggleButton != null && button.toggleButton.CurrentState == UIRadioButton.State.True;
-                if (wanted != open && !OtherHovered(button))
+                bool wanted = Pinned(app.appLauncherButton);
+                if (wanted != open)
                 {
                     open = wanted;
                     closing = !open;
                     manager.ToggleInfoPanels(open);
                 }
+                if (reopenAt >= 0 && Time.frameCount >= reopenAt)
+                {
+                    reopenAt = -1;
+                    if (open) manager.ToggleInfoPanels(true);
+                }
                 Stages(manager);
-                if (HighLogic.LoadedSceneIsEditor) Window(app, manager);
-                KeepTyping();
             }
             catch (Exception e)
             {
-                failed = true;
-                CompatibilityLog.Warn("deltav-tools", "The delta-v tools could not be shown in the staging stack ("
-                                                      + CompatibilityLog.Reason(e) + ").");
+                Fail(e);
             }
+        }
+
+        // Once the stages are arranged for the frame (StageInfoColumns, in its
+        // LateUpdate): the box follows them in the same frame.
+        private void Follow()
+        {
+            if (failed || !HighLogic.LoadedSceneIsEditor) return;
+            DeltaVApp app = DeltaVApp.Instance;
+            StageManager manager = StageManager.Instance;
+            if (app == null || !DeltaVApp.Ready || manager == null) return;
+            try
+            {
+                Window(app, manager);
+            }
+            catch (Exception e)
+            {
+                Fail(e);
+            }
+        }
+
+        private void Fail(Exception e)
+        {
+            failed = true;
+            if (box != null) box.gameObject.SetActive(false);
+            CompatibilityLog.Warn("deltav-tools", "The delta-v tools could not be shown in the staging stack ("
+                                                  + CompatibilityLog.Reason(e) + ").");
+        }
+
+        // The launcher holds the tools' button as its pinned one; a stock app's
+        // hover elsewhere turns its toggle off without changing that.
+        private static bool Pinned(ApplicationLauncherButton button)
+        {
+            if (button == null || button.toggleButton == null) return false;
+            if (button.toggleButton.CurrentState == UIRadioButton.State.True) return true;
+            ApplicationLauncher launcher = ApplicationLauncher.Instance;
+            return PinnedField != null && launcher != null && ReferenceEquals(PinnedField.GetValue(launcher), button.toggleButton);
         }
 
         // A stage added while the tools are open opens as well.
@@ -124,31 +204,29 @@ namespace ReDefinition.Flight
         {
             foreach (StageGroup group in manager.Stages)
                 if (group != null && seen.Add(group) && open && !(bool)ShownField.GetValue(group)) group.ToggleInfoPanel(true);
-            seen.RemoveWhere(group => group == null);
+            seen.RemoveWhere(IsGone);
         }
 
-        // The pointer rests on another app's button.
-        private static bool OtherHovered(ApplicationLauncherButton own)
+        private static bool IsGone(StageGroup group)
         {
-            ApplicationLauncher launcher = ApplicationLauncher.Instance;
-            if (launcher == null) return false;
-            foreach (FieldInfo field in new[] { AppListField, ModListField })
-            {
-                List<ApplicationLauncherButton> buttons = field != null ? field.GetValue(launcher) as List<ApplicationLauncherButton> : null;
-                if (buttons == null) continue;
-                foreach (ApplicationLauncherButton other in buttons)
-                    if (other != null && other != own && other.IsHovering) return true;
-            }
-            return false;
+            return group == null;
         }
 
-        // Every value KSP can show beside the stages.
+        // Every value KSP can show beside the stages, without writing its settings
+        // file (InfoLine.InitEnabledValue; the Enabled setter saves settings.cfg).
         private static void AllValues()
         {
             DeltaVAppValues values = DeltaVGlobals.DeltaVAppValues;
             if (values == null || values.infoLines == null) return;
+            bool changed = false;
             foreach (DeltaVAppValues.InfoLine line in values.infoLines)
-                if (line != null && !line.Enabled) line.Enabled = true;
+            {
+                if (line == null || line.Enabled) continue;
+                if (InitEnabled != null) InitEnabled.Invoke(line, new object[] { true });
+                else line.Enabled = true;
+                changed = true;
+            }
+            if (changed) GameEvents.onDeltaVAppInfoItemsChanged.Fire();
         }
 
         // ------------------------------------------------------------ window
@@ -156,35 +234,31 @@ namespace ReDefinition.Flight
         private void Window(DeltaVApp app, StageManager manager)
         {
             if (box == null && !Build(app, manager)) return;
-            float target = 0f, now = 0f, icons = StageInfoColumns.IconsColumn;
+            float target = 0f, now = 0f;
             foreach (StageGroup group in manager.Stages)
             {
                 LayoutElement panel = group != null ? PanelField.GetValue(group) as LayoutElement : null;
                 if (panel == null) continue;
                 target = Mathf.Max(target, (float)PanelWidthField.GetValue(group));
-                if (!panel.gameObject.activeInHierarchy) continue;
-                now = Mathf.Max(now, panel.preferredWidth);
-                icons = Mathf.Max(icons, StageInfoColumns.IconsWidth(group));
+                if (panel.gameObject.activeInHierarchy)
+                    now = Mathf.Max(now, StageInfoColumns.IconsWidth(group) + Mathf.Max(0f, panel.preferredWidth));
             }
-            if (target <= 0f) return;
-            float full = icons + target;
-            // Growing and shrinking with the details as they slide, sideways and up
-            // from the bottom, so that the stages above move with it rather than
-            // jump.
-            float share = Mathf.Clamp01(now / target);
-            // In whole pixels, so that what stands below does not shift by a fraction.
-            float width = Mathf.Round(full * share);
+            float full = StageInfoColumns.TwoColumnIcons + target;
+            float share = target > 0f ? Mathf.Clamp01((now - StageInfoColumns.IconsColumn) / (full - StageInfoColumns.IconsColumn)) : 0f;
+            // As wide as the widest open stage now, in whole pixels, so that what
+            // stands below does not shift by a fraction.
+            float width = now > 0f ? Mathf.Round(now) : 0f;
             // Only as the tools open or close: a stage opened by itself shows its
             // details alone.
-            if (closing && width <= 0.5f) closing = false;
-            bool shown = open || closing;
+            if (closing && (width <= 0.5f || target <= 0f)) closing = false;
+            bool shown = (open || closing) && target > 0f;
             if (box.gameObject.activeSelf != shown) box.gameObject.SetActive(shown);
             if (!shown) return;
             if (height <= 0f) height = Height();
             if (!Mathf.Approximately(boxLayout.preferredWidth, width)) boxLayout.preferredWidth = width;
             float tall = Mathf.Round(height * share);
             if (!Mathf.Approximately(boxLayout.preferredHeight, tall)) boxLayout.preferredHeight = tall;
-            Vector2 size = new Vector2(full, height);
+            Vector2 size = new Vector2(Mathf.Round(full), height);
             if (frame.sizeDelta != size) frame.sizeDelta = size;
         }
 
@@ -229,6 +303,7 @@ namespace ReDefinition.Flight
             situation = Instantiate(situationPrefab);
             situation.transform.SetParent(appFrame.scrollList.transform, false);
             Compact(situation.transform);
+            typedIn = situation;
             holder.SetActive(false);
             Debug.Log(Log.Tag + " Delta-v tools built into the staging stack.");
             return true;
@@ -277,20 +352,9 @@ namespace ReDefinition.Flight
             if (list == null) return FrameExtra + 150f;
             LayoutRebuilder.ForceRebuildLayoutImmediate(list);
             float content = LayoutUtility.GetPreferredHeight(list);
-            float result = FrameExtra + (content > 0f ? content : 150f);
+            float result = Mathf.Round(FrameExtra + (content > 0f ? content : 150f));
             Debug.Log(Log.Tag + " Delta-v tools: " + result.ToString("0.#") + " high.");
             return result;
-        }
-
-        // While the altitude is typed, the editor's keys are held, as KSP holds them
-        // for its own tools' field (DeltaVApp.AnyTextFieldHasFocus).
-        private void KeepTyping()
-        {
-            bool now = situation != null && box != null && box.gameObject.activeInHierarchy && situation.AltitudeHasFocus();
-            if (now == typing) return;
-            typing = now;
-            if (typing) InputLockManager.SetControlLock(ControlTypes.All, TypingLock);
-            else InputLockManager.RemoveControlLock(TypingLock);
         }
     }
 }

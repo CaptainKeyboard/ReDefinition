@@ -24,7 +24,9 @@ their details. In flight KSP works the stages out for where the vessel is, so th
 opens and closes the details only.
 
 A click on a stage's number still opens or closes that stage's details alone. A stage
-added while the tools are open opens with the others.
+added while the tools are open opens with the others, and so do the stages of a craft
+you load. A click on the vessel's total delta-v at the bottom does the same as the *Δv*
+button.
 
 ## The details
 

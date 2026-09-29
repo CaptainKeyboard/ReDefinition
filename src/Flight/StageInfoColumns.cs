@@ -76,7 +76,6 @@ namespace ReDefinition.Flight
     public abstract class StageInfoColumns : MonoBehaviour
     {
         private const int MostInOneColumn = 4;
-        private const float Gap = 4f;
         private const string DeltaVLine = "DELTAV";
         // The add and delete buttons beside a stage (StageManager.plusMinusButtonWidth).
         private const float Buttons = 25f;
@@ -127,6 +126,14 @@ namespace ReDefinition.Flight
         private readonly Dictionary<GameObject, IconColumn> iconColumns = new Dictionary<GameObject, IconColumn>();
         // The size of an icon as KSP laid it out last, for a stage without icons.
         private static Vector2 lastCell;
+
+        // A stage's icons column in two columns, from the icon size seen last.
+        internal static float TwoColumnIcons
+        {
+            get { return lastCell.x > 0f ? Mathf.Max(IconsColumn, twoColumnPadding + 2f * lastCell.x) : IconsColumn; }
+        }
+
+        private static float twoColumnPadding = 10f;
         private static readonly MethodInfo UpdateHoverArea = typeof(StageManager).GetMethod("UpdateHoverArea", Private);
         private bool noted;
         private bool failed;
@@ -139,12 +146,18 @@ namespace ReDefinition.Flight
                 enabled = false;
                 return;
             }
-            Canvas.willRenderCanvases += Arrange;
         }
 
-        private void OnDestroy()
+        // Arranged, for the delta-v tools' window to follow in the same frame.
+        internal static event Action Arranged;
+
+        // After every Update, KSP's slide and its lines' updates included, and
+        // before the canvases are laid out, so that everything set here is laid out
+        // in the same frame.
+        private void LateUpdate()
         {
-            Canvas.willRenderCanvases -= Arrange;
+            Arrange();
+            if (Arranged != null) Arranged();
         }
 
         private void Arrange()
@@ -186,7 +199,13 @@ namespace ReDefinition.Flight
             if (!Mathf.Approximately((float)WidthField.GetValue(group), width))
             {
                 WidthField.SetValue(group, width);
-                if ((bool)ShownField.GetValue(group) && !(bool)SlidingField.GetValue(group)) panel.preferredWidth = width;
+                // A shown panel slides on to the new width from where it is: KSP's
+                // slide took its end as it started (StageGroup.ToggleInfoPanel).
+                if ((bool)ShownField.GetValue(group))
+                {
+                    ShownField.SetValue(group, false);
+                    group.ToggleInfoPanel(true);
+                }
             }
             if (two) Grid(host, lines, width, count, panel);
             else List(host, lines, column);
@@ -348,6 +367,7 @@ namespace ReDefinition.Flight
                 ColumnWidth = columnLayout != null ? columnLayout.preferredWidth : -1f,
             };
             iconColumns[host] = saved;
+            twoColumnPadding = saved.Padding.left + saved.Padding.right;
             DestroyImmediate(list1);
             columns2 = host.AddComponent<IconColumnsLayout>();
             columns2.padding = new RectOffset(saved.Padding.left, saved.Padding.right, saved.Padding.top, saved.Padding.bottom);
