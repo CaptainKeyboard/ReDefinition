@@ -60,6 +60,9 @@ namespace ReDefinition
         public float WorldUiScale = 100f;
         // Other mods' IMGUI windows at KSP's UI scale (Scaling/ModWindowScale).
         public bool ScaleModWindows = true;
+        // Better Time Warp Continued's own toolbar button: hidden while off, since
+        // its button stands in the time panel (Flight/TimeWarpButton).
+        public bool TimeWarpToolbarButton;
 
         private const string RootName = "ReDefinition";
 
@@ -102,6 +105,7 @@ namespace ReDefinition
             settings.NavballOffset = Float(node, "navballOffset", settings.NavballOffset);
             settings.WorldUiScale = Float(node, "worldUiScale", settings.WorldUiScale);
             settings.ScaleModWindows = Bool(node, "scaleModWindows", settings.ScaleModWindows);
+            settings.TimeWarpToolbarButton = Bool(node, "timeWarpToolbarButton", settings.TimeWarpToolbarButton);
             return settings;
         }
 
@@ -134,6 +138,7 @@ namespace ReDefinition
             node.AddValue("navballOffset", NavballOffset.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
             node.AddValue("worldUiScale", WorldUiScale.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
             node.AddValue("scaleModWindows", ScaleModWindows);
+            node.AddValue("timeWarpToolbarButton", TimeWarpToolbarButton);
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -161,7 +166,8 @@ namespace ReDefinition
               .Append(UpscalerKey).Append('|').Append(DiagnosticsKey).Append('|').Append(CameraListKey).Append('|')
               .Append(SettingsWindowKey).Append('|')
               .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
-              .Append(WorldUiScale.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(ScaleModWindows);
+              .Append(WorldUiScale.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(ScaleModWindows)
+              .Append('|').Append(TimeWarpToolbarButton);
             return sb.ToString();
         }
 

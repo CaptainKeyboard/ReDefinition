@@ -9,6 +9,7 @@ using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
 using ReDefinition.Scaling;
 using ReDefinition.Settings;
+using ReDefinition.Window;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -45,10 +46,25 @@ namespace ReDefinition.Flight
         private static float lookedAt = -10f;
         private static int routed;
 
+        internal static bool Installed
+        {
+            get { return UiScaling.TypeOf(ModType) != null; }
+        }
+
+        // The namespace the mod registers its toolbar button with in ToolbarControl
+        // (BetterTimeWarp.MODID; its source read).
+        private const string ToolbarNamespace = "BetterTimeWarp_NS";
+
         private void Awake()
         {
             System.Type mod = UiScaling.TypeOf(ModType);
             if (mod == null) return;
+            // Its toolbar button only where the player keeps it (OwnSettings.TimeWarpToolbarButton).
+            ToolbarTakeover.KeepOwn(ToolbarNamespace, () =>
+            {
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+                return addon != null && addon.Live.TimeWarpToolbarButton;
+            });
             HarmonyHooks.Safely("timewarp-button", "Better Time Warp's button stays where the mod puts it", () =>
             {
                 MethodInfo onGui = mod.GetMethod("OnGUI", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);

@@ -47,9 +47,30 @@ namespace ReDefinition.Window
         private static FieldInfo tcStock;
         private static bool tcResolved;
 
+        // Buttons ReDefinition hides for its own reasons, whatever the bundling, by
+        // the namespace they are registered with in ToolbarControl: shown while
+        // their test holds (KeepOwn), with the scenes they had.
+        private static readonly Dictionary<string, Func<bool>> ownButtons = new Dictionary<string, Func<bool>>();
+        private static readonly Dictionary<ApplicationLauncherButton, ApplicationLauncher.AppScenes> ownHidden =
+            new Dictionary<ApplicationLauncherButton, ApplicationLauncher.AppScenes>();
+
+        internal static void KeepOwn(string nameSpace, Func<bool> shown)
+        {
+            ownButtons[nameSpace] = shown;
+        }
+
         public static void Refresh()
         {
             if (ApplicationLauncher.Instance == null) return;
+            try
+            {
+                OwnButtons();
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("toolbar-own", "A toolbar button ReDefinition hides could not be handled ("
+                                                     + CompatibilityLog.Reason(e) + ").");
+            }
             if (!BundledSettings.Enabled)
             {
                 // Showing the buttons again must not throw out of here: this is
@@ -238,7 +259,13 @@ namespace ReDefinition.Window
         // switched off as the launcher's SetHidden does it.
         private static void KeepOff(ApplicationLauncherButton button)
         {
-            if (!hidden.ContainsKey(button) || !button.gameObject.activeSelf) return;
+            if (!hidden.ContainsKey(button)) return;
+            SwitchOff(button);
+        }
+
+        private static void SwitchOff(ApplicationLauncherButton button)
+        {
+            if (!button.gameObject.activeSelf) return;
             button.gameObject.SetActive(false);
             if (scaleModList == null)
                 scaleModList = typeof(ApplicationLauncher).GetMethod("ScaleModList", TypeLookup.Any, null, Type.EmptyTypes,
@@ -282,6 +309,46 @@ namespace ReDefinition.Window
                 if (stock == null) continue;
                 if (stock.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER) KeepOff(stock);
                 else Hide(stock, mod);
+            }
+        }
+
+        // The buttons KeepOwn names, hidden or shown again as their test says, as
+        // the bundled mods' are (Hide, KeepOff, Show).
+        private static void OwnButtons()
+        {
+            foreach (ApplicationLauncherButton gone in new List<ApplicationLauncherButton>(ownHidden.Keys))
+                if (gone == null) ownHidden.Remove(gone);
+            if (ownButtons.Count == 0 || !ResolveToolbarControl()) return;
+            IEnumerable controls = tcList.GetValue(null) as IEnumerable;
+            if (controls == null) return;
+            foreach (object control in controls)
+            {
+                if (control == null) continue;
+                string ns = tcNamespace.GetValue(control) as string;
+                Func<bool> shown;
+                if (ns == null || !ownButtons.TryGetValue(ns, out shown)) continue;
+                ApplicationLauncherButton stock = tcStock.GetValue(control) as ApplicationLauncherButton;
+                if (stock == null) continue;
+                ApplicationLauncher.AppScenes scenes;
+                if (!shown())
+                {
+                    if (ownHidden.ContainsKey(stock))
+                    {
+                        SwitchOff(stock);
+                        continue;
+                    }
+                    if (stock.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER) continue;
+                    ownHidden[stock] = stock.VisibleInScenes;
+                    stock.VisibleInScenes = ApplicationLauncher.AppScenes.NEVER;
+                    Debug.Log(Log.Tag + " Toolbar button of " + ns + " hidden, as the settings say.");
+                }
+                else if (ownHidden.TryGetValue(stock, out scenes))
+                {
+                    ownHidden.Remove(stock);
+                    stock.VisibleInScenes = scenes;
+                    SwitchOnWhereShown(stock);
+                    Debug.Log(Log.Tag + " Toolbar button of " + ns + " shown again, as the settings say.");
+                }
             }
         }
 

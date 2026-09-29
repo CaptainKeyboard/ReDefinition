@@ -129,6 +129,7 @@ namespace ReDefinition
             settings.NavballOffset = from.NavballOffset;
             settings.WorldUiScale = from.WorldUiScale;
             settings.ScaleModWindows = from.ScaleModWindows;
+            settings.TimeWarpToolbarButton = from.TimeWarpToolbarButton;
         }
 
         // What a view changed of the hotkeys, and nothing else: KSP's settings
@@ -143,6 +144,8 @@ namespace ReDefinition
             if (before.NavballOffset != after.NavballOffset) settings.NavballOffset = after.NavballOffset;
             if (before.WorldUiScale != after.WorldUiScale) settings.WorldUiScale = after.WorldUiScale;
             if (before.ScaleModWindows != after.ScaleModWindows) settings.ScaleModWindows = after.ScaleModWindows;
+            if (before.TimeWarpToolbarButton != after.TimeWarpToolbarButton)
+                settings.TimeWarpToolbarButton = after.TimeWarpToolbarButton;
         }
 
         // Where the navball stands; NavballDrag moves it there and writes it as

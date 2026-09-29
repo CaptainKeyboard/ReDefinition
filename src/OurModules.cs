@@ -224,6 +224,21 @@ namespace ReDefinition
                 Read = settings => settings.NavballOffset.ToString("0", CultureInfo.InvariantCulture),
                 Write = (settings, value) =>
                     settings.NavballOffset = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+            },
+            new ModuleSetting
+            {
+                Key = "timeWarpToolbarButton",
+                Title = "Better Time Warp's toolbar button",
+                Order = 110,
+                Row = SettingCategory.Interface,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Shows Better Time Warp Continued's button on KSP's toolbar. Its window opens from the arrow at the end "
+                          + "of the time warp row as well.",
+                Interactable = settings => Flight.TimeWarpButton.Installed,
+                Read = settings => SettingValues.Text(settings.TimeWarpToolbarButton),
+                Write = (settings, value) => settings.TimeWarpToolbarButton = bool.Parse(value),
             });
 
         // What KSP leaves unscaled (Scaling/UiScaling).

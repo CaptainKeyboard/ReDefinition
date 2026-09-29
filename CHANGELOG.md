@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Better Time Warp's button in the time panel.** With Better Time Warp Continued
+  installed, its arrow stands at the end of the time warp row, in the panel's look, and
+  opens its window. Its toolbar button is hidden; *Better Time Warp's toolbar button*
+  under *Mods / Toolbar* brings it back.
 - **RCS, turning and the TWR at burnout in the VAB and the SPH.** The planner's *Thrust*
   part gives for every step the RCS of what flies it as a stage row, thrust, Isp, TWR and
   burn time, its delta-v in the fuel plan, and how long it takes to turn by 90° on its reaction wheels, RCS and gimbals; the route
