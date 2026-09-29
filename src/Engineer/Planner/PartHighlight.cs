@@ -7,10 +7,9 @@ namespace ReDefinition.Engineer
     // KSP's own part highlighter: always on in that colour while marked, back to
     // KSP's default (on mouse-over) after. Part.SetHighlightType,
     // SetHighlightColor and SetHighlightDefault, decompiled. One marker at a time:
-    // whichever marks parts last, the planner or the engineer window, takes the
-    // other's marks away. While the pointer is on a part of the vessel
-    // (Mouse.HoveredPart), nothing is marked, and KSP highlights as it does
-    // without the mod. A marker whose marks are taken away is told (Lost).
+    // whichever marks parts last takes the other's marks away. While the pointer
+    // is on a part of the vessel (Mouse.HoveredPart), nothing is marked, and KSP
+    // highlights as it does without the mod. A marker whose marks are taken away is told (Lost).
     internal sealed class PartHighlight
     {
         private static PartHighlight current;

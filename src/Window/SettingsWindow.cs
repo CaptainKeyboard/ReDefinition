@@ -496,7 +496,7 @@ namespace ReDefinition.Window
         }
 
         // ReDefinition's own rows under Mods / Toolbar, under their headings: the
-        // engineer view's, the flight UI's (OurModules.Engineer, FlightUi).
+        // flight UI's and the scaling (OurModules.FlightUi, Scaling).
         private static void AddOwnInterfaceRows(List<DialogGUIBase> rows)
         {
             DialogGUIBase[] own = KspSettingsSection.Rows(edit, OwnLayout(), SettingCategory.Interface);
@@ -515,7 +515,7 @@ namespace ReDefinition.Window
 
         // Whether one of ReDefinition's own rows under Mods / Toolbar waits for
         // Accept.
-        private static bool EngineerPending()
+        private static bool OwnInterfacePending()
         {
             if (edit == null || edit.Before == null || edit.After == null) return false;
             foreach (ModuleSetting setting in OurModules.Rows(SettingCategory.Interface))

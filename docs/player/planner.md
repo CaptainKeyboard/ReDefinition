@@ -332,8 +332,8 @@ on, it carries the lander with the fuel the lander has left, or refilled.
 * Transfers are the ideal ones, launched in the transfer window. Out of the window a
   transfer costs more, so the margin matters.
 * The planner counts every stage in vacuum. The launch burns in air, where the engines
-  give less. To see a stage's delta-v at sea level, choose *Sea level* in the
-  [engineer window](engineer.md).
+  give less. To see a stage's delta-v at sea level, choose *Sea level* in KSP's
+  delta-v app. KSP's staging stack then shows it.
 * The TWR compares the thrust with the body's surface gravity: in the air there, the
   thrust KSP's engines give at that body's sea level; otherwise in vacuum.
 * The jets' part of the launch is an estimate from how fast they go, not a flight: it

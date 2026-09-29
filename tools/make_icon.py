@@ -1,4 +1,4 @@
-"""Draws the mod's pictures: the toolbar icon, the engineer view's button, the
+"""Draws the mod's pictures: the toolbar icon, the planner's button, the
 planner's symbols, and the planet for a forum post.
 
     python tools/make_icon.py
@@ -195,7 +195,7 @@ def draw_sliders():
     return image
 
 
-# The engineer view's button in the editor's mode bar, beside KSP's parts, actions,
+# The planner's button in the editor's mode bar, beside KSP's parts, actions,
 # crew and cargo buttons, in the form of their tiles: 128x107, a grey tab on each side,
 # a teal face lit from the top that narrows at the foot, a glyph, "Δv" here. KSP draws
 # the tiles into 48x48 buttons that a bar covers from below, so only their top shows.

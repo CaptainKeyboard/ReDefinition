@@ -89,7 +89,6 @@ namespace ReDefinition.Engineer
             public bool Air;
             public bool Solid;
             public readonly Dictionary<string, double> ThrustAtSurface = new Dictionary<string, double>();
-            public readonly List<int> Engines = new List<int>();
         }
 
         internal sealed class Result
@@ -161,7 +160,6 @@ namespace ReDefinition.Engineer
                 {
                     row.Solid &= parts[i].Rocket.Solid;
                     row.Thrust += parts[i].Rocket.Thrust;
-                    row.Engines.Add(i);
                     foreach (KeyValuePair<string, double> body in parts[i].Rocket.ThrustAtSurface)
                     {
                         double sum;
@@ -217,7 +215,6 @@ namespace ReDefinition.Engineer
             foreach (int i in lit)
             {
                 SimEngine engine = parts[i].Air;
-                row.Engines.Add(i);
                 thrust += engine.Thrust;
                 if (engine.Isp > 0.0) flow += engine.Thrust / (engine.Isp * G0);
             }
@@ -493,19 +490,14 @@ namespace ReDefinition.Engineer
                     if (row.Number == simRow.Number) ksp = row;
                 StageRow planRow = ksp != null && !simRow.Air ? ksp.Copy() : new StageRow();
                 planRow.Number = simRow.Number;
-                planRow.HasEngines = simRow.Engines.Count > 0;
                 planRow.StartMass = simRow.StartMass;
                 planRow.EndMass = simRow.EndMass;
                 planRow.DeltaV = planRow.DeltaVVacuum = simRow.DeltaV;
                 planRow.Thrust = planRow.ThrustVacuum = simRow.Thrust;
-                planRow.Isp = simRow.StartMass > simRow.EndMass && simRow.EndMass > 0.0
-                    ? simRow.DeltaV / Math.Log(simRow.StartMass / simRow.EndMass) / StageTable.StandardGravity
-                    : 0.0;
                 planRow.BurnTime = simRow.BurnTime;
                 planRow.Solid = simRow.Solid;
                 planRow.Air = simRow.Air;
                 planRow.ThrustAtSurface = new Dictionary<string, double>(simRow.ThrustAtSurface);
-                planRow.Engines = EnginesOf(simRow, facts);
                 planned.Add(planRow);
                 if (simRow.Air) airRow = simRow.Number;
             }
@@ -515,22 +507,6 @@ namespace ReDefinition.Engineer
                 foreach (KeyValuePair<int, double[]> stage in result.Fuel[i]) facts[i].StageFuel[stage.Key] = stage.Value;
             }
             return planned;
-        }
-
-        private static string EnginesOf(StageSim.Row row, IList<PartFacts> facts)
-        {
-            Dictionary<string, int> counts = new Dictionary<string, int>();
-            List<string> order = new List<string>();
-            foreach (int at in row.Engines)
-            {
-                string title = at < facts.Count ? facts[at].Title : "engine";
-                int count;
-                if (!counts.TryGetValue(title, out count)) order.Add(title);
-                counts[title] = count + 1;
-            }
-            List<string> text = new List<string>();
-            foreach (string title in order) text.Add(counts[title] + " x " + title);
-            return string.Join(", ", text.ToArray());
         }
     }
 }

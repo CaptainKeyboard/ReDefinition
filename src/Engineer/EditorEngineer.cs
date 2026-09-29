@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections;
 using System;
 using KSP.UI;
@@ -6,19 +5,16 @@ using KSP.UI.Screens;
 using KSP.UI.Screens.Editor;
 using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using ReDefinition.Window;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace ReDefinition.Engineer
 {
-    // The engineer in the VAB and the SPH: the engineer window with the vessel's
-    // stages, beside the parts list while the vessel is built
-    // (docs/player/engineer.md), and the planner, a mode of the editor beside
-    // KSP's own -- parts, actions, crew, cargo -- with a button of its own in
-    // their bar (docs/player/planner.md). The numbers are KSP's own delta-v
-    // simulation's (EditorReadout).
+    // The planner in the VAB and the SPH: a mode of the editor beside KSP's own
+    // -- parts, actions, crew, cargo -- with a button of its own in their bar
+    // (docs/player/planner.md). The vessel's numbers are KSP's own delta-v
+    // simulation's (EditorReadout), read while the planner is open.
     //
     // KSP's mode buttons, read from the editor scene (sharedassets6, UnityPy)
     // and EditorLogic (decompiled): four Buttons in the top bar, 48 wide, placed
@@ -26,7 +22,7 @@ namespace ReDefinition.Engineer
     // sprite with sprite swap; the active mode's button is the one KSP makes not
     // interactable. KSP places them once, from the anchors crewBtnOrigPos,
     // cargoBtnOrigPos and editorBtnOrigPos, and moves the switch-editor button
-    // up where the crew button is hidden. The engineer button takes the place one
+    // up where the crew button is hidden. The planner button takes the place one
     // step right of the last mode button, and the switch-editor button the one
     // after it. Both are set again every frame, so that they follow whatever KSP
     // does to the row, and the planner's button takes the cargo button's size.
@@ -43,15 +39,12 @@ namespace ReDefinition.Engineer
         private Sprite tileActive;
         private Sprite tileDisabled;
         private PlannerPanel panel;
-        private EngineerWindow window;
         private bool measured;
         private bool open;
         // Set while this view switches KSP's mode itself, so that the screen
         // change it causes does not close the view it is opening.
         private bool switching;
         private float nextRefresh;
-        private string keyText;
-        private KeyCombination key = KeyCombination.None;
 
         internal EditorReadout Readout { get; private set; }
 
@@ -79,13 +72,11 @@ namespace ReDefinition.Engineer
                 GameEvents.onEditorScreenChange.Add(OnScreenChange);
                 editor.partPanelBtn.onClick.AddListener(OnPartsButton);
                 Canvas.willRenderCanvases += KeepButtons;
-                RectTransform panels = EditorPanels.Instance.partsEditor.transform as RectTransform;
-                window = EngineerWindow.Create(this, panels != null ? panels.parent as RectTransform : null);
-                Debug.Log(Log.Tag + " Engineer window and planner added to the editor.");
+                Debug.Log(Log.Tag + " Planner added to the editor.");
             }
             catch (Exception e)
             {
-                Debug.LogWarning(Log.Tag + " The engineer window and the planner could not be added to the editor: " + e);
+                Debug.LogWarning(Log.Tag + " The planner could not be added to the editor: " + e);
             }
             // A UI theme such as ZTheme swaps the pixels of KSP's textures as the
             // scene's UI is ready (HUDReplacer, onLevelWasLoadedGUIReady): the
@@ -106,59 +97,35 @@ namespace ReDefinition.Engineer
             Canvas.willRenderCanvases -= KeepButtons;
             if (editor != null && editor.partPanelBtn != null) editor.partPanelBtn.onClick.RemoveListener(OnPartsButton);
             if (panel != null) panel.Destroy();
-            if (window != null) window.Destroy();
-            BodyPicker.Close();
             if (button != null) Destroy(button.gameObject);
         }
 
         private void Update()
         {
-            if (editor == null) return;
-            OwnSettings settings = Settings();
-            if (settings != null && !KeyCapture.Busy && Key(settings.EngineerKey).Pressed() && window != null)
-                window.ToggleFolded();
-
-            // The vessel is read while the window or the planner shows it.
-            bool partsShown = editor.editorScreen == EditorScreen.Parts;
-            bool wanted = open || (partsShown && EngineerWindow.Wanted(settings));
-            if (wanted && Time.unscaledTime >= nextRefresh)
+            if (editor == null || !open) return;
+            if (Time.unscaledTime >= nextRefresh)
             {
                 nextRefresh = Time.unscaledTime + RefreshInterval;
                 try
                 {
-                    Readout = EditorReadout.Read(settings != null && settings.EngineerVectoredThrust);
+                    Readout = EditorReadout.Read();
                 }
                 catch (Exception e)
                 {
-                    CompatibilityLog.Warn("engineer-readout", "The engineer could not read the vessel ("
+                    CompatibilityLog.Warn("engineer-readout", "The planner could not read the vessel ("
                                                               + CompatibilityLog.Reason(e) + ").");
                 }
             }
 
             try
             {
-                if (open && panel != null) panel.Update();
-                if (window != null) window.Update(settings, partsShown, open);
+                if (panel != null) panel.Update();
             }
             catch (Exception e)
             {
-                CompatibilityLog.Warn("engineer-update", "The engineer window or the planner could not be drawn ("
+                CompatibilityLog.Warn("engineer-update", "The planner could not be drawn ("
                                                          + CompatibilityLog.Reason(e) + ").");
             }
-        }
-
-        internal static OwnSettings Settings()
-        {
-            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            return addon != null ? addon.Live : null;
-        }
-
-        private KeyCombination Key(string text)
-        {
-            if (text == keyText) return key;
-            keyText = text;
-            key = text == null ? KeyCombination.None : KeyCombination.Parse(text);
-            return key;
         }
 
         // --------------------------------------------------------------- opening
@@ -183,7 +150,6 @@ namespace ReDefinition.Engineer
                 return;
             }
             open = true;
-            if (window != null) window.ClearMark();
             if (PartListTooltipMasterController.Instance != null) PartListTooltipMasterController.Instance.HideTooltip();
             nextRefresh = 0f;
             if (editor.editorScreen != EditorScreen.Parts)
@@ -264,7 +230,7 @@ namespace ReDefinition.Engineer
             Button cargo = editor.cargoPanelBtn;
             // Made under an inactive holder, so that nothing of KSP's cargo button
             // wakes up in the copy before it is taken off: only the Button, its tile
-            // and its tooltip are the engineer's.
+            // and its tooltip are the planner's.
             GameObject holder = new GameObject("ReDefinitionEngineerHolder");
             holder.SetActive(false);
             GameObject copy = Instantiate(cargo.gameObject, holder.transform, false);
@@ -403,7 +369,7 @@ namespace ReDefinition.Engineer
             }
             catch (Exception e)
             {
-                CompatibilityLog.Warn("engineer-button", "The engineer button could not be kept in its place ("
+                CompatibilityLog.Warn("engineer-button", "The planner button could not be kept in its place ("
                                                          + CompatibilityLog.Reason(e) + ").");
             }
         }
@@ -471,8 +437,8 @@ namespace ReDefinition.Engineer
         private static void ShowKerNotice()
         {
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionKerNotice",
-                "Kerbal Engineer Redux is no longer needed: ReDefinition's engineer window and planner show the same"
-                + " information in the VAB and the SPH.",
+                "Kerbal Engineer Redux is no longer needed: KSP's own staging stack and ReDefinition's planner show"
+                + " the same information in the VAB and the SPH.",
                 "Kerbal Engineer Redux", HighLogic.UISkin, 440f,
                 new DialogGUIButton("OK", () => { }, true));
             UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),

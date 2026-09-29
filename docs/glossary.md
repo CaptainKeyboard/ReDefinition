@@ -28,7 +28,6 @@
 
 | Word | Means |
 |---|---|
-| engineer window | The window at the bottom of the VAB and the SPH with the vessel's stages as a table: delta-v, thrust, TWR, burn time, mass and cost per stage. |
 | planner | The mode of the VAB and the SPH that lays out a route from stop to stop, works out the delta-v of each leg and shares the vessel's stages out over the legs. Its button, with *Δv* on it, is next to KSP's mode buttons above the parts list. |
 | fuel plan | The planner's table of stages by legs: what each stage gives to each leg. |
 | pin | A stage the player sets to pay for a leg, in a cell of the fuel plan. A leg with pins burns its pinned stages only. |
@@ -36,7 +35,7 @@
 | leg | The flight from one stop of the planner's route to the next. |
 | lander | In the planner, the stages that fly down and back up alone while the rest of the vessel waits, and are then carried on. |
 | navball position | How far the navball stands from the bottom centre of the flight screen. Dragging its show/hide button sets it, and so does *Navball position* in the settings window. |
-| situation | Where the engineer window's numbers are for: a body, and sea level, an altitude in its atmosphere, or vacuum. It is the situation of KSP's own delta-v app. |
+| situation | Where KSP's delta-v numbers in the editor are for: a body, and sea level, an altitude in its atmosphere, or vacuum. KSP's delta-v app sets it, and its staging stack follows it. |
 
 ## The store
 

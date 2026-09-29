@@ -24,7 +24,7 @@ panel sits in KSP's editor is in [engineer.md](engineer.md).
 | `src/Engineer/Planner/PlannerView.cs` | the plan: loading, saving, working it out, the choices the rows make, the parts marked on the vessel |
 | `src/Engineer/Planner/PlannerView.Sections.cs` | the vessel's sections: found, resolved against the parts, named, handed to the route and the budget |
 | `src/Engineer/Planner/PlannerView.Rows.cs` | the planner's rows, built from KSP's dialog elements |
-| `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the stage colours, the list of bodies and the list that folds out under a button (`Dropdown`) |
+| `src/Engineer/Planner/PlannerWidgets.cs` | the symbols, the coloured bars, the stage colours and the list that folds out under a button (`Dropdown`) |
 | `src/Engineer/Planner/PartHighlight.cs` | marks parts on the vessel with KSP's part highlighter, one marker at a time |
 | `src/Engineer/PlannerPanel.cs` | the panel the rows stand in, made as KSP's crew panel is |
 
@@ -106,10 +106,9 @@ used. Symbols are `GameData/ReDefinition/Icons/Planner_*.png`, white on clear, d
 `tools/make_icon.py`. The list of bodies folds out under the body's button (`Dropdown`).
 
 The planner marks parts on the vessel only while the pointer is on an entry of a
-section's list: that entry's parts, green. One marker at a time: whoever
-marks parts, the planner or the engineer window, takes the other's marks away
-(`PartHighlight`), and with the pointer on a part of the vessel nothing is marked, so
-that KSP highlights it as it does without the mod.
+section's list: that entry's parts, green (`PartHighlight`). With the pointer on a
+part of the vessel nothing is marked, so that KSP highlights it as it does without the
+mod.
 
 KSP's layouts take no width of their own: `DialogGUILayoutBase` gives a row the width of
 its elements, not the one it is handed **[src]**. So every row's elements are summed to

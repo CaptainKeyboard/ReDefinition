@@ -158,7 +158,6 @@ namespace ReDefinition.Engineer
         // takes its entry's marks away through the highlight.
         internal void Flush()
         {
-            BodyPicker.Close(this);
             Dropdown.Close(this);
             highlight.Clear();
             if (typingLocked) InputLockManager.RemoveControlLock(TypingLock);
@@ -422,7 +421,6 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index) || state.Stops.Count <= 2) return;
             // The list of bodies is for a stop that may be another one now.
-            BodyPicker.Close(this);
             Dropdown.Close(this);
             state.Stops.RemoveAt(index);
             state.RemoveStop(index);

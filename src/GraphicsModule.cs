@@ -40,11 +40,11 @@ namespace ReDefinition
 
         // Whether the row can be changed only while a graphics profile is chosen:
         // the upscaler's and frame generation's, which only a profile makes
-        // active. The engineer view's are the player's at any time.
+        // active. The flight UI's and the scaling are the player's at any time.
         public bool NeedsProfile = true;
 
         // The heading the row stands under in its tab, where the tab groups
-        // ReDefinition's own rows (Mods / Toolbar: the engineer view, flight).
+        // ReDefinition's own rows (Mods / Toolbar: flight, scaling).
         public string Section;
         public SettingControl Control = SettingControl.Toggle;
 

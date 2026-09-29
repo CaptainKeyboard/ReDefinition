@@ -88,7 +88,6 @@ namespace ReDefinition.Engineer
             first.EndMass = end;
             first.DeltaVVacuum = first.DeltaV = exhaust * Math.Log(start / end);
             first.BurnTime = together;
-            first.Isp = exhaust / StageTable.StandardGravity;
             first.ThrustVacuum = core.ThrustVacuum + freed.ThrustVacuum;
             first.Thrust = core.Thrust + freed.Thrust;
             first.ThrustAtSurface = new Dictionary<string, double>(core.ThrustAtSurface);
@@ -98,7 +97,6 @@ namespace ReDefinition.Engineer
                 first.ThrustAtSurface.TryGetValue(body.Key, out thrust);
                 first.ThrustAtSurface[body.Key] = thrust + body.Value;
             }
-            first.ThrustTorque = core.ThrustTorque + freed.ThrustTorque;
             first.Number = core.Number;
 
             // What burns on: the core, after the boosters are dropped where the core

@@ -126,11 +126,6 @@ namespace ReDefinition
             settings.SettingsWindowKey = from.SettingsWindowKey;
             settings.DiagnosticsKey = from.DiagnosticsKey;
             settings.CameraListKey = from.CameraListKey;
-            settings.EngineerKey = from.EngineerKey;
-            settings.EngineerWindow = from.EngineerWindow;
-            settings.EngineerAllStages = from.EngineerAllStages;
-            settings.EngineerVectoredThrust = from.EngineerVectoredThrust;
-            settings.EngineerPartDetails = from.EngineerPartDetails;
             settings.NavballOffset = from.NavballOffset;
             settings.WorldUiScale = from.WorldUiScale;
             settings.ScaleModWindows = from.ScaleModWindows;
@@ -145,12 +140,6 @@ namespace ReDefinition
             if (before.SettingsWindowKey != after.SettingsWindowKey) settings.SettingsWindowKey = after.SettingsWindowKey;
             if (before.DiagnosticsKey != after.DiagnosticsKey) settings.DiagnosticsKey = after.DiagnosticsKey;
             if (before.CameraListKey != after.CameraListKey) settings.CameraListKey = after.CameraListKey;
-            if (before.EngineerKey != after.EngineerKey) settings.EngineerKey = after.EngineerKey;
-            if (before.EngineerWindow != after.EngineerWindow) settings.EngineerWindow = after.EngineerWindow;
-            if (before.EngineerAllStages != after.EngineerAllStages) settings.EngineerAllStages = after.EngineerAllStages;
-            if (before.EngineerVectoredThrust != after.EngineerVectoredThrust)
-                settings.EngineerVectoredThrust = after.EngineerVectoredThrust;
-            if (before.EngineerPartDetails != after.EngineerPartDetails) settings.EngineerPartDetails = after.EngineerPartDetails;
             if (before.NavballOffset != after.NavballOffset) settings.NavballOffset = after.NavballOffset;
             if (before.WorldUiScale != after.WorldUiScale) settings.WorldUiScale = after.WorldUiScale;
             if (before.ScaleModWindows != after.ScaleModWindows) settings.ScaleModWindows = after.ScaleModWindows;
@@ -165,7 +154,7 @@ namespace ReDefinition
         }
 
         // The settings as they stand, for what reads them every frame without a
-        // copy -- the engineer view. Not to be written through.
+        // copy -- the UI scaling. Not to be written through.
         internal OwnSettings Live
         {
             get { return settings; }

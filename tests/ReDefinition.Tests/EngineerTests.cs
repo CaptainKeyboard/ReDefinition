@@ -1,11 +1,10 @@
-using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Engineer;
 
 namespace ReDefinition.Tests
 {
-    // The engineer view's numbers: how they are written (EngineerFormat) and how
-    // the stage table is worked out from KSP's stages (StageTable).
+    // The planner's numbers: how they are written (EngineerFormat) and the rocket
+    // equation (StageTable).
     [TestClass]
     public class EngineerTests
     {
@@ -39,52 +38,6 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1m 53s", EngineerFormat.Time(113));
             Assert.AreEqual("1h 02m 03s", EngineerFormat.Time(3723));
             Assert.AreEqual("0.0s", EngineerFormat.Time(double.PositiveInfinity));
-        }
-
-        private static StageRow Stage(int number, double deltaV, double twr = 0, double start = 0, double end = 0)
-        {
-            return new StageRow
-            {
-                Number = number, DeltaV = deltaV, Twr = twr, StartMass = start, EndMass = end,
-                HasEngines = twr > 0, Thrust = twr > 0 ? 1 : 0,
-            };
-        }
-
-        [TestMethod]
-        public void DeltaVLeftCountsTheStageAndEveryStageAfterIt()
-        {
-            List<StageRow> rows = StageTable.Complete(new[] { Stage(2, 899), Stage(0, 0), Stage(1, 1599) });
-
-            Assert.AreEqual(0, rows[0].Number, "stage 0 first, as KSP lists them");
-            Assert.AreEqual(0.0, rows[0].DeltaVRemaining);
-            Assert.AreEqual(1599.0, rows[1].DeltaVRemaining);
-            Assert.AreEqual(2498.0, rows[2].DeltaVRemaining);
-            Assert.AreEqual(2498.0, StageTable.TotalDeltaV(rows));
-        }
-
-        [TestMethod]
-        public void TheTwrAtTheEndIsTheSameThrustOverTheLighterVessel()
-        {
-            List<StageRow> rows = StageTable.Complete(new[] { Stage(1, 1000, 1.5, 20, 10) });
-
-            Assert.AreEqual(3.0, rows[0].TwrMax, 1e-9);
-        }
-
-        [TestMethod]
-        public void TheLaunchTwrIsTheFirstStageThatBurns()
-        {
-            List<StageRow> rows = StageTable.Complete(new[] { Stage(3, 0), Stage(2, 900, 1.2, 10, 5), Stage(0, 500, 0.8, 2, 1) });
-
-            Assert.AreEqual(2, StageTable.FirstBurning(rows).Number, "stage 3 is a decoupler that burns nothing");
-        }
-
-        [TestMethod]
-        public void OnlyStagesWithDeltaVAreShownUnlessAllAreWanted()
-        {
-            List<StageRow> rows = StageTable.Complete(new[] { Stage(1, 0), Stage(0, 300, 1, 2, 1) });
-
-            Assert.AreEqual(1, StageTable.Shown(rows, false).Count);
-            Assert.AreEqual(2, StageTable.Shown(rows, true).Count);
         }
 
         [TestMethod]

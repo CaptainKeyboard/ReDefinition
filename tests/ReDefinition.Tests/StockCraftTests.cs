@@ -26,7 +26,7 @@ namespace ReDefinition.Tests
             StageRow row = new StageRow
             {
                 Number = number, StartMass = start, EndMass = end, DeltaV = deltaV, DeltaVVacuum = deltaV, ThrustVacuum = thrust,
-                Thrust = seaLevel, HasEngines = thrust > 0.0, Solid = solid,
+                Thrust = seaLevel, Solid = solid,
             };
             row.ThrustAtSurface["Kerbin"] = seaLevel;
             return row;

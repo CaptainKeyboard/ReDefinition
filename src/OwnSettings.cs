@@ -50,16 +50,6 @@ namespace ReDefinition
         public string CameraListKey = KeyCombination.NoneText;
         public string SettingsWindowKey = KeyCombination.NoneText;
 
-        // The engineer in the VAB and the SPH (EditorEngineer): the engineer
-        // window, stages without delta-v in its table, the thrust along the
-        // vessel's axis rather than the engines' full thrust, the card with the
-        // part under the pointer, and the key that folds and opens the window.
-        public bool EngineerWindow = true;
-        public bool EngineerAllStages;
-        public bool EngineerVectoredThrust;
-        public bool EngineerPartDetails = true;
-        public string EngineerKey = KeyCombination.NoneText;
-
         // How far the navball stands from the bottom centre, in the flight UI's
         // units: negative to the left (NavballDrag).
         public float NavballOffset;
@@ -109,11 +99,6 @@ namespace ReDefinition
             settings.DiagnosticsKey = Binding(node, "diagnosticsKey", settings.DiagnosticsKey);
             settings.CameraListKey = Binding(node, "cameraListKey", settings.CameraListKey);
             settings.SettingsWindowKey = Binding(node, "settingsWindowKey", settings.SettingsWindowKey);
-            settings.EngineerWindow = Bool(node, "engineerWindow", settings.EngineerWindow);
-            settings.EngineerAllStages = Bool(node, "engineerAllStages", settings.EngineerAllStages);
-            settings.EngineerVectoredThrust = Bool(node, "engineerVectoredThrust", settings.EngineerVectoredThrust);
-            settings.EngineerPartDetails = Bool(node, "engineerPartDetails", settings.EngineerPartDetails);
-            settings.EngineerKey = Binding(node, "engineerKey", settings.EngineerKey);
             settings.NavballOffset = Float(node, "navballOffset", settings.NavballOffset);
             settings.WorldUiScale = Float(node, "worldUiScale", settings.WorldUiScale);
             settings.ScaleModWindows = Bool(node, "scaleModWindows", settings.ScaleModWindows);
@@ -146,11 +131,6 @@ namespace ReDefinition
             node.AddValue("diagnosticsKey", DiagnosticsKey);
             node.AddValue("cameraListKey", CameraListKey);
             node.AddValue("settingsWindowKey", SettingsWindowKey);
-            node.AddValue("engineerWindow", EngineerWindow);
-            node.AddValue("engineerAllStages", EngineerAllStages);
-            node.AddValue("engineerVectoredThrust", EngineerVectoredThrust);
-            node.AddValue("engineerPartDetails", EngineerPartDetails);
-            node.AddValue("engineerKey", EngineerKey);
             node.AddValue("navballOffset", NavballOffset.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
             node.AddValue("worldUiScale", WorldUiScale.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
             node.AddValue("scaleModWindows", ScaleModWindows);
@@ -179,9 +159,7 @@ namespace ReDefinition
               .Append(TransparencyMask).Append('|').Append(ReactiveMask).Append('|')
               .Append(FrameGeneration).Append('|').Append(Backend).Append('|').Append(DlssModel).Append('|')
               .Append(UpscalerKey).Append('|').Append(DiagnosticsKey).Append('|').Append(CameraListKey).Append('|')
-              .Append(SettingsWindowKey).Append('|').Append(EngineerWindow).Append('|').Append(EngineerAllStages)
-              .Append('|').Append(EngineerVectoredThrust).Append('|').Append(EngineerPartDetails).Append('|')
-              .Append(EngineerKey).Append('|')
+              .Append(SettingsWindowKey).Append('|')
               .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
               .Append(WorldUiScale.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(ScaleModWindows);
             return sb.ToString();

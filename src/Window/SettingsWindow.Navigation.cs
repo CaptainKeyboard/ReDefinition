@@ -212,11 +212,9 @@ namespace ReDefinition.Window
                 }
                 if (UpscalerPending()) pendingIn.Add(SettingCategory.Display);
                 if (model.Profile != BundledSettings.ProfileName || model.Resetting) pendingIn.Add(SettingCategory.Profiles);
-                if (kspPending.Count > 0 || layoutPending != null
-                    || (edit != null && edit.Before != null && edit.After != null && edit.Before.EngineerKey != edit.After.EngineerKey))
-                    pendingIn.Add(SettingCategory.Keys);
+                if (kspPending.Count > 0 || layoutPending != null) pendingIn.Add(SettingCategory.Keys);
                 if (AxesDiffer()) pendingIn.Add(SettingCategory.Axes);
-                if (model.Bundled != BundledSettings.Enabled || model.ButtonsPending() || EngineerPending())
+                if (model.Bundled != BundledSettings.Enabled || model.ButtonsPending() || OwnInterfacePending())
                     pendingIn.Add(SettingCategory.Interface);
                 foreach (SettingCategory child in new List<SettingCategory>(pendingIn))
                 {

@@ -11,7 +11,6 @@ Released: 0.1.3.
 | Part | State |
 |---|---|
 | **Upscaler** -- FSR 3 in Unity, DLSS and AMD's upscaler DLL in the proxy; six modes, *AA only* in every profile; sharpness; FSR 3's transparency and reactive masks; EVE's clouds jittered and with their own motion vectors; TUFX's effects after the upscaler; skinned motion vectors | built; DLSS passes the harness |
-| **Engineer window in the VAB and the SPH** -- a stage table from KSP's delta-v simulation, compact and full, RCS, resources, the part under the pointer; movable, folds to one line | built; its first form was seen in the game and rebuilt |
 | **Planner in the VAB and the SPH** -- a mode with a route of stops A → B → C, each leg's delta-v from the loaded bodies, the fuel plan of stages by legs with pins, a lander used more than once, the vessel's parts in the colours of their stages, one plan per vessel | built, unit tests; its first form was seen in the game and rebuilt |
 | **Navball moved sideways** -- by dragging its show/hide button, with the SAS switches and gauges; its position in the settings window | built, unit tests; not run in the game |
 | **Other mods' antialiasing** -- Scatterer's TAA and SMAA with their leftovers, TUFX's antialiasing, Deferred's editor SMAA, Kerbal Frame Generator's blend, while the upscaler runs | built |

@@ -27,8 +27,6 @@ graphics mods; any mod can join with a config file.
 * **Reset and restore.** Back to the defaults, or back to each mod's settings from before
   ReDefinition.
 * **Open to other mods.** A mod or visual pack joins with a config file in its own folder.
-* **Engineer window in the VAB and SPH.** Every stage's delta-v, thrust, TWR and burn time
-  in one table while you build, from KSP's own delta-v simulation.
 * **Mission planner.** Lay out a route such as Kerbin → Mun → Minmus → Kerbin, see
   whether your stages carry enough fuel for every leg, and pin stages to legs yourself.
 

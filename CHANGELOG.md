@@ -4,6 +4,9 @@
 
 ### Added
 
+- **Stage details in two columns.** With more than four values chosen in KSP's *Δv Tools*,
+  the details beside each stage in the staging stack stand in two columns, so the stages
+  grow wider instead of taller.
 - **Grip for landing legs.** Every landing leg has a *Traction* button in its part menu,
   in the VAB and the SPH, from Default to Extreme Grip, as the grip pads have, so that a
   lander stays put on a slope.
@@ -16,14 +19,6 @@
   size as a share of the UI scale. Where 4kSP or Maneuver Node Evolved is installed, its
   scaling of the same things is turned off, so nothing grows twice. The UI scale row goes
   up to 400 %, in steps of 10 %.
-- **An engineer window in the VAB and the SPH.** A window at the bottom of the screen
-  shows the vessel's stages while you build: parts, cost, mass, Isp, thrust, torque, TWR, delta-v and burn time per stage,
-  or four columns in its compact form. It sums the vessel up, adds RCS and the resources
-  on a click, and a card beside the pointer shows the part it rests on. The numbers come
-  from KSP's own delta-v simulation, for a body and sea level, an altitude or vacuum,
-  the same situation KSP's delta-v app uses. Drag it anywhere, or fold it to one line.
-  Its settings are under *Mods / Toolbar*, its key in *Controls*. Where Kerbal Engineer
-  Redux is installed, a notice says it is no longer needed.
 - **A mission planner in the VAB and the SPH.** A button with *Δv* on it, next to KSP's
   mode buttons, opens it in the parts list's place. It lays out a route from stop to
   stop, A → B → C, on the surface or in an orbit of any body the game has loaded, and
@@ -45,7 +40,8 @@
   other burn how long it takes against its orbit and the delta-v that costs. What blocks a step
   shows in red under it: too little fuel, too little thrust to lift off or land, no
   parachutes or heat shield, a lander not where it has to be, a satellite not carried to
-  where it stays. The plan is kept per vessel.
+  where it stays. The plan is kept per vessel. If Kerbal Engineer Redux is installed, a
+  notice says that KSP's own staging stack and the planner show the same information.
 - **The navball moves sideways.** Drag its show/hide button left or right in flight; the
   SAS switches, the autopilot modes and the gauges move with it, and it stays on the
   screen. A click still shows and hides it. The position is kept, and *Navball position*
@@ -53,9 +49,6 @@
 
 ### Fixed
 
-- **The engineer window follows *Sea level*, *Altitude* and *Vacuum*.** It showed the
-  figures for the altitude set whatever was chosen. The stage's parts and cost are now
-  those it drops when the next stage fires.
 - **The planner with jets, the RAPIER, other propellants and solid boosters.** Jets and a
   RAPIER in its air-breathing mode counted for nothing, and a jet stage above rockets left
   them no fuel. The planner now works out the stages itself where an engine breathes air,

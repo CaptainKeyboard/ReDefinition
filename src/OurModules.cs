@@ -200,78 +200,7 @@ namespace ReDefinition
                 Tooltip = "Writes the scene's cameras, with their depth and what they render, into KSP.log.",
                 Read = settings => settings.CameraListKey,
                 Write = (settings, value) => settings.CameraListKey = value,
-            },
-            new ModuleSetting
-            {
-                Key = "engineerKey",
-                Title = "Engineer window (VAB / SPH)",
-                Order = 50,
-                Row = SettingCategory.Keys,
-                Control = SettingControl.Binding,
-                NeedsProfile = false,
-                Tooltip = "Folds and opens the engineer window in the VAB and the SPH.",
-                Read = settings => settings.EngineerKey,
-                Write = (settings, value) => settings.EngineerKey = value,
             });
-
-        // The engineer view in the VAB and the SPH (Engineer/EditorEngineer): the
-        // player's own view, so no profile sets it and none is needed to change it.
-        public static readonly IGraphicsModule Engineer = new GraphicsModule("engineer", "Engineer",
-            new ModuleSetting
-            {
-                Key = "engineerWindow",
-                Title = "Engineer window",
-                Order = 10,
-                Row = SettingCategory.Interface,
-                Section = EngineerSection,
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The window with the vessel's stages in the VAB and the SPH.",
-                Read = settings => SettingValues.Text(settings.EngineerWindow),
-                Write = (settings, value) => settings.EngineerWindow = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "engineerAllStages",
-                Title = "Stages without delta-v",
-                Order = 20,
-                Row = SettingCategory.Interface,
-                Section = EngineerSection,
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Also lists the stages that burn nothing, such as decouplers and parachutes.",
-                Read = settings => SettingValues.Text(settings.EngineerAllStages),
-                Write = (settings, value) => settings.EngineerAllStages = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "engineerVectoredThrust",
-                Title = "Thrust along the vessel",
-                Order = 30,
-                Row = SettingCategory.Interface,
-                Section = EngineerSection,
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The thrust and TWR of each stage along the vessel's axis, which angled engines lose part of,\n"
-                          + "rather than the engines' full thrust. KSP's own delta-v app shows the full thrust.",
-                Read = settings => SettingValues.Text(settings.EngineerVectoredThrust),
-                Write = (settings, value) => settings.EngineerVectoredThrust = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "engineerPartDetails",
-                Title = "Part under the mouse",
-                Order = 40,
-                Row = SettingCategory.Interface,
-                Section = EngineerSection,
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "A card beside the pointer with the part it rests on: mass, cost, engine, resources.",
-                Read = settings => SettingValues.Text(settings.EngineerPartDetails),
-                Write = (settings, value) => settings.EngineerPartDetails = bool.Parse(value),
-            });
-
-        private const string EngineerSection = "Engineer (VAB / SPH)";
 
         // The flight UI's own: where the navball stands (Flight/NavballDrag).
         public static readonly IGraphicsModule FlightUi = new GraphicsModule("flightUi", "Flight",
@@ -279,8 +208,8 @@ namespace ReDefinition
             {
                 Key = "navballOffset",
                 Title = "Navball position",
-                // After the engineer view's rows, so that the tab keeps each
-                // section together (Rows sorts every module's rows by order).
+                // Before the scaling rows, so that the tab keeps each section
+                // together (Rows sorts every module's rows by order).
                 Order = 100,
                 Row = SettingCategory.Interface,
                 Section = "Flight",
@@ -347,7 +276,7 @@ namespace ReDefinition
         }
 
         public static readonly IList<IGraphicsModule> All =
-            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys, Engineer, FlightUi, Scaling }.AsReadOnly();
+            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys, FlightUi, Scaling }.AsReadOnly();
 
         public static IGraphicsModule Find(string name)
         {
