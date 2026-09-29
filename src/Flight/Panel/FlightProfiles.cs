@@ -136,10 +136,10 @@ namespace ReDefinition.Flight.Panel
         }
 
         // The situation the vessel is in, for the panel to switch to: a docking port
-        // as the target within 2 km, docking; another target, rendezvous; coming
-        // down near a body (below 20 km over the ground, or a periapsis under it),
-        // landing; on wings in the air, flying; on the ground or climbing, ascent;
-        // else orbit.
+        // as the target within 2 km, docking; coming down near a body without wings
+        // (below 20 km over the ground, or a periapsis under it), landing, whatever
+        // the target; another target, rendezvous; on wings in the air, flying; on
+        // the ground or climbing, ascent; else orbit, a descent high up included.
         internal static PanelSituation Situation(Vessel vessel)
         {
             if (vessel == null) return PanelSituation.Orbit;
@@ -147,25 +147,33 @@ namespace ReDefinition.Flight.Panel
             if (port != null && port.transform != null && (port.transform.position - vessel.CoM).magnitude < 2000f)
                 return PanelSituation.Docking;
             bool grounded = vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.PRELAUNCH;
-            if (vessel.targetObject != null && !grounded) return PanelSituation.Rendezvous;
             bool low = vessel.radarAltitude < 20000.0 || (vessel.orbit != null && vessel.orbit.PeA < 0.0);
             bool aloft = vessel.situation == Vessel.Situations.FLYING || vessel.situation == Vessel.Situations.SUB_ORBITAL;
-            if (aloft && vessel.verticalSpeed < -1.0 && low && !Winged(vessel)) return PanelSituation.Landing;
-            if (vessel.situation == Vessel.Situations.FLYING && Winged(vessel)) return PanelSituation.Air;
+            bool winged = Winged(vessel);
+            if (aloft && vessel.verticalSpeed < -1.0 && low && !winged) return PanelSituation.Landing;
+            if (vessel.targetObject != null && !grounded) return PanelSituation.Rendezvous;
+            if (vessel.situation == Vessel.Situations.FLYING && winged) return PanelSituation.Air;
             if (grounded || (aloft && vessel.verticalSpeed >= -1.0)) return PanelSituation.Ascent;
-            if (aloft) return PanelSituation.Landing;
             return PanelSituation.Orbit;
         }
 
-        // Wings: two lifting surfaces or more that are no control surfaces.
+        // Wings enough to fly on: the lift of its lifting surfaces that are no
+        // control surfaces, pods or heat shields (ModuleLiftingSurface.
+        // deflectionLiftCoeff: a basic fin 0.2, a wing panel 1 and more), at least 2
+        // and at least 0.1 per tonne, so that a rocket's fins and a Mk2 fuselage do
+        // not make it a plane.
         private static bool Winged(Vessel vessel)
         {
-            int wings = 0;
+            double lift = 0.0;
             foreach (Part part in vessel.parts)
-                if (part.HasModuleImplementing<ModuleLiftingSurface>() && !part.HasModuleImplementing<ModuleControlSurface>()
-                    && !part.HasModuleImplementing<ModuleCommand>())
-                    wings++;
-            return wings >= 2;
+            {
+                if (part.HasModuleImplementing<ModuleControlSurface>() || part.HasModuleImplementing<ModuleCommand>()
+                    || part.HasModuleImplementing<ModuleAblator>())
+                    continue;
+                foreach (ModuleLiftingSurface surface in part.FindModulesImplementing<ModuleLiftingSurface>())
+                    if (surface != null) lift += surface.deflectionLiftCoeff;
+            }
+            return lift >= 2.0 && vessel.totalMass > 0.0 && lift / vessel.totalMass >= 0.1;
         }
     }
 }

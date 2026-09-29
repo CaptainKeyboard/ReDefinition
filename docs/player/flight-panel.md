@@ -52,9 +52,9 @@ once a situation has held for a second:
 | The vessel | Profile |
 |---|---|
 | has a docking port as its target, within 2 km | Docking |
+| comes down without wings, below 20 km over the ground or on a path into it | Landing |
 | has another target and is not on the ground | Rendezvous |
-| comes down on engines, below 20 km over the ground or on a path into it | Landing |
-| flies on wings | Air |
+| flies on wings: wings that lift at least as much as two wing panels, and 0.1 of one per tonne, not counting fins and control surfaces | Air |
 | stands on the ground or climbs | Ascent |
 | is anywhere else | Orbit |
 

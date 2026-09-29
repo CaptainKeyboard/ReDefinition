@@ -22,9 +22,13 @@ namespace ReDefinition.Flight.Panel
         private const float PairHeight = 64f;
         private const float SingleHeight = 42f;
 
-        // Which profile of FlightProfiles.Current this tab shows; copied along
-        // as KSP instantiates the tab.
+        // Which profile of FlightProfiles.Current this tab shows as KSP builds it;
+        // copied along as KSP instantiates the tab. From then on the tab holds the
+        // profile itself (Bound), so that deleting or adding one moves no tab to
+        // another's readouts; a tab whose profile is gone stays empty.
         public int Profile;
+
+        internal FlightProfile Bound;
 
         private sealed class Cell
         {
@@ -40,6 +44,7 @@ namespace ReDefinition.Flight.Panel
 
         public override void SetInitialValues()
         {
+            if (Bound == null && Profile >= 0 && Profile < FlightProfiles.Current.Count) Bound = FlightProfiles.Current[Profile];
             Build();
             UpdateUIElements();
         }
@@ -55,10 +60,13 @@ namespace ReDefinition.Flight.Panel
             foreach (Cell cell in cells)
                 if (cell.Block != null) Destroy(cell.Block.gameObject);
             cells.Clear();
-            List<FlightProfile> profiles = FlightProfiles.Current;
             GameObject template = FlightPanel.BlockTemplate;
-            if (template == null || Profile < 0 || Profile >= profiles.Count) return;
-            foreach (string key in profiles[Profile].Keys)
+            if (template == null || Bound == null || !FlightProfiles.Current.Contains(Bound))
+            {
+                Layout(true);
+                return;
+            }
+            foreach (string key in Bound.Keys)
             {
                 Readout readout = ReadoutCatalog.Find(key);
                 if (readout == null) continue;
@@ -88,6 +96,11 @@ namespace ReDefinition.Flight.Panel
                     text.fontSizeMax = text.fontSize;
                     text.fontSizeMin = text.fontSize * 0.65f;
                     text.text = "";
+                }
+                if (cell.Value == null)
+                {
+                    Destroy(block);
+                    continue;
                 }
                 Anchor(cell.Block, readout.Paired ? PairHeight : SingleHeight);
                 cells.Add(cell);

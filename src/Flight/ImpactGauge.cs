@@ -90,7 +90,7 @@ namespace ReDefinition.Flight
     // When a vessel's path meets the ground: its orbit, followed from now to its
     // next periapsis, against the height of the ground under each point of it at
     // the time the vessel gets there (CelestialBody.TerrainAltitude, the sea's
-    // surface over water; the body turning beneath: the longitude moves west by
+    // surface over water, below the datum where there is no sea; the body turning beneath: the longitude moves west by
     // its turn since now). Drag is not counted: in air the vessel falls later than
     // this says. First in steps along the way, then by halving the step where the
     // height over the ground turns negative. NaN where it does not meet the ground:
@@ -100,7 +100,22 @@ namespace ReDefinition.Flight
         private const int Steps = 200;
         private const int Halvings = 16;
 
+        // One search per vessel and quarter second, for the gauge and the panel
+        // alike.
+        private static Vessel cachedFor;
+        private static float cachedAt = -1f;
+        private static double cached = double.NaN;
+
         internal static double Seconds(Vessel vessel)
+        {
+            if (vessel == cachedFor && Time.unscaledTime - cachedAt < 0.2f) return cached;
+            cachedFor = vessel;
+            cachedAt = Time.unscaledTime;
+            cached = Search(vessel);
+            return cached;
+        }
+
+        private static double Search(Vessel vessel)
         {
             if (vessel == null || vessel.LandedOrSplashed || vessel.orbit == null || vessel.mainBody == null) return double.NaN;
             Orbit orbit = vessel.orbit;
@@ -140,7 +155,9 @@ namespace ReDefinition.Flight
             double longitude = body.GetLongitude(world);
             if (body.rotates && body.rotationPeriod > 0.0) longitude -= 360.0 * after / body.rotationPeriod;
             longitude = ((longitude % 360.0) + 540.0) % 360.0 - 180.0;
-            return relative.magnitude - body.Radius - body.TerrainAltitude(latitude, longitude, false);
+            // Below the datum only where the sea covers it: craters on airless bodies
+            // lie lower than it.
+            return relative.magnitude - body.Radius - body.TerrainAltitude(latitude, longitude, !body.ocean);
         }
     }
 }

@@ -145,6 +145,12 @@ namespace ReDefinition.Flight.Panel
             try
             {
                 Pencil(__instance);
+                if (__instance.LeftTabs != null)
+                    foreach (ManeuverNodeEditorTab tab in __instance.LeftTabs)
+                    {
+                        ProfileTab profile = tab as ProfileTab;
+                        if (profile != null && profile.gameObject.activeSelf) Resize(profile, profile.Width);
+                    }
             }
             catch (Exception e)
             {
@@ -162,8 +168,9 @@ namespace ReDefinition.Flight.Panel
             float each = Mathf.Min(44f, Mathf.Floor(room / (buttons.Count + 1)));
             foreach (ManeuverNodeEditorTabButton button in buttons)
             {
-                UnityEngine.UI.LayoutElement layout = button.GetComponent<UnityEngine.UI.LayoutElement>();
-                if (layout != null) layout.preferredWidth = each;
+                UnityEngine.UI.LayoutElement layout = button.GetComponent<UnityEngine.UI.LayoutElement>()
+                                                      ?? button.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+                layout.preferredWidth = each;
             }
 
             GameObject pencil = Instantiate(buttons[0].gameObject, row, false);
@@ -191,7 +198,8 @@ namespace ReDefinition.Flight.Panel
                 foreach (ManeuverNodeEditorTab tab in manager.LeftTabs)
                 {
                     ProfileTab profile = tab as ProfileTab;
-                    if (profile != null && profile.gameObject.activeSelf) return profile.Profile;
+                    if (profile != null && profile.gameObject.activeSelf && profile.Bound != null)
+                        return Math.Max(0, FlightProfiles.Current.IndexOf(profile.Bound));
                 }
             return 0;
         }
@@ -230,7 +238,10 @@ namespace ReDefinition.Flight.Panel
         internal static void Resize(ProfileTab tab, float width)
         {
             FlightPanel panel = current;
-            if (panel == null || tab == null || !tab.isActiveAndEnabled) return;
+            // Not while KSP builds its tabs: every copy is active then, and only
+            // the one its Start shows counts (AfterStart).
+            ManeuverNodeEditorManager manager = ManeuverNodeEditorManager.Instance;
+            if (panel == null || tab == null || !tab.isActiveAndEnabled || manager == null || !manager.IsReady) return;
             panel.Grow(tab, width);
         }
 
@@ -250,23 +261,32 @@ namespace ReDefinition.Flight.Panel
                 content.anchoredPosition += new Vector2(delta * content.pivot.x, 0f);
             }
             leftPane.sizeDelta += new Vector2(delta, 0f);
-            rightPane.anchoredPosition += new Vector2(delta, 0f);
             root.sizeDelta += new Vector2(delta, 0f);
-            if (selector != null && selector.states != null)
-            {
-                for (int i = 3; i <= 4 && i < selector.states.Length; i++)
-                    if (selector.states[i] != null) selector.states[i].position += new Vector2(delta, 0f);
-                if (selector.StateIndex == 3 || selector.StateIndex == 4)
-                {
-                    RectTransform moved = selector.panelTransform != null ? selector.panelTransform : selector.transform as RectTransform;
-                    if (moved != null) moved.anchoredPosition += new Vector2(delta, 0f);
-                    if (KeptPosition != null && KeptPosition.FieldType == typeof(Vector2))
-                        KeptPosition.SetValue(selector, (Vector2)KeptPosition.GetValue(selector) + new Vector2(delta, 0f));
-                }
-            }
+            // The right pane has a transition of its own (In at 185, Out at -230),
+            // and the mode buttons theirs: the states the maneuver modes use move.
+            if (rightTransition != null) Move(rightTransition, delta, 0);
+            else rightPane.anchoredPosition += new Vector2(delta, 0f);
+            if (selector != null) Move(selector, delta, 3, 4);
             applied = extra;
             Debug.Log(Log.Tag + " Flight panel " + extra.ToString("0") + " wider for " + width.ToString("0") + " of readouts.");
         }
+
+        // A transition's `states` by `delta` sideways, and where it stands in one of
+        // them, its panel and the position it keeps to animate from.
+        private static void Move(UIPanelTransition transition, float delta, params int[] states)
+        {
+            if (transition.states == null) return;
+            Vector2 by = new Vector2(delta, 0f);
+            foreach (int state in states)
+                if (state < transition.states.Length && transition.states[state] != null) transition.states[state].position += by;
+            if (Array.IndexOf(states, transition.StateIndex) < 0) return;
+            RectTransform moved = transition.panelTransform != null ? transition.panelTransform : transition.transform as RectTransform;
+            if (moved != null) moved.anchoredPosition += by;
+            if (KeptPosition != null && KeptPosition.FieldType == typeof(Vector2))
+                KeptPosition.SetValue(transition, (Vector2)KeptPosition.GetValue(transition) + by);
+        }
+
+        private UIPanelTransition rightTransition;
 
         private bool Find(ProfileTab tab)
         {
@@ -276,6 +296,7 @@ namespace ReDefinition.Flight.Panel
             root = manager.transform as RectTransform;
             leftPane = manager.transform.Find("LeftPane") as RectTransform;
             rightPane = manager.transform.Find("RightPane") as RectTransform;
+            rightTransition = rightPane != null ? rightPane.GetComponent<UIPanelTransition>() : null;
             FlightUIModeController controller = FlightUIModeController.Instance;
             Transform modes = controller != null && controller.uiModeFrame != null ? controller.uiModeFrame.transform : null;
             if (modes != null)
@@ -318,7 +339,7 @@ namespace ReDefinition.Flight.Panel
             for (int i = 0; i < manager.LeftTabs.Count; i++)
             {
                 ProfileTab tab = manager.LeftTabs[i] as ProfileTab;
-                if (tab != null && tab.Profile < FlightProfiles.Current.Count && FlightProfiles.Current[tab.Profile].Situation == situation)
+                if (tab != null && tab.Bound != null && FlightProfiles.Current.Contains(tab.Bound) && tab.Bound.Situation == situation)
                 {
                     wanted = i;
                     break;
@@ -327,7 +348,7 @@ namespace ReDefinition.Flight.Panel
             chosen = situation;
             if (wanted < 0 || wanted == open) return;
             manager.SetCurrentTab(wanted, ManeuverNodeEditorTabPosition.LEFT);
-            Debug.Log(Log.Tag + " Flight panel switched to " + FlightProfiles.Current[((ProfileTab)manager.LeftTabs[wanted]).Profile].Name + ".");
+            Debug.Log(Log.Tag + " Flight panel switched to " + ((ProfileTab)manager.LeftTabs[wanted]).Bound.Name + ".");
         }
     }
 }

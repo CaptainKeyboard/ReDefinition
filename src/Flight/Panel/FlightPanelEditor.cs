@@ -34,8 +34,12 @@ namespace ReDefinition.Flight.Panel
             Show();
         }
 
+        private static bool renamed;
+
         internal static void Close()
         {
+            if (renamed) FlightProfiles.Save();
+            renamed = false;
             if (shown != null) shown.Dismiss();
             shown = null;
             InputLockManager.RemoveControlLock(Lock);
@@ -61,10 +65,11 @@ namespace ReDefinition.Flight.Panel
             List<DialogGUIBase> names = new List<DialogGUIBase> { new DialogGUILabel("Profile", 70f, RowHeight) };
             DialogGUITextInput name = new DialogGUITextInput(profile.Name, false, 24, text =>
             {
+                // Kept at once, saved with the next change or as the window closes.
                 if (!string.IsNullOrEmpty(text) && text != profile.Name)
                 {
                     profile.Name = text;
-                    FlightProfiles.Save();
+                    renamed = true;
                 }
                 return text;
             }, 180f, RowHeight);
@@ -72,6 +77,8 @@ namespace ReDefinition.Flight.Panel
             names.Add(new DialogGUIButton("Next", () =>
             {
                 editing = (editing + 1) % FlightProfiles.Current.Count;
+                if (renamed) FlightProfiles.Save();
+                renamed = false;
                 Show();
             }, 60f, RowHeight, false));
             rows.Add(new DialogGUIHorizontalLayout(rowWidth, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft, names.ToArray()));
@@ -121,9 +128,10 @@ namespace ReDefinition.Flight.Panel
             InputLockManager.SetControlLock(ControlTypes.KEYBOARDINPUT, Lock);
         }
 
+        // As the panel titles it.
         private static string Title(Readout readout)
         {
-            return readout.Title.Substring(0, 1) + readout.Title.Substring(1).ToLowerInvariant();
+            return readout.Title;
         }
 
         private static void Move(FlightProfile profile, int index, int by)
@@ -169,14 +177,31 @@ namespace ReDefinition.Flight.Panel
             FlightProfiles.Current.Clear();
             FlightProfiles.Current.AddRange(FlightProfiles.Defaults());
             editing = 0;
+            // The tabs, built from the profiles as the flight started, take the
+            // defaults in their order.
+            List<ProfileTab> tabs = Tabs();
+            for (int i = 0; i < tabs.Count; i++)
+                tabs[i].Bound = tabs[i].Profile < FlightProfiles.Current.Count ? FlightProfiles.Current[tabs[i].Profile] : null;
             Changed();
+        }
+
+        // Every profile tab of the panel, the hidden ones too.
+        private static List<ProfileTab> Tabs()
+        {
+            List<ProfileTab> tabs = new List<ProfileTab>();
+            ManeuverNodeEditorManager manager = ManeuverNodeEditorManager.Instance;
+            if (manager != null && manager.LeftTabs != null)
+                foreach (ManeuverNodeEditorTab tab in manager.LeftTabs)
+                    if (tab is ProfileTab) tabs.Add((ProfileTab)tab);
+            return tabs;
         }
 
         // Saved, the tabs built anew, and the window made again.
         private static void Changed()
         {
             FlightProfiles.Save();
-            foreach (ProfileTab tab in Object.FindObjectsOfType<ProfileTab>()) tab.Build();
+            renamed = false;
+            foreach (ProfileTab tab in Tabs()) tab.Build();
             Debug.Log(Log.Tag + " Flight panel profile changed.");
             Show();
         }
