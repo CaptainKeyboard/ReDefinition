@@ -69,8 +69,8 @@ the flight, and in the main menu, the space centre and the editors.
 
 | Tab | Rows |
 |---|---|
-| *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed |
-| *Audio* | KSP's volumes and its sound normalizer |
+| *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Part highlighting*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed. The mods' settings that change how you play, not how it looks: Distant Object's flares and their names and Persistent Rotation under *Flight*, Parallax's scatter collisions and Scatterer's waves that move vessels under *Physics* |
+| *Audio* | KSP's volumes and its sound normalizer; EVE's cloud ambience and thunder volumes |
 | *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, DLSS model, Sharpness, Frame generation, *NVIDIA DLSS files*; ambient light boosts |
 | *Graphics* | a status line, and one button per graphics profile with a sentence about it; its tooltip says what it sets |
 | *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*; *Effects* -- the graphics mods' features and KSP's own |
