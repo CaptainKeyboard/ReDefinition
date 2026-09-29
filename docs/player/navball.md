@@ -17,7 +17,8 @@ the speed and heading, and the delta-v gauge.
 A click without dragging still shows and hides the navball. The navball stays between
 the flight mode buttons on the left and the crew portraits on the right. Where either
 grows, because you choose another mode or add a portrait slot, the navball moves aside,
-and back to where you put it once there is room. It keeps its place when you hide and show
+and back to where you put it once there is room. The same holds while the burn gauge of a
+maneuver shows beside the navball. It keeps its place when you hide and show
 it, in the map view and in every other flight mode. The SAS modes stand on the side of
 the navball that faces the middle of the screen: on its right while the navball is left
 of the middle, curved along the navball's rim there too.

@@ -21,9 +21,9 @@ namespace ReDefinition.Flight
     // theme's panel does not keep. Here the warp-to-sunrise extension of the time
     // panel's lower row (UIWarpToNextMorning's WarpToSunriseContainer, its bar and its
     // button; the panel read with UnityPy from sharedassets7) is copied into the warp
-    // row, so that it has the extension's shape, size and theme: its button right
-    // after the row's WARP label (Label_Warp), showing the mod's arrow and opening the
-    // mod's window (BetterTimeWarp.UIOpen). The mod's own IMGUI button is not drawn
+    // row, so that it has the extension's shape, size and theme: right above the
+    // sunrise extension, at the end of the row with the WARP label (Label_Warp),
+    // showing the mod's arrow and opening the mod's window (BetterTimeWarp.UIOpen). The mod's own IMGUI button is not drawn
     // while the copy stands (a transpiler routes its GUI.Toggle through Toggle);
     // where the panel is not found, it stays, right of the WARP label (Place).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
@@ -122,7 +122,6 @@ namespace ReDefinition.Flight
     // The copy of the warp-to-sunrise extension in the warp row (TimeWarpButton).
     public abstract class TimeWarpBar : MonoBehaviour
     {
-        private const float Gap = 4f;
         private static readonly FieldInfo ContentField = UiScaling.TypeOf(TimeWarpButton.ModType) != null
             ? UiScaling.TypeOf(TimeWarpButton.ModType).GetField("buttonContent", BindingFlags.Instance | BindingFlags.NonPublic)
             : null;
@@ -187,17 +186,21 @@ namespace ReDefinition.Flight
             // the background covers its left end.
             bar.transform.SetSiblingIndex(0);
 
-            // The button's left edge right after the label's text, the bar centred on
-            // the label's row.
+            // Where the sunrise extension stands, raised by the distance from the
+            // lower row to the warp row (from the MET button to the warp gauge).
+            // KSP keeps the extension at one place in the panel while the panel
+            // slides (UITimeWarpHoverController.LateUpdate: its mask moved against
+            // the panel, the extension by as much back).
             RectTransform barRect = (RectTransform)bar.transform;
-            RectTransform buttonRect = (RectTransform)button.transform;
             barRect.anchorMin = barRect.anchorMax = new Vector2(0.5f, 0.5f);
-            Bounds bounds = label.textBounds;
-            Vector3 end = row.InverseTransformPoint(label.rectTransform.TransformPoint(new Vector3(bounds.max.x, bounds.center.y, 0f)));
-            float buttonLeft = buttonRect.localPosition.x - buttonRect.rect.width * buttonRect.pivot.x;
-            barRect.localPosition = new Vector3(end.x + Gap - buttonLeft, label.transform.localPosition.y, 0f);
+            Transform gauge = row.Find("TimeWarp");
+            Transform met = row.Find("METButton");
+            if (gauge == null || met == null) throw new System.InvalidOperationException("no warp gauge or MET button in the time panel");
+            Vector3 at = row.InverseTransformPoint(source.position);
+            barRect.localPosition = new Vector3(at.x, at.y + gauge.localPosition.y - met.localPosition.y, 0f);
             TimeWarpButton.Replaced = true;
-            Debug.Log(Log.Tag + " Better Time Warp's button in the time panel's warp row.");
+            Debug.Log(Log.Tag + " Better Time Warp's button in the time panel's warp row at " + barRect.localPosition.ToString("0")
+                      + ", the sunrise extension at " + at.ToString("0") + ".");
         }
 
         private void LateUpdate()
