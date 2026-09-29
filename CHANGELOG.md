@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Taking control switches on two of KSP's settings:** *Advanced tweakables* and the
+  *Extended burn indicator*.
+- **The crew portraits' slot buttons** show a green plus and a red cross, as the staging
+  stack's buttons for stages do, in place of KSP's *|<* and *>|*.
 - **Better Time Warp's button in the time panel.** With Better Time Warp Continued
   installed, its arrow stands at the end of the time warp row, in the panel's look, and
   opens its window. Its toolbar button is hidden; *Better Time Warp's toolbar button*

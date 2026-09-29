@@ -184,11 +184,24 @@ namespace ReDefinition.Window
             ProfileApplier.Report("Graphics profile from the main menu", problems);
 
             UiScaleForTheScreen();
+            RecommendedKspSettings();
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon == null) return;
             addon.TakeKspSettings();
             // The menu is built anew, so that its Settings entry leads to the window.
             HighLogic.LoadScene(GameScenes.MAINMENU);
+        }
+
+        // KSP's settings that taking control switches on, as the player asked:
+        // Advanced tweakables (more options in the parts' menus, such as autostrut)
+        // and the extended burn indicator (when to start a manoeuvre burn, on the
+        // navball). Saved as KSP's own screen saves them (GameSettings.SaveSettings).
+        private static void RecommendedKspSettings()
+        {
+            GameSettings.ADVANCED_TWEAKABLES = true;
+            GameSettings.EXTENDED_BURNTIME = true;
+            GameSettings.SaveSettings();
+            Debug.Log(Log.Tag + " KSP's settings switched on as control is taken: advanced tweakables, extended burn indicator.");
         }
 
         // KSP's UI scale to its default for this screen (KspBehaviour.Default), where
