@@ -134,6 +134,9 @@ namespace ReDefinition.Flight
         // The arrow's size on the button, in KSP's UI units: about the MET
         // button's text height (16 points).
         private const float ArrowSize = 12f;
+        // How far a button picture's corners are rounded beyond its see-through
+        // margins, in its pixels (ZTheme's METButton.png: three).
+        private const float Rounding = 4f;
         private static readonly FieldInfo ContentField = UiScaling.TypeOf(TimeWarpButton.ModType) != null
             ? UiScaling.TypeOf(TimeWarpButton.ModType).GetField("buttonContent", BindingFlags.Instance | BindingFlags.NonPublic)
             : null;
@@ -228,46 +231,65 @@ namespace ReDefinition.Flight
             unfoldedHeight = size.y;
             foldedHeight = middle - (bottom + (top - bottom) * backgroundFilled.yMin);
 
-            // The MET button copied: its look and its states; its text, tooltip and
-            // click taken away.
-            bar = Instantiate(met.gameObject, row, false);
-            bar.name = "ReDefinitionTimeWarpButton";
-            for (int i = bar.transform.childCount - 1; i >= 0; i--) DestroyImmediate(bar.transform.GetChild(i).gameObject);
-            foreach (TooltipController_Text tooltip in bar.GetComponents<TooltipController_Text>()) DestroyImmediate(tooltip);
-            Button button = bar.GetComponent<Button>();
-            button.onClick = new Button.ButtonClickedEvent();
-            button.onClick.AddListener(Press);
-
-            // Square: each state's sprite cut to its middle column, which holds the
-            // face's top and bottom edges but not its rounded corners, stretched
-            // over the button.
-            Image face = bar.GetComponent<Image>();
-            Rect faceRows = Opaque(face.sprite);
-            face.sprite = Middle(face.sprite);
-            face.type = Image.Type.Simple;
-            face.preserveAspect = false;
-            SpriteState states = button.spriteState;
-            states.highlightedSprite = Middle(states.highlightedSprite);
-            states.pressedSprite = Middle(states.pressedSprite);
-            states.selectedSprite = Middle(states.selectedSprite);
-            states.disabledSprite = Middle(states.disabledSprite);
-            button.spriteState = states;
-
+            // The area: a plain rectangle in the colour of the MET row's background
+            // (ZTheme: #302E35), over the sunrise extension's mask, so that the
+            // extension slides out from under it.
+            bar = new GameObject("ReDefinitionTimeWarpArea", typeof(RectTransform), typeof(Image));
+            bar.layer = row.gameObject.layer;
             barRect = (RectTransform)bar.transform;
+            barRect.SetParent(row, false);
             barRect.anchorMin = barRect.anchorMax = new Vector2(0.5f, 0.5f);
             barRect.pivot = new Vector2(0.5f, 1f);
             barRect.sizeDelta = size;
-            // Over the sunrise extension's mask, so that the extension slides out
-            // from under it.
             Transform mask = sunrise.transform.parent;
             barRect.SetSiblingIndex(mask != null && mask.parent == row ? mask.GetSiblingIndex() + 1 : 0);
+            Color areaColour;
+            if (!Colour(backgroundFace != null ? backgroundFace.sprite : null,
+                    new Vector2(0.97f, backgroundFilled.yMin + (0.5f - backgroundFilled.yMin) / 2f), out areaColour))
+                areaColour = new Color(0.19f, 0.18f, 0.21f, 1f);
+            bar.GetComponent<Image>().color = (backgroundFace != null ? backgroundFace.color : Color.white) * areaColour;
+
+            // The button: the MET button copied, its look and its states, its
+            // text, tooltip and click taken away; square, as the MET button's face
+            // is high, its rounded corners kept (each state's sprite sliced at
+            // them), and that face centred in the area.
+            GameObject copy = Instantiate(met.gameObject, barRect, false);
+            copy.name = "ReDefinitionTimeWarpButton";
+            for (int i = copy.transform.childCount - 1; i >= 0; i--) DestroyImmediate(copy.transform.GetChild(i).gameObject);
+            foreach (TooltipController_Text tooltip in copy.GetComponents<TooltipController_Text>()) DestroyImmediate(tooltip);
+            Button button = copy.GetComponent<Button>();
+            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.AddListener(Press);
+            Image face = copy.GetComponent<Image>();
+            RectTransform faceRect = (RectTransform)copy.transform;
+            Vector2 metSize = ((RectTransform)met).rect.size;
+            Rect drawn = Opaque(face.sprite);
+            float marginLeft = metSize.x * drawn.xMin, marginRight = metSize.x * (1f - drawn.xMax);
+            float marginBottom = metSize.y * drawn.yMin, marginTop = metSize.y * (1f - drawn.yMax);
+            float side = metSize.y * drawn.height;
+            Vector4 border = new Vector4(marginLeft, marginBottom, marginRight, marginTop) + Vector4.one * Rounding;
+            face.sprite = Sliced(face.sprite, border);
+            face.type = Image.Type.Sliced;
+            face.preserveAspect = false;
+            SpriteState states = button.spriteState;
+            states.highlightedSprite = Sliced(states.highlightedSprite, border);
+            states.pressedSprite = Sliced(states.pressedSprite, border);
+            states.selectedSprite = Sliced(states.selectedSprite, border);
+            states.disabledSprite = Sliced(states.disabledSprite, border);
+            button.spriteState = states;
+            faceRect.anchorMin = faceRect.anchorMax = faceRect.pivot = new Vector2(0.5f, 0.5f);
+            faceRect.sizeDelta = new Vector2(side + marginLeft + marginRight, metSize.y);
+            // The drawn square's middle on the area's middle.
+            Vector2 drawnMiddle = new Vector2(marginLeft + side / 2f - faceRect.sizeDelta.x / 2f,
+                marginBottom + side / 2f - metSize.y / 2f);
+            faceRect.anchoredPosition = -drawnMiddle;
 
             GameObject arrow = new GameObject("Arrow", typeof(RectTransform), typeof(Image));
-            arrow.layer = bar.layer;
+            arrow.layer = copy.layer;
             RectTransform arrowRect = (RectTransform)arrow.transform;
-            arrowRect.SetParent(barRect, false);
+            arrowRect.SetParent(faceRect, false);
             arrowRect.anchorMin = arrowRect.anchorMax = arrowRect.pivot = new Vector2(0.5f, 0.5f);
-            arrowRect.anchoredPosition = Vector2.zero;
+            arrowRect.anchoredPosition = drawnMiddle;
             arrowRect.sizeDelta = new Vector2(ArrowSize, ArrowSize);
             icon = arrow.GetComponent<Image>();
             icon.preserveAspect = true;
@@ -297,22 +319,19 @@ namespace ReDefinition.Flight
                       + foldedHeight.ToString("0.0") + " high folded, the sunrise bar's gap to the row line " + gap.ToString("0.0") + "; from x "
                       + left.ToString("0.0") + " to " + right.ToString("0.0") + ", y " + middle.ToString("0.0") + " to " + top.ToString("0.0")
                       + " unfolded (the background's right edge " + backgroundRight.ToString("0.0") + ", the sunrise bar's picture over "
-                      + barFilled.ToString("0.00") + "); its face from " + faceRows.ToString("0.00") + " of the MET sprite's height"
+                      + barFilled.ToString("0.00") + "); the button " + faceRect.sizeDelta.ToString("0.0") + " with its drawn square " + side.ToString("0.0")
+                      + " wide, the MET picture over " + drawn.ToString("0.00") + "; the area in " + areaColour
                       + "; the sunrise extension's top right corner squared by " + corner.ToString("0.0") + ".");
         }
 
-        // A sprite's middle column, two pixels wide, over the rows it draws (a
-        // button's picture may leave rows see-through above and below: ZTheme's
-        // MET button three of 27 at the top); null stays null.
-        private static Sprite Middle(Sprite sprite)
+        // A sprite with a border for slicing, in pixels as the sprite's own rect
+        // counts them (left, bottom, right, top); null stays null.
+        private static Sprite Sliced(Sprite sprite, Vector4 border)
         {
             if (sprite == null || sprite.texture == null) return sprite;
-            Rect area = sprite.textureRect;
-            Rect rows = Opaque(sprite);
-            float x = Mathf.Floor(area.x + area.width / 2f) - 1f;
-            float y = Mathf.Round(area.y + area.height * rows.yMin);
-            float height = Mathf.Max(1f, Mathf.Round(area.height * rows.height));
-            return Sprite.Create(sprite.texture, new Rect(x, y, 2f, height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+            float scale = sprite.rect.width > 0f ? sprite.textureRect.width / sprite.rect.width : 1f;
+            return Sprite.Create(sprite.texture, sprite.textureRect, new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit, 0,
+                SpriteMeshType.FullRect, border * scale);
         }
 
         // A sprite's pixels, row by row from the bottom, or null where it cannot be
