@@ -6,7 +6,8 @@
 
 - **Stage details in two columns.** With more than four values chosen in KSP's *Δv Tools*,
   the details beside each stage in the staging stack stand in two columns, so the stages
-  grow wider instead of taller.
+  grow wider instead of taller; the *Δv Tools* window moves left of them. The stage's
+  delta-v, which KSP shows under each stage's number, is no longer among the values.
 - **Grip for landing legs.** Every landing leg has a *Traction* button in its part menu,
   in the VAB and the SPH, from Default to Extreme Grip, as the grip pads have, so that a
   lander stays put on a slope.
