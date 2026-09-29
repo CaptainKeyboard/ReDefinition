@@ -91,7 +91,33 @@ namespace ReDefinition.Flight
             if (values == null || values.infoLines == null || values.infoLines.Count == 0) return false;
             int removed = values.infoLines.RemoveAll(line => line != null && line.name == DeltaVLine);
             if (removed > 0) Debug.Log(Log.Tag + " Stage details: the delta-v line taken out of KSP's values to choose.");
+            WidenTwr(values);
             return true;
+        }
+
+        private const string TwrLine = "TWR";
+
+        // KSP's TWR line with the TWR at the stage's end beside the one at its
+        // start, "1.45-2.80": the stage's thrust in the situation chosen against its
+        // start mass and its end mass (DeltaVStageInfo.GetSituationTWR, startMass,
+        // endMass; KSP's line gives the first, DeltaVGlobals.InitInfoLines;
+        // decompiled). The thrust is the same at both ends, so the end's is the
+        // start's times the start mass over the end mass.
+        private static void WidenTwr(DeltaVAppValues values)
+        {
+            foreach (DeltaVAppValues.InfoLine line in values.infoLines)
+            {
+                if (line == null || line.name != TwrLine || line.infoValue == null) continue;
+                line.infoValue = (stage, situation) =>
+                {
+                    if (stage == null) return "";
+                    float start = stage.GetSituationTWR(situation);
+                    string text = start.ToString("0.00");
+                    if (start <= 0f || stage.endMass <= 0f || stage.startMass <= stage.endMass + 1e-4f) return text;
+                    return text + "-" + (start * stage.startMass / stage.endMass).ToString("0.00");
+                };
+                Debug.Log(Log.Tag + " Stage details: the TWR line gives the TWR at the stage's start and at its end.");
+            }
         }
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 

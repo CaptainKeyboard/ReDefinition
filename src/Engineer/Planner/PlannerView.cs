@@ -207,6 +207,7 @@ namespace ReDefinition.Engineer
             budget = StageBudget.Allocate(available, BudgetSteps(), state.Margin, plans,
                 VesselShape.Split(available, parts, valid.ConvertAll(section => section.Group)));
             UpdateThrust();
+            UpdateRcs();
             warnings = new List<string>[steps.Count];
             for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
             UpdateBars();

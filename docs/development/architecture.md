@@ -265,6 +265,7 @@ KSP's UI textures by name, themes it with the rest of KSP's dialogs.
 | `EditorReadout.cs` | the vessel as the planner takes it, read from KSP's delta-v simulation, with every part and each stage's thrust at the surface worked out beside it |
 | `PlannerPanel.cs` | the planner's panel, made as KSP's crew panel is |
 | `Planner/` | the planner's route, fuel budget, plans and rows ([planner.md](planner.md)) |
+| `Planner/Turning.cs` | how fast what flies a step turns by 90°, from its reaction wheels, RCS nozzles and gimbals against its moment of inertia; free of KSP's modules, tested |
 | `StageTable.cs`, `EngineerFormat.cs` | a stage's row, the rocket equation and how numbers are written; free of Unity, tested |
 
 How the planner sits in KSP's editor: [engineer.md](engineer.md).

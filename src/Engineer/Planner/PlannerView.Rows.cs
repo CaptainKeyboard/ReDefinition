@@ -65,10 +65,11 @@ namespace ReDefinition.Engineer
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
 
             List<DialogGUIBase> vessel = new List<DialogGUIBase>();
+            vessel.Add(RcsRow(() => shipRcs));
             for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));
             vessel.Add(AddSectionRow());
             rows.AddRange(Section("Craft", () => vesselShown, () => vesselShown = !vesselShown,
-                "The craft as built: its mass, the fuel in it and its delta-v in vacuum. Below, its sections.", VesselText, vessel));
+                "The craft as built: its mass, the fuel in it and its delta-v in vacuum. Below, its RCS and its sections.", VesselText, vessel));
 
             List<DialogGUIBase> route = new List<DialogGUIBase>();
             route.Add(SettingsRow());
@@ -171,6 +172,7 @@ namespace ReDefinition.Engineer
                 TextAnchor.MiddleLeft, dot, new DialogGUILabel(() => SectionLabel(row), SectionName), group, remove);
             line.OptionEnabledCondition = () => RowSection(row) != null;
             yield return line;
+            yield return RcsRow(() => RowSection(row) != null && row < sectionRcs.Length ? sectionRcs[row] : "");
 
             DialogGUIButton stop = null;
             stop = new DialogGUIButton(() => DeployText(row), () => PickDeployStop(row, stop), PartButtonWidth, Square, false);
@@ -200,6 +202,54 @@ namespace ReDefinition.Engineer
             foreach (StageRow row in allStages) deltaV += row.DeltaVVacuum;
             return "<color=" + Dim + ">Mass</color> " + EngineerFormat.Mass(readout.WetMass) + "<pos=34%><color=" + Dim + ">Fuel</color> "
                    + EngineerFormat.Mass(readout.FuelMass) + "<pos=67%><color=" + Dim + ">Δv</color> " + EngineerFormat.Speed(deltaV);
+        }
+
+        // The RCS of the craft, or of a section under its line: "RCS   45 m/s
+        // 4.0 kN   Isp 240 s   TWR 0.35"; hidden where it has none.
+        private DialogGUIBase RcsRow(System.Func<string> text)
+        {
+            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline), DimLabel("RCS", SectionName), new DialogGUILabel(text, PartButtonWidth, RowHeight));
+            row.OptionEnabledCondition = () => Ready() && text().Length > 0;
+            return row;
+        }
+
+        private string shipRcs = "";
+        private string[] sectionRcs = new string[0];
+
+        // The craft's RCS and each section's, as they start: the delta-v their RCS
+        // propellant gives them (RcsOf), their thrusters' thrust and combined Isp in
+        // vacuum, and that thrust against their weight at standard gravity, as KSP
+        // and Kerbal Engineer state a TWR in the editor.
+        private void UpdateRcs()
+        {
+            PartGroupChoice all = new PartGroupChoice();
+            for (int i = 0; i < parts.Count; i++)
+                if (!parts[i].Clamp)
+                {
+                    all.Members.Add(i);
+                    all.Mass += parts[i].Mass;
+                }
+            shipRcs = RcsText(all);
+            sectionRcs = new string[live.Count];
+            for (int i = 0; i < live.Count; i++) sectionRcs[i] = live[i].Group != null ? RcsText(live[i].Group) : "";
+        }
+
+        private string RcsText(PartGroupChoice group)
+        {
+            double mass = 0.0, overIsp = 0.0;
+            foreach (int at in group.Members)
+                if (at >= 0 && at < parts.Count && !parts[at].Clamp)
+                {
+                    mass += parts[at].Mass;
+                    overIsp += parts[at].RcsThrustOverIsp;
+                }
+            double thrust, propellant, deltaV;
+            RcsOf(group, -1, mass, out thrust, out propellant, out deltaV);
+            if (thrust <= 0.0 || mass <= 0.0) return "";
+            return EngineerFormat.Speed(deltaV) + "<pos=28%>" + EngineerFormat.Force(thrust) + "<pos=52%><color=" + Dim + ">Isp</color> "
+                   + (overIsp > 0.0 ? EngineerFormat.Isp(thrust / overIsp) : "-") + "<pos=76%><color=" + Dim + ">TWR</color> "
+                   + EngineerFormat.Ratio(thrust / (mass * StageTable.StandardGravity));
         }
 
         // "+" to add a section, in the column of a section's name.
@@ -911,7 +961,7 @@ namespace ReDefinition.Engineer
         private const float TwrColumn = 38f;
         private const float ThrustColumn = 60f;
         private const float BurnColumn = 64f;
-        private const int MaxNotes = 3;
+        private const int MaxNotes = 4;
         private const float BurnName = 180f;
 
         // A step as the thrust section shows it, worked out with the budget.
@@ -932,7 +982,18 @@ namespace ReDefinition.Engineer
             // centre of mass at launch.
             public readonly List<string> Notes = new List<string>();
             public bool Warns;
+            // The seconds what flies it takes to turn by 90 degrees (Turning), NaN
+            // where unknown; more than TurnLimit is slow.
+            public double Turn = double.NaN;
+            public double TurnLimit;
         }
+
+        // How long a turn by 90 degrees may take: at launch and at landing, where the
+        // vessel steers as it climbs or sets down, and in orbit, where it turns to a
+        // burn before it lights.
+        private const double TurnLimitLanding = 10.0;
+        private const double TurnLimitOrbit = 30.0;
+        private const float TurnColumn = 56f;
 
         private readonly List<ThrustStep> thrustSteps = new List<ThrustStep>();
         // Per step, its entry; null where it burns nothing.
@@ -942,9 +1003,14 @@ namespace ReDefinition.Engineer
 
         private IEnumerable<DialogGUIBase> ThrustRows()
         {
-            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+            List<DialogGUIBase> heads = new List<DialogGUIBase>
+            {
                 new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
-                DimLabel("Has", FuelLeft));
+                DimLabel("Has", FuelLeft),
+            };
+            if (TurnFits) heads.Add(DimLabel("Turns 90°", TurnColumn));
+            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                heads.ToArray());
             names.OptionEnabledCondition = () => thrustShown && Worked() && thrustSteps.Count > 0;
             yield return names;
             DialogGUIHorizontalLayout none = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
@@ -958,8 +1024,13 @@ namespace ReDefinition.Engineer
 
         // The steps that burn, each with its stages and its burns in orbit; before the
         // warnings, which take the burns that last too long from them.
+        // What KSP.log last said of the turns, so that it says a change once.
+        private readonly System.Text.StringBuilder turnLog = new System.Text.StringBuilder();
+        private string turnLogged = "";
+
         private void UpdateThrust()
         {
+            turnLog.Length = 0;
             thrustSteps.Clear();
             thrustOf = new ThrustStep[steps.Count];
             for (int i = 0; i < steps.Count; i++)
@@ -983,11 +1054,91 @@ namespace ReDefinition.Engineer
                 entry.Body = Launches(step) ? step.From.Body
                     : entry.Twr ? step.To.Body
                     : entry.Burns.Count > 0 ? entry.Burns[0].Line.Body : step.From.Body;
+                AddTurn(entry, step);
                 AddNotes(entry);
-                if (step.Leg.DeltaV <= 0.5 || (!entry.Twr && entry.Burns.Count == 0 && entry.Notes.Count == 0)) continue;
+                // A step shows for its launch or landing, its burns, and its notes other
+                // than one that says how it turns without a warning.
+                int notes = entry.Notes.Count - (!double.IsNaN(entry.Turn) && !TurnSlow(entry) ? 1 : 0);
+                if (step.Leg.DeltaV <= 0.5 || (!entry.Twr && entry.Burns.Count == 0 && notes == 0)) continue;
                 thrustOf[i] = entry;
                 if (thrustSteps.Count < MaxFuelSteps) thrustSteps.Add(entry);
             }
+            string turns = turnLog.ToString();
+            if (turns != turnLogged)
+            {
+                turnLogged = turns;
+                if (turns.Length > 0) UnityEngine.Debug.Log(ReDefinition.Core.Log.Tag + " Planner: how fast each step turns by 90°:" + turns);
+            }
+        }
+
+        // How fast what flies the step turns: at launch as its first stage lights,
+        // its gimbals counting; at landing as its last stage lights, likewise; in
+        // orbit as its first stage starts, before it lights, on its reaction wheels
+        // and RCS alone. A note says it; one in orange where it is slower than the
+        // step allows.
+        private void AddTurn(ThrustStep entry, RouteStep step)
+        {
+            if (entry.Uses.Count == 0) return;
+            bool launch = Launches(step), landing = !launch && LandsOnEngines(step);
+            StageBudget.StageUse use = landing ? entry.Uses[entry.Uses.Count - 1] : entry.Uses[0];
+            List<int> members = new List<int>();
+            bool fins = false;
+            for (int i = 0; i < parts.Count && i < partGroups.Length; i++)
+            {
+                int group = partGroups[i];
+                int id = group == 0 ? 0 : valid[group - 1].Plan.Id;
+                if (!step.Flying.Contains(id)) continue;
+                members.Add(i);
+                if (parts[i].Fin && (use.Stage < 0 || parts[i].DecoupleStage <= use.Stage)) fins = true;
+            }
+            // Fins steer in the air by as much as the air allows, which is not counted:
+            // where they fly through it, a slow turn is no warning.
+            bool air = (launch || landing) && fins && bodies.Bodies[entry.Body].HasAtmosphere;
+            entry.Turn = Turning.Seconds(parts, members, use.Stage, launch || landing ? use.Stage : -1);
+            entry.TurnLimit = launch || landing ? TurnLimitLanding : TurnLimitOrbit;
+            turnLog.Append(" " + StepName(entry.Step) + ": " + members.Count + " parts, stage " + use.Stage + ", "
+                           + (double.IsInfinity(entry.Turn) ? "none" : entry.Turn.ToString("0.0")) + " s;");
+            if (double.IsNaN(entry.Turn)) return;
+            string who = step.Flyer.Kind == FlyerKind.Alone && SectionById(step.Flyer.Section) != null
+                ? "the " + Lower(SectionById(step.Flyer.Section).Name) : "the vessel";
+            string how = launch ? "as it climbs" : landing ? "as it lands" : "to its burn";
+            if (TurnSlow(entry) && air)
+            {
+                entry.TurnLimit = double.PositiveInfinity;
+                entry.Notes.Add("<color=" + Dim + ">" + Capital(who) + (double.IsInfinity(entry.Turn)
+                    ? " steers " + how + " with its fins alone"
+                    : " turns 90° in " + EngineerFormat.Time(entry.Turn) + " " + how + " without its fins, which steer in the air") + "</color>");
+            }
+            else if (TurnSlow(entry))
+            {
+                entry.Notes.Add("<color=" + Warning + ">" + (double.IsInfinity(entry.Turn)
+                    ? Capital(who) + " has nothing to turn " + how + " with: no reaction wheels, RCS or gimballing engines"
+                    : Capital(who) + " turns 90° in " + EngineerFormat.Time(entry.Turn) + " " + how + ": slow, more than "
+                      + EngineerFormat.Time(entry.TurnLimit)) + "</color>");
+            }
+            else
+                entry.Notes.Add("<color=" + Dim + ">" + Capital(who) + " turns 90° in " + EngineerFormat.Time(entry.Turn) + " " + how + "</color>");
+        }
+
+        private static bool TurnSlow(ThrustStep entry)
+        {
+            return entry != null && !double.IsNaN(entry.Turn) && entry.Turn > entry.TurnLimit;
+        }
+
+        private static string Capital(string text)
+        {
+            return string.IsNullOrEmpty(text) ? "" : char.ToUpperInvariant(text[0]) + text.Substring(1);
+        }
+
+        // "12 s", in orange where slow; "None" where it cannot turn.
+        private string TurnText(ThrustStep entry)
+        {
+            if (entry == null || double.IsNaN(entry.Turn)) return "";
+            // Steered by its fins in the air, which are not counted.
+            if (double.IsInfinity(entry.TurnLimit))
+                return "<color=" + Dim + ">" + (double.IsInfinity(entry.Turn) ? "Fins" : EngineerFormat.Time(entry.Turn)) + "</color>";
+            string text = double.IsInfinity(entry.Turn) ? "None" : EngineerFormat.Time(entry.Turn);
+            return "<color=" + (TurnSlow(entry) ? Warning : Good) + ">" + text + "</color>";
         }
 
         // What docks, and its RCS for the last metres; the electric charge an ion engine
@@ -1082,12 +1233,18 @@ namespace ReDefinition.Engineer
             DialogGUIButton open = new DialogGUIButton(() => OpenThrust(row) != null ? "<b><color=" + Good + ">-</color></b>" : "+",
                 () => ToggleThrust(row), Square, Square, false);
             open.tooltipText = "Show the stages of this step with their thrust, and each burn.";
-            float room = Mathf.Max(0f, width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - 4f * 6f - RowEnd);
-            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+            float room = Mathf.Max(0f, ThrustRoom - (TurnFits ? TurnColumn + 4f : 0f));
+            List<DialogGUIBase> cells = new List<DialogGUIBase>
+            {
                 new DialogGUISpace(Timeline), new DialogGUILabel(() => ThrustAt(row) != null ? StepName(ThrustAt(row).Step) : "", Place),
                 new DialogGUILabel(() => ThrustAt(row) != null ? StepFlyer(ThrustAt(row).Step) : "", VehicleButton),
                 new DialogGUILabel(() => ThrustNeedsText(ThrustAt(row)), FuelNeeds), new DialogGUILabel(() => ThrustHasText(ThrustAt(row)), FuelLeft),
-                new DialogGUISpace(room), open);
+            };
+            if (TurnFits) cells.Add(new DialogGUILabel(() => TurnText(ThrustAt(row)), TurnColumn));
+            cells.Add(new DialogGUISpace(room));
+            cells.Add(open);
+            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                cells.ToArray());
             line.OptionEnabledCondition = () => ThrustAt(row) != null;
             yield return line;
 
@@ -1141,6 +1298,18 @@ namespace ReDefinition.Engineer
                 new DialogGUILabel(() => ThrustBodyText(OpenThrust(row)), width - Timeline - Swatch - 4f - 4f - RowEnd));
             body.OptionEnabledCondition = () => OpenThrust(row) != null;
             yield return body;
+        }
+
+        // What a step's line leaves beside its cells and its button; the turn's
+        // column stands there where it fits, else its note alone says it.
+        private float ThrustRoom
+        {
+            get { return width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - 4f * 6f - RowEnd; }
+        }
+
+        private bool TurnFits
+        {
+            get { return ThrustRoom >= TurnColumn + 4f; }
         }
 
         // What a lift-off or a set-down needs: 1.2 from a body with air, 1 otherwise;
@@ -1324,9 +1493,10 @@ namespace ReDefinition.Engineer
         // too long.
         private string ThrustSummary()
         {
-            int low = 0, slow = 0, noted = 0;
+            int low = 0, slow = 0, noted = 0, turning = 0;
             foreach (ThrustStep entry in thrustSteps)
             {
+                if (TurnSlow(entry)) turning++;
                 if (entry.Warns) noted++;
                 if (entry.Twr)
                 {
@@ -1335,10 +1505,11 @@ namespace ReDefinition.Engineer
                 }
                 else if (entry.Longest != null && BurnColour(entry.Longest) != Good) slow++;
             }
-            if (low == 0 && slow == 0 && noted == 0) return "<color=" + Good + ">Enough thrust on every step</color>";
+            if (low == 0 && slow == 0 && noted == 0 && turning == 0) return "<color=" + Good + ">Enough thrust on every step</color>";
             string text = "";
             if (low > 0) text = "TWR too low on " + low + (low == 1 ? " step" : " steps");
             if (slow > 0) text += (text.Length > 0 ? ", " : "") + slow + (slow == 1 ? " burn" : " burns") + " too long";
+            if (turning > 0) text += (text.Length > 0 ? ", " : "") + turning + (turning == 1 ? " step turns" : " steps turn") + " slowly";
             if (noted > 0) text += (text.Length > 0 ? ", " : "") + noted + (noted == 1 ? " note" : " notes");
             return "<color=" + (low > 0 ? Problem : Warning) + ">" + text + "</color>";
         }

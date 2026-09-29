@@ -25,9 +25,11 @@ back when you load the vessel again.
 ## Add the vessel's sections
 
 The header bar of *Craft* at the top shows the craft as built: its mass, the fuel in it
-and its delta-v in vacuum. Below it, *Craft* lists the vessel's sections: the parts of it
-that fly on their own. They decide who can fly a step. *+* adds one, and the list of its
-parts folds out right after:
+and its delta-v in vacuum. Where it has RCS thrusters, the line *RCS* under the bar gives
+their delta-v from the RCS propellant on board, their thrust and Isp in vacuum, and their
+TWR at Kerbin's gravity; each section with RCS has the same line under its own. Below it,
+*Craft* lists the vessel's sections: the parts of it that fly on their own. They decide
+who can fly a step. *+* adds one, and the list of its parts folds out right after:
 
 | Section | Is | Row under it |
 |---|---|---|
@@ -161,6 +163,7 @@ transfer burn that takes too long can miss its target.
 |---|---|
 | *Needs* | on a launch or a landing on the engines, the TWR it needs: 1.20 to lift off from a body with air, 1.00 otherwise; *Runway* where jets with wings lift off, at any TWR. On other steps, the share of the orbit a burn may take: 17 % |
 | *Has* | on a launch or a landing, the stage that decides and its TWR at the surface, in the air where the body has any: the first stage of a launch, the last of a landing; red below what it needs. On other steps, the burn that takes the largest share of its orbit, with its time and share: orange from 11 %, where it loses 2 % of its delta-v, red from 17 %, where it loses 5 % |
+| *Turns 90°* | how long what flies the step takes to turn by 90°, about the slower of pitch and yaw: orange over 10 s on a launch or a landing, over 30 s in orbit; *None* where it has nothing to turn with. Shown where the planner is wide enough; the step's note says it always |
 
 *+* opens a step:
 
@@ -168,7 +171,7 @@ transfer burn that takes too long can miss its target.
 |---|---|
 | a stage | the vessel's mass as the stage starts its part; the stage's Isp in vacuum; its TWR as it starts its part and as it ends it, in vacuum; *In air* on a launch or a landing where the body has air; its thrust in vacuum; how long it burns in this step |
 | a burn in orbit | its name; how long it takes, its share of the orbit and the orbit's time, and about how much delta-v it loses; red with a *+* where the stages run out before it ends or a stage has no thrust |
-| a note | where a section docks, its RCS for the last metres, in orange where it has no RCS or no RCS propellant; where an ion engine burns, the electric charge it takes against what the vessel holds, in orange where that is not enough without solar panels or other power |
+| a note | how fast what flies the step turns by 90°: on a launch or a landing on its reaction wheels, RCS and the gimbals of the stage that burns, in orbit before its burn on its reaction wheels and RCS alone; in orange where it is slow. Fins are not counted: where they fly through air, a slow turn is no warning. Where a section docks, its RCS for the last metres, in orange where it has no RCS or no RCS propellant; where an ion engine burns, the electric charge it takes against what the vessel holds, in orange where that is not enough without solar panels or other power |
 | the body | the body the TWR is against, its surface gravity and its air |
 
 A burn in red also shows as a line under its step on the route. More thrust or less mass

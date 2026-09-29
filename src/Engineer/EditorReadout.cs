@@ -90,6 +90,11 @@ namespace ReDefinition.Engineer
                         if (rcs != null && rcs.propellants != null)
                             foreach (Propellant propellant in rcs.propellants) rcsPropellants.Add(propellant.name);
 
+            // The vessel's frame: its root part's.
+            Transform frame = null;
+            foreach (Part part in parts)
+                if (part != null && part.parent == null) frame = part.transform;
+
             List<PartFacts> facts = new List<PartFacts>();
             foreach (Part part in parts)
             {
@@ -150,6 +155,7 @@ namespace ReDefinition.Engineer
                     fact.RcsResources.TryGetValue(resource.resourceName, out held);
                     fact.RcsResources[resource.resourceName] = held + resource.amount * resource.info.density;
                 }
+                if (frame != null) Shape(part, frame, fact);
                 if (info != null && info.stageFuelMass != null)
                     for (int i = 0; i < info.stageFuelMass.Count; i++)
                     {
@@ -159,6 +165,79 @@ namespace ReDefinition.Engineer
                 facts.Add(fact);
             }
             return facts;
+        }
+
+        // Where a part sits, how large it is, and what it turns the vessel with
+        // (Turning), in the frame of the vessel's root part: its centre of mass
+        // (Part.CoMOffset), the box round its colliders' bounds, its reaction
+        // wheels (ModuleReactionWheel: PitchTorque, RollTorque, YawTorque at
+        // authorityLimiter percent), each of its RCS nozzles (ModuleRCS: the
+        // thruster transforms by thrusterTransformName, pushing along -up, or
+        // -forward with useZaxis, with thrusterPower at thrustPercentage percent,
+        // for the axes enabled), and its gimballing engines (ModuleGimbal:
+        // gimbalRange, or the smallest of its per-direction ranges where set, at
+        // gimbalLimiter percent, unless locked; ModuleEngines: maxThrust at
+        // thrustPercentage percent); decompiled.
+        private static void Shape(Part part, Transform frame, PartFacts fact)
+        {
+            fact.Position = frame.InverseTransformPoint(part.transform.TransformPoint(part.CoMOffset));
+            bool any = false;
+            Vector3 low = Vector3.zero, high = Vector3.zero;
+            foreach (Collider collider in part.GetComponentsInChildren<Collider>(false))
+            {
+                if (collider == null || !collider.enabled || collider.isTrigger) continue;
+                Bounds bounds = collider.bounds;
+                for (int corner = 0; corner < 8; corner++)
+                {
+                    Vector3 point = frame.InverseTransformPoint(new Vector3(
+                        (corner & 1) == 0 ? bounds.min.x : bounds.max.x,
+                        (corner & 2) == 0 ? bounds.min.y : bounds.max.y,
+                        (corner & 4) == 0 ? bounds.min.z : bounds.max.z));
+                    low = any ? Vector3.Min(low, point) : point;
+                    high = any ? Vector3.Max(high, point) : point;
+                    any = true;
+                }
+            }
+            if (any) fact.Size = high - low;
+
+            fact.Fin = part.HasModuleImplementing<ModuleControlSurface>();
+            foreach (ModuleReactionWheel wheel in part.FindModulesImplementing<ModuleReactionWheel>())
+                if (wheel != null && wheel.moduleIsEnabled)
+                    fact.WheelTorque += new Vector3(wheel.PitchTorque, wheel.RollTorque, wheel.YawTorque) * (wheel.authorityLimiter * 0.01f);
+
+            foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+            {
+                if (rcs == null || !rcs.moduleIsEnabled || !rcs.rcsEnabled || string.IsNullOrEmpty(rcs.thrusterTransformName)) continue;
+                float power = rcs.thrusterPower * rcs.thrustPercentage * 0.01f;
+                if (power <= 0f) continue;
+                foreach (Transform nozzle in part.FindModelTransforms(rcs.thrusterTransformName))
+                {
+                    if (nozzle == null) continue;
+                    Vector3 push = rcs.useZaxis ? -nozzle.forward : -nozzle.up;
+                    fact.Nozzles.Add(new Nozzle
+                    {
+                        At = frame.InverseTransformPoint(nozzle.position),
+                        Force = frame.InverseTransformDirection(push) * power,
+                        Pitch = rcs.enablePitch,
+                        Yaw = rcs.enableYaw,
+                    });
+                }
+            }
+
+            foreach (ModuleGimbal gimbal in part.FindModulesImplementing<ModuleGimbal>())
+            {
+                if (gimbal == null || !gimbal.moduleIsEnabled || gimbal.gimbalLock) continue;
+                float range = gimbal.gimbalRange;
+                foreach (float set in new[] { gimbal.gimbalRangeXP, gimbal.gimbalRangeXN, gimbal.gimbalRangeYP, gimbal.gimbalRangeYN })
+                    if (set >= 0f) range = Mathf.Min(range, set);
+                range *= gimbal.gimbalLimiter * 0.01f;
+                if (range <= 0f) continue;
+                double thrust = 0.0;
+                foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                    if (engine != null) thrust = Math.Max(thrust, engine.maxThrust * engine.thrustPercentage * 0.01);
+                fact.GimbalSide += thrust * Math.Sin(range * Math.PI / 180.0);
+                break;
+            }
         }
 
         // ------------------------------------------------------ own simulation

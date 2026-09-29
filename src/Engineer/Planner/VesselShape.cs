@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System;
+using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
@@ -55,6 +56,23 @@ namespace ReDefinition.Engineer
         public double RcsThrustOverIsp;
         public readonly Dictionary<string, Dictionary<string, double>> RcsMix = new Dictionary<string, Dictionary<string, double>>();
         public readonly Dictionary<string, double> RcsResources = new Dictionary<string, double>();
+        // Where it sits and how large it is, for how the vessel turns (Turning): its
+        // centre of mass, in metres in the vessel's frame (the root part's: x pitch,
+        // y roll, z yaw), and the size of the box round its colliders there.
+        public Vector3 Position;
+        public Vector3 Size;
+        // Its reaction wheels' torque at their authority limiter, in kN m: pitch,
+        // roll, yaw.
+        public Vector3 WheelTorque;
+        // Its RCS thrusters' nozzles.
+        public readonly List<Nozzle> Nozzles = new List<Nozzle>();
+        // Its gimballing engines' thrust in vacuum at their thrust limit times the
+        // sine of their gimbal range at its limiter, in kN: the side force they can
+        // turn the vessel with while they burn.
+        public double GimbalSide;
+        // A control surface (ModuleControlSurface): it steers in the air, by as much
+        // as the air allows, which Turning does not count.
+        public bool Fin;
         // By stage number: its resources' mass as the stage starts and as it ends.
         public readonly Dictionary<int, double[]> StageFuel = new Dictionary<int, double[]>();
         // The part itself, for the colours on the vessel.

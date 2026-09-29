@@ -4,6 +4,12 @@
 
 ### Added
 
+- **RCS, turning and the TWR at burnout in the VAB and the SPH.** The planner's *Craft*
+  shows the RCS of the craft and of each section: delta-v, thrust, Isp and TWR. Its
+  *Thrust* part says for every step how long what flies it takes to turn by 90° on its
+  reaction wheels, RCS and gimbals, in orange where that is slow for a launch, a landing
+  or a burn in orbit. The stage details give the TWR as a stage lights and as it burns
+  out.
 - **The delta-v tools in the staging stack.** KSP's *Δv* button opens every stage's
   details and, in the VAB and the SPH, a *Δv Tools* window under the lowest stage with
   the body, atmosphere, altitude and pressure; pressed again, it closes them. The details
