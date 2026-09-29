@@ -116,7 +116,7 @@ namespace ReDefinition.Flight.Panel
                 new DialogGUIVerticalLayout(rowWidth, -1f, 2f, new RectOffset(4, 4, 4, 4), TextAnchor.UpperLeft, rows.ToArray()));
             DialogGUIHorizontalLayout buttons = new DialogGUIHorizontalLayout(Width - 20f, 30f, 6f, new RectOffset(), TextAnchor.MiddleCenter,
                 new DialogGUIButton("New profile", NewProfile, 100f, 26f, false),
-                new DialogGUIButton("Delete profile", () => Delete(profile), 100f, 26f, false),
+                Deletable(new DialogGUIButton("Delete profile", () => Delete(profile), 100f, 26f, false), profile),
                 new DialogGUIButton("Defaults", Defaults, 80f, 26f, false),
                 new DialogGUIButton("Close", Close, 70f, 26f, false));
             DialogGUILabel note = new DialogGUILabel(
@@ -164,9 +164,18 @@ namespace ReDefinition.Flight.Panel
             Changed();
         }
 
+        // Only a profile of the player's own can go: the six shipped ones, one per
+        // situation, stay.
+        private static DialogGUIButton Deletable(DialogGUIButton button, FlightProfile profile)
+        {
+            button.OptionInteractableCondition = () => !profile.Builtin;
+            button.tooltipText = profile.Builtin ? "The profiles for the situations stay; only your own can be deleted." : "";
+            return button;
+        }
+
         private static void Delete(FlightProfile profile)
         {
-            if (FlightProfiles.Current.Count <= 1) return;
+            if (profile.Builtin || FlightProfiles.Current.Count <= 1) return;
             FlightProfiles.Current.Remove(profile);
             editing = Mathf.Clamp(editing, 0, FlightProfiles.Current.Count - 1);
             Changed();
@@ -174,14 +183,16 @@ namespace ReDefinition.Flight.Panel
 
         private static void Defaults()
         {
-            FlightProfiles.Current.Clear();
-            FlightProfiles.Current.AddRange(FlightProfiles.Defaults());
-            editing = 0;
-            // The tabs, built from the profiles as the flight started, take the
-            // defaults in their order.
-            List<ProfileTab> tabs = Tabs();
-            for (int i = 0; i < tabs.Count; i++)
-                tabs[i].Bound = tabs[i].Profile < FlightProfiles.Current.Count ? FlightProfiles.Current[tabs[i].Profile] : null;
+            // The situations' profiles as shipped, the same objects, so that their
+            // tabs keep them; the player's own stay as they are.
+            foreach (FlightProfile shipped in FlightProfiles.Defaults())
+            {
+                FlightProfile profile = FlightProfiles.Current.Find(item => item.Situation == shipped.Situation);
+                if (profile == null) continue;
+                profile.Name = shipped.Name;
+                profile.Keys.Clear();
+                profile.Keys.AddRange(shipped.Keys);
+            }
             Changed();
         }
 

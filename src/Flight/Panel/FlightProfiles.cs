@@ -27,6 +27,13 @@ namespace ReDefinition.Flight.Panel
         internal PanelSituation Situation;
         internal readonly List<string> Keys = new List<string>();
 
+        // One of the six ReDefinition ships, one per situation: never deleted, so
+        // that the panel always has a profile to switch to.
+        internal bool Builtin
+        {
+            get { return Situation != PanelSituation.Manual; }
+        }
+
         internal FlightProfile Copy()
         {
             FlightProfile copy = new FlightProfile { Name = Name, Situation = Situation };
@@ -37,7 +44,8 @@ namespace ReDefinition.Flight.Panel
 
     // The flight panel's profiles as the player keeps them, in
     // PluginData/flightpanel.cfg, for every save; the defaults where there is no
-    // file. A key the catalogue no longer has is dropped as it loads.
+    // file. A key the catalogue no longer has is dropped as it loads, and a
+    // situation's profile missing from the file comes back as shipped.
     internal static class FlightProfiles
     {
         private const string RootName = "FLIGHT_PANEL";
@@ -99,7 +107,12 @@ namespace ReDefinition.Flight.Panel
                     }
                     profiles.Add(profile);
                 }
-            if (profiles.Count == 0) profiles = Defaults();
+            // Each situation keeps its profile: one missing from the file comes back
+            // as shipped, in its place among the others.
+            List<FlightProfile> defaults = Defaults();
+            for (int i = 0; i < defaults.Count; i++)
+                if (!profiles.Exists(profile => profile.Situation == defaults[i].Situation))
+                    profiles.Insert(System.Math.Min(i, profiles.Count), defaults[i]);
             return profiles;
         }
 

@@ -37,8 +37,10 @@ The pencil after the tabs opens the profile of the tab shown:
 2. Under *Shown, in this order*, *Up* and *Down* move a value, *Remove* takes it out.
 3. Under *Add*, grouped as Orbit, Surface, Vessel, Air, Rendezvous and Docking, a click
    adds a value at the end.
-4. *New profile* adds an empty one, *Delete profile* removes the one shown, *Defaults*
-   brings back the six profiles as ReDefinition ships them.
+4. *New profile* adds an empty one of your own, *Delete profile* removes one of your own,
+   *Defaults* puts the six situations' profiles back as ReDefinition ships them and
+   leaves your own. The six profiles for the situations cannot be deleted: the panel
+   always has one to switch to.
 
 A change shows in the panel at once and is kept for every save. A new or deleted
 profile gets or loses its tab with the next flight scene. A profile of your own shows

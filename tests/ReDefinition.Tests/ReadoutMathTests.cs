@@ -85,6 +85,20 @@ namespace ReDefinition.Tests
             }
         }
 
+        // One shipped profile per situation, none of them deletable.
+        [TestMethod]
+        public void ShippedProfilesOnePerSituation()
+        {
+            List<ReDefinition.Flight.Panel.FlightProfile> profiles = ReDefinition.Flight.Panel.FlightProfiles.Defaults();
+            HashSet<ReDefinition.Flight.Panel.PanelSituation> situations = new HashSet<ReDefinition.Flight.Panel.PanelSituation>();
+            foreach (ReDefinition.Flight.Panel.FlightProfile profile in profiles)
+            {
+                Assert.IsTrue(profile.Builtin, profile.Name);
+                Assert.IsTrue(situations.Add(profile.Situation), profile.Name);
+            }
+            Assert.AreEqual(6, situations.Count);
+        }
+
         // Every readout a default profile names is in the catalogue.
         [TestMethod]
         public void DefaultProfilesNameKnownReadouts()
