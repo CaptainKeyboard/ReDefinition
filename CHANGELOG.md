@@ -4,8 +4,9 @@
 
 ### Added
 
-- **Taking control switches on two of KSP's settings:** *Advanced tweakables* and the
-  *Extended burn indicator*.
+- **Recommended KSP settings.** Taking control at the first start and *Reset* switch on
+  *Advanced tweakables*, the *Extended burn indicator* and *Always show closest
+  approach*, and set the *Conic patch limit* to 6.
 - **The crew portraits' slot buttons** show a green plus and a red cross, as the staging
   stack's buttons for stages do, in place of KSP's *|<* and *>|*.
 - **Better Time Warp's button in the time panel.** With Better Time Warp Continued

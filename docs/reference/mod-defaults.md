@@ -35,7 +35,9 @@ KSP's default is what the *Reset* of KSP's own settings screen sets, through
 `PQSCache.CreateDefaultPresetList`. That covers every control of KSP's settings screen,
 as its `SettingsScreenSetup` in `sharedassets3.assets` lists them. Resolution and full
 screen are the exception: *Reset* keeps them, where KSP's reset sets 1280 x
-720 in a window.
+720 in a window. Four more take ReDefinition's recommended value, which *Reset* and
+taking control at the first start set: *Advanced tweakables* and *Extended burn
+indicator* on, *Always show closest approach* on, and *Conic patch limit* at 6.
 
 ## The three kinds
 
@@ -93,10 +95,10 @@ run with the upscaler. *Reset* sets every kind.
 | `INFLIGHT_HIGHLIGHT` | other | True | |
 | `PART_HIGHLIGHTER_BRIGHTNESSFACTOR` | other | 1 | |
 | `CONIC_PATCH_DRAW_MODE` | other | 3 | |
-| `CONIC_PATCH_LIMIT` | other | 3 | |
+| `CONIC_PATCH_LIMIT` | other | 6 | ReDefinition's recommendation; KSP's own is 3 |
 | `ORBIT_FADE_STRENGTH` | other | 1 | |
 | `ORBIT_FADE_DIRECTION_INV` | other | False | |
-| `ALWAYS_SHOW_TARGET_APPROACH_MARKERS` | other | False | |
+| `ALWAYS_SHOW_TARGET_APPROACH_MARKERS` | other | True | ReDefinition's recommendation; KSP's own is False |
 | `COMMNET_LOWCOLOR_BRIGHTNESSFACTOR` | other | 0.5 | |
 
 ## Scatterer

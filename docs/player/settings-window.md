@@ -267,8 +267,8 @@ every other row, and the main menu's panel offers the same switches.
 At the first start, the main menu explains ReDefinition and offers *Let ReDefinition
 take control* or *Later*. Taking control chooses the High profile and bundles the mods,
 switches *Replace original settings* on, sets KSP's UI scale for your screen where it is
-still KSP's 100 %, switches on KSP's *Advanced tweakables* and *Extended burn indicator*,
-and loads the main menu again, whose *Settings* then opens this
+still KSP's 100 %, switches on KSP's *Advanced tweakables*, *Extended burn indicator* and
+*Always show closest approach*, sets *Conic patch limit* to 6, and loads the main menu again, whose *Settings* then opens this
 window. *Later* leaves every mod as it is until you choose a profile. A graphics mod
 installed later follows that choice, with a short note when it is bundled.
 

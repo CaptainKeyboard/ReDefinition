@@ -192,16 +192,21 @@ namespace ReDefinition.Window
             HighLogic.LoadScene(GameScenes.MAINMENU);
         }
 
-        // KSP's settings that taking control switches on, as the player asked:
-        // Advanced tweakables (more options in the parts' menus, such as autostrut)
-        // and the extended burn indicator (when to start a manoeuvre burn, on the
-        // navball). Saved as KSP's own screen saves them (GameSettings.SaveSettings).
+        // KSP's settings ReDefinition recommends, as its registration's defaults
+        // hold them (Mods/KSP.cfg) and Reset sets them: advanced tweakables (more
+        // options in the parts' menus, such as autostrut), the extended burn
+        // indicator (when to start a manoeuvre burn, on the navball), the closest
+        // approach always shown, and six encounters ahead on the map. Saved as
+        // KSP's own screen saves them (GameSettings.SaveSettings).
         private static void RecommendedKspSettings()
         {
             GameSettings.ADVANCED_TWEAKABLES = true;
             GameSettings.EXTENDED_BURNTIME = true;
+            GameSettings.ALWAYS_SHOW_TARGET_APPROACH_MARKERS = true;
+            GameSettings.CONIC_PATCH_LIMIT = 6;
             GameSettings.SaveSettings();
-            Debug.Log(Log.Tag + " KSP's settings switched on as control is taken: advanced tweakables, extended burn indicator.");
+            Debug.Log(Log.Tag + " KSP's settings set as control is taken: advanced tweakables, extended burn indicator,"
+                      + " closest approach always shown, conic patch limit 6.");
         }
 
         // KSP's UI scale to its default for this screen (KspBehaviour.Default), where
