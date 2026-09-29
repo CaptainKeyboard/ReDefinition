@@ -84,5 +84,14 @@ namespace ReDefinition.Tests
                 Assert.IsNotNull(readout.Value, readout.Key);
             }
         }
+
+        // Every readout a default profile names is in the catalogue.
+        [TestMethod]
+        public void DefaultProfilesNameKnownReadouts()
+        {
+            foreach (ReDefinition.Flight.Panel.FlightProfile profile in ReDefinition.Flight.Panel.FlightProfiles.Defaults())
+                foreach (string key in profile.Keys)
+                    Assert.IsNotNull(ReadoutCatalog.Find(key), profile.Name + ": " + key);
+        }
     }
 }

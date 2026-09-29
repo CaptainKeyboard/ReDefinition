@@ -10,6 +10,9 @@ KSP draws the button in a square box, so the icon fills its square. It goes to
 GameData/ReDefinition/Icons/ReDefinitionIcon.png at 128x128, the size Kopernicus ships
 and hands to AddModApplication.
 
+**The flight panel's tabs** are glyphs in the style of KSP's maneuver panel tabs, 45x40,
+light with a glow while on and black while off: GameData/ReDefinition/Icons/FlightPanel_*.png.
+
 **The planner's symbols** are white on clear, 64x64, for KSP's buttons to show them over
 their own background: GameData/ReDefinition/Icons/Planner_*.png.
 
@@ -426,6 +429,93 @@ def draw_planet():
     return image
 
 
+# The flight panel's profile tabs: glyphs in the style of KSP's own maneuver panel
+# tabs (ManNode_ManIcon01: 45x40, a light glyph with a soft glow while the tab is
+# on, a black one while it is off; sharedassets7). Drawn at ten times their size
+# as a mask, then coloured and scaled down.
+# GameData/ReDefinition/Icons/FlightPanel_<name>_On.png and _Off.png.
+PANEL_ICONS = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "FlightPanel_%s_%s.png")
+PANEL_SIZE = (450, 400)
+PANEL_ON = (214, 220, 227)
+PANEL_OFF = (3, 3, 4)
+STROKE = 38
+
+
+def panel_canvas():
+    image = Image.new("L", PANEL_SIZE, 0)
+    return image, ImageDraw.Draw(image)
+
+
+def draw_panel_ascent():
+    # A rocket climbing along a curve from the ground.
+    image, draw = panel_canvas()
+    draw.line([(40, 360), (410, 360)], fill=255, width=STROKE)
+    draw.arc([60, 60, 700, 700], 180, 262, fill=255, width=STROKE)
+    draw.polygon([(300, 30), (360, 150), (240, 150)], fill=255)
+    return image
+
+
+def draw_panel_landing():
+    # An arrow down onto the ground, legs spread.
+    image, draw = panel_canvas()
+    draw.line([(40, 360), (410, 360)], fill=255, width=STROKE)
+    draw.line([(225, 30), (225, 230)], fill=255, width=STROKE)
+    draw.polygon([(145, 200), (305, 200), (225, 300)], fill=255)
+    return image
+
+
+def draw_panel_docking():
+    # Two ports facing each other.
+    image, draw = panel_canvas()
+    for left, right in ((40, 180), (270, 410)):
+        draw.line([(left, 120), (left, 280)], fill=255, width=STROKE)
+    draw.line([(40, 200), (180, 200)], fill=255, width=STROKE)
+    draw.line([(270, 200), (410, 200)], fill=255, width=STROKE)
+    draw.line([(180, 90), (180, 310)], fill=255, width=STROKE)
+    draw.line([(270, 90), (270, 310)], fill=255, width=STROKE)
+    return image
+
+
+def draw_panel_air():
+    # A plane from above: fuselage, wings and tail.
+    image, draw = panel_canvas()
+    draw.line([(225, 20), (225, 380)], fill=255, width=STROKE)
+    draw.polygon([(225, 130), (430, 250), (430, 285), (225, 215), (20, 285), (20, 250)], fill=255)
+    draw.polygon([(225, 310), (320, 370), (320, 390), (225, 360), (130, 390), (130, 370)], fill=255)
+    return image
+
+
+def draw_panel_edit():
+    # A pencil.
+    image, draw = panel_canvas()
+    draw.polygon([(300, 30), (390, 120), (150, 360), (60, 270)], fill=255)
+    draw.polygon([(60, 270), (150, 360), (30, 390)], fill=255)
+    draw.line([(260, 70), (350, 160)], fill=0, width=14)
+    return image
+
+
+PANEL_DRAWINGS = {
+    "Ascent": draw_panel_ascent,
+    "Landing": draw_panel_landing,
+    "Docking": draw_panel_docking,
+    "Air": draw_panel_air,
+    "Edit": draw_panel_edit,
+}
+
+
+def panel_icon(mask, on):
+    small = mask.resize((45, 40), Image.LANCZOS)
+    if not on:
+        icon = Image.new("RGBA", small.size, PANEL_OFF + (0,))
+        icon.putalpha(small)
+        return icon
+    glow = small.filter(ImageFilter.GaussianBlur(2.2)).point(lambda a: int(a * 0.55))
+    alpha = ImageChops.lighter(small, glow)
+    icon = Image.new("RGBA", small.size, PANEL_ON + (0,))
+    icon.putalpha(alpha)
+    return icon
+
+
 def main():
     os.makedirs(os.path.dirname(IN_GAME), exist_ok=True)
     draw_sliders().resize((128, 128), Image.LANCZOS).save(IN_GAME)
@@ -447,6 +537,13 @@ def main():
         path = PLANNER_ICONS % name
         drawing().resize((64, 64), Image.LANCZOS).save(path)
         print("in the game:", os.path.relpath(path, ROOT))
+
+    for name, drawing in PANEL_DRAWINGS.items():
+        mask = drawing()
+        for state, on in (("On", True), ("Off", False)):
+            path = PANEL_ICONS % (name, state)
+            panel_icon(mask, on).save(path)
+            print("in the game:", os.path.relpath(path, ROOT))
 
     planet = draw_planet()
     os.makedirs(LARGE, exist_ok=True)

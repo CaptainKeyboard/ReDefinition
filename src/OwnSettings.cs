@@ -67,6 +67,8 @@ namespace ReDefinition
         public bool FlightStartsInManeuverMode = true;
         // The altimeter switches between sea level and the ground itself (Flight/AutoAltimeter).
         public bool AutoAltimeter = true;
+        // The flight panel switches to the profile of the situation (Flight/Panel/FlightPanel).
+        public bool FlightPanelAuto = true;
 
         private const string RootName = "ReDefinition";
 
@@ -112,6 +114,7 @@ namespace ReDefinition
             settings.TimeWarpToolbarButton = Bool(node, "timeWarpToolbarButton", settings.TimeWarpToolbarButton);
             settings.FlightStartsInManeuverMode = Bool(node, "flightStartsInManeuverMode", settings.FlightStartsInManeuverMode);
             settings.AutoAltimeter = Bool(node, "autoAltimeter", settings.AutoAltimeter);
+            settings.FlightPanelAuto = Bool(node, "flightPanelAuto", settings.FlightPanelAuto);
             return settings;
         }
 
@@ -147,6 +150,7 @@ namespace ReDefinition
             node.AddValue("timeWarpToolbarButton", TimeWarpToolbarButton);
             node.AddValue("flightStartsInManeuverMode", FlightStartsInManeuverMode);
             node.AddValue("autoAltimeter", AutoAltimeter);
+            node.AddValue("flightPanelAuto", FlightPanelAuto);
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -176,7 +180,7 @@ namespace ReDefinition
               .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
               .Append(WorldUiScale.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(ScaleModWindows)
               .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode)
-              .Append('|').Append(AutoAltimeter);
+              .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto);
             return sb.ToString();
         }
 

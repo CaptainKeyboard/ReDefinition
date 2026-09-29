@@ -4,6 +4,11 @@
 
 ### Added
 
+- **The flight panel.** KSP's maneuver panel shows profiles in place of its orbit tabs:
+  Ascent, Orbit, Rendezvous, Landing, Docking and Air, each a set of figures in KSP's
+  own fields, such as the suicide burn, the transfer window, the closest approach, the
+  angle of attack or the angle between docking ports. It switches to the profile for
+  what the vessel is doing, and grows to the right for more figures.
 - **Time to impact.** While the vessel comes down on a path that meets the ground, KSP's
   vertical speed gauge shows *IMPACT* and the time left in digits; its needle still shows
   the vertical speed. Drag is not counted.

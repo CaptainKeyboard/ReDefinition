@@ -227,6 +227,21 @@ namespace ReDefinition
             },
             new ModuleSetting
             {
+                Key = "flightPanelAuto",
+                Title = "Flight panel follows the situation",
+                Order = 104,
+                Row = SettingCategory.Interface,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The flight panel in the maneuver mode switches to the profile for what the vessel is doing: ascent, "
+                          + "orbit, rendezvous, landing, docking or flight on wings. A profile picked by hand stays until the "
+                          + "situation changes.",
+                Read = settings => SettingValues.Text(settings.FlightPanelAuto),
+                Write = (settings, value) => settings.FlightPanelAuto = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
                 Key = "autoAltimeter",
                 Title = "Altimeter switches to the ground",
                 Order = 103,

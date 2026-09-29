@@ -276,6 +276,7 @@ How the planner sits in KSP's editor: [engineer.md](engineer.md).
 | File | Role |
 |---|---|
 | `NavballDrag.cs` | the navball moved by dragging its show/hide button, and to the position the settings hold |
+| `Panel/` | the flight panel: `FlightPanel` puts the profiles in place of KSP's orbit tabs and widens the maneuver panel, `ProfileTab` lays a profile's readouts out in KSP's blocks, `FlightProfiles` keeps the profiles and picks one by the situation |
 | `Readouts/` | the flight panel's values: `ReadoutCatalog` lists each with its title and group, `ReadoutFrame` reads the vessel, its orbit and target once per refresh, `ReadoutMath` holds the sums free of the game, tested |
 | `ImpactGauge.cs` | the time to impact on KSP's vertical speed gauge, from the orbit against the ground's height |
 | `NavballSpeeds.cs` | the vertical and horizontal speed on the navball's right, in copies of its heading field |
