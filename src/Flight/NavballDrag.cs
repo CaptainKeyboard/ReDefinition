@@ -6,6 +6,7 @@ using KSP.UI.Screens.Flight;
 using ReDefinition.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace ReDefinition.Flight
 {
@@ -66,10 +67,17 @@ namespace ReDefinition.Flight
             if (panel == null || frame == null) return;
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon == null) return;
-            float wanted = Clamp(addon.NavballOffset);
-            if (Mathf.Abs(wanted - applied) < 0.5f) return;
-            Shift(wanted - applied);
+            // Worked out only when the setting changes, not every frame.
+            if (Mathf.Abs(addon.NavballOffset - requested) < 0.01f) return;
+            requested = addon.NavballOffset;
+            float wanted = Clamp(requested);
+            if (Mathf.Abs(wanted - applied) >= 0.5f) Shift(wanted - applied);
         }
+
+        private bool logged;
+
+        // The offset last asked for in the settings.
+        private float requested = float.NaN;
 
         // By the drag, in screen pixels: into the canvas's units, kept on screen,
         // and saved.
@@ -81,7 +89,7 @@ namespace ReDefinition.Flight
             float target = Clamp(applied + screenDelta / scale);
             Shift(target - applied);
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            if (addon != null) addon.NavballOffset = applied;
+            if (addon != null) addon.NavballOffset = requested = applied;
         }
 
         private void Shift(float dx)
@@ -99,37 +107,45 @@ namespace ReDefinition.Flight
         // At most as far as keeps everything of the navball on the screen, each
         // side on its own: the SAS modes stand out to the left of the frame
         // (AutopilotModes, sharedassets7), so the frame's own width is not enough.
-        // Measured over every child, the hidden ones too, relative to the frame
-        // as it stood at the centre.
+        // Measured where its pictures and texts stand now (every Graphic under the
+        // frame, the hidden ones too, since they show later), in the canvas's own
+        // units against the canvas's edges. Empty holders, which can reach far
+        // beyond what is drawn, do not count.
         private float Clamp(float offset)
         {
             Canvas canvas = frame.GetComponentInParent<Canvas>();
-            RectTransform canvasRect = canvas != null ? canvas.transform as RectTransform : null;
+            RectTransform canvasRect = canvas != null ? canvas.rootCanvas.transform as RectTransform : null;
             if (canvasRect == null) return offset;
-            if (!measured)
+            float min = float.MaxValue, max = float.MinValue;
+            Vector3[] corners = new Vector3[4];
+            foreach (Graphic graphic in frame.GetComponentsInChildren<Graphic>(true))
             {
-                Bounds bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(frame);
-                foreach (RectTransform child in frame.GetComponentsInChildren<RectTransform>(true))
+                graphic.rectTransform.GetWorldCorners(corners);
+                foreach (Vector3 corner in corners)
                 {
-                    Bounds one = RectTransformUtility.CalculateRelativeRectTransformBounds(frame, child);
-                    bounds.Encapsulate(one);
+                    float x = canvasRect.InverseTransformPoint(corner).x;
+                    min = Mathf.Min(min, x);
+                    max = Mathf.Max(max, x);
                 }
-                // Relative to the frame's pivot; the frame's own offset from the
-                // centre is what this clamps.
-                left = bounds.min.x + frame.anchoredPosition.x - applied;
-                right = bounds.max.x + frame.anchoredPosition.x - applied;
-                measured = true;
             }
-            float half = canvasRect.rect.width / 2f;
-            float lowest = -half - left;
-            float highest = half - right;
-            if (lowest > highest) return 0f;
+            if (min > max) return offset;
+            // The frame's offset in the canvas's units: the canvas and the frame's
+            // parents are not scaled against each other in KSP's flight UI, but the
+            // frame's parent may be.
+            float unit = frame.parent != null && canvasRect.lossyScale.x > 0f ? frame.parent.lossyScale.x / canvasRect.lossyScale.x : 1f;
+            if (unit <= 0f) unit = 1f;
+            float lowest = applied + (canvasRect.rect.xMin - min) / unit;
+            float highest = applied + (canvasRect.rect.xMax - max) / unit;
+            if (!logged)
+            {
+                logged = true;
+                Debug.Log(Log.Tag + " Navball drawn from " + min.ToString("0") + " to " + max.ToString("0") + " in a canvas from "
+                          + canvasRect.rect.xMin.ToString("0") + " to " + canvasRect.rect.xMax.ToString("0") + ": it moves from "
+                          + lowest.ToString("0") + " to " + highest.ToString("0") + ".");
+            }
+            if (lowest > highest) return applied;
             return Mathf.Clamp(offset, lowest, highest);
         }
-
-        private bool measured;
-        private float left;
-        private float right;
     }
 
     // On KSP's show/hide button: a drag moves the navball, a click still shows
