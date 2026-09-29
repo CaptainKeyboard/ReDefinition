@@ -218,6 +218,15 @@ namespace ReDefinition.Flight
             float left = Mathf.Max(backgroundRight, hover.fixedMaskStart.x + containerRect.xMin + containerRect.width * barFilled.xMin);
             if (right - left < 1f) throw new System.InvalidOperationException("no room for the button beside the time panel");
             Vector2 size = new Vector2(right - left, top - middle);
+            // Folded, the button stands beside the MET row, which the background's
+            // picture draws a row lower than the warp row (ZTheme's
+            // FlightTimeQuadrant.png: the warp row 34 of its 68 rows, the MET row
+            // 33, the last see-through); the button's height follows the panel
+            // from the one to the other, its top kept.
+            Image backgroundFace = background.GetComponent<Image>();
+            Rect backgroundFilled = Opaque(backgroundFace != null ? backgroundFace.sprite : null);
+            unfoldedHeight = size.y;
+            foldedHeight = middle - (bottom + (top - bottom) * backgroundFilled.yMin);
 
             // The MET button copied: its look and its states; its text, tooltip and
             // click taken away.
@@ -245,7 +254,8 @@ namespace ReDefinition.Flight
             button.spriteState = states;
 
             barRect = (RectTransform)bar.transform;
-            barRect.anchorMin = barRect.anchorMax = barRect.pivot = new Vector2(0.5f, 0.5f);
+            barRect.anchorMin = barRect.anchorMax = new Vector2(0.5f, 0.5f);
+            barRect.pivot = new Vector2(0.5f, 1f);
             barRect.sizeDelta = size;
             // Over the sunrise extension's mask, so that the extension slides out
             // from under it.
@@ -268,13 +278,23 @@ namespace ReDefinition.Flight
             Color colour;
             if (!Colour(sunrisePlate != null ? sunrisePlate.sprite : null, barFilled.center, out colour))
                 colour = new Color(0.2f, 0.2f, 0.22f, 1f);
-            float corner = Square(container, sunrisePlate, (sunrisePlate != null ? sunrisePlate.color : Color.white) * colour);
+            Color barColour = (sunrisePlate != null ? sunrisePlate.color : Color.white) * colour;
+            float corner = Square(container, sunrisePlate, barColour);
+            // KSP stands the extension's bar a little below the row line (its top
+            // at fixedMaskStart.y plus half its 33 units: -34.5 against -34), where
+            // nothing is drawn beside the background: a strip in the bar's colour
+            // closes it up to the line, over the bar's drawn width.
+            float barTop = hover.fixedMaskStart.y + containerRect.yMin + containerRect.height * barFilled.yMax;
+            float gap = middle - barTop;
+            if (gap > 0.05f) Strip(container, barFilled, gap, barColour);
 
             slide = row.GetComponent<UIHoverSlidePanel>();
-            unfolded = new Vector3((left + right) / 2f, (top + middle) / 2f, 0f);
+            unfolded = new Vector3((left + right) / 2f, top, 0f);
+            travel = slide != null ? Mathf.Abs(slide.positionNormal.y - slide.positionHovered.y) : 0f;
             Hold();
             TimeWarpButton.Replaced = true;
-            Debug.Log(Log.Tag + " Better Time Warp's button, the MET button copied, at the end of the warp row: from x "
+            Debug.Log(Log.Tag + " Better Time Warp's button, the MET button copied, at the end of the warp row: "
+                      + foldedHeight.ToString("0.0") + " high folded, the sunrise bar's gap to the row line " + gap.ToString("0.0") + "; from x "
                       + left.ToString("0.0") + " to " + right.ToString("0.0") + ", y " + middle.ToString("0.0") + " to " + top.ToString("0.0")
                       + " unfolded (the background's right edge " + backgroundRight.ToString("0.0") + ", the sunrise bar's picture over "
                       + barFilled.ToString("0.00") + "); its face from " + faceRows.ToString("0.00") + " of the MET sprite's height"
@@ -408,6 +428,29 @@ namespace ReDefinition.Flight
             if (barRect == null) return;
             Vector2 away = slide != null && slide.panel != null ? slide.panel.anchoredPosition - slide.positionHovered : Vector2.zero;
             barRect.localPosition = unfolded - (Vector3)away;
+            float folded = travel > 0f ? Mathf.Clamp01(Mathf.Abs(away.y) / travel) : 0f;
+            barRect.sizeDelta = new Vector2(barRect.sizeDelta.x, Mathf.Lerp(unfoldedHeight, foldedHeight, folded));
+        }
+
+        private float unfoldedHeight, foldedHeight, travel;
+
+        // A strip in the extension's bar colour from the top of its bar picture up
+        // by `gap`, over the picture's drawn width.
+        private static void Strip(RectTransform container, Rect filled, float gap, Color colour)
+        {
+            GameObject strip = new GameObject("ReDefinitionSunriseGap", typeof(RectTransform), typeof(Image));
+            strip.layer = container.gameObject.layer;
+            RectTransform stripRect = (RectTransform)strip.transform;
+            stripRect.SetParent(container, false);
+            stripRect.SetSiblingIndex(0);
+            stripRect.anchorMin = new Vector2(filled.xMin, filled.yMax);
+            stripRect.anchorMax = new Vector2(filled.xMax, filled.yMax);
+            stripRect.pivot = new Vector2(0.5f, 0f);
+            stripRect.anchoredPosition = Vector2.zero;
+            stripRect.sizeDelta = new Vector2(0f, gap);
+            Image image = strip.GetComponent<Image>();
+            image.color = colour;
+            image.raycastTarget = false;
         }
 
         private void LateUpdate()
