@@ -550,16 +550,3 @@ The plan keeps a stage's choice or the lander even while the vessel does not hav
 stage, for
 example while the player takes the vessel apart. Such a setting counts for
 nothing until the stage is back.
-
-## Where the approach comes from
-
-Two online planners were read for what a mission planner offers **[doc]**:
-
-* The KSP Visual Calculator by Blaarkies (All Rights Reserved) plans a trip through
-  checkpoints, with aerobraking and plane changes as choices, and shows the details of
-  each step. The planner's route of stops follows this concept.
-* The delta-v planner by Loïc Viennois (GPL-3.0) plans from one body to another on a
-  fixed delta-v map.
-
-Both work from a fixed map of the stock system. This planner works out the figures from
-the bodies the game has loaded, and assigns them to the vessel's own stages.

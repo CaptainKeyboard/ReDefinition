@@ -471,15 +471,13 @@ namespace ReDefinition.Engineer
         private static void ShowKerNotice()
         {
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionKerNotice",
-                "Kerbal Engineer Redux is installed. In the editor, its build window shows the same stage figures"
-                + " as ReDefinition's engineer window at the bottom of the screen, so you see them twice.\n\n"
-                + "If you use Kerbal Engineer only while building, uninstall it with CKAN or delete the folder"
-                + " GameData/KerbalEngineer. Its readouts in flight go with it.",
+                "Kerbal Engineer Redux is no longer needed: ReDefinition's engineer window and planner show the same"
+                + " information in the VAB and the SPH.",
                 "Kerbal Engineer Redux", HighLogic.UISkin, 440f,
                 new DialogGUIButton("OK", () => { }, true));
             UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin)));
-            Debug.Log(Log.Tag + " Kerbal Engineer Redux is installed; the notice on its figures shown twice was given.");
+            Debug.Log(Log.Tag + " Kerbal Engineer Redux is installed; the notice that it is no longer needed was shown.");
         }
     }
 }

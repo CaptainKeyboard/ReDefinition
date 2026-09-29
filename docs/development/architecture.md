@@ -270,8 +270,7 @@ KSP's UI textures by name, themes it with the rest of KSP's dialogs.
 | `Planner/` | the planner's route, fuel budget, plans and rows ([planner.md](planner.md)) |
 | `StageTable.cs`, `EngineerFormat.cs` | the stage table and how numbers are written; free of Unity, tested |
 
-How both sit in KSP's editor, and where Kerbal Engineer Redux's build view went:
-[engineer.md](engineer.md).
+How both sit in KSP's editor: [engineer.md](engineer.md).
 
 ## The flight UI, `src/Flight`
 

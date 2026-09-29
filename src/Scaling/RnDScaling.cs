@@ -26,8 +26,7 @@ namespace ReDefinition.Scaling
     //   keeps its own;
     // - the parts list's tiles are laid out by a GridLayoutGroup at the prefab's
     //   cell size; here each tile is drawn 1.2 times as large about its centre,
-    //   the gaps, padding and columns widened to match, as 4kSP Expanded's
-    //   RDSceneScaler.ScalePartsGrid lays them out.
+    //   the gaps, padding and columns widened to match.
     // 4kSP Expanded's R&D scaler is turned off (OtherScalers).
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     public class SpaceCentreScaling : MonoBehaviour

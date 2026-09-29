@@ -17,14 +17,13 @@
   scaling of the same things is turned off, so nothing grows twice. The UI scale row goes
   up to 400 %, in steps of 10 %.
 - **An engineer window in the VAB and the SPH.** A window at the bottom of the screen
-  shows the vessel's stages as Kerbal Engineer Redux's build window does, while you
-  build: parts, cost, mass, Isp, thrust, torque, TWR, delta-v and burn time per stage,
+  shows the vessel's stages while you build: parts, cost, mass, Isp, thrust, torque, TWR, delta-v and burn time per stage,
   or four columns in its compact form. It sums the vessel up, adds RCS and the resources
   on a click, and a card beside the pointer shows the part it rests on. The numbers come
   from KSP's own delta-v simulation, for a body and sea level, an altitude or vacuum,
   the same situation KSP's delta-v app uses. Drag it anywhere, or fold it to one line.
-  Its settings are under *Mods / Toolbar*, its key in *Controls*. If Kerbal Engineer
-  Redux is installed, ReDefinition recommends uninstalling it.
+  Its settings are under *Mods / Toolbar*, its key in *Controls*. Where Kerbal Engineer
+  Redux is installed, a notice says it is no longer needed.
 - **A mission planner in the VAB and the SPH.** A button with *Δv* on it, next to KSP's
   mode buttons, opens it in the parts list's place. It lays out a route from stop to
   stop, A → B → C, on the surface or in an orbit of any body the game has loaded, and

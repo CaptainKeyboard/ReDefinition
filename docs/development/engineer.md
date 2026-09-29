@@ -4,7 +4,7 @@
 SPH.
 **You need:** the repository, and `src/Engineer` open.
 **You get:** where the numbers come from, how the window and the planner sit in KSP's
-editor, and where each part of Kerbal Engineer Redux's build view went.
+editor, and what the window shows and leaves to KSP.
 
 The player's side is in [player/engineer.md](../player/engineer.md) and
 [player/planner.md](../player/planner.md). How the planner works out a route is in
@@ -140,36 +140,13 @@ Opening the planner from another mode switches KSP to the parts mode first
 that the two transitions do not run against each other. Any change of mode closes it
 (`GameEvents.onEditorScreenChange`), and so does KSP's parts button.
 
-## What Kerbal Engineer Redux's build view became
-
-Kerbal Engineer Redux (CYBUTEK, jrbudda; GPL-3.0) was read for the list of what its
-editor part offers (`KerbalEngineer/Editor` in its repository, version 1.1.9.5)
-**[src]**:
-
-| Kerbal Engineer | Here |
-|---|---|
-| build window with a stage table: parts, cost, mass, Isp, thrust, torque, TWR (max), delta-v, burn time | the engineer window's table, the same columns |
-| compact mode: stage, TWR, delta-v | *Compact*: stage, delta-v, TWR, burn time |
-| RCS columns per stage | *RCS*: the RCS thrusters of the last stage |
-| body list | the body's name, which opens the list of bodies |
-| atmospheric switch and altitude slider | *Sea level*, *Altitude* and *Vacuum*, KSP's delta-v app's situation |
-| Mach slider | left out. KSP's simulation takes no Mach number, so air-breathing engines are computed as KSP computes them |
-| *All stages* | the setting *Stages without delta-v* |
-| the overlay's vessel tab | the window's totals line, and its folded line |
-| the overlay's resources tab | *Resources* |
-| part information on hover | the card beside the pointer |
-| vectored thrust | the setting *Thrust along the vessel*, from KSP's `vectoredThrustActual` |
-| Real Fuels residuals, simulation log, minimum simulation delay | left out, since KSP runs the simulation |
-| GUI size | KSP's own UI scale |
-| window position | dragging the window; it keeps its place |
-| key bindings | *Engineer window (VAB / SPH)* in the *Controls* tab |
-| flight engineer and its settings | not part of the editor |
+## What the window leaves to KSP
 
 What KSP already shows in place stays KSP's. The delta-v in the staging stack, the
 engineer's report and the parts list's tooltips are not shown a second time. The stage
 table repeats KSP's per-stage numbers on purpose: comparing the stages needs them side by
 side in one place, and since they are KSP's own, they cannot disagree.
 
-When Kerbal Engineer is installed, `EditorEngineer` says once per game start that its
-build window shows the same figures, and that it can go where it is used only while
-building.
+Where Kerbal Engineer Redux is installed, `EditorEngineer` says once per game start that it
+is no longer needed, since the engineer window and the planner show the same information.
+Its windows stay as they are.

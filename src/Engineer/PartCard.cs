@@ -5,8 +5,8 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Engineer
 {
-    // A small card beside the pointer with the part it points at on the vessel,
-    // as Kerbal Engineer Redux's build overlay shows it: mass, cost, engine,
+    // A small card beside the pointer with the part it points at on the vessel:
+    // mass, cost, engine,
     // reaction wheel, decoupler, parachute, antenna and resources (PartDetails).
     // It shows after the pointer rests on a part, not over a window, and not
     // while a part hangs on the mouse.

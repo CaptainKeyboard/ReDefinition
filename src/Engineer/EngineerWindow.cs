@@ -11,8 +11,7 @@ using UnityEngine.UI;
 namespace ReDefinition.Engineer
 {
     // The engineer window in the VAB and the SPH (docs/player/engineer.md): the
-    // vessel's stages as a table, as Kerbal Engineer Redux's build window shows
-    // them, beside the parts list while the vessel is built. It stands at the
+    // vessel's stages as a table, beside the parts list while the vessel is built. It stands at the
     // bottom of the screen until the player drags it elsewhere, and folds to one
     // line. Built from KSP's dialog elements on the skin's window background, so
     // a UI theme reaches it as it reaches KSP's dialogs.
@@ -343,8 +342,8 @@ namespace ReDefinition.Engineer
                 : Columns(new[] { "Stage", "Parts", "Cost", "Mass", "Isp", "Thrust", "Torque", "TWR", "Δv", "Burn" });
         }
 
-        // KER's columns, and the four of its compact mode (KerbalEngineer's
-        // BuildAdvanced, read).
+        // Where each column starts, in per cent of the row: the full table, and the
+        // four columns of the compact one.
         private static readonly int[] FullAt = { 0, 7, 15, 25, 35, 43, 52, 60, 74, 88 };
         private static readonly int[] CompactAt = { 0, 22, 52, 74 };
 
