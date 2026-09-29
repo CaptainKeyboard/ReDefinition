@@ -7,9 +7,9 @@
 ## Open the tools
 
 Press KSP's *Δv* button at the bottom of the screen. Every stage opens its details, and
-in the VAB and the SPH the *Δv Tools* window slides in with them, under the lowest stage
-and above the vessel's total delta-v. Press the button again, and the details and the
-window slide out.
+in the VAB and the SPH the *Δv Tools* window slides in with them, from the side and from
+below, under the lowest stage and above the vessel's total delta-v; the stages above move
+up with it. Press the button again, and the details and the window slide out.
 
 The window has what the numbers are worked out for, in three rows and a slider:
 

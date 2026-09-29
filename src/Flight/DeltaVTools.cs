@@ -168,18 +168,22 @@ namespace ReDefinition.Flight
             }
             if (target <= 0f) return;
             float full = icons + target;
-            // Growing and shrinking with the details as they slide.
-            float width = full * Mathf.Clamp01(now / target);
+            // Growing and shrinking with the details as they slide, sideways and up
+            // from the bottom, so that the stages above move with it rather than
+            // jump.
+            float share = Mathf.Clamp01(now / target);
+            float width = full * share;
             // Only as the tools open or close: a stage opened by itself shows its
             // details alone.
             if (closing && width <= 0.5f) closing = false;
             bool shown = open || closing;
             if (box.gameObject.activeSelf != shown) box.gameObject.SetActive(shown);
             if (!shown) return;
-            if (!Mathf.Approximately(boxLayout.preferredWidth, width)) boxLayout.preferredWidth = width;
-            if (!Mathf.Approximately(frame.sizeDelta.x, full)) frame.sizeDelta = new Vector2(full, 0f);
             if (height <= 0f) height = Height();
-            if (!Mathf.Approximately(boxLayout.preferredHeight, height)) boxLayout.preferredHeight = height;
+            if (!Mathf.Approximately(boxLayout.preferredWidth, width)) boxLayout.preferredWidth = width;
+            if (!Mathf.Approximately(boxLayout.preferredHeight, height * share)) boxLayout.preferredHeight = height * share;
+            Vector2 size = new Vector2(full, height);
+            if (frame.sizeDelta != size) frame.sizeDelta = size;
         }
 
         // The box in the stack's bottom group, right before the total delta-v; the
@@ -210,10 +214,11 @@ namespace ReDefinition.Flight
             frame = (RectTransform)appFrame.transform;
             frame.SetParent(box, false);
             frame.localScale = Vector3.one;
-            // Pinned to the stages' side: the right in the VAB and the SPH.
-            frame.anchorMin = new Vector2(1f, 0f);
+            // Pinned to the stages' side, the right in the VAB and the SPH, and to the
+            // box's top: as the box grows, the frame rises into it from below.
+            frame.anchorMin = new Vector2(1f, 1f);
             frame.anchorMax = new Vector2(1f, 1f);
-            frame.pivot = new Vector2(1f, 0.5f);
+            frame.pivot = new Vector2(1f, 1f);
             frame.anchoredPosition = Vector2.zero;
             if (appFrame.header != null) appFrame.header.text = KSP.Localization.Localizer.Format("#autoLOC_8003216");
             if (appFrame.dragHeader != null) appFrame.dragHeader.enabled = false;
