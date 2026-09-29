@@ -172,7 +172,8 @@ namespace ReDefinition.Flight
             // from the bottom, so that the stages above move with it rather than
             // jump.
             float share = Mathf.Clamp01(now / target);
-            float width = full * share;
+            // In whole pixels, so that what stands below does not shift by a fraction.
+            float width = Mathf.Round(full * share);
             // Only as the tools open or close: a stage opened by itself shows its
             // details alone.
             if (closing && width <= 0.5f) closing = false;
@@ -181,7 +182,8 @@ namespace ReDefinition.Flight
             if (!shown) return;
             if (height <= 0f) height = Height();
             if (!Mathf.Approximately(boxLayout.preferredWidth, width)) boxLayout.preferredWidth = width;
-            if (!Mathf.Approximately(boxLayout.preferredHeight, height * share)) boxLayout.preferredHeight = height * share;
+            float tall = Mathf.Round(height * share);
+            if (!Mathf.Approximately(boxLayout.preferredHeight, tall)) boxLayout.preferredHeight = tall;
             Vector2 size = new Vector2(full, height);
             if (frame.sizeDelta != size) frame.sizeDelta = size;
         }

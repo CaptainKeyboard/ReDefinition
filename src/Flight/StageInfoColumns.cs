@@ -28,11 +28,16 @@ namespace ReDefinition.Flight
     // While a stage's details are out, its part icons stand in two columns as
     // well (StageGroup.IconsUIList, a vertical layout, swapped for IconColumnsLayout;
     // its column, StageIcons, and the list as wide as two icons), moving from one
-    // column to two as the details slide in, and back as they slide out. While
-    // anything is dragged in the stack (StageGroup.IsBeingDragged, StageIcon.
-    // underDrag) every stage keeps KSP's one column: KSP works out where a dragged
-    // icon or stage lands from the heights of the icons one below the other
-    // (StageGroup.GetStageGroupIndex, StageManager.GetStageGroupInsertionIndex).
+    // column to two as the details slide in, and back as they slide out. They stay
+    // in two columns while an icon or a stage is dragged: KSP finds where a dragged
+    // icon lands by the icons' heights (StageGroup.GetStageGroupIndex), which in two
+    // columns picks the row, and its placeholder (a ResizingLayoutElement among the
+    // icons) takes a place in the grid. A stage without icons takes the width the
+    // others have, from the size an icon had last. KSP fits the stack's hover area to
+    // its widest stage only once a slide ends (StageManager.UpdateHoverArea, from
+    // StageGroup.OnInfoPanelSlideComplete); the stages hang from that area, so it is
+    // fitted every frame here, and the stages move with the slide rather than at its
+    // end.
     //
     // The stage list clips what it shows to the stack's own width (its ScrollRect's
     // Mask; the stack root 250 wide in the editor, 265 in flight, read from the
@@ -120,6 +125,9 @@ namespace ReDefinition.Flight
         }
 
         private readonly Dictionary<GameObject, IconColumn> iconColumns = new Dictionary<GameObject, IconColumn>();
+        // The size of an icon as KSP laid it out last, for a stage without icons.
+        private static Vector2 lastCell;
+        private static readonly MethodInfo UpdateHoverArea = typeof(StageManager).GetMethod("UpdateHoverArea", Private);
         private bool noted;
         private bool failed;
 
@@ -148,10 +156,10 @@ namespace ReDefinition.Flight
             try
             {
                 TakeOutDeltaV();
-                bool dragging = Dragging(manager);
                 foreach (StageGroup group in manager.Stages)
-                    if (group != null) Arrange(group, column, dragging);
+                    if (group != null) Arrange(group, column);
                 KeepStackWide(manager);
+                if (UpdateHoverArea != null) UpdateHoverArea.Invoke(manager, null);
             }
             catch (Exception e)
             {
@@ -160,13 +168,13 @@ namespace ReDefinition.Flight
             }
         }
 
-        private void Arrange(StageGroup group, float column, bool dragging)
+        private void Arrange(StageGroup group, float column)
         {
             LayoutElement panel = PanelField.GetValue(group) as LayoutElement;
             if (panel == null) return;
             float target = (float)WidthField.GetValue(group);
             float blend = panel.gameObject.activeInHierarchy && target > 0f ? Mathf.Clamp01(panel.preferredWidth / target) : 0f;
-            Icons(group, dragging ? 0f : blend, dragging);
+            Icons(group, blend);
             List<StageGroupInfoItem> lines = InfosField.GetValue(group) as List<StageGroupInfoItem>;
             int count = lines != null ? lines.Count : 0;
             GameObject host = panel.gameObject;
@@ -278,19 +286,6 @@ namespace ReDefinition.Flight
             }
         }
 
-        // Something in the stack is dragged: a stage or an icon.
-        private static bool Dragging(StageManager manager)
-        {
-            foreach (StageGroup group in manager.Stages)
-            {
-                if (group == null) continue;
-                if (group.IsBeingDragged) return true;
-                foreach (StageIcon icon in group.Icons)
-                    if (icon != null && icon.underDrag) return true;
-            }
-            return false;
-        }
-
         // The width of a stage's icons column now, KSP's or two icons wide.
         internal static float IconsWidth(StageGroup group)
         {
@@ -306,9 +301,8 @@ namespace ReDefinition.Flight
         }
 
         // The part icons blended between KSP's one column (0) and two (1); KSP's own
-        // vertical layout back once at one column, and at once while anything is
-        // dragged (`back`).
-        private void Icons(StageGroup group, float blend, bool back)
+        // vertical layout back once at one column.
+        private void Icons(StageGroup group, float blend)
         {
             RectTransform list = group.IconsUIList;
             if (list == null) return;
@@ -319,7 +313,7 @@ namespace ReDefinition.Flight
             IconColumn saved;
             if (columns2 != null && iconColumns.TryGetValue(host, out saved))
             {
-                if (back || blend <= 0f)
+                if (blend <= 0f)
                 {
                     DestroyImmediate(columns2);
                     VerticalLayoutGroup vertical = host.AddComponent<VerticalLayoutGroup>();
@@ -339,9 +333,11 @@ namespace ReDefinition.Flight
                 Widen(saved, columns2, blend, listLayout, columnLayout);
                 return;
             }
-            if (back || blend <= 0f) return;
+            if (blend <= 0f) return;
             VerticalLayoutGroup list1 = host.GetComponent<VerticalLayoutGroup>();
             Vector2 cell = IconSize(list);
+            if (cell.x > 0f && cell.y > 0f) lastCell = cell;
+            else cell = lastCell;
             if (list1 == null || cell.x <= 0f || cell.y <= 0f) return;
             saved = new IconColumn
             {
