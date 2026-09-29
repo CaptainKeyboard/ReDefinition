@@ -355,25 +355,25 @@ namespace ReDefinition.Flight
         }
 
         // The stage's burn time left at full thrust (KSP's delta-v simulation,
-        // DeltaVStageInfo.stageBurnTime); the arc its fuel left against the most
-        // it had while it was the stage.
-        private static int fuelStage = -1;
-        private static Vessel fuelVessel;
-        private static double fuelMost;
+        // DeltaVStageInfo.stageBurnTime); the arc that time against the most it
+        // was while it was the stage, so that it runs out with the digits.
+        private static int burnStage = -1;
+        private static Vessel burnVessel;
+        private static double burnMost;
 
         private static Reading StageReading(ReadoutFrame frame)
         {
             Vessel vessel = frame.Vessel;
             DeltaVStageInfo stage = vessel.VesselDeltaV != null ? vessel.VesselDeltaV.GetStage(vessel.currentStage) : null;
-            if (stage == null || stage.stageBurnTime <= 0.0 || stage.fuelMass <= 0f) return new Reading();
-            if (vessel != fuelVessel || vessel.currentStage != fuelStage)
+            if (stage == null || stage.stageBurnTime <= 0.0) return new Reading();
+            if (vessel != burnVessel || vessel.currentStage != burnStage)
             {
-                fuelVessel = vessel;
-                fuelStage = vessel.currentStage;
-                fuelMost = 0.0;
+                burnVessel = vessel;
+                burnStage = vessel.currentStage;
+                burnMost = 0.0;
             }
-            fuelMost = Math.Max(fuelMost, stage.fuelMass);
-            double left = stage.fuelMass / fuelMost;
+            burnMost = Math.Max(burnMost, stage.stageBurnTime);
+            double left = stage.stageBurnTime / burnMost;
             return new Reading
             {
                 Text = EngineerFormat.Time(stage.stageBurnTime),

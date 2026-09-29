@@ -36,7 +36,7 @@ is doing, as the flight panel picks its profile. The gauge keeps your choice.
 
 | Figure | Digits | Arc | Picked on *AUTO* |
 |---|---|---|---|
-| *STAGE* | burn time left in the stage at full thrust | the stage's fuel left; amber below a quarter, red below a tenth | on the way up; in orbit without a maneuver |
+| *STAGE* | burn time left in the stage at full thrust | that time against the stage's full burn time, so it runs out with the digits; amber below a quarter, red below a tenth | on the way up; in orbit without a maneuver |
 | *BURN* | time until the maneuver's burn starts, then the delta-v left | fills over the last minute before the burn, amber in the last ten seconds; during the burn how much is done, amber in the last tenth | in orbit or on the way to a target, with a maneuver |
 | *IMPACT* | time until the vessel's path meets the ground | how close it is to the last moment to brake; red when it is time to fire | coming down |
 | *CLOSING* | how fast the vessel closes on its target, or on the target's port | half full at a safe speed for the distance: a hundredth of it per second, at least 0.2 m/s; amber above, red at one and a half times | docking; on the way to a target without a maneuver |
