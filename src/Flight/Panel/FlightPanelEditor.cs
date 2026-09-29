@@ -1,0 +1,184 @@
+using System.Collections.Generic;
+using ReDefinition.Core;
+using ReDefinition.Engineer;
+using ReDefinition.Flight.Readouts;
+using UnityEngine;
+
+namespace ReDefinition.Flight.Panel
+{
+    // The window the flight panel's pencil opens: the profile of the tab shown,
+    // with its name, its readouts in order (each up, down or out) and every other
+    // readout to add, by group; a new profile, removing one, and the defaults. Made
+    // of KSP's dialog parts (PopupDialog, MultiOptionDialog), so that a UI theme
+    // themes it as it themes KSP's. A change takes effect at once in the tabs and
+    // is saved (FlightProfiles.Save); the window is made anew after each, above
+    // the panel. New and removed profiles get their tab with the next flight scene,
+    // since KSP builds the panel's tabs once as it starts. While it is open, the
+    // keyboard does not steer the vessel (a control lock), so that typing a name
+    // does not stage it.
+    internal static class FlightPanelEditor
+    {
+        private const float Width = 400f;
+        private const float RowHeight = 22f;
+        private static PopupDialog shown;
+        private static int editing;
+        // Above the flight panel, at the bottom left.
+        private static readonly Vector2 Place = new Vector2(0.2f, 0.45f);
+        // Keys typed into its name field go to the field, not to the vessel's
+        // controls: staging is on the space bar.
+        private const string Lock = "ReDefinitionFlightPanelEditor";
+
+        internal static void Open(int profile)
+        {
+            editing = Mathf.Clamp(profile, 0, FlightProfiles.Current.Count - 1);
+            Show();
+        }
+
+        internal static void Close()
+        {
+            if (shown != null) shown.Dismiss();
+            shown = null;
+            InputLockManager.RemoveControlLock(Lock);
+        }
+
+        // The lock let go where the window went another way than its Close: KSP
+        // dismisses popups as a scene ends.
+        internal static void Tick()
+        {
+            if (shown == null && InputLockManager.GetControlLock(Lock) != ControlTypes.None) InputLockManager.RemoveControlLock(Lock);
+        }
+
+        private static void Show()
+        {
+            if (shown != null) shown.Dismiss();
+            List<FlightProfile> profiles = FlightProfiles.Current;
+            if (profiles.Count == 0) return;
+            FlightProfile profile = profiles[editing];
+            float rowWidth = Width - 40f;
+            List<DialogGUIBase> rows = new List<DialogGUIBase>();
+
+            // Its name, and the other profiles to switch to.
+            List<DialogGUIBase> names = new List<DialogGUIBase> { new DialogGUILabel("Profile", 70f, RowHeight) };
+            DialogGUITextInput name = new DialogGUITextInput(profile.Name, false, 24, text =>
+            {
+                if (!string.IsNullOrEmpty(text) && text != profile.Name)
+                {
+                    profile.Name = text;
+                    FlightProfiles.Save();
+                }
+                return text;
+            }, 180f, RowHeight);
+            names.Add(name);
+            names.Add(new DialogGUIButton("Next", () =>
+            {
+                editing = (editing + 1) % FlightProfiles.Current.Count;
+                Show();
+            }, 60f, RowHeight, false));
+            rows.Add(new DialogGUIHorizontalLayout(rowWidth, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft, names.ToArray()));
+            rows.Add(new DialogGUISpace(6f));
+
+            // Its readouts, in order.
+            rows.Add(new DialogGUILabel("<b>Shown, in this order</b>", rowWidth, RowHeight));
+            for (int i = 0; i < profile.Keys.Count; i++)
+            {
+                int index = i;
+                Readout readout = ReadoutCatalog.Find(profile.Keys[i]);
+                if (readout == null) continue;
+                rows.Add(new DialogGUIHorizontalLayout(rowWidth, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                    new DialogGUILabel(Title(readout), rowWidth - 3f * 58f - 3f * 4f, RowHeight),
+                    new DialogGUIButton("Up", () => Move(profile, index, -1), 58f, RowHeight, false),
+                    new DialogGUIButton("Down", () => Move(profile, index, 1), 58f, RowHeight, false),
+                    new DialogGUIButton("Remove", () => Remove(profile, index), 58f, RowHeight, false)));
+            }
+            rows.Add(new DialogGUISpace(6f));
+
+            // Every other readout, by group.
+            foreach (string group in ReadoutCatalog.Groups)
+            {
+                List<Readout> others = ReadoutCatalog.All.FindAll(readout => readout.Group == group && !profile.Keys.Contains(readout.Key));
+                if (others.Count == 0) continue;
+                rows.Add(new DialogGUILabel("<b>Add: " + group + "</b>", rowWidth, RowHeight));
+                foreach (Readout readout in others)
+                {
+                    string key = readout.Key;
+                    rows.Add(new DialogGUIButton("+  " + Title(readout), () => Add(profile, key), rowWidth, RowHeight, false));
+                }
+            }
+
+            DialogGUIScrollList list = new DialogGUIScrollList(new Vector2(Width - 20f, 360f), false, true,
+                new DialogGUIVerticalLayout(rowWidth, -1f, 2f, new RectOffset(4, 4, 4, 4), TextAnchor.UpperLeft, rows.ToArray()));
+            DialogGUIHorizontalLayout buttons = new DialogGUIHorizontalLayout(Width - 20f, 30f, 6f, new RectOffset(), TextAnchor.MiddleCenter,
+                new DialogGUIButton("New profile", NewProfile, 100f, 26f, false),
+                new DialogGUIButton("Delete profile", () => Delete(profile), 100f, 26f, false),
+                new DialogGUIButton("Defaults", Defaults, 80f, 26f, false),
+                new DialogGUIButton("Close", Close, 70f, 26f, false));
+            DialogGUILabel note = new DialogGUILabel(
+                "<color=#9a9a9a>A new or deleted profile takes its tab with the next flight scene.</color>", Width - 20f, 18f);
+            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionFlightPanelEditor", "", "Flight panel", HighLogic.UISkin,
+                Width, list, note, buttons);
+            shown = PopupDialog.SpawnPopupDialog(Place, Place, dialog, false, HighLogic.UISkin);
+            PlannerWidgets.Settle(list);
+            InputLockManager.SetControlLock(ControlTypes.KEYBOARDINPUT, Lock);
+        }
+
+        private static string Title(Readout readout)
+        {
+            return readout.Title.Substring(0, 1) + readout.Title.Substring(1).ToLowerInvariant();
+        }
+
+        private static void Move(FlightProfile profile, int index, int by)
+        {
+            int to = index + by;
+            if (to < 0 || to >= profile.Keys.Count) return;
+            string key = profile.Keys[index];
+            profile.Keys.RemoveAt(index);
+            profile.Keys.Insert(to, key);
+            Changed();
+        }
+
+        private static void Remove(FlightProfile profile, int index)
+        {
+            if (index < 0 || index >= profile.Keys.Count) return;
+            profile.Keys.RemoveAt(index);
+            Changed();
+        }
+
+        private static void Add(FlightProfile profile, string key)
+        {
+            if (!profile.Keys.Contains(key)) profile.Keys.Add(key);
+            Changed();
+        }
+
+        private static void NewProfile()
+        {
+            FlightProfiles.Current.Add(new FlightProfile { Name = "Profile " + (FlightProfiles.Current.Count + 1), Situation = PanelSituation.Manual });
+            editing = FlightProfiles.Current.Count - 1;
+            Changed();
+        }
+
+        private static void Delete(FlightProfile profile)
+        {
+            if (FlightProfiles.Current.Count <= 1) return;
+            FlightProfiles.Current.Remove(profile);
+            editing = Mathf.Clamp(editing, 0, FlightProfiles.Current.Count - 1);
+            Changed();
+        }
+
+        private static void Defaults()
+        {
+            FlightProfiles.Current.Clear();
+            FlightProfiles.Current.AddRange(FlightProfiles.Defaults());
+            editing = 0;
+            Changed();
+        }
+
+        // Saved, the tabs built anew, and the window made again.
+        private static void Changed()
+        {
+            FlightProfiles.Save();
+            foreach (ProfileTab tab in Object.FindObjectsOfType<ProfileTab>()) tab.Build();
+            Debug.Log(Log.Tag + " Flight panel profile changed.");
+            Show();
+        }
+    }
+}

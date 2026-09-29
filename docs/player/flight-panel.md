@@ -29,6 +29,21 @@ profile holds more than two columns. The mode buttons beside it move along.
 A value that needs a target, or a docking port as the target, shows only while there
 is one.
 
+## Change a profile
+
+The pencil after the tabs opens the profile of the tab shown:
+
+1. *Next* steps to the next profile; its name can be typed over.
+2. Under *Shown, in this order*, *Up* and *Down* move a value, *Remove* takes it out.
+3. Under *Add*, grouped as Orbit, Surface, Vessel, Air, Rendezvous and Docking, a click
+   adds a value at the end.
+4. *New profile* adds an empty one, *Delete profile* removes the one shown, *Defaults*
+   brings back the six profiles as ReDefinition ships them.
+
+A change shows in the panel at once and is kept for every save. A new or deleted
+profile gets or loses its tab with the next flight scene. A profile of your own shows
+only when you pick it. While the window is open, the keyboard does not steer the vessel.
+
 ## The profile follows the situation
 
 With *Flight panel follows the situation* on, under *Mods / Toolbar*, the panel switches

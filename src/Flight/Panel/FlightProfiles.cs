@@ -15,6 +15,8 @@ namespace ReDefinition.Flight.Panel
         Landing,
         Docking,
         Air,
+        // A profile of the player's own, shown only when picked.
+        Manual,
     }
 
     // A set of readouts the flight panel shows together (ReadoutCatalog), under a

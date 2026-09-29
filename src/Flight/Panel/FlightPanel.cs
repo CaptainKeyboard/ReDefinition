@@ -72,13 +72,14 @@ namespace ReDefinition.Flight.Panel
                 HarmonyHooks.Install("ReDefinition.FlightPanel", typeof(FlightPanel), new List<HarmonyHook>
                 {
                     new HarmonyHook(typeof(ManeuverNodeEditorManager).GetMethod("Start", BindingFlags.Instance | BindingFlags.NonPublic),
-                        nameof(BeforeStart), null, null),
+                        nameof(BeforeStart), nameof(AfterStart), null),
                 }));
         }
 
         private void OnDestroy()
         {
             if (current == this) current = null;
+            FlightPanelEditor.Close();
         }
 
         // Before KSP builds its tabs: the profiles in place of its orbit tabs.
@@ -131,6 +132,68 @@ namespace ReDefinition.Flight.Panel
                 tabs.Insert(Math.Min(at + i, tabs.Count), tab);
             }
             Debug.Log(Log.Tag + " Flight panel: " + profiles.Count + " profiles in place of KSP's orbit tabs.");
+        }
+
+        private static readonly FieldInfo LeftButtons =
+            typeof(ManeuverNodeEditorManager).GetField("leftTabButtons", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        // After KSP built its tabs: the tab buttons narrowed to fit the pane
+        // (KSP's are 44 wide, three of them), and a pencil after them, a copy of
+        // one without its toggle, that opens the profile editor for the tab shown.
+        private static void AfterStart(ManeuverNodeEditorManager __instance)
+        {
+            try
+            {
+                Pencil(__instance);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " The flight panel has no pencil to edit its profiles: " + e.Message);
+            }
+        }
+
+        private static void Pencil(ManeuverNodeEditorManager manager)
+        {
+            List<ManeuverNodeEditorTabButton> buttons = LeftButtons != null ? LeftButtons.GetValue(manager) as List<ManeuverNodeEditorTabButton> : null;
+            if (buttons == null || buttons.Count == 0) return;
+            Transform row = buttons[0].transform.parent;
+            RectTransform pane = manager.transform.Find("LeftPane") as RectTransform;
+            float room = pane != null ? pane.rect.width : 185f;
+            float each = Mathf.Min(44f, Mathf.Floor(room / (buttons.Count + 1)));
+            foreach (ManeuverNodeEditorTabButton button in buttons)
+            {
+                UnityEngine.UI.LayoutElement layout = button.GetComponent<UnityEngine.UI.LayoutElement>();
+                if (layout != null) layout.preferredWidth = each;
+            }
+
+            GameObject pencil = Instantiate(buttons[0].gameObject, row, false);
+            pencil.name = "ReDefinitionPanelEdit";
+            DestroyImmediate(pencil.GetComponent<ManeuverNodeEditorTabButton>());
+            DestroyImmediate(pencil.GetComponent<UnityEngine.UI.Toggle>());
+            UnityEngine.UI.Image background = pencil.GetComponent<UnityEngine.UI.Image>();
+            UnityEngine.UI.Button click = pencil.AddComponent<UnityEngine.UI.Button>();
+            click.targetGraphic = background;
+            click.onClick.AddListener(() => FlightPanelEditor.Open(Shown(manager)));
+            Transform onIcon = pencil.transform.Find("IconOn");
+            if (onIcon != null) onIcon.gameObject.SetActive(false);
+            Transform offIcon = pencil.transform.Find("IconOff");
+            Sprite sprite = Icon("Edit_Off");
+            if (offIcon != null && sprite != null) offIcon.GetComponent<UnityEngine.UI.Image>().sprite = sprite;
+            KSP.UI.TooltipTypes.TooltipController_Text tooltip = pencil.GetComponent<KSP.UI.TooltipTypes.TooltipController_Text>();
+            if (tooltip != null) tooltip.textString = "Edit the flight panel's profiles";
+            Debug.Log(Log.Tag + " Flight panel: " + buttons.Count + " tab buttons " + each.ToString("0") + " wide, and a pencil.");
+        }
+
+        // The profile of the tab shown.
+        private static int Shown(ManeuverNodeEditorManager manager)
+        {
+            if (manager.LeftTabs != null)
+                foreach (ManeuverNodeEditorTab tab in manager.LeftTabs)
+                {
+                    ProfileTab profile = tab as ProfileTab;
+                    if (profile != null && profile.gameObject.activeSelf) return profile.Profile;
+                }
+            return 0;
         }
 
         // KSP's own icons for the orbit and the intercept; ours for the others
@@ -231,6 +294,7 @@ namespace ReDefinition.Flight.Panel
 
         private void Update()
         {
+            FlightPanelEditor.Tick();
             if (Time.unscaledTime < next) return;
             next = Time.unscaledTime + Interval;
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
