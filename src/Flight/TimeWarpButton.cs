@@ -1,35 +1,43 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using KSP.UI;
-using TMPro;
+using KSP.UI.Screens.Flight;
 using ReDefinition.Core;
 using ReDefinition.Scaling;
 using ReDefinition.Settings;
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace ReDefinition.Flight
 {
-    // Better Time Warp Continued's drop-down button right of the time warp gauge's
-    // "WARP" label. The mod draws it with IMGUI at a place worked out from KSP's stock
-    // time panel (BetterTimeWarp.OnGUI: `new Rect(scale * y, x, ...)`, y from 283
-    // and the CommNet icons shown; its source read), which a UI theme's panel does
-    // not keep, so the button stands apart from the gauge. Its Rect is taken here
-    // from where the label's text ends (the gauge's Label_Warp, a TextMeshProUGUI,
-    // read with UnityPy from sharedassets7; through the UI camera), in the mod's own
-    // size: a transpiler routes that one Rect through Place. Where the label is not
-    // found, the mod's own place stays.
+    // Better Time Warp Continued's drop-down button as part of KSP's time panel, at
+    // the end of the warp row. The mod draws it with IMGUI at a place worked out from
+    // KSP's stock panel (BetterTimeWarp.OnGUI: `GUI.Toggle(new Rect(scale * y, x,
+    // ...), windowOpen, buttonContent, skin.button)`; its source read), which a UI
+    // theme's panel does not keep. Here the warp-to-sunrise extension of the time
+    // panel's lower row (UIWarpToNextMorning's WarpToSunriseContainer, its bar and its
+    // button; the panel read with UnityPy from sharedassets7) is copied into the warp
+    // row, so that it has the extension's shape, size and theme: its button right
+    // after the row's WARP label (Label_Warp), showing the mod's arrow and opening the
+    // mod's window (BetterTimeWarp.UIOpen). The mod's own IMGUI button is not drawn
+    // while the copy stands (a transpiler routes its GUI.Toggle through Toggle);
+    // where the panel is not found, it stays, right of the WARP label (Place).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class TimeWarpButton : MonoBehaviour
     {
-        private const string ModType = "BetterTimeWarp.BetterTimeWarp";
-        // Between the label and the drop-down button, in KSP's UI units.
+        internal const string ModType = "BetterTimeWarp.BetterTimeWarp";
+        // Between the label and the button, in KSP's UI units.
         private const float Gap = 4f;
 
+        // The copy in the time panel stands: the mod's own button is not drawn.
+        internal static bool Replaced;
         private static TextMeshProUGUI label;
         private static float lookedAt = -10f;
-        private static int replaced;
+        private static int routed;
 
         private void Awake()
         {
@@ -39,35 +47,41 @@ namespace ReDefinition.Flight
             {
                 MethodInfo onGui = mod.GetMethod("OnGUI", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                 HarmonyHooks.Install("ReDefinition.TimeWarpButton", typeof(TimeWarpButton),
-                    new List<HarmonyHook> { new HarmonyHook(onGui, null, null, null, -1, -1, nameof(RouteRect)) });
-                Debug.Log(Log.Tag + " Better Time Warp's button placed right of the WARP label (" + replaced + " place).");
+                    new List<HarmonyHook> { new HarmonyHook(onGui, null, null, null, -1, -1, nameof(Route)) });
+                Debug.Log(Log.Tag + " Better Time Warp's button: " + routed + " of 2 calls routed.");
             });
         }
 
-        // The Rect built right before GUI.Toggle, the drop-down button's, built
-        // through Place instead.
-        private static IEnumerable<CodeInstruction> RouteRect(IEnumerable<CodeInstruction> instructions)
+        // The mod's GUI.Toggle through Toggle, and the Rect built right before it
+        // through Place.
+        private static IEnumerable<CodeInstruction> Route(IEnumerable<CodeInstruction> instructions)
         {
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
             ConstructorInfo rect = typeof(Rect).GetConstructor(new[] { typeof(float), typeof(float), typeof(float), typeof(float) });
             MethodInfo place = typeof(TimeWarpButton).GetMethod(nameof(Place), BindingFlags.Static | BindingFlags.NonPublic);
+            MethodInfo toggle = typeof(TimeWarpButton).GetMethod(nameof(Toggle), BindingFlags.Static | BindingFlags.NonPublic);
             for (int i = 0; i < code.Count; i++)
             {
                 MethodInfo called = code[i].operand as MethodInfo;
-                if (code[i].opcode != OpCodes.Call || called == null || called.DeclaringType != typeof(GUI) || called.Name != "Toggle") continue;
+                if (code[i].opcode != OpCodes.Call || called == null || called.DeclaringType != typeof(GUI) || called.Name != "Toggle"
+                    || called.GetParameters().Length != 4) continue;
+                code[i] = new CodeInstruction(OpCodes.Call, toggle) { labels = code[i].labels, blocks = code[i].blocks };
+                routed++;
                 for (int j = i - 1; j >= 0; j--)
                 {
                     if (code[j].opcode != OpCodes.Newobj || !Equals(code[j].operand, rect)) continue;
-                    CodeInstruction call = new CodeInstruction(OpCodes.Call, place);
-                    call.labels.AddRange(code[j].labels);
-                    call.blocks.AddRange(code[j].blocks);
-                    code[j] = call;
-                    replaced++;
+                    code[j] = new CodeInstruction(OpCodes.Call, place) { labels = code[j].labels, blocks = code[j].blocks };
+                    routed++;
                     break;
                 }
                 break;
             }
             return code;
+        }
+
+        private static bool Toggle(Rect position, bool value, GUIContent content, GUIStyle style)
+        {
+            return Replaced ? value : GUI.Toggle(position, value, content, style);
         }
 
         // Right of the label's text, centred on it, in screen pixels from the top left
@@ -78,21 +92,140 @@ namespace ReDefinition.Flight
             Camera camera = UIMasterController.Instance != null ? UIMasterController.Instance.uiCamera : null;
             if (text == null || camera == null || !text.gameObject.activeInHierarchy) return new Rect(x, y, width, height);
             Bounds bounds = text.textBounds;
-            RectTransform rect = text.rectTransform;
-            Vector2 end = RectTransformUtility.WorldToScreenPoint(camera, rect.TransformPoint(new Vector3(bounds.max.x, bounds.center.y, 0f)));
-            float gap = Gap * GameSettings.UI_SCALE;
-            return new Rect(end.x + gap, Screen.height - end.y - height / 2f, width, height);
+            Vector2 end = RectTransformUtility.WorldToScreenPoint(camera,
+                text.rectTransform.TransformPoint(new Vector3(bounds.max.x, bounds.center.y, 0f)));
+            return new Rect(end.x + Gap * GameSettings.UI_SCALE, Screen.height - end.y - height / 2f, width, height);
         }
 
-        // The gauge's label, looked for again a second after it was not found.
-        private static TextMeshProUGUI Label()
+        // The warp row's label, looked for again a second after it was not found.
+        internal static TextMeshProUGUI Label()
         {
             if (label != null) return label;
             if (Time.unscaledTime - lookedAt < 1f) return null;
             lookedAt = Time.unscaledTime;
-            GameObject found = GameObject.Find("Label_Warp");
-            label = found != null ? found.GetComponent<TextMeshProUGUI>() : null;
+            foreach (TextMeshProUGUI text in Resources.FindObjectsOfTypeAll<TextMeshProUGUI>())
+                if (text != null && text.name == "Label_Warp" && text.gameObject.scene.IsValid()) label = text;
             return label;
+        }
+    }
+
+    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    public class TimeWarpBarFlight : TimeWarpBar
+    {
+    }
+
+    [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
+    public class TimeWarpBarSpaceCentre : TimeWarpBar
+    {
+    }
+
+    // The copy of the warp-to-sunrise extension in the warp row (TimeWarpButton).
+    public abstract class TimeWarpBar : MonoBehaviour
+    {
+        private const float Gap = 4f;
+        private static readonly FieldInfo ContentField = UiScaling.TypeOf(TimeWarpButton.ModType) != null
+            ? UiScaling.TypeOf(TimeWarpButton.ModType).GetField("buttonContent", BindingFlags.Instance | BindingFlags.NonPublic)
+            : null;
+
+        private GameObject bar;
+        private Image icon;
+        private TextMeshProUGUI label;
+        private MonoBehaviour mod;
+        private Texture shown;
+
+        private IEnumerator Start()
+        {
+            System.Type type = UiScaling.TypeOf(TimeWarpButton.ModType);
+            if (type == null) yield break;
+            float until = Time.unscaledTime + 15f;
+            UIWarpToNextMorning sunrise = null;
+            while (Time.unscaledTime < until)
+            {
+                label = TimeWarpButton.Label();
+                sunrise = Find<UIWarpToNextMorning>();
+                mod = FindObjectOfType(type) as MonoBehaviour;
+                if (label != null && sunrise != null && mod != null) break;
+                yield return new WaitForSecondsRealtime(0.5f);
+            }
+            if (label == null || sunrise == null || mod == null) yield break;
+            try
+            {
+                Build(sunrise);
+            }
+            catch (System.Exception e)
+            {
+                CompatibilityLog.Warn("timewarp-bar", "Better Time Warp's button stays where the mod puts it ("
+                                                      + CompatibilityLog.Reason(e) + ").");
+                if (bar != null) Destroy(bar);
+                bar = null;
+                TimeWarpButton.Replaced = false;
+            }
+        }
+
+        private static T Find<T>() where T : Component
+        {
+            foreach (T found in Resources.FindObjectsOfTypeAll<T>())
+                if (found != null && found.gameObject.scene.IsValid()) return found;
+            return null;
+        }
+
+        private void Build(UIWarpToNextMorning sunrise)
+        {
+            RectTransform row = label.transform.parent as RectTransform;
+            RectTransform source = sunrise.transform as RectTransform;
+            if (row == null || source == null || sunrise.button == null) return;
+            bar = Instantiate(sunrise.gameObject, row, false);
+            bar.name = "ReDefinitionTimeWarpBar";
+            DestroyImmediate(bar.GetComponent<UIWarpToNextMorning>());
+            Button button = bar.GetComponentInChildren<Button>(true);
+            if (button == null) throw new System.InvalidOperationException("no button in the sunrise extension");
+            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.AddListener(Press);
+            icon = button.GetComponent<Image>();
+            if (icon != null) icon.preserveAspect = true;
+            // Behind the panel's background, as the sunrise extension stands, so that
+            // the background covers its left end.
+            bar.transform.SetSiblingIndex(0);
+
+            // The button's left edge right after the label's text, the bar centred on
+            // the label's row.
+            RectTransform barRect = (RectTransform)bar.transform;
+            RectTransform buttonRect = (RectTransform)button.transform;
+            barRect.anchorMin = barRect.anchorMax = new Vector2(0.5f, 0.5f);
+            Bounds bounds = label.textBounds;
+            Vector3 end = row.InverseTransformPoint(label.rectTransform.TransformPoint(new Vector3(bounds.max.x, bounds.center.y, 0f)));
+            float buttonLeft = buttonRect.localPosition.x - buttonRect.rect.width * buttonRect.pivot.x;
+            barRect.localPosition = new Vector3(end.x + Gap - buttonLeft, label.transform.localPosition.y, 0f);
+            TimeWarpButton.Replaced = true;
+            Debug.Log(Log.Tag + " Better Time Warp's button in the time panel's warp row.");
+        }
+
+        private void LateUpdate()
+        {
+            if (bar == null || label == null) return;
+            // With the warp row: KSP hides it while the panel is folded
+            // (UITimeWarpHoverController.childrenForDeactivate).
+            bool visible = label.gameObject.activeSelf;
+            if (bar.activeSelf != visible) bar.SetActive(visible);
+            GUIContent content = ContentField != null && mod != null ? ContentField.GetValue(mod) as GUIContent : null;
+            Texture2D texture = content != null ? content.image as Texture2D : null;
+            if (icon != null && texture != null && texture != shown)
+            {
+                shown = texture;
+                icon.sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (bar != null) TimeWarpButton.Replaced = false;
+        }
+
+        // As a click on the mod's own button: its window opens or closes.
+        private void Press()
+        {
+            PropertyInfo open = mod != null ? mod.GetType().GetProperty("UIOpen", BindingFlags.Instance | BindingFlags.Public) : null;
+            if (open != null) open.SetValue(mod, !(bool)open.GetValue(mod, null), null);
         }
     }
 }

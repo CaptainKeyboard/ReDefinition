@@ -38,9 +38,10 @@ namespace ReDefinition.Flight
     // The SAS modes (VesselAutopilotUI, under the frame) stand on the side of the
     // navball that faces the screen's middle: on its left as KSP has them, on its
     // right, mirrored about the navball's middle, while the navball stands left of
-    // the screen's middle; each mode's button mirrored within them too, so that
-    // their curve follows the navball's rim on either side (the buttons are placed
-    // one by one about the panel's middle, sharedassets7).
+    // the screen's middle. The buttons keep their order; only their curve turns, so
+    // that it follows the navball's rim on either side: KSP places them one by one,
+    // each row shifted a little along the rim (sharedassets7), and each row's shift
+    // from the rows' mean is turned the other way.
     //
     // The navball keeps clear of the flight UI's mode buttons on its left
     // (FlightUIModeController.uiModeFrame) and of the crew portraits on its right
@@ -223,6 +224,36 @@ namespace ReDefinition.Flight
         private readonly List<Vector2> buttonsAt = new List<Vector2>();
         private bool mirrored;
 
+        // How far the row of button `index` stands from the rows' mean, as KSP placed
+        // them: the rows are the buttons at one height.
+        private float RowShift(int index)
+        {
+            float y = buttonsAt[index].y;
+            float row = 0f, rows = 0f;
+            int inRow = 0, rowCount = 0;
+            Dictionary<int, float> sums = new Dictionary<int, float>();
+            Dictionary<int, int> counts = new Dictionary<int, int>();
+            for (int i = 0; i < buttonsAt.Count; i++)
+            {
+                int key = Mathf.RoundToInt(buttonsAt[i].y);
+                float sum;
+                int count;
+                sums.TryGetValue(key, out sum);
+                counts.TryGetValue(key, out count);
+                sums[key] = sum + buttonsAt[i].x;
+                counts[key] = count + 1;
+            }
+            foreach (KeyValuePair<int, float> pair in sums)
+            {
+                rows += pair.Value / counts[pair.Key];
+                rowCount++;
+            }
+            int own = Mathf.RoundToInt(y);
+            row = sums[own] / counts[own];
+            inRow = counts[own];
+            return inRow > 0 && rowCount > 0 ? row - rows / rowCount : 0f;
+        }
+
         // The SAS modes on the side of the navball towards the screen's middle.
         private void Sides()
         {
@@ -250,16 +281,23 @@ namespace ReDefinition.Flight
             if (right == mirrored) return;
             mirrored = right;
             modes.anchoredPosition = modesAt;
-            // Each button about the panel's middle, where KSP anchors them.
+            // The buttons keep their order; only the curve turns: each row's shift
+            // from the rows' mean, which bends them along the rim, the other way.
             for (int i = 0; i < buttons.Count; i++)
                 if (buttons[i] != null)
-                    buttons[i].anchoredPosition = right ? new Vector2(-buttonsAt[i].x, buttonsAt[i].y) : buttonsAt[i];
+                    buttons[i].anchoredPosition = right ? new Vector2(buttonsAt[i].x - 2f * RowShift(i), buttonsAt[i].y) : buttonsAt[i];
             if (!right) return;
-            // Mirrored about the frame's middle, in the frame's own units, then in
-            // the modes' parent's.
-            modes.GetWorldCorners(corners);
-            float left = frame.InverseTransformPoint(corners[0]).x;
-            float edge = frame.InverseTransformPoint(corners[2]).x;
+            // The buttons' span mirrored about the frame's middle, in the frame's own
+            // units, then in the modes' parent's.
+            float left = float.MaxValue, edge = float.MinValue;
+            foreach (RectTransform button in buttons)
+            {
+                if (button == null) continue;
+                button.GetWorldCorners(corners);
+                left = Mathf.Min(left, frame.InverseTransformPoint(corners[0]).x);
+                edge = Mathf.Max(edge, frame.InverseTransformPoint(corners[2]).x);
+            }
+            if (left > edge) return;
             float centre = frame.rect.center.x;
             Vector3 shift = frame.TransformVector(new Vector3(2f * centre - edge - left, 0f, 0f));
             Transform parent = modes.parent != null ? modes.parent : frame;
