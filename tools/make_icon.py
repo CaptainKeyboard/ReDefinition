@@ -516,6 +516,25 @@ def panel_icon(mask, on):
     return icon
 
 
+# The navball's docking alignment marker: an orange ring with a cross, in the
+# navball markers' own manner (each a picture on a quad, KSP's in purple and
+# yellow), so that it stands apart from them. 64x64, GameData/ReDefinition/Icons/
+# Navball_Docking.png.
+NAVBALL_DOCKING = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "Navball_Docking.png")
+DOCKING_COLOUR = (255, 150, 30, 255)
+
+
+def draw_navball_docking():
+    size = 512
+    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse([96, 96, 416, 416], outline=DOCKING_COLOUR, width=44)
+    for (x0, y0, x1, y1) in ((256, 20, 256, 150), (256, 362, 256, 492), (20, 256, 150, 256), (362, 256, 492, 256)):
+        draw.line([(x0, y0), (x1, y1)], fill=DOCKING_COLOUR, width=40)
+    draw.ellipse([226, 226, 286, 286], fill=DOCKING_COLOUR)
+    return image
+
+
 def main():
     os.makedirs(os.path.dirname(IN_GAME), exist_ok=True)
     draw_sliders().resize((128, 128), Image.LANCZOS).save(IN_GAME)
@@ -544,6 +563,9 @@ def main():
             path = PANEL_ICONS % (name, state)
             panel_icon(mask, on).save(path)
             print("in the game:", os.path.relpath(path, ROOT))
+
+    draw_navball_docking().resize((64, 64), Image.LANCZOS).save(NAVBALL_DOCKING)
+    print("in the game:", os.path.relpath(NAVBALL_DOCKING, ROOT))
 
     planet = draw_planet()
     os.makedirs(LARGE, exist_ok=True)
