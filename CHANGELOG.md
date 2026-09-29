@@ -5,8 +5,8 @@
 ### Added
 
 - **RCS, turning and the TWR at burnout in the VAB and the SPH.** The planner's *Thrust*
-  part gives for every step the RCS of what flies it, delta-v, thrust, Isp and TWR, and
-  how long it takes to turn by 90° on its reaction wheels, RCS and gimbals; the route
+  part gives for every step the RCS of what flies it as a stage row, thrust, Isp, TWR and
+  burn time, its delta-v in the fuel plan, and how long it takes to turn by 90° on its reaction wheels, RCS and gimbals; the route
   warns where that is slow for a launch, a landing or a burn in orbit, and where a
   section has no RCS to dock with. The stage details give the TWR as a stage lights and as it burns
   out.

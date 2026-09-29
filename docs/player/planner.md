@@ -149,6 +149,9 @@ the next.
 | *Keeps* | what it has left after the step; *empty* where it is used up; orange *dropped*: what it held as it was dropped |
 | *TWR* | on a launch or a powered landing, its thrust against the weight it pushes at the body's surface, in the air where the body has any; red where the stage that lifts off (the first of a launch) or sets down (the last of a landing) is below 1.2 on a body with air, below 1 otherwise |
 
+Under the stages, *RCS* is what flies the step has of RCS: it gives the step nothing, and
+under *Keeps* stands the delta-v its RCS propellant gives it.
+
 ## Check the thrust
 
 *Thrust* under the fuel plan, folded at first as well, says beside its title whether the
@@ -169,8 +172,9 @@ transfer burn that takes too long can miss its target.
 | Row | Shows |
 |---|---|
 | a stage | the vessel's mass as the stage starts its part; the stage's Isp in vacuum; its TWR as it starts its part and as it ends it, in vacuum; *In air* on a launch or a landing where the body has air; its thrust in vacuum; how long it burns in this step |
+| *RCS* | the RCS of what flies the step, as the step starts, or as it docks where a section docks: the mass, the RCS thrusters' Isp in vacuum, their TWR at Kerbin's gravity full and with the RCS propellant spent, their thrust, and how long they fire at full thrust until the propellant is spent |
 | a burn in orbit | its name; how long it takes, its share of the orbit and the orbit's time, and about how much delta-v it loses; red with a *+* where the stages run out before it ends or a stage has no thrust |
-| a note | how fast what flies the step turns by 90°: on a launch or a landing on its reaction wheels, RCS and the gimbals of the stage that burns, in orbit before its burn on its reaction wheels and RCS alone; in orange where it is slow. Fins are not counted: where they fly through air, a slow turn is no warning. The RCS of what flies the step, as the step starts: the delta-v its RCS propellant gives, its thrust and Isp in vacuum, and its TWR at Kerbin's gravity; where a section docks, for the last metres, in orange where it has no RCS or no RCS propellant; where an ion engine burns, the electric charge it takes against what the vessel holds, in orange where that is not enough without solar panels or other power |
+| a note | how fast what flies the step turns by 90°: on a launch or a landing on its reaction wheels, RCS and the gimbals of the stage that burns, in orbit before its burn on its reaction wheels and RCS alone; in orange where it is slow. Fins are not counted: where they fly through air, a slow turn is no warning. Where a section docks, in orange where it has no RCS or no RCS propellant; where an ion engine burns, the electric charge it takes against what the vessel holds, in orange where that is not enough without solar panels or other power |
 | the body | the body the TWR is against, its surface gravity and its air |
 
 A burn in red also shows as a line under its step on the route. More thrust or less mass

@@ -655,6 +655,13 @@ namespace ReDefinition.Engineer
 
             for (int i = 0; i < MaxStepStages; i++)
                 yield return FuelStageRow(step, i);
+            // Its RCS, as a stage of its own: it gives the step nothing and keeps the
+            // delta-v its propellant gives what flies it.
+            DialogGUIHorizontalLayout rcs = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("RCS", StageName_), DimLabel("0", StageGives),
+                new DialogGUILabel(() => RcsAt(step) != null ? EngineerFormat.Speed(RcsAt(step).DeltaV) : "", StageKeeps));
+            rcs.OptionEnabledCondition = () => FuelIsOpen(step) && RcsAt(step) != null;
+            yield return rcs;
             DialogGUIHorizontalLayout more = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f),
                 new DialogGUILabel(() => "<color=" + Dim + ">" + (FuelStageCount(step) - MaxStepStages) + " more stages</color>",
@@ -936,8 +943,6 @@ namespace ReDefinition.Engineer
             // where unknown; more than TurnLimit is slow.
             public double Turn = double.NaN;
             public double TurnLimit;
-            // A note that gives its RCS alone, no warning.
-            public bool RcsNote;
         }
 
         // How long a turn by 90 degrees may take: at launch and at landing, where the
@@ -993,6 +998,7 @@ namespace ReDefinition.Engineer
         {
             turnLog.Length = 0;
             turnAlerts = new List<string>[steps.Count];
+            rcsOf = new RcsInfo[steps.Count];
             thrustSteps.Clear();
             thrustOf = new ThrustStep[steps.Count];
             for (int i = 0; i < steps.Count; i++)
@@ -1020,7 +1026,7 @@ namespace ReDefinition.Engineer
                 AddNotes(entry);
                 // A step shows for its launch or landing, its burns, and its notes other
                 // than one that says how it turns without a warning.
-                int notes = entry.Notes.Count - (!double.IsNaN(entry.Turn) && !TurnSlow(entry) ? 1 : 0) - (entry.RcsNote ? 1 : 0);
+                int notes = entry.Notes.Count - (!double.IsNaN(entry.Turn) && !TurnSlow(entry) ? 1 : 0);
                 if (step.Leg.DeltaV <= 0.5 || (!entry.Twr && entry.Burns.Count == 0 && notes == 0)) continue;
                 thrustOf[i] = entry;
                 if (thrustSteps.Count < MaxFuelSteps) thrustSteps.Add(entry);
@@ -1141,10 +1147,50 @@ namespace ReDefinition.Engineer
             double overIsp = 0.0;
             foreach (int at in flying.Members)
                 if (stage < 0 || parts[at].DecoupleStage <= stage) overIsp += parts[at].RcsThrustOverIsp;
-            entry.Notes.Add("<color=" + Dim + ">RCS of " + who + (docks ? " for docking: " : ": ") + EngineerFormat.Speed(deltaV) + ", "
-                            + EngineerFormat.Force(thrust) + ", Isp " + (overIsp > 0.0 ? EngineerFormat.Isp(thrust / overIsp) : "-")
-                            + ", TWR " + RcsRatio(thrust / (mass * StageTable.StandardGravity)) + "</color>");
-            if (!docks) entry.RcsNote = true;
+            rcsOf[entry.Step] = new RcsInfo
+            {
+                Mass = mass, Thrust = thrust, Propellant = propellant, DeltaV = deltaV,
+                Isp = overIsp > 0.0 ? thrust / overIsp : 0.0,
+            };
+        }
+
+        // What flies a step has of RCS, as the step starts, or as it docks at its
+        // end: its mass, its thrusters' thrust and combined Isp in vacuum, the RCS
+        // propellant on it and the delta-v that gives (RcsOf).
+        private sealed class RcsInfo
+        {
+            public double Mass, Thrust, Isp, Propellant, DeltaV;
+
+            // Thrust against weight at standard gravity, as KSP and Kerbal Engineer
+            // state a TWR in the editor, full and with the propellant spent.
+            public double StartTwr
+            {
+                get { return Mass > 0.0 ? Thrust / (Mass * StageTable.StandardGravity) : 0.0; }
+            }
+
+            public double EndTwr
+            {
+                get { return Mass > Propellant ? Thrust / ((Mass - Propellant) * StageTable.StandardGravity) : 0.0; }
+            }
+
+            // At full thrust until the propellant is spent.
+            public double Seconds
+            {
+                get { return Thrust > 0.0 && Isp > 0.0 ? Propellant * Isp * StageTable.StandardGravity / Thrust : 0.0; }
+            }
+        }
+
+        private RcsInfo[] rcsOf = new RcsInfo[0];
+
+        private RcsInfo RcsAt(int step)
+        {
+            return step >= 0 && step < rcsOf.Length ? rcsOf[step] : null;
+        }
+
+        private string RcsCell(ThrustStep entry, System.Func<RcsInfo, string> text)
+        {
+            RcsInfo info = entry != null ? RcsAt(entry.Step) : null;
+            return info != null ? "<color=" + Dim + ">" + text(info) + "</color>" : "";
         }
 
         // An RCS TWR, far below 1: to three places where it is under 0.1.
@@ -1269,6 +1315,19 @@ namespace ReDefinition.Engineer
                 use.OptionEnabledCondition = () => OpenThrust(row) != null && stage < OpenThrust(row).Uses.Count;
                 yield return use;
             }
+
+            // Its RCS, as a stage of its own.
+            DialogGUIHorizontalLayout rcs = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
+                TextAnchor.MiddleLeft, new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("RCS", StageName_),
+                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => EngineerFormat.Mass(info.Mass)), MassColumn),
+                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => EngineerFormat.Isp(info.Isp)), IspColumn),
+                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => RcsRatio(info.StartTwr)), TwrColumn),
+                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => RcsRatio(info.EndTwr)), TwrColumn),
+                new DialogGUISpace(TwrColumn),
+                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => EngineerFormat.Force(info.Thrust)), ThrustColumn),
+                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => EngineerFormat.Time(info.Seconds)), BurnColumn));
+            rcs.OptionEnabledCondition = () => OpenThrust(row) != null && RcsAt(OpenThrust(row).Step) != null;
+            yield return rcs;
 
             for (int i = 0; i < MaxFuelLines; i++)
             {
