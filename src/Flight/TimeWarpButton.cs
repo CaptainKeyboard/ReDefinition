@@ -190,13 +190,21 @@ namespace ReDefinition.Flight
 
             // The MET button's face and its hover and press states (its sprites
             // hold no picture, the sunrise button's hold the sun), with the mod's
-            // arrow on it, as small as the MET button's text.
+            // arrow on it, as small as the MET button's text; over the part of the
+            // button the sunrise button's picture fills, which a theme may draw
+            // narrower than the button (ZTheme: about 30 of 43 units, right of the
+            // middle).
             Transform met = row.Find("METButton");
             Button metButton = met != null ? met.GetComponent<Button>() : null;
             Image face = button.GetComponent<Image>();
             Image metFace = met != null ? met.GetComponent<Image>() : null;
             if (metButton == null || face == null || metFace == null)
                 throw new System.InvalidOperationException("no MET button in the time panel");
+            Rect filled = Opaque(face.sprite);
+            RectTransform faceRect = (RectTransform)button.transform;
+            Vector2 full = faceRect.sizeDelta;
+            faceRect.sizeDelta = new Vector2(full.x * filled.width, full.y * filled.height);
+            faceRect.anchoredPosition += new Vector2(full.x * (filled.center.x - 0.5f), full.y * (filled.center.y - 0.5f));
             face.sprite = metFace.sprite;
             face.color = metFace.color;
             face.type = metFace.type;
@@ -231,7 +239,50 @@ namespace ReDefinition.Flight
             barRect.localPosition = new Vector3(at.x, at.y + gauge.localPosition.y - met.localPosition.y, 0f);
             TimeWarpButton.Replaced = true;
             Debug.Log(Log.Tag + " Better Time Warp's button in the time panel's warp row at " + barRect.localPosition.ToString("0")
-                      + ", the sunrise extension at " + at.ToString("0") + ".");
+                      + ", the sunrise extension at " + at.ToString("0") + "; its face over " + filled.ToString("0.00")
+                      + " of the sunrise button's.");
+        }
+
+        // The part of a sprite that is not see-through, as fractions of it: all of
+        // it where it cannot be read. The texture is copied through a render
+        // texture, since a theme's textures need not be readable.
+        private static Rect Opaque(Sprite sprite)
+        {
+            Rect all = new Rect(0f, 0f, 1f, 1f);
+            if (sprite == null || sprite.texture == null) return all;
+            Texture2D texture = sprite.texture;
+            Rect area = sprite.textureRect;
+            int width = Mathf.RoundToInt(area.width), height = Mathf.RoundToInt(area.height);
+            if (width <= 0 || height <= 0) return all;
+            RenderTexture copy = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32);
+            RenderTexture before = RenderTexture.active;
+            Texture2D read = new Texture2D(width, height, TextureFormat.ARGB32, false);
+            try
+            {
+                Graphics.Blit(texture, copy);
+                RenderTexture.active = copy;
+                read.ReadPixels(new Rect(area.x, area.y, width, height), 0, 0);
+                read.Apply();
+                Color32[] pixels = read.GetPixels32();
+                int xMin = width, xMax = -1, yMin = height, yMax = -1;
+                for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    if (pixels[y * width + x].a < 128) continue;
+                    xMin = Mathf.Min(xMin, x);
+                    xMax = Mathf.Max(xMax, x);
+                    yMin = Mathf.Min(yMin, y);
+                    yMax = Mathf.Max(yMax, y);
+                }
+                if (xMax < 0) return all;
+                return Rect.MinMaxRect(xMin / (float)width, yMin / (float)height, (xMax + 1) / (float)width, (yMax + 1) / (float)height);
+            }
+            finally
+            {
+                RenderTexture.active = before;
+                RenderTexture.ReleaseTemporary(copy);
+                Destroy(read);
+            }
         }
 
         private void LateUpdate()
