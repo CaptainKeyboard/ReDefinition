@@ -25,8 +25,9 @@ back when you load the vessel again.
 ## Add the vessel's sections
 
 The header bar of *Craft* at the top shows the craft as built: its mass, the fuel in it
-and its delta-v in vacuum. Below it, *Craft* lists the vessel's sections: the parts of it that fly on their own. They decide
-who can fly a step. *+* adds one, and the list of its parts folds out right after:
+and its delta-v in vacuum. Below it, *Craft* lists the vessel's sections: the parts of it
+that fly on their own. They decide who can fly a step. *+* adds one, and the list of its
+parts folds out right after:
 
 | Section | Is | Row under it |
 |---|---|---|
