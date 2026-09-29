@@ -202,8 +202,14 @@ namespace ReDefinition.Flight
             Image sunriseFace = sunriseButton.GetComponent<Image>();
             Rect filled = Opaque(sunriseFace != null ? sunriseFace.sprite : null);
             Rect sunriseRect = sunriseButton.rect;
-            Vector3 sunriseAt = row.InverseTransformPoint(sunriseButton.TransformPoint(new Vector3(
-                sunriseRect.xMin + sunriseRect.width * filled.center.x, 0f, 0f)));
+            // The extension stands at one place in the panel,
+            // UITimeWarpHoverController.fixedMaskStart: KSP moves its mask to that
+            // place less the panel's offset and the extension within the mask by
+            // the offset, every LateUpdate (decompiled); where it stands just now
+            // depends on whether that has run yet.
+            UITimeWarpHoverController hover = row.GetComponent<UITimeWarpHoverController>();
+            if (hover == null) throw new System.InvalidOperationException("no hover controller on the time panel");
+            float sunriseX = hover.fixedMaskStart.x + sunriseButton.localPosition.x + sunriseRect.xMin + sunriseRect.width * filled.center.x;
             Vector3[] corners = new Vector3[4];
             background.GetWorldCorners(corners);
             float bottom = row.InverseTransformPoint(corners[0]).y, top = row.InverseTransformPoint(corners[1]).y;
@@ -257,12 +263,12 @@ namespace ReDefinition.Flight
             // The sunrise extension's top right corner squared, in its bar's colour.
             Image sunrisePlate = sunrise.GetComponent<Image>();
             Color colour;
-            if (!Colour(sunrisePlate != null ? sunrisePlate.sprite : null, new Vector2(0.25f, 0.5f), out colour))
+            if (!Colour(sunrisePlate != null ? sunrisePlate.sprite : null, Opaque(sunrisePlate != null ? sunrisePlate.sprite : null).center, out colour))
                 colour = new Color(0.2f, 0.2f, 0.22f, 1f);
             float corner = Square(container, sunrisePlate, (sunrisePlate != null ? sunrisePlate.color : Color.white) * colour);
 
             slide = row.GetComponent<UIHoverSlidePanel>();
-            unfolded = new Vector3(sunriseAt.x, (top + middle) / 2f, 0f);
+            unfolded = new Vector3(sunriseX, (top + middle) / 2f, 0f);
             Hold();
             TimeWarpButton.Replaced = true;
             Debug.Log(Log.Tag + " Better Time Warp's button, the MET button copied, at the end of the warp row: at "
@@ -283,10 +289,13 @@ namespace ReDefinition.Flight
 
         // A sprite's pixels, row by row from the bottom, or null where it cannot be
         // read. The texture is copied through a render texture, since a theme's
-        // textures need not be readable; where the graphics API counts a render
+        // textures need not be readable. Where the graphics API counts a render
         // texture's rows from the top (Direct3D, SystemInfo.graphicsUVStartsAtTop),
-        // the copy stands upside down, and the sprite's rows are read from there
-        // and turned.
+        // the sprite's area lies mirrored in the copy, its rows still read from the
+        // bottom: read from ZTheme's bottomBar_plain.png (the sprite is the whole
+        // texture; its top row, which ends 5 pixels short of the right edge, came
+        // last only unturned) and FlightButtonNextMorning.png (the sun's rows from
+        // 0.04 to 1.00 of the sprite, as the file has them).
         private static Color32[] Pixels(Sprite sprite, out int width, out int height)
         {
             width = height = 0;
@@ -307,12 +316,7 @@ namespace ReDefinition.Flight
                 float from = flipped ? texture.height - area.y - height : area.y;
                 read.ReadPixels(new Rect(area.x, from, width, height), 0, 0);
                 read.Apply();
-                Color32[] pixels = read.GetPixels32();
-                if (!flipped) return pixels;
-                Color32[] turned = new Color32[pixels.Length];
-                for (int y = 0; y < height; y++)
-                    System.Array.Copy(pixels, (height - 1 - y) * width, turned, y * width, width);
-                return turned;
+                return read.GetPixels32();
             }
             finally
             {
