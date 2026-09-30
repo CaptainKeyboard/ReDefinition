@@ -53,6 +53,10 @@ namespace ReDefinition.Flight
             canvas.renderMode = RenderMode.WorldSpace;
             GraphicRaycaster raycaster = root.GetComponent<GraphicRaycaster>();
             raycaster.blockingObjects = GraphicRaycaster.BlockingObjects.ThreeD;
+            // Only a vessel's parts (layer 0) take the click before it: the editors'
+            // scenery has colliders the eye does not see between the camera and
+            // the pad, and they took every click.
+            raycaster.blockingMask = 1 << 0;
             ((RectTransform)root.transform).sizeDelta = new Vector2(Size, Size);
             GameObject item = UiHygiene.Child("Button", root.transform, typeof(RectTransform), typeof(Image), typeof(Button));
             rect = (RectTransform)item.transform;
