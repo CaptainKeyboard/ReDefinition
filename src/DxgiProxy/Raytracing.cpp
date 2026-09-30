@@ -37,6 +37,7 @@ namespace redefinition
         // The denoiser's entry points (RaytracingShaders/Denoise.hlsl).
         const wchar_t* const kDenoiseEntries[] = {
             L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous", L"RT_DenoiseResolve",
+            L"RT_ReconstructGuides",
         };
 
         // The output slot of each signal the denoiser filters, and its place among the
@@ -1193,8 +1194,8 @@ namespace redefinition
         ranges[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t0-t7, space3: the denoiser's reads
         ranges[5].NumDescriptors = 8;
         ranges[5].RegisterSpace = 3;
-        ranges[6].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;   // u0-u1, space3: the denoiser's writes
-        ranges[6].NumDescriptors = 2;
+        ranges[6].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;   // u0-u3, space3: the denoiser's writes
+        ranges[6].NumDescriptors = 4;
         ranges[6].RegisterSpace = 3;
 
         D3D12_ROOT_PARAMETER parameters[12] = {};
@@ -1365,6 +1366,7 @@ namespace redefinition
         pipelines.clear();
         denoisePipelines.clear();
         denoise = DenoiseTargets{};
+        guides = GuideTargets{};
         rootSignature.Reset();
         list.Reset();
         for (Slot& slot : slots)
@@ -1397,8 +1399,10 @@ namespace redefinition
         std::lock_guard<std::mutex> status(statusLock);
         if (buffer != nullptr && size > 0)
             _snprintf_s(buffer, static_cast<size_t>(size), _TRUNCATE,
-                        "generation=%u frames=%llu meshes=%u built=%u instances=%u build=%.3fms trace=%.3fms%s%s",
-                        generation.load(), static_cast<unsigned long long>(frames), liveMeshes, lastBuilt, lastInstances,
+                        "generation=%u frames=%llu reconstructed=%llu meshes=%u built=%u instances=%u build=%.3fms"
+                        " trace=%.3fms%s%s",
+                        generation.load(), static_cast<unsigned long long>(frames),
+                        static_cast<unsigned long long>(reconstructed), liveMeshes, lastBuilt, lastInstances,
                         buildMs, traceMs, lastProblem.empty() ? "" : " last problem: ", lastProblem.c_str());
         return static_cast<int>(generation.load());
     }

@@ -123,59 +123,31 @@ namespace redefinition
         return true;
     }
 
-    // Views for one dispatch of the denoiser: eight textures to read, two to write,
-    // null where not given. Returns the table's start on the GPU.
-    D3D12_GPU_DESCRIPTOR_HANDLE Raytracing::DenoiseTableLocked(UINT slotNumber, UINT& used, DenoiseTarget* const* reads,
-                                                                ID3D12Resource* sharedRead, DXGI_FORMAT sharedFormat,
-                                                                DenoiseTarget* const* writes, ID3D12Resource* sharedWrite,
-                                                                DXGI_FORMAT sharedWriteFormat)
+    D3D12_GPU_DESCRIPTOR_HANDLE Raytracing::TableLocked(UINT slotNumber, UINT& used, const View (&reads)[8],
+                                                         const View (&writes)[4])
     {
         const UINT base = kSlots * kFrameDescriptors + 2 * kMaxMeshes + 1 + slotNumber * kDenoiseDescriptors + used;
-        used += 10;
+        used += kTableSize;
         D3D12_CPU_DESCRIPTOR_HANDLE cpu = heap->GetCPUDescriptorHandleForHeapStart();
         cpu.ptr += static_cast<SIZE_T>(base) * increment;
         D3D12_GPU_DESCRIPTOR_HANDLE gpu = heap->GetGPUDescriptorHandleForHeapStart();
         gpu.ptr += static_cast<UINT64>(base) * increment;
-        for (UINT i = 0; i < 8; ++i)
+        for (const View& read : reads)
         {
-            ID3D12Resource* resource = nullptr;
-            DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-            if (i == 7 && sharedRead != nullptr)
-            {
-                resource = sharedRead;
-                format = sharedFormat;
-            }
-            else if (reads[i] != nullptr)
-            {
-                resource = reads[i]->resource.Get();
-                format = reads[i]->format;
-            }
             D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
-            srv.Format = format;
+            srv.Format = read.format;
             srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
             srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
             srv.Texture2D.MipLevels = 1;
-            device->CreateShaderResourceView(resource, &srv, cpu);
+            device->CreateShaderResourceView(read.resource, &srv, cpu);
             cpu.ptr += increment;
         }
-        for (UINT i = 0; i < 2; ++i)
+        for (const View& write : writes)
         {
-            ID3D12Resource* resource = nullptr;
-            DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-            if (i == 0 && sharedWrite != nullptr)
-            {
-                resource = sharedWrite;
-                format = sharedWriteFormat;
-            }
-            else if (writes[i] != nullptr)
-            {
-                resource = writes[i]->resource.Get();
-                format = writes[i]->format;
-            }
             D3D12_UNORDERED_ACCESS_VIEW_DESC uav = {};
-            uav.Format = format;
+            uav.Format = write.format;
             uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-            device->CreateUnorderedAccessView(resource, nullptr, &uav, cpu);
+            device->CreateUnorderedAccessView(write.resource, nullptr, &uav, cpu);
             cpu.ptr += increment;
         }
         return gpu;
@@ -223,11 +195,10 @@ namespace redefinition
         UseLocked(denoise.linearDepth[now], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         UseLocked(denoise.normal[now], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         {
-            DenoiseTarget* reads[8] = {};
-            DenoiseTarget* writes[2] = { &denoise.linearDepth[now], &denoise.normal[now] };
+            const View reads[8] = {};
+            const View writes[4] = { Of(&denoise.linearDepth[now]), Of(&denoise.normal[now]) };
             constants(1, 0, 0, 0);
-            dispatch(prepare, DenoiseTableLocked(slotNumber, used, reads, nullptr, DXGI_FORMAT_UNKNOWN, writes, nullptr,
-                                                 DXGI_FORMAT_UNKNOWN));
+            dispatch(prepare, TableLocked(slotNumber, used, reads, writes));
         }
         UseLocked(denoise.linearDepth[now], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         UseLocked(denoise.normal[now], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -254,15 +225,12 @@ namespace redefinition
             UseLocked(*work[0], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             UseLocked(moments, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             {
-                DenoiseTarget* reads[8] = { &noisy, &historyBefore, &momentsBefore, &denoise.linearDepth[now],
-                                            &denoise.normal[now], &denoise.linearDepth[before], &denoise.normal[before],
-                                            nullptr };
-                DenoiseTarget* writes[2] = { work[0], &moments };
+                const View reads[8] = { Of(&noisy), Of(&historyBefore), Of(&momentsBefore), Of(&denoise.linearDepth[now]),
+                                        Of(&denoise.normal[now]), Of(&denoise.linearDepth[before]),
+                                        Of(&denoise.normal[before]), motion ? Of(motionInput) : View{} };
+                const View writes[4] = { Of(work[0]), Of(&moments) };
                 constants(1, filtered.kind, (reset ? 1u : 0u) | (motion ? 2u : 0u), 0);
-                dispatch(temporal, DenoiseTableLocked(slotNumber, used, reads,
-                                                      motion ? motionInput->texture.d3d12.Get() : nullptr,
-                                                      motion ? motionInput->texture.format : DXGI_FORMAT_UNKNOWN, writes,
-                                                      nullptr, DXGI_FORMAT_UNKNOWN));
+                dispatch(temporal, TableLocked(slotNumber, used, reads, writes));
             }
 
             // Variance: work 0 and the moments into work 1.
@@ -270,12 +238,11 @@ namespace redefinition
             UseLocked(moments, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             UseLocked(*work[1], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             {
-                DenoiseTarget* reads[8] = { work[0], &moments, nullptr, &denoise.linearDepth[now], &denoise.normal[now],
-                                            nullptr, nullptr, nullptr };
-                DenoiseTarget* writes[2] = { work[1], nullptr };
+                const View reads[8] = { Of(work[0]), Of(&moments), View{}, Of(&denoise.linearDepth[now]),
+                                        Of(&denoise.normal[now]) };
+                const View writes[4] = { Of(work[1]) };
                 constants(1, filtered.kind, 0, 0);
-                dispatch(variance, DenoiseTableLocked(slotNumber, used, reads, nullptr, DXGI_FORMAT_UNKNOWN, writes, nullptr,
-                                                      DXGI_FORMAT_UNKNOWN));
+                dispatch(variance, TableLocked(slotNumber, used, reads, writes));
             }
 
             // À-trous, work 1 and 0 in turn; the first step's result is the history.
@@ -286,12 +253,10 @@ namespace redefinition
                 DenoiseTarget& to = *work[1 - current];
                 UseLocked(from, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
                 UseLocked(to, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                DenoiseTarget* reads[8] = { &from, nullptr, nullptr, &denoise.linearDepth[now], &denoise.normal[now],
-                                            nullptr, nullptr, nullptr };
-                DenoiseTarget* writes[2] = { &to, nullptr };
+                const View reads[8] = { Of(&from), View{}, View{}, Of(&denoise.linearDepth[now]), Of(&denoise.normal[now]) };
+                const View writes[4] = { Of(&to) };
                 constants(1u << step, filtered.kind, 0, step);
-                dispatch(atrous, DenoiseTableLocked(slotNumber, used, reads, nullptr, DXGI_FORMAT_UNKNOWN, writes, nullptr,
-                                                    DXGI_FORMAT_UNKNOWN));
+                dispatch(atrous, TableLocked(slotNumber, used, reads, writes));
                 if (step == 0)
                 {
                     UseLocked(to, D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -305,11 +270,10 @@ namespace redefinition
             DenoiseTarget& last = *work[current];
             UseLocked(last, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             {
-                DenoiseTarget* reads[8] = { &last, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
-                DenoiseTarget* writes[2] = { nullptr, nullptr };
+                const View reads[8] = { Of(&last) };
+                const View writes[4] = { Of(output) };
                 constants(1, filtered.kind, 0, 0);
-                dispatch(resolve, DenoiseTableLocked(slotNumber, used, reads, nullptr, DXGI_FORMAT_UNKNOWN, writes,
-                                                     output->texture.d3d12.Get(), output->texture.format));
+                dispatch(resolve, TableLocked(slotNumber, used, reads, writes));
             }
         }
 

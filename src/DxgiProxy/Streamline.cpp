@@ -236,7 +236,9 @@ namespace redefinition
             return false;
 
         const wchar_t* paths[] = { pluginFolder.c_str() };
-        const sl::Feature features[] = { sl::kFeatureDLSS_G, sl::kFeatureReflex, sl::kFeaturePCL };
+        // DLSS Ray Reconstruction loads where its plugin is there; without it, frame
+        // generation runs as before.
+        const sl::Feature features[] = { sl::kFeatureDLSS_G, sl::kFeatureReflex, sl::kFeaturePCL, sl::kFeatureDLSS_RR };
 
         sl::Preferences preferences{};
         preferences.showConsole = false;
@@ -323,9 +325,15 @@ namespace redefinition
         slReflexSetOptions = nullptr;
         slReflexSleep = nullptr;
         slPCLSetMarker = nullptr;
+        slEvaluateFeature = nullptr;
+        slDLSSDSetOptions = nullptr;
+        slDLSSDGetOptimalSettings = nullptr;
+        rayReconstruction = false;
+        frameInProgress = -1;
         // A reason already stated stays; "ready" does not outlast the shutdown.
         {
             std::lock_guard<std::mutex> lock(stateMutex);
+            rayReconstructionWhy = "Streamline shut down with its swapchain";
             if (state == "ready" || state == "initialised")
                 state = "shut down with its swapchain";
         }
@@ -389,6 +397,50 @@ namespace redefinition
         reflex.mode = sl::ReflexMode::eLowLatency;
         Check(slReflexSetOptions(reflex), "slReflexSetOptions");
 
+        // Ray Reconstruction on the same device, where its plugin loaded and the GPU
+        // runs it; its absence changes nothing for frame generation.
+        {
+            rayReconstruction = false;
+            std::string why;
+            LUID luid = nativeDevice->GetAdapterLuid();
+            sl::AdapterInfo info{};
+            info.deviceLUID = reinterpret_cast<uint8_t*>(&luid);
+            info.deviceLUIDSizeInBytes = sizeof(LUID);
+            const sl::Result supported = slIsFeatureSupported(sl::kFeatureDLSS_RR, info);
+            void* evaluate = nullptr;
+            if (supported != sl::Result::eOk)
+                why = "DLSS Ray Reconstruction does not run here: " + ResultText(supported);
+            else if (module == nullptr
+                     || (evaluate = reinterpret_cast<void*>(GetProcAddress(module, "slEvaluateFeature"))) == nullptr)
+                why = "sl.interposer.dll has no slEvaluateFeature";
+            else
+            {
+                slEvaluateFeature = reinterpret_cast<PFun_slEvaluateFeature*>(evaluate);
+                void* setOptions = nullptr;
+                void* optimal = nullptr;
+                if (slGetFeatureFunction(sl::kFeatureDLSS_RR, "slDLSSDSetOptions", setOptions) != sl::Result::eOk
+                    || setOptions == nullptr
+                    || slGetFeatureFunction(sl::kFeatureDLSS_RR, "slDLSSDGetOptimalSettings", optimal) != sl::Result::eOk
+                    || optimal == nullptr)
+                    why = "sl.dlss_d.dll lacks its functions";
+                else
+                {
+                    slDLSSDSetOptions = reinterpret_cast<PFun_slDLSSDSetOptions*>(setOptions);
+                    slDLSSDGetOptimalSettings = reinterpret_cast<PFun_slDLSSDGetOptimalSettings*>(optimal);
+                    rayReconstruction = true;
+                    why = "ready";
+                }
+            }
+            sl::FeatureVersion rrVersion{};
+            if (rayReconstruction && slGetFeatureVersion(sl::kFeatureDLSS_RR, rrVersion) == sl::Result::eOk)
+                LogLine("DLSS Ray Reconstruction: Streamline " + rrVersion.versionSL.toStr() + ", nvngx_dlssd "
+                        + rrVersion.versionNGX.toStr());
+            else
+                LogLine(why);
+            std::lock_guard<std::mutex> lock(stateMutex);
+            rayReconstructionWhy = why;
+        }
+
         sl::FeatureVersion version{};
         if (slGetFeatureVersion(sl::kFeatureDLSS_G, version) == sl::Result::eOk)
             LogLine("DLSS frame generation: Streamline " + version.versionSL.toStr() + ", nvngx_dlssg "
@@ -396,6 +448,40 @@ namespace redefinition
 
         SetState("ready", false);
         return true;
+    }
+
+    bool Streamline::RayReconstructionReady(std::string& why) const
+    {
+        std::lock_guard<std::mutex> lock(stateMutex);
+        why = deviceSet ? rayReconstructionWhy : std::string("Streamline has no device: DLSS frame generation does not run");
+        return deviceSet && rayReconstruction.load();
+    }
+
+    void Streamline::NoteFrameInProgress(uint32_t frameIndex)
+    {
+        frameInProgress = static_cast<int64_t>(frameIndex);
+    }
+
+    bool Streamline::EvaluateRayReconstruction(const sl::Constants& constants, const sl::DLSSDOptions& options,
+                                               const sl::ResourceTag* tags, uint32_t count,
+                                               ID3D12GraphicsCommandList* list)
+    {
+        if (!deviceSet || !rayReconstruction || list == nullptr)
+            return false;
+        // The swapchain's frame in progress, whose token its present takes; without a
+        // swapchain presenting, a frame of its own each time.
+        const int64_t current = frameInProgress.load();
+        const uint32_t index = current >= 0 ? static_cast<uint32_t>(current) : ownFrameIndex++;
+        sl::FrameToken* frame = NewFrameToken(index);
+        if (frame == nullptr)
+            return false;
+        const sl::ViewportHandle viewport(kRayReconstructionViewport);
+        if (!Check(slSetConstants(constants, *frame, viewport), "slSetConstants (Ray Reconstruction)")
+            || !Check(slDLSSDSetOptions(viewport, options), "slDLSSDSetOptions")
+            || !Check(slSetTagForFrame(*frame, viewport, tags, count, list), "slSetTagForFrame (Ray Reconstruction)"))
+            return false;
+        const sl::BaseStructure* inputs[] = { &viewport };
+        return Check(slEvaluateFeature(sl::kFeatureDLSS_RR, *frame, inputs, 1, list), "slEvaluateFeature (Ray Reconstruction)");
     }
 
     bool Streamline::UpgradeInterface(void** baseInterface, const char* what)

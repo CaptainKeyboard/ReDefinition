@@ -634,6 +634,7 @@ PsOut PsMain(VsOut input)
         int (*setMaterial)(const RtMaterialDesc*) = nullptr;
         int (*setInstances)(const RtInstance*, int) = nullptr;
         void (*passTimings)(float*, int) = nullptr;
+        int (*reconstructionAvailable)(char*, int) = nullptr;
         int (*status)(char*, int) = nullptr;
         void (*timings)(float*, float*) = nullptr;
         void (*event)(int, void*) = nullptr;
@@ -1009,6 +1010,7 @@ int main()
         || !proxy.Load(proxy.setMaterial, "KspRtSetMaterial") || !proxy.Load(proxy.setInstances, "KspRtSetInstances")
         || !proxy.Load(proxy.status, "KspRtStatus") || !proxy.Load(proxy.timings, "KspRtTimings")
         || !proxy.Load(proxy.passTimings, "KspRtPassTimings")
+        || !proxy.Load(proxy.reconstructionAvailable, "KspRtReconstructionAvailable")
         || !proxy.Load(eventFunc, "KspFgGetRenderEventFunc"))
         return Fatal("the proxy's raytracing exports", E_FAIL);
     proxy.event = reinterpret_cast<void (*)(int, void*)>(eventFunc());
@@ -1702,6 +1704,224 @@ int main()
         float passes[kRtPassTimings] = {};
         proxy.passTimings(passes, kRtPassTimings);
         printf("      denoiser at %ux%u: %.3f ms for sun and diffuse light\n", kWidth, kHeight, passes[6]);
+    }
+
+    // ---------------------------------------------------------------- Ray Reconstruction
+    {
+        char why[256] = {};
+        if (proxy.reconstructionAvailable == nullptr || proxy.reconstructionAvailable(why, sizeof(why)) != 1)
+            printf("      DLSS Ray Reconstruction skipped: %s\n", why);
+        else
+        {
+            // The noisy frame put together as Unity's lighting would with raw signals:
+            // albedo times the sun and the diffuse light, plus the reflections times a
+            // dielectric's Fresnel. Ray Reconstruction at the render size (DLAA) against
+            // the same made of 256-frame averages.
+            SendInstances(proxy, scene, camera.position);
+            RenderGBuffer(context.Get(), g, camera, meshes, scene);
+            Lighting lighting;
+            lighting.sky[0] = 0.4f;
+            lighting.sky[1] = 0.5f;
+            lighting.sky[2] = 0.7f;
+            lighting.bounces = 2.0f;
+            lighting.clamp = 20.0f;
+            const uint32_t signals = kRtSignalSunVisibility | kRtSignalDiffuse | kRtSignalSpecular;
+            std::vector<float> depth;
+            std::vector<uint32_t> normals, albedo;
+            ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+            ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+            ReadTexture(device.Get(), context.Get(), g.gbuffer0.Get(), 4, albedo);
+            const Vec3 l = Normalize(sun);
+            const size_t pixels = static_cast<size_t>(kWidth) * kHeight;
+            const auto compose = [&](const std::vector<double>& sunVis, const std::vector<double>& diffuse,
+                                     const std::vector<double>& specular, std::vector<float>& out)
+            {
+                out.assign(pixels * 4, 0.0f);
+                for (size_t i = 0; i < pixels; ++i)
+                {
+                    float* p = &out[i * 4];
+                    p[3] = 1.0f;
+                    if (depth[i] <= 0.0f)
+                    {
+                        p[0] = lighting.sky[0];
+                        p[1] = lighting.sky[1];
+                        p[2] = lighting.sky[2];
+                        continue;
+                    }
+                    const uint32_t packed = normals[i];
+                    const Vec3 n = Normalize({ (packed & 0x3FF) / 1023.0 * 2 - 1, ((packed >> 10) & 0x3FF) / 1023.0 * 2 - 1,
+                                               ((packed >> 20) & 0x3FF) / 1023.0 * 2 - 1 });
+                    const double direct = std::max(0.0, Dot(n, l)) * sunVis[i];
+                    for (int c = 0; c < 3; ++c)
+                    {
+                        const double a = ((albedo[i] >> (8 * c)) & 0xFF) / 255.0;
+                        p[c] = static_cast<float>(a * (direct + diffuse[i * 3 + c]) + 0.04 * specular[i * 3 + c]);
+                    }
+                }
+            };
+
+            // The reference: the signals averaged over 256 frames, put together.
+            std::vector<double> sunMean(pixels, 0.0), diffuseMean(pixels * 3, 0.0), specularMean(pixels * 3, 0.0);
+            std::vector<uint16_t> read;
+            const auto readSignals = [&](std::vector<double>& s, std::vector<double>& d, std::vector<double>& sp, double w)
+            {
+                ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, read);
+                for (size_t i = 0; i < pixels; ++i)
+                    s[i] += w * HalfToFloat(read[i * 4]);
+                ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, read);
+                for (size_t i = 0; i < pixels * 3; ++i)
+                    d[i] += w * HalfToFloat(read[(i / 3) * 4 + i % 3]);
+                ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, read);
+                for (size_t i = 0; i < pixels * 3; ++i)
+                    sp[i] += w * HalfToFloat(read[(i / 3) * 4 + i % 3]);
+            };
+            for (int f = 0; f < 256; ++f)
+            {
+                SendFrame(proxy, camera, g, outputs, sun, 0.02f, 20000 + f, signals, lighting);
+                readSignals(sunMean, diffuseMean, specularMean, 1.0 / 256.0);
+            }
+            std::vector<float> reference;
+            compose(sunMean, diffuseMean, specularMean, reference);
+
+            D3D11_TEXTURE2D_DESC colourDesc = {};
+            colourDesc.Width = kWidth;
+            colourDesc.Height = kHeight;
+            colourDesc.MipLevels = 1;
+            colourDesc.ArraySize = 1;
+            colourDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+            colourDesc.SampleDesc.Count = 1;
+            colourDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            ComPtr<ID3D11Texture2D> colour, motion, output;
+            HRESULT made = device->CreateTexture2D(&colourDesc, nullptr, &colour);
+            colourDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+            if (SUCCEEDED(made))
+                made = device->CreateTexture2D(&colourDesc, nullptr, &output);
+            colourDesc.Format = DXGI_FORMAT_R16G16_FLOAT;
+            std::vector<uint32_t> still(pixels, 0);
+            const D3D11_SUBRESOURCE_DATA stillData = { still.data(), kWidth * 4, 0 };
+            if (SUCCEEDED(made))
+                made = device->CreateTexture2D(&colourDesc, &stillData, &motion);
+            if (FAILED(made))
+                return Fatal("Ray Reconstruction's textures", made);
+
+            // The matrices as Streamline takes them: for row vectors, the view looking
+            // down +z.
+            Mat4 flipZ;
+            for (int d = 0; d < 4; ++d)
+                flipZ.at(d, d) = 1.0;
+            flipZ.at(2, 2) = -1.0;
+            const Mat4 view = LookRotation(camera.target - camera.position, { 0, 1, 0 });
+            const Mat4 projection = Perspective(camera.fov, double(kWidth) / kHeight, camera.nearPlane, camera.farPlane);
+            const auto transposed = [](const Mat4& m, float* out)
+            {
+                for (int r = 0; r < 4; ++r)
+                    for (int c = 0; c < 4; ++c)
+                        out[r * 4 + c] = static_cast<float>(m.at(c, r));
+            };
+            const Mat4 viewPlusZ = Multiply(flipZ, view);
+            const Mat4 projectionPlusZ = Multiply(projection, flipZ);
+            Mat4 identity;
+            for (int d = 0; d < 4; ++d)
+                identity.at(d, d) = 1.0;
+
+            RtReconstructPacket packet = {};
+            packet.size = sizeof(packet);
+            packet.magic = kRtReconstructMagic;
+            packet.renderWidth = packet.outputWidth = kWidth;
+            packet.renderHeight = packet.outputHeight = kHeight;
+            packet.mode = 6;     // sl::DLSSMode::eDLAA
+            packet.preset = 0;   // sl::DLSSDPreset::eDefault
+            ToFloats(camera.clipToWorld, packet.clipToWorld);
+            transposed(projectionPlusZ, packet.viewToClip);
+            transposed(Inverse(projectionPlusZ), packet.clipToView);
+            transposed(identity, packet.clipToPrevClip);
+            transposed(identity, packet.prevClipToClip);
+            transposed(viewPlusZ, packet.worldToView);
+            transposed(Inverse(viewPlusZ), packet.viewToWorld);
+            packet.motionScale[0] = 1.0f / kWidth;
+            packet.motionScale[1] = 1.0f / kHeight;
+            const Vec3 forward = Normalize(camera.target - camera.position);
+            const Vec3 right = Normalize(Cross(forward, { 0, 1, 0 }));
+            const Vec3 up = Cross(right, forward);
+            const float basis[3][3] = { { float(up.x), float(up.y), float(up.z) },
+                                        { float(right.x), float(right.y), float(right.z) },
+                                        { float(forward.x), float(forward.y), float(forward.z) } };
+            memcpy(packet.up, basis[0], 12);
+            memcpy(packet.right, basis[1], 12);
+            memcpy(packet.forward, basis[2], 12);
+            packet.nearPlane = static_cast<float>(camera.nearPlane);
+            packet.farPlane = static_cast<float>(camera.farPlane);
+            packet.verticalFov = static_cast<float>(camera.fov);
+            packet.colour = colour.Get();
+            packet.depth = g.depth.Get();
+            packet.motion = motion.Get();
+            packet.gbuffer0 = g.gbuffer0.Get();
+            packet.gbuffer1 = g.gbuffer1.Get();
+            packet.gbuffer2 = g.gbuffer2.Get();
+            packet.specular = outputs.specular.Get();
+            packet.output = output.Get();
+
+            double noisyError = 0.0, noisyFlicker = 0.0;
+            std::vector<float> composed, previousOutput;
+            std::vector<uint16_t> result;
+            double reconstructedFlicker = 0.0;
+            for (int f = 0; f < 64; ++f)
+            {
+                SendFrame(proxy, camera, g, outputs, sun, 0.02f, 21000 + f, signals, lighting);
+                std::vector<double> s(pixels, 0.0), d(pixels * 3, 0.0), sp(pixels * 3, 0.0);
+                readSignals(s, d, sp, 1.0);
+                compose(s, d, sp, composed);
+                context->UpdateSubresource(colour.Get(), 0, nullptr, composed.data(), kWidth * 16, 0);
+                packet.frameIndex = static_cast<uint32_t>(f);
+                packet.flags = f == 0 ? kRtFrameReset : 0u;
+                proxy.event(31, &packet);
+                if (f == 62 || f == 63)
+                {
+                    ReadTexture(device.Get(), context.Get(), output.Get(), 8, result);
+                    std::vector<float> current(pixels * 3);
+                    for (size_t i = 0; i < pixels * 3; ++i)
+                        current[i] = HalfToFloat(result[(i / 3) * 4 + i % 3]);
+                    if (f == 63)
+                    {
+                        for (size_t i = 0; i < pixels * 3; ++i)
+                            reconstructedFlicker += std::fabs(current[i] - previousOutput[i]);
+                        reconstructedFlicker /= pixels * 3;
+                    }
+                    previousOutput = current;
+                }
+            }
+            double sum = 0.0, sumNoisy = 0.0, mean = 0.0, meanReference = 0.0;
+            for (size_t i = 0; i < pixels; ++i)
+                for (int c = 0; c < 3; ++c)
+                {
+                    const double want = reference[i * 4 + c];
+                    const double got = previousOutput[i * 3 + c];
+                    sum += (got - want) * (got - want);
+                    sumNoisy += (composed[i * 4 + c] - want) * (composed[i * 4 + c] - want);
+                    mean += got;
+                    meanReference += want;
+                }
+            const double error = std::sqrt(sum / (pixels * 3));
+            noisyError = std::sqrt(sumNoisy / (pixels * 3));
+            mean /= pixels * 3;
+            meanReference /= pixels * 3;
+            printf("      %s\n", proxy.Status().c_str());
+            char detail[300];
+            sprintf_s(detail, "the reconstructed frame off the 256-frame reference by %.4f (the noisy frame %.4f), its mean"
+                              " %.4f against %.4f, frame to frame %.4f",
+                      error, noisyError, mean, meanReference, reconstructedFlicker);
+            (void)noisyFlicker;
+            Check(error < 0.5 * noisyError && std::fabs(mean - meanReference) < 0.05 * meanReference,
+                  "DLSS Ray Reconstruction", detail);
+            std::vector<double> image(pixels * 3);
+            for (size_t i = 0; i < pixels * 3; ++i)
+                image[i] = previousOutput[i];
+            SaveColour(L"rt_reconstructed.bmp", image, 1.0);
+            for (size_t i = 0; i < pixels; ++i)
+                for (int c = 0; c < 3; ++c)
+                    image[i * 3 + c] = composed[i * 4 + c];
+            SaveColour(L"rt_reconstruct_noisy.bmp", image, 1.0);
+        }
     }
 
     // ---------------------------------------------------------------- churn

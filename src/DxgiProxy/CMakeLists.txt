@@ -40,7 +40,8 @@ set(REDEFINITION_RT_ENTRIES
     Raytracing:SunVisibility Raytracing:AmbientOcclusion Raytracing:DiffuseLight Raytracing:SpecularLight
     Raytracing:PrimaryCheck
     Denoise:DenoisePrepare Denoise:DenoiseTemporal Denoise:DenoiseVariance Denoise:DenoiseAtrous
-    Denoise:DenoiseResolve)
+    Denoise:DenoiseResolve
+    Reconstruct:ReconstructGuides)
 set(REDEFINITION_RT_OUTPUTS)
 set(REDEFINITION_RT_RC "${CMAKE_CURRENT_BINARY_DIR}/RaytracingShaders.rc")
 if(REDEFINITION_DXC)
@@ -100,6 +101,7 @@ add_library(ReDefinitionProxy SHARED
     Raytracing.cpp
     Raytracing.h
     RaytracingDenoise.cpp
+    RaytracingReconstruct.cpp
     Streamline.cpp
     Streamline.h
     SwapChainProxy.cpp

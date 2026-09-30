@@ -27,6 +27,7 @@ Texture2D<float4> normalBefore : register(t6, space3);
 Texture2D<float4> motion : register(t7, space3);
 RWTexture2D<float4> outputA : register(u0, space3);
 RWTexture2D<float4> outputB : register(u1, space3);
+// u2, u3 in space 3 are the Ray Reconstruction guides' (Reconstruct.hlsl).
 
 float Luminance(float4 value)
 {

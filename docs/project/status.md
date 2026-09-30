@@ -16,7 +16,7 @@ Released: 0.1.3.
 | **Other mods' antialiasing** -- Scatterer's TAA and SMAA with their leftovers, TUFX's antialiasing, Deferred's editor SMAA, Kerbal Frame Generator's blend, while the upscaler runs | built |
 | **Proxy** -- Direct3D 12 presentation, FSR 3.1 frame generation, DLSS frame generation through Streamline 2.14.1, HUD-less copy and its check, V-Sync as NVIDIA's guide allows, half-refresh limit, live ini | built; harness passes with FSR and with DLSS frame generation; `tools/audit_ffx_fields.py` passes |
 | **Frame generation without the upscaler** | built; harness passes |
-| **Raytracing, stages 1 to 3 of 7** -- the service in the proxy: meshes, materials, material textures, instances, acceleration structures; sun visibility, ambient occlusion, diffuse light with bounces, reflections, emission, the sky; ReDefinition's own denoiser; the raytracing harness and a scene of KSP's meshes | built; the raytracing harness passes on an RTX 4090; not connected to the game yet |
+| **Raytracing, stages 1 to 3 of 7** -- the service in the proxy: meshes, materials, material textures, instances, acceleration structures; sun visibility, ambient occlusion, diffuse light with bounces, reflections, emission, the sky; ReDefinition's own denoiser; DLSS Ray Reconstruction through Streamline; the raytracing harness and a scene of KSP's meshes | built; the raytracing harness passes on an RTX 4090; not connected to the game yet |
 | **NVIDIA DLSS files** -- download from NVIDIA's Streamline release after licence consent, SHA-256 pinned | built, unit tests |
 | **KSP settings dialog section** | built |
 | **Settings window and diagnostics window** -- tabs by feature, *Advanced*, toolbar takeover, close buttons on mods' windows | built |
@@ -36,7 +36,7 @@ Released: 0.1.3.
 | Upscaler | Whether the masks take out ghosting; floating origin shifts and motion vectors; camera cuts that keep target and parent; world-anchored UI in smaller modes | [development/upscaler.md](../development/upscaler.md), "Open" |
 | Frame generation | The fence's and the check's cost; pacing per profile; DLSS frame generation in flight | [development/frame-generation.md](../development/frame-generation.md), "Open" |
 | Interface for mods | The hooks and the frame's state in the game; mask contributions |
-| Raytracing | DLSS Ray Reconstruction and AMD's Ray Regeneration; stages 4 to 7: the Unity side, KSP, the installed mods, performance | [development/raytracing.md](../development/raytracing.md), "Plan" | [development/shared-foundation.md](../development/shared-foundation.md) |
+| Raytracing | AMD's Ray Regeneration; DLSS Ray Reconstruction where DLSS frame generation does not run; stages 4 to 7: the Unity side, KSP, the installed mods, performance | [development/raytracing.md](../development/raytracing.md), "Plan" | [development/shared-foundation.md](../development/shared-foundation.md) |
 | Compatibility | Ghosting behind plumes; thin trajectory lines; Singularity in the smaller modes; Kerbal Frame Generator installed | [reference/graphics-mod-compatibility.md](../reference/graphics-mod-compatibility.md), "Open" |
 | Modders | Whether a mod's own behaviour type covers what the mods ReDefinition bundles needed | a third-party mod that brings one |
 

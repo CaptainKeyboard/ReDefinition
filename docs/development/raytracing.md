@@ -122,6 +122,10 @@ smooth one:
 | AMD FSR Ray Regeneration 1.2 | Radeon RX 9000 and newer, Windows 11 **[doc]** | the player's `amd_fidelityfx_denoiser_dx12.dll` and loader | the signals separately; FSR upscales afterwards |
 | NVIDIA DLSS Ray Reconstruction | GeForce RTX **[doc]** | the player's `sl.dlss_d.dll` and `nvngx_dlssd.dll` | the whole frame with its noise, in place of DLSS Super Resolution **[doc]** |
 
+ReDefinition gives Ray Reconstruction its own Streamline viewport, apart from frame
+generation's. It runs where Streamline is set up, which is where DLSS frame generation
+runs **[open]** (on GPUs without DLSS frame generation).
+
 With DLSS Ray Reconstruction the signals go into the lighting undenoised. Ray
 Reconstruction then denoises and upscales the finished frame in one step, where DLSS Super
 Resolution would otherwise run. It gets the albedo, specular albedo, normal, roughness and

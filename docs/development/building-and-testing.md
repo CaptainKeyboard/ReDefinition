@@ -273,6 +273,10 @@ build\DxgiProxy\Release\RaytracingHarness.exe
 It prints a `PASS` or `FAIL` line per check and the GPU time of each pass. It writes an
 image per check next to itself, `rt_*.bmp`, to look at.
 
+Where DLSS frame generation runs and NVIDIA's `sl.dlss_d.dll` and `nvngx_dlssd.dll` lie
+next to the other Streamline DLLs, it also checks DLSS Ray Reconstruction. Both come with
+the Streamline SDK 2.14.1, in `bin\x64`.
+
 With a scene of KSP's own meshes it also renders the launch pad and the SPH. The scene
 holds Squad's geometry, so write it outside the repository:
 

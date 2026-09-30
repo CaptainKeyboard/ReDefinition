@@ -55,6 +55,7 @@ namespace redefinition
     // tags and markers go under the same token when it is presented.
     void SwapChainProxy::BeginStreamlineFrame()
     {
+        Streamline::Get().NoteFrameInProgress(streamlineFrameIndex);
         nextFrameToken = Streamline::Get().NewFrameToken(streamlineFrameIndex++);
         if (nextFrameToken != nullptr)
             Streamline::Get().ReflexSleep(*nextFrameToken);

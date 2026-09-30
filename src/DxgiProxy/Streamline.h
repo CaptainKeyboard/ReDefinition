@@ -6,6 +6,7 @@
 #include <dxgi1_6.h>
 
 #include <sl.h>
+#include <sl_dlss_d.h>
 #include <sl_dlss_g.h>
 #include <sl_pcl.h>
 #include <sl_reflex.h>
@@ -79,8 +80,25 @@ namespace redefinition
         void Marker(sl::PCLMarker marker, const sl::FrameToken& frame);
         void ReflexSleep(const sl::FrameToken& frame);
 
-        // The one viewport every call uses: the scene.
+        // The viewport of frame generation: the scene.
         static constexpr uint32_t kViewport = 0;
+        // DLSS Ray Reconstruction's own viewport (ProgrammingGuideDLSS_RR.md 8.0), so
+        // that its constants and tags stay apart from frame generation's.
+        static constexpr uint32_t kRayReconstructionViewport = 1;
+
+        // DLSS Ray Reconstruction (sl.dlss_d.dll and nvngx_dlssd.dll beside the other
+        // plugins): whether it runs on the device Streamline was given, and why not.
+        bool RayReconstructionReady(std::string& why) const;
+
+        // The frame the swapchain has begun, whose token DLSS Ray Reconstruction
+        // evaluates under. Set by the presenting swapchain.
+        void NoteFrameInProgress(uint32_t frameIndex);
+
+        // Ray Reconstruction for this frame, recorded into list: constants, options and
+        // tags under its viewport, then the evaluation. The caller restores the list's
+        // state afterwards, as NVIDIA's guide says (7.0).
+        bool EvaluateRayReconstruction(const sl::Constants& constants, const sl::DLSSDOptions& options,
+                                       const sl::ResourceTag* tags, uint32_t count, ID3D12GraphicsCommandList* list);
 
         // What the last attempt came to, for the status line.
         std::string Describe() const;
@@ -129,5 +147,12 @@ namespace redefinition
         PFun_slReflexSetOptions* slReflexSetOptions = nullptr;
         PFun_slReflexSleep* slReflexSleep = nullptr;
         PFun_slPCLSetMarker* slPCLSetMarker = nullptr;
+        PFun_slEvaluateFeature* slEvaluateFeature = nullptr;
+        PFun_slDLSSDSetOptions* slDLSSDSetOptions = nullptr;
+        PFun_slDLSSDGetOptimalSettings* slDLSSDGetOptimalSettings = nullptr;
+        std::atomic<bool> rayReconstruction{ false };
+        std::string rayReconstructionWhy = "Streamline not set up";
+        std::atomic<int64_t> frameInProgress{ -1 };
+        uint32_t ownFrameIndex = 1000000;
     };
 }

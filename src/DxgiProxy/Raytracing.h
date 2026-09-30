@@ -138,6 +138,56 @@ namespace redefinition
         void* outputs[kRtMaxTextures];
     };
 
+    constexpr uint32_t kRtReconstructMagic = 0x4B535252u;   // 'KSRR'
+
+    // Event 31: a frame for DLSS Ray Reconstruction, in place of DLSS Super Resolution.
+    // clipToWorld as RtFramePacket has it, for the guides; the other matrices as
+    // Streamline takes them (sl::Constants, DLSSDOptions), without jitter; the
+    // jitter in pixels and the motion vector scale as Streamline's constants say.
+    // mode is sl::DLSSMode's value, preset sl::DLSSDPreset's.
+    struct RtReconstructPacket
+    {
+        uint32_t size;
+        uint32_t magic;
+        uint32_t frameIndex;
+        uint32_t flags;
+        uint32_t renderWidth;
+        uint32_t renderHeight;
+        uint32_t outputWidth;
+        uint32_t outputHeight;
+        uint32_t mode;
+        uint32_t preset;
+        uint32_t reserved[2];
+        float clipToWorld[16];
+        float viewToClip[16];
+        float clipToView[16];
+        float clipToPrevClip[16];
+        float prevClipToClip[16];
+        float worldToView[16];
+        float viewToWorld[16];
+        float jitter[2];
+        float motionScale[2];
+        float up[4];
+        float right[4];
+        float forward[4];
+        float nearPlane;
+        float farPlane;
+        float verticalFov;
+        float reserved2;
+        void* colour;      // the noisy frame, HDR, at the render size
+        void* depth;       // R32_FLOAT, Direct3D's clip-space z, reversed
+        void* motion;      // RG16_FLOAT
+        void* gbuffer0;
+        void* gbuffer1;
+        void* gbuffer2;
+        void* specular;    // the reflections' output, the hit distance in w
+        void* output;      // at the output size
+    };
+
+    static_assert(offsetof(RtReconstructPacket, clipToWorld) == 48, "RtReconstructPacket layout changed");
+    static_assert(offsetof(RtReconstructPacket, colour) == 576, "RtReconstructPacket layout changed");
+    static_assert(sizeof(RtReconstructPacket) == 640, "RtReconstructPacket layout changed: update the managed side");
+
     static_assert(sizeof(RtMeshDesc) == 56, "RtMeshDesc layout changed: update the managed side");
     static_assert(sizeof(RtMaterialDesc) == 64, "RtMaterialDesc layout changed: update the managed side");
     static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
@@ -168,6 +218,10 @@ namespace redefinition
 
         // From the render thread.
         void OnFrame(const void* data);
+        void OnReconstruct(const void* data);
+
+        // Whether DLSS Ray Reconstruction runs: 1 yes, 0 no, the reason in buffer.
+        int ReconstructionAvailable(char* buffer, int size) const;
 
         int Status(char* buffer, int size) const;
 
@@ -237,6 +291,32 @@ namespace redefinition
         // Per signal (sun, diffuse, specular, occlusion): the noisy trace, and the history
         // and its moments for this frame and the one before; two work textures; the view
         // distance and normal for this frame and the one before.
+        // The guides DLSS Ray Reconstruction takes (RaytracingShaders/Reconstruct.hlsl).
+        struct GuideTargets
+        {
+            DenoiseTarget albedo;
+            DenoiseTarget specularAlbedo;
+            DenoiseTarget normalRoughness;
+            DenoiseTarget hitDistance;
+            UINT width = 0;
+            UINT height = 0;
+        };
+
+        // A texture a pass reads or writes: a resource and the format to view it in.
+        struct View
+        {
+            ID3D12Resource* resource = nullptr;
+            DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        };
+        static View Of(const DenoiseTarget* target)
+        {
+            return target != nullptr ? View{ target->resource.Get(), target->format } : View{};
+        }
+        static View Of(const Shared* shared)
+        {
+            return shared != nullptr ? View{ shared->texture.d3d12.Get(), shared->texture.format } : View{};
+        }
+
         struct DenoiseTargets
         {
             DenoiseTarget noisy[4];
@@ -255,6 +335,7 @@ namespace redefinition
         static constexpr UINT kMaxMeshes = 16384;
         static constexpr UINT kFrameDescriptors = 2 * kRtMaxTextures;
         static constexpr UINT kDenoiseDescriptors = 512;
+        static constexpr UINT kTableSize = 12;
 
         struct Slot
         {
@@ -282,10 +363,10 @@ namespace redefinition
         bool EnsureMaterialTexturesLocked(UINT layers, Slot& slot);
         bool EnsureDenoiseTargetsLocked(UINT width, UINT height, Slot& slot);
         void UseLocked(DenoiseTarget& target, D3D12_RESOURCE_STATES wanted);
-        D3D12_GPU_DESCRIPTOR_HANDLE DenoiseTableLocked(UINT slotNumber, UINT& used, DenoiseTarget* const* reads,
-                                                       ID3D12Resource* sharedRead, DXGI_FORMAT sharedFormat,
-                                                       DenoiseTarget* const* writes, ID3D12Resource* sharedWrite,
-                                                       DXGI_FORMAT sharedWriteFormat);
+        // Views for one dispatch of the passes in space 3: eight to read, four to write.
+        // Returns the table's start on the GPU; the writes follow the reads.
+        D3D12_GPU_DESCRIPTOR_HANDLE TableLocked(UINT slotNumber, UINT& used, const View (&reads)[8],
+                                                const View (&writes)[4]);
         void RunDenoiserLocked(const RtFramePacket& packet, UINT slotNumber, Shared* const* outputs, Shared* motionInput);
         bool EnsureDefaultBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size,
                                  D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags);
@@ -311,6 +392,7 @@ namespace redefinition
         std::map<uint32_t, Microsoft::WRL::ComPtr<ID3D12PipelineState>> pipelines;
         std::map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> denoisePipelines;
         DenoiseTargets denoise;
+        GuideTargets guides;
 
         Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
         UINT increment = 0;
@@ -362,6 +444,7 @@ namespace redefinition
         mutable std::mutex statusLock;
         std::string lastProblem;
         uint64_t frames = 0;
+        uint64_t reconstructed = 0;
         uint32_t liveMeshes = 0;
         uint32_t lastInstances = 0;
         uint32_t lastBuilt = 0;

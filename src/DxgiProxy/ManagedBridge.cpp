@@ -229,7 +229,7 @@ extern "C"
     // 6: a question for DLSS's render sizes (Dlss::OnSizeQuery), before a rig.
     // 20-23: Direct3D 12 for mods (D3d12Compute.h): a compute pass made, destroyed,
     //    dispatched, a texture's shared copy released.
-    // 30: a raytracing frame (Raytracing.h).
+    // 30: a raytracing frame (Raytracing.h); 31: a frame for DLSS Ray Reconstruction.
     static void UNITY_INTERFACE_API OnRenderEvent(int eventId, void* data)
     {
         if (eventId == 1)
@@ -254,6 +254,8 @@ extern "C"
             redefinition::D3d12Compute::Get().OnReleaseTexture(data);
         else if (eventId == 30)
             redefinition::Raytracing::Get().OnFrame(data);
+        else if (eventId == 31)
+            redefinition::Raytracing::Get().OnReconstruct(data);
     }
 
     __declspec(dllexport) void* KspFgGetRenderEventFunc()
@@ -338,6 +340,17 @@ extern "C"
     __declspec(dllexport) int KspRtAvailable(char* buffer, int size)
     {
         return redefinition::Raytracing::Get().Available(buffer, size);
+    }
+
+    // Whether DLSS Ray Reconstruction runs: 1 yes, 0 no, with the reason in buffer.
+    __declspec(dllexport) int KspRtReconstructionAvailable(char* buffer, int size)
+    {
+        return redefinition::Raytracing::Get().ReconstructionAvailable(buffer, size);
+    }
+
+    __declspec(dllexport) unsigned int KspRtReconstructPacketSize()
+    {
+        return static_cast<unsigned int>(sizeof(redefinition::RtReconstructPacket));
     }
 
     // The sizes of the structures the managed side writes, checked before the first.
