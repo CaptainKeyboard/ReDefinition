@@ -9,7 +9,7 @@ ReDefinition takes their pictures from the space centre as you see it there, a U
 too, and keeps them. Until the space centre has been shown once, the buttons are round
 plates.
 
-The buttons stand in the world: a vessel, a building or the ground before them hides
+The buttons are part of the world: a vessel, a building or the ground before them hides
 them, and a click there goes to what stands before them. They grow smaller as the camera
 draws away, and go once they would be too small to see.
 
