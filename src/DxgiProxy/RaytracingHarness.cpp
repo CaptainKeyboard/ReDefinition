@@ -700,6 +700,10 @@ PsOut PsMain(VsOut input)
         float specularDistance = 100000.0f;
         float clamp = 0.0f;
         ID3D11Texture2D* environment = nullptr;
+        uint32_t flags = 0;
+        // The previous frame's world-to-clip in this frame's camera-relative space; this
+        // frame's where not given.
+        const Mat4* previous = nullptr;
     };
 
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
@@ -709,13 +713,13 @@ PsOut PsMain(VsOut input)
         packet.size = sizeof(packet);
         packet.magic = kRtFrameMagic;
         packet.frameIndex = frameIndex;
-        packet.flags = kRtFrameSameFrame;
+        packet.flags = kRtFrameSameFrame | lighting.flags;
         packet.width = kWidth;
         packet.height = kHeight;
         packet.signals = signals;
         ToFloats(camera.clipToWorld, packet.clipToWorld);
         ToFloats(camera.worldToClip, packet.worldToClip);
-        ToFloats(camera.worldToClip, packet.prevWorldToClip);
+        ToFloats(lighting.previous != nullptr ? *lighting.previous : camera.worldToClip, packet.prevWorldToClip);
         const Vec3 l = Normalize(towardsSun);
         packet.sunDirection[0] = float(l.x);
         packet.sunDirection[1] = float(l.y);
@@ -1543,6 +1547,161 @@ int main()
                 meshes.erase(entry.first);
             }
         }
+    }
+
+    // ---------------------------------------------------------------- denoising
+    {
+        // The camera glides into place over 60 frames and holds for 30. The denoised
+        // signals are then compared with a reference of 1024 frames at the end position,
+        // against what one noisy frame gives.
+        SendInstances(proxy, scene, camera.position);
+        Lighting lighting;
+        lighting.sky[0] = 0.4f;
+        lighting.sky[1] = 0.5f;
+        lighting.sky[2] = 0.7f;
+        lighting.bounces = 2.0f;
+        lighting.clamp = 20.0f;
+        const float sunRadius = 0.03f;
+        const uint32_t signals = kRtSignalSunVisibility | kRtSignalDiffuse;
+
+        Camera end = camera;
+        RenderGBuffer(context.Get(), g, end, meshes, scene);
+        std::vector<double> referenceDiffuse(static_cast<size_t>(kWidth) * kHeight * 3, 0.0);
+        std::vector<double> referenceSun(static_cast<size_t>(kWidth) * kHeight, 0.0);
+        std::vector<uint16_t> read;
+        const int referenceFrames = 1024;
+        for (int f = 0; f < referenceFrames; ++f)
+        {
+            SendFrame(proxy, end, g, outputs, sun, sunRadius, 8000 + f, signals, lighting);
+            ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, read);
+            for (size_t i = 0; i < referenceSun.size(); ++i)
+                for (int c = 0; c < 3; ++c)
+                    referenceDiffuse[i * 3 + c] += HalfToFloat(read[i * 4 + c]);
+            ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, read);
+            for (size_t i = 0; i < referenceSun.size(); ++i)
+                referenceSun[i] += HalfToFloat(read[i * 4]);
+        }
+        for (double& v : referenceDiffuse)
+            v /= referenceFrames;
+        for (double& v : referenceSun)
+            v /= referenceFrames;
+        std::vector<float> depth;
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+
+        // One noisy frame at the end position, and the difference between two.
+        std::vector<uint16_t> noisyDiffuse, noisySun, noisyDiffuse2;
+        SendFrame(proxy, end, g, outputs, sun, sunRadius, 9500, signals, lighting);
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, noisyDiffuse);
+        ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, noisySun);
+        SendFrame(proxy, end, g, outputs, sun, sunRadius, 9501, signals, lighting);
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, noisyDiffuse2);
+
+        const auto error = [&](const std::vector<uint16_t>& image, bool colour, double& rmse, double& mean,
+                               double& referenceMean)
+        {
+            double sum = 0.0, total = 0.0, totalReference = 0.0;
+            size_t count = 0;
+            for (size_t i = 0; i < referenceSun.size(); ++i)
+            {
+                if (depth[i] <= 0.0f)
+                    continue;
+                const int channels = colour ? 3 : 1;
+                for (int c = 0; c < channels; ++c)
+                {
+                    const double got = HalfToFloat(image[i * 4 + c]);
+                    const double want = colour ? referenceDiffuse[i * 3 + c] : referenceSun[i];
+                    sum += (got - want) * (got - want);
+                    total += got;
+                    totalReference += want;
+                    ++count;
+                }
+            }
+            rmse = std::sqrt(sum / std::max<size_t>(count, 1));
+            mean = total / std::max<size_t>(count, 1);
+            referenceMean = totalReference / std::max<size_t>(count, 1);
+        };
+        const auto flicker = [&](const std::vector<uint16_t>& a, const std::vector<uint16_t>& b)
+        {
+            double sum = 0.0;
+            size_t count = 0;
+            for (size_t i = 0; i < referenceSun.size(); ++i)
+                if (depth[i] > 0.0f)
+                {
+                    for (int c = 0; c < 3; ++c)
+                        sum += std::fabs(HalfToFloat(a[i * 4 + c]) - HalfToFloat(b[i * 4 + c]));
+                    ++count;
+                }
+            return sum / std::max<size_t>(count, 1);
+        };
+        double noisyDiffuseError, noisySunError, unused, unusedReference;
+        error(noisyDiffuse, true, noisyDiffuseError, unused, unusedReference);
+        error(noisySun, false, noisySunError, unused, unusedReference);
+        const double noisyFlicker = flicker(noisyDiffuse, noisyDiffuse2);
+
+        // The glide, denoised: from 6 m to the side, the previous frame's matrix given.
+        Camera previous = end;
+        std::vector<uint16_t> denoisedDiffuse, denoisedSun, lastDiffuse;
+        for (int f = 0; f < 90; ++f)
+        {
+            Camera now = end;
+            const double t = std::min(1.0, f / 60.0);
+            now.position = end.position + Vec3{ -6.0 * (1.0 - t), 2.0 * (1.0 - t), 0.0 };
+            now.Update();
+            // The previous camera's clip from this camera's relative space: shift by the
+            // cameras' offset, then the previous transform.
+            Mat4 shift;
+            for (int d = 0; d < 4; ++d)
+                shift.at(d, d) = 1.0;
+            shift.at(0, 3) = now.position.x - previous.position.x;
+            shift.at(1, 3) = now.position.y - previous.position.y;
+            shift.at(2, 3) = now.position.z - previous.position.z;
+            const Mat4 previousClip = Multiply(previous.worldToClip, shift);
+            Lighting moving = lighting;
+            moving.flags = kRtFrameDenoise | (f == 0 ? kRtFrameReset : 0u);
+            moving.previous = &previousClip;
+            SendInstances(proxy, scene, now.position);
+            RenderGBuffer(context.Get(), g, now, meshes, scene);
+            SendFrame(proxy, now, g, outputs, sun, sunRadius, 10000 + f, signals, moving);
+            if (f == 88)
+                ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, lastDiffuse);
+            previous = now;
+        }
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, denoisedDiffuse);
+        ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, denoisedSun);
+        double diffuseError, diffuseMean, diffuseReference, sunError, sunMean, sunReference;
+        error(denoisedDiffuse, true, diffuseError, diffuseMean, diffuseReference);
+        error(denoisedSun, false, sunError, sunMean, sunReference);
+        const double denoisedFlicker = flicker(lastDiffuse, denoisedDiffuse);
+
+        char detail[300];
+        sprintf_s(detail, "diffuse light off the 1024-frame reference by %.4f (one noisy frame %.4f), its mean %.4f"
+                          " against %.4f, frame to frame %.4f (noisy %.4f)",
+                  diffuseError, noisyDiffuseError, diffuseMean, diffuseReference, denoisedFlicker, noisyFlicker);
+        Check(diffuseError < 0.35 * noisyDiffuseError && std::fabs(diffuseMean - diffuseReference) < 0.03 * diffuseReference
+                  && denoisedFlicker < 0.2 * noisyFlicker,
+              "denoised diffuse light", detail);
+        sprintf_s(detail, "sun visibility off the reference by %.4f (one noisy frame %.4f), its mean %.4f against %.4f",
+                  sunError, noisySunError, sunMean, sunReference);
+        Check(sunError < 0.35 * noisySunError && std::fabs(sunMean - sunReference) < 0.03 * sunReference,
+              "denoised sun visibility", detail);
+
+        std::vector<double> image(referenceDiffuse.size());
+        for (size_t i = 0; i < referenceSun.size(); ++i)
+            for (int c = 0; c < 3; ++c)
+                image[i * 3 + c] = HalfToFloat(denoisedDiffuse[i * 4 + c]);
+        SaveColour(L"rt_denoised_diffuse.bmp", image, 1.0);
+        for (size_t i = 0; i < referenceSun.size(); ++i)
+            for (int c = 0; c < 3; ++c)
+                image[i * 3 + c] = HalfToFloat(noisyDiffuse[i * 4 + c]);
+        SaveColour(L"rt_noisy_diffuse.bmp", image, 1.0);
+        SaveColour(L"rt_reference_diffuse.bmp", referenceDiffuse, 1.0);
+        for (size_t i = 0; i < referenceSun.size(); ++i)
+            image[i * 3] = image[i * 3 + 1] = image[i * 3 + 2] = HalfToFloat(denoisedSun[i * 4]);
+        SaveColour(L"rt_denoised_sun.bmp", image, 1.0);
+
+        float passes[kRtPassTimings] = {};
+        proxy.passTimings(passes, kRtPassTimings);
+        printf("      denoiser at %ux%u: %.3f ms for sun and diffuse light\n", kWidth, kHeight, passes[6]);
     }
 
     // ---------------------------------------------------------------- churn

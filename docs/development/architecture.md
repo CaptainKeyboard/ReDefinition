@@ -326,7 +326,8 @@ button.
 | `AmdUpscaler.h`, `AmdUpscaler.cpp` | AMD's upscaler DLL on the proxy's Direct3D 12 device |
 | `D3d12Compute.h`, `D3d12Compute.cpp` | Direct3D 12 for mods: capabilities, HLSL compiled with Windows' `d3dcompiler_47.dll`, compute passes against one root signature, textures shared with Direct3D 11 |
 | `Raytracing.h`, `Raytracing.cpp` | raytracing: meshes, materials and instances from the managed side, acceleration structures, the frame's passes on the proxy's Direct3D 12 device |
-| `RaytracingShaders/` | the raytracing passes in HLSL, compiled to DXIL at build time and embedded in `dxgi.dll` |
+| `RaytracingDenoise.cpp` | ReDefinition's own denoiser: its textures and the passes of a frame |
+| `RaytracingShaders/` | the raytracing and denoising passes in HLSL, compiled to DXIL at build time and embedded in `dxgi.dll` |
 | `FidelityFx.h`, `FidelityFx.cpp` | AMD's frame generation runtime, loaded at run time through a function table |
 | `NvidiaGpu.h`, `NvidiaGpu.cpp` | the GPU's architecture through NVAPI, for what DLSS and DLSS-G need |
 | `ProjectIdentity.h` | what ReDefinition tells NVIDIA's libraries it is |

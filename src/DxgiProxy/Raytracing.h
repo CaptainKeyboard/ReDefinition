@@ -86,6 +86,8 @@ namespace redefinition
     // The frame's flags.
     constexpr uint32_t kRtFrameSameFrame = 1u << 0;   // copy the results back before the event returns
     constexpr uint32_t kRtFrameReset = 1u << 1;       // the history is not this camera's: start afresh
+    constexpr uint32_t kRtFrameDenoise = 1u << 2;     // the signals through ReDefinition's denoiser
+    constexpr uint32_t kRtFrameMotionVectors = 1u << 3;   // t5 holds motion: the previous uv is uv - motion.xy
 
     // The signals a frame traces; each writes its output slot.
     constexpr uint32_t kRtSignalSunVisibility = 1u << 0;   // u0: visibility of the sun, 0 to 1
@@ -171,6 +173,7 @@ namespace redefinition
 
         // What the last frame took on the GPU, in milliseconds: building, tracing.
         void Timings(float& build, float& trace) const;
+        // Pass 6 of PassTimings is the denoiser.
         // Each pass's time, by signal bit; 0 for a pass that did not run.
         void PassTimings(float* out, int count) const;
 
@@ -222,9 +225,36 @@ namespace redefinition
             UINT64 lastFence = 0;
         };
 
+        // A texture of the denoiser's own, with the state it is in.
+        struct DenoiseTarget
+        {
+            Microsoft::WRL::ComPtr<ID3D12Resource> resource;
+            D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+            DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+            bool Create(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT format);
+        };
+
+        // Per signal (sun, diffuse, specular, occlusion): the noisy trace, and the history
+        // and its moments for this frame and the one before; two work textures; the view
+        // distance and normal for this frame and the one before.
+        struct DenoiseTargets
+        {
+            DenoiseTarget noisy[4];
+            DenoiseTarget history[4][2];
+            DenoiseTarget moments[4][2];
+            DenoiseTarget work[2];
+            DenoiseTarget linearDepth[2];
+            DenoiseTarget normal[2];
+            UINT width = 0;
+            UINT height = 0;
+            UINT parity = 0;
+            bool fresh = true;
+        };
+
         static constexpr UINT kSlots = 3;
         static constexpr UINT kMaxMeshes = 16384;
         static constexpr UINT kFrameDescriptors = 2 * kRtMaxTextures;
+        static constexpr UINT kDenoiseDescriptors = 512;
 
         struct Slot
         {
@@ -250,6 +280,13 @@ namespace redefinition
         bool BuildSceneLocked(Slot& slot, UINT& instanceCount);
         bool EnsureUploadBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size);
         bool EnsureMaterialTexturesLocked(UINT layers, Slot& slot);
+        bool EnsureDenoiseTargetsLocked(UINT width, UINT height, Slot& slot);
+        void UseLocked(DenoiseTarget& target, D3D12_RESOURCE_STATES wanted);
+        D3D12_GPU_DESCRIPTOR_HANDLE DenoiseTableLocked(UINT slotNumber, UINT& used, DenoiseTarget* const* reads,
+                                                       ID3D12Resource* sharedRead, DXGI_FORMAT sharedFormat,
+                                                       DenoiseTarget* const* writes, ID3D12Resource* sharedWrite,
+                                                       DXGI_FORMAT sharedWriteFormat);
+        void RunDenoiserLocked(const RtFramePacket& packet, UINT slotNumber, Shared* const* outputs, Shared* motionInput);
         bool EnsureDefaultBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size,
                                  D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags);
         void CompletePendingLocked();
@@ -272,6 +309,8 @@ namespace redefinition
         std::map<std::string, std::vector<uint8_t>> shaders;
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
         std::map<uint32_t, Microsoft::WRL::ComPtr<ID3D12PipelineState>> pipelines;
+        std::map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> denoisePipelines;
+        DenoiseTargets denoise;
 
         Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
         UINT increment = 0;

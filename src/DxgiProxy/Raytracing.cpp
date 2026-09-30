@@ -34,6 +34,26 @@ namespace redefinition
             { kRtSignalPrimaryCheck, L"RT_PrimaryCheck" },
         };
 
+        // The denoiser's entry points (RaytracingShaders/Denoise.hlsl).
+        const wchar_t* const kDenoiseEntries[] = {
+            L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous", L"RT_DenoiseResolve",
+        };
+
+        // The output slot of each signal the denoiser filters, and its place among the
+        // denoiser's noisy textures.
+        struct NoisySlot
+        {
+            uint32_t signal;
+            uint32_t output;
+            uint32_t index;
+        };
+        const NoisySlot kNoisy[] = {
+            { kRtSignalSunVisibility, 0, 0 },
+            { kRtSignalDiffuse, 1, 1 },
+            { kRtSignalSpecular, 2, 2 },
+            { kRtSignalAmbientOcclusion, 3, 3 },
+        };
+
         UINT SignalIndex(uint32_t signal)
         {
             UINT index = 0;
@@ -206,6 +226,21 @@ namespace redefinition
             char name[64] = {};
             WideCharToMultiByte(CP_UTF8, 0, pass.resource, -1, name, sizeof(name), nullptr, nullptr);
             shaders[name] = std::move(code);
+        }
+        for (const wchar_t* entry : kDenoiseEntries)
+        {
+            const HRSRC found = FindResourceW(module, entry, MAKEINTRESOURCEW(10));
+            const HGLOBAL loaded = found != nullptr ? LoadResource(module, found) : nullptr;
+            const void* bytes = loaded != nullptr ? LockResource(loaded) : nullptr;
+            const DWORD length = found != nullptr ? SizeofResource(module, found) : 0;
+            if (bytes == nullptr || length == 0)
+            {
+                shaders.clear();
+                return false;
+            }
+            char name[64] = {};
+            WideCharToMultiByte(CP_UTF8, 0, entry, -1, name, sizeof(name), nullptr, nullptr);
+            shaders[name].assign(static_cast<const uint8_t*>(bytes), static_cast<const uint8_t*>(bytes) + length);
         }
         return true;
     }
@@ -508,6 +543,22 @@ namespace redefinition
         }
         list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 1);
 
+        // With the denoiser, the passes write its noisy textures, and it writes Unity's.
+        const bool denoising = (packet->flags & kRtFrameDenoise) != 0;
+        if (denoising && !EnsureDenoiseTargetsLocked(packet->width, packet->height, slot))
+        {
+            list->Close();
+            return;
+        }
+        DenoiseTarget* noisyFor[kRtMaxTextures] = {};
+        if (denoising)
+            for (const NoisySlot& noisy : kNoisy)
+                if ((packet->signals & noisy.signal) != 0 && outputs[noisy.output] != nullptr)
+                {
+                    noisyFor[noisy.output] = &denoise.noisy[noisy.index];
+                    UseLocked(denoise.noisy[noisy.index], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                }
+
         // Descriptors of this frame: t1-t8, then u0-u7, in the slot's part of the heap.
         const D3D12_CPU_DESCRIPTOR_HANDLE heapCpu = heap->GetCPUDescriptorHandleForHeapStart();
         const D3D12_GPU_DESCRIPTOR_HANDLE heapGpu = heap->GetGPUDescriptorHandleForHeapStart();
@@ -528,10 +579,18 @@ namespace redefinition
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
         {
             D3D12_UNORDERED_ACCESS_VIEW_DESC uav = {};
-            uav.Format = outputs[i] != nullptr ? outputs[i]->texture.format : DXGI_FORMAT_R16G16B16A16_FLOAT;
             uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-            device->CreateUnorderedAccessView(outputs[i] != nullptr ? outputs[i]->texture.d3d12.Get() : nullptr, nullptr,
-                                              &uav, cpu);
+            if (noisyFor[i] != nullptr)
+            {
+                uav.Format = noisyFor[i]->format;
+                device->CreateUnorderedAccessView(noisyFor[i]->resource.Get(), nullptr, &uav, cpu);
+            }
+            else
+            {
+                uav.Format = outputs[i] != nullptr ? outputs[i]->texture.format : DXGI_FORMAT_R16G16B16A16_FLOAT;
+                device->CreateUnorderedAccessView(outputs[i] != nullptr ? outputs[i]->texture.d3d12.Get() : nullptr, nullptr,
+                                                  &uav, cpu);
+            }
             cpu.ptr += increment;
         }
 
@@ -614,6 +673,8 @@ namespace redefinition
                 list->SetPipelineState(pipeline->second.Get());
                 list->Dispatch(groupsX, groupsY, 1);
             }
+            if (index == 6 && denoising)
+                RunDenoiserLocked(*packet, slotNumber, outputs, inputs[kRtInputMotion]);
             list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 2 + index);
         }
 
@@ -1055,7 +1116,7 @@ namespace redefinition
         {
             D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
             heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            heapDesc.NumDescriptors = kSlots * kFrameDescriptors + 2 * kMaxMeshes + 1;
+            heapDesc.NumDescriptors = kSlots * kFrameDescriptors + 2 * kMaxMeshes + 1 + kSlots * kDenoiseDescriptors;
             heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             hr = device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&heap));
             increment = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -1111,7 +1172,7 @@ namespace redefinition
 
     bool Raytracing::BuildPipelinesLocked()
     {
-        D3D12_DESCRIPTOR_RANGE ranges[5] = {};
+        D3D12_DESCRIPTOR_RANGE ranges[7] = {};
         ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t1-t8
         ranges[0].NumDescriptors = kRtMaxTextures;
         ranges[0].BaseShaderRegister = 1;
@@ -1129,8 +1190,14 @@ namespace redefinition
         ranges[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t11: the material textures
         ranges[4].NumDescriptors = 1;
         ranges[4].BaseShaderRegister = 11;
+        ranges[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t0-t7, space3: the denoiser's reads
+        ranges[5].NumDescriptors = 8;
+        ranges[5].RegisterSpace = 3;
+        ranges[6].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;   // u0-u1, space3: the denoiser's writes
+        ranges[6].NumDescriptors = 2;
+        ranges[6].RegisterSpace = 3;
 
-        D3D12_ROOT_PARAMETER parameters[9] = {};
+        D3D12_ROOT_PARAMETER parameters[12] = {};
         parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[0].Descriptor.ShaderRegister = 0;
         parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
@@ -1154,6 +1221,15 @@ namespace redefinition
         parameters[8].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         parameters[8].DescriptorTable.NumDescriptorRanges = 1;
         parameters[8].DescriptorTable.pDescriptorRanges = &ranges[4];
+        parameters[9].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;   // b1: the denoiser's step
+        parameters[9].Constants.ShaderRegister = 1;
+        parameters[9].Constants.Num32BitValues = 4;
+        for (UINT i = 0; i < 2; ++i)
+        {
+            parameters[10 + i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            parameters[10 + i].DescriptorTable.NumDescriptorRanges = 1;
+            parameters[10 + i].DescriptorTable.pDescriptorRanges = &ranges[5 + i];
+        }
         for (D3D12_ROOT_PARAMETER& parameter : parameters)
             parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -1169,7 +1245,7 @@ namespace redefinition
         }
 
         D3D12_ROOT_SIGNATURE_DESC desc = {};
-        desc.NumParameters = 9;
+        desc.NumParameters = 12;
         desc.pParameters = parameters;
         desc.NumStaticSamplers = 3;
         desc.pStaticSamplers = samplers;
@@ -1207,6 +1283,26 @@ namespace redefinition
                 return false;
             }
             pipelines[pass.signal] = pipeline;
+        }
+        for (const wchar_t* entry : kDenoiseEntries)
+        {
+            char name[64] = {};
+            WideCharToMultiByte(CP_UTF8, 0, entry, -1, name, sizeof(name), nullptr, nullptr);
+            const auto code = shaders.find(name);
+            if (code == shaders.end())
+                continue;
+            D3D12_COMPUTE_PIPELINE_STATE_DESC pipelineDesc = {};
+            pipelineDesc.pRootSignature = rootSignature.Get();
+            pipelineDesc.CS.pShaderBytecode = code->second.data();
+            pipelineDesc.CS.BytecodeLength = code->second.size();
+            ComPtr<ID3D12PipelineState> pipeline;
+            hr = device->CreateComputePipelineState(&pipelineDesc, IID_PPV_ARGS(&pipeline));
+            if (FAILED(hr))
+            {
+                SetProblem(std::string("the denoiser's pass ") + name + " could not be built (" + Hr(hr) + ")");
+                return false;
+            }
+            denoisePipelines[name] = pipeline;
         }
         return true;
     }
@@ -1267,6 +1363,8 @@ namespace redefinition
         meshes.clear();
         textures.clear();
         pipelines.clear();
+        denoisePipelines.clear();
+        denoise = DenoiseTargets{};
         rootSignature.Reset();
         list.Reset();
         for (Slot& slot : slots)

@@ -35,23 +35,30 @@ find_program(REDEFINITION_DXC dxc
 # embedded in dxgi.dll as RCDATA named RT_<entry>. Without dxc the proxy is built
 # without them and says so in its log.
 set(REDEFINITION_RT_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/RaytracingShaders")
-set(REDEFINITION_RT_ENTRIES SunVisibility AmbientOcclusion DiffuseLight SpecularLight PrimaryCheck)
+# Each entry as file:entry point.
+set(REDEFINITION_RT_ENTRIES
+    Raytracing:SunVisibility Raytracing:AmbientOcclusion Raytracing:DiffuseLight Raytracing:SpecularLight
+    Raytracing:PrimaryCheck
+    Denoise:DenoisePrepare Denoise:DenoiseTemporal Denoise:DenoiseVariance Denoise:DenoiseAtrous
+    Denoise:DenoiseResolve)
 set(REDEFINITION_RT_OUTPUTS)
 set(REDEFINITION_RT_RC "${CMAKE_CURRENT_BINARY_DIR}/RaytracingShaders.rc")
 if(REDEFINITION_DXC)
     set(REDEFINITION_RT_RC_TEXT "")
     file(GLOB REDEFINITION_RT_SOURCES "${REDEFINITION_RT_SHADER_DIR}/*.hlsl" "${REDEFINITION_RT_SHADER_DIR}/*.hlsli")
-    foreach(entry ${REDEFINITION_RT_ENTRIES})
+    foreach(item ${REDEFINITION_RT_ENTRIES})
+        string(REPLACE ":" ";" parts "${item}")
+        list(GET parts 0 file)
+        list(GET parts 1 entry)
         set(output "${CMAKE_CURRENT_BINARY_DIR}/rt/${entry}.cso")
         add_custom_command(OUTPUT "${output}"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rt"
             COMMAND "${REDEFINITION_DXC}" -nologo -T cs_6_5 -E ${entry} -HV 2021 -O3 -WX
-                -Fo "${output}" "${REDEFINITION_RT_SHADER_DIR}/Raytracing.hlsl"
+                -Fo "${output}" "${REDEFINITION_RT_SHADER_DIR}/${file}.hlsl"
             DEPENDS ${REDEFINITION_RT_SOURCES}
             COMMENT "Raytracing pass ${entry} compiled to DXIL")
         list(APPEND REDEFINITION_RT_OUTPUTS "${output}")
-        string(APPEND REDEFINITION_RT_RC_TEXT "RT_${entry} RCDATA \"${output}\"
-")
+        string(APPEND REDEFINITION_RT_RC_TEXT "RT_${entry} RCDATA \"${output}\"\n")
     endforeach()
     file(WRITE "${REDEFINITION_RT_RC}" "${REDEFINITION_RT_RC_TEXT}")
     set_source_files_properties("${REDEFINITION_RT_RC}" PROPERTIES OBJECT_DEPENDS "${REDEFINITION_RT_OUTPUTS}")
@@ -92,6 +99,7 @@ add_library(ReDefinitionProxy SHARED
     ProjectIdentity.h
     Raytracing.cpp
     Raytracing.h
+    RaytracingDenoise.cpp
     Streamline.cpp
     Streamline.h
     SwapChainProxy.cpp
