@@ -133,24 +133,43 @@ namespace ReDefinition.Engineer
 
         // Every frame while the planner is open. While an altitude is typed, the
         // editor's keys are held, so that the digits do not reach its shortcuts.
-        internal void Keep()
+        internal void Keep(GameObject panel)
         {
+            bool typing = Typing();
+            if (typing != typingLocked)
+            {
+                typingLocked = typing;
+                if (typing) InputLockManager.SetControlLock(ControlTypes.All, TypingLock);
+                else
+                {
+                    InputLockManager.RemoveControlLock(TypingLock);
+                    // The field is still selected: Space or Return would open it
+                    // again.
+                    ReDefinition.Window.UiHygiene.Release(panel);
+                }
+            }
             highlight.Refresh();
             ShapeHeaders();
-            bool typing = Typing();
-            if (typing == typingLocked) return;
-            typingLocked = typing;
-            if (typing) InputLockManager.SetControlLock(ControlTypes.All, TypingLock);
-            else InputLockManager.RemoveControlLock(TypingLock);
         }
+
+        // The altitude fields' inputs, looked up once they exist.
+        private TMPro.TMP_InputField[] inputs;
 
         private bool Typing()
         {
-            foreach (DialogGUITextInput field in altitudeFields)
+            if (inputs == null || inputs.Length != altitudeFields.Count)
             {
-                TMPro.TMP_InputField input = field != null && field.uiItem != null ? field.uiItem.GetComponent<TMPro.TMP_InputField>() : null;
-                if (input != null && input.isFocused) return true;
+                TMPro.TMP_InputField[] found = new TMPro.TMP_InputField[altitudeFields.Count];
+                for (int i = 0; i < found.Length; i++)
+                {
+                    DialogGUITextInput field = altitudeFields[i];
+                    found[i] = field != null && field.uiItem != null ? field.uiItem.GetComponent<TMPro.TMP_InputField>() : null;
+                    if (found[i] == null) return false;
+                }
+                inputs = found;
             }
+            foreach (TMPro.TMP_InputField input in inputs)
+                if (input != null && input.isFocused) return true;
             return false;
         }
 

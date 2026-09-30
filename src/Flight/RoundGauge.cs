@@ -180,9 +180,7 @@ namespace ReDefinition.Flight
             tint.colorMultiplier = 1f;
             tint.fadeDuration = 0.1f;
             button.colors = tint;
-            Navigation none = button.navigation;
-            none.mode = Navigation.Mode.None;
-            button.navigation = none;
+            ReDefinition.Window.UiHygiene.MouseOnly(button);
             button.onClick.AddListener(() => Step(1));
             click.GetComponent<GaugeRightClick>().Pressed = () => Step(-1);
             Sprite read = picture.sprite;
@@ -241,8 +239,7 @@ namespace ReDefinition.Flight
         // fill starts at the bottom; the ring is turned by an eighth).
         private Image Ring(Transform parent, string name, Vector2 middle)
         {
-            GameObject ring = new GameObject(name, typeof(RectTransform), typeof(Image));
-            ring.transform.SetParent(parent, false);
+            GameObject ring = ReDefinition.Window.UiHygiene.Child(name, parent, typeof(RectTransform), typeof(Image));
             RectTransform rect = (RectTransform)ring.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(2f * radius, 2f * radius);
@@ -275,8 +272,7 @@ namespace ReDefinition.Flight
         // A limit's tick across the arc.
         private Image Tick(Transform parent)
         {
-            GameObject tick = new GameObject("ReDefinitionGaugeMark", typeof(RectTransform), typeof(Image));
-            tick.transform.SetParent(parent, false);
+            GameObject tick = ReDefinition.Window.UiHygiene.Child("ReDefinitionGaugeMark", parent, typeof(RectTransform), typeof(Image));
             RectTransform rect = (RectTransform)tick.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(1.5f, ArcWidth + 3f);
@@ -297,8 +293,7 @@ namespace ReDefinition.Flight
 
         private Image Dot(Transform parent)
         {
-            GameObject dot = new GameObject("ReDefinitionGaugeTip", typeof(RectTransform), typeof(Image));
-            dot.transform.SetParent(parent, false);
+            GameObject dot = ReDefinition.Window.UiHygiene.Child("ReDefinitionGaugeTip", parent, typeof(RectTransform), typeof(Image));
             RectTransform rect = (RectTransform)dot.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(ArcWidth + 2f, ArcWidth + 2f);

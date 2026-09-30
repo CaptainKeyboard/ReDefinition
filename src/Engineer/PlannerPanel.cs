@@ -36,8 +36,18 @@ namespace ReDefinition.Engineer
             EditorPanels panels = EditorPanels.Instance;
             if (panels == null || panels.crew == null || panels.panelManager == null) return null;
             PlannerPanel planner = new PlannerPanel(owner);
-            if (!planner.Build(panels)) return null;
-            return planner;
+            try
+            {
+                if (planner.Build(panels)) return planner;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " The planner could not be built: " + e);
+            }
+            // Nothing half made stays: the panel's copy in KSP's list of panels,
+            // the view's subscriptions.
+            planner.Destroy();
+            return null;
         }
 
         // What is left between the list and the panel's right edge.
@@ -51,6 +61,7 @@ namespace ReDefinition.Engineer
             // Made under an inactive holder, so that nothing of the crew panel
             // wakes up in the copy before its content is taken off.
             GameObject holder = new GameObject("ReDefinitionPlannerHolder");
+            building = holder;
             holder.SetActive(false);
             GameObject copy = UnityEngine.Object.Instantiate(crew.gameObject, holder.transform, false);
             copy.name = "Panel Planner";
@@ -92,6 +103,9 @@ namespace ReDefinition.Engineer
             view = new PlannerView(owner, width);
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.AddRange(view.Rows());
+            ReDefinition.Window.TooltipText.WrapAll(rows);
+            // Rows hidden while their buttons' conditions turn keep them (UiHygiene).
+            ReDefinition.Window.UiHygiene.DeferInteractable(rows);
             DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(0, 0, 0, 12),
                 TextAnchor.UpperLeft, rows.ToArray());
             DialogGUIScrollList list = new DialogGUIScrollList(new Vector2(listWidth, Mathf.Max(200f, content.rect.height)), false,
@@ -124,6 +138,10 @@ namespace ReDefinition.Engineer
             // that it shrinks from the bottom.
             PlannerWidgets.Settle(list);
             view.Finish();
+            // The wheel over a button or a text field scrolls the list, and no
+            // control here takes the keyboard's selection (UiHygiene).
+            ReDefinition.Window.ScrollThrough.Apply(root.uiItem);
+            ReDefinition.Window.UiHygiene.MouseOnly(root.uiItem);
             Debug.Log(Log.Tag + " Planner made from the crew panel: " + frame.sizeDelta.x.ToString("0") + " wide, rows "
                       + width.ToString("0") + " wide.");
             return true;
@@ -163,8 +181,12 @@ namespace ReDefinition.Engineer
             if (transition != null && transition.State != "Out") manager.Dismiss(transition);
         }
 
+        // The holder the copy is made under, until it is destroyed in Build.
+        private GameObject building;
+
         internal void Destroy()
         {
+            if (building != null) UnityEngine.Object.Destroy(building);
             if (view != null) view.Dispose();
             if (manager != null && transition != null)
             {
@@ -179,8 +201,9 @@ namespace ReDefinition.Engineer
         internal void Update()
         {
             if (root == null || !Shown) return;
+            // The typing lock first: it has to go even where the rest throws.
+            view.Keep(root.uiItem);
             view.Update();
-            view.Keep();
             root.Update();
         }
     }

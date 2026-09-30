@@ -6,7 +6,9 @@ using UnityEngine;
 namespace ReDefinition.Window
 {
     // Taking a key from the player: the row says it is listening, the next key
-    // pressed is taken, Escape cancels. Modifiers are not taken from the keyboard --
+    // pressed is taken, Escape cancels (and does nothing else: EscapeGuard). It
+    // stops listening where the player moves on: the row is no longer shown (its
+    // tab left, its group folded, the search), or a text field takes the keyboard. Modifiers are not taken from the keyboard --
     // the row's switches set them -- since Windows turns AltGr into left Ctrl and
     // right Alt at once.
     //
@@ -21,6 +23,7 @@ namespace ReDefinition.Window
 
         private static string listening;
         private static Action<string> take;
+        private static Func<bool> shown;
         private static bool anyKey;
         private static bool locked;
         // The frame a combination was taken in: its keys are still down, and the
@@ -46,7 +49,7 @@ namespace ReDefinition.Window
         // hotkey or a mod reading them would fire on the binding being set.
         internal static bool Busy
         {
-            get { return listening != null || takenFrame == Time.frameCount || Typing; }
+            get { return listening != null || takenFrame == Time.frameCount || Typing || EscapeGuard.Active; }
         }
 
         private static bool Typing
@@ -56,15 +59,18 @@ namespace ReDefinition.Window
 
         // Starts listening for that row; a row already listening stops. With
         // anyKey a modifier is a key as well: KSP binds LeftShift to the throttle.
-        internal static void Start(string key, Action<string> taken, bool anyKey = false)
+        // `shown`: whether the row can still be seen.
+        internal static void Start(string key, Action<string> taken, bool anyKey = false, Func<bool> shown = null)
         {
             if (Listening(key))
             {
                 Stop();
                 return;
             }
+            AxisCapture.Stop();
             listening = key;
             take = taken;
+            KeyCapture.shown = shown;
             KeyCapture.anyKey = anyKey;
             Lock();
         }
@@ -73,13 +79,22 @@ namespace ReDefinition.Window
         {
             listening = null;
             take = null;
+            shown = null;
             Unlock();
         }
 
         // From the add-on's Update, every frame.
         internal static void Poll()
         {
+            EscapeGuard.Poll();
             if (SettingsWindow.TextFieldFocused()) typingFrame = Time.frameCount;
+            // The player moved on: no key pressed now is meant for the row.
+            if (listening != null && ((shown != null && !shown()) || UiHygiene.Typing))
+            {
+                listening = null;
+                take = null;
+                shown = null;
+            }
             if (listening == null)
             {
                 // Not before the frame the combination was taken in is over, nor
@@ -91,7 +106,11 @@ namespace ReDefinition.Window
             Lock();
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                Stop();
+                // The lock stays until the key is up again (Busy).
+                EscapeGuard.Swallow();
+                listening = null;
+                take = null;
+                shown = null;
                 return;
             }
 
@@ -148,9 +167,11 @@ namespace ReDefinition.Window
             return candidates;
         }
 
+        // Set again where KSP cleared every lock meanwhile (the flight UI's
+        // docking mode, the pause menus: InputLockManager.ClearControlLocks).
         private static void Lock()
         {
-            if (locked) return;
+            if (locked && InputLockManager.GetControlLock(LockId) != ControlTypes.None) return;
             InputLockManager.SetControlLock(ControlTypes.All, LockId);
             locked = true;
         }

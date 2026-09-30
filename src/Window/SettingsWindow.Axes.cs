@@ -98,6 +98,8 @@ namespace ReDefinition.Window
             return secondary ? binding.secondary : binding.primary;
         }
 
+        private const string AxisListeningText = "<color=#ffdd55>Move an axis...</color>";
+
         private static DialogGUIBase AxisSide(KspAxes.Axis axis, bool secondary)
         {
             KspAxes.Axis shown = axis;
@@ -105,11 +107,12 @@ namespace ReDefinition.Window
 
             Func<string> label = () =>
             {
-                if (AxisCapture.Listening(key)) return ListeningText;
+                if (AxisCapture.Listening(key)) return AxisListeningText;
                 AxisBinding_Single side = ShownSide(shown, secondary);
                 return side == null || side.idTag == "None" ? "None" : side.idTag + "  " + side.name;
             };
-            DialogGUIButton bind = new DialogGUIButton(label, () => AxisCapture.Start(key, taken =>
+            DialogGUIButton bind = null;
+            bind = new DialogGUIButton(label, () => AxisCapture.Start(key, taken =>
             {
                 AxisBinding_Single side = EditedSide(shown, secondary);
                 if (side == null) return;
@@ -120,7 +123,7 @@ namespace ReDefinition.Window
                     taken.AxisIndex.ToString(CultureInfo.InvariantCulture));
                 side.deviceIdx = taken.DeviceIndex;
                 side.axisIdx = taken.AxisIndex;
-            }), AxisButtonWidth, RowHeight + 4f, false);
+            }, () => Showing(bind)), AxisButtonWidth, RowHeight + 4f, false);
             bind.tooltipText = (secondary ? "The second axis for " : "The axis for ") + shown.Title
                                + ".\nClick, then move the axis on the controller. Escape cancels; x clears it.";
 
@@ -236,8 +239,10 @@ namespace ReDefinition.Window
             axisPending.Clear();
             foreach (KspAxes.Axis axis in KspAxes.All())
             {
+                // Only those that differ: every pending axis is compared with
+                // KSP's own in every frame until Accept.
                 AxisBinding shipped = KspAxes.Default(axis);
-                if (shipped != null) axisPending[axis.Name] = shipped;
+                if (shipped != null && !KspAxes.Same(axis.Get(), shipped)) axisPending[axis.Name] = shipped;
             }
         }
     }

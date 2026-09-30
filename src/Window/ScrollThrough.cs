@@ -13,7 +13,10 @@ namespace ReDefinition.Window
     // such a handler, so the button takes the wheel and the scroll list below it
     // never sees it. KSP's own answer is EventTriggerForwarder, which adds a
     // Scroll entry that passes the event up the hierarchy; the same entry is
-    // added here to every EventTrigger of the window that has none.
+    // added here to every EventTrigger of the window that has none. A text field
+    // takes the wheel too and drops it (TMP_InputField.OnScroll with one line):
+    // each gets a ScrollForwarder beside it, which the input module calls along
+    // with the field.
     internal static class ScrollThrough
     {
         internal static void Apply(GameObject window)
@@ -37,6 +40,8 @@ namespace ReDefinition.Window
                     });
                     trigger.triggers.Add(scroll);
                 }
+                foreach (TMPro.TMP_InputField field in window.GetComponentsInChildren<TMPro.TMP_InputField>(true))
+                    if (field.GetComponent<ScrollForwarder>() == null) field.gameObject.AddComponent<ScrollForwarder>();
             }
             catch (Exception e)
             {

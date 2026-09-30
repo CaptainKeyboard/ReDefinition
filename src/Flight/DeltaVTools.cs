@@ -60,6 +60,9 @@ namespace ReDefinition.Flight
         private static readonly FieldInfo SituationPrefabField = typeof(DeltaVApp).GetField("situationPrefab", Private);
         private static readonly FieldInfo PanelField = typeof(StageGroup).GetField("InfoPanelLayout", Private);
         private static readonly FieldInfo PanelWidthField = typeof(StageGroup).GetField("InfoPanelWidth", Private);
+        // Read for every stage in every frame: without a FieldInfo's boxing.
+        private static readonly HarmonyLib.AccessTools.FieldRef<StageGroup, float> PanelWidthOf =
+            PanelWidthField != null ? HarmonyLib.AccessTools.FieldRefAccess<StageGroup, float>(PanelWidthField) : null;
         private static readonly FieldInfo ShownField = typeof(StageGroup).GetField("infoPanelShown", Private);
         private static readonly FieldInfo PinnedField = typeof(ApplicationLauncher).GetField("lastPinnedButton", Private);
         private static readonly MethodInfo ClickField = typeof(ApplicationLauncher).GetMethod("MutuallyExclusiveStockApplistCLICK", Private);
@@ -245,7 +248,7 @@ namespace ReDefinition.Flight
             {
                 LayoutElement panel = group != null ? PanelField.GetValue(group) as LayoutElement : null;
                 if (panel == null) continue;
-                target = Mathf.Max(target, (float)PanelWidthField.GetValue(group));
+                target = Mathf.Max(target, PanelWidthOf(group));
                 if (panel.gameObject.activeInHierarchy)
                     now = Mathf.Max(now, StageInfoColumns.IconsWidth(group) + Mathf.Max(0f, panel.preferredWidth));
             }
@@ -276,16 +279,15 @@ namespace ReDefinition.Flight
             DeltaVAppSituation situationPrefab = SituationPrefabField != null ? SituationPrefabField.GetValue(app) as DeltaVAppSituation : null;
             Transform total = manager.deltaVTotalSection != null ? manager.deltaVTotalSection.transform : null;
             if (framePrefab == null || situationPrefab == null || total == null || total.parent == null || PanelField == null
-                || PanelWidthField == null)
+                || PanelWidthField == null || PanelWidthOf == null)
             {
                 failed = true;
                 CompatibilityLog.Warn("deltav-tools", "The delta-v tools could not be built into the staging stack: KSP's parts are not as expected.");
                 return false;
             }
 
-            GameObject holder = new GameObject("ReDefinitionDeltaVTools", typeof(RectTransform));
+            GameObject holder = ReDefinition.Window.UiHygiene.Child("ReDefinitionDeltaVTools", total.parent, typeof(RectTransform));
             box = (RectTransform)holder.transform;
-            box.SetParent(total.parent, false);
             box.SetSiblingIndex(total.GetSiblingIndex());
             boxLayout = holder.AddComponent<LayoutElement>();
             boxLayout.flexibleWidth = 0f;

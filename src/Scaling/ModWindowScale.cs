@@ -53,6 +53,14 @@ namespace ReDefinition.Scaling
         private static readonly Dictionary<Assembly, bool> scaled = new Dictionary<Assembly, bool>();
         // By window id: where a scaled window was last drawn, in the screen's pixels.
         private static readonly Dictionary<int, Drawn> drawn = new Dictionary<int, Drawn>();
+
+        // What the prefix hands the postfix: whether it set a matrix, and the one
+        // before.
+        private struct State
+        {
+            public bool Applied;
+            public Matrix4x4 Saved;
+        }
         private static bool noted;
 
         internal static void Install()
@@ -76,9 +84,9 @@ namespace ReDefinition.Scaling
                    && parameters[2].ParameterType == typeof(GUI.WindowFunction);
         }
 
-        private static void Prefix(Rect __1, GUI.WindowFunction __2, out object __state)
+        private static void Prefix(Rect __1, GUI.WindowFunction __2, out State __state)
         {
-            __state = null;
+            __state = new State();
             try
             {
                 if (__2 == null || !UiScaling.ModWindows) return;
@@ -92,7 +100,8 @@ namespace ReDefinition.Scaling
                 shift.x = Mathf.Max(shift.x, -__1.x);
                 shift.y = Mathf.Max(shift.y, -__1.y);
                 Vector3 corner = new Vector3(__1.x, __1.y, 0f);
-                __state = GUI.matrix;
+                __state.Saved = GUI.matrix;
+                __state.Applied = true;
                 GUI.matrix = Matrix4x4.TRS(corner + (Vector3)shift, Quaternion.identity, Vector3.one)
                              * Matrix4x4.Scale(new Vector3(scale, scale, 1f))
                              * Matrix4x4.TRS(-corner, Quaternion.identity, Vector3.one);
@@ -103,51 +112,65 @@ namespace ReDefinition.Scaling
             }
             catch (Exception e)
             {
-                __state = null;
+                if (__state.Applied) GUI.matrix = __state.Saved;
+                __state = new State();
                 CompatibilityLog.Warn("mod-window-scale", "A mod's window could not be scaled (" + CompatibilityLog.Reason(e) + ").");
             }
         }
 
         // Where the window is drawn, noted, then the matrix before put back.
-        private static void Postfix(int __0, Rect __result, object __state)
+        private static void Postfix(int __0, Rect __result, State __state)
         {
-            if (!(__state is Matrix4x4)) return;
             try
             {
+                if (!__state.Applied) return;
                 Matrix4x4 matrix = GUI.matrix;
                 Vector3 a = matrix.MultiplyPoint3x4(new Vector3(__result.xMin, __result.yMin, 0f));
                 Vector3 b = matrix.MultiplyPoint3x4(new Vector3(__result.xMax, __result.yMax, 0f));
-                Drawn window;
-                if (!drawn.TryGetValue(__0, out window))
-                {
-                    window = new Drawn();
-                    drawn[__0] = window;
-                }
-                window.Area = Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
-                window.Frame = Time.frameCount;
+                Note(drawn, __0, Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y)));
             }
             finally
             {
-                GUI.matrix = (Matrix4x4)__state;
+                if (__state.Applied) GUI.matrix = __state.Saved;
             }
         }
 
-        // The matrix put back where the window's call threw, which skips the postfix.
-        private static void Finalizer(Exception __exception, object __state)
+        private static void Note(Dictionary<int, Drawn> where, int id, Rect area)
         {
-            if (__exception != null && __state is Matrix4x4) GUI.matrix = (Matrix4x4)__state;
+            Drawn window;
+            if (!where.TryGetValue(id, out window))
+            {
+                window = new Drawn();
+                where[id] = window;
+            }
+            window.Area = area;
+            window.Frame = Time.frameCount;
         }
+
+        // The matrix put back where the window's call threw, which skips the postfix.
+        private static void Finalizer(Exception __exception, State __state)
+        {
+            if (__exception != null && __state.Applied) GUI.matrix = __state.Saved;
+        }
+
+
 
         // Whether the pointer is over a scaled window drawn in the last frames. The
         // mouse is measured from the bottom left.
         internal static bool PointerOverScaledWindow()
         {
-            if (drawn.Count == 0) return false;
+            return Over(drawn);
+        }
+
+        private static bool Over(Dictionary<int, Drawn> windows)
+        {
+            if (windows.Count == 0) return false;
             Vector3 mouse = Input.mousePosition;
             Vector2 point = new Vector2(mouse.x, Screen.height - mouse.y);
             int frame = Time.frameCount;
-            foreach (Drawn window in drawn.Values)
-                if (frame - window.Frame <= 2 && window.Area.Contains(point)) return true;
+            foreach (Drawn window in windows.Values)
+                if (frame - window.Frame <= 2 && window.Area.width > 0f && window.Area.height > 0f && window.Area.Contains(point))
+                    return true;
             return false;
         }
 

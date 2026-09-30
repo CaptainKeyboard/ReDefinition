@@ -211,7 +211,7 @@ namespace ReDefinition.Window
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionNvidiaDownload", message, "NVIDIA's DLSS files",
                 HighLogic.UISkin, 520f, rows);
             UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin)));
+                new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
         }
 
         private static void Start(List<NvidiaFiles.Entry> entries)

@@ -109,6 +109,8 @@ namespace ReDefinition.Window
 
             DialogGUIToggle all = new DialogGUIToggle(() => AllHidden(mods), "Hide all from toolbar", hide =>
             {
+                // Set from the switches below in every frame, which fires this too.
+                if (hide == AllHidden(mods)) return;
                 foreach (IBundledMod mod in mods) BundledSettings.SetHidesButton(mod.Id, hide);
                 ToolbarTakeover.Refresh();
             }, 300f);

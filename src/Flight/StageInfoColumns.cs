@@ -123,6 +123,24 @@ namespace ReDefinition.Flight
 
         private static readonly FieldInfo InfosField = typeof(StageGroup).GetField("stageGroupInfos", Private);
         private static readonly FieldInfo WidthField = typeof(StageGroup).GetField("InfoPanelWidth", Private);
+        // Read for every stage in every frame: without the boxing a FieldInfo's
+        // GetValue does for a float.
+        private static readonly HarmonyLib.AccessTools.FieldRef<StageGroup, float> WidthOf =
+            WidthField != null ? HarmonyLib.AccessTools.FieldRefAccess<StageGroup, float>(WidthField) : null;
+        private static readonly Action<StageManager> HoverArea = HoverAreaCall();
+
+        private static Action<StageManager> HoverAreaCall()
+        {
+            MethodInfo method = typeof(StageManager).GetMethod("UpdateHoverArea", Private);
+            try
+            {
+                return method != null ? (Action<StageManager>)Delegate.CreateDelegate(typeof(Action<StageManager>), method) : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
         private static readonly FieldInfo ShownField = typeof(StageGroup).GetField("infoPanelShown", Private);
         private static readonly FieldInfo SlidingField = typeof(StageGroup).GetField("infoPanelSliding", Private);
         private static readonly FieldInfo PanelField = typeof(StageGroup).GetField("InfoPanelLayout", Private);
@@ -160,13 +178,12 @@ namespace ReDefinition.Flight
         }
 
         private static float twoColumnPadding = 10f;
-        private static readonly MethodInfo UpdateHoverArea = typeof(StageManager).GetMethod("UpdateHoverArea", Private);
         private bool noted;
         private bool failed;
 
         private void Start()
         {
-            if (InfosField == null || WidthField == null || ShownField == null || SlidingField == null || PanelField == null)
+            if (InfosField == null || WidthField == null || WidthOf == null || ShownField == null || SlidingField == null || PanelField == null)
             {
                 CompatibilityLog.Warn("stage-info-columns", "The stage details stay in one column: KSP's staging stack is not as expected.");
                 enabled = false;
@@ -198,7 +215,7 @@ namespace ReDefinition.Flight
                 foreach (StageGroup group in manager.Stages)
                     if (group != null) Arrange(group, column);
                 KeepStackWide(manager);
-                if (UpdateHoverArea != null) UpdateHoverArea.Invoke(manager, null);
+                if (HoverArea != null) HoverArea(manager);
             }
             catch (Exception e)
             {
@@ -211,7 +228,7 @@ namespace ReDefinition.Flight
         {
             LayoutElement panel = PanelField.GetValue(group) as LayoutElement;
             if (panel == null) return;
-            float target = (float)WidthField.GetValue(group);
+            float target = WidthOf(group);
             float blend = panel.gameObject.activeInHierarchy && target > 0f ? Mathf.Clamp01(panel.preferredWidth / target) : 0f;
             Icons(group, blend);
             List<StageGroupInfoItem> lines = InfosField.GetValue(group) as List<StageGroupInfoItem>;
@@ -222,7 +239,7 @@ namespace ReDefinition.Flight
             bool known = columns.ContainsKey(host) || host.GetComponent<VerticalLayoutGroup>() != null;
             bool two = known && count > MostInOneColumn;
             float width = two ? 2f * column : column;
-            if (!Mathf.Approximately((float)WidthField.GetValue(group), width))
+            if (!Mathf.Approximately(WidthOf(group), width))
             {
                 WidthField.SetValue(group, width);
                 // A shown panel slides on to the new width from where it is: KSP's
@@ -442,7 +459,7 @@ namespace ReDefinition.Flight
             {
                 LayoutElement panel = group != null ? PanelField.GetValue(group) as LayoutElement : null;
                 if (panel == null || !panel.gameObject.activeInHierarchy) continue;
-                needed = Mathf.Max(needed, (float)WidthField.GetValue(group) + IconsWidth(group) + Buttons);
+                needed = Mathf.Max(needed, WidthOf(group) + IconsWidth(group) + Buttons);
             }
             float width = Mathf.Max(stackWidth, needed);
             if (!Mathf.Approximately(root.sizeDelta.x, width)) root.sizeDelta = new Vector2(width, root.sizeDelta.y);

@@ -125,7 +125,9 @@ namespace ReDefinition.Window
             float width = besides != null && besides.size.x > 0f ? besides.size.x : ButtonWidth;
             float height = besides != null && besides.size.y > 0f ? besides.size.y : ButtonHeight;
             DialogGUIButton open = new DialogGUIButton("ReDefinition", Open, width, height, false);
-            open.tooltipText = "All of KSP's settings, ReDefinition's and those of the graphics mods it bundles.";
+            open.tooltipText = TooltipText.Wrap("All of KSP's settings, ReDefinition's and those of the graphics mods it bundles.");
+            // KSP creates the menu; its button prefab has no tooltip of its own.
+            DialogTooltips.AttachWhenMade(open);
             return open;
         }
 

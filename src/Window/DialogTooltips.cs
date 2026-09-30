@@ -12,7 +12,10 @@ namespace ReDefinition.Window
     // EventTrigger (sharedassets0.assets, read with UnityPy). So after a dialog is
     // created, every element with a tooltip gets the controller with the game's own
     // prefab, as the toolbar button's does (ToolbarButton.SetTooltip), and the element
-    // is handed it, so that a changing tooltip stays current.
+    // is handed it, so that a changing tooltip stays current. A label's text does
+    // not answer the pointer (UITextPrefab: raycastTarget off), so the pointer never
+    // enters it and its tooltip would not show: a label with a tooltip is made to
+    // answer. A click on it still goes to the first handler above it.
     internal static class DialogTooltips
     {
         private static readonly FieldInfo ControllerField =
@@ -27,6 +30,22 @@ namespace ReDefinition.Window
             foreach (DialogGUIBase element in elements) Attach(element);
         }
 
+        // For an element KSP creates itself, in one of its own dialogs: attached
+        // from its update, once its object stands.
+        internal static void AttachWhenMade(DialogGUIBase element)
+        {
+            if (element == null) return;
+            Callback before = element.OnUpdate;
+            bool done = false;
+            element.OnUpdate = () =>
+            {
+                if (before != null) before();
+                if (done || element.uiItem == null) return;
+                done = true;
+                Attach(new[] { element });
+            };
+        }
+
         private static void Attach(DialogGUIBase element)
         {
             if (element == null) return;
@@ -36,6 +55,11 @@ namespace ReDefinition.Window
                                                     ?? element.uiItem.AddComponent<TooltipController_Text>();
                 controller.prefab = prefab;
                 controller.textString = element.tooltipText;
+                if (element is DialogGUILabel)
+                {
+                    UnityEngine.UI.Graphic text = element.uiItem.GetComponent<UnityEngine.UI.Graphic>();
+                    if (text != null) text.raycastTarget = true;
+                }
                 if (ControllerField != null) ControllerField.SetValue(element, controller);
             }
             foreach (DialogGUIBase child in element.children) Attach(child);

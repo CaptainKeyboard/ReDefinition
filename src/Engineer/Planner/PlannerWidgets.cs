@@ -74,8 +74,7 @@ namespace ReDefinition.Engineer
             after.Add(() =>
             {
                 if (element.uiItem == null) return;
-                GameObject tint = new GameObject("ReDefinitionTint", typeof(RectTransform));
-                tint.transform.SetParent(element.uiItem.transform, false);
+                GameObject tint = ReDefinition.Window.UiHygiene.Child("ReDefinitionTint", element.uiItem.transform, typeof(RectTransform));
                 tint.transform.SetAsFirstSibling();
                 RectTransform rect = (RectTransform)tint.transform;
                 rect.anchorMin = Vector2.zero;
@@ -220,6 +219,7 @@ namespace ReDefinition.Engineer
                 Button button = element.uiItem.GetComponent<Button>();
                 if (button == null) button = element.uiItem.AddComponent<Button>();
                 button.transition = Selectable.Transition.None;
+                ReDefinition.Window.UiHygiene.MouseOnly(button);
                 button.onClick.AddListener(() => click());
             });
         }
@@ -276,9 +276,9 @@ namespace ReDefinition.Engineer
         {
             Sprite sprite = PlannerIcons.Get(icon);
             if (item == null || sprite == null) return;
-            GameObject holder = new GameObject("ReDefinitionIcon", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            GameObject holder = ReDefinition.Window.UiHygiene.Child("ReDefinitionIcon", item.transform, typeof(RectTransform), typeof(Image),
+                typeof(LayoutElement));
             RectTransform rect = (RectTransform)holder.transform;
-            rect.SetParent(item.transform, false);
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = Vector2.zero;
@@ -451,8 +451,7 @@ namespace ReDefinition.Engineer
             Transform root = canvas.rootCanvas.transform;
             owner = by;
 
-            blocker = new GameObject("ReDefinitionDropdownBlocker", typeof(RectTransform));
-            blocker.transform.SetParent(root, false);
+            blocker = ReDefinition.Window.UiHygiene.Child("ReDefinitionDropdownBlocker", root, typeof(RectTransform));
             RectTransform cover = (RectTransform)blocker.transform;
             cover.anchorMin = Vector2.zero;
             cover.anchorMax = Vector2.one;
@@ -460,7 +459,10 @@ namespace ReDefinition.Engineer
             cover.offsetMax = new Vector2(10000f, 10000f);
             Image clear = blocker.AddComponent<Image>();
             clear.color = new Color(0f, 0f, 0f, 0f);
-            blocker.AddComponent<Button>().onClick.AddListener(Close);
+            Button away = blocker.AddComponent<Button>();
+            away.transition = Selectable.Transition.None;
+            ReDefinition.Window.UiHygiene.MouseOnly(away);
+            away.onClick.AddListener(Close);
 
             // Where it fits: under the button, over it, or else moved onto the screen;
             // with a scroll bar where it is taller than the screen. In the root
@@ -481,8 +483,7 @@ namespace ReDefinition.Engineer
             else top = Mathf.Min(screen.yMax - Margin, Mathf.Max(screen.yMin + Margin + height, under.y));
             float left = Mathf.Min(under.x, screen.xMax - Margin - width - 8f);
 
-            list = new GameObject("ReDefinitionDropdown", typeof(RectTransform));
-            list.transform.SetParent(root, false);
+            list = ReDefinition.Window.UiHygiene.Child("ReDefinitionDropdown", root, typeof(RectTransform));
             RectTransform box = (RectTransform)list.transform;
             box.pivot = new Vector2(0f, 1f);
             box.anchorMin = box.anchorMax = new Vector2(0.5f, 0.5f);
@@ -502,7 +503,7 @@ namespace ReDefinition.Engineer
                     Close();
                     picked.Pick();
                 }, rowWidth - choice.Indent, RowHeight, false);
-                button.tooltipText = choice.Tooltip;
+                button.tooltipText = TooltipText.Wrap(choice.Tooltip);
                 if (choice.Hover != null) hovers.Add(new KeyValuePair<DialogGUIButton, Choice>(button, picked));
                 rows.Add(choice.Indent > 0f
                     ? new DialogGUIHorizontalLayout(rowWidth, RowHeight, 0f, new RectOffset((int)choice.Indent, 0, 0, 0),
@@ -538,6 +539,10 @@ namespace ReDefinition.Engineer
             if (scroll != null) PlannerWidgets.Settle(scroll);
             foreach (KeyValuePair<DialogGUIButton, Choice> pair in hovers) Hovering(pair.Key, pair.Value);
             DialogTooltips.Attach(new DialogGUIBase[] { layout });
+            // The wheel over an entry scrolls a list taller than the screen, and
+            // nothing here takes the keyboard's selection.
+            ScrollThrough.Apply(list);
+            UiHygiene.MouseOnly(list);
         }
 
         // The entry's Hover, from the pointer entering and leaving its button.

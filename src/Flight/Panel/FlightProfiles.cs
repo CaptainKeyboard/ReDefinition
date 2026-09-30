@@ -250,7 +250,21 @@ namespace ReDefinition.Flight.Panel
         // deflectionLiftCoeff: a basic fin 0.2, a wing panel 1 and more), at least 2
         // and at least 0.1 per tonne, so that a rocket's fins and a Mk2 fuselage do
         // not make it a plane.
+        private static Vessel wingedFor;
+        private static float wingedAt = -10f;
+        private static bool winged;
+
+        // Looked at once a second: the search goes through every part's modules.
         private static bool Winged(Vessel vessel)
+        {
+            if (vessel == wingedFor && Time.unscaledTime - wingedAt < 1f) return winged;
+            wingedFor = vessel;
+            wingedAt = Time.unscaledTime;
+            winged = Wings(vessel);
+            return winged;
+        }
+
+        private static bool Wings(Vessel vessel)
         {
             double lift = 0.0;
             foreach (Part part in vessel.parts)

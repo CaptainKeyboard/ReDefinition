@@ -118,6 +118,7 @@ namespace ReDefinition
             ScattererCompatibility.InstallHook();
             EveCloudMotion.InstallHook();
             UnityMouseEvents.Install();
+            EscapeGuard.Install();
             GameEvents.OnGameSettingsApplied.Add(OnGameSettingsApplied);
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
 
@@ -308,7 +309,9 @@ namespace ReDefinition
         {
             KeyCapture.Poll();
             AxisCapture.Poll();
-            if (KeyCapture.Busy) return;
+            // Nor while a text field has the keyboard, KSP's or a mod's: a key
+            // typed there is text.
+            if (KeyCapture.Busy || UiHygiene.Typing) return;
 
             if (Hotkey(settings.UpscalerKey).Pressed()) SetEnabled(!wantEnabled);
             if (Hotkey(settings.SettingsWindowKey).Pressed()) SettingsWindow.Toggle();

@@ -92,11 +92,17 @@ namespace ReDefinition.Window
 
         public static bool Visible { get { return dialog != null; } }
 
+        // Whether something in the window waits for Accept.
+        internal static bool HasUnapplied { get { return dialog != null && Unapplied(); } }
+
         // Whether a text field of this window -- the Keys tab's search -- has the
         // keyboard (KeyCapture keeps the game's keys from it meanwhile).
         internal static bool TextFieldFocused()
         {
             if (dialog == null) return false;
+            // The search field, left selected after Return: Space or Return would
+            // open it again.
+            UiHygiene.ReleaseEnded(dialog.gameObject);
             UnityEngine.EventSystems.EventSystem events = UnityEngine.EventSystems.EventSystem.current;
             GameObject selected = events != null ? events.currentSelectedGameObject : null;
             if (selected == null || !selected.transform.IsChildOf(dialog.transform)) return false;
@@ -145,6 +151,7 @@ namespace ReDefinition.Window
                 UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
                 DialogGUIBase[] content = Build(skin);
                 TooltipText.WrapAll(content);
+                UiHygiene.DeferInteractable(content);
                 MultiOptionDialog window = new MultiOptionDialog("ReDefinitionSettings", "", "Settings -- ReDefinition",
                     skin, new Rect(0.5f, 0.5f, WindowWidth, WindowHeight), content);
                 dialog = PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), window,
@@ -169,6 +176,8 @@ namespace ReDefinition.Window
                 spawned.onDestroy.AddListener(gone);
                 spawned.OnDismiss = () => gone();
                 UnityMouseEvents.Shield(dialog);
+                EscapeGuard.Own(dialog);
+                UiHygiene.MouseOnly(dialog.gameObject);
                 WindowPause.PlaceInTitleRow(dialog);
                 // See-through only where a flight runs behind the window; in the
                 // main menu, the space centre, the tracking station and the
@@ -293,9 +302,12 @@ namespace ReDefinition.Window
                     TextAnchor.UpperLeft, tabList, scroll),
                 new DialogGUIHorizontalLayout(
                     ResetButton(),
+                    // Before the space, not beside Accept: Accept hides as it is
+                    // clicked, and what stood left of it would move under the
+                    // pointer for a second click.
+                    RestartButton(),
                     WaitingNotice(WindowWidth - 20f - ResetWidth - RestartWidth - 2f * 80f - 32f),
                     new DialogGUIFlexibleSpace(),
-                    RestartButton(),
                     PendingButton(Localizer.Format("#autoLOC_149513"), Apply, true),
                     PendingButton(Localizer.Format("#autoLOC_174783"), Discard, true),
                     PendingButton(Localizer.Format("#autoLOC_149514"), () => { }, false)),
@@ -316,12 +328,25 @@ namespace ReDefinition.Window
         private static DialogGUIButton RestartButton()
         {
             DialogGUIButton button = new DialogGUIButton(
-                () => GameRestart.SavesGame ? "Save and restart" : "Apply and restart", ApplyAndRestart, RestartWidth, 30f,
+                () => GameRestart.SavesGame ? "Save and restart" : "Apply and restart", ConfirmRestart, RestartWidth, 30f,
                 false);
             button.tooltipText = "Applies what the window holds and starts KSP again, for the changes that take effect"
                                  + " only at a start. Where a game is loaded, it is saved first.";
             button.OptionEnabledCondition = () => GameRestart.Available && RestartWaiting();
             return button;
+        }
+
+        // KSP closes: asked first.
+        private static void ConfirmRestart()
+        {
+            MultiOptionDialog confirm = new MultiOptionDialog("ReDefinitionRestart",
+                "What the window holds is applied and KSP starts again."
+                + (GameRestart.SavesGame ? " The game is saved first." : ""),
+                "Restart KSP", HighLogic.UISkin, 380f,
+                new DialogGUIButton(GameRestart.SavesGame ? "Save and restart" : "Apply and restart", ApplyAndRestart, true),
+                new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { }, true));
+            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin, false)));
         }
 
         private static void ApplyAndRestart()
@@ -341,6 +366,7 @@ namespace ReDefinition.Window
             kspPending.Clear();
             axisPending.Clear();
             ClearLayoutPending();
+            KeysChanged();
             if (edit != null && edit.Before != null) edit.After = edit.Before.Clone();
             try
             {
@@ -520,7 +546,11 @@ namespace ReDefinition.Window
         private static Dictionary<string, List<DialogGUIBase>> OwnRowsBySection(SettingCategory category)
         {
             Dictionary<string, List<DialogGUIBase>> bySection = new Dictionary<string, List<DialogGUIBase>>();
-            if (edit == null || category == SettingCategory.General || category == SettingCategory.Interface) return bySection;
+            // Not the Keys tab either: its rows are bindings, which it builds
+            // itself (KeyRows), and no control of this section.
+            if (edit == null || category == SettingCategory.General || category == SettingCategory.Interface
+                || category == SettingCategory.Keys)
+                return bySection;
             List<ModuleSetting> settings = OurModules.Rows(category);
             if (settings.Count == 0) return bySection;
             DialogGUIBase[] rows = KspSettingsSection.Rows(edit, OwnLayout(), category);
@@ -923,7 +953,11 @@ namespace ReDefinition.Window
             {
                 GraphicsProfile shown = profile;
                 DialogGUIToggleButton choose = new DialogGUIToggleButton(() => model.Profile == shown.Name, shown.Title,
-                    on => { if (on) ChooseProfile(shown); }, 110f, 30f);
+                    // Only the player's click chooses: KSP sets the toggle from the
+                    // model in every frame it shows (DialogGUIToggle.Update), which
+                    // fires this too -- after Cancel or Reset with what the model
+                    // already holds. A click on the chosen one fills its rows again.
+                    on => { if (on ? model.Profile != shown.Name : model.Profile == shown.Name) ChooseProfile(shown); }, 110f, 30f);
                 // A sentence and the hardware beside the button; everything it sets in its tooltip.
                 choose.tooltipText = shown.Description + "\nAccept sets it; a row changed afterwards makes it"
                                      + " Custom.";
@@ -989,7 +1023,7 @@ namespace ReDefinition.Window
                 new DialogGUIButton("Reset", ChooseDefaults, true),
                 new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { }, true));
             UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin)));
+                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin, false)));
         }
 
         // Fills every setting with its mod's default (SettingsEdit.ChooseDefaults),
@@ -1191,6 +1225,10 @@ namespace ReDefinition.Window
 
             DialogGUIToggle all = new DialogGUIToggle(allHidden, () => KspSettingsSection.StateText(allHidden()), hide =>
             {
+                // Set from what the switches below say in every frame
+                // (DialogGUIToggle.Update), which fires this too: one of them
+                // switched off must not switch the others off.
+                if (hide == allHidden()) return;
                 foreach (IBundledMod mod in mods) model.SetButtonHidden(mod.Id, hide);
                 if (timeWarp) TimeWarpHidden = hide;
             }, ControlWidth);
@@ -1330,7 +1368,7 @@ namespace ReDefinition.Window
                 new DialogGUIButton("Restore", Restore, true),
                 new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { }, true));
             UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin)));
+                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin, false)));
         }
 
         private static void Restore()
@@ -1636,6 +1674,7 @@ namespace ReDefinition.Window
         // back afterwards, as the section in KSP's settings dialog does.
         private static void Apply()
         {
+            KeyCapture.Stop();
             NoteWaiting();
             try
             {

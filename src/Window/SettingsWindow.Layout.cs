@@ -40,9 +40,11 @@ namespace ReDefinition.Window
         {
             try
             {
-                return !string.IsNullOrEmpty(GameSettings.CURRENT_LAYOUT_SETTINGS)
-                    ? GameSettings.CURRENT_LAYOUT_SETTINGS
-                    : GameSettings.DetectKeyboardLayout();
+                if (!string.IsNullOrEmpty(GameSettings.CURRENT_LAYOUT_SETTINGS)) return GameSettings.CURRENT_LAYOUT_SETTINGS;
+                // Detected once per window: asked for in every frame, and KSP
+                // writes a log line at each detection.
+                if (detectedLayout == null) detectedLayout = GameSettings.DetectKeyboardLayout() ?? "";
+                return detectedLayout;
             }
             catch (Exception)
             {
@@ -122,7 +124,9 @@ namespace ReDefinition.Window
             if (names.Count == 0) return;
             int at = names.IndexOf(LayoutShown());
             at = at < 0 ? 0 : (at + step + names.Count) % names.Count;
-            layoutPending = names[at] == LayoutNow() && !rebindPending ? null : names[at];
+            // The question was answered for the layout shown then, not for this one.
+            rebindPending = false;
+            layoutPending = names[at] == LayoutNow() ? null : names[at];
         }
 
         // KSP asks before it rebinds (#autoLOC_6001211).
@@ -140,7 +144,7 @@ namespace ReDefinition.Window
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton("Cancel", () => { }, 100f, 30f, true)));
             UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin, true)));
+                new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin, false)));
         }
 
         // Before KSP's keys from the Keys tab: a rebind sets them all to the
@@ -158,10 +162,13 @@ namespace ReDefinition.Window
             Debug.Log(Log.Tag + " KSP's keyboard layout: " + layout + (rebind ? ", keys bound to its preset." : "."));
         }
 
+        private static string detectedLayout;
+
         private static void ClearLayoutPending()
         {
             layoutPending = null;
             rebindPending = false;
+            detectedLayout = null;
         }
     }
 }

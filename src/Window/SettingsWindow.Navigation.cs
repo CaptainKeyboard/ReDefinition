@@ -129,6 +129,17 @@ namespace ReDefinition.Window
             }
         }
 
+        // The first label among an element's descendants.
+        private static DialogGUILabel LabelOf(DialogGUIBase element)
+        {
+            foreach (DialogGUIBase child in element.children)
+            {
+                DialogGUILabel label = child as DialogGUILabel ?? LabelOf(child);
+                if (label != null) return label;
+            }
+            return null;
+        }
+
         // The field above the categories, and x that empties it.
         private static DialogGUIBase SearchRow()
         {
@@ -239,8 +250,10 @@ namespace ReDefinition.Window
         // ------------------------------------------------------------ the tab list
 
         // A category's button, indented under its parent, its name marked while
-        // something in it waits for Apply. KSP's toggle button takes its label
-        // once, so the text object is set anew where the mark comes or goes.
+        // something in it waits for Apply. KSP's toggle button makes a label of
+        // its text (DialogGUIToggleButton.Create: a DialogGUILabel in a layout
+        // among its children), and that label writes its own text in every frame
+        // (DialogGUILabel.Update): the mark goes into the label's text.
         private static DialogGUIBase TabEntry(SettingCategory category, Callback<bool> chosen)
         {
             SettingCategory shown = category;
@@ -254,9 +267,9 @@ namespace ReDefinition.Window
                     ? Title(shown) + " <color=" + MarkColor + ">" + Mark + "</color>"
                     : Title(shown);
                 if (label == lastLabel || tab.uiItem == null) return;
-                TextMeshProUGUI text = tab.uiItem.GetComponentInChildren<TextMeshProUGUI>();
+                DialogGUILabel text = LabelOf(tab);
                 if (text == null) return;
-                text.text = label;
+                text.OptionText = label;
                 lastLabel = label;
             };
             tab.tooltipText = child ? "Part of " + Title(ParentOf(shown).Value) + "." : "";

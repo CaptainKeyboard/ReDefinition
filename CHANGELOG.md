@@ -86,6 +86,23 @@
 
 ### Fixed
 
+- **The settings window after a question.** Opened from the pause menu, the window took no
+  more clicks once *Reset*, *Restore* or another question over it was answered. Rows that
+  turned live or grey while their tab was not shown stayed as they were until the window
+  was opened again. Unticking one mod under *Hide all from toolbar* unticked them all, and
+  *Cancel* could choose a graphics profile again. The pause button in the title row dropped
+  what waited for *Accept*.
+- **Escape only cancels.** Escape while a row waits for a key or an axis, or in the search
+  field, no longer closes the window and opens the pause menu as well. A row stops waiting
+  for a key when you leave its tab or type in the search.
+- **Hotkeys while typing.** ReDefinition's hotkeys, and those of mods that read them through
+  it, no longer fire while a text field of KSP's has the keyboard.
+- **Save and restart asks first**, and stands beside *Reset*: it no longer moved under the
+  pointer as *Accept* was clicked. The tabs show their mark while something in them waits.
+- **The mouse wheel over a button** in the planner scrolls its list, as over a label.
+- **The planner's headings and altitude fields** no longer take the keyboard: Space, Return
+  and the arrow keys stay the editor's after a click on them. The headings show their
+  tooltips.
 - **The planner with jets, the RAPIER, other propellants and solid boosters.** Jets and a
   RAPIER in its air-breathing mode counted for nothing, and a jet stage above rockets left
   them no fuel. The planner now works out the stages itself where an engine breathes air,

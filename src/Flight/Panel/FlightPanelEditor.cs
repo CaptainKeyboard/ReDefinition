@@ -48,12 +48,24 @@ namespace ReDefinition.Flight.Panel
         // dismisses popups as a scene ends.
         internal static void Tick()
         {
+            // The name field, still selected after its edit: Return would open it again.
+            if (shown != null) ReDefinition.Window.UiHygiene.ReleaseEnded(shown.gameObject);
             if (shown == null && InputLockManager.GetControlLock(Lock) != ControlTypes.None) InputLockManager.RemoveControlLock(Lock);
         }
 
         private static void Show()
         {
-            if (shown != null) shown.Dismiss();
+            // Made anew after each change: where the player put the window and how
+            // far its list is scrolled are kept across that.
+            Vector3? place = null;
+            float scrolled = 0f;
+            if (shown != null)
+            {
+                if (shown.RTrf != null) place = shown.RTrf.position;
+                UnityEngine.UI.ScrollRect before = shown.GetComponentInChildren<UnityEngine.UI.ScrollRect>();
+                if (before != null && before.content != null) scrolled = before.content.anchoredPosition.y;
+                shown.Dismiss();
+            }
             List<FlightProfile> profiles = FlightProfiles.Current;
             if (profiles.Count == 0) return;
             FlightProfile profile = profiles[editing];
@@ -123,6 +135,20 @@ namespace ReDefinition.Flight.Panel
                 Width, list, buttons);
             shown = PopupDialog.SpawnPopupDialog(Place, Place, dialog, false, HighLogic.UISkin);
             PlannerWidgets.Settle(list);
+            // The wheel over a button scrolls the list, and no control takes the
+            // keyboard's selection (UiHygiene).
+            ReDefinition.Window.ScrollThrough.Apply(shown.gameObject);
+            ReDefinition.Window.UiHygiene.MouseOnly(shown.gameObject);
+            // Escape in the name field ends the typing, not the window.
+            ReDefinition.Window.EscapeGuard.Own(shown);
+            if (place != null && shown.RTrf != null) shown.RTrf.position = place.Value;
+            UnityEngine.UI.ScrollRect after = shown.GetComponentInChildren<UnityEngine.UI.ScrollRect>();
+            if (scrolled > 0f && after != null && after.content != null)
+            {
+                Canvas.ForceUpdateCanvases();
+                float most = Mathf.Max(0f, after.content.rect.height - ((RectTransform)after.transform).rect.height);
+                after.content.anchoredPosition = new Vector2(after.content.anchoredPosition.x, Mathf.Min(scrolled, most));
+            }
             InputLockManager.SetControlLock(ControlTypes.KEYBOARDINPUT, Lock);
         }
 

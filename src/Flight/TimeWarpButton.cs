@@ -266,16 +266,19 @@ namespace ReDefinition.Flight
             bar.GetComponent<Image>().color = (backgroundFace != null ? backgroundFace.color : Color.white) * areaColour;
 
             // The button: the MET button copied, its look and its states, its
-            // text, tooltip and click taken away; square, as the MET button's face
-            // is high, its rounded corners kept (each state's sprite sliced at
-            // them), and that face centred in the area.
+            // text and click taken away and its tooltip its own; square, as the
+            // MET button's face is high, its rounded corners kept (each state's
+            // sprite sliced at them), and that face centred in the area. It does
+            // not take the keyboard's selection, as the MET button does: the
+            // staging key would press it again (UiHygiene).
             GameObject copy = Instantiate(met.gameObject, barRect, false);
             copy.name = "ReDefinitionTimeWarpButton";
             for (int i = copy.transform.childCount - 1; i >= 0; i--) DestroyImmediate(copy.transform.GetChild(i).gameObject);
-            foreach (TooltipController_Text tooltip in copy.GetComponents<TooltipController_Text>()) DestroyImmediate(tooltip);
+            foreach (TooltipController_Text tooltip in copy.GetComponents<TooltipController_Text>()) tooltip.textString = "Better Time Warp";
             Button button = copy.GetComponent<Button>();
             button.onClick = new Button.ButtonClickedEvent();
             button.onClick.AddListener(Press);
+            ReDefinition.Window.UiHygiene.MouseOnly(button);
             Image face = copy.GetComponent<Image>();
             RectTransform faceRect = (RectTransform)copy.transform;
             Vector2 metSize = ((RectTransform)met).rect.size;
@@ -502,9 +505,11 @@ namespace ReDefinition.Flight
             }
         }
 
+        // KSP destroys the scene's UI before its addons, so the area is gone
+        // already: the mod's own button counts again whatever is left of it.
         private void OnDestroy()
         {
-            if (bar != null) TimeWarpButton.Replaced = false;
+            TimeWarpButton.Replaced = false;
         }
 
         // As a click on the mod's own button: its window opens or closes.

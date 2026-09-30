@@ -697,8 +697,9 @@ namespace ReDefinition.Engineer
         // refill, what stays there.
         private List<KeyValuePair<string, string>> FuelLines(int step)
         {
+            // Asked for every line's label every frame, shown or not.
+            if (!FuelIsOpen(step)) return NoLines;
             List<KeyValuePair<string, string>> lines = new List<KeyValuePair<string, string>>();
-            if (!FuelIsOpen(step)) return lines;
             RouteStep routeStep = steps[step];
             foreach (LegLine line in routeStep.Leg.Lines)
                 lines.Add(new KeyValuePair<string, string>("<color=" + Dim + ">" + line.Name + "</color>", EngineerFormat.Speed(line.DeltaV)));
@@ -714,6 +715,8 @@ namespace ReDefinition.Engineer
                     "<color=" + Good + ">" + budget.Payload[step].ToString("0.00", CultureInfo.InvariantCulture) + " t</color>"));
             return lines;
         }
+
+        private static readonly List<KeyValuePair<string, string>> NoLines = new List<KeyValuePair<string, string>>();
 
         private string FuelLineName(int step, int line)
         {
@@ -1522,7 +1525,6 @@ namespace ReDefinition.Engineer
                                                  System.Func<string> summary)
         {
             DialogGUILabel titleLabel = new DialogGUILabel("<b><color=#e0e0e0>" + title + "</color></b>", HeadingTitle, RowHeight);
-            titleLabel.tooltipText = tooltip;
             // The sign at the bar's right end, a little in from its edge.
             DialogGUILabel sign = new DialogGUILabel(
                 () => "<align=right><b><size=120%><color=#e0e0e0>" + (shown() ? "-" : "+") + "</color></size></b></align>", Square, RowHeight);
@@ -1530,6 +1532,8 @@ namespace ReDefinition.Engineer
                 TextAnchor.MiddleLeft, titleLabel,
                 new DialogGUILabel(() => Worked() ? summary() : "", outer - BoxMargin - HeadingTitle - Square - 4f * 2f - SignEdge, RowHeight),
                 sign);
+            // On the bar itself: the pointer enters its background, not its labels.
+            heading.tooltipText = tooltip;
             headerTints.Add(new KeyValuePair<TintImage, System.Func<bool>>(
                 Tint.Behind(heading, HeaderColour, 0f, outer, after, true, Rounded.Get(true, false)), shown));
             PlannerWidgets.Clickable(heading, toggle, after);

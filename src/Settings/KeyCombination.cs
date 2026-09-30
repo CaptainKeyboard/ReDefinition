@@ -198,10 +198,19 @@ namespace ReDefinition.Settings
         // What the text means, or None where it means nothing.
         public static KeyCombination Parse(string text)
         {
+            if (text == null) return None;
+            // Kept by text: the settings window asks for each row's binding
+            // several times a frame, and parsing allocates.
             KeyCombination combination;
+            if (ParsedByText.TryGetValue(text, out combination)) return combination;
             TryParse(text, out combination);
+            if (ParsedByText.Count > 512) ParsedByText.Clear();
+            ParsedByText[text] = combination;
             return combination;
         }
+
+        private static readonly System.Collections.Generic.Dictionary<string, KeyCombination> ParsedByText =
+            new System.Collections.Generic.Dictionary<string, KeyCombination>(StringComparer.Ordinal);
 
         private static bool TryParseKey(string text, out KeyCode key)
         {

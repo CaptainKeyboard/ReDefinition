@@ -230,12 +230,18 @@ namespace ReDefinition.Window
             addon.PauseWhileOpen = !addon.PauseWhileOpen;
             Debug.Log(Log.Tag + " Pause while the settings window is open: " + (addon.PauseWhileOpen ? "on" : "off"));
             Refresh();
-            // The window is drawn anew for the symbol to follow the state.
-            if (SettingsWindow.Visible)
+            // The window is drawn anew for its backdrop to follow -- opaque while it
+            // holds the flight, see-through over a running one -- but not while
+            // something waits in it for Accept, which that would drop: then only
+            // the symbol follows, and the backdrop with the next opening.
+            if (SettingsWindow.Visible && !SettingsWindow.HasUnapplied)
             {
                 SettingsWindow.Close();
                 SettingsWindow.Toggle();
+                return;
             }
+            RawImage shown = symbol != null && symbol.uiItem != null ? symbol.uiItem.GetComponent<RawImage>() : null;
+            if (shown != null) shown.texture = Symbol();
         }
 
         private static Texture2D Pause()

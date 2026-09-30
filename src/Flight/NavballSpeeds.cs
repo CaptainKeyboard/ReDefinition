@@ -110,7 +110,9 @@ namespace ReDefinition.Flight
             plate.sprite = Rounded();
             plate.type = UnityEngine.UI.Image.Type.Sliced;
             plate.color = Plate;
-            plate.raycastTarget = false;
+            // As the heading field's plate: a click on it does not reach the scene
+            // behind.
+            plate.raycastTarget = true;
 
             TextMeshProUGUI value = null;
             foreach (TextMeshProUGUI text in heading.GetComponentsInChildren<TextMeshProUGUI>(true))

@@ -68,7 +68,8 @@ namespace ReDefinition
         // default.
         private void OnGUI()
         {
-            if (!windowVisible)
+            // Not while KSP's interface is hidden (F2, screenshots), as the rest of it.
+            if (!windowVisible || (KSP.UI.UIMasterController.Instance != null && !KSP.UI.UIMasterController.Instance.IsUIShowing))
             {
                 UnityMouseEvents.ImguiWindow = Rect.zero;
                 return;
@@ -82,6 +83,11 @@ namespace ReDefinition
             }
 
             window = GUILayout.Window(windowId, window, DrawWindow, "ReDefinition");
+            // A part of it stays on the screen to be taken hold of; a window taller
+            // than the screen can still be dragged up to its lower end.
+            const float grip = 40f;
+            window.x = Mathf.Clamp(window.x, grip - window.width, Screen.width - grip);
+            window.y = Mathf.Clamp(window.y, grip - window.height, Screen.height - grip);
             // Not click-through: what lies behind it is kept from the click
             // (UnityMouseEvents), as behind the settings window.
             UnityMouseEvents.ImguiWindow = window;

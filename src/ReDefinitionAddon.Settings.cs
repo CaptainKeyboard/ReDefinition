@@ -174,9 +174,23 @@ namespace ReDefinition
             }
         }
 
+        // Asked for with the navball's place a few times a second: made anew only
+        // when the screen's size changes.
+        private static int screenWidth, screenHeight;
+        private static string screenSize = "";
+
         private static string ScreenSize
         {
-            get { return Screen.width + "x" + Screen.height; }
+            get
+            {
+                if (Screen.width != screenWidth || Screen.height != screenHeight)
+                {
+                    screenWidth = Screen.width;
+                    screenHeight = Screen.height;
+                    screenSize = screenWidth + "x" + screenHeight;
+                }
+                return screenSize;
+            }
         }
 
         // The settings as they stand, for what reads them every frame without a

@@ -334,6 +334,13 @@ namespace ReDefinition.Window
                 {
                     if (ownHidden.ContainsKey(stock))
                     {
+                        // Its scenes set again meanwhile: those are the ones to
+                        // give back, and it is hidden anew.
+                        if (stock.VisibleInScenes != ApplicationLauncher.AppScenes.NEVER)
+                        {
+                            ownHidden[stock] = stock.VisibleInScenes;
+                            stock.VisibleInScenes = ApplicationLauncher.AppScenes.NEVER;
+                        }
                         SwitchOff(stock);
                         continue;
                     }

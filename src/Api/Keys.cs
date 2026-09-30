@@ -28,12 +28,12 @@ namespace ReDefinition.Api
         /// <summary>
         /// Whether the binding's key went down this frame, with exactly its modifiers held:
         /// <c>F10</c> does not answer while <c>Alt+F10</c> is pressed. False while the player
-        /// is setting a binding in the window.
+        /// is setting a binding in the window, and while a text field has the keyboard.
         /// </summary>
         /// <param name="key">As for <see cref="Binding"/>.</param>
         public static bool Pressed(string key)
         {
-            return !KeyCapture.Busy && Combination(key).Pressed();
+            return !KeyCapture.Busy && !UiHygiene.Typing && Combination(key).Pressed();
         }
 
         /// <summary>
@@ -42,7 +42,7 @@ namespace ReDefinition.Api
         /// <param name="key">As for <see cref="Binding"/>.</param>
         public static bool Held(string key)
         {
-            return !KeyCapture.Busy && Combination(key).Held();
+            return !KeyCapture.Busy && !UiHygiene.Typing && Combination(key).Held();
         }
 
         /// <summary>
@@ -51,7 +51,7 @@ namespace ReDefinition.Api
         /// <param name="key">As for <see cref="Binding"/>.</param>
         public static bool Released(string key)
         {
-            return !KeyCapture.Busy && Combination(key).Released();
+            return !KeyCapture.Busy && !UiHygiene.Typing && Combination(key).Released();
         }
 
         // The parsed binding, kept while its text stands: asked every frame, and

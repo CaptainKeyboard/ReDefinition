@@ -110,6 +110,7 @@ namespace ReDefinition.Flight.Panel
             // Kept under the manager, switched off, so that neither the block nor
             // the tabs' prefabs run.
             holder = new GameObject("ReDefinitionPanelTemplates");
+            holder.layer = manager.gameObject.layer;
             holder.SetActive(false);
             holder.transform.SetParent(manager.transform, false);
             BlockTemplate = Instantiate(block.gameObject, holder.transform, false);
@@ -132,8 +133,7 @@ namespace ReDefinition.Flight.Panel
         // The prefab of a profile's tab, the `index`th of FlightProfiles.Current.
         private static ProfileTab Template(FlightProfile profile, int index)
         {
-            GameObject template = new GameObject("ReDefinitionProfile_" + profile.Name, typeof(RectTransform));
-            template.transform.SetParent(holder.transform, false);
+            GameObject template = ReDefinition.Window.UiHygiene.Child("ReDefinitionProfile_" + profile.Name, holder.transform, typeof(RectTransform));
             ProfileTab tab = template.AddComponent<ProfileTab>();
             tab.Profile = index;
             tab.tabPosition = orbitTab.tabPosition;
@@ -178,14 +178,35 @@ namespace ReDefinition.Flight.Panel
             Transform row = buttons[0].transform.parent;
             float each = Narrow(manager, buttons);
 
-            GameObject pencil = Instantiate(buttons[0].gameObject, row, false);
+            // A copy of KSP's tab button prefab, not of a tab's button: that one
+            // is a Toggle switched on in the tabs' group, and a second one
+            // switched on there would switch the first tab's off as it wakes.
+            ManeuverNodeEditorTabButton prefab = ButtonPrefab != null ? ButtonPrefab.GetValue(manager) as ManeuverNodeEditorTabButton : null;
+            GameObject pencil = Instantiate(prefab != null ? prefab.gameObject : buttons[0].gameObject, holder != null ? holder.transform : row, false);
             pencil.name = "ReDefinitionPanelEdit";
+            // The Button takes the Toggle's look under the pointer, as the tabs
+            // have it, and no selection from the keyboard (UiHygiene).
+            UnityEngine.UI.Toggle toggle = pencil.GetComponent<UnityEngine.UI.Toggle>();
+            UnityEngine.UI.Selectable.Transition transition = toggle != null ? toggle.transition : UnityEngine.UI.Selectable.Transition.ColorTint;
+            UnityEngine.UI.SpriteState sprites = toggle != null ? toggle.spriteState : new UnityEngine.UI.SpriteState();
+            UnityEngine.UI.ColorBlock colours = toggle != null ? toggle.colors : UnityEngine.UI.ColorBlock.defaultColorBlock;
+            UnityEngine.UI.Graphic target = toggle != null ? toggle.targetGraphic : null;
             DestroyImmediate(pencil.GetComponent<ManeuverNodeEditorTabButton>());
-            DestroyImmediate(pencil.GetComponent<UnityEngine.UI.Toggle>());
+            if (toggle != null) DestroyImmediate(toggle);
             UnityEngine.UI.Image background = pencil.GetComponent<UnityEngine.UI.Image>();
             UnityEngine.UI.Button click = pencil.AddComponent<UnityEngine.UI.Button>();
-            click.targetGraphic = background;
+            click.targetGraphic = target != null ? target : background;
+            click.transition = transition;
+            click.spriteState = sprites;
+            click.colors = colours;
+            ReDefinition.Window.UiHygiene.MouseOnly(click);
             click.onClick.AddListener(() => FlightPanelEditor.Open(Shown(manager)));
+            pencil.transform.SetParent(row, false);
+            pencil.transform.localPosition = Vector3.zero;
+            pencil.transform.localScale = Vector3.one;
+            UnityEngine.UI.LayoutElement width = pencil.GetComponent<UnityEngine.UI.LayoutElement>()
+                                                 ?? pencil.AddComponent<UnityEngine.UI.LayoutElement>();
+            width.preferredWidth = each;
             Transform onIcon = pencil.transform.Find("IconOn");
             if (onIcon != null) onIcon.gameObject.SetActive(false);
             Transform offIcon = pencil.transform.Find("IconOff");
@@ -209,6 +230,11 @@ namespace ReDefinition.Flight.Panel
                                                       ?? button.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
                 layout.preferredWidth = each;
             }
+            // The pencil shares the row.
+            Transform pencil = buttons.Count > 0 && buttons[0].transform.parent != null
+                ? buttons[0].transform.parent.Find("ReDefinitionPanelEdit") : null;
+            UnityEngine.UI.LayoutElement own = pencil != null ? pencil.GetComponent<UnityEngine.UI.LayoutElement>() : null;
+            if (own != null) own.preferredWidth = each;
             return each;
         }
 

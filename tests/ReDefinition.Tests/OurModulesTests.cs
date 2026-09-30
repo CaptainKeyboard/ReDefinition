@@ -104,5 +104,30 @@ namespace ReDefinition.Tests
             Assert.AreEqual("UltraPerformance", modes[0]);
             Assert.AreEqual("NativeAA", modes[modes.Length - 1]);
         }
+        // The settings window builds a switch, a slider or a list for every own row
+        // of a tab but Keys, whose rows are bindings it builds itself: a binding in
+        // another tab, or a list without its choices, would stop the window from
+        // opening.
+        [TestMethod]
+        public void EveryRowOutsideKeysHasAControlTheWindowBuilds()
+        {
+            foreach (SettingCategory tab in System.Enum.GetValues(typeof(SettingCategory)))
+            {
+                foreach (ModuleSetting row in OurModules.Rows(tab))
+                {
+                    if (tab == SettingCategory.Keys)
+                    {
+                        Assert.AreEqual(SettingControl.Binding, row.Control, row.Key);
+                        continue;
+                    }
+                    Assert.IsTrue(row.Control == SettingControl.Toggle || row.Control == SettingControl.Slider
+                                  || row.Control == SettingControl.Choice, tab + "/" + row.Key + ": " + row.Control);
+                    if (row.Control == SettingControl.Choice)
+                        Assert.IsTrue(row.Choices != null && row.Choices.Length > 0, row.Key);
+                    Assert.IsNotNull(row.Read, row.Key);
+                    Assert.IsNotNull(row.Write, row.Key);
+                }
+            }
+        }
     }
 }

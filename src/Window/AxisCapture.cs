@@ -30,6 +30,7 @@ namespace ReDefinition.Window
 
         private static string listening;
         private static Action<Taken> take;
+        private static Func<bool> shown;
         private static float[] start;
         private static bool locked;
 
@@ -38,7 +39,9 @@ namespace ReDefinition.Window
             return listening != null && listening == key;
         }
 
-        internal static void Start(string key, Action<Taken> taken)
+        // `shown`: whether the row can still be seen; it stops listening where it
+        // cannot, or where a text field takes the keyboard (as KeyCapture).
+        internal static void Start(string key, Action<Taken> taken, Func<bool> shown = null)
         {
             if (Listening(key))
             {
@@ -50,6 +53,7 @@ namespace ReDefinition.Window
             for (int i = 0; i < start.Length; i++) start[i] = Read(i / AxesPerDevice, i % AxesPerDevice);
             listening = key;
             take = taken;
+            AxisCapture.shown = shown;
             Lock();
         }
 
@@ -57,6 +61,7 @@ namespace ReDefinition.Window
         {
             listening = null;
             take = null;
+            shown = null;
             Unlock();
         }
 
@@ -65,12 +70,23 @@ namespace ReDefinition.Window
         {
             if (listening == null)
             {
-                Unlock();
+                // Not before an Escape that cancelled here is up again.
+                if (!EscapeGuard.Active) Unlock();
+                return;
+            }
+            if ((shown != null && !shown()) || UiHygiene.Typing)
+            {
+                Stop();
                 return;
             }
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                Stop();
+                // Escape cancels and does nothing else (EscapeGuard); the lock
+                // stays until the key is up.
+                EscapeGuard.Swallow();
+                listening = null;
+                take = null;
+                shown = null;
                 return;
             }
             for (int device = 0; device < Devices; device++)

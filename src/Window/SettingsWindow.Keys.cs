@@ -49,6 +49,13 @@ namespace ReDefinition.Window
 
         private static readonly Dictionary<string, Shown> shownTexts = new Dictionary<string, Shown>();
 
+        // Whether a row's button can be seen: not on a page left, in a group
+        // folded, or filtered out by the search.
+        internal static bool Showing(DialogGUIBase element)
+        {
+            return element != null && element.uiItem != null && element.uiItem.activeInHierarchy;
+        }
+
         private static void KeysChanged()
         {
             keysVersion++;
@@ -289,10 +296,12 @@ namespace ReDefinition.Window
             KspKeyBindings.Binding shown = binding;
             DialogGUIBase first = KspBindingControl(shown, false);
             DialogGUIBase second = KspBindingControl(shown, true);
+            // Asked in every frame.
+            string primaryKey = "ksp." + shown.Name + ".primary", secondaryKey = "ksp." + shown.Name + ".secondary";
             DialogGUIBase row = new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(),
                 TextAnchor.MiddleLeft,
-                new DialogGUILabel(() => Marked(shown.Title, kspPending.ContainsKey("ksp." + shown.Name + ".primary")
-                                                             || kspPending.ContainsKey("ksp." + shown.Name + ".secondary")),
+                new DialogGUILabel(() => Marked(shown.Title, kspPending.ContainsKey(primaryKey)
+                                                             || kspPending.ContainsKey(secondaryKey)),
                     KeyNameWidth), first, new DialogGUISpace(6f),
                 second, new DialogGUISpace(4f),
                 new DialogGUILabel("<color=#9a9a9a>KSP</color>", KeySourceWidth));
@@ -315,11 +324,12 @@ namespace ReDefinition.Window
 
             Func<string> label = () => KeyCapture.Listening(key) ? ListeningText : BindingLabel(key, current());
             // Any key, a modifier among them: KSP binds LeftShift to the throttle.
-            DialogGUIButton take = new DialogGUIButton(label, () => KeyCapture.Start(key, text =>
+            DialogGUIButton take = null;
+            take = new DialogGUIButton(label, () => KeyCapture.Start(key, text =>
             {
                 kspPending[key] = text;
                 KeysChanged();
-            }, true), BindingWidth, RowHeight + 4f, false);
+            }, true, () => Showing(take)), BindingWidth, RowHeight + 4f, false);
             take.tooltipText = (second ? "The second key for " : "The key for ") + shown.Title
                                + ".\nKSP keeps one key per binding; its own modifier key is a binding of its own."
                                + "\nClick, then press the key. Escape cancels; x clears it.";
@@ -461,7 +471,8 @@ namespace ReDefinition.Window
             Func<string> label = () => KeyCapture.Listening(key)
                 ? ListeningText
                 : BindingLabel(key, KeyText(KeyCombination.Parse(current())));
-            DialogGUIButton take = new DialogGUIButton(label, () => KeyCapture.Start(key, taken), BindingWidth,
+            DialogGUIButton take = null;
+            take = new DialogGUIButton(label, () => KeyCapture.Start(key, taken, false, () => Showing(take)), BindingWidth,
                 RowHeight + 4f, false);
             take.OptionInteractableCondition = changeable;
             take.tooltipText = (string.IsNullOrEmpty(tooltip) ? title : tooltip)

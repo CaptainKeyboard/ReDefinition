@@ -398,10 +398,17 @@ namespace ReDefinition.Engineer
                    + ", sibling " + rect.GetSiblingIndex() + " under " + (rect.parent != null ? rect.parent.name : "nothing");
         }
 
+        // KSP's mode buttons, kept: asked for at every canvas render.
+        private readonly Button[] modes = new Button[4];
+
         private void Place()
         {
             Transform last = null;
-            foreach (Button mode in new[] { editor.partPanelBtn, editor.actionPanelBtn, editor.crewPanelBtn, editor.cargoPanelBtn })
+            modes[0] = editor.partPanelBtn;
+            modes[1] = editor.actionPanelBtn;
+            modes[2] = editor.crewPanelBtn;
+            modes[3] = editor.cargoPanelBtn;
+            foreach (Button mode in modes)
             {
                 if (mode == null || !mode.gameObject.activeSelf) continue;
                 if (last == null || mode.transform.position.x > last.position.x) last = mode.transform;

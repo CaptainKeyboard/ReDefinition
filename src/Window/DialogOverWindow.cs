@@ -9,7 +9,17 @@ namespace ReDefinition.Window
     // A dialog that stands over the settings window -- a question, NVIDIA's
     // download -- set apart from it: the screen behind it darkened, which also
     // takes the clicks meant for the window, the dialog drawn opaque, and a light
-    // edge around it. And links: buttons without a background, for what opens a
+    // edge around it.
+    //
+    // It is spawned not modal. A modal dialog, as it goes, hands the focus to the
+    // modal one below it -- the pause menu, KSP's settings, where the window was
+    // opened from one of them -- which is then raised over the settings window,
+    // and the window, not modal, is left without raycasts
+    // (UIMasterController.UnregisterModalDialog, FocusModalDialog; decompiled).
+    // What a modal dialog would give is set here instead: the darkened screen
+    // takes the UI's clicks, the UI_DIALOGS lock stands while it is there, and
+    // Unity's mouse events are kept off what lies behind the dark
+    // (UnityMouseEvents.ShieldScreen). And links: buttons without a background, for what opens a
     // page rather than acts.
     internal static class DialogOverWindow
     {
@@ -25,6 +35,7 @@ namespace ReDefinition.Window
             if (dialog == null || dialog.popupWindow == null) return dialog;
             try
             {
+                Hold(dialog);
                 Darken(dialog);
                 WindowBackdrop.Add(dialog, true);
                 Image window = dialog.popupWindow.GetComponent<Image>();
@@ -62,14 +73,31 @@ namespace ReDefinition.Window
             if (clear != null) clear.SetValue(button, true);
         }
 
+        private const string LockName = "ReDefinitionQuestion";
+        private static int holding;
+
+        // As a modal dialog holds KSP's UI (UIMasterController.RegisterModalDialog),
+        // for as long as one of these stands.
+        private static void Hold(PopupDialog dialog)
+        {
+            UnityMouseEvents.ShieldScreen(dialog);
+            EscapeGuard.Own(dialog);
+            if (holding++ == 0) InputLockManager.SetControlLock(ControlTypes.UI_DIALOGS, LockName);
+            dialog.onDestroy.AddListener(() =>
+            {
+                if (--holding > 0) return;
+                holding = 0;
+                InputLockManager.RemoveControlLock(LockName);
+            });
+        }
+
         // Over the whole canvas, directly under the dialog, and gone with it.
         private static void Darken(PopupDialog dialog)
         {
             Transform canvas = dialog.transform.parent;
             if (canvas == null) return;
-            GameObject scrim = new GameObject(ScrimName, typeof(RectTransform), typeof(Image));
+            GameObject scrim = UiHygiene.Child(ScrimName, canvas, typeof(RectTransform), typeof(Image));
             RectTransform rect = (RectTransform)scrim.transform;
-            rect.SetParent(canvas, false);
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
             rect.offsetMin = Vector2.zero;

@@ -67,6 +67,27 @@ namespace ReDefinition.Window
         // it is closed. Clicks on it stay on it too.
         internal static Rect ImguiWindow;
 
+        // Dialogs that hold the whole screen: a question over the settings window,
+        // with the screen behind it darkened (DialogOverWindow). A click on the
+        // dark goes nowhere, Unity's mouse events included.
+        private static readonly List<PopupDialog> screens = new List<PopupDialog>();
+
+        internal static PopupDialog ShieldScreen(PopupDialog dialog)
+        {
+            if (dialog != null && !screens.Contains(dialog)) screens.Add(dialog);
+            return dialog;
+        }
+
+        private static bool ScreenShielded()
+        {
+            for (int i = screens.Count - 1; i >= 0; i--)
+            {
+                if (screens[i] == null) screens.RemoveAt(i);
+                else if (screens[i].isActiveAndEnabled) return true;
+            }
+            return false;
+        }
+
         // A window of this mod: clicks on it stay on it. Forgotten once it is
         // gone.
         internal static PopupDialog Shield(PopupDialog dialog)
@@ -159,7 +180,12 @@ namespace ReDefinition.Window
                 bool over = overMods || OverShieldedWindow();
                 Lock(over);
                 if (over) MaskCameras();
-                PassThroughOurWindows(overMods);
+                // This mod's diagnostics window over one of its dialogs too: the
+                // click is the window's, not the control's under it. Other mods'
+                // unscaled windows are not counted: some draw see-through
+                // read-outs as windows (Kerbal Engineer's HUD), and the dialog
+                // under one would take no click.
+                PassThroughOurWindows(overMods || OverDiagnostics());
             }
             catch (Exception e)
             {
@@ -218,8 +244,16 @@ namespace ReDefinition.Window
 
         // Whether the cursor is over the frame of one of ReDefinition's windows, on the
         // canvas it is drawn on.
+        private static bool OverDiagnostics()
+        {
+            if (ImguiWindow.width <= 0f) return false;
+            Vector3 mouse = Input.mousePosition;
+            return ImguiWindow.Contains(new Vector2(mouse.x, Screen.height - mouse.y));
+        }
+
         private static bool OverShieldedWindow()
         {
+            if (screens.Count > 0 && ScreenShielded()) return true;
             Vector3 mouse = Input.mousePosition;
             // The diagnostics window, drawn by IMGUI: GUI coordinates run down from
             // the top of the screen. As the last OnGUI left it, a frame before this.
@@ -283,7 +317,9 @@ namespace ReDefinition.Window
         // EditorLogic.Unlock only removes the lock by name.
         private static void Lock(bool on)
         {
-            if (on == locked) return;
+            // Set again where KSP cleared every lock meanwhile (the flight UI's
+            // docking mode, the pause menus: InputLockManager.ClearControlLocks).
+            if (on == locked && (!on || InputLockManager.GetControlLock(LockName) != ControlTypes.None)) return;
             locked = on;
             if (!on) InputLockManager.RemoveControlLock(LockName);
             else if (HighLogic.LoadedSceneIsEditor && EditorLogic.fetch != null)

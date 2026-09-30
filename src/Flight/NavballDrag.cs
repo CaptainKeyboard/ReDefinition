@@ -149,11 +149,12 @@ namespace ReDefinition.Flight
             if (panel == null || frame == null) return;
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon == null) return;
-            // Worked out again when the setting changes, and when the room around or
-            // how wide the navball draws changed, looked at a few times a second.
-            bool asked = Mathf.Abs(addon.NavballOffset - requested) >= 0.01f;
-            if (!asked && Time.unscaledTime < lookAgain) return;
+            // Worked out again when the offset changes (another screen size puts it
+            // back to the centre), and when the room around or how wide the navball
+            // draws changed, looked at a few times a second.
+            if (Time.unscaledTime < lookAgain) return;
             lookAgain = Time.unscaledTime + 0.2f;
+            bool asked = Mathf.Abs(addon.NavballOffset - requested) >= 0.01f;
             float left, right, min, max;
             Room(out left, out right);
             Drawn(out min, out max);
@@ -232,6 +233,8 @@ namespace ReDefinition.Flight
         }
 
         private static readonly Vector3[] Corners = new Vector3[4];
+        // Filled anew at each look, a few times a second for the whole flight.
+        private static readonly List<Graphic> Graphics = new List<Graphic>();
 
         // Where the pictures and texts under `under` stand that are drawn now, in
         // the root canvas's units: shown, not see-through, not a mask's shape, on
@@ -247,7 +250,8 @@ namespace ReDefinition.Flight
             found = Rect.zero;
             if (under == null || !under.gameObject.activeInHierarchy) return false;
             Rect screen = root.rect;
-            foreach (Graphic graphic in under.GetComponentsInChildren<Graphic>(false))
+            under.GetComponentsInChildren(false, Graphics);
+            foreach (Graphic graphic in Graphics)
             {
                 if (!graphic.isActiveAndEnabled || graphic.color.a < 0.02f || graphic.canvasRenderer.GetInheritedAlpha() < 0.02f)
                     continue;
@@ -411,8 +415,13 @@ namespace ReDefinition.Flight
             if (Owner != null) Owner.Drag(data.delta.x);
         }
 
+        // The button took the selection as the drag's press went down (KSP's
+        // own navigation on it), and the drag cancelled only the click: left
+        // selected, the staging key would press it and hide the navball.
         public void OnEndDrag(PointerEventData data)
         {
+            EventSystem events = EventSystem.current;
+            if (events != null && events.currentSelectedGameObject == gameObject) events.SetSelectedGameObject(null);
         }
     }
 }

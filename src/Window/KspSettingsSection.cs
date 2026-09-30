@@ -233,6 +233,8 @@ namespace ReDefinition.Window
             DialogGUIButton all = new DialogGUIButton("All settings ...", OpenWindow, ControlWidth, RowHeight + 6f, false);
             all.tooltipText = TooltipText.Wrap("The window with all of KSP's settings, the graphics mods', the profiles"
                                                + " and the key bindings.");
+            // KSP creates its dialog; its button prefab has no tooltip of its own.
+            DialogTooltips.AttachWhenMade(all);
 
             DialogGUIBase[] withHeader = new DialogGUIBase[rows.Length + 2];
             withHeader[0] = new DialogGUIBox("ReDefinition", -1f, RowHeight, null);
@@ -297,7 +299,16 @@ namespace ReDefinition.Window
             else if (setting.Control == SettingControl.Slider)
             {
                 control = new DialogGUISlider(() => Number(edit, setting), setting.Min, setting.Max, setting.WholeNumbers,
-                    width, -1f, f => setting.Write(edit.After, Snapped(f, setting)));
+                    width, -1f, f =>
+                    {
+                        // The slider is set from the row in every frame
+                        // (DialogGUISlider.Update), and a value it clamps or rounds
+                        // on the way is not the player moving it.
+                        float shown = Mathf.Clamp(Number(edit, setting), setting.Min, setting.Max);
+                        if (setting.WholeNumbers) shown = Mathf.Round(shown);
+                        if (Mathf.Approximately(f, shown)) return;
+                        setting.Write(edit.After, Snapped(f, setting));
+                    });
             }
             else
             {

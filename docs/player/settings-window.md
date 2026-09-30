@@ -35,11 +35,11 @@ behind it.
 
 *Reset* is at the bottom left, on every tab.
 
-Where a change takes effect only at a start, a button left of *Accept* sets it and
-starts KSP again. In the main menu it is *Apply and restart*. Where a game is loaded it
-is *Save and restart*, and it saves the game first, as KSP saves it. In flight that
-works only where KSP allows saving at that moment; otherwise it says why and does
-nothing. In the editors the vessel you are building goes into KSP's *Auto-Saved Ship*
+Where a change takes effect only at a start, a button beside *Reset* sets it and
+starts KSP again, after asking. In the main menu it is *Apply and restart*. Where a game
+is loaded it is *Save and restart*, and it saves the game first, as KSP saves it. In
+flight that works only where KSP allows saving at that moment; otherwise it says why and
+does nothing. In the editors the vessel you are building goes into KSP's *Auto-Saved Ship*
 first.
 
 A question the window asks, and NVIDIA's download, stands over the window with the
