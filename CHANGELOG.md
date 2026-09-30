@@ -97,8 +97,8 @@
 
 ### Fixed
 
-- **Other mods' buttons on the loading screen.** The Toolbar's button, MechJeb's menu and
-  other mods' windows no longer show on KSP's black screen between scenes.
+- **Other mods' buttons on the loading screen.** The Toolbar's buttons and MechJeb's menu
+  no longer show on KSP's black screen between scenes.
 - **The settings window after a question.** Opened from the pause menu, the window took no
   more clicks once *Reset*, *Restore* or another question over it was answered. Rows that
   turned live or grey while their tab was not shown stayed as they were until the window
