@@ -33,6 +33,11 @@ namespace ReDefinition.Flight
         internal const float MaxPixels = 44f;
         private static readonly Color Plate = new Color(0.13f, 0.13f, 0.16f, 0.9f);
 
+        // GraphicRaycaster keeps its mask in a field of its own, without a setter
+        // in this Unity (UnityEngine.UI.dll, decompiled).
+        private static readonly System.Reflection.FieldInfo BlockingMask = typeof(GraphicRaycaster).GetField("m_BlockingMask",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
         private readonly GameObject root;
         private readonly Canvas canvas;
         private readonly float metres;
@@ -56,7 +61,7 @@ namespace ReDefinition.Flight
             // Only a vessel's parts (layer 0) take the click before it: the editors'
             // scenery has colliders the eye does not see between the camera and
             // the pad, and they took every click.
-            raycaster.blockingMask = 1 << 0;
+            if (BlockingMask != null) BlockingMask.SetValue(raycaster, (LayerMask)(1 << 0));
             ((RectTransform)root.transform).sizeDelta = new Vector2(Size, Size);
             GameObject item = UiHygiene.Child("Button", root.transform, typeof(RectTransform), typeof(Image), typeof(Button));
             rect = (RectTransform)item.transform;
