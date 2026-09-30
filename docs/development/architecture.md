@@ -281,7 +281,7 @@ How the planner sits in KSP's editor: [engineer.md](engineer.md).
 | `Readouts/` | the flight panel's values: `ReadoutCatalog` lists each with its title and group, `ReadoutFrame` reads the vessel, its orbit and target once per refresh, `ReadoutMath` holds the sums free of the game, tested |
 | `../Window/UiHygiene.cs` | what every control made here has to get right: no keyboard selection, the UI layer, a text field let go after its edit, the greyed state of hidden rows |
 | `../Window/EscapeGuard.cs` | an Escape that cancelled a key binding or a text field closes no dialog and opens no pause menu |
-| `../Window/LoadingCover.cs` | covers other mods' IMGUI on KSP's black screen between scenes |
+| `../Window/LoadingHidesUi.cs` | fires KSP's hide and show UI events around its black screen between scenes, so that other mods' windows hide there as for F2 |
 | `AssemblyReturn.cs` | the button on the space centre's VAB or SPH: revert to the editor, or recover and open the vessel there |
 | `WorldButton.cs` | a button over a point in the world, placed as KSP's vessel labels are; the space centre's facility buttons copied for its look (`KscButtons`) |
 | `HudTooltips.cs` | KSP's own tooltip, in KSP's wording, on the staging stack's buttons, the alarm clock's button, the altimeter's mode switch and the delta-v tools' button; the staging's reset button asks first |
