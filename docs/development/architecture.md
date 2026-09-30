@@ -280,6 +280,7 @@ How the planner sits in KSP's editor: [engineer.md](engineer.md).
 | `Readouts/` | the flight panel's values: `ReadoutCatalog` lists each with its title and group, `ReadoutFrame` reads the vessel, its orbit and target once per refresh, `ReadoutMath` holds the sums free of the game, tested |
 | `../Window/UiHygiene.cs` | what every control made here has to get right: no keyboard selection, the UI layer, a text field let go after its edit, the greyed state of hidden rows |
 | `../Window/EscapeGuard.cs` | an Escape that cancelled a key binding or a text field closes no dialog and opens no pause menu |
+| `HudTooltips.cs` | KSP's own tooltip, in KSP's wording, on the staging stack's buttons, the alarm clock's button, the altimeter's mode switch and the delta-v tools' button; the staging's reset button asks first |
 | `RoundGauge.cs` | KSP's vertical speed gauge as a digital gauge with a lit arc and five figures, picked by situation or by click; it logs what it shows, and where a stage's arc leaves its digits |
 | `GaugeReadings.cs` | the gauge's figures from plain numbers: digits, the arc's place on its fixed scale, bands and tick; tested against a simulated flight |
 | `Impact.cs` | the time until the vessel's path meets the ground, from the orbit against the ground's height |

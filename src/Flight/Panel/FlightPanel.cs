@@ -213,7 +213,7 @@ namespace ReDefinition.Flight.Panel
             Sprite sprite = Icon("Edit_Off");
             if (offIcon != null && sprite != null) offIcon.GetComponent<UnityEngine.UI.Image>().sprite = sprite;
             KSP.UI.TooltipTypes.TooltipController_Text tooltip = pencil.GetComponent<KSP.UI.TooltipTypes.TooltipController_Text>();
-            if (tooltip != null) tooltip.textString = "Edit the flight panel's profiles";
+            if (tooltip != null) tooltip.textString = "Edit Profiles";
             Debug.Log(Log.Tag + " Flight panel: " + buttons.Count + " tab buttons " + each.ToString("0") + " wide, and a pencil.");
         }
 

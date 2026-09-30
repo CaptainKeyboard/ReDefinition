@@ -311,6 +311,8 @@ namespace ReDefinition.Flight
             situation = Instantiate(situationPrefab);
             situation.transform.SetParent(appFrame.scrollList.transform, false);
             Compact(situation.transform);
+            TMP_Dropdown body = situation.GetComponentInChildren<TMP_Dropdown>(true);
+            if (body != null) ReDefinition.Window.UiHygiene.Tooltip(body.gameObject, "Celestial Body");
             typedIn = situation;
             holder.SetActive(false);
             Debug.Log(Log.Tag + " Delta-v tools built into the staging stack.");

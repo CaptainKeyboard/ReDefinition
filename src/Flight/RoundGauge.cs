@@ -182,6 +182,9 @@ namespace ReDefinition.Flight
             button.colors = tint;
             ReDefinition.Window.UiHygiene.MouseOnly(button);
             button.onClick.AddListener(() => Step(1));
+            // What the gauge shows, by name, as KSP's HUD names its parts.
+            tooltip = ReDefinition.Window.UiHygiene.Tooltip(click, Name(mode == GaugeMode.Auto ? GaugeMode.Stage : mode));
+            if (tooltip != null) tooltip.continuousUpdate = true;
             click.GetComponent<GaugeRightClick>().Pressed = () => Step(-1);
             Sprite read = picture.sprite;
             Debug.Log(Log.Tag + " The round gauge is digital, showing " + mode + ": the dial's middle at " + middle.ToString("0.0")
@@ -397,12 +400,29 @@ namespace ReDefinition.Flight
                 markImage.color = Past;
             }
             title.text = Title(shown);
+            if (tooltip != null) tooltip.textString = Name(shown);
             auto.gameObject.SetActive(mode == GaugeMode.Auto);
             bool known = reading.Text != null;
             value.text = known ? reading.Text : "-";
             value.color = known ? Fine : dim;
             wantedFill = known ? Mathf.Clamp01((float)reading.Fill) : 0f;
             wantedColour = reading.Level >= 2 ? Past : reading.Level == 1 ? Close : Fine;
+        }
+
+        private KSP.UI.TooltipTypes.TooltipController_Text tooltip;
+
+        // The figure's name for the tooltip.
+        private static string Name(GaugeMode mode)
+        {
+            switch (mode)
+            {
+                case GaugeMode.Stage: return "Stage Burn Time";
+                case GaugeMode.Burn: return "Maneuver Burn";
+                case GaugeMode.Impact: return "Time to Impact";
+                case GaugeMode.Closing: return "Closing Speed";
+                case GaugeMode.Attack: return "Angle of Attack";
+                default: return "";
+            }
         }
 
         private static string Title(GaugeMode mode)

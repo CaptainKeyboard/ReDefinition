@@ -27,7 +27,7 @@ namespace ReDefinition.Window
         private const string IconPath = "ReDefinition/Icons/ReDefinitionIcon";
 
         // What the pointer shows over the button.
-        private const string Tooltip = "ReDefinition - Settings";
+        private const string Tooltip = "ReDefinition Settings";
 
         private readonly Callback onClick;   // KSP's own delegate, not System.Action
         private ApplicationLauncherButton button;
@@ -132,22 +132,7 @@ namespace ReDefinition.Window
         private static void SetTooltip(ApplicationLauncherButton target, string text)
         {
             if (target == null || target.gameObject == null) return;
-            try
-            {
-                Tooltip_Text prefab = AssetBase.GetPrefab<Tooltip_Text>("Tooltip_Text");
-                if (prefab == null) return;
-
-                TooltipController_Text tooltip = target.gameObject.GetComponent<TooltipController_Text>()
-                                                 ?? target.gameObject.AddComponent<TooltipController_Text>();
-                if (tooltip == null) return;
-                tooltip.prefab = prefab;
-                tooltip.textString = text;
-            }
-            catch (Exception e)
-            {
-                CompatibilityLog.Warn("toolbar-tooltip", "The toolbar button has no tooltip ("
-                                      + CompatibilityLog.Reason(e) + ").");
-            }
+            UiHygiene.Tooltip(target.gameObject, text);
         }
 
         // The texture a mod ships, as Kopernicus loads its own: null where the file

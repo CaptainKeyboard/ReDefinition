@@ -12,6 +12,12 @@
   angle of attack or the angle between docking ports. It switches to the profile for
   what the vessel is doing, and grows to the right for more figures. The pencil after the
   tabs changes a profile's figures and their order, or adds a profile of your own.
+- **Tooltips on the HUD.** The buttons of KSP's flight and editor screens that had none
+  name themselves as KSP's others do: the stages' plus and minus buttons, a stage's delta-v
+  bar, the total delta-v, the delta-v tools' toolbar button and their body list, the alarm
+  clock's button, the altimeter's mode switch, the staging's reset button; and
+  ReDefinition's own: the round gauge, the vertical and horizontal speed. The staging's
+  reset button in the editors asks before it resets.
 - **The round gauge.** KSP's vertical speed dial becomes a digital gauge with a lit arc.
   It shows the stage's burn time, the countdown and delta-v of the next burn, the time to
   impact, the closing speed on a target or the angle of attack. It picks the figure for

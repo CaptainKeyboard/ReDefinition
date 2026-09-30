@@ -24,6 +24,12 @@ namespace ReDefinition.Window
     //
     // The layer. A GameObject made at run time is on layer 0; KSP's UI is on its
     // UI layer (Child).
+    //
+    // The tooltip. KSP's own: a TooltipController_Text on the object with the
+    // game's Tooltip_Text prefab (Tooltip). On the HUD and in the editors its text
+    // is as KSP's there: a name or two or three words in title case, "Toggle SAS",
+    // "Warp to Sunrise". Rows of a settings dialog explain in sentences, as KSP's
+    // settings do.
     internal static class UiHygiene
     {
         internal static void MouseOnly(Selectable selectable)
@@ -41,6 +47,31 @@ namespace ReDefinition.Window
         {
             if (root == null) return;
             foreach (Selectable selectable in root.GetComponentsInChildren<Selectable>(true)) MouseOnly(selectable);
+        }
+
+        // KSP's tooltip on `target`, which has to answer the pointer itself or hold
+        // something that does. Null, and no tooltip, where the game's prefab is
+        // not there.
+        internal static KSP.UI.TooltipTypes.TooltipController_Text Tooltip(GameObject target, string text)
+        {
+            if (target == null) return null;
+            try
+            {
+                KSP.UI.TooltipTypes.Tooltip_Text prefab = AssetBase.GetPrefab<KSP.UI.TooltipTypes.Tooltip_Text>("Tooltip_Text");
+                if (prefab == null) return null;
+                KSP.UI.TooltipTypes.TooltipController_Text tooltip =
+                    target.GetComponent<KSP.UI.TooltipTypes.TooltipController_Text>()
+                    ?? target.AddComponent<KSP.UI.TooltipTypes.TooltipController_Text>();
+                tooltip.prefab = prefab;
+                tooltip.textString = text;
+                return tooltip;
+            }
+            catch (Exception e)
+            {
+                ReDefinition.Core.CompatibilityLog.Warn("tooltip", "A control has no tooltip ("
+                                                                   + ReDefinition.Core.CompatibilityLog.Reason(e) + ").");
+                return null;
+            }
         }
 
         // A new object under `parent`, on its layer, placed in its space.

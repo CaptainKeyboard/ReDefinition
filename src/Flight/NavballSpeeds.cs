@@ -106,6 +106,7 @@ namespace ReDefinition.Flight
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(width, Height);
             rect.position = frame.TransformPoint(at);
+            ReDefinition.Window.UiHygiene.Tooltip(field, label == "V" ? "Vertical Speed" : "Horizontal Speed");
             UnityEngine.UI.Image plate = field.GetComponent<UnityEngine.UI.Image>();
             plate.sprite = Rounded();
             plate.type = UnityEngine.UI.Image.Type.Sliced;
