@@ -767,14 +767,16 @@ namespace redefinition
         const D3D12_RESOURCE_DESC uploadDesc = BufferDesc(uploadSize, D3D12_RESOURCE_FLAG_NONE);
 
         ComPtr<ID3D12Resource> upload;
+        // Buffers start in COMMON whatever is asked for, and the copy promotes them
+        // to COPY_DEST.
         HRESULT hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &positionsDesc,
-                                                     D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mesh.positions));
+                                                     D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&mesh.positions));
         if (SUCCEEDED(hr))
             hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &attributesDesc,
-                                                 D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mesh.attributes));
+                                                 D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&mesh.attributes));
         if (SUCCEEDED(hr))
             hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &indicesDesc,
-                                                 D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mesh.indices));
+                                                 D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&mesh.indices));
         if (SUCCEEDED(hr))
             hr = device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &uploadDesc,
                                                  D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&upload));
@@ -843,7 +845,7 @@ namespace redefinition
                                              IID_PPV_ARGS(&mesh.blas));
         if (SUCCEEDED(hr))
             hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &scratchDesc,
-                                                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&scratch));
+                                                 D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&scratch));
         if (FAILED(hr))
         {
             SetProblem("a mesh's acceleration structure could not be made (" + Hr(hr) + ")");
@@ -1005,7 +1007,7 @@ namespace redefinition
                 slot.held.push_back(tlasScratch);
             tlasScratch.Reset();
             tlasScratchSize = std::max<UINT64>(info.ScratchDataSizeInBytes * 3 / 2, 4096);
-            if (!EnsureDefaultBuffer(tlasScratch, tlasScratchSize, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            if (!EnsureDefaultBuffer(tlasScratch, tlasScratchSize, D3D12_RESOURCE_STATE_COMMON,
                                      D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS))
             {
                 SetProblem("the scene's scratch buffer could not be made");
@@ -1396,7 +1398,39 @@ namespace redefinition
 
     int Raytracing::Status(char* buffer, int size) const
     {
+        // A device the driver has taken away runs nothing more; its reason goes first.
+        HRESULT removed = S_OK;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            if (device != nullptr)
+            {
+                removed = device->GetDeviceRemovedReason();
+                // The debug layer's messages, where it is on, into the log once.
+                ComPtr<ID3D12InfoQueue> messages;
+                if (SUCCEEDED(device.As(&messages)))
+                {
+                    const UINT64 count = messages->GetNumStoredMessages();
+                    for (UINT64 i = 0; i < count && i < 20; ++i)
+                    {
+                        SIZE_T length = 0;
+                        messages->GetMessage(i, nullptr, &length);
+                        std::vector<uint8_t> bytes(length);
+                        D3D12_MESSAGE* message = reinterpret_cast<D3D12_MESSAGE*>(bytes.data());
+                        if (SUCCEEDED(messages->GetMessage(i, message, &length)))
+                            LogLine(std::string("Raytracing, Direct3D 12 debug layer: ") + message->pDescription);
+                    }
+                    messages->ClearStoredMessages();
+                }
+            }
+        }
         std::lock_guard<std::mutex> status(statusLock);
+        if (removed != S_OK && buffer != nullptr && size > 0)
+        {
+            _snprintf_s(buffer, static_cast<size_t>(size), _TRUNCATE, "device removed (%s) ", Hr(removed).c_str());
+            const size_t used = strnlen(buffer, static_cast<size_t>(size));
+            buffer += used;
+            size -= static_cast<int>(used);
+        }
         if (buffer != nullptr && size > 0)
             _snprintf_s(buffer, static_cast<size_t>(size), _TRUNCATE,
                         "generation=%u frames=%llu reconstructed=%llu meshes=%u built=%u instances=%u build=%.3fms"

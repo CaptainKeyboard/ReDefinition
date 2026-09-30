@@ -17,7 +17,7 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
         return;
     }
     float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
-    float3 normal = DecodeNormal(gbuffer2[id.xy]);
+    float3 normal = SurfaceNormal(id.xy, position);
     float3 towardsSun = normalize(sunDirection.xyz);
     float visible = 0.0f;
     if (dot(normal, towardsSun) > 0.0f)
@@ -71,7 +71,7 @@ bool Surface(uint2 pixel, out float3 position, out float3 normal)
     if (IsSky(depth))
         return false;
     position = ClipToWorld(PixelToNdc(pixel), depth);
-    normal = DecodeNormal(gbuffer2[pixel]);
+    normal = SurfaceNormal(pixel, position);
     return true;
 }
 

@@ -277,8 +277,30 @@ Where DLSS frame generation runs and NVIDIA's `sl.dlss_d.dll` and `nvngx_dlssd.d
 next to the other Streamline DLLs, it also checks DLSS Ray Reconstruction. Both come with
 the Streamline SDK 2.14.1, in `bin\x64`.
 
-With a scene of KSP's own meshes it also renders the launch pad and the SPH. The scene
-holds Squad's geometry, so write it outside the repository:
+## Run the raytracing test player
+
+The test player is a Unity 2019.4.18f1 player built as KSP's is: Direct3D 11, native
+graphics jobs, gamma colour space. It builds a scene of a ground and two boxes, renders it
+with and without raytracing, and checks the images. It runs three times: with forward
+rendering, with Unity's deferred lighting, and with Deferred's lighting shaders from the
+installed game.
+
+```
+python tools\build_rt_player.py
+```
+
+It needs Unity 2019.4.18f1 at `C:\Program Files\Unity\Editor\Unity.exe` and a built
+proxy; `--unity` and `--ksp` name other places, `--no-build` runs the last build again.
+It prints each run's `PASS` and `FAIL` lines and exits 0 when all of them passed. The
+images of each run are in `build\RaytracingPlayer\<run>`.
+
+With `REDEFINITION_D3D12_DEBUG=1` set, the proxy turns on Direct3D 12's debug layer in
+either harness and the test player, and writes its messages into its log.
+
+## Render KSP's meshes in the raytracing harness
+
+With a scene of KSP's own meshes the raytracing harness also renders the launch pad and the
+SPH. The scene holds Squad's geometry, so write it outside the repository:
 
 ```
 python tools\export_rt_scene.py "<KSP folder>" %TEMP%\ksc.rtscene

@@ -15,6 +15,20 @@ unity/obj/
 unity/*.csproj
 unity/*.sln
 
+# The raytracing test player (tools/build_rt_player.py): Unity's work and the files it
+# copies in from src/ and unity/.
+tests/RaytracingPlayer/Library/
+tests/RaytracingPlayer/Temp/
+tests/RaytracingPlayer/Logs/
+tests/RaytracingPlayer/UserSettings/
+tests/RaytracingPlayer/obj/
+tests/RaytracingPlayer/*.csproj
+tests/RaytracingPlayer/*.sln
+tests/RaytracingPlayer/Assets/Linked/
+tests/RaytracingPlayer/Assets/Linked.meta
+tests/RaytracingPlayer/Assets/Scenes/
+tests/RaytracingPlayer/Assets/Scenes.meta
+
 # AMD's runtime for the player package, fetched by tools/fetch_amd_runtime.py
 # (third_party/amd/README.md).
 third_party/amd/*.dll

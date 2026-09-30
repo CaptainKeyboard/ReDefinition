@@ -49,6 +49,10 @@ compute shaders (DirectX Raytracing 1.1, shader model 6.5) **[doc]**.
    positions are corrected for KSP's floating origin and Krakensbane, as the motion vectors
    already are ([upscaler.md](upscaler.md)).
 
+The G-buffer is not bound any more by `OnRenderImage`: a command buffer copies it at
+`CameraEvent.AfterGBuffer`, in the camera's own command stream **[meas]** (test player).
+Depth, read through `_CameraDepthTexture`, is still there.
+
 The raytraced light is therefore one frame old, carried over. The denoisers accumulate
 over frames anyway, so the delay adds no lag of its own to what they already have.
 
@@ -70,8 +74,10 @@ The screen-space shadows shader is derived from Unity's built-in one, which is M
 For every camera but the scene camera it does what Unity's does.
 
 Without Deferred, KSP renders forward and has no G-buffer. Raytraced sun shadows still
-work then, as forward shading reads the same mask. Diffuse light, occlusion and
-reflections need Deferred.
+work then, as forward shading reads the same mask; the proxy takes the normals from the
+depth. Unity fades shadows out at the shadow distance, the raytraced ones too; Deferred
+turns that fade off, so with Deferred they reach as far as the scene **[meas]** (test
+player). Diffuse light, occlusion and reflections need Deferred.
 
 ## What the rays see
 
@@ -144,7 +150,7 @@ the installed mods live.
 | Raytracing harness | a native program that loads the proxy as Unity does, rasterises a G-buffer in Unity's layout and runs the raytracing through the proxy's own interface | the acceleration structures, every signal against a formula or a reference, the denoisers, floating-origin shifts, timings on the GPU |
 | Scenes from KSP | meshes exported from KSP's own files with UnityPy: the launch pad, the runway, the VAB, the SPH, part meshes | real geometry, real triangle counts, real scale |
 | C# unit tests | the collection and change tracking of meshes, the packing of packets, the carrying over of signals between frames | the managed side's logic |
-| Unity test player | a Unity 2019.4.18f1 player built like KSP's, with deferred rendering, Deferred's own shader bundle from `GameData`, the KSP meshes and the proxy beside it | the shaders in Unity's lighting, the timing of the render events, the one-frame carry-over |
+| Unity test player | a Unity 2019.4.18f1 player built like KSP's, with forward rendering, Unity's deferred lighting and Deferred's own shader bundle from `GameData`, and the proxy beside it (`tools/build_rt_player.py`) | the shaders in Unity's lighting, the timing of the render events, the one-frame carry-over |
 
 The harness checks:
 

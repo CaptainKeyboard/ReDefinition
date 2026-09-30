@@ -348,6 +348,22 @@ only export: `DxgiExports.cpp`, `ManagedBridge.cpp` and the harness. CMake build
 
 Design and measurements: [frame-generation.md](frame-generation.md).
 
+## Raytracing
+
+The managed side of the raytracing, free of KSP's types so that the raytracing test player
+compiles it on its own ([raytracing.md](raytracing.md)):
+
+| File | What |
+|---|---|
+| `src/Raytracing/RtNative.cs` | the proxy's raytracing exports and packets |
+| `src/Raytracing/RtScene.cs` | meshes, materials, material textures and each frame's instances handed to the proxy; the sources of the scene |
+| `src/Raytracing/RtMaterial.cs` | what a ray takes of a material: albedo, specular colour, smoothness, emission |
+| `src/Raytracing/RtCamera.cs` | the raytracing of one camera: capture, the frame, the carry-over into the next frame's lighting |
+| `src/Raytracing/RtLighting.cs` | ReDefinition's screen-space shadows and deferred reflections shaders in Unity's place, and the ones before them back |
+| `unity/Assets/ReDefinition/Shaders/ReDefinitionRtCapture.shader` | the copies of depth, G-buffer, motion and sky the raytracing reads |
+| `unity/Assets/ReDefinition/Shaders/ReDefinitionScreenSpaceShadows.shader` | Unity's screen-space shadows with the raytraced sun visibility for the raytraced camera |
+| `unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader` | Deferred's reflections pass with the raytraced diffuse light and reflections |
+
 ## Around the code
 
 | Where | What |
@@ -360,6 +376,8 @@ Design and measurements: [frame-generation.md](frame-generation.md).
 | `tools/check_docs.ps1` | the rules the pages under `docs/` follow |
 | `tools/port_fsr3_shaders.py`, `tools/audit_ffx_fields.py`, `tools/fetch_amd_runtime.py` | the FSR shaders from FSR3Unity's, the frame generation field audit, AMD's runtime for the package |
 | `tools/export_rt_scene.py` | a scene of KSP's own meshes for the raytracing harness, written outside the repository |
+| `tools/build_rt_player.py` | builds the raytracing test player with Unity 2019.4.18f1 and runs it with forward rendering, Unity's deferred lighting and Deferred's |
+| `tests/RaytracingPlayer/` | the raytracing test player's Unity project: its build script and its runner, which builds a scene, renders it with and without raytracing and checks the images |
 | `tools/craft_stages.py` | the stock crafts' stages worked out offline, for the planner's tests (`StockCrafts.cs`) |
 
 How to build and run all of it: [building-and-testing.md](building-and-testing.md).

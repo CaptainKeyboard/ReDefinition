@@ -1,0 +1,429 @@
+using System;
+using System.Text;
+using ReDefinition.Bridges;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace ReDefinition.Raytracing
+{
+    // What the raytracing of a camera does, as the settings choose it.
+    internal struct RtSettings
+    {
+        public bool Shadows;
+        public bool Occlusion;
+        public bool Diffuse;
+        public bool Reflections;
+        public bool Denoise;
+        public int Bounces;
+        public float OcclusionDistance;
+        public float Clamp;
+
+        internal static RtSettings Full()
+        {
+            return new RtSettings
+            {
+                Shadows = true, Occlusion = true, Diffuse = true, Reflections = true, Denoise = true,
+                Bounces = 2, OcclusionDistance = 2f, Clamp = 20f,
+            };
+        }
+    }
+
+    // The raytracing of one camera (docs/development/raytracing.md, "How the frame
+    // goes"). On the scene camera: in OnPreCull the scene's instances of this frame;
+    // in OnRenderImage, where a render event sees the current frame, depth, G-buffer
+    // and motion copied and the raytracing started on the proxy, its results back in
+    // the same frame; in the next frame's lighting, those results carried over to it.
+    //
+    // What depends on KSP comes in through the fields below: the sources of the scene,
+    // the sun, the sky, how far the world moved between two frames, and the projection
+    // the frame was rendered with.
+    internal sealed class RtCamera : MonoBehaviour
+    {
+        internal readonly RtScene Scene = new RtScene();
+        internal RtSettings Settings = RtSettings.Full();
+
+        // The shaders: the capture, the screen-space shadows, the deferred reflections.
+        internal Func<string, Shader> ShaderSource = Shader.Find;
+        // Towards the sun, and its angular radius in w; its colour; the sky's.
+        internal Func<Vector4> Sun = () => new Vector4(0.3f, 0.8f, 0.5f, 0.0047f);
+        internal Func<Color> SunColor = () => Color.white;
+        internal Func<Color> SkyColor = () => RenderSettings.ambientSkyColor;
+        // The sky as a cube map, or null for the sky's colour.
+        internal Func<Texture> Environment = () => null;
+        // Where a point of this frame's world was in the previous frame's: previous = this + shift.
+        internal Func<RtPosition> WorldShift = () => new RtPosition(0, 0, 0);
+        // The projection this frame was rendered with, jitter and all.
+        internal Func<Matrix4x4> RenderedProjection;
+        // Whether this frame is a cut: the camera jumped, the history is not its.
+        internal Func<bool> Cut = () => false;
+        // The camera's motion vectors, where they are rendered and correct.
+        internal bool MotionVectors;
+
+        internal string Problem { get; private set; }
+        internal uint LastSignals { get; private set; }
+        internal float[] PassTimings = new float[8];
+
+        private Camera cam;
+        private Material capture;
+        private Shader shadows;
+        private Shader reflections;
+        private CommandBuffer command;
+        private CommandBuffer gbufferCopy;
+        private CommandBuffer flagOn;
+        private CommandBuffer flagOff;
+        private PacketRing ring;
+        private RtNative.FramePacket packet;
+        private RenderTexture depth, gbuffer0, gbuffer1, gbuffer2, motion, environment;
+        private RenderTexture sun, diffuse, specular, occlusion;
+        private int width, height;
+        private uint frameIndex;
+        private bool haveHistory;
+        private bool gbufferReady;
+        private Matrix4x4 previousWorldToClip;     // camera-relative, of the previous frame
+        private RtPosition previousPosition;
+        private Matrix4x4 renderedProjection;
+        private RtPosition position;
+        private readonly StringBuilder statusText = new StringBuilder(512);
+        private int generation = -1;
+        private int statusFrame;
+
+        private static readonly int RtOn = Shader.PropertyToID("_ReDefinitionRtOn");
+        private static readonly int RtLight = Shader.PropertyToID("_ReDefinitionRtLight");
+        private static readonly int RtReproject = Shader.PropertyToID("_ReDefinitionRtReproject");
+        private static readonly int RtSun = Shader.PropertyToID("_ReDefinitionRtSun");
+        private static readonly int RtDiffuse = Shader.PropertyToID("_ReDefinitionRtDiffuse");
+        private static readonly int RtSpecular = Shader.PropertyToID("_ReDefinitionRtSpecular");
+        private static readonly int RtCube = Shader.PropertyToID("_ReDefinitionRtCube");
+        private static readonly int RtCubeHdr = Shader.PropertyToID("_ReDefinitionRtCube_HDR");
+
+        private void Awake()
+        {
+            cam = GetComponent<Camera>();
+            packet = RtNative.NewFramePacket();
+            ring = new PacketRing(System.Runtime.InteropServices.Marshal.SizeOf(typeof(RtNative.FramePacket)));
+        }
+
+        private void OnEnable()
+        {
+            string why;
+            if (!RtNative.Ready(out why))
+            {
+                Problem = "raytracing does not run: " + why;
+                enabled = false;
+                return;
+            }
+            Shader captureShader = ShaderSource("Hidden/ReDefinition/RtCapture");
+            shadows = ShaderSource("Hidden/ReDefinition/ScreenSpaceShadows");
+            reflections = ShaderSource("ReDefinition/Internal-DeferredReflections");
+            if (captureShader == null || shadows == null)
+            {
+                Problem = "raytracing's shaders are missing from the shader bundle";
+                enabled = false;
+                return;
+            }
+            capture = new Material(captureShader) { hideFlags = HideFlags.HideAndDontSave };
+            command = new CommandBuffer { name = "ReDefinition raytracing" };
+
+            // The flag the lighting shaders read: on around this camera's rendering,
+            // off for every other camera. Forward rendering collects the sun's shadow
+            // after the depth texture, deferred rendering after the G-buffer.
+            flagOn = new CommandBuffer { name = "ReDefinition raytracing on" };
+            flagOn.SetGlobalFloat(RtOn, 1f);
+            flagOff = new CommandBuffer { name = "ReDefinition raytracing off" };
+            flagOff.SetGlobalFloat(RtOn, 0f);
+            cam.AddCommandBuffer(CameraEvent.BeforeDepthTexture, flagOn);
+            cam.AddCommandBuffer(CameraEvent.BeforeGBuffer, flagOn);
+            cam.AddCommandBuffer(CameraEvent.AfterEverything, flagOff);
+            // The G-buffer is gone by OnRenderImage: copied as soon as it is filled, in the
+            // camera's own command stream, where the copy belongs to this frame.
+            gbufferCopy = new CommandBuffer { name = "ReDefinition raytracing G-buffer" };
+            cam.AddCommandBuffer(CameraEvent.AfterGBuffer, gbufferCopy);
+            cam.depthTextureMode |= DepthTextureMode.Depth;
+            haveHistory = false;
+            Problem = null;
+        }
+
+        private void OnDisable()
+        {
+            if (cam != null)
+            {
+                if (flagOn != null)
+                {
+                    cam.RemoveCommandBuffer(CameraEvent.BeforeDepthTexture, flagOn);
+                    cam.RemoveCommandBuffer(CameraEvent.BeforeGBuffer, flagOn);
+                }
+                if (flagOff != null) cam.RemoveCommandBuffer(CameraEvent.AfterEverything, flagOff);
+                if (gbufferCopy != null) cam.RemoveCommandBuffer(CameraEvent.AfterGBuffer, gbufferCopy);
+            }
+            Shader.SetGlobalFloat(RtOn, 0f);
+            RtLighting.Restore();
+            Scene.Clear();
+            ReleaseTargets();
+            if (capture != null) Destroy(capture);
+            capture = null;
+            command?.Release();
+            gbufferCopy?.Release();
+            flagOn?.Release();
+            flagOff?.Release();
+            command = gbufferCopy = flagOn = flagOff = null;
+        }
+
+        private void OnPreCull()
+        {
+            if (capture == null) return;
+            RtLighting.Keep(Settings.Shadows ? shadows : null, Settings.Diffuse || Settings.Reflections ? reflections : null);
+
+            // The service's generation, which changes with its device, now and then.
+            if (generation < 0 || ++statusFrame >= 30)
+            {
+                statusFrame = 0;
+                statusText.Length = 0;
+                generation = RtNative.KspRtStatus(statusText, statusText.Capacity);
+            }
+            position = RtPosition.From(transform.position);
+            Scene.Update(position, generation);
+
+            // The G-buffer's copy at this frame's size, which the previous frame's
+            // OnRenderImage found; at a new size, from the next frame on.
+            gbufferCopy.Clear();
+            if (gbuffer0 != null && cam.actualRenderingPath == RenderingPath.DeferredShading)
+            {
+                gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer0, gbuffer0);
+                gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer1, gbuffer1);
+                gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer2, gbuffer2);
+            }
+
+            // The previous frame's results, carried to this frame's world.
+            bool valid = haveHistory && !Cut();
+            Shader.SetGlobalVector(RtLight, new Vector4(valid && Settings.Diffuse ? 1f : 0f,
+                                                        valid && Settings.Reflections ? 1f : 0f, 0f, 0f));
+            if (valid)
+            {
+                RtPosition shift = WorldShift();
+                Matrix4x4 toPrevious = Translation(shift.x - previousPosition.x, shift.y - previousPosition.y,
+                                                   shift.z - previousPosition.z);
+                Shader.SetGlobalMatrix(RtReproject, previousWorldToClip * toPrevious);
+                if (sun != null) Shader.SetGlobalTexture(RtSun, sun);
+                if (diffuse != null) Shader.SetGlobalTexture(RtDiffuse, diffuse);
+                if (specular != null) Shader.SetGlobalTexture(RtSpecular, specular);
+            }
+            else
+            {
+                // Nothing to carry: fully lit, no raytraced light until the first frame.
+                Shader.SetGlobalMatrix(RtReproject, Matrix4x4.zero);
+            }
+        }
+
+        private void OnPreRender()
+        {
+            renderedProjection = RenderedProjection != null ? RenderedProjection() : cam.projectionMatrix;
+        }
+
+        private void OnRenderImage(RenderTexture source, RenderTexture destination)
+        {
+            if (capture == null || source == null)
+            {
+                Graphics.Blit(source, destination);
+                return;
+            }
+            EnsureTargets(source.width, source.height);
+
+            command.Clear();
+            command.Blit(source, depth, capture, 0);
+            // The G-buffer was copied after it was filled; at a new size, not yet.
+            bool deferred = cam.actualRenderingPath == RenderingPath.DeferredShading && gbufferReady;
+            gbufferReady = cam.actualRenderingPath == RenderingPath.DeferredShading;
+            bool withMotion = MotionVectors && (cam.depthTextureMode & DepthTextureMode.MotionVectors) != 0;
+            if (withMotion) command.Blit(source, motion, capture, 4);
+            Texture cube = Environment();
+            if (cube != null)
+            {
+                command.SetGlobalTexture(RtCube, cube);
+                command.SetGlobalVector(RtCubeHdr, new Vector4(1f, 1f, 0f, 0f));
+                command.Blit(source, environment, capture, 5);
+            }
+
+            FillPacket(deferred, withMotion, cube != null);
+            ring.Issue(command, RtNative.RenderEvent, RtNative.FrameEvent, ref packet);
+            Graphics.ExecuteCommandBuffer(command);
+            Graphics.Blit(source, destination);
+
+            previousWorldToClip = WorldToClipRelative();
+            previousPosition = position;
+            haveHistory = true;
+            frameIndex++;
+        }
+
+        // The projection as the GPU used it, into a render texture, times the camera's
+        // rotation: camera-relative world to clip.
+        private Matrix4x4 WorldToClipRelative()
+        {
+            Matrix4x4 view = cam.worldToCameraMatrix;
+            view.m03 = 0f;
+            view.m13 = 0f;
+            view.m23 = 0f;
+            return GL.GetGPUProjectionMatrix(renderedProjection, true) * view;
+        }
+
+        private void FillPacket(bool deferred, bool withMotion, bool withEnvironment)
+        {
+            Matrix4x4 worldToClip = WorldToClipRelative();
+            Write(worldToClip, packet.WorldToClip);
+            Write(StreamlineCamera.Invert(worldToClip), packet.ClipToWorld);
+            if (haveHistory)
+            {
+                RtPosition shift = WorldShift();
+                Matrix4x4 toPrevious = Translation(position.x + shift.x - previousPosition.x,
+                                                   position.y + shift.y - previousPosition.y,
+                                                   position.z + shift.z - previousPosition.z);
+                Write(previousWorldToClip * toPrevious, packet.PrevWorldToClip);
+            }
+            else
+                Write(worldToClip, packet.PrevWorldToClip);
+
+            Vector4 towards = Sun();
+            Vector3 direction = new Vector3(towards.x, towards.y, towards.z).normalized;
+            packet.SunDirection[0] = direction.x;
+            packet.SunDirection[1] = direction.y;
+            packet.SunDirection[2] = direction.z;
+            packet.SunDirection[3] = towards.w;
+            Color sunColour = SunColor();
+            packet.SunColor[0] = sunColour.r;
+            packet.SunColor[1] = sunColour.g;
+            packet.SunColor[2] = sunColour.b;
+            Color sky = SkyColor();
+            packet.SkyColor[0] = sky.r;
+            packet.SkyColor[1] = sky.g;
+            packet.SkyColor[2] = sky.b;
+
+            packet.Params[0] = Settings.OcclusionDistance;
+            packet.Params[1] = Settings.Bounces;
+            packet.Params[2] = 100000f;
+            packet.Params[3] = 100000f;
+            packet.Params[4] = Settings.Clamp;
+            packet.Params[5] = withEnvironment ? 1f : 0f;
+            packet.Params[6] = 1f;
+            packet.Params[7] = deferred ? 1f : 0f;
+
+            uint signals = 0;
+            if (Settings.Shadows) signals |= RtNative.SignalSun;
+            if (deferred && Settings.Occlusion) signals |= RtNative.SignalOcclusion;
+            if (deferred && Settings.Diffuse) signals |= RtNative.SignalDiffuse;
+            if (deferred && Settings.Reflections) signals |= RtNative.SignalSpecular;
+            packet.Signals = signals;
+            LastSignals = signals;
+            packet.FrameIndex = frameIndex;
+            packet.Width = (uint)width;
+            packet.Height = (uint)height;
+            packet.Flags = RtNative.FlagSameFrame | (Settings.Denoise ? RtNative.FlagDenoise : 0u)
+                           | (!haveHistory || Cut() ? RtNative.FlagReset : 0u)
+                           | (withMotion ? RtNative.FlagMotionVectors : 0u);
+
+            for (int i = 0; i < 8; i++)
+            {
+                packet.Inputs[i] = IntPtr.Zero;
+                packet.Outputs[i] = IntPtr.Zero;
+            }
+            packet.Inputs[RtNative.InputDepth] = depth.GetNativeTexturePtr();
+            if (deferred)
+            {
+                // Without Deferred there is no G-buffer; the normal the sun's pass needs is
+                // then the depth's, which the service does not make yet: forward is lit
+                // straight up.
+                packet.Inputs[RtNative.InputGBuffer0] = gbuffer0.GetNativeTexturePtr();
+                packet.Inputs[RtNative.InputGBuffer1] = gbuffer1.GetNativeTexturePtr();
+                packet.Inputs[RtNative.InputGBuffer2] = gbuffer2.GetNativeTexturePtr();
+            }
+            if (withMotion) packet.Inputs[RtNative.InputMotion] = motion.GetNativeTexturePtr();
+            if (withEnvironment) packet.Inputs[RtNative.InputEnvironment] = environment.GetNativeTexturePtr();
+            if ((signals & RtNative.SignalSun) != 0) packet.Outputs[RtNative.OutputSun] = sun.GetNativeTexturePtr();
+            if ((signals & RtNative.SignalDiffuse) != 0) packet.Outputs[RtNative.OutputDiffuse] = diffuse.GetNativeTexturePtr();
+            if ((signals & RtNative.SignalSpecular) != 0)
+                packet.Outputs[RtNative.OutputSpecular] = specular.GetNativeTexturePtr();
+            if ((signals & RtNative.SignalOcclusion) != 0)
+                packet.Outputs[RtNative.OutputOcclusion] = occlusion.GetNativeTexturePtr();
+        }
+
+        private static Matrix4x4 Translation(double x, double y, double z)
+        {
+            Matrix4x4 m = Matrix4x4.identity;
+            m.m03 = (float)x;
+            m.m13 = (float)y;
+            m.m23 = (float)z;
+            return m;
+        }
+
+        // Rows first, as the proxy takes them: Unity's [row, column].
+        internal static void Write(Matrix4x4 m, float[] target)
+        {
+            for (int row = 0; row < 4; row++)
+                for (int column = 0; column < 4; column++)
+                    target[row * 4 + column] = m[row, column];
+        }
+
+        private void EnsureTargets(int newWidth, int newHeight)
+        {
+            if (depth != null && width == newWidth && height == newHeight) return;
+            ReleaseTargets();
+            width = newWidth;
+            height = newHeight;
+            depth = Target(RenderTextureFormat.RFloat);
+            gbuffer0 = Target(RenderTextureFormat.ARGB32);
+            gbuffer1 = Target(RenderTextureFormat.ARGB32);
+            gbuffer2 = Target(RenderTextureFormat.ARGB2101010);
+            motion = Target(RenderTextureFormat.RGHalf);
+            environment = new RenderTexture(256, 128, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear)
+            {
+                name = "ReDefinition raytracing sky",
+                wrapMode = TextureWrapMode.Repeat,
+            };
+            environment.Create();
+            sun = Target(RenderTextureFormat.ARGBHalf);
+            diffuse = Target(RenderTextureFormat.ARGBHalf);
+            specular = Target(RenderTextureFormat.ARGBHalf);
+            occlusion = Target(RenderTextureFormat.ARGBHalf);
+            haveHistory = false;
+            gbufferReady = false;
+        }
+
+        private RenderTexture Target(RenderTextureFormat format)
+        {
+            var texture = new RenderTexture(width, height, 0, format, RenderTextureReadWrite.Linear)
+            {
+                name = "ReDefinition raytracing",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            texture.Create();
+            return texture;
+        }
+
+        private void ReleaseTargets()
+        {
+            foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer2, motion, environment, sun, diffuse,
+                                                      specular, occlusion })
+                if (texture != null)
+                {
+                    texture.Release();
+                    Destroy(texture);
+                }
+            depth = gbuffer0 = gbuffer1 = gbuffer2 = motion = environment = sun = diffuse = specular = occlusion = null;
+        }
+
+        // The textures of the last frame, for the test player's and the diagnostics' look.
+        internal RenderTexture DepthTexture { get { return depth; } }
+        internal RenderTexture SunTexture { get { return sun; } }
+        internal RenderTexture DiffuseTexture { get { return diffuse; } }
+        internal RenderTexture NormalTexture { get { return gbuffer2; } }
+        internal RenderTexture EnvironmentTexture { get { return environment; } }
+
+        // The service's line and each pass's time, for the diagnostics.
+        internal string Status()
+        {
+            statusText.Length = 0;
+            RtNative.KspRtStatus(statusText, statusText.Capacity);
+            RtNative.KspRtPassTimings(PassTimings, PassTimings.Length);
+            return statusText.ToString();
+        }
+    }
+}

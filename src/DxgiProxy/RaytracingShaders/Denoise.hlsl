@@ -51,7 +51,7 @@ void DenoisePrepare(uint3 id : SV_DispatchThreadID)
     float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
     float4 clip = mul(worldToClip, float4(position, 1.0f));
     outputA[id.xy] = float4(clip.w, 0.0f, 0.0f, 0.0f);
-    outputB[id.xy] = float4(DecodeNormal(gbuffer2[id.xy]), gbuffer1[id.xy].a);
+    outputB[id.xy] = float4(SurfaceNormal(id.xy, position), HAS_GBUFFER ? gbuffer1[id.xy].a : 0.0f);
 }
 
 // Temporal: the noisy signal (A) blended into the history (B) found where the pixel was

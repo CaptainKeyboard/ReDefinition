@@ -81,6 +81,7 @@ SamplerState linearWrap : register(s2);
 #define SAMPLE_CLAMP params1.x
 #define HAS_ENVIRONMENT (params1.y > 0.5f)
 #define MATERIAL_TEXTURES (params1.z > 0.5f)
+#define HAS_GBUFFER (params1.w > 0.5f)
 
 static const float kPi = 3.14159265358979f;
 
@@ -107,6 +108,24 @@ bool IsSky(float depth)
 float3 DecodeNormal(float4 encoded)
 {
     return normalize(encoded.xyz * 2.0f - 1.0f);
+}
+
+// A pixel's normal: the G-buffer's where there is one; without (forward rendering),
+// the depth's, from the positions of the neighbours on the nearer side, facing the camera.
+float3 SurfaceNormal(uint2 pixel, float3 position)
+{
+    if (HAS_GBUFFER)
+        return DecodeNormal(gbuffer2[pixel]);
+    int2 size = int2(frameSize) - 1;
+    int2 p = int2(pixel);
+    float3 left = ClipToWorld(PixelToNdc(uint2(max(p.x - 1, 0), p.y)), depthTexture[uint2(max(p.x - 1, 0), p.y)]);
+    float3 right = ClipToWorld(PixelToNdc(uint2(min(p.x + 1, size.x), p.y)), depthTexture[uint2(min(p.x + 1, size.x), p.y)]);
+    float3 up = ClipToWorld(PixelToNdc(uint2(p.x, max(p.y - 1, 0))), depthTexture[uint2(p.x, max(p.y - 1, 0))]);
+    float3 down = ClipToWorld(PixelToNdc(uint2(p.x, min(p.y + 1, size.y))), depthTexture[uint2(p.x, min(p.y + 1, size.y))]);
+    float3 dx = abs(length(left) - length(position)) < abs(length(right) - length(position)) ? position - left : right - position;
+    float3 dy = abs(length(up) - length(position)) < abs(length(down) - length(position)) ? position - up : down - position;
+    float3 n = normalize(cross(dy, dx));
+    return dot(n, position) > 0.0f ? -n : n;
 }
 
 // A per-pixel, per-frame random stream: PCG hashes of the pixel, the frame and a

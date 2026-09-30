@@ -734,6 +734,7 @@ PsOut PsMain(VsOut input)
         packet.params[3] = lighting.specularDistance;
         packet.params[4] = lighting.clamp;
         packet.params[5] = lighting.environment != nullptr ? 1.0f : 0.0f;
+        packet.params[7] = 1.0f;   // the harness's G-buffer
         packet.inputs[kRtInputEnvironment] = lighting.environment;
         packet.inputs[kRtInputDepth] = g.depth.Get();
         packet.inputs[kRtInputGBuffer0] = g.gbuffer0.Get();
