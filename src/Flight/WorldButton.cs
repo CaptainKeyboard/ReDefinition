@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using KSP.UI;
 using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
@@ -233,13 +232,15 @@ namespace ReDefinition.Flight
     }
 
     // The space centre's facility buttons (the column of buttons for the VAB, the
-    // SPH, the launch pad, the runway and the rest; their sprites Buttons_VAB_0 to
-    // _3 and so on belong to the space centre's scene, sharedassets5), copied as
-    // the scene shows them -- a UI theme's where one replaces them -- with the
-    // states their Buttons swap to, so that the buttons over the buildings and in
-    // the editors look like them. Copied every time the space centre is shown, and
-    // kept on disk for a game started straight into another scene
-    // (PluginData/ksc/).
+    // SPH, the launch pad, the runway and the rest), so that the buttons over the
+    // buildings and in the editors look like them: KSP's own sprites, as their
+    // Buttons show them and swap to (normal, highlighted, pressed, disabled),
+    // held. They belong to the space centre's scene (Buttons_VAB_0 to _3 and so
+    // on, sharedassets5) and are there only once it has been shown, which a game
+    // loaded always is first; held here, Unity keeps them after it (it unloads
+    // an asset only where nothing reaches it, static fields included:
+    // Resources.UnloadUnusedAssets). A UI theme that replaces their textures
+    // (HUDReplacer) shows here as well.
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     public class KscButtons : MonoBehaviour
     {
@@ -254,10 +255,7 @@ namespace ReDefinition.Flight
         internal static Look Get(string name)
         {
             Look look;
-            if (looks.TryGetValue(name, out look) && look.Normal != null) return look;
-            look = FromDisk(name);
-            if (look != null) looks[name] = look;
-            return look;
+            return looks.TryGetValue(name, out look) && look.Normal != null ? look : null;
         }
 
         // Taken a second and a half into the scene, where a theme has swapped the
@@ -283,13 +281,13 @@ namespace ReDefinition.Flight
             }
             catch (System.Exception e)
             {
-                CompatibilityLog.Warn("ksc-buttons", "The space centre's facility buttons could not be copied (" + CompatibilityLog.Reason(e) + ").");
+                CompatibilityLog.Warn("ksc-buttons", "The space centre's facility buttons could not be taken (" + CompatibilityLog.Reason(e) + ").");
                 next = 0f;
                 return;
             }
             if (found < Wanted.Length && Time.unscaledTime < until) return;
             next = 0f;
-            Debug.Log(Log.Tag + " The space centre's facility buttons copied for the buttons in the world: " + found + " of "
+            Debug.Log(Log.Tag + " The space centre's facility buttons taken for the buttons in the world: " + found + " of "
                       + Wanted.Length + ".");
         }
 
@@ -304,10 +302,10 @@ namespace ReDefinition.Flight
                 if (name == null || Seen.Contains(name)) continue;
                 Look look = new Look
                 {
-                    Normal = Copy(image.sprite, name, "normal"),
-                    Highlighted = Copy(button.spriteState.highlightedSprite, name, "highlighted"),
-                    Pressed = Copy(button.spriteState.pressedSprite, name, "pressed"),
-                    Disabled = Copy(button.spriteState.disabledSprite, name, "disabled"),
+                    Normal = image.sprite,
+                    Highlighted = button.spriteState.highlightedSprite,
+                    Pressed = button.spriteState.pressedSprite,
+                    Disabled = button.spriteState.disabledSprite,
                 };
                 if (look.Normal == null) continue;
                 if (look.Highlighted == null) look.Highlighted = look.Normal;
@@ -327,57 +325,6 @@ namespace ReDefinition.Flight
             foreach (string wanted in Wanted)
                 if (sprite.StartsWith(wanted + "_", System.StringComparison.Ordinal)) return wanted;
             return null;
-        }
-
-        private static string File(string name, string state)
-        {
-            return PluginData.Path(Path.Combine("ksc", name + "_" + state + ".png"));
-        }
-
-        // A copy of a sprite in a texture of its own, and on disk.
-        private static Sprite Copy(Sprite sprite, string name, string state)
-        {
-            if (sprite == null) return null;
-            int width, height;
-            Color32[] pixels = TimeWarpBar.Pixels(sprite, out width, out height);
-            if (pixels == null) return null;
-            Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, false);
-            texture.SetPixels32(pixels);
-            texture.Apply();
-            try
-            {
-                string path = File(name, state);
-                string directory = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
-                System.IO.File.WriteAllBytes(path, texture.EncodeToPNG());
-            }
-            catch (System.Exception e)
-            {
-                CompatibilityLog.Warn("ksc-buttons-save", "The space centre's buttons could not be kept on disk (" + CompatibilityLog.Reason(e) + ").");
-            }
-            return Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
-        }
-
-        private static Look FromDisk(string name)
-        {
-            Sprite normal = Load(name, "normal");
-            if (normal == null) return null;
-            return new Look
-            {
-                Normal = normal,
-                Highlighted = Load(name, "highlighted") ?? normal,
-                Pressed = Load(name, "pressed") ?? normal,
-                Disabled = Load(name, "disabled") ?? normal,
-            };
-        }
-
-        private static Sprite Load(string name, string state)
-        {
-            string path = File(name, state);
-            if (!System.IO.File.Exists(path)) return null;
-            Texture2D texture = new Texture2D(2, 2, TextureFormat.ARGB32, false);
-            if (!texture.LoadImage(System.IO.File.ReadAllBytes(path))) return null;
-            return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f));
         }
     }
 }
