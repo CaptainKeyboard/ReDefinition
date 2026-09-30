@@ -11,8 +11,11 @@ namespace ReDefinition.Engineer
     // LaunchPadMedium, the pad's model; SPHscenery/SpaceCenter/Runway; level10 and
     // level11, read with UnityPy). Over the pad it stands on the launch pad itself
     // (ksp_pad_launchPad, where a vessel stands at the model's origin), not on the
-    // middle of the whole complex with its tanks, ramps and flag pole. It looks like the space centre's own button for
-    // the pad or the runway (WorldButton, KscButtons) and launches there as KSP's
+    // middle of the whole complex with its tanks, ramps and flag pole. Over the
+    // runway it stands where a plane is put for its launch: the runway's model
+    // (instanced by its facility's level, sharedassets9) has a SpawnPoint at each
+    // end, and the one nearest the SPH's camera is the end seen through the door.
+    // It looks like the space centre's own button for the pad or the runway (WorldButton, KscButtons) and launches there as KSP's
     // launch button does (EditorLogic.launchVessel with the site's name), while
     // KSP's own launch button can be pressed.
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
@@ -82,26 +85,46 @@ namespace ReDefinition.Engineer
             }
             if (!measured)
             {
-                Vector3 drawn = Over(place);
-                middle = place.InverseTransformPoint(drawn);
                 Transform pad = place.Find("ksp_pad_launchPad");
-                reach = WorldButton.Reach(pad != null ? pad : place) * 0.6f;
-                measured = drawn != place.position;
+                Transform spawn = pad == null ? Spawn(place, editor.editorCamera) : null;
+                if (pad == null && spawn == null)
+                {
+                    marker.Hide();
+                    return;
+                }
+                Vector3 drawn = pad != null ? OnPad(place, pad) : spawn.position;
+                middle = place.InverseTransformPoint(drawn);
+                reach = pad != null ? WorldButton.Reach(pad) * 0.6f : 5f;
+                measured = true;
+                Debug.Log(Log.Tag + " Launch button placed on the " + (pad != null ? pad.name : spawn.parent.name + "/" + spawn.name) + ".");
             }
             if (marker.Place(place.TransformPoint(middle), editor.editorCamera, reach, true))
                 marker.Look(look, null);
         }
 
-        // On the top of what the place draws: over the launch pad above the model's
-        // origin, which is where a vessel stands; over the runway on its middle.
-        private static Vector3 Over(Transform place)
+        // On the pad's top, above the model's origin, which is where a vessel stands.
+        private static Vector3 OnPad(Transform place, Transform pad)
         {
-            Transform pad = place.Find("ksp_pad_launchPad");
-            Transform drawn = pad != null ? pad : place;
-            Vector3 middle = WorldButton.Middle(drawn);
-            float top = middle.y;
-            foreach (Renderer part in drawn.GetComponentsInChildren<Renderer>(false)) top = Mathf.Max(top, part.bounds.max.y);
-            return pad != null ? new Vector3(place.position.x, top, place.position.z) : new Vector3(middle.x, top, middle.z);
+            float top = pad.position.y;
+            foreach (Renderer part in pad.GetComponentsInChildren<Renderer>(false)) top = Mathf.Max(top, part.bounds.max.y);
+            return new Vector3(place.position.x, top, place.position.z);
+        }
+
+        // The runway's spawn point nearest the camera; null while its model is not
+        // there.
+        private static Transform Spawn(Transform place, Camera camera)
+        {
+            Transform nearest = null;
+            float best = float.MaxValue;
+            foreach (Transform found in place.GetComponentsInChildren<Transform>(false))
+            {
+                if (found.name != "SpawnPoint") continue;
+                float distance = camera != null ? (found.position - camera.transform.position).sqrMagnitude : 0f;
+                if (distance >= best) continue;
+                best = distance;
+                nearest = found;
+            }
+            return nearest;
         }
 
         private void Launch()
