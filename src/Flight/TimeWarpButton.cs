@@ -237,14 +237,20 @@ namespace ReDefinition.Flight
             float left = Mathf.Max(backgroundRight, hover.fixedMaskStart.x + containerRect.xMin + containerRect.width * barFilled.xMin);
             if (right - left < 1f) throw new System.InvalidOperationException("no room for the button beside the time panel");
             Vector2 size = new Vector2(right - left, top - middle);
-            // The area keeps this height, folded too. The MET row it then stands
-            // beside is a row of the picture shorter (ZTheme's
+            // The area keeps this height, folded too, less two screen pixels, and a
+            // pixel as soft as the picture's lower edge (Edge) under it. The MET row
+            // it then stands beside ends a row of the picture earlier (ZTheme's
             // FlightTimeQuadrant.png: the warp row 34 of its 68 rows, the MET row
-            // 33, the last see-through), but the picture's lower edge is drawn
-            // soft, half into that last row, and an area a row shorter ended a
-            // pixel above it (measured on the player's screenshots).
+            // 33), its last drawn row soft: on the player's screenshot, at ten
+            // times, the full area went on two pixels below the MET row's last dark
+            // one.
             Image backgroundFace = background.GetComponent<Image>();
             Rect backgroundFilled = Opaque(backgroundFace != null ? backgroundFace.sprite : null);
+            Canvas canvas = row.GetComponentInParent<Canvas>();
+            Canvas root = canvas != null ? canvas.rootCanvas : null;
+            float pixel = root != null && row.lossyScale.y > 0f
+                ? root.transform.lossyScale.y / (root.scaleFactor * row.lossyScale.y) : 1f;
+            size.y -= 2f * pixel;
 
             // The area: a plain rectangle in the colour of the MET row's background
             // (ZTheme: #302E35), over the sunrise extension's mask, so that the
@@ -263,6 +269,21 @@ namespace ReDefinition.Flight
                     new Vector2(0.97f, backgroundFilled.yMin + (0.5f - backgroundFilled.yMin) / 2f), out areaColour))
                 areaColour = new Color(0.19f, 0.18f, 0.21f, 1f);
             bar.GetComponent<Image>().color = (backgroundFace != null ? backgroundFace.color : Color.white) * areaColour;
+            float soft = Edge(backgroundFace != null ? backgroundFace.sprite : null, 0.97f);
+            GameObject edge = new GameObject("Edge", typeof(RectTransform), typeof(Image));
+            edge.layer = bar.layer;
+            RectTransform edgeRect = (RectTransform)edge.transform;
+            edgeRect.SetParent(barRect, false);
+            edgeRect.anchorMin = new Vector2(0f, 0f);
+            edgeRect.anchorMax = new Vector2(1f, 0f);
+            edgeRect.pivot = new Vector2(0.5f, 1f);
+            edgeRect.anchoredPosition = Vector2.zero;
+            edgeRect.sizeDelta = new Vector2(0f, pixel);
+            Image edgeImage = edge.GetComponent<Image>();
+            Color edgeColour = bar.GetComponent<Image>().color;
+            edgeColour.a *= soft;
+            edgeImage.color = edgeColour;
+            edgeImage.raycastTarget = false;
 
             // The button: the MET button copied, its look and its states, its
             // text and click taken away and its tooltip its own; square, as the
@@ -350,7 +371,8 @@ namespace ReDefinition.Flight
                       + " unfolded (the background's right edge " + backgroundRight.ToString("0.0") + ", the sunrise bar's picture over "
                       + barFilled.ToString("0.00") + "); the button " + faceRect.sizeDelta.ToString("0.0") + " with its drawn square " + side.ToString("0.0")
                       + " wide, the MET picture over " + drawn.ToString("0.00") + "; the area in " + areaColour
-                      + "; the sunrise extension's top right corner squared by " + corner.ToString("0.0") + ".");
+                      + "; the sunrise extension's top right corner squared by " + corner.ToString("0.0")
+                      + "; a soft pixel (" + pixel.ToString("0.00") + " units) at " + soft.ToString("0.00") + " opacity.");
         }
 
         // A sprite with a border for slicing, in pixels as the sprite's own rect
@@ -400,6 +422,25 @@ namespace ReDefinition.Flight
                 RenderTexture.ReleaseTemporary(copy);
                 Destroy(read);
             }
+        }
+
+        // How opaque a sprite's soft lower edge is: its lowest row that is neither
+        // see-through nor full, in the column at `x` (a fraction of it), under the
+        // part that is not see-through; half where there is none or it cannot be
+        // read.
+        private static float Edge(Sprite sprite, float x)
+        {
+            int width, height;
+            Color32[] pixels = Pixels(sprite, out width, out height);
+            if (pixels == null) return 0.5f;
+            int column = Mathf.Clamp(Mathf.FloorToInt(x * width), 0, width - 1);
+            for (int y = 0; y < height; y++)
+            {
+                byte alpha = pixels[y * width + column].a;
+                if (alpha == 0) continue;
+                return alpha < 250 ? alpha / 255f : 0.5f;
+            }
+            return 0.5f;
         }
 
         // The colour of a sprite at a point given in fractions of it.
