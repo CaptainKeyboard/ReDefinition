@@ -25,6 +25,41 @@ set(REDEFINITION_VERSION_PATCH ${CMAKE_MATCH_3})
 set(REDEFINITION_VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
 configure_file(ReDefinitionProxy.rc.in "${CMAKE_CURRENT_BINARY_DIR}/ReDefinitionProxy.rc" @ONLY)
 
+# The Windows SDK's dxc, for the raytracing shaders (DXIL, shader model 6.5) and the
+# harness's DXIL pass; it signs them with the dxil.dll beside it, which Direct3D 12
+# requires.
+find_program(REDEFINITION_DXC dxc
+    HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/10/bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
+
+# The raytracing passes (Raytracing.cpp), one entry point each, compiled to DXIL and
+# embedded in dxgi.dll as RCDATA named RT_<entry>. Without dxc the proxy is built
+# without them and says so in its log.
+set(REDEFINITION_RT_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/RaytracingShaders")
+set(REDEFINITION_RT_ENTRIES SunVisibility PrimaryCheck)
+set(REDEFINITION_RT_OUTPUTS)
+set(REDEFINITION_RT_RC "${CMAKE_CURRENT_BINARY_DIR}/RaytracingShaders.rc")
+if(REDEFINITION_DXC)
+    set(REDEFINITION_RT_RC_TEXT "")
+    file(GLOB REDEFINITION_RT_SOURCES "${REDEFINITION_RT_SHADER_DIR}/*.hlsl" "${REDEFINITION_RT_SHADER_DIR}/*.hlsli")
+    foreach(entry ${REDEFINITION_RT_ENTRIES})
+        set(output "${CMAKE_CURRENT_BINARY_DIR}/rt/${entry}.cso")
+        add_custom_command(OUTPUT "${output}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rt"
+            COMMAND "${REDEFINITION_DXC}" -nologo -T cs_6_5 -E ${entry} -HV 2021 -O3 -WX
+                -Fo "${output}" "${REDEFINITION_RT_SHADER_DIR}/Raytracing.hlsl"
+            DEPENDS ${REDEFINITION_RT_SOURCES}
+            COMMENT "Raytracing pass ${entry} compiled to DXIL")
+        list(APPEND REDEFINITION_RT_OUTPUTS "${output}")
+        string(APPEND REDEFINITION_RT_RC_TEXT "RT_${entry} RCDATA \"${output}\"
+")
+    endforeach()
+    file(WRITE "${REDEFINITION_RT_RC}" "${REDEFINITION_RT_RC_TEXT}")
+    set_source_files_properties("${REDEFINITION_RT_RC}" PROPERTIES OBJECT_DEPENDS "${REDEFINITION_RT_OUTPUTS}")
+else()
+    message(WARNING "dxc not found: dxgi.dll is built without raytracing")
+    file(WRITE "${REDEFINITION_RT_RC}" "")
+endif()
+
 add_library(ReDefinitionProxy SHARED
     AmdUpscaler.cpp
     AmdUpscaler.h
@@ -55,6 +90,8 @@ add_library(ReDefinitionProxy SHARED
     NvidiaGpu.cpp
     NvidiaGpu.h
     ProjectIdentity.h
+    Raytracing.cpp
+    Raytracing.h
     Streamline.cpp
     Streamline.h
     SwapChainProxy.cpp
@@ -66,6 +103,8 @@ add_library(ReDefinitionProxy SHARED
     DxgiExports.cpp
     ReDefinitionProxy.def
     "${CMAKE_CURRENT_BINARY_DIR}/ReDefinitionProxy.rc"
+    "${REDEFINITION_RT_RC}"
+    ${REDEFINITION_RT_OUTPUTS}
 )
 
 # AMD's FidelityFX API headers, MIT, vendored under extern/. The runtime is a DLL
@@ -103,6 +142,16 @@ target_compile_options(ProxyHarness PRIVATE /W4 /permissive-)
 target_link_libraries(ProxyHarness PRIVATE d3d11 dxgi version)
 add_dependencies(ProxyHarness ReDefinitionProxy)
 
+# The raytracing harness (docs/development/raytracing.md): the proxy's raytracing
+# without KSP, against the CPU.
+add_executable(RaytracingHarness RaytracingHarness.cpp)
+target_compile_definitions(RaytracingHarness PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
+target_compile_options(RaytracingHarness PRIVATE /W4 /permissive-)
+target_include_directories(RaytracingHarness PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/extern"
+    "${CMAKE_CURRENT_SOURCE_DIR}/extern/Streamline/include")
+target_link_libraries(RaytracingHarness PRIVATE d3d11 dxgi d3dcompiler)
+add_dependencies(RaytracingHarness ReDefinitionProxy)
+
 # The example mod's compute shader beside the harness, which compiles it through the proxy.
 add_custom_command(TARGET ProxyHarness POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -110,10 +159,7 @@ add_custom_command(TARGET ProxyHarness POST_BUILD
         "$<TARGET_FILE_DIR:ProxyHarness>/ExampleEffect.hlsl"
     COMMENT "ExampleEffect.hlsl copied beside the harness")
 
-# The harness's DXIL compute pass, where the Windows SDK's dxc is found; dxc signs it with
-# the dxil.dll beside it, which Direct3D 12 requires.
-find_program(REDEFINITION_DXC dxc
-    HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/10/bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
+# The harness's DXIL compute pass, where the Windows SDK's dxc is found.
 if(REDEFINITION_DXC)
     add_custom_command(TARGET ProxyHarness POST_BUILD
         COMMAND "${REDEFINITION_DXC}" -nologo -T cs_6_0 -E main

@@ -17,6 +17,7 @@
 #include "LoadMonitor.h"
 #include "Log.h"
 #include "NvidiaGpu.h"
+#include "Raytracing.h"
 #include "ScreenRecorder.h"
 #include "FileUtil.h"
 #include "Streamline.h"
@@ -228,6 +229,7 @@ extern "C"
     // 6: a question for DLSS's render sizes (Dlss::OnSizeQuery), before a rig.
     // 20-23: Direct3D 12 for mods (D3d12Compute.h): a compute pass made, destroyed,
     //    dispatched, a texture's shared copy released.
+    // 30: a raytracing frame (Raytracing.h).
     static void UNITY_INTERFACE_API OnRenderEvent(int eventId, void* data)
     {
         if (eventId == 1)
@@ -250,6 +252,8 @@ extern "C"
             redefinition::D3d12Compute::Get().OnDispatch(data);
         else if (eventId == 23)
             redefinition::D3d12Compute::Get().OnReleaseTexture(data);
+        else if (eventId == 30)
+            redefinition::Raytracing::Get().OnFrame(data);
     }
 
     __declspec(dllexport) void* KspFgGetRenderEventFunc()
@@ -327,6 +331,65 @@ extern "C"
         if (meshShaderTier != nullptr) *meshShaderTier = found.meshShaderTier;
         if (variableShadingRateTier != nullptr) *variableShadingRateTier = found.variableShadingRateTier;
         return available ? 1 : 0;
+    }
+
+    // Raytracing (Raytracing.h). Whether it runs here: 1 ready, 0 no device yet, -1 not
+    // possible, with the reason in buffer.
+    __declspec(dllexport) int KspRtAvailable(char* buffer, int size)
+    {
+        return redefinition::Raytracing::Get().Available(buffer, size);
+    }
+
+    // The sizes of the structures the managed side writes, checked before the first.
+    __declspec(dllexport) unsigned int KspRtStructSizes(unsigned int* mesh, unsigned int* material,
+                                                        unsigned int* instance)
+    {
+        if (mesh != nullptr) *mesh = static_cast<unsigned int>(sizeof(redefinition::RtMeshDesc));
+        if (material != nullptr) *material = static_cast<unsigned int>(sizeof(redefinition::RtMaterialDesc));
+        if (instance != nullptr) *instance = static_cast<unsigned int>(sizeof(redefinition::RtInstance));
+        return static_cast<unsigned int>(sizeof(redefinition::RtFramePacket));
+    }
+
+    // Meshes, materials and the frame's instances, from the main thread: copied before
+    // the call returns. 1 taken, 0 rejected (the status says why).
+    __declspec(dllexport) int KspRtSetMesh(const redefinition::RtMeshDesc* desc)
+    {
+        return redefinition::Raytracing::Get().SetMesh(desc);
+    }
+
+    __declspec(dllexport) void KspRtReleaseMesh(int mesh)
+    {
+        redefinition::Raytracing::Get().ReleaseMesh(mesh);
+    }
+
+    __declspec(dllexport) int KspRtSetMaterial(const redefinition::RtMaterialDesc* desc)
+    {
+        return redefinition::Raytracing::Get().SetMaterial(desc);
+    }
+
+    __declspec(dllexport) void KspRtReleaseMaterial(int material)
+    {
+        redefinition::Raytracing::Get().ReleaseMaterial(material);
+    }
+
+    __declspec(dllexport) int KspRtSetInstances(const redefinition::RtInstance* instances, int count)
+    {
+        return redefinition::Raytracing::Get().SetInstances(instances, count);
+    }
+
+    // The service's line; returns its generation, which changes when the device does and
+    // the meshes are to be handed over again.
+    __declspec(dllexport) int KspRtStatus(char* buffer, int size)
+    {
+        return redefinition::Raytracing::Get().Status(buffer, size);
+    }
+
+    __declspec(dllexport) void KspRtTimings(float* build, float* trace)
+    {
+        float b = 0.0f, t = 0.0f;
+        redefinition::Raytracing::Get().Timings(b, t);
+        if (build != nullptr) *build = b;
+        if (trace != nullptr) *trace = t;
     }
 
     __declspec(dllexport) unsigned int KspD3d12CreatePacketSize()

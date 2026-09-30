@@ -55,6 +55,7 @@ beside it.
 | understand frame generation | [development/frame-generation.md](development/frame-generation.md) |
 | understand the settings store | [development/settings-store.md](development/settings-store.md) |
 | understand the interface for mods | [development/shared-foundation.md](development/shared-foundation.md) |
+| understand or build the raytracing | [development/raytracing.md](development/raytracing.md) |
 | understand the planner's place in the editor | [development/engineer.md](development/engineer.md) |
 | understand the planner's route and fuel budget | [development/planner.md](development/planner.md) |
 | understand the scaling of what KSP leaves unscaled | [development/ui-scaling.md](development/ui-scaling.md) |

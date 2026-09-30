@@ -325,6 +325,8 @@ button.
 | `Dlss.h`, `Dlss.cpp` | DLSS through NGX on Unity's Direct3D 11 device |
 | `AmdUpscaler.h`, `AmdUpscaler.cpp` | AMD's upscaler DLL on the proxy's Direct3D 12 device |
 | `D3d12Compute.h`, `D3d12Compute.cpp` | Direct3D 12 for mods: capabilities, HLSL compiled with Windows' `d3dcompiler_47.dll`, compute passes against one root signature, textures shared with Direct3D 11 |
+| `Raytracing.h`, `Raytracing.cpp` | raytracing: meshes, materials and instances from the managed side, acceleration structures, the frame's passes on the proxy's Direct3D 12 device |
+| `RaytracingShaders/` | the raytracing passes in HLSL, compiled to DXIL at build time and embedded in `dxgi.dll` |
 | `FidelityFx.h`, `FidelityFx.cpp` | AMD's frame generation runtime, loaded at run time through a function table |
 | `NvidiaGpu.h`, `NvidiaGpu.cpp` | the GPU's architecture through NVAPI, for what DLSS and DLSS-G need |
 | `ProjectIdentity.h` | what ReDefinition tells NVIDIA's libraries it is |
@@ -333,12 +335,14 @@ button.
 | `Log.h`, `Log.cpp`, `LoadMonitor.h`, `LoadMonitor.cpp` | `ReDefinitionProxy.log`; CPU and GPU load |
 | `FileUtil.h`, `FileUtil.cpp`, `D3d12Util.h` | paths next to the executable, file facts; Direct3D 12 resource transitions |
 | `ProxyHarness.cpp`, `HarnessPass.hlsl` | a test driver that does what Unity does, without KSP; its compute pass for Direct3D 12 for mods |
+| `RaytracingHarness.cpp` | the raytracing's test driver: a G-buffer rasterised in Unity's layout, the passes checked against the CPU |
 | `ReDefinitionProxy.def`, `ReDefinitionProxy.rc.in` | the exported names; the version resource, filled from the project's version |
 | `extern/` | AMD's FidelityFX headers and NVIDIA's Streamline headers (MIT) |
 
 The proxy's own files are C++17 in the namespace `redefinition`, but for the three that
 only export: `DxgiExports.cpp`, `ManagedBridge.cpp` and the harness. CMake builds them into
-`dxgi.dll` and the harness into `ProxyHarness.exe` (`src/DxgiProxy/CMakeLists.txt`).
+`dxgi.dll` and the harnesses into `ProxyHarness.exe` and `RaytracingHarness.exe`
+(`src/DxgiProxy/CMakeLists.txt`).
 
 Design and measurements: [frame-generation.md](frame-generation.md).
 

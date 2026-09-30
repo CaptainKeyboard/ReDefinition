@@ -259,6 +259,20 @@ the focus.
 Run the harness after every change to the proxy. It prints a `PASS` line for each part
 that ran, or one `FAIL` line.
 
+## Run the raytracing harness
+
+The raytracing harness loads the proxy the same way and needs a GPU with DirectX
+Raytracing tier 1.1. It rasterises a G-buffer in Unity's layout, hands the proxy meshes and
+instances, and checks every raytracing pass against the CPU
+([raytracing.md](raytracing.md), "Testing without the game").
+
+```
+build\DxgiProxy\Release\RaytracingHarness.exe
+```
+
+It prints a `PASS` or `FAIL` line per check and the GPU time of each pass. It writes an
+image per check next to itself, `rt_*.bmp`, to look at.
+
 ## Replay the game's frames through frame generation
 
 **Record the screen** in the Debug tab also writes eight consecutive frames of what frame
