@@ -14,7 +14,8 @@ and hands to AddModApplication.
 light with a glow while on and black while off: GameData/ReDefinition/Icons/FlightPanel_*.png.
 
 **The planner's symbols** are white on clear, 64x64, for KSP's buttons to show them over
-their own background: GameData/ReDefinition/Icons/Planner_*.png.
+their own background: GameData/ReDefinition/Icons/Planner_*.png. So are the assembly
+buildings' symbols over the space centre in flight: GameData/ReDefinition/Icons/Assembly_*.png.
 
 **The picture for a page** is "Re:" on a planet's night side, the atmosphere lit at the
 lower right. It is too fine for a toolbar button but carries a forum post or a mod site,
@@ -404,6 +405,29 @@ def draw_remove():
     return image
 
 
+def draw_vab():
+    # A tall assembly building, its great door open from the ground up.
+    image, draw = planner_canvas()
+    draw.rectangle([112, 70, 400, 460], fill=WHITE)
+    draw.rectangle([96, 50, 416, 96], fill=WHITE)
+    draw.rectangle([206, 150, 306, 460], fill=(0, 0, 0, 0))
+    return image
+
+
+def draw_sph():
+    # A hangar with its rounded roof, its wide door open.
+    image, draw = planner_canvas()
+    draw.pieslice([40, 150, 472, 470], 180, 360, fill=WHITE)
+    draw.rectangle([40, 308, 472, 460], fill=WHITE)
+    draw.rectangle([118, 300, 394, 460], fill=(0, 0, 0, 0))
+    return image
+
+
+# The buildings' symbols over the space centre (Flight/AssemblyReturn), white on
+# clear, 64x64: GameData/ReDefinition/Icons/Assembly_<name>.png.
+ASSEMBLY_DRAWINGS = {"VAB": draw_vab, "SPH": draw_sph}
+
+
 PLANNER_DRAWINGS = {
     "Surface": draw_surface, "Orbit": draw_orbit, "Chute": draw_chute, "Aerobrake": draw_aerobrake,
     "Whole": draw_whole, "Lander": draw_lander, "Rest": draw_rest, "Dot": draw_dot,
@@ -554,6 +578,9 @@ def main():
 
     for name, drawing in PLANNER_DRAWINGS.items():
         path = PLANNER_ICONS % name
+        drawing().resize((64, 64), Image.LANCZOS).save(path)
+    for name, drawing in ASSEMBLY_DRAWINGS.items():
+        path = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "Assembly_%s.png" % name)
         drawing().resize((64, 64), Image.LANCZOS).save(path)
         print("in the game:", os.path.relpath(path, ROOT))
 

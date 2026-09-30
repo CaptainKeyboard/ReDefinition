@@ -71,6 +71,7 @@ situation changes.
 |---|---|
 | the altimeter, top centre | the height above the ground below 5 km over it and on it, above sea level from 6 km; its switch still changes it by hand (*Altimeter switches to the ground*) |
 | the round gauge beside it | a digital gauge in place of KSP's vertical speed dial, with a lit arc: the stage's burn time, the next burn, the time to impact, the closing speed or the angle of attack, for the situation or as you click ([the navball page](navball.md#the-round-gauge)); the vertical speed stands at the navball |
+| over the space centre's assembly building, while the vessel stands on the ground within 3 km of it | a symbol of the building. Its tooltip says what a click does, which asks first: *Revert to Vehicle Assembly* (or *Spaceplane Hangar*) where KSP's pause menu would offer it, the building the vessel was built in; otherwise *Recover vessel and go to Vehicle Assembly*, the building for where it stands (the runway's hangar, else the assembly building): the vessel is recovered, and once KSP's report is closed that editor opens with the vessel |
 | the navball, under its SAS modes | *V* and *H*: the vertical and horizontal speed over the surface |
 | the navball's ball | with a docking port as the target, an orange ring with a cross where the nose has to point for the two ports to face each other |
 

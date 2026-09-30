@@ -12,6 +12,9 @@
   angle of attack or the angle between docking ports. It switches to the profile for
   what the vessel is doing, and grows to the right for more figures. The pencil after the
   tabs changes a profile's figures and their order, or adds a profile of your own.
+- **Back to the assembly building.** On the ground near the space centre, a symbol stands
+  over the assembly building. A click reverts to the editor where KSP's pause menu would,
+  or else recovers the vessel and opens it in the editor; it asks first.
 - **Tooltips on the HUD.** The buttons of KSP's flight and editor screens that had none
   name themselves as KSP's others do: the stages' plus and minus buttons, a stage's delta-v
   bar, the total delta-v, the delta-v tools' toolbar button and their body list, the alarm
