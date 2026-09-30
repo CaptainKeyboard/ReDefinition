@@ -128,7 +128,7 @@ namespace ReDefinition.Flight
             Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             Vector3 middle = Middle(building);
             // Before the building's front, not inside it.
-            if (!marker.Place(middle, camera, Front(building, middle, camera)))
+            if (!marker.Place(middle, camera, 0f, false, building.Solid))
             {
                 Note("the building behind the camera or too far to see");
                 return;
@@ -240,24 +240,6 @@ namespace ReDefinition.Flight
             return building.Place.TransformPoint(building.Middle);
         }
 
-        // How far to bring the button from the middle towards the camera to stand
-        // before the building's front: to where a ray from the camera meets the
-        // building, and a little more.
-        private static float Front(Building building, Vector3 middle, Camera camera)
-        {
-            if (camera == null || building.Solid == null) return 0f;
-            Vector3 eye = camera.transform.position;
-            Ray look = new Ray(eye, (middle - eye).normalized);
-            float distance = (middle - eye).magnitude;
-            float nearest = distance;
-            foreach (Collider solid in building.Solid)
-            {
-                RaycastHit hit;
-                if (solid != null && !solid.isTrigger && solid.Raycast(look, out hit, distance))
-                    nearest = Mathf.Min(nearest, hit.distance);
-            }
-            return distance - nearest + 2f;
-        }
 
         // ---------------------------------------------------------------- click
 

@@ -132,8 +132,11 @@ namespace ReDefinition.Flight
         // building's middle lies inside it -- and facing it; false, and hidden,
         // where it is behind the camera or would be too small to see. `standing`:
         // the point is under its lower edge, not its middle, so that it stands on
-        // what is there rather than halfway in it.
-        internal bool Place(Vector3 world, Camera camera, float pull, bool standing = false)
+        // what is there rather than halfway in it. `solid`: colliders it must stand
+        // before as a whole -- its middle and its four corners are looked at from
+        // the camera, and it is brought nearer until none of them lies behind one;
+        // its size on the screen stays.
+        internal bool Place(Vector3 world, Camera camera, float pull, bool standing = false, Collider[] solid = null)
         {
             bool shown = false;
             if (camera != null)
@@ -153,7 +156,11 @@ namespace ReDefinition.Flight
                     {
                         float shownPixels = Mathf.Min(pixels, MaxPixels * ui);
                         float across = shownPixels * perPixel;
-                        root.transform.position = standing ? at + camera.transform.up * (across * 0.5f) : at;
+                        Vector3 middle = standing ? at + camera.transform.up * (across * 0.5f) : at;
+                        float nearer = Before(solid, eye, middle, camera.transform, across * 0.5f);
+                        middle = eye + (middle - eye) * nearer;
+                        across *= nearer;
+                        root.transform.position = middle;
                         root.transform.rotation = camera.transform.rotation;
                         root.transform.localScale = Vector3.one * (across / Size);
                         canvas.worldCamera = Eyes(camera);
@@ -163,6 +170,31 @@ namespace ReDefinition.Flight
             }
             if (root.activeSelf != shown) root.SetActive(shown);
             return shown;
+        }
+
+        // How far along from the eye towards the button its middle and corners are
+        // clear of `solid`, as a share of the way, with a margin; 1 where nothing
+        // stands before them.
+        private static float Before(Collider[] solid, Vector3 eye, Vector3 middle, Transform view, float half)
+        {
+            if (solid == null) return 1f;
+            float share = 1f;
+            for (int i = 0; i < 5; i++)
+            {
+                Vector3 point = middle;
+                if (i > 0) point += view.right * (i % 2 == 0 ? half : -half) + view.up * (i < 3 ? half : -half);
+                Vector3 way = point - eye;
+                float length = way.magnitude;
+                if (length <= 0f) continue;
+                Ray look = new Ray(eye, way / length);
+                foreach (Collider part in solid)
+                {
+                    RaycastHit hit;
+                    if (part != null && !part.isTrigger && part.Raycast(look, out hit, length))
+                        share = Mathf.Min(share, hit.distance / length);
+                }
+            }
+            return share < 1f ? share * 0.97f : 1f;
         }
 
         internal void Hide()
