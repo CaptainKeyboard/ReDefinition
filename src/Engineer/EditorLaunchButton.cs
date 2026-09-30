@@ -9,7 +9,9 @@ namespace ReDefinition.Engineer
     // the runway seen from the SPH (docs/player/planner.md): the editors' scenery
     // holds the space centre's pad and runway outside (VABscenery/Background/
     // LaunchPadMedium, the pad's model; SPHscenery/SpaceCenter/Runway; level10 and
-    // level11, read with UnityPy). It looks like the space centre's own button for
+    // level11, read with UnityPy). Over the pad it stands on the launch pad itself
+    // (ksp_pad_launchPad, where a vessel stands at the model's origin), not on the
+    // middle of the whole complex with its tanks, ramps and flag pole. It looks like the space centre's own button for
     // the pad or the runway (WorldButton, KscButtons) and launches there as KSP's
     // launch button does (EditorLogic.launchVessel with the site's name), while
     // KSP's own launch button can be pressed.
@@ -80,12 +82,24 @@ namespace ReDefinition.Engineer
             }
             if (!measured)
             {
-                Vector3 drawn = WorldButton.Middle(place);
+                Vector3 drawn = Over(place);
                 middle = place.InverseTransformPoint(drawn);
-                reach = WorldButton.Reach(place) * 0.6f;
+                Transform pad = place.Find("ksp_pad_launchPad");
+                reach = WorldButton.Reach(pad != null ? pad : place) * 0.6f;
                 measured = drawn != place.position;
             }
             if (marker.Place(place.TransformPoint(middle), editor.editorCamera, reach)) marker.Look(look, null);
+        }
+
+        // Over the launch pad: on the pad's top, above the model's origin, which is
+        // where a vessel stands; elsewhere the middle of what the place draws.
+        private static Vector3 Over(Transform place)
+        {
+            Transform pad = place.Find("ksp_pad_launchPad");
+            if (pad == null) return WorldButton.Middle(place);
+            float top = pad.position.y;
+            foreach (Renderer part in pad.GetComponentsInChildren<Renderer>(false)) top = Mathf.Max(top, part.bounds.max.y);
+            return new Vector3(place.position.x, top, place.position.z);
         }
 
         private void Launch()
