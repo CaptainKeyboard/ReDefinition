@@ -9,6 +9,7 @@ using ReDefinition.Flight.Panel;
 using ReDefinition.Flight.Readouts;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace ReDefinition.Flight
@@ -49,7 +50,14 @@ namespace ReDefinition.Flight
     //
     // A click on the gauge goes to the next mode, a right-click to the one
     // before; the face lights up under the mouse. The mode is kept
-    // (PluginData/gauge.cfg).
+    // (PluginData/gauge.cfg). The gauge is a Button, as the altimeter's mode
+    // switch beside it is (AltitudeModeButton: a clear Image with a Button;
+    // sharedassets7): the frame both stand in (SlideFrameParent) has an
+    // XSelectable, which takes a pointer's press from any child that has no
+    // handler for it, and Unity sends a click only to the object that took the
+    // press (StandaloneInputModule: pointerPress == the click's handler;
+    // decompiled). A Button takes the press itself. Its colour tint lights the
+    // track, as it lights any button.
     //
     // The figures are worked out from plain numbers in GaugeReadings, which is
     // tested; here they are read from the game. The gauge watches itself in
@@ -72,8 +80,9 @@ namespace ReDefinition.Flight
         private static readonly Color Fine = new Color(0.95f, 0.95f, 0.95f);
         private static readonly Color Close = new Color(1f, 0.72f, 0.2f);
         private static readonly Color Past = new Color(1f, 0.32f, 0.28f);
-        private static readonly Color Track = new Color(1f, 1f, 1f, 0.12f);
-        private static readonly Color TrackLit = new Color(1f, 1f, 1f, 0.24f);
+        // The track at its brightest, pressed; the Button's tint shows a third of
+        // it at rest and two thirds under the mouse.
+        private static readonly Color Track = new Color(1f, 1f, 1f, 0.36f);
         private static readonly Color CautionBand = new Color(1f, 0.72f, 0.2f, 0.45f);
         private static readonly Color WarningBand = new Color(1f, 0.32f, 0.28f, 0.5f);
 
@@ -151,10 +160,31 @@ namespace ReDefinition.Flight
             auto.text = "AUTO";
             label.gameObject.SetActive(false);
 
-            face = picture.rectTransform;
-            Canvas canvas = face.GetComponentInParent<Canvas>();
-            Canvas root = canvas != null ? canvas.rootCanvas : null;
-            faceCamera = root != null && root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
+            // The button over the face.
+            GameObject click = new GameObject("ReDefinitionGaugeButton", typeof(RectTransform), typeof(Image), typeof(Button),
+                typeof(GaugeRightClick));
+            click.layer = picture.gameObject.layer;
+            click.transform.SetParent(picture.transform, false);
+            RectTransform clickRect = (RectTransform)click.transform;
+            clickRect.anchorMin = clickRect.anchorMax = clickRect.pivot = new Vector2(0.5f, 0.5f);
+            clickRect.sizeDelta = new Vector2(2f * (radius + ArcInset), 2f * (radius + ArcInset));
+            clickRect.anchoredPosition = middle;
+            click.GetComponent<Image>().color = Color.clear;
+            Button button = click.GetComponent<Button>();
+            button.targetGraphic = track;
+            button.transition = Selectable.Transition.ColorTint;
+            ColorBlock tint = button.colors;
+            tint.normalColor = tint.selectedColor = new Color(1f, 1f, 1f, 1f / 3f);
+            tint.highlightedColor = new Color(1f, 1f, 1f, 2f / 3f);
+            tint.pressedColor = Color.white;
+            tint.colorMultiplier = 1f;
+            tint.fadeDuration = 0.1f;
+            button.colors = tint;
+            Navigation none = button.navigation;
+            none.mode = Navigation.Mode.None;
+            button.navigation = none;
+            button.onClick.AddListener(() => Step(1));
+            click.GetComponent<GaugeRightClick>().Pressed = () => Step(-1);
             Sprite read = picture.sprite;
             Debug.Log(Log.Tag + " The round gauge is digital, showing " + mode + ": the dial's middle at " + middle.ToString("0.0")
                       + " of the gauge's " + rect.size.ToString("0.0") + " (pivot " + picture.rectTransform.pivot.ToString("0.00")
@@ -333,33 +363,9 @@ namespace ReDefinition.Flight
             Debug.Log(Log.Tag + " The round gauge shows " + mode + ", picked by a click.");
         }
 
-        private RectTransform face;
-        private Camera faceCamera;
-        private bool hovered;
-
-        // Whether the mouse is over the dial. Asked of the mouse itself: clicks
-        // sent through the UI's event system do not reach the gauge in KSP's top
-        // frame (none arrived in flight).
-        private bool MouseOver()
-        {
-            if (face == null || !face.gameObject.activeInHierarchy) return false;
-            Vector2 local;
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(face, Input.mousePosition, faceCamera, out local)) return false;
-            return (local - (face.rect.center + middle)).magnitude <= radius + ArcInset;
-        }
-
         private void Update()
         {
             if (value == null) return;
-            bool over = MouseOver();
-            if (over != hovered)
-            {
-                hovered = over;
-                track.color = over ? TrackLit : Track;
-            }
-            if (over && Input.GetMouseButtonDown(0)) Step(1);
-            else if (over && Input.GetMouseButtonDown(1)) Step(-1);
-
             // The arc and its tip move to the value each frame.
             shownFill = Mathf.MoveTowards(shownFill, wantedFill, Time.unscaledDeltaTime * 2f);
             arc.fillAmount = shownFill * Sweep;
@@ -683,6 +689,18 @@ namespace ReDefinition.Flight
             ConfigNode node = new ConfigNode();
             node.AddValue("mode", mode.ToString());
             node.Save(Path);
+        }
+    }
+
+    // The right mouse button on the round gauge's Button, which itself answers
+    // the left one only.
+    public class GaugeRightClick : MonoBehaviour, IPointerClickHandler
+    {
+        internal Action Pressed;
+
+        public void OnPointerClick(PointerEventData data)
+        {
+            if (data.button == PointerEventData.InputButton.Right && Pressed != null) Pressed();
         }
     }
 }
