@@ -89,6 +89,9 @@ namespace redefinition
 
     // The signals a frame traces; each writes its output slot.
     constexpr uint32_t kRtSignalSunVisibility = 1u << 0;   // u0: visibility of the sun, 0 to 1
+    constexpr uint32_t kRtSignalAmbientOcclusion = 1u << 1;   // u3: the share of the sky a point sees
+    constexpr uint32_t kRtSignalDiffuse = 1u << 2;         // u1: diffuse light arriving, and the hit distance
+    constexpr uint32_t kRtSignalSpecular = 1u << 3;        // u2: light from the specular lobe, and the hit distance
     constexpr uint32_t kRtSignalPrimaryCheck = 1u << 7;    // u7: the camera ray's hit distance against the depth's
 
     // The inputs, by slot: t1 depth as Direct3D's clip-space z (R32_FLOAT), t2-t4 the
@@ -99,6 +102,15 @@ namespace redefinition
     constexpr uint32_t kRtInputGBuffer1 = 2;
     constexpr uint32_t kRtInputGBuffer2 = 3;
     constexpr uint32_t kRtInputMotion = 4;
+    constexpr uint32_t kRtInputEnvironment = 5;   // t6: the sky as a latitude-longitude image
+
+    // The material textures: small copies of each material's main texture, in one
+    // array of kRtMaterialTextureSize square RGBA8 layers, sRGB.
+    constexpr uint32_t kRtMaterialTextureSize = 64;
+    constexpr uint32_t kRtMaxMaterialTextures = 4096;
+
+    // The number of passes whose GPU time KspRtPassTimings reports, in signal bit order.
+    constexpr uint32_t kRtPassTimings = 8;
 
     // Event 30: a frame. Matrices rows first, for column vectors: clip = worldToClip *
     // (camera-relative position, 1). Clip y is +1 at the texture's first row, as
@@ -149,6 +161,8 @@ namespace redefinition
         int SetMaterial(const RtMaterialDesc* desc);
         void ReleaseMaterial(int32_t material);
         int SetInstances(const RtInstance* instances, int count);
+        // A layer of the material textures: size by size pixels, RGBA8, rows from the top.
+        int SetMaterialTexture(int layer, const uint8_t* pixels, int size);
 
         // From the render thread.
         void OnFrame(const void* data);
@@ -157,6 +171,8 @@ namespace redefinition
 
         // What the last frame took on the GPU, in milliseconds: building, tracing.
         void Timings(float& build, float& trace) const;
+        // Each pass's time, by signal bit; 0 for a pass that did not run.
+        void PassTimings(float* out, int count) const;
 
     private:
         Raytracing() = default;
@@ -233,6 +249,7 @@ namespace redefinition
         bool UploadMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot);
         bool BuildSceneLocked(Slot& slot, UINT& instanceCount);
         bool EnsureUploadBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size);
+        bool EnsureMaterialTexturesLocked(UINT layers, Slot& slot);
         bool EnsureDefaultBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size,
                                  D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags);
         void CompletePendingLocked();
@@ -282,7 +299,11 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D12Resource> timestampReadback;
         UINT64 timestampFrequency = 0;
 
+        Microsoft::WRL::ComPtr<ID3D12Resource> materialTextures;
+        UINT materialTextureLayers = 0;
+
         // From the main thread, taken by the next frame.
+        std::unordered_map<int, std::vector<uint8_t>> pendingTextures;
         std::unordered_map<int32_t, PendingMesh> pendingMeshes;
         std::vector<int32_t> pendingReleases;
         std::unordered_map<int32_t, MaterialData> materialData;
@@ -307,5 +328,6 @@ namespace redefinition
         uint32_t lastBuilt = 0;
         float buildMs = 0.0f;
         float traceMs = 0.0f;
+        float passMs[kRtPassTimings] = {};
     };
 }

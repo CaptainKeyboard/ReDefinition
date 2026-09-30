@@ -384,6 +384,19 @@ extern "C"
         return redefinition::Raytracing::Get().Status(buffer, size);
     }
 
+    // A layer of the material textures: size by size RGBA8 pixels, sRGB, rows from the top.
+    __declspec(dllexport) int KspRtSetMaterialTexture(int layer, const unsigned char* pixels, int size)
+    {
+        return redefinition::Raytracing::Get().SetMaterialTexture(layer, pixels, size);
+    }
+
+    // Each pass's GPU time in milliseconds, by signal bit, up to count of them.
+    __declspec(dllexport) void KspRtPassTimings(float* out, int count)
+    {
+        if (out != nullptr)
+            redefinition::Raytracing::Get().PassTimings(out, count);
+    }
+
     __declspec(dllexport) void KspRtTimings(float* build, float* trace)
     {
         float b = 0.0f, t = 0.0f;

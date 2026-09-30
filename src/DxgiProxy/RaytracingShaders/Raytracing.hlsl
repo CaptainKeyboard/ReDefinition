@@ -61,3 +61,89 @@ void PrimaryCheck(uint3 id : SV_DispatchThreadID)
     }
     output7[id.xy] = float4(hit, expected, instance, 1.0f);
 }
+
+// The G-buffer's surface at a pixel, or false where nothing was drawn.
+bool Surface(uint2 pixel, out float3 position, out float3 normal)
+{
+    float depth = depthTexture[pixel];
+    position = 0.0f;
+    normal = float3(0.0f, 1.0f, 0.0f);
+    if (IsSky(depth))
+        return false;
+    position = ClipToWorld(PixelToNdc(pixel), depth);
+    normal = DecodeNormal(gbuffer2[pixel]);
+    return true;
+}
+
+// u3: in x, whether a cosine-weighted ray from the pixel's surface reaches
+// AO_DISTANCE: averaged, the share of the sky the point sees.
+[numthreads(8, 8, 1)]
+void AmbientOcclusion(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= frameSize))
+        return;
+    float3 position, normal;
+    if (!Surface(id.xy, position, normal))
+    {
+        output3[id.xy] = float4(1.0f, 0.0f, 0.0f, 0.0f);
+        return;
+    }
+    Random random = MakeRandom(id.xy, frameIndex, 1u);
+    float3 direction = SampleCosine(normal, float2(NextFloat(random), NextFloat(random)));
+    float open = Unoccluded(RayOrigin(position, normal), direction, AO_DISTANCE) ? 1.0f : 0.0f;
+    output3[id.xy] = float4(open, 0.0f, 0.0f, 0.0f);
+}
+
+// u1: the diffuse light arriving at the pixel's surface, as a radiance in Unity's
+// units: the pixel's albedo times it is its diffuse ambient light. The sun on the
+// pixel itself is left out, as Unity's lighting adds it. The first hit's distance in w.
+[numthreads(8, 8, 1)]
+void DiffuseLight(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= frameSize))
+        return;
+    float3 position, normal;
+    if (!Surface(id.xy, position, normal))
+    {
+        output1[id.xy] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+        return;
+    }
+    Random random = MakeRandom(id.xy, frameIndex, 2u);
+    float3 direction = SampleCosine(normal, float2(NextFloat(random), NextFloat(random)));
+    float distance;
+    float3 radiance = Radiance(RayOrigin(position, normal), direction, DIFFUSE_DISTANCE, BOUNCES, random, distance);
+    output1[id.xy] = float4(radiance, distance);
+}
+
+// u2: the light the pixel's surface reflects towards the camera from its specular
+// lobe, averaged over the lobe as a filtered reflection probe gives it; Unity's
+// lighting multiplies it by the Fresnel term. The sun's disc is left out, as Unity's
+// lighting draws its highlight. The reflected ray's hit distance in w.
+[numthreads(8, 8, 1)]
+void SpecularLight(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= frameSize))
+        return;
+    float3 position, normal;
+    if (!Surface(id.xy, position, normal))
+    {
+        output2[id.xy] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+        return;
+    }
+    float alpha = SmoothnessToAlpha(gbuffer1[id.xy].a);
+    float3 view = -normalize(position);
+    float3 t, b;
+    Basis(normal, t, b);
+    float3 viewLocal = float3(dot(view, t), dot(view, b), dot(view, normal));
+    if (viewLocal.z <= 0.0f)
+        viewLocal.z = 1e-4f;
+    Random random = MakeRandom(id.xy, frameIndex, 3u);
+    float3 microfacet = SampleGgxVisible(normalize(viewLocal), alpha, float2(NextFloat(random), NextFloat(random)));
+    float3 m = t * microfacet.x + b * microfacet.y + normal * microfacet.z;
+    float3 direction = reflect(-view, m);
+    if (dot(direction, normal) <= 0.0f)
+        direction = reflect(-view, normal);
+    float distance;
+    float3 radiance = Radiance(RayOrigin(position, normal), direction, SPECULAR_DISTANCE, BOUNCES, random, distance);
+    output2[id.xy] = float4(radiance, distance);
+}

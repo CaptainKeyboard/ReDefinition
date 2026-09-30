@@ -16,7 +16,8 @@ namespace redefinition
         // A shared copy of a Unity texture not used for this long is released.
         constexpr ULONGLONG kUnusedMs = 10000;
         constexpr UINT64 kConstantsSize = 512;
-        constexpr UINT kTimestampsPerSlot = 3;
+        // Start, after the build, after each pass.
+        constexpr UINT kTimestampsPerSlot = 2 + kRtPassTimings;
 
         // The passes, by the signal bit that asks for them, and the entry point
         // each is compiled from (CMakeLists.txt embeds them as RT_<entry>).
@@ -27,8 +28,22 @@ namespace redefinition
         };
         const PassEntry kPasses[] = {
             { kRtSignalSunVisibility, L"RT_SunVisibility" },
+            { kRtSignalAmbientOcclusion, L"RT_AmbientOcclusion" },
+            { kRtSignalDiffuse, L"RT_DiffuseLight" },
+            { kRtSignalSpecular, L"RT_SpecularLight" },
             { kRtSignalPrimaryCheck, L"RT_PrimaryCheck" },
         };
+
+        UINT SignalIndex(uint32_t signal)
+        {
+            UINT index = 0;
+            while (signal > 1u)
+            {
+                signal >>= 1;
+                ++index;
+            }
+            return index;
+        }
 
         DXGI_FORMAT ShareFormat(DXGI_FORMAT format)
         {
@@ -279,6 +294,20 @@ namespace redefinition
         return 1;
     }
 
+    int Raytracing::SetMaterialTexture(int layer, const uint8_t* pixels, int size)
+    {
+        if (layer < 0 || layer >= static_cast<int>(kRtMaxMaterialTextures) || pixels == nullptr
+            || size != static_cast<int>(kRtMaterialTextureSize))
+        {
+            SetProblem("a material texture rejected: layer " + std::to_string(layer) + ", size " + std::to_string(size));
+            return 0;
+        }
+        const size_t bytes = static_cast<size_t>(size) * size * 4;
+        std::lock_guard<std::mutex> lock(mutex);
+        pendingTextures[layer].assign(pixels, pixels + bytes);
+        return 1;
+    }
+
     // ---------------------------------------------------------------- render thread
 
     void Raytracing::OnFrame(const void* data)
@@ -417,6 +446,60 @@ namespace redefinition
             list->ResourceBarrier(1, &barrier);
         }
 
+        // Material textures: the array grows to hold the highest layer, then the new
+        // layers are copied in.
+        if (!pendingTextures.empty() || materialTextures == nullptr)
+        {
+            UINT highest = 0;
+            for (const auto& entry : pendingTextures)
+                highest = std::max<UINT>(highest, static_cast<UINT>(entry.first) + 1);
+            if (!EnsureMaterialTexturesLocked(std::max<UINT>(highest, 1), slot))
+            {
+                list->Close();
+                return;
+            }
+            if (!pendingTextures.empty())
+            {
+                const UINT64 layerBytes = static_cast<UINT64>(kRtMaterialTextureSize) * kRtMaterialTextureSize * 4;
+                ComPtr<ID3D12Resource> upload;
+                if (EnsureUploadBuffer(upload, layerBytes * pendingTextures.size()))
+                {
+                    uint8_t* mapped = nullptr;
+                    const D3D12_RANGE none = { 0, 0 };
+                    upload->Map(0, &none, reinterpret_cast<void**>(&mapped));
+                    const D3D12_RESOURCE_BARRIER toCopy = TransitionBarrier(
+                        materialTextures.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+                    list->ResourceBarrier(1, &toCopy);
+                    UINT64 offset = 0;
+                    for (const auto& entry : pendingTextures)
+                    {
+                        memcpy(mapped + offset, entry.second.data(), static_cast<size_t>(layerBytes));
+                        D3D12_TEXTURE_COPY_LOCATION source = {};
+                        source.pResource = upload.Get();
+                        source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+                        source.PlacedFootprint.Offset = offset;
+                        source.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+                        source.PlacedFootprint.Footprint.Width = kRtMaterialTextureSize;
+                        source.PlacedFootprint.Footprint.Height = kRtMaterialTextureSize;
+                        source.PlacedFootprint.Footprint.Depth = 1;
+                        source.PlacedFootprint.Footprint.RowPitch = kRtMaterialTextureSize * 4;
+                        D3D12_TEXTURE_COPY_LOCATION destination = {};
+                        destination.pResource = materialTextures.Get();
+                        destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+                        destination.SubresourceIndex = static_cast<UINT>(entry.first);
+                        list->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
+                        offset += layerBytes;
+                    }
+                    upload->Unmap(0, nullptr);
+                    const D3D12_RESOURCE_BARRIER toRead = TransitionBarrier(
+                        materialTextures.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                    list->ResourceBarrier(1, &toRead);
+                    slot.held.push_back(upload);
+                }
+                pendingTextures.clear();
+            }
+        }
+
         UINT instanceCount = 0;
         if (!BuildSceneLocked(slot, instanceCount))
         {
@@ -510,23 +593,32 @@ namespace redefinition
         list->SetComputeRootDescriptorTable(6, meshTable);
         meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
         list->SetComputeRootDescriptorTable(7, meshTable);
+        meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
+        list->SetComputeRootDescriptorTable(8, meshTable);
+        slot.held.push_back(materialTextures);
 
         const UINT groupsX = (packet->width + 7) / 8;
         const UINT groupsY = (packet->height + 7) / 8;
-        for (const PassEntry& pass : kPasses)
+        // Each pass's end is stamped; a pass that does not run stamps where the one
+        // before it ended, so it counts nothing.
+        for (UINT index = 0; index < kRtPassTimings; ++index)
         {
-            if ((packet->signals & pass.signal) == 0)
-                continue;
-            auto pipeline = pipelines.find(pass.signal);
-            if (pipeline == pipelines.end())
-                continue;
-            list->SetPipelineState(pipeline->second.Get());
-            list->Dispatch(groupsX, groupsY, 1);
+            const uint32_t signal = 1u << index;
+            const PassEntry* pass = nullptr;
+            for (const PassEntry& entry : kPasses)
+                if (entry.signal == signal)
+                    pass = &entry;
+            auto pipeline = pass != nullptr ? pipelines.find(pass->signal) : pipelines.end();
+            if ((packet->signals & signal) != 0 && pipeline != pipelines.end())
+            {
+                list->SetPipelineState(pipeline->second.Get());
+                list->Dispatch(groupsX, groupsY, 1);
+            }
+            list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 2 + index);
         }
 
         if (!back.empty())
             list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 2);
         list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase, kTimestampsPerSlot,
                                timestampReadback.Get(), static_cast<UINT64>(timestampBase) * sizeof(UINT64));
         hr = list->Close();
@@ -963,7 +1055,7 @@ namespace redefinition
         {
             D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
             heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            heapDesc.NumDescriptors = kSlots * kFrameDescriptors + 2 * kMaxMeshes;
+            heapDesc.NumDescriptors = kSlots * kFrameDescriptors + 2 * kMaxMeshes + 1;
             heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             hr = device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&heap));
             increment = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -1019,7 +1111,7 @@ namespace redefinition
 
     bool Raytracing::BuildPipelinesLocked()
     {
-        D3D12_DESCRIPTOR_RANGE ranges[4] = {};
+        D3D12_DESCRIPTOR_RANGE ranges[5] = {};
         ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t1-t8
         ranges[0].NumDescriptors = kRtMaxTextures;
         ranges[0].BaseShaderRegister = 1;
@@ -1034,8 +1126,11 @@ namespace redefinition
         ranges[3].NumDescriptors = kMaxMeshes;
         ranges[3].BaseShaderRegister = 0;
         ranges[3].RegisterSpace = 2;
+        ranges[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t11: the material textures
+        ranges[4].NumDescriptors = 1;
+        ranges[4].BaseShaderRegister = 11;
 
-        D3D12_ROOT_PARAMETER parameters[8] = {};
+        D3D12_ROOT_PARAMETER parameters[9] = {};
         parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[0].Descriptor.ShaderRegister = 0;
         parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
@@ -1056,23 +1151,27 @@ namespace redefinition
             parameters[6 + i].DescriptorTable.NumDescriptorRanges = 1;
             parameters[6 + i].DescriptorTable.pDescriptorRanges = &ranges[2 + i];
         }
+        parameters[8].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        parameters[8].DescriptorTable.NumDescriptorRanges = 1;
+        parameters[8].DescriptorTable.pDescriptorRanges = &ranges[4];
         for (D3D12_ROOT_PARAMETER& parameter : parameters)
             parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-        D3D12_STATIC_SAMPLER_DESC samplers[2] = {};
-        for (UINT i = 0; i < 2; ++i)
+        D3D12_STATIC_SAMPLER_DESC samplers[3] = {};
+        for (UINT i = 0; i < 3; ++i)
         {
             samplers[i].Filter = i == 0 ? D3D12_FILTER_MIN_MAG_MIP_POINT : D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-            samplers[i].AddressU = samplers[i].AddressV = samplers[i].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+            samplers[i].AddressU = samplers[i].AddressV = samplers[i].AddressW =
+                i == 2 ? D3D12_TEXTURE_ADDRESS_MODE_WRAP : D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
             samplers[i].MaxLOD = D3D12_FLOAT32_MAX;
             samplers[i].ShaderRegister = i;
             samplers[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
         }
 
         D3D12_ROOT_SIGNATURE_DESC desc = {};
-        desc.NumParameters = 8;
+        desc.NumParameters = 9;
         desc.pParameters = parameters;
-        desc.NumStaticSamplers = 2;
+        desc.NumStaticSamplers = 3;
         desc.pStaticSamplers = samplers;
         ComPtr<ID3DBlob> serialized;
         ComPtr<ID3DBlob> errors;
@@ -1141,7 +1240,9 @@ namespace redefinition
             const double toMs = 1000.0 / static_cast<double>(timestampFrequency);
             std::lock_guard<std::mutex> status(statusLock);
             buildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
-            traceMs = static_cast<float>(static_cast<double>(ticks[2] - ticks[1]) * toMs);
+            traceMs = static_cast<float>(static_cast<double>(ticks[kTimestampsPerSlot - 1] - ticks[1]) * toMs);
+            for (UINT index = 0; index < kRtPassTimings; ++index)
+                passMs[index] = static_cast<float>(static_cast<double>(ticks[2 + index] - ticks[1 + index]) * toMs);
             const D3D12_RANGE none = { 0, 0 };
             timestampReadback->Unmap(0, &none);
         }
@@ -1175,6 +1276,8 @@ namespace redefinition
             slot = Slot{};
         }
         heap.Reset();
+        materialTextures.Reset();
+        materialTextureLayers = 0;
         tlas.Reset();
         tlasScratch.Reset();
         tlasSize = tlasScratchSize = 0;
@@ -1207,6 +1310,78 @@ namespace redefinition
         std::lock_guard<std::mutex> status(statusLock);
         build = buildMs;
         trace = traceMs;
+    }
+
+    void Raytracing::PassTimings(float* out, int count) const
+    {
+        std::lock_guard<std::mutex> status(statusLock);
+        for (int i = 0; i < count && i < static_cast<int>(kRtPassTimings); ++i)
+            out[i] = passMs[i];
+    }
+
+    bool Raytracing::EnsureMaterialTexturesLocked(UINT layers, Slot& slot)
+    {
+        if (materialTextures != nullptr && materialTextureLayers >= layers)
+            return true;
+        UINT grown = std::max<UINT>(materialTextureLayers, 1);
+        while (grown < layers)
+            grown *= 2;
+        grown = std::min<UINT>(grown, kRtMaxMaterialTextures);
+
+        D3D12_HEAP_PROPERTIES heapProperties = {};
+        heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+        D3D12_RESOURCE_DESC desc = {};
+        desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        desc.Width = kRtMaterialTextureSize;
+        desc.Height = kRtMaterialTextureSize;
+        desc.DepthOrArraySize = static_cast<UINT16>(grown);
+        desc.MipLevels = 1;
+        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        desc.SampleDesc.Count = 1;
+        ComPtr<ID3D12Resource> created;
+        HRESULT hr = device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &desc,
+                                                     D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&created));
+        if (FAILED(hr))
+        {
+            SetProblem("the material textures could not be made (" + Hr(hr) + ")");
+            return false;
+        }
+        // The layers there are come along.
+        if (materialTextures != nullptr)
+        {
+            const D3D12_RESOURCE_BARRIER toSource = TransitionBarrier(
+                materialTextures.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+            list->ResourceBarrier(1, &toSource);
+            for (UINT layer = 0; layer < materialTextureLayers; ++layer)
+            {
+                D3D12_TEXTURE_COPY_LOCATION source = {};
+                source.pResource = materialTextures.Get();
+                source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+                source.SubresourceIndex = layer;
+                D3D12_TEXTURE_COPY_LOCATION destination = {};
+                destination.pResource = created.Get();
+                destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+                destination.SubresourceIndex = layer;
+                list->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
+            }
+            slot.held.push_back(materialTextures);
+        }
+        const D3D12_RESOURCE_BARRIER toRead =
+            TransitionBarrier(created.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        list->ResourceBarrier(1, &toRead);
+        materialTextures = created;
+        materialTextureLayers = grown;
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+        srv.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+        srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srv.Texture2DArray.MipLevels = 1;
+        srv.Texture2DArray.ArraySize = grown;
+        D3D12_CPU_DESCRIPTOR_HANDLE view = heap->GetCPUDescriptorHandleForHeapStart();
+        view.ptr += static_cast<SIZE_T>(kSlots * kFrameDescriptors + 2 * kMaxMeshes) * increment;
+        device->CreateShaderResourceView(materialTextures.Get(), &srv, view);
+        return true;
     }
 
     void Raytracing::SetProblem(const std::string& text)

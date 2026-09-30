@@ -180,6 +180,10 @@ namespace
         Vec3 position;        // in the world, in double precision
         double scale[3] = { 1, 1, 1 };
         float albedo[3] = { 0.5f, 0.5f, 0.5f };
+        float smoothness = 0.2f;
+        // A full transform in place of position and scale, rows first, mesh to world.
+        bool hasMatrix = false;
+        double matrix[12] = {};
     };
 
     void AddQuad(Mesh& mesh, Vec3 a, Vec3 b, Vec3 c, Vec3 d, Vec3 n)
@@ -224,6 +228,64 @@ namespace
         return m;
     }
 
+    // A scene file from tools/export_rt_scene.py.
+    bool LoadScene(const std::wstring& path, std::map<int, Mesh>& meshes, std::vector<Instance>& instances, int firstId)
+    {
+        HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+        if (file == INVALID_HANDLE_VALUE)
+            return false;
+        LARGE_INTEGER size = {};
+        GetFileSizeEx(file, &size);
+        std::vector<uint8_t> bytes(static_cast<size_t>(size.QuadPart));
+        DWORD read = 0;
+        const BOOL ok = ReadFile(file, bytes.data(), static_cast<DWORD>(bytes.size()), &read, nullptr);
+        CloseHandle(file);
+        if (!ok || read != bytes.size() || bytes.size() < 16 || memcmp(bytes.data(), "RTSC", 4) != 0)
+            return false;
+        size_t at = 4;
+        auto u32 = [&]() { uint32_t v = 0; memcpy(&v, &bytes[at], 4); at += 4; return v; };
+        auto floats = [&](std::vector<float>& out, size_t count)
+        {
+            out.resize(count);
+            memcpy(out.data(), &bytes[at], count * 4);
+            at += count * 4;
+        };
+        if (u32() != 1)
+            return false;
+        const uint32_t meshCount = u32();
+        const uint32_t instanceCount = u32();
+        for (uint32_t m = 0; m < meshCount; ++m)
+        {
+            Mesh mesh;
+            mesh.id = firstId + static_cast<int>(m);
+            const uint32_t vertices = u32();
+            const uint32_t indices = u32();
+            floats(mesh.positions, static_cast<size_t>(vertices) * 3);
+            floats(mesh.normals, static_cast<size_t>(vertices) * 3);
+            std::vector<float> uvs;
+            floats(uvs, static_cast<size_t>(vertices) * 2);
+            mesh.indices.resize(indices);
+            memcpy(mesh.indices.data(), &bytes[at], static_cast<size_t>(indices) * 4);
+            at += static_cast<size_t>(indices) * 4;
+            meshes[mesh.id] = std::move(mesh);
+        }
+        for (uint32_t i = 0; i < instanceCount; ++i)
+        {
+            Instance instance;
+            instance.mesh = firstId + static_cast<int>(u32());
+            std::vector<float> values;
+            floats(values, 12);
+            instance.hasMatrix = true;
+            for (int k = 0; k < 12; ++k)
+                instance.matrix[k] = values[k];
+            floats(values, 4);
+            memcpy(instance.albedo, values.data(), 3 * sizeof(float));
+            instance.smoothness = values[3];
+            instances.push_back(instance);
+        }
+        return at == bytes.size();
+    }
+
     struct Camera
     {
         Vec3 position;
@@ -245,6 +307,15 @@ namespace
     // The 3x4 from mesh to camera-relative space, rows first.
     void RelativeTransform(const Instance& instance, const Vec3& camera, float* out)
     {
+        if (instance.hasMatrix)
+        {
+            for (int i = 0; i < 12; ++i)
+                out[i] = static_cast<float>(instance.matrix[i]);
+            out[3] = static_cast<float>(instance.matrix[3] - camera.x);
+            out[7] = static_cast<float>(instance.matrix[7] - camera.y);
+            out[11] = static_cast<float>(instance.matrix[11] - camera.z);
+            return;
+        }
         const Vec3 t = instance.position - camera;
         const float rows[12] = { float(instance.scale[0]), 0, 0, float(t.x),
                                  0, float(instance.scale[1]), 0, float(t.y),
@@ -260,6 +331,7 @@ cbuffer Draw : register(b0)
     row_major float4x4 worldToClip;
     row_major float3x4 model;
     float4 albedo;
+    float4 surface;
 };
 struct VsIn { float3 position : POSITION; float3 normal : NORMAL; };
 struct VsOut { float4 position : SV_Position; float3 normal : NORMAL; };
@@ -268,7 +340,9 @@ VsOut VsMain(VsIn input)
     VsOut o;
     float3 world = mul(model, float4(input.position, 1.0));
     o.position = mul(worldToClip, float4(world, 1.0));
-    o.normal = mul((float3x3)model, input.normal);
+    float3x3 m = (float3x3)model;
+    float3x3 cofactor = float3x3(cross(m[1], m[2]), cross(m[2], m[0]), cross(m[0], m[1]));
+    o.normal = mul(cofactor, input.normal);
     return o;
 }
 struct PsOut
@@ -283,7 +357,7 @@ PsOut PsMain(VsOut input)
     PsOut o;
     o.depth = input.position.z;
     o.gbuffer0 = float4(albedo.rgb, 1.0);
-    o.gbuffer1 = float4(0.04, 0.04, 0.04, 0.2);
+    o.gbuffer1 = float4(0.04, 0.04, 0.04, surface.x);
     o.gbuffer2 = float4(normalize(input.normal) * 0.5 + 0.5, 1.0);
     return o;
 }
@@ -294,6 +368,7 @@ PsOut PsMain(VsOut input)
         float worldToClip[16];
         float model[12];
         float albedo[4];
+        float surface[4];
     };
 
     struct GBuffer
@@ -442,6 +517,7 @@ PsOut PsMain(VsOut input)
             RelativeTransform(instance, camera.position, constants.model);
             memcpy(constants.albedo, instance.albedo, sizeof(instance.albedo));
             constants.albedo[3] = 1.0f;
+            constants.surface[0] = instance.smoothness;
             D3D11_MAPPED_SUBRESOURCE mapped = {};
             if (SUCCEEDED(context->Map(g.constants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
             {
@@ -557,6 +633,7 @@ PsOut PsMain(VsOut input)
         void (*releaseMesh)(int) = nullptr;
         int (*setMaterial)(const RtMaterialDesc*) = nullptr;
         int (*setInstances)(const RtInstance*, int) = nullptr;
+        void (*passTimings)(float*, int) = nullptr;
         int (*status)(char*, int) = nullptr;
         void (*timings)(float*, float*) = nullptr;
         void (*event)(int, void*) = nullptr;
@@ -606,11 +683,27 @@ PsOut PsMain(VsOut input)
     struct Outputs
     {
         ComPtr<ID3D11Texture2D> visibility;   // u0, R16G16B16A16_FLOAT
+        ComPtr<ID3D11Texture2D> diffuse;      // u1
+        ComPtr<ID3D11Texture2D> specular;     // u2
+        ComPtr<ID3D11Texture2D> occlusion;    // u3
         ComPtr<ID3D11Texture2D> primary;      // u7, R32G32B32A32_FLOAT
     };
 
+    // What a frame traces besides the camera, with the defaults of the shadow checks.
+    struct Lighting
+    {
+        float sunColor[3] = { 1.0f, 1.0f, 1.0f };
+        float sky[3] = { 1.0f, 1.0f, 1.0f };
+        float aoDistance = 2.0f;
+        float bounces = 2.0f;
+        float diffuseDistance = 100000.0f;
+        float specularDistance = 100000.0f;
+        float clamp = 0.0f;
+        ID3D11Texture2D* environment = nullptr;
+    };
+
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
-                   uint32_t frameIndex, uint32_t signals)
+                   uint32_t frameIndex, uint32_t signals, const Lighting& lighting = Lighting())
     {
         RtFramePacket packet = {};
         packet.size = sizeof(packet);
@@ -628,13 +721,23 @@ PsOut PsMain(VsOut input)
         packet.sunDirection[1] = float(l.y);
         packet.sunDirection[2] = float(l.z);
         packet.sunDirection[3] = sunRadius;
-        packet.sunColor[0] = packet.sunColor[1] = packet.sunColor[2] = 1.0f;
-        packet.skyColor[0] = packet.skyColor[1] = packet.skyColor[2] = 1.0f;
+        memcpy(packet.sunColor, lighting.sunColor, sizeof(lighting.sunColor));
+        memcpy(packet.skyColor, lighting.sky, sizeof(lighting.sky));
+        packet.params[0] = lighting.aoDistance;
+        packet.params[1] = lighting.bounces;
+        packet.params[2] = lighting.diffuseDistance;
+        packet.params[3] = lighting.specularDistance;
+        packet.params[4] = lighting.clamp;
+        packet.params[5] = lighting.environment != nullptr ? 1.0f : 0.0f;
+        packet.inputs[kRtInputEnvironment] = lighting.environment;
         packet.inputs[kRtInputDepth] = g.depth.Get();
         packet.inputs[kRtInputGBuffer0] = g.gbuffer0.Get();
         packet.inputs[kRtInputGBuffer1] = g.gbuffer1.Get();
         packet.inputs[kRtInputGBuffer2] = g.gbuffer2.Get();
         packet.outputs[0] = outputs.visibility.Get();
+        packet.outputs[1] = outputs.diffuse.Get();
+        packet.outputs[2] = outputs.specular.Get();
+        packet.outputs[3] = outputs.occlusion.Get();
         packet.outputs[7] = outputs.primary.Get();
         proxy.event(kFrameEvent, &packet);
     }
@@ -784,6 +887,108 @@ PsOut PsMain(VsOut input)
         }
         WriteBmp(NextToExecutable(name), kWidth, kHeight, rgb);
     }
+
+    int SendMaterial(Proxy& proxy, int id, const float albedo[3], const float emission[3], float smoothness)
+    {
+        RtMaterialDesc desc = {};
+        desc.size = sizeof(desc);
+        desc.magic = kRtMaterialMagic;
+        desc.material = id;
+        memcpy(desc.albedo, albedo, 3 * sizeof(float));
+        desc.albedo[3] = 1.0f;
+        desc.specular[0] = desc.specular[1] = desc.specular[2] = 0.04f;
+        desc.smoothness = smoothness;
+        memcpy(desc.emission, emission, 3 * sizeof(float));
+        desc.texture = -1;
+        return proxy.setMaterial(&desc);
+    }
+
+    // The mean of an output's rgb over many frames, per pixel.
+    bool Accumulate(Proxy& proxy, ID3D11Device* device, ID3D11DeviceContext* context, const Camera& camera, GBuffer& g,
+                    Outputs& outputs, ID3D11Texture2D* which, uint32_t signals, const Lighting& lighting, Vec3 sun,
+                    int frames, uint32_t firstFrame, std::vector<double>& mean)
+    {
+        mean.assign(static_cast<size_t>(kWidth) * kHeight * 3, 0.0);
+        std::vector<uint16_t> read;
+        for (int f = 0; f < frames; ++f)
+        {
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, firstFrame + f, signals, lighting);
+            if (!ReadTexture(device, context, which, 8, read))
+                return false;
+            for (size_t i = 0; i < static_cast<size_t>(kWidth) * kHeight; ++i)
+                for (int c = 0; c < 3; ++c)
+                    mean[i * 3 + c] += HalfToFloat(read[i * 4 + c]);
+        }
+        for (double& value : mean)
+            value /= frames;
+        return true;
+    }
+
+    bool Finite(const std::vector<uint16_t>& halves)
+    {
+        for (uint16_t h : halves)
+            if ((h & 0x7C00u) == 0x7C00u)
+                return false;
+        return true;
+    }
+
+    // The pixel a camera-relative point falls on.
+    bool Project(const Camera& camera, Vec3 relative, int& x, int& y)
+    {
+        const Mat4& m = camera.worldToClip;
+        double c[4];
+        for (int r = 0; r < 4; ++r)
+            c[r] = m.at(r, 0) * relative.x + m.at(r, 1) * relative.y + m.at(r, 2) * relative.z + m.at(r, 3);
+        if (c[3] <= 0.0)
+            return false;
+        x = static_cast<int>((c[0] / c[3] * 0.5 + 0.5) * kWidth);
+        y = static_cast<int>((0.5 - c[1] / c[3] * 0.5) * kHeight);
+        return x >= 2 && y >= 2 && x < static_cast<int>(kWidth) - 2 && y < static_cast<int>(kHeight) - 2;
+    }
+
+    double MeanAround(const std::vector<double>& image, int x, int y, int channel)
+    {
+        double sum = 0.0;
+        for (int dy = -2; dy <= 2; ++dy)
+            for (int dx = -2; dx <= 2; ++dx)
+                sum += image[(static_cast<size_t>(y + dy) * kWidth + (x + dx)) * 3 + channel];
+        return sum / 25.0;
+    }
+
+    // Where a ray from origin meets an axis-aligned box, or a negative value.
+    double RayBox(Vec3 origin, Vec3 direction, Vec3 centre, const double scale[3])
+    {
+        const double o[3] = { origin.x, origin.y, origin.z };
+        const double d[3] = { direction.x, direction.y, direction.z };
+        const double c[3] = { centre.x, centre.y, centre.z };
+        double tMin = 0.0, tMax = 1e30;
+        for (int a = 0; a < 3; ++a)
+        {
+            const double lo = c[a] - scale[a] * 0.5, hi = c[a] + scale[a] * 0.5;
+            if (std::fabs(d[a]) < 1e-12)
+            {
+                if (o[a] < lo || o[a] > hi)
+                    return -1.0;
+                continue;
+            }
+            double t0 = (lo - o[a]) / d[a], t1 = (hi - o[a]) / d[a];
+            if (t0 > t1)
+                std::swap(t0, t1);
+            tMin = std::max(tMin, t0);
+            tMax = std::min(tMax, t1);
+            if (tMin > tMax)
+                return -1.0;
+        }
+        return tMin;
+    }
+
+    void SaveColour(const wchar_t* name, const std::vector<double>& image, double scale)
+    {
+        std::vector<float> rgb(image.size());
+        for (size_t i = 0; i < image.size(); ++i)
+            rgb[i] = static_cast<float>(image[i] * scale);
+        WriteBmp(NextToExecutable(name), kWidth, kHeight, rgb);
+    }
 }
 
 int main()
@@ -799,6 +1004,7 @@ int main()
         || !proxy.Load(proxy.setMesh, "KspRtSetMesh") || !proxy.Load(proxy.releaseMesh, "KspRtReleaseMesh")
         || !proxy.Load(proxy.setMaterial, "KspRtSetMaterial") || !proxy.Load(proxy.setInstances, "KspRtSetInstances")
         || !proxy.Load(proxy.status, "KspRtStatus") || !proxy.Load(proxy.timings, "KspRtTimings")
+        || !proxy.Load(proxy.passTimings, "KspRtPassTimings")
         || !proxy.Load(eventFunc, "KspFgGetRenderEventFunc"))
         return Fatal("the proxy's raytracing exports", E_FAIL);
     proxy.event = reinterpret_cast<void (*)(int, void*)>(eventFunc());
@@ -873,6 +1079,12 @@ int main()
         return Fatal("the G-buffer", hr);
     Outputs outputs;
     hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.visibility);
+    if (SUCCEEDED(hr))
+        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.diffuse);
+    if (SUCCEEDED(hr))
+        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.specular);
+    if (SUCCEEDED(hr))
+        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.occlusion);
     if (SUCCEEDED(hr))
         hr = CreateTarget(device.Get(), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.primary);
     if (FAILED(hr))
@@ -1001,6 +1213,338 @@ int main()
         SaveVisibility(L"rt_soft_shadows.bmp", image);
     }
 
+    // ---------------------------------------------------------------- white furnace
+    {
+        // Every surface white, the sky uniformly 1, no sun: light arriving anywhere is 1,
+        // however often it bounces.
+        const float white[3] = { 1.0f, 1.0f, 1.0f };
+        const float none[3] = { 0.0f, 0.0f, 0.0f };
+        if (SendMaterial(proxy, 10, white, none, 0.2f) != 1)
+            return Fatal("a material", E_FAIL);
+        std::vector<Instance> furnace = scene;
+        for (Instance& instance : furnace)
+            instance.material = 10;
+        SendInstances(proxy, furnace, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, furnace);
+        Lighting lighting;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.bounces = 16.0f;
+        std::vector<double> mean;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                        lighting, sun, 256, 3000, mean))
+            return Fatal("reading the furnace back", E_FAIL);
+        std::vector<float> depth;
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+        double total = 0.0;
+        size_t count = 0, within = 0;
+        for (size_t i = 0; i < depth.size(); ++i)
+        {
+            if (depth[i] <= 0.0f)
+                continue;
+            const double value = (mean[i * 3] + mean[i * 3 + 1] + mean[i * 3 + 2]) / 3.0;
+            total += value;
+            ++count;
+            within += std::fabs(value - 1.0) < 0.05 ? 1 : 0;
+        }
+        const double average = count > 0 ? total / count : 0.0;
+        char detail[200];
+        sprintf_s(detail, "diffuse light %.4f on average over %zu pixels, %.1f %% of them within 5 %% of 1", average, count,
+                  count > 0 ? 100.0 * within / count : 0.0);
+        Check(count > 100000 && std::fabs(average - 1.0) < 0.02 && within * 100 >= count * 95, "white furnace", detail);
+        SaveColour(L"rt_furnace.bmp", mean, 0.8);
+    }
+
+    // ---------------------------------------------------------------- occlusion
+    {
+        SendInstances(proxy, scene, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        Lighting lighting;
+        std::vector<double> mean;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.occlusion.Get(),
+                        kRtSignalAmbientOcclusion, lighting, sun, 256, 4000, mean))
+            return Fatal("reading the occlusion back", E_FAIL);
+        int openX = 0, openY = 0, cornerX = 0, cornerY = 0;
+        const bool seen = Project(camera, Vec3{ 15, 0, -15 } - camera.position, openX, openY)
+                          && Project(camera, Vec3{ 0, 0.05, -5.25 } - camera.position, cornerX, cornerY);
+        const double open = seen ? MeanAround(mean, openX, openY, 0) : 0.0;
+        const double corner = seen ? MeanAround(mean, cornerX, cornerY, 0) : 1.0;
+        char detail[160];
+        sprintf_s(detail, "the open plane sees %.3f of the sky, the foot of the box %.3f", open, corner);
+        Check(seen && open > 0.98 && corner < 0.8, "ambient occlusion", detail);
+        SaveColour(L"rt_occlusion.bmp", mean, 1.0);
+    }
+
+    // ---------------------------------------------------------------- mirror
+    {
+        // A mirror-smooth plane, the tower glowing and black, a dim uniform sky: the plane
+        // reflects the tower's glow where its reflection is, and the sky elsewhere.
+        const float black[3] = { 0.0f, 0.0f, 0.0f };
+        const float glow[3] = { 4.0f, 2.0f, 1.0f };
+        if (SendMaterial(proxy, 20, black, glow, 0.2f) != 1)
+            return Fatal("a material", E_FAIL);
+        std::vector<Instance> mirrored = scene;
+        mirrored[0].smoothness = 1.0f;
+        mirrored[2].material = 20;
+        // Beside the box as the camera sees it, so that its reflection is not behind the box's.
+        mirrored[2].position = { -22, 15, -12 };
+        SendInstances(proxy, mirrored, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, mirrored);
+        Lighting lighting;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.sky[0] = lighting.sky[1] = lighting.sky[2] = 0.2f;
+        lighting.bounces = 0.0f;
+        std::vector<double> mean;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.specular.Get(), kRtSignalSpecular,
+                        lighting, sun, 16, 5000, mean))
+            return Fatal("reading the reflections back", E_FAIL);
+        std::vector<float> depth;
+        std::vector<uint32_t> normals;
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+        ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+        // 0 sky, 1 tower, 2 box or not the plane.
+        std::vector<int> expected(depth.size(), 2);
+        for (UINT y = 0; y < kHeight; ++y)
+            for (UINT x = 0; x < kWidth; ++x)
+            {
+                const size_t i = static_cast<size_t>(y) * kWidth + x;
+                if (depth[i] <= 0.0f || ((normals[i] >> 10) & 0x3FF) < 1020)
+                    continue;
+                const double nx = ((x + 0.5) / kWidth) * 2.0 - 1.0;
+                const double ny = 1.0 - ((y + 0.5) / kHeight) * 2.0;
+                double c[4];
+                for (int r = 0; r < 4; ++r)
+                    c[r] = camera.clipToWorld.at(r, 0) * nx + camera.clipToWorld.at(r, 1) * ny
+                           + camera.clipToWorld.at(r, 2) * depth[i] + camera.clipToWorld.at(r, 3);
+                const Vec3 position = { c[0] / c[3], c[1] / c[3], c[2] / c[3] };
+                const Vec3 view = Normalize(position);
+                const Vec3 reflected = { view.x, -view.y, view.z };
+                const Vec3 origin = position + Vec3{ 0, 1, 0 } * (0.01 + Length(position) * 0.0005);
+                const double toTower = RayBox(origin, reflected, mirrored[2].position - camera.position, mirrored[2].scale);
+                const double toBox = RayBox(origin, reflected, mirrored[1].position - camera.position, mirrored[1].scale);
+                if (toBox >= 0.0 && (toTower < 0.0 || toBox < toTower))
+                    continue;
+                expected[i] = toTower >= 0.0 ? 1 : 0;
+            }
+        // Two pixels off an edge: a smoothness of 1 is still Unity's smallest roughness,
+        // whose lobe reaches that far past the tower's side.
+        size_t towerPixels = 0, towerRight = 0, skyPixels = 0, skyRight = 0;
+        for (UINT y = 2; y + 2 < kHeight; ++y)
+            for (UINT x = 2; x + 2 < kWidth; ++x)
+            {
+                const size_t i = static_cast<size_t>(y) * kWidth + x;
+                if (expected[i] == 2)
+                    continue;
+                bool edge = false;
+                for (int dy = -2; dy <= 2 && !edge; ++dy)
+                    for (int dx = -2; dx <= 2 && !edge; ++dx)
+                        edge = expected[i + dy * static_cast<int>(kWidth) + dx] != expected[i];
+                if (edge)
+                    continue;
+                const double* got = &mean[i * 3];
+                if (expected[i] == 1)
+                {
+                    ++towerPixels;
+                    // GGX's long tail sends a ray in a few dozen past the tower's side even at
+                    // Unity's smallest roughness: within 15 %.
+                    towerRight += std::fabs(got[0] - 4.0) < 0.6 && std::fabs(got[1] - 2.0) < 0.3
+                                          && std::fabs(got[2] - 1.0) < 0.15
+                                      ? 1
+                                      : 0;
+                }
+                else
+                {
+                    ++skyPixels;
+                    skyRight += std::fabs(got[0] - 0.2) < 0.006 && std::fabs(got[2] - 0.2) < 0.006 ? 1 : 0;
+                }
+            }
+        char detail[200];
+        sprintf_s(detail, "%zu of %zu pixels show the tower's glow, %zu of %zu the sky", towerRight, towerPixels, skyRight,
+                  skyPixels);
+        Check(towerPixels > 2000 && towerRight * 100 >= towerPixels * 99 && skyRight * 100 >= skyPixels * 99, "mirror",
+              detail);
+        SaveColour(L"rt_mirror.bmp", mean, 0.25);
+    }
+
+    // ---------------------------------------------------------------- environment
+    {
+        // A sky that is its own direction: red the angle around the vertical, green the
+        // angle from straight up. A mirror-smooth plane alone shows it reflected.
+        constexpr UINT envWidth = 256, envHeight = 128;
+        std::vector<uint16_t> texels(static_cast<size_t>(envWidth) * envHeight * 4);
+        auto toHalf = [](float value)
+        {
+            uint32_t bits;
+            memcpy(&bits, &value, 4);
+            if (value == 0.0f)
+                return static_cast<uint16_t>(0);
+            return static_cast<uint16_t>(((bits >> 16) & 0x8000) | ((((bits >> 23) & 0xFF) - 112) << 10) | ((bits >> 13) & 0x3FF));
+        };
+        for (UINT y = 0; y < envHeight; ++y)
+            for (UINT x = 0; x < envWidth; ++x)
+            {
+                uint16_t* t = &texels[(static_cast<size_t>(y) * envWidth + x) * 4];
+                t[0] = toHalf((x + 0.5f) / envWidth);
+                t[1] = toHalf((y + 0.5f) / envHeight);
+                t[2] = toHalf(0.25f);
+                t[3] = toHalf(1.0f);
+            }
+        D3D11_TEXTURE2D_DESC envDesc = {};
+        envDesc.Width = envWidth;
+        envDesc.Height = envHeight;
+        envDesc.MipLevels = 1;
+        envDesc.ArraySize = 1;
+        envDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        envDesc.SampleDesc.Count = 1;
+        envDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        const D3D11_SUBRESOURCE_DATA envData = { texels.data(), envWidth * 8, 0 };
+        ComPtr<ID3D11Texture2D> environment;
+        if (FAILED(device->CreateTexture2D(&envDesc, &envData, &environment)))
+            return Fatal("the environment texture", E_FAIL);
+
+        std::vector<Instance> alone = { scene[0] };
+        alone[0].smoothness = 1.0f;
+        SendInstances(proxy, alone, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, alone);
+        Lighting lighting;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.bounces = 0.0f;
+        lighting.environment = environment.Get();
+        std::vector<double> mean;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.specular.Get(), kRtSignalSpecular,
+                        lighting, sun, 16, 6000, mean))
+            return Fatal("reading the environment back", E_FAIL);
+        std::vector<float> depth;
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+        size_t compared = 0, right = 0;
+        for (UINT y = 0; y < kHeight; ++y)
+            for (UINT x = 0; x < kWidth; ++x)
+            {
+                const size_t i = static_cast<size_t>(y) * kWidth + x;
+                if (depth[i] <= 0.0f)
+                    continue;
+                const double nx = ((x + 0.5) / kWidth) * 2.0 - 1.0;
+                const double ny = 1.0 - ((y + 0.5) / kHeight) * 2.0;
+                double c[4];
+                for (int r = 0; r < 4; ++r)
+                    c[r] = camera.clipToWorld.at(r, 0) * nx + camera.clipToWorld.at(r, 1) * ny
+                           + camera.clipToWorld.at(r, 2) * depth[i] + camera.clipToWorld.at(r, 3);
+                const Vec3 view = Normalize({ c[0] / c[3], c[1] / c[3], c[2] / c[3] });
+                const Vec3 reflected = { view.x, -view.y, view.z };
+                const double u = std::atan2(reflected.x, reflected.z) / (2.0 * 3.14159265358979) + 0.5;
+                const double v = std::acos(std::min(std::max(reflected.y, -1.0), 1.0)) / 3.14159265358979;
+                if (u < 0.02 || u > 0.98 || v < 0.02)
+                    continue;
+                ++compared;
+                right += std::fabs(mean[i * 3] - u) < 0.02 && std::fabs(mean[i * 3 + 1] - v) < 0.02
+                                 && std::fabs(mean[i * 3 + 2] - 0.25) < 0.005
+                             ? 1
+                             : 0;
+            }
+        char detail[160];
+        sprintf_s(detail, "%zu of %zu pixels reflect the sky in the direction they should", right, compared);
+        Check(compared > 100000 && right * 100 >= compared * 99, "environment", detail);
+        SaveColour(L"rt_environment.bmp", mean, 1.0);
+    }
+
+    // ---------------------------------------------------------------- KSP's launch pad
+    {
+        wchar_t scenePath[MAX_PATH] = {};
+        if (GetEnvironmentVariableW(L"REDEFINITION_RT_SCENE", scenePath, MAX_PATH) == 0)
+            printf("      KSP scene skipped: REDEFINITION_RT_SCENE names no file (tools/export_rt_scene.py)\n");
+        else
+        {
+            std::map<int, Mesh> kspMeshes;
+            std::vector<Instance> ksp;
+            if (!LoadScene(scenePath, kspMeshes, ksp, 5000))
+                return Fatal("the KSP scene file", E_FAIL);
+            size_t triangles = 0;
+            for (auto& entry : kspMeshes)
+            {
+                triangles += entry.second.indices.size() / 3;
+                if (FAILED(UploadMeshForRaster(device.Get(), entry.second)) || SendMesh(proxy, entry.second) != 1)
+                    return Fatal("a KSP mesh", E_FAIL);
+                meshes[entry.first] = entry.second;
+            }
+            // The ground the pad stands on.
+            Instance ground = scene[0];
+            ground.scale[0] = ground.scale[2] = 4000.0;
+            ground.position = { 0.0, -0.2, 0.0 };
+            ksp.push_back(ground);
+
+            Camera view;
+            view.position = { 55.0, 35.0, -70.0 };
+            view.target = { 0.0, 8.0, 0.0 };
+            view.Update();
+            SendInstances(proxy, ksp, view.position);
+            RenderGBuffer(context.Get(), g, view, meshes, ksp);
+            const uint32_t all = kRtSignalSunVisibility | kRtSignalAmbientOcclusion | kRtSignalDiffuse | kRtSignalSpecular;
+            Lighting lighting;
+            lighting.sky[0] = 0.35f;
+            lighting.sky[1] = 0.45f;
+            lighting.sky[2] = 0.6f;
+            lighting.bounces = 2.0f;
+            lighting.clamp = 20.0f;
+            SendFrame(proxy, view, g, outputs, sun, 0.0047f, 7000, all | kRtSignalPrimaryCheck, lighting);
+            Frame frame;
+            if (!ReadFrame(device.Get(), context.Get(), g, outputs, frame))
+                return Fatal("reading the KSP scene back", E_FAIL);
+            char label[96];
+            sprintf_s(label, "KSP scene: primary rays (%zu meshes, %zu triangles)", kspMeshes.size(), triangles);
+            CheckPrimary(label, frame);
+
+            std::vector<double> diffuse, specular;
+            if (!Accumulate(proxy, device.Get(), context.Get(), view, g, outputs, outputs.diffuse.Get(), all, lighting, sun,
+                            32, 7100, diffuse))
+                return Fatal("reading the KSP scene back", E_FAIL);
+            std::vector<uint16_t> halves[4];
+            bool finite = true;
+            ID3D11Texture2D* written[4] = { outputs.visibility.Get(), outputs.diffuse.Get(), outputs.specular.Get(),
+                                            outputs.occlusion.Get() };
+            for (int k = 0; k < 4; ++k)
+                finite = finite && ReadTexture(device.Get(), context.Get(), written[k], 8, halves[k]) && Finite(halves[k]);
+            Check(finite, "KSP scene: no NaN or infinity", "sun, occlusion, diffuse and specular after 33 frames");
+
+            // A picture of what the signals make together: albedo times sun and diffuse light.
+            std::vector<uint32_t> albedo;
+            ReadTexture(device.Get(), context.Get(), g.gbuffer0.Get(), 4, albedo);
+            std::vector<double> lit(diffuse.size(), 0.0);
+            const Vec3 l = Normalize(sun);
+            for (size_t i = 0; i < static_cast<size_t>(kWidth) * kHeight; ++i)
+            {
+                if (frame.depth[i] <= 0.0f)
+                {
+                    lit[i * 3] = lighting.sky[0];
+                    lit[i * 3 + 1] = lighting.sky[1];
+                    lit[i * 3 + 2] = lighting.sky[2];
+                    continue;
+                }
+                const uint32_t packed = frame.normals[i];
+                const Vec3 n = Normalize({ (packed & 0x3FF) / 1023.0 * 2 - 1, ((packed >> 10) & 0x3FF) / 1023.0 * 2 - 1,
+                                           ((packed >> 20) & 0x3FF) / 1023.0 * 2 - 1 });
+                const double direct = std::max(0.0, Dot(n, l)) * HalfToFloat(halves[0][i * 4]);
+                for (int c = 0; c < 3; ++c)
+                {
+                    const double a = std::pow(((albedo[i] >> (8 * c)) & 0xFF) / 255.0, 2.2);
+                    lit[i * 3 + c] = a * (direct + diffuse[i * 3 + c]);
+                }
+            }
+            SaveColour(L"rt_ksp_lit.bmp", lit, 1.0);
+            SaveColour(L"rt_ksp_diffuse.bmp", diffuse, 1.0);
+
+            float passes[kRtPassTimings] = {};
+            float build = 0, trace = 0;
+            proxy.timings(&build, &trace);
+            proxy.passTimings(passes, kRtPassTimings);
+            printf("      KSP scene at %ux%u: scene build %.3f ms; sun %.3f, occlusion %.3f, diffuse %.3f, specular %.3f ms\n",
+                   kWidth, kHeight, build, passes[0], passes[1], passes[2], passes[3]);
+            for (auto& entry : kspMeshes)
+            {
+                proxy.releaseMesh(entry.first);
+                meshes.erase(entry.first);
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- churn
     {
         std::vector<Instance> crowd = scene;
@@ -1051,11 +1595,15 @@ int main()
     {
         SendInstances(proxy, scene, camera.position);
         RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        const uint32_t all = kRtSignalSunVisibility | kRtSignalAmbientOcclusion | kRtSignalDiffuse | kRtSignalSpecular;
         for (int i = 0; i < 8; ++i)
-            SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 2000 + i, kRtSignalSunVisibility);
+            SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 2000 + i, all);
         float build = 0, trace = 0;
         proxy.timings(&build, &trace);
-        printf("      timings at %ux%u: scene build %.3f ms, sun visibility %.3f ms\n", kWidth, kHeight, build, trace);
+        float passes[kRtPassTimings] = {};
+        proxy.passTimings(passes, kRtPassTimings);
+        printf("      timings at %ux%u: scene build %.3f ms; sun %.3f, occlusion %.3f, diffuse %.3f, specular %.3f;"
+               " all passes %.3f ms\n", kWidth, kHeight, build, passes[0], passes[1], passes[2], passes[3], trace);
     }
 
     printf(failures == 0 ? "all raytracing checks passed\n" : "%d raytracing check(s) failed\n", failures);

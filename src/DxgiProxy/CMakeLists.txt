@@ -35,7 +35,7 @@ find_program(REDEFINITION_DXC dxc
 # embedded in dxgi.dll as RCDATA named RT_<entry>. Without dxc the proxy is built
 # without them and says so in its log.
 set(REDEFINITION_RT_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/RaytracingShaders")
-set(REDEFINITION_RT_ENTRIES SunVisibility PrimaryCheck)
+set(REDEFINITION_RT_ENTRIES SunVisibility AmbientOcclusion DiffuseLight SpecularLight PrimaryCheck)
 set(REDEFINITION_RT_OUTPUTS)
 set(REDEFINITION_RT_RC "${CMAKE_CURRENT_BINARY_DIR}/RaytracingShaders.rc")
 if(REDEFINITION_DXC)

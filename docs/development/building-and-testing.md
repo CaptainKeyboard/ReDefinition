@@ -273,6 +273,15 @@ build\DxgiProxy\Release\RaytracingHarness.exe
 It prints a `PASS` or `FAIL` line per check and the GPU time of each pass. It writes an
 image per check next to itself, `rt_*.bmp`, to look at.
 
+With a scene of KSP's own meshes it also renders the launch pad and the SPH. The scene
+holds Squad's geometry, so write it outside the repository:
+
+```
+python tools\export_rt_scene.py "<KSP folder>" %TEMP%\ksc.rtscene
+set REDEFINITION_RT_SCENE=%TEMP%\ksc.rtscene
+build\DxgiProxy\Release\RaytracingHarness.exe
+```
+
 ## Replay the game's frames through frame generation
 
 **Record the screen** in the Debug tab also writes eight consecutive frames of what frame

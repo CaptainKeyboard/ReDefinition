@@ -54,6 +54,10 @@ Texture2D<float4> gbuffer0 : register(t2);
 Texture2D<float4> gbuffer1 : register(t3);
 Texture2D<float4> gbuffer2 : register(t4);
 Texture2D<float4> motionTexture : register(t5);
+// The sky's radiance by direction, as a latitude-longitude image: x the angle around
+// the vertical, y from straight up (0) to straight down (1).
+Texture2D<float4> environmentTexture : register(t6);
+Texture2DArray<float4> materialTextures : register(t11);
 StructuredBuffer<InstanceData> instanceData : register(t9);
 StructuredBuffer<MaterialData> materialData : register(t10);
 ByteAddressBuffer meshIndices[] : register(t0, space1);
@@ -67,6 +71,16 @@ RWTexture2D<float4> output7 : register(u7);
 
 SamplerState pointClamp : register(s0);
 SamplerState linearClamp : register(s1);
+SamplerState linearWrap : register(s2);
+
+// The frame's parameters (RtFramePacket.params).
+#define AO_DISTANCE params0.x
+#define BOUNCES ((uint)params0.y)
+#define DIFFUSE_DISTANCE params0.z
+#define SPECULAR_DISTANCE params0.w
+#define SAMPLE_CLAMP params1.x
+#define HAS_ENVIRONMENT (params1.y > 0.5f)
+#define MATERIAL_TEXTURES (params1.z > 0.5f)
 
 static const float kPi = 3.14159265358979f;
 
@@ -167,6 +181,175 @@ bool Unoccluded(float3 origin, float3 direction, float maxDistance)
     query.TraceRayInline(scene, RAY_FLAG_NONE, 0xFF, ray);
     query.Proceed();
     return query.CommittedStatus() == COMMITTED_NOTHING;
+}
+
+// The sky's radiance in a direction: the environment where one is given, else the
+// sky's colour.
+float3 Sky(float3 direction)
+{
+    if (!HAS_ENVIRONMENT)
+        return skyColor.rgb;
+    float u = atan2(direction.x, direction.z) * (0.5f / kPi) + 0.5f;
+    float v = acos(clamp(direction.y, -1.0f, 1.0f)) / kPi;
+    return environmentTexture.SampleLevel(linearWrap, float2(u, v), 0.0f).rgb;
+}
+
+// A direction over the hemisphere around n, by the cosine of its angle to n.
+float3 SampleCosine(float3 n, float2 u)
+{
+    float r = sqrt(u.x);
+    float phi = 2.0f * kPi * u.y;
+    float3 t, b;
+    Basis(n, t, b);
+    return normalize(t * (r * cos(phi)) + b * (r * sin(phi)) + n * sqrt(saturate(1.0f - u.x)));
+}
+
+// A microfacet normal of the GGX distribution as the view sees it (Heitz 2018,
+// "Sampling the GGX Distribution of Visible Normals"), in the frame where n is z.
+float3 SampleGgxVisible(float3 viewLocal, float alpha, float2 u)
+{
+    float3 vh = normalize(float3(alpha * viewLocal.x, alpha * viewLocal.y, viewLocal.z));
+    float lensq = vh.x * vh.x + vh.y * vh.y;
+    float3 t1 = lensq > 0.0f ? float3(-vh.y, vh.x, 0.0f) * rsqrt(lensq) : float3(1.0f, 0.0f, 0.0f);
+    float3 t2 = cross(vh, t1);
+    float r = sqrt(u.x);
+    float phi = 2.0f * kPi * u.y;
+    float p1 = r * cos(phi);
+    float p2 = r * sin(phi);
+    float s = 0.5f * (1.0f + vh.z);
+    p2 = (1.0f - s) * sqrt(saturate(1.0f - p1 * p1)) + s * p2;
+    float3 nh = p1 * t1 + p2 * t2 + sqrt(saturate(1.0f - p1 * p1 - p2 * p2)) * vh;
+    return normalize(float3(alpha * nh.x, alpha * nh.y, max(0.0f, nh.z)));
+}
+
+// Unity's roughness from smoothness: the perceptual roughness squared.
+float SmoothnessToAlpha(float smoothness)
+{
+    float perceptual = 1.0f - smoothness;
+    return max(perceptual * perceptual, 0.002f);
+}
+
+// Where a ray meets the scene: the surface's point, its normal turned towards the
+// ray, its texture coordinate and material.
+struct Hit
+{
+    bool found;
+    float distance;
+    float3 position;
+    float3 normal;
+    float2 uv;
+    uint material;
+};
+
+Hit TraceClosest(float3 origin, float3 direction, float maxDistance)
+{
+    Hit hit;
+    hit.found = false;
+    hit.distance = maxDistance;
+    hit.position = 0.0f;
+    hit.normal = float3(0.0f, 1.0f, 0.0f);
+    hit.uv = 0.0f;
+    hit.material = 0u;
+
+    RayDesc ray;
+    ray.Origin = origin;
+    ray.Direction = direction;
+    ray.TMin = 0.0f;
+    ray.TMax = maxDistance;
+    RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE> query;
+    query.TraceRayInline(scene, RAY_FLAG_NONE, 0xFF, ray);
+    query.Proceed();
+    if (query.CommittedStatus() != COMMITTED_TRIANGLE_HIT)
+        return hit;
+
+    InstanceData instance = instanceData[query.CommittedInstanceID()];
+    uint slot = instance.meshSlot;
+    uint3 index = meshIndices[NonUniformResourceIndex(slot)].Load3(query.CommittedPrimitiveIndex() * 12u);
+    VertexAttributes a0 = meshAttributes[NonUniformResourceIndex(slot)][index.x];
+    VertexAttributes a1 = meshAttributes[NonUniformResourceIndex(slot)][index.y];
+    VertexAttributes a2 = meshAttributes[NonUniformResourceIndex(slot)][index.z];
+    float2 bary = query.CommittedTriangleBarycentrics();
+    float w = 1.0f - bary.x - bary.y;
+    float3 objectNormal = a0.normal * w + a1.normal * bary.x + a2.normal * bary.y;
+    float3x3 normalMatrix = float3x3(instance.normalRow0.xyz, instance.normalRow1.xyz, instance.normalRow2.xyz);
+    float3 normal = mul(normalMatrix, objectNormal);
+    float length2 = dot(normal, normal);
+    normal = length2 > 1e-12f ? normal * rsqrt(length2) : -direction;
+    if (dot(normal, direction) > 0.0f)
+        normal = -normal;
+
+    hit.found = true;
+    hit.distance = query.CommittedRayT();
+    hit.position = origin + direction * hit.distance;
+    hit.normal = normal;
+    hit.uv = a0.uv * w + a1.uv * bary.x + a2.uv * bary.y;
+    hit.material = instance.material;
+    return hit;
+}
+
+// A material's albedo at a point: its colour times its small texture.
+float3 Albedo(MaterialData material, float2 uv)
+{
+    float3 albedo = material.albedo.rgb;
+    if (MATERIAL_TEXTURES && material.texture >= 0)
+        albedo *= materialTextures.SampleLevel(linearWrap, float3(uv, float(material.texture)), 0.0f).rgb;
+    return albedo;
+}
+
+// What a diffuse surface point sends back of the sun, in Unity's units, where a
+// light's colour times N.L is what a white surface returns: where it sees the sun.
+float3 SunAt(Hit hit, float3 albedo, inout Random random)
+{
+    float3 towardsSun = normalize(sunDirection.xyz);
+    float nl = dot(hit.normal, towardsSun);
+    if (nl <= 0.0f || all(sunColor.rgb <= 0.0f))
+        return 0.0f;
+    float2 u = float2(NextFloat(random), NextFloat(random));
+    float3 direction = SampleCone(towardsSun, sunDirection.w, u);
+    if (!Unoccluded(RayOrigin(hit.position, hit.normal), direction, 1.0e7f))
+        return 0.0f;
+    return albedo * sunColor.rgb * nl;
+}
+
+// The radiance arriving along a ray, from what it hits and, bounce by bounce, what
+// lights that; the sky where it escapes.
+float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces, inout Random random,
+                out float firstDistance)
+{
+    float3 total = 0.0f;
+    float3 weight = 1.0f;
+    firstDistance = maxDistance;
+    for (uint bounce = 0u; bounce <= bounces; ++bounce)
+    {
+        Hit hit = TraceClosest(origin, direction, bounce == 0u ? maxDistance : 1.0e7f);
+        if (bounce == 0u)
+            firstDistance = hit.distance;
+        if (!hit.found)
+        {
+            total += weight * Sky(direction);
+            break;
+        }
+        MaterialData material = materialData[hit.material];
+        float3 albedo = Albedo(material, hit.uv);
+        total += weight * (SunAt(hit, albedo, random) + material.emission);
+        if (bounce == bounces)
+            break;
+        weight *= albedo;
+        // Past the second bounce, a path goes on by the chance its weight gives it.
+        if (bounce >= 2u)
+        {
+            float keep = saturate(max(weight.r, max(weight.g, weight.b)));
+            if (NextFloat(random) >= keep)
+                break;
+            weight /= max(keep, 1e-4f);
+        }
+        origin = RayOrigin(hit.position, hit.normal);
+        direction = SampleCosine(hit.normal, float2(NextFloat(random), NextFloat(random)));
+    }
+    float luminance = dot(total, float3(0.2126f, 0.7152f, 0.0722f));
+    if (SAMPLE_CLAMP > 0.0f && luminance > SAMPLE_CLAMP)
+        total *= SAMPLE_CLAMP / luminance;
+    return total;
 }
 
 #endif
