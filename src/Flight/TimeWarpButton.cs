@@ -237,15 +237,14 @@ namespace ReDefinition.Flight
             float left = Mathf.Max(backgroundRight, hover.fixedMaskStart.x + containerRect.xMin + containerRect.width * barFilled.xMin);
             if (right - left < 1f) throw new System.InvalidOperationException("no room for the button beside the time panel");
             Vector2 size = new Vector2(right - left, top - middle);
-            // Folded, the button stands beside the MET row, which the background's
-            // picture draws a row lower than the warp row (ZTheme's
+            // The area keeps this height, folded too. The MET row it then stands
+            // beside is a row of the picture shorter (ZTheme's
             // FlightTimeQuadrant.png: the warp row 34 of its 68 rows, the MET row
-            // 33, the last see-through); the button's height follows the panel
-            // from the one to the other, its top kept.
+            // 33, the last see-through), but the picture's lower edge is drawn
+            // soft, half into that last row, and an area a row shorter ended a
+            // pixel above it (measured on the player's screenshots).
             Image backgroundFace = background.GetComponent<Image>();
             Rect backgroundFilled = Opaque(backgroundFace != null ? backgroundFace.sprite : null);
-            unfoldedHeight = size.y;
-            foldedHeight = middle - (bottom + (top - bottom) * backgroundFilled.yMin);
 
             // The area: a plain rectangle in the colour of the MET row's background
             // (ZTheme: #302E35), over the sunrise extension's mask, so that the
@@ -302,9 +301,6 @@ namespace ReDefinition.Flight
             Vector2 drawnMiddle = new Vector2(marginLeft + side / 2f - faceRect.sizeDelta.x / 2f,
                 marginBottom + side / 2f - metSize.y / 2f);
             faceRect.anchoredPosition = -drawnMiddle;
-            faceBox = faceRect;
-            metRect = (RectTransform)met;
-            restY = -drawnMiddle.y;
 
             GameObject arrow = new GameObject("Arrow", typeof(RectTransform), typeof(Image));
             arrow.layer = copy.layer;
@@ -334,11 +330,22 @@ namespace ReDefinition.Flight
 
             slide = row.GetComponent<UIHoverSlidePanel>();
             unfolded = new Vector3((left + right) / 2f, top, 0f);
-            travel = slide != null ? Mathf.Abs(slide.positionNormal.y - slide.positionHovered.y) : 0f;
+            // The button stands still in the area, at the height the MET button has
+            // beside it once the panel is folded, which is as high and draws the same
+            // picture: where the MET button's middle lies in the row, less how far
+            // the row then stands from where it stands unfolded.
+            if (slide != null)
+            {
+                RectTransform metRect = (RectTransform)met;
+                float metMiddle = row.InverseTransformPoint(metRect.TransformPoint(metRect.rect.center)).y;
+                float foldedAway = slide.positionNormal.y - slide.positionHovered.y;
+                faceRect.localPosition = new Vector3(faceRect.localPosition.x, metMiddle - (top - foldedAway), 0f);
+            }
             Hold();
             TimeWarpButton.Replaced = true;
             Debug.Log(Log.Tag + " Better Time Warp's button, the MET button copied, at the end of the warp row: "
-                      + foldedHeight.ToString("0.0") + " high folded, the sunrise bar's gap to the row line " + gap.ToString("0.0") + "; from x "
+                      + size.y.ToString("0.0") + " high, the button's middle " + (-faceRect.localPosition.y).ToString("0.0")
+                      + " under its top, the sunrise bar's gap to the row line " + gap.ToString("0.0") + "; from x "
                       + left.ToString("0.0") + " to " + right.ToString("0.0") + ", y " + middle.ToString("0.0") + " to " + top.ToString("0.0")
                       + " unfolded (the background's right edge " + backgroundRight.ToString("0.0") + ", the sunrise bar's picture over "
                       + barFilled.ToString("0.00") + "); the button " + faceRect.sizeDelta.ToString("0.0") + " with its drawn square " + side.ToString("0.0")
@@ -469,25 +476,7 @@ namespace ReDefinition.Flight
             if (barRect == null) return;
             Vector2 away = slide != null && slide.panel != null ? slide.panel.anchoredPosition - slide.positionHovered : Vector2.zero;
             barRect.localPosition = unfolded - (Vector3)away;
-            float folded = travel > 0f ? Mathf.Clamp01(Mathf.Abs(away.y) / travel) : 0f;
-            barRect.sizeDelta = new Vector2(barRect.sizeDelta.x, Mathf.Lerp(unfoldedHeight, foldedHeight, folded));
-            // Unfolded, the button's drawn square stands in the area's middle;
-            // folded, the button stands at the MET button's height, which is as
-            // high and draws the same picture: measured on a screenshot, the
-            // middle of the folded area lay a pixel off it.
-            if (faceBox == null || metRect == null) return;
-            // In the area's own space: the face hangs at the area's middle, its
-            // pivot its own middle.
-            float rest = barRect.rect.center.y + restY;
-            float beside = barRect.InverseTransformPoint(metRect.TransformPoint(metRect.rect.center)).y;
-            Vector3 place = faceBox.localPosition;
-            faceBox.localPosition = new Vector3(place.x, Mathf.Lerp(rest, beside, folded), place.z);
         }
-
-        private RectTransform faceBox, metRect;
-        private float restY;
-
-        private float unfoldedHeight, foldedHeight, travel;
 
         // A strip in the extension's bar colour from the top of its bar picture up
         // by `gap`, over the picture's drawn width.
