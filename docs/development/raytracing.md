@@ -60,7 +60,7 @@ over frames anyway, so the delay adds no lag of its own to what they already hav
 
 | Signal | Enters through | Why there |
 |---|---|---|
-| Sun visibility | ReDefinition's shader for Unity's screen-space shadows (`GraphicsSettings.SetCustomShader`, `BuiltinShaderType.ScreenSpaceShadows`) | every surface that receives the sun's shadow reads that mask, forward and deferred; EVE's cloud shadows and Scatterer's eclipses multiply into it afterwards, at `LightEvent.AfterScreenspaceMask` **[src]** |
+| Sun visibility | ReDefinition's shader for Unity's screen-space shadows (`GraphicsSettings.SetCustomShader`, `BuiltinShaderType.ScreenSpaceShadows`), for the sun's mask alone | every surface that receives the sun's shadow reads that mask, forward and deferred; EVE's cloud and eclipse shadows and Scatterer's ocean caustics multiply into it afterwards, at `LightEvent.AfterScreenspaceMask` **[src]** |
 | Diffuse light, occlusion, reflections | ReDefinition's shader for Unity's deferred reflections, in place of Deferred's while raytracing is on | Deferred adds its ambient light and the probe's reflection in that pass **[src]** |
 | Diffuse light and reflections, without Deferred | ReDefinition's shader drawn into the frame after the opaque geometry's lighting | no pass of Unity's takes them; see below |
 
@@ -82,7 +82,15 @@ shifts what is near the vessel, and the bodies move by the frame's velocity as w
 the depth the raytraced frame kept for the pixel.
 
 The screen-space shadows shader is derived from Unity's built-in one, which is MIT **[doc]**.
-For every camera but the scene camera it does what Unity's does.
+For every camera but the scene camera it does what Unity's does, and for every light but
+the sun: a flag set by command buffers on the sun's light, before and after its mask
+(`LightEvent.BeforeScreenspaceMask`, `AfterScreenspaceMask`), picks the raytraced
+visibility. PlanetShine's lights and Kopernicus's other stars keep their shadow maps.
+
+Scatterer and Kopernicus set a screen-space shadows shader of their own for long shadow
+distances **[src]** (Scatterer.cs, ShadowMan.cs; Kopernicus on every scene). While
+raytracing runs, ReDefinition's takes its place, and when raytracing goes, the one set
+last comes back. For the sun on the scene camera the rays reach as far as the scene.
 
 ### Without Deferred
 
@@ -130,8 +138,8 @@ frame.
 |---|---|---|
 | Vessel parts | `MeshFilter.sharedMesh`, readable as KSP loads them **[src]** | skinned meshes baked when their pose changes |
 | KSC buildings | the renderers under each `PQSCity` | readability checked at run time; unreadable meshes copied on the GPU **[open]** |
-| Terrain | each visible `PQ`'s mesh, from `PQSMod.OnQuadBuilt` and `OnQuadDestroy` **[src]** | index buffer swapped when a neighbour's subdivision changes **[src]**; Parallax's finer copy near the camera used in place of the quad **[src]** |
-| Parallax scatter | the instance buffers Parallax fills on the GPU **[src]** | instances built into the scene on the GPU, as their count is only known there |
+| Terrain | each visible leaf `PQ`'s mesh within 30 km, from the quad tree (`PQS.quads`, `PQ.subNodes`) **[src]** | handed over again when the quad moves or its edges change **[src]**; Parallax's finer copy near the camera in place of the quad, whose material discards it (`Custom/DiscardAll`) **[src]**; the copy, rebuilt in place, handed over again when its shape changes, at most every ten frames |
+| Parallax scatter | the append buffers Parallax fills on the GPU each frame, one per scatter and level of detail, with their meshes and materials **[src]** | gathered into a texture on Unity's side, turned into instances on the proxy's, as their count is only known on the GPU; each buffer gets the places it took lately, read back a frame or two late, and a quarter more, not its capacity **[meas]** (test player: 25 096 places for 20 000 rocks in a buffer of 100 000) |
 | The main body | a sphere, tested by formula in the sun's rays, so that its night side and what flies over it lie in its shadow | none |
 
 Left out: anything transparent or additive (Waterfall, Firefly, particles, translucent
@@ -139,10 +147,27 @@ parts), EVE's clouds, Scatterer's ocean and atmosphere, and the UI.
 
 KSP moves the world with its floating origin and, under Krakensbane, every physics frame
 without an event **[src]**. The transforms are therefore taken every frame, relative to the
-camera, so that the scene near the camera keeps full float precision.
+camera, so that the scene near the camera keeps full float precision. Each frame's
+instances go to the proxy with the frame's index, and the raytracing of that frame takes
+them: the main thread runs ahead of the render thread.
 
-Parallax displaces terrain on the GPU by up to about a metre near the camera **[src]**
-**[open]** (the amount). The rays start a little above the drawn surface to cover that.
+Only what the scene camera draws is in the scene: renderers on a layer outside its culling
+mask stay out, such as the IVA, which FreeIva and ThroughTheEyes draw with the internal
+camera **[src]**.
+
+Parallax displaces terrain on the GPU near the camera, fading out at 50 m **[src]**, by
+some tenths of a metre **[open]** (the amount follows from its configuration; no value is
+stated). The drawn surface can therefore lie below the mesh the rays see. Rays from a
+pixel's surface pass through terrain for their first metre; everything else still stops
+them **[meas]** (harness: ground 0.3 m above the drawn one leaves 593 110 of 593 110 lit
+pixels lit as terrain, 3 275 as another mesh).
+
+Parallax culls its scatter to the view and a short radius around the camera **[src]**:
+rocks and trees behind the camera beyond that radius cast no raytraced shadow.
+
+The first metre of terrain is passed through from every pixel, a vessel's too: under a
+landed vessel, the ground within a metre of its underside neither shades it nor darkens
+it there.
 
 ## Surfaces the rays hit
 
@@ -230,6 +255,10 @@ The harness checks:
 12. **Ray Reconstruction.** 64 frames of the noisy signals put together: the reconstructed
     frame against a reference of 256 frames, with the G-buffer's guides and without a
     G-buffer, with the raytraced frame's.
+13. **Instances from the GPU.** The boxes not as the CPU's instances but in a texture as
+    Parallax's scatter comes, beside an empty run: the same shadows, to the pixel.
+14. **Displaced terrain.** The rays' ground 0.3 m above the drawn one: lit as terrain,
+    shading itself as any other mesh.
 
 ## Plan
 
@@ -242,26 +271,35 @@ Each stage ends with its checks passing, a review, and one commit.
 | 3 | ReDefinition's denoiser; the adapters for Ray Regeneration and Ray Reconstruction | check 5 passes; Ray Reconstruction runs in the harness on NVIDIA's DLLs |
 | 4 | The Unity side free of KSP: collection, per-frame instances, G-buffer capture, the two shaders, the carry-over; the Unity test player | the test player shows raytraced shadows and light, and its checks pass |
 | 5 | KSP: parts, KSC, terrain, floating origin, the sun, cameras, settings, the diagnostics log; raytracing without Deferred | the C# tests pass, a log line says what went into the scene, and the test player's checks without Deferred pass |
-| 6 | Compatibility with every installed mod (table below) | each row has its handling, marked **[src]** |
+| 6 | Compatibility with every installed mod (table below), Parallax's scatter from the GPU | each row has its handling, marked **[src]** |
 | 7 | Performance, the player page, one flight's checklist | the timings fit the budget below |
 
 Budget on the RTX 4090, 2560 by 1440 with DLSS Quality: everything together within 4 ms
-of GPU time **[open]**.
+of GPU time. The test player's budget run renders 1707 by 960, as DLSS Quality does at
+that size, with 400 m of ground in 131 072 triangles, 404 instances and 20 008 from the
+GPU, every signal, two bounces and the denoiser: 2.56 ms **[meas]**. The denoiser takes
+1.98 ms of it, the scene's build 0.17 ms. The camera takes its textures' native handles
+once, as they are made: Unity's GetNativeTexturePtr waits for the render thread. In the game the scene is larger; the log's line
+every 30 seconds gives its timings **[open]**.
+
+In the game, one flight checks what the test player cannot: the terrain and the parts in
+the rays, Scatterer's and EVE's shadows over the raytraced ones, Parallax's scatter, a
+night side, and DLSS Ray Reconstruction where DLSS frame generation runs **[open]**.
 
 ## Installed mods
 
 | Mod | What raytracing does with it |
 |---|---|
-| Deferred | optional; provides the G-buffer; its reflections shader is replaced while diffuse light is raytraced, and set back afterwards; without it, see "Without Deferred" |
-| Parallax Continued | its finer terrain copy near the camera is in the scene; its displacement is covered by the ray offset; its scatter is added from its GPU buffers |
-| Scatterer | its ocean and atmosphere stay as they are; its shadow changes stay; its eclipse modulation of the shadow mask applies after the raytraced shadow |
-| EVE, Stock Volumetric Clouds | clouds stay out of the scene; cloud shadows still multiply into the shadow mask |
-| Waterfall, Firefly | out of the scene, as transparent effects |
-| TUFX | post-processing runs after, on the lit frame |
-| Kopernicus | the sun is the star KSP lights the scene with |
-| PlanetShine | its planet light and raytraced diffuse light both brighten the dark side; [open] whether to turn its light down while diffuse light is raytraced |
-| DistantObject | its flares and labels are not in the scene |
-| FreeIva, ThroughTheEyes | raytracing follows the scene camera; the IVA camera keeps Unity's lighting [open] |
-| JSI (RasterPropMonitor), VesselView | their own cameras keep Unity's lighting |
-| KSPCommunityFixes, Shabby, KSPTextureLoader | meshes and textures reach the scene as the game has them [open] |
+| Deferred | optional; provides the G-buffer; its reflections shader is replaced while diffuse light is raytraced, and set back afterwards **[src]**; without it, see "Without Deferred" |
+| Parallax Continued | its finer terrain copy near the camera is in the scene, the quad under it left out **[src]**; its displacement is passed through for the first metre of a pixel's rays **[meas]**; its scatter comes from its GPU buffers **[src]** **[meas]** (test player: a box only in such a buffer casts its shadow) |
+| Scatterer | its ocean and atmosphere stay out of the scene; its long-distance shadows shader gives way while raytracing runs and comes back after **[src]**; its eclipse and extinction change the sun's colour only while the local cameras draw, and the rays take the colour then **[src]**; its ocean caustics multiply into the sun's mask after the raytraced visibility **[src]** |
+| EVE, Stock Volumetric Clouds | clouds stay out of the scene; cloud and eclipse shadows multiply into the sun's mask after the raytraced visibility **[src]** |
+| Waterfall, Firefly | out of the scene: every material of theirs is transparent **[src]**; Firefly draws its effects after the raytraced light **[src]** |
+| TUFX | its post-processing runs on the scene camera after the lit frame **[src]** |
+| Kopernicus | the scene's star is its current star (`KopernicusStar.Current`), not `Sun.Instance`, which its star clones set **[src]**; the other stars' lights keep their shadow maps; its ShadowMan's shadows shader is handled as Scatterer's **[src]** |
+| PlanetShine | its lights are turned off while the raytraced diffuse light brings the planet's light from the reflection probe, which sees the planet **[src]**, and set back as they were afterwards; without a probe they stay |
+| DistantObject | its flares are transparent and stay out of the scene **[src]** |
+| FreeIva, ThroughTheEyes | the IVA and the first-person kerbal are drawn by the internal camera, on layers the scene camera does not draw: out of the scene, with Unity's lighting **[src]** |
+| JSI (RasterPropMonitor), VesselView | RasterPropMonitor's cameras copy the scene camera without its command buffers **[src]** **[doc]** and keep Unity's lighting; VesselView draws without a camera **[src]** |
+| KSPCommunityFixes, Shabby, KSPTextureLoader, B9PartSwitch | part meshes stay readable **[src]**; Shabby replaces nothing without its configurations **[src]**; KSPTextureLoader's textures are ordinary ones **[src]**; B9PartSwitch switches by turning objects on and off and gives renderers materials of their own, which the scene follows each frame **[src]** |
 | ReDefinition's upscaler and frame generation | raytracing runs at the render resolution, before the upscaler; with DLSS Ray Reconstruction, Ray Reconstruction takes DLSS's place |

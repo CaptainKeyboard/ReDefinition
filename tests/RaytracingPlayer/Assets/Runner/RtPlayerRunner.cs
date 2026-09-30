@@ -32,6 +32,20 @@ namespace ReDefinition.RaytracingPlayer
         }
     }
 
+    // Instances only the GPU knows, as Parallax's scatter: an append buffer of
+    // transforms with a count, no renderer.
+    internal sealed class RtGpuBoxes : IRtGpuSource
+    {
+        internal ComputeBuffer Transforms;
+        internal Mesh Mesh;
+        internal Material Material;
+
+        public void CollectGpu(List<RtGpuItem> into)
+        {
+            into.Add(new RtGpuItem { Transforms = Transforms, Mesh = Mesh, SubMesh = 0, Material = Material, Mask = 0xFF });
+        }
+    }
+
     // The raytracing test player's run (docs/development/raytracing.md, "Testing
     // without the game"). It builds a scene, renders it without raytracing and with
     // it, and checks the images: a shadow the shadow maps do not reach, one they do,
@@ -39,7 +53,10 @@ namespace ReDefinition.RaytracingPlayer
     // the images go to -out.
     //
     //   RaytracingPlayer.exe -logFile player.log -out <folder> [-deferred <folder with
-    //     Deferred's "deferredshaders" bundle>]
+    //     Deferred's "deferredshaders" bundle>] [-builtinDeferred 1] [-budget 1]
+    //
+    // With -budget it measures instead: a scene of the size KSP's flight holds near the
+    // ground, every signal on, against the GPU time budget.
     public sealed class RtPlayerRunner : MonoBehaviour
     {
         private readonly Vector3 towardsSun = new Vector3(0.3f, 0.6f, 0.74f).normalized;
@@ -50,9 +67,15 @@ namespace ReDefinition.RaytracingPlayer
         private Camera cam;
         private RtCamera raytracing;
         private ReflectionProbe probe;
+        // A box only the rays see, from the GPU's instances.
+        private readonly Vector3 gpuBox = new Vector3(8f, 1f, -12f);
+        private ComputeBuffer gpuTransforms;
+
+        private bool budget;
 
         private void Start()
         {
+            budget = Argument("-budget") != null;
             output = Argument("-out") ?? Path.Combine(Application.dataPath, "..");
             Directory.CreateDirectory(output);
             Log("start, " + SystemInfo.graphicsDeviceName + ", " + SystemInfo.graphicsDeviceVersion);
@@ -181,9 +204,23 @@ namespace ReDefinition.RaytracingPlayer
             raytracing.enabled = false;
             raytracing.Sun = () => new Vector4(towardsSun.x, towardsSun.y, towardsSun.z, 0.0047f);
             raytracing.SunColor = () => light.color * light.intensity;
+            raytracing.SunLight = () => light;
             raytracing.SkyColor = () => new Color(0.4f, 0.5f, 0.7f);
             raytracing.Environment = () => probe.texture;
             raytracing.Scene.AddSource(new RtUnitySource());
+
+            // Eight places, two taken: the box and one far away; the rest beyond the count.
+            gpuTransforms = new ComputeBuffer(8, 64, ComputeBufferType.Append);
+            var places = new Matrix4x4[8];
+            places[0] = Matrix4x4.TRS(gpuBox, Quaternion.identity, new Vector3(2f, 2f, 2f));
+            places[1] = Matrix4x4.TRS(new Vector3(0f, 1f, 400f), Quaternion.identity, Vector3.one);
+            for (int i = 2; i < 8; i++) places[i] = Matrix4x4.TRS(new Vector3(0f, 1f, -25f), Quaternion.identity, Vector3.one * 3f);
+            gpuTransforms.SetData(places);
+            gpuTransforms.SetCounterValue(2);
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Mesh cubeMesh = cube.GetComponent<MeshFilter>().sharedMesh;
+            Destroy(cube);
+            raytracing.Scene.AddGpuSource(new RtGpuBoxes { Transforms = gpuTransforms, Mesh = cubeMesh, Material = template });
         }
 
         private static void Box(Vector3 centre, Vector3 size, Material material)
@@ -197,6 +234,12 @@ namespace ReDefinition.RaytracingPlayer
         private IEnumerator Run()
         {
             probe.RenderProbe();
+            if (budget)
+            {
+                yield return Budget();
+                Finish();
+                yield break;
+            }
             for (int i = 0; i < 30; i++) yield return null;
             Texture2D without = null;
             yield return Capture(t => without = t);
@@ -267,6 +310,17 @@ namespace ReDefinition.RaytracingPlayer
                   "a lit point at " + (litChange * 100f).ToString("0") + " % of its brightness without raytracing");
             Check(raytracing.Scene.InstanceCount >= 3, "the scene handed over",
                   raytracing.Scene.InstanceCount + " instances");
+            // The GPU's box casts its shadow in the rays alone; the places beyond its
+            // buffer's count cast none.
+            Vector3 gpuShadow = ShadowOf(gpuBox);
+            Vector3 gpuLit = gpuShadow + new Vector3(4f, 0f, 0f);
+            float gpuWith = Ratio(with, gpuShadow, gpuLit);
+            float gpuWithout = Ratio(without, gpuShadow, gpuLit);
+            Vector3 beyond = ShadowOf(new Vector3(0f, 1f, -25f));
+            float beyondWith = Ratio(with, beyond, beyond + new Vector3(4f, 0f, 0f));
+            Check(gpuWith < 0.9f * gpuWithout && beyondWith > 0.9f, "instances from the GPU",
+                  "a box only in the GPU's buffer shades the ground to " + (gpuWith * 100f).ToString("0") + " % (without raytracing "
+                  + (gpuWithout * 100f).ToString("0") + " %); past its count, " + (beyondWith * 100f).ToString("0") + " %");
             if (deferredMod)
                 Check(RtLighting.ReflectionsReplaced, "Deferred's reflections shader replaced",
                       "the raytraced diffuse light and reflections enter through it");
@@ -388,6 +442,118 @@ namespace ReDefinition.RaytracingPlayer
         private Vector3 ShadowOfPublic(Vector3 centre)
         {
             return centre - towardsSun * (centre.y / towardsSun.y);
+        }
+
+        private void OnDestroy()
+        {
+            gpuTransforms?.Release();
+            budgetTransforms?.Release();
+        }
+
+        // The budget (docs/development/raytracing.md, "Plan"): on the RTX 4090 at 2560 by
+        // 1440 with DLSS Quality, which renders 1707 by 960, everything together within
+        // 4 ms of GPU time. The scene: 400 m of rolling ground in 131 072 triangles as
+        // terrain quads come near the camera, 400 boxes as a vessel's parts and the
+        // buildings, 20 000 rocks from the GPU as Parallax's scatter; all four signals,
+        // two bounces, the denoiser.
+        private ComputeBuffer budgetTransforms;
+
+        private IEnumerator Budget()
+        {
+            const int cells = 256;
+            const float size = 400f;
+            var vertices = new Vector3[(cells + 1) * (cells + 1)];
+            var triangles = new int[cells * cells * 6];
+            for (int z = 0; z <= cells; z++)
+                for (int x = 0; x <= cells; x++)
+                {
+                    float px = (x / (float)cells - 0.5f) * size, pz = (z / (float)cells - 0.5f) * size;
+                    vertices[z * (cells + 1) + x] = new Vector3(px, 1.5f * Mathf.Sin(px * 0.05f) * Mathf.Cos(pz * 0.07f) - 0.2f, pz);
+                }
+            int t = 0;
+            for (int z = 0; z < cells; z++)
+                for (int x = 0; x < cells; x++)
+                {
+                    int i = z * (cells + 1) + x;
+                    triangles[t++] = i; triangles[t++] = i + cells + 1; triangles[t++] = i + 1;
+                    triangles[t++] = i + 1; triangles[t++] = i + cells + 1; triangles[t++] = i + cells + 2;
+                }
+            var ground = new Mesh { name = "budget ground", indexFormat = IndexFormat.UInt32 };
+            ground.vertices = vertices;
+            ground.triangles = triangles;
+            ground.RecalculateNormals();
+            var groundObject = new GameObject("Budget ground");
+            groundObject.AddComponent<MeshFilter>().sharedMesh = ground;
+            Material template = Resources.Load<Material>("RtStandard");
+            groundObject.AddComponent<MeshRenderer>().sharedMaterial = template;
+
+            var random = new System.Random(7);
+            for (int i = 0; i < 400; i++)
+            {
+                Vector3 at = new Vector3((float)random.NextDouble() * 160f - 80f, 1f, (float)random.NextDouble() * 160f - 40f);
+                GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                box.transform.position = at;
+                box.transform.localScale = Vector3.one * (0.5f + (float)random.NextDouble() * 2f);
+                box.GetComponent<Renderer>().sharedMaterial = template;
+            }
+
+            // A buffer as large as Parallax's are, most of it empty.
+            const int rocks = 20000;
+            const int capacity = 100000;
+            budgetTransforms = new ComputeBuffer(capacity, 64, ComputeBufferType.Append);
+            var places = new Matrix4x4[capacity];
+            for (int i = 0; i < rocks; i++)
+            {
+                Vector3 at = new Vector3((float)random.NextDouble() * 300f - 150f, 0.1f, (float)random.NextDouble() * 300f - 100f);
+                places[i] = Matrix4x4.TRS(at, Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f),
+                                          Vector3.one * (0.2f + (float)random.NextDouble() * 0.6f));
+            }
+            budgetTransforms.SetData(places);
+            budgetTransforms.SetCounterValue(rocks);
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Mesh cubeMesh = cube.GetComponent<MeshFilter>().sharedMesh;
+            Destroy(cube);
+            raytracing.Scene.AddGpuSource(new RtGpuBoxes { Transforms = budgetTransforms, Mesh = cubeMesh, Material = template });
+
+            raytracing.Settings = RtSettings.Full();
+            raytracing.enabled = true;
+            for (int i = 0; i < 120; i++) yield return null;
+            // Averaged over a second of frames.
+            float build = 0f, trace = 0f;
+            var sums = new float[8];
+            const int samples = 60;
+            for (int i = 0; i < samples; i++)
+            {
+                yield return null;
+                string text = raytracing.Status();
+                build += Number(text, "build=");
+                trace += Number(text, "trace=");
+                for (int p = 0; p < 8; p++) sums[p] += raytracing.PassTimings[p];
+            }
+            build /= samples;
+            trace /= samples;
+            float total = build + trace;
+            Log("budget at " + Screen.width + "x" + Screen.height + ": " + raytracing.Scene.InstanceCount + " instances and "
+                + raytracing.Scene.GpuTotal + " from the GPU; GPU ms: scene " + build.ToString("0.00") + ", sun "
+                + (sums[0] / samples).ToString("0.00") + ", diffuse " + (sums[2] / samples).ToString("0.00") + ", reflections "
+                + (sums[3] / samples).ToString("0.00") + ", forward light " + (sums[4] / samples).ToString("0.00")
+                + ", denoiser " + (sums[6] / samples).ToString("0.00") + "; " + raytracing.Status());
+            Check(total > 0f && total < 4f, "the budget", "everything together " + total.ToString("0.00") + " ms of GPU time");
+            Check(raytracing.Scene.GpuTotal >= rocks && raytracing.Scene.GpuTotal < rocks * 3 / 2, "places for the GPU's instances",
+                  raytracing.Scene.GpuTotal + " places handed over for " + rocks + " rocks in a buffer of " + capacity);
+        }
+
+        // The number after key in the service's status line, as its text gives it.
+        private static float Number(string text, string key)
+        {
+            int at = text.IndexOf(key, StringComparison.Ordinal);
+            if (at < 0) return 0f;
+            at += key.Length;
+            int end = at;
+            while (end < text.Length && (char.IsDigit(text[end]) || text[end] == '.')) end++;
+            float value;
+            return float.TryParse(text.Substring(at, end - at), System.Globalization.NumberStyles.Float,
+                                  System.Globalization.CultureInfo.InvariantCulture, out value) ? value : 0f;
         }
 
         private void Finish()

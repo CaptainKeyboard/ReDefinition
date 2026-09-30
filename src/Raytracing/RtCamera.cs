@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using ReDefinition.Bridges;
 using UnityEngine;
@@ -42,11 +43,16 @@ namespace ReDefinition.Raytracing
         internal readonly RtScene Scene = new RtScene();
         internal RtSettings Settings = RtSettings.Full();
 
-        // The shaders: the capture, the screen-space shadows, the deferred reflections.
+        // The shaders: the capture, the screen-space shadows, the deferred reflections;
+        // the compute shader that gathers the GPU's instances.
         internal Func<string, Shader> ShaderSource = Shader.Find;
+        internal Func<string, ComputeShader> ComputeSource = name => Resources.Load<ComputeShader>(name);
         // Towards the sun, and its angular radius in w; its colour; the sky's.
         internal Func<Vector4> Sun = () => new Vector4(0.3f, 0.8f, 0.5f, 0.0047f);
         internal Func<Color> SunColor = () => Color.white;
+        // The sun's light, whose screen-space mask alone takes the raytraced visibility;
+        // null for every directional light's.
+        internal Func<Light> SunLight;
         internal Func<Color> SkyColor = () => RenderSettings.ambientSkyColor;
         // The sky as a cube map, or null for the sky's colour.
         internal Func<Texture> Environment = () => null;
@@ -102,6 +108,13 @@ namespace ReDefinition.Raytracing
         private CommandBuffer command;
         private CommandBuffer gbufferCopy;
         private CommandBuffer forwardLight;
+        private CommandBuffer maskOn, maskOff;
+        private Light maskedLight;
+        // The sun's colour while this camera draws: Scatterer changes it for the local
+        // cameras only, by the eclipse and the atmosphere's extinction, and sets it back
+        // after them (SunlightModulator).
+        private Color drawnSunColour;
+        private int drawnSunFrame = -1;
         private CameraEvent forwardEvent;
         private Material forwardMaterial;
         private Mesh screenQuad;
@@ -110,7 +123,22 @@ namespace ReDefinition.Raytracing
         private PacketRing ring;
         private RtNative.FramePacket packet;
         private RenderTexture depth, gbuffer0, gbuffer1, gbuffer2, motion, environment;
-        private RenderTexture sun, diffuse, specular, occlusion, forward;
+        private RenderTexture sun, diffuse, specular, forward;
+        // The targets' native textures, taken once as they are made: GetNativeTexturePtr
+        // waits for the render thread.
+        private IntPtr depthHandle, gbuffer0Handle, gbuffer1Handle, gbuffer2Handle, motionHandle, environmentHandle;
+        private IntPtr sunHandle, diffuseHandle, specularHandle, forwardHandle;
+        // The GPU's instances gathered for the proxy (ReDefinitionRtScatter.compute), and
+        // the append buffers' counts.
+        private ComputeShader gather;
+        private int gatherKernel = -1;
+        private bool gatherLooked;
+        // The buffers each read-back of the counts belongs to, one set per request in
+        // flight.
+        private readonly List<ComputeBuffer[]> countedBuffers = new List<ComputeBuffer[]>();
+        private RenderTexture gpuInstances;
+        private IntPtr gpuInstancesHandle;
+        private ComputeBuffer gpuCounts;
         private int width, height;
         private uint frameIndex;
         private bool haveHistory;
@@ -124,6 +152,7 @@ namespace ReDefinition.Raytracing
         private int statusFrame;
 
         private static readonly int RtOn = Shader.PropertyToID("_ReDefinitionRtOn");
+        private static readonly int RtSunMask = Shader.PropertyToID("_ReDefinitionRtSunMask");
         private static readonly int RtLight = Shader.PropertyToID("_ReDefinitionRtLight");
         private static readonly int RtPrevViewProj = Shader.PropertyToID("_ReDefinitionRtPrevViewProj");
         private static readonly int RtOffsetNear = Shader.PropertyToID("_ReDefinitionRtOffsetNear");
@@ -194,6 +223,10 @@ namespace ReDefinition.Raytracing
                 forwardEvent = CameraEvent.AfterForwardOpaque;
                 cam.AddCommandBuffer(forwardEvent, forwardLight);
             }
+            maskOn = new CommandBuffer { name = "ReDefinition raytracing sun mask on" };
+            maskOn.SetGlobalFloat(RtSunMask, 1f);
+            maskOff = new CommandBuffer { name = "ReDefinition raytracing sun mask off" };
+            maskOff.SetGlobalFloat(RtSunMask, 0f);
             cam.depthTextureMode |= DepthTextureMode.Depth;
             haveHistory = false;
             Problem = null;
@@ -215,10 +248,16 @@ namespace ReDefinition.Raytracing
                 if (gbufferCopy != null) cam.RemoveCommandBuffer(CameraEvent.AfterGBuffer, gbufferCopy);
                 if (forwardLight != null) cam.RemoveCommandBuffer(forwardEvent, forwardLight);
             }
+            MaskSun(null);
+            maskOn?.Release();
+            maskOff?.Release();
+            maskOn = maskOff = null;
             Shader.SetGlobalFloat(RtOn, 0f);
+            Shader.SetGlobalFloat(RtSunMask, 0f);
             RtLighting.Restore();
             Scene.Clear();
             ReleaseTargets();
+            ReleaseGpuInstances();
             if (capture != null) Destroy(capture);
             capture = null;
             command?.Release();
@@ -238,6 +277,8 @@ namespace ReDefinition.Raytracing
         {
             if (capture == null) return;
             RtLighting.Keep(Settings.Shadows ? shadows : null, Settings.Diffuse || Settings.Reflections ? reflections : null);
+            if (SunLight != null) MaskSun(SunLight());
+            else Shader.SetGlobalFloat(RtSunMask, 1f);
 
             // The service's generation, which changes with its device, now and then.
             if (generation < 0 || ++statusFrame >= 30)
@@ -247,7 +288,7 @@ namespace ReDefinition.Raytracing
                 generation = RtNative.KspRtStatus(statusText, statusText.Capacity);
             }
             position = RtPosition.From(transform.position);
-            Scene.Update(position, generation);
+            Scene.Update(position, generation, frameIndex);
 
             // The raytraced light into the frame, where Deferred's reflections pass does not
             // take it.
@@ -313,6 +354,33 @@ namespace ReDefinition.Raytracing
             renderedProjection = cam.projectionMatrix;
         }
 
+        // After this camera's scene, before its OnPostRender, where the sun's colour is
+        // still the one it drew with.
+        private void OnRenderObject()
+        {
+            if (Camera.current != cam) return;
+            drawnSunColour = SunColor();
+            drawnSunFrame = Time.frameCount;
+        }
+
+        // The mask flag on the sun's light, moved when the sun is another light now.
+        private void MaskSun(Light light)
+        {
+            if (light == maskedLight) return;
+            if (maskedLight != null)
+            {
+                maskedLight.RemoveCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
+                maskedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, maskOff);
+            }
+            maskedLight = light;
+            Shader.SetGlobalFloat(RtSunMask, 0f);
+            if (light != null && maskOn != null)
+            {
+                light.AddCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
+                light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, maskOff);
+            }
+        }
+
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
             if (capture == null || source == null)
@@ -339,7 +407,9 @@ namespace ReDefinition.Raytracing
                 command.Blit(source, environment, capture, 5);
             }
 
+            bool withGpu = GatherGpuInstances();
             FillPacket(deferred, withMotion, cube != null);
+            if (withGpu) packet.Inputs[RtNative.InputInstances] = gpuInstancesHandle;
             ring.Issue(command, RtNative.RenderEvent, RtNative.FrameEvent, ref packet);
             Graphics.ExecuteCommandBuffer(command);
             Graphics.Blit(source, destination);
@@ -348,6 +418,85 @@ namespace ReDefinition.Raytracing
             previousPosition = position;
             haveHistory = true;
             frameIndex++;
+        }
+
+        // The GPU's instances of this frame into the texture the proxy reads them from,
+        // relative to the camera; false where there are none.
+        private bool GatherGpuInstances()
+        {
+            int total = Scene.GpuTotal;
+            if (total == 0) return false;
+            if (!gatherLooked)
+            {
+                // Once: a kernel that did not compile for this device throws each time.
+                gatherLooked = true;
+                gather = ComputeSource("ReDefinitionRtScatter");
+                try
+                {
+                    gatherKernel = gather != null ? gather.FindKernel("Gather") : -1;
+                }
+                catch (Exception)
+                {
+                    gatherKernel = -1;
+                }
+            }
+            if (gatherKernel < 0) return false;
+            int rows = (total + RtNative.InstancesPerRow - 1) / RtNative.InstancesPerRow;
+            if (gpuInstances == null || gpuInstances.height < rows)
+            {
+                if (gpuInstances != null)
+                {
+                    gpuInstances.Release();
+                    Destroy(gpuInstances);
+                }
+                gpuInstances = new RenderTexture(RtNative.InstancesPerRow * 3, Math.Max(rows, 16), 0, RenderTextureFormat.ARGBFloat,
+                                                 RenderTextureReadWrite.Linear)
+                {
+                    name = "ReDefinition raytracing GPU instances",
+                    enableRandomWrite = true,
+                    filterMode = FilterMode.Point,
+                };
+                gpuInstances.Create();
+                // Once: GetNativeTexturePtr waits for the render thread.
+                gpuInstancesHandle = gpuInstances.GetNativeTexturePtr();
+            }
+            int items = Scene.GpuItems.Count;
+            if (gpuCounts == null || gpuCounts.count < items)
+            {
+                gpuCounts?.Release();
+                gpuCounts = new ComputeBuffer(Math.Max(items, 64), 4, ComputeBufferType.Raw);
+            }
+            Vector3 eye = transform.position;
+            command.SetComputeVectorParam(gather, "_Eye", new Vector4(eye.x, eye.y, eye.z, 0f));
+            command.SetComputeTextureParam(gather, gatherKernel, "_Out", gpuInstances);
+            command.SetComputeBufferParam(gather, gatherKernel, "_Counts", gpuCounts);
+            var counted = new ComputeBuffer[items];
+            for (int i = 0; i < items; i++)
+            {
+                RtGpuItem item = Scene.GpuItems[i];
+                counted[i] = item.Transforms;
+                int places = Scene.GpuPlaces[i];
+                command.CopyCounterValue(item.Transforms, gpuCounts, (uint)(i * 4));
+                command.SetComputeBufferParam(gather, gatherKernel, "_Source", item.Transforms);
+                command.SetComputeIntParam(gather, "_CountIndex", i);
+                command.SetComputeIntParam(gather, "_Capacity", places);
+                command.SetComputeIntParam(gather, "_First", Scene.GpuFirst[i]);
+                command.DispatchCompute(gather, gatherKernel, (places + 63) / 64, 1, 1);
+            }
+            // How many places each buffer took, for the next frames' reservations.
+            if (SystemInfo.supportsAsyncGPUReadback && countedBuffers.Count < 4)
+            {
+                countedBuffers.Add(counted);
+                command.RequestAsyncReadback(gpuCounts, items * 4, 0, request =>
+                {
+                    countedBuffers.Remove(counted);
+                    if (request.hasError) return;
+                    Unity.Collections.NativeArray<uint> taken = request.GetData<uint>();
+                    for (int i = 0; i < counted.Length && i < taken.Length; i++)
+                        Scene.NoteGpuTaken(counted[i], (int)taken[i]);
+                });
+            }
+            return true;
         }
 
         // The projection as the GPU used it, into a render texture, times the camera's
@@ -383,7 +532,7 @@ namespace ReDefinition.Raytracing
             packet.SunDirection[1] = direction.y;
             packet.SunDirection[2] = direction.z;
             packet.SunDirection[3] = towards.w;
-            Color sunColour = SunColor();
+            Color sunColour = drawnSunFrame == Time.frameCount ? drawnSunColour : SunColor();
             packet.SunColor[0] = sunColour.r;
             packet.SunColor[1] = sunColour.g;
             packet.SunColor[2] = sunColour.b;
@@ -455,24 +604,22 @@ namespace ReDefinition.Raytracing
                 packet.Inputs[i] = IntPtr.Zero;
                 packet.Outputs[i] = IntPtr.Zero;
             }
-            packet.Inputs[RtNative.InputDepth] = depth.GetNativeTexturePtr();
+            packet.Inputs[RtNative.InputDepth] = depthHandle;
             if (deferred)
             {
                 // Without a G-buffer the proxy takes each pixel's surface from its rays.
-                packet.Inputs[RtNative.InputGBuffer0] = gbuffer0.GetNativeTexturePtr();
-                packet.Inputs[RtNative.InputGBuffer1] = gbuffer1.GetNativeTexturePtr();
-                packet.Inputs[RtNative.InputGBuffer2] = gbuffer2.GetNativeTexturePtr();
+                packet.Inputs[RtNative.InputGBuffer0] = gbuffer0Handle;
+                packet.Inputs[RtNative.InputGBuffer1] = gbuffer1Handle;
+                packet.Inputs[RtNative.InputGBuffer2] = gbuffer2Handle;
             }
-            if (withMotion) packet.Inputs[RtNative.InputMotion] = motion.GetNativeTexturePtr();
-            if (withEnvironment) packet.Inputs[RtNative.InputEnvironment] = environment.GetNativeTexturePtr();
-            if ((signals & RtNative.SignalSun) != 0) packet.Outputs[RtNative.OutputSun] = sun.GetNativeTexturePtr();
-            if ((signals & RtNative.SignalDiffuse) != 0) packet.Outputs[RtNative.OutputDiffuse] = diffuse.GetNativeTexturePtr();
+            if (withMotion) packet.Inputs[RtNative.InputMotion] = motionHandle;
+            if (withEnvironment) packet.Inputs[RtNative.InputEnvironment] = environmentHandle;
+            if ((signals & RtNative.SignalSun) != 0) packet.Outputs[RtNative.OutputSun] = sunHandle;
+            if ((signals & RtNative.SignalDiffuse) != 0) packet.Outputs[RtNative.OutputDiffuse] = diffuseHandle;
             if ((signals & RtNative.SignalSpecular) != 0)
-                packet.Outputs[RtNative.OutputSpecular] = specular.GetNativeTexturePtr();
-            if ((signals & RtNative.SignalOcclusion) != 0)
-                packet.Outputs[RtNative.OutputOcclusion] = occlusion.GetNativeTexturePtr();
+                packet.Outputs[RtNative.OutputSpecular] = specularHandle;
             if ((signals & RtNative.SignalForwardLight) != 0)
-                packet.Outputs[RtNative.OutputForwardLight] = forward.GetNativeTexturePtr();
+                packet.Outputs[RtNative.OutputForwardLight] = forwardHandle;
         }
 
         private static Matrix4x4 Translation(double x, double y, double z)
@@ -494,7 +641,8 @@ namespace ReDefinition.Raytracing
 
         private void EnsureTargets(int newWidth, int newHeight)
         {
-            if (depth != null && width == newWidth && height == newHeight) return;
+            // Made again where Unity let a texture go, as its native handle goes with it.
+            if (depth != null && width == newWidth && height == newHeight && depth.IsCreated() && sun.IsCreated()) return;
             ReleaseTargets();
             width = newWidth;
             height = newHeight;
@@ -512,8 +660,17 @@ namespace ReDefinition.Raytracing
             sun = Target(RenderTextureFormat.ARGBHalf);
             diffuse = Target(RenderTextureFormat.ARGBHalf);
             specular = Target(RenderTextureFormat.ARGBHalf);
-            occlusion = Target(RenderTextureFormat.ARGBHalf);
             forward = Target(RenderTextureFormat.ARGBHalf);
+            depthHandle = depth.GetNativeTexturePtr();
+            gbuffer0Handle = gbuffer0.GetNativeTexturePtr();
+            gbuffer1Handle = gbuffer1.GetNativeTexturePtr();
+            gbuffer2Handle = gbuffer2.GetNativeTexturePtr();
+            motionHandle = motion.GetNativeTexturePtr();
+            environmentHandle = environment.GetNativeTexturePtr();
+            sunHandle = sun.GetNativeTexturePtr();
+            diffuseHandle = diffuse.GetNativeTexturePtr();
+            specularHandle = specular.GetNativeTexturePtr();
+            forwardHandle = forward.GetNativeTexturePtr();
             haveHistory = false;
             gbufferReady = false;
         }
@@ -530,16 +687,31 @@ namespace ReDefinition.Raytracing
             return texture;
         }
 
+        private void ReleaseGpuInstances()
+        {
+            if (gpuInstances != null)
+            {
+                gpuInstances.Release();
+                Destroy(gpuInstances);
+            }
+            gpuInstances = null;
+            gpuInstancesHandle = IntPtr.Zero;
+            gpuCounts?.Release();
+            gpuCounts = null;
+        }
+
         private void ReleaseTargets()
         {
             foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer2, motion, environment, sun, diffuse,
-                                                      specular, occlusion, forward })
+                                                      specular, forward })
                 if (texture != null)
                 {
                     texture.Release();
                     Destroy(texture);
                 }
-            depth = gbuffer0 = gbuffer1 = gbuffer2 = motion = environment = sun = diffuse = specular = occlusion = forward = null;
+            depth = gbuffer0 = gbuffer1 = gbuffer2 = motion = environment = sun = diffuse = specular = forward = null;
+            depthHandle = gbuffer0Handle = gbuffer1Handle = gbuffer2Handle = motionHandle = environmentHandle = IntPtr.Zero;
+            sunHandle = diffuseHandle = specularHandle = forwardHandle = IntPtr.Zero;
         }
 
         // The textures of the last frame, for the test player's and the diagnostics' look.

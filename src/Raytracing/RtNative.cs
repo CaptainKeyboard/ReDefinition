@@ -41,6 +41,13 @@ namespace ReDefinition.Raytracing
         internal const int InputGBuffer2 = 3;
         internal const int InputMotion = 4;
         internal const int InputEnvironment = 5;
+        // Instances the GPU made, three texels each, InstancesPerRow to a row (Raytracing.h).
+        internal const int InputInstances = 6;
+        // Instance flags (Raytracing.h, kRtInstance*).
+        internal const uint InstanceTerrain = 1u << 0;
+        internal const int InstancesPerRow = 256;
+        // Instances and groups for every frame without its own.
+        internal const uint AnyFrame = 0xFFFFFFFFu;
 
         internal const int OutputSun = 0;
         internal const int OutputDiffuse = 1;
@@ -90,6 +97,20 @@ namespace ReDefinition.Raytracing
             public int Material;
             public uint Mask;
             public uint Flags;
+        }
+
+        // A run of the GPU's instances, as RtGpuInstanceGroup in Raytracing.h.
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct GpuGroup
+        {
+            public int Mesh;
+            public int Material;
+            public uint First;
+            public uint Count;
+            public uint Mask;
+            public uint Flags;
+            public uint Reserved0;
+            public uint Reserved1;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -222,7 +243,10 @@ namespace ReDefinition.Raytracing
         internal static extern int KspRtSetMaterialTexture(int layer, byte[] pixels, int size);
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern int KspRtSetInstances(Instance[] instances, int count);
+        internal static extern int KspRtSetInstances(Instance[] instances, int count, uint frameIndex);
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int KspRtSetGpuGroups(GpuGroup[] groups, int count, uint frameIndex);
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         internal static extern int KspRtStatus(StringBuilder buffer, int size);

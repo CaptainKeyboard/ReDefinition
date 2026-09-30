@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <mutex>
 #include <string>
@@ -80,7 +81,25 @@ namespace redefinition
         int32_t mesh;
         int32_t material;
         uint32_t mask;
+        uint32_t flags;   // kRtInstance*
+    };
+
+    // Terrain, which the passes pass through for the first metre from a pixel's surface:
+    // Parallax displaces the drawn terrain on the GPU, off the mesh the rays see.
+    constexpr uint32_t kRtInstanceTerrain = 1u << 0;
+
+    // A run of instances the GPU made, in the frame's t7: mesh and material as the
+    // managed side handed them over, where the run starts in t7 and how long it is, the
+    // ray mask and flags each of its instances takes.
+    struct RtGpuInstanceGroup
+    {
+        int32_t mesh;
+        int32_t material;
+        uint32_t first;
+        uint32_t count;
+        uint32_t mask;
         uint32_t flags;
+        uint32_t reserved[2];
     };
 
     // The frame's flags.
@@ -109,6 +128,15 @@ namespace redefinition
     constexpr uint32_t kRtInputGBuffer2 = 3;
     constexpr uint32_t kRtInputMotion = 4;
     constexpr uint32_t kRtInputEnvironment = 5;   // t6: the sky as a latitude-longitude image
+    // t7: instances the GPU made (Parallax's scatter), camera-relative, as
+    // R32G32B32A32_FLOAT: each the three rows of its transform in three texels side by
+    // side, kRtInstancesPerRow to a texture row; all zero for none. The frame's
+    // RtGpuInstanceGroup list says which mesh and material each run of them is.
+    constexpr uint32_t kRtInputInstances = 6;
+    constexpr uint32_t kRtInstancesPerRow = 256;
+
+    // A frame's instances and groups set for every frame that has none of its own.
+    constexpr uint32_t kRtAnyFrame = 0xFFFFFFFFu;
 
     // The material textures: small copies of each material's main texture, in one
     // array of kRtMaterialTextureSize square RGBA8 layers, sRGB.
@@ -200,6 +228,7 @@ namespace redefinition
     static_assert(sizeof(RtMeshDesc) == 56, "RtMeshDesc layout changed: update the managed side");
     static_assert(sizeof(RtMaterialDesc) == 64, "RtMaterialDesc layout changed: update the managed side");
     static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
+    static_assert(sizeof(RtGpuInstanceGroup) == 32, "RtGpuInstanceGroup layout changed: update the managed side");
     static_assert(offsetof(RtFramePacket, clipToWorld) == 32, "RtFramePacket layout changed");
     static_assert(offsetof(RtFramePacket, inputs) == 368, "RtFramePacket layout changed");
     static_assert(sizeof(RtFramePacket) == 496, "RtFramePacket layout changed: update the managed side");
@@ -221,7 +250,10 @@ namespace redefinition
         void ReleaseMesh(int32_t mesh);
         int SetMaterial(const RtMaterialDesc* desc);
         void ReleaseMaterial(int32_t material);
-        int SetInstances(const RtInstance* instances, int count);
+        // A frame's instances and GPU instance groups, taken by the frame of that index
+        // (RtFramePacket's frameIndex); a frame without its own takes the newest.
+        int SetInstances(const RtInstance* instances, int count, uint32_t frameIndex);
+        int SetGpuGroups(const RtGpuInstanceGroup* groups, int count, uint32_t frameIndex);
         // A layer of the material textures: size by size pixels, RGBA8, rows from the top.
         int SetMaterialTexture(int layer, const uint8_t* pixels, int size);
 
@@ -360,6 +392,18 @@ namespace redefinition
             Microsoft::WRL::ComPtr<ID3D12Resource> materials;
             UINT instanceCapacity = 0;
             UINT materialCapacity = 0;
+            // With instances from the GPU: all instances in default buffers the GPU
+            // completes, and the groups for its pass.
+            Microsoft::WRL::ComPtr<ID3D12Resource> sceneDescs;
+            Microsoft::WRL::ComPtr<ID3D12Resource> sceneData;
+            Microsoft::WRL::ComPtr<ID3D12Resource> gpuGroups;
+            UINT sceneCapacity = 0;
+            UINT gpuGroupCapacity = 0;
+            // The state the scene buffers are in once the slot's list has run, and the one
+            // its recorded list leaves them in, taken over only when it is executed.
+            D3D12_RESOURCE_STATES sceneState = D3D12_RESOURCE_STATE_COMMON;
+            D3D12_RESOURCE_STATES sceneStateRecorded = D3D12_RESOURCE_STATE_COMMON;
+            D3D12_GPU_VIRTUAL_ADDRESS instanceDataAddress = 0;
             UINT64 done = 0;
             // What the slot's list uses, held until the slot comes round again.
             std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> held;
@@ -371,7 +415,10 @@ namespace redefinition
         Shared* SharedForLocked(void* unityTexture, std::string& problem);
         bool TakeDescriptorSlotLocked(uint32_t& slot);
         bool UploadMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot);
-        bool BuildSceneLocked(Slot& slot, UINT& instanceCount);
+        bool BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances, UINT& instanceCount);
+        // The GPU's instances after the CPU's in the slot's scene buffers.
+        bool AddGpuInstancesLocked(Slot& slot, UINT slotNumber, Shared* gpuInstances, const std::vector<RtGpuInstanceGroup>& given,
+                                   const std::unordered_map<int32_t, uint32_t>& materialIndex, UINT cpuCount, UINT& total);
         bool EnsureUploadBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size);
         bool EnsureMaterialTexturesLocked(UINT layers, Slot& slot);
         bool EnsureDenoiseTargetsLocked(UINT width, UINT height, Slot& slot);
@@ -443,7 +490,15 @@ namespace redefinition
         std::unordered_map<int32_t, PendingMesh> pendingMeshes;
         std::vector<int32_t> pendingReleases;
         std::unordered_map<int32_t, MaterialData> materialData;
-        std::vector<RtInstance> instances;
+        struct FrameScene
+        {
+            uint32_t frameIndex = kRtAnyFrame;
+            std::vector<RtInstance> instances;
+            std::vector<RtGpuInstanceGroup> groups;
+        };
+        // The last few frames' scenes, newest last.
+        std::deque<FrameScene> frameScenes;
+        FrameScene& FrameSceneLocked(uint32_t frameIndex);
 
         std::unordered_map<int32_t, Mesh> meshes;
         std::unordered_map<void*, Shared> textures;

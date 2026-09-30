@@ -366,12 +366,14 @@ compiles it on its own ([raytracing.md](raytracing.md)):
 | `unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader` | Deferred's reflections pass with the raytraced diffuse light and reflections |
 | `unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader` | the raytraced diffuse light and reflections added to the frame where Deferred is not there |
 | `unity/Assets/ReDefinition/Shaders/ReDefinitionRtReproject.cginc` | the carry-over of the previous frame's signals, shared by the lighting shaders |
+| `unity/Assets/ReDefinition/Shaders/ReDefinitionRtScatter.compute` | the GPU's instances, Parallax's scatter, gathered into the texture the proxy reads |
 
 KSP's side, which feeds the scene and the camera from the game:
 
 | File | What |
 |---|---|
-| `src/Raytracing/Ksp/RtKspSources.cs` | the scene's sources: vessel parts, skinned parts baked, terrain quads, KSC buildings and the editors' scenery |
+| `src/Raytracing/Ksp/RtKspSources.cs` | the scene's sources: vessel parts, skinned parts baked, terrain quads, KSC buildings and the editors' scenery, Parallax's scatter from the GPU |
+| `src/Raytracing/Ksp/RtKspMods.cs` | the installed mods raytracing reaches into where they are there: Kopernicus's current star, Parallax's scatter buffers, PlanetShine's lights |
 | `src/Raytracing/Ksp/RtKsp.cs` | the setting's modes, the scene camera's raytracing and its providers: sun, reflection probe, world shifts, rendered projection, main body; the report in the log |
 
 ## Around the code

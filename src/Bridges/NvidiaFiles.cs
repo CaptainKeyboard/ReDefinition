@@ -49,7 +49,9 @@ namespace ReDefinition.Bridges
         {
             // nvngx_dlss.dll: DLSS itself.
             Dlss,
-            // Streamline and nvngx_dlssg.dll: DLSS frame generation.
+            // Streamline and nvngx_dlssg.dll: DLSS frame generation; with sl.dlss_d.dll
+            // and nvngx_dlssd.dll, DLSS Ray Reconstruction for the raytracing, which runs
+            // where Streamline does.
             FrameGeneration,
             // A licence text for both.
             Both,
@@ -126,6 +128,18 @@ namespace ReDefinition.Bridges
                 Name = "bin/x64/nvngx_dlssg.dll", FileName = "nvngx_dlssg.dll", Offset = 54975783,
                 CompressedSize = 3717448, Size = 7460976,
                 Sha256 = "FF6E90EB78B827927DFF5B4ECC6B1C870C2E9BCA29ED9F48C7D348CC9E170B82", Use = Use.FrameGeneration,
+            },
+            new Entry
+            {
+                Name = "bin/x64/sl.dlss_d.dll", FileName = "sl.dlss_d.dll", Offset = 59437255, CompressedSize = 198360,
+                Size = 437376, Sha256 = "026B9F4F9EA848F2F5AA0E2024FC6B1C885F57EEA5D41078124DBA14F873B86B",
+                Use = Use.FrameGeneration, ExactVersion = true,
+            },
+            new Entry
+            {
+                Name = "bin/x64/nvngx_dlssd.dll", FileName = "nvngx_dlssd.dll", Offset = 33410452,
+                CompressedSize = 21565278, Size = 48343664,
+                Sha256 = "4BC7EA5FCB2F32CF86BC2CB072E8D2860914A0BE511CBDCB2FC206C1D9D83B80", Use = Use.FrameGeneration,
             },
             new Entry
             {

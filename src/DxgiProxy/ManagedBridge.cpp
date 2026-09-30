@@ -391,9 +391,15 @@ extern "C"
         redefinition::Raytracing::Get().ReleaseMaterial(material);
     }
 
-    __declspec(dllexport) int KspRtSetInstances(const redefinition::RtInstance* instances, int count)
+    __declspec(dllexport) int KspRtSetInstances(const redefinition::RtInstance* instances, int count, unsigned int frameIndex)
     {
-        return redefinition::Raytracing::Get().SetInstances(instances, count);
+        return redefinition::Raytracing::Get().SetInstances(instances, count, frameIndex);
+    }
+
+    __declspec(dllexport) int KspRtSetGpuGroups(const redefinition::RtGpuInstanceGroup* groups, int count,
+                                                unsigned int frameIndex)
+    {
+        return redefinition::Raytracing::Get().SetGpuGroups(groups, count, frameIndex);
     }
 
     // The service's line; returns its generation, which changes when the device does and

@@ -41,7 +41,8 @@ set(REDEFINITION_RT_ENTRIES
     Raytracing:PrimaryCheck Raytracing:ForwardLight
     Denoise:DenoisePrepare Denoise:DenoiseTemporal Denoise:DenoiseVariance Denoise:DenoiseAtrous
     Denoise:DenoiseResolve
-    Reconstruct:ReconstructGuides Reconstruct:FrameGuides)
+    Reconstruct:ReconstructGuides Reconstruct:FrameGuides
+    GpuInstances:GpuInstances)
 set(REDEFINITION_RT_OUTPUTS)
 set(REDEFINITION_RT_RC "${CMAKE_CURRENT_BINARY_DIR}/RaytracingShaders.rc")
 if(REDEFINITION_DXC)

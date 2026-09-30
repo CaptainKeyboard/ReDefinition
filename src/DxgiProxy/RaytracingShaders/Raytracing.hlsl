@@ -26,7 +26,7 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
         Random random = MakeRandom(id.xy, frameIndex, 0u);
         float2 u = float2(NextFloat(random), NextFloat(random));
         float3 direction = SampleCone(towardsSun, sunDirection.w, u);
-        visible = Unoccluded(RayOrigin(position, normal), direction, 1.0e7f) ? 1.0f : 0.0f;
+        visible = Unoccluded(RayOrigin(position, normal), direction, 1.0e7f, kTerrainSkip) ? 1.0f : 0.0f;
     }
     output0[id.xy] = float4(visible, 0.0f, 0.0f, mul(worldToClip, float4(position, 1.0f)).w);
 }
@@ -91,7 +91,7 @@ void AmbientOcclusion(uint3 id : SV_DispatchThreadID)
     }
     Random random = MakeRandom(id.xy, frameIndex, 1u);
     float3 direction = SampleCosine(normal, float2(NextFloat(random), NextFloat(random)));
-    float open = Unoccluded(RayOrigin(position, normal), direction, AO_DISTANCE) ? 1.0f : 0.0f;
+    float open = Unoccluded(RayOrigin(position, normal), direction, AO_DISTANCE, kTerrainSkip) ? 1.0f : 0.0f;
     output3[id.xy] = float4(open, 0.0f, 0.0f, 0.0f);
 }
 
@@ -112,7 +112,8 @@ void DiffuseLight(uint3 id : SV_DispatchThreadID)
     Random random = MakeRandom(id.xy, frameIndex, 2u);
     float3 direction = SampleCosine(normal, float2(NextFloat(random), NextFloat(random)));
     float distance;
-    float3 radiance = Radiance(RayOrigin(position, normal), direction, DIFFUSE_DISTANCE, BOUNCES, random, distance);
+    float3 radiance = Radiance(RayOrigin(position, normal), direction, DIFFUSE_DISTANCE, BOUNCES, random, distance,
+                               kTerrainSkip);
     output1[id.xy] = float4(radiance, distance);
 }
 
@@ -148,7 +149,8 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     if (dot(direction, normal) <= 0.0f)
         direction = reflect(-view, normal);
     float distance;
-    float3 radiance = Radiance(RayOrigin(position, normal), direction, SPECULAR_DISTANCE, BOUNCES, random, distance);
+    float3 radiance = Radiance(RayOrigin(position, normal), direction, SPECULAR_DISTANCE, BOUNCES, random, distance,
+                               kTerrainSkip);
     output2[id.xy] = float4(radiance, distance);
 }
 

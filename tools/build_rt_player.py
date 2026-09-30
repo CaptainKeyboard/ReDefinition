@@ -39,6 +39,7 @@ SHADERS = [
     'unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader',
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtReproject.cginc',
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader',
+    'unity/Assets/ReDefinition/Shaders/ReDefinitionRtScatter.compute',
 ]
 
 def copy_in():
@@ -68,10 +69,10 @@ def build(unity):
     return exe
 
 
-def run(exe, deferred_folder, label, extra=()):
+def run(exe, deferred_folder, label, extra=(), size=(1280, 720)):
     log = os.path.join(OUTPUT, label + '.log')
     out = os.path.join(OUTPUT, label)
-    arguments = [exe, '-logFile', log, '-out', out, '-screen-width', '1280', '-screen-height', '720',
+    arguments = [exe, '-logFile', log, '-out', out, '-screen-width', str(size[0]), '-screen-height', str(size[1]),
                  '-screen-fullscreen', '0'] + list(extra)
     if deferred_folder:
         arguments += ['-deferred', deferred_folder]
@@ -104,7 +105,9 @@ def main():
     forward_ok = run(exe, None, 'forward')
     builtin_ok = run(exe, None, 'unity-deferred', ['-builtinDeferred', '1'])
     deferred_ok = run(exe, deferred if os.path.isdir(deferred) else None, 'deferred')
-    sys.exit(0 if forward_ok and builtin_ok and deferred_ok else 1)
+    # 2560 by 1440 with DLSS Quality renders 1707 by 960.
+    budget_ok = run(exe, None, 'budget', ['-budget', '1'], (1707, 960))
+    sys.exit(0 if forward_ok and builtin_ok and deferred_ok and budget_ok else 1)
 
 
 if __name__ == '__main__':

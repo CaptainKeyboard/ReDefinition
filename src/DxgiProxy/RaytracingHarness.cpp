@@ -181,6 +181,8 @@ namespace
         double scale[3] = { 1, 1, 1 };
         float albedo[3] = { 0.5f, 0.5f, 0.5f };
         float smoothness = 0.2f;
+        // RtInstance's flags (kRtInstance*).
+        uint32_t flags = 0;
         // A full transform in place of position and scale, rows first, mesh to world.
         bool hasMatrix = false;
         double matrix[12] = {};
@@ -632,7 +634,8 @@ PsOut PsMain(VsOut input)
         int (*setMesh)(const RtMeshDesc*) = nullptr;
         void (*releaseMesh)(int) = nullptr;
         int (*setMaterial)(const RtMaterialDesc*) = nullptr;
-        int (*setInstances)(const RtInstance*, int) = nullptr;
+        int (*setInstances)(const RtInstance*, int, unsigned int) = nullptr;
+        int (*setGpuGroups)(const RtGpuInstanceGroup*, int, unsigned int) = nullptr;
         void (*passTimings)(float*, int) = nullptr;
         int (*reconstructionAvailable)(char*, int) = nullptr;
         int (*status)(char*, int) = nullptr;
@@ -685,8 +688,9 @@ PsOut PsMain(VsOut input)
             list[i].mesh = instances[i].mesh;
             list[i].material = instances[i].material;
             list[i].mask = 0xFF;
+            list[i].flags = instances[i].flags;
         }
-        proxy.setInstances(list.data(), static_cast<int>(list.size()));
+        proxy.setInstances(list.data(), static_cast<int>(list.size()), kRtAnyFrame);
     }
 
     struct Outputs
@@ -712,6 +716,8 @@ PsOut PsMain(VsOut input)
         float specularDistance = 100000.0f;
         float clamp = 0.0f;
         ID3D11Texture2D* environment = nullptr;
+        // Instances the GPU made, in t7's layout (Raytracing.h, kRtInputInstances).
+        ID3D11Texture2D* gpuInstances = nullptr;
         uint32_t flags = 0;
         // The main body as a sphere, centre in the world, radius; radius 0 for none.
         double body[4] = { 0, 0, 0, 0 };
@@ -758,6 +764,7 @@ PsOut PsMain(VsOut input)
         packet.bodySphere[2] = float(lighting.body[2] - camera.position.z);
         packet.bodySphere[3] = float(lighting.body[3]);
         packet.inputs[kRtInputEnvironment] = lighting.environment;
+        packet.inputs[kRtInputInstances] = lighting.gpuInstances;
         packet.inputs[kRtInputDepth] = g.depth.Get();
         packet.inputs[kRtInputGBuffer0] = g.gbuffer0.Get();
         packet.inputs[kRtInputGBuffer1] = g.gbuffer1.Get();
@@ -1032,6 +1039,7 @@ int main()
     if (!proxy.Load(proxy.available, "KspRtAvailable") || !proxy.Load(proxy.structSizes, "KspRtStructSizes")
         || !proxy.Load(proxy.setMesh, "KspRtSetMesh") || !proxy.Load(proxy.releaseMesh, "KspRtReleaseMesh")
         || !proxy.Load(proxy.setMaterial, "KspRtSetMaterial") || !proxy.Load(proxy.setInstances, "KspRtSetInstances")
+        || !proxy.Load(proxy.setGpuGroups, "KspRtSetGpuGroups")
         || !proxy.Load(proxy.status, "KspRtStatus") || !proxy.Load(proxy.timings, "KspRtTimings")
         || !proxy.Load(proxy.passTimings, "KspRtPassTimings")
         || !proxy.Load(proxy.reconstructionAvailable, "KspRtReconstructionAvailable")
@@ -1170,6 +1178,74 @@ int main()
     CheckPrimary("primary rays", first);
     CheckVisibility("sun shadows", first, ExpectedVisibility(camera, first.depth, first.normals, boxes, sun));
     SaveVisibility(L"rt_shadows.bmp", first);
+
+    // ---------------------------------------------------------------- instances from the GPU
+    {
+        // The boxes not as the CPU's instances but in a texture as Parallax's scatter comes,
+        // one group each, the rest of the texture empty: the same shadows.
+        std::vector<Instance> ground;
+        for (const Instance& instance : scene)
+            if (instance.mesh != 1)
+                ground.push_back(instance);
+        const UINT rows = 2;
+        std::vector<float> texels(static_cast<size_t>(kRtInstancesPerRow) * 3 * rows * 4, 0.0f);
+        std::vector<RtGpuInstanceGroup> groups;
+        for (size_t i = 0; i < boxes.size(); ++i)
+        {
+            float transform[12];
+            RelativeTransform(boxes[i], camera.position, transform);
+            // The last instance on the second texture row, the rest on the first.
+            const uint32_t at = i + 1 == boxes.size() ? kRtInstancesPerRow + 7 : static_cast<uint32_t>(i);
+            for (int r = 0; r < 3; ++r)
+            {
+                const size_t texel = static_cast<size_t>(at / kRtInstancesPerRow) * kRtInstancesPerRow * 3
+                                     + (at % kRtInstancesPerRow) * 3 + r;
+                memcpy(&texels[texel * 4], transform + r * 4, 16);
+            }
+            RtGpuInstanceGroup group = {};
+            group.mesh = boxes[i].mesh;
+            group.material = boxes[i].material;
+            group.first = at;
+            group.count = 1;
+            group.mask = 0xFF;
+            groups.push_back(group);
+        }
+        // An empty run as well, whose instances are all zero: none of them.
+        RtGpuInstanceGroup empty = {};
+        empty.mesh = 1;
+        empty.first = 100;
+        empty.count = 50;
+        empty.mask = 0xFF;
+        groups.push_back(empty);
+
+        D3D11_TEXTURE2D_DESC texture = {};
+        texture.Width = kRtInstancesPerRow * 3;
+        texture.Height = rows;
+        texture.MipLevels = 1;
+        texture.ArraySize = 1;
+        texture.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        texture.SampleDesc.Count = 1;
+        texture.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        const D3D11_SUBRESOURCE_DATA initial = { texels.data(), texture.Width * 16, 0 };
+        ComPtr<ID3D11Texture2D> transforms;
+        HRESULT made = device->CreateTexture2D(&texture, &initial, &transforms);
+        if (FAILED(made))
+            return Fatal("the GPU instances' texture", made);
+
+        SendInstances(proxy, ground, camera.position);
+        proxy.setGpuGroups(groups.data(), static_cast<int>(groups.size()), kRtAnyFrame);
+        Lighting fromGpu;
+        fromGpu.gpuInstances = transforms.Get();
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 2, kRtSignalSunVisibility | kRtSignalPrimaryCheck, fromGpu);
+        Frame gpuFrame;
+        if (!ReadFrame(device.Get(), context.Get(), g, outputs, gpuFrame))
+            return Fatal("reading the frame back", E_FAIL);
+        printf("      %s\n", proxy.Status().c_str());
+        CheckVisibility("instances from the GPU", gpuFrame,
+                        ExpectedVisibility(camera, gpuFrame.depth, gpuFrame.normals, boxes, sun));
+        proxy.setGpuGroups(nullptr, 0, kRtAnyFrame);
+        SendInstances(proxy, scene, camera.position);
+    }
 
     // ---------------------------------------------------------------- 10 km away
     {
@@ -2027,6 +2103,46 @@ int main()
         sprintf_s(detail, "%zu of the box's pixels lit by a sun under the horizon without the planet's sphere, %zu with it",
                   without, with);
         Check(without > 1000 && with == 0, "the planet's shadow", detail);
+    }
+
+    // ---------------------------------------------------------------- displaced terrain
+    {
+        // The ground drawn at y = 0, the rays' ground 0.3 m higher, as Parallax's
+        // displacement leaves the drawn terrain below its mesh: as terrain, the ground
+        // stays lit where the sun reaches it; as any other mesh, it shades itself.
+        const auto litGround = [&](uint32_t flags) -> size_t
+        {
+            std::vector<Instance> raised;
+            for (Instance instance : scene)
+            {
+                if (instance.mesh == 2)
+                {
+                    instance.position.y += 0.3;
+                    instance.flags = flags;
+                }
+                raised.push_back(instance);
+            }
+            SendInstances(proxy, raised, camera.position);
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, 13000 + flags, kRtSignalSunVisibility);
+            std::vector<uint16_t> vis;
+            ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, vis);
+            size_t lit = 0;
+            for (size_t i = 0; i < first.depth.size(); ++i)
+                lit += first.depth[i] > 0.0f && HalfToFloat(vis[i * 4]) > 0.5f ? 1 : 0;
+            return lit;
+        };
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        size_t expected = 0;
+        for (size_t i = 0; i < first.depth.size(); ++i)
+            expected += first.depth[i] > 0.0f && HalfToFloat(first.visibility[i * 4]) > 0.5f ? 1 : 0;
+        const size_t asTerrain = litGround(kRtInstanceTerrain);
+        const size_t asMesh = litGround(0);
+        char detail[200];
+        sprintf_s(detail, "%zu lit pixels over ground 0.3 m above the drawn one as terrain, %zu as another mesh, %zu with"
+                          " the ground where it is drawn", asTerrain, asMesh, expected);
+        Check(asTerrain * 1000 >= expected * 995 && asTerrain * 1000 <= expected * 1005 && asMesh * 2 < expected,
+              "displaced terrain", detail);
+        SendInstances(proxy, scene, camera.position);
     }
 
     // ---------------------------------------------------------------- without a G-buffer

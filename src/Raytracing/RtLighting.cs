@@ -34,8 +34,17 @@ namespace ReDefinition.Raytracing
                 ownShadows = shadows;
                 ownReflections = reflections;
             }
-            if (shadows != null && GraphicsSettings.GetCustomShader(BuiltinShaderType.ScreenSpaceShadows) != shadows)
+            Shader currentShadows = GraphicsSettings.GetCustomShader(BuiltinShaderType.ScreenSpaceShadows);
+            if (shadows != null && currentShadows != shadows)
             {
+                // Another mod set its own since -- Scatterer's and Kopernicus's long-distance
+                // shadows (Scatterer.cs, ShadowMan.cs), Kopernicus's on every scene --: that
+                // one comes back when raytracing goes.
+                if (currentShadows != null)
+                {
+                    shadowsBefore = currentShadows;
+                    shadowsModeBefore = GraphicsSettings.GetShaderMode(BuiltinShaderType.ScreenSpaceShadows);
+                }
                 GraphicsSettings.SetShaderMode(BuiltinShaderType.ScreenSpaceShadows, BuiltinShaderMode.UseCustom);
                 GraphicsSettings.SetCustomShader(BuiltinShaderType.ScreenSpaceShadows, shadows);
             }

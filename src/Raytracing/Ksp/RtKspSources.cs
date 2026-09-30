@@ -9,30 +9,46 @@ namespace ReDefinition.Raytracing
     // Opaque, drawn, on a layer the scene camera draws.
     internal static class RtFilter
     {
+        // The scene camera's culling mask, set each frame (RtKsp).
+        internal static int CullingMask = ~0;
+
+        // Parallax's material for a quad whose finer copy draws in its place: it
+        // discards everything (DiscardAll.shader), at the alpha-test queue.
+        private const string DiscardAll = "Custom/DiscardAll";
+
         internal static bool Opaque(Material material)
         {
             if (material == null) return false;
             // Transparent and additive shaders sit at 2501 and up (Waterfall's plumes,
-            // Firefly, particles, translucent parts); cut-outs at 2450 keep their holes
-            // only in the raster, which the rays accept.
-            return material.renderQueue < 2501;
+            // Firefly, particles, translucent parts, DistantObject's flares); cut-outs at
+            // 2450 keep their holes only in the raster, which the rays accept.
+            return material.renderQueue < 2501 && (material.shader == null || material.shader.name != DiscardAll);
         }
 
-        internal static void Add(Renderer renderer, Mesh mesh, List<RtItem> into)
+        internal static bool Drawn(Renderer renderer)
         {
-            if (renderer == null || mesh == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) return;
-            Add(renderer.sharedMaterials, mesh, renderer.localToWorldMatrix, into);
+            return renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy
+                   && (CullingMask & (1 << renderer.gameObject.layer)) != 0;
+        }
+
+        internal static void Add(Renderer renderer, Mesh mesh, List<RtItem> into, uint flags = 0)
+        {
+            if (mesh == null || !Drawn(renderer)) return;
+            Add(renderer.sharedMaterials, mesh, renderer.localToWorldMatrix, into, flags);
         }
 
         // A submesh without a material of its own draws with the first, as Unity does.
-        internal static void Add(Material[] materials, Mesh mesh, Matrix4x4 localToWorld, List<RtItem> into)
+        internal static void Add(Material[] materials, Mesh mesh, Matrix4x4 localToWorld, List<RtItem> into, uint flags = 0)
         {
             int subMeshes = mesh.subMeshCount;
             for (int s = 0; s < subMeshes; s++)
             {
                 Material material = s < materials.Length ? materials[s] : materials.Length > 0 ? materials[0] : null;
                 if (!Opaque(material)) continue;
-                into.Add(new RtItem { Mesh = mesh, SubMesh = s, Material = material, LocalToWorld = localToWorld, Mask = 0xFF });
+                into.Add(new RtItem
+                {
+                    Mesh = mesh, SubMesh = s, Material = material, LocalToWorld = localToWorld, Mask = 0xFF, Flags = flags,
+                });
             }
         }
     }
@@ -116,7 +132,7 @@ namespace ReDefinition.Raytracing
                 }
                 foreach (SkinnedMeshRenderer skinned in renderers.Skinned)
                 {
-                    if (skinned == null || !skinned.enabled) continue;
+                    if (!RtFilter.Drawn(skinned)) continue;
                     Bake bake;
                     bool fresh = !baked.TryGetValue(skinned, out bake);
                     if (fresh)
@@ -205,7 +221,17 @@ namespace ReDefinition.Raytracing
             public Vector3d Place;
             public PQS.EdgeState Edge;
             public MeshFilter[] Filters;
+            // Per filter, the mesh's shape when last handed over: Parallax refills its
+            // finer copy in place as the camera moves (JobifiedSubdivision), with no
+            // event to tell.
+            public int[] Vertices;
+            public Bounds[] Extent;
+            public int[] Checked;
         }
+
+        // A refilled mesh handed over again at most this often, in frames.
+        private const int RefillFrames = 10;
+        private int frame;
 
         private readonly Dictionary<PQ, QuadState> quads = new Dictionary<PQ, QuadState>();
         private readonly Stack<PQ> stack = new Stack<PQ>();
@@ -222,6 +248,7 @@ namespace ReDefinition.Raytracing
         public void Collect(List<RtItem> into)
         {
             Quads = 0;
+            frame++;
             CelestialBody body = HighLogic.LoadedSceneIsFlight ? FlightGlobals.currentMainBody
                                  : HighLogic.LoadedScene == GameScenes.SPACECENTER ? FlightGlobals.GetHomeBody() : null;
             PQS pqs = body != null ? body.pqsController : null;
@@ -250,19 +277,42 @@ namespace ReDefinition.Raytracing
                     if (state != null)
                         foreach (MeshFilter filter in state.Filters)
                             if (filter != null) scene.Invalidate(filter.sharedMesh);
+                    MeshFilter[] filters = quad.GetComponentsInChildren<MeshFilter>(false);
                     state = new QuadState
                     {
                         Place = quad.positionPlanet,
                         Edge = quad.edgeState,
-                        Filters = quad.GetComponentsInChildren<MeshFilter>(false),
+                        Filters = filters,
+                        Vertices = new int[filters.Length],
+                        Extent = new Bounds[filters.Length],
+                        Checked = new int[filters.Length],
                     };
+                    for (int i = 0; i < filters.Length; i++)
+                        if (filters[i] != null && filters[i].sharedMesh != null)
+                        {
+                            state.Vertices[i] = filters[i].sharedMesh.vertexCount;
+                            state.Extent[i] = filters[i].sharedMesh.bounds;
+                            state.Checked[i] = frame;
+                        }
                     quads[quad] = state;
                     if (quad.mesh != null) scene.Invalidate(quad.mesh);
                 }
-                foreach (MeshFilter filter in state.Filters)
+                for (int i = 0; i < state.Filters.Length; i++)
                 {
+                    MeshFilter filter = state.Filters[i];
                     if (filter == null) continue;
-                    RtFilter.Add(filter.GetComponent<MeshRenderer>(), filter.sharedMesh, into);
+                    Mesh mesh = filter.sharedMesh;
+                    if (mesh != null && frame - state.Checked[i] >= RefillFrames)
+                    {
+                        state.Checked[i] = frame;
+                        if (mesh.vertexCount != state.Vertices[i] || mesh.bounds != state.Extent[i])
+                        {
+                            state.Vertices[i] = mesh.vertexCount;
+                            state.Extent[i] = mesh.bounds;
+                            scene.Invalidate(mesh);
+                        }
+                    }
+                    RtFilter.Add(filter.GetComponent<MeshRenderer>(), mesh, into, RtNative.InstanceTerrain);
                 }
                 Quads++;
             }
@@ -271,6 +321,21 @@ namespace ReDefinition.Raytracing
         internal void Clear()
         {
             quads.Clear();
+        }
+    }
+
+    // Parallax's scatter -- rocks, trees, grass -- as the GPU placed it this frame
+    // (RtKspMods.ParallaxScatter): culled by Parallax to the view and a short radius
+    // around the camera, so what lies behind the camera further out casts no shadow.
+    internal sealed class RtParallaxScatter : IRtGpuSource
+    {
+        internal int Buffers { get; private set; }
+
+        public void CollectGpu(List<RtGpuItem> into)
+        {
+            Buffers = HighLogic.LoadedSceneIsFlight || HighLogic.LoadedScene == GameScenes.SPACECENTER
+                ? RtKspMods.ParallaxScatter(into)
+                : 0;
         }
     }
 

@@ -14,6 +14,8 @@ namespace ReDefinition.Raytracing
         public Material Material;
         public Matrix4x4 LocalToWorld;
         public uint Mask;
+        // RtNative.InstanceTerrain for the ground, which Parallax displaces off its mesh.
+        public uint Flags;
     }
 
     // Where the rays' scene comes from: KSP's parts, terrain and buildings in the
@@ -21,6 +23,23 @@ namespace ReDefinition.Raytracing
     internal interface IRtSource
     {
         void Collect(List<RtItem> into);
+    }
+
+    // Instances only the GPU knows: an append buffer of transforms (float4x4, the
+    // mesh's to the world, rows 0-2 read), filled for this frame before the camera
+    // draws, as Parallax fills its scatter's (ScatterRenderer.outputLOD0-2).
+    internal struct RtGpuItem
+    {
+        public ComputeBuffer Transforms;
+        public Mesh Mesh;
+        public int SubMesh;
+        public Material Material;
+        public uint Mask;
+    }
+
+    internal interface IRtGpuSource
+    {
+        void CollectGpu(List<RtGpuItem> into);
     }
 
     // The meshes, materials and instances handed to the proxy. A mesh or material is
@@ -55,6 +74,16 @@ namespace ReDefinition.Raytracing
         private readonly Dictionary<Material, MaterialEntry> materials = new Dictionary<Material, MaterialEntry>();
         private readonly List<RtItem> items = new List<RtItem>();
         private readonly List<IRtSource> sources = new List<IRtSource>();
+        private readonly List<IRtGpuSource> gpuSources = new List<IRtGpuSource>();
+        private readonly List<RtGpuItem> gpuCollected = new List<RtGpuItem>();
+        private RtNative.GpuGroup[] gpuGroups = new RtNative.GpuGroup[16];
+        // How many places of each GPU buffer were taken lately, as read back (RtCamera):
+        // a buffer's capacity is what its mod may ever need, Parallax's up to hundreds
+        // of thousands, and every place handed over is an instance to build.
+        private readonly Dictionary<ComputeBuffer, int> gpuTaken = new Dictionary<ComputeBuffer, int>();
+        private readonly List<ComputeBuffer> gpuGone = new List<ComputeBuffer>();
+        // Places for a buffer not read back yet.
+        private const int GpuFirstPlaces = 1024;
         private RtNative.Instance[] instances = new RtNative.Instance[1024];
         private readonly Queue<Material> texturesToRead = new Queue<Material>();
         private int nextMeshId = 1;
@@ -68,6 +97,13 @@ namespace ReDefinition.Raytracing
         private static byte[] gammaToSrgb;
 
         internal int InstanceCount { get; private set; }
+        // This frame's GPU instances: the items the camera gathers, each run's place, and
+        // their places together.
+        internal readonly List<RtGpuItem> GpuItems = new List<RtGpuItem>();
+        internal readonly List<int> GpuFirst = new List<int>();
+        // Each item's places this frame: what it took lately and a quarter more.
+        internal readonly List<int> GpuPlaces = new List<int>();
+        internal int GpuTotal { get; private set; }
         // Where the camera is this frame, for the sources' range.
         internal Vector3 Eye { get; private set; }
         internal int Uploads { get; private set; }
@@ -91,8 +127,14 @@ namespace ReDefinition.Raytracing
             sources.Remove(source);
         }
 
-        // Everything this frame, relative to the camera at cameraPosition.
-        internal void Update(RtPosition cameraPosition, int serviceGeneration)
+        internal void AddGpuSource(IRtGpuSource source)
+        {
+            if (!gpuSources.Contains(source)) gpuSources.Add(source);
+        }
+
+        // Everything this frame, relative to the camera at cameraPosition, for the frame
+        // of that index (RtFramePacket's frameIndex).
+        internal void Update(RtPosition cameraPosition, int serviceGeneration, uint frameIndex)
         {
             frame++;
             if (serviceGeneration != generation)
@@ -135,14 +177,73 @@ namespace ReDefinition.Raytracing
                 instance.Mesh = mesh;
                 instance.Material = material;
                 instance.Mask = item.Mask != 0 ? item.Mask : 0xFFu;
-                instance.Flags = 0;
+                instance.Flags = item.Flags;
                 instances[count++] = instance;
             }
             InstanceCount = count;
-            RtNative.KspRtSetInstances(instances, count);
+            RtNative.KspRtSetInstances(instances, count, frameIndex);
+            UpdateGpu(frameIndex);
 
             ReadTextures();
             ReleaseUnseen();
+        }
+
+        // The GPU's runs, each where it starts among them, and their groups for the proxy.
+        private void UpdateGpu(uint frameIndex)
+        {
+            gpuCollected.Clear();
+            foreach (IRtGpuSource source in gpuSources)
+                source.CollectGpu(gpuCollected);
+            GpuItems.Clear();
+            GpuFirst.Clear();
+            GpuPlaces.Clear();
+            int total = 0;
+            int groups = 0;
+            foreach (RtGpuItem item in gpuCollected)
+            {
+                if (item.Transforms == null || !item.Transforms.IsValid() || item.Transforms.count == 0) continue;
+                int mesh = MeshId(item.Mesh, item.SubMesh);
+                if (mesh == 0)
+                {
+                    Skipped++;
+                    continue;
+                }
+                if (groups == gpuGroups.Length) Array.Resize(ref gpuGroups, groups * 2);
+                gpuGroups[groups++] = new RtNative.GpuGroup
+                {
+                    Mesh = mesh,
+                    Material = MaterialId(item.Material),
+                    First = (uint)total,
+                    Count = (uint)Places(item.Transforms),
+                    Mask = item.Mask != 0 ? item.Mask : 0xFFu,
+                };
+                GpuItems.Add(item);
+                GpuFirst.Add(total);
+                GpuPlaces.Add((int)gpuGroups[groups - 1].Count);
+                total += (int)gpuGroups[groups - 1].Count;
+            }
+            GpuTotal = total;
+            if (frame % 300 == 0)
+            {
+                gpuGone.Clear();
+                foreach (ComputeBuffer buffer in gpuTaken.Keys)
+                    if (buffer == null || !buffer.IsValid()) gpuGone.Add(buffer);
+                foreach (ComputeBuffer buffer in gpuGone) gpuTaken.Remove(buffer);
+            }
+            RtNative.KspRtSetGpuGroups(gpuGroups, groups, frameIndex);
+        }
+
+        private int Places(ComputeBuffer buffer)
+        {
+            int taken;
+            int places = gpuTaken.TryGetValue(buffer, out taken) ? (taken + taken / 4 + 64 + 63) / 64 * 64 : GpuFirstPlaces;
+            return Math.Max(1, Math.Min(places, buffer.count));
+        }
+
+        // A buffer's places taken, as read back a frame or two late.
+        internal void NoteGpuTaken(ComputeBuffer buffer, int taken)
+        {
+            if (buffer != null) gpuTaken[buffer] = taken;
         }
 
         private static long Key(Mesh mesh, int subMesh)
@@ -406,7 +507,11 @@ namespace ReDefinition.Raytracing
             keysOf.Clear();
             materials.Clear();
             texturesToRead.Clear();
-            RtNative.KspRtSetInstances(instances, 0);
+            RtNative.KspRtSetInstances(instances, 0, RtNative.AnyFrame);
+            RtNative.KspRtSetGpuGroups(gpuGroups, 0, RtNative.AnyFrame);
+            GpuItems.Clear();
+            GpuFirst.Clear();
+            GpuTotal = 0;
             if (textureTarget != null)
             {
                 textureTarget.Release();

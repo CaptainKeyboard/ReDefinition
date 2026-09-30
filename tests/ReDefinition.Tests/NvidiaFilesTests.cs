@@ -55,10 +55,11 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheReleaseIsAboutThirtySixMegabytesForAnAdaGpu()
+        public void TheReleaseIsAboutFiftySevenMegabytesForAnAdaGpu()
         {
+            // DLSS, frame generation and Ray Reconstruction (nvngx_dlssd.dll, 21.6 MB).
             long bytes = NvidiaFiles.DownloadSize(NvidiaFiles.For(0x190, Ada102));
-            Assert.IsTrue(bytes > 35000000 && bytes < 37000000, bytes.ToString());
+            Assert.IsTrue(bytes > 56000000 && bytes < 58500000, bytes.ToString());
         }
 
         [TestMethod]

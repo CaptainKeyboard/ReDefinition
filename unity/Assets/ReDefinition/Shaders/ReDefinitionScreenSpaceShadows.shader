@@ -232,14 +232,18 @@ inline float3 computeCameraSpacePosFromDepthAndVSInfo(v2f i)
 inline float3 computeCameraSpacePosFromDepth(v2f i);
 
 // ReDefinition: the raytraced sun visibility. _ReDefinitionRtOn is set around the
-// raytraced camera's rendering (RtCamera, its command buffers); the texture holds the
-// frame before, found again from this frame's world by RtUv.
+// raytraced camera's rendering (RtCamera, its command buffers), _ReDefinitionRtSunMask
+// around the sun's own mask (its light's command buffers): other directional lights --
+// PlanetShine's, other stars' -- keep their shadow maps. The texture holds the frame
+// before, found again from this frame's world by RtUv.
 #include "ReDefinitionRtReproject.cginc"
+
+float _ReDefinitionRtSunMask;
 
 inline bool RtShadow(float3 worldPos, out fixed visibility)
 {
     visibility = 1;
-    if (_ReDefinitionRtOn < 0.5)
+    if (_ReDefinitionRtOn < 0.5 || _ReDefinitionRtSunMask < 0.5)
         return false;
     float2 uv;
     if (RtUv(worldPos, uv))

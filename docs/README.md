@@ -17,6 +17,7 @@ beside it.
 | use the settings window, its tabs, *Accept* and *Reset* | [player/settings-window.md](player/settings-window.md) |
 | choose a graphics profile and see what it sets | [player/graphics-profiles.md](player/graphics-profiles.md) |
 | set up upscaling or frame generation, and know what they cost | [player/upscaler-and-frame-generation.md](player/upscaler-and-frame-generation.md) |
+| switch on raytraced shadows and light, and know what they need | [player/raytracing.md](player/raytracing.md) |
 | plan a mission and check the vessel carries enough fuel | [player/planner.md](player/planner.md) |
 | move the navball to the left or right | [player/navball.md](player/navball.md) |
 | see the figures for what you are doing in flight | [player/flight-panel.md](player/flight-panel.md) |

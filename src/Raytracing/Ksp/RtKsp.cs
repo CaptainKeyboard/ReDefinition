@@ -30,7 +30,7 @@ namespace ReDefinition.Raytracing
         private RtVesselSource vessels;
         private RtTerrainSource terrain;
         private RtScenerySource scenery;
-        private Light sunLight;
+        private RtParallaxScatter scatter;
         private ReflectionProbe probe;
         private GameScenes lookedUpIn = GameScenes.LOADING;
         private float lookedUpAt = float.NegativeInfinity;
@@ -70,7 +70,14 @@ namespace ReDefinition.Raytracing
                 Detach(sceneCamera == null ? "no scene camera" : "off");
                 return;
             }
-            if (attached != null && attachedTo == sceneCamera && attached.enabled) Report();
+            // What the scene camera draws is what the rays see: FreeIva's and
+            // ThroughTheEyes' IVA layers stay out, as the internal camera draws them.
+            RtFilter.CullingMask = sceneCamera.cullingMask;
+            if (attached != null && attachedTo == sceneCamera && attached.enabled)
+            {
+                RtKspMods.HoldPlanetShine((mode == RaytracingMode.Light || mode == RaytracingMode.Full) && Probe() != null);
+                Report();
+            }
             else if (sceneCamera != failedOn) Attach(sceneCamera);
         }
 
@@ -98,6 +105,11 @@ namespace ReDefinition.Raytracing
                 string error;
                 return FsrShaderBundle.LoadShader(name, out error);
             };
+            camera.ComputeSource = name =>
+            {
+                string error;
+                return FsrShaderBundle.LoadCompute(name, out error);
+            };
             camera.Sun = () =>
             {
                 Light sun = SunLight();
@@ -109,6 +121,7 @@ namespace ReDefinition.Raytracing
                 Light sun = SunLight();
                 return sun != null && sun.enabled ? sun.color * sun.intensity : Color.black;
             };
+            camera.SunLight = SunLight;
             camera.SkyColor = () => RenderSettings.ambientSkyColor;
             camera.Environment = () =>
             {
@@ -139,6 +152,8 @@ namespace ReDefinition.Raytracing
             camera.Scene.AddSource(vessels);
             camera.Scene.AddSource(terrain);
             camera.Scene.AddSource(scenery);
+            scatter = new RtParallaxScatter();
+            camera.Scene.AddGpuSource(scatter);
             camera.enabled = true;
             if (camera.Problem != null)
             {
@@ -166,6 +181,7 @@ namespace ReDefinition.Raytracing
         // the sources still hold their baked meshes then.
         internal void Detach(string why)
         {
+            RtKspMods.HoldPlanetShine(false);
             if (ReferenceEquals(attached, null)) return;
             vessels?.Clear();
             terrain?.Clear();
@@ -182,12 +198,12 @@ namespace ReDefinition.Raytracing
             Debug.Log(Log.Tag + " " + text);
         }
 
-        // The scene's sun: its brightest directional light; with the reflection probe,
-        // looked up on a scene change and every five seconds, as either may come later.
-        private Light SunLight()
+        // The scene's sun: the light of the star that lights it (RtKspMods). Not the
+        // brightest directional light: KSP's scaled-space copy of the sun is at least as
+        // bright, and PlanetShine's and Kopernicus's other stars' lights are directional.
+        private static Light SunLight()
         {
-            LookUp();
-            return sunLight;
+            return RtKspMods.SunLight();
         }
 
         private ReflectionProbe Probe()
@@ -196,15 +212,13 @@ namespace ReDefinition.Raytracing
             return probe;
         }
 
+        // The reflection probe, looked up on a scene change and every five seconds, as it
+        // may come later.
         private void LookUp()
         {
             if (lookedUpIn == HighLogic.LoadedScene && Time.unscaledTime - lookedUpAt < 5f) return;
             lookedUpIn = HighLogic.LoadedScene;
             lookedUpAt = Time.unscaledTime;
-            sunLight = null;
-            foreach (Light light in Object.FindObjectsOfType<Light>())
-                if (light.type == LightType.Directional && (sunLight == null || light.intensity > sunLight.intensity))
-                    sunLight = light;
             probe = null;
             foreach (ReflectionProbe found in Object.FindObjectsOfType<ReflectionProbe>())
                 if (found.isActiveAndEnabled && found.texture != null)
@@ -223,7 +237,8 @@ namespace ReDefinition.Raytracing
             var line = new StringBuilder(Log.Tag).Append(" Raytracing: ")
                 .Append(attached.Scene.InstanceCount).Append(" instances (")
                 .Append(vessels.Parts).Append(" parts, ").Append(terrain.Quads).Append(" terrain quads, ")
-                .Append(scenery.Renderers).Append(" scenery renderers), ")
+                .Append(scenery.Renderers).Append(" scenery renderers, ").Append(scatter.Buffers).Append(" scatter buffers with ")
+                .Append(attached.Scene.GpuTotal).Append(" places), ")
                 .Append(attached.Scene.MeshCount).Append(" meshes, ").Append(attached.Scene.MaterialCount).Append(" materials");
             if (attached.Scene.Skipped > 0)
                 line.Append(", ").Append(attached.Scene.Skipped).Append(" skipped (").Append(attached.Scene.LastSkip).Append(')');

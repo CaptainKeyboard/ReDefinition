@@ -177,8 +177,39 @@ namespace ReDefinition.Upscaler
             return found;
         }
 
+        // A compute shader of ReDefinition's own by its file name, or null and the
+        // reason; searched once per loaded bundle, like LoadShader.
+        public static ComputeShader LoadCompute(string name, out string error)
+        {
+            ComputeShader found;
+            if (namedComputes.TryGetValue(name, out found))
+            {
+                error = found == null ? "the shader bundle has no " + name : null;
+                return found;
+            }
+            if (bundle == null && File.Exists(BundlePath)) bundle = AssetBundle.LoadFromFile(BundlePath);
+            if (bundle == null)
+            {
+                error = "the shader bundle is not loaded";
+                return null;
+            }
+            found = null;
+            foreach (ComputeShader loaded in bundle.LoadAllAssets<ComputeShader>())
+                if (loaded != null && loaded.name == name)
+                {
+                    found = loaded;
+                    break;
+                }
+            namedComputes[name] = found;
+            error = found == null ? "the shader bundle has no " + name + " -- was it rebuilt after that shader was added?" : null;
+            return found;
+        }
+
+        private static readonly Dictionary<string, ComputeShader> namedComputes = new Dictionary<string, ComputeShader>();
+
         public static void Unload()
         {
+            namedComputes.Clear();
             byName = null;
             namedShaders.Clear();
             namedShaderErrors.Clear();

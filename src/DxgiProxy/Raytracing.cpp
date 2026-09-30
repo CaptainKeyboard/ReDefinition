@@ -38,7 +38,7 @@ namespace redefinition
         // The denoiser's entry points (RaytracingShaders/Denoise.hlsl).
         const wchar_t* const kDenoiseEntries[] = {
             L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous", L"RT_DenoiseResolve",
-            L"RT_ReconstructGuides", L"RT_FrameGuides",
+            L"RT_ReconstructGuides", L"RT_FrameGuides", L"RT_GpuInstances",
         };
 
         // The output slot of each signal the denoiser filters, and its place among the
@@ -322,12 +322,43 @@ namespace redefinition
         materialData.erase(material);
     }
 
-    int Raytracing::SetInstances(const RtInstance* given, int count)
+    Raytracing::FrameScene& Raytracing::FrameSceneLocked(uint32_t frameIndex)
+    {
+        // A scene for every frame (kRtAnyFrame) takes the place of the frames' own.
+        if (frameIndex == kRtAnyFrame && (frameScenes.empty() || frameScenes.back().frameIndex != kRtAnyFrame))
+        {
+            frameScenes.clear();
+            frameScenes.emplace_back();
+            return frameScenes.back();
+        }
+        for (FrameScene& scene : frameScenes)
+            if (scene.frameIndex == frameIndex)
+                return scene;
+        // The main thread runs a frame or two ahead of the render thread.
+        while (frameScenes.size() >= 8)
+            frameScenes.pop_front();
+        frameScenes.emplace_back();
+        frameScenes.back().frameIndex = frameIndex;
+        if (frameScenes.size() > 1)
+            frameScenes.back().groups = frameScenes[frameScenes.size() - 2].groups;
+        return frameScenes.back();
+    }
+
+    int Raytracing::SetInstances(const RtInstance* given, int count, uint32_t frameIndex)
     {
         if (count < 0 || (count > 0 && given == nullptr))
             return 0;
         std::lock_guard<std::mutex> lock(mutex);
-        instances.assign(given, given + count);
+        FrameSceneLocked(frameIndex).instances.assign(given, given + count);
+        return 1;
+    }
+
+    int Raytracing::SetGpuGroups(const RtGpuInstanceGroup* given, int count, uint32_t frameIndex)
+    {
+        if (count < 0 || (count > 0 && given == nullptr))
+            return 0;
+        std::lock_guard<std::mutex> lock(mutex);
+        FrameSceneLocked(frameIndex).groups.assign(given, given + count);
         return 1;
     }
 
@@ -538,7 +569,7 @@ namespace redefinition
         }
 
         UINT instanceCount = 0;
-        if (!BuildSceneLocked(slot, instanceCount))
+        if (!BuildSceneLocked(slot, slotNumber, packet->frameIndex, inputs[kRtInputInstances], instanceCount))
         {
             list->Close();
             return;
@@ -649,7 +680,7 @@ namespace redefinition
         D3D12_GPU_DESCRIPTOR_HANDLE outputTable = frameTable;
         outputTable.ptr += static_cast<UINT64>(kRtMaxTextures) * increment;
         list->SetComputeRootDescriptorTable(3, outputTable);
-        list->SetComputeRootShaderResourceView(4, slot.instanceData->GetGPUVirtualAddress());
+        list->SetComputeRootShaderResourceView(4, slot.instanceDataAddress);
         list->SetComputeRootShaderResourceView(5, slot.materials->GetGPUVirtualAddress());
         D3D12_GPU_DESCRIPTOR_HANDLE meshTable = heapGpu;
         meshTable.ptr += static_cast<UINT64>(kSlots) * kFrameDescriptors * increment;
@@ -759,6 +790,7 @@ namespace redefinition
         }
         ID3D12CommandList* lists[] = { list.Get() };
         queue->ExecuteCommandLists(1, lists);
+        slot.sceneState = slot.sceneStateRecorded;
         const UINT64 finished = ++fenceValue;
         queue->Signal(fence12.Get(), finished);
         slot.done = finished;
@@ -954,8 +986,17 @@ namespace redefinition
         return true;
     }
 
-    bool Raytracing::BuildSceneLocked(Slot& slot, UINT& instanceCount)
+    bool Raytracing::BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances,
+                                      UINT& instanceCount)
     {
+        // This frame's scene, or the newest where it sent none of its own.
+        static const FrameScene none;
+        const FrameScene* scene = frameScenes.empty() ? &none : &frameScenes.back();
+        for (const FrameScene& candidate : frameScenes)
+            if (candidate.frameIndex == frameIndex)
+                scene = &candidate;
+        const std::vector<RtInstance>& instances = scene->instances;
+
         // Materials: index 0 is a plain grey for instances whose material is unknown.
         std::unordered_map<int32_t, uint32_t> materialIndex;
         std::vector<MaterialData> materialList;
@@ -986,7 +1027,8 @@ namespace redefinition
             desc.InstanceID = static_cast<UINT>(data.size()) & 0xFFFFFFu;
             desc.InstanceMask = instance.mask & 0xFFu;
             desc.InstanceContributionToHitGroupIndex = 0;
-            desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE;
+            desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
+                         | ((instance.flags & kRtInstanceTerrain) != 0 ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE : 0);
             desc.AccelerationStructure = mesh->second.blas->GetGPUVirtualAddress();
             descs.push_back(desc);
 
@@ -1027,22 +1069,35 @@ namespace redefinition
             slot.materialCapacity = grown;
         }
 
-        const D3D12_RANGE none = { 0, 0 };
+        const D3D12_RANGE nothing = { 0, 0 };
         void* mapped = nullptr;
-        if (instanceCount > 0 && SUCCEEDED(slot.instanceDescs->Map(0, &none, &mapped)))
+        if (instanceCount > 0 && SUCCEEDED(slot.instanceDescs->Map(0, &nothing, &mapped)))
         {
             memcpy(mapped, descs.data(), descs.size() * sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
             slot.instanceDescs->Unmap(0, nullptr);
         }
-        if (instanceCount > 0 && SUCCEEDED(slot.instanceData->Map(0, &none, &mapped)))
+        if (instanceCount > 0 && SUCCEEDED(slot.instanceData->Map(0, &nothing, &mapped)))
         {
             memcpy(mapped, data.data(), data.size() * sizeof(InstanceData));
             slot.instanceData->Unmap(0, nullptr);
         }
-        if (SUCCEEDED(slot.materials->Map(0, &none, &mapped)))
+        if (SUCCEEDED(slot.materials->Map(0, &nothing, &mapped)))
         {
             memcpy(mapped, materialList.data(), materialList.size() * sizeof(MaterialData));
             slot.materials->Unmap(0, nullptr);
+        }
+
+        // The GPU's instances after these, where the frame has any.
+        D3D12_GPU_VIRTUAL_ADDRESS descsAddress = slot.instanceDescs->GetGPUVirtualAddress();
+        slot.instanceDataAddress = slot.instanceData->GetGPUVirtualAddress();
+        UINT total = instanceCount;
+        if (!scene->groups.empty() && gpuInstances != nullptr
+            && AddGpuInstancesLocked(slot, slotNumber, gpuInstances, scene->groups, materialIndex, instanceCount, total)
+            && total > instanceCount)
+        {
+            descsAddress = slot.sceneDescs->GetGPUVirtualAddress();
+            slot.instanceDataAddress = slot.sceneData->GetGPUVirtualAddress();
+            instanceCount = total;
         }
 
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
@@ -1050,7 +1105,7 @@ namespace redefinition
         inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
         inputs.NumDescs = instanceCount;
         inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        inputs.InstanceDescs = slot.instanceDescs->GetGPUVirtualAddress();
+        inputs.InstanceDescs = descsAddress;
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
         device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
 
@@ -1091,6 +1146,188 @@ namespace redefinition
         const D3D12_RESOURCE_BARRIER barrier = UavBarrier(tlas.Get());
         list->ResourceBarrier(1, &barrier);
         slot.held.push_back(tlas);
+        return true;
+    }
+
+    // A group as the GPU pass reads it (RaytracingShaders/GpuInstances.hlsl).
+    struct GpuGroup
+    {
+        uint32_t blasLow;
+        uint32_t blasHigh;
+        uint32_t meshSlot;
+        uint32_t material;
+        uint32_t first;
+        uint32_t count;
+        uint32_t start;
+        uint32_t maskFlags;
+    };
+
+    bool Raytracing::AddGpuInstancesLocked(Slot& slot, UINT slotNumber, Shared* gpuInstances,
+                                           const std::vector<RtGpuInstanceGroup>& given,
+                                           const std::unordered_map<int32_t, uint32_t>& materialIndex, UINT cpuCount, UINT& total)
+    {
+        auto pipeline = denoisePipelines.find("RT_GpuInstances");
+        if (pipeline == denoisePipelines.end())
+            return false;
+        // What each group is on the device; the ones whose mesh is not built are left out.
+        const UINT capacityTexels = gpuInstances->texture.width / 3 * gpuInstances->texture.height;
+        std::vector<GpuGroup> groups;
+        UINT gpuCount = 0;
+        for (const RtGpuInstanceGroup& group : given)
+        {
+            auto mesh = meshes.find(group.mesh);
+            if (mesh == meshes.end() || !mesh->second.built || group.count == 0
+                || static_cast<uint64_t>(group.first) + group.count > capacityTexels)
+                continue;
+            const D3D12_GPU_VIRTUAL_ADDRESS blas = mesh->second.blas->GetGPUVirtualAddress();
+            auto material = materialIndex.find(group.material);
+            GpuGroup item = {};
+            item.blasLow = static_cast<uint32_t>(blas & 0xFFFFFFFFu);
+            item.blasHigh = static_cast<uint32_t>(blas >> 32);
+            item.meshSlot = mesh->second.slot;
+            item.material = material != materialIndex.end() ? material->second : 0u;
+            item.first = group.first;
+            item.count = group.count;
+            item.start = gpuCount;
+            item.maskFlags = (group.mask & 0xFFu) | ((group.flags & 0xFFFFFFu) << 8);
+            groups.push_back(item);
+            gpuCount += group.count;
+        }
+        if (gpuCount == 0 || cpuCount + static_cast<uint64_t>(gpuCount) >= 0xFFFFFFu)
+            return false;
+        total = cpuCount + gpuCount;
+
+        // The buffers, grown as needed; the ones they replace held until the slot is done.
+        if (slot.sceneCapacity < total)
+        {
+            const UINT grown = std::max<UINT>(std::max<UINT>(total, slot.sceneCapacity * 2), 1024);
+            if (slot.sceneDescs != nullptr)
+                slot.held.push_back(slot.sceneDescs);
+            if (slot.sceneData != nullptr)
+                slot.held.push_back(slot.sceneData);
+            slot.sceneDescs.Reset();
+            slot.sceneData.Reset();
+            if (!EnsureDefaultBuffer(slot.sceneDescs, static_cast<UINT64>(grown) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC),
+                                     D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
+                || !EnsureDefaultBuffer(slot.sceneData, static_cast<UINT64>(grown) * sizeof(InstanceData),
+                                        D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS))
+            {
+                SetProblem("the buffers for the GPU's instances could not be made");
+                slot.sceneCapacity = 0;
+                return false;
+            }
+            slot.sceneCapacity = grown;
+            slot.sceneState = slot.sceneStateRecorded = D3D12_RESOURCE_STATE_COMMON;
+        }
+        const UINT groupCount = static_cast<UINT>(groups.size());
+        if (slot.gpuGroupCapacity < groupCount)
+        {
+            const UINT grown = std::max<UINT>(std::max<UINT>(groupCount, slot.gpuGroupCapacity * 2), 64);
+            if (!EnsureUploadBuffer(slot.gpuGroups, static_cast<UINT64>(grown) * sizeof(GpuGroup)))
+            {
+                SetProblem("the GPU instance groups' buffer could not be made");
+                return false;
+            }
+            slot.gpuGroupCapacity = grown;
+        }
+        const D3D12_RANGE nothing = { 0, 0 };
+        void* mapped = nullptr;
+        if (FAILED(slot.gpuGroups->Map(0, &nothing, &mapped)))
+            return false;
+        memcpy(mapped, groups.data(), groups.size() * sizeof(GpuGroup));
+        slot.gpuGroups->Unmap(0, nullptr);
+
+        // The CPU's instances first, copied from their upload buffers.
+        std::vector<D3D12_RESOURCE_BARRIER> barriers;
+        const auto move = [&](ID3D12Resource* resource, D3D12_RESOURCE_STATES from, D3D12_RESOURCE_STATES to)
+        {
+            if (from != to)
+                barriers.push_back(TransitionBarrier(resource, from, to));
+        };
+        move(slot.sceneDescs.Get(), slot.sceneState, D3D12_RESOURCE_STATE_COPY_DEST);
+        move(slot.sceneData.Get(), slot.sceneState, D3D12_RESOURCE_STATE_COPY_DEST);
+        move(gpuInstances->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        if (!barriers.empty())
+            list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
+        if (cpuCount > 0)
+        {
+            list->CopyBufferRegion(slot.sceneDescs.Get(), 0, slot.instanceDescs.Get(), 0,
+                                   static_cast<UINT64>(cpuCount) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
+            list->CopyBufferRegion(slot.sceneData.Get(), 0, slot.instanceData.Get(), 0,
+                                   static_cast<UINT64>(cpuCount) * sizeof(InstanceData));
+        }
+        barriers.clear();
+        move(slot.sceneDescs.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        move(slot.sceneData.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
+
+        // The pass's views: the groups and the transforms to read, the two buffers to write.
+        const UINT base = kSlots * kFrameDescriptors + 2 * kMaxMeshes + 1 + slotNumber * kDenoiseDescriptors
+                          + kDenoiseDescriptors - 3 * kTableSize;
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu = heap->GetCPUDescriptorHandleForHeapStart();
+        cpu.ptr += static_cast<SIZE_T>(base) * increment;
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu = heap->GetGPUDescriptorHandleForHeapStart();
+        gpu.ptr += static_cast<UINT64>(base) * increment;
+        for (UINT i = 0; i < 8; ++i)
+        {
+            D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+            srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            if (i == 0)
+            {
+                srv.Format = DXGI_FORMAT_UNKNOWN;
+                srv.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+                srv.Buffer.NumElements = groupCount;
+                srv.Buffer.StructureByteStride = sizeof(GpuGroup);
+                device->CreateShaderResourceView(slot.gpuGroups.Get(), &srv, cpu);
+            }
+            else
+            {
+                srv.Format = i == 1 ? gpuInstances->texture.format : DXGI_FORMAT_R32G32B32A32_FLOAT;
+                srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+                srv.Texture2D.MipLevels = 1;
+                device->CreateShaderResourceView(i == 1 ? gpuInstances->texture.d3d12.Get() : nullptr, &srv, cpu);
+            }
+            cpu.ptr += increment;
+        }
+        for (UINT i = 0; i < 4; ++i)
+        {
+            D3D12_UNORDERED_ACCESS_VIEW_DESC uav = {};
+            if (i < 2)
+            {
+                uav.Format = DXGI_FORMAT_UNKNOWN;
+                uav.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+                uav.Buffer.NumElements = slot.sceneCapacity;
+                uav.Buffer.StructureByteStride = i == 0 ? sizeof(D3D12_RAYTRACING_INSTANCE_DESC) : sizeof(InstanceData);
+                device->CreateUnorderedAccessView(i == 0 ? slot.sceneDescs.Get() : slot.sceneData.Get(), nullptr, &uav, cpu);
+            }
+            else
+            {
+                uav.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+                uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+                device->CreateUnorderedAccessView(nullptr, nullptr, &uav, cpu);
+            }
+            cpu.ptr += increment;
+        }
+
+        ID3D12DescriptorHeap* heaps[] = { heap.Get() };
+        list->SetDescriptorHeaps(1, heaps);
+        list->SetComputeRootSignature(rootSignature.Get());
+        list->SetComputeRootDescriptorTable(10, gpu);
+        D3D12_GPU_DESCRIPTOR_HANDLE writes = gpu;
+        writes.ptr += static_cast<UINT64>(8) * increment;
+        list->SetComputeRootDescriptorTable(11, writes);
+        const UINT values[4] = { groupCount, gpuCount, cpuCount, 0 };
+        list->SetComputeRoot32BitConstants(9, 4, values, 0);
+        list->SetPipelineState(pipeline->second.Get());
+        list->Dispatch((gpuCount + 63) / 64, 1, 1);
+
+        barriers.clear();
+        barriers.push_back(UavBarrier(nullptr));
+        move(slot.sceneDescs.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        move(slot.sceneData.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        move(gpuInstances->texture.d3d12.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COMMON);
+        list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
+        slot.sceneStateRecorded = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
         return true;
     }
 

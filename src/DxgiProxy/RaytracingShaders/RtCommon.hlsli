@@ -207,8 +207,16 @@ bool BodyBlocks(float3 origin, float3 direction)
     return closest2 < radius * radius;
 }
 
-// True where nothing lies between origin and origin + direction * maxDistance.
-bool Unoccluded(float3 origin, float3 direction, float maxDistance)
+// How far a ray from a pixel's surface passes through terrain: Parallax displaces the
+// drawn terrain on the GPU by up to some tenths of a metre near the camera
+// (ParallaxUtils.cginc), off the mesh the rays see, which would otherwise shade the
+// drawn surface where it lies below. Terrain is the only non-opaque geometry
+// (Raytracing.h, kRtInstanceTerrain).
+static const float kTerrainSkip = 1.0f;
+
+// True where nothing lies between origin and origin + direction * maxDistance; terrain
+// nearer than terrainSkip does not count.
+bool Unoccluded(float3 origin, float3 direction, float maxDistance, float terrainSkip = 0.0f)
 {
     if (maxDistance > 1.0e6f && BodyBlocks(origin, direction))
         return false;
@@ -217,9 +225,11 @@ bool Unoccluded(float3 origin, float3 direction, float maxDistance)
     ray.Direction = direction;
     ray.TMin = 0.0f;
     ray.TMax = maxDistance;
-    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE> query;
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
     query.TraceRayInline(scene, RAY_FLAG_NONE, 0xFF, ray);
-    query.Proceed();
+    while (query.Proceed())
+        if (query.CandidateTriangleRayT() >= terrainSkip)
+            query.CommitNonOpaqueTriangleHit();
     return query.CommittedStatus() == COMMITTED_NOTHING;
 }
 
@@ -281,7 +291,7 @@ struct Hit
     uint material;
 };
 
-Hit TraceClosest(float3 origin, float3 direction, float maxDistance)
+Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terrainSkip = 0.0f)
 {
     Hit hit;
     hit.found = false;
@@ -296,9 +306,11 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance)
     ray.Direction = direction;
     ray.TMin = 0.0f;
     ray.TMax = maxDistance;
-    RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE> query;
+    RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
     query.TraceRayInline(scene, RAY_FLAG_NONE, 0xFF, ray);
-    query.Proceed();
+    while (query.Proceed())
+        if (query.CandidateTriangleRayT() >= terrainSkip)
+            query.CommitNonOpaqueTriangleHit();
     if (query.CommittedStatus() != COMMITTED_TRIANGLE_HIT)
         return hit;
 
@@ -354,14 +366,14 @@ float3 SunAt(Hit hit, float3 albedo, inout Random random)
 // The radiance arriving along a ray, from what it hits and, bounce by bounce, what
 // lights that; the sky where it escapes.
 float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces, inout Random random,
-                out float firstDistance)
+                out float firstDistance, float firstTerrainSkip = 0.0f)
 {
     float3 total = 0.0f;
     float3 weight = 1.0f;
     firstDistance = maxDistance;
     for (uint bounce = 0u; bounce <= bounces; ++bounce)
     {
-        Hit hit = TraceClosest(origin, direction, bounce == 0u ? maxDistance : 1.0e7f);
+        Hit hit = TraceClosest(origin, direction, bounce == 0u ? maxDistance : 1.0e7f, bounce == 0u ? firstTerrainSkip : 0.0f);
         if (bounce == 0u)
             firstDistance = hit.distance;
         if (!hit.found)
