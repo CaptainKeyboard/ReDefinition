@@ -50,10 +50,16 @@ namespace ReDefinition.Raytracing
         internal Func<Color> SkyColor = () => RenderSettings.ambientSkyColor;
         // The sky as a cube map, or null for the sky's colour.
         internal Func<Texture> Environment = () => null;
-        // Where a point of this frame's world was in the previous frame's: previous = this + shift.
+        // Where a point of this frame's world was in the previous frame's: previous = this +
+        // shift, for what is near the camera, and for the bodies and what stands on them,
+        // which KSP moves apart under Krakensbane.
         internal Func<RtPosition> WorldShift = () => new RtPosition(0, 0, 0);
+        internal Func<RtPosition> WorldShiftFar;
         // The projection this frame was rendered with, jitter and all.
         internal Func<Matrix4x4> RenderedProjection;
+        // The main body's centre in the world and its radius, which the sun's rays test
+        // as a sphere; radius 0 for none.
+        internal Func<Vector4> Body = () => Vector4.zero;
         // Whether this frame is a cut: the camera jumped, the history is not its.
         internal Func<bool> Cut = () => false;
         // The camera's motion vectors, where they are rendered and correct.
@@ -89,7 +95,9 @@ namespace ReDefinition.Raytracing
 
         private static readonly int RtOn = Shader.PropertyToID("_ReDefinitionRtOn");
         private static readonly int RtLight = Shader.PropertyToID("_ReDefinitionRtLight");
-        private static readonly int RtReproject = Shader.PropertyToID("_ReDefinitionRtReproject");
+        private static readonly int RtPrevViewProj = Shader.PropertyToID("_ReDefinitionRtPrevViewProj");
+        private static readonly int RtOffsetNear = Shader.PropertyToID("_ReDefinitionRtOffsetNear");
+        private static readonly int RtOffsetFar = Shader.PropertyToID("_ReDefinitionRtOffsetFar");
         private static readonly int RtSun = Shader.PropertyToID("_ReDefinitionRtSun");
         private static readonly int RtDiffuse = Shader.PropertyToID("_ReDefinitionRtDiffuse");
         private static readonly int RtSpecular = Shader.PropertyToID("_ReDefinitionRtSpecular");
@@ -199,10 +207,15 @@ namespace ReDefinition.Raytracing
                                                         valid && Settings.Reflections ? 1f : 0f, 0f, 0f));
             if (valid)
             {
-                RtPosition shift = WorldShift();
-                Matrix4x4 toPrevious = Translation(shift.x - previousPosition.x, shift.y - previousPosition.y,
-                                                   shift.z - previousPosition.z);
-                Shader.SetGlobalMatrix(RtReproject, previousWorldToClip * toPrevious);
+                RtPosition near = WorldShift();
+                RtPosition far = WorldShiftFar != null ? WorldShiftFar() : near;
+                Shader.SetGlobalMatrix(RtPrevViewProj, previousWorldToClip);
+                Shader.SetGlobalVector(RtOffsetNear, new Vector4((float)(near.x - previousPosition.x),
+                                                                 (float)(near.y - previousPosition.y),
+                                                                 (float)(near.z - previousPosition.z), 0f));
+                Shader.SetGlobalVector(RtOffsetFar, new Vector4((float)(far.x - previousPosition.x),
+                                                                (float)(far.y - previousPosition.y),
+                                                                (float)(far.z - previousPosition.z), 0f));
                 if (sun != null) Shader.SetGlobalTexture(RtSun, sun);
                 if (diffuse != null) Shader.SetGlobalTexture(RtDiffuse, diffuse);
                 if (specular != null) Shader.SetGlobalTexture(RtSpecular, specular);
@@ -210,7 +223,7 @@ namespace ReDefinition.Raytracing
             else
             {
                 // Nothing to carry: fully lit, no raytraced light until the first frame.
-                Shader.SetGlobalMatrix(RtReproject, Matrix4x4.zero);
+                Shader.SetGlobalMatrix(RtPrevViewProj, Matrix4x4.zero);
             }
         }
 
@@ -304,9 +317,15 @@ namespace ReDefinition.Raytracing
             packet.Params[5] = withEnvironment ? 1f : 0f;
             packet.Params[6] = 1f;
             packet.Params[7] = deferred ? 1f : 0f;
+            Vector4 body = Body();
+            packet.BodySphere[0] = (float)(body.x - position.x);
+            packet.BodySphere[1] = (float)(body.y - position.y);
+            packet.BodySphere[2] = (float)(body.z - position.z);
+            packet.BodySphere[3] = body.w;
 
-            uint signals = 0;
-            if (Settings.Shadows) signals |= RtNative.SignalSun;
+            // The sun's pass always: its output keeps the view depth the next frame finds
+            // its pixels by.
+            uint signals = RtNative.SignalSun;
             if (deferred && Settings.Occlusion) signals |= RtNative.SignalOcclusion;
             if (deferred && Settings.Diffuse) signals |= RtNative.SignalDiffuse;
             if (deferred && Settings.Reflections) signals |= RtNative.SignalSpecular;

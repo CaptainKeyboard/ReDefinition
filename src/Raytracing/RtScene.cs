@@ -39,6 +39,8 @@ namespace ReDefinition.Raytracing
             public int Id;
             public int LastSeen;
             public Mesh Mesh;
+            public int SubMesh;
+            public bool Dirty;
         }
 
         private sealed class MaterialEntry
@@ -49,6 +51,7 @@ namespace ReDefinition.Raytracing
         }
 
         private readonly Dictionary<long, MeshEntry> meshes = new Dictionary<long, MeshEntry>();
+        private readonly Dictionary<Mesh, List<long>> keysOf = new Dictionary<Mesh, List<long>>();
         private readonly Dictionary<Material, MaterialEntry> materials = new Dictionary<Material, MaterialEntry>();
         private readonly List<RtItem> items = new List<RtItem>();
         private readonly List<IRtSource> sources = new List<IRtSource>();
@@ -65,6 +68,9 @@ namespace ReDefinition.Raytracing
         private static byte[] gammaToSrgb;
 
         internal int InstanceCount { get; private set; }
+        // Where the camera is this frame, for the sources' range.
+        internal Vector3 Eye { get; private set; }
+        internal int Uploads { get; private set; }
         internal int MeshCount { get { return meshes.Count; } }
         internal int MaterialCount { get { return materials.Count; } }
         internal int Skipped { get; private set; }
@@ -94,11 +100,14 @@ namespace ReDefinition.Raytracing
                 // A new device: nothing handed over before is there any more.
                 generation = serviceGeneration;
                 meshes.Clear();
+                keysOf.Clear();
                 materials.Clear();
                 texturesToRead.Clear();
                 nextTextureLayer = 0;
             }
 
+            Eye = new Vector3((float)cameraPosition.x, (float)cameraPosition.y, (float)cameraPosition.z);
+            Uploads = 0;
             items.Clear();
             foreach (IRtSource source in sources)
                 source.Collect(items);
@@ -151,6 +160,13 @@ namespace ReDefinition.Raytracing
             if (meshes.TryGetValue(key, out entry))
             {
                 entry.LastSeen = frame;
+                if (entry.Dirty)
+                {
+                    // Built again since: handed over again under the same id.
+                    entry.Dirty = false;
+                    if (!Upload(mesh, subMesh, entry.Id)) return 0;
+                    Uploads++;
+                }
                 return entry.Id;
             }
             if (!mesh.isReadable)
@@ -160,7 +176,11 @@ namespace ReDefinition.Raytracing
             }
             int id = nextMeshId++;
             if (!Upload(mesh, subMesh, id)) return 0;
-            meshes[key] = new MeshEntry { Id = id, LastSeen = frame, Mesh = mesh };
+            Uploads++;
+            meshes[key] = new MeshEntry { Id = id, LastSeen = frame, Mesh = mesh, SubMesh = subMesh };
+            List<long> keys;
+            if (!keysOf.TryGetValue(mesh, out keys)) keysOf[mesh] = keys = new List<long>();
+            keys.Add(key);
             return id;
         }
 
@@ -209,6 +229,18 @@ namespace ReDefinition.Raytracing
                 normalHandle.Free();
                 if (uvHandle.IsAllocated) uvHandle.Free();
                 indexHandle.Free();
+            }
+        }
+
+        // A mesh whose vertices or triangles changed: handed over again when next seen.
+        internal void Invalidate(Mesh mesh)
+        {
+            List<long> keys;
+            if (mesh == null || !keysOf.TryGetValue(mesh, out keys)) return;
+            foreach (long key in keys)
+            {
+                MeshEntry entry;
+                if (meshes.TryGetValue(key, out entry)) entry.Dirty = true;
             }
         }
 
@@ -343,8 +375,23 @@ namespace ReDefinition.Raytracing
                     released.Add(pair.Key);
             foreach (long key in released)
             {
-                RtNative.KspRtReleaseMesh(meshes[key].Id);
+                MeshEntry entry = meshes[key];
+                RtNative.KspRtReleaseMesh(entry.Id);
                 meshes.Remove(key);
+                List<long> keys;
+                if (entry.Mesh != null && keysOf.TryGetValue(entry.Mesh, out keys))
+                {
+                    keys.Remove(key);
+                    if (keys.Count == 0) keysOf.Remove(entry.Mesh);
+                }
+            }
+            if (frame % 600 == 0)
+            {
+                // Meshes destroyed: their keys go too.
+                var dead = new List<Mesh>();
+                foreach (Mesh mesh in keysOf.Keys)
+                    if (mesh == null) dead.Add(mesh);
+                foreach (Mesh mesh in dead) keysOf.Remove(mesh);
             }
         }
 
@@ -356,6 +403,7 @@ namespace ReDefinition.Raytracing
             foreach (MaterialEntry entry in materials.Values)
                 RtNative.KspRtReleaseMaterial(entry.Id);
             meshes.Clear();
+            keysOf.Clear();
             materials.Clear();
             texturesToRead.Clear();
             RtNative.KspRtSetInstances(instances, 0);

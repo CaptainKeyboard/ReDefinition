@@ -169,7 +169,7 @@ namespace redefinition
         memset(constants, 0, 512);
         memcpy(constants, packet->clipToWorld, 64);
         const uint32_t tail[4] = { width, height, packet->frameIndex, 0 };
-        memcpy(constants + 272, tail, sizeof(tail));
+        memcpy(constants + 288, tail, sizeof(tail));
 
         ID3D12DescriptorHeap* heaps[] = { heap.Get() };
         list->SetDescriptorHeaps(1, heaps);

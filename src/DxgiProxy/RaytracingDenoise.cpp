@@ -270,7 +270,7 @@ namespace redefinition
             DenoiseTarget& last = *work[current];
             UseLocked(last, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             {
-                const View reads[8] = { Of(&last) };
+                const View reads[8] = { Of(&last), View{}, View{}, Of(&denoise.linearDepth[now]) };
                 const View writes[4] = { Of(output) };
                 constants(1, filtered.kind, 0, 0);
                 dispatch(resolve, TableLocked(slotNumber, used, reads, writes));

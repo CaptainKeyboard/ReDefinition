@@ -70,6 +70,16 @@ lighting buffer. It is derived from Deferred's shader, which is GPL 3.0 like ReD
 and credited in [credits-and-licences.md](../credits-and-licences.md). When raytracing is
 off, Deferred's shader is set again.
 
+The raytraced diffuse light never falls below KSP's own night light. ReDefinition's
+reflections shader mixes it with Deferred's legacy ambient as Deferred mixes its probe's
+light, so that a planet's night side keeps the brightness KSP gives it **[meas]** (test
+player: the ground at 0.323 with raytracing and without).
+
+KSP moves its world between two frames in two ways under Krakensbane: the floating origin
+shifts what is near the vessel, and the bodies move by the frame's velocity as well
+**[src]**. The lighting shaders try both shifts and take the one whose view depth matches
+the depth the raytraced frame kept for the pixel.
+
 The screen-space shadows shader is derived from Unity's built-in one, which is MIT **[doc]**.
 For every camera but the scene camera it does what Unity's does.
 
@@ -91,7 +101,7 @@ frame.
 | KSC buildings | the renderers under each `PQSCity` | readability checked at run time; unreadable meshes copied on the GPU **[open]** |
 | Terrain | each visible `PQ`'s mesh, from `PQSMod.OnQuadBuilt` and `OnQuadDestroy` **[src]** | index buffer swapped when a neighbour's subdivision changes **[src]**; Parallax's finer copy near the camera used in place of the quad **[src]** |
 | Parallax scatter | the instance buffers Parallax fills on the GPU **[src]** | instances built into the scene on the GPU, as their count is only known there |
-| Planets seen from far | spheres, tested by formula | none |
+| The main body | a sphere, tested by formula in the sun's rays, so that its night side and what flies over it lie in its shadow | none |
 
 Left out: anything transparent or additive (Waterfall, Firefly, particles, translucent
 parts), EVE's clouds, Scatterer's ocean and atmosphere, and the UI.

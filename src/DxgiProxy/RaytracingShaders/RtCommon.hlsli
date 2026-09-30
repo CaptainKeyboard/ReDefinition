@@ -17,6 +17,7 @@ cbuffer Frame : register(b0)
     float4 skyColor;
     float4 params0;
     float4 params1;
+    float4 bodySphere;   // the main body: centre relative to the camera, radius; w 0 for none
     uint2 frameSize;
     uint frameIndex;
     uint frameFlags;
@@ -188,9 +189,27 @@ float3 RayOrigin(float3 position, float3 normal)
     return position + normal * (0.01f + distance * 0.0005f);
 }
 
+// Whether the main body, which is not in the scene the rays see, stands in the way: its
+// sphere, tested by formula. What stands on it near the camera is in the scene.
+bool BodyBlocks(float3 origin, float3 direction)
+{
+    if (bodySphere.w <= 0.0f)
+        return false;
+    float3 toCentre = bodySphere.xyz - origin;
+    float along = dot(toCentre, direction);
+    if (along <= 0.0f)
+        return false;
+    float closest2 = dot(toCentre, toCentre) - along * along;
+    // Slightly inside the radius: the ground itself lies on the sphere.
+    float radius = bodySphere.w * 0.999f;
+    return closest2 < radius * radius;
+}
+
 // True where nothing lies between origin and origin + direction * maxDistance.
 bool Unoccluded(float3 origin, float3 direction, float maxDistance)
 {
+    if (maxDistance > 1.0e6f && BodyBlocks(origin, direction))
+        return false;
     RayDesc ray;
     ray.Origin = origin;
     ray.Direction = direction;

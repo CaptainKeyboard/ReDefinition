@@ -5,7 +5,7 @@
 // Lahmar, GPL 3.0), changed for ReDefinition (docs/development/raytracing.md, "Where
 // the raytraced light enters Unity's lighting"): for the camera that is raytraced,
 // the ambient light is the raytraced diffuse light and the reflection the raytraced
-// one, both of the frame before, carried over by _ReDefinitionRtReproject, in place of
+// one, both of the frame before, carried over (ReDefinitionRtReproject.cginc), in place of
 // the reflection probe (the block marked ReDefinition in frag). Everything else is
 // Deferred's. Its name is kept apart: ReDefinition/Internal-DeferredReflections.
 
@@ -52,23 +52,10 @@ float3 legacyAmbientColor;
 
 // ReDefinition: the raytraced diffuse light and reflections, set around the raytraced
 // camera's rendering (RtCamera); _ReDefinitionRtLight says which of them to use.
-float _ReDefinitionRtOn;
+#include "ReDefinitionRtReproject.cginc"
 float4 _ReDefinitionRtLight;   // x: diffuse light, y: reflections
-float4x4 _ReDefinitionRtReproject;
 sampler2D _ReDefinitionRtDiffuse;
 sampler2D _ReDefinitionRtSpecular;
-
-inline bool RtUv(float3 worldPos, out float2 uv)
-{
-    uv = 0;
-    if (_ReDefinitionRtOn < 0.5)
-        return false;
-    float4 clip = mul(_ReDefinitionRtReproject, float4(worldPos, 1.0));
-    if (clip.w <= 0.0)
-        return false;
-    uv = float2(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
-    return all(uv >= 0.0) && all(uv <= 1.0);
-}
 
 half4 frag (unity_v2f_deferred i) : SV_Target
 {
@@ -150,7 +137,13 @@ half4 frag (unity_v2f_deferred i) : SV_Target
     if (RtUv(worldPos, rtUv))
     {
         if (_ReDefinitionRtLight.x > 0.5)
-            ind.diffuse = tex2Dlod(_ReDefinitionRtDiffuse, float4(rtUv, 0.0, 0.0)).rgb * data.occlusion;
+        {
+            // Never below KSP's own night light: mixed with Deferred's legacy ambient as
+            // Deferred mixes its probe's, so that a planet's night side is not black.
+            float3 raytraced = tex2Dlod(_ReDefinitionRtDiffuse, float4(rtUv, 0.0, 0.0)).rgb;
+            raytraced = lerp(legacyAmbientColor, raytraced, saturate((length(raytraced) - legacyAmbientMagnitude) * 100.0));
+            ind.diffuse = raytraced * data.occlusion;
+        }
         if (_ReDefinitionRtLight.y > 0.5)
             ind.specular = tex2Dlod(_ReDefinitionRtSpecular, float4(rtUv, 0.0, 0.0)).rgb * data.occlusion;
     }

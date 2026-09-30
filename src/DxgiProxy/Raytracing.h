@@ -134,6 +134,7 @@ namespace redefinition
         float sunColor[4];       // the sun's radiance at the scene, linear rgb
         float skyColor[4];       // the sky's radiance where no environment is given
         float params[8];
+        float bodySphere[4];     // the main body: centre relative to the camera, radius; radius 0 for none
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
@@ -192,8 +193,8 @@ namespace redefinition
     static_assert(sizeof(RtMaterialDesc) == 64, "RtMaterialDesc layout changed: update the managed side");
     static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
     static_assert(offsetof(RtFramePacket, clipToWorld) == 32, "RtFramePacket layout changed");
-    static_assert(offsetof(RtFramePacket, inputs) == 304, "RtFramePacket layout changed");
-    static_assert(sizeof(RtFramePacket) == 432, "RtFramePacket layout changed: update the managed side");
+    static_assert(offsetof(RtFramePacket, inputs) == 320, "RtFramePacket layout changed");
+    static_assert(sizeof(RtFramePacket) == 448, "RtFramePacket layout changed: update the managed side");
 
     class Raytracing
     {

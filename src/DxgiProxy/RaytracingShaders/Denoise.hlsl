@@ -259,12 +259,13 @@ void DenoiseAtrous(uint3 id : SV_DispatchThreadID)
     outputA[id.xy] = float4(sum.rgb / weights, varianceSum / (weights * weights));
 }
 
-// The filtered signal into the texture Unity reads: a scalar in x, a colour in rgb.
+// The filtered signal into the texture Unity reads: a scalar in x with the view depth
+// in w, as the sun's pass writes it; a colour in rgb.
 [numthreads(8, 8, 1)]
 void DenoiseResolve(uint3 id : SV_DispatchThreadID)
 {
     if (any(id.xy >= frameSize))
         return;
     float4 value = inputA[id.xy];
-    outputA[id.xy] = signalKind == 0u ? float4(value.x, 0.0f, 0.0f, 1.0f) : float4(value.rgb, 1.0f);
+    outputA[id.xy] = signalKind == 0u ? float4(value.x, 0.0f, 0.0f, linearDepthNow[id.xy]) : float4(value.rgb, 1.0f);
 }

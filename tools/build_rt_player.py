@@ -37,6 +37,7 @@ SHADERS = [
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtCapture.shader',
     'unity/Assets/ReDefinition/Shaders/ReDefinitionScreenSpaceShadows.shader',
     'unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader',
+    'unity/Assets/ReDefinition/Shaders/ReDefinitionRtReproject.cginc',
 ]
 
 def copy_in():
@@ -100,7 +101,7 @@ def main():
         shutil.copy2(PROXY, OUTPUT)
     deferred = os.path.join(arguments.ksp, 'GameData', 'zzz_Deferred', 'Shaders')
     forward_ok = run(exe, None, 'forward')
-    builtin_ok = run(exe, None, 'unity-deferred', ['-builtinDeferred', '1', '-debugShadows', '1'])
+    builtin_ok = run(exe, None, 'unity-deferred', ['-builtinDeferred', '1'])
     deferred_ok = run(exe, deferred if os.path.isdir(deferred) else None, 'deferred')
     sys.exit(0 if forward_ok and builtin_ok and deferred_ok else 1)
 

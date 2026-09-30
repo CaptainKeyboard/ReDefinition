@@ -603,8 +603,9 @@ namespace redefinition
         memcpy(constants + 208, packet->sunColor, 16);
         memcpy(constants + 224, packet->skyColor, 16);
         memcpy(constants + 240, packet->params, 32);
+        memcpy(constants + 272, packet->bodySphere, 16);
         const uint32_t tail[4] = { packet->width, packet->height, packet->frameIndex, packet->flags };
-        memcpy(constants + 272, tail, sizeof(tail));
+        memcpy(constants + 288, tail, sizeof(tail));
 
         std::vector<D3D12_RESOURCE_BARRIER> into;
         std::vector<D3D12_RESOURCE_BARRIER> back;

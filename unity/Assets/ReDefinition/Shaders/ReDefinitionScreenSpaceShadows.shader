@@ -3,7 +3,7 @@
 // Changed for ReDefinition (docs/development/raytracing.md, "Where the raytraced light
 // enters Unity's lighting"): for the camera that is raytraced, the mask holds the
 // raytraced sun visibility of the frame before, carried over by
-// _ReDefinitionRtReproject, in place of the cascaded shadow maps (RtShadow, and its
+// ReDefinitionRtReproject.cginc, in place of the cascaded shadow maps (RtShadow, and its
 // two calls in frag_hard and frag_pcfSoft). Every other camera collects its shadows
 // as Unity's shader does. Unity's name is kept apart: Hidden/ReDefinition/ScreenSpaceShadows.
 
@@ -233,29 +233,17 @@ inline float3 computeCameraSpacePosFromDepth(v2f i);
 
 // ReDefinition: the raytraced sun visibility. _ReDefinitionRtOn is set around the
 // raytraced camera's rendering (RtCamera, its command buffers); the texture holds the
-// frame before, which _ReDefinitionRtReproject reaches from this frame's world.
-float _ReDefinitionRtOn;
-float _ReDefinitionRtDebug;
-float4x4 _ReDefinitionRtReproject;
-sampler2D _ReDefinitionRtSun;
+// frame before, found again from this frame's world by RtUv.
+#include "ReDefinitionRtReproject.cginc"
 
 inline bool RtShadow(float3 worldPos, out fixed visibility)
 {
     visibility = 1;
     if (_ReDefinitionRtOn < 0.5)
         return false;
-    float4 clip = mul(_ReDefinitionRtReproject, float4(worldPos, 1.0));
-    if (clip.w <= 0.0)
-        return true;
-    float2 uv = float2(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
-    if (_ReDefinitionRtDebug > 0.5)
-    {
-        visibility = _ReDefinitionRtDebug < 1.5 ? frac(uv.x * 4.0) : _ReDefinitionRtDebug < 2.5 ? frac(uv.y * 4.0) : saturate(clip.w / 100.0);
-        return true;
-    }
-    if (any(uv < 0.0) || any(uv > 1.0))
-        return true;
-    visibility = tex2Dlod(_ReDefinitionRtSun, float4(uv, 0.0, 0.0)).r;
+    float2 uv;
+    if (RtUv(worldPos, uv))
+        visibility = tex2Dlod(_ReDefinitionRtSun, float4(uv, 0.0, 0.0)).r;
     return true;
 }
 

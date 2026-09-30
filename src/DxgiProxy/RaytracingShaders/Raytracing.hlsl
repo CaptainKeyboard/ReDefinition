@@ -3,7 +3,8 @@
 
 #include "RtCommon.hlsli"
 
-// u0: how much of the sun a pixel sees, 0 to 1, in x; the pixel's distance in w.
+// u0: how much of the sun a pixel sees, 0 to 1, in x; the pixel's view depth (clip w)
+// in w, by which the next frame's lighting finds the pixel again.
 // One ray a frame into the sun's disc: the denoiser averages them into a soft edge.
 [numthreads(8, 8, 1)]
 void SunVisibility(uint3 id : SV_DispatchThreadID)
@@ -27,7 +28,7 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
         float3 direction = SampleCone(towardsSun, sunDirection.w, u);
         visible = Unoccluded(RayOrigin(position, normal), direction, 1.0e7f) ? 1.0f : 0.0f;
     }
-    output0[id.xy] = float4(visible, 0.0f, 0.0f, length(position));
+    output0[id.xy] = float4(visible, 0.0f, 0.0f, mul(worldToClip, float4(position, 1.0f)).w);
 }
 
 // u7: the camera's ray through the pixel's centre against the scene, in x its hit

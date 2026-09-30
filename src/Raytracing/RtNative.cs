@@ -106,6 +106,7 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] SunColor;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] SkyColor;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public float[] Params;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] BodySphere;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
         }
@@ -123,6 +124,7 @@ namespace ReDefinition.Raytracing
                 SunColor = new float[4],
                 SkyColor = new float[4],
                 Params = new float[8],
+                BodySphere = new float[4],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

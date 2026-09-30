@@ -211,14 +211,7 @@ namespace ReDefinition.RaytracingPlayer
             for (int i = 0; i < 90; i++) yield return null;
             Texture2D with = null;
             yield return Capture(t => with = t);
-            if (Argument("-debugShadows") != null)
-                for (int mode = 1; mode <= 3; mode++)
-                {
-                    Shader.SetGlobalFloat("_ReDefinitionRtDebug", mode);
-                    for (int i = 0; i < 3; i++) yield return null;
-                    yield return Capture(t => { }, "debug" + mode);
-                }
-            Shader.SetGlobalFloat("_ReDefinitionRtDebug", 0f);
+
 
             Dump(raytracing.DepthTexture, "depth", 50f);
             Dump(raytracing.SunTexture, "sun", 1f);
@@ -275,7 +268,76 @@ namespace ReDefinition.RaytracingPlayer
             if (deferredMod)
                 Check(RtLighting.ReflectionsReplaced, "Deferred's reflections shader replaced",
                       "the raytraced diffuse light and reflections enter through it");
+            if (deferredMod)
+            {
+                yield return Moving(without);
+                yield return Night();
+            }
             Finish();
+        }
+
+        // The camera gliding sideways while the world jumps as KSP's floating origin makes
+        // it: everything moved by minus an offset, reported as the frame's shift. The far
+        // box's shadow stays where it is, carried over the jump.
+        private IEnumerator Moving(Texture2D without)
+        {
+            Vector3 shift = Vector3.zero;
+            raytracing.WorldShift = () => new RtPosition(shift.x, shift.y, shift.z);
+            Vector3 total = Vector3.zero;
+            for (int i = 0; i < 40; i++)
+            {
+                shift = Vector3.zero;
+                if (i == 38)
+                {
+                    // Just before the last frame: a jump of 600 m, as KSP's origin makes one.
+                    shift = new Vector3(600f, 0f, -300f);
+                    foreach (GameObject root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+                        if (root != gameObject && root.GetComponent<Light>() == null)
+                            root.transform.position -= shift;
+                    total -= shift;
+                }
+                cam.transform.position += new Vector3(0.05f, 0f, 0f);
+                yield return null;
+            }
+            Texture2D moved = null;
+            yield return Capture(t => moved = t, "moved");
+            Vector3 far = ShadowOfPublic(new Vector3(0f, 5f, 60f)) + total;
+            Vector3 farLit = far + new Vector3(15f, 0f, 0f);
+            float ratio = Brightness(moved, far) / Mathf.Max(Brightness(moved, farLit), 1e-3f);
+            float before = Brightness(without, far - total) / Mathf.Max(Brightness(without, farLit - total), 1e-3f);
+            Check(ratio < 0.8f * before, "the far shadow over a floating origin jump",
+                  (ratio * 100f).ToString("0") + " % of the light beside it after the camera moved 2 m and the world 670 m");
+        }
+
+        // The sun under the horizon: the ground gets no sun and a dark sky. With the
+        // raytraced light it must be as bright as KSP's own night light keeps it.
+        private IEnumerator Night()
+        {
+            Light sun = FindObjectOfType<Light>();
+            Vector3 below = new Vector3(0.3f, -0.4f, 0.74f).normalized;
+            sun.transform.rotation = Quaternion.LookRotation(-below);
+            raytracing.Sun = () => new Vector4(below.x, below.y, below.z, 0.0047f);
+            RenderSettings.skybox = null;
+            probe.RenderProbe();
+            Vector3 ground = new Vector3(8f, 0f, 20f);
+            raytracing.enabled = false;
+            for (int i = 0; i < 20; i++) yield return null;
+            Texture2D dark = null;
+            yield return Capture(t => dark = t, "night_without_raytracing");
+            raytracing.enabled = true;
+            for (int i = 0; i < 60; i++) yield return null;
+            Texture2D darkWith = null;
+            yield return Capture(t => darkWith = t, "night_with_raytracing");
+            float plain = Brightness(dark, ground);
+            float traced = Brightness(darkWith, ground);
+            Check(plain > 0.02f && traced > 0.8f * plain, "the night side not black",
+                  "the ground at " + traced.ToString("0.000") + " with raytracing, " + plain.ToString("0.000")
+                  + " with KSP's night light alone");
+        }
+
+        private Vector3 ShadowOfPublic(Vector3 centre)
+        {
+            return centre - towardsSun * (centre.y / towardsSun.y);
         }
 
         private void Finish()

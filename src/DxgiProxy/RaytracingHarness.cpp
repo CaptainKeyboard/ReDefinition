@@ -702,6 +702,8 @@ PsOut PsMain(VsOut input)
         float clamp = 0.0f;
         ID3D11Texture2D* environment = nullptr;
         uint32_t flags = 0;
+        // The main body as a sphere, centre in the world, radius; radius 0 for none.
+        double body[4] = { 0, 0, 0, 0 };
         // The previous frame's world-to-clip in this frame's camera-relative space; this
         // frame's where not given.
         const Mat4* previous = nullptr;
@@ -735,6 +737,10 @@ PsOut PsMain(VsOut input)
         packet.params[4] = lighting.clamp;
         packet.params[5] = lighting.environment != nullptr ? 1.0f : 0.0f;
         packet.params[7] = 1.0f;   // the harness's G-buffer
+        packet.bodySphere[0] = float(lighting.body[0] - camera.position.x);
+        packet.bodySphere[1] = float(lighting.body[1] - camera.position.y);
+        packet.bodySphere[2] = float(lighting.body[2] - camera.position.z);
+        packet.bodySphere[3] = float(lighting.body[3]);
         packet.inputs[kRtInputEnvironment] = lighting.environment;
         packet.inputs[kRtInputDepth] = g.depth.Get();
         packet.inputs[kRtInputGBuffer0] = g.gbuffer0.Get();
@@ -1923,6 +1929,46 @@ int main()
                     image[i * 3 + c] = composed[i * 4 + c];
             SaveColour(L"rt_reconstruct_noisy.bmp", image, 1.0);
         }
+    }
+
+    // ---------------------------------------------------------------- the planet's shadow
+    {
+        // A box high over the ground, the sun low under the horizon of a planet the ground
+        // lies on: without the planet's sphere the box's sunward faces are lit, with it
+        // they are in the planet's shadow.
+        std::vector<Instance> high = { box };
+        high[0].position = { 0, 150, 0 };
+        Camera up = camera;
+        up.position = { 30, 140, 60 };
+        up.target = { 0, 150, 0 };
+        up.Update();
+        SendInstances(proxy, high, up.position);
+        RenderGBuffer(context.Get(), g, up, meshes, high);
+        const Vec3 low = { 0.0, -0.25, 1.0 };
+        const auto litPixels = [&](const Lighting& lighting) -> size_t
+        {
+            SendFrame(proxy, up, g, outputs, low, 0.0f, 12000, kRtSignalSunVisibility, lighting);
+            std::vector<uint16_t> vis;
+            ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, vis);
+            std::vector<float> depth;
+            ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+            size_t lit = 0;
+            for (size_t i = 0; i < depth.size(); ++i)
+                lit += depth[i] > 0.0f && HalfToFloat(vis[i * 4]) > 0.5f ? 1 : 0;
+            return lit;
+        };
+        Lighting open;
+        Lighting planet;
+        planet.body[0] = 0;
+        planet.body[1] = -600000.0;
+        planet.body[2] = 0;
+        planet.body[3] = 600000.0;
+        const size_t without = litPixels(open);
+        const size_t with = litPixels(planet);
+        char detail[160];
+        sprintf_s(detail, "%zu of the box's pixels lit by a sun under the horizon without the planet's sphere, %zu with it",
+                  without, with);
+        Check(without > 1000 && with == 0, "the planet's shadow", detail);
     }
 
     // ---------------------------------------------------------------- churn
