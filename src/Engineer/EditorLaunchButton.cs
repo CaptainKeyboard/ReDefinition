@@ -21,6 +21,7 @@ namespace ReDefinition.Engineer
         private string site;
         private string look;
         private Vector3 middle;
+        private float reach;
         private bool measured;
 
         private IEnumerator Start()
@@ -43,7 +44,7 @@ namespace ReDefinition.Engineer
             }
             site = vab ? "LaunchPad" : "Runway";
             look = vab ? "Buttons_Launchpad" : "Buttons_Runway";
-            marker = new WorldButton("ReDefinitionEditorLaunch", Launch);
+            marker = new WorldButton("ReDefinitionEditorLaunch", Launch, 40f);
             marker.Tooltip = "Launch";
             Debug.Log(Log.Tag + " Launch button over the " + (vab ? "launch pad" : "runway") + " outside the "
                       + (vab ? "VAB" : "SPH") + " (" + place.name + ").");
@@ -81,9 +82,10 @@ namespace ReDefinition.Engineer
             {
                 Vector3 drawn = WorldButton.Middle(place);
                 middle = place.InverseTransformPoint(drawn);
+                reach = WorldButton.Reach(place) * 0.6f;
                 measured = drawn != place.position;
             }
-            if (marker.Place(place.TransformPoint(middle), editor.editorCamera)) marker.Look(look, null);
+            if (marker.Place(place.TransformPoint(middle), editor.editorCamera, reach)) marker.Look(look, null);
         }
 
         private void Launch()

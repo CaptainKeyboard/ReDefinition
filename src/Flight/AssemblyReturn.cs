@@ -41,6 +41,7 @@ namespace ReDefinition.Flight
             internal EditorFacility Facility;
             internal Transform Place;
             internal Vector3 Middle;
+            internal float Reach;
             internal bool Measured;
         }
 
@@ -85,7 +86,7 @@ namespace ReDefinition.Flight
             }
             vabIcon = Load("Assembly_VAB");
             sphIcon = Load("Assembly_SPH");
-            marker = new WorldButton("ReDefinitionAssemblyReturn", Ask);
+            marker = new WorldButton("ReDefinitionAssemblyReturn", Ask, 40f);
             Debug.Log(Log.Tag + " The assembly buildings' symbols are ready: the VAB " + Where(vab) + ", the SPH " + Where(sph)
                       + ", on " + (home != null ? home.bodyName : "no body") + ".");
         }
@@ -126,9 +127,10 @@ namespace ReDefinition.Flight
             }
             Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             Vector3 middle = Middle(building);
-            if (!marker.Place(middle, camera))
+            // Before the building's front, not inside it.
+            if (!marker.Place(middle, camera, building.Reach))
             {
-                Note("the building behind the camera");
+                Note("the building behind the camera or too far to see");
                 return;
             }
             Note("shown on the " + building.Facility + (revert ? ", reverting" : ", recovering") + ", "
@@ -199,6 +201,7 @@ namespace ReDefinition.Flight
                 Vector3 middle = WorldButton.Middle(building.Place);
                 if (middle == building.Place.position) return middle;
                 building.Middle = building.Place.InverseTransformPoint(middle);
+                building.Reach = WorldButton.Reach(building.Place) * 0.6f;
                 building.Measured = true;
             }
             return building.Place.TransformPoint(building.Middle);

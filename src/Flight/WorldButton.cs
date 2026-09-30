@@ -11,18 +11,32 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Flight
 {
-    // A button over a place in the world, placed as KSP places its vessel labels:
-    // on KSP's main canvas, at the world point's screen place from the canvas's
-    // lower left over the UI scale (UIMasterController.WorldToMainCanvas), behind
-    // the rest of the HUD. It looks like one of the space centre's facility buttons
-    // (KscButtons) where those have been seen, else a symbol of ReDefinition's own
-    // on a round plate. The main canvas stays across scenes: the button goes with
-    // the add-on that made it (Destroy).
+    // A button standing in the world, on a canvas of its own in world space that
+    // the scene's camera draws with the rest (Canvas.renderMode WorldSpace, on the
+    // layer of the vessel's parts): what stands before it, a vessel, a building,
+    // the ground, hides it, and a click on it where a part stands before it goes
+    // to the part (GraphicRaycaster.blockingObjects ThreeD). It turns to face the
+    // camera and has a size in the world, so that it grows smaller as the camera
+    // draws away; on the screen it is kept between MinPixels and MaxPixels, and
+    // it goes where it would be smaller than MinPixels. Clicks are measured with a
+    // camera of its own that follows the scene's and draws nothing (Eyes): the
+    // upscaler has the scene's camera draw into a texture of the render size, and
+    // a ray from the screen's pixels would miss there. It looks like one of the
+    // space centre's facility buttons (KscButtons) where those have been seen,
+    // else a symbol of ReDefinition's own on a round plate. It goes with the
+    // add-on that made it (Destroy).
     internal sealed class WorldButton
     {
+        // The canvas's units: the button's size in them, and its pixels on the
+        // screen at KSP's UI scale of 1.
         internal const float Size = 40f;
+        internal const float MinPixels = 18f;
+        internal const float MaxPixels = 44f;
         private static readonly Color Plate = new Color(0.13f, 0.13f, 0.16f, 0.9f);
 
+        private readonly GameObject root;
+        private readonly Canvas canvas;
+        private readonly float metres;
         private readonly RectTransform rect;
         private readonly Image face;
         private readonly Image glyph;
@@ -30,14 +44,20 @@ namespace ReDefinition.Flight
         private readonly TooltipController_Text tooltip;
         private string look;
 
-        internal WorldButton(string name, UnityAction click)
+        // `metres`: how large it stands in the world.
+        internal WorldButton(string name, UnityAction click, float metres)
         {
-            Transform canvas = UIMasterController.Instance.mainCanvas.transform;
-            GameObject item = UiHygiene.Child(name, canvas, typeof(RectTransform), typeof(Image), typeof(Button));
+            this.metres = metres;
+            root = new GameObject(name, typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
+            root.layer = 0;
+            canvas = root.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            GraphicRaycaster raycaster = root.GetComponent<GraphicRaycaster>();
+            raycaster.blockingObjects = GraphicRaycaster.BlockingObjects.ThreeD;
+            ((RectTransform)root.transform).sizeDelta = new Vector2(Size, Size);
+            GameObject item = UiHygiene.Child("Button", root.transform, typeof(RectTransform), typeof(Image), typeof(Button));
             rect = (RectTransform)item.transform;
-            rect.SetAsFirstSibling();
-            rect.anchorMin = rect.anchorMax = Vector2.zero;
-            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(Size, Size);
             face = item.GetComponent<Image>();
             face.preserveAspect = true;
@@ -55,7 +75,7 @@ namespace ReDefinition.Flight
             glyph = symbol.GetComponent<Image>();
             glyph.preserveAspect = true;
             glyph.raycastTarget = false;
-            item.SetActive(false);
+            root.SetActive(false);
         }
 
         internal string Tooltip
@@ -100,23 +120,83 @@ namespace ReDefinition.Flight
             look = ksc;
         }
 
-        // At the world point where it is before the camera; hidden otherwise.
-        internal bool Place(Vector3 world, Camera camera)
+        // At the world point, brought `pull` metres towards the camera -- a
+        // building's middle lies inside it -- and facing it; false, and hidden,
+        // where it is behind the camera or would be too small to see.
+        internal bool Place(Vector3 world, Camera camera, float pull)
         {
-            bool shown = camera != null && camera.WorldToViewportPoint(world).z > 0f;
-            if (rect.gameObject.activeSelf != shown) rect.gameObject.SetActive(shown);
-            if (shown) rect.anchoredPosition = UIMasterController.WorldToMainCanvas(world, camera);
+            bool shown = false;
+            if (camera != null)
+            {
+                Vector3 eye = camera.transform.position;
+                Vector3 toEye = eye - world;
+                float distance = toEye.magnitude;
+                Vector3 at = distance > 0f ? world + toEye / distance * Mathf.Min(pull, distance * 0.5f) : world;
+                float depth = Vector3.Dot(at - eye, camera.transform.forward);
+                if (depth > 0f)
+                {
+                    // Metres per pixel at that depth.
+                    float perPixel = 2f * depth * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height);
+                    float ui = Mathf.Max(0.5f, GameSettings.UI_SCALE);
+                    float pixels = metres / perPixel;
+                    if (pixels >= MinPixels * ui)
+                    {
+                        float shownPixels = Mathf.Min(pixels, MaxPixels * ui);
+                        root.transform.position = at;
+                        root.transform.rotation = camera.transform.rotation;
+                        root.transform.localScale = Vector3.one * (shownPixels * perPixel / Size);
+                        canvas.worldCamera = Eyes(camera);
+                        shown = true;
+                    }
+                }
+            }
+            if (root.activeSelf != shown) root.SetActive(shown);
             return shown;
         }
 
         internal void Hide()
         {
-            if (rect != null && rect.gameObject.activeSelf) rect.gameObject.SetActive(false);
+            if (root != null && root.activeSelf) root.SetActive(false);
+        }
+
+        private static Camera eyes;
+
+        // A camera where `scene` stands, looking as it looks, on the screen, drawing
+        // nothing: for the canvas's rays.
+        private static Camera Eyes(Camera scene)
+        {
+            if (eyes == null)
+            {
+                GameObject holder = new GameObject("ReDefinitionWorldButtonEyes", typeof(Camera));
+                Object.DontDestroyOnLoad(holder);
+                eyes = holder.GetComponent<Camera>();
+                eyes.enabled = false;
+                eyes.cullingMask = 0;
+                eyes.clearFlags = CameraClearFlags.Nothing;
+            }
+            eyes.transform.position = scene.transform.position;
+            eyes.transform.rotation = scene.transform.rotation;
+            eyes.fieldOfView = scene.fieldOfView;
+            eyes.nearClipPlane = scene.nearClipPlane;
+            eyes.farClipPlane = scene.farClipPlane;
+            eyes.targetTexture = null;
+            eyes.rect = new Rect(0f, 0f, 1f, 1f);
+            return eyes;
         }
 
         internal void Destroy()
         {
-            if (rect != null) Object.Destroy(rect.gameObject);
+            if (root != null) Object.Destroy(root);
+        }
+
+        // How far what a transform draws reaches from its middle.
+        internal static float Reach(Transform place)
+        {
+            Renderer[] parts = place.GetComponentsInChildren<Renderer>(false);
+            if (parts.Length == 0) return 0f;
+            Bounds bounds = parts[0].bounds;
+            foreach (Renderer part in parts) bounds.Encapsulate(part.bounds);
+            return bounds.extents.magnitude;
         }
 
         private static Sprite disc;
@@ -180,11 +260,42 @@ namespace ReDefinition.Flight
             return look;
         }
 
-        private IEnumerator Start()
+        // Taken a second and a half into the scene, where a theme has swapped the
+        // pictures as the scene's UI stands; looked at again every second until all
+        // four are there, for ten seconds.
+        private float next;
+        private float until;
+
+        private void Awake()
         {
-            // A theme swaps the pictures as the scene's UI stands.
-            for (int i = 0; i < 10; i++) yield return null;
+            next = Time.unscaledTime + 1.5f;
+            until = next + 10f;
+        }
+
+        private void Update()
+        {
+            if (next <= 0f || Time.unscaledTime < next) return;
+            next = Time.unscaledTime + 1f;
             int found = 0;
+            try
+            {
+                found = Capture();
+            }
+            catch (System.Exception e)
+            {
+                CompatibilityLog.Warn("ksc-buttons", "The space centre's facility buttons could not be copied (" + CompatibilityLog.Reason(e) + ").");
+                next = 0f;
+                return;
+            }
+            if (found < Wanted.Length && Time.unscaledTime < until) return;
+            next = 0f;
+            Debug.Log(Log.Tag + " The space centre's facility buttons copied for the buttons in the world: " + found + " of "
+                      + Wanted.Length + ".");
+        }
+
+        private static int Capture()
+        {
+            Seen.Clear();
             foreach (Button button in Resources.FindObjectsOfTypeAll<Button>())
             {
                 Image image = button != null ? button.targetGraphic as Image : null;
@@ -199,13 +310,13 @@ namespace ReDefinition.Flight
                     Disabled = Copy(button.spriteState.disabledSprite, name, "disabled"),
                 };
                 if (look.Normal == null) continue;
+                if (look.Highlighted == null) look.Highlighted = look.Normal;
+                if (look.Pressed == null) look.Pressed = look.Highlighted;
+                if (look.Disabled == null) look.Disabled = look.Normal;
                 looks[name] = look;
                 Seen.Add(name);
-                found++;
             }
-            Seen.Clear();
-            Debug.Log(Log.Tag + " The space centre's facility buttons copied for the buttons in the world: " + found + " of "
-                      + Wanted.Length + ".");
+            return Seen.Count;
         }
 
         private static readonly HashSet<string> Seen = new HashSet<string>();
