@@ -24,6 +24,8 @@ dxgi_LICENSE-NVIDIA.txt                         licences of the NVIDIA headers t
 dxgi_LICENSE-FidelityFX.txt                     licence of the AMD headers the proxy is built with
 amd_fidelityfx_framegeneration_dx12.dll         AMD's frame generation runtime
 amd_fidelityfx_framegeneration_dx12_LICENSE.md  AMD's licence for it
+amd_fidelityfx_denoiser_dx12.dll                AMD's denoiser for raytracing, Radeon RX 9000 and newer
+amd_fidelityfx_denoiser_dx12_LICENSE.md         AMD's licence for it
 ```
 
 Windows loads the `dxgi.dll` next to `KSP_x64.exe` instead of its own, and

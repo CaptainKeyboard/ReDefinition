@@ -103,6 +103,11 @@ amd_fidelityfx_framegeneration_dx12.dll
                               AMD's frame generation runtime, 4.0.1 from FSR SDK v2.3.0
 amd_fidelityfx_framegeneration_dx12_LICENSE.md
                               AMD's licence for it, verbatim
+amd_fidelityfx_denoiser_dx12.dll
+                              AMD FSR Ray Regeneration for the raytracing, 1.2.0 from
+                              FSR SDK v2.3.0
+amd_fidelityfx_denoiser_dx12_LICENSE.md
+                              AMD's licence for it, verbatim
 ```
 
 The zip's layout is the KSP folder's, so extracting it there merges `GameData` and puts
@@ -117,8 +122,8 @@ source to be offered in the same place as the binary.
 In these cases there is no zip, and one left from an earlier build is removed:
 
 * the proxy is missing, or older than any native source;
-* AMD's runtime is missing, or does not match its pinned SHA-256 in `third_party/amd`,
-  which `python tools/fetch_amd_runtime.py` fetches;
+* one of AMD's runtimes is missing, or does not match its pinned SHA-256 in
+  `third_party/amd`, which `python tools/fetch_amd_runtime.py` fetches;
 * the shader bundle is missing;
 * any shader source is newer than the bundle. The Unity project builds the bundle
   directly into the game's `GameData` (`BundleBuilder.cs`), and the package takes it from
@@ -251,5 +256,9 @@ install:
   - file: amd_fidelityfx_framegeneration_dx12.dll
     install_to: GameRoot
   - file: amd_fidelityfx_framegeneration_dx12_LICENSE.md
+    install_to: GameRoot
+  - file: amd_fidelityfx_denoiser_dx12.dll
+    install_to: GameRoot
+  - file: amd_fidelityfx_denoiser_dx12_LICENSE.md
     install_to: GameRoot
 ```

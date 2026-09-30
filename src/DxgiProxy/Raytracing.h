@@ -8,6 +8,8 @@
 
 #include "FrameGeneration.h"
 
+#include <FidelityFX/api/include/ffx_api_loader.h>
+
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -169,6 +171,15 @@ namespace redefinition
         float bodySphere[4];     // the main body: centre relative to the camera, radius; radius 0 for none
         float ambient[12];       // Unity's ambient light, which its shading added already, linear: facing up
                                  // (rgb, w 1 where Unity shades in gamma space), sideways, down
+        // The camera as AMD FSR Ray Regeneration takes it: matrices for row vectors, rows
+        // first, the view looking down +z and camera-relative, the projection without
+        // the jitter; the previous position minus this one in this frame's world; the
+        // jitter in pixels; the near and far planes.
+        float worldToView[16];
+        float viewToClip[16];
+        float cameraDelta[4];
+        float jitter[2];
+        float depthRange[2];
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
@@ -230,8 +241,8 @@ namespace redefinition
     static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
     static_assert(sizeof(RtGpuInstanceGroup) == 32, "RtGpuInstanceGroup layout changed: update the managed side");
     static_assert(offsetof(RtFramePacket, clipToWorld) == 32, "RtFramePacket layout changed");
-    static_assert(offsetof(RtFramePacket, inputs) == 368, "RtFramePacket layout changed");
-    static_assert(sizeof(RtFramePacket) == 496, "RtFramePacket layout changed: update the managed side");
+    static_assert(offsetof(RtFramePacket, inputs) == 528, "RtFramePacket layout changed");
+    static_assert(sizeof(RtFramePacket) == 656, "RtFramePacket layout changed: update the managed side");
 
     class Raytracing
     {
@@ -362,6 +373,32 @@ namespace redefinition
             return shared != nullptr ? View{ shared->texture.d3d12.Get(), shared->texture.format } : View{};
         }
 
+        // AMD FSR Ray Regeneration: its DLL's functions, its context, and the guides it
+        // takes (RaytracingRegenerate.cpp).
+        struct Regeneration
+        {
+            HMODULE module = nullptr;
+            ffxFunctions api = {};
+            ffxContext context = nullptr;
+            bool tried = false;
+            UINT width = 0;
+            UINT height = 0;
+            uint32_t signals = 0;
+            // Set where the device gave no context or a dispatch failed: not tried again
+            // until the device goes.
+            bool unsupported = false;
+            bool reset = true;
+            // The last frame AMD's denoiser took, and whether the one before this did.
+            uint32_t lastFrame = 0;
+            bool hadFrame = false;
+            bool previousWasAmd = false;
+            DenoiseTarget linearDepth;
+            DenoiseTarget motion;
+            DenoiseTarget normals;
+            DenoiseTarget specularAlbedo;
+            DenoiseTarget diffuseAlbedo;
+        };
+
         struct DenoiseTargets
         {
             DenoiseTarget noisy[4];
@@ -428,6 +465,12 @@ namespace redefinition
         D3D12_GPU_DESCRIPTOR_HANDLE TableLocked(UINT slotNumber, UINT& used, const View (&reads)[8],
                                                 const View (&writes)[4]);
         void RunDenoiserLocked(const RtFramePacket& packet, UINT slotNumber, Shared* const* outputs, Shared* motionInput);
+        // AMD FSR Ray Regeneration for the diffuse light and the reflections where its DLL
+        // runs on this GPU; false where ReDefinition's denoiser takes them.
+        bool RegenerationReadyLocked(const RtFramePacket& packet);
+        bool RunRegenerationLocked(const RtFramePacket& packet, UINT slotNumber, Shared* const* outputs, Shared* motionInput,
+                                   Slot& slot);
+        void ReleaseRegenerationLocked();
         // The guides at this size, the ones before held by the slot until it is done.
         bool EnsureGuidesLocked(std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>& held, UINT width, UINT height);
         bool EnsureDefaultBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size,
@@ -455,6 +498,8 @@ namespace redefinition
         std::map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> denoisePipelines;
         DenoiseTargets denoise;
         GuideTargets guides;
+        Regeneration regeneration;
+        std::string regenerationWhy;
 
         Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
         UINT increment = 0;
@@ -515,6 +560,7 @@ namespace redefinition
         std::string lastProblem;
         uint64_t frames = 0;
         uint64_t reconstructed = 0;
+        uint64_t regenerated = 0;
         uint32_t liveMeshes = 0;
         uint32_t lastInstances = 0;
         uint32_t lastBuilt = 0;

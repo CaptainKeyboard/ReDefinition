@@ -136,6 +136,13 @@ namespace ReDefinition.Raytracing
                 UpscalerRig rig = UpscalerRig.Current;
                 return rig != null && rig.RenderedProjection(sceneCamera, out projection) ? projection : sceneCamera.projectionMatrix;
             };
+            camera.UnjitteredProjection = () =>
+                CameraRedirect.JitterActive ? sceneCamera.nonJitteredProjectionMatrix : sceneCamera.projectionMatrix;
+            camera.Jitter = () =>
+            {
+                UpscalerRig rig = UpscalerRig.Current;
+                return rig != null && CameraRedirect.JitterActive ? rig.CurrentJitter : Vector2.zero;
+            };
             camera.Cut = () => SharedFrame.ResetReason != null;
             camera.Body = () =>
             {

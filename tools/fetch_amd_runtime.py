@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-"""Fetches AMD's FidelityFX frame generation runtime for the player package.
+"""Fetches AMD's FidelityFX runtimes for the player package.
 
-The package ships amd_fidelityfx_framegeneration_dx12.dll next to KSP_x64.exe,
-where the proxy (dxgi.dll) loads it (docs/development/packaging.md). It is AMD's signed
-binary, unmodified, redistributed under AMD's licence, which the package
-reproduces next to it (licenses/AMD-FidelityFX-SDK-license.md). The DLL itself
-is not kept in this repository: this script downloads exactly the pinned file
-from AMD's FidelityFX SDK release and checks it byte for byte against the
+The package ships amd_fidelityfx_framegeneration_dx12.dll, for frame generation, and
+amd_fidelityfx_denoiser_dx12.dll, AMD FSR Ray Regeneration for the raytracing, next to
+KSP_x64.exe, where the proxy (dxgi.dll) loads them (docs/development/packaging.md).
+They are AMD's signed binaries, unmodified, redistributed under AMD's licence, which
+the package reproduces next to them (licenses/AMD-FidelityFX-SDK-license.md). The DLLs
+themselves are not kept in this repository: this script downloads exactly the pinned
+files from AMD's FidelityFX SDK release and checks them byte for byte against the
 SHA-256 in third_party/amd/, which the package build checks as well.
 
 Usage:  python tools/fetch_amd_runtime.py
@@ -17,14 +18,12 @@ import sys
 import urllib.request
 
 SDK_TAG = "v2.3.0"   # FSR SDK v2.3.0, 2026-06-24 -- see third_party/amd/README.md
-FILE = "amd_fidelityfx_framegeneration_dx12.dll"
-URL = ("https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/"
-       + SDK_TAG + "/Kits/FidelityFX/signedbin/" + FILE)
+FILES = ["amd_fidelityfx_framegeneration_dx12.dll", "amd_fidelityfx_denoiser_dx12.dll"]
+BASE = ("https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/"
+        + SDK_TAG + "/Kits/FidelityFX/signedbin/")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TARGET_DIR = os.path.join(ROOT, "third_party", "amd")
-TARGET = os.path.join(TARGET_DIR, FILE)
-PIN = os.path.join(TARGET_DIR, FILE + ".sha256")
 
 
 def sha256(path):
@@ -35,17 +34,18 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def main():
-    with open(PIN, "r", encoding="ascii") as f:
+def fetch(name):
+    target = os.path.join(TARGET_DIR, name)
+    with open(target + ".sha256", "r", encoding="ascii") as f:
         pinned = f.read().strip().lower()
 
-    if os.path.exists(TARGET) and sha256(TARGET) == pinned:
-        print("Already there and matching the pin: " + TARGET)
+    if os.path.exists(target) and sha256(target) == pinned:
+        print("Already there and matching the pin: " + target)
         return 0
 
-    part = TARGET + ".part"
-    print("Downloading " + URL)
-    urllib.request.urlretrieve(URL, part)
+    part = target + ".part"
+    print("Downloading " + BASE + name)
+    urllib.request.urlretrieve(BASE + name, part)
     got = sha256(part)
     if got != pinned:
         os.remove(part)
@@ -53,9 +53,13 @@ def main():
               + ". Nothing was kept.")
         return 1
 
-    os.replace(part, TARGET)
-    print("Fetched and checked: " + TARGET)
+    os.replace(part, target)
+    print("Fetched and checked: " + target)
     return 0
+
+
+def main():
+    return max(fetch(name) for name in FILES)
 
 
 if __name__ == "__main__":

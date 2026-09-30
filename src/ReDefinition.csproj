@@ -242,6 +242,8 @@
       <_ProxyDll>$(_RepoRoot)build\DxgiProxy\Release\dxgi.dll</_ProxyDll>
       <_FfxRuntime>$(_RepoRoot)third_party\amd\amd_fidelityfx_framegeneration_dx12.dll</_FfxRuntime>
       <_FfxRuntimePin>$(_RepoRoot)third_party\amd\amd_fidelityfx_framegeneration_dx12.dll.sha256</_FfxRuntimePin>
+      <_FfxDenoiser>$(_RepoRoot)third_party\amd\amd_fidelityfx_denoiser_dx12.dll</_FfxDenoiser>
+      <_FfxDenoiserPin>$(_RepoRoot)third_party\amd\amd_fidelityfx_denoiser_dx12.dll.sha256</_FfxDenoiserPin>
     </PropertyGroup>
     <ItemGroup>
       <_ShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.compute;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.h;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.hlsl;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Editor\**\*.cs" />
@@ -267,6 +269,16 @@
     </GetFileHash>
     <Error Condition="'$(_FfxRuntimeHash)' != '$(_FfxRuntimePinned)'"
            Text="No release zip: '$(_FfxRuntime)' does not match the pinned SHA-256 $(_FfxRuntimePinned). Fetch it again with: python tools/fetch_amd_runtime.py" />
+    <Error Condition="!Exists('$(_FfxDenoiser)')"
+           Text="No release zip: AMD's denoiser runtime is missing. Fetch it with: python tools/fetch_amd_runtime.py" />
+    <ReadLinesFromFile File="$(_FfxDenoiserPin)">
+      <Output TaskParameter="Lines" PropertyName="_FfxDenoiserPinned" />
+    </ReadLinesFromFile>
+    <GetFileHash Files="$(_FfxDenoiser)" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="_FfxDenoiserHash" />
+    </GetFileHash>
+    <Error Condition="'$(_FfxDenoiserHash)' != '$(_FfxDenoiserPinned)'"
+           Text="No release zip: '$(_FfxDenoiser)' does not match the pinned SHA-256 $(_FfxDenoiserPinned). Fetch it again with: python tools/fetch_amd_runtime.py" />
     <Error Condition="!Exists('$(_ShaderBundle)')"
            Text="No release zip: the shader bundle '$(_ShaderBundle)' is missing. Build it with the Unity project first (docs/development/building-and-testing.md)." />
     <Error Condition="$([System.IO.File]::GetLastWriteTime('%(_ShaderSource.FullPath)').Ticks) &gt; $([System.IO.File]::GetLastWriteTime('$(_ShaderBundle)').Ticks)"
@@ -296,8 +308,9 @@
     <Copy SourceFiles="$(_RepoRoot)src\Fsr3\LICENSE.txt" DestinationFiles="$(_StageMod)\LICENSE-FSR3Unity.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\FidelityFX-FSR3-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-FidelityFX.txt" />
     <Copy SourceFiles="@(_StaticGameDataZip)" DestinationFolder="$(_Stage)\GameData\%(RecursiveDir)" />
-    <Copy SourceFiles="$(_ProxyDll);$(_FfxRuntime)" DestinationFolder="$(_Stage)" />
+    <Copy SourceFiles="$(_ProxyDll);$(_FfxRuntime);$(_FfxDenoiser)" DestinationFolder="$(_Stage)" />
     <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-SDK-license.md" DestinationFiles="$(_Stage)\amd_fidelityfx_framegeneration_dx12_LICENSE.md" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-SDK-license.md" DestinationFiles="$(_Stage)\amd_fidelityfx_denoiser_dx12_LICENSE.md" />
     <Copy SourceFiles="$(_RepoRoot)licenses\NVIDIA-MIT.txt" DestinationFiles="$(_Stage)\dxgi_LICENSE-NVIDIA.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-API-MIT.txt" DestinationFiles="$(_Stage)\dxgi_LICENSE-FidelityFX.txt" />
     <Copy SourceFiles="$(_Native)\ReDefinitionProxy.ini" DestinationFolder="$(_StageMod)" />

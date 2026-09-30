@@ -61,8 +61,11 @@ namespace ReDefinition.Raytracing
         // which KSP moves apart under Krakensbane.
         internal Func<RtPosition> WorldShift = () => new RtPosition(0, 0, 0);
         internal Func<RtPosition> WorldShiftFar;
-        // The projection this frame was rendered with, jitter and all.
+        // The projection this frame was rendered with, jitter and all; the same without the
+        // jitter, and the jitter in pixels.
         internal Func<Matrix4x4> RenderedProjection;
+        internal Func<Matrix4x4> UnjitteredProjection;
+        internal Func<Vector2> Jitter = () => Vector2.zero;
         // The main body's centre in the world and its radius, which the sun's rays test
         // as a sphere; radius 0 for none.
         internal Func<Vector4> Body = () => Vector4.zero;
@@ -525,6 +528,30 @@ namespace ReDefinition.Raytracing
             }
             else
                 Write(worldToClip, packet.PrevWorldToClip);
+
+            // The camera for AMD's denoiser: its view looking down +z, as StreamlineCamera
+            // has it.
+            Matrix4x4 view = cam.worldToCameraMatrix;
+            view.m03 = 0f;
+            view.m13 = 0f;
+            view.m23 = 0f;
+            StreamlineCamera.WriteRowMajor(StreamlineCamera.FlipZ() * view, packet.WorldToView);
+            Matrix4x4 unjittered = UnjitteredProjection != null ? UnjitteredProjection() : cam.projectionMatrix;
+            StreamlineCamera.WriteRowMajor(GL.GetGPUProjectionMatrix(unjittered, true) * StreamlineCamera.FlipZ(), packet.ViewToClip);
+            if (haveHistory)
+            {
+                RtPosition moved = WorldShift();
+                packet.CameraDelta[0] = (float)(previousPosition.x - position.x - moved.x);
+                packet.CameraDelta[1] = (float)(previousPosition.y - position.y - moved.y);
+                packet.CameraDelta[2] = (float)(previousPosition.z - position.z - moved.z);
+            }
+            else
+                packet.CameraDelta[0] = packet.CameraDelta[1] = packet.CameraDelta[2] = 0f;
+            Vector2 jitter = Jitter();
+            packet.Jitter[0] = jitter.x;
+            packet.Jitter[1] = jitter.y;
+            packet.DepthRange[0] = cam.nearClipPlane;
+            packet.DepthRange[1] = cam.farClipPlane;
 
             Vector4 towards = Sun();
             Vector3 direction = new Vector3(towards.x, towards.y, towards.z).normalized;

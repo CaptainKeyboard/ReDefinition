@@ -38,7 +38,8 @@ namespace redefinition
         // The denoiser's entry points (RaytracingShaders/Denoise.hlsl).
         const wchar_t* const kDenoiseEntries[] = {
             L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous", L"RT_DenoiseResolve",
-            L"RT_ReconstructGuides", L"RT_FrameGuides", L"RT_GpuInstances",
+            L"RT_ReconstructGuides", L"RT_FrameGuides", L"RT_GpuInstances", L"RT_RegenerationGuides",
+            L"RT_RegenerationAlbedo",
         };
 
         // The output slot of each signal the denoiser filters, and its place among the
@@ -671,24 +672,29 @@ namespace redefinition
         if (!into.empty())
             list->ResourceBarrier(static_cast<UINT>(into.size()), into.data());
 
-        ID3D12DescriptorHeap* heaps[] = { heap.Get() };
-        list->SetDescriptorHeaps(1, heaps);
-        list->SetComputeRootSignature(rootSignature.Get());
-        list->SetComputeRootConstantBufferView(0, slot.constants->GetGPUVirtualAddress());
-        list->SetComputeRootShaderResourceView(1, tlas->GetGPUVirtualAddress());
-        list->SetComputeRootDescriptorTable(2, frameTable);
-        D3D12_GPU_DESCRIPTOR_HANDLE outputTable = frameTable;
-        outputTable.ptr += static_cast<UINT64>(kRtMaxTextures) * increment;
-        list->SetComputeRootDescriptorTable(3, outputTable);
-        list->SetComputeRootShaderResourceView(4, slot.instanceDataAddress);
-        list->SetComputeRootShaderResourceView(5, slot.materials->GetGPUVirtualAddress());
-        D3D12_GPU_DESCRIPTOR_HANDLE meshTable = heapGpu;
-        meshTable.ptr += static_cast<UINT64>(kSlots) * kFrameDescriptors * increment;
-        list->SetComputeRootDescriptorTable(6, meshTable);
-        meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
-        list->SetComputeRootDescriptorTable(7, meshTable);
-        meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
-        list->SetComputeRootDescriptorTable(8, meshTable);
+        // The frame's bindings: set now, and again after anything that sets its own.
+        const auto bindFrame = [&]()
+        {
+            ID3D12DescriptorHeap* heaps[] = { heap.Get() };
+            list->SetDescriptorHeaps(1, heaps);
+            list->SetComputeRootSignature(rootSignature.Get());
+            list->SetComputeRootConstantBufferView(0, slot.constants->GetGPUVirtualAddress());
+            list->SetComputeRootShaderResourceView(1, tlas->GetGPUVirtualAddress());
+            list->SetComputeRootDescriptorTable(2, frameTable);
+            D3D12_GPU_DESCRIPTOR_HANDLE outputTable = frameTable;
+            outputTable.ptr += static_cast<UINT64>(kRtMaxTextures) * increment;
+            list->SetComputeRootDescriptorTable(3, outputTable);
+            list->SetComputeRootShaderResourceView(4, slot.instanceDataAddress);
+            list->SetComputeRootShaderResourceView(5, slot.materials->GetGPUVirtualAddress());
+            D3D12_GPU_DESCRIPTOR_HANDLE meshTable = heapGpu;
+            meshTable.ptr += static_cast<UINT64>(kSlots) * kFrameDescriptors * increment;
+            list->SetComputeRootDescriptorTable(6, meshTable);
+            meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
+            list->SetComputeRootDescriptorTable(7, meshTable);
+            meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
+            list->SetComputeRootDescriptorTable(8, meshTable);
+        };
+        bindFrame();
         slot.held.push_back(materialTextures);
 
         const UINT groupsX = (packet->width + 7) / 8;
@@ -743,7 +749,25 @@ namespace redefinition
                     list->ResourceBarrier(static_cast<UINT>(toWrite.size()), toWrite.data());
             }
             if (index == 6 && denoising)
-                RunDenoiserLocked(*packet, slotNumber, outputs, inputs[kRtInputMotion]);
+            {
+                // AMD FSR Ray Regeneration for the diffuse light and the reflections where it
+                // runs, ReDefinition's denoiser for the rest; for all where it does not.
+                bool amdDenoised = false;
+                if (RegenerationReadyLocked(*packet))
+                {
+                    amdDenoised = RunRegenerationLocked(*packet, slotNumber, outputs, inputs[kRtInputMotion], slot);
+                    // AMD's denoiser sets its own heap and root signature on the list.
+                    bindFrame();
+                }
+                RtFramePacket rest = *packet;
+                if (amdDenoised)
+                    rest.signals &= ~(kRtSignalDiffuse | kRtSignalSpecular);
+                // ReDefinition's history stood still while AMD's denoiser had the frames.
+                else if (regeneration.previousWasAmd)
+                    rest.flags |= kRtFrameReset;
+                regeneration.previousWasAmd = amdDenoised;
+                RunDenoiserLocked(rest, slotNumber, outputs, inputs[kRtInputMotion]);
+            }
             list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 2 + position);
         }
 
@@ -1668,6 +1692,7 @@ namespace redefinition
     void Raytracing::ReleaseLocked()
     {
         WaitForAllLocked();
+        ReleaseRegenerationLocked();
         pendingCopies.clear();
         pendingFence = 0;
         meshes.clear();
@@ -1740,10 +1765,11 @@ namespace redefinition
         }
         if (buffer != nullptr && size > 0)
             _snprintf_s(buffer, static_cast<size_t>(size), _TRUNCATE,
-                        "generation=%u frames=%llu reconstructed=%llu meshes=%u built=%u instances=%u build=%.3fms"
-                        " trace=%.3fms%s%s",
+                        "generation=%u frames=%llu reconstructed=%llu regenerated=%llu meshes=%u built=%u instances=%u"
+                        " build=%.3fms trace=%.3fms%s%s",
                         generation.load(), static_cast<unsigned long long>(frames),
-                        static_cast<unsigned long long>(reconstructed), liveMeshes, lastBuilt, lastInstances,
+                        static_cast<unsigned long long>(reconstructed), static_cast<unsigned long long>(regenerated), liveMeshes,
+                        lastBuilt, lastInstances,
                         buildMs, traceMs, lastProblem.empty() ? "" : " last problem: ", lastProblem.c_str());
         return static_cast<int>(generation.load());
     }

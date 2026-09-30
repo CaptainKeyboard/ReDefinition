@@ -23,6 +23,8 @@ package.
 * AMD FidelityFX frame generation runtime, `amd_fidelityfx_framegeneration_dx12.dll`,
   by Advanced Micro Devices -- AMD's licence, `amd_fidelityfx_framegeneration_dx12_LICENSE.md`
   next to it.
+* AMD FSR Ray Regeneration, `amd_fidelityfx_denoiser_dx12.dll`, by Advanced Micro
+  Devices -- AMD's licence, `amd_fidelityfx_denoiser_dx12_LICENSE.md` next to it.
 
 Everyone else this project builds on, talks to or learnt from is named in
 `CREDITS.md`.

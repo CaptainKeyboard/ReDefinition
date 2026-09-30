@@ -56,6 +56,12 @@ download beside *NVIDIA DLSS files* brings its two files with the frame generati
 ([installing.md](installing.md)). Without frame generation or those files,
 ReDefinition's own denoiser removes the noise, and DLSS upscales as usual.
 
+## With a Radeon RX 9000
+
+On a Radeon RX 9000 or newer, AMD FSR Ray Regeneration removes the noise of the traced
+light and its reflections. Its DLL comes with ReDefinition, next to `KSP_x64.exe`. On
+other GPUs, ReDefinition's own denoiser does.
+
 ## When something looks wrong
 
 KSP's log (`KSP.log`) gets a line every 30 seconds starting with `[ReDefinition]

@@ -42,7 +42,8 @@ set(REDEFINITION_RT_ENTRIES
     Denoise:DenoisePrepare Denoise:DenoiseTemporal Denoise:DenoiseVariance Denoise:DenoiseAtrous
     Denoise:DenoiseResolve
     Reconstruct:ReconstructGuides Reconstruct:FrameGuides
-    GpuInstances:GpuInstances)
+    GpuInstances:GpuInstances
+    Regenerate:RegenerationGuides RegenerateAlbedo:RegenerationAlbedo)
 set(REDEFINITION_RT_OUTPUTS)
 set(REDEFINITION_RT_RC "${CMAKE_CURRENT_BINARY_DIR}/RaytracingShaders.rc")
 if(REDEFINITION_DXC)
@@ -103,6 +104,7 @@ add_library(ReDefinitionProxy SHARED
     Raytracing.h
     RaytracingDenoise.cpp
     RaytracingReconstruct.cpp
+    RaytracingRegenerate.cpp
     Streamline.cpp
     Streamline.h
     SwapChainProxy.cpp

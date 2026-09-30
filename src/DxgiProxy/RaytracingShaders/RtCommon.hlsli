@@ -466,4 +466,22 @@ float3 UnityAmbient(float3 normal)
     return value;
 }
 
+// NVIDIA's approximation of the split-sum's environment term (ProgrammingGuideDLSS_RR.md
+// 4.2.1, after Ray Tracing Gems, chapter 32), as the guide gives it: the specular albedo
+// DLSS Ray Reconstruction and AMD FSR Ray Regeneration take as a guide.
+float3 EnvBRDFApprox2(float3 specularColor, float alpha, float nov)
+{
+    nov = abs(nov);
+    float4 x = float4(1.0f, nov, nov * nov, nov * nov * nov);
+    float4 y = float4(1.0f, alpha, alpha * alpha, alpha * alpha * alpha);
+    float2x2 m1 = float2x2(0.99044f, -1.28514f, 1.29678f, -0.755907f);
+    float3x3 m2 = float3x3(1.0f, 2.92338f, 59.4188f, 20.3225f, -27.0302f, 222.592f, 121.563f, 626.13f, 316.627f);
+    float2x2 m3 = float2x2(0.0365463f, 3.32707f, 9.0632f, -9.04756f);
+    float3x3 m4 = float3x3(1.0f, 3.59685f, -1.36772f, 9.04401f, -16.3174f, 9.22949f, 5.56589f, 19.7886f, -20.2123f);
+    float bias = dot(mul(m1, x.xy), y.xy) * rcp(dot(mul(m2, x.xyw), y.xyw));
+    float scale = dot(mul(m3, x.xy), y.xy) * rcp(dot(mul(m4, x.xzw), y.xyw));
+    bias *= saturate(specularColor.g * 50.0f);
+    return mad(specularColor, max(0.0f, scale), max(0.0f, bias));
+}
+
 #endif

@@ -194,7 +194,7 @@ smooth one:
 | Denoiser | Runs on | Needs | Takes |
 |---|---|---|---|
 | ReDefinition's own, after SVGF: accumulation over frames, a variance estimate, an à-trous filter | every GPU with raytracing | nothing | every signal separately |
-| AMD FSR Ray Regeneration 1.2 | Radeon RX 9000 and newer, Windows 11 **[doc]** | the player's `amd_fidelityfx_denoiser_dx12.dll` and loader | the signals separately; FSR upscales afterwards |
+| AMD FSR Ray Regeneration 1.2 | Radeon RX 9000 and newer, Windows 11 **[doc]** | `amd_fidelityfx_denoiser_dx12.dll`, which the package ships next to `KSP_x64.exe` | the diffuse light and the reflections; the sun's visibility stays with ReDefinition's |
 | NVIDIA DLSS Ray Reconstruction | GeForce RTX **[doc]** | the player's `sl.dlss_d.dll` and `nvngx_dlssd.dll` | the whole frame with its noise, in place of DLSS Super Resolution **[doc]** |
 
 ReDefinition gives Ray Reconstruction its own Streamline viewport, apart from frame
@@ -215,6 +215,19 @@ Ray Reconstruction ready; the first frame after switching goes through Super Res
 as its raytraced frame made no guides yet. Where Ray Reconstruction shows no frame for a
 second, the upscaler stays with Super Resolution and writes why into the log. Whether it
 runs in the game is **[open]**.
+
+The proxy loads AMD's DLL from next to `KSP_x64.exe`, else from the proxy's
+`amdUpscalerDirectory`, and asks it for a context at the render size. Where it gets one, AMD's denoiser takes the diffuse light and
+the reflections, with guides the proxy makes from the frame's surfaces as AMD's
+documentation asks for them. The sun's visibility stays with ReDefinition's denoiser: its
+output keeps the view depth the next frame finds its pixels by. Where AMD's DLL gives no
+context, or no DLL is there, ReDefinition's denoiser takes everything, and the log says
+why once **[meas]** (RTX 4090: the DLL, 1.2.0.2740, loads and gives no context, code 4;
+every harness check passes, with the DLL and without). A switch between the two denoisers
+starts the history of the one that takes over afresh. The depth change in the motion
+guide comes from the camera's two matrices, as for ReDefinition's own denoiser: for what
+moves by itself, a vessel in flight, it is off by its motion. On a Radeon RX 9000 it is
+**[open]**.
 
 NVIDIA's NRD denoisers are left out: their licence forbids use that makes them subject to
 an open-source licence **[doc]**.
@@ -279,8 +292,8 @@ of GPU time. The test player's budget run renders 1707 by 960, as DLSS Quality d
 that size, with 400 m of ground in 131 072 triangles, 404 instances and 20 008 from the
 GPU, every signal, two bounces and the denoiser: 2.56 ms **[meas]**. The denoiser takes
 1.98 ms of it, the scene's build 0.17 ms. The camera takes its textures' native handles
-once, as they are made: Unity's GetNativeTexturePtr waits for the render thread. In the game the scene is larger; the log's line
-every 30 seconds gives its timings **[open]**.
+once, as they are made: Unity's GetNativeTexturePtr waits for the render thread. In the
+game the scene is larger; the log's line every 30 seconds gives its timings **[open]**.
 
 In the game, one flight checks what the test player cannot: the terrain and the parts in
 the rays, Scatterer's and EVE's shadows over the raytraced ones, Parallax's scatter, a

@@ -13,11 +13,12 @@ namespace ReDefinition.Tests
         public void ThePacketIsLaidOutAsTheProxyReadsIt()
         {
             System.Type packet = typeof(RtNative.FramePacket);
-            Assert.AreEqual(496, Marshal.SizeOf(packet));
+            Assert.AreEqual(656, Marshal.SizeOf(packet));
             Assert.AreEqual(32, Marshal.OffsetOf(packet, "ClipToWorld").ToInt32());
             Assert.AreEqual(304, Marshal.OffsetOf(packet, "BodySphere").ToInt32());
             Assert.AreEqual(320, Marshal.OffsetOf(packet, "Ambient").ToInt32());
-            Assert.AreEqual(368, Marshal.OffsetOf(packet, "Inputs").ToInt32());
+            Assert.AreEqual(368, Marshal.OffsetOf(packet, "WorldToView").ToInt32());
+            Assert.AreEqual(528, Marshal.OffsetOf(packet, "Inputs").ToInt32());
         }
 
         // RtReconstructPacket's static_asserts: 640 bytes, the matrices from 48, the
