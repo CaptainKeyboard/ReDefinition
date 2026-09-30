@@ -687,6 +687,7 @@ PsOut PsMain(VsOut input)
         ComPtr<ID3D11Texture2D> diffuse;      // u1
         ComPtr<ID3D11Texture2D> specular;     // u2
         ComPtr<ID3D11Texture2D> occlusion;    // u3
+        ComPtr<ID3D11Texture2D> forward;      // u4
         ComPtr<ID3D11Texture2D> primary;      // u7, R32G32B32A32_FLOAT
     };
 
@@ -695,6 +696,8 @@ PsOut PsMain(VsOut input)
     {
         float sunColor[3] = { 1.0f, 1.0f, 1.0f };
         float sky[3] = { 1.0f, 1.0f, 1.0f };
+        // Unity's ambient light a forward frame has already: facing up, sideways, down.
+        float ambient[3] = { 0.0f, 0.0f, 0.0f };
         float aoDistance = 2.0f;
         float bounces = 2.0f;
         float diffuseDistance = 100000.0f;
@@ -704,6 +707,9 @@ PsOut PsMain(VsOut input)
         uint32_t flags = 0;
         // The main body as a sphere, centre in the world, radius; radius 0 for none.
         double body[4] = { 0, 0, 0, 0 };
+        // Whether the service reads the G-buffer, or takes the surface from its own rays
+        // as it does for forward rendering.
+        bool gbuffer = true;
         // The previous frame's world-to-clip in this frame's camera-relative space; this
         // frame's where not given.
         const Mat4* previous = nullptr;
@@ -730,13 +736,15 @@ PsOut PsMain(VsOut input)
         packet.sunDirection[3] = sunRadius;
         memcpy(packet.sunColor, lighting.sunColor, sizeof(lighting.sunColor));
         memcpy(packet.skyColor, lighting.sky, sizeof(lighting.sky));
+        for (int k = 0; k < 3; ++k)
+            packet.ambient[k * 4] = packet.ambient[k * 4 + 1] = packet.ambient[k * 4 + 2] = lighting.ambient[k];
         packet.params[0] = lighting.aoDistance;
         packet.params[1] = lighting.bounces;
         packet.params[2] = lighting.diffuseDistance;
         packet.params[3] = lighting.specularDistance;
         packet.params[4] = lighting.clamp;
         packet.params[5] = lighting.environment != nullptr ? 1.0f : 0.0f;
-        packet.params[7] = 1.0f;   // the harness's G-buffer
+        packet.params[7] = lighting.gbuffer ? 1.0f : 0.0f;
         packet.bodySphere[0] = float(lighting.body[0] - camera.position.x);
         packet.bodySphere[1] = float(lighting.body[1] - camera.position.y);
         packet.bodySphere[2] = float(lighting.body[2] - camera.position.z);
@@ -750,6 +758,7 @@ PsOut PsMain(VsOut input)
         packet.outputs[1] = outputs.diffuse.Get();
         packet.outputs[2] = outputs.specular.Get();
         packet.outputs[3] = outputs.occlusion.Get();
+        packet.outputs[4] = outputs.forward.Get();
         packet.outputs[7] = outputs.primary.Get();
         proxy.event(kFrameEvent, &packet);
     }
@@ -1098,6 +1107,8 @@ int main()
         hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.specular);
     if (SUCCEEDED(hr))
         hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.occlusion);
+    if (SUCCEEDED(hr))
+        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.forward);
     if (SUCCEEDED(hr))
         hr = CreateTarget(device.Get(), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.primary);
     if (FAILED(hr))
@@ -1969,6 +1980,101 @@ int main()
         sprintf_s(detail, "%zu of the box's pixels lit by a sun under the horizon without the planet's sphere, %zu with it",
                   without, with);
         Check(without > 1000 && with == 0, "the planet's shadow", detail);
+    }
+
+    // ---------------------------------------------------------------- without a G-buffer
+    {
+        // The surface from the service's own rays, as for forward rendering: the same sun
+        // visibility and diffuse light as from the G-buffer.
+        SendInstances(proxy, scene, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        Lighting withBuffer;
+        withBuffer.bounces = 1.0f;
+        Lighting fromRays = withBuffer;
+        fromRays.gbuffer = false;
+        std::vector<double> sunA, sunB, diffuseA, diffuseB;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.visibility.Get(), kRtSignalSunVisibility,
+                        withBuffer, sun, 1, 13000, sunA)
+            || !Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.visibility.Get(), kRtSignalSunVisibility,
+                           fromRays, sun, 1, 13000, sunB)
+            || !Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                           withBuffer, sun, 64, 13100, diffuseA)
+            || !Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                           fromRays, sun, 64, 13100, diffuseB))
+            return Fatal("reading the frames without a G-buffer back", E_FAIL);
+        size_t same = 0, pixels = 0;
+        double meanA = 0.0, meanB = 0.0;
+        for (size_t i = 0; i < sunA.size() / 3; ++i)
+        {
+            ++pixels;
+            same += (sunA[i * 3] > 0.5) == (sunB[i * 3] > 0.5) ? 1 : 0;
+            meanA += diffuseA[i * 3 + 1];
+            meanB += diffuseB[i * 3 + 1];
+        }
+        char detail[200];
+        sprintf_s(detail, "the sun's visibility the same on %.2f %% of the pixels, diffuse light %.4f against %.4f",
+                  100.0 * same / pixels, meanB / pixels, meanA / pixels);
+        Check(same * 1000 >= pixels * 995 && std::fabs(meanB - meanA) < 0.02 * meanA, "the surface from the rays", detail);
+    }
+
+    // ---------------------------------------------------------------- forward light
+    {
+        // The light a forward frame gets: the albedo times the diffuse light less the flat
+        // ambient, on every drawn pixel, and nothing where nothing was drawn.
+        // Unity's ambient light as a probe brighter above than below: the pass takes off
+        // the quadratic in the normal's height through the three values.
+        const float up = 0.3f, side = 0.2f, down = 0.05f;
+        // The rays' surface takes the material's albedo: the scene's, with the G-buffer's.
+        const float albedoOf[3] = { 0.6f, 0.6f, 0.6f };
+        const float none[3] = { 0.0f, 0.0f, 0.0f };
+        SendMaterial(proxy, 30, albedoOf, none, 0.2f);
+        std::vector<Instance> grey = scene;
+        for (Instance& instance : grey)
+        {
+            instance.material = 30;
+            memcpy(instance.albedo, albedoOf, sizeof(albedoOf));
+        }
+        SendInstances(proxy, grey, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, grey);
+        Lighting lighting;
+        lighting.gbuffer = false;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.bounces = 0.0f;
+        lighting.ambient[0] = up;
+        lighting.ambient[1] = side;
+        lighting.ambient[2] = down;
+        // Through the denoiser, as the game runs it: the pass reads what the denoiser left.
+        lighting.flags = kRtFrameDenoise | kRtFrameReset;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 14000,
+                  kRtSignalSunVisibility | kRtSignalDiffuse | kRtSignalAmbientOcclusion | kRtSignalForwardLight, lighting);
+        std::vector<uint16_t> forward, diffuse;
+        std::vector<uint32_t> albedo, normals;
+        std::vector<float> depth;
+        ReadTexture(device.Get(), context.Get(), outputs.forward.Get(), 8, forward);
+        ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, diffuse);
+        ReadTexture(device.Get(), context.Get(), g.gbuffer0.Get(), 4, albedo);
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+        size_t drawn = 0, right = 0, empty = 0, emptyRight = 0;
+        for (size_t i = 0; i < depth.size(); ++i)
+        {
+            const double got = HalfToFloat(forward[i * 4 + 1]);
+            if (depth[i] <= 0.0f)
+            {
+                ++empty;
+                emptyRight += got == 0.0 ? 1 : 0;
+                continue;
+            }
+            ++drawn;
+            const double ny = ((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1;
+            const double ambient = side + 0.5 * (up - down) * ny + (0.5 * (up + down) - side) * ny * ny;
+            const double want = ((albedo[i] >> 8) & 0xFF) / 255.0 * (HalfToFloat(diffuse[i * 4 + 1]) - ambient);
+            right += std::fabs(got - want) < 0.01 + 0.02 * std::fabs(want) ? 1 : 0;
+        }
+        char detail[200];
+        sprintf_s(detail, "%zu of %zu drawn pixels get the albedo times the diffuse light less the ambient, %zu of %zu empty ones nothing", right,
+                  drawn, emptyRight, empty);
+        Check(drawn > 100000 && right * 100 >= drawn * 99 && emptyRight == empty, "forward light", detail);
     }
 
     // ---------------------------------------------------------------- churn

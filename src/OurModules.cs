@@ -145,6 +145,69 @@ namespace ReDefinition
                 Interactable = settings => FrameGenerationBridge.CanGenerate || settings.FrameGeneration,
             });
 
+        // Raytracing: how much of the lighting, and how often its light bounces
+        // (docs/development/raytracing.md). Not a quality a profile sets: it asks for a GPU
+        // with raytracing and costs what the player decides to spend.
+        public static readonly IGraphicsModule Raytracing = new GraphicsModule("raytracing", "Raytracing",
+            new ModuleSetting
+            {
+                Key = "mode",
+                Title = "Raytracing",
+                Kind = SettingKind.Other,
+                Order = 50,
+                Control = SettingControl.Choice,
+                Choices = new[]
+                {
+                    ReDefinition.Raytracing.RaytracingMode.Off.ToString(), ReDefinition.Raytracing.RaytracingMode.Shadows.ToString(),
+                    ReDefinition.Raytracing.RaytracingMode.Light.ToString(), ReDefinition.Raytracing.RaytracingMode.Full.ToString(),
+                },
+                Label = value => RaytracingLabel(value),
+                Tooltip = "Lighting from rays traced through the scene, on the proxy's Direct3D 12 device.\n"
+                          + "Shadows: the sun's shadows, as far as the scene reaches.\n"
+                          + "Light: also the light bouncing off surfaces and the sky, and ambient occlusion.\n"
+                          + "Full: also reflections.\n"
+                          + "Needs the dxgi.dll proxy next to KSP_x64.exe and a GPU with DirectX Raytracing 1.1\n"
+                          + "(GeForce RTX 20 and newer, Radeon RX 6000 and newer).",
+                Read = settings => settings.Raytracing.ToString(),
+                Write = (settings, value) => settings.Raytracing = RaytracingModeOf(value),
+            },
+            new ModuleSetting
+            {
+                Key = "bounces",
+                Title = "Light bounces",
+                Kind = SettingKind.Other,
+                Order = 60,
+                Control = SettingControl.Slider,
+                Min = 1f,
+                Max = 4f,
+                StepsPerUnit = 1f,
+                Label = value => ((int)float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)).ToString(CultureInfo.InvariantCulture),
+                Tooltip = "How often the raytraced light bounces between surfaces. More bounces light rooms and\n"
+                          + "shadowed sides more fully, and cost more GPU time.",
+                Read = settings => settings.RaytracingBounces.ToString(CultureInfo.InvariantCulture),
+                Write = (settings, value) =>
+                    settings.RaytracingBounces = (int)float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+                Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Light
+                                           || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
+            });
+
+        private static ReDefinition.Raytracing.RaytracingMode RaytracingModeOf(string value)
+        {
+            ReDefinition.Raytracing.RaytracingMode mode;
+            return System.Enum.TryParse(value, out mode) ? mode : ReDefinition.Raytracing.RaytracingMode.Off;
+        }
+
+        private static string RaytracingLabel(string value)
+        {
+            switch (RaytracingModeOf(value))
+            {
+                case ReDefinition.Raytracing.RaytracingMode.Shadows: return "Shadows";
+                case ReDefinition.Raytracing.RaytracingMode.Light: return "Shadows and light";
+                case ReDefinition.Raytracing.RaytracingMode.Full: return "Full";
+                default: return "Off";
+            }
+        }
+
         // The technique that runs, "DLSS 2x" or "FSR 3", in place of "Enabled" --
         // the ticked box says it is on, and the control is too narrow for both --
         // and the plain state while none runs.
@@ -269,7 +332,7 @@ namespace ReDefinition
         private const string ScalingSection = "Scaling";
 
         public static readonly IList<IGraphicsModule> All =
-            new List<IGraphicsModule> { Upscaler, FrameGeneration, Hotkeys, FlightUi, Scaling }.AsReadOnly();
+            new List<IGraphicsModule> { Upscaler, FrameGeneration, Raytracing, Hotkeys, FlightUi, Scaling }.AsReadOnly();
 
         public static IGraphicsModule Find(string name)
         {

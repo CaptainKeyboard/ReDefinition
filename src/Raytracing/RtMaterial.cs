@@ -12,6 +12,13 @@ namespace ReDefinition.Raytracing
     // does on screen: smoothness = shininess ^ 0.215 * sqrt(|specular colour|),
     // specular = specular colour / pi. The texture's alpha, Deferred's specular map,
     // is taken as 1: the rays see one value per material.
+    //
+    // Unity's standard shaders give the diffuse light less than their albedo, what the
+    // specular colour takes of it (UnityStandardUtils.cginc, Unity's built-in shaders
+    // 2019.4): the specular setup's albedo times 1 - the specular colour's largest
+    // channel, the metallic setup's times 1 - reflectivity, whose dielectric specular
+    // colour is the colour space's (unity_ColorSpaceDielectricSpec). The rays take the
+    // same, so that the light they bring matches what those shaders add.
     internal struct RtMaterial
     {
         public Color Albedo;
@@ -37,9 +44,17 @@ namespace ReDefinition.Raytracing
 
             if (material.HasProperty("_Glossiness"))
             {
-                // Unity's standard shaders.
+                // Unity's standard shaders: the specular setup, or the metallic setup, where
+                // a metal takes its specular colour from its albedo.
                 result.Smoothness = material.GetFloat("_Glossiness");
-                if (material.HasProperty("_SpecColor")) result.Specular = material.GetColor("_SpecColor");
+                if (material.HasProperty("_SpecColor"))
+                {
+                    result.Specular = material.GetColor("_SpecColor");
+                    result.Albedo *= 1f - Mathf.Max(result.Specular.r, Mathf.Max(result.Specular.g, result.Specular.b));
+                    result.Albedo.a = 1f;
+                }
+                else if (material.HasProperty("_Metallic"))
+                    Metallic(ref result, material.GetFloat("_Metallic"));
             }
             else if (material.HasProperty("_Shininess"))
             {
@@ -52,12 +67,7 @@ namespace ReDefinition.Raytracing
                 result.Specular = new Color(legacy.r / Mathf.PI, legacy.g / Mathf.PI, legacy.b / Mathf.PI);
             }
             else if (material.HasProperty("_Metallic"))
-            {
-                // Unity's metallic workflow: the specular colour a metal takes from its albedo.
-                float metallic = material.GetFloat("_Metallic");
-                result.Specular = Color.Lerp(new Color(0.04f, 0.04f, 0.04f), result.Albedo, metallic);
-                if (material.HasProperty("_Glossiness")) result.Smoothness = material.GetFloat("_Glossiness");
-            }
+                Metallic(ref result, material.GetFloat("_Metallic"));
 
             // KSP's emissive parts (_EmissiveColor, its alpha a strength), Unity's _EmissionColor.
             if (material.HasProperty("_EmissiveColor"))
@@ -68,6 +78,15 @@ namespace ReDefinition.Raytracing
             else if (material.HasProperty("_EmissionColor") && material.IsKeywordEnabled("_EMISSION"))
                 result.Emission = material.GetColor("_EmissionColor");
             return result;
+        }
+
+        private static void Metallic(ref RtMaterial result, float metallic)
+        {
+            float dielectric = QualitySettings.activeColorSpace == ColorSpace.Linear ? 0.04f : 0.220916301f;
+            result.Specular = Color.Lerp(new Color(dielectric, dielectric, dielectric), result.Albedo, metallic);
+            result.Specular.a = 1f;
+            result.Albedo *= (1f - dielectric) * (1f - metallic);
+            result.Albedo.a = 1f;
         }
     }
 }

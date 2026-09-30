@@ -150,6 +150,9 @@ namespace ReDefinition.Upscaler
                 namedShaderErrors.TryGetValue(name, out error);
                 return found;
             }
+            // Loaded here where no upscaler loaded it first: the raytracing's shaders are
+            // in it too.
+            if (bundle == null && File.Exists(BundlePath)) bundle = AssetBundle.LoadFromFile(BundlePath);
             if (bundle == null)
             {
                 error = "the shader bundle is not loaded";

@@ -172,6 +172,7 @@ namespace ReDefinition
 
             HandleHotkeys();
             ReflectSettingsWindow();
+            raytracing.Update(PickCamera());
 
             // Each into other mods by reflection, and each on its own: one that
             // throws -- a getter of a scene being torn down -- must not keep the
@@ -703,6 +704,7 @@ namespace ReDefinition
         private void OnDestroy()
         {
             destroying = true;
+            raytracing.Detach("ReDefinition's add-on goes");
             if (Instance == this)
             {
                 Instance = null;

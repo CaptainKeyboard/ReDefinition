@@ -38,7 +38,7 @@ set(REDEFINITION_RT_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/RaytracingShaders")
 # Each entry as file:entry point.
 set(REDEFINITION_RT_ENTRIES
     Raytracing:SunVisibility Raytracing:AmbientOcclusion Raytracing:DiffuseLight Raytracing:SpecularLight
-    Raytracing:PrimaryCheck
+    Raytracing:PrimaryCheck Raytracing:ForwardLight
     Denoise:DenoisePrepare Denoise:DenoiseTemporal Denoise:DenoiseVariance Denoise:DenoiseAtrous
     Denoise:DenoiseResolve
     Reconstruct:ReconstructGuides)

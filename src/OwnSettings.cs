@@ -4,6 +4,7 @@ using System.Text;
 using FidelityFX.FSR3;
 using ReDefinition.Bridges;
 using ReDefinition.Core;
+using ReDefinition.Raytracing;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;
 using UnityEngine;
@@ -31,6 +32,9 @@ namespace ReDefinition
         public bool TransparencyMask;
         public UpscalerMasks.ReactiveSource ReactiveMask = UpscalerMasks.ReactiveSource.Off;
         public bool FrameGeneration;
+        // How much of the lighting is raytraced, and how often its light bounces.
+        public RaytracingMode Raytracing = RaytracingMode.Off;
+        public int RaytracingBounces = 2;
 
         // Whether the settings window holds the flight while it is open.
         public bool PauseWhileOpen;
@@ -99,6 +103,8 @@ namespace ReDefinition
             settings.TransparencyMask = Bool(node, "transparencyMask", settings.TransparencyMask);
             settings.ReactiveMask = Enum(node, "reactiveMask", settings.ReactiveMask);
             settings.FrameGeneration = Bool(node, "frameGeneration", settings.FrameGeneration);
+            settings.Raytracing = Enum(node, "raytracing", settings.Raytracing);
+            settings.RaytracingBounces = (int)Float(node, "raytracingBounces", settings.RaytracingBounces);
             settings.Backend = Enum(node, "technique", settings.Backend);
             settings.DlssModel = Enum(node, "dlssModel", settings.DlssModel);
             settings.UpscalerKey = Binding(node, "upscalerKey", settings.UpscalerKey);
@@ -148,6 +154,8 @@ namespace ReDefinition
             node.AddValue("flightStartsInManeuverMode", FlightStartsInManeuverMode);
             node.AddValue("autoAltimeter", AutoAltimeter);
             node.AddValue("flightPanelAuto", FlightPanelAuto);
+            node.AddValue("raytracing", Raytracing);
+            node.AddValue("raytracingBounces", RaytracingBounces);
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -177,7 +185,8 @@ namespace ReDefinition
               .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
               .Append(NavballScreen).Append('|').Append(ScaleModWindows)
               .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode)
-              .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto);
+              .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto)
+              .Append('|').Append(Raytracing).Append('|').Append(RaytracingBounces);
             return sb.ToString();
         }
 

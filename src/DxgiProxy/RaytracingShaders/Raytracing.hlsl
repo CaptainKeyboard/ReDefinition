@@ -125,13 +125,16 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
 {
     if (any(id.xy >= frameSize))
         return;
-    float3 position, normal;
-    if (!Surface(id.xy, position, normal))
+    float depth = depthTexture[id.xy];
+    if (IsSky(depth))
     {
         output2[id.xy] = float4(0.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
-    float alpha = SmoothnessToAlpha(gbuffer1[id.xy].a);
+    float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
+    SurfaceData surface = SurfaceAt(id.xy, position);
+    float3 normal = surface.normal;
+    float alpha = SmoothnessToAlpha(surface.smoothness);
     float3 view = -normalize(position);
     float3 t, b;
     Basis(normal, t, b);
@@ -147,4 +150,40 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     float distance;
     float3 radiance = Radiance(RayOrigin(position, normal), direction, SPECULAR_DISTANCE, BOUNCES, random, distance);
     output2[id.xy] = float4(radiance, distance);
+}
+
+// The signals as the denoiser left them, for ForwardLight (Raytracing.cpp binds them).
+Texture2D<float4> finishedDiffuse : register(t0, space3);
+Texture2D<float4> finishedSpecular : register(t1, space3);
+
+// u4, for forward rendering, which has no pass of Unity's to put the raytraced light in:
+// the light to add to the frame Unity drew, from the signals as the denoiser left them;
+// a signal not traced reads as none. The diffuse light and the reflections, less KSP's flat ambient light,
+// which forward shading added already. Unity's standard Fresnel term (FresnelLerp,
+// with its surface reduction) weighs the reflections.
+[numthreads(8, 8, 1)]
+void ForwardLight(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= frameSize))
+        return;
+    float depth = depthTexture[id.xy];
+    if (IsSky(depth))
+    {
+        output4[id.xy] = 0.0f;
+        return;
+    }
+    float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
+    SurfaceData surface = SurfaceAt(id.xy, position);
+    // The traced diffuse light has the occlusion in it already; Unity's ambient light has none.
+    float3 light = surface.albedo * (finishedDiffuse[id.xy].rgb - UnityAmbient(surface.normal));
+    float3 view = -normalize(position);
+    float nv = saturate(dot(surface.normal, view));
+    float perceptual = 1.0f - surface.smoothness;
+    float roughness = perceptual * perceptual;
+    float reduction = 1.0f / (roughness * roughness + 1.0f);
+    float grazing = saturate(surface.smoothness + max(surface.specular.r, max(surface.specular.g, surface.specular.b)));
+    float t = pow(1.0f - nv, 5.0f);
+    float3 fresnel = lerp(surface.specular, grazing.xxx, t);
+    light += finishedSpecular[id.xy].rgb * fresnel * reduction;
+    output4[id.xy] = float4(light, 1.0f);
 }

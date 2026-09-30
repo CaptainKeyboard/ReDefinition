@@ -18,6 +18,9 @@ cbuffer Frame : register(b0)
     float4 params0;
     float4 params1;
     float4 bodySphere;   // the main body: centre relative to the camera, radius; w 0 for none
+    float4 ambientUp;    // Unity's ambient light facing up, linear; w 1 in gamma space
+    float4 ambientSide;  // facing sideways
+    float4 ambientDown;  // facing down
     uint2 frameSize;
     uint frameIndex;
     uint frameFlags;
@@ -68,6 +71,7 @@ RWTexture2D<float4> output0 : register(u0);
 RWTexture2D<float4> output1 : register(u1);
 RWTexture2D<float4> output2 : register(u2);
 RWTexture2D<float4> output3 : register(u3);
+RWTexture2D<float4> output4 : register(u4);
 RWTexture2D<float4> output7 : register(u7);
 
 SamplerState pointClamp : register(s0);
@@ -111,12 +115,10 @@ float3 DecodeNormal(float4 encoded)
     return normalize(encoded.xyz * 2.0f - 1.0f);
 }
 
-// A pixel's normal: the G-buffer's where there is one; without (forward rendering),
-// the depth's, from the positions of the neighbours on the nearer side, facing the camera.
-float3 SurfaceNormal(uint2 pixel, float3 position)
+// A pixel's normal from the depth: from the positions of the neighbours on the nearer
+// side, facing the camera.
+float3 DepthNormal(uint2 pixel, float3 position)
 {
-    if (HAS_GBUFFER)
-        return DecodeNormal(gbuffer2[pixel]);
     int2 size = int2(frameSize) - 1;
     int2 p = int2(pixel);
     float3 left = ClipToWorld(PixelToNdc(uint2(max(p.x - 1, 0), p.y)), depthTexture[uint2(max(p.x - 1, 0), p.y)]);
@@ -388,6 +390,68 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
     if (SAMPLE_CLAMP > 0.0f && luminance > SAMPLE_CLAMP)
         total *= SAMPLE_CLAMP / luminance;
     return total;
+}
+
+// What a pixel's surface is, for the passes: from the G-buffer where Unity's deferred
+// lighting filled one; without (forward rendering), from the camera's ray to the point
+// the depth gives, which lands on the triangle Unity drew there.
+struct SurfaceData
+{
+    float3 normal;
+    float smoothness;
+    float3 albedo;
+    float3 specular;
+};
+
+SurfaceData SurfaceAt(uint2 pixel, float3 position)
+{
+    SurfaceData surface;
+    if (HAS_GBUFFER)
+    {
+        surface.normal = DecodeNormal(gbuffer2[pixel]);
+        float4 g1 = gbuffer1[pixel];
+        surface.smoothness = g1.a;
+        surface.specular = g1.rgb;
+        surface.albedo = gbuffer0[pixel].rgb;
+        return surface;
+    }
+    float distance = length(position);
+    Hit hit = TraceClosest(float3(0.0f, 0.0f, 0.0f), position / max(distance, 1e-6f), distance * 1.01f + 0.05f);
+    if (hit.found && abs(hit.distance - distance) < distance * 0.005f + 0.05f)
+    {
+        MaterialData material = materialData[hit.material];
+        surface.normal = hit.normal;
+        surface.smoothness = material.smoothness;
+        surface.specular = material.specular;
+        surface.albedo = Albedo(material, hit.uv);
+        return surface;
+    }
+    surface.normal = DepthNormal(pixel, position);
+    surface.smoothness = 0.2f;
+    surface.specular = 0.04f;
+    surface.albedo = 0.5f;
+    return surface;
+}
+
+float3 SurfaceNormal(uint2 pixel, float3 position)
+{
+    return HAS_GBUFFER ? DecodeNormal(gbuffer2[pixel]) : SurfaceAt(pixel, position).normal;
+}
+
+// The ambient light Unity's shading gave a surface of this normal: Unity's ambient probe
+// (ShadeSH9), which for flat and gradient ambient light depends on the normal's height
+// alone, and to second order: the quadratic through its values facing up, sideways and
+// down is the probe itself. In gamma space as Unity then converts it (LinearToGammaSpace,
+// UnityCG.cginc).
+float3 UnityAmbient(float3 normal)
+{
+    float y = normal.y;
+    float3 value = ambientSide.rgb + 0.5f * (ambientUp.rgb - ambientDown.rgb) * y
+                   + (0.5f * (ambientUp.rgb + ambientDown.rgb) - ambientSide.rgb) * y * y;
+    value = max(value, 0.0f);
+    if (ambientUp.w > 0.5f)
+        value = max(1.055f * pow(value, 0.416666667f) - 0.055f, 0.0f);
+    return value;
 }
 
 #endif

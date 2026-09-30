@@ -208,6 +208,21 @@ namespace ReDefinition.Upscaler
         // detaches one (SharedFrame, ScattererCompatibility, UnityMouseEvents).
         internal static UpscalerRig Current { get; set; }
 
+        // The projection a camera of the rig rendered this frame with, its jitter in it,
+        // for the raytracing (src/Raytracing/Ksp/RtKsp.cs); false where the rig did not
+        // jitter it.
+        internal bool RenderedProjection(Camera camera, out Matrix4x4 projection)
+        {
+            foreach (CameraRedirect redirect in redirects)
+                if (redirect != null && redirect.Camera == camera && redirect.DidJitter)
+                {
+                    projection = redirect.AppliedProjection;
+                    return true;
+                }
+            projection = Matrix4x4.identity;
+            return false;
+        }
+
         internal static void NoteSceneLoad()
         {
             sceneLoads++;

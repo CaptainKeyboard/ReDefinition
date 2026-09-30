@@ -357,12 +357,21 @@ compiles it on its own ([raytracing.md](raytracing.md)):
 |---|---|
 | `src/Raytracing/RtNative.cs` | the proxy's raytracing exports and packets |
 | `src/Raytracing/RtScene.cs` | meshes, materials, material textures and each frame's instances handed to the proxy; the sources of the scene |
-| `src/Raytracing/RtMaterial.cs` | what a ray takes of a material: albedo, specular colour, smoothness, emission |
+| `src/Raytracing/RtMaterial.cs` | what a ray takes of a material: albedo, specular colour, smoothness, emission, as Unity's standard shaders and Deferred shade them |
 | `src/Raytracing/RtCamera.cs` | the raytracing of one camera: capture, the frame, the carry-over into the next frame's lighting |
 | `src/Raytracing/RtLighting.cs` | ReDefinition's screen-space shadows and deferred reflections shaders in Unity's place, and the ones before them back |
 | `unity/Assets/ReDefinition/Shaders/ReDefinitionRtCapture.shader` | the copies of depth, G-buffer, motion and sky the raytracing reads |
 | `unity/Assets/ReDefinition/Shaders/ReDefinitionScreenSpaceShadows.shader` | Unity's screen-space shadows with the raytraced sun visibility for the raytraced camera |
 | `unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader` | Deferred's reflections pass with the raytraced diffuse light and reflections |
+| `unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader` | the raytraced diffuse light and reflections added to the frame where Deferred is not there |
+| `unity/Assets/ReDefinition/Shaders/ReDefinitionRtReproject.cginc` | the carry-over of the previous frame's signals, shared by the lighting shaders |
+
+KSP's side, which feeds the scene and the camera from the game:
+
+| File | What |
+|---|---|
+| `src/Raytracing/Ksp/RtKspSources.cs` | the scene's sources: vessel parts, skinned parts baked, terrain quads, KSC buildings and the editors' scenery |
+| `src/Raytracing/Ksp/RtKsp.cs` | the setting's modes, the scene camera's raytracing and its providers: sun, reflection probe, world shifts, rendered projection, main body; the report in the log |
 
 ## Around the code
 
@@ -371,7 +380,7 @@ compiles it on its own ([raytracing.md](raytracing.md)):
 | `GameData/ReDefinition/Mods` | the registrations of KSP and the eight bundled mods |
 | `GameData/ReDefinition/Profiles` | the five profiles |
 | `unity/Assets/ReDefinition` | the ported FSR 3 compute shaders and ReDefinition's own two, the masks and EVE's cloud motion, and `Editor/BundleBuilder.cs`; the shader include for mods and `Editor/IncludeCheck.cs` |
-| `tests/ReDefinition.Tests` | MSTest on .NET Framework 4.8: the store, the file, the edit model, the modules, registrations, frame packet layout, Streamline's camera matrices, EVE's cloud motion, TUFX's split, NVIDIA's files, the key bindings and the *Controls* tab, the interface for mods and its wrapper |
+| `tests/ReDefinition.Tests` | MSTest on .NET Framework 4.8: the store, the file, the edit model, the modules, registrations, frame packet layouts, Streamline's camera matrices, EVE's cloud motion, TUFX's split, NVIDIA's files, the key bindings and the *Controls* tab, the interface for mods and its wrapper |
 | `tools/check_bundled_mods.ps1`, `tools/check_profile_parser.ps1`, `tools/check_key_bindings.ps1` | checks against the installed mods and KSP's own `ConfigNode` |
 | `tools/check_docs.ps1` | the rules the pages under `docs/` follow |
 | `tools/port_fsr3_shaders.py`, `tools/audit_ffx_fields.py`, `tools/fetch_amd_runtime.py` | the FSR shaders from FSR3Unity's, the frame generation field audit, AMD's runtime for the package |

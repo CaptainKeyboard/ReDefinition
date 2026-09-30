@@ -60,6 +60,10 @@ namespace ReDefinition
         private bool skinnedMotionVectors = true;
 
         private readonly OwnSettings settings = new OwnSettings();
+        // The raytracing (src/Raytracing/Ksp/RtKsp.cs), which the add-on keeps on the
+        // scene camera.
+        private readonly ReDefinition.Raytracing.RtKsp raytracing = new ReDefinition.Raytracing.RtKsp();
+        private int raytracingBounces = 2;
         private string savedSnapshot;
         private float nextSettingsCheck;
         private bool saveFailureLogged;
@@ -92,6 +96,8 @@ namespace ReDefinition
             jitter = loaded.Jitter;
             skinnedMotionVectors = loaded.SkinnedMotionVectors;
             frameGeneration = loaded.FrameGeneration;
+            raytracing.Apply(loaded.Raytracing, loaded.RaytracingBounces);
+            raytracingBounces = loaded.RaytracingBounces;
             backend = loaded.Backend;
             dlssModel = loaded.DlssModel;
             // The hotkeys are read from the settings object itself (HandleHotkeys),
@@ -218,6 +224,8 @@ namespace ReDefinition
             settings.Jitter = jitter;
             settings.SkinnedMotionVectors = skinnedMotionVectors;
             settings.FrameGeneration = frameGeneration;
+            settings.Raytracing = raytracing.Mode;
+            settings.RaytracingBounces = raytracingBounces;
             settings.Backend = backend;
             settings.DlssModel = dlssModel;
             return settings;
@@ -523,6 +531,12 @@ namespace ReDefinition
             if (before.DlssModel != after.DlssModel) SetDlssModel(after.DlssModel);
             if (before.AutoExposure != after.AutoExposure) SetAutoExposure(after.AutoExposure);
             if (before.FrameGeneration != after.FrameGeneration) SetFrameGeneration(after.FrameGeneration);
+            if (before.Raytracing != after.Raytracing || before.RaytracingBounces != after.RaytracingBounces)
+            {
+                raytracingBounces = after.RaytracingBounces;
+                raytracing.Apply(after.Raytracing, after.RaytracingBounces);
+                Debug.Log(Log.Tag + " Raytracing set to " + after.Raytracing + ", " + after.RaytracingBounces + " bounce(s).");
+            }
             if (before.MipmapBias != after.MipmapBias) SetMipmapBias(after.MipmapBias);
             if (before.CompensateLodBias != after.CompensateLodBias) SetCompensateLodBias(after.CompensateLodBias);
             if (before.DisableMsaa != after.DisableMsaa) SetDisableMsaa(after.DisableMsaa);

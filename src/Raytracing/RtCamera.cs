@@ -60,6 +60,17 @@ namespace ReDefinition.Raytracing
         // The main body's centre in the world and its radius, which the sun's rays test
         // as a sphere; radius 0 for none.
         internal Func<Vector4> Body = () => Vector4.zero;
+        // Unity's ambient light, which its shading adds by itself: the raytraced light
+        // added to the frame is this much less. Handed over facing up, sideways and down.
+        // The probe Unity shades with: RenderSettings.ambientProbe holds only a baked one.
+        internal Func<Vector3, SphericalHarmonicsL2> AmbientProbe = at =>
+        {
+            SphericalHarmonicsL2 probe;
+            LightProbes.GetInterpolatedProbe(at, null, out probe);
+            return probe;
+        };
+        private static readonly Vector3[] AmbientDirections = { Vector3.up, Vector3.right, Vector3.down };
+        private readonly Color[] ambientValues = new Color[3];
         // Whether this frame is a cut: the camera jumped, the history is not its.
         internal Func<bool> Cut = () => false;
         // The camera's motion vectors, where they are rendered and correct.
@@ -75,12 +86,16 @@ namespace ReDefinition.Raytracing
         private Shader reflections;
         private CommandBuffer command;
         private CommandBuffer gbufferCopy;
+        private CommandBuffer forwardLight;
+        private CameraEvent forwardEvent;
+        private Material forwardMaterial;
+        private Mesh screenQuad;
         private CommandBuffer flagOn;
         private CommandBuffer flagOff;
         private PacketRing ring;
         private RtNative.FramePacket packet;
         private RenderTexture depth, gbuffer0, gbuffer1, gbuffer2, motion, environment;
-        private RenderTexture sun, diffuse, specular, occlusion;
+        private RenderTexture sun, diffuse, specular, occlusion, forward;
         private int width, height;
         private uint frameIndex;
         private bool haveHistory;
@@ -102,6 +117,7 @@ namespace ReDefinition.Raytracing
         private static readonly int RtDiffuse = Shader.PropertyToID("_ReDefinitionRtDiffuse");
         private static readonly int RtSpecular = Shader.PropertyToID("_ReDefinitionRtSpecular");
         private static readonly int RtCube = Shader.PropertyToID("_ReDefinitionRtCube");
+        private static readonly int RtForward = Shader.PropertyToID("_ReDefinitionRtForward");
         private static readonly int RtCubeHdr = Shader.PropertyToID("_ReDefinitionRtCube_HDR");
 
         private void Awake()
@@ -146,6 +162,23 @@ namespace ReDefinition.Raytracing
             // camera's own command stream, where the copy belongs to this frame.
             gbufferCopy = new CommandBuffer { name = "ReDefinition raytracing G-buffer" };
             cam.AddCommandBuffer(CameraEvent.AfterGBuffer, gbufferCopy);
+            // Without Deferred's reflections pass to take it, the raytraced light goes into
+            // the frame after the opaque geometry's light, before the transparent and the
+            // atmosphere: after the forward opaque pass, or after Unity's deferred lighting,
+            // where the forward opaque pass is left out when nothing is drawn forward.
+            Shader forwardShader = ShaderSource("Hidden/ReDefinition/RtForwardLight");
+            if (forwardShader != null)
+            {
+                forwardMaterial = new Material(forwardShader) { hideFlags = HideFlags.HideAndDontSave };
+                screenQuad = new Mesh { name = "ReDefinition raytracing screen" };
+                screenQuad.vertices = new[] { new Vector3(-1f, -1f, 0f), new Vector3(-1f, 1f, 0f), new Vector3(1f, 1f, 0f),
+                                              new Vector3(1f, -1f, 0f) };
+                screenQuad.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+                screenQuad.bounds = new Bounds(Vector3.zero, Vector3.one * 1e6f);
+                forwardLight = new CommandBuffer { name = "ReDefinition raytracing forward light" };
+                forwardEvent = CameraEvent.AfterForwardOpaque;
+                cam.AddCommandBuffer(forwardEvent, forwardLight);
+            }
             cam.depthTextureMode |= DepthTextureMode.Depth;
             haveHistory = false;
             Problem = null;
@@ -162,6 +195,7 @@ namespace ReDefinition.Raytracing
                 }
                 if (flagOff != null) cam.RemoveCommandBuffer(CameraEvent.AfterEverything, flagOff);
                 if (gbufferCopy != null) cam.RemoveCommandBuffer(CameraEvent.AfterGBuffer, gbufferCopy);
+                if (forwardLight != null) cam.RemoveCommandBuffer(forwardEvent, forwardLight);
             }
             Shader.SetGlobalFloat(RtOn, 0f);
             RtLighting.Restore();
@@ -171,6 +205,12 @@ namespace ReDefinition.Raytracing
             capture = null;
             command?.Release();
             gbufferCopy?.Release();
+            forwardLight?.Release();
+            forwardLight = null;
+            if (forwardMaterial != null) Destroy(forwardMaterial);
+            if (screenQuad != null) Destroy(screenQuad);
+            forwardMaterial = null;
+            screenQuad = null;
             flagOn?.Release();
             flagOff?.Release();
             command = gbufferCopy = flagOn = flagOff = null;
@@ -190,6 +230,29 @@ namespace ReDefinition.Raytracing
             }
             position = RtPosition.From(transform.position);
             Scene.Update(position, generation);
+
+            // The raytraced light into the frame, where Deferred's reflections pass does not
+            // take it.
+            if (forwardLight != null)
+            {
+                CameraEvent wanted = cam.actualRenderingPath == RenderingPath.DeferredShading
+                    ? CameraEvent.AfterLighting : CameraEvent.AfterForwardOpaque;
+                if (wanted != forwardEvent)
+                {
+                    cam.RemoveCommandBuffer(forwardEvent, forwardLight);
+                    forwardEvent = wanted;
+                    cam.AddCommandBuffer(forwardEvent, forwardLight);
+                }
+                forwardLight.Clear();
+                bool forwardFrame = !RtLighting.ReflectionsReplaced;
+                if (forwardFrame && haveHistory && !Cut() && forward != null && (Settings.Diffuse || Settings.Reflections))
+                {
+                    Shader.SetGlobalTexture(RtForward, forward);
+                    int first = forwardEvent == CameraEvent.AfterLighting && !cam.allowHDR ? 2 : 0;
+                    forwardLight.DrawMesh(screenQuad, Matrix4x4.identity, forwardMaterial, 0, first);
+                    forwardLight.DrawMesh(screenQuad, Matrix4x4.identity, forwardMaterial, 0, first + 1);
+                }
+            }
 
             // The G-buffer's copy at this frame's size, which the previous frame's
             // OnRenderImage found; at a new size, from the next frame on.
@@ -229,7 +292,7 @@ namespace ReDefinition.Raytracing
 
         private void OnPreRender()
         {
-            renderedProjection = RenderedProjection != null ? RenderedProjection() : cam.projectionMatrix;
+            renderedProjection = cam.projectionMatrix;
         }
 
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
@@ -240,6 +303,8 @@ namespace ReDefinition.Raytracing
                 return;
             }
             EnsureTargets(source.width, source.height);
+            // The jittered projection where an upscaler set one, read once the frame is drawn.
+            if (RenderedProjection != null) renderedProjection = RenderedProjection();
 
             command.Clear();
             command.Blit(source, depth, capture, 0);
@@ -308,6 +373,19 @@ namespace ReDefinition.Raytracing
             packet.SkyColor[0] = sky.r;
             packet.SkyColor[1] = sky.g;
             packet.SkyColor[2] = sky.b;
+            bool composite = !RtLighting.ReflectionsReplaced;
+            for (int i = 0; i < 12; i++) packet.Ambient[i] = 0f;
+            if (composite)
+            {
+                AmbientProbe(transform.position).Evaluate(AmbientDirections, ambientValues);
+                for (int i = 0; i < 3; i++)
+                {
+                    packet.Ambient[i * 4] = ambientValues[i].r;
+                    packet.Ambient[i * 4 + 1] = ambientValues[i].g;
+                    packet.Ambient[i * 4 + 2] = ambientValues[i].b;
+                }
+                packet.Ambient[3] = QualitySettings.activeColorSpace == ColorSpace.Gamma ? 1f : 0f;
+            }
 
             packet.Params[0] = Settings.OcclusionDistance;
             packet.Params[1] = Settings.Bounces;
@@ -326,9 +404,13 @@ namespace ReDefinition.Raytracing
             // The sun's pass always: its output keeps the view depth the next frame finds
             // its pixels by.
             uint signals = RtNative.SignalSun;
-            if (deferred && Settings.Occlusion) signals |= RtNative.SignalOcclusion;
-            if (deferred && Settings.Diffuse) signals |= RtNative.SignalDiffuse;
-            if (deferred && Settings.Reflections) signals |= RtNative.SignalSpecular;
+            if (Settings.Diffuse) signals |= RtNative.SignalDiffuse;
+            if (Settings.Reflections) signals |= RtNative.SignalSpecular;
+            // Where Deferred's reflections pass does not take it -- forward rendering, or
+            // Unity's own deferred lighting --, the light to add to the frame; it reads
+            // the diffuse light, which replaces the flat ambient light.
+            if (composite && (Settings.Diffuse || Settings.Reflections))
+                signals |= RtNative.SignalForwardLight | RtNative.SignalDiffuse;
             packet.Signals = signals;
             LastSignals = signals;
             packet.FrameIndex = frameIndex;
@@ -361,6 +443,8 @@ namespace ReDefinition.Raytracing
                 packet.Outputs[RtNative.OutputSpecular] = specular.GetNativeTexturePtr();
             if ((signals & RtNative.SignalOcclusion) != 0)
                 packet.Outputs[RtNative.OutputOcclusion] = occlusion.GetNativeTexturePtr();
+            if ((signals & RtNative.SignalForwardLight) != 0)
+                packet.Outputs[RtNative.OutputForwardLight] = forward.GetNativeTexturePtr();
         }
 
         private static Matrix4x4 Translation(double x, double y, double z)
@@ -401,6 +485,7 @@ namespace ReDefinition.Raytracing
             diffuse = Target(RenderTextureFormat.ARGBHalf);
             specular = Target(RenderTextureFormat.ARGBHalf);
             occlusion = Target(RenderTextureFormat.ARGBHalf);
+            forward = Target(RenderTextureFormat.ARGBHalf);
             haveHistory = false;
             gbufferReady = false;
         }
@@ -420,13 +505,13 @@ namespace ReDefinition.Raytracing
         private void ReleaseTargets()
         {
             foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer2, motion, environment, sun, diffuse,
-                                                      specular, occlusion })
+                                                      specular, occlusion, forward })
                 if (texture != null)
                 {
                     texture.Release();
                     Destroy(texture);
                 }
-            depth = gbuffer0 = gbuffer1 = gbuffer2 = motion = environment = sun = diffuse = specular = occlusion = null;
+            depth = gbuffer0 = gbuffer1 = gbuffer2 = motion = environment = sun = diffuse = specular = occlusion = forward = null;
         }
 
         // The textures of the last frame, for the test player's and the diagnostics' look.
@@ -435,6 +520,7 @@ namespace ReDefinition.Raytracing
         internal RenderTexture DiffuseTexture { get { return diffuse; } }
         internal RenderTexture NormalTexture { get { return gbuffer2; } }
         internal RenderTexture EnvironmentTexture { get { return environment; } }
+        internal RenderTexture ForwardTexture { get { return forward; } }
 
         // The service's line and each pass's time, for the diagnostics.
         internal string Status()

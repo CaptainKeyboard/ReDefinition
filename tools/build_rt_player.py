@@ -38,6 +38,7 @@ SHADERS = [
     'unity/Assets/ReDefinition/Shaders/ReDefinitionScreenSpaceShadows.shader',
     'unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader',
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtReproject.cginc',
+    'unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader',
 ]
 
 def copy_in():

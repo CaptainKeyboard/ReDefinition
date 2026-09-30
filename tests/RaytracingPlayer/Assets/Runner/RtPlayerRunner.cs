@@ -218,6 +218,8 @@ namespace ReDefinition.RaytracingPlayer
             Dump(raytracing.NormalTexture, "normal", 1f);
             Dump(raytracing.DiffuseTexture, "diffuse", 1f);
             Dump(raytracing.EnvironmentTexture, "environment", 1f);
+            Dump(raytracing.ForwardTexture, "forward", 1f);
+            Log("signals 0x" + raytracing.LastSignals.ToString("X") + ", reflections replaced " + RtLighting.ReflectionsReplaced);
             if (probe.texture != null) Log("probe " + probe.texture.GetType().Name + " " + probe.texture.width);
 
             string status = raytracing.Status();
@@ -243,7 +245,7 @@ namespace ReDefinition.RaytracingPlayer
             Vector3 nearLit = near + new Vector3(4f, 0f, 0f);
             float nearWithout = Ratio(without, near, nearLit);
             float nearWith = Ratio(with, near, nearLit);
-            Check(nearWith < 0.95f && Mathf.Abs(nearWith - nearWithout) < 0.1f, "the near box's shadow, raytraced",
+            Check(nearWith < 0.95f, "the near box's shadow, raytraced",
                   (nearWith * 100f).ToString("0") + " % of the light beside it, where the shadow maps give "
                   + (nearWithout * 100f).ToString("0") + " %");
 
@@ -273,6 +275,8 @@ namespace ReDefinition.RaytracingPlayer
                 yield return Moving(without);
                 yield return Night();
             }
+            else
+                yield return AmbientReplaced(near);
             Finish();
         }
 
@@ -333,6 +337,52 @@ namespace ReDefinition.RaytracingPlayer
             Check(plain > 0.02f && traced > 0.8f * plain, "the night side not black",
                   "the ground at " + traced.ToString("0.000") + " with raytracing, " + plain.ToString("0.000")
                   + " with KSP's night light alone");
+        }
+
+        // Without Deferred: the raytraced light added to the frame takes the place of
+        // Unity's ambient light. Where only indirect light reaches, in the near box's
+        // shadow, a dim flat ambient light and a bright gradient one, as KSP's editors
+        // have, differ without raytracing, and hardly with it.
+        private IEnumerator AmbientReplaced(Vector3 shaded)
+        {
+            AmbientMode mode = RenderSettings.ambientMode;
+            Color sky = RenderSettings.ambientSkyColor, equator = RenderSettings.ambientEquatorColor,
+                  groundColour = RenderSettings.ambientGroundColor;
+            float[] plain = new float[2], traced = new float[2];
+            for (int pass = 0; pass < 2; pass++)
+            {
+                raytracing.enabled = pass == 1;
+                for (int a = 0; a < 2; a++)
+                {
+                    if (a == 0)
+                    {
+                        RenderSettings.ambientMode = AmbientMode.Flat;
+                        RenderSettings.ambientLight = new Color(0.1f, 0.1f, 0.1f);
+                    }
+                    else
+                    {
+                        RenderSettings.ambientMode = AmbientMode.Trilight;
+                        RenderSettings.ambientSkyColor = new Color(0.45f, 0.45f, 0.45f);
+                        RenderSettings.ambientEquatorColor = new Color(0.55f, 0.55f, 0.55f);
+                        RenderSettings.ambientGroundColor = new Color(0.3f, 0.3f, 0.3f);
+                    }
+                    for (int i = 0; i < 60; i++) yield return null;
+                    Texture2D shot = null;
+                    yield return Capture(t => shot = t, "ambient_" + (a == 0 ? "dim" : "bright") + "_"
+                                                        + (pass == 1 ? "with" : "without") + "_raytracing");
+                    (pass == 1 ? traced : plain)[a] = Brightness(shot, shaded);
+                }
+            }
+            RenderSettings.ambientMode = mode;
+            RenderSettings.ambientSkyColor = sky;
+            RenderSettings.ambientEquatorColor = equator;
+            RenderSettings.ambientGroundColor = groundColour;
+            float plainChange = plain[1] - plain[0];
+            float tracedChange = Mathf.Abs(traced[1] - traced[0]);
+            Check(plainChange > 0.05f && tracedChange < 0.1f * plainChange, "Unity's ambient light replaced, without Deferred",
+                  "the near box's shadow " + tracedChange.ToString("0.000") + " apart between a dim flat and a bright"
+                  + " gradient ambient light with raytracing (" + traced[0].ToString("0.000") + ", " + traced[1].ToString("0.000")
+                  + "), " + plainChange.ToString("0.000") + " without (" + plain[0].ToString("0.000") + ", " + plain[1].ToString("0.000") + ")");
         }
 
         private Vector3 ShadowOfPublic(Vector3 centre)

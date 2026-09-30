@@ -31,6 +31,7 @@ namespace redefinition
             { kRtSignalAmbientOcclusion, L"RT_AmbientOcclusion" },
             { kRtSignalDiffuse, L"RT_DiffuseLight" },
             { kRtSignalSpecular, L"RT_SpecularLight" },
+            { kRtSignalForwardLight, L"RT_ForwardLight" },
             { kRtSignalPrimaryCheck, L"RT_PrimaryCheck" },
         };
 
@@ -604,8 +605,9 @@ namespace redefinition
         memcpy(constants + 224, packet->skyColor, 16);
         memcpy(constants + 240, packet->params, 32);
         memcpy(constants + 272, packet->bodySphere, 16);
+        memcpy(constants + 288, packet->ambient, 48);
         const uint32_t tail[4] = { packet->width, packet->height, packet->frameIndex, packet->flags };
-        memcpy(constants + 288, tail, sizeof(tail));
+        memcpy(constants + 336, tail, sizeof(tail));
 
         std::vector<D3D12_RESOURCE_BARRIER> into;
         std::vector<D3D12_RESOURCE_BARRIER> back;
@@ -661,9 +663,12 @@ namespace redefinition
         const UINT groupsX = (packet->width + 7) / 8;
         const UINT groupsY = (packet->height + 7) / 8;
         // Each pass's end is stamped; a pass that does not run stamps where the one
-        // before it ended, so it counts nothing.
-        for (UINT index = 0; index < kRtPassTimings; ++index)
+        // before it ended, so it counts nothing. The signals first, then the denoiser
+        // (its time as pass 6), then what reads the denoised signals.
+        const UINT order[kRtPassTimings] = { 0, 1, 2, 3, 6, 4, 5, 7 };
+        for (UINT position = 0; position < kRtPassTimings; ++position)
         {
+            const UINT index = order[position];
             const uint32_t signal = 1u << index;
             const PassEntry* pass = nullptr;
             for (const PassEntry& entry : kPasses)
@@ -672,12 +677,43 @@ namespace redefinition
             auto pipeline = pass != nullptr ? pipelines.find(pass->signal) : pipelines.end();
             if ((packet->signals & signal) != 0 && pipeline != pipelines.end())
             {
+                // What an earlier pass or the denoiser wrote, finished before this one reads it.
+                const D3D12_RESOURCE_BARRIER written = UavBarrier(nullptr);
+                list->ResourceBarrier(1, &written);
+                // The forward light reads the finished signals, Unity's outputs, as textures.
+                std::vector<D3D12_RESOURCE_BARRIER> toRead, toWrite;
+                if (signal == kRtSignalForwardLight)
+                {
+                    const uint32_t finished[2] = { 1, 2 };
+                    const uint32_t traced[2] = { kRtSignalDiffuse, kRtSignalSpecular };
+                    View reads[8] = {};
+                    for (UINT k = 0; k < 2; ++k)
+                    {
+                        // A signal not traced this frame reads as none, whatever its texture holds.
+                        Shared* output = (packet->signals & traced[k]) != 0 ? outputs[finished[k]] : nullptr;
+                        if (output == nullptr)
+                            continue;
+                        reads[k] = Of(output);
+                        toRead.push_back(TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                                           D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+                        toWrite.push_back(TransitionBarrier(output->texture.d3d12.Get(),
+                                                            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                                                            D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+                    }
+                    if (!toRead.empty())
+                        list->ResourceBarrier(static_cast<UINT>(toRead.size()), toRead.data());
+                    UINT used = kDenoiseDescriptors - kTableSize;
+                    const View writes[4] = {};
+                    list->SetComputeRootDescriptorTable(10, TableLocked(slotNumber, used, reads, writes));
+                }
                 list->SetPipelineState(pipeline->second.Get());
                 list->Dispatch(groupsX, groupsY, 1);
+                if (!toWrite.empty())
+                    list->ResourceBarrier(static_cast<UINT>(toWrite.size()), toWrite.data());
             }
             if (index == 6 && denoising)
                 RunDenoiserLocked(*packet, slotNumber, outputs, inputs[kRtInputMotion]);
-            list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 2 + index);
+            list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 2 + position);
         }
 
         if (!back.empty())
@@ -1341,8 +1377,10 @@ namespace redefinition
             std::lock_guard<std::mutex> status(statusLock);
             buildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
             traceMs = static_cast<float>(static_cast<double>(ticks[kTimestampsPerSlot - 1] - ticks[1]) * toMs);
-            for (UINT index = 0; index < kRtPassTimings; ++index)
-                passMs[index] = static_cast<float>(static_cast<double>(ticks[2 + index] - ticks[1 + index]) * toMs);
+            const UINT order[kRtPassTimings] = { 0, 1, 2, 3, 6, 4, 5, 7 };
+            for (UINT position = 0; position < kRtPassTimings; ++position)
+                passMs[order[position]] =
+                    static_cast<float>(static_cast<double>(ticks[2 + position] - ticks[1 + position]) * toMs);
             const D3D12_RANGE none = { 0, 0 };
             timestampReadback->Unmap(0, &none);
         }

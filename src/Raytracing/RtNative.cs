@@ -31,6 +31,7 @@ namespace ReDefinition.Raytracing
         internal const uint SignalOcclusion = 1u << 1;
         internal const uint SignalDiffuse = 1u << 2;
         internal const uint SignalSpecular = 1u << 3;
+        internal const uint SignalForwardLight = 1u << 4;
 
         internal const int InputDepth = 0;
         internal const int InputGBuffer0 = 1;
@@ -43,6 +44,7 @@ namespace ReDefinition.Raytracing
         internal const int OutputDiffuse = 1;
         internal const int OutputSpecular = 2;
         internal const int OutputOcclusion = 3;
+        internal const int OutputForwardLight = 4;
 
         internal const int MaterialTextureSize = 64;
         internal const int MaxMaterialTextures = 4096;
@@ -107,6 +109,7 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] SkyColor;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public float[] Params;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] BodySphere;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)] public float[] Ambient;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
         }
@@ -125,6 +128,7 @@ namespace ReDefinition.Raytracing
                 SkyColor = new float[4],
                 Params = new float[8],
                 BodySphere = new float[4],
+                Ambient = new float[12],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

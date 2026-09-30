@@ -283,7 +283,9 @@ The test player is a Unity 2019.4.18f1 player built as KSP's is: Direct3D 11, na
 graphics jobs, gamma colour space. It builds a scene of a ground and two boxes, renders it
 with and without raytracing, and checks the images. It runs three times: with forward
 rendering, with Unity's deferred lighting, and with Deferred's lighting shaders from the
-installed game.
+installed game. The first two check that raytracing replaces Unity's ambient light
+without Deferred; the third checks Deferred's path, a floating origin jump and the night
+side.
 
 ```
 python tools\build_rt_player.py

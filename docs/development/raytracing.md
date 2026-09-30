@@ -17,8 +17,8 @@ through the scene instead of from Unity's approximations:
 | Part | Unity's approximation | Raytraced |
 |---|---|---|
 | Sun shadows | cascaded shadow maps, a few kilometres deep | a shadow ray per pixel, soft by the sun's angular size, as far as the scene reaches |
-| Ambient light | Deferred's reflection probe, blurred, the same for every point | one or more bounces of diffuse light, from the sky, the sun and lit surfaces |
-| Ambient occlusion | none | the share of the sky a point sees |
+| Ambient light | KSP's flat or gradient ambient colour, or Deferred's reflection probe, blurred; the same for every point | one or more bounces of diffuse light, from the sky, the sun and lit surfaces |
+| Ambient occlusion | none | part of the traced diffuse light: sky a point does not see brings it no light |
 | Reflections | the reflection probe, or Deferred's screen-space reflections | rays into the scene, sharp or rough by the surface's smoothness |
 | Emissive surfaces | light only themselves | light what is around them |
 
@@ -35,7 +35,7 @@ compute shaders (DirectX Raytracing 1.1, shader model 6.5) **[doc]**.
 
 1. Unity renders frame N as usual. With Deferred, the scene camera fills its G-buffer:
    albedo and occlusion, specular colour and smoothness, the world normal, and emission
-   **[src]**.
+   **[src]**. Without Deferred, KSP renders forward and there is none.
 2. In the scene camera's `OnRenderImage`, where the upscaler already hands work to the
    proxy, a command buffer copies depth, the G-buffer and the motion vectors into the
    raytracing inputs. A render event then starts the raytracing on Direct3D 12. Only a
@@ -62,6 +62,7 @@ over frames anyway, so the delay adds no lag of its own to what they already hav
 |---|---|---|
 | Sun visibility | ReDefinition's shader for Unity's screen-space shadows (`GraphicsSettings.SetCustomShader`, `BuiltinShaderType.ScreenSpaceShadows`) | every surface that receives the sun's shadow reads that mask, forward and deferred; EVE's cloud shadows and Scatterer's eclipses multiply into it afterwards, at `LightEvent.AfterScreenspaceMask` **[src]** |
 | Diffuse light, occlusion, reflections | ReDefinition's shader for Unity's deferred reflections, in place of Deferred's while raytracing is on | Deferred adds its ambient light and the probe's reflection in that pass **[src]** |
+| Diffuse light and reflections, without Deferred | ReDefinition's shader drawn into the frame after the opaque geometry's lighting | no pass of Unity's takes them; see below |
 
 Deferred sets its own shaders for Unity's deferred shading and deferred reflections
 **[src]**. ReDefinition's reflections shader keeps what Deferred's does besides ambient
@@ -83,11 +84,41 @@ the depth the raytraced frame kept for the pixel.
 The screen-space shadows shader is derived from Unity's built-in one, which is MIT **[doc]**.
 For every camera but the scene camera it does what Unity's does.
 
-Without Deferred, KSP renders forward and has no G-buffer. Raytraced sun shadows still
-work then, as forward shading reads the same mask; the proxy takes the normals from the
-depth. Unity fades shadows out at the shadow distance, the raytraced ones too; Deferred
-turns that fade off, so with Deferred they reach as far as the scene **[meas]** (test
-player). Diffuse light, occlusion and reflections need Deferred.
+### Without Deferred
+
+Raytracing needs no other mod. Without Deferred, KSP renders forward and has no G-buffer,
+and raytracing works as follows:
+
+* Sun shadows enter through the same mask, which forward shading reads too. Unity fades
+  shadows out at the shadow distance, the raytraced ones too; Deferred turns that fade
+  off, so with Deferred they reach as far as the scene **[meas]** (test player).
+* The proxy takes each pixel's surface from a ray of its own. The camera's ray to the
+  point the depth gives lands on the triangle Unity drew there: its normal, its
+  material's albedo, specular colour and smoothness **[meas]** (harness: the sun's
+  visibility the same on 100 % of the pixels, the diffuse light the same to 0.01 %).
+* A pass of the proxy works out the light to add: the albedo times the traced diffuse
+  light, less Unity's ambient light, which forward shading added already; and the
+  reflections, weighed by Unity's Fresnel term. The traced diffuse light has the
+  occlusion in it.
+* ReDefinition's shader adds that light to the frame after the opaque geometry's
+  lighting: after Unity's forward opaque pass, or with Unity's deferred lighting after
+  the lighting, as the forward opaque pass is left out when nothing is drawn forward
+  **[meas]** (test player). Without HDR, Unity's deferred lighting keeps `exp2(-light)`
+  **[src]**; the shader multiplies there instead of adding.
+
+Unity's ambient light is its ambient probe, which `LightProbes.GetInterpolatedProbe`
+returns; `RenderSettings.ambientProbe` holds only a baked one and is zero in a player
+**[meas]** (test player). It is handed over facing up, sideways and down. For flat and
+gradient ambient light, which is what KSP's scenes use **[src]** (their `RenderSettings`),
+the quadratic in the normal's height through those three values is the probe itself.
+
+The test player checks it: between a dim flat and a bright gradient ambient light, the
+near box's shadow changes by 0.185 without raytracing and by 0.001 with it, with forward
+rendering and with Unity's deferred lighting **[meas]**.
+
+Forward shading keeps its own reflections. KSP's part shaders have none **[src]**; Unity's
+standard shaders add their reflection probe's, and the raytraced reflections come on top
+**[open]** (whether that shows on anything in KSP's scenes).
 
 ## What the rays see
 
@@ -119,13 +150,16 @@ A ray that hits something shades it from what the proxy holds per mesh and per m
 
 * the normal and the texture coordinate, from the mesh;
 * the albedo: the material's colour times a small copy of its main texture, 64 by 64
-  pixels, which Unity renders once per material into a texture array;
+  pixels, which Unity renders once per material into a texture array; for Unity's
+  standard shaders less what their specular colour takes of it, as they shade it
+  (`UnityStandardUtils.cginc`) **[src]**;
 * specular colour and smoothness, converted from KSP's shaders as Deferred converts them
   **[src]**;
 * emission.
 
-A ray that hits nothing takes the sky's light from a capture of Deferred's reflection
-probe, and the sun's disc for sharp reflections.
+A ray that hits nothing takes the sky's light from a capture of the scene's reflection
+probe, Deferred's or KSP's own in flight (`FlightReflectionProbe`) **[src]**, and the sun's
+disc for sharp reflections. Without a probe it takes KSP's ambient sky colour.
 
 ## Denoising
 
@@ -159,7 +193,7 @@ the installed mods live.
 |---|---|---|
 | Raytracing harness | a native program that loads the proxy as Unity does, rasterises a G-buffer in Unity's layout and runs the raytracing through the proxy's own interface | the acceleration structures, every signal against a formula or a reference, the denoisers, floating-origin shifts, timings on the GPU |
 | Scenes from KSP | meshes exported from KSP's own files with UnityPy: the launch pad, the runway, the VAB, the SPH, part meshes | real geometry, real triangle counts, real scale |
-| C# unit tests | the collection and change tracking of meshes, the packing of packets, the carrying over of signals between frames | the managed side's logic |
+| C# unit tests | the layout of the frame packet | that the managed side and the proxy read the same packet |
 | Unity test player | a Unity 2019.4.18f1 player built like KSP's, with forward rendering, Unity's deferred lighting and Deferred's own shader bundle from `GameData`, and the proxy beside it (`tools/build_rt_player.py`) | the shaders in Unity's lighting, the timing of the render events, the one-frame carry-over |
 
 The harness checks:
@@ -176,6 +210,13 @@ The harness checks:
    frames: the signals do not change.
 7. **Churn.** Meshes added and removed every frame, 20 000 instances.
 8. **Timings.** Each pass, measured on the GPU, per render resolution.
+9. **The planet's shadow.** A sun under the horizon: the main body's sphere shadows a box
+   the scene alone leaves lit.
+10. **Surface from the rays.** Without a G-buffer: the sun's visibility and the diffuse
+    light as with one.
+11. **Forward light.** Without a G-buffer, under an ambient light brighter above than
+    below: every drawn pixel gets its albedo times the diffuse light less that ambient
+    light, through the denoiser.
 
 ## Plan
 
@@ -187,7 +228,7 @@ Each stage ends with its checks passing, a review, and one commit.
 | 2 | The signals: sun visibility, occlusion, diffuse light with bounces, reflections, emission, the sky capture | checks 2, 3 and 4 pass, and the KSP scenes render without NaNs |
 | 3 | ReDefinition's denoiser; the adapters for Ray Regeneration and Ray Reconstruction | check 5 passes; Ray Reconstruction runs in the harness on NVIDIA's DLLs |
 | 4 | The Unity side free of KSP: collection, per-frame instances, G-buffer capture, the two shaders, the carry-over; the Unity test player | the test player shows raytraced shadows and light, and its checks pass |
-| 5 | KSP: parts, KSC, terrain, floating origin, the sun, cameras, settings, profiles, the diagnostics log | the C# tests pass, and a log line per frame part says what went into the scene |
+| 5 | KSP: parts, KSC, terrain, floating origin, the sun, cameras, settings, the diagnostics log; raytracing without Deferred | the C# tests pass, a log line says what went into the scene, and the test player's checks without Deferred pass |
 | 6 | Compatibility with every installed mod (table below) | each row has its handling, marked **[src]** |
 | 7 | Performance, the player page, one flight's checklist | the timings fit the budget below |
 
@@ -198,7 +239,7 @@ of GPU time **[open]**.
 
 | Mod | What raytracing does with it |
 |---|---|
-| Deferred | provides the G-buffer; its reflections shader is replaced while diffuse light is raytraced, and set back afterwards |
+| Deferred | optional; provides the G-buffer; its reflections shader is replaced while diffuse light is raytraced, and set back afterwards; without it, see "Without Deferred" |
 | Parallax Continued | its finer terrain copy near the camera is in the scene; its displacement is covered by the ray offset; its scatter is added from its GPU buffers |
 | Scatterer | its ocean and atmosphere stay as they are; its shadow changes stay; its eclipse modulation of the shadow mask applies after the raytraced shadow |
 | EVE, Stock Volumetric Clouds | clouds stay out of the scene; cloud shadows still multiply into the shadow mask |
