@@ -302,6 +302,9 @@ namespace ReDefinition.Flight
             Vector2 drawnMiddle = new Vector2(marginLeft + side / 2f - faceRect.sizeDelta.x / 2f,
                 marginBottom + side / 2f - metSize.y / 2f);
             faceRect.anchoredPosition = -drawnMiddle;
+            faceBox = faceRect;
+            metRect = (RectTransform)met;
+            restY = -drawnMiddle.y;
 
             GameObject arrow = new GameObject("Arrow", typeof(RectTransform), typeof(Image));
             arrow.layer = copy.layer;
@@ -468,7 +471,21 @@ namespace ReDefinition.Flight
             barRect.localPosition = unfolded - (Vector3)away;
             float folded = travel > 0f ? Mathf.Clamp01(Mathf.Abs(away.y) / travel) : 0f;
             barRect.sizeDelta = new Vector2(barRect.sizeDelta.x, Mathf.Lerp(unfoldedHeight, foldedHeight, folded));
+            // Unfolded, the button's drawn square stands in the area's middle;
+            // folded, the button stands at the MET button's height, which is as
+            // high and draws the same picture: measured on a screenshot, the
+            // middle of the folded area lay a pixel off it.
+            if (faceBox == null || metRect == null) return;
+            // In the area's own space: the face hangs at the area's middle, its
+            // pivot its own middle.
+            float rest = barRect.rect.center.y + restY;
+            float beside = barRect.InverseTransformPoint(metRect.TransformPoint(metRect.rect.center)).y;
+            Vector3 place = faceBox.localPosition;
+            faceBox.localPosition = new Vector3(place.x, Mathf.Lerp(rest, beside, folded), place.z);
         }
+
+        private RectTransform faceBox, metRect;
+        private float restY;
 
         private float unfoldedHeight, foldedHeight, travel;
 

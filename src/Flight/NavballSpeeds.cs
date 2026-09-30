@@ -115,7 +115,7 @@ namespace ReDefinition.Flight
             // behind.
             plate.raycastTarget = true;
 
-            TextMeshProUGUI value = null;
+            TextMeshProUGUI value = null, name = null;
             foreach (TextMeshProUGUI text in heading.GetComponentsInChildren<TextMeshProUGUI>(true))
             {
                 bool isLabel = text.name == "Label_HDG";
@@ -136,7 +136,17 @@ namespace ReDefinition.Flight
                 copy.fontSizeMax = isLabel ? 11f : 13f;
                 copy.fontSizeMin = 7f;
                 copy.text = isLabel ? label : "";
-                if (!isLabel) value = copy;
+                if (isLabel) name = copy;
+                else value = copy;
+            }
+            // The heading's label is written for the box its picture draws under it
+            // (dark on ZTheme's light box): on the plate here it takes the value's
+            // colour, dimmed.
+            if (name != null && value != null)
+            {
+                Color colour = value.color;
+                name.color = new Color(colour.r, colour.g, colour.b, colour.a * 0.6f);
+                name.transform.SetAsLastSibling();
             }
             return value;
         }

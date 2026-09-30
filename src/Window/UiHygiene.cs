@@ -64,6 +64,9 @@ namespace ReDefinition.Window
                     ?? target.AddComponent<KSP.UI.TooltipTypes.TooltipController_Text>();
                 tooltip.prefab = prefab;
                 tooltip.textString = text;
+                // KSP's prefabs carry one switched off in places (the delta-v tools'
+                // body list).
+                tooltip.enabled = true;
                 return tooltip;
             }
             catch (Exception e)
