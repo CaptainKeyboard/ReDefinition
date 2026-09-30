@@ -41,7 +41,7 @@ namespace ReDefinition.Flight
             internal EditorFacility Facility;
             internal Transform Place;
             internal Vector3 Middle;
-            internal float Reach;
+            internal Collider[] Solid;
             internal bool Measured;
         }
 
@@ -128,7 +128,7 @@ namespace ReDefinition.Flight
             Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             Vector3 middle = Middle(building);
             // Before the building's front, not inside it.
-            if (!marker.Place(middle, camera, building.Reach))
+            if (!marker.Place(middle, camera, Front(building, middle, camera)))
             {
                 Note("the building behind the camera or too far to see");
                 return;
@@ -193,37 +193,70 @@ namespace ReDefinition.Flight
             return revert ? "Revert to " + building : "Recover vessel and go to " + building;
         }
 
-        // The middle of what the building draws, found once it draws.
-        // Half as high as the building reaches over its place (the facility's
-        // transform, on the ground), over the middle of what it draws: the box
-        // around all it draws also takes in the flat ground around it, and its
-        // middle lay low, the button half in the ground.
+        // The middle of the building's hall, found once it is there: over the
+        // middle of the largest drawn part that is also solid (a collider on it:
+        // the SPH's model_sph_exterior_main, not the flat ground around it or the
+        // light flare 90 m up its tower, sharedassets9), half as high as its roof
+        // stands there -- a ray down onto the building's colliders; the tower
+        // beside the SPH's hall would make the hall's box twice as high.
         private Vector3 Middle(Building building)
         {
             if (!building.Measured)
             {
-                Renderer[] parts = building.Place.GetComponentsInChildren<Renderer>(false);
-                if (parts.Length == 0) return building.Place.position;
                 Vector3 ground = building.Place.position;
                 Vector3 up = (ground - home.position).normalized;
-                float top = 0f;
-                Bounds all = parts[0].bounds;
-                foreach (Renderer part in parts)
+                Renderer hall = null;
+                float most = -1f;
+                foreach (Renderer part in building.Place.GetComponentsInChildren<Renderer>(false))
                 {
-                    Bounds bounds = part.bounds;
-                    all.Encapsulate(bounds);
-                    Vector3 extent = bounds.extents;
-                    float reach = Mathf.Abs(extent.x * up.x) + Mathf.Abs(extent.y * up.y) + Mathf.Abs(extent.z * up.z);
-                    top = Mathf.Max(top, Vector3.Dot(bounds.center - ground, up) + reach);
+                    if (part.GetComponent<Collider>() == null) continue;
+                    Vector3 size = part.bounds.size;
+                    float volume = size.x * size.y * size.z;
+                    if (volume <= most) continue;
+                    most = volume;
+                    hall = part;
                 }
-                Vector3 across = all.center - up * Vector3.Dot(all.center - ground, up);
-                building.Middle = building.Place.InverseTransformPoint(across + up * (top / 2f));
-                // Before its front: the box around all it draws is too wide to tell.
-                building.Reach = top * 0.4f;
+                if (hall == null) return ground;
+                building.Solid = building.Place.GetComponentsInChildren<Collider>(false);
+                Bounds bounds = hall.bounds;
+                Vector3 extent = bounds.extents;
+                float top = Vector3.Dot(bounds.center - ground, up)
+                            + Mathf.Abs(extent.x * up.x) + Mathf.Abs(extent.y * up.y) + Mathf.Abs(extent.z * up.z);
+                Vector3 across = bounds.center - up * Vector3.Dot(bounds.center - ground, up);
+                float roof = 0f;
+                Ray down = new Ray(across + up * (top + 10f), -up);
+                foreach (Collider solid in building.Solid)
+                {
+                    RaycastHit hit;
+                    if (solid != null && !solid.isTrigger && solid.Raycast(down, out hit, top + 20f))
+                        roof = Mathf.Max(roof, Vector3.Dot(hit.point - ground, up));
+                }
+                if (roof <= 0f) roof = top;
+                building.Middle = building.Place.InverseTransformPoint(across + up * (roof / 2f));
                 building.Measured = true;
-                Debug.Log(Log.Tag + " The " + building.Facility + " stands " + top.ToString("0") + " m high; its button half as high.");
+                Debug.Log(Log.Tag + " The " + building.Facility + "'s roof stands " + roof.ToString("0") + " m high over "
+                          + hall.name + "; its button half as high.");
             }
             return building.Place.TransformPoint(building.Middle);
+        }
+
+        // How far to bring the button from the middle towards the camera to stand
+        // before the building's front: to where a ray from the camera meets the
+        // building, and a little more.
+        private static float Front(Building building, Vector3 middle, Camera camera)
+        {
+            if (camera == null || building.Solid == null) return 0f;
+            Vector3 eye = camera.transform.position;
+            Ray look = new Ray(eye, (middle - eye).normalized);
+            float distance = (middle - eye).magnitude;
+            float nearest = distance;
+            foreach (Collider solid in building.Solid)
+            {
+                RaycastHit hit;
+                if (solid != null && !solid.isTrigger && solid.Raycast(look, out hit, distance))
+                    nearest = Mathf.Min(nearest, hit.distance);
+            }
+            return distance - nearest + 2f;
         }
 
         // ---------------------------------------------------------------- click
