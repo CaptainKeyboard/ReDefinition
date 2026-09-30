@@ -65,7 +65,8 @@ namespace ReDefinition.Flight
             // On the screen, in pixels from its lower left, to lay beside a
             // screenshot: the SAS buttons' block, and the two fields under it.
             Canvas canvas = frame.GetComponentInParent<Canvas>();
-            Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            Canvas root = canvas != null ? canvas.rootCanvas : null;
+            Camera camera = root != null && root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
             Vector2 blockLow = RectTransformUtility.WorldToScreenPoint(camera, frame.TransformPoint(new Vector3(left, bottom, 0f)));
             Vector2 blockHigh = RectTransformUtility.WorldToScreenPoint(camera, frame.TransformPoint(new Vector3(right, bottom, 0f)));
             Debug.Log(Log.Tag + " The navball's vertical and horizontal speeds shown under its SAS modes, " + width.ToString("0")

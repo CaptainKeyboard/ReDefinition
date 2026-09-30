@@ -9,7 +9,6 @@ using ReDefinition.Flight.Panel;
 using ReDefinition.Flight.Readouts;
 using TMPro;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace ReDefinition.Flight
@@ -152,17 +151,10 @@ namespace ReDefinition.Flight
             auto.text = "AUTO";
             label.gameObject.SetActive(false);
 
-            // A click anywhere on the face.
-            GameObject click = new GameObject("ReDefinitionGaugeClick", typeof(RectTransform), typeof(Image), typeof(GaugeClick));
-            click.transform.SetParent(picture.transform, false);
-            RectTransform clickRect = (RectTransform)click.transform;
-            clickRect.anchorMin = clickRect.anchorMax = clickRect.pivot = new Vector2(0.5f, 0.5f);
-            clickRect.sizeDelta = new Vector2(2f * radius, 2f * radius);
-            clickRect.anchoredPosition = middle;
-            click.GetComponent<Image>().color = Color.clear;
-            GaugeClick clicks = click.GetComponent<GaugeClick>();
-            clicks.Pressed = Step;
-            clicks.Hovered = over => track.color = over ? TrackLit : Track;
+            face = picture.rectTransform;
+            Canvas canvas = face.GetComponentInParent<Canvas>();
+            Canvas root = canvas != null ? canvas.rootCanvas : null;
+            faceCamera = root != null && root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
             Sprite read = picture.sprite;
             Debug.Log(Log.Tag + " The round gauge is digital, showing " + mode + ": the dial's middle at " + middle.ToString("0.0")
                       + " of the gauge's " + rect.size.ToString("0.0") + " (pivot " + picture.rectTransform.pivot.ToString("0.00")
@@ -341,9 +333,33 @@ namespace ReDefinition.Flight
             Debug.Log(Log.Tag + " The round gauge shows " + mode + ", picked by a click.");
         }
 
+        private RectTransform face;
+        private Camera faceCamera;
+        private bool hovered;
+
+        // Whether the mouse is over the dial. Asked of the mouse itself: clicks
+        // sent through the UI's event system do not reach the gauge in KSP's top
+        // frame (none arrived in flight).
+        private bool MouseOver()
+        {
+            if (face == null || !face.gameObject.activeInHierarchy) return false;
+            Vector2 local;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(face, Input.mousePosition, faceCamera, out local)) return false;
+            return (local - (face.rect.center + middle)).magnitude <= radius + ArcInset;
+        }
+
         private void Update()
         {
             if (value == null) return;
+            bool over = MouseOver();
+            if (over != hovered)
+            {
+                hovered = over;
+                track.color = over ? TrackLit : Track;
+            }
+            if (over && Input.GetMouseButtonDown(0)) Step(1);
+            else if (over && Input.GetMouseButtonDown(1)) Step(-1);
+
             // The arc and its tip move to the value each frame.
             shownFill = Mathf.MoveTowards(shownFill, wantedFill, Time.unscaledDeltaTime * 2f);
             arc.fillAmount = shownFill * Sweep;
@@ -667,31 +683,6 @@ namespace ReDefinition.Flight
             ConfigNode node = new ConfigNode();
             node.AddValue("mode", mode.ToString());
             node.Save(Path);
-        }
-    }
-
-    // Clicks on the round gauge: the left button one mode on, the right one back;
-    // and whether the mouse is over it.
-    public class GaugeClick : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
-    {
-        internal Action<int> Pressed;
-        internal Action<bool> Hovered;
-
-        public void OnPointerEnter(PointerEventData data)
-        {
-            if (Hovered != null) Hovered(true);
-        }
-
-        public void OnPointerExit(PointerEventData data)
-        {
-            if (Hovered != null) Hovered(false);
-        }
-
-        public void OnPointerClick(PointerEventData data)
-        {
-            if (Pressed == null) return;
-            if (data.button == PointerEventData.InputButton.Left) Pressed(1);
-            else if (data.button == PointerEventData.InputButton.Right) Pressed(-1);
         }
     }
 }
