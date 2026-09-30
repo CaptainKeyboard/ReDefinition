@@ -71,6 +71,21 @@ namespace ReDefinition.Raytracing
         };
         private static readonly Vector3[] AmbientDirections = { Vector3.up, Vector3.right, Vector3.down };
         private readonly Color[] ambientValues = new Color[3];
+        // Unity's frame count at which the upscaler last asked for DLSS Ray
+        // Reconstruction's frames: until the frame after it, they go undenoised, as Ray
+        // Reconstruction denoises the finished frame, and make its guides from their
+        // surfaces (UpscalerRig.Reconstruction.cs). A lease, so that nothing holds it on
+        // once the upscaler stops asking.
+        internal int ReconstructionLease = -1;
+        private bool reconstructedBefore;
+        // The last frame that made the guides: Unity's frame count, the packet's index,
+        // its camera-relative clip-to-world.
+        internal int GuidesFrame { get; private set; } = -1;
+        internal uint GuidesIndex { get; private set; }
+        internal readonly float[] GuidesClipToWorld = new float[16];
+        // The raytraced camera, while one is on.
+        internal static RtCamera Current { get; private set; }
+        internal Camera Camera { get { return cam; } }
         // Whether this frame is a cut: the camera jumped, the history is not its.
         internal Func<bool> Cut = () => false;
         // The camera's motion vectors, where they are rendered and correct.
@@ -182,10 +197,13 @@ namespace ReDefinition.Raytracing
             cam.depthTextureMode |= DepthTextureMode.Depth;
             haveHistory = false;
             Problem = null;
+            Current = this;
         }
 
         private void OnDisable()
         {
+            if (Current == this) Current = null;
+            ReconstructionLease = -1;
             if (cam != null)
             {
                 if (flagOn != null)
@@ -416,9 +434,21 @@ namespace ReDefinition.Raytracing
             packet.FrameIndex = frameIndex;
             packet.Width = (uint)width;
             packet.Height = (uint)height;
-            packet.Flags = RtNative.FlagSameFrame | (Settings.Denoise ? RtNative.FlagDenoise : 0u)
-                           | (!haveHistory || Cut() ? RtNative.FlagReset : 0u)
-                           | (withMotion ? RtNative.FlagMotionVectors : 0u);
+            // The denoiser's history stood still while Ray Reconstruction ran: afresh when
+            // it comes back.
+            bool reconstruct = ReconstructionLease >= Time.frameCount - 1;
+            bool switched = reconstruct != reconstructedBefore;
+            reconstructedBefore = reconstruct;
+            packet.Flags = RtNative.FlagSameFrame | (Settings.Denoise && !reconstruct ? RtNative.FlagDenoise : 0u)
+                           | (!haveHistory || Cut() || switched ? RtNative.FlagReset : 0u)
+                           | (withMotion ? RtNative.FlagMotionVectors : 0u)
+                           | (reconstruct ? RtNative.FlagGuides : 0u);
+            if (reconstruct)
+            {
+                GuidesFrame = Time.frameCount;
+                GuidesIndex = frameIndex;
+                Array.Copy(packet.ClipToWorld, GuidesClipToWorld, 16);
+            }
 
             for (int i = 0; i < 8; i++)
             {
@@ -428,9 +458,7 @@ namespace ReDefinition.Raytracing
             packet.Inputs[RtNative.InputDepth] = depth.GetNativeTexturePtr();
             if (deferred)
             {
-                // Without Deferred there is no G-buffer; the normal the sun's pass needs is
-                // then the depth's, which the service does not make yet: forward is lit
-                // straight up.
+                // Without a G-buffer the proxy takes each pixel's surface from its rays.
                 packet.Inputs[RtNative.InputGBuffer0] = gbuffer0.GetNativeTexturePtr();
                 packet.Inputs[RtNative.InputGBuffer1] = gbuffer1.GetNativeTexturePtr();
                 packet.Inputs[RtNative.InputGBuffer2] = gbuffer2.GetNativeTexturePtr();

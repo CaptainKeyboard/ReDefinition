@@ -19,5 +19,17 @@ namespace ReDefinition.Tests
             Assert.AreEqual(320, Marshal.OffsetOf(packet, "Ambient").ToInt32());
             Assert.AreEqual(368, Marshal.OffsetOf(packet, "Inputs").ToInt32());
         }
+
+        // RtReconstructPacket's static_asserts: 640 bytes, the matrices from 48, the
+        // textures from 576.
+        [TestMethod]
+        public void TheReconstructionPacketIsLaidOutAsTheProxyReadsIt()
+        {
+            System.Type packet = typeof(RtNative.ReconstructPacket);
+            Assert.AreEqual(640, Marshal.SizeOf(packet));
+            Assert.AreEqual(48, Marshal.OffsetOf(packet, "ClipToWorld").ToInt32());
+            Assert.AreEqual(576, Marshal.OffsetOf(packet, "Colour").ToInt32());
+            Assert.AreEqual(632, Marshal.OffsetOf(packet, "Output").ToInt32());
+        }
     }
 }

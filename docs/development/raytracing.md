@@ -181,6 +181,16 @@ Reconstruction then denoises and upscales the finished frame in one step, where 
 Resolution would otherwise run. It gets the albedo, specular albedo, normal, roughness and
 the reflections' hit distance as guides.
 
+The guides come from the raytraced frame of the same index, from the surface its passes
+see: the G-buffer's with Deferred, the rays' own without. Ray Reconstruction therefore
+needs no G-buffer **[meas]** (harness: 64 of 64 frames reconstructed without one, off the
+reference by 0.0059 against 0.0053 with it). The upscaler sends a frame to Ray
+Reconstruction when DLSS is chosen, the scene camera is raytraced and the proxy reports
+Ray Reconstruction ready; the first frame after switching goes through Super Resolution,
+as its raytraced frame made no guides yet. Where Ray Reconstruction shows no frame for a
+second, the upscaler stays with Super Resolution and writes why into the log. Whether it
+runs in the game is **[open]**.
+
 NVIDIA's NRD denoisers are left out: their licence forbids use that makes them subject to
 an open-source licence **[doc]**.
 
@@ -217,6 +227,9 @@ The harness checks:
 11. **Forward light.** Without a G-buffer, under an ambient light brighter above than
     below: every drawn pixel gets its albedo times the diffuse light less that ambient
     light, through the denoiser.
+12. **Ray Reconstruction.** 64 frames of the noisy signals put together: the reconstructed
+    frame against a reference of 256 frames, with the G-buffer's guides and without a
+    G-buffer, with the raytraced frame's.
 
 ## Plan
 

@@ -59,7 +59,8 @@ namespace ReDefinition.Upscaler
         private bool SubmitNative()
         {
             int state = nativeSubmitted < NativeStateTrustedAfter ? 0 : nativeLink.State();
-            if (state != nativeState || (state < 0 && Time.unscaledTime >= nextNativeCheck))
+            // Super Resolution's state says nothing while Ray Reconstruction takes the frames.
+            if (!Reconstructing && (state != nativeState || (state < 0 && Time.unscaledTime >= nextNativeCheck)))
             {
                 nativeState = state;
                 nextNativeCheck = Time.unscaledTime + 1f;
@@ -71,6 +72,14 @@ namespace ReDefinition.Upscaler
                          | (Backend == UpscalerBackend.Dlss || AutoExposure ? NativeUpscalerLink.FlagAutoExposure : 0u)
                          | (dispatch.Reset ? NativeUpscalerLink.FlagReset : 0u);
             bool submitted;
+            bool reconstructedShown;
+            if (Backend == UpscalerBackend.Dlss && SubmitReconstruction(ref flags, out reconstructedShown))
+            {
+                nativeSubmitted++;
+                nativeShown = reconstructedShown;
+                if (nativeShown) nativeEverShown = true;
+                return nativeShown;
+            }
             if (Backend == UpscalerBackend.Dlss)
             {
                 DlssBridge.DlssPacket packet = new DlssBridge.DlssPacket

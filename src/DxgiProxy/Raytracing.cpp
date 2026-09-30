@@ -38,7 +38,7 @@ namespace redefinition
         // The denoiser's entry points (RaytracingShaders/Denoise.hlsl).
         const wchar_t* const kDenoiseEntries[] = {
             L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous", L"RT_DenoiseResolve",
-            L"RT_ReconstructGuides",
+            L"RT_ReconstructGuides", L"RT_FrameGuides",
         };
 
         // The output slot of each signal the denoiser filters, and its place among the
@@ -714,6 +714,37 @@ namespace redefinition
             if (index == 6 && denoising)
                 RunDenoiserLocked(*packet, slotNumber, outputs, inputs[kRtInputMotion]);
             list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 2 + position);
+        }
+
+        // DLSS Ray Reconstruction's guides from this frame's surfaces, which the
+        // reconstruction of the same frame takes (RaytracingReconstruct.cpp).
+        guides.fromFrame = false;
+        if ((packet->flags & kRtFrameGuides) != 0)
+        {
+            auto pipeline = denoisePipelines.find("RT_FrameGuides");
+            if (pipeline != denoisePipelines.end() && EnsureGuidesLocked(slot.held, packet->width, packet->height))
+            {
+                const D3D12_RESOURCE_BARRIER written = UavBarrier(nullptr);
+                list->ResourceBarrier(1, &written);
+                for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
+                    UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                UINT used = kDenoiseDescriptors - 2 * kTableSize;
+                const View reads[8] = {};
+                const View writes[4] = { Of(&guides.albedo), Of(&guides.specularAlbedo), Of(&guides.normalRoughness),
+                                         Of(&guides.hitDistance) };
+                const D3D12_GPU_DESCRIPTOR_HANDLE guideTable = TableLocked(slotNumber, used, reads, writes);
+                D3D12_GPU_DESCRIPTOR_HANDLE writeTable = guideTable;
+                writeTable.ptr += static_cast<UINT64>(8) * increment;
+                list->SetComputeRootDescriptorTable(10, guideTable);
+                list->SetComputeRootDescriptorTable(11, writeTable);
+                list->SetPipelineState(pipeline->second.Get());
+                list->Dispatch(groupsX, groupsY, 1);
+                // Streamline takes them in the state it is given.
+                for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
+                    UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                guides.fromFrame = true;
+                guides.frame = packet->frameIndex;
+            }
         }
 
         if (!back.empty())

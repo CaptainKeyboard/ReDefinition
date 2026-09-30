@@ -26,6 +26,8 @@ namespace ReDefinition.Raytracing
         internal const uint FlagReset = 1u << 1;
         internal const uint FlagDenoise = 1u << 2;
         internal const uint FlagMotionVectors = 1u << 3;
+        internal const uint FlagGuides = 1u << 4;
+        internal const uint ReconstructLdr = 1u << 8;
 
         internal const uint SignalSun = 1u << 0;
         internal const uint SignalOcclusion = 1u << 1;
@@ -114,6 +116,70 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
         }
 
+        // Event 31's packet, as RtReconstructPacket in Raytracing.h: DLSS Ray
+        // Reconstruction for the frame whose raytracing made its guides.
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct ReconstructPacket
+        {
+            public uint Size;
+            public uint Magic;
+            public uint FrameIndex;
+            public uint Flags;
+            public uint RenderWidth;
+            public uint RenderHeight;
+            public uint OutputWidth;
+            public uint OutputHeight;
+            public uint Mode;
+            public uint Preset;
+            public uint Reserved0;
+            public uint Reserved1;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToWorld;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ViewToClip;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToView;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToPrevClip;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] PrevClipToClip;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] WorldToView;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ViewToWorld;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public float[] Jitter;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public float[] MotionScale;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] Up;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] Right;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] Forward;
+            public float NearPlane;
+            public float FarPlane;
+            public float VerticalFov;
+            public float Reserved2;
+            public IntPtr Colour;
+            public IntPtr Depth;
+            public IntPtr Motion;
+            public IntPtr GBuffer0;
+            public IntPtr GBuffer1;
+            public IntPtr GBuffer2;
+            public IntPtr Specular;
+            public IntPtr Output;
+        }
+
+        internal static ReconstructPacket NewReconstructPacket()
+        {
+            return new ReconstructPacket
+            {
+                Size = (uint)Marshal.SizeOf(typeof(ReconstructPacket)),
+                Magic = ReconstructMagic,
+                ClipToWorld = new float[16],
+                ViewToClip = new float[16],
+                ClipToView = new float[16],
+                ClipToPrevClip = new float[16],
+                PrevClipToClip = new float[16],
+                WorldToView = new float[16],
+                ViewToWorld = new float[16],
+                Jitter = new float[2],
+                MotionScale = new float[2],
+                Up = new float[4],
+                Right = new float[4],
+                Forward = new float[4],
+            };
+        }
+
         internal static FramePacket NewFramePacket()
         {
             return new FramePacket
@@ -166,6 +232,12 @@ namespace ReDefinition.Raytracing
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         internal static extern int KspRtReconstructionAvailable(StringBuilder buffer, int size);
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern ulong KspRtReconstructedFrames();
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern uint KspRtReconstructPacketSize();
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr KspFgGetRenderEventFunc();

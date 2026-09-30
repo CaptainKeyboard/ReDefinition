@@ -88,6 +88,9 @@ namespace redefinition
     constexpr uint32_t kRtFrameReset = 1u << 1;       // the history is not this camera's: start afresh
     constexpr uint32_t kRtFrameDenoise = 1u << 2;     // the signals through ReDefinition's denoiser
     constexpr uint32_t kRtFrameMotionVectors = 1u << 3;   // t5 holds motion: the previous uv is uv - motion.xy
+    constexpr uint32_t kRtFrameGuides = 1u << 4;      // DLSS Ray Reconstruction's guides from this frame's surfaces
+    // A Ray Reconstruction frame's own flag: its colour is not HDR.
+    constexpr uint32_t kRtReconstructLdr = 1u << 8;
 
     // The signals a frame traces; each writes its output slot.
     constexpr uint32_t kRtSignalSunVisibility = 1u << 0;   // u0: visibility of the sun, 0 to 1
@@ -145,6 +148,8 @@ namespace redefinition
     constexpr uint32_t kRtReconstructMagic = 0x4B535252u;   // 'KSRR'
 
     // Event 31: a frame for DLSS Ray Reconstruction, in place of DLSS Super Resolution.
+    // The guides come from the raytraced frame of the same frameIndex where it had
+    // kRtFrameGuides, which needs no G-buffer; otherwise from gbuffer0-2 and specular.
     // clipToWorld as RtFramePacket has it, for the guides; the other matrices as
     // Streamline takes them (sl::Constants, DLSSDOptions), without jitter; the
     // jitter in pixels and the motion vector scale as Streamline's constants say.
@@ -226,6 +231,7 @@ namespace redefinition
 
         // Whether DLSS Ray Reconstruction runs: 1 yes, 0 no, the reason in buffer.
         int ReconstructionAvailable(char* buffer, int size) const;
+        uint64_t ReconstructedFrames();
 
         int Status(char* buffer, int size) const;
 
@@ -304,6 +310,9 @@ namespace redefinition
             DenoiseTarget hitDistance;
             UINT width = 0;
             UINT height = 0;
+            // The raytraced frame that wrote them, where one did.
+            bool fromFrame = false;
+            uint32_t frame = 0;
         };
 
         // A texture a pass reads or writes: a resource and the format to view it in.
@@ -372,6 +381,8 @@ namespace redefinition
         D3D12_GPU_DESCRIPTOR_HANDLE TableLocked(UINT slotNumber, UINT& used, const View (&reads)[8],
                                                 const View (&writes)[4]);
         void RunDenoiserLocked(const RtFramePacket& packet, UINT slotNumber, Shared* const* outputs, Shared* motionInput);
+        // The guides at this size, the ones before held by the slot until it is done.
+        bool EnsureGuidesLocked(std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>& held, UINT width, UINT height);
         bool EnsureDefaultBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size,
                                  D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags);
         void CompletePendingLocked();

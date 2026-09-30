@@ -348,6 +348,12 @@ extern "C"
         return redefinition::Raytracing::Get().ReconstructionAvailable(buffer, size);
     }
 
+    // How many frames DLSS Ray Reconstruction has reconstructed since the proxy started.
+    __declspec(dllexport) unsigned long long KspRtReconstructedFrames()
+    {
+        return redefinition::Raytracing::Get().ReconstructedFrames();
+    }
+
     __declspec(dllexport) unsigned int KspRtReconstructPacketSize()
     {
         return static_cast<unsigned int>(sizeof(redefinition::RtReconstructPacket));

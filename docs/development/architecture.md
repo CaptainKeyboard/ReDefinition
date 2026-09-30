@@ -158,6 +158,7 @@ The rules the store follows: [settings-store.md](settings-store.md).
 | `UpscalerRig.Hooks.cs`, `UpscalerOverlay.cs` | the hooks other mods register: motion vectors into the capture, the upscaled image, the overlay camera |
 | `UpscalerRig.HudLess.cs` | frame generation's HUD-less copy of the backbuffer |
 | `UpscalerRig.Native.cs` | DLSS and AMD's DLL in the proxy: textures handed over, packets, the proxy's state |
+| `UpscalerRig.Reconstruction.cs` | DLSS Ray Reconstruction in DLSS Super Resolution's place while the scene camera is raytraced |
 | `UpscalerRig.Diagnostics.cs`, `.Preview.cs`, `CameraSurvey.cs` | *Write diagnostics to log*, the input preview, the cameras in order |
 | `CameraRedirect.cs` | redirects KSP's 3D camera stack into one render-size target, jitters it, and puts back each camera's target and projection |
 | `UpscalerPresenter.cs` | the presenter camera that draws the result into the frame buffer before the UI cameras |
@@ -327,7 +328,7 @@ button.
 | `D3d12Compute.h`, `D3d12Compute.cpp` | Direct3D 12 for mods: capabilities, HLSL compiled with Windows' `d3dcompiler_47.dll`, compute passes against one root signature, textures shared with Direct3D 11 |
 | `Raytracing.h`, `Raytracing.cpp` | raytracing: meshes, materials and instances from the managed side, acceleration structures, the frame's passes on the proxy's Direct3D 12 device |
 | `RaytracingDenoise.cpp` | ReDefinition's own denoiser: its textures and the passes of a frame |
-| `RaytracingReconstruct.cpp` | DLSS Ray Reconstruction through Streamline: its guides from the G-buffer, its tags and constants, the evaluation |
+| `RaytracingReconstruct.cpp` | DLSS Ray Reconstruction through Streamline: its guides from the raytraced frame or the G-buffer, its tags and constants, the evaluation |
 | `RaytracingShaders/` | the raytracing and denoising passes in HLSL, compiled to DXIL at build time and embedded in `dxgi.dll` |
 | `FidelityFx.h`, `FidelityFx.cpp` | AMD's frame generation runtime, loaded at run time through a function table |
 | `NvidiaGpu.h`, `NvidiaGpu.cpp` | the GPU's architecture through NVAPI, for what DLSS and DLSS-G need |

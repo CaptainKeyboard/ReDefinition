@@ -34,6 +34,35 @@ namespace redefinition
         return ready ? 1 : 0;
     }
 
+    uint64_t Raytracing::ReconstructedFrames()
+    {
+        std::lock_guard<std::mutex> status(statusLock);
+        return reconstructed;
+    }
+
+    bool Raytracing::EnsureGuidesLocked(std::vector<ComPtr<ID3D12Resource>>& held, UINT width, UINT height)
+    {
+        if (guides.width == width && guides.height == height && guides.albedo.resource != nullptr)
+            return true;
+        for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
+            if (target->resource != nullptr)
+                held.push_back(target->resource);
+        guides = GuideTargets{};
+        const DXGI_FORMAT half4 = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        if (!guides.albedo.Create(device.Get(), width, height, half4)
+            || !guides.specularAlbedo.Create(device.Get(), width, height, half4)
+            || !guides.normalRoughness.Create(device.Get(), width, height, half4)
+            || !guides.hitDistance.Create(device.Get(), width, height, DXGI_FORMAT_R16_FLOAT))
+        {
+            guides = GuideTargets{};
+            SetProblem("Ray Reconstruction's guides could not be made");
+            return false;
+        }
+        guides.width = width;
+        guides.height = height;
+        return true;
+    }
+
     void Raytracing::OnReconstruct(const void* data)
     {
         const RtReconstructPacket* packet = static_cast<const RtReconstructPacket*>(data);
@@ -54,10 +83,17 @@ namespace redefinition
             return;
         void* const given[] = { packet->colour, packet->depth, packet->motion, packet->gbuffer0, packet->gbuffer1,
                                 packet->gbuffer2, packet->specular, packet->output };
-        for (void* texture : given)
-            if (texture == nullptr)
+        // The guides of the raytraced frame of the same index, where it made them; the
+        // G-buffer and the reflections are then not needed.
+        const UINT width = packet->renderWidth, height = packet->renderHeight;
+        const bool prepared = guides.fromFrame && guides.frame == packet->frameIndex && guides.width == width
+                              && guides.height == height;
+        for (int i = 0; i < 8; ++i)
+            if (given[i] == nullptr && (!prepared || i < 3 || i == 7))
             {
-                SetProblem("a Ray Reconstruction frame without all its textures");
+                SetProblem(prepared || i < 3 || i == 7
+                               ? "a Ray Reconstruction frame without its colour, depth, motion or output"
+                               : "a Ray Reconstruction frame without the G-buffer, and no guides from its raytraced frame");
                 return;
             }
         CompletePendingLocked();
@@ -65,7 +101,7 @@ namespace redefinition
         Shared* shared[8] = {};
         std::string problem;
         for (int i = 0; i < 8; ++i)
-            if ((shared[i] = SharedForLocked(given[i], problem)) == nullptr)
+            if (given[i] != nullptr && (shared[i] = SharedForLocked(given[i], problem)) == nullptr)
             {
                 SetProblem("Ray Reconstruction, texture " + std::to_string(i) + ": " + problem);
                 return;
@@ -78,11 +114,13 @@ namespace redefinition
 
         UINT64 usedUntil = 0;
         for (Shared* texture : shared)
-            usedUntil = std::max(usedUntil, texture->lastFence);
+            if (texture != nullptr)
+                usedUntil = std::max(usedUntil, texture->lastFence);
         if (usedUntil != 0)
             context11->Wait(fence11.Get(), usedUntil);
         for (int i = 0; i < 7; ++i)
-            context11->CopyResource(shared[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(given[i]));
+            if (shared[i] != nullptr)
+                context11->CopyResource(shared[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(given[i]));
         const UINT64 inputsCopied = ++copiedValue;
         context11->Signal(copied11.Get(), inputsCopied);
         context11->Flush();
@@ -103,26 +141,10 @@ namespace redefinition
         }
 
         // The guides, at the render size.
-        const UINT width = packet->renderWidth, height = packet->renderHeight;
-        if (guides.width != width || guides.height != height || guides.albedo.resource == nullptr)
+        if (!prepared && !EnsureGuidesLocked(slot.held, width, height))
         {
-            for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-                if (target->resource != nullptr)
-                    slot.held.push_back(target->resource);
-            guides = GuideTargets{};
-            const DXGI_FORMAT half4 = DXGI_FORMAT_R16G16B16A16_FLOAT;
-            if (!guides.albedo.Create(device.Get(), width, height, half4)
-                || !guides.specularAlbedo.Create(device.Get(), width, height, half4)
-                || !guides.normalRoughness.Create(device.Get(), width, height, half4)
-                || !guides.hitDistance.Create(device.Get(), width, height, DXGI_FORMAT_R16_FLOAT))
-            {
-                guides = GuideTargets{};
-                SetProblem("Ray Reconstruction's guides could not be made");
-                list->Close();
-                return;
-            }
-            guides.width = width;
-            guides.height = height;
+            list->Close();
+            return;
         }
 
         // Every shared texture into the state the guide pass reads it in.
@@ -130,6 +152,8 @@ namespace redefinition
         std::vector<D3D12_RESOURCE_BARRIER> back;
         for (int i = 0; i < 7; ++i)
         {
+            if (shared[i] == nullptr)
+                continue;
             into.push_back(TransitionBarrier(shared[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
                                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
             back.push_back(TransitionBarrier(shared[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
@@ -176,9 +200,10 @@ namespace redefinition
         list->SetComputeRootSignature(rootSignature.Get());
         list->SetComputeRootConstantBufferView(0, slot.constants->GetGPUVirtualAddress());
         list->SetComputeRootDescriptorTable(2, frameTable);
-        for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-            UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        if (!prepared)
         {
+            for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
+                UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             UINT used = 0;
             const View reads[8] = { Of(specular) };
             const View writes[4] = { Of(&guides.albedo), Of(&guides.specularAlbedo), Of(&guides.normalRoughness),
@@ -197,11 +222,12 @@ namespace redefinition
             writeTable.ptr += static_cast<UINT64>(8) * increment;
             list->SetComputeRootDescriptorTable(11, writeTable);
             list->Dispatch((width + 7) / 8, (height + 7) / 8, 1);
+            // Streamline takes every resource in the state it is given and leaves it so.
+            for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
+                UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         }
-        // Streamline takes every resource in the state it is given and leaves it so.
-        for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-            UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
+        if (!back.empty())
+            list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
 
         constexpr uint32_t kCommon = static_cast<uint32_t>(D3D12_RESOURCE_STATE_COMMON);
         constexpr uint32_t kRead = static_cast<uint32_t>(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -274,7 +300,7 @@ namespace redefinition
         options.mode = static_cast<sl::DLSSMode>(packet->mode);
         options.outputWidth = packet->outputWidth;
         options.outputHeight = packet->outputHeight;
-        options.colorBuffersHDR = sl::Boolean::eTrue;
+        options.colorBuffersHDR = (packet->flags & kRtReconstructLdr) != 0 ? sl::Boolean::eFalse : sl::Boolean::eTrue;
         options.normalRoughnessMode = sl::DLSSDNormalRoughnessMode::ePacked;
         options.worldToCameraView = Matrix(packet->worldToView);
         options.cameraViewToWorld = Matrix(packet->viewToWorld);
@@ -297,7 +323,8 @@ namespace redefinition
         queue->Signal(fence12.Get(), finished);
         slot.done = finished;
         for (Shared* texture : shared)
-            texture->lastFence = finished;
+            if (texture != nullptr)
+                texture->lastFence = finished;
         if (!evaluated)
         {
             SetProblem("Ray Reconstruction did not evaluate (the proxy's log has Streamline's reason)");

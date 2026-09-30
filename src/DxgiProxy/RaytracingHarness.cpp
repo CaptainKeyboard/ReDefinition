@@ -652,6 +652,14 @@ PsOut PsMain(VsOut input)
             status(text, sizeof(text));
             return text;
         }
+
+        // The status's count of reconstructed frames.
+        size_t Reconstructed()
+        {
+            const std::string text = Status();
+            const size_t at = text.find("reconstructed=");
+            return at == std::string::npos ? 0 : static_cast<size_t>(std::stoull(text.substr(at + 14)));
+        }
     };
 
     int SendMesh(Proxy& proxy, const Mesh& mesh)
@@ -1939,6 +1947,45 @@ int main()
                 for (int c = 0; c < 3; ++c)
                     image[i * 3 + c] = composed[i * 4 + c];
             SaveColour(L"rt_reconstruct_noisy.bmp", image, 1.0);
+
+            // Without a G-buffer, as under forward rendering: the guides from the raytraced
+            // frame of the same index, which takes the surface from its rays.
+            Lighting unbuffered = lighting;
+            unbuffered.gbuffer = false;
+            unbuffered.flags |= kRtFrameGuides;
+            packet.gbuffer0 = packet.gbuffer1 = packet.gbuffer2 = nullptr;
+            packet.specular = nullptr;
+            const size_t reconstructedBefore = proxy.Reconstructed();
+            for (int f = 0; f < 64; ++f)
+            {
+                SendFrame(proxy, camera, g, outputs, sun, 0.02f, 22000 + f, signals, unbuffered);
+                std::vector<double> s(pixels, 0.0), d(pixels * 3, 0.0), sp(pixels * 3, 0.0);
+                readSignals(s, d, sp, 1.0);
+                compose(s, d, sp, composed);
+                context->UpdateSubresource(colour.Get(), 0, nullptr, composed.data(), kWidth * 16, 0);
+                packet.frameIndex = static_cast<uint32_t>(22000 + f);
+                packet.flags = f == 0 ? kRtFrameReset : 0u;
+                proxy.event(31, &packet);
+            }
+            ReadTexture(device.Get(), context.Get(), output.Get(), 8, result);
+            double sumForward = 0.0, meanForward = 0.0;
+            for (size_t i = 0; i < pixels; ++i)
+                for (int c = 0; c < 3; ++c)
+                {
+                    const double got = HalfToFloat(result[i * 4 + c]);
+                    const double want = reference[i * 4 + c];
+                    sumForward += (got - want) * (got - want);
+                    meanForward += got;
+                }
+            const double errorForward = std::sqrt(sumForward / (pixels * 3));
+            meanForward /= pixels * 3;
+            const size_t reconstructedForward = proxy.Reconstructed() - reconstructedBefore;
+            sprintf_s(detail, "%zu of 64 frames reconstructed with the guides of their raytraced frame, off the reference by"
+                              " %.4f, its mean %.4f against %.4f",
+                      reconstructedForward, errorForward, meanForward, meanReference);
+            Check(reconstructedForward == 64 && errorForward < 0.5 * noisyError
+                      && std::fabs(meanForward - meanReference) < 0.05 * meanReference,
+                  "DLSS Ray Reconstruction without a G-buffer", detail);
         }
     }
 
