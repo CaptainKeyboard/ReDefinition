@@ -194,15 +194,34 @@ namespace ReDefinition.Flight
         }
 
         // The middle of what the building draws, found once it draws.
-        private static Vector3 Middle(Building building)
+        // Half as high as the building reaches over its place (the facility's
+        // transform, on the ground), over the middle of what it draws: the box
+        // around all it draws also takes in the flat ground around it, and its
+        // middle lay low, the button half in the ground.
+        private Vector3 Middle(Building building)
         {
             if (!building.Measured)
             {
-                Vector3 middle = WorldButton.Middle(building.Place);
-                if (middle == building.Place.position) return middle;
-                building.Middle = building.Place.InverseTransformPoint(middle);
-                building.Reach = WorldButton.Reach(building.Place) * 0.6f;
+                Renderer[] parts = building.Place.GetComponentsInChildren<Renderer>(false);
+                if (parts.Length == 0) return building.Place.position;
+                Vector3 ground = building.Place.position;
+                Vector3 up = (ground - home.position).normalized;
+                float top = 0f;
+                Bounds all = parts[0].bounds;
+                foreach (Renderer part in parts)
+                {
+                    Bounds bounds = part.bounds;
+                    all.Encapsulate(bounds);
+                    Vector3 extent = bounds.extents;
+                    float reach = Mathf.Abs(extent.x * up.x) + Mathf.Abs(extent.y * up.y) + Mathf.Abs(extent.z * up.z);
+                    top = Mathf.Max(top, Vector3.Dot(bounds.center - ground, up) + reach);
+                }
+                Vector3 across = all.center - up * Vector3.Dot(all.center - ground, up);
+                building.Middle = building.Place.InverseTransformPoint(across + up * (top / 2f));
+                // Before its front: the box around all it draws is too wide to tell.
+                building.Reach = top * 0.4f;
                 building.Measured = true;
+                Debug.Log(Log.Tag + " The " + building.Facility + " stands " + top.ToString("0") + " m high; its button half as high.");
             }
             return building.Place.TransformPoint(building.Middle);
         }
