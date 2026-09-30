@@ -281,7 +281,7 @@ How the planner sits in KSP's editor: [engineer.md](engineer.md).
 | `RoundGauge.cs` | KSP's vertical speed gauge as a digital gauge with a lit arc and five figures, picked by situation or by click |
 | `Impact.cs` | the time until the vessel's path meets the ground, from the orbit against the ground's height |
 | `NavballDockingMarker.cs` | the navball's marker for where to point with a docking port as the target |
-| `NavballSpeeds.cs` | the vertical and horizontal speed on the navball's right, in copies of its heading field |
+| `NavballSpeeds.cs` | the vertical and horizontal speed under the navball's SAS modes, on plates of its own with the heading field's texts |
 | `AutoAltimeter.cs` | the altimeter switching between sea level and the ground by itself |
 | `FlightStartMode.cs` | a flight starting in KSP's maneuver mode, where the settings say so |
 | `CrewSlotButtons.cs` | the crew portraits' buttons that add and remove a slot, in the look of the staging stack's add and delete buttons |

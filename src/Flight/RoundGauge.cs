@@ -452,21 +452,28 @@ namespace ReDefinition.Flight
         }
 
         // The stage's burn time left at full thrust (KSP's delta-v simulation,
-        // DeltaVStageInfo.stageBurnTime). The scale: its tanks, empty to full as
-        // built, the propellants its engines draw where they can reach them
-        // (Part.GetConnectedResourceTotals, each propellant's flow mode), by mass;
-        // at full thrust the time left goes with them. Caution below a quarter,
-        // warning below a tenth.
+        // DeltaVStageInfo.stageBurnTime). The scale: the tanks of the engine that
+        // time is counted for, empty to full as built -- of the stage's engines
+        // the one whose own time left is nearest to it: its propellants where it
+        // can reach them (Part.GetConnectedResourceTotals, each propellant's flow
+        // mode), by mass, over its full fuel flow at its thrust limit
+        // (ModuleEngines.maxFuelFlow, thrustPercentage). A stage that ends as its
+        // boosters burn out is timed by them, not by the core that burns on, so
+        // the arc is theirs too, and runs out with the digits. Caution below a quarter, warning below a
+        // tenth.
         private static Reading StageReading(ReadoutFrame frame)
         {
             Vessel vessel = frame.Vessel;
             DeltaVStageInfo stage = vessel.VesselDeltaV != null ? vessel.VesselDeltaV.GetStage(vessel.currentStage) : null;
             if (stage == null || stage.stageBurnTime <= 0.0 || stage.enginesActiveInStage == null) return null;
-            double left = 0.0, full = 0.0;
+            double share = double.NaN, nearest = double.MaxValue;
             foreach (DeltaVEngineInfo info in stage.enginesActiveInStage)
             {
                 ModuleEngines engine = info != null ? info.engine : null;
                 if (engine == null || engine.part == null || engine.propellants == null) continue;
+                double flow = engine.maxFuelFlow * engine.thrustPercentage * 0.01;
+                if (flow <= 0.0) continue;
+                double left = 0.0, full = 0.0;
                 foreach (Propellant propellant in engine.propellants)
                 {
                     PartResourceDefinition definition = PartResourceLibrary.Instance.GetDefinition(propellant.id);
@@ -477,8 +484,13 @@ namespace ReDefinition.Flight
                     left += amount * definition.density;
                     full += most * definition.density;
                 }
+                if (full <= 0.0) continue;
+                double off = Math.Abs(left / flow - stage.stageBurnTime);
+                if (off >= nearest) continue;
+                nearest = off;
+                share = left / full;
             }
-            double share = full > 0.0 ? left / full : 0.0;
+            if (double.IsNaN(share)) return null;
             return new Reading
             {
                 Text = EngineerFormat.Time(stage.stageBurnTime),

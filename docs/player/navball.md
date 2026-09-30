@@ -21,8 +21,8 @@ and back to where you put it once there is room. The same holds while the burn g
 maneuver shows beside the navball. The stage list does not push it aside: the navball is
 drawn over it. It keeps its place when you hide and show
 it, in the map view and in every other flight mode. The SAS modes stand on its left, as in
-KSP. On its right, *V* and *H* give the vessel's vertical and horizontal speed over the
-surface, in fields like the heading's.
+KSP. Under them, *V* and *H* give the vessel's vertical and horizontal speed over the
+surface.
 
 ReDefinition keeps the place for the next flight and the next game start.
 
@@ -41,7 +41,7 @@ panel picks its profile. The gauge keeps your choice.
 
 | Figure | Digits and arc | Scale | Bands | Picked on *AUTO* |
 |---|---|---|---|---|
-| *STAGE* | burn time left in the stage at full thrust; the arc its tanks | empty to full as built | amber below a quarter, red below a tenth | on the way up; in orbit without a maneuver |
+| *STAGE* | burn time left in the stage at full thrust; the arc the tanks of the engines that time is counted for, the boosters' while they burn | empty to full as built | amber below a quarter, red below a tenth | on the way up; in orbit without a maneuver |
 | *BURN* | time until the maneuver's burn starts | 0 to 10 min, logarithmic | amber in the last ten seconds | in orbit or on the way to a target, with a maneuver |
 | *BURN*, burning | delta-v left | 0 to the maneuver's delta-v as the burn started | amber in the last tenth | |
 | *IMPACT* | time until the vessel's path meets the ground | 0 to 10 min, logarithmic | the tick: the time left at the last moment to brake; red below it, amber a third above it | coming down |
