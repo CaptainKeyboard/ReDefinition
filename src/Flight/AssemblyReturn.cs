@@ -64,15 +64,26 @@ namespace ReDefinition.Flight
                                                  || FlightCamera.fetch == null))
                 yield return null;
             if (UIMasterController.Instance == null || PSystemSetup.Instance == null) yield break;
+            // By name: a facility's editor is the one it launches from, so the
+            // launch pad counts as the VAB's and the runway as the SPH's
+            // (SpaceCenterFacility.editorFacility); the buildings are
+            // VehicleAssemblyBuilding and SpaceplaneHangar (the SpaceCenterFacility
+            // enum KSP names its facilities by).
+            System.Collections.Generic.List<string> names = new System.Collections.Generic.List<string>();
             foreach (PSystemSetup.SpaceCenterFacility facility in PSystemSetup.Instance.SpaceCenterFacilities)
             {
                 if (facility == null || facility.facilityTransform == null) continue;
-                Building building = new Building { Facility = facility.editorFacility, Place = facility.facilityTransform };
-                if (facility.editorFacility == EditorFacility.VAB) vab = building;
-                else if (facility.editorFacility == EditorFacility.SPH) sph = building;
+                names.Add(facility.name);
+                EditorFacility editor;
+                if (Named(facility, SpaceCenterFacility.VehicleAssemblyBuilding.ToString())) editor = EditorFacility.VAB;
+                else if (Named(facility, SpaceCenterFacility.SpaceplaneHangar.ToString())) editor = EditorFacility.SPH;
                 else continue;
+                Building building = new Building { Facility = editor, Place = facility.facilityTransform };
+                if (editor == EditorFacility.VAB) vab = building;
+                else sph = building;
                 if (facility.hostBody != null) home = facility.hostBody;
             }
+            Debug.Log(Log.Tag + " The space centre's facilities: " + string.Join(", ", names.ToArray()) + ".");
             // The facility knows its body only where its PQS hangs under it.
             if (home == null) home = FlightGlobals.GetHomeBody();
             if (vab == null && sph == null)
@@ -85,6 +96,12 @@ namespace ReDefinition.Flight
             Build();
             Debug.Log(Log.Tag + " The assembly buildings' symbols are ready: the VAB " + Where(vab) + ", the SPH " + Where(sph)
                       + ", on " + (home != null ? home.bodyName : "no body") + ".");
+        }
+
+        private static bool Named(PSystemSetup.SpaceCenterFacility facility, string name)
+        {
+            return facility.name == name || facility.facilityName == name
+                   || (facility.facilityTransformName != null && facility.facilityTransformName.Contains(name));
         }
 
         private static string Where(Building building)
