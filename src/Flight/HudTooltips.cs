@@ -21,8 +21,10 @@ namespace ReDefinition.Flight
     // (StageManager.deltaVTotalButton), and the button of KSP's delta-v tools on
     // the toolbar (DeltaVApp.appLauncherButton);
     //
-    // in flight: the alarm clock's button in the time panel (TimeFrame/alarmButton)
-    // and the altimeter's mode switch (AltitudeModeButton);
+    // in flight: the alarm clock's button in the time panel (TimeFrame/alarmButton),
+    // the altimeter's mode switch (AltitudeModeButton) and the navball's speed
+    // field, a click on which goes from surface to orbit to target
+    // (SpeedDisplay.button);
     //
     // in the editors: the staging's reset button (StageManager.resetButton), which
     // also asks before it resets.
@@ -47,11 +49,13 @@ namespace ReDefinition.Flight
                 Transform frame = Above(next.transform, "TimeFrame");
                 if (frame != null) alarm = frame.Find("alarmButton");
             }
-            if (mode == null || alarm == null) return;
+            SpeedDisplay speed = SpeedDisplay.Instance;
+            if (mode == null || alarm == null || speed == null || speed.button == null) return;
             Tip(mode.gameObject, "Toggle Altitude Mode");
             Tip(alarm.gameObject, "Alarm Clock");
+            Tip(speed.button.gameObject, "Toggle Speed Mode");
             found = true;
-            Debug.Log(Log.Tag + " Tooltips on the alarm clock's button and the altimeter's mode switch.");
+            Debug.Log(Log.Tag + " Tooltips on the alarm clock's button, the altimeter's mode switch and the navball's speed field.");
         }
     }
 
