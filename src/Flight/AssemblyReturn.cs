@@ -71,8 +71,10 @@ namespace ReDefinition.Flight
                 if (facility.editorFacility == EditorFacility.VAB) vab = building;
                 else if (facility.editorFacility == EditorFacility.SPH) sph = building;
                 else continue;
-                home = facility.hostBody;
+                if (facility.hostBody != null) home = facility.hostBody;
             }
+            // The facility knows its body only where its PQS hangs under it.
+            if (home == null) home = FlightGlobals.GetHomeBody();
             if (vab == null && sph == null)
             {
                 Debug.Log(Log.Tag + " No assembly building found in the space centre: no way back to it from its symbol.");
@@ -81,7 +83,13 @@ namespace ReDefinition.Flight
             vabIcon = Load("Assembly_VAB");
             sphIcon = Load("Assembly_SPH");
             Build();
-            Debug.Log(Log.Tag + " The assembly buildings' symbols are ready.");
+            Debug.Log(Log.Tag + " The assembly buildings' symbols are ready: the VAB " + Where(vab) + ", the SPH " + Where(sph)
+                      + ", on " + (home != null ? home.bodyName : "no body") + ".");
+        }
+
+        private static string Where(Building building)
+        {
+            return building == null || building.Place == null ? "missing" : "at " + building.Place.name;
         }
 
         private static Sprite Load(string name)
@@ -98,7 +106,11 @@ namespace ReDefinition.Flight
             GameObject plate = UiHygiene.Child("ReDefinitionAssemblyReturn", canvas, typeof(RectTransform), typeof(Image), typeof(Button));
             marker = (RectTransform)plate.transform;
             marker.SetAsFirstSibling();
-            marker.anchorMin = marker.anchorMax = marker.pivot = new Vector2(0.5f, 0.5f);
+            // KSP's canvas position is the screen's from its lower left, over the UI
+            // scale (UIMasterController.WorldToMainCanvas: WorldToScreenPoint /
+            // uiScale): anchored at the canvas's lower left, as KSP's labels are.
+            marker.anchorMin = marker.anchorMax = Vector2.zero;
+            marker.pivot = new Vector2(0.5f, 0.5f);
             marker.sizeDelta = new Vector2(Size, Size);
             Image back = plate.GetComponent<Image>();
             back.sprite = Disc();
@@ -159,8 +171,12 @@ namespace ReDefinition.Flight
             {
                 roof = Roof(building);
                 show = camera.WorldToViewportPoint(roof).z > 0f;
+                if (!show) Note("the building's roof behind the camera");
             }
             else show = false;
+            if (show) Note("shown over the " + building.Facility + (revert ? ", reverting" : ", recovering") + ", "
+                           + ((Vector3d)building.Place.position - FlightGlobals.ActiveVessel.CoMD).magnitude.ToString("0") + " m off, "
+                           + (Roof(building) - building.Place.position).magnitude.ToString("0") + " m over the building's origin");
             if (marker.gameObject.activeSelf != show) marker.gameObject.SetActive(show);
             if (!show) return;
             marker.anchoredPosition = UIMasterController.WorldToMainCanvas(roof, camera);
@@ -178,15 +194,31 @@ namespace ReDefinition.Flight
             building = null;
             revert = false;
             Vessel vessel = FlightGlobals.ActiveVessel;
-            if (vessel == null || MapView.MapIsEnabled || vessel.mainBody != home) return false;
-            if (!vessel.LandedOrSplashed && vessel.situation != Vessel.Situations.PRELAUNCH) return false;
+            if (vessel == null) return Note("no vessel");
+            if (MapView.MapIsEnabled) return Note("the map");
+            if (vessel.mainBody != home) return Note("another body");
+            if (!vessel.LandedOrSplashed && vessel.situation != Vessel.Situations.PRELAUNCH) return Note("not on the ground");
             revert = CanRevert();
             EditorFacility facility = revert ? ShipConstruction.ShipType
                 : vessel.landedAt != null && vessel.landedAt.Contains("Runway") ? EditorFacility.SPH : EditorFacility.VAB;
             building = facility == EditorFacility.SPH ? sph : vab;
-            if (building == null || building.Place == null) return false;
-            if ((vessel.CoMD - (Vector3d)building.Place.position).magnitude > Range) return false;
-            return revert || CanRecover(vessel);
+            if (building == null || building.Place == null) return Note("no " + facility);
+            double distance = (vessel.CoMD - (Vector3d)building.Place.position).magnitude;
+            if (distance > Range) return Note(distance.ToString("0") + " m from the " + facility);
+            return revert || CanRecover(vessel) || Note("neither a revert nor a recovery possible");
+        }
+
+        // Why the symbol stands or not, into the log as it changes.
+        private string noted;
+
+        private bool Note(string why)
+        {
+            string key = why.Length > 12 && char.IsDigit(why[0]) ? "far" : why;
+            if (key.StartsWith("shown")) key = "shown";
+            if (key == noted) return false;
+            noted = key;
+            Debug.Log(Log.Tag + " Assembly building's symbol: " + why + ".");
+            return false;
         }
 
         private static bool CanRevert()
