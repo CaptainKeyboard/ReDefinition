@@ -88,18 +88,20 @@ namespace ReDefinition.Engineer
                 reach = WorldButton.Reach(pad != null ? pad : place) * 0.6f;
                 measured = drawn != place.position;
             }
-            if (marker.Place(place.TransformPoint(middle), editor.editorCamera, reach)) marker.Look(look, null);
+            if (marker.Place(place.TransformPoint(middle), editor.editorCamera, reach, true))
+                marker.Look(look, null);
         }
 
-        // Over the launch pad: on the pad's top, above the model's origin, which is
-        // where a vessel stands; elsewhere the middle of what the place draws.
+        // On the top of what the place draws: over the launch pad above the model's
+        // origin, which is where a vessel stands; over the runway on its middle.
         private static Vector3 Over(Transform place)
         {
             Transform pad = place.Find("ksp_pad_launchPad");
-            if (pad == null) return WorldButton.Middle(place);
-            float top = pad.position.y;
-            foreach (Renderer part in pad.GetComponentsInChildren<Renderer>(false)) top = Mathf.Max(top, part.bounds.max.y);
-            return new Vector3(place.position.x, top, place.position.z);
+            Transform drawn = pad != null ? pad : place;
+            Vector3 middle = WorldButton.Middle(drawn);
+            float top = middle.y;
+            foreach (Renderer part in drawn.GetComponentsInChildren<Renderer>(false)) top = Mathf.Max(top, part.bounds.max.y);
+            return pad != null ? new Vector3(place.position.x, top, place.position.z) : new Vector3(middle.x, top, middle.z);
         }
 
         private void Launch()

@@ -130,8 +130,10 @@ namespace ReDefinition.Flight
 
         // At the world point, brought `pull` metres towards the camera -- a
         // building's middle lies inside it -- and facing it; false, and hidden,
-        // where it is behind the camera or would be too small to see.
-        internal bool Place(Vector3 world, Camera camera, float pull)
+        // where it is behind the camera or would be too small to see. `standing`:
+        // the point is under its lower edge, not its middle, so that it stands on
+        // what is there rather than halfway in it.
+        internal bool Place(Vector3 world, Camera camera, float pull, bool standing = false)
         {
             bool shown = false;
             if (camera != null)
@@ -150,9 +152,10 @@ namespace ReDefinition.Flight
                     if (pixels >= MinPixels * ui)
                     {
                         float shownPixels = Mathf.Min(pixels, MaxPixels * ui);
-                        root.transform.position = at;
+                        float across = shownPixels * perPixel;
+                        root.transform.position = standing ? at + camera.transform.up * (across * 0.5f) : at;
                         root.transform.rotation = camera.transform.rotation;
-                        root.transform.localScale = Vector3.one * (shownPixels * perPixel / Size);
+                        root.transform.localScale = Vector3.one * (across / Size);
                         canvas.worldCamera = Eyes(camera);
                         shown = true;
                     }
@@ -170,7 +173,9 @@ namespace ReDefinition.Flight
         private static Camera eyes;
 
         // A camera where `scene` stands, looking as it looks, on the screen, drawing
-        // nothing: for the canvas's rays.
+        // nothing: for the canvas's rays. It takes the scene camera's projection
+        // too: KSP sets an off-centre one in the editors (CameraOffCenter, every
+        // LateUpdate), and rays with a centred one missed the button to the side.
         private static Camera Eyes(Camera scene)
         {
             if (eyes == null)
@@ -189,6 +194,7 @@ namespace ReDefinition.Flight
             eyes.farClipPlane = scene.farClipPlane;
             eyes.targetTexture = null;
             eyes.rect = new Rect(0f, 0f, 1f, 1f);
+            eyes.projectionMatrix = scene.projectionMatrix;
             return eyes;
         }
 
