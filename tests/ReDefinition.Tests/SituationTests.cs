@@ -91,13 +91,13 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheGaugesScalesAreFixed()
         {
-            Assert.AreEqual(0.0, RoundGauge.TimeScale(0.0), 1e-9);
-            Assert.AreEqual(0.64, RoundGauge.TimeScale(60.0), 0.01);
-            Assert.AreEqual(1.0, RoundGauge.TimeScale(600.0), 1e-9);
-            Assert.AreEqual(1.0, RoundGauge.TimeScale(3600.0), 1e-9);
-            Assert.AreEqual(0.0, RoundGauge.SpeedScale(-1.0), 1e-9);
-            Assert.AreEqual(0.347, RoundGauge.SpeedScale(1.0), 0.001);
-            Assert.AreEqual(1.0, RoundGauge.SpeedScale(100.0), 1e-9);
+            Assert.AreEqual(0.0, GaugeReadings.TimeScale(0.0), 1e-9);
+            Assert.AreEqual(0.64, GaugeReadings.TimeScale(60.0), 0.01);
+            Assert.AreEqual(1.0, GaugeReadings.TimeScale(600.0), 1e-9);
+            Assert.AreEqual(1.0, GaugeReadings.TimeScale(3600.0), 1e-9);
+            Assert.AreEqual(0.0, GaugeReadings.SpeedScale(-1.0), 1e-9);
+            Assert.AreEqual(0.347, GaugeReadings.SpeedScale(1.0), 0.001);
+            Assert.AreEqual(1.0, GaugeReadings.SpeedScale(100.0), 1e-9);
         }
     }
 }

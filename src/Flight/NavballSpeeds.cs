@@ -62,9 +62,29 @@ namespace ReDefinition.Flight
 
             vertical = Field(heading, "V", frame, new Vector3(x, bottom - Gap - Height / 2f, 0f), width);
             horizontal = Field(heading, "H", frame, new Vector3(x, bottom - 2f * Gap - 1.5f * Height, 0f), width);
+            // On the screen, in pixels from its lower left, to lay beside a
+            // screenshot: the SAS buttons' block, and the two fields under it.
+            Canvas canvas = frame.GetComponentInParent<Canvas>();
+            Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            Vector2 blockLow = RectTransformUtility.WorldToScreenPoint(camera, frame.TransformPoint(new Vector3(left, bottom, 0f)));
+            Vector2 blockHigh = RectTransformUtility.WorldToScreenPoint(camera, frame.TransformPoint(new Vector3(right, bottom, 0f)));
             Debug.Log(Log.Tag + " The navball's vertical and horizontal speeds shown under its SAS modes, " + width.ToString("0")
                       + " wide at " + x.ToString("0") + " across its frame, from " + (bottom - Gap).ToString("0") + " down to "
-                      + (bottom - 2f * Gap - 2f * Height).ToString("0") + ".");
+                      + (bottom - 2f * Gap - 2f * Height).ToString("0") + "; on the " + Screen.width + " by " + Screen.height
+                      + " screen the SAS block's lower edge from x " + blockLow.x.ToString("0") + " to " + blockHigh.x.ToString("0")
+                      + " at y " + blockLow.y.ToString("0") + ", V " + OnScreen(vertical, camera) + ", H " + OnScreen(horizontal, camera) + ".");
+        }
+
+        // A field's plate on the screen: x from-to, y from-to.
+        private static string OnScreen(TextMeshProUGUI value, Camera camera)
+        {
+            RectTransform plate = value != null ? value.transform.parent as RectTransform : null;
+            if (plate == null) return "missing";
+            Vector3[] corners = new Vector3[4];
+            plate.GetWorldCorners(corners);
+            Vector2 low = RectTransformUtility.WorldToScreenPoint(camera, corners[0]);
+            Vector2 high = RectTransformUtility.WorldToScreenPoint(camera, corners[2]);
+            return "x " + low.x.ToString("0") + "-" + high.x.ToString("0") + " y " + low.y.ToString("0") + "-" + high.y.ToString("0");
         }
 
         // A field's height, the gap over it, and how far it reaches beyond the SAS

@@ -278,7 +278,8 @@ How the planner sits in KSP's editor: [engineer.md](engineer.md).
 | `NavballDrag.cs` | the navball moved by dragging its show/hide button, and to the position the settings hold |
 | `Panel/` | the flight panel: `FlightPanel` puts the profiles in place of KSP's orbit tabs and widens the maneuver panel, `ProfileTab` lays a profile's readouts out in KSP's blocks, `FlightProfiles` keeps the profiles and picks one by the situation |
 | `Readouts/` | the flight panel's values: `ReadoutCatalog` lists each with its title and group, `ReadoutFrame` reads the vessel, its orbit and target once per refresh, `ReadoutMath` holds the sums free of the game, tested |
-| `RoundGauge.cs` | KSP's vertical speed gauge as a digital gauge with a lit arc and five figures, picked by situation or by click |
+| `RoundGauge.cs` | KSP's vertical speed gauge as a digital gauge with a lit arc and five figures, picked by situation or by click; it logs what it shows, and where a stage's arc leaves its digits |
+| `GaugeReadings.cs` | the gauge's figures from plain numbers: digits, the arc's place on its fixed scale, bands and tick; tested against a simulated flight |
 | `Impact.cs` | the time until the vessel's path meets the ground, from the orbit against the ground's height |
 | `NavballDockingMarker.cs` | the navball's marker for where to point with a docking port as the target |
 | `NavballSpeeds.cs` | the vertical and horizontal speed under the navball's SAS modes, on plates of its own with the heading field's texts |

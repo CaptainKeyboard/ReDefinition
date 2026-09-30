@@ -51,6 +51,12 @@ namespace ReDefinition.Flight
     // A click on the gauge goes to the next mode, a right-click to the one
     // before; the face lights up under the mouse. The mode is kept
     // (PluginData/gauge.cfg).
+    //
+    // The figures are worked out from plain numbers in GaugeReadings, which is
+    // tested; here they are read from the game. The gauge watches itself in
+    // flight (Watch): every ten seconds and at each change of figure it writes
+    // what it shows into the log, and once per stage a warning where the stage's
+    // arc leaves the digits.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class RoundGauge : MonoBehaviour
     {
@@ -352,15 +358,16 @@ namespace ReDefinition.Flight
             ReadoutFrame frame = vessel != null ? new ReadoutFrame(vessel) : null;
             if (frame == null || !frame.Ready) return;
             GaugeMode shown = mode == GaugeMode.Auto ? ForSituation(frame) : mode;
-            Reading reading;
+            GaugeReading reading;
             try
             {
-                reading = Read(shown, frame) ?? new Reading();
+                reading = Read(shown, frame) ?? new GaugeReading();
             }
             catch (Exception)
             {
-                reading = new Reading();
+                reading = new GaugeReading();
             }
+            Watch(shown, reading, frame.Vessel);
             Band(caution, reading.Caution);
             Band(warning, reading.Warning);
             if (double.IsNaN(reading.Mark))
@@ -410,21 +417,7 @@ namespace ReDefinition.Flight
             }
         }
 
-        // A value as the gauge shows it: its text (null for none), where it
-        // stands on the mode's scale (0 to 1), its caution and warning bands on
-        // that scale (from, to; null for none), a limit's tick (NaN for none),
-        // and 0 fine, 1 in the caution band, 2 in the warning band.
-        internal sealed class Reading
-        {
-            internal string Text;
-            internal double Fill;
-            internal double[] Caution;
-            internal double[] Warning;
-            internal double Mark = double.NaN;
-            internal int Level;
-        }
-
-        private static Reading Read(GaugeMode mode, ReadoutFrame frame)
+        private static GaugeReading Read(GaugeMode mode, ReadoutFrame frame)
         {
             switch (mode)
             {
@@ -437,43 +430,30 @@ namespace ReDefinition.Flight
             }
         }
 
-        // Seconds on a logarithmic scale up to ten minutes: a minute at 64 %, ten
-        // seconds at 37 %.
-        internal static double TimeScale(double seconds)
-        {
-            return Math.Min(1.0, Math.Log(1.0 + Math.Max(0.0, seconds)) / Math.Log(601.0));
-        }
+        // The stage as KSP's delta-v simulation has it (DeltaVStageInfo:
+        // stageBurnTime, enginesActiveInStage), each engine with the propellants
+        // it can reach (Part.GetConnectedResourceTotals, each propellant's flow
+        // mode), by mass, and its full fuel flow at its thrust limit
+        // (ModuleEngines.maxFuelFlow, thrustPercentage).
+        private static readonly List<EngineFuel> stageEngines = new List<EngineFuel>();
+        private static double stageBurn;
 
-        // Metres per second on a logarithmic scale up to 100 m/s: 1 m/s at 35 %,
-        // 10 m/s at 67 %.
-        internal static double SpeedScale(double speed)
+        private static GaugeReading StageReading(ReadoutFrame frame)
         {
-            return Math.Min(1.0, Math.Log10(1.0 + Math.Max(0.0, speed) / 0.1) / Math.Log10(1001.0));
-        }
-
-        // The stage's burn time left at full thrust (KSP's delta-v simulation,
-        // DeltaVStageInfo.stageBurnTime). The scale: the tanks of the engine that
-        // time is counted for, empty to full as built -- of the stage's engines
-        // the one whose own time left is nearest to it: its propellants where it
-        // can reach them (Part.GetConnectedResourceTotals, each propellant's flow
-        // mode), by mass, over its full fuel flow at its thrust limit
-        // (ModuleEngines.maxFuelFlow, thrustPercentage). A stage that ends as its
-        // boosters burn out is timed by them, not by the core that burns on, so
-        // the arc is theirs too, and runs out with the digits. Caution below a quarter, warning below a
-        // tenth.
-        private static Reading StageReading(ReadoutFrame frame)
-        {
+            stageEngines.Clear();
+            stageBurn = 0.0;
             Vessel vessel = frame.Vessel;
             DeltaVStageInfo stage = vessel.VesselDeltaV != null ? vessel.VesselDeltaV.GetStage(vessel.currentStage) : null;
             if (stage == null || stage.stageBurnTime <= 0.0 || stage.enginesActiveInStage == null) return null;
-            double share = double.NaN, nearest = double.MaxValue;
             foreach (DeltaVEngineInfo info in stage.enginesActiveInStage)
             {
                 ModuleEngines engine = info != null ? info.engine : null;
                 if (engine == null || engine.part == null || engine.propellants == null) continue;
-                double flow = engine.maxFuelFlow * engine.thrustPercentage * 0.01;
-                if (flow <= 0.0) continue;
-                double left = 0.0, full = 0.0;
+                EngineFuel fuel = new EngineFuel
+                {
+                    Name = engine.part.partInfo != null ? engine.part.partInfo.name : engine.part.name,
+                    Flow = engine.maxFuelFlow * engine.thrustPercentage * 0.01,
+                };
                 foreach (Propellant propellant in engine.propellants)
                 {
                     PartResourceDefinition definition = PartResourceLibrary.Instance.GetDefinition(propellant.id);
@@ -481,24 +461,13 @@ namespace ReDefinition.Flight
                         continue;
                     double amount, most;
                     engine.part.GetConnectedResourceTotals(propellant.id, propellant.GetFlowMode(), out amount, out most);
-                    left += amount * definition.density;
-                    full += most * definition.density;
+                    fuel.Left += amount * definition.density;
+                    fuel.Full += most * definition.density;
                 }
-                if (full <= 0.0) continue;
-                double off = Math.Abs(left / flow - stage.stageBurnTime);
-                if (off >= nearest) continue;
-                nearest = off;
-                share = left / full;
+                stageEngines.Add(fuel);
             }
-            if (double.IsNaN(share)) return null;
-            return new Reading
-            {
-                Text = EngineerFormat.Time(stage.stageBurnTime),
-                Fill = share,
-                Caution = new[] { 0.1, 0.25 },
-                Warning = new[] { 0.0, 0.1 },
-                Level = share < 0.1 ? 2 : share < 0.25 ? 1 : 0,
-            };
+            stageBurn = stage.stageBurnTime;
+            return GaugeReadings.Stage(stageEngines, stageBurn);
         }
 
         private static ManeuverNode Node(Vessel vessel)
@@ -509,13 +478,12 @@ namespace ReDefinition.Flight
 
         // The next node. Before its burn, the time until the burn starts, half its
         // length before the node (the length by the rocket equation, at the
-        // stage's thrust and Isp in vacuum), on the time scale; caution in the
-        // last ten seconds. Once it is due, the delta-v left, against what the
-        // node asked for as the burn started; caution in the last tenth.
+        // stage's thrust and Isp in vacuum). Once it is due, the delta-v left,
+        // against what the node asked for as the burn started.
         private static ManeuverNode burnNode;
         private static double burnStart = double.NaN;
 
-        private static Reading BurnReading(ReadoutFrame frame)
+        private static GaugeReading BurnReading(ReadoutFrame frame)
         {
             ManeuverNode node = Node(frame.Vessel);
             if (node == null) return null;
@@ -530,23 +498,10 @@ namespace ReDefinition.Flight
             if (until > 0.0)
             {
                 burnStart = double.NaN;
-                return new Reading
-                {
-                    Text = "T-" + EngineerFormat.Time(until),
-                    Fill = TimeScale(until),
-                    Caution = new[] { 0.0, TimeScale(10.0) },
-                    Level = until < 10.0 ? 1 : 0,
-                };
+                return GaugeReadings.Countdown(until);
             }
             if (double.IsNaN(burnStart)) burnStart = left;
-            double share = burnStart > 0.0 ? left / burnStart : 0.0;
-            return new Reading
-            {
-                Text = ReadoutMath.Speed(left),
-                Fill = share,
-                Caution = new[] { 0.0, 0.1 },
-                Level = share < 0.1 ? 1 : 0,
-            };
+            return GaugeReadings.Burning(left, burnStart);
         }
 
         private static double BurnLength(Vessel vessel, double deltaV)
@@ -558,31 +513,20 @@ namespace ReDefinition.Flight
             return vessel.totalMass * (1.0 - Math.Exp(-deltaV / exhaust)) / flow;
         }
 
-        // The time until the vessel's path meets the ground (Impact.Seconds), on
-        // the time scale. The limit: the time to impact left at the last moment to
-        // brake (ReadoutFrame.SuicideBurn: its countdown), a tick with the warning
-        // band below it and caution a third above.
-        private static Reading ImpactReading(ReadoutFrame frame)
+        // The time until the vessel's path meets the ground (Impact.Seconds), and
+        // the countdown to the last moment to brake (ReadoutFrame.SuicideBurn).
+        private static GaugeReading ImpactReading(ReadoutFrame frame)
         {
             double seconds = frame.ImpactSeconds;
             if (double.IsNaN(seconds)) return null;
             double altitude, countdown, deltaV;
             frame.SuicideBurn(out altitude, out countdown, out deltaV);
-            Reading reading = new Reading { Text = EngineerFormat.Time(seconds), Fill = TimeScale(seconds) };
-            if (double.IsNaN(countdown)) return reading;
-            double brake = Math.Max(0.0, seconds - countdown);
-            reading.Mark = TimeScale(brake);
-            reading.Warning = new[] { 0.0, TimeScale(brake) };
-            reading.Caution = new[] { TimeScale(brake), TimeScale(brake * 4.0 / 3.0) };
-            reading.Level = seconds <= brake ? 2 : seconds <= brake * 4.0 / 3.0 ? 1 : 0;
-            return reading;
+            return GaugeReadings.Impact(seconds, countdown);
         }
 
         // How fast the vessel closes on its target, its docking port where it is
-        // one, along the line between them, on the speed scale. The limit: a safe
-        // speed for the distance, a hundredth of it per second and at least
-        // 0.2 m/s, a tick; caution up to one and a half times it, warning beyond.
-        private static Reading ClosingReading(ReadoutFrame frame)
+        // one, along the line between them, and how far it is.
+        private static GaugeReading ClosingReading(ReadoutFrame frame)
         {
             if (frame.Target == null) return null;
             ModuleDockingNode port = frame.TargetPort;
@@ -590,38 +534,81 @@ namespace ReDefinition.Flight
             Vector3d line = at - (Vector3d)frame.Vessel.ReferenceTransform.position;
             double distance = line.magnitude;
             if (distance <= 0.0) return null;
-            double closing = Vector3d.Dot(frame.RelativeVelocity, line / distance);
-            double safe = Math.Max(0.2, distance / 100.0);
-            return new Reading
-            {
-                Text = ReadoutMath.Speed(closing),
-                Fill = SpeedScale(closing),
-                Mark = SpeedScale(safe),
-                Caution = new[] { SpeedScale(safe), SpeedScale(1.5 * safe) },
-                Warning = new[] { SpeedScale(1.5 * safe), 1.0 },
-                Level = closing > 1.5 * safe ? 2 : closing > safe ? 1 : 0,
-            };
+            return GaugeReadings.Closing(Vector3d.Dot(frame.RelativeVelocity, line / distance), distance);
         }
 
-        // The angle of attack, either way, from 0 to 40°. The limit: the angle
-        // where the wings give the most lift, warning beyond it, caution from four
-        // fifths of it.
-        private const double AttackScale = 40.0;
-
-        private static Reading AttackReading(ReadoutFrame frame)
+        private static GaugeReading AttackReading(ReadoutFrame frame)
         {
             double attack, sideslip;
             frame.AeroAngles(out attack, out sideslip);
-            if (double.IsNaN(attack)) return null;
-            double size = Math.Abs(attack);
-            return new Reading
+            return double.IsNaN(attack) ? null : GaugeReadings.Attack(attack, Stall);
+        }
+
+        // ------------------------------------------------------------ watch
+
+        private const float TraceEvery = 10f;
+        // How far the stage's arc may stand from where the digits put it, as a
+        // share of the scale, before the log says so.
+        private const double Tolerance = 0.05;
+        private static GaugeMode traced = GaugeMode.Auto;
+        private static float traceNext;
+        private static Vessel watchedVessel;
+        private static int watchedStage = -1;
+        private static double arcPerSecond = double.NaN;
+        private static bool warned;
+
+        // What the gauge shows, into the log every ten seconds and at each change
+        // of figure; and the stage's arc against its digits: within a stage the
+        // arc must stand at the same share per second of burn time as when the
+        // stage began, or the two count different things. One warning per stage,
+        // with the engines as they were counted.
+        private static void Watch(GaugeMode shown, GaugeReading reading, Vessel vessel)
+        {
+            float now = Time.unscaledTime;
+            bool stage = shown == GaugeMode.Stage && reading.Text != null && stageBurn > 0.0;
+            if (shown != traced || now >= traceNext)
             {
-                Text = ReadoutMath.Angle(attack),
-                Fill = size / AttackScale,
-                Caution = new[] { 0.8 * Stall / AttackScale, Stall / AttackScale },
-                Warning = new[] { Stall / AttackScale, 1.0 },
-                Level = size > Stall ? 2 : size > 0.8 * Stall ? 1 : 0,
-            };
+                traced = shown;
+                traceNext = now + TraceEvery;
+                Debug.Log(Log.Tag + " Round gauge: " + shown + " " + (reading.Text ?? "-") + ", arc " + reading.Fill.ToString("0.000")
+                          + (reading.Level == 2 ? " red" : reading.Level == 1 ? " amber" : " white")
+                          + (double.IsNaN(reading.Mark) ? "" : ", tick " + reading.Mark.ToString("0.000"))
+                          + (stage ? "; stage " + vessel.currentStage + " of " + stageBurn.ToString("0.0") + " s, " + Engines() : "") + ".");
+            }
+            if (!stage) return;
+            if (vessel != watchedVessel || vessel.currentStage != watchedStage)
+            {
+                watchedVessel = vessel;
+                watchedStage = vessel.currentStage;
+                arcPerSecond = double.NaN;
+                warned = false;
+            }
+            if (double.IsNaN(arcPerSecond))
+            {
+                if (stageBurn > 1.0) arcPerSecond = reading.Fill / stageBurn;
+                return;
+            }
+            double expected = arcPerSecond * stageBurn;
+            if (warned || Math.Abs(reading.Fill - expected) <= Tolerance) return;
+            warned = true;
+            Debug.LogWarning(Log.Tag + " Round gauge check: in stage " + watchedStage + " the arc stands at " + reading.Fill.ToString("0.000")
+                             + " where the digits, " + stageBurn.ToString("0.0") + " s, put it at " + expected.ToString("0.000")
+                             + " (" + arcPerSecond.ToString("0.0000") + " of the arc per second as the stage began); throttle "
+                             + (vessel.ctrlState != null ? vessel.ctrlState.mainThrottle.ToString("0.00") : "?") + "; " + Engines() + ".");
+        }
+
+        // The stage's engines as counted: each with its propellant left of full,
+        // in tonnes, and its seconds at full thrust; the one the arc follows
+        // marked.
+        private static string Engines()
+        {
+            int timed = GaugeReadings.Timed(stageEngines, stageBurn);
+            System.Text.StringBuilder text = new System.Text.StringBuilder("engines:");
+            for (int i = 0; i < stageEngines.Count; i++)
+                text.Append(i == 0 ? " " : ", ").Append(i == timed ? "*" : "").Append(stageEngines[i].Name).Append(' ')
+                    .Append(stageEngines[i].Left.ToString("0.00")).Append('/').Append(stageEngines[i].Full.ToString("0.00"))
+                    .Append(" t ").Append(stageEngines[i].Seconds.ToString("0.0")).Append(" s");
+            return text.ToString();
         }
 
         // Where KSP's lift curve for wings peaks, in degrees (PhysicsGlobals'
