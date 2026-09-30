@@ -10,11 +10,11 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Flight
 {
-    // A symbol over the space centre's assembly building while the vessel stands on
-    // the ground near it (docs/player/navball.md): a click, after a question, goes
-    // back to that building. Placed as KSP places its vessel labels: a point in
-    // the world on KSP's main canvas (UIMasterController.WorldToMainCanvas with the
-    // flight camera; VesselLabels, decompiled).
+    // A button on the space centre's assembly building while the vessel stands on
+    // the ground near it (docs/player/flight-panel.md): a click, after a question,
+    // goes back to that building. It stands on the middle of what the building
+    // draws, and looks like the space centre's own button for it (WorldButton,
+    // KscButtons).
     //
     // Where KSP's pause menu offers a revert to the editor -- the game allows it
     // (Flight.CanLeaveToEditor), the state before the launch is still kept
@@ -35,27 +35,19 @@ namespace ReDefinition.Flight
     public class AssemblyReturn : MonoBehaviour
     {
         private const double Range = 3000.0;
-        // Above the building's roof, in metres.
-        private const float Lift = 20f;
-        private const float Size = 34f;
-        private static readonly Color Plate = new Color(0.13f, 0.13f, 0.16f, 0.9f);
 
         private sealed class Building
         {
             internal EditorFacility Facility;
             internal Transform Place;
-            internal Vector3 Roof;
+            internal Vector3 Middle;
             internal bool Measured;
         }
 
         private Building vab, sph;
         private CelestialBody home;
-        private RectTransform marker;
-        private Image icon;
-        private TooltipController_Text tooltip;
+        private WorldButton marker;
         private Sprite vabIcon, sphIcon;
-        private EditorFacility shownFacility;
-        private bool shownRevert;
 
         private IEnumerator Start()
         {
@@ -93,7 +85,7 @@ namespace ReDefinition.Flight
             }
             vabIcon = Load("Assembly_VAB");
             sphIcon = Load("Assembly_SPH");
-            Build();
+            marker = new WorldButton("ReDefinitionAssemblyReturn", Ask);
             Debug.Log(Log.Tag + " The assembly buildings' symbols are ready: the VAB " + Where(vab) + ", the SPH " + Where(sph)
                       + ", on " + (home != null ? home.bodyName : "no body") + ".");
         }
@@ -115,65 +107,11 @@ namespace ReDefinition.Flight
             return texture != null ? Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f)) : null;
         }
 
-        // A round plate with the building's symbol, a Button as KSP's are: behind
-        // the rest of the HUD on the main canvas.
-        private void Build()
+        // The button goes with the flight scene: KSP's main canvas stays.
+        private void OnDestroy()
         {
-            Transform canvas = UIMasterController.Instance.mainCanvas.transform;
-            GameObject plate = UiHygiene.Child("ReDefinitionAssemblyReturn", canvas, typeof(RectTransform), typeof(Image), typeof(Button));
-            marker = (RectTransform)plate.transform;
-            marker.SetAsFirstSibling();
-            // KSP's canvas position is the screen's from its lower left, over the UI
-            // scale (UIMasterController.WorldToMainCanvas: WorldToScreenPoint /
-            // uiScale): anchored at the canvas's lower left, as KSP's labels are.
-            marker.anchorMin = marker.anchorMax = Vector2.zero;
-            marker.pivot = new Vector2(0.5f, 0.5f);
-            marker.sizeDelta = new Vector2(Size, Size);
-            Image back = plate.GetComponent<Image>();
-            back.sprite = Disc();
-            back.color = Plate;
-            Button button = plate.GetComponent<Button>();
-            button.targetGraphic = back;
-            ColorBlock tint = button.colors;
-            // Lighter under the pointer and pressed: the plate is dark.
-            tint.highlightedColor = new Color(2f, 2f, 2.2f, 1f);
-            tint.pressedColor = new Color(2.6f, 2.6f, 2.8f, 1f);
-            tint.colorMultiplier = 1f;
-            button.colors = tint;
-            UiHygiene.MouseOnly(button);
-            button.onClick.AddListener(Ask);
-            tooltip = UiHygiene.Tooltip(plate, "");
-            if (tooltip != null) tooltip.continuousUpdate = true;
-
-            GameObject glyph = UiHygiene.Child("Symbol", marker, typeof(RectTransform), typeof(Image));
-            RectTransform glyphRect = (RectTransform)glyph.transform;
-            glyphRect.anchorMin = glyphRect.anchorMax = glyphRect.pivot = new Vector2(0.5f, 0.5f);
-            glyphRect.sizeDelta = new Vector2(Size - 12f, Size - 12f);
-            icon = glyph.GetComponent<Image>();
-            icon.preserveAspect = true;
-            icon.raycastTarget = false;
-            plate.SetActive(false);
-        }
-
-        private static Sprite disc;
-
-        private static Sprite Disc()
-        {
-            if (disc != null) return disc;
-            const int size = 64;
-            Texture2D texture = new Texture2D(size, size, TextureFormat.ARGB32, false);
-            Color32[] pixels = new Color32[size * size];
-            float c = (size - 1) / 2f, r = size / 2f - 0.5f;
-            for (int y = 0; y < size; y++)
-            for (int x = 0; x < size; x++)
-            {
-                float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c));
-                pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(Mathf.Clamp01(r - d + 0.5f) * 255f));
-            }
-            texture.SetPixels32(pixels);
-            texture.Apply();
-            disc = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f));
-            return disc;
+            if (marker != null) marker.Destroy();
+            marker = null;
         }
 
         private void LateUpdate()
@@ -181,27 +119,23 @@ namespace ReDefinition.Flight
             if (marker == null) return;
             Building building;
             bool revert;
-            bool show = Wanted(out building, out revert);
-            Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-            Vector3 roof = Vector3.zero;
-            if (show && camera != null)
+            if (!Wanted(out building, out revert))
             {
-                roof = Roof(building);
-                show = camera.WorldToViewportPoint(roof).z > 0f;
-                if (!show) Note("the building's roof behind the camera");
+                marker.Hide();
+                return;
             }
-            else show = false;
-            if (show) Note("shown over the " + building.Facility + (revert ? ", reverting" : ", recovering") + ", "
-                           + ((Vector3d)building.Place.position - FlightGlobals.ActiveVessel.CoMD).magnitude.ToString("0") + " m off, "
-                           + (Roof(building) - building.Place.position).magnitude.ToString("0") + " m over the building's origin");
-            if (marker.gameObject.activeSelf != show) marker.gameObject.SetActive(show);
-            if (!show) return;
-            marker.anchoredPosition = UIMasterController.WorldToMainCanvas(roof, camera);
-            if (building.Facility == shownFacility && revert == shownRevert && icon.sprite != null) return;
-            shownFacility = building.Facility;
-            shownRevert = revert;
-            icon.sprite = building.Facility == EditorFacility.SPH ? sphIcon : vabIcon;
-            if (tooltip != null) tooltip.textString = Title(building.Facility, revert);
+            Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+            Vector3 middle = Middle(building);
+            if (!marker.Place(middle, camera))
+            {
+                Note("the building behind the camera");
+                return;
+            }
+            Note("shown on the " + building.Facility + (revert ? ", reverting" : ", recovering") + ", "
+                 + ((Vector3d)building.Place.position - FlightGlobals.ActiveVessel.CoMD).magnitude.ToString("0") + " m off");
+            marker.Look(building.Facility == EditorFacility.SPH ? "Buttons_SPH" : "Buttons_VAB",
+                building.Facility == EditorFacility.SPH ? sphIcon : vabIcon);
+            marker.Tooltip = Title(building.Facility, revert);
         }
 
         // Where the symbol stands now, and whether it reverts; false where it is
@@ -257,25 +191,17 @@ namespace ReDefinition.Flight
             return revert ? "Revert to " + building : "Recover vessel and go to " + building;
         }
 
-        // Over the roof: the top of what the building draws, found once it draws.
-        private Vector3 Roof(Building building)
+        // The middle of what the building draws, found once it draws.
+        private static Vector3 Middle(Building building)
         {
             if (!building.Measured)
             {
-                Renderer[] parts = building.Place.GetComponentsInChildren<Renderer>(false);
-                if (parts.Length > 0)
-                {
-                    Bounds bounds = parts[0].bounds;
-                    foreach (Renderer part in parts) bounds.Encapsulate(part.bounds);
-                    Vector3 up = (building.Place.position - home.position).normalized;
-                    Vector3 extent = bounds.extents;
-                    float height = Mathf.Abs(extent.x * up.x) + Mathf.Abs(extent.y * up.y) + Mathf.Abs(extent.z * up.z);
-                    building.Roof = building.Place.InverseTransformPoint(bounds.center + up * (height + Lift));
-                    building.Measured = true;
-                }
-                else return building.Place.position;
+                Vector3 middle = WorldButton.Middle(building.Place);
+                if (middle == building.Place.position) return middle;
+                building.Middle = building.Place.InverseTransformPoint(middle);
+                building.Measured = true;
             }
-            return building.Place.TransformPoint(building.Roof);
+            return building.Place.TransformPoint(building.Middle);
         }
 
         // ---------------------------------------------------------------- click

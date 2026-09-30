@@ -20,6 +20,7 @@ beside it.
 | plan a mission and check the vessel carries enough fuel | [player/planner.md](player/planner.md) |
 | move the navball to the left or right | [player/navball.md](player/navball.md) |
 | see the figures for what you are doing in flight | [player/flight-panel.md](player/flight-panel.md) |
+| launch from the VAB or the SPH, and go back there from the pad | [player/launch-and-return.md](player/launch-and-return.md) |
 | keep a lander from sliding on a slope | [player/leg-grip.md](player/leg-grip.md) |
 | use the delta-v tools and the stage details | [player/stage-details.md](player/stage-details.md) |
 | read the map, labels and mod windows on a large screen | [player/ui-scaling.md](player/ui-scaling.md) |

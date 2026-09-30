@@ -1,0 +1,97 @@
+using System.Collections;
+using ReDefinition.Core;
+using ReDefinition.Flight;
+using UnityEngine;
+
+namespace ReDefinition.Engineer
+{
+    // A launch button over the launch pad seen through the VAB's door, and over
+    // the runway seen from the SPH (docs/player/planner.md): the editors' scenery
+    // holds the space centre's pad and runway outside (VABscenery/Background/
+    // LaunchPadMedium, the pad's model; SPHscenery/SpaceCenter/Runway; level10 and
+    // level11, read with UnityPy). It looks like the space centre's own button for
+    // the pad or the runway (WorldButton, KscButtons) and launches there as KSP's
+    // launch button does (EditorLogic.launchVessel with the site's name), while
+    // KSP's own launch button can be pressed.
+    [KSPAddon(KSPAddon.Startup.EditorAny, false)]
+    public class EditorLaunchButton : MonoBehaviour
+    {
+        private WorldButton marker;
+        private Transform place;
+        private string site;
+        private string look;
+        private Vector3 middle;
+        private bool measured;
+
+        private IEnumerator Start()
+        {
+            float until = Time.unscaledTime + 15f;
+            while (Time.unscaledTime < until && (EditorLogic.fetch == null || KSP.UI.UIMasterController.Instance == null))
+                yield return null;
+            if (EditorLogic.fetch == null || KSP.UI.UIMasterController.Instance == null) yield break;
+            bool vab = EditorDriver.editorFacility != EditorFacility.SPH;
+            string scenery = vab ? "VABscenery" : "SPHscenery";
+            while (Time.unscaledTime < until && place == null)
+            {
+                place = Find(scenery, vab ? "LaunchPadMedium" : "Runway") ?? (vab ? Find(scenery, "LaunchPad") : null);
+                if (place == null) yield return new WaitForSecondsRealtime(0.5f);
+            }
+            if (place == null)
+            {
+                Debug.Log(Log.Tag + " The editor's scenery has no " + (vab ? "launch pad" : "runway") + ": no launch button over it.");
+                yield break;
+            }
+            site = vab ? "LaunchPad" : "Runway";
+            look = vab ? "Buttons_Launchpad" : "Buttons_Runway";
+            marker = new WorldButton("ReDefinitionEditorLaunch", Launch);
+            marker.Tooltip = "Launch";
+            Debug.Log(Log.Tag + " Launch button over the " + (vab ? "launch pad" : "runway") + " outside the "
+                      + (vab ? "VAB" : "SPH") + " (" + place.name + ").");
+        }
+
+        private static Transform Find(string scenery, string name)
+        {
+            foreach (Transform found in FindObjectsOfType<Transform>())
+            {
+                if (found.name != name) continue;
+                for (Transform above = found.parent; above != null; above = above.parent)
+                    if (above.name == scenery) return found;
+            }
+            return null;
+        }
+
+        private void OnDestroy()
+        {
+            if (marker != null) marker.Destroy();
+            marker = null;
+        }
+
+        private void LateUpdate()
+        {
+            if (marker == null || place == null) return;
+            EditorLogic editor = EditorLogic.fetch;
+            bool can = editor != null && editor.ship != null && editor.ship.parts.Count > 0 && editor.launchBtn != null
+                       && editor.launchBtn.gameObject.activeInHierarchy && editor.launchBtn.interactable;
+            if (!can)
+            {
+                marker.Hide();
+                return;
+            }
+            if (!measured)
+            {
+                Vector3 drawn = WorldButton.Middle(place);
+                middle = place.InverseTransformPoint(drawn);
+                measured = drawn != place.position;
+            }
+            if (marker.Place(place.TransformPoint(middle), editor.editorCamera)) marker.Look(look, null);
+        }
+
+        private void Launch()
+        {
+            EditorLogic editor = EditorLogic.fetch;
+            if (editor == null || editor.launchBtn == null || !editor.launchBtn.interactable) return;
+            Debug.Log(Log.Tag + " Launch from the " + site + " by the button over it.");
+            editor.launchVessel(site);
+        }
+    }
+}

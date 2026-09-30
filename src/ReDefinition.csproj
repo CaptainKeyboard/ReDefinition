@@ -120,6 +120,12 @@
       <HintPath>$(KspManaged)\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- The space centre's facility buttons kept on disk as PNG
+         (src/Flight/WorldButton.cs). -->
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(KspManaged)\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- The player's download of NVIDIA's DLLs from NVIDIA's release
          (src/Window/NvidiaDownloader.cs). -->
     <Reference Include="UnityEngine.UnityWebRequestModule">

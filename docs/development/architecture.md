@@ -262,6 +262,7 @@ KSP's UI textures by name, themes it with the rest of KSP's dialogs.
 
 | File | Role |
 |---|---|
+| `EditorLaunchButton.cs` | the launch button over the launch pad seen from the VAB and the runway seen from the SPH |
 | `EditorEngineer.cs` | the add-on in the editors: the planner's mode button, opening and closing the planner |
 | `EditorReadout.cs` | the vessel as the planner takes it, read from KSP's delta-v simulation, with every part and each stage's thrust at the surface worked out beside it |
 | `PlannerPanel.cs` | the planner's panel, made as KSP's crew panel is |
@@ -280,7 +281,8 @@ How the planner sits in KSP's editor: [engineer.md](engineer.md).
 | `Readouts/` | the flight panel's values: `ReadoutCatalog` lists each with its title and group, `ReadoutFrame` reads the vessel, its orbit and target once per refresh, `ReadoutMath` holds the sums free of the game, tested |
 | `../Window/UiHygiene.cs` | what every control made here has to get right: no keyboard selection, the UI layer, a text field let go after its edit, the greyed state of hidden rows |
 | `../Window/EscapeGuard.cs` | an Escape that cancelled a key binding or a text field closes no dialog and opens no pause menu |
-| `AssemblyReturn.cs` | the symbol over the space centre's assembly building: revert to the editor, or recover and open the vessel there |
+| `AssemblyReturn.cs` | the button on the space centre's VAB or SPH: revert to the editor, or recover and open the vessel there |
+| `WorldButton.cs` | a button over a point in the world, placed as KSP's vessel labels are; the space centre's facility buttons copied for its look (`KscButtons`) |
 | `HudTooltips.cs` | KSP's own tooltip, in KSP's wording, on the staging stack's buttons, the alarm clock's button, the altimeter's mode switch and the delta-v tools' button; the staging's reset button asks first |
 | `RoundGauge.cs` | KSP's vertical speed gauge as a digital gauge with a lit arc and five figures, picked by situation or by click; it logs what it shows, and where a stage's arc leaves its digits |
 | `GaugeReadings.cs` | the gauge's figures from plain numbers: digits, the arc's place on its fixed scale, bands and tick; tested against a simulated flight |
