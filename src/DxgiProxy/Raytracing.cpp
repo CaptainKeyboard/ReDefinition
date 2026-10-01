@@ -37,7 +37,7 @@ namespace redefinition
 
         // The denoiser's entry points (RaytracingShaders/Denoise.hlsl).
         const wchar_t* const kDenoiseEntries[] = {
-            L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous", L"RT_DenoiseResolve",
+            L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous",
             L"RT_ReconstructGuides", L"RT_FrameGuides", L"RT_GpuInstances", L"RT_RegenerationGuides",
             L"RT_RegenerationAlbedo",
         };

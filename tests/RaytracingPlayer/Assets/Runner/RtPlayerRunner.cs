@@ -674,8 +674,14 @@ namespace ReDefinition.RaytracingPlayer
 
             raytracing.Settings = RtSettings.Full();
             raytracing.enabled = true;
-            // Three seconds for the GPU to leave its idle clocks, then the median of 300
-            // frames: other programs share the GPU, and a mean takes their spikes.
+            // Without the vertical sync, as the game keeps the GPU busy: held to the display's
+            // refresh, the GPU idles most of each frame and its driver lowers the clocks (on the
+            // RTX 4090 1.1 GHz and half the memory clock, against 2.76 GHz; each pass 1.5 to 3
+            // times as long, measured). Three seconds for the GPU to leave its idle clocks, then
+            // the median of 300 frames: other programs share the GPU, and a mean takes their
+            // spikes.
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = -1;
             float warmUntil = Time.realtimeSinceStartup + 3f;
             while (Time.realtimeSinceStartup < warmUntil) yield return null;
             var sums = new float[8];

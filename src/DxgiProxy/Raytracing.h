@@ -413,7 +413,8 @@ namespace redefinition
             DenoiseTarget noisy[4];
             DenoiseTarget history[4][2];
             DenoiseTarget moments[4][2];
-            DenoiseTarget work[2];
+            DenoiseTarget work;
+            DenoiseTarget workHalf[4];
             DenoiseTarget linearDepth[2];
             DenoiseTarget normal[2];
             UINT width = 0;

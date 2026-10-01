@@ -70,7 +70,7 @@ namespace redefinition
 
     bool Raytracing::EnsureDenoiseTargetsLocked(UINT width, UINT height, Slot& slot)
     {
-        if (denoise.width == width && denoise.height == height && denoise.work[0].resource != nullptr)
+        if (denoise.width == width && denoise.height == height && denoise.work.resource != nullptr)
             return true;
         // The textures of the old size may still be in use by lists in flight.
         const auto hold = [&](DenoiseTarget& target)
@@ -81,6 +81,7 @@ namespace redefinition
         for (UINT s = 0; s < 4; ++s)
         {
             hold(denoise.noisy[s]);
+            hold(denoise.workHalf[s]);
             for (UINT p = 0; p < 2; ++p)
             {
                 hold(denoise.history[s][p]);
@@ -89,27 +90,29 @@ namespace redefinition
         }
         for (UINT p = 0; p < 2; ++p)
         {
-            hold(denoise.work[p]);
             hold(denoise.linearDepth[p]);
             hold(denoise.normal[p]);
         }
+        hold(denoise.work);
         denoise = DenoiseTargets{};
-        // The history and the filter's work in full floats: a history of half floats,
-        // blended with a small weight each frame, stops short of its value where the step
-        // falls under half a half float's precision (1.6 % short at 1.0, measured).
+        // The history and the filter's work up to it in full floats: a history of half
+        // floats, blended with a small weight each frame, stops short of its value where the
+        // step falls under half a half float's precision (1.6 % short at 1.0, measured). The
+        // à-trous steps after the first, which no history takes, in half floats.
         bool ok = true;
         const DXGI_FORMAT colour = DXGI_FORMAT_R16G16B16A16_FLOAT;
         const DXGI_FORMAT precise = DXGI_FORMAT_R32G32B32A32_FLOAT;
         for (UINT s = 0; s < 4 && ok; ++s)
         {
-            ok = ok && denoise.noisy[s].Create(device.Get(), width, height, colour);
+            ok = ok && denoise.noisy[s].Create(device.Get(), width, height, colour)
+                 && denoise.workHalf[s].Create(device.Get(), width, height, colour);
             for (UINT p = 0; p < 2 && ok; ++p)
                 ok = ok && denoise.history[s][p].Create(device.Get(), width, height, precise)
                      && denoise.moments[s][p].Create(device.Get(), width, height, colour);
         }
+        ok = ok && denoise.work.Create(device.Get(), width, height, precise);
         for (UINT p = 0; p < 2 && ok; ++p)
-            ok = ok && denoise.work[p].Create(device.Get(), width, height, precise)
-                 && denoise.linearDepth[p].Create(device.Get(), width, height, DXGI_FORMAT_R32_FLOAT)
+            ok = ok && denoise.linearDepth[p].Create(device.Get(), width, height, DXGI_FORMAT_R32_FLOAT)
                  && denoise.normal[p].Create(device.Get(), width, height, colour);
         if (!ok)
         {
@@ -165,8 +168,7 @@ namespace redefinition
         ID3D12PipelineState* temporal = pipeline("RT_DenoiseTemporal");
         ID3D12PipelineState* variance = pipeline("RT_DenoiseVariance");
         ID3D12PipelineState* atrous = pipeline("RT_DenoiseAtrous");
-        ID3D12PipelineState* resolve = pipeline("RT_DenoiseResolve");
-        if (prepare == nullptr || temporal == nullptr || variance == nullptr || atrous == nullptr || resolve == nullptr)
+        if (prepare == nullptr || temporal == nullptr || variance == nullptr || atrous == nullptr)
             return;
 
         const UINT groupsX = (packet.width + 7) / 8;
@@ -205,76 +207,78 @@ namespace redefinition
         UseLocked(denoise.linearDepth[before], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         UseLocked(denoise.normal[before], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
+        // Temporal and variance for each signal: the noisy signal and its history into the
+        // work texture, the moments into this frame's; then into the history of the frame
+        // before, which the temporal pass has read by then, as the first à-trous step's input.
+        uint32_t present = 0;
         for (UINT s = 0; s < 4; ++s)
         {
             const Filtered& filtered = kFiltered[s];
-            Shared* output = outputs[filtered.output];
-            if ((packet.signals & filtered.signal) == 0 || output == nullptr)
+            if ((packet.signals & filtered.signal) == 0 || outputs[filtered.output] == nullptr)
                 continue;
+            present |= 1u << s;
             DenoiseTarget& noisy = denoise.noisy[s];
-            DenoiseTarget& history = denoise.history[s][now];
             DenoiseTarget& historyBefore = denoise.history[s][before];
             DenoiseTarget& moments = denoise.moments[s][now];
             DenoiseTarget& momentsBefore = denoise.moments[s][before];
-            DenoiseTarget* work[2] = { &denoise.work[0], &denoise.work[1] };
 
-            // Temporal: noisy and the history into work 0, the moments into this frame's.
             UseLocked(noisy, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             UseLocked(historyBefore, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             UseLocked(momentsBefore, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            UseLocked(*work[0], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            UseLocked(denoise.work, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             UseLocked(moments, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             {
                 const View reads[8] = { Of(&noisy), Of(&historyBefore), Of(&momentsBefore), Of(&denoise.linearDepth[now]),
                                         Of(&denoise.normal[now]), Of(&denoise.linearDepth[before]),
                                         Of(&denoise.normal[before]), motion ? Of(motionInput) : View{} };
-                const View writes[4] = { Of(work[0]), Of(&moments) };
+                const View writes[4] = { Of(&denoise.work), Of(&moments) };
                 constants(1, filtered.kind, (reset ? 1u : 0u) | (motion ? 2u : 0u), 0);
                 dispatch(temporal, TableLocked(slotNumber, used, reads, writes));
             }
 
-            // Variance: work 0 and the moments into work 1.
-            UseLocked(*work[0], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            UseLocked(denoise.work, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             UseLocked(moments, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            UseLocked(*work[1], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            UseLocked(historyBefore, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             {
-                const View reads[8] = { Of(work[0]), Of(&moments), View{}, Of(&denoise.linearDepth[now]),
+                const View reads[8] = { Of(&denoise.work), Of(&moments), View{}, Of(&denoise.linearDepth[now]),
                                         Of(&denoise.normal[now]) };
-                const View writes[4] = { Of(work[1]) };
+                const View writes[4] = { Of(&historyBefore) };
                 constants(1, filtered.kind, 0, 0);
                 dispatch(variance, TableLocked(slotNumber, used, reads, writes));
             }
+        }
 
-            // À-trous, work 1 and 0 in turn; the first step's result is the history.
-            UINT current = 1;
-            for (UINT step = 0; step < kAtrousSteps; ++step)
+        // À-trous, all signals in each step: the first step into this frame's history; the
+        // steps after it between the noisy texture, read by now, and the half-float work
+        // texture; the last into Unity's texture.
+        DenoiseTarget* from[4] = {};
+        for (UINT s = 0; s < 4; ++s)
+            from[s] = &denoise.history[s][before];
+        for (UINT step = 0; present != 0 && step < kAtrousSteps; ++step)
+        {
+            const bool last = step + 1 == kAtrousSteps;
+            View reads[8] = {};
+            View writes[4] = {};
+            DenoiseTarget* to[4] = {};
+            for (UINT s = 0; s < 4; ++s)
             {
-                DenoiseTarget& from = *work[current];
-                DenoiseTarget& to = *work[1 - current];
-                UseLocked(from, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-                UseLocked(to, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                const View reads[8] = { Of(&from), View{}, View{}, Of(&denoise.linearDepth[now]), Of(&denoise.normal[now]) };
-                const View writes[4] = { Of(&to) };
-                constants(1u << step, filtered.kind, 0, step);
-                dispatch(atrous, TableLocked(slotNumber, used, reads, writes));
-                if (step == 0)
-                {
-                    UseLocked(to, D3D12_RESOURCE_STATE_COPY_SOURCE);
-                    UseLocked(history, D3D12_RESOURCE_STATE_COPY_DEST);
-                    list->CopyResource(history.resource.Get(), to.resource.Get());
-                }
-                current = 1 - current;
+                if ((present & (1u << s)) == 0)
+                    continue;
+                to[s] = step == 0 ? &denoise.history[s][now] : from[s] == &denoise.noisy[s] ? &denoise.workHalf[s]
+                                                                                          : &denoise.noisy[s];
+                UseLocked(*from[s], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                if (!last)
+                    UseLocked(*to[s], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                // The signals in t0, t1, t2 and t5, beside the depth and normal in t3 and t4.
+                reads[s == 3 ? 5 : s] = Of(from[s]);
+                writes[s] = last ? Of(outputs[kFiltered[s].output]) : Of(to[s]);
             }
-
-            // Resolve into Unity's texture.
-            DenoiseTarget& last = *work[current];
-            UseLocked(last, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            {
-                const View reads[8] = { Of(&last), View{}, View{}, Of(&denoise.linearDepth[now]) };
-                const View writes[4] = { Of(output) };
-                constants(1, filtered.kind, 0, 0);
-                dispatch(resolve, TableLocked(slotNumber, used, reads, writes));
-            }
+            reads[3] = Of(&denoise.linearDepth[now]);
+            reads[4] = Of(&denoise.normal[now]);
+            constants(1u << step, present, last ? 4u : 0u, step);
+            dispatch(atrous, TableLocked(slotNumber, used, reads, writes));
+            for (UINT s = 0; s < 4; ++s)
+                from[s] = to[s];
         }
 
         denoise.parity = before;
