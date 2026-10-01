@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace ReDefinition.Raytracing
 {
@@ -50,8 +52,9 @@ namespace ReDefinition.Raytracing
     {
         // Not seen for this many frames: released.
         private const int UnseenFrames = 300;
-        // New material textures read back a frame, as each costs a GPU readback.
+        // New material textures drawn a frame, and at most this many on their way back.
         private const int TexturesPerFrame = 4;
+        private const int TexturesInFlight = 8;
 
         private sealed class MeshEntry
         {
@@ -70,8 +73,24 @@ namespace ReDefinition.Raytracing
             // Parallax's scatter gets its textures a frame or more after its materials
             // (ScatterRenderer.SetMaterialTexturesAsync) -- or change it.
             public Texture Texture;
+            // Waiting to be read, or being read back.
             public bool Queued;
             public int Layer = -1;
+        }
+
+        // A material's small texture on its way back from the GPU (AsyncGPUReadback),
+        // with the render texture it was drawn into; kept and used again.
+        private sealed class TextureRead
+        {
+            public RenderTexture Target;
+            public Material Material;
+            public MaterialEntry Entry;
+            public int Layer;
+            public bool WorldMapped;
+            // The scene's epoch when asked: a new device or a clear since, and the
+            // material's id and layer mean nothing any more.
+            public int Epoch;
+            public Action<AsyncGPUReadbackRequest> Done;
         }
 
         private readonly Dictionary<long, MeshEntry> meshes = new Dictionary<long, MeshEntry>();
@@ -96,7 +115,6 @@ namespace ReDefinition.Raytracing
         // A material's texture looked at again: every frame while it has none, else
         // once in this many frames.
         private const int TextureCheckFrames = 120;
-        private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
         private static readonly int RtCutoff = Shader.PropertyToID("_ReDefinitionRtCutoff");
         // The capture shader's pass that makes a material's small texture.
         private const int MaterialTexturePass = 6;
@@ -107,10 +125,14 @@ namespace ReDefinition.Raytracing
         private int nextTextureLayer;
         private int generation = -1;
         private int frame;
-        private RenderTexture textureTarget;
+        private int epoch;
+        private readonly Stack<TextureRead> idleReads = new Stack<TextureRead>();
+        private int readsInFlight;
+        // Where AsyncGPUReadback is not supported: read at once into this texture.
         private Texture2D textureRead;
         private byte[] texturePixels;
         private static byte[] gammaToSrgb;
+        private static float[] srgbToLinear;
 
         internal int InstanceCount { get; private set; }
         // This frame's GPU instances: the items the camera gathers, each run's place, and
@@ -157,6 +179,7 @@ namespace ReDefinition.Raytracing
             {
                 // A new device: nothing handed over before is there any more.
                 generation = serviceGeneration;
+                epoch++;
                 meshes.Clear();
                 keysOf.Clear();
                 materials.Clear();
@@ -408,7 +431,8 @@ namespace ReDefinition.Raytracing
 
         private static Texture MainTexture(Material material)
         {
-            return material.HasProperty(MainTexId) ? material.GetTexture(MainTexId) : null;
+            bool worldMapped;
+            return RtMaterial.MainTexture(material, out worldMapped);
         }
 
         private void SendMaterial(Material material, int id, int layer)
@@ -428,68 +452,188 @@ namespace ReDefinition.Raytracing
             RtNative.KspRtSetMaterial(ref desc);
         }
 
-        // A few material textures a frame: rendered down to 64 pixels, read back and
-        // handed over as a layer of the proxy's array.
+        // A few material textures a frame: rendered down to 64 pixels, read back without
+        // waiting for the GPU (AsyncGPUReadback; its callback runs on the main thread, in
+        // a later frame) and handed over as a layer of the proxy's array. A synchronous
+        // read would stall the main thread until the GPU caught up.
         private void ReadTextures()
         {
-            for (int n = 0; n < TexturesPerFrame && texturesToRead.Count > 0; n++)
+            for (int n = 0; n < TexturesPerFrame && texturesToRead.Count > 0 && readsInFlight < TexturesInFlight; n++)
             {
                 Material material = texturesToRead.Dequeue();
                 MaterialEntry entry;
                 if (material == null || !materials.TryGetValue(material, out entry)) continue;
-                entry.Queued = false;
-                Texture texture = MainTexture(material);
+                bool worldMapped;
+                Texture texture = RtMaterial.MainTexture(material, out worldMapped);
                 entry.Texture = texture;
-                if (texture == null) continue;
-                if (entry.Layer < 0)
+                if (texture != null && entry.Layer < 0)
                 {
                     if (freeLayers.Count > 0) entry.Layer = freeLayers.Pop();
                     else if (nextTextureLayer < RtNative.MaxMaterialTextures) entry.Layer = nextTextureLayer++;
-                    else continue;
                 }
-                RtMaterial surface = RtMaterial.Of(material);
-                if (!ReadTexture(texture, entry.Layer, surface.Cutoff)) continue;
-                SendMaterial(material, entry.Id, entry.Layer);
+                if (texture == null || entry.Layer < 0)
+                {
+                    entry.Queued = false;
+                    continue;
+                }
+                ReadTexture(material, entry, texture, worldMapped);
             }
         }
 
-        private bool ReadTexture(Texture texture, int layer, float cutoff)
+        private void ReadTexture(Material material, MaterialEntry entry, Texture texture, bool worldMapped)
         {
-            int size = RtNative.MaterialTextureSize;
-            if (textureTarget == null)
-            {
-                textureTarget = new RenderTexture(size, size, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
-                textureTarget.Create();
-                textureRead = new Texture2D(size, size, TextureFormat.RGBA32, false, false);
-                texturePixels = new byte[size * size * 4];
-            }
+            TextureRead read = idleReads.Count > 0 ? idleReads.Pop() : NewRead();
+            read.Material = material;
+            read.Entry = entry;
+            read.Layer = entry.Layer;
+            read.WorldMapped = worldMapped;
+            read.Epoch = epoch;
             RenderTexture previous = RenderTexture.active;
             if (TextureReader != null)
             {
-                TextureReader.SetFloat(RtCutoff, cutoff);
-                Graphics.Blit(texture, textureTarget, TextureReader, MaterialTexturePass);
+                TextureReader.SetFloat(RtCutoff, RtMaterial.Of(material).Cutoff);
+                Graphics.Blit(texture, read.Target, TextureReader, MaterialTexturePass);
             }
             else
             {
-                Graphics.Blit(texture, textureTarget);
+                Graphics.Blit(texture, read.Target);
             }
-            RenderTexture.active = textureTarget;
+            if (SystemInfo.supportsAsyncGPUReadback)
+            {
+                RenderTexture.active = previous;
+                readsInFlight++;
+                AsyncGPUReadback.Request(read.Target, 0, TextureFormat.RGBA32, read.Done);
+                return;
+            }
+            int size = RtNative.MaterialTextureSize;
+            if (textureRead == null) textureRead = new Texture2D(size, size, TextureFormat.RGBA32, false, false);
+            RenderTexture.active = read.Target;
             textureRead.ReadPixels(new Rect(0, 0, size, size), 0, 0, false);
             RenderTexture.active = previous;
-            Color32[] colours = textureRead.GetPixels32();
-            byte[] encode = GammaSpace ? GammaToSrgb() : null;
-            // Rows from the top, as the proxy takes them; Unity's from the bottom.
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
+            Deliver(read, textureRead.GetRawTextureData<byte>());
+            read.Material = null;
+            read.Entry = null;
+            idleReads.Push(read);
+        }
+
+        private TextureRead NewRead()
+        {
+            int size = RtNative.MaterialTextureSize;
+            var read = new TextureRead
+            {
+                Target = new RenderTexture(size, size, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default),
+            };
+            read.Target.Create();
+            read.Done = request => Done(read, request);
+            return read;
+        }
+
+        // A finished readback, handed over if its material still has the entry and layer
+        // it was read for: released meanwhile, its layer may be another's by now.
+        private void Done(TextureRead read, AsyncGPUReadbackRequest request)
+        {
+            readsInFlight--;
+            MaterialEntry current;
+            if (read.Epoch == epoch && read.Material != null && materials.TryGetValue(read.Material, out current)
+                && current == read.Entry && current.Layer == read.Layer)
+            {
+                if (request.hasError)
                 {
-                    Color32 c = colours[(size - 1 - y) * size + x];
-                    int o = (y * size + x) * 4;
-                    texturePixels[o] = encode != null ? encode[c.r] : c.r;
-                    texturePixels[o + 1] = encode != null ? encode[c.g] : c.g;
-                    texturePixels[o + 2] = encode != null ? encode[c.b] : c.b;
-                    texturePixels[o + 3] = c.a;
+                    // Read again when next seen.
+                    current.Queued = false;
+                    current.Texture = null;
                 }
-            return RtNative.KspRtSetMaterialTexture(layer, texturePixels, size) == 1;
+                else
+                    Deliver(read, request.GetData<byte>());
+            }
+            read.Material = null;
+            read.Entry = null;
+            if (read.Epoch == epoch)
+                idleReads.Push(read);
+            else if (read.Target != null)
+            {
+                // Read for a device or a scene gone.
+                read.Target.Release();
+                UnityEngine.Object.Destroy(read.Target);
+            }
+        }
+
+        private void Deliver(TextureRead read, NativeArray<byte> raw)
+        {
+            MaterialEntry entry = read.Entry;
+            entry.Queued = false;
+            int size = RtNative.MaterialTextureSize;
+            if (raw.Length < size * size * 4)
+            {
+                entry.Texture = null;
+                return;
+            }
+            if (texturePixels == null) texturePixels = new byte[size * size * 4];
+            Pack(raw, texturePixels, size, GammaSpace, read.WorldMapped);
+            if (RtNative.KspRtSetMaterialTexture(read.Layer, texturePixels, size) == 1)
+                SendMaterial(read.Material, entry.Id, read.Layer);
+        }
+
+        // A small texture as the proxy takes it from Unity's pixels (RGBA, rows from the
+        // bottom): rows from the top, and in gamma space sRGB-encoded (GammaSpace). A
+        // world-mapped one (RtMaterial.MainTexture) is its average colour throughout, the
+        // average taken of the values the lighting works with.
+        internal static void Pack(NativeArray<byte> raw, byte[] into, int size, bool gammaSpace, bool average)
+        {
+            byte[] encode = gammaSpace ? GammaToSrgb() : null;
+            if (average)
+            {
+                // In gamma space the bytes are those values; in linear space sRGB codes, as
+                // the render texture is sRGB.
+                float[] decode = SrgbToLinear();
+                double r = 0, g = 0, b = 0;
+                int count = size * size;
+                for (int i = 0; i < count * 4; i += 4)
+                {
+                    if (gammaSpace)
+                    {
+                        r += raw[i];
+                        g += raw[i + 1];
+                        b += raw[i + 2];
+                    }
+                    else
+                    {
+                        r += decode[raw[i]];
+                        g += decode[raw[i + 1]];
+                        b += decode[raw[i + 2]];
+                    }
+                }
+                double scale = gammaSpace ? 1.0 / (255.0 * count) : 1.0 / count;
+                byte red = LinearToSrgb(r * scale), green = LinearToSrgb(g * scale), blue = LinearToSrgb(b * scale);
+                for (int o = 0; o < count * 4; o += 4)
+                {
+                    into[o] = red;
+                    into[o + 1] = green;
+                    into[o + 2] = blue;
+                    into[o + 3] = 255;
+                }
+                return;
+            }
+            for (int y = 0; y < size; y++)
+            {
+                int from = (size - 1 - y) * size * 4;
+                int to = y * size * 4;
+                for (int x = 0; x < size * 4; x += 4)
+                {
+                    byte cr = raw[from + x], cg = raw[from + x + 1], cb = raw[from + x + 2];
+                    into[to + x] = encode != null ? encode[cr] : cr;
+                    into[to + x + 1] = encode != null ? encode[cg] : cg;
+                    into[to + x + 2] = encode != null ? encode[cb] : cb;
+                    into[to + x + 3] = raw[from + x + 3];
+                }
+            }
+        }
+
+        // The sRGB code whose decoded value is v.
+        private static byte LinearToSrgb(double v)
+        {
+            double s = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.Pow(v, 1.0 / 2.4) - 0.055;
+            return (byte)Math.Max(0, Math.Min(255, (int)Math.Round(s * 255.0)));
         }
 
         // The sRGB code whose decoded value is the byte's own value.
@@ -497,13 +641,21 @@ namespace ReDefinition.Raytracing
         {
             if (gammaToSrgb != null) return gammaToSrgb;
             gammaToSrgb = new byte[256];
+            for (int i = 0; i < 256; i++) gammaToSrgb[i] = LinearToSrgb(i / 255.0);
+            return gammaToSrgb;
+        }
+
+        // An sRGB code's decoded value.
+        private static float[] SrgbToLinear()
+        {
+            if (srgbToLinear != null) return srgbToLinear;
+            srgbToLinear = new float[256];
             for (int i = 0; i < 256; i++)
             {
-                double v = i / 255.0;
-                double s = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.Pow(v, 1.0 / 2.4) - 0.055;
-                gammaToSrgb[i] = (byte)Math.Max(0, Math.Min(255, (int)Math.Round(s * 255.0)));
+                double s = i / 255.0;
+                srgbToLinear[i] = (float)(s <= 0.04045 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4));
             }
-            return gammaToSrgb;
+            return srgbToLinear;
         }
 
         private readonly List<long> released = new List<long>();
@@ -566,12 +718,19 @@ namespace ReDefinition.Raytracing
             GpuItems.Clear();
             GpuFirst.Clear();
             GpuTotal = 0;
-            if (textureTarget != null)
+            // Readbacks still on their way find the epoch changed and let their render
+            // textures go themselves (Done).
+            epoch++;
+            while (idleReads.Count > 0)
             {
-                textureTarget.Release();
-                UnityEngine.Object.Destroy(textureTarget);
+                TextureRead read = idleReads.Pop();
+                read.Target.Release();
+                UnityEngine.Object.Destroy(read.Target);
+            }
+            if (textureRead != null)
+            {
                 UnityEngine.Object.Destroy(textureRead);
-                textureTarget = null;
+                textureRead = null;
             }
         }
     }

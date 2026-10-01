@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Reflection;
 using UnityEngine;
 
@@ -15,11 +16,25 @@ namespace ReDefinition.Raytracing
         private static PropertyInfo starLight;
         private static FieldInfo planetShineOn;
         private static Type deferredReflections;
-        private static FieldInfo scatterManager;
-        private static FieldInfo activeScatters;
-        private static readonly FieldInfo[] scatterMeshes = new FieldInfo[3];
-        private static readonly FieldInfo[] scatterMaterials = new FieldInfo[3];
-        private static readonly FieldInfo[] scatterBuffers = new FieldInfo[3];
+        // Parallax's fields, read through compiled getters: a FieldInfo's GetValue costs
+        // a reflection call per field, nine per scatter renderer a frame.
+        private static Func<object, object> scatterManager;
+        private static Func<object, IList> activeScatters;
+        private static readonly Func<object, Mesh>[] scatterMeshes = new Func<object, Mesh>[3];
+        private static readonly Func<object, Material>[] scatterMaterials = new Func<object, Material>[3];
+        private static readonly Func<object, ComputeBuffer>[] scatterBuffers = new Func<object, ComputeBuffer>[3];
+
+        // A getter of the field on an object of its declaring type (null for a static
+        // field), or null where there is no such field or it is not a T.
+        private static Func<object, T> Getter<T>(FieldInfo field) where T : class
+        {
+            if (field == null || !typeof(T).IsAssignableFrom(field.FieldType)) return null;
+            ParameterExpression target = Expression.Parameter(typeof(object), "target");
+            Expression owner = field.IsStatic ? null : Expression.Convert(target, field.DeclaringType);
+            Expression value = Expression.Field(owner, field);
+            if (field.FieldType != typeof(T)) value = Expression.Convert(value, typeof(T));
+            return Expression.Lambda<Func<object, T>>(value, target).Compile();
+        }
 
         private static void Look()
         {
@@ -46,14 +61,16 @@ namespace ReDefinition.Raytracing
                         // Scatter System/ScatterManager.cs, ScatterRenderer.cs; public).
                         Type manager = assembly.GetType("Parallax.ScatterManager");
                         Type renderer = assembly.GetType("Parallax.ScatterRenderer");
-                        scatterManager = manager?.GetField("Instance", BindingFlags.Public | BindingFlags.Static);
-                        activeScatters = manager?.GetField("activeScatterRenderers", BindingFlags.Public | BindingFlags.Instance);
+                        scatterManager = Getter<object>(manager?.GetField("Instance", BindingFlags.Public | BindingFlags.Static));
+                        activeScatters = Getter<IList>(manager?.GetField("activeScatterRenderers",
+                                                                         BindingFlags.Public | BindingFlags.Instance));
                         for (int lod = 0; lod < 3 && renderer != null; lod++)
                         {
-                            scatterMeshes[lod] = renderer.GetField("meshLOD" + lod, BindingFlags.Public | BindingFlags.Instance);
-                            scatterMaterials[lod] = renderer.GetField("instancedMaterialLOD" + lod,
-                                                                      BindingFlags.Public | BindingFlags.Instance);
-                            scatterBuffers[lod] = renderer.GetField("outputLOD" + lod, BindingFlags.Public | BindingFlags.Instance);
+                            scatterMeshes[lod] = Getter<Mesh>(renderer.GetField("meshLOD" + lod, BindingFlags.Public | BindingFlags.Instance));
+                            scatterMaterials[lod] = Getter<Material>(renderer.GetField("instancedMaterialLOD" + lod,
+                                                                                       BindingFlags.Public | BindingFlags.Instance));
+                            scatterBuffers[lod] = Getter<ComputeBuffer>(renderer.GetField("outputLOD" + lod,
+                                                                                          BindingFlags.Public | BindingFlags.Instance));
                         }
                     }
                     else if (name == "PlanetShine")
@@ -94,19 +111,25 @@ namespace ReDefinition.Raytracing
         }
 
         // Where KSP has no Sun, as in the editors: the scene's brightest directional
-        // light, looked for once a second.
+        // light, looked for once a second, and none found kept for that second too.
         private static Light brightest;
+        private static bool brightestFound;
         private static float brightestAt = float.NegativeInfinity;
 
         private static Light BrightestDirectional()
         {
-            if (brightest != null && brightest.isActiveAndEnabled && Time.unscaledTime - brightestAt < 1f) return brightest;
+            if (Time.unscaledTime - brightestAt < 1f)
+            {
+                if (!brightestFound) return null;
+                if (brightest != null && brightest.isActiveAndEnabled) return brightest;
+            }
             brightestAt = Time.unscaledTime;
             brightest = null;
             foreach (Light light in UnityEngine.Object.FindObjectsOfType<Light>())
                 if (light.type == LightType.Directional && light.isActiveAndEnabled
                     && (brightest == null || light.intensity > brightest.intensity))
                     brightest = light;
+            brightestFound = brightest != null;
             return brightest;
         }
 
@@ -121,8 +144,8 @@ namespace ReDefinition.Raytracing
             int buffers = 0;
             try
             {
-                object manager = scatterManager.GetValue(null);
-                IList renderers = manager != null ? activeScatters.GetValue(manager) as IList : null;
+                object manager = scatterManager(null);
+                IList renderers = manager != null ? activeScatters(manager) : null;
                 if (renderers == null) return 0;
                 for (int r = 0; r < renderers.Count; r++)
                 {
@@ -130,15 +153,15 @@ namespace ReDefinition.Raytracing
                     if (renderer == null) continue;
                     for (int lod = 0; lod < 3; lod++)
                     {
-                        ComputeBuffer buffer = scatterBuffers[lod].GetValue(renderer) as ComputeBuffer;
-                        Mesh mesh = scatterMeshes[lod]?.GetValue(renderer) as Mesh;
+                        ComputeBuffer buffer = scatterBuffers[lod](renderer);
+                        Mesh mesh = scatterMeshes[lod]?.Invoke(renderer);
                         if (buffer == null || !buffer.IsValid() || mesh == null) continue;
                         into.Add(new RtGpuItem
                         {
                             Transforms = buffer,
                             Mesh = mesh,
                             SubMesh = 0,
-                            Material = scatterMaterials[lod]?.GetValue(renderer) as Material,
+                            Material = scatterMaterials[lod]?.Invoke(renderer),
                             Mask = 0xFF,
                         });
                         buffers++;

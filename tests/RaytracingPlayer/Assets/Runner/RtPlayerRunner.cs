@@ -336,6 +336,7 @@ namespace ReDefinition.RaytracingPlayer
                       "the raytraced diffuse light and reflections enter through it");
             yield return Uncovered(near, nearLit, nearWithout, nearWith);
             yield return CutoutCoverage();
+            yield return SmallTextureRows();
             if (deferredMod)
             {
                 yield return Moving(without);
@@ -477,6 +478,50 @@ namespace ReDefinition.RaytracingPlayer
                   "the ground under a card a quarter covered in coarse stripes at " + (coarse * 100f).ToString("0")
                   + " % of the light beside it, in stripes finer than the small texture's texels at " + (fine * 100f).ToString("0") + " %");
             for (int i = 0; i < 20; i++) yield return null;
+        }
+
+        // A material's small texture as the scene reads it back (RtScene.ReadTexture,
+        // AsyncGPUReadback) and packs it for the proxy: the first row the texture's top,
+        // and a world-mapped one its average colour. The texture is red below, blue above.
+        private IEnumerator SmallTextureRows()
+        {
+            int size = RtNative.MaterialTextureSize;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            var pixels = new Color32[size * size];
+            for (int i = 0; i < pixels.Length; i++)
+                pixels[i] = i < pixels.Length / 2 ? new Color32(255, 0, 0, 255) : new Color32(0, 0, 255, 255);
+            texture.SetPixels32(pixels);
+            texture.Apply(false);
+            var target = new RenderTexture(size, size, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
+            target.Create();
+            Graphics.Blit(texture, target);
+            var rows = new byte[size * size * 4];
+            var average = new byte[size * size * 4];
+            bool done = false, failed = false;
+            AsyncGPUReadback.Request(target, 0, TextureFormat.RGBA32, request =>
+            {
+                done = true;
+                failed = request.hasError;
+                if (failed) return;
+                RtScene.Pack(request.GetData<byte>(), rows, size, false, false);
+                RtScene.Pack(request.GetData<byte>(), average, size, false, true);
+            });
+            for (int i = 0; i < 30 && !done; i++) yield return null;
+            Destroy(texture);
+            target.Release();
+            Destroy(target);
+            int last = (size * size - 1) * 4;
+            Check(done && !failed && rows[2] > 200 && rows[0] < 50 && rows[last] > 200 && rows[last + 2] < 50,
+                  "small texture's rows",
+                  done ? "first texel " + rows[0] + "/" + rows[1] + "/" + rows[2] + " (blue expected), last "
+                         + rows[last] + "/" + rows[last + 1] + "/" + rows[last + 2] + " (red expected)"
+                       : "no readback within 30 frames");
+            // Half full red, half full blue: 0.5 of each, as sRGB 188 (the proxy's array).
+            Check(done && !failed && Mathf.Abs(average[0] - 188) <= 2 && Mathf.Abs(average[2] - 188) <= 2
+                  && average[0] == average[last] && average[2] == average[last + 2] && average[1] < 3,
+                  "world-mapped texture as its average",
+                  "texels " + average[0] + "/" + average[1] + "/" + average[2] + " and " + average[last] + "/"
+                  + average[last + 1] + "/" + average[last + 2]);
         }
 
         // Without Deferred: the raytraced light added to the frame takes the place of

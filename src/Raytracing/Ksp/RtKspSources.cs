@@ -16,13 +16,24 @@ namespace ReDefinition.Raytracing
         // discards everything (DiscardAll.shader), at the alpha-test queue.
         private const string DiscardAll = "Custom/DiscardAll";
 
+        // Per shader, whether it is DiscardAll: a shader's name is a new string each
+        // time it is read.
+        private static readonly Dictionary<Shader, bool> discards = new Dictionary<Shader, bool>();
+        // A renderer's materials, read into this list rather than a new array each time.
+        private static readonly List<Material> sharedMaterials = new List<Material>();
+
         internal static bool Opaque(Material material)
         {
             if (material == null) return false;
             // Transparent and additive shaders sit at 2501 and up (Waterfall's plumes,
             // Firefly, particles, translucent parts, DistantObject's flares); cut-outs at
             // 2450 keep their holes only in the raster, which the rays accept.
-            return material.renderQueue < 2501 && (material.shader == null || material.shader.name != DiscardAll);
+            if (material.renderQueue >= 2501) return false;
+            Shader shader = material.shader;
+            if (shader == null) return true;
+            bool discard;
+            if (!discards.TryGetValue(shader, out discard)) discards[shader] = discard = shader.name == DiscardAll;
+            return !discard;
         }
 
         internal static bool Drawn(Renderer renderer)
@@ -34,16 +45,18 @@ namespace ReDefinition.Raytracing
         internal static void Add(Renderer renderer, Mesh mesh, List<RtItem> into, uint flags = 0)
         {
             if (mesh == null || !Drawn(renderer)) return;
-            Add(renderer.sharedMaterials, mesh, renderer.localToWorldMatrix, into, flags);
+            Add(renderer, mesh, renderer.localToWorldMatrix, into, flags);
         }
 
         // A submesh without a material of its own draws with the first, as Unity does.
-        internal static void Add(Material[] materials, Mesh mesh, Matrix4x4 localToWorld, List<RtItem> into, uint flags = 0)
+        internal static void Add(Renderer renderer, Mesh mesh, Matrix4x4 localToWorld, List<RtItem> into, uint flags = 0)
         {
+            List<Material> materials = sharedMaterials;
+            renderer.GetSharedMaterials(materials);
             int subMeshes = mesh.subMeshCount;
             for (int s = 0; s < subMeshes; s++)
             {
-                Material material = s < materials.Length ? materials[s] : materials.Length > 0 ? materials[0] : null;
+                Material material = s < materials.Count ? materials[s] : materials.Count > 0 ? materials[0] : null;
                 if (!Opaque(material)) continue;
                 into.Add(new RtItem
                 {
@@ -67,12 +80,19 @@ namespace ReDefinition.Raytracing
 
         // Skinned meshes baked a frame; the rest keep their last bake.
         private const int BakesPerFrame = 16;
+        // A part's renderers looked for again after this many frames, at most this many
+        // parts a frame, so that a ship's parts, all seen first in one frame, spread out.
+        private const int RefreshFrames = 300;
+        private const int RefreshesPerFrame = 8;
 
         private readonly Dictionary<Part, PartRenderers> parts = new Dictionary<Part, PartRenderers>();
         private sealed class Bake
         {
             public Mesh Mesh;
             public Vector4 Pose;
+            // The renderer's bones, read with its part's renderers: each read is a new array.
+            public Transform[] Bones;
+            public int BonesFrame;
         }
 
         private readonly Dictionary<SkinnedMeshRenderer, Bake> baked = new Dictionary<SkinnedMeshRenderer, Bake>();
@@ -110,11 +130,13 @@ namespace ReDefinition.Raytracing
 
             int bakes = 0;
             int index = 0;
+            int refreshes = 0;
             foreach (Part part in scratch)
             {
                 if (part == null) continue;
                 PartRenderers renderers;
-                if (!parts.TryGetValue(part, out renderers) || frame - renderers.Frame > 300)
+                if (!parts.TryGetValue(part, out renderers)
+                    || (frame - renderers.Frame > RefreshFrames && refreshes++ < RefreshesPerFrame))
                 {
                     // Looked at again now and then: parts change their models (B9PartSwitch).
                     renderers = new PartRenderers
@@ -140,11 +162,16 @@ namespace ReDefinition.Raytracing
                         bake = new Bake { Mesh = new Mesh { name = "ReDefinition baked " + skinned.name } };
                         baked[skinned] = bake;
                     }
+                    if (bake.Bones == null || bake.BonesFrame != renderers.Frame)
+                    {
+                        bake.Bones = skinned.bones;
+                        bake.BonesFrame = renderers.Frame;
+                    }
                     // Baked again when the pose changed, a few a frame; the bones are
                     // compared relative to the renderer, which the flight moves as a whole.
                     if (fresh || ((index + bakeCursor) % 4 == 0 && bakes < BakesPerFrame))
                     {
-                        Vector4 pose = Pose(skinned);
+                        Vector4 pose = Pose(skinned, bake.Bones);
                         if (fresh || pose != bake.Pose)
                         {
                             skinned.BakeMesh(bake.Mesh);
@@ -156,7 +183,7 @@ namespace ReDefinition.Raytracing
                     index++;
                     // BakeMesh leaves the mesh in the renderer's space, without its scale.
                     Transform t = skinned.transform;
-                    RtFilter.Add(skinned.sharedMaterials, bake.Mesh, Matrix4x4.TRS(t.position, t.rotation, Vector3.one), into);
+                    RtFilter.Add(skinned, bake.Mesh, Matrix4x4.TRS(t.position, t.rotation, Vector3.one), into);
                 }
             }
             bakeCursor++;
@@ -181,12 +208,11 @@ namespace ReDefinition.Raytracing
 
         // A sum over the bones' places and turns relative to the renderer: it changes
         // when any bone moves.
-        private static Vector4 Pose(SkinnedMeshRenderer skinned)
+        private static Vector4 Pose(SkinnedMeshRenderer skinned, Transform[] bones)
         {
             Transform t = skinned.transform;
             Quaternion inverse = Quaternion.Inverse(t.rotation);
             Vector4 sum = Vector4.zero;
-            Transform[] bones = skinned.bones;
             for (int i = 0; i < bones.Length; i++)
             {
                 if (bones[i] == null) continue;
@@ -227,13 +253,18 @@ namespace ReDefinition.Raytracing
             public int[] Vertices;
             public Bounds[] Extent;
             public int[] Checked;
+            public int Seen;
         }
 
         // A refilled mesh handed over again at most this often, in frames.
         private const int RefillFrames = 10;
+        // A quad not seen for this many frames is forgotten: by then the scene has let
+        // its meshes go too (RtScene.UnseenFrames), and they are handed over anew.
+        private const int ForgetFrames = 600;
         private int frame;
 
         private readonly Dictionary<PQ, QuadState> quads = new Dictionary<PQ, QuadState>();
+        private readonly List<PQ> forgotten = new List<PQ>();
         private readonly Stack<PQ> stack = new Stack<PQ>();
         private readonly RtScene scene;
         private const float range = 30000f;
@@ -297,6 +328,7 @@ namespace ReDefinition.Raytracing
                     quads[quad] = state;
                     if (quad.mesh != null) scene.Invalidate(quad.mesh);
                 }
+                state.Seen = frame;
                 for (int i = 0; i < state.Filters.Length; i++)
                 {
                     MeshFilter filter = state.Filters[i];
@@ -315,6 +347,15 @@ namespace ReDefinition.Raytracing
                     RtFilter.Add(filter.GetComponent<MeshRenderer>(), mesh, into, RtNative.InstanceTerrain);
                 }
                 Quads++;
+            }
+
+            // Quads destroyed, or not seen for long, let go.
+            if (frame % 120 == 0)
+            {
+                forgotten.Clear();
+                foreach (KeyValuePair<PQ, QuadState> pair in quads)
+                    if (pair.Key == null || frame - pair.Value.Seen > ForgetFrames) forgotten.Add(pair.Key);
+                foreach (PQ quad in forgotten) quads.Remove(quad);
             }
         }
 

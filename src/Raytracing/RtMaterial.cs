@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ReDefinition.Raytracing
@@ -41,6 +42,7 @@ namespace ReDefinition.Raytracing
             };
             if (material == null) return result;
 
+            // Without _Color, as Parallax's terrain: white, the texture alone (MainTexture).
             if (material.HasProperty("_Color")) result.Albedo = material.GetColor("_Color");
             result.Albedo.a = 1f;
 
@@ -88,6 +90,50 @@ namespace ReDefinition.Raytracing
             else if (material.HasProperty("_EmissionColor") && material.IsKeywordEnabled("_EMISSION"))
                 result.Emission = material.GetColor("_EmissionColor");
             return result;
+        }
+
+        private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
+        // Parallax's terrain shaders (Parallax.shader, KSCTerrain.shader, Parallax
+        // Continued) have no _Color or _MainTex but a texture per altitude band, of which
+        // the material's keyword says which are used (PARALLAX_SINGLE_LOW to
+        // PARALLAX_FULL, TerrainShaderQuadData.cs); the KSC's has the low one only. The
+        // lowest band used stands for the ground.
+        private static readonly int LowTexId = Shader.PropertyToID("_MainTexLow");
+        private static readonly int MidTexId = Shader.PropertyToID("_MainTexMid");
+        private static readonly int HighTexId = Shader.PropertyToID("_MainTexHigh");
+
+        private enum TextureKind { None, Main, LowOnly, Bands }
+
+        // Per shader, where its main texture is: HasProperty is a native call each.
+        private static readonly Dictionary<Shader, TextureKind> textureKinds = new Dictionary<Shader, TextureKind>();
+
+        // The texture the rays take for a material's colour. A world-mapped one -- the
+        // terrain shaders tile theirs over world positions (biplanar), not the mesh's UVs
+        // -- is taken as its average colour (worldMapped).
+        internal static Texture MainTexture(Material material, out bool worldMapped)
+        {
+            worldMapped = false;
+            Shader shader = material.shader;
+            if (shader == null) return null;
+            TextureKind kind;
+            if (!textureKinds.TryGetValue(shader, out kind))
+            {
+                kind = material.HasProperty(MainTexId) ? TextureKind.Main
+                       : !material.HasProperty(LowTexId) ? TextureKind.None
+                       : material.HasProperty(MidTexId) && material.HasProperty(HighTexId) ? TextureKind.Bands
+                       : TextureKind.LowOnly;
+                textureKinds[shader] = kind;
+            }
+            if (kind == TextureKind.None) return null;
+            if (kind == TextureKind.Main) return material.GetTexture(MainTexId);
+            worldMapped = true;
+            if (kind == TextureKind.Bands)
+            {
+                if (material.IsKeywordEnabled("PARALLAX_SINGLE_MID") || material.IsKeywordEnabled("PARALLAX_DOUBLE_MIDHIGH"))
+                    return material.GetTexture(MidTexId);
+                if (material.IsKeywordEnabled("PARALLAX_SINGLE_HIGH")) return material.GetTexture(HighTexId);
+            }
+            return material.GetTexture(LowTexId);
         }
 
         private static void Metallic(ref RtMaterial result, float metallic)
