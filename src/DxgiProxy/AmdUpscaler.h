@@ -44,6 +44,9 @@ namespace redefinition
         float cameraNear;
         float cameraFar;
         float verticalFovRadians;
+        // Optional, single-channel, at render size; null where the mod has none.
+        void* reactive;
+        void* transparencyAndComposition;
     };
 
     constexpr uint32_t kAmdUpscalerPacketMagic = 0x4B535041u;   // 'KSPA'
@@ -103,6 +106,7 @@ namespace redefinition
         bool EnsureRuntimeLocked();
         bool EnsureFenceLocked();
         bool EnsureTexturesLocked(const AmdUpscalerPacket& packet);
+        bool EnsureMaskLocked(SharedTexture& shared, void* texture);
         bool EnsureContextLocked(const AmdUpscalerPacket& packet);
         bool UpscaleLocked(const AmdUpscalerPacket& packet);
         void WaitForListsLocked();
@@ -142,6 +146,8 @@ namespace redefinition
         SharedTexture depth;
         SharedTexture motion;
         SharedTexture output;
+        SharedTexture reactive;
+        SharedTexture transparency;
 
         ffxContext context = nullptr;
         // The frame the context was made for, or failed to be made for.

@@ -148,6 +148,8 @@ def upscale(exe, streamline, amd, ksp):
     for scale in ('0.6666667', '0.5'):
         for upscaler in ('fsr3', 'dlss', 'amd'):
             runs.append(('upscale-%s-%s' % (upscaler, scale), ['-upscale', upscaler, '-scale', scale, '-bundle', bundle]))
+    # AMD's upscaler with the masks the rig hands it, empty: as without them.
+    runs.append(('upscale-amd-masks-0.5', ['-upscale', 'amd', '-scale', '0.5', '-masks', '1', '-bundle', bundle]))
     folders = []
     try:
         ok = True

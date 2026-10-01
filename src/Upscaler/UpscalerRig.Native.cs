@@ -127,6 +127,10 @@ namespace ReDefinition.Upscaler
                     CameraNear = dispatch.CameraNear,
                     CameraFar = dispatch.CameraFar,
                     VerticalFovRadians = dispatch.CameraFovAngleVertical,
+                    // The masks as FSR 3 gets them (SetupDispatch); FSR's automatic
+                    // reactive mask has no counterpart here.
+                    Reactive = ReactiveMask == UpscalerMasks.ReactiveSource.Renderers ? masks.ReactiveHandle : IntPtr.Zero,
+                    TransparencyAndComposition = TransparencyMask ? masks.TransparencyHandle : IntPtr.Zero,
                 };
                 submitted = AmdUpscalerBridge.Submit(dispatchBuffer, ref packet);
             }

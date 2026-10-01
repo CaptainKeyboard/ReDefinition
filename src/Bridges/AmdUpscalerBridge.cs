@@ -40,6 +40,8 @@ namespace ReDefinition.Bridges
             public float CameraNear;
             public float CameraFar;
             public float VerticalFovRadians;
+            public IntPtr Reactive;
+            public IntPtr TransparencyAndComposition;
         }
 
         private const uint PacketMagic = 0x4B535041;   // 'KSPA'

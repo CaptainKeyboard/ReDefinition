@@ -490,10 +490,12 @@ namespace ReDefinition.Upscaler
         // frame generation read does not depend on the masks.
         private void RecordInputs()
         {
-            // FSR 3's inputs only: the proxy hands DLSS and AMD's DLL none.
+            // The masks for FSR 3 and AMD's DLL, which take them; DLSS has none. FSR's
+            // automatic reactive mask is FSR 3's own pass.
             bool fsr = !Bypass && !PassThrough && Backend == UpscalerBackend.Fsr3;
-            masks.Record(cam, TransparencyMask && fsr,
-                ReactiveMask == UpscalerMasks.ReactiveSource.Renderers && fsr,
+            bool amd = !Bypass && !PassThrough && Backend == UpscalerBackend.Amd;
+            masks.Record(cam, TransparencyMask && (fsr || amd),
+                ReactiveMask == UpscalerMasks.ReactiveSource.Renderers && (fsr || amd),
                 ReactiveMask == UpscalerMasks.ReactiveSource.Automatic && fsr,
                 DepthIdentifier(Depth), depthCopy, lowRes.format, renderSize);
             // EVE's clouds in the motion vectors, for every technique and frame

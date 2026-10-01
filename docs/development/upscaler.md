@@ -450,7 +450,7 @@ bloom and tonemapping need. Depth of field and motion blur after the upscaler ge
 copies of depth and motion vectors. Dithering happens once, on the final image. The Debug
 switch *TUFX after upscaling* is on by default.
 
-### The masks for FSR 3
+### The masks for FSR 3 and AMD's upscaler
 
 `UpscalerMasks` draws two masks, both off by default:
 
@@ -465,6 +465,11 @@ switch *TUFX after upscaling* is on by default.
 Both are recorded at the scene camera's `AfterForwardAlpha`. AMD's guidance for both is in
 `super-resolution-upscaler.md` of the FidelityFX SDK, under "Reactive mask" and
 "Transparency and composition mask".
+
+AMD's upscaler in the proxy gets the drawn masks too: the proxy copies them into textures
+shared with D3D12 and names them in `ffxDispatchDescUpscale`. FSR 4 does not require them,
+"though they may still be provided" (`super-resolution-ml.md`). FSR's own generator is
+FSR 3's pass and has no counterpart there.
 
 ## What the upscaler buys on the development machine
 

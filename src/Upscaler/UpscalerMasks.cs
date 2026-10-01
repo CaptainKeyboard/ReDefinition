@@ -143,6 +143,13 @@ namespace ReDefinition.Upscaler
 
         internal RenderTexture TransparencyTexture { get { return transparency; } }
         internal RenderTexture ReactiveTexture { get { return reactive; } }
+
+        // The masks' native textures for the proxy's upscaler, taken once per texture:
+        // GetNativeTexturePtr flushes the render thread.
+        private IntPtr transparencyHandle;
+        private IntPtr reactiveHandle;
+        internal IntPtr TransparencyHandle { get { return transparency != null ? transparencyHandle : IntPtr.Zero; } }
+        internal IntPtr ReactiveHandle { get { return reactive != null ? reactiveHandle : IntPtr.Zero; } }
         internal RenderTexture OpaqueOnly { get { return opaqueBuffer != null ? opaqueOnly : null; } }
         internal RenderTexture PostAlpha { get { return maskBuffer != null ? postAlpha : null; } }
         internal int Candidates { get { return candidates.Count; } }
@@ -178,10 +185,16 @@ namespace ReDefinition.Upscaler
             maskBuffer.SetGlobalVector(Ids.MaskTexel, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
 
             if (transparencyWanted && Ensure(ref transparency, size, RenderTextureFormat.R8, "ReDefinition_TransparencyMask", out created))
+            {
+                if (created) transparencyHandle = transparency.GetNativeTexturePtr();
                 RecordTransparency();
+            }
 
             if (renderersWanted && Ensure(ref reactive, size, RenderTextureFormat.R8, "ReDefinition_ReactiveMask", out created))
+            {
+                if (created) reactiveHandle = reactive.GetNativeTexturePtr();
                 RecordReactive(camera, depthSource, sceneDepth);
+            }
         }
 
         internal void Dispose()

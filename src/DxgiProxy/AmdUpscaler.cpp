@@ -175,7 +175,8 @@ namespace redefinition
         }
 
         if (!EnsureRuntimeLocked() || !EnsureFenceLocked() || !EnsureTexturesLocked(*packet)
-            || !EnsureContextLocked(*packet))
+            || !EnsureMaskLocked(reactive, packet->reactive)
+            || !EnsureMaskLocked(transparency, packet->transparencyAndComposition) || !EnsureContextLocked(*packet))
             return;
 
         UpscaleLocked(*packet);
@@ -306,6 +307,37 @@ namespace redefinition
         return true;
     }
 
+    // An optional mask's shared texture as the packet has it: made or matched for a
+    // mask, released once the mask is gone.
+    bool AmdUpscaler::EnsureMaskLocked(SharedTexture& shared, void* texture)
+    {
+        if (texture == nullptr)
+        {
+            if (shared.Valid())
+            {
+                WaitForListsLocked();
+                shared.Reset();
+            }
+            return true;
+        }
+        D3D11_TEXTURE2D_DESC desc = {};
+        if (!TextureDesc(texture, desc))
+        {
+            SetStatus(-1, "a mask of the frame is not a 2D texture");
+            return false;
+        }
+        if (shared.Valid() && shared.width == desc.Width && shared.height == desc.Height
+            && shared.format == TypedFormat(desc.Format))
+            return true;
+        WaitForListsLocked();
+        if (!Match(shared, device11.Get(), device12.Get(), desc))
+        {
+            SetStatus(-1, "a mask shared with D3D12 could not be made");
+            return false;
+        }
+        return true;
+    }
+
     bool AmdUpscaler::EnsureContextLocked(const AmdUpscalerPacket& packet)
     {
         // Not tried again for the frame it failed for.
@@ -405,6 +437,10 @@ namespace redefinition
         context11->CopyResource(colour.d3d11.Get(), static_cast<ID3D11Resource*>(packet.colour));
         context11->CopyResource(depth.d3d11.Get(), static_cast<ID3D11Resource*>(packet.depth));
         context11->CopyResource(motion.d3d11.Get(), static_cast<ID3D11Resource*>(packet.motionVectors));
+        if (packet.reactive != nullptr)
+            context11->CopyResource(reactive.d3d11.Get(), static_cast<ID3D11Resource*>(packet.reactive));
+        if (packet.transparencyAndComposition != nullptr)
+            context11->CopyResource(transparency.d3d11.Get(), static_cast<ID3D11Resource*>(packet.transparencyAndComposition));
         const UINT64 inputsCopied = ++fenceValue;
         context11->Signal(fence11.Get(), inputsCopied);
         context11->Flush();
@@ -427,6 +463,10 @@ namespace redefinition
         Transition(list.Get(), colour.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
         Transition(list.Get(), depth.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
         Transition(list.Get(), motion.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
+        if (packet.reactive != nullptr)
+            Transition(list.Get(), reactive.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
+        if (packet.transparencyAndComposition != nullptr)
+            Transition(list.Get(), transparency.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
         Transition(list.Get(), output.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         ffxDispatchDescUpscale dispatch = {};
@@ -435,6 +475,13 @@ namespace redefinition
         dispatch.color = ffxApiGetResourceDX12(colour.d3d12.Get(), FFX_API_RESOURCE_STATE_COMPUTE_READ);
         dispatch.depth = ffxApiGetResourceDX12(depth.d3d12.Get(), FFX_API_RESOURCE_STATE_COMPUTE_READ);
         dispatch.motionVectors = ffxApiGetResourceDX12(motion.d3d12.Get(), FFX_API_RESOURCE_STATE_COMPUTE_READ);
+        // The masks where the mod has them: FSR 3.1 reads them, FSR 4 "no longer
+        // requires" them, "though they may still be provided" (super-resolution-ml.md).
+        if (packet.reactive != nullptr)
+            dispatch.reactive = ffxApiGetResourceDX12(reactive.d3d12.Get(), FFX_API_RESOURCE_STATE_COMPUTE_READ);
+        if (packet.transparencyAndComposition != nullptr)
+            dispatch.transparencyAndComposition = ffxApiGetResourceDX12(transparency.d3d12.Get(),
+                                                                         FFX_API_RESOURCE_STATE_COMPUTE_READ);
         dispatch.output = ffxApiGetResourceDX12(output.d3d12.Get(), FFX_API_RESOURCE_STATE_UNORDERED_ACCESS);
         dispatch.jitterOffset = { packet.jitterX, packet.jitterY };
         dispatch.motionVectorScale = { packet.motionVectorScaleX, packet.motionVectorScaleY };
@@ -459,6 +506,10 @@ namespace redefinition
         const ffxReturnCode_t code = api.Dispatch(&context, &dispatch.header);
 
         Transition(list.Get(), output.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON);
+        if (packet.transparencyAndComposition != nullptr)
+            Transition(list.Get(), transparency.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
+        if (packet.reactive != nullptr)
+            Transition(list.Get(), reactive.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
         Transition(list.Get(), motion.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
         Transition(list.Get(), depth.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
         Transition(list.Get(), colour.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
@@ -513,5 +564,7 @@ namespace redefinition
         depth.Reset();
         motion.Reset();
         output.Reset();
+        reactive.Reset();
+        transparency.Reset();
     }
 }

@@ -36,6 +36,21 @@ namespace ReDefinition.RaytracingPlayer
 
         internal bool Upscaling { get { return upscaler != null && upscaler != "native"; } }
 
+        // -masks: empty reactive and transparency masks for AMD's upscaler, as the rig
+        // hands its own; empty, they leave the image as it is without them.
+        private System.IntPtr reactiveHandle, transparencyHandle;
+
+        private static System.IntPtr EmptyMask(Vector2Int size, string name)
+        {
+            var mask = new RenderTexture(size.x, size.y, 0, RenderTextureFormat.R8, RenderTextureReadWrite.Linear) { name = name };
+            mask.Create();
+            RenderTexture active = RenderTexture.active;
+            RenderTexture.active = mask;
+            GL.Clear(false, true, Color.clear);
+            RenderTexture.active = active;
+            return mask.GetNativeTexturePtr();
+        }
+
         private ReDefinition.Upscaler.RcasSharpener sharpener;
         private System.IntPtr sharpenInputHandle;
         private float sharpness = -1f;
@@ -85,6 +100,11 @@ namespace ReDefinition.RaytracingPlayer
             };
             upscaled.Create();
             upscaledHandle = upscaled.GetNativeTexturePtr();
+            if (name == "amd" && RtTurnRunner.Argument("-masks") != null)
+            {
+                reactiveHandle = EmptyMask(render, "turn reactive");
+                transparencyHandle = EmptyMask(render, "turn transparency");
+            }
         }
 
         // FSR 3's compute shaders from ReDefinition's bundle, as FsrShaderBundle loads them
@@ -231,6 +251,8 @@ namespace ReDefinition.RaytracingPlayer
                     CameraNear = near,
                     CameraFar = far,
                     VerticalFovRadians = verticalFovRadians,
+                    Reactive = reactiveHandle,
+                    TransparencyAndComposition = transparencyHandle,
                 };
                 if (!AmdUpscalerBridge.Submit(command, ref packet)) UpscalerProblem = AmdUpscalerBridge.Link.Describe();
             }
