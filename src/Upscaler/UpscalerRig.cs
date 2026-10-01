@@ -190,6 +190,14 @@ namespace ReDefinition.Upscaler
         private Matrix4x4 lastViewProjection;
         private int lastViewProjectionFrame = -1;
 
+        // The frame before's view-projection in this frame's world: KSP's floating
+        // origin moved the camera and the vessel by minus OriginShift, so a point now
+        // at p lay at p + OriginShift (docs/development/shared-foundation.md).
+        private static Matrix4x4 AcrossOriginShift(Matrix4x4 previous)
+        {
+            return SharedFrame.Shifted ? previous * Matrix4x4.Translate((Vector3)SharedFrame.OriginShift) : previous;
+        }
+
         private DepthTextureMode originalDepthMode;
         private DepthTextureMode addedDepthModes;
 
@@ -1039,7 +1047,7 @@ namespace ReDefinition.Upscaler
                     Matrix4x4 viewProjection = gpuProjection * cam.worldToCameraMatrix;
                     bool previousFrame = lastViewProjectionFrame == Time.frameCount - 1 && !dispatch.Reset;
                     StreamlineCamera.Fill(gpuProjection, viewProjection,
-                                          previousFrame ? lastViewProjection : viewProjection,
+                                          previousFrame ? AcrossOriginShift(lastViewProjection) : viewProjection,
                                           viewToClip, clipToView, clipToPrevClip, prevClipToClip);
                     lastViewProjection = viewProjection;
                     lastViewProjectionFrame = Time.frameCount;

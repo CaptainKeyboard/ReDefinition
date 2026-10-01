@@ -194,7 +194,7 @@ namespace ReDefinition.Upscaler
             Matrix4x4 view = cam.worldToCameraMatrix;
             Matrix4x4 viewProjection = gpuProjection * view;
             bool previousFrame = lastReconstructFrame == Time.frameCount - 1 && (flags & NativeUpscalerLink.FlagReset) == 0;
-            StreamlineCamera.Fill(gpuProjection, viewProjection, previousFrame ? lastReconstructViewProjection : viewProjection,
+            StreamlineCamera.Fill(gpuProjection, viewProjection, previousFrame ? AcrossOriginShift(lastReconstructViewProjection) : viewProjection,
                                   p.ViewToClip, p.ClipToView, p.ClipToPrevClip, p.PrevClipToClip);
             lastReconstructViewProjection = viewProjection;
             lastReconstructFrame = Time.frameCount;

@@ -81,6 +81,8 @@ the shift:
 * the sky.
 
 `Frame.OriginShift` and `Frame.BodyShift` carry both sums, for a mod's own reprojection.
+The previous view-projection that the rig hands to DLSS frame generation and Ray
+Reconstruction is translated by `OriginShift`, as the vessel shadow layer's is.
 **[open]** how large that error is in flight.
 
 ### History reset
