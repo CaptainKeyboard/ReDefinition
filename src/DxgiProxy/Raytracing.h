@@ -108,7 +108,9 @@ namespace redefinition
     };
 
     // The frame's flags.
-    constexpr uint32_t kRtFrameSameFrame = 1u << 0;   // copy the results back before the event returns
+    // The results are copied back before the event returns, whatever the flags; the mod
+    // still sets this bit, and it is accepted without effect.
+    constexpr uint32_t kRtFrameSameFrame = 1u << 0;
     constexpr uint32_t kRtFrameReset = 1u << 1;       // the history is not this camera's: start afresh
     constexpr uint32_t kRtFrameDenoise = 1u << 2;     // the signals through ReDefinition's denoiser
     constexpr uint32_t kRtFrameMotionVectors = 1u << 3;   // t5 holds motion: the previous uv is uv - motion.xy
@@ -476,7 +478,9 @@ namespace redefinition
         bool EnsureGuidesLocked(std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>& held, UINT width, UINT height);
         bool EnsureDefaultBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size,
                                  D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags);
-        void CompletePendingLocked();
+        // Closes the list and executes it; the fence value it signals, or 0 where the list
+        // could not be closed and the device's objects were let go of.
+        UINT64 SubmitLocked(Slot& slot, Shared* const* inputs, Shared* const* outputs);
         void WaitForSlotLocked(Slot& slot);
         void WaitForAllLocked();
         void ReleaseLocked();
@@ -548,9 +552,8 @@ namespace redefinition
 
         std::unordered_map<int32_t, Mesh> meshes;
         std::unordered_map<void*, Shared> textures;
-        std::vector<std::pair<Microsoft::WRL::ComPtr<ID3D11Resource>, Microsoft::WRL::ComPtr<ID3D11Texture2D>>>
-            pendingCopies;
-        UINT64 pendingFence = 0;
+        // The descriptor slots ran out once on this device (logged once).
+        bool meshSlotsFull = false;
         ULONGLONG nextEviction = 0;
 
         // Counts the devices the service has let go of: the managed side hands its

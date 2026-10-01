@@ -96,7 +96,6 @@ namespace redefinition
                                : "a Ray Reconstruction frame without the G-buffer, and no guides from its raytraced frame");
                 return;
             }
-        CompletePendingLocked();
 
         Shared* shared[8] = {};
         std::string problem;

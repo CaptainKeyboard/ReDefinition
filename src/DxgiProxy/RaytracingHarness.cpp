@@ -732,6 +732,8 @@ PsOut PsMain(VsOut input)
         // The previous frame's world-to-clip in this frame's camera-relative space; this
         // frame's where not given.
         const Mat4* previous = nullptr;
+        // The width the packet gives, kWidth where 0; the textures stay kWidth wide.
+        UINT width = 0;
     };
 
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
@@ -742,7 +744,7 @@ PsOut PsMain(VsOut input)
         packet.magic = kRtFrameMagic;
         packet.frameIndex = frameIndex;
         packet.flags = kRtFrameSameFrame | lighting.flags;
-        packet.width = kWidth;
+        packet.width = lighting.width != 0 ? lighting.width : kWidth;
         packet.height = kHeight;
         packet.signals = signals;
         ToFloats(camera.clipToWorld, packet.clipToWorld);
@@ -2435,6 +2437,31 @@ int main()
         Check(accepted && status.find(expectedMeshes) != std::string::npos && status.find("instances=20103") != std::string::npos
                   && status.find("last problem") == std::string::npos,
               "churn", "20 meshes added and 20 released a frame for 60 frames under 20 000 instances");
+    }
+
+    // ---------------------------------------------------------------- a frame that stops early
+    {
+        // The box's mesh, handed over again, is built in a frame that then stops: its
+        // denoiser's textures cannot be made at a width past Direct3D 12's 16384. The
+        // next frame's shadows need the box's structure that frame built.
+        SendInstances(proxy, scene, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        const bool accepted = SendMesh(proxy, meshes[1]) == 1;
+        Lighting stopping;
+        stopping.flags = kRtFrameDenoise;
+        stopping.width = 16385;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 3000, kRtSignalSunVisibility, stopping);
+        const bool stopped = proxy.Status().find("the denoiser's textures could not be made") != std::string::npos;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 3001, kRtSignalSunVisibility);
+        Frame after;
+        if (!ReadFrame(device.Get(), context.Get(), g, outputs, after))
+            return Fatal("reading the frame back", E_FAIL);
+        printf("      %s\n", proxy.Status().c_str());
+        if (!accepted || !stopped)
+            Check(false, "a frame that stops early", accepted ? "the frame did not stop" : "the mesh was not taken");
+        else
+            CheckVisibility("a frame that stops early", after,
+                            ExpectedVisibility(camera, after.depth, after.normals, boxes, sun));
     }
 
     // ---------------------------------------------------------------- timings

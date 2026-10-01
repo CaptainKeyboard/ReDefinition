@@ -114,7 +114,10 @@ void DiffuseLight(uint3 id : SV_DispatchThreadID)
     float distance;
     float3 radiance = Radiance(RayOrigin(position, normal), direction, DIFFUSE_DISTANCE, BOUNCES, random, distance,
                                kTerrainSkip);
-    output1[id.xy] = float4(radiance, distance);
+    // The distance of a miss is the ray's length (100000 from the mod), past a half
+    // float's largest value: written as is, it reads as infinity in the half-float
+    // target. Clamped to FP16_MAX, as the sky in Reconstruct.hlsl.
+    output1[id.xy] = float4(radiance, min(distance, 65504.0f));
 }
 
 // u2: the light the pixel's surface reflects towards the camera from its specular
@@ -151,7 +154,8 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     float distance;
     float3 radiance = Radiance(RayOrigin(position, normal), direction, SPECULAR_DISTANCE, BOUNCES, random, distance,
                                kTerrainSkip);
-    output2[id.xy] = float4(radiance, distance);
+    // A miss clamped to FP16_MAX, as in DiffuseLight.
+    output2[id.xy] = float4(radiance, min(distance, 65504.0f));
 }
 
 // The signals as the denoiser left them, for ForwardLight (Raytracing.cpp binds them).

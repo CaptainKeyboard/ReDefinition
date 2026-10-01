@@ -399,8 +399,6 @@ namespace redefinition
         if (!EnsureDeviceLocked())
             return;
 
-        CompletePendingLocked();
-
         // Retire unused shared copies once a second.
         const ULONGLONG now = GetTickCount64();
         if (now >= nextEviction)
@@ -480,10 +478,35 @@ namespace redefinition
             meshes.erase(found);
         }
         pendingReleases.clear();
+        // SetMesh told the managed side the mesh is taken, and it does not hand it over
+        // again: a mesh leaves the pending ones only once it is built. Where the
+        // descriptor slots run out or a mesh's buffers cannot be made, it and the rest
+        // wait for a later frame.
         uint32_t built = 0;
-        for (auto& entry : pendingMeshes)
+        for (auto entry = pendingMeshes.begin(); entry != pendingMeshes.end();)
         {
-            auto existing = meshes.find(entry.first);
+            Mesh mesh;
+            if (!TakeDescriptorSlotLocked(mesh.slot))
+            {
+                if (!meshSlotsFull)
+                {
+                    meshSlotsFull = true;
+                    SetProblem("more meshes than the service holds (" + std::to_string(kMaxMeshes)
+                               + "); the rest wait until meshes are released");
+                }
+                break;
+            }
+            if (!UploadMeshLocked(mesh, entry->second, slot))
+            {
+                // The list may already copy into the buffers made before the failure.
+                slot.held.push_back(mesh.positions);
+                slot.held.push_back(mesh.attributes);
+                slot.held.push_back(mesh.indices);
+                slot.held.push_back(mesh.blas);
+                retiredSlots.emplace_back(mesh.slot, fenceValue + 1);
+                break;
+            }
+            auto existing = meshes.find(entry->first);
             if (existing != meshes.end())
             {
                 Mesh& old = existing->second;
@@ -492,23 +515,11 @@ namespace redefinition
                 slot.held.push_back(old.indices);
                 slot.held.push_back(old.blas);
                 retiredSlots.emplace_back(old.slot, fenceValue + 1);
-                meshes.erase(existing);
             }
-            Mesh mesh;
-            if (!TakeDescriptorSlotLocked(mesh.slot))
-            {
-                SetProblem("more meshes than the service holds (" + std::to_string(kMaxMeshes) + ")");
-                break;
-            }
-            if (!UploadMeshLocked(mesh, entry.second, slot))
-            {
-                retiredSlots.emplace_back(mesh.slot, 0);
-                continue;
-            }
-            meshes[entry.first] = std::move(mesh);
+            meshes[entry->first] = std::move(mesh);
+            entry = pendingMeshes.erase(entry);
             ++built;
         }
-        pendingMeshes.clear();
         if (built > 0)
         {
             D3D12_RESOURCE_BARRIER barrier = UavBarrier(nullptr);
@@ -524,7 +535,7 @@ namespace redefinition
                 highest = std::max<UINT>(highest, static_cast<UINT>(entry.first) + 1);
             if (!EnsureMaterialTexturesLocked(std::max<UINT>(highest, 1), slot))
             {
-                list->Close();
+                SubmitLocked(slot, inputs, outputs);
                 return;
             }
             if (!pendingTextures.empty())
@@ -564,15 +575,17 @@ namespace redefinition
                         materialTextures.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
                     list->ResourceBarrier(1, &toRead);
                     slot.held.push_back(upload);
+                    pendingTextures.clear();
                 }
-                pendingTextures.clear();
+                else
+                    SetProblem("the material textures' upload buffer could not be made");
             }
         }
 
         UINT instanceCount = 0;
         if (!BuildSceneLocked(slot, slotNumber, packet->frameIndex, inputs[kRtInputInstances], instanceCount))
         {
-            list->Close();
+            SubmitLocked(slot, inputs, outputs);
             return;
         }
         list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 1);
@@ -581,7 +594,7 @@ namespace redefinition
         const bool denoising = (packet->flags & kRtFrameDenoise) != 0;
         if (denoising && !EnsureDenoiseTargetsLocked(packet->width, packet->height, slot))
         {
-            list->Close();
+            SubmitLocked(slot, inputs, outputs);
             return;
         }
         DenoiseTarget* noisyFor[kRtMaxTextures] = {};
@@ -806,11 +819,37 @@ namespace redefinition
             list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
         list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase, kTimestampsPerSlot,
                                timestampReadback.Get(), static_cast<UINT64>(timestampBase) * sizeof(UINT64));
-        hr = list->Close();
+        const UINT64 finished = SubmitLocked(slot, inputs, outputs);
+        if (finished == 0)
+            return;
+
+        // The results back into Unity's textures before the event returns.
+        context11->Wait(fence11.Get(), finished);
+        for (uint32_t i = 0; i < kRtMaxTextures; ++i)
+            if (outputs[i] != nullptr)
+                context11->CopyResource(static_cast<ID3D11Resource*>(packet->outputs[i]), outputs[i]->texture.d3d11.Get());
+
+        std::lock_guard<std::mutex> status(statusLock);
+        ++frames;
+        liveMeshes = static_cast<uint32_t>(meshes.size());
+        lastInstances = instanceCount;
+        lastBuilt = built;
+    }
+
+    UINT64 Raytracing::SubmitLocked(Slot& slot, Shared* const* inputs, Shared* const* outputs)
+    {
+        // A frame that stops early is submitted too: its list holds the meshes' uploads
+        // and builds, which the meshes count as built, the material textures' copies,
+        // which leave the pending ones, and barriers whose end states UseLocked and
+        // sceneStateRecorded already took.
+        const HRESULT hr = list->Close();
         if (FAILED(hr))
         {
+            // None of it runs: everything made on the device goes, and the managed side,
+            // seeing the generation change, hands its meshes and textures over again.
             SetProblem("the command list could not be closed (" + Hr(hr) + ")");
-            return;
+            ReleaseLocked();
+            return 0;
         }
         ID3D12CommandList* lists[] = { list.Get() };
         queue->ExecuteCommandLists(1, lists);
@@ -825,31 +864,7 @@ namespace redefinition
             if (outputs[i] != nullptr)
                 outputs[i]->lastFence = finished;
         }
-
-        if ((packet->flags & kRtFrameSameFrame) != 0)
-        {
-            context11->Wait(fence11.Get(), finished);
-            for (uint32_t i = 0; i < kRtMaxTextures; ++i)
-                if (outputs[i] != nullptr)
-                    context11->CopyResource(static_cast<ID3D11Resource*>(packet->outputs[i]),
-                                            outputs[i]->texture.d3d11.Get());
-        }
-        else
-        {
-            // Copied back at the next frame, when the queue is long past this list.
-            pendingFence = finished;
-            pendingCopies.clear();
-            for (uint32_t i = 0; i < kRtMaxTextures; ++i)
-                if (outputs[i] != nullptr)
-                    pendingCopies.emplace_back(static_cast<ID3D11Resource*>(packet->outputs[i]),
-                                               outputs[i]->texture.d3d11);
-        }
-
-        std::lock_guard<std::mutex> status(statusLock);
-        ++frames;
-        liveMeshes = static_cast<uint32_t>(meshes.size());
-        lastInstances = instanceCount;
-        lastBuilt = built;
+        return finished;
     }
 
     bool Raytracing::TakeDescriptorSlotLocked(uint32_t& slot)
@@ -1645,17 +1660,6 @@ namespace redefinition
         return true;
     }
 
-    void Raytracing::CompletePendingLocked()
-    {
-        if (pendingCopies.empty())
-            return;
-        context11->Wait(fence11.Get(), pendingFence);
-        for (auto& copy : pendingCopies)
-            context11->CopyResource(copy.first.Get(), copy.second.Get());
-        pendingCopies.clear();
-        pendingFence = 0;
-    }
-
     void Raytracing::WaitForSlotLocked(Slot& slot)
     {
         if (slot.done == 0 || fence12 == nullptr || fenceEvent == nullptr)
@@ -1699,9 +1703,8 @@ namespace redefinition
     {
         WaitForAllLocked();
         ReleaseRegenerationLocked();
-        pendingCopies.clear();
-        pendingFence = 0;
         meshes.clear();
+        meshSlotsFull = false;
         textures.clear();
         pipelines.clear();
         denoisePipelines.clear();
