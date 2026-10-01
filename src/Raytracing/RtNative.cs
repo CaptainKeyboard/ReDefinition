@@ -27,7 +27,6 @@ namespace ReDefinition.Raytracing
         internal const uint FlagDenoise = 1u << 2;
         internal const uint FlagMotionVectors = 1u << 3;
         internal const uint FlagGuides = 1u << 4;
-        internal const uint ReconstructLdr = 1u << 8;
 
         internal const uint SignalSun = 1u << 0;
         internal const uint SignalOcclusion = 1u << 1;

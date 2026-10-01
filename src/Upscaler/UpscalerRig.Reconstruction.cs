@@ -37,6 +37,10 @@ namespace ReDefinition.Upscaler
         private int reconstructedAdvanced = -1;
         private float reconstructedAdvancedAt = -1f;
         private bool reconstructedEver;
+        // Ray Reconstruction gave up in the last frame: Super Resolution starts its history
+        // afresh in this one, which the give-up frame itself could not tell it.
+        private bool handedBack;
+        private bool loggedLdr;
         private Matrix4x4 lastReconstructViewProjection;
         private int lastReconstructFrame = -1;
 
@@ -48,8 +52,23 @@ namespace ReDefinition.Upscaler
         private bool SubmitReconstruction(ref uint flags, out bool shown)
         {
             shown = false;
+            if (handedBack)
+            {
+                handedBack = false;
+                flags |= NativeUpscalerLink.FlagReset;
+            }
             RtCamera raytraced = RtCamera.Current;
-            bool wanted = raytraced != null && raytraced.isActiveAndEnabled && raytraced.Camera == cam
+            // HDR only: "DLSS-RR only support HDR inputs ... colorBuffersHDR **must** be set
+            // to eTrue" (ProgrammingGuideDLSS_RR.md). An LDR camera -- KSP's editors --
+            // keeps DLSS Super Resolution.
+            bool raytracedHere = raytraced != null && raytraced.isActiveAndEnabled && raytraced.Camera == cam;
+            if (raytracedHere && !EffectiveHdr && !loggedLdr)
+            {
+                loggedLdr = true;
+                Debug.Log(Log.Tag + " DLSS Ray Reconstruction takes HDR frames only; this camera renders LDR: DLSS Super"
+                          + " Resolution.");
+            }
+            bool wanted = raytracedHere && EffectiveHdr
                           && Time.unscaledTime - reconstructionGaveUpAt > ReconstructionRetrySeconds && ReconstructionReady();
             if (wanted) raytraced.ReconstructionLease = Time.frameCount;
             bool was = Reconstructing;
@@ -85,6 +104,7 @@ namespace ReDefinition.Upscaler
             {
                 reconstructionGaveUpAt = Time.unscaledTime;
                 Reconstructing = false;
+                handedBack = true;
                 Debug.Log(Log.Tag + " DLSS Ray Reconstruction " + (reconstructedEver ? "stopped showing frames" : "showed no frame")
                           + "; DLSS Super Resolution for " + ReconstructionRetrySeconds + " s. " + raytraced.Status());
             }
@@ -125,8 +145,7 @@ namespace ReDefinition.Upscaler
         {
             RtNative.ReconstructPacket p = reconstructPacket;
             p.FrameIndex = raytraced.GuidesIndex;
-            p.Flags = ((flags & NativeUpscalerLink.FlagReset) != 0 ? RtNative.FlagReset : 0u)
-                      | ((flags & NativeUpscalerLink.FlagHdr) != 0 ? 0u : RtNative.ReconstructLdr);
+            p.Flags = (flags & NativeUpscalerLink.FlagReset) != 0 ? RtNative.FlagReset : 0u;
             p.RenderWidth = (uint)renderSize.x;
             p.RenderHeight = (uint)renderSize.y;
             p.OutputWidth = (uint)displaySize.x;

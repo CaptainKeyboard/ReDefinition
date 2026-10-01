@@ -113,8 +113,6 @@ namespace redefinition
     constexpr uint32_t kRtFrameDenoise = 1u << 2;     // the signals through ReDefinition's denoiser
     constexpr uint32_t kRtFrameMotionVectors = 1u << 3;   // t5 holds motion: the previous uv is uv - motion.xy
     constexpr uint32_t kRtFrameGuides = 1u << 4;      // DLSS Ray Reconstruction's guides from this frame's surfaces
-    // A Ray Reconstruction frame's own flag: its colour is not HDR.
-    constexpr uint32_t kRtReconstructLdr = 1u << 8;
 
     // The signals a frame traces; each writes its output slot.
     constexpr uint32_t kRtSignalSunVisibility = 1u << 0;   // u0: visibility of the sun, 0 to 1

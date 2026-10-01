@@ -300,7 +300,9 @@ namespace redefinition
         options.mode = static_cast<sl::DLSSMode>(packet->mode);
         options.outputWidth = packet->outputWidth;
         options.outputHeight = packet->outputHeight;
-        options.colorBuffersHDR = (packet->flags & kRtReconstructLdr) != 0 ? sl::Boolean::eFalse : sl::Boolean::eTrue;
+        // "DLSS-RR only support HDR inputs" (ProgrammingGuideDLSS_RR.md): the mod sends
+        // HDR frames only (UpscalerRig.SubmitReconstruction).
+        options.colorBuffersHDR = sl::Boolean::eTrue;
         options.normalRoughnessMode = sl::DLSSDNormalRoughnessMode::ePacked;
         options.worldToCameraView = Matrix(packet->worldToView);
         options.cameraViewToWorld = Matrix(packet->viewToWorld);

@@ -281,9 +281,12 @@ needs no G-buffer **[meas]** (harness: 64 of 64 frames reconstructed without one
 reference by 0.0059 against 0.0053 with it). The sky's guides are NVIDIA's defaults:
 albedo 0.5, specular albedo, normal and roughness 0, hit distance 65 504 **[doc]** (DLSS-RR
 Integration Guide 3.4.1 to 3.4.4, 3.4.9). The upscaler sends a frame to Ray
-Reconstruction when DLSS is chosen, the scene camera is raytraced and the proxy reports
-Ray Reconstruction ready; the first frame after switching goes through Super Resolution,
-as its raytraced frame made no guides yet. Where Ray Reconstruction shows no frame for a
+Reconstruction when DLSS is chosen, the scene camera is raytraced and renders HDR, and the
+proxy reports Ray Reconstruction ready; "DLSS-RR only support HDR inputs" **[doc]**
+(ProgrammingGuideDLSS_RR.md), so an LDR camera, as in KSP's editors, keeps Super
+Resolution. The first frame after switching goes through Super Resolution, as its
+raytraced frame made no guides yet, and the first frame after Ray Reconstruction gave up
+starts Super Resolution's history afresh. Where Ray Reconstruction shows no frame for a
 second, the upscaler stays with Super Resolution and writes why into the log. Whether it
 runs in the game is **[open]**.
 
