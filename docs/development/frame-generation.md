@@ -102,12 +102,17 @@ and the HUD-less image, so that image must equal the backbuffer everywhere but t
 DLSS-G's HUD-less input: "Should contain the full viewable scene, without any HUD/UI
 elements in it".
 
+While KSP's pause menu is open, frame generation is off: "DLSS-G is turned off ... when the
+game is paused, loading, in menus, or otherwise not rendering game frames"
+(ProgrammingGuideDLSS_G.md, checklist) **[doc]**. Under the menu the scene stands still,
+and there is nothing to interpolate.
+
 Whichever of the presenter and the effect cameras renders last leaves the finished scene,
 and everything drawn afterwards is UI. The KSP log names the cameras drawn after the
 snapshot, and warns where one carries a post-processing layer.
 
 **The check.** Every `reportSeconds` the proxy reads both images back, never waiting on the
-GPU, and logs how much of the frame differs and where, as a 12 x 5 tile map, in both
+GPU, samples every fourth pixel each way, and logs how much of the frame differs and where, as a 12 x 5 tile map, in both
 orientations. A correct snapshot differs by the UI only; a late one by nothing; a stale one
 by nearly everything. The motion vector check reprojects the previous frame onto this one
 with both orientations and signs, and names the one with the smallest error.

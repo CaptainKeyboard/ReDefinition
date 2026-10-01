@@ -982,8 +982,13 @@ namespace ReDefinition.Upscaler
             dispatch.Reset = resetHistory || cut;
             resetHistory = false;
 
-            // Wanted only with the HUD-less capture attached, like the packet below.
-            FrameGenerationBridge.SetEnabled(FrameGeneration && hudLessBuffer != null);
+            // Wanted only with the HUD-less capture attached, like the packet below; off
+            // while KSP's pause menu is open: "DLSS-G is turned off ... when the game is
+            // paused, loading, in menus, or otherwise not rendering game frames"
+            // (ProgrammingGuideDLSS_G.md, checklist). The frames sent then are a frozen
+            // scene under a menu, nothing to interpolate.
+            bool paused = PauseMenu.exists && PauseMenu.isOpen;
+            FrameGenerationBridge.SetEnabled(FrameGeneration && hudLessBuffer != null && !paused);
 
             dispatchBuffer.Clear();
             RenderTexture result = upscaled;
