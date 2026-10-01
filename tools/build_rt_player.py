@@ -44,6 +44,7 @@ SOURCES = [
     'src/Fsr3/Fsr3UpscalerPass.cs',
     'src/Fsr3/Fsr3UpscalerResources.cs',
     'src/Fsr3/ResourceView.cs',
+    'src/Upscaler/RcasSharpener.cs',
 ]
 SHADERS = [
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtCapture.shader',

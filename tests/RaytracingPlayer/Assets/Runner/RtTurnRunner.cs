@@ -214,9 +214,19 @@ namespace ReDefinition.RaytracingPlayer
             screen.gameObject.AddComponent<RtTurnShow>().Source = target;
         }
 
-        // On the circle around the rocket at angle degrees.
+        // -tilt: the camera stands and tilts up from the rocket into the sky instead.
+        private bool tilt;
+
+        // On the circle around the rocket at angle degrees; with -tilt, at angle 0 and
+        // looking that many degrees above the rocket.
         private void Pose(float degrees)
         {
+            if (tilt)
+            {
+                cam.transform.position = new Vector3(0f, EyeHeight, -Radius);
+                cam.transform.rotation = Quaternion.LookRotation(Target - cam.transform.position) * Quaternion.Euler(-degrees, 0f, 0f);
+                return;
+            }
             float a = degrees * Mathf.Deg2Rad;
             cam.transform.position = new Vector3(Mathf.Sin(a) * Radius, EyeHeight, -Mathf.Cos(a) * Radius);
             cam.transform.LookAt(Target);
@@ -234,12 +244,15 @@ namespace ReDefinition.RaytracingPlayer
 
             // The turn: settled, a slow turn, a fast one as the recordings show, a jump
             // as after a hitch, then still.
+            // Tilted, a quarter of the steps: 70 degrees up in all.
+            tilt = Argument("-tilt") != null;
+            float step = tilt ? 0.25f : 1f;
             var path = new List<float>();
             float angle = 0f;
             for (int i = 0; i < 6; i++) path.Add(angle);
-            for (int i = 0; i < 20; i++) path.Add(angle += 2f);
-            for (int i = 0; i < 10; i++) path.Add(angle += 12f);
-            path.Add(angle += 40f);
+            for (int i = 0; i < 20; i++) path.Add(angle += 2f * step);
+            for (int i = 0; i < 10; i++) path.Add(angle += 12f * step);
+            path.Add(angle += 40f * step);
             // Still long enough, upscaled, to see whether the frame settles and flickers.
             for (int i = 0; i < (upscaler != null ? 30 : 12); i++) path.Add(angle);
 
@@ -473,7 +486,11 @@ namespace ReDefinition.RaytracingPlayer
             if (reconstructed)
             {
                 Fill(source.width, source.height);
+                // -sharpness: RCAS after Ray Reconstruction, as the rig sharpens DLSS's output
+                // (RcasSharpener): Ray Reconstruction writes its input, RCAS the result.
+                if (Sharpener() != null) packet.Output = sharpenInputHandle;
                 ring.Issue(command, RtNative.RenderEvent, RtNative.ReconstructEvent, ref packet);
+                if (sharpener != null) sharpener.Schedule(command, sharpness);
             }
             if (Upscaling && !reconstructed) Upscale(command, cam.fieldOfView * Mathf.Deg2Rad);
             Graphics.ExecuteCommandBuffer(command);

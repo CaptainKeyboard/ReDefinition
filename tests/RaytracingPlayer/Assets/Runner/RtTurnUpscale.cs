@@ -36,6 +36,31 @@ namespace ReDefinition.RaytracingPlayer
 
         internal bool Upscaling { get { return upscaler != null && upscaler != "native"; } }
 
+        private ReDefinition.Upscaler.RcasSharpener sharpener;
+        private System.IntPtr sharpenInputHandle;
+        private float sharpness = -1f;
+        private bool sharpenerLooked;
+
+        // RCAS after Ray Reconstruction where -sharpness is given, into the result.
+        private ReDefinition.Upscaler.RcasSharpener Sharpener()
+        {
+            if (sharpenerLooked) return sharpener;
+            sharpenerLooked = true;
+            string value = RtTurnRunner.Argument("-sharpness");
+            if (value == null) return null;
+            sharpness = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+            string problem;
+            Fsr3UpscalerShaders shaders = FsrShaders(out problem);
+            if (shaders == null)
+            {
+                UpscalerProblem = problem;
+                return null;
+            }
+            sharpener = new ReDefinition.Upscaler.RcasSharpener(shaders.sharpenPass, result);
+            sharpenInputHandle = sharpener.Input.GetNativeTexturePtr();
+            return sharpener;
+        }
+
         internal void SetJitter(bool on)
         {
             jitter = on;
