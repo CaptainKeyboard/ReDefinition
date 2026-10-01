@@ -262,10 +262,16 @@ namespace redefinition
             return hr;
         }
 
-        // DLSS frame generation where it runs: set up now, because its queue has
-        // to come from Streamline's device proxy ("Mandatory - ID3D12Device*
-        // eID3D12Device_CreateCommandQueue", sl_hooks.h).
-        const bool dlss = Config().frameGeneration && Config().dlssFrameGeneration && SetUpStreamline(adapter.Get());
+        // Streamline where DLSS frame generation runs, and, with frame generation
+        // off, for DLSS Ray Reconstruction alone, which needs Streamline's swapchain
+        // too: "you must ensure the common plugin's presentCommon() function is
+        // called every frame" (ProgrammingGuideManualHooking.md 2.0). With frame
+        // generation on and no DLSS-G, FSR's swapchain takes the place. Set up now,
+        // because the queue has to come from Streamline's device proxy ("Mandatory -
+        // ID3D12Device* eID3D12Device_CreateCommandQueue", sl_hooks.h).
+        const bool dlssFrameGeneration = Config().frameGeneration && Config().dlssFrameGeneration;
+        const bool dlss = (dlssFrameGeneration || !Config().frameGeneration)
+                          && SetUpStreamline(adapter.Get(), dlssFrameGeneration);
 
         D3D12_COMMAND_QUEUE_DESC queueDesc = {};
         queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -381,7 +387,7 @@ namespace redefinition
         Raytracing::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(), queue.Get());
         FrameGeneration::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(),
                                       description.Width, description.Height, desc.Format);
-        if (streamlineSwapChain)
+        if (streamlineSwapChain && Streamline::Get().FrameGenerationAvailable())
             FrameGeneration::Get().UseStreamline(this);
         g_deviceRemoved.store(S_OK);
 
@@ -477,7 +483,7 @@ namespace redefinition
         return created.As(&swapChain);
     }
 
-    bool SwapChainProxy::SetUpStreamline(IDXGIAdapter* adapter)
+    bool SwapChainProxy::SetUpStreamline(IDXGIAdapter* adapter, bool frameGenerationWanted)
     {
         Streamline& streamline = Streamline::Get();
         if (!streamline.Acquire(this))
@@ -487,7 +493,7 @@ namespace redefinition
         const HRESULT described = adapter->GetDesc(&adapterDesc);
         if (FAILED(described))
             streamline.Note("the adapter has no description (" + Hr(described) + ") -- FSR frame generation instead");
-        if (FAILED(described) || !streamline.FrameGenerationSupported(adapterDesc.AdapterLuid)
+        if (FAILED(described) || !streamline.Supported(adapterDesc.AdapterLuid, frameGenerationWanted)
             || !streamline.SetDevice(d3d12Device.Get()))
         {
             streamline.Release(this);
@@ -556,9 +562,14 @@ namespace redefinition
         }
 
         streamlineSwapChain = true;
-        g_generatingSwapChains.fetch_add(1);
-        g_streamlineSwapChains.fetch_add(1);
-        LogLine("Swapchain created through Streamline (DLSS frame generation)");
+        streamlineGenerates = Streamline::Get().FrameGenerationAvailable();
+        if (streamlineGenerates)
+        {
+            g_generatingSwapChains.fetch_add(1);
+            g_streamlineSwapChains.fetch_add(1);
+        }
+        LogLine(streamlineGenerates ? "Swapchain created through Streamline (DLSS frame generation)"
+                                    : "Swapchain created through Streamline (DLSS Ray Reconstruction, no frame generation)");
         return S_OK;
     }
 
@@ -567,9 +578,13 @@ namespace redefinition
         if (streamlineSwapChain)
         {
             swapChain.Reset();
-            g_generatingSwapChains.fetch_sub(1);
-            g_streamlineSwapChains.fetch_sub(1);
+            if (streamlineGenerates)
+            {
+                g_generatingSwapChains.fetch_sub(1);
+                g_streamlineSwapChains.fetch_sub(1);
+            }
             streamlineSwapChain = false;
+            streamlineGenerates = false;
         }
         streamlineQueue.Reset();
         streamlineDevice.Reset();

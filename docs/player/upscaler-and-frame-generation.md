@@ -151,7 +151,7 @@ within a second of it being saved.
 | Setting | Default | Does |
 |---|---|---|
 | `enabled` | 1 | 0 passes everything through to Windows' own `dxgi.dll`. Read at the start |
-| `frameGeneration` | 1 | 0: no frame generation, the proxy presents only. Read at the start |
+| `frameGeneration` | 1 | 0: no frame generation, the proxy presents only, through NVIDIA's Streamline where it lies there and the GPU runs DLSS Ray Reconstruction. Read at the start |
 | `dlssFrameGeneration` | 1 | 0: FSR 3 frame generation even where DLSS frame generation runs. Read at the start |
 | `fgVSync` | 0 | 1: while FSR 3 frame generation is on, the game presents with V-Sync whatever KSP's setting says |
 | `fgHalfRefreshLimit` | 0 | 1: with FSR 3 frame generation and without V-Sync, the rendered frame rate is held just below half the refresh rate |

@@ -344,8 +344,9 @@ namespace redefinition
         LogLine("DLSS frame generation: Streamline shut down");
     }
 
-    bool Streamline::FrameGenerationSupported(const LUID& adapter)
+    bool Streamline::Supported(const LUID& adapter, bool frameGenerationWanted)
     {
+        frameGeneration = false;
         if (!initialised)
             return false;
 
@@ -354,10 +355,22 @@ namespace redefinition
         info.deviceLUID = reinterpret_cast<uint8_t*>(&luid);
         info.deviceLUIDSizeInBytes = sizeof(LUID);
 
-        const sl::Result frameGeneration = slIsFeatureSupported(sl::kFeatureDLSS_G, info);
-        if (frameGeneration != sl::Result::eOk)
+        if (!frameGenerationWanted)
         {
-            SetState("does not run here: " + ResultText(frameGeneration) + " -- FSR frame generation instead", true);
+            const sl::Result reconstruction = slIsFeatureSupported(sl::kFeatureDLSS_RR, info);
+            if (reconstruction != sl::Result::eOk)
+            {
+                SetState("frame generation is off, and DLSS Ray Reconstruction does not run here: "
+                         + ResultText(reconstruction), true);
+                return false;
+            }
+            return true;
+        }
+
+        const sl::Result dlssg = slIsFeatureSupported(sl::kFeatureDLSS_G, info);
+        if (dlssg != sl::Result::eOk)
+        {
+            SetState("does not run here: " + ResultText(dlssg) + " -- FSR frame generation instead", true);
             return false;
         }
 
@@ -370,6 +383,7 @@ namespace redefinition
             return false;
         }
 
+        frameGeneration = true;
         return true;
     }
 
@@ -384,22 +398,25 @@ namespace redefinition
         }
         deviceSet = true;
 
-        const bool functions = ImportFeature(slDLSSGSetOptions, sl::kFeatureDLSS_G, "slDLSSGSetOptions")
-                               && ImportFeature(slDLSSGGetState, sl::kFeatureDLSS_G, "slDLSSGGetState")
-                               && ImportFeature(slReflexSetOptions, sl::kFeatureReflex, "slReflexSetOptions")
-                               && ImportFeature(slReflexSleep, sl::kFeatureReflex, "slReflexSleep")
-                               && ImportFeature(slPCLSetMarker, sl::kFeaturePCL, "slPCLSetMarker");
-        if (!functions)
+        if (frameGeneration)
         {
-            SetState("its feature functions are missing -- FSR frame generation instead", true);
-            return false;
-        }
+            const bool functions = ImportFeature(slDLSSGSetOptions, sl::kFeatureDLSS_G, "slDLSSGSetOptions")
+                                   && ImportFeature(slDLSSGGetState, sl::kFeatureDLSS_G, "slDLSSGGetState")
+                                   && ImportFeature(slReflexSetOptions, sl::kFeatureReflex, "slReflexSetOptions")
+                                   && ImportFeature(slReflexSleep, sl::kFeatureReflex, "slReflexSleep")
+                                   && ImportFeature(slPCLSetMarker, sl::kFeaturePCL, "slPCLSetMarker");
+            if (!functions)
+            {
+                SetState("its feature functions are missing -- FSR frame generation instead", true);
+                return false;
+            }
 
-        // Reflex on: "Reflex is not active while DLSS-G is running, Reflex must
-        // be turned on when DLSS-G is on" (sl_dlss_g.h, DLSSGStatus).
-        sl::ReflexOptions reflex{};
-        reflex.mode = sl::ReflexMode::eLowLatency;
-        Check(slReflexSetOptions(reflex), "slReflexSetOptions");
+            // Reflex on: "Reflex is not active while DLSS-G is running, Reflex must
+            // be turned on when DLSS-G is on" (sl_dlss_g.h, DLSSGStatus).
+            sl::ReflexOptions reflex{};
+            reflex.mode = sl::ReflexMode::eLowLatency;
+            Check(slReflexSetOptions(reflex), "slReflexSetOptions");
+        }
 
         // The message PCL Stats pings the game's window with: "On seeing the ping
         // message, the application must either call slPclSetMarker or
@@ -466,7 +483,7 @@ namespace redefinition
     bool Streamline::RayReconstructionReady(std::string& why) const
     {
         std::lock_guard<std::mutex> lock(stateMutex);
-        why = deviceSet ? rayReconstructionWhy : std::string("Streamline has no device: DLSS frame generation does not run");
+        why = deviceSet ? rayReconstructionWhy : std::string("Streamline has no device: it runs with DLSS frame generation, or with frame generation off in ReDefinitionProxy.ini");
         return deviceSet && rayReconstruction.load();
     }
 

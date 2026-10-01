@@ -161,7 +161,7 @@ namespace redefinition
         // adapter, the D3D12 device handed to it and upgraded to its proxy --
         // before the queue, which is made through that proxy. False, with
         // Streamline shut down again, wherever it does not run.
-        bool SetUpStreamline(IDXGIAdapter* adapter);
+        bool SetUpStreamline(IDXGIAdapter* adapter, bool frameGenerationWanted);
         HRESULT CreateStreamlineSwapChain(IDXGIFactory2* factory, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1& desc,
                                           const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc,
                                           IDXGIOutput* restrictToOutput);
@@ -274,6 +274,8 @@ namespace redefinition
         ComPtr<ID3D12Device> streamlineDevice;
         ComPtr<ID3D12CommandQueue> streamlineQueue;
         bool streamlineSwapChain = false;
+        // Whether it generates frames, not only presents for Ray Reconstruction.
+        bool streamlineGenerates = false;
         uint32_t nextFrameIndex = 0;
         uint32_t presentedFrameIndex = 0;
         bool presentingGameFrames = false;

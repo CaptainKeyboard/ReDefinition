@@ -267,8 +267,14 @@ smooth one:
 | NVIDIA DLSS Ray Reconstruction | GeForce RTX **[doc]** | the player's `sl.dlss_d.dll` and `nvngx_dlssd.dll` | the whole frame with its noise, in place of DLSS Super Resolution **[doc]** |
 
 ReDefinition gives Ray Reconstruction its own Streamline viewport, apart from frame
-generation's. It runs where Streamline is set up, which is where DLSS frame generation
-runs **[open]** (on GPUs without DLSS frame generation).
+generation's. It runs where Streamline is set up: where DLSS frame generation runs, and,
+with `frameGeneration=0` in `ReDefinitionProxy.ini`, wherever the GPU runs Ray
+Reconstruction, on a GeForce RTX 20 or 30 among them. Streamline needs its swapchain for
+that too, "you must ensure the common plugin's presentCommon() function is called every
+frame" **[doc]** (ProgrammingGuideManualHooking.md 2.0), and FSR's frame generation needs
+its own, so with frame generation on and no DLSS frame generation FSR's swapchain is made
+**[src]**. The raytracing harness passes both Ray Reconstruction checks that way
+**[meas]** (Streamline without frame generation, RTX 4090).
 
 With DLSS Ray Reconstruction the signals go into the lighting undenoised. Ray
 Reconstruction then denoises and upscales the finished frame in one step, where DLSS Super

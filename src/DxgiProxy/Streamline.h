@@ -56,9 +56,14 @@ namespace redefinition
         // Why DLSS frame generation does not run, where the proxy found out itself.
         void Note(const std::string& why);
 
-        // Whether DLSS-G and Reflex run on the adapter with this LUID. Logs why
-        // not.
-        bool FrameGenerationSupported(const LUID& adapter);
+        // Whether Streamline is of use on the adapter with this LUID: for DLSS-G,
+        // which needs Reflex with it, where frame generation is wanted; for DLSS Ray
+        // Reconstruction alone where it is not. Logs why not.
+        bool Supported(const LUID& adapter, bool frameGenerationWanted);
+
+        // Whether the device set runs DLSS frame generation, not Ray Reconstruction
+        // alone.
+        bool FrameGenerationAvailable() const { return frameGeneration.load(); }
 
         // The device every feature is initialised with. Only after it are the
         // feature functions reachable: "Must be called AFTER device is set"
@@ -207,6 +212,7 @@ namespace redefinition
         PFun_slDLSSDSetOptions* slDLSSDSetOptions = nullptr;
         PFun_slDLSSDGetOptimalSettings* slDLSSDGetOptimalSettings = nullptr;
         std::atomic<bool> rayReconstruction{ false };
+        std::atomic<bool> frameGeneration{ false };
         std::string rayReconstructionWhy = "Streamline not set up";
         std::atomic<int64_t> frameInProgress{ -1 };
         // Taken from the present thread and from Unity's render thread.
