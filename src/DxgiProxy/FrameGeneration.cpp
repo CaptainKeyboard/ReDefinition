@@ -362,6 +362,7 @@ namespace redefinition
             && providerVersion.versionName != nullptr)
             provider = providerVersion.versionName;
         const int designedFor = std::atoi(provider.c_str()) >= 4 ? 30 : 60;
+        designedForFps = designedFor;
 
         LogLine("Frame generation context created for " + std::to_string(displayWidth) + "x"
                 + std::to_string(displayHeight) + ", depthInverted="
@@ -454,6 +455,42 @@ namespace redefinition
         LogLine(line);
     }
 
+    float FrameGeneration::MinimumFpsLocked() const
+    {
+        const float configured = Config().fgMinimumFps;
+        if (configured >= 0.0f)
+            return configured;
+        return streamline ? 30.0f : static_cast<float>(designedForFps);
+    }
+
+    // Each rendered frame's time from its packet; every two seconds the average decides.
+    void FrameGeneration::NoteFrameRateLocked(float frameTimeMs)
+    {
+        if (frameTimeMs <= 0.0f || frameTimeMs > 1000.0f)
+            return;
+        rateWindowMs += frameTimeMs;
+        ++rateWindowFrames;
+        if (rateWindowMs < 2000.0)
+            return;
+        const double fps = 1000.0 * rateWindowFrames / rateWindowMs;
+        rateWindowMs = 0.0;
+        rateWindowFrames = 0;
+        const float minimum = MinimumFpsLocked();
+        // Off below nine tenths of the minimum, on again above nineteen twentieths: a
+        // game held at 60 by V-Sync averages a little under it, and turning frame
+        // generation off gives back only its own cost, which AMD says a decision should
+        // not flip on.
+        const bool tooLow = minimum > 0.0f && (rateTooLow ? fps < minimum * 0.95 : fps < minimum * 0.9);
+        if (tooLow == rateTooLow)
+            return;
+        rateTooLow = tooLow;
+        char line[200];
+        std::snprintf(line, sizeof(line), "Frame generation %s: %.1f fps rendered over two seconds, minimum %.0f%s",
+                      tooLow ? "held off" : "allowed again", fps, minimum,
+                      tooLow ? " (fgMinimumFps), off below nine tenths of it" : ", back above nineteen twentieths of it");
+        LogLine(line);
+    }
+
     bool FrameGeneration::PrepareForPresentLocked(void* swapChain, ID3D12GraphicsCommandList* commandList)
     {
         // Taken and cleared before anything can return early, so neither a
@@ -469,7 +506,7 @@ namespace redefinition
         // Only frames whose own depth and motion vectors arrived. Switched off
         // in the mod, or no upscaler dispatch this frame -- a scene change, a
         // menu -- and the last inputs would be stale.
-        const bool generate = wanted && thisFrame && S(depth).Valid() && S(motion).Valid();
+        const bool generate = wanted && !rateTooLow && thisFrame && S(depth).Valid() && S(motion).Valid();
 
         // The context is created on first use. Until then there is nothing to
         // configure, and the swapchain presents like a plain one.
@@ -486,7 +523,9 @@ namespace redefinition
 
         if (!generate)
         {
-            ConfigureOffLocked(swapChain, !wanted ? "switched off in the mod" : "no inputs this frame");
+            ConfigureOffLocked(swapChain, !wanted ? "switched off in the mod"
+                                          : rateTooLow ? "the rendered frame rate is below its minimum (fgMinimumFps)"
+                                          : "no inputs this frame");
             return false;
         }
 

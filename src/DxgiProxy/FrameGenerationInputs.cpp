@@ -356,6 +356,7 @@ namespace redefinition
 
         packet = *incoming;
         packetFresh = true;
+        NoteFrameRateLocked(packet.frameTimeDeltaMs);
     }
 
     // ------------------------------------------------------------------- flip

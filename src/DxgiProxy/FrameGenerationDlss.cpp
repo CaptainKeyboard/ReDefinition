@@ -92,7 +92,7 @@ namespace redefinition
         if (!streamline)
             return false;
 
-        const bool inputs = wanted && thisFrame && S(depth).Valid() && S(motion).Valid();
+        const bool inputs = wanted && !rateTooLow && thisFrame && S(depth).Valid() && S(motion).Valid();
 
         // Depth and motion vectors upside down against the backbuffer and the
         // HUD-less colour DLSS-G warps -- fgFlipInputs off, or no flip for them
@@ -115,6 +115,7 @@ namespace redefinition
         {
             StreamlineOffLocked(holdOff != nullptr ? holdOff
                                 : !wanted ? "switched off in the mod"
+                                : rateTooLow ? "the rendered frame rate is below its minimum (fgMinimumFps)"
                                 : !inputs ? "no inputs this frame"
                                 : unflipped ? "its inputs are not flipped"
                                 : frame == nullptr ? "no frame token"

@@ -144,6 +144,16 @@ namespace redefinition
         int fgPacingHybridSpinTime = 2;
         bool fgPacingWaitOnFence = false;
 
+        // The rendered frame rate, averaged over two seconds, below which frame
+        // generation stays off -- below nine tenths of it, until above nineteen
+        // twentieths again (FrameGeneration::NoteFrameRateLocked): AMD's "it may be
+        // preferable to ... [disable] FSR Frame Generation ... if the frame rate
+        // consistently drops below that threshold", with the hysteresis AMD describes
+        // (frame-interpolation-swap-chain.md, Minimum Framerate). -1: the rate FSR's
+        // provider was designed for (60 for 3.1, 30 for 4), 30 for DLSS-G, for which
+        // NVIDIA names none; 0: never off for this.
+        float fgMinimumFps = -1.0f;
+
         // Seconds between frame time reports in the log.
         int reportSeconds = 10;
 

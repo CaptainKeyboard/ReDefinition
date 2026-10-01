@@ -206,6 +206,23 @@ one refresh; without it, in a window, "not all frames generated will get display
   as 59.94 Hz, which keeps 72 Hz at 4x. Without V-Sync there is no limit beyond the GPU's.
   With the rate not known yet, one generated frame is allowed.
 
+**A low rendered frame rate.** **[doc]** AMD: "AMD FidelityFX Super Resolution Frame
+Generation 3.1.6 has been designed for an input framerate of at least 60 FPS", 4.0.1 "for
+an input framerate of at least 30 FPS", and "it may be preferable to ... [disable] FSR Frame
+Generation ... if the frame rate consistently drops below that threshold", re-measuring for
+"a couple of seconds" after each change (frame-interpolation-swap-chain.md, Minimum
+Framerate). Below it each generated frame bridges a larger step, and the halos and trails
+around moving edges grow. NVIDIA names no minimum for DLSS-G.
+
+The proxy averages the rendered frame times of the frame packets over two seconds. Below
+nine tenths of the minimum, frame generation is held off; above nineteen twentieths it
+runs again, so that a game held at 60 by V-Sync, which averages a little under it, does
+not flip. The minimum is `fgMinimumFps` in `ReDefinitionProxy.ini`: -1, the default, takes
+the rate FSR's provider was designed for and 30 for DLSS-G, AMD's lower figure; 0 never
+holds frame generation off. The log says each change, and the Debug tab's status line
+reads "held off below the minimum frame rate" **[meas]** (proxy harness: frames reported at
+25 a second under DLSS-G, 1.00 presents per frame and the status line; at 60 again, 2.00).
+
 KSP's registration requires the same of KSP's V-Sync row while DLSS frame generation runs
 ([reference/requirements.md](../reference/requirements.md), R6 and R7), so the settings
 window offers only the intervals that apply.

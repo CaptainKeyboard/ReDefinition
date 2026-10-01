@@ -513,7 +513,7 @@ extern "C"
         const int written = _snprintf_s(buffer, static_cast<size_t>(size), _TRUNCATE,
                                         "requested=%s context=%s async=%s inputs=%s hudless=%s device=%s"
                                         " retired=%u check=%ux%u (last check: %s) technique=%s",
-                                        fg.Enabled() ? "yes" : "no",
+                                        fg.Enabled() ? (fg.HeldOffForRate() ? "yes, held off below the minimum frame rate" : "yes") : "no",
                                         contextSize,
                                         fg.ContextAsync() ? "yes" : "no",
                                         fg.HasInputs() ? "yes" : "no",

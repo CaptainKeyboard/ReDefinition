@@ -79,6 +79,7 @@ namespace redefinition
                  + std::to_string(c.fgPacingVarianceFactor)
                  + (c.fgPacingHybridSpin ? "/spin" : "")
                  + (c.fgPacingWaitOnFence ? "/fence" : "")
+                 + " fgMinimumFps=" + std::to_string(static_cast<int>(c.fgMinimumFps))
                  + " reportSeconds=" + std::to_string(c.reportSeconds)
                  + " logInputsSeconds=" + std::to_string(c.logInputsSeconds)
                  + " dlssDirectory=" + (c.dlssDirectory[0] == L'\0' ? "(none)" : "(set)")
@@ -125,6 +126,7 @@ namespace redefinition
             target.fgPacingHybridSpinTime = static_cast<int>(
                 GetPrivateProfileIntW(L"Proxy", L"fgPacingHybridSpinTime", 2, file.c_str()));
             target.fgPacingWaitOnFence = ReadFlag(L"fgPacingWaitOnFence", file, false);
+            target.fgMinimumFps = ReadFloat(L"fgMinimumFps", file, -1.0f);
 
             target.logInputsSeconds = static_cast<int>(
                 GetPrivateProfileIntW(L"Proxy", L"logInputsSeconds", 0, file.c_str()));

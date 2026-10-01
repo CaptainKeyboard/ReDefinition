@@ -574,6 +574,9 @@ namespace
         streamlineKey.Set(streamlineBuffer[0] != 0 ? streamlineBuffer : nullptr);
         const IniKey fgVSync(L"fgVSync");
         fgVSync.Set(L"0");
+        // The dump's own frame times: frame generation not held off for them.
+        const IniKey fgMinimumFps(L"fgMinimumFps");
+        fgMinimumFps.Set(L"0");
 
         const HMODULE dxgi = LoadLibraryW(L"dxgi.dll");
         if (dxgi == nullptr)
@@ -1396,6 +1399,25 @@ int main()
                kResizedHeight, resized, line);
         if (resized < kGeneratingAtLeast)
             return Fail("DLSS frame generation on after a resize, but no frames were generated", E_FAIL);
+
+        // Frames of 40 ms, 25 a second, under DLSS-G's minimum of 30 (fgMinimumFps):
+        // held off once two seconds of them are averaged, on again at 60.
+        packet.frameTimeDeltaMs = 40.0f;
+        float slow = 0.0f;
+        hr = presentsPerFrame(3.0f, slow);
+        if (FAILED(hr))
+            return Fail("Present at a reported 25 frames a second", hr);
+        char slowLine[256] = {};
+        status(slowLine, sizeof(slowLine));
+        packet.frameTimeDeltaMs = 16.7f;
+        float fastAgain = 0.0f;
+        hr = presentsPerFrame(3.0f, fastAgain);
+        if (FAILED(hr))
+            return Fail("Present at 60 frames a second again", hr);
+        printf("      DLSS frame generation at a reported 25 fps: %.2f presents per frame [%s]; at 60 again %.2f\n", slow,
+               slowLine, fastAgain);
+        if (slow > 1.05f || std::strstr(slowLine, "held off") == nullptr || fastAgain < kGeneratingAtLeast)
+            return Fail("frame generation not held off below its minimum frame rate, or not back above it", E_FAIL);
         dlssGenerated = true;
     }
 

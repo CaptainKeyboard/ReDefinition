@@ -124,9 +124,13 @@ namespace redefinition
 
         // From the render thread, with the packet the managed side sent for
         // this frame.
-        void OnFramePacket(const void* data);
-
-        bool Enabled() const;
+        void OnFramePacket(const void* data);
+
+        bool Enabled() const;
+
+        // Whether the rendered frame rate holds frame generation off (fgMinimumFps).
+
+        bool HeldOffForRate() const { return rateTooLow; }
 
         // Whether the last Present was prepared for a generated frame, for the
         // proxy's frame limit, which is taken outside the context lock.
@@ -506,6 +510,16 @@ namespace redefinition
         // logging each change once.
         bool streamline = false;
         bool streamlineOn = false;
+
+        // The rendered frame rate against fgMinimumFps (Config.h): the frame times of
+        // the packets over two seconds, and whether it is too low for frame
+        // generation now. designedForFps is FSR's provider's, once its context is made.
+        double rateWindowMs = 0.0;
+        int rateWindowFrames = 0;
+        bool rateTooLow = false;
+        int designedForFps = 60;
+        float MinimumFpsLocked() const;
+        void NoteFrameRateLocked(float frameTimeMs);
         uint32_t streamlineFrames = 1;
         // The frames this Present was set to generate, which its state reports on.
         uint32_t streamlineFramesSet = 1;
