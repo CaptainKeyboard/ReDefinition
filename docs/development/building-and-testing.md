@@ -310,8 +310,10 @@ Instead of the checks, the player records a camera turn around a rocket on its p
 after a hitch, then still. It runs through DLSS Ray Reconstruction as the upscaler sends
 it, at the render size; with ReDefinition's denoiser; with Unity's lighting alone; through
 Ray Reconstruction with the upscaler's jitter; and, where Deferred is installed, with
-jitter and Deferred's lighting shaders, and with Deferred's lighting alone. For Ray Reconstruction the script writes a `ReDefinitionProxy.ini` next to
-the player that names Streamline's folder (`--streamline`, by default
+jitter and Deferred's lighting shaders, and with Deferred's lighting alone; and with the
+trace before the lighting of its own frame (`-early`), as the game runs it, beside the
+trace after the frame. For Ray Reconstruction the script writes a `ReDefinitionProxy.ini`
+next to the player that names Streamline's folder (`--streamline`, by default
 `REDEFINITION_STREAMLINE_DIR` or the SDK's `bin\x64` beside the repository), so that the
 proxy sets Streamline up on the player's swapchain, and removes it afterwards. Each frame
 of the turn and each pose again after the camera stood there, as its reference, go into

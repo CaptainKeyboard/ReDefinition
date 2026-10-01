@@ -99,6 +99,17 @@ namespace ReDefinition.Raytracing
         internal Func<bool> Cut = () => false;
         // The camera's motion vectors, where they are rendered and correct.
         internal bool MotionVectors;
+        // Trace each frame after its G-buffer (deferred) or depth texture (forward) and
+        // before its lighting, so that the lighting reads this frame's signals: nothing is
+        // carried from the frame before, and nothing is missing where the frame before did
+        // not see. Otherwise after the frame, for the next one (OnRenderImage).
+        internal bool TraceBeforeLighting;
+        // Called before the trace reads the camera's projection in OnPreRender: whatever
+        // jitters it (the upscaler's CameraRedirect) applies its offset now, as Unity
+        // orders the components' OnPreRender as it likes.
+        internal Action BeforeTrace;
+        private CameraEvent traceEvent;
+        private bool traceAttached;
 
         internal string Problem { get; private set; }
         internal uint LastSignals { get; private set; }
@@ -251,6 +262,7 @@ namespace ReDefinition.Raytracing
                 }
                 if (flagOff != null) cam.RemoveCommandBuffer(CameraEvent.AfterEverything, flagOff);
                 if (gbufferCopy != null) cam.RemoveCommandBuffer(CameraEvent.AfterGBuffer, gbufferCopy);
+                DetachTrace();
                 if (forwardLight != null) cam.RemoveCommandBuffer(forwardEvent, forwardLight);
             }
             MaskSun(null);
@@ -361,6 +373,87 @@ namespace ReDefinition.Raytracing
         private void OnPreRender()
         {
             renderedProjection = cam.projectionMatrix;
+            if (TraceBeforeLighting && capture != null)
+            {
+                if (BeforeTrace != null)
+                {
+                    BeforeTrace();
+                    renderedProjection = cam.projectionMatrix;
+                }
+                TraceThisFrame();
+            }
+            else DetachTrace();
+        }
+
+        private void DetachTrace()
+        {
+            if (!traceAttached) return;
+            cam.RemoveCommandBuffer(traceEvent, command);
+            traceAttached = false;
+        }
+
+        // The trace in the camera's own command stream, between its G-buffer or depth
+        // texture and its lighting, with the jitter it renders with; the lighting shaders
+        // then read its results where they are, for this frame.
+        private void TraceThisFrame()
+        {
+            bool deferredPath = cam.actualRenderingPath == RenderingPath.DeferredShading;
+            // Deferred: before the reflections pass, through which the diffuse light and the
+            // reflections enter (RtLighting), which Unity runs before the lighting.
+            CameraEvent wanted = deferredPath ? CameraEvent.BeforeReflections : CameraEvent.AfterDepthTexture;
+            if (!traceAttached || wanted != traceEvent)
+            {
+                DetachTrace();
+                traceEvent = wanted;
+                cam.AddCommandBuffer(traceEvent, command);
+                traceAttached = true;
+            }
+            gbufferCopy.Clear();
+            EnsureTargets(cam.pixelWidth, cam.pixelHeight);
+
+            command.Clear();
+            RenderTargetIdentifier source = BuiltinRenderTextureType.CameraTarget;
+            if (deferredPath)
+            {
+                command.Blit(BuiltinRenderTextureType.GBuffer0, gbuffer0);
+                command.Blit(BuiltinRenderTextureType.GBuffer1, gbuffer1);
+                command.Blit(BuiltinRenderTextureType.GBuffer2, gbuffer2);
+            }
+            command.Blit(source, depth, capture, 0);
+            // Unity draws the motion vectors after the lighting: without them here, the
+            // denoiser follows the camera alone.
+            Texture cube = Environment();
+            if (cube != null)
+            {
+                command.SetGlobalTexture(RtCube, cube);
+                command.SetGlobalVector(RtCubeHdr, new Vector4(1f, 1f, 0f, 0f));
+                command.Blit(source, environment, capture, 5);
+            }
+            bool withGpu = GatherGpuInstances();
+            FillPacket(deferredPath, false, cube != null);
+            if (withGpu) packet.Inputs[RtNative.InputInstances] = gpuInstancesHandle;
+            ring.Issue(command, RtNative.RenderEvent, RtNative.FrameEvent, ref packet);
+
+            // This frame's results for this frame's lighting: the same pixel. The matrix is
+            // relative to the camera, the shaders' positions are Unity's world.
+            Matrix4x4 worldToClip = WorldToClipRelative();
+            var toCamera = new Vector4((float)-position.x, (float)-position.y, (float)-position.z, 0f);
+            Shader.SetGlobalMatrix(RtPrevViewProj, worldToClip);
+            Shader.SetGlobalVector(RtOffsetNear, toCamera);
+            Shader.SetGlobalVector(RtOffsetFar, toCamera);
+            Shader.SetGlobalVector(RtLight, new Vector4(Settings.Diffuse ? 1f : 0f, Settings.Reflections ? 1f : 0f, 0f, 0f));
+            if (sun != null)
+            {
+                Shader.SetGlobalTexture(RtSun, sun);
+                Shader.SetGlobalVector(RtTexel, new Vector4(1f / sun.width, 1f / sun.height, sun.width, sun.height));
+            }
+            if (diffuse != null) Shader.SetGlobalTexture(RtDiffuse, diffuse);
+            if (specular != null) Shader.SetGlobalTexture(RtSpecular, specular);
+
+            previousWorldToClip = worldToClip;
+            previousPosition = position;
+            haveHistory = true;
+            frameIndex++;
         }
 
         // After this camera's scene, before its OnPostRender, where the sun's colour is
@@ -392,7 +485,7 @@ namespace ReDefinition.Raytracing
 
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
-            if (capture == null || source == null)
+            if (capture == null || source == null || TraceBeforeLighting)
             {
                 Graphics.Blit(source, destination);
                 return;

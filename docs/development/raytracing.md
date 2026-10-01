@@ -36,25 +36,40 @@ compute shaders (DirectX Raytracing 1.1, shader model 6.5) **[doc]**.
 1. Unity renders frame N as usual. With Deferred, the scene camera fills its G-buffer:
    albedo and occlusion, specular colour and smoothness, the world normal, and emission
    **[src]**. Without Deferred, KSP renders forward and there is none.
-2. In the scene camera's `OnRenderImage`, where the upscaler already hands work to the
-   proxy, a command buffer copies depth, the G-buffer and the motion vectors into the
-   raytracing inputs. A render event then starts the raytracing on Direct3D 12. Only a
-   render event issued from there sees the current frame; one issued at a camera event
-   sees the previous one **[meas]** (Unity 2019.4.18f1 player built like KSP, 598 of 598
-   frames).
+2. Between the G-buffer and the lighting, a command buffer in the scene camera's own
+   stream copies depth and the G-buffer into the raytracing inputs, and a render event
+   starts the raytracing on Direct3D 12 (`RtCamera.TraceBeforeLighting`). With Deferred it
+   runs at `CameraEvent.BeforeReflections`, as the reflections pass takes the diffuse light
+   and the reflections; without it at `CameraEvent.AfterDepthTexture`. It is filled in the
+   camera's `OnPreRender`, with the upscaler's jitter applied first
+   (`CameraRedirect.EnsureJitter`).
 3. The proxy traces the rays, denoises the signals and copies them back into Unity's
-   textures at the next frame's dispatch.
-4. Unity renders frame N+1. Its lighting reads the raytraced signals of frame N, carried
-   over to N+1 by depth and the two frames' camera matrices. The previous frame's
-   positions are corrected for KSP's floating origin and Krakensbane, as the motion vectors
-   already are ([upscaler.md](upscaler.md)).
+   textures before the render event returns: Direct3D 11 waits on a fence for Direct3D 12.
+4. Frame N's lighting reads frame N's signals, at the same pixel.
 
-The G-buffer is not bound any more by `OnRenderImage`: a command buffer copies it at
-`CameraEvent.AfterGBuffer`, in the camera's own command stream **[meas]** (test player).
-Depth, read through `_CameraDepthTexture`, is still there.
+The render event sees the frame it is issued in **[meas]** (test player, a camera turning
+by 12 degrees a frame: the view depth the trace keeps matches that frame's depth, 15.73
+against 15.74 m at the centre; with Unity's graphics jobs native, legacy and off alike).
+An earlier probe that found camera events a frame late rendered into a texture with 2x
+MSAA, which Unity resolves only at the end of the camera **[src]** (the probe's
+QualitySettings).
 
-The raytraced light is therefore one frame old, carried over. The denoisers accumulate
-over frames anyway, so the delay adds no lag of its own to what they already have.
+The DLSS Ray Reconstruction guide asks for "the Noisy Ray Traced Input Color" of the frame
+and independent samples (3.4.5, 3.5) **[doc]**: signals of the previous frame, carried over,
+are neither, and where the previous frame did not see a point there is none to carry.
+Traced in its own frame, the lighting has a signal for every pixel **[meas]** (test player,
+the camera turn against each pose's settled frame, where something came into view:
+ReDefinition's denoiser 0.0011 against 0.0065 carried over, Ray Reconstruction 0.0041
+against 0.0093, with the jitter and Deferred's shaders 0.0039 against 0.0061).
+
+Unity draws the motion vectors after the lighting: ReDefinition's denoiser follows the
+camera's motion alone, not that of moving parts. DLSS Ray Reconstruction gets the motion
+vectors from the upscaler, after the frame.
+
+With `TraceBeforeLighting` off, `RtCamera` traces in `OnRenderImage` instead, after the
+frame, and the next frame's lighting reads the signals carried over by depth and the two
+frames' camera matrices, corrected for KSP's floating origin and Krakensbane; the test
+player's turn runs measure it beside the other. The carry-over below describes that mode.
 
 ## Where the raytraced light enters Unity's lighting
 
@@ -91,9 +106,9 @@ towards it. No sun visibility is carried there, and Unity's shadow maps shade it
 frame **[meas]** (test player: with the camera turned from the sun's side, the near box's
 shadow in the first frame at 89 %, 89 % and 53 % of the light beside it, between the shadow
 maps' 91 %, 90 % and 58 % and the raytracing's 82 %, 82 % and 47 %, as its indirect light
-comes from the fill below; before the rejection, at 100 %). A temporal filter after it, DLSS Ray
-Reconstruction or ReDefinition's denoiser, would otherwise keep the wrong shadow there for
-many frames.
+comes from the fill below; before the rejection, at 100 %). A temporal filter after it,
+DLSS Ray Reconstruction or ReDefinition's denoiser, would otherwise keep the wrong shadow
+there for many frames.
 
 The diffuse light and the reflections of such a point come from the nearest texel around
 it, up to 512 texels away in eight directions, whose kept depth lies within 10 % of its own;
@@ -110,7 +125,7 @@ the game, Deferred's ambient light where the fill finds nothing is far darker th
 raytraced light **[meas]** (a recording at 2560 by 1440, a turn of about 12 degrees a frame
 around a rocket on the pad: the ground behind it uncovered and not filled at a luminance
 of 0.25 to 0.36 against 0.31 to 0.48 where it was seen or filled; with a reach of 32
-texels, 53 to 70 % of the points the frame before did not see were filled, with 512, 87
+texels, 53 to 70 % of the points the previous frame did not see were filled, with 512, 87
 to 94 %, computed from the recording's depth and cameras).
 
 The screen-space shadows shader is derived from Unity's built-in one, which is MIT **[doc]**.

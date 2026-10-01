@@ -222,7 +222,7 @@ extern "C"
     //    when everything Unity drew this frame is submitted.
     // 2: a DLSS frame (Dlss::OnPacket), evaluated here -- from the upscaler's
     //    dispatch buffer, which Unity runs after the frame's drawing is
-    //    submitted (render events from a camera's own buffers lag a frame).
+    //    submitted.
     // 3: the rig is gone, and the DLSS feature with it.
     // 4: a frame for AMD's upscaler (AmdUpscaler::OnPacket), the same way.
     // 5: the rig is gone, and AMD's context with it.

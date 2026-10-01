@@ -100,8 +100,11 @@ def turn(exe, streamline, deferred):
     # Deferred's lighting where it is installed.
     runs = [('rr', ['-turn', 'rr']), ('denoiser', ['-turn', 'denoiser']), ('plain', ['-turn', 'plain']),
             ('rr-jitter', ['-turn', 'rr', '-jitter', '1'])]
+    # The trace before the lighting of the same frame (RtCamera.TraceBeforeLighting).
+    runs += [('rr-early', ['-turn', 'rr', '-early', '1']), ('denoiser-early', ['-turn', 'denoiser', '-early', '1'])]
     if os.path.isdir(deferred):
         runs += [('rr-jitter-deferred', ['-turn', 'rr', '-jitter', '1', '-deferred', deferred]),
+                 ('rr-early-jitter-deferred', ['-turn', 'rr', '-early', '1', '-jitter', '1', '-deferred', deferred]),
                  ('deferred-plain', ['-turn', 'plain', '-deferred', deferred])]
     folders = []
     try:

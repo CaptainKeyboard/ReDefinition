@@ -176,6 +176,8 @@ namespace ReDefinition.RaytracingPlayer
                 raytracing.SkyColor = () => new Color(0.4f, 0.5f, 0.7f);
                 raytracing.Environment = () => probe.texture;
                 raytracing.MotionVectors = true;
+                // -early: the trace before the lighting of the same frame (RtCamera.TraceBeforeLighting).
+                raytracing.TraceBeforeLighting = Argument("-early") != null;
                 raytracing.Scene.AddSource(new RtUnitySource());
             }
             pass = cam.gameObject.AddComponent<RtTurnPass>();
@@ -453,6 +455,8 @@ namespace ReDefinition.RaytracingPlayer
                 Read(shown, name + "_colour.bin");
                 Read(depth, name + "_depth.bin");
                 Read(motion, name + "_motion.bin");
+                // The raytracing's sun output, its w the view depth it traced from.
+                if (raytracing != null && raytracing.SunTexture != null) Read(raytracing.SunTexture, name + "_sun.bin");
             }
             previousViewProjection = viewProjectionNow;
             havePrevious = true;

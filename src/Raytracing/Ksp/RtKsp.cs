@@ -144,6 +144,14 @@ namespace ReDefinition.Raytracing
                 return rig != null && CameraRedirect.JitterActive ? rig.CurrentJitter : Vector2.zero;
             };
             camera.Cut = () => SharedFrame.ResetReason != null;
+            // The trace before the lighting of its own frame (RtCamera.TraceBeforeLighting),
+            // with the upscaler's jitter applied first.
+            camera.TraceBeforeLighting = true;
+            camera.BeforeTrace = () =>
+            {
+                CameraRedirect redirect = sceneCamera.GetComponent<CameraRedirect>();
+                if (redirect != null) redirect.EnsureJitter();
+            };
             camera.Body = () =>
             {
                 CelestialBody body = HighLogic.LoadedSceneIsFlight ? FlightGlobals.currentMainBody

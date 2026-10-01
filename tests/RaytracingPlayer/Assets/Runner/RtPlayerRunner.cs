@@ -216,6 +216,8 @@ namespace ReDefinition.RaytracingPlayer
             raytracing.SkyColor = () => new Color(0.4f, 0.5f, 0.7f);
             raytracing.Environment = () => probe.texture;
             raytracing.Scene.AddSource(new RtUnitySource());
+            // As the game traces: before the lighting of the same frame; -late after it.
+            raytracing.TraceBeforeLighting = Argument("-late") == null;
 
             // Eight places, two taken: the box and one far away; the rest beyond the count.
             gpuTransforms = new ComputeBuffer(8, 64, ComputeBufferType.Append);
@@ -627,22 +629,31 @@ namespace ReDefinition.RaytracingPlayer
 
             raytracing.Settings = RtSettings.Full();
             raytracing.enabled = true;
-            for (int i = 0; i < 120; i++) yield return null;
-            // Averaged over a second of frames.
-            float build = 0f, trace = 0f;
+            // Three seconds for the GPU to leave its idle clocks, then the median of 300
+            // frames: other programs share the GPU, and a mean takes their spikes.
+            float warmUntil = Time.realtimeSinceStartup + 3f;
+            while (Time.realtimeSinceStartup < warmUntil) yield return null;
             var sums = new float[8];
-            const int samples = 60;
+            const int samples = 300;
+            var builds = new List<float>();
+            var traces = new List<float>();
+            var totals = new List<float>();
             for (int i = 0; i < samples; i++)
             {
                 yield return null;
                 string text = raytracing.Status();
-                build += Number(text, "build=");
-                trace += Number(text, "trace=");
+                float frameBuild = Number(text, "build="), frameTrace = Number(text, "trace=");
+                builds.Add(frameBuild);
+                traces.Add(frameTrace);
+                totals.Add(frameBuild + frameTrace);
                 for (int p = 0; p < 8; p++) sums[p] += raytracing.PassTimings[p];
             }
-            build /= samples;
-            trace /= samples;
-            float total = build + trace;
+            builds.Sort();
+            traces.Sort();
+            totals.Sort();
+            float build = builds[samples / 2];
+            float trace = traces[samples / 2];
+            float total = totals[samples / 2];
             Log("budget at " + Screen.width + "x" + Screen.height + ": " + raytracing.Scene.InstanceCount + " instances and "
                 + raytracing.Scene.GpuTotal + " from the GPU; GPU ms: scene " + build.ToString("0.00") + ", sun "
                 + (sums[0] / samples).ToString("0.00") + ", diffuse " + (sums[2] / samples).ToString("0.00") + ", reflections "
