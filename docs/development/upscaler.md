@@ -523,8 +523,10 @@ In the diagnostics window's *Debug* tab
   replacement for it, and the camera's components (`CameraSurvey.WriteMotionSources`).
   `MotionVectorCheck` in the Unity project checks the pixel addressing it relies on.
 * **Vessel motion vectors per pixel**, about every ten seconds in flight
-  (`VesselMotionVectors`): pass 0 of the same shader, after the hooks, compares the motion
-  vector computed for each vessel pixel with the one the upscalers read; per part, a
+  (`VesselMotionVectors`): in one frame of six, picked at random so that frames with a
+  physics step and without are both sampled, pass 0 of the same shader, after the hooks,
+  compares the motion vector computed for each vessel pixel with the one the upscalers
+  read; per part, a
   buffer counts pixels, pixels off by more than a pixel and the largest error. The line
   says whether the rig wrote them, and gives the share off, the frames with more than
   0.5% off, apart for frames with and without a physics step, and the parts most off.

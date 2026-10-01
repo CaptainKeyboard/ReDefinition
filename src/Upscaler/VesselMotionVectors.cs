@@ -209,10 +209,20 @@ namespace ReDefinition.Upscaler
             Draw(capture, RepairPass, false);
         }
 
+        // One frame in AuditShare, picked at random so that the frames with a physics
+        // step and those without are both sampled however the two rates line up: the
+        // audit draws the vessel again and reads back, a diagnostic not worth every frame.
+        private const int AuditShare = 6;
+        private uint auditPick = 2463534242u;
+
         // Into the capture, after the hooks: what the upscalers read.
         internal void RecordAudit(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
         {
             if (!active || !continuous || motionVectors == null || depth == null) return;
+            auditPick ^= auditPick << 13;
+            auditPick ^= auditPick >> 17;
+            auditPick ^= auditPick << 5;
+            if (auditPick % AuditShare != 0) return;
             stats.SetData(zeros);
             capture.SetRenderTarget(target);
             capture.SetRandomWriteTarget(1, stats);
@@ -381,7 +391,8 @@ namespace ReDefinition.Upscaler
                 sb.Append(Log.Tag).Append(" Vessel motion vectors per pixel, ")
                   .Append(repairedThisWindow ? "written by ReDefinition" : "as Unity wrote them").Append(", last ")
                   .Append(elapsed.ToString("0.0", CultureInfo.InvariantCulture)).Append(" s, ")
-                  .Append(framesRead).Append(" frame(s): ").Append(pixelsRead).Append(" pixels, ")
+                  .Append(framesRead).Append(" frame(s) sampled, one in ").Append(AuditShare).Append(": ")
+                  .Append(pixelsRead).Append(" pixels, ")
                   .Append(Percent(badRead, pixelsRead)).Append(" off by more than ")
                   .Append(BadPixels.ToString("0", CultureInfo.InvariantCulture)).Append(" px; frames with more than ")
                   .Append(Percent(1, (long)(1f / BadFrameShare))).Append(" off: ")
