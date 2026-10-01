@@ -479,9 +479,10 @@ namespace redefinition
         }
         pendingReleases.clear();
         // SetMesh told the managed side the mesh is taken, and it does not hand it over
-        // again: a mesh leaves the pending ones only once it is built. Where the
-        // descriptor slots run out or a mesh's buffers cannot be made, it and the rest
-        // wait for a later frame.
+        // again: a mesh leaves the pending ones once it is built. Where the descriptor
+        // slots run out, it and the rest wait for a later frame; one whose buffers
+        // cannot be made is tried again in later frames, after the others, and
+        // dropped after kMeshAttempts.
         uint32_t built = 0;
         for (auto entry = pendingMeshes.begin(); entry != pendingMeshes.end();)
         {
@@ -504,7 +505,15 @@ namespace redefinition
                 slot.held.push_back(mesh.indices);
                 slot.held.push_back(mesh.blas);
                 retiredSlots.emplace_back(mesh.slot, fenceValue + 1);
-                break;
+                if (++entry->second.failures >= kMeshAttempts)
+                {
+                    SetProblem("a mesh could not be built in " + std::to_string(kMeshAttempts)
+                               + " frames and is left out");
+                    entry = pendingMeshes.erase(entry);
+                }
+                else
+                    ++entry;
+                continue;
             }
             auto existing = meshes.find(entry->first);
             if (existing != meshes.end())

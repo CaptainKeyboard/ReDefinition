@@ -134,7 +134,9 @@ The files the player needs, and where they go: [player/installing.md](../player/
   shadow cascades between the two: shadows are built from the unjittered matrix, the
   image is rendered offset. It also wins the write order against mods that assign the
   projection in their own `OnPreCull`, such as Scatterer's TAA. The unjittered matrix is
-  stored in `nonJitteredProjectionMatrix` first.
+  stored in `nonJitteredProjectionMatrix` first. Unity no longer computes that matrix
+  once it is assigned, so it is set to the projection in every frame without jitter for
+  the camera's whole life, after a rig is gone as well.
 * **Depth comes from `BuiltinRenderTextureType.ResolvedDepth`.** `.Depth` delivers
   nothing in the deferred path, and the depth sub-element of the camera target does not
   exist in 2019.4.

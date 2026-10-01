@@ -518,11 +518,14 @@ namespace redefinition
         // Only frames whose own depth and motion vectors arrived. Switched off
         // in the mod, or no upscaler dispatch this frame -- a scene change, a
         // menu -- and the last inputs would be stale.
-        const bool generate = wanted && !rateTooLow && thisFrame && S(depth).Valid() && S(motion).Valid();
+        const bool inputs = wanted && thisFrame && S(depth).Valid() && S(motion).Valid();
+        const bool generate = inputs && !rateTooLow;
 
-        // The context is created on first use. Until then there is nothing to
-        // configure, and the swapchain presents like a plain one.
-        if (generate && !EnsureContextLocked())
+        // The context is created on first use, also while the frame rate holds frame
+        // generation off: its provider sets the minimum (MinimumFpsLocked). Until
+        // then there is nothing to configure, and the swapchain presents like a
+        // plain one.
+        if (inputs && !EnsureContextLocked())
             return false;
         if (!contextCreated)
             return false;

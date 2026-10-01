@@ -211,6 +211,19 @@ namespace redefinition
                     }
                     SetState(std::string("recording, ") + text);
                     if (coInit) CoUninitialize();
+                    // The game's frames come only through the D3D12 proxy's Present with
+                    // frame generation attached; none within two seconds, and there is no
+                    // such Present.
+                    Sleep(2000);
+                    std::lock_guard<std::mutex> lock(g_backLock);
+                    if (g_backWanted == frames && g_backFrames.empty())
+                    {
+                        g_backWanted = 0;
+                        SetState("failed: desktop duplication refused, and no game frame reached the proxy's Present"
+                                 " (it takes them only while frame generation is attached)");
+                        LogLine("Screen recording: no game frame within two seconds, stopped");
+                        g_running = false;
+                    }
                     return;
                 }
 
@@ -382,6 +395,14 @@ namespace redefinition
         {
             D3D11_TEXTURE2D_DESC desc = {};
             backBuffer->GetDesc(&desc);
+            // A backbuffer of another size or format than the frames before ends the
+            // capture: they are all read back and written as the first one is.
+            if (!g_backFrames.empty()
+                && (desc.Width != g_backWidth || desc.Height != g_backHeight || desc.Format != g_backFormat))
+            {
+                g_backWanted = 0;
+                return;
+            }
             desc.Usage = D3D11_USAGE_STAGING;
             desc.BindFlags = 0;
             desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;

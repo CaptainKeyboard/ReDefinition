@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ReDefinition.Upscaler
@@ -37,7 +38,30 @@ namespace ReDefinition.Upscaler
         private bool screenLent;
         private Matrix4x4 previousProjection;
         private bool projectionWasUnitys;
-        private bool everTouchedProjection;
+
+        // Cameras whose nonJitteredProjectionMatrix a redirect ever assigned. Unity no
+        // longer computes it then, for the camera's whole life: it is kept in step with
+        // the projection in every frame without jitter -- by the camera's redirect, or
+        // by KeepInStep where it has none any more (a rig torn down or rebuilt).
+        private static readonly HashSet<Camera> touchedCameras = new HashSet<Camera>();
+        private static bool keepInStepInstalled;
+
+        private static void KeepInStep(Camera camera)
+        {
+            if (camera == null || !touchedCameras.Contains(camera)) return;
+            CameraRedirect redirect;
+            if (camera.TryGetComponent(out redirect)) return;
+            camera.nonJitteredProjectionMatrix = camera.projectionMatrix;
+        }
+
+        private static void Touch(Camera camera)
+        {
+            if (!touchedCameras.Add(camera)) return;
+            touchedCameras.RemoveWhere(c => c == null);
+            if (keepInStepInstalled) return;
+            keepInStepInstalled = true;
+            Camera.onPreRender += KeepInStep;
+        }
         private bool previousJitteredTransparents;
         private bool transparentFlagSaved;
         private bool projectionOverridden;
@@ -143,7 +167,7 @@ namespace ReDefinition.Upscaler
                 // was once assigned: Unity no longer computes it, so it is kept in step
                 // here, or the camera's motion vectors would use the last jittered
                 // frame's projection through a zoom.
-                if (everTouchedProjection) cam.nonJitteredProjectionMatrix = cam.projectionMatrix;
+                if (touchedCameras.Contains(cam)) cam.nonJitteredProjectionMatrix = cam.projectionMatrix;
                 return;
             }
 
@@ -153,7 +177,7 @@ namespace ReDefinition.Upscaler
             previousProjection = cam.projectionMatrix;
             projectionWasUnitys = ProjectionIsUnitys(cam, previousProjection);
             projectionOverridden = true;
-            everTouchedProjection = true;
+            Touch(cam);
 
             // Unity needs nonJitteredProjectionMatrix to produce correct motion
             // vectors despite the offset projection.
@@ -248,16 +272,11 @@ namespace ReDefinition.Upscaler
             // own or the script's. A camera left with the matrix of the last
             // rendered frame gets shadow cascades built against a frustum that no
             // longer matches the camera.
-            if (everTouchedProjection)
-            {
-                // nonJitteredProjectionMatrix has no reset: once assigned, Unity no
-                // longer computes it. Set to the projection, it stays in step with
-                // it, and motion vectors for every other user of this camera do
-                // not compute against a frozen view.
-                cam.nonJitteredProjectionMatrix = cam.projectionMatrix;
-
-                everTouchedProjection = false;
-            }
+            // nonJitteredProjectionMatrix has no reset: once assigned, Unity no longer
+            // computes it. Set to the projection, it stays in step with it, and motion
+            // vectors for every other user of this camera do not compute against a
+            // frozen view; KeepInStep keeps it so from the next frame on.
+            if (touchedCameras.Contains(cam)) cam.nonJitteredProjectionMatrix = cam.projectionMatrix;
 
             if (transparentFlagSaved)
             {

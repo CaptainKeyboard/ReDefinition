@@ -162,6 +162,7 @@ namespace redefinition
         std::atomic<bool> rayReconstruction{ false };
         std::string rayReconstructionWhy = "Streamline not set up";
         std::atomic<int64_t> frameInProgress{ -1 };
-        uint32_t ownFrameIndex = 1000000;
+        // Taken from the present thread and from Unity's render thread.
+        std::atomic<uint32_t> ownFrameIndex{ 1000000 };
     };
 }

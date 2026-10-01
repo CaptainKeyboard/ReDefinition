@@ -299,7 +299,10 @@ namespace redefinition
             std::vector<float> attributes;   // normal xyz, uv xy: five floats a vertex
             std::vector<uint32_t> indices;
             uint32_t vertexCount = 0;
+            // Frames its build failed in; at kMeshAttempts it is dropped.
+            uint32_t failures = 0;
         };
+        static constexpr uint32_t kMeshAttempts = 30;
 
         struct Mesh
         {

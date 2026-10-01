@@ -159,6 +159,8 @@ namespace
         uint32_t renderWidth, renderHeight, outputWidth, outputHeight, flags;
         float jitterX, jitterY, motionVectorScaleX, motionVectorScaleY;
         float sharpness, frameTimeDeltaMs, cameraNear, cameraFar, verticalFovRadians;
+        void* reactive;
+        void* transparencyAndComposition;
     };
     constexpr uint32_t kAmdMagic = 0x4B535041u;
 
@@ -2024,6 +2026,24 @@ int main()
                                    D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS, amdOutput);
         if (SUCCEEDED(hr))
             hr = CreateInputs(device.Get(), amdRenderWidth, amdRenderHeight, amdInputs);
+        // A mask as the mod's: one channel at render size, here empty. The frames from
+        // the eighth on carry it as both masks.
+        ComPtr<ID3D11Texture2D> amdMask;
+        if (SUCCEEDED(hr))
+        {
+            D3D11_TEXTURE2D_DESC maskDesc = {};
+            maskDesc.Width = amdRenderWidth;
+            maskDesc.Height = amdRenderHeight;
+            maskDesc.MipLevels = 1;
+            maskDesc.ArraySize = 1;
+            maskDesc.Format = DXGI_FORMAT_R8_UNORM;
+            maskDesc.SampleDesc.Count = 1;
+            maskDesc.Usage = D3D11_USAGE_DEFAULT;
+            maskDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+            std::vector<uint8_t> zeros(static_cast<size_t>(amdRenderWidth) * amdRenderHeight, 0);
+            D3D11_SUBRESOURCE_DATA maskData = { zeros.data(), amdRenderWidth, 0 };
+            hr = device->CreateTexture2D(&maskDesc, &maskData, &amdMask);
+        }
         if (FAILED(hr))
             return Fail("AMD upscaler test textures", hr);
 
@@ -2051,6 +2071,8 @@ int main()
             amdFrame.cameraNear = 0.1f;
             amdFrame.cameraFar = 1000.0f;
             amdFrame.verticalFovRadians = 1.0f;
+            amdFrame.reactive = frame >= 8 ? amdMask.Get() : nullptr;
+            amdFrame.transparencyAndComposition = frame >= 8 ? amdMask.Get() : nullptr;
             amdEvent(kAmdEvent, &amdFrame);
             if (amdStatus(amdText, sizeof(amdText)) < 0)
             {
