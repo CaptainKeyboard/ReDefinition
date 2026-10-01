@@ -1053,6 +1053,8 @@ namespace ReDefinition.Upscaler
             }
 
             Graphics.ExecuteCommandBuffer(dispatchBuffer);
+            StageDump.AfterDispatch(cam, CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix,
+                                    dispatch.JitterOffset, Reconstructing, lowRes, result);
             RunAfterUpscalingHooks(result);
 
             if (!tufx.Render(result, destination, depthCopy, motionVectors))

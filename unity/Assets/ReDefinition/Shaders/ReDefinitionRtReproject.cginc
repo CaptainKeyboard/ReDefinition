@@ -16,7 +16,7 @@
 // Unity's shadow maps there.
 //
 // The raytraced diffuse light and reflections take such a point's light from the nearest
-// texel around it, up to 32 texels away, whose kept depth matches (RtUvFilled), as NRD
+// texel around it, up to 512 texels away, whose kept depth matches (RtUvFilled), as NRD
 // fills its history after a disocclusion. Unity's flat ambient light there for a frame,
 // and the raytraced light the frame after, would be a jump DLSS Ray Reconstruction takes
 // for noise and keeps in its history: a band trailing a silhouette as the camera turns.
@@ -69,7 +69,7 @@ inline bool RtCandidate(float3 worldPos, float3 offset, out float2 uv, out float
     return error <= kMaxDepthError;
 }
 
-// The texel within 32 of uv, in eight directions, whose kept depth matches viewDepth
+// The texel within 512 of uv, in eight directions, whose kept depth matches viewDepth
 // best, within twice kMaxDepthError.
 inline bool RtFill(float2 uv, float viewDepth, out float2 found)
 {
@@ -78,7 +78,10 @@ inline bool RtFill(float2 uv, float viewDepth, out float2 found)
     bool any = false;
     float2 centre = (floor(uv * _ReDefinitionRtTexel.zw) + 0.5) * _ReDefinitionRtTexel.xy;
     [loop]
-    for (int ring = 1; ring <= 5 && !any; ring++)
+    // As far as a vessel's width at 2560 pixels: a fast turn uncovers a strip that wide
+    // behind it, and 32 texels found matching ground for only half of it (a recording,
+    // 2026-10-01); 512 for nine in ten.
+    for (int ring = 1; ring <= 9 && !any; ring++)
     {
         float reach = exp2(ring);
         [unroll]

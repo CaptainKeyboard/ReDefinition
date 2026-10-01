@@ -752,6 +752,7 @@ namespace ReDefinition.Raytracing
         internal RenderTexture DepthTexture { get { return depth; } }
         internal RenderTexture SunTexture { get { return sun; } }
         internal RenderTexture DiffuseTexture { get { return diffuse; } }
+        internal RenderTexture SpecularTexture { get { return specular; } }
         internal RenderTexture NormalTexture { get { return gbuffer2; } }
         internal RenderTexture EnvironmentTexture { get { return environment; } }
         internal RenderTexture ForwardTexture { get { return forward; } }

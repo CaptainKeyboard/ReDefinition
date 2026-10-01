@@ -115,7 +115,7 @@ namespace ReDefinition.RaytracingPlayer
 
         // Deferred's own lighting shaders, set as Deferred sets them (Deferred.cs,
         // Deferred 1.3.5), with the globals its reflections pass reads.
-        private bool LoadDeferred(string folder)
+        internal static bool LoadDeferred(string folder)
         {
             if (string.IsNullOrEmpty(folder)) return false;
             string path = Path.Combine(folder, "deferredshaders");
@@ -332,7 +332,7 @@ namespace ReDefinition.RaytracingPlayer
             if (deferredMod)
                 Check(RtLighting.ReflectionsReplaced, "Deferred's reflections shader replaced",
                       "the raytraced diffuse light and reflections enter through it");
-            yield return Uncovered(near, nearLit, nearWithout);
+            yield return Uncovered(near, nearLit, nearWithout, nearWith);
             yield return CutoutCoverage();
             if (deferredMod)
             {
@@ -406,7 +406,12 @@ namespace ReDefinition.RaytracingPlayer
         // A point the raytraced frame before did not see: from the sun's side the near box
         // hides its own shadow; turned back, the first frame finds no raytraced texel of
         // that ground and takes Unity's shadow maps, not the box's lit top in front of it.
-        private IEnumerator Uncovered(Vector3 shaded, Vector3 lit, float shadowMaps)
+        // The first frame after the camera turned from the sun's side, where the raytraced
+        // frame before did not see the near box's shadow: the sun's shadow from the shadow
+        // maps, not carried from the box's top it saw there (which left the shadow at 100 %);
+        // the indirect light from the raytraced light beside it where the fill finds it,
+        // else Unity's. Between what the shadow maps and the raytracing give, settled.
+        private IEnumerator Uncovered(Vector3 shaded, Vector3 lit, float shadowMaps, float raytraced)
         {
             Vector3 position = cam.transform.position;
             Quaternion rotation = cam.transform.rotation;
@@ -418,10 +423,11 @@ namespace ReDefinition.RaytracingPlayer
             Texture2D shot = null;
             yield return Capture(t => shot = t, "uncovered");
             float ratio = Brightness(shot, shaded) / Mathf.Max(Brightness(shot, lit), 1e-3f);
-            Check(Mathf.Abs(ratio - shadowMaps) < 0.04f, "ground the frame before did not see",
+            Check(ratio > Mathf.Min(shadowMaps, raytraced) - 0.04f && ratio < Mathf.Max(shadowMaps, raytraced) + 0.04f,
+                  "ground the frame before did not see",
                   "the near box's shadow at " + (ratio * 100f).ToString("0") + " % of the light beside it in the first frame"
-                  + " after the camera turned from the sun's side, as the shadow maps give it ("
-                  + (shadowMaps * 100f).ToString("0") + " %)");
+                  + " after the camera turned from the sun's side, between the shadow maps' "
+                  + (shadowMaps * 100f).ToString("0") + " % and the raytracing's " + (raytraced * 100f).ToString("0") + " %");
             for (int i = 0; i < 20; i++) yield return null;
         }
 

@@ -89,13 +89,14 @@ kept depth is a 32-bit float, so this holds past 65 km, in orbit. Otherwise the 
 frame did not see the point: it came out from behind something, or the camera turned
 towards it. No sun visibility is carried there, and Unity's shadow maps shade it for that
 frame **[meas]** (test player: with the camera turned from the sun's side, the near box's
-shadow in the first frame at 92 %, 92 % and 59 % of the light beside it, the shadow maps'
-91 %, 90 % and 58 %; before, at 100 %). A temporal filter after it, DLSS Ray
+shadow in the first frame at 89 %, 89 % and 53 % of the light beside it, between the shadow
+maps' 91 %, 90 % and 58 % and the raytracing's 82 %, 82 % and 47 %, as its indirect light
+comes from the fill below; before the rejection, at 100 %). A temporal filter after it, DLSS Ray
 Reconstruction or ReDefinition's denoiser, would otherwise keep the wrong shadow there for
 many frames.
 
 The diffuse light and the reflections of such a point come from the nearest texel around
-it, up to 32 texels away in eight directions, whose kept depth lies within 10 % of its own;
+it, up to 512 texels away in eight directions, whose kept depth lies within 10 % of its own;
 a point that left the frame's edge looks from the edge. NRD fills its history after a
 disocclusion the same way. Unity's flat ambient light for a frame and the raytraced light
 the frame after would be a jump that DLSS Ray Reconstruction takes for noise and keeps:
@@ -104,7 +105,13 @@ player: ground behind the near box, uncovered as the camera rises by a metre, 0.
 in its first frame between a dim flat and a bright gradient ambient light, 0.185 without
 the fill; a camera turn around a rocket at up to 12 degrees a frame through DLSS Ray
 Reconstruction, against each pose's settled frame: an error of 0.012 in the tone-mapped
-luminance where something came into view, 0.070 without the fill, 0.002 elsewhere).
+luminance where something came into view, 0.070 without the fill, 0.002 elsewhere). In
+the game, Deferred's ambient light where the fill finds nothing is far darker than the
+raytraced light **[meas]** (a recording at 2560 by 1440, a turn of about 12 degrees a frame
+around a rocket on the pad: the ground behind it uncovered and not filled at a luminance
+of 0.25 to 0.36 against 0.31 to 0.48 where it was seen or filled; with a reach of 32
+texels, 53 to 70 % of the points the frame before did not see were filled, with 512, 87
+to 94 %, computed from the recording's depth and cameras).
 
 The screen-space shadows shader is derived from Unity's built-in one, which is MIT **[doc]**.
 For every camera but the scene camera it does what Unity's does, and for every light but

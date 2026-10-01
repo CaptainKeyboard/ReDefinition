@@ -307,9 +307,10 @@ python tools\build_rt_player.py --turn
 
 Instead of the checks, the player records a camera turn around a rocket on its pad
 (`RtTurnRunner.cs`): settled, 20 frames at 2 degrees a frame, 10 at 12, one jump of 40, as
-after a hitch, then still. It runs three times: through DLSS Ray Reconstruction as the
-upscaler sends it, at the render size; with ReDefinition's denoiser; and with Unity's
-lighting alone. For Ray Reconstruction the script writes a `ReDefinitionProxy.ini` next to
+after a hitch, then still. It runs through DLSS Ray Reconstruction as the upscaler sends
+it, at the render size; with ReDefinition's denoiser; with Unity's lighting alone; through
+Ray Reconstruction with the upscaler's jitter; and, where Deferred is installed, with
+jitter and Deferred's lighting shaders, and with Deferred's lighting alone. For Ray Reconstruction the script writes a `ReDefinitionProxy.ini` next to
 the player that names Streamline's folder (`--streamline`, by default
 `REDEFINITION_STREAMLINE_DIR` or the SDK's `bin\x64` beside the repository), so that the
 proxy sets Streamline up on the player's swapchain, and removes it afterwards. Each frame
@@ -353,8 +354,17 @@ generation receives into a folder ending in `-inputs`: the HUD-less colour, dept
 vectors, the frame as presented and each frame's packet (`FrameGenerationDump.cpp`). The
 frames are taken from the first frame the camera turns by more than a degree, or after 600
 frames without. They are read back one texture a frame and written in a thread of their
-own: written at once, the files stalled the game for about 300 ms in the recording. The
-replay reads each texture at its own size, so a dump rendered below the display size
+own: written at once, the files stalled the game for about 300 ms in the recording.
+
+From the same turn, four frames of the stages go into a folder ending in `-stages`
+(`StageDump.cs`): the image the upscaler or DLSS Ray Reconstruction takes (`input`) and
+gives (`output`), and the raytracing's signals traced in that frame, `sun` with the kept
+view depth in w, `diffuse`, `specular`, `forward` and `depth`, rows bottom-up as Unity
+reads them back. `meta.txt` gives each frame's camera, without jitter, and the jitter.
+They show at which stage a fault enters the frame: in the signals, in the lighting that
+reads them, or in the upscaler.
+
+The replay reads each texture at its own size, so a dump rendered below the display size
 plays too.
 
 ```

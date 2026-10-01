@@ -15,7 +15,12 @@ namespace ReDefinition.RaytracingPlayer
     // tools/analyze_rt_turn.py: each frame of the turn as it comes out, and the same
     // poses after the camera stood still, as references.
     //
-    //   RaytracingPlayer.exe -turn <rr|denoiser|plain> -out <folder>
+    //   RaytracingPlayer.exe -turn <rr|denoiser|plain> -out <folder> [-jitter 1]
+    //     [-deferred <folder with Deferred's "deferredshaders" bundle>]
+    //
+    // -jitter offsets the projection each frame as the upscaler does (CameraRedirect,
+    // UpscalerRig: FSR's Halton sequence, 8 phases at the render size); -deferred renders
+    // with Deferred's lighting shaders, as KSP with Deferred does.
     //
     // rr: raytraced, through DLSS Ray Reconstruction as the game's upscaler sends it
     // (UpscalerRig.Reconstruction.cs), at the render size (DLAA); denoiser: raytraced,
@@ -33,6 +38,8 @@ namespace ReDefinition.RaytracingPlayer
 
         private string output;
         private string mode;
+        private bool jitter;
+        private bool deferredMod;
         private Camera cam;
         private RtCamera raytracing;
         private ReflectionProbe probe;
@@ -56,6 +63,8 @@ namespace ReDefinition.RaytracingPlayer
         private void Start()
         {
             mode = Argument("-turn");
+            jitter = Argument("-jitter") != null;
+            deferredMod = RtPlayerRunner.LoadDeferred(Argument("-deferred"));
             output = Argument("-out") ?? Path.Combine(Application.dataPath, "..");
             Directory.CreateDirectory(output);
             Log("turn " + mode + ", " + SystemInfo.graphicsDeviceName);
@@ -151,7 +160,7 @@ namespace ReDefinition.RaytracingPlayer
             cam.fieldOfView = 60f;
             cam.nearClipPlane = 0.3f;
             cam.farClipPlane = 5000f;
-            cam.renderingPath = RenderingPath.Forward;
+            cam.renderingPath = deferredMod ? RenderingPath.DeferredShading : RenderingPath.Forward;
             cam.allowHDR = true;
             cam.allowMSAA = false;
             cam.targetTexture = target;
@@ -170,7 +179,13 @@ namespace ReDefinition.RaytracingPlayer
                 raytracing.Scene.AddSource(new RtUnitySource());
             }
             pass = cam.gameObject.AddComponent<RtTurnPass>();
-            pass.Init(cam, raytracing, mode == "rr");
+            pass.Init(cam, raytracing, mode == "rr", jitter);
+            if (raytracing != null)
+            {
+                raytracing.RenderedProjection = () => pass.RenderedProjection;
+                raytracing.UnjitteredProjection = () => pass.UnjitteredProjection;
+                raytracing.Jitter = () => pass.JitterPixels;
+            }
 
             // The window shows the frame.
             var screen = new GameObject("Screen").AddComponent<Camera>();
@@ -305,8 +320,16 @@ namespace ReDefinition.RaytracingPlayer
         internal ulong Reconstructed;
         internal readonly StringBuilder Meta = new StringBuilder();
 
-        internal void Init(Camera camera, RtCamera rt, bool reconstruct)
+        // The upscaler's jitter (CameraRedirect, UpscalerRig): the offset in pixels as the
+        // upscalers take it, the projection without it and the one rendered with it.
+        private bool jitter;
+        internal Vector2 JitterPixels;
+        internal Matrix4x4 UnjitteredProjection;
+        internal Matrix4x4 RenderedProjection;
+
+        internal void Init(Camera camera, RtCamera rt, bool reconstruct, bool withJitter)
         {
+            jitter = withJitter;
             cam = camera;
             raytracing = rt;
             WantsReconstruction = reconstruct;
@@ -341,6 +364,41 @@ namespace ReDefinition.RaytracingPlayer
         private void Update()
         {
             if (raytracing != null && WantsReconstruction) raytracing.ReconstructionLease = Time.frameCount;
+        }
+
+        private static float Halton(int index, int radix)
+        {
+            float f = 1f, result = 0f;
+            for (int i = index; i > 0; i /= radix)
+            {
+                f /= radix;
+                result += f * (i % radix);
+            }
+            return result;
+        }
+
+        private void OnPreCull()
+        {
+            cam.ResetProjectionMatrix();
+            UnjitteredProjection = cam.projectionMatrix;
+            JitterPixels = Vector2.zero;
+            if (jitter)
+            {
+                // Fsr3Upscaler.GetJitterOffset with 8 phases, as at the render size.
+                int phase = Time.frameCount % 8 + 1;
+                JitterPixels = new Vector2(Halton(phase, 2) - 0.5f, Halton(phase, 3) - 0.5f);
+                cam.nonJitteredProjectionMatrix = UnjitteredProjection;
+                cam.projectionMatrix = Matrix4x4.Translate(new Vector3(2f * JitterPixels.x / cam.pixelWidth,
+                                                                       2f * JitterPixels.y / cam.pixelHeight, 0f))
+                                       * UnjitteredProjection;
+                cam.useJitteredProjectionMatrixForTransparentRendering = true;
+            }
+            RenderedProjection = cam.projectionMatrix;
+        }
+
+        private void OnPostRender()
+        {
+            if (jitter) cam.ResetProjectionMatrix();
         }
 
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
@@ -444,7 +502,8 @@ namespace ReDefinition.RaytracingPlayer
             Matrix4x4 viewPlusZ = StreamlineCamera.FlipZ() * view;
             StreamlineCamera.WriteRowMajor(viewPlusZ, p.WorldToView);
             StreamlineCamera.WriteRowMajor(StreamlineCamera.Invert(viewPlusZ), p.ViewToWorld);
-            p.Jitter[0] = p.Jitter[1] = 0f;
+            p.Jitter[0] = JitterPixels.x;
+            p.Jitter[1] = JitterPixels.y;
             p.MotionScale[0] = -1f;
             p.MotionScale[1] = -1f;
             Transform t = cam.transform;

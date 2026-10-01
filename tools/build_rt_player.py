@@ -89,25 +89,32 @@ def run(exe, deferred_folder, label, extra=(), size=(1280, 720)):
     return any(line == 'all checks passed' for line in lines)
 
 
-def turn(exe, streamline):
+def turn(exe, streamline, deferred):
     # Streamline set up on the player's swapchain, as the game's proxy does with DLSS
     # frame generation, so that Ray Reconstruction runs; only for these runs.
     ini = os.path.join(OUTPUT, 'ReDefinitionProxy.ini')
     with open(ini, 'w') as file:
         file.write('[Proxy]' + chr(10) + 'enabled=1' + chr(10) + 'frameGeneration=1' + chr(10)
                    + 'dlssFrameGeneration=1' + chr(10) + 'streamlineDirectory=' + streamline + chr(10))
+    # Forward without jitter; then as the game renders: the upscaler's jitter, and
+    # Deferred's lighting where it is installed.
+    runs = [('rr', ['-turn', 'rr']), ('denoiser', ['-turn', 'denoiser']), ('plain', ['-turn', 'plain']),
+            ('rr-jitter', ['-turn', 'rr', '-jitter', '1'])]
+    if os.path.isdir(deferred):
+        runs += [('rr-jitter-deferred', ['-turn', 'rr', '-jitter', '1', '-deferred', deferred]),
+                 ('deferred-plain', ['-turn', 'plain', '-deferred', deferred])]
+    folders = []
     try:
         ok = True
-        for mode in ('rr', 'denoiser', 'plain'):
-            folder = os.path.join(OUTPUT, 'turn-' + mode)
+        for label, extra in runs:
+            folder = os.path.join(OUTPUT, 'turn-' + label)
             if os.path.isdir(folder):
                 shutil.rmtree(folder)
-            ok = run(exe, None, 'turn-' + mode, ['-turn', mode]) and ok
+            ok = run(exe, None, 'turn-' + label, extra) and ok
+            folders.append(folder)
     finally:
         os.remove(ini)
-    result = subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'analyze_rt_turn.py'),
-                             os.path.join(OUTPUT, 'turn-rr'), os.path.join(OUTPUT, 'turn-denoiser'),
-                             os.path.join(OUTPUT, 'turn-plain')])
+    result = subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'analyze_rt_turn.py')] + folders)
     return 0 if ok and result.returncode == 0 else 1
 
 
@@ -129,7 +136,7 @@ def main():
     else:
         shutil.copy2(PROXY, OUTPUT)
     if arguments.turn:
-        sys.exit(turn(exe, arguments.streamline))
+        sys.exit(turn(exe, arguments.streamline, os.path.join(arguments.ksp, 'GameData', 'zzz_Deferred', 'Shaders')))
     deferred = os.path.join(arguments.ksp, 'GameData', 'zzz_Deferred', 'Shaders')
     forward_ok = run(exe, None, 'forward')
     builtin_ok = run(exe, None, 'unity-deferred', ['-builtinDeferred', '1'])
