@@ -49,12 +49,12 @@ clouds still shadow the ground.
 
 ## With DLSS
 
-When DLSS is the upscaler and DLSS frame generation runs, DLSS Ray Reconstruction takes
-DLSS's place. It removes the noise of the traced light and upscales in one step. It runs
-through the same NVIDIA Streamline as frame generation, so on RTX 40 and newer. The
-download beside *NVIDIA DLSS files* brings its two files with the frame generation files
-([installing.md](installing.md)). Without frame generation or those files,
-ReDefinition's own denoiser removes the noise, and DLSS upscales as usual.
+When DLSS is the upscaler, DLSS Ray Reconstruction takes DLSS's place. It removes the
+noise of the traced light and upscales in one step. It runs through NVIDIA Streamline:
+on RTX 40 and newer with DLSS frame generation, and on RTX 20 and 30 with
+`frameGeneration=0` in `ReDefinitionProxy.ini` next to `KSP_x64.exe`. The download
+beside *NVIDIA DLSS files* brings its files ([installing.md](installing.md)). Without
+them, ReDefinition's own denoiser removes the noise, and DLSS upscales as usual.
 
 ## With a Radeon RX 9000
 

@@ -42,7 +42,8 @@ Windows 10 20H1 or newer, with hardware-accelerated GPU scheduling on. Streamlin
 decides the support: `slIsFeatureSupported` for DLSS-G, and the same for Reflex, which
 DLSS-G requires **[doc]**. NVAPI reports the GPU's architecture
 (`src/DxgiProxy/NvidiaGpu.cpp`), and the mod offers NVIDIA's frame generation files from
-Ada on (`src/Bridges/NvidiaFiles.cs`).
+Ada on, Streamline's core and Ray Reconstruction's from Turing on
+(`src/Bridges/NvidiaFiles.cs`).
 
 Otherwise the swapchain is made through FidelityFX, where
 `amd_fidelityfx_framegeneration_dx12.dll` lies next to the executable. Where neither is
