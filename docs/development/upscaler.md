@@ -143,13 +143,16 @@ The files the player needs, and where they go: [player/installing.md](../player/
   camera that produces it, so a command buffer at `BeforeImageEffects` copies them there.
 * **Game-wide quality settings** (`QualityOverrides`). While the upscaler runs, the LOD
   bias is multiplied by display height over render height, since Unity picks LODs by
-  covered pixels. The mipmap bias is FSR's own `log2(render / display) - 1` and a
-  different quantity. MSAA is held at off; KSP's own setting is left as it is, and
-  comes back when the upscaler stops. Anisotropic filtering is forced on so
-  the negative mipmap bias does not shimmer. Shadow distance and cascades are left alone. KSP's
-  `SetQualityLevel` resets these, and `OnGameSettingsApplied` puts them back. Where KSP
-  writes a value there other than ReDefinition's, that value becomes the one restored when
-  the upscaler stops. MSAA from KSP's settings screen is such a value.
+  covered pixels. With it, Parallax's tessellation edge length, counted in pixels of the
+  render target, is divided by the same ratio (`ParallaxTessellation`); Parallax's save
+  still writes the player's value. The mipmap bias is FSR's own
+  `log2(render / display) - 1` and a different quantity. MSAA is held at off; KSP's own
+  setting is left as it is, and comes back when the upscaler stops. Anisotropic filtering
+  is forced on so the negative mipmap bias does not shimmer. Shadow distance and cascades
+  are left alone. KSP's `SetQualityLevel` resets these, and `OnGameSettingsApplied` puts
+  them back. Where KSP writes a value there other than ReDefinition's, that value becomes
+  the one restored when the upscaler stops. MSAA from KSP's settings screen is such a
+  value.
 * **Mipmap bias** (`KspMipmapBias`) touches only textures on renderers a redirected camera
   sees.
 
@@ -409,16 +412,25 @@ clouds write no depth and no motion vectors into the camera's buffers.
 * **Jitter** (`EveCloudMotion`): while EVE prepares the clouds for a camera the rig
   jitters, a Harmony postfix hands it that camera's jittered projection, and the jitter
   handed over is kept.
-* **Motion vectors** (`CloudMotionVectors`): EVE's own
+* **Motion vectors** (`CloudMotionVectors`): with Scatterer's cloud reconstruction shader
+  (`Scatterer-EVE/ReconstructRaymarchedClouds`), EVE's own
   (`scattererReconstructedCloudMotionVectors`, with `scattererReconstructedCloud`) are
-  read at `AfterForwardAlpha`, the jitter is taken out again, and they are blended over
-  Unity's at the capture the way Scatterer's TAA blends them. The clouds' vectors count
-  where they cover the pixel, over the sky by their transmittance, and over geometry once
-  less than a tenth of it is left.
-* The motion vectors only with Scatterer's cloud reconstruction shader
-  (`Scatterer-EVE/ReconstructRaymarchedClouds`), whose output was read; the jitter
-  wherever EVE's renderer and its `GetNonJitteredProjectionMatrixForCamera` are found.
-  The Debug switch *EVE clouds: jitter and motion vectors* is on at every start.
+  read at `AfterForwardAlpha`, and the jitter is taken out again.
+* **Without Scatterer**, EVE reconstructs with its own `EVE/ReconstructRaymarchedClouds`.
+  In EVE 3.2.2's `eveshaders.bundle` it has one pass with three targets: colour, a
+  secondary buffer, and motion vectors (disassembled) **[src]**. `Atmosphere.dll` binds
+  four: colour, motion vectors, distance in one channel, heuristics. The texture bound as
+  the motion vectors then holds no motion. Pass 4 of the cloud motion shader works the
+  motion out instead. Each pixel's ray meets the cloud layer's shell around the main body:
+  where it enters it from below or above, or half way to where it leaves it from inside.
+  That point is fixed to the body and moves by the camera's move against the body
+  (`SceneMotion`). The radii are the ones EVE sets on its composite. The clouds' drift over
+  the body and their depth inside the layer are left out.
+* Either way the clouds' vectors are blended over Unity's at the capture the way
+  Scatterer's TAA blends them. They count where the clouds cover the pixel, over the sky
+  by their transmittance, and over geometry once less than a tenth of it is left. The
+  jitter applies wherever EVE's renderer and its `GetNonJitteredProjectionMatrixForCamera`
+  are found. The Debug switch *EVE clouds: jitter and motion vectors* is on at every start.
 
 ### TUFX's post-processing
 

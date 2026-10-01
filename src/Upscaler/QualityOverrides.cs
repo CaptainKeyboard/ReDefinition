@@ -1,3 +1,4 @@
+using ReDefinition.Settings.Behaviours;
 using UnityEngine;
 
 namespace ReDefinition.Upscaler
@@ -39,9 +40,12 @@ namespace ReDefinition.Upscaler
         // different quantity: FSR's own log2(render / display) - 1.
         // Affects everything with a LODGroup, so Parallax' scatter objects and
         // part of the part models. Not KSP's terrain, which subdivides its quads
-        // by distance rather than by screen size.
+        // by distance rather than by screen size. Parallax's tessellation, which
+        // subdivides by pixels of the render target, goes with it
+        // (ParallaxTessellation).
         public void SetLodBias(bool wanted, float ratio)
         {
+            ParallaxTessellation.Scale(wanted, ratio);
             if (wanted)
             {
                 if (!lodApplied)
@@ -165,7 +169,8 @@ namespace ReDefinition.Upscaler
                        : QualitySettings.lodBias.ToString("0.##") + " untouched")
                    + ", MSAA " + (msaaApplied ? "forced off (was " + previousAntiAliasing + "x)"
                                               : QualitySettings.antiAliasing + "x untouched")
-                   + ", anisotropic " + (anisoApplied ? "forced" : QualitySettings.anisotropicFiltering + " untouched");
+                   + ", anisotropic " + (anisoApplied ? "forced" : QualitySettings.anisotropicFiltering + " untouched")
+                   + ", " + ParallaxTessellation.Describe();
         }
     }
 }

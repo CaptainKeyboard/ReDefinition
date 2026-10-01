@@ -9,7 +9,8 @@ Shader "Hidden/ReDefinition/CloudMotion"
         // bound, into a copy of our own: the clouds' motion vectors without the
         // jitter EVE rendered them with (rg), their transmittance (b), and whether
         // they have motion vectors at all (a). Addressed by pixel, like the masks:
-        // the sources are the camera's own size.
+        // the sources are the camera's own size. With Scatterer's reconstruction;
+        // pass 4 takes its place with any other.
         Pass
         {
             ZTest Always
@@ -261,6 +262,86 @@ Shader "Hidden/ReDefinition/CloudMotion"
                 float4 clip = float4(uv * 2.0 - 1.0, depth, 1.0);
                 float4 before = mul(nothing ? _ReDefinitionSkyClipToPrevClip : _ReDefinitionSceneClipToPrevClip, clip);
                 return float4(ReDefinitionMotionVector(clip, before).xy, 0.0, 0.0);
+            }
+            ENDCG
+        }
+
+        // 4: in place of pass 0 where EVE's reconstruction leaves no motion vectors
+        // (CloudMotionVectors in the plugin), the same four values, the motion
+        // worked out: each pixel's ray meets the cloud layer's shell around the main
+        // body where it enters it -- from below at its base, from above at its top
+        // -- or, from inside, half way to where it leaves it; that point, fixed to
+        // the body, into the frame before's clip space through the camera's move
+        // against the body. Without jitter, as the camera's own projection is
+        // taken without it.
+        Pass
+        {
+            ZTest Always
+            ZWrite Off
+            Cull Off
+
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment frag
+            #pragma target 3.5
+            #include "UnityCG.cginc"
+            #include "../Include/ReDefinition.cginc"
+
+            sampler2D scattererReconstructedCloud;
+            float _ReDefinitionCloudFade;
+            float4 _ReDefinitionCloudTexel;
+            // The scene camera's projection through GL.GetGPUProjectionMatrix(...,
+            // false), without jitter, and its inverse.
+            float4x4 _ReDefinitionCloudProjection;
+            float4x4 _ReDefinitionCloudInverseProjection;
+            // From this frame's camera space into the frame before's clip space.
+            float4x4 _ReDefinitionCloudViewToPrevClip;
+            // xyz the camera against the shell's centre, in camera space; w 1 while
+            // there is a frame before to move from.
+            float4 _ReDefinitionCloudOrigin;
+            // |origin|^2 - r^2 for the shell's base (x) and top (y), in double on the
+            // CPU: negative inside the sphere.
+            float4 _ReDefinitionCloudShell;
+
+            float4 frag (v2f_img i) : SV_Target
+            {
+                float2 uv = i.pos.xy * _ReDefinitionCloudTexel.xy;
+                float transmittance = tex2D(scattererReconstructedCloud, uv).a;
+                transmittance = 1.0 - _ReDefinitionCloudFade * (1.0 - transmittance);
+                if (_ReDefinitionCloudOrigin.w < 0.5)
+                    return float4(0.0, 0.0, transmittance, 0.0);
+
+                // Any depth inside the frustum gives a point on the pixel's ray.
+                float4 onRay = mul(_ReDefinitionCloudInverseProjection, float4(uv * 2.0 - 1.0, 0.5, 1.0));
+                float3 direction = normalize(onRay.xyz / onRay.w);
+                float along = dot(_ReDefinitionCloudOrigin.xyz, direction);
+                float baseDisc = along * along - _ReDefinitionCloudShell.x;
+                float topDisc = along * along - _ReDefinitionCloudShell.y;
+                float reach = -1.0;
+                if (_ReDefinitionCloudShell.x < 0.0)
+                {
+                    // Below the base: where the ray reaches it.
+                    reach = -along + sqrt(baseDisc);
+                }
+                else if (_ReDefinitionCloudShell.y > 0.0)
+                {
+                    // Above the top: where the ray enters, if in front.
+                    if (topDisc >= 0.0)
+                        reach = -along - sqrt(topDisc);
+                }
+                else
+                {
+                    // Inside: half way to the base below or the top above.
+                    float toBase = baseDisc >= 0.0 ? -along - sqrt(baseDisc) : -1.0;
+                    reach = 0.5 * (toBase > 0.0 ? toBase : -along + sqrt(max(topDisc, 0.0)));
+                }
+                if (reach <= 0.0)
+                    return float4(0.0, 0.0, transmittance, 0.0);
+
+                float4 onShell = float4(direction * reach, 1.0);
+                half4 motion = ReDefinitionMotionVector(mul(_ReDefinitionCloudProjection, onShell),
+                                                        mul(_ReDefinitionCloudViewToPrevClip, onShell));
+                return float4(motion.xy, transmittance, 1.0);
             }
             ENDCG
         }

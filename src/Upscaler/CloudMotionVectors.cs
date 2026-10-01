@@ -1,4 +1,6 @@
+using ReDefinition.Bridges;
 using ReDefinition.Core;
+using ReDefinition.Shared;
 using UnityEngine.Rendering;
 using UnityEngine;
 
@@ -11,21 +13,32 @@ namespace ReDefinition.Upscaler
     // calculated correctly. Common places to miss out motion vectors include
     // animated foliage, the sky" (DLSS Programming Guide, 31 March 2026).
     //
-    // EVE makes the clouds' own and binds them with the clouds' history at the
-    // scene camera's AfterForwardOpaque (scattererReconstructedCloudMotionVectors,
-    // scattererReconstructedCloud). They are read at AfterForwardAlpha -- the
-    // camera's OnPostRender, where EVE puts the globals back, runs before
-    // BeforeImageEffects (measured for UpscalerMasks) -- into a copy of the rig's,
-    // without the jitter EveCloudMotion gave EVE, and blended over Unity's where
-    // the rig captures those, at BeforeImageEffects, the way Scatterer's
-    // TemporalAntialiasing blends the two (disassembled): the clouds' where they
-    // cover the pixel, over the sky by their transmittance, over geometry once
-    // less than a tenth of it is left.
+    // EVE binds the clouds' history at the scene camera's AfterForwardOpaque
+    // (scattererReconstructedCloud) and, from Scatterer's reconstruction, their
+    // motion vectors (scattererReconstructedCloudMotionVectors). They are read at
+    // AfterForwardAlpha -- the camera's OnPostRender, where EVE puts the globals
+    // back, runs before BeforeImageEffects (measured for UpscalerMasks) -- into a
+    // copy of the rig's, without the jitter EveCloudMotion gave EVE, and blended
+    // over Unity's where the rig captures those, at BeforeImageEffects, the way
+    // Scatterer's TemporalAntialiasing blends the two (disassembled): the clouds'
+    // where they cover the pixel, over the sky by their transmittance, over
+    // geometry once less than a tenth of it is left.
     //
-    // Only with the reconstruction whose output was read
-    // (EveCloudMotion.KnownReconstruction).
+    // With any other reconstruction -- EVE's own, without Scatterer, leaves no
+    // motion vectors in that texture (EveCloudMotion.KnownReconstruction) -- the
+    // clouds' motion is worked out instead (pass 4): each pixel's ray meets the
+    // cloud layer's shell around the main body (EveCloudMotion.Shell) where it
+    // enters it from below or above, or half way to where it leaves it from
+    // inside, and that point, fixed to the body, moves by the camera's move
+    // against the body (SceneMotion). The clouds' own drift over the body and
+    // their depth inside the layer are left out. Without a main body, the clouds
+    // keep Unity's.
     internal sealed class CloudMotionVectors
     {
+        private const int EvePass = 0;
+        private const int BlendPass = 1;
+        private const int ShellPass = 4;
+
         private static readonly int CloudTextureId = Shader.PropertyToID("scattererReconstructedCloud");
         private static readonly int CloudMotionTextureId = Shader.PropertyToID("scattererReconstructedCloudMotionVectors");
         private static readonly int FadeId = Shader.PropertyToID("_ReDefinitionCloudFade");
@@ -33,8 +46,15 @@ namespace ReDefinition.Upscaler
         private static readonly int UnityMotionId = Shader.PropertyToID("_ReDefinitionUnityMotion");
         private static readonly int CloudMotionId = Shader.PropertyToID("_ReDefinitionCloudMotion");
         private static readonly int SceneDepthId = Shader.PropertyToID("_ReDefinitionCloudSceneDepth");
+        private static readonly int ProjectionId = Shader.PropertyToID("_ReDefinitionCloudProjection");
+        private static readonly int InverseProjectionId = Shader.PropertyToID("_ReDefinitionCloudInverseProjection");
+        private static readonly int ViewToPrevClipId = Shader.PropertyToID("_ReDefinitionCloudViewToPrevClip");
+        private static readonly int OriginId = Shader.PropertyToID("_ReDefinitionCloudOrigin");
+        private static readonly int ShellId = Shader.PropertyToID("_ReDefinitionCloudShell");
 
         private static string loggedState;
+        private static bool loggedFromShell;
+        private static bool logged;
 
         private Material material;
         // A shader from the bundle with too few passes, not made into a material
@@ -46,6 +66,17 @@ namespace ReDefinition.Upscaler
         private RenderTexture unityMotion;
         private CommandBuffer buffer;
         private Camera bufferCamera;
+        // Whether the clouds take their motion from the shell (pass 4) rather
+        // than from Scatterer's reconstruction, as judged last.
+        private bool fromShell;
+
+        // The camera's pose against the main body the frame before, for pass 4.
+        private Matrix4x4 previousProjection;
+        private Vector3d previousPosition;
+        private Quaternion previousRotation;
+        private CelestialBody previousBody;
+        private int previousFrame = -1;
+        private bool havePrevious;
 
         // Whether this frame's capture blends the clouds in, as recorded last.
         internal bool Active { get; private set; }
@@ -81,8 +112,54 @@ namespace ReDefinition.Upscaler
             buffer.Clear();
             buffer.SetGlobalVector(TexelId, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
             buffer.SetGlobalFloat(FadeId, EveCloudMotion.Fade());
-            buffer.Blit(Texture2D.blackTexture, clouds, material, 0);
+            if (fromShell) SetShell(buffer, camera);
+            buffer.Blit(Texture2D.blackTexture, clouds, material, fromShell ? ShellPass : EvePass);
             Active = true;
+        }
+
+        // Pass 4's inputs for this frame: the projection without jitter, built from
+        // the camera's planes and field of view as UnityMotionRepair builds it; the
+        // camera against the body's centre in camera space, with the squared
+        // distances to the shell's two spheres (|o|^2 - r^2) taken in double, which
+        // single precision would lose hundreds of kilometres from the centre; and
+        // from camera space into the frame before's clip space through the camera's
+        // move against the body -- SceneMotion's matrix with an identity for this
+        // frame's projection. Until there is a frame before with the same body, w
+        // of the origin is 0 and the shader leaves the clouds out.
+        private void SetShell(CommandBuffer commands, Camera camera)
+        {
+            CelestialBody body = FlightGlobals.currentMainBody;
+            float inner, outer;
+            EveCloudMotion.Shell(out inner, out outer);
+            Matrix4x4 projection = GL.GetGPUProjectionMatrix(
+                Matrix4x4.Perspective(camera.fieldOfView, camera.aspect, camera.nearClipPlane, camera.farClipPlane), false);
+            Quaternion toBody = SceneMotion.Conjugate(body.transform.rotation);
+            Vector3d fromCentre = (Vector3d)camera.transform.position - (Vector3d)body.transform.position;
+            Vector3d position = SceneMotion.Rotate(toBody, fromCentre);
+            Quaternion rotation = toBody * camera.transform.rotation;
+            // Unity's camera space looks down -z.
+            Vector3d local = SceneMotion.Rotate(SceneMotion.Conjugate(camera.transform.rotation), fromCentre);
+            double squared = fromCentre.sqrMagnitude;
+
+            bool ready = havePrevious && previousBody == body && previousFrame == Time.frameCount - 1
+                         && SharedFrame.RigResetReason == null;
+            Matrix4x4 viewToPrevious = ready
+                ? SceneMotion.ClipToPreviousClip(Matrix4x4.identity, previousProjection, position, rotation,
+                    previousPosition, previousRotation)
+                : Matrix4x4.identity;
+            commands.SetGlobalMatrix(ProjectionId, projection);
+            commands.SetGlobalMatrix(InverseProjectionId, StreamlineCamera.Invert(projection));
+            commands.SetGlobalMatrix(ViewToPrevClipId, viewToPrevious);
+            commands.SetGlobalVector(OriginId, new Vector4((float)local.x, (float)local.y, (float)-local.z, ready ? 1f : 0f));
+            commands.SetGlobalVector(ShellId, new Vector4((float)(squared - (double)inner * inner),
+                                                          (float)(squared - (double)outer * outer), 0f, 0f));
+
+            previousProjection = projection;
+            previousPosition = position;
+            previousRotation = rotation;
+            previousBody = body;
+            previousFrame = Time.frameCount;
+            havePrevious = true;
         }
 
         // The scene's motion vectors into the rig's capture, after the depth is
@@ -101,7 +178,7 @@ namespace ReDefinition.Upscaler
             capture.SetGlobalTexture(UnityMotionId, unityMotion);
             capture.SetGlobalTexture(CloudMotionId, clouds);
             capture.SetGlobalTexture(SceneDepthId, depth);
-            capture.Blit(Texture2D.blackTexture, motionVectors, material, 1);
+            capture.Blit(Texture2D.blackTexture, motionVectors, material, BlendPass);
         }
 
         internal void Dispose()
@@ -127,15 +204,22 @@ namespace ReDefinition.Upscaler
                 judgedReconstruction = reconstruction;
                 reconstructionVerdict = reconstruction.name == EveCloudMotion.KnownReconstruction
                     ? null
-                    : "EVE reconstructs its clouds with " + reconstruction.name + ", whose motion vectors this build does"
-                      + " not know (it knows " + EveCloudMotion.KnownReconstruction + ", Scatterer's)";
+                    : "EVE reconstructs its clouds with " + reconstruction.name + ", which leaves no motion vectors"
+                      + " this build reads (it reads " + EveCloudMotion.KnownReconstruction + "'s, Scatterer's)";
             }
-            if (reconstructionVerdict != null) return reconstructionVerdict;
+            fromShell = reconstructionVerdict != null;
+            if (fromShell)
+            {
+                if (FlightGlobals.currentMainBody == null) return "there is no main body to work the clouds' motion out against";
+                float inner, outer;
+                if (!EveCloudMotion.Shell(out inner, out outer)) return "EVE has not set its clouds' shell yet";
+            }
             // Bound at all, once: which ones is decided as the camera renders, after
             // this -- EVE binds each camera's own, reflection probes' included, and
             // puts a white one back after each. Read by position, so a frame in
             // which EVE's are still of the size before a change reads them scaled.
-            if (Shader.GetGlobalTexture(CloudMotionTextureId) == null || Shader.GetGlobalTexture(CloudTextureId) == null)
+            if ((!fromShell && Shader.GetGlobalTexture(CloudMotionTextureId) == null)
+                || Shader.GetGlobalTexture(CloudTextureId) == null)
                 return "EVE has not bound its clouds' textures yet";
             if (material == null)
             {
@@ -145,7 +229,7 @@ namespace ReDefinition.Upscaler
                 const string outdated = FsrShaderBundle.CloudMotionShaderName + " in the shader bundle is older than this build";
                 if (shader == outdatedShader) return outdated;
                 material = new Material(shader) { name = "ReDefinition cloud motion", hideFlags = HideFlags.DontSave };
-                if (material.passCount < 2)
+                if (material.passCount <= ShellPass)
                 {
                     Object.Destroy(material);
                     material = null;
@@ -159,10 +243,18 @@ namespace ReDefinition.Upscaler
         // Each change once, not every frame.
         private void LogState()
         {
-            if (State == loggedState || !EveCloudMotion.Present) return;
+            if (!EveCloudMotion.Present
+                || (logged && State == loggedState && (State != null || fromShell == loggedFromShell))) return;
+            logged = true;
             loggedState = State;
-            Debug.Log(Log.Tag + " EVE's cloud motion vectors: "
-                      + (State == null ? "blended into the motion vectors." : "left out -- " + State + "."));
+            loggedFromShell = fromShell;
+            string line = State != null
+                ? "left out -- " + State + "."
+                : fromShell
+                    ? "worked out from the cloud layer's shell and blended into the motion vectors -- "
+                      + reconstructionVerdict + "."
+                    : "blended into the motion vectors.";
+            Debug.Log(Log.Tag + " EVE's cloud motion vectors: " + line);
         }
 
         private void Detach()

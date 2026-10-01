@@ -36,12 +36,21 @@ namespace ReDefinition.Upscaler
         private const string ToScreenTypeName = "Atmosphere.DeferredRaymarchedRendererToScreen";
         private const string HarmonyId = "ReDefinition.EveCloudJitter";
 
-        // The reconstruction whose motion vectors CloudMotionVectors knows: Scatterer
+        // The reconstruction whose motion vectors CloudMotionVectors reads: Scatterer
         // replaces EVE's own in EVE's shader dictionary ("replaced
         // ReconstructRaymarchedClouds in EVE shader dictionary" in KSP.log), and
-        // only its output was read (disassembled): the change in viewport position
+        // its output was read (disassembled): the change in viewport position
         // since the last frame, below -1 where there is none, as Scatterer's
-        // TemporalAntialiasing reads it.
+        // TemporalAntialiasing reads it. EVE's own, EVE/ReconstructRaymarchedClouds
+        // in eveshaders.bundle of EVE 3.2.2, has one pass with three targets --
+        // colour, historySecondaryBuffer, motion vectors (disassembled) -- where
+        // Atmosphere.dll binds four: colour, motion vectors (RGHalf), distance
+        // (RHalf), heuristics (DeferredRaymarchedVolumetricCloudsRenderer
+        // .HandleRenderingCommands, InitRenderTextures). What EVE binds as
+        // scattererReconstructedCloudMotionVectors then holds the secondary
+        // buffer, and the motion vectors land in the distance's single channel:
+        // with any other reconstruction, CloudMotionVectors works the clouds'
+        // motion out from the cloud layer's shell (Shell).
         internal const string KnownReconstruction = "Scatterer-EVE/ReconstructRaymarchedClouds";
 
         // The Debug switch: jitter and motion vectors for the clouds together. Not
@@ -50,6 +59,8 @@ namespace ReDefinition.Upscaler
 
         private static readonly int JitterDeltaId = Shader.PropertyToID("_ReDefinitionCloudJitterDelta");
         private static readonly int FadeId = Shader.PropertyToID("cloudFade");
+        private static readonly int InnerRadiusId = Shader.PropertyToID("innerSphereRadius");
+        private static readonly int OuterRadiusId = Shader.PropertyToID("outerSphereRadius");
 
         private static bool resolved;
         private static FieldInfo targetCamera;
@@ -213,23 +224,44 @@ namespace ReDefinition.Upscaler
         // it -- EVE sets it before each camera renders --, so the scene camera's
         // value of the frame before. Read without HasProperty, which asks the
         // shader for the property (Unity: "Checks if material's shader has a
-        // property of a given name") while EVE only sets it on the material. The
-        // material is looked up again once a second, in case EVE made another; 1
-        // where there is none.
+        // property of a given name") while EVE only sets it on the material. 1
+        // where there is no composite.
         internal static float Fade()
+        {
+            Material material = Composite();
+            return material != null ? material.GetFloat(FadeId) : 1f;
+        }
+
+        // The radii of the clouds' shell around the body's centre, from the lowest
+        // layer's base to the highest layer's top, in world units: EVE sets them on
+        // its composite in OnPreRender (innerSphereRadius, outerSphereRadius:
+        // planet radius plus the layers' altitudes, CloudsRaymarchedVolume), the
+        // frame before's like Fade. False while there is none.
+        internal static bool Shell(out float inner, out float outer)
+        {
+            inner = outer = 0f;
+            Material material = Composite();
+            if (material == null) return false;
+            inner = material.GetFloat(InnerRadiusId);
+            outer = material.GetFloat(OuterRadiusId);
+            return inner > 0f && outer > inner;
+        }
+
+        // EVE's cloud composite material, looked up again once a second in case
+        // EVE made another. Null where there is none.
+        private static Material Composite()
         {
             Resolve();
             if (composite == null || Time.unscaledTime >= nextCompositeLookup)
             {
                 nextCompositeLookup = Time.unscaledTime + 1f;
                 composite = null;
-                if (toScreen == null || compositeMaterial == null) return 1f;
+                if (toScreen == null || compositeMaterial == null) return null;
                 Object instance = toScreen.GetValue(null) as Object;
-                if (instance == null) return 1f;
+                if (instance == null) return null;
                 composite = compositeMaterial.GetValue(instance) as Material;
-                if (composite == null) return 1f;
             }
-            return composite.GetFloat(FadeId);
+            return composite;
         }
 
         private static void Resolve()
