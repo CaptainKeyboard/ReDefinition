@@ -405,6 +405,8 @@ namespace redefinition
         hr = CopySharedColourAndExecute();
         if (FAILED(hr))
         {
+            FrameGeneration::Get().CancelPreparedLocked(fgSwapChainContext != nullptr ? swapChain.Get() : nullptr,
+                                                        "the frame could not be copied");
             fgLock.unlock();
             return PresentUncopied(syncInterval, flags, "the frame could not be copied");
         }

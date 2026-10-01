@@ -233,6 +233,11 @@ namespace redefinition
         // in which case presentation carries on without interpolation.
         bool PrepareForPresentLocked(void* swapChain, ID3D12GraphicsCommandList* commandList);
 
+        // Caller must hold ContextMutex. The frame prepared for this Present is not
+        // going out as prepared -- its copy failed --: frame generation is told off,
+        // so the Present does not interpolate from inputs that were never executed.
+        void CancelPreparedLocked(void* swapChain, const char* reason);
+
         // Shared inputs replaced by RegisterInputs -- a mode change, a new rig
         // -- are kept until the GPU has finished every frame that can read
         // them (RetireLocked). The proxy calls this once per Present, under

@@ -455,6 +455,18 @@ namespace redefinition
         LogLine(line);
     }
 
+    void FrameGeneration::CancelPreparedLocked(void* swapChain, const char* reason)
+    {
+        if (streamline)
+        {
+            if (streamlineOn)
+                StreamlineOffLocked(reason);
+            return;
+        }
+        if (contextCreated && configuredOn && swapChain != nullptr)
+            ConfigureOffLocked(swapChain, reason);
+    }
+
     float FrameGeneration::MinimumFpsLocked() const
     {
         const float configured = Config().fgMinimumFps;
@@ -644,6 +656,9 @@ namespace redefinition
         if (code != FFX_API_RETURN_OK)
         {
             LogLine("Frame generation prepare failed, code " + std::to_string(static_cast<int>(code)));
+            // Configured on above for this frame: off again, or the Present would
+            // interpolate without this frame's inputs.
+            ConfigureOffLocked(swapChain, "its prepare dispatch failed");
             return false;
         }
 

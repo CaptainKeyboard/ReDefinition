@@ -593,6 +593,8 @@ namespace ReDefinition.Upscaler
 
         public void Teardown()
         {
+            // Once: Detach, OnDisable and OnDestroy each call it.
+            if (TornDown) return;
             TornDown = true;
             ReportCameraMotionIfDue(true);
             ReleaseHooks();
@@ -616,7 +618,12 @@ namespace ReDefinition.Upscaler
             {
                 if (redirect == null) continue;
                 redirect.Restore();
-                DestroyImmediate(redirect);   // see RedirectCameras: nothing left over until end of frame
+                // See RedirectCameras: nothing left over until end of frame. Not on a
+                // camera whose object is being deactivated, as in a scene's teardown:
+                // Unity refuses that ("Cannot destroy Component while GameObject is
+                // being activated or deactivated").
+                if (redirect.gameObject.activeInHierarchy) DestroyImmediate(redirect);
+                else Destroy(redirect);
             }
             redirects.Clear();
 
@@ -752,6 +759,12 @@ namespace ReDefinition.Upscaler
             if (lowRes == null) return;
 
             if (!RebuildWanted && !TexturesCreated()) RequestRebuild("a render texture was lost");
+            // A window resized or a resolution chosen: every target, the upscaler's
+            // context and the packets are sized for the screen the rig was built for.
+            if (!RebuildWanted && (Screen.width != displaySize.x || Screen.height != displaySize.y)
+                && Screen.width > 0 && Screen.height > 0)
+                RequestRebuild("the screen is now " + Screen.width + "x" + Screen.height + ", the rig was built for "
+                               + displaySize.x + "x" + displaySize.y);
 
             // Once, a few seconds after the rig was built. See AttachHudLessCapture.
             if (Time.unscaledTime >= hudLessRecheckTime)

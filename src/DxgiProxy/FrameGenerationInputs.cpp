@@ -328,6 +328,8 @@ namespace redefinition
                     + " -- FSR requires them equal");
 
         inputsCopied = false;
+        // A packet taken before these textures: its frame is not in them.
+        packetFresh = false;
 
         // The check's staging textures were made for the old inputs' sizes;
         // they are made anew, at the new ones, by the next check. Left as they

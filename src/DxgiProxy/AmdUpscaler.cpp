@@ -464,6 +464,10 @@ namespace redefinition
         queue->Signal(fence12.Get(), finished);
         listDone[index] = finished;
 
+        // D3D11 waits for the queue even where the dispatch failed: the signal above is
+        // queued either way, and a later D3D11 signal on the shared fence that ran ahead
+        // of it would set the fence back.
+        context11->Wait(fence11.Get(), finished);
         if (code != FFX_API_RETURN_OK)
         {
             SetStatus(-1, providerName + " dispatch failed, code " + std::to_string(static_cast<int>(code)));
@@ -471,7 +475,6 @@ namespace redefinition
         }
 
         // D3D11: the result into Unity's output once the queue is past it.
-        context11->Wait(fence11.Get(), finished);
         context11->CopyResource(static_cast<ID3D11Resource*>(packet.output), output.d3d11.Get());
 
         ++upscaled;
