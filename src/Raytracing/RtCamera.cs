@@ -149,9 +149,18 @@ namespace ReDefinition.Raytracing
         private ComputeShader gather;
         private int gatherKernel = -1;
         private bool gatherLooked;
-        // The buffers each read-back of the counts belongs to, one set per request in
-        // flight.
-        private readonly List<ComputeBuffer[]> countedBuffers = new List<ComputeBuffer[]>();
+        // A read-back of the counts: the buffers it counted, in their order. Kept and
+        // used again, with its callback, so that a frame's request allocates nothing.
+        private sealed class CountRead
+        {
+            public ComputeBuffer[] Buffers = new ComputeBuffer[64];
+            public int Count;
+            public Action<AsyncGPUReadbackRequest> Done;
+        }
+
+        // The read-backs in flight, and those done.
+        private readonly List<CountRead> countReads = new List<CountRead>();
+        private readonly Stack<CountRead> idleCountReads = new Stack<CountRead>();
         private RenderTexture gpuInstances;
         private IntPtr gpuInstancesHandle;
         private ComputeBuffer gpuCounts;
@@ -575,11 +584,18 @@ namespace ReDefinition.Raytracing
             command.SetComputeVectorParam(gather, "_Eye", new Vector4(eye.x, eye.y, eye.z, 0f));
             command.SetComputeTextureParam(gather, gatherKernel, "_Out", gpuInstances);
             command.SetComputeBufferParam(gather, gatherKernel, "_Counts", gpuCounts);
-            var counted = new ComputeBuffer[items];
+            // How many places each buffer took, for the next frames' reservations.
+            CountRead counted = null;
+            if (SystemInfo.supportsAsyncGPUReadback && countReads.Count < 4)
+            {
+                counted = idleCountReads.Count > 0 ? idleCountReads.Pop() : NewCountRead();
+                if (counted.Buffers.Length < items) counted.Buffers = new ComputeBuffer[items];
+                counted.Count = items;
+            }
             for (int i = 0; i < items; i++)
             {
                 RtGpuItem item = Scene.GpuItems[i];
-                counted[i] = item.Transforms;
+                if (counted != null) counted.Buffers[i] = item.Transforms;
                 int places = Scene.GpuPlaces[i];
                 command.CopyCounterValue(item.Transforms, gpuCounts, (uint)(i * 4));
                 command.SetComputeBufferParam(gather, gatherKernel, "_Source", item.Transforms);
@@ -588,20 +604,33 @@ namespace ReDefinition.Raytracing
                 command.SetComputeIntParam(gather, "_First", Scene.GpuFirst[i]);
                 command.DispatchCompute(gather, gatherKernel, (places + 63) / 64, 1, 1);
             }
-            // How many places each buffer took, for the next frames' reservations.
-            if (SystemInfo.supportsAsyncGPUReadback && countedBuffers.Count < 4)
+            if (counted != null)
             {
-                countedBuffers.Add(counted);
-                command.RequestAsyncReadback(gpuCounts, items * 4, 0, request =>
-                {
-                    countedBuffers.Remove(counted);
-                    if (request.hasError) return;
-                    Unity.Collections.NativeArray<uint> taken = request.GetData<uint>();
-                    for (int i = 0; i < counted.Length && i < taken.Length; i++)
-                        Scene.NoteGpuTaken(counted[i], (int)taken[i]);
-                });
+                countReads.Add(counted);
+                command.RequestAsyncReadback(gpuCounts, items * 4, 0, counted.Done);
             }
             return true;
+        }
+
+        private CountRead NewCountRead()
+        {
+            var read = new CountRead();
+            read.Done = request => CountsRead(read, request);
+            return read;
+        }
+
+        private void CountsRead(CountRead read, AsyncGPUReadbackRequest request)
+        {
+            countReads.Remove(read);
+            if (!request.hasError)
+            {
+                Unity.Collections.NativeArray<uint> taken = request.GetData<uint>();
+                for (int i = 0; i < read.Count && i < taken.Length; i++)
+                    Scene.NoteGpuTaken(read.Buffers[i], (int)taken[i]);
+            }
+            Array.Clear(read.Buffers, 0, read.Count);
+            read.Count = 0;
+            idleCountReads.Push(read);
         }
 
         // The projection as the GPU used it, into a render texture, times the camera's

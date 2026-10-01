@@ -30,7 +30,7 @@ namespace ReDefinition.Bridges
         // main thread runs ahead, and a value set here and read at Present time
         // could belong to the frame after the one being presented.
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
-        public struct FramePacket
+        public struct FramePacket : IRingPacket<FramePacket>
         {
             public uint Size;
             public uint Magic;
@@ -57,6 +57,11 @@ namespace ReDefinition.Bridges
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToView;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToPrevClip;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] PrevClipToClip;
+
+            void IRingPacket<FramePacket>.CopyFrom(ref FramePacket packet)
+            {
+                this = packet;
+            }
         }
 
         private const uint PacketMagic = 0x4B535046;   // 'KSPF'

@@ -216,10 +216,8 @@ namespace ReDefinition.Flight
             seen.RemoveWhere(IsGone);
         }
 
-        private static bool IsGone(StageGroup group)
-        {
-            return group == null;
-        }
+        // Made once: a method group passed as is would be a new delegate every frame.
+        private static readonly Predicate<StageGroup> IsGone = group => group == null;
 
         // Every value KSP can show beside the stages, without writing its settings
         // file (InfoLine.InitEnabledValue; the Enabled setter saves settings.cfg).

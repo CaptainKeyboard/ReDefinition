@@ -51,7 +51,7 @@ namespace ReDefinition.Bridges
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct DispatchPacket
+        internal struct DispatchPacket : IRingPacket<DispatchPacket>
         {
             public uint Size;
             public uint Magic;
@@ -66,6 +66,11 @@ namespace ReDefinition.Bridges
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = MaxTextures)] public IntPtr[] Read;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = MaxTextures)] public IntPtr[] Write;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = MaxConstants)] public byte[] Constants;
+
+            void IRingPacket<DispatchPacket>.CopyFrom(ref DispatchPacket packet)
+            {
+                this = packet;
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -358,9 +363,9 @@ namespace ReDefinition.Bridges
             Array.Clear(readTextures, 0, MaxTextures);
             Array.Clear(writeTextures, 0, MaxTextures);
             for (int i = 0; i < readCount; i++)
-                if (!Native(read[i], "read texture t" + i, ref readTextures[i], out refused)) return false;
+                if (!Native(read[i], "read texture t", i, ref readTextures[i], out refused)) return false;
             for (int i = 0; i < writeCount; i++)
-                if (!Native(write[i], "write texture u" + i, ref writeTextures[i], out refused)) return false;
+                if (!Native(write[i], "write texture u", i, ref writeTextures[i], out refused)) return false;
 
             Array.Clear(constantBytes, 0, MaxConstants);
             int constantsSize = constants != null ? constants.Length : 0;
@@ -384,12 +389,17 @@ namespace ReDefinition.Bridges
             };
             dispatchesThisFrame++;
             if (buffer != null) return dispatchRing.Issue(buffer, renderEvent, DispatchEvent, ref packet);
-            CommandBuffer own = new CommandBuffer { name = "ReDefinition.D3D12 dispatch" };
-            bool issued = dispatchRing.Issue(own, renderEvent, DispatchEvent, ref packet);
-            if (issued) Graphics.ExecuteCommandBuffer(own);
-            own.Release();
+            if (ownDispatch == null) ownDispatch = new CommandBuffer { name = "ReDefinition.D3D12 dispatch" };
+            ownDispatch.Clear();
+            bool issued = dispatchRing.Issue(ownDispatch, renderEvent, DispatchEvent, ref packet);
+            if (issued) Graphics.ExecuteCommandBuffer(ownDispatch);
+            ownDispatch.Clear();
             return issued;
         }
+
+        // The buffer a dispatch executed at once is recorded into, kept: a mod may
+        // dispatch in every frame.
+        private static CommandBuffer ownDispatch;
 
         internal static void DestroyComputePass(int pass)
         {
@@ -418,15 +428,17 @@ namespace ReDefinition.Bridges
             ExecuteOwned(ReleaseEvent, ref packet);
         }
 
-        private static bool Native(RenderTexture texture, string what, ref IntPtr native, out string refused)
+        // The texture's name in the refusal put together only where there is one: every
+        // dispatch asks for each of its textures.
+        private static bool Native(RenderTexture texture, string what, int register, ref IntPtr native, out string refused)
         {
             if (texture == null || !texture.IsCreated())
             {
-                refused = what + " is not a created RenderTexture";
+                refused = what + register + " is not a created RenderTexture";
                 return false;
             }
             native = texture.GetNativeTexturePtr();
-            refused = native != IntPtr.Zero ? null : what + " has no native texture";
+            refused = native != IntPtr.Zero ? null : what + register + " has no native texture";
             return refused == null;
         }
 

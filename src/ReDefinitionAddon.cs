@@ -696,12 +696,19 @@ namespace ReDefinition
             DeferredCompatibility.AfterRenderSizeChange(followUpReason);
         }
 
+        // Asked every frame: the cameras into a buffer kept, as Camera.allCameras is a
+        // new array on every read.
+        private Camera[] pickBuffer = new Camera[16];
+
         private Camera PickCamera()
         {
+            if (pickBuffer.Length < Camera.allCamerasCount) pickBuffer = new Camera[Camera.allCamerasCount];
+            int count = Camera.GetAllCameras(pickBuffer);
             foreach (string wanted in CameraPreference)
             {
-                foreach (Camera cam in Camera.allCameras)
+                for (int i = 0; i < count; i++)
                 {
+                    Camera cam = pickBuffer[i];
                     if (cam.name == wanted && cam.isActiveAndEnabled) return cam;
                 }
             }

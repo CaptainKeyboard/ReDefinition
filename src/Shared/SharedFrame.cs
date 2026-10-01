@@ -135,7 +135,14 @@ namespace ReDefinition.Shared
             }
             if (current == lastProfile) return;
             lastProfile = current;
-            ProfileChangedHandlers.Invoke(handler => handler(current));
+            ProfileChanged(current);
+        }
+
+        // In a method of its own: a lambda in PollProfile capturing its local would be
+        // allocated in every call, the profile changed or not.
+        private static void ProfileChanged(string profile)
+        {
+            ProfileChangedHandlers.Invoke(handler => handler(profile));
         }
 
         internal static string Profile

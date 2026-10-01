@@ -115,7 +115,7 @@ namespace ReDefinition.Raytracing
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct FramePacket
+        internal struct FramePacket : Bridges.IRingPacket<FramePacket>
         {
             public uint Size;
             public uint Magic;
@@ -141,12 +141,17 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public float[] DepthRange;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
+
+            void Bridges.IRingPacket<FramePacket>.CopyFrom(ref FramePacket packet)
+            {
+                this = packet;
+            }
         }
 
         // Event 31's packet, as RtReconstructPacket in Raytracing.h: DLSS Ray
         // Reconstruction for the frame whose raytracing made its guides.
         [StructLayout(LayoutKind.Sequential)]
-        internal struct ReconstructPacket
+        internal struct ReconstructPacket : Bridges.IRingPacket<ReconstructPacket>
         {
             public uint Size;
             public uint Magic;
@@ -184,6 +189,11 @@ namespace ReDefinition.Raytracing
             public IntPtr GBuffer2;
             public IntPtr Specular;
             public IntPtr Output;
+
+            void Bridges.IRingPacket<ReconstructPacket>.CopyFrom(ref ReconstructPacket packet)
+            {
+                this = packet;
+            }
         }
 
         internal static ReconstructPacket NewReconstructPacket()

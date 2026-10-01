@@ -117,14 +117,14 @@ namespace ReDefinition.Raytracing
             scratch.Clear();
             if (HighLogic.LoadedSceneIsEditor)
             {
-                if (EditorLogic.fetch != null && EditorLogic.fetch.ship != null) scratch.AddRange(EditorLogic.fetch.ship.parts);
+                if (EditorLogic.fetch != null && EditorLogic.fetch.ship != null) Take(EditorLogic.fetch.ship.parts);
             }
             else if (HighLogic.LoadedSceneIsFlight && FlightGlobals.VesselsLoaded != null)
             {
                 Vector3 camera = scene.Eye;
                 foreach (Vessel vessel in FlightGlobals.VesselsLoaded)
                     if (vessel != null && (vessel.transform.position - camera).sqrMagnitude < range * range)
-                        scratch.AddRange(vessel.parts);
+                        Take(vessel.parts);
             }
             Parts = scratch.Count;
 
@@ -204,6 +204,12 @@ namespace ReDefinition.Raytracing
                     baked.Remove(skinned);
                 }
             }
+        }
+
+        // One by one: Mono's AddRange copies through a new array, every frame here.
+        private void Take(List<Part> from)
+        {
+            for (int i = 0; i < from.Count; i++) scratch.Add(from[i]);
         }
 
         // A sum over the bones' places and turns relative to the renderer: it changes

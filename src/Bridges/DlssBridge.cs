@@ -54,7 +54,7 @@ namespace ReDefinition.Bridges
         // Field order and types as DlssPacket in Dlss.h; size and magic are checked
         // on both sides.
         [StructLayout(LayoutKind.Sequential)]
-        internal struct DlssPacket
+        internal struct DlssPacket : IRingPacket<DlssPacket>
         {
             public uint Size;
             public uint Magic;
@@ -73,6 +73,11 @@ namespace ReDefinition.Bridges
             public float JitterY;
             public float MotionVectorScaleX;
             public float MotionVectorScaleY;
+
+            void IRingPacket<DlssPacket>.CopyFrom(ref DlssPacket packet)
+            {
+                this = packet;
+            }
         }
 
         private const uint PacketMagic = 0x4B535044;   // 'KSPD'
@@ -98,13 +103,18 @@ namespace ReDefinition.Bridges
 
         // Field order and types as DlssSizeQuery in Dlss.h.
         [StructLayout(LayoutKind.Sequential)]
-        private struct SizeQuery
+        private struct SizeQuery : IRingPacket<SizeQuery>
         {
             public uint Size;
             public uint Magic;
             public IntPtr Texture;
             public uint OutputWidth;
             public uint OutputHeight;
+
+            void IRingPacket<SizeQuery>.CopyFrom(ref SizeQuery packet)
+            {
+                this = packet;
+            }
         }
 
         private const uint SizeQueryMagic = 0x4B535051;   // 'KSPQ'

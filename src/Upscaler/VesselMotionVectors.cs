@@ -214,6 +214,10 @@ namespace ReDefinition.Upscaler
         // audit draws the vessel again and reads back, a diagnostic not worth every frame.
         private const int AuditShare = 6;
         private uint auditPick = 2463534242u;
+        // The read-back's callbacks, with and without a physics step, made once: a
+        // lambda capturing the frame's flag would be allocated in every call.
+        private System.Action<AsyncGPUReadbackRequest> readWithStep;
+        private System.Action<AsyncGPUReadbackRequest> readWithoutStep;
 
         // Into the capture, after the hooks: what the upscalers read.
         internal void RecordAudit(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
@@ -230,8 +234,12 @@ namespace ReDefinition.Upscaler
             capture.SetGlobalFloat(BadPixelsId, BadPixels);
             Draw(capture, AuditPass, true);
             capture.ClearRandomWriteTargets();
-            bool withStep = stepped;
-            capture.RequestAsyncReadback(stats, request => Read(request, withStep));
+            if (readWithStep == null)
+            {
+                readWithStep = request => Read(request, true);
+                readWithoutStep = request => Read(request, false);
+            }
+            capture.RequestAsyncReadback(stats, stepped ? readWithStep : readWithoutStep);
         }
 
         // After both: this frame's matrices become the previous ones.

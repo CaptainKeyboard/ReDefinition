@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using System;
@@ -108,6 +109,10 @@ namespace ReDefinition.Upscaler
         private static MethodInfo layerUpdateVolumeSystem;
         private static MethodInfo layerRender;
         private static FieldInfo layerVolumeLayer;
+        // Read for every layer in every frame through compiled calls, not FieldInfo and
+        // MethodInfo, which box the LayerMask and the bool they return.
+        private static Func<object, int> volumeLayerOf;
+        private static Func<object, object, bool> enabledAndSupported;
         private static FieldInfo layerVolumeTrigger;
         private static FieldInfo layerStopNaN;
         private static FieldInfo layerBreakBeforeGrading;
@@ -227,7 +232,7 @@ namespace ReDefinition.Upscaler
                 // TUFX gives its profile to the final camera only (volumeLayer 1); the
                 // other cameras' layers carry antialiasing alone, which HostStack
                 // switches off.
-                int volumes = ((LayerMask)layerVolumeLayer.GetValue(candidate)).value;
+                int volumes = volumeLayerOf(candidate);
                 if (volumes == 0) continue;
                 mask |= volumes;
                 if (first == null) first = candidate;
@@ -464,8 +469,7 @@ namespace ReDefinition.Upscaler
             object bundle = Bundle(layer, type);
             if (bundle == null) return false;
             object settings = bundleSettings.GetValue(bundle, null);
-            one[0] = context;
-            return (bool)settingsIsEnabled.Invoke(settings, one);
+            return enabledAndSupported(settings, context);
         }
 
         private bool EnsureMotion(RenderTexture motion)
@@ -572,6 +576,14 @@ namespace ReDefinition.Upscaler
                 settingsEnabled = FieldOf(settings, "enabled");
                 parameterValue = FieldOf(settingsEnabled.FieldType, "value");
                 settingsIsEnabled = MethodOf(settings, "IsEnabledAndSupported", contextType);
+                ParameterExpression target = Expression.Parameter(typeof(object), "target");
+                ParameterExpression argument = Expression.Parameter(typeof(object), "argument");
+                volumeLayerOf = Expression.Lambda<Func<object, int>>(
+                    Expression.Property(Expression.Convert(Expression.Field(Expression.Convert(target, layerType), layerVolumeLayer),
+                        typeof(LayerMask)), "value"), target).Compile();
+                enabledAndSupported = Expression.Lambda<Func<object, object, bool>>(
+                    Expression.Convert(Expression.Call(Expression.Convert(target, settings), settingsIsEnabled,
+                        Expression.Convert(argument, contextType)), typeof(bool)), target, argument).Compile();
                 contextReset = MethodOf(contextType, "Reset");
                 contextCamera = PropertyOf(contextType, "camera", Members);
                 setContextCamera = SetterOf(contextCamera);
@@ -645,7 +657,7 @@ namespace ReDefinition.Upscaler
 
                 Camera camera = blended.GetComponent<Camera>();
                 if (camera == null || !redirectedCameras.Contains(camera)) return;
-                if (((LayerMask)layerVolumeLayer.GetValue(blended)).value == 0) return;
+                if (volumeLayerOf(blended) == 0) return;
 
                 bool onSceneCamera = camera == sceneCamera;
                 int frame = Time.frameCount;

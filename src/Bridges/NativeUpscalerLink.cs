@@ -178,19 +178,19 @@ namespace ReDefinition.Bridges
         }
 
         // This frame's packet, its size and magic already set, into the buffer.
-        internal bool Submit<T>(CommandBuffer buffer, ref T packet) where T : struct
+        internal bool Submit<T>(CommandBuffer buffer, ref T packet) where T : struct, IRingPacket<T>
         {
             return Issue(buffer, packetEvent, ref packet);
         }
 
         // A packet into a slot of the ring and its event into the buffer.
-        internal bool Issue<T>(CommandBuffer buffer, int eventId, ref T packet) where T : struct
+        internal bool Issue<T>(CommandBuffer buffer, int eventId, ref T packet) where T : struct, IRingPacket<T>
         {
             return buffer != null && Ready && ring.Issue(buffer, renderEvent, eventId, ref packet);
         }
 
         // Outside a frame's buffer, in the order of the frame: a query before a rig.
-        internal bool Execute<T>(int eventId, ref T packet) where T : struct
+        internal bool Execute<T>(int eventId, ref T packet) where T : struct, IRingPacket<T>
         {
             if (!Ready) return false;
             CommandBuffer buffer = new CommandBuffer { name = "ReDefinition." + name + " event " + eventId };

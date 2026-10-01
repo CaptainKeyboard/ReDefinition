@@ -43,7 +43,8 @@ namespace ReDefinition.Shared
         {
             if (handlers.Count == 0) return;
             snapshot.Clear();
-            snapshot.AddRange(handlers);
+            // One by one: Mono's AddRange copies through a new array.
+            for (int i = 0; i < handlers.Count; i++) snapshot.Add(handlers[i]);
             foreach (T handler in snapshot)
             {
                 try

@@ -133,8 +133,10 @@ namespace ReDefinition.Flight
                 Note("the building behind the camera or too far to see");
                 return;
             }
-            Note("shown on the " + building.Facility + (revert ? ", reverting" : ", recovering") + ", "
-                 + ((Vector3d)building.Place.position - FlightGlobals.ActiveVessel.CoMD).magnitude.ToString("0") + " m off");
+            // Put together only for the log, where the note changes: this runs every frame.
+            if (noted != Shown)
+                Note("shown on the " + building.Facility + (revert ? ", reverting" : ", recovering") + ", "
+                     + ((Vector3d)building.Place.position - FlightGlobals.ActiveVessel.CoMD).magnitude.ToString("0") + " m off");
             marker.Look(building.Facility == EditorFacility.SPH ? "Buttons_SPH" : "Buttons_VAB",
                 building.Facility == EditorFacility.SPH ? sphIcon : vabIcon);
             marker.Tooltip = Title(building.Facility, revert);
@@ -157,17 +159,20 @@ namespace ReDefinition.Flight
             building = facility == EditorFacility.SPH ? sph : vab;
             if (building == null || building.Place == null) return Note("no " + facility);
             double distance = (vessel.CoMD - (Vector3d)building.Place.position).magnitude;
-            if (distance > Range) return Note(distance.ToString("0") + " m from the " + facility);
+            if (distance > Range) return noted != Far && Note(distance.ToString("0") + " m from the " + facility);
             return revert || CanRecover(vessel) || Note("neither a revert nor a recovery possible");
         }
 
-        // Why the symbol stands or not, into the log as it changes.
+        // Why the symbol stands or not, into the log as it changes. A distance and
+        // where it stands count as one reason each, whatever their figures.
         private string noted;
+        private const string Far = "far";
+        private const string Shown = "shown";
 
         private bool Note(string why)
         {
-            string key = why.Length > 12 && char.IsDigit(why[0]) ? "far" : why;
-            if (key.StartsWith("shown")) key = "shown";
+            string key = why.Length > 12 && char.IsDigit(why[0]) ? Far : why;
+            if (key.StartsWith(Shown)) key = Shown;
             if (key == noted) return false;
             noted = key;
             Debug.Log(Log.Tag + " Assembly building's symbol: " + why + ".");
@@ -187,10 +192,11 @@ namespace ReDefinition.Flight
                    && vessel.IsRecoverable;
         }
 
+        // Whole strings: the tooltip is set every frame.
         private static string Title(EditorFacility facility, bool revert)
         {
-            string building = facility == EditorFacility.SPH ? "Spaceplane Hangar" : "Vehicle Assembly";
-            return revert ? "Revert to " + building : "Recover vessel and go to " + building;
+            if (facility == EditorFacility.SPH) return revert ? "Revert to Spaceplane Hangar" : "Recover vessel and go to Spaceplane Hangar";
+            return revert ? "Revert to Vehicle Assembly" : "Recover vessel and go to Vehicle Assembly";
         }
 
         // The middle of the building's hall, found once it is there: over the

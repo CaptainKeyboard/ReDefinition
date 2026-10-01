@@ -223,7 +223,8 @@ namespace ReDefinition.Upscaler
         {
             if (!active || depth == null || motionVectors == null)
             {
-                DumpState("not active: " + (Enabled ? "no flight scene, vessel, shader or textures" : "switched off"));
+                // Whole lines, not put together: this runs in every frame it is not active.
+                DumpState(Enabled ? "not active: no flight scene, vessel, shader or textures" : "not active: switched off");
                 Clear(capture);
                 return;
             }

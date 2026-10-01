@@ -15,6 +15,9 @@ namespace ReDefinition.Raytracing
         private static FieldInfo kopernicusCurrent;
         private static PropertyInfo starLight;
         private static FieldInfo planetShineOn;
+        // PlanetShine's switch, read every frame through a compiled getter: a
+        // FieldInfo's GetValue boxes the bool.
+        private static Func<bool> planetShineRead;
         private static Type deferredReflections;
         // Parallax's fields, read through compiled getters: a FieldInfo's GetValue costs
         // a reflection call per field, nine per scatter renderer a frame.
@@ -77,6 +80,9 @@ namespace ReDefinition.Raytracing
                     {
                         Type planetShine = assembly.GetType("PlanetShine.PlanetShine");
                         planetShineOn = planetShine?.GetField("renderEnabled", BindingFlags.Public | BindingFlags.Static);
+                        planetShineRead = planetShineOn != null && planetShineOn.FieldType == typeof(bool)
+                            ? Expression.Lambda<Func<bool>>(Expression.Field(null, planetShineOn)).Compile()
+                            : null;
                     }
                     else if (name == "Deferred")
                     {
@@ -187,10 +193,10 @@ namespace ReDefinition.Raytracing
         internal static void HoldPlanetShine(bool hold)
         {
             Look();
-            if (planetShineOn == null) return;
+            if (planetShineOn == null || planetShineRead == null) return;
             try
             {
-                bool on = (bool)planetShineOn.GetValue(null);
+                bool on = planetShineRead();
                 if (hold && !planetShineHeld)
                 {
                     if (planetShineLeft) return;
@@ -217,6 +223,7 @@ namespace ReDefinition.Raytracing
             catch (Exception)
             {
                 planetShineOn = null;
+                planetShineRead = null;
             }
         }
 

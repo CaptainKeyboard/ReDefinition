@@ -273,20 +273,38 @@ namespace ReDefinition.Settings.Behaviours
             if (MapView.MapIsEnabled || GalaxyCubeControl.Instance == null || FlightCamera.fetch == null) return;
             Camera camera = FlightCamera.fetch.mainCamera;
             if (camera == null || !SunHidden(camera.transform.position)) return;
-            HarmonyHooks.Safely("doe-sky", "Distant Object's sky dimming could not be kept from the hidden sun", () =>
+            DarkenSky(camera);
+        }
+
+        private static readonly object[] planetsArguments = new object[4];
+
+        // Without a lambda, as HarmonyHooks.Safely would take one: capturing the camera,
+        // it would be allocated in every frame.
+        private static void DarkenSky(Camera camera)
+        {
+            try
             {
                 object settings = settingsInstance.GetValue(null, null);
                 object values = settings != null ? skybox.GetValue(settings) : null;
                 object system = solarSystem.GetValue(null, null);
                 if (values == null || system == null) return;
-                double planets = (double)planetsBrightness.Invoke(system, new object[]
-                {
-                    minimumSignificantBodySize.GetValue(values), minimumTargetRelativeAngle.GetValue(values),
-                    referenceBodySize.GetValue(values), camera,
-                });
+                planetsArguments[0] = minimumSignificantBodySize.GetValue(values);
+                planetsArguments[1] = minimumTargetRelativeAngle.GetValue(values);
+                planetsArguments[2] = referenceBodySize.GetValue(values);
+                planetsArguments[3] = camera;
+                double planets = (double)planetsBrightness.Invoke(system, planetsArguments);
                 float brightness = (float)((double)maxBrightness.GetValue(values) * Math.Min(1.0, planets));
                 GalaxyCubeControl.Instance.maxGalaxyColor = new Color(brightness, brightness, brightness);
-            });
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("doe-sky", "Distant Object's sky dimming could not be kept from the hidden sun ("
+                                                 + CompatibilityLog.Reason(e) + ").");
+            }
+            finally
+            {
+                planetsArguments[3] = null;
+            }
         }
 
         // Whether a body stands between the camera and the sun.

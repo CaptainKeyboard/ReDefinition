@@ -20,6 +20,10 @@ namespace ReDefinition.Window
                    || category == SettingCategory.Devices;
         }
 
+        // Asked for every header in every frame while searching: made once, where the
+        // method group would be a new delegate each time.
+        private static readonly Predicate<DialogGUIBase> RowMatchesCall = RowMatches;
+
         private static bool FoldOpen(string fold)
         {
             return openFolds.Contains(fold);
@@ -43,7 +47,7 @@ namespace ReDefinition.Window
                 if (!openFolds.Remove(fold)) openFolds.Add(fold);
             }, PageWidth - 60f, RowHeight + 6f, false);
             header.tooltipText = "Opens or folds " + title + ".";
-            header.OptionEnabledCondition = () => !Searching || group.Exists(RowMatches);
+            header.OptionEnabledCondition = () => !Searching || group.Exists(RowMatchesCall);
             header.OptionInteractableCondition = () => !Searching;
             rows.Add(header);
             foldRows.Add(header);

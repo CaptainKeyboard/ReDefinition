@@ -18,7 +18,7 @@ namespace ReDefinition.Bridges
 
         // Field order and types as AmdUpscalerPacket in AmdUpscaler.h.
         [StructLayout(LayoutKind.Sequential)]
-        internal struct AmdPacket
+        internal struct AmdPacket : IRingPacket<AmdPacket>
         {
             public uint Size;
             public uint Magic;
@@ -42,6 +42,11 @@ namespace ReDefinition.Bridges
             public float VerticalFovRadians;
             public IntPtr Reactive;
             public IntPtr TransparencyAndComposition;
+
+            void IRingPacket<AmdPacket>.CopyFrom(ref AmdPacket packet)
+            {
+                this = packet;
+            }
         }
 
         private const uint PacketMagic = 0x4B535041;   // 'KSPA'

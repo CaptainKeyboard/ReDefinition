@@ -178,21 +178,40 @@ namespace ReDefinition.Flight
             return rounded;
         }
 
+        // The speeds as last written, rounded as shown: the text is made anew only when
+        // one of them changes, not in every frame.
+        private double verticalShown = double.NaN;
+        private double horizontalShown = double.NaN;
+
         private void LateUpdate()
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (vessel == null) return;
-            if (vertical != null) vertical.text = Speed(vessel.verticalSpeed);
-            if (horizontal != null) horizontal.text = Speed(vessel.horizontalSrfSpeed);
+            if (vertical != null) Show(vertical, vessel.verticalSpeed, ref verticalShown);
+            if (horizontal != null) Show(horizontal, vessel.horizontalSrfSpeed, ref horizontalShown);
+        }
+
+        private static void Show(TextMeshProUGUI field, double metresPerSecond, ref double before)
+        {
+            double shown = Shown(metresPerSecond);
+            if (shown == before) return;
+            before = shown;
+            field.text = Speed(metresPerSecond);
         }
 
         // "12.3m/s" below 100, "123m/s" above, as KSP's speed display writes it.
         internal static string Speed(double metresPerSecond)
         {
             double size = System.Math.Abs(metresPerSecond);
-            double shown = size < 99.95 ? System.Math.Round(metresPerSecond, 1) : System.Math.Round(metresPerSecond);
             // No "-0.0" for a speed that rounds to nothing.
-            return (shown == 0.0 ? 0.0 : shown).ToString(size < 99.95 ? "0.0" : "0", System.Globalization.CultureInfo.InvariantCulture) + "m/s";
+            return Shown(metresPerSecond).ToString(size < 99.95 ? "0.0" : "0", System.Globalization.CultureInfo.InvariantCulture) + "m/s";
+        }
+
+        // The speed rounded as it is written, which alone decides the text.
+        private static double Shown(double metresPerSecond)
+        {
+            double shown = System.Math.Abs(metresPerSecond) < 99.95 ? System.Math.Round(metresPerSecond, 1) : System.Math.Round(metresPerSecond);
+            return shown == 0.0 ? 0.0 : shown;
         }
     }
 }

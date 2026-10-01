@@ -277,17 +277,23 @@ namespace ReDefinition.Upscaler
         private void CheckMissing()
         {
             int width = size.x;
-            repair.RequestAsyncReadback(motionCopy, 0, 0, width, size.y / 2, 1, 0, 1, request =>
-            {
-                if (request.hasError) return;
-                NativeArray<ushort> data = request.GetData<ushort>();
-                int missing = 0, pixels = data.Length / 2;
-                for (int i = 0; i < pixels; i++)
-                    if (Mathf.HalfToFloat(data[i * 2]) < -50f) missing++;
-                checkedFrames++;
-                if (missing > 0) missingFrames++;
-                missingShare += pixels > 0 ? (double)missing / pixels : 0.0;
-            });
+            if (missingRead == null) missingRead = MissingRead;
+            repair.RequestAsyncReadback(motionCopy, 0, 0, width, size.y / 2, 1, 0, 1, missingRead);
+        }
+
+        // Made once: the method group passed as is would be a new delegate at every check.
+        private System.Action<AsyncGPUReadbackRequest> missingRead;
+
+        private void MissingRead(AsyncGPUReadbackRequest request)
+        {
+            if (request.hasError) return;
+            NativeArray<ushort> data = request.GetData<ushort>();
+            int missing = 0, pixels = data.Length / 2;
+            for (int i = 0; i < pixels; i++)
+                if (Mathf.HalfToFloat(data[i * 2]) < -50f) missing++;
+            checkedFrames++;
+            if (missing > 0) missingFrames++;
+            missingShare += pixels > 0 ? (double)missing / pixels : 0.0;
         }
 
         private void ReportMissing()

@@ -65,7 +65,34 @@ namespace ReDefinition.Upscaler
             internal float Depth = float.NaN;
             internal Vector2 Read = new Vector2(float.NaN, float.NaN);
             internal bool Failed;
+            // Kept and used again, with its read-backs' callbacks: back once both came.
+            internal int Pending;
+            internal System.Action<AsyncGPUReadbackRequest> DepthRead;
+            internal System.Action<AsyncGPUReadbackRequest> MotionRead;
+
+            // As a new one.
+            internal void Clear()
+            {
+                Vessel = false;
+                Name = null;
+                Viewport = Vector2.zero;
+                InverseViewProjection = default(Matrix4x4);
+                ViewProjection = default(Matrix4x4);
+                PreviousViewProjection = default(Matrix4x4);
+                Motion = default(Matrix4x4);
+                Bounds = default(Bounds);
+                VesselCenter = Vector3.zero;
+                VesselRadius = 0f;
+                Size = Vector2Int.zero;
+                Depth = float.NaN;
+                Read = new Vector2(float.NaN, float.NaN);
+                Failed = false;
+            }
         }
+
+        private readonly Stack<Sample> idleSamples = new Stack<Sample>();
+        // A part's renderers, read into this list rather than a new array each time.
+        private static readonly List<Renderer> partRenderers = new List<Renderer>();
 
         private sealed class Tally
         {
@@ -159,34 +186,32 @@ namespace ReDefinition.Upscaler
                     Vector3 viewport = camera.WorldToViewportPoint(bounds.center);
                     if (viewport.z <= 0f || viewport.x <= 0f || viewport.x >= 1f || viewport.y <= 0f || viewport.y >= 1f)
                         continue;
-                    Issue(capture, motionVectors, depth, new Sample
-                    {
-                        Vessel = true,
-                        Name = part.partInfo != null ? part.partInfo.name : part.name,
-                        Viewport = viewport,
-                        InverseViewProjection = inverse,
-                        ViewProjection = viewProjection,
-                        PreviousViewProjection = previousViewProjection,
-                        Motion = before * part.transform.localToWorldMatrix.inverse,
-                        Bounds = bounds,
-                        Size = size,
-                    });
+                    Sample sample = TakeSample();
+                    sample.Vessel = true;
+                    sample.Name = part.partInfo != null ? part.partInfo.name : part.name;
+                    sample.Viewport = viewport;
+                    sample.InverseViewProjection = inverse;
+                    sample.ViewProjection = viewProjection;
+                    sample.PreviousViewProjection = previousViewProjection;
+                    sample.Motion = before * part.transform.localToWorldMatrix.inverse;
+                    sample.Bounds = bounds;
+                    sample.Size = size;
+                    Issue(capture, motionVectors, depth, sample);
                 }
                 foreach (Vector2 viewport in GroundViewport)
                 {
-                    Issue(capture, motionVectors, depth, new Sample
-                    {
-                        Vessel = false,
-                        Name = "ground",
-                        Viewport = viewport,
-                        InverseViewProjection = inverse,
-                        ViewProjection = viewProjection,
-                        PreviousViewProjection = previousViewProjection,
-                        Motion = Matrix4x4.identity,
-                        VesselCenter = center,
-                        VesselRadius = radius,
-                        Size = size,
-                    });
+                    Sample sample = TakeSample();
+                    sample.Vessel = false;
+                    sample.Name = "ground";
+                    sample.Viewport = viewport;
+                    sample.InverseViewProjection = inverse;
+                    sample.ViewProjection = viewProjection;
+                    sample.PreviousViewProjection = previousViewProjection;
+                    sample.Motion = Matrix4x4.identity;
+                    sample.VesselCenter = center;
+                    sample.VesselRadius = radius;
+                    sample.Size = size;
+                    Issue(capture, motionVectors, depth, sample);
                 }
             }
 
@@ -230,7 +255,8 @@ namespace ReDefinition.Upscaler
         {
             bounds = default(Bounds);
             bool any = false;
-            foreach (Renderer renderer in part.GetComponentsInChildren<Renderer>(false))
+            part.GetComponentsInChildren(false, partRenderers);
+            foreach (Renderer renderer in partRenderers)
             {
                 if (renderer == null || !renderer.enabled || renderer is ParticleSystemRenderer) continue;
                 if (!any) bounds = renderer.bounds;
@@ -247,13 +273,30 @@ namespace ReDefinition.Upscaler
             int y = Mathf.Clamp(Mathf.FloorToInt(sample.Viewport.y * sample.Size.y), 0, sample.Size.y - 1);
             // The pixel's centre, as it is read.
             sample.Viewport = new Vector2((x + 0.5f) / sample.Size.x, (y + 0.5f) / sample.Size.y);
-            capture.RequestAsyncReadback(depth, 0, x, 1, y, 1, 0, 1, request =>
+            sample.Pending = 2;
+            capture.RequestAsyncReadback(depth, 0, x, 1, y, 1, 0, 1, sample.DepthRead);
+            capture.RequestAsyncReadback(motionVectors, 0, x, 1, y, 1, 0, 1, sample.MotionRead);
+        }
+
+        private Sample TakeSample()
+        {
+            if (idleSamples.Count == 0) return NewSample();
+            Sample sample = idleSamples.Pop();
+            sample.Clear();
+            return sample;
+        }
+
+        private Sample NewSample()
+        {
+            Sample sample = new Sample();
+            sample.DepthRead = request =>
             {
                 if (request.hasError) sample.Failed = true;
                 else sample.Depth = request.GetData<float>()[0];
                 Finish(sample);
-            });
-            capture.RequestAsyncReadback(motionVectors, 0, x, 1, y, 1, 0, 1, request =>
+                Release(sample);
+            };
+            sample.MotionRead = request =>
             {
                 if (request.hasError)
                 {
@@ -265,7 +308,14 @@ namespace ReDefinition.Upscaler
                     sample.Read = new Vector2(Mathf.HalfToFloat(data[0]), Mathf.HalfToFloat(data[1]));
                 }
                 Finish(sample);
-            });
+                Release(sample);
+            };
+            return sample;
+        }
+
+        private void Release(Sample sample)
+        {
+            if (--sample.Pending == 0) idleSamples.Push(sample);
         }
 
         private void Finish(Sample sample)
