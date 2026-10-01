@@ -18,6 +18,14 @@ namespace ReDefinition.RaytracingPlayer
     //   RaytracingPlayer.exe -turn <rr|denoiser|plain> -out <folder> [-jitter 1]
     //     [-deferred <folder with Deferred's "deferredshaders" bundle>]
     //
+    //   RaytracingPlayer.exe -turn plain -upscale <fsr3|dlss|amd|native> -scale <render
+    //     scale, 0.5 for half the display's width> -out <folder> [-bundle <shader bundle>]
+    //
+    // -upscale renders at the render size with the upscaler's jitter and keeps the
+    // upscaled frame (RtTurnUpscale.cs); its references are rendered at twice the display
+    // size without jitter, for tools/analyze_upscale_turn.py. native renders at the
+    // display size without jitter or upscaler.
+    //
     // -jitter offsets the projection each frame as the upscaler does (CameraRedirect,
     // UpscalerRig: FSR's Halton sequence, 8 phases at the render size); -deferred renders
     // with Deferred's lighting shaders, as KSP with Deferred does.
@@ -40,6 +48,8 @@ namespace ReDefinition.RaytracingPlayer
         private string mode;
         private bool jitter;
         private bool deferredMod;
+        private string upscaler;
+        private Vector2Int renderSize = new Vector2Int(Width, Height);
         private Camera cam;
         private RtCamera raytracing;
         private ReflectionProbe probe;
@@ -64,6 +74,12 @@ namespace ReDefinition.RaytracingPlayer
         {
             mode = Argument("-turn");
             jitter = Argument("-jitter") != null;
+            upscaler = Argument("-upscale");
+            if (upscaler != null && upscaler != "native")
+            {
+                float scale = float.Parse(Argument("-scale") ?? "0.5", CultureInfo.InvariantCulture);
+                renderSize = new Vector2Int(Mathf.RoundToInt(Width * scale), Mathf.RoundToInt(Height * scale));
+            }
             deferredMod = RtPlayerRunner.LoadDeferred(Argument("-deferred"));
             output = Argument("-out") ?? Path.Combine(Application.dataPath, "..");
             Directory.CreateDirectory(output);
@@ -154,7 +170,7 @@ namespace ReDefinition.RaytracingPlayer
             probe.size = new Vector3(1e6f, 1e6f, 1e6f);
             probe.resolution = 128;
 
-            target = new RenderTexture(Width, Height, 24, RenderTextureFormat.DefaultHDR) { name = "turn target" };
+            target = new RenderTexture(renderSize.x, renderSize.y, 24, RenderTextureFormat.DefaultHDR) { name = "turn target" };
             target.Create();
             cam = new GameObject("Camera").AddComponent<Camera>();
             cam.fieldOfView = 60f;
@@ -182,6 +198,7 @@ namespace ReDefinition.RaytracingPlayer
             }
             pass = cam.gameObject.AddComponent<RtTurnPass>();
             pass.Init(cam, raytracing, mode == "rr", jitter);
+            if (upscaler != null) pass.InitUpscaler(upscaler, new Vector2Int(Width, Height), renderSize);
             if (raytracing != null)
             {
                 raytracing.RenderedProjection = () => pass.RenderedProjection;
@@ -223,7 +240,8 @@ namespace ReDefinition.RaytracingPlayer
             for (int i = 0; i < 20; i++) path.Add(angle += 2f);
             for (int i = 0; i < 10; i++) path.Add(angle += 12f);
             path.Add(angle += 40f);
-            for (int i = 0; i < 12; i++) path.Add(angle);
+            // Still long enough, upscaled, to see whether the frame settles and flickers.
+            for (int i = 0; i < (upscaler != null ? 30 : 12); i++) path.Add(angle);
 
             Pose(path[0]);
             pass.Reset = true;
@@ -234,6 +252,16 @@ namespace ReDefinition.RaytracingPlayer
                 Pose(path[i]);
                 pass.Capture = "turn_" + i.ToString("000", CultureInfo.InvariantCulture);
                 yield return null;
+            }
+
+            // Upscaled, the references at twice the display size, without jitter or upscaler.
+            RenderTexture referenceTarget = null;
+            if (upscaler != null)
+            {
+                referenceTarget = new RenderTexture(Width * 2, Height * 2, 24, RenderTextureFormat.DefaultHDR);
+                referenceTarget.Create();
+                cam.targetTexture = referenceTarget;
+                pass.SetJitter(false);
             }
 
             // The references: each pose of the turn after the camera stood there a while.
@@ -248,7 +276,7 @@ namespace ReDefinition.RaytracingPlayer
 
             // The poses halfway between two frames of the turn, where frame generation puts
             // the frames it makes.
-            for (int i = 1; i < path.Count; i++)
+            for (int i = 1; i < path.Count && upscaler == null; i++)
             {
                 if (path[i] == path[i - 1]) continue;
                 Pose((path[i - 1] + path[i]) * 0.5f);
@@ -268,7 +296,8 @@ namespace ReDefinition.RaytracingPlayer
             File.WriteAllText(Path.Combine(output, "path.txt"), string.Join("\n", path.ConvertAll(
                 p => p.ToString("0.###", CultureInfo.InvariantCulture)).ToArray()));
             Log("turn written: " + pass.Written + " frames, reconstructed " + pass.Reconstructed + ", "
-                + (raytracing != null ? raytracing.Status() : "plain"));
+                + (raytracing != null ? raytracing.Status() : "plain")
+                + (upscaler != null ? "; " + upscaler + " at " + renderSize.x + "x" + renderSize.y + ": " + pass.UpscalerState() : ""));
             Log(pass.Written > 0 ? "all checks passed" : "FAIL  nothing written");
             Finish();
         }
@@ -295,7 +324,7 @@ namespace ReDefinition.RaytracingPlayer
     // After the raytracing (RtCamera, the component before it): DLSS Ray
     // Reconstruction of the finished frame as UpscalerRig.Reconstruction.cs sends it,
     // and the frames to keep read back.
-    internal sealed class RtTurnPass : MonoBehaviour
+    internal sealed partial class RtTurnPass : MonoBehaviour
     {
         private Camera cam;
         private RtCamera raytracing;
@@ -387,7 +416,7 @@ namespace ReDefinition.RaytracingPlayer
             if (jitter)
             {
                 // Fsr3Upscaler.GetJitterOffset with 8 phases, as at the render size.
-                int phase = Time.frameCount % 8 + 1;
+                int phase = Time.frameCount % jitterPhases + 1;
                 JitterPixels = new Vector2(Halton(phase, 2) - 0.5f, Halton(phase, 3) - 0.5f);
                 cam.nonJitteredProjectionMatrix = UnjitteredProjection;
                 cam.projectionMatrix = Matrix4x4.Translate(new Vector3(2f * JitterPixels.x / cam.pixelWidth,
@@ -403,8 +432,28 @@ namespace ReDefinition.RaytracingPlayer
             if (jitter) cam.ResetProjectionMatrix();
         }
 
+        private RenderTexture referenceCopy;
+
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
+            // A reference of the upscaled turn: rendered at twice the display size, kept as
+            // it is.
+            if (colour != null && source.width != colour.width)
+            {
+                Graphics.Blit(source, destination);
+                if (Capture == null) return;
+                if (referenceCopy == null || referenceCopy.width != source.width)
+                    referenceCopy = Make(source.width, source.height, RenderTextureFormat.ARGBHalf, false);
+                Graphics.Blit(source, referenceCopy);
+                string referenceName = Capture;
+                Capture = null;
+                Meta.Append(referenceName).Append(' ').Append(source.width).Append(' ').Append(source.height).Append(" 0");
+                AppendMatrix(cam.worldToCameraMatrix);
+                AppendMatrix(GL.GetGPUProjectionMatrix(cam.projectionMatrix, true));
+                Meta.Append('\n');
+                Read(referenceCopy, referenceName + "_colour.bin");
+                return;
+            }
             if (colour == null)
             {
                 colour = Make(source.width, source.height, RenderTextureFormat.ARGBHalf, false);
@@ -426,8 +475,9 @@ namespace ReDefinition.RaytracingPlayer
                 Fill(source.width, source.height);
                 ring.Issue(command, RtNative.RenderEvent, RtNative.ReconstructEvent, ref packet);
             }
+            if (Upscaling && !reconstructed) Upscale(command, cam.fieldOfView * Mathf.Deg2Rad);
             Graphics.ExecuteCommandBuffer(command);
-            RenderTexture shown = reconstructed ? result : colour;
+            RenderTexture shown = reconstructed ? result : Upscaling ? upscaled : colour;
             Graphics.Blit(shown, destination);
             Reconstructed = WantsReconstruction ? RtNative.KspRtReconstructedFrames() : 0;
 
@@ -437,7 +487,7 @@ namespace ReDefinition.RaytracingPlayer
             {
                 string name = Capture;
                 Capture = null;
-                Meta.Append(name).Append(' ').Append(source.width).Append(' ').Append(source.height).Append(' ')
+                Meta.Append(name).Append(' ').Append(shown.width).Append(' ').Append(shown.height).Append(' ')
                     .Append(reconstructed ? 1 : 0);
                 AppendMatrix(cam.worldToCameraMatrix);
                 AppendMatrix(projectionNow);

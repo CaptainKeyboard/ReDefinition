@@ -32,6 +32,18 @@ SOURCES = [
     'src/Raytracing/RtCamera.cs',
     'src/Bridges/PacketRing.cs',
     'src/Bridges/StreamlineCamera.cs',
+    # The upscalers, for the turn through each (RtTurnUpscale.cs).
+    'src/Bridges/NativeUpscalerLink.cs',
+    'src/Bridges/DlssBridge.cs',
+    'src/Bridges/AmdUpscalerBridge.cs',
+    'src/Fsr3/Fsr3Constants.cs',
+    'src/Fsr3/Fsr3ShaderIDs.cs',
+    'src/Fsr3/Fsr3Upscaler.cs',
+    'src/Fsr3/Fsr3UpscalerAssets.cs',
+    'src/Fsr3/Fsr3UpscalerContext.cs',
+    'src/Fsr3/Fsr3UpscalerPass.cs',
+    'src/Fsr3/Fsr3UpscalerResources.cs',
+    'src/Fsr3/ResourceView.cs',
 ]
 SHADERS = [
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtCapture.shader',
@@ -121,6 +133,35 @@ def turn(exe, streamline, deferred):
     return 0 if ok and result.returncode == 0 else 1
 
 
+def upscale(exe, streamline, amd, ksp):
+    # The proxy with DLSS from the Streamline SDK's folder and AMD's upscaler, as a
+    # player names them; only for these runs.
+    ini = os.path.join(OUTPUT, 'ReDefinitionProxy.ini')
+    with open(ini, 'w') as file:
+        file.write('[Proxy]' + chr(10) + 'enabled=1' + chr(10) + 'frameGeneration=1' + chr(10)
+                   + 'dlssFrameGeneration=1' + chr(10) + 'streamlineDirectory=' + streamline + chr(10)
+                   + 'dlssDirectory=' + streamline + chr(10) + 'amdUpscalerDirectory=' + amd + chr(10))
+    bundle = os.path.join(ksp, 'GameData', 'ReDefinition', 'Shaders', 'redefinition.shaders')
+    runs = [('upscale-native', ['-upscale', 'native'])]
+    # DLSS's own sizes for quality and performance, which the rig renders at.
+    for scale in ('0.6666667', '0.5'):
+        for upscaler in ('fsr3', 'dlss', 'amd'):
+            runs.append(('upscale-%s-%s' % (upscaler, scale), ['-upscale', upscaler, '-scale', scale, '-bundle', bundle]))
+    folders = []
+    try:
+        ok = True
+        for label, extra in runs:
+            folder = os.path.join(OUTPUT, label)
+            if os.path.isdir(folder):
+                shutil.rmtree(folder)
+            ok = run(exe, None, label, ['-turn', 'plain'] + extra) and ok
+            folders.append(folder)
+    finally:
+        os.remove(ini)
+    result = subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'analyze_upscale_turn.py')] + folders)
+    return 0 if ok and result.returncode == 0 else 1
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--unity', default=r'C:\Program Files\Unity\Editor\Unity.exe')
@@ -129,6 +170,11 @@ def main():
     parser.add_argument('--turn', action='store_true',
                         help='record the camera turn (RtTurnRunner) through DLSS Ray Reconstruction, the denoiser and'
                              ' without raytracing, and measure it with analyze_rt_turn.py, instead of the checks')
+    parser.add_argument('--upscale', action='store_true',
+                        help='record the camera turn through FSR 3, DLSS and the AMD upscaler at two render scales, and'
+                             ' natively, and measure them with analyze_upscale_turn.py, instead of the checks')
+    parser.add_argument('--amd', default=os.path.join(os.path.dirname(ROOT), 'References', 'KspUpscaler', 'FSR4'),
+                        help='the folder with amd_fidelityfx_upscaler_dx12.dll')
     parser.add_argument('--streamline', default=os.environ.get('REDEFINITION_STREAMLINE_DIR', os.path.join(
         os.path.dirname(ROOT), 'References', 'KspUpscaler', 'streamline-sdk-v2.14.1', 'bin', 'x64')))
     arguments = parser.parse_args()
@@ -138,6 +184,8 @@ def main():
         exe = build(arguments.unity)
     else:
         shutil.copy2(PROXY, OUTPUT)
+    if arguments.upscale:
+        sys.exit(upscale(exe, arguments.streamline, arguments.amd, arguments.ksp))
     if arguments.turn:
         sys.exit(turn(exe, arguments.streamline, os.path.join(arguments.ksp, 'GameData', 'zzz_Deferred', 'Shaders')))
     deferred = os.path.join(arguments.ksp, 'GameData', 'zzz_Deferred', 'Shaders')

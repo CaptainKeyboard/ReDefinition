@@ -326,6 +326,24 @@ against the cameras' motion as well, and writes `error_<frame>.png` images. It p
 `PASS` or `FAIL` per run against limits of about twice the values measured on 2026-10-01;
 without raytracing the turn equals its references.
 
+### The upscalers on the camera turn
+
+```
+python toolsuild_rt_player.py --upscale
+```
+
+The same turn without raytracing, rendered at two thirds and at half the display size
+with the upscaler's jitter and upscaled by FSR 3 (its Unity port), DLSS and AMD's
+upscaler, as the rig sends each (`RtTurnUpscale.cs`), and once natively without jitter.
+DLSS comes from the Streamline SDK's folder (`--streamline`), AMD's upscaler from
+`--amd`, FSR 3's shaders from the game's bundle. The references are each pose rendered at
+twice the display size without jitter. `toolsnalyze_upscale_turn.py` prints, per run,
+the error where something came into view, the rest, the error once still and how much a
+still frame flickers.
+
+`-jitterSign x|y|xy` and `-motionSign x|y|xy` negate what the upscaler is given, as a
+counter-check of the conventions: each measures worse than the rig's.
+
 The turn goes through frame generation as well:
 
 ```
