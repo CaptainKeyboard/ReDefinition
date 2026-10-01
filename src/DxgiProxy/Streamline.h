@@ -46,7 +46,11 @@ namespace redefinition
         // called within DLLMain entry point because that can cause a deadlock"
         // (ProgrammingGuide.md 2.2.1). False while another owner holds it, and on a
         // failure, which is logged with its reason and shows in Describe.
-        bool Acquire(const void* owner);
+        bool Acquire(const void* owner, bool forFrameGeneration);
+
+        // What runs instead where Streamline does not: FSR's frame generation, or,
+        // set up for Ray Reconstruction alone, no Ray Reconstruction. For the notes.
+        std::string Instead() const;
 
         // slShutdown, if this owner holds it -- before the D3D12 device goes: "Call
         // slShutdown() before destroying DXGI, D3D12, or Vulkan instances, devices,
@@ -56,10 +60,10 @@ namespace redefinition
         // Why DLSS frame generation does not run, where the proxy found out itself.
         void Note(const std::string& why);
 
-        // Whether Streamline is of use on the adapter with this LUID: for DLSS-G,
-        // which needs Reflex with it, where frame generation is wanted; for DLSS Ray
-        // Reconstruction alone where it is not. Logs why not.
-        bool Supported(const LUID& adapter, bool frameGenerationWanted);
+        // Whether Streamline is of use on the adapter with this LUID, for what Acquire
+        // set it up for: DLSS-G, which needs Reflex with it, where frame generation
+        // is wanted; DLSS Ray Reconstruction alone where it is not. Logs why not.
+        bool Supported(const LUID& adapter);
 
         // Whether the device set runs DLSS frame generation, not Ray Reconstruction
         // alone.
@@ -126,6 +130,7 @@ namespace redefinition
         // The frame the swapchain has begun, whose token DLSS Ray Reconstruction
         // evaluates under. Set by the presenting swapchain.
         void NoteFrameInProgress(uint32_t frameIndex);
+        void ClearGameFrame();
 
         // The index of the frame in progress (NoteFrameInProgress); without a
         // swapchain presenting, a frame of its own each time.
@@ -213,6 +218,8 @@ namespace redefinition
         PFun_slDLSSDGetOptimalSettings* slDLSSDGetOptimalSettings = nullptr;
         std::atomic<bool> rayReconstruction{ false };
         std::atomic<bool> frameGeneration{ false };
+        // What the owner set Streamline up for (Acquire).
+        bool frameGenerationWanted = true;
         std::string rayReconstructionWhy = "Streamline not set up";
         std::atomic<int64_t> frameInProgress{ -1 };
         // Taken from the present thread and from Unity's render thread.

@@ -289,7 +289,7 @@ namespace redefinition
             else
             {
                 Streamline::Get().Note("no command queue through Streamline (" + Hr(hr)
-                                       + ") -- FSR frame generation instead");
+                                       + ")" + Streamline::Get().Instead());
                 TearDownStreamline();
             }
         }
@@ -486,14 +486,14 @@ namespace redefinition
     bool SwapChainProxy::SetUpStreamline(IDXGIAdapter* adapter, bool frameGenerationWanted)
     {
         Streamline& streamline = Streamline::Get();
-        if (!streamline.Acquire(this))
+        if (!streamline.Acquire(this, frameGenerationWanted))
             return false;
 
         DXGI_ADAPTER_DESC adapterDesc = {};
         const HRESULT described = adapter->GetDesc(&adapterDesc);
         if (FAILED(described))
-            streamline.Note("the adapter has no description (" + Hr(described) + ") -- FSR frame generation instead");
-        if (FAILED(described) || !streamline.Supported(adapterDesc.AdapterLuid, frameGenerationWanted)
+            streamline.Note("the adapter has no description (" + Hr(described) + ")" + Streamline::Get().Instead());
+        if (FAILED(described) || !streamline.Supported(adapterDesc.AdapterLuid)
             || !streamline.SetDevice(d3d12Device.Get()))
         {
             streamline.Release(this);
@@ -506,7 +506,7 @@ namespace redefinition
         ID3D12Device* proxy = d3d12Device.Get();
         if (!streamline.UpgradeInterface(reinterpret_cast<void**>(&proxy), "slUpgradeInterface(ID3D12Device)"))
         {
-            streamline.Note("Streamline did not upgrade the D3D12 device -- FSR frame generation instead");
+            streamline.Note("Streamline did not upgrade the D3D12 device" + Streamline::Get().Instead());
             streamline.Release(this);
             return false;
         }
@@ -528,7 +528,7 @@ namespace redefinition
         IDXGIFactory* proxy = factory;
         if (!Streamline::Get().UpgradeInterface(reinterpret_cast<void**>(&proxy), "slUpgradeInterface(IDXGIFactory)"))
         {
-            Streamline::Get().Note("Streamline did not upgrade the DXGI factory -- FSR frame generation instead");
+            Streamline::Get().Note("Streamline did not upgrade the DXGI factory" + Streamline::Get().Instead());
             return E_FAIL;
         }
         ComPtr<IDXGIFactory> factoryProxy;
@@ -539,7 +539,7 @@ namespace redefinition
         if (FAILED(hr))
         {
             Streamline::Get().Note("Streamline's factory has no IDXGIFactory2 (" + Hr(hr)
-                                   + ") -- FSR frame generation instead");
+                                   + ")" + Streamline::Get().Instead());
             return hr;
         }
 
@@ -549,7 +549,7 @@ namespace redefinition
         if (FAILED(hr))
         {
             Streamline::Get().Note("CreateSwapChainForHwnd through Streamline failed (" + Hr(hr)
-                                   + ") -- FSR frame generation instead");
+                                   + ")" + Streamline::Get().Instead());
             return hr;
         }
 
@@ -557,7 +557,7 @@ namespace redefinition
         if (FAILED(hr))
         {
             Streamline::Get().Note("Streamline's swapchain has no IDXGISwapChain3 (" + Hr(hr)
-                                   + ") -- FSR frame generation instead");
+                                   + ")" + Streamline::Get().Instead());
             return hr;
         }
 

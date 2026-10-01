@@ -49,9 +49,11 @@ namespace ReDefinition.Bridges
         {
             // nvngx_dlss.dll: DLSS itself.
             Dlss,
-            // Streamline and nvngx_dlssg.dll: DLSS frame generation; with sl.dlss_d.dll
-            // and nvngx_dlssd.dll, DLSS Ray Reconstruction for the raytracing, which runs
-            // where Streamline does.
+            // Streamline's core with sl.dlss_d.dll and nvngx_dlssd.dll: DLSS Ray
+            // Reconstruction for the raytracing, on every GPU that runs DLSS.
+            Streamline,
+            // sl.dlss_g.dll, sl.reflex.dll and nvngx_dlssg.dll on top: DLSS frame
+            // generation.
             FrameGeneration,
             // A licence text for both.
             Both,
@@ -96,14 +98,14 @@ namespace ReDefinition.Bridges
             {
                 Name = "bin/x64/sl.interposer.dll", FileName = "sl.interposer.dll", Offset = 60121610,
                 CompressedSize = 284550, Size = 652928,
-                Sha256 = "8C87C9499461DA561EDD529AA9BF7831D67D7B94EBB1C1A5ED54EF4934E1EA4C", Use = Use.FrameGeneration,
+                Sha256 = "8C87C9499461DA561EDD529AA9BF7831D67D7B94EBB1C1A5ED54EF4934E1EA4C", Use = Use.Streamline,
                 ExactVersion = true,
             },
             new Entry
             {
                 Name = "bin/x64/sl.common.dll", FileName = "sl.common.dll", Offset = 58700957, CompressedSize = 390298,
                 Size = 843392, Sha256 = "82924A8954DD671E09351C5DE0EB87AD0EB25B944CC9F9AB955CA1D9950DE15D",
-                Use = Use.FrameGeneration, ExactVersion = true,
+                Use = Use.Streamline, ExactVersion = true,
             },
             new Entry
             {
@@ -121,7 +123,7 @@ namespace ReDefinition.Bridges
             {
                 Name = "bin/x64/sl.pcl.dll", FileName = "sl.pcl.dll", Offset = 61095493, CompressedSize = 167265,
                 Size = 360064, Sha256 = "F13D51CFA05F4CD514DF2026049E2DB8ADF359221713170AD386FD499915B582",
-                Use = Use.FrameGeneration, ExactVersion = true,
+                Use = Use.Streamline, ExactVersion = true,
             },
             new Entry
             {
@@ -133,13 +135,13 @@ namespace ReDefinition.Bridges
             {
                 Name = "bin/x64/sl.dlss_d.dll", FileName = "sl.dlss_d.dll", Offset = 59437255, CompressedSize = 198360,
                 Size = 437376, Sha256 = "026B9F4F9EA848F2F5AA0E2024FC6B1C885F57EEA5D41078124DBA14F873B86B",
-                Use = Use.FrameGeneration, ExactVersion = true,
+                Use = Use.Streamline, ExactVersion = true,
             },
             new Entry
             {
                 Name = "bin/x64/nvngx_dlssd.dll", FileName = "nvngx_dlssd.dll", Offset = 33410452,
                 CompressedSize = 21565278, Size = 48343664,
-                Sha256 = "4BC7EA5FCB2F32CF86BC2CB072E8D2860914A0BE511CBDCB2FC206C1D9D83B80", Use = Use.FrameGeneration,
+                Sha256 = "4BC7EA5FCB2F32CF86BC2CB072E8D2860914A0BE511CBDCB2FC206C1D9D83B80", Use = Use.Streamline,
             },
             new Entry
             {
@@ -151,14 +153,14 @@ namespace ReDefinition.Bridges
             new Entry
             {
                 Name = "license.txt", FileName = "sl.license.txt", Offset = 275801866, CompressedSize = 883, Size = 1591,
-                Sha256 = "7B6F23E7D6F3AD6292F9308D2B42CDC3D82AE4E9B2ABB55F230279D83BEDD43D", Use = Use.FrameGeneration,
+                Sha256 = "7B6F23E7D6F3AD6292F9308D2B42CDC3D82AE4E9B2ABB55F230279D83BEDD43D", Use = Use.Streamline,
                 Notice = true,
             },
             new Entry
             {
                 Name = "3rd-party-licenses.md", FileName = "sl.3rd-party-licenses.md", Offset = 275782640,
                 CompressedSize = 2574, Size = 14682,
-                Sha256 = "CB251639994465F31D2178C16ACEDF1FF4F9CEF1C370A09782ED36D4C86C1DCA", Use = Use.FrameGeneration,
+                Sha256 = "CB251639994465F31D2178C16ACEDF1FF4F9CEF1C370A09782ED36D4C86C1DCA", Use = Use.Streamline,
                 Notice = true,
             },
         };
@@ -174,9 +176,9 @@ namespace ReDefinition.Bridges
             return architecture >= Ada && architecture < TegraFrom;
         }
 
-        // What a GPU can use: DLSS on an RTX GPU from Turing on, frame generation from
-        // Ada on, and the licence texts of what it gets. Nothing for another GPU, or
-        // an unknown one (0).
+        // What a GPU can use: DLSS and Ray Reconstruction on an RTX GPU from Turing on,
+        // frame generation from Ada on, and the licence texts of what it gets. Nothing
+        // for another GPU, or an unknown one (0).
         public static List<Entry> For(uint architecture, uint implementation)
         {
             bool dlss = DlssRuns(architecture, implementation);
@@ -184,7 +186,7 @@ namespace ReDefinition.Bridges
             List<Entry> entries = new List<Entry>();
             foreach (Entry entry in All)
             {
-                bool wanted = entry.Use == Use.Dlss ? dlss
+                bool wanted = entry.Use == Use.Dlss || entry.Use == Use.Streamline ? dlss
                     : entry.Use == Use.FrameGeneration ? frameGeneration
                     : dlss || frameGeneration;
                 if (wanted) entries.Add(entry);
@@ -208,7 +210,7 @@ namespace ReDefinition.Bridges
         public static string FolderOf(Entry entry, Folders folders, bool dlssFetched)
         {
             if (entry.Use == Use.Dlss) return folders.Dlss;
-            if (entry.Use == Use.FrameGeneration) return folders.FrameGeneration;
+            if (entry.Use == Use.FrameGeneration || entry.Use == Use.Streamline) return folders.FrameGeneration;
             return dlssFetched ? folders.Dlss : folders.FrameGeneration;
         }
 
@@ -228,12 +230,13 @@ namespace ReDefinition.Bridges
                     continue;
                 missing.Add(entry);
                 dlss |= entry.Use == Use.Dlss;
-                frameGeneration |= entry.Use == Use.FrameGeneration;
+                frameGeneration |= entry.Use == Use.FrameGeneration || entry.Use == Use.Streamline;
             }
             foreach (Entry entry in entries)
             {
                 if (!entry.Notice) continue;
-                bool covered = entry.Use == Use.Dlss ? dlss : entry.Use == Use.FrameGeneration ? frameGeneration
+                bool covered = entry.Use == Use.Dlss ? dlss
+                    : entry.Use == Use.FrameGeneration || entry.Use == Use.Streamline ? frameGeneration
                     : dlss || frameGeneration;
                 if (covered && !Present(FolderOf(entry, folders, dlss), entry)) missing.Add(entry);
             }

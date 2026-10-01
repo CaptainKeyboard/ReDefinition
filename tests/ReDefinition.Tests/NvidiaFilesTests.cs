@@ -45,10 +45,14 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, NvidiaFiles.For(0x160, GtxTuring).Count, "GTX 16: Turing without DLSS");
             Assert.AreEqual(0, NvidiaFiles.For(0xE0000040, 0).Count, "Tegra");
 
-            CollectionAssert.AreEquivalent(new[] { "nvngx_dlss.dll", "nvngx_dlss.license.txt" },
-                                           NvidiaFiles.For(0x160, RtxTuring).Select(e => e.FileName).ToArray());
-            CollectionAssert.AreEquivalent(new[] { "nvngx_dlss.dll", "nvngx_dlss.license.txt" },
-                                           NvidiaFiles.For(0x170, 0x4).Select(e => e.FileName).ToArray(), "Ampere");
+            // DLSS and Ray Reconstruction from Turing on; frame generation's files from Ada on.
+            string[] beforeAda =
+            {
+                "nvngx_dlss.dll", "nvngx_dlss.license.txt", "sl.interposer.dll", "sl.common.dll", "sl.pcl.dll",
+                "sl.dlss_d.dll", "nvngx_dlssd.dll", "sl.license.txt", "sl.3rd-party-licenses.md",
+            };
+            CollectionAssert.AreEquivalent(beforeAda, NvidiaFiles.For(0x160, RtxTuring).Select(e => e.FileName).ToArray());
+            CollectionAssert.AreEquivalent(beforeAda, NvidiaFiles.For(0x170, 0x4).Select(e => e.FileName).ToArray(), "Ampere");
 
             Assert.AreEqual(NvidiaFiles.All.Length, NvidiaFiles.For(0x190, Ada102).Count);
             Assert.AreEqual(NvidiaFiles.All.Length, NvidiaFiles.For(0x1B0, Ada102).Count, "Blackwell");
@@ -123,7 +127,8 @@ namespace ReDefinition.Tests
         {
             // DLSS on an RTX 20: its DLL in place, its licence text not.
             File.WriteAllBytes(Path.Combine(folder, "nvngx_dlss.dll"), new byte[10]);
-            Assert.AreEqual(0, NvidiaFiles.Missing(Here(), NvidiaFiles.For(0x160, RtxTuring)).Count);
+            Assert.AreEqual(0, NvidiaFiles.Missing(Here(), NvidiaFiles.For(0x160, RtxTuring)
+                                                               .Where(e => e.Use != NvidiaFiles.Use.Streamline).ToList()).Count);
 
             // Frame generation too: every DLL in place, those of an exact version with
             // the checksum asked for -- stand-ins here, with checksums of their own --

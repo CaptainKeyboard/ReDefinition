@@ -90,9 +90,11 @@ namespace redefinition
                             + " after frame " + std::to_string(presentedFrameIndex)
                             + " -- presented without DLSS frame generation and its markers");
                 }
+                streamline.ClearGameFrame();
                 return 0;
             }
             presentingGameFrames = false;
+            streamline.ClearGameFrame();
             streamline.NoteGameFramesPresented(false);
             LogLine("Reflex: no frame from the game for " + std::to_string(kPresentsWithoutGameFrame)
                     + " Presents -- the presenting thread begins the frames again");

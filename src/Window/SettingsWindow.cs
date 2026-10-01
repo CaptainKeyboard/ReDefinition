@@ -697,20 +697,21 @@ namespace ReDefinition.Window
                 : "<color=#9a9a9a>" + NvidiaDownloader.Megabytes(NvidiaFiles.DownloadSize(needed)) + " MB from NVIDIA</color>";
 
             bool dlss;
+            bool streamline;
             bool frameGeneration;
-            NvidiaDownloader.Uses(needed, out dlss, out frameGeneration);
+            NvidiaDownloader.Uses(needed, out dlss, out streamline, out frameGeneration);
             DialogGUIButton download = new DialogGUIButton("Download ...", () => NvidiaDownloader.Confirm(needed),
                 ControlWidth, 24f, false);
             // Nothing needed says nothing about why: the files in place, or no answer
             // from NVAPI yet.
             download.tooltipText = needed.Count == 0
                 ? "Nothing to download from NVIDIA for this GPU now."
-                : "NVIDIA's DLLs for " + NvidiaDownloader.Purpose(dlss, frameGeneration)
+                : "NVIDIA's DLLs for " + NvidiaDownloader.Purpose(dlss, streamline, frameGeneration)
                   + ".\n"
                   + "This fetches them from NVIDIA's release of the Streamline SDK on GitHub, once NVIDIA's\n"
                   + "licences are accepted, and places them where ReDefinition's dxgi.dll loads them from:\n"
                   + "next to KSP_x64.exe, unless its ini names other folders.\n"
-                  + NvidiaDownloader.WhenUsed(dlss, frameGeneration);
+                  + NvidiaDownloader.WhenUsed(dlss, streamline, frameGeneration);
             download.OptionInteractableCondition = () => needed.Count > 0 && !NvidiaDownloader.Running
                                                          && !NvidiaDownloader.Installed;
 

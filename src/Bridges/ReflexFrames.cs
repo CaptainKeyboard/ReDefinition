@@ -161,7 +161,7 @@ namespace ReDefinition.Bridges
                 if (!logged)
                 {
                     logged = true;
-                    Debug.Log(Log.Tag + " Reflex: the game's frames are marked for DLSS frame generation, from frame "
+                    Debug.Log(Log.Tag + " Reflex: the game's frames go to Streamline by index, from frame "
                               + frame + ".");
                 }
             }

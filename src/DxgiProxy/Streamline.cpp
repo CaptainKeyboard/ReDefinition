@@ -168,7 +168,7 @@ namespace redefinition
 
         if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES)
         {
-            SetState("no sl.interposer.dll in " + Narrow(folder) + " -- FSR frame generation instead", true);
+            SetState("no sl.interposer.dll in " + Narrow(folder) + Instead(), true);
             return false;
         }
 
@@ -176,7 +176,7 @@ namespace redefinition
         if (version.rfind(kFileVersionPrefix, 0) != 0)
         {
             SetState("sl.interposer.dll is version " + (version.empty() ? std::string("unknown") : version)
-                         + ", this build runs Streamline 2.14.1 only -- FSR frame generation instead",
+                         + ", this build runs Streamline 2.14.1 only" + Instead(),
                      true);
             return false;
         }
@@ -188,7 +188,7 @@ namespace redefinition
         if (!sl::security::verifyEmbeddedSignature(path.c_str()))
         {
             SetState("sl.interposer.dll in " + Narrow(folder)
-                         + " is not signed by NVIDIA and was not loaded -- FSR frame generation instead",
+                         + " is not signed by NVIDIA and was not loaded" + Instead(),
                      true);
             return false;
         }
@@ -197,7 +197,7 @@ namespace redefinition
         if (module == nullptr)
         {
             SetState("sl.interposer.dll could not be loaded (" + Hr(HRESULT_FROM_WIN32(GetLastError()))
-                         + ") -- FSR frame generation instead",
+                         + ")" + Instead(),
                      true);
             return false;
         }
@@ -217,7 +217,7 @@ namespace redefinition
         {
             FreeLibrary(module);
             module = nullptr;
-            SetState("sl.interposer.dll lacks functions this build calls -- FSR frame generation instead", true);
+            SetState("sl.interposer.dll lacks functions this build calls" + Instead(), true);
             return false;
         }
 
@@ -236,8 +236,14 @@ namespace redefinition
 
         const wchar_t* paths[] = { pluginFolder.c_str() };
         // DLSS Ray Reconstruction loads where its plugin is there; without it, frame
-        // generation runs as before.
-        const sl::Feature features[] = { sl::kFeatureDLSS_G, sl::kFeatureReflex, sl::kFeaturePCL, sl::kFeatureDLSS_RR };
+        // generation runs as before. For Ray Reconstruction alone, its plugin only:
+        // sl.dlss_g would take over the swapchain's pacing "whenever the plugin is
+        // loaded, even while DLSS-G is turned off" (ProgrammingGuideDLSS_G.md 12.1).
+        const sl::Feature allFeatures[] = { sl::kFeatureDLSS_G, sl::kFeatureReflex, sl::kFeaturePCL,
+                                            sl::kFeatureDLSS_RR };
+        const sl::Feature reconstructionOnly[] = { sl::kFeatureDLSS_RR };
+        const sl::Feature* features = frameGenerationWanted ? allFeatures : reconstructionOnly;
+        const uint32_t featureCount = frameGenerationWanted ? 4u : 1u;
 
         sl::Preferences preferences{};
         preferences.showConsole = false;
@@ -257,7 +263,7 @@ namespace redefinition
                             | sl::PreferenceFlags::eUseFrameBasedResourceTagging
                             | sl::PreferenceFlags::eUseDXGIFactoryProxy;
         preferences.featuresToLoad = features;
-        preferences.numFeaturesToLoad = static_cast<uint32_t>(sizeof(features) / sizeof(features[0]));
+        preferences.numFeaturesToLoad = featureCount;
         // "if not specified then engine type and version are required": the
         // same identity DLSS gives NGX.
         preferences.engine = sl::EngineType::eCustom;
@@ -271,7 +277,7 @@ namespace redefinition
         const sl::Result result = slInit(preferences, sl::kSDKVersion);
         if (result != sl::Result::eOk)
         {
-            SetState("slInit failed, " + ResultText(result) + " -- FSR frame generation instead", true);
+            SetState("slInit failed, " + ResultText(result) + Instead(), true);
             return false;
         }
 
@@ -281,17 +287,21 @@ namespace redefinition
         return true;
     }
 
-    bool Streamline::Acquire(const void* newOwner)
+    std::string Streamline::Instead() const
+    {
+        return frameGenerationWanted ? " -- FSR frame generation instead" : " -- no DLSS Ray Reconstruction";
+    }
+
+    bool Streamline::Acquire(const void* newOwner, bool forFrameGeneration)
     {
         // A swapchain made while an earlier one lives presents with FSR for as long
         // as it lives: its swapchain is made now, through Streamline or not.
         if (owner != nullptr && owner != newOwner)
         {
-            SetState("Streamline belonged to an earlier swapchain still when this one was made -- FSR frame"
-                         " generation instead",
-                     true);
+            SetState("Streamline belonged to an earlier swapchain still when this one was made" + Instead(), true);
             return false;
         }
+        frameGenerationWanted = forFrameGeneration;
         if (!Initialise())
             return false;
         owner = newOwner;
@@ -344,7 +354,7 @@ namespace redefinition
         LogLine("DLSS frame generation: Streamline shut down");
     }
 
-    bool Streamline::Supported(const LUID& adapter, bool frameGenerationWanted)
+    bool Streamline::Supported(const LUID& adapter)
     {
         frameGeneration = false;
         if (!initialised)
@@ -370,7 +380,7 @@ namespace redefinition
         const sl::Result dlssg = slIsFeatureSupported(sl::kFeatureDLSS_G, info);
         if (dlssg != sl::Result::eOk)
         {
-            SetState("does not run here: " + ResultText(dlssg) + " -- FSR frame generation instead", true);
+            SetState("does not run here: " + ResultText(dlssg) + Instead(), true);
             return false;
         }
 
@@ -379,7 +389,7 @@ namespace redefinition
         const sl::Result reflex = slIsFeatureSupported(sl::kFeatureReflex, info);
         if (reflex != sl::Result::eOk)
         {
-            SetState("Reflex does not run here: " + ResultText(reflex) + " -- FSR frame generation instead", true);
+            SetState("Reflex does not run here: " + ResultText(reflex) + Instead(), true);
             return false;
         }
 
@@ -393,10 +403,9 @@ namespace redefinition
             return false;
         if (!Check(slSetD3DDevice(nativeDevice), "slSetD3DDevice"))
         {
-            SetState("Streamline did not take the D3D12 device -- FSR frame generation instead", true);
+            SetState("Streamline did not take the D3D12 device" + Instead(), true);
             return false;
         }
-        deviceSet = true;
 
         if (frameGeneration)
         {
@@ -407,7 +416,7 @@ namespace redefinition
                                    && ImportFeature(slPCLSetMarker, sl::kFeaturePCL, "slPCLSetMarker");
             if (!functions)
             {
-                SetState("its feature functions are missing -- FSR frame generation instead", true);
+                SetState("its feature functions are missing" + Instead(), true);
                 return false;
             }
 
@@ -472,12 +481,24 @@ namespace redefinition
         }
 
         sl::FeatureVersion version{};
-        if (slGetFeatureVersion(sl::kFeatureDLSS_G, version) == sl::Result::eOk)
+        if (frameGeneration && slGetFeatureVersion(sl::kFeatureDLSS_G, version) == sl::Result::eOk)
             LogLine("DLSS frame generation: Streamline " + version.versionSL.toStr() + ", nvngx_dlssg "
                     + version.versionNGX.toStr());
 
+        // Last: the game's main thread calls in once it is set (BeginGameFrame), and
+        // finds the functions imported and Reflex's options given.
+        deviceSet = true;
         SetState("ready", false);
         return true;
+    }
+
+    // The game's frame no longer in progress: a Present without it, or the
+    // presenting thread beginning the frames again. Ray Reconstruction and the
+    // ping then take no index already presented.
+    void Streamline::ClearGameFrame()
+    {
+        frameInProgress = -1;
+        gameFrame = 0;
     }
 
     bool Streamline::RayReconstructionReady(std::string& why) const

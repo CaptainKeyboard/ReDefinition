@@ -78,34 +78,48 @@ namespace ReDefinition.Window
             };
         }
 
-        // Which uses the entries serve.
-        public static void Uses(IEnumerable<NvidiaFiles.Entry> entries, out bool dlss, out bool frameGeneration)
+        // Which uses the entries serve: DLSS, Streamline (Ray Reconstruction, and frame
+        // generation's base) and frame generation.
+        public static void Uses(IEnumerable<NvidiaFiles.Entry> entries, out bool dlss, out bool streamline,
+                                out bool frameGeneration)
         {
             dlss = false;
+            streamline = false;
             frameGeneration = false;
             foreach (NvidiaFiles.Entry entry in entries)
             {
+                if (entry.Notice) continue;
                 dlss |= entry.Use == NvidiaFiles.Use.Dlss;
+                streamline |= entry.Use == NvidiaFiles.Use.Streamline || entry.Use == NvidiaFiles.Use.FrameGeneration;
                 frameGeneration |= entry.Use == NvidiaFiles.Use.FrameGeneration;
             }
         }
 
         // What the files are for, in the dialog's and the row's words.
-        public static string Purpose(bool dlss, bool frameGeneration)
+        public static string Purpose(bool dlss, bool streamline, bool frameGeneration)
         {
-            return dlss && frameGeneration ? "DLSS and DLSS frame generation"
-                : frameGeneration ? "DLSS frame generation"
-                : "DLSS";
+            List<string> uses = new List<string>();
+            if (dlss) uses.Add("DLSS");
+            if (frameGeneration) uses.Add("DLSS frame generation");
+            if (streamline) uses.Add("DLSS Ray Reconstruction");
+            if (uses.Count == 0) return "DLSS";
+            return uses.Count == 1 ? uses[0]
+                : string.Join(", ", uses.GetRange(0, uses.Count - 1).ToArray()) + " and " + uses[uses.Count - 1];
         }
 
         // When they are used: nvngx_dlss.dll at once (ReDefinitionAddon.NvidiaFilesPlaced),
         // Streamline only by a swapchain made after it is there -- KSP makes one as
-        // it starts.
-        public static string WhenUsed(bool dlss, bool frameGeneration)
+        // it starts. Ray Reconstruction without frame generation only with
+        // frameGeneration=0 in ReDefinitionProxy.ini.
+        public static string WhenUsed(bool dlss, bool streamline, bool frameGeneration)
         {
-            return !frameGeneration ? "DLSS can use them at once."
-                : !dlss ? "DLSS frame generation runs from them after a restart of KSP."
-                : "DLSS can use them at once, DLSS frame generation after a restart of KSP.";
+            string later = frameGeneration ? "DLSS frame generation and Ray Reconstruction run from them after a restart"
+                                             + " of KSP."
+                : "DLSS Ray Reconstruction runs from them after a restart of KSP, with frameGeneration=0 in"
+                  + " ReDefinitionProxy.ini on this GPU.";
+            return !streamline ? "DLSS can use them at once."
+                : !dlss ? later
+                : "DLSS can use them at once. " + later;
         }
 
         // What this GPU can use and its folders lack.
@@ -139,8 +153,9 @@ namespace ReDefinition.Window
             if (Running || entries.Count == 0) return;
 
             bool dlss;
+            bool streamline;
             bool frameGeneration;
-            Uses(entries, out dlss, out frameGeneration);
+            Uses(entries, out dlss, out streamline, out frameGeneration);
             List<string> names = new List<string>();
             foreach (NvidiaFiles.Entry entry in entries)
             {
@@ -152,7 +167,7 @@ namespace ReDefinition.Window
             {
                 NvidiaFiles.Folders folders = Folders();
                 if (dlss) places.Add(folders.Dlss);
-                if (frameGeneration && !places.Contains(folders.FrameGeneration)) places.Add(folders.FrameGeneration);
+                if (streamline && !places.Contains(folders.FrameGeneration)) places.Add(folders.FrameGeneration);
             }
             catch (Exception e)
             {
@@ -160,7 +175,7 @@ namespace ReDefinition.Window
             }
 
             string message =
-                "ReDefinition can fetch NVIDIA's files for " + Purpose(dlss, frameGeneration)
+                "ReDefinition can fetch NVIDIA's files for " + Purpose(dlss, streamline, frameGeneration)
                 + " on this GPU from NVIDIA's own release of the Streamline SDK 2.14.1 on GitHub, and place them where"
                 + " ReDefinition's dxgi.dll loads them from"
                 + (places.Count > 0 ? ": " + string.Join(" and ", places.ToArray()) : "")
@@ -171,11 +186,15 @@ namespace ReDefinition.Window
                 + (frameGeneration
                     ? "the NVIDIA RTX SDKs License, NVIDIA's SDK license agreement for Reflex, Streamline's MIT license"
                       + " and the licences of the third-party parts Streamline lists."
+                    : streamline
+                    ? "the NVIDIA RTX SDKs License, Streamline's MIT license and the licences of the third-party parts"
+                      + " Streamline lists."
                     : "the NVIDIA RTX SDKs License.")
                 + " Their texts are placed with the files. By downloading you accept these licences, and confirm that"
                 + " you may: that you are of legal age, or have a parent's or guardian's consent.\n\n"
                 + "Every file is checked against NVIDIA's release before anything is placed, and all are placed or none."
-                + " A different file already there is kept, renamed to end in .old. " + WhenUsed(dlss, frameGeneration)
+                + " A different file already there is kept, renamed to end in .old. "
+                + WhenUsed(dlss, streamline, frameGeneration)
                 + (frameGeneration
                     ? " DLSS frame generation also needs hardware-accelerated GPU scheduling on in Windows' graphics"
                       + " settings."
@@ -188,9 +207,10 @@ namespace ReDefinition.Window
                 DialogOverWindow.Link("RTX SDKs License", () => Application.OpenURL(NvidiaFiles.RtxLicenceUrl), 120f),
             };
             if (frameGeneration)
-            {
                 links.Add(DialogOverWindow.Link("Reflex license", () => Application.OpenURL(NvidiaFiles.ReflexLicenceUrl),
                     100f));
+            if (streamline)
+            {
                 links.Add(DialogOverWindow.Link("Streamline license",
                     () => Application.OpenURL(NvidiaFiles.StreamlineLicenceUrl), 120f));
                 links.Add(DialogOverWindow.Link("Third-party licenses",
@@ -330,8 +350,9 @@ namespace ReDefinition.Window
             List<string> backups = null;
             bool done = false;
             bool dlssFetched;
+            bool streamlineFetched;
             bool frameGenerationFetched;
-            Uses(entries, out dlssFetched, out frameGenerationFetched);
+            Uses(entries, out dlssFetched, out streamlineFetched, out frameGenerationFetched);
             Thread worker = new Thread(() =>
             {
                 List<NvidiaFiles.Placement> placements = new List<NvidiaFiles.Placement>();
@@ -383,7 +404,7 @@ namespace ReDefinition.Window
             }
 
             Installed = true;
-            Finish("Installed. " + WhenUsed(dlssFetched, frameGenerationFetched)
+            Finish("Installed. " + WhenUsed(dlssFetched, streamlineFetched, frameGenerationFetched)
                    + (backups != null && backups.Count > 0 ? " Kept before: " + string.Join(", ", backups.ToArray()) + "." : ""),
                    rangeFiles);
             if (dlssFetched && ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.NvidiaFilesPlaced();
