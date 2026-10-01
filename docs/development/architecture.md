@@ -179,7 +179,7 @@ The rules the store follows: [settings-store.md](settings-store.md).
 | `VesselMotionVectors.cs` | the active vessel's motion vectors written by the rig, and checked on every pixel |
 | `MotionVectorAudit.cs` | an instrument: the captured motion vectors against the true motion at sample points |
 | `TufxPostProcessing.cs` | TUFX's effects split around the upscaler |
-| `HostStack.cs` | other mods' temporal and spatial antialiasing switched off, and what Scatterer's TAA leaves behind |
+| `HostStack.cs` | other mods' temporal and spatial antialiasing switched off, and what Scatterer's TAA leaves behind; one partial file per mod: `.ScattererTaa`, `.Smaa`, `.Kfg`, `.Tufx` |
 | `ScattererCompatibility.cs`, `EveCompatibility.cs`, `DeferredCompatibility.cs` | Scatterer's godrays, EVE's clouds and Deferred's screen-space reflections sized for redirected cameras |
 
 ### Techniques
