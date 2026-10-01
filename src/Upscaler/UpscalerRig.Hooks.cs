@@ -37,8 +37,9 @@ namespace ReDefinition.Upscaler
         private void OnPreCull()
         {
             if (lowRes == null || captureBuffer == null) return;
-            // After LateUpdate, where KSP places the scaled bodies.
+            // After LateUpdate, where KSP places the scaled bodies and the flight camera.
             scaledMotion.Update();
+            cloudMotion.Update(cam);
             if (motionVectorHooksFrame == Time.frameCount) return;
             motionVectorHooksFrame = Time.frameCount;
             SharedFrame.EnsureBegun();

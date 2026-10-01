@@ -77,6 +77,7 @@ namespace ReDefinition.Upscaler
         private CelestialBody previousBody;
         private int previousFrame = -1;
         private bool havePrevious;
+        private int updatedFrame = -1;
 
         // Whether this frame's capture blends the clouds in, as recorded last.
         internal bool Active { get; private set; }
@@ -112,25 +113,35 @@ namespace ReDefinition.Upscaler
             buffer.Clear();
             buffer.SetGlobalVector(TexelId, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
             buffer.SetGlobalFloat(FadeId, EveCloudMotion.Fade());
-            if (fromShell) SetShell(buffer, camera);
             buffer.Blit(Texture2D.blackTexture, clouds, material, fromShell ? ShellPass : EvePass);
             Active = true;
         }
 
-        // Pass 4's inputs for this frame: the projection without jitter, built from
-        // the camera's planes and field of view as UnityMotionRepair builds it; the
-        // camera against the body's centre in camera space, with the squared
-        // distances to the shell's two spheres (|o|^2 - r^2) taken in double, which
-        // single precision would lose hundreds of kilometres from the centre; and
-        // from camera space into the frame before's clip space through the camera's
-        // move against the body -- SceneMotion's matrix with an identity for this
-        // frame's projection. Until there is a frame before with the same body, w
-        // of the origin is 0 and the shader leaves the clouds out.
-        private void SetShell(CommandBuffer commands, Camera camera)
+        // As the scene camera culls, once a frame, after LateUpdate, where KSP places
+        // the flight camera, and with the frame's state decided (SharedFrame): pass
+        // 4's inputs as globals, read by the buffer recorded for this frame at
+        // AfterForwardAlpha. The projection without jitter, built from the camera's
+        // planes and field of view as UnityMotionRepair builds it; the camera against
+        // the body's centre in camera space, with the squared distances to the
+        // shell's two spheres (|o|^2 - r^2) taken in double, which single precision
+        // would lose hundreds of kilometres from the centre; and from camera space
+        // into the frame before's clip space through the camera's move against the
+        // body -- SceneMotion's matrix with an identity for this frame's projection.
+        // Until there is a frame before with the same body, w of the origin is 0 and
+        // the shader leaves the clouds out.
+        internal void Update(Camera camera)
         {
+            if (!Active || !fromShell || camera == null || updatedFrame == Time.frameCount) return;
+            updatedFrame = Time.frameCount;
+            SharedFrame.EnsureBegun();
             CelestialBody body = FlightGlobals.currentMainBody;
             float inner, outer;
-            EveCloudMotion.Shell(out inner, out outer);
+            if (body == null || !EveCloudMotion.Shell(out inner, out outer))
+            {
+                havePrevious = false;
+                Shader.SetGlobalVector(OriginId, Vector4.zero);
+                return;
+            }
             Matrix4x4 projection = GL.GetGPUProjectionMatrix(
                 Matrix4x4.Perspective(camera.fieldOfView, camera.aspect, camera.nearClipPlane, camera.farClipPlane), false);
             Quaternion toBody = SceneMotion.Conjugate(body.transform.rotation);
@@ -147,12 +158,12 @@ namespace ReDefinition.Upscaler
                 ? SceneMotion.ClipToPreviousClip(Matrix4x4.identity, previousProjection, position, rotation,
                     previousPosition, previousRotation)
                 : Matrix4x4.identity;
-            commands.SetGlobalMatrix(ProjectionId, projection);
-            commands.SetGlobalMatrix(InverseProjectionId, StreamlineCamera.Invert(projection));
-            commands.SetGlobalMatrix(ViewToPrevClipId, viewToPrevious);
-            commands.SetGlobalVector(OriginId, new Vector4((float)local.x, (float)local.y, (float)-local.z, ready ? 1f : 0f));
-            commands.SetGlobalVector(ShellId, new Vector4((float)(squared - (double)inner * inner),
-                                                          (float)(squared - (double)outer * outer), 0f, 0f));
+            Shader.SetGlobalMatrix(ProjectionId, projection);
+            Shader.SetGlobalMatrix(InverseProjectionId, StreamlineCamera.Invert(projection));
+            Shader.SetGlobalMatrix(ViewToPrevClipId, viewToPrevious);
+            Shader.SetGlobalVector(OriginId, new Vector4((float)local.x, (float)local.y, (float)-local.z, ready ? 1f : 0f));
+            Shader.SetGlobalVector(ShellId, new Vector4((float)(squared - (double)inner * inner),
+                                                        (float)(squared - (double)outer * outer), 0f, 0f));
 
             previousProjection = projection;
             previousPosition = position;
