@@ -112,10 +112,11 @@ and everything drawn afterwards is UI. The KSP log names the cameras drawn after
 snapshot, and warns where one carries a post-processing layer.
 
 **The check.** Every `reportSeconds` the proxy reads both images back, never waiting on the
-GPU, samples every fourth pixel each way, and logs how much of the frame differs and where, as a 12 x 5 tile map, in both
-orientations. A correct snapshot differs by the UI only; a late one by nothing; a stale one
-by nearly everything. The motion vector check reprojects the previous frame onto this one
-with both orientations and signs, and names the one with the smallest error.
+GPU, samples every fourth pixel each way, and logs how much of the frame differs and
+where, as a 12 x 5 tile map, in both orientations. A correct snapshot differs by the UI
+only; a late one by nothing; a stale one by nearly everything. The motion vector check
+reprojects the previous frame onto this one with both orientations and signs, and names
+the one with the smallest error.
 
 ## FSR 3.1, per frame, as the API requires **[doc]**
 
