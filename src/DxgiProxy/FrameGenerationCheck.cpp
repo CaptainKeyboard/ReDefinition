@@ -467,8 +467,9 @@ namespace redefinition
     // HUD-less copy differ. Measured twice -- the copy as it is, and the copy
     // mirrored vertically -- so a copy that is upside down relative to the
     // backbuffer shows as "direct large, mirrored small". Colour only; alpha is
-    // never shown. Every second pixel in each
-    // direction, once every few seconds.
+    // never shown. Every fourth pixel in each direction, once every few seconds: on
+    // the render thread inside Present, and the shares it reports are of tiles of
+    // thousands of pixels each.
     void FrameGeneration::EvaluateCheckLocked(const D3D11_MAPPED_SUBRESOURCE& presented,
                                               const D3D11_MAPPED_SUBRESOURCE& snapshot,
                                               const D3D11_MAPPED_SUBRESOURCE* depthRows,
@@ -500,7 +501,7 @@ namespace redefinition
         const auto* presentedBytes = static_cast<const uint8_t*>(presented.pData);
         const auto* snapshotBytes = static_cast<const uint8_t*>(snapshot.pData);
 
-        for (UINT y = 0; y < height; y += 2)
+        for (UINT y = 0; y < height; y += 4)
         {
             const auto* a = reinterpret_cast<const uint32_t*>(
                 presentedBytes + static_cast<size_t>(y) * presented.RowPitch);
@@ -510,7 +511,7 @@ namespace redefinition
                 snapshotBytes + static_cast<size_t>(height - 1 - y) * snapshot.RowPitch);
             const UINT row = y * kRows / height;
 
-            for (UINT x = 0; x < width; x += 2)
+            for (UINT x = 0; x < width; x += 4)
             {
                 const UINT column = columnOf[x];
                 ++tileSampled[row][column];
