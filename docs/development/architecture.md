@@ -180,7 +180,7 @@ The rules the store follows: [settings-store.md](settings-store.md).
 | `MotionVectorAudit.cs` | an instrument: the captured motion vectors against the true motion at sample points |
 | `TufxPostProcessing.cs` | TUFX's effects split around the upscaler |
 | `HostStack.cs` | other mods' temporal and spatial antialiasing switched off, and what Scatterer's TAA leaves behind |
-| `ScattererCompatibility.cs`, `EveCompatibility.cs` | Scatterer's godrays and EVE's clouds sized for redirected cameras |
+| `ScattererCompatibility.cs`, `EveCompatibility.cs`, `DeferredCompatibility.cs` | Scatterer's godrays, EVE's clouds and Deferred's screen-space reflections sized for redirected cameras |
 
 ### Techniques
 
@@ -373,7 +373,7 @@ KSP's side, which feeds the scene and the camera from the game:
 | File | What |
 |---|---|
 | `src/Raytracing/Ksp/RtKspSources.cs` | the scene's sources: vessel parts, skinned parts baked, terrain quads, KSC buildings and the editors' scenery, Parallax's scatter from the GPU |
-| `src/Raytracing/Ksp/RtKspMods.cs` | the installed mods raytracing reaches into where they are there: Kopernicus's current star, Parallax's scatter buffers, PlanetShine's lights |
+| `src/Raytracing/Ksp/RtKspMods.cs` | the installed mods raytracing reaches into where they are there: Kopernicus's current star, Parallax's scatter buffers, PlanetShine's lights, Deferred's screen-space reflections |
 | `src/Raytracing/Ksp/RtKsp.cs` | the setting's modes, the scene camera's raytracing and its providers: sun, reflection probe, world shifts, rendered projection, main body; the report in the log |
 
 ## Around the code

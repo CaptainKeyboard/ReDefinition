@@ -647,8 +647,9 @@ namespace ReDefinition
         }
 
         // Other mods size some of their buffers once, by the camera or the
-        // screen (EveCompatibility, ScattererCompatibility). Whenever the rig
-        // changes the texture the cameras render into they are sized anew, at
+        // screen (EveCompatibility, ScattererCompatibility,
+        // DeferredCompatibility). Whenever the rig changes the texture the
+        // cameras render into they are sized anew, at
         // the end of the frame, once however many changes the frame made -- a
         // mode change detaches and attaches -- and with the rig then in place.
         // Not while the addon itself goes: a coroutine would not run.
@@ -659,7 +660,7 @@ namespace ReDefinition
         private void RequestRenderSizeFollowUp(string reason)
         {
             if (destroying) return;
-            if (!EveCompatibility.Present && !ScattererCompatibility.Present) return;
+            if (!EveCompatibility.Present && !ScattererCompatibility.Present && !DeferredCompatibility.Present) return;
             followUpReason = reason;
             if (followUpPending) return;
             followUpPending = true;
@@ -691,6 +692,7 @@ namespace ReDefinition
             // and the attach after it are sized by the hook against a camera
             // not redirected yet, and only this search finds them.
             ScattererCompatibility.AfterRenderSizeChange(followUpReason);
+            DeferredCompatibility.AfterRenderSizeChange(followUpReason);
         }
 
         private Camera PickCamera()

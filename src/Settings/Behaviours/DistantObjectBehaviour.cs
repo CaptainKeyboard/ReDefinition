@@ -128,19 +128,26 @@ namespace ReDefinition.Settings.Behaviours
             };
         }
 
+        // Each group on its own: one that cannot be installed leaves the others.
         public override void InstallHooks(RegisteredMod mod)
         {
-            HarmonyHooks.Install(HarmonyId + ".Load", typeof(DistantObjectBehaviour), new[]
-            {
-                new HarmonyHook(load, null, nameof(LoadPostfix), null),
-            });
             hooked = mod;
-            InstallSkyHook();
+            HarmonyHooks.Safely("distantobject-hook-load", "Distant Object: the settings it reads from its"
+                                                           + " file are not brought in line with ReDefinition's",
+                () => HarmonyHooks.Install(HarmonyId + ".Load", typeof(DistantObjectBehaviour), new[]
+                {
+                    new HarmonyHook(load, null, nameof(LoadPostfix), null),
+                }));
+            HarmonyHooks.Safely("distantobject-hook-sky", "Distant Object: the sky is dimmed by its own rule, so on the"
+                                                          + " night side the stars still go out towards the sun behind"
+                                                          + " the planet", InstallSkyHook);
             if (windowApply == null) return;
-            HarmonyHooks.Install(HarmonyId + ".Window", typeof(DistantObjectBehaviour), new[]
-            {
-                new HarmonyHook(windowApply, null, nameof(WindowApplyPostfix), null),
-            });
+            HarmonyHooks.Safely("distantobject-hook-window", "Distant Object: a change in its own window does"
+                                                             + " not reach ReDefinition's window",
+                () => HarmonyHooks.Install(HarmonyId + ".Window", typeof(DistantObjectBehaviour), new[]
+                {
+                    new HarmonyHook(windowApply, null, nameof(WindowApplyPostfix), null),
+                }));
         }
 
         // The group and field a member path under Settings.Instance names: a group's

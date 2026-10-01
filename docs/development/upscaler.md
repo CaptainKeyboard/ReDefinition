@@ -358,10 +358,10 @@ that it keeps the shadow in place was measured in the harness replay, not promis
 
 It works per pixel, since a shadow has no one motion:
 
-* **Whose shadow.** The vessel's renderers are drawn from the light into a map of their
-  distance along the light and how far they moved since the previous frame. A pixel counts
-  where the vessel blocks the light within 0.5 m of it. Terrain, buildings, grass and
-  clouds never count.
+* **Whose shadow.** The vessel's opaque renderers, below render queue 2501 as for the
+  rays, are drawn from the light into a map of their distance along the light and how far
+  they moved since the previous frame. A pixel counts where the vessel blocks the light
+  within 0.5 m of it. Terrain, buildings, grass and clouds never count.
 * **How much of it.** Unity's own screen-space shadow mask for the light, copied at
   `LightEvent.AfterScreenspaceMask`, holds the soft edge, the cascades and the filtering
   as drawn. Unity lights a point with ambient plus direct times the mask; with the

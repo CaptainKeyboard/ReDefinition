@@ -942,8 +942,15 @@ namespace ReDefinition.Upscaler
         // (TexturesUnlimitedFXLoader.RefreshCameras). Nothing where TUFX or the
         // method is not there: the layers have their own back already
         // (RestoreLiveAntialiasing).
+        //
+        // Not in a flight being torn down: TUFX takes its scene from
+        // CameraManager.Instance there (Utils.GetCurrentScene,
+        // GetTUFXSceneForCameraMode), which is gone by then. TUFX applies its
+        // profile to the next scene's cameras as that scene loads
+        // (TexturesUnlimitedFXLoader.onLevelLoaded).
         private static void RefreshTufxCameras()
         {
+            if (HighLogic.LoadedScene == GameScenes.FLIGHT && CameraManager.Instance == null) return;
             Type loaderType = TypeLookup.Find(TufxLoaderTypeName);
             if (loaderType == null) return;
             object loader;

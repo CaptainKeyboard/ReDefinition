@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using ReDefinition.Core;
+using ReDefinition.Raytracing;
 using ReDefinition.Shared;
 using Unity.Collections;
 using UnityEngine;
@@ -103,10 +104,14 @@ namespace ReDefinition.Upscaler
         private struct Caster
         {
             internal Renderer Renderer;
-            internal int Submeshes;
+            // The submeshes with an opaque material: a transparent one (Waterfall's
+            // plumes, Firefly, translucent parts) casts no shadow of its own on the
+            // ground, the same filter as the rays' (RtFilter.Opaque).
+            internal int[] Submeshes;
         }
 
         private readonly List<Caster> casters = new List<Caster>();
+        private readonly List<int> opaque = new List<int>();
         private readonly Dictionary<Renderer, Matrix4x4> previousModel = new Dictionary<Renderer, Matrix4x4>();
         private Vessel castersOf;
         private int castersPartCount;
@@ -272,7 +277,7 @@ namespace ReDefinition.Upscaler
                 else
                     before = c.Renderer.localToWorldMatrix;
                 capture.SetGlobalMatrix(PreviousModelId, before);
-                for (int s = 0; s < c.Submeshes; s++) capture.DrawRenderer(c.Renderer, material, s, CasterPass);
+                foreach (int s in c.Submeshes) capture.DrawRenderer(c.Renderer, material, s, CasterPass);
             }
 
             capture.SetGlobalTexture(DepthId, depth);
@@ -376,10 +381,15 @@ namespace ReDefinition.Upscaler
                     if (mesh == null) continue;
                     Material[] materials = renderer.sharedMaterials;
                     if (materials == null || materials.Length == 0) continue;
+                    opaque.Clear();
+                    int count = Mathf.Min(materials.Length, mesh.subMeshCount);
+                    for (int s = 0; s < count; s++)
+                        if (RtFilter.Opaque(materials[s])) opaque.Add(s);
+                    if (opaque.Count == 0) continue;
                     casters.Add(new Caster
                     {
                         Renderer = renderer,
-                        Submeshes = Mathf.Min(materials.Length, mesh.subMeshCount),
+                        Submeshes = opaque.ToArray(),
                     });
                 }
             }

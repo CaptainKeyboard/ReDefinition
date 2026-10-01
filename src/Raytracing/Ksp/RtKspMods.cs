@@ -14,6 +14,7 @@ namespace ReDefinition.Raytracing
         private static FieldInfo kopernicusCurrent;
         private static PropertyInfo starLight;
         private static FieldInfo planetShineOn;
+        private static Type deferredReflections;
         private static FieldInfo scatterManager;
         private static FieldInfo activeScatters;
         private static readonly FieldInfo[] scatterMeshes = new FieldInfo[3];
@@ -59,6 +60,12 @@ namespace ReDefinition.Raytracing
                     {
                         Type planetShine = assembly.GetType("PlanetShine.PlanetShine");
                         planetShineOn = planetShine?.GetField("renderEnabled", BindingFlags.Public | BindingFlags.Static);
+                    }
+                    else if (name == "Deferred")
+                    {
+                        // The component Deferred puts on the first local camera
+                        // (Deferred.HandleCameras).
+                        deferredReflections = assembly.GetType("Deferred.ScreenSpaceReflections");
                     }
                 }
                 catch (Exception)
@@ -187,6 +194,57 @@ namespace ReDefinition.Raytracing
             catch (Exception)
             {
                 planetShineOn = null;
+            }
+        }
+
+        // Deferred's screen-space reflections off on the scene camera while the raytraced
+        // reflections take the specular light, and back as they were afterwards. With
+        // them on, Deferred's reflection pass leaves the probe's specular out
+        // (useSSROnCurrentCamera, Internal-DeferredReflections.shader) and their own pass
+        // adds the traced or the probe's in its place (ScreenSpaceReflections.shader,
+        // pass 0, Blend One One); ReDefinition's reflection pass writes the raytraced
+        // specular regardless, which then counted twice. Switched in Update, outside any
+        // camera's render: the component adds its command buffers in OnPreRender and
+        // takes those same ones off in OnPostRender, which sets useSSROnCurrentCamera
+        // back to 0. Where the player or another mod switches it on meanwhile, it stays.
+        private static Behaviour reflectionsHeld;
+        private static bool reflectionsLeft;
+
+        internal static void HoldDeferredReflections(bool hold, Camera sceneCamera)
+        {
+            Look();
+            if (deferredReflections == null) return;
+            try
+            {
+                if (hold && reflectionsHeld == null)
+                {
+                    if (reflectionsLeft || sceneCamera == null) return;
+                    Behaviour reflections = sceneCamera.GetComponent(deferredReflections) as Behaviour;
+                    if (reflections == null || !reflections.enabled) return;
+                    reflections.enabled = false;
+                    reflectionsHeld = reflections;
+                    Debug.Log(Core.Log.Tag + " Raytracing: Deferred's screen-space reflections off on " + sceneCamera.name
+                              + " while the raytraced reflections take their place.");
+                }
+                else if (hold && reflectionsHeld.enabled)
+                {
+                    reflectionsHeld = null;
+                    reflectionsLeft = true;
+                }
+                else if (!hold)
+                {
+                    if (reflectionsHeld != null && !reflectionsHeld.enabled)
+                    {
+                        reflectionsHeld.enabled = true;
+                        Debug.Log(Core.Log.Tag + " Raytracing: Deferred's screen-space reflections on again.");
+                    }
+                    reflectionsHeld = null;
+                    reflectionsLeft = false;
+                }
+            }
+            catch (Exception)
+            {
+                deferredReflections = null;
             }
         }
     }

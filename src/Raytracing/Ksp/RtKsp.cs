@@ -76,6 +76,7 @@ namespace ReDefinition.Raytracing
             if (attached != null && attachedTo == sceneCamera && attached.enabled)
             {
                 RtKspMods.HoldPlanetShine((mode == RaytracingMode.Light || mode == RaytracingMode.Full) && Probe() != null);
+                RtKspMods.HoldDeferredReflections(attached.Settings.Reflections && RtLighting.ReflectionsReplaced, sceneCamera);
                 Report();
             }
             else if (sceneCamera != failedOn) Attach(sceneCamera);
@@ -197,6 +198,7 @@ namespace ReDefinition.Raytracing
         internal void Detach(string why)
         {
             RtKspMods.HoldPlanetShine(false);
+            RtKspMods.HoldDeferredReflections(false, null);
             if (ReferenceEquals(attached, null)) return;
             vessels?.Clear();
             terrain?.Clear();

@@ -382,7 +382,7 @@ night side, and DLSS Ray Reconstruction where DLSS frame generation runs **[open
 
 | Mod | What raytracing does with it |
 |---|---|
-| Deferred | optional; provides the G-buffer; its reflections shader is replaced while diffuse light is raytraced, and set back afterwards **[src]**; without it, see "Without Deferred" |
+| Deferred | optional; provides the G-buffer; its reflections shader is replaced while diffuse light is raytraced, and set back afterwards **[src]**; its screen-space reflections are off on the scene camera while reflections are raytraced, and set back afterwards **[src]**; without it, see "Without Deferred" |
 | Parallax Continued | its finer terrain copy near the camera is in the scene, the quad under it left out **[src]**; its displacement is passed through for the first metre of a pixel's rays **[meas]**; its scatter comes from its GPU buffers **[src]** **[meas]** (test player: a box only in such a buffer casts its shadow) |
 | Scatterer | its ocean and atmosphere stay out of the scene; its long-distance shadows shader gives way while raytracing runs and comes back after **[src]**; its eclipse and extinction change the sun's colour only while the local cameras draw, and the rays take the colour then **[src]**; its ocean caustics multiply into the sun's mask after the raytraced visibility **[src]** |
 | EVE, Stock Volumetric Clouds | clouds stay out of the scene; cloud and eclipse shadows multiply into the sun's mask after the raytraced visibility **[src]** |
