@@ -8,6 +8,7 @@
 #include "Config.h"
 #include "FidelityFx.h"
 #include "Log.h"
+#include "ScreenRecorder.h"
 
 #include <FidelityFX/api/include/dx12/ffx_api_dx12.h>
 #include <FidelityFX/framegeneration/include/dx12/ffx_api_framegeneration_dx12.h>
@@ -462,6 +463,10 @@ namespace redefinition
             return;
 
         slot = newSlot % 2;
+
+        // The game's frames where the screen recording cannot copy the desktop's.
+        if (backBuffer11)
+            RecordBackBuffer(context11.Get(), backBuffer11.Get());
 
         // Not while a failed context waits for its next attempt, or stands: no
         // such frame can be generated, so its copies would be for nothing.

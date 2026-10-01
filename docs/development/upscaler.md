@@ -531,8 +531,13 @@ In the diagnostics window's *Debug* tab
 * **Record the screen**: five seconds after the click, the proxy records 120 frames of
   what the monitor shows through DXGI desktop duplication, frame generation's frames
   included, as PNG files of a 1600x900 cut-out around the middle of the game window, with
-  `frames.txt` giving each frame's present time. The harness records 40 frames while DLSS
-  frame generation runs.
+  `frames.txt` giving each frame's present time. An HDR or 10-bit desktop is taken through
+  `DuplicateOutput1` and written as 8-bit sRGB. Where Windows refuses the desktop's copy
+  (`DXGI_ERROR_UNSUPPORTED`, as with KSP in exclusive fullscreen at another size than the
+  desktop's), the proxy records the game's own frames at its Presents instead, whole, read
+  back one a frame and written in a thread of their own; frame generation's frames are
+  then not among them, and the Debug tab says so. The harness records 40 frames while DLSS
+  frame generation runs, and with `REDEFINITION_RECORD_GAME_FRAMES` set the game's frames.
 * **Motion vector check on fast turns**, with frame generation: a fast turn asks the proxy
   for its motion vector check at once, and a line says what the camera did.
 * **Write diagnostics to log**: what the cameras, the inputs, the masks, the proxy's
