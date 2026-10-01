@@ -12,8 +12,14 @@
 // within kMaxDepthError of it, or its depth lies between the four kept ones, as on ground
 // seen at a grazing angle, whose depth changes much from texel to texel. Otherwise the
 // point was hidden in the raytraced frame -- it came out from behind something, or the
-// camera turned towards it --, and nothing is carried: the shaders fall back to Unity's
-// own lighting there.
+// camera turned towards it --, and nothing is carried: the sun's shadow falls back to
+// Unity's shadow maps there.
+//
+// The raytraced diffuse light and reflections take such a point's light from the nearest
+// texel around it, up to 32 texels away, whose kept depth matches (RtUvFilled), as NRD
+// fills its history after a disocclusion. Unity's flat ambient light there for a frame,
+// and the raytraced light the frame after, would be a jump DLSS Ray Reconstruction takes
+// for noise and keeps in its history: a band trailing a silhouette as the camera turns.
 
 #ifndef REDEFINITION_RT_REPROJECT
 #define REDEFINITION_RT_REPROJECT
@@ -63,6 +69,36 @@ inline bool RtCandidate(float3 worldPos, float3 offset, out float2 uv, out float
     return error <= kMaxDepthError;
 }
 
+// The texel within 32 of uv, in eight directions, whose kept depth matches viewDepth
+// best, within twice kMaxDepthError.
+inline bool RtFill(float2 uv, float viewDepth, out float2 found)
+{
+    found = uv;
+    float bestError = 2.0 * kMaxDepthError;
+    bool any = false;
+    float2 centre = (floor(uv * _ReDefinitionRtTexel.zw) + 0.5) * _ReDefinitionRtTexel.xy;
+    [loop]
+    for (int ring = 1; ring <= 5 && !any; ring++)
+    {
+        float reach = exp2(ring);
+        [unroll]
+        for (int d = 0; d < 8; d++)
+        {
+            float angle = d * (UNITY_PI / 4.0);
+            float2 at = saturate(centre + round(float2(cos(angle), sin(angle)) * reach) * _ReDefinitionRtTexel.xy);
+            float kept = tex2Dlod(_ReDefinitionRtSun, float4(at, 0.0, 0.0)).w;
+            float e = abs(kept - viewDepth) / max(viewDepth, 1e-3);
+            if (kept > 0.0 && e < bestError)
+            {
+                bestError = e;
+                found = at;
+                any = true;
+            }
+        }
+    }
+    return any;
+}
+
 // The previous frame's texture coordinate of a point, where the raytraced frame has it.
 inline bool RtUv(float3 worldPos, out float2 uv)
 {
@@ -77,6 +113,23 @@ inline bool RtUv(float3 worldPos, out float2 uv)
         return false;
     uv = errorNear <= errorFar ? uvNear : uvFar;
     return true;
+}
+
+// RtUv, and where the raytraced frame did not see the point, the texel RtFill finds
+// beside it: for the diffuse light and the reflections, not the sun's shadow.
+inline bool RtUvFilled(float3 worldPos, out float2 uv)
+{
+    if (RtUv(worldPos, uv))
+        return true;
+    if (_ReDefinitionRtOn < 0.5)
+        return false;
+    // Near the vessel the floating origin's offset; the far one only matters for a
+    // fast vessel, where the point is near it anyway.
+    float4 clip = mul(_ReDefinitionRtPrevViewProj, float4(worldPos + _ReDefinitionRtOffsetNear.xyz, 1.0));
+    if (clip.w <= 0.0)
+        return false;
+    float2 at = saturate(float2(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5));
+    return RtFill(at, clip.w, uv);
 }
 
 #endif

@@ -678,7 +678,7 @@ namespace
         uint32_t frameIndex = 0;
         bool recording = false;
         char state[512] = {};
-        for (int round = 0; round < rounds || (recording && strncmp(state, "running", 7) == 0); ++round)
+        for (int round = 0; round < rounds || (recording && (strncmp(state, "recording", 9) == 0 || strncmp(state, "saving", 6) == 0)); ++round)
         {
             if (recording)
                 recordState(state, sizeof(state));
@@ -1278,7 +1278,7 @@ int main()
                 if (FAILED(hr))
                     return Fail("Present during the screen recording", hr);
                 recordState(state, sizeof(state));
-                if (std::strncmp(state, "running", 7) != 0)
+                if (std::strncmp(state, "recording", 9) != 0 && std::strncmp(state, "saving", 6) != 0)
                     break;
             }
             printf("      screen recording while DLSS frame generation runs: %s\n", state);

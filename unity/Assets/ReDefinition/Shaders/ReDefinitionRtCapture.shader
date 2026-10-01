@@ -2,7 +2,8 @@
 // (src/Raytracing/RtCamera.cs): depth as Direct3D's clip-space z, the G-buffer as
 // Unity's deferred path left it, the motion vectors, and the sky's cube map as a
 // latitude-longitude image. Each pass writes one; the source of the blit is only
-// there for its orientation.
+// there for its orientation. The last pass makes a material's small texture
+// (src/Raytracing/RtScene.cs, ReadTexture) from its full-size one.
 Shader "Hidden/ReDefinition/RtCapture"
 {
     Properties
@@ -20,6 +21,8 @@ Shader "Hidden/ReDefinition/RtCapture"
     sampler2D_half _CameraMotionVectorsTexture;
     UNITY_DECLARE_TEXCUBE(_ReDefinitionRtCube);
     half4 _ReDefinitionRtCube_HDR;
+    sampler2D _MainTex;
+    float _ReDefinitionRtCutoff;
 
     struct v2f
     {
@@ -62,6 +65,38 @@ Shader "Hidden/ReDefinition/RtCapture"
         half4 encoded = UNITY_SAMPLE_TEXCUBE_LOD(_ReDefinitionRtCube, direction, 2);
         return half4(DecodeHDR(encoded, _ReDefinitionRtCube_HDR), 1.0);
     }
+
+    // A texel of a material's small texture from the full-size texture's texels under
+    // it, read at full size in 8 x 8 points: a mip level's averaged alpha would blur a
+    // cut-out's edge into the threshold. For a cut-out material (_ReDefinitionRtCutoff
+    // above 0) the alpha is the share of points the cut-out keeps and the colour that of
+    // those points alone, as only they are ever seen; otherwise both are the average.
+    half4 fragMaterialTexture(v2f i) : SV_Target
+    {
+        float2 span = float2(abs(ddx(i.uv.x)), abs(ddy(i.uv.y)));
+        float3 kept = 0.0;
+        float3 all = 0.0;
+        float covered = 0.0;
+        float alpha = 0.0;
+        [unroll]
+        for (int y = 0; y < 8; y++)
+        {
+            [unroll]
+            for (int x = 0; x < 8; x++)
+            {
+                float2 uv = i.uv + span * ((float2(x, y) + 0.5) / 8.0 - 0.5);
+                half4 c = tex2Dlod(_MainTex, float4(uv, 0.0, 0.0));
+                float keep = c.a >= _ReDefinitionRtCutoff ? 1.0 : 0.0;
+                kept += c.rgb * keep;
+                covered += keep;
+                all += c.rgb;
+                alpha += c.a;
+            }
+        }
+        if (_ReDefinitionRtCutoff <= 0.0)
+            return half4(all / 64.0, alpha / 64.0);
+        return half4(covered > 0.0 ? kept / covered : all / 64.0, covered / 64.0);
+    }
     ENDCG
 
     SubShader
@@ -91,6 +126,11 @@ Shader "Hidden/ReDefinition/RtCapture"
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragEnvironment
+            ENDCG }
+        Pass { CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment fragMaterialTexture
+            #pragma target 3.0
             ENDCG }
     }
     Fallback Off

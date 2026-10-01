@@ -194,6 +194,7 @@ namespace ReDefinition.Raytracing
                 return;
             }
             capture = new Material(captureShader) { hideFlags = HideFlags.HideAndDontSave };
+            Scene.TextureReader = capture;
             command = new CommandBuffer { name = "ReDefinition raytracing" };
 
             // The flag the lighting shaders read: on around this camera's rendering,

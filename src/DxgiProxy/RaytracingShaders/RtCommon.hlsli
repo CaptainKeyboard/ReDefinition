@@ -215,10 +215,13 @@ bool BodyBlocks(float3 origin, float3 direction)
 static const float kTerrainSkip = 1.0f;
 
 // Whether a candidate hit of the non-opaque geometry counts: terrain only past
-// terrainSkip; a cut-out surface where its texture covers the point. The material's
-// small texture averages a fine cut-out -- a blade of grass -- into how much of a texel
-// it covers, so the ray stops there with that chance: on average the surface lets
-// through what its cut-out does (Raytracing.h, kRtInstanceCutout).
+// terrainSkip; a cut-out surface where its texture covers the point. The alpha of a
+// cut-out material's small texture is how much of each texel its full-size texture
+// covers at the cut-out's threshold (RtScene.ReadTexture), as a fine cut-out -- a blade
+// of grass -- is far finer than a texel; the ray stops there with that chance, so on
+// average the surface lets through what its cut-out does (Raytracing.h,
+// kRtInstanceCutout). A cut-out surface whose texture is not read yet lets every ray
+// through: an opaque card would shade the ground under it as a square.
 bool CandidateCounts(uint instanceId, uint primitive, float2 bary, float t, float terrainSkip, float3 origin)
 {
     InstanceData instance = instanceData[instanceId];
@@ -228,14 +231,13 @@ bool CandidateCounts(uint instanceId, uint primitive, float2 bary, float t, floa
         return true;
     MaterialData material = materialData[instance.material];
     if (!MATERIAL_TEXTURES || material.texture < 0)
-        return true;
+        return false;
     uint slot = instance.meshSlot;
     uint3 index = meshIndices[NonUniformResourceIndex(slot)].Load3(primitive * 12u);
     float2 uv = meshAttributes[NonUniformResourceIndex(slot)][index.x].uv * (1.0f - bary.x - bary.y)
               + meshAttributes[NonUniformResourceIndex(slot)][index.y].uv * bary.x
               + meshAttributes[NonUniformResourceIndex(slot)][index.z].uv * bary.y;
-    float alpha = materialTextures.SampleLevel(linearWrap, float3(uv, float(material.texture)), 0.0f).a;
-    float coverage = saturate(alpha / (2.0f * material.albedo.a));
+    float coverage = materialTextures.SampleLevel(linearWrap, float3(uv, float(material.texture)), 0.0f).a;
     // Each ray its own chance: rays side by side meet a surface at the same distance.
     uint seed = Pcg(primitive ^ Pcg(asuint(t) ^ Pcg(asuint(origin.x) ^ Pcg(asuint(origin.z) ^ Pcg(frameIndex)))));
     return float(seed >> 8) * (1.0f / 16777216.0f) < coverage;

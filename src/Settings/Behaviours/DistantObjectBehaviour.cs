@@ -3,6 +3,7 @@ using System.Collections;
 using System.Reflection;
 using System;
 using ReDefinition.Core;
+using UnityEngine;
 
 namespace ReDefinition.Settings.Behaviours
 {
@@ -22,7 +23,13 @@ namespace ReDefinition.Settings.Behaviours
     //   * two Harmony postfixes keep both windows alike: on Load, whatever file it
     //     has just read, the choices kept here go back over it and into that file;
     //     on its window's ApplySettings, a value changed there becomes the choice
-    //     here.
+    //     here;
+    //   * a postfix on DarkenSky.Update: its sky dimming takes the sun's term by the
+    //     angle between the view and the sun alone (CommonUtils.CalculateSunBrightness,
+    //     decompiled), so on the night side, looking towards the sun behind the planet,
+    //     the stars go out. Where a body stands between the camera and the sun, the
+    //     sky is dimmed by the planets' term alone, as KSP's own glare fade does
+    //     (GalaxyCubeControl's line of sight to the sun, decompiled).
     internal sealed class DistantObjectBehaviour : ModBehaviour
     {
         private const string HarmonyId = "ReDefinition.DistantObjectHooks";
@@ -32,6 +39,14 @@ namespace ReDefinition.Settings.Behaviours
 
         // The mod the hooks report to; one per run.
         private static RegisteredMod hooked;
+
+        // DarkenSky.Update's postfix: its solar system's planets' term, and the
+        // settings it takes.
+        private static PropertyInfo solarSystem;
+        private static MethodInfo planetsBrightness;
+        private static PropertyInfo settingsInstance;
+        private static FieldInfo skybox;
+        private static FieldInfo minimumSignificantBodySize, minimumTargetRelativeAngle, referenceBodySize, maxBrightness;
 
         private Type settingsType;
         private PropertyInfo instance;
@@ -120,6 +135,7 @@ namespace ReDefinition.Settings.Behaviours
                 new HarmonyHook(load, null, nameof(LoadPostfix), null),
             });
             hooked = mod;
+            InstallSkyHook();
             if (windowApply == null) return;
             HarmonyHooks.Install(HarmonyId + ".Window", typeof(DistantObjectBehaviour), new[]
             {
@@ -208,6 +224,83 @@ namespace ReDefinition.Settings.Behaviours
                 object values = group != null ? group.GetValue(buffer) : buffer;
                 if (values != null) field.SetValue(values, value);
             }
+        }
+
+        private void InstallSkyHook()
+        {
+            Type darken = TypeLookup.Find("DistantObject.DarkenSky");
+            Type engine = TypeLookup.Find("DistantObject.Contract.SolarSystemEngine");
+            Type contract = engine != null ? engine.GetNestedType("Interface", BindingFlags.Public) : null;
+            MethodInfo update = darken != null
+                ? darken.GetMethod("Update", BindingFlags.NonPublic | BindingFlags.Instance, null, Type.EmptyTypes, null)
+                : null;
+            solarSystem = engine != null ? engine.GetProperty("Instance", BindingFlags.NonPublic | BindingFlags.Static) : null;
+            planetsBrightness = contract != null ? contract.GetMethod("CalculatePlanetsBrightness") : null;
+            settingsInstance = instance;
+            skybox = settingsType.GetField("SkyboxBrightness", TypeLookup.Any);
+            Type group = skybox != null ? skybox.FieldType : null;
+            if (group != null)
+            {
+                minimumSignificantBodySize = group.GetField("minimumSignificantBodySize", TypeLookup.Any);
+                minimumTargetRelativeAngle = group.GetField("minimumTargetRelativeAngle", TypeLookup.Any);
+                referenceBodySize = group.GetField("referenceBodySize", TypeLookup.Any);
+                maxBrightness = group.GetField("maxBrightness", TypeLookup.Any);
+            }
+            if (update == null || solarSystem == null || planetsBrightness == null || minimumSignificantBodySize == null
+                || minimumTargetRelativeAngle == null || referenceBodySize == null || maxBrightness == null)
+            {
+                hooked.Drop("DarkenSky.Update", "this build of Distant Object dims the sky elsewhere, so on the night side"
+                                                + " the stars still go out towards the sun behind the planet");
+                return;
+            }
+            HarmonyHooks.Install(HarmonyId + ".Sky", typeof(DistantObjectBehaviour), new[]
+            {
+                new HarmonyHook(update, null, nameof(DarkenSkyPostfix), null),
+            });
+        }
+
+        // Where the sun is behind a body, the sky as Distant Object dims it without the
+        // sun's term: by the bright planets in view alone.
+        private static void DarkenSkyPostfix()
+        {
+            if (MapView.MapIsEnabled || GalaxyCubeControl.Instance == null || FlightCamera.fetch == null) return;
+            Camera camera = FlightCamera.fetch.mainCamera;
+            if (camera == null || !SunHidden(camera.transform.position)) return;
+            HarmonyHooks.Safely("doe-sky", "Distant Object's sky dimming could not be kept from the hidden sun", () =>
+            {
+                object settings = settingsInstance.GetValue(null, null);
+                object values = settings != null ? skybox.GetValue(settings) : null;
+                object system = solarSystem.GetValue(null, null);
+                if (values == null || system == null) return;
+                double planets = (double)planetsBrightness.Invoke(system, new object[]
+                {
+                    minimumSignificantBodySize.GetValue(values), minimumTargetRelativeAngle.GetValue(values),
+                    referenceBodySize.GetValue(values), camera,
+                });
+                float brightness = (float)((double)maxBrightness.GetValue(values) * Math.Min(1.0, planets));
+                GalaxyCubeControl.Instance.maxGalaxyColor = new Color(brightness, brightness, brightness);
+            });
+        }
+
+        // Whether a body stands between the camera and the sun.
+        private static bool SunHidden(Vector3 cameraAt)
+        {
+            CelestialBody sun = Planetarium.fetch != null ? Planetarium.fetch.Sun : null;
+            if (sun == null || FlightGlobals.Bodies == null) return false;
+            Vector3d from = cameraAt;
+            Vector3d toSun = sun.position - from;
+            double distance = toSun.magnitude;
+            if (distance <= 0.0) return false;
+            Vector3d direction = toSun / distance;
+            foreach (CelestialBody body in FlightGlobals.Bodies)
+            {
+                if (body == null || body == sun) continue;
+                Vector3d toBody = body.position - from;
+                double along = Vector3d.Dot(toBody, direction);
+                if (along <= 0.0 || along >= distance) continue;
+                if ((toBody - direction * along).sqrMagnitude < body.Radius * body.Radius) return true;
+            }
+            return false;
         }
 
         // Whatever file Load has just read -- a save's, as it loads, or its window

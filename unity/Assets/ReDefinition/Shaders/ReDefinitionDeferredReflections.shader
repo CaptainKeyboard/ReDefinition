@@ -134,7 +134,7 @@ half4 frag (unity_v2f_deferred i) : SV_Target
     // ReDefinition: the raytraced light in place of the probe's, where the raytraced
     // frame before has this point.
     float2 rtUv;
-    if (RtUv(worldPos, rtUv))
+    if (RtUvFilled(worldPos, rtUv))
     {
         if (_ReDefinitionRtLight.x > 0.5)
         {

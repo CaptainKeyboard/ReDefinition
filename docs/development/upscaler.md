@@ -528,7 +528,7 @@ In the diagnostics window's *Debug* tab
   buffer counts pixels, pixels off by more than a pixel and the largest error. The line
   says whether the rig wrote them, and gives the share off, the frames with more than
   0.5% off, apart for frames with and without a physics step, and the parts most off.
-* **Record the screen**: five seconds after the click, the proxy records half a second of
+* **Record the screen**: five seconds after the click, the proxy records 120 frames of
   what the monitor shows through DXGI desktop duplication, frame generation's frames
   included, as PNG files of a 1600x900 cut-out around the middle of the game window, with
   `frames.txt` giving each frame's present time. The harness records 40 frames while DLSS

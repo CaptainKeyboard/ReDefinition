@@ -325,6 +325,7 @@ namespace ReDefinition.RaytracingPlayer
                 Check(RtLighting.ReflectionsReplaced, "Deferred's reflections shader replaced",
                       "the raytraced diffuse light and reflections enter through it");
             yield return Uncovered(near, nearLit, nearWithout);
+            yield return CutoutCoverage();
             if (deferredMod)
             {
                 yield return Moving(without);
@@ -416,6 +417,52 @@ namespace ReDefinition.RaytracingPlayer
             for (int i = 0; i < 20; i++) yield return null;
         }
 
+        // Two cut-out cards in the sun, both covering a quarter: one in stripes 4 of 16
+        // texels wide, which the small texture keeps as they are, one in stripes 1 of 4,
+        // finer than its texels. The small texture keeps the share the cut-out covers,
+        // not the averaged alpha (RtScene.ReadTexture), so both shade the ground alike.
+        // Point-filtered, so that the cut-out covers exactly a quarter, and within the
+        // shadow maps' 25 m, beyond which Unity's forward and deferred lighting show no
+        // shadow at all.
+        private IEnumerator CutoutCoverage()
+        {
+            Material template = Resources.Load<Material>("RtStandard");
+            var cards = new List<GameObject>();
+            Vector3[] centres = { new Vector3(-14f, 3f, -6f), new Vector3(-19f, 3f, -6f) };
+            int[] periods = { 16, 4 };
+            for (int c = 0; c < 2; c++)
+            {
+                var texture = new Texture2D(256, 256, TextureFormat.RGBA32, true);
+                var pixels = new Color32[256 * 256];
+                for (int y = 0; y < 256; y++)
+                    for (int x = 0; x < 256; x++)
+                        pixels[y * 256 + x] = new Color32(255, 255, 255, (byte)(x % periods[c] < periods[c] / 4 ? 255 : 0));
+                texture.SetPixels32(pixels);
+                texture.filterMode = FilterMode.Point;
+                texture.Apply(true);
+                var material = new Material(template) { mainTexture = texture, renderQueue = 2450 };
+                material.EnableKeyword("_ALPHATEST_ON");
+                material.SetFloat("_Cutoff", 0.25f);
+                GameObject card = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                card.transform.position = centres[c];
+                card.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+                card.transform.localScale = new Vector3(4f, 4f, 1f);
+                card.GetComponent<Renderer>().sharedMaterial = material;
+                cards.Add(card);
+            }
+            for (int i = 0; i < 90; i++) yield return null;
+            Texture2D shot = null;
+            yield return Capture(t => shot = t, "cutout_coverage");
+            float lit = Brightness(shot, new Vector3(0f, 0f, -8f), 20);
+            float coarse = Brightness(shot, centres[0] - towardsSun * (3f / towardsSun.y), 20) / Mathf.Max(lit, 1e-3f);
+            float fine = Brightness(shot, centres[1] - towardsSun * (3f / towardsSun.y), 20) / Mathf.Max(lit, 1e-3f);
+            foreach (GameObject card in cards) Destroy(card);
+            Check(coarse < 0.97f && Mathf.Abs(fine - coarse) < 0.03f, "cut-out finer than the small texture",
+                  "the ground under a card a quarter covered in coarse stripes at " + (coarse * 100f).ToString("0")
+                  + " % of the light beside it, in stripes finer than the small texture's texels at " + (fine * 100f).ToString("0") + " %");
+            for (int i = 0; i < 20; i++) yield return null;
+        }
+
         // Without Deferred: the raytraced light added to the frame takes the place of
         // Unity's ambient light. Where only indirect light reaches, in the near box's
         // shadow, a dim flat ambient light and a bright gradient one, as KSP's editors
@@ -425,7 +472,12 @@ namespace ReDefinition.RaytracingPlayer
             AmbientMode mode = RenderSettings.ambientMode;
             Color sky = RenderSettings.ambientSkyColor, equator = RenderSettings.ambientEquatorColor,
                   groundColour = RenderSettings.ambientGroundColor;
-            float[] plain = new float[2], traced = new float[2];
+            float[] plain = new float[2], traced = new float[2], uncovered = new float[2];
+            float[] behindPlain = new float[2], behindTraced = new float[2];
+            // Ground just behind the near box: seen from the camera, hidden by the box from
+            // a metre lower, where the box's edge is 19 % nearer and the ground beyond it
+            // within a few texels.
+            Vector3 behind = new Vector3(-7.2f, 0f, -4.6f);
             for (int pass = 0; pass < 2; pass++)
             {
                 raytracing.enabled = pass == 1;
@@ -448,6 +500,20 @@ namespace ReDefinition.RaytracingPlayer
                     yield return Capture(t => shot = t, "ambient_" + (a == 0 ? "dim" : "bright") + "_"
                                                         + (pass == 1 ? "with" : "without") + "_raytracing");
                     (pass == 1 ? traced : plain)[a] = Brightness(shot, shaded);
+                    (pass == 1 ? behindTraced : behindPlain)[a] = Brightness(shot, behind);
+                    if (pass == 1)
+                    {
+                        // The first frame after the camera rose by a metre, where the
+                        // raytraced frame before did not see that ground: its light from
+                        // the raytraced light beside it, not Unity's ambient light.
+                        Vector3 position = cam.transform.position;
+                        cam.transform.position = position - new Vector3(0f, 1f, 0f);
+                        for (int i = 0; i < 20; i++) yield return null;
+                        cam.transform.position = position;
+                        yield return Capture(t => shot = t, "uncovered_ambient_" + (a == 0 ? "dim" : "bright"));
+                        uncovered[a] = Brightness(shot, behind);
+                        for (int i = 0; i < 20; i++) yield return null;
+                    }
                 }
             }
             RenderSettings.ambientMode = mode;
@@ -460,6 +526,13 @@ namespace ReDefinition.RaytracingPlayer
                   "the near box's shadow " + tracedChange.ToString("0.000") + " apart between a dim flat and a bright"
                   + " gradient ambient light with raytracing (" + traced[0].ToString("0.000") + ", " + traced[1].ToString("0.000")
                   + "), " + plainChange.ToString("0.000") + " without (" + plain[0].ToString("0.000") + ", " + plain[1].ToString("0.000") + ")");
+            float behindChange = behindPlain[1] - behindPlain[0];
+            float uncoveredChange = Mathf.Abs(uncovered[1] - uncovered[0]);
+            Check(behindChange > 0.05f && uncoveredChange < 0.2f * behindChange, "uncovered ground's light from the raytraced light beside it",
+                  "the ground behind the near box in the first frame after the camera rose by a metre "
+                  + uncoveredChange.ToString("0.000") + " apart between the two ambient lights (" + uncovered[0].ToString("0.000")
+                  + ", " + uncovered[1].ToString("0.000") + "), settled " + Mathf.Abs(behindTraced[1] - behindTraced[0]).ToString("0.000")
+                  + ", " + behindChange.ToString("0.000") + " without raytracing");
         }
 
         private Vector3 ShadowOfPublic(Vector3 centre)
@@ -619,19 +692,19 @@ namespace ReDefinition.RaytracingPlayer
         }
 
         // The mean brightness of a 5x5 pixel patch where a world point shows.
-        private float Brightness(Texture2D image, Vector3 world)
+        private float Brightness(Texture2D image, Vector3 world, int reach = 2)
         {
             Vector3 screen = cam.WorldToScreenPoint(world);
             int x = Mathf.RoundToInt(screen.x * image.width / Screen.width);
             int y = Mathf.RoundToInt(screen.y * image.height / Screen.height);
             float sum = 0f;
-            for (int dy = -2; dy <= 2; dy++)
-                for (int dx = -2; dx <= 2; dx++)
+            for (int dy = -reach; dy <= reach; dy++)
+                for (int dx = -reach; dx <= reach; dx++)
                 {
                     Color c = image.GetPixel(Mathf.Clamp(x + dx, 0, image.width - 1), Mathf.Clamp(y + dy, 0, image.height - 1));
                     sum += (c.r + c.g + c.b) / 3f;
                 }
-            return sum / 25f;
+            return sum / ((2 * reach + 1) * (2 * reach + 1));
         }
     }
 }

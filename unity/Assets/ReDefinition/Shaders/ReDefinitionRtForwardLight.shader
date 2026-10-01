@@ -54,7 +54,7 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         camera.z = -camera.z;
         float3 world = mul(unity_CameraToWorld, float4(camera.xyz, 1.0)).xyz;
         float2 previous;
-        if (!RtUv(world, previous))
+        if (!RtUvFilled(world, previous))
             return 0;
         return tex2Dlod(_ReDefinitionRtForward, float4(previous, 0.0, 0.0)).rgb;
     }

@@ -152,7 +152,7 @@ namespace ReDefinition
             if (recordingAt > 0f && Time.unscaledTime >= recordingAt)
             {
                 recordingAt = 0f;
-                bool started = ScreenRecordingBridge.Start(60);
+                bool started = ScreenRecordingBridge.Start(120);
                 // The vessel shadow layer's own inputs and results beside it.
                 if (started) VesselShadowLayer.DumpNextFrame();
                 Debug.Log(Log.Tag + " Screen recording " + (started ? "started." : "not started: "

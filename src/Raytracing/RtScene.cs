@@ -66,7 +66,12 @@ namespace ReDefinition.Raytracing
         {
             public int Id;
             public int LastSeen;
-            public bool TextureDone;
+            // The texture read for it, or waiting to be: a mod may set it later --
+            // Parallax's scatter gets its textures a frame or more after its materials
+            // (ScatterRenderer.SetMaterialTexturesAsync) -- or change it.
+            public Texture Texture;
+            public bool Queued;
+            public int Layer = -1;
         }
 
         private readonly Dictionary<long, MeshEntry> meshes = new Dictionary<long, MeshEntry>();
@@ -86,6 +91,17 @@ namespace ReDefinition.Raytracing
         private const int GpuFirstPlaces = 1024;
         private RtNative.Instance[] instances = new RtNative.Instance[1024];
         private readonly Queue<Material> texturesToRead = new Queue<Material>();
+        // Layers of the proxy's texture array that released materials left.
+        private readonly Stack<int> freeLayers = new Stack<int>();
+        // A material's texture looked at again: every frame while it has none, else
+        // once in this many frames.
+        private const int TextureCheckFrames = 120;
+        private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
+        private static readonly int RtCutoff = Shader.PropertyToID("_ReDefinitionRtCutoff");
+        // The capture shader's pass that makes a material's small texture.
+        private const int MaterialTexturePass = 6;
+        // The capture shader's material (RtCamera); without it a plain copy.
+        internal Material TextureReader;
         private int nextMeshId = 1;
         private int nextMaterialId = 1;
         private int nextTextureLayer;
@@ -145,6 +161,7 @@ namespace ReDefinition.Raytracing
                 keysOf.Clear();
                 materials.Clear();
                 texturesToRead.Clear();
+                freeLayers.Clear();
                 nextTextureLayer = 0;
             }
 
@@ -368,22 +385,30 @@ namespace ReDefinition.Raytracing
             MaterialEntry entry;
             if (materials.TryGetValue(material, out entry))
             {
+                if (entry.LastSeen != frame && !entry.Queued
+                    && (entry.Texture == null || (frame + entry.Id) % TextureCheckFrames == 0)
+                    && MainTexture(material) != entry.Texture)
+                {
+                    entry.Queued = true;
+                    texturesToRead.Enqueue(material);
+                }
                 entry.LastSeen = frame;
                 return entry.Id;
             }
             entry = new MaterialEntry { Id = nextMaterialId++, LastSeen = frame };
             materials[material] = entry;
             SendMaterial(material, entry.Id, -1);
-            if (MainTexture(material) != null && nextTextureLayer < RtNative.MaxMaterialTextures)
+            if (MainTexture(material) != null)
+            {
+                entry.Queued = true;
                 texturesToRead.Enqueue(material);
-            else
-                entry.TextureDone = true;
+            }
             return entry.Id;
         }
 
         private static Texture MainTexture(Material material)
         {
-            return material.HasProperty("_MainTex") ? material.GetTexture("_MainTex") : null;
+            return material.HasProperty(MainTexId) ? material.GetTexture(MainTexId) : null;
         }
 
         private void SendMaterial(Material material, int id, int layer)
@@ -411,17 +436,24 @@ namespace ReDefinition.Raytracing
             {
                 Material material = texturesToRead.Dequeue();
                 MaterialEntry entry;
-                if (material == null || !materials.TryGetValue(material, out entry) || entry.TextureDone) continue;
-                entry.TextureDone = true;
+                if (material == null || !materials.TryGetValue(material, out entry)) continue;
+                entry.Queued = false;
                 Texture texture = MainTexture(material);
+                entry.Texture = texture;
                 if (texture == null) continue;
-                int layer = nextTextureLayer++;
-                if (!ReadTexture(texture, layer)) continue;
-                SendMaterial(material, entry.Id, layer);
+                if (entry.Layer < 0)
+                {
+                    if (freeLayers.Count > 0) entry.Layer = freeLayers.Pop();
+                    else if (nextTextureLayer < RtNative.MaxMaterialTextures) entry.Layer = nextTextureLayer++;
+                    else continue;
+                }
+                RtMaterial surface = RtMaterial.Of(material);
+                if (!ReadTexture(texture, entry.Layer, surface.Cutoff)) continue;
+                SendMaterial(material, entry.Id, entry.Layer);
             }
         }
 
-        private bool ReadTexture(Texture texture, int layer)
+        private bool ReadTexture(Texture texture, int layer, float cutoff)
         {
             int size = RtNative.MaterialTextureSize;
             if (textureTarget == null)
@@ -432,7 +464,15 @@ namespace ReDefinition.Raytracing
                 texturePixels = new byte[size * size * 4];
             }
             RenderTexture previous = RenderTexture.active;
-            Graphics.Blit(texture, textureTarget);
+            if (TextureReader != null)
+            {
+                TextureReader.SetFloat(RtCutoff, cutoff);
+                Graphics.Blit(texture, textureTarget, TextureReader, MaterialTexturePass);
+            }
+            else
+            {
+                Graphics.Blit(texture, textureTarget);
+            }
             RenderTexture.active = textureTarget;
             textureRead.ReadPixels(new Rect(0, 0, size, size), 0, 0, false);
             RenderTexture.active = previous;
@@ -467,6 +507,7 @@ namespace ReDefinition.Raytracing
         }
 
         private readonly List<long> released = new List<long>();
+        private readonly List<Material> releasedMaterials = new List<Material>();
 
         private void ReleaseUnseen()
         {
@@ -485,6 +526,17 @@ namespace ReDefinition.Raytracing
                     keys.Remove(key);
                     if (keys.Count == 0) keysOf.Remove(entry.Mesh);
                 }
+            }
+            releasedMaterials.Clear();
+            foreach (KeyValuePair<Material, MaterialEntry> pair in materials)
+                if (pair.Key == null || frame - pair.Value.LastSeen > UnseenFrames)
+                    releasedMaterials.Add(pair.Key);
+            foreach (Material material in releasedMaterials)
+            {
+                MaterialEntry entry = materials[material];
+                RtNative.KspRtReleaseMaterial(entry.Id);
+                if (entry.Layer >= 0) freeLayers.Push(entry.Layer);
+                materials.Remove(material);
             }
             if (frame % 600 == 0)
             {
@@ -507,6 +559,8 @@ namespace ReDefinition.Raytracing
             keysOf.Clear();
             materials.Clear();
             texturesToRead.Clear();
+            freeLayers.Clear();
+            nextTextureLayer = 0;
             RtNative.KspRtSetInstances(instances, 0, RtNative.AnyFrame);
             RtNative.KspRtSetGpuGroups(gpuGroups, 0, RtNative.AnyFrame);
             GpuItems.Clear();

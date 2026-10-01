@@ -96,6 +96,8 @@ namespace ReDefinition.Flight
         }
 
         private const string TwrLine = "TWR";
+        // The line given both TWRs: TakeOutDeltaV runs every frame, the line keeps them.
+        private static DeltaVAppValues.InfoLine twrWidened;
 
         // KSP's TWR line with the TWR at the stage's end beside the one at its
         // start, "1.45-2.80": the stage's thrust in the situation chosen against its
@@ -107,7 +109,8 @@ namespace ReDefinition.Flight
         {
             foreach (DeltaVAppValues.InfoLine line in values.infoLines)
             {
-                if (line == null || line.name != TwrLine || line.infoValue == null) continue;
+                if (line == null || line.name != TwrLine || line.infoValue == null || line == twrWidened) continue;
+                twrWidened = line;
                 line.infoValue = (stage, situation) =>
                 {
                     if (stage == null) return "";

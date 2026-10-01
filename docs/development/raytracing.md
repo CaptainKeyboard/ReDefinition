@@ -87,12 +87,22 @@ behind it. The point counts as seen where that texel's depth lies within 5 % of 
 or its depth lies between the four kept ones, as on ground seen at a grazing angle. The
 kept depth is a 32-bit float, so this holds past 65 km, in orbit. Otherwise the raytraced
 frame did not see the point: it came out from behind something, or the camera turned
-towards it. Nothing is carried there, and Unity's shadow maps and ambient light, or Deferred's, light
-it for that frame **[meas]** (test player: with the camera turned from the sun's side, the
-near box's shadow in the first frame at 92 %, 92 % and 59 % of the light beside it, the
-shadow maps' 91 %, 90 % and 58 %; before, at 100 %). A temporal filter after it, DLSS Ray
-Reconstruction or ReDefinition's denoiser, would otherwise keep the wrong light there for
+towards it. No sun visibility is carried there, and Unity's shadow maps shade it for that
+frame **[meas]** (test player: with the camera turned from the sun's side, the near box's
+shadow in the first frame at 92 %, 92 % and 59 % of the light beside it, the shadow maps'
+91 %, 90 % and 58 %; before, at 100 %). A temporal filter after it, DLSS Ray
+Reconstruction or ReDefinition's denoiser, would otherwise keep the wrong shadow there for
 many frames.
+
+The diffuse light and the reflections of such a point come from the nearest texel around
+it, up to 32 texels away in eight directions, whose kept depth lies within 10 % of its own;
+a point that left the frame's edge looks from the edge. NRD fills its history after a
+disocclusion the same way. Unity's flat ambient light for a frame and the raytraced light
+the frame after would be a jump that DLSS Ray Reconstruction takes for noise and keeps:
+a band trailing a silhouette, and the frame's edge, as the camera turns **[meas]** (test
+player: ground behind the near box, uncovered as the camera rises by a metre, 0.001 apart
+in its first frame between a dim flat and a bright gradient ambient light, 0.185 without
+the fill).
 
 The screen-space shadows shader is derived from Unity's built-in one, which is MIT **[doc]**.
 For every camera but the scene camera it does what Unity's does, and for every light but
@@ -198,13 +208,24 @@ A ray that hits something shades it from what the proxy holds per mesh and per m
   shaders, and Parallax's scatter, whose grass sits at the opaque queue with its own
   keyword (`ALPHA_CUTOFF`) **[src]**.
 
-A cut-out surface is non-opaque geometry. A ray that meets it reads the alpha of the
-material's small texture there. That texture averages a fine cut-out, a blade of grass,
-into how much of a texel it covers, so the ray stops with that chance: on average the
-surface lets through what its cut-out does **[meas]** (harness: a card opaque on its left
-third, at the cut-out's alpha in the middle, cut out on the right, leaves the ground under
-it in the sun by 0.000, 0.506 and 1.000; as a GPU instance by 0.000, 0.512 and 1.000;
-with the cut-out off, 0.000 under all).
+The small texture is read from the full-size one in 8 by 8 points per texel. For a cut-out
+material its alpha is the share of points the cut-out keeps, its colour that of those
+points alone: a mip level's averaged alpha would blur a blade of grass into the threshold,
+and the colour of the cut-away texels is never seen. The texture is read again when the
+material's main texture changes. Parallax sets its scatter's textures a frame or more
+after it makes the materials (`ScatterRenderer.SetMaterialTexturesAsync`) **[src]**, and
+read only once, its cards would stay untextured.
+
+A cut-out surface is non-opaque geometry. A ray that meets it reads the share its small
+texture keeps there and stops with that chance: on average the surface lets through what
+its cut-out does **[meas]** (harness: a card covered on its left third, half covered in the
+middle, cut out on the right, leaves the ground under it in the sun by 0.000, 0.506 and
+1.000; as a GPU instance by 0.000, 0.512 and 1.000; with the cut-out off, 0.000 under all.
+Test player: cards a quarter covered in stripes coarser and finer than the small texture's
+texels shade the ground alike, 95 % and 95 %, 95 % and 95 %, 86 % and 87 % of the light
+beside them). A cut-out surface whose texture is not read yet lets every ray through
+**[meas]** (harness: 1.000 under all of the card): as an opaque card it would shade the
+ground under it as a square.
 
 A ray that hits nothing takes the sky's light from a capture of the scene's reflection
 probe, Deferred's or KSP's own in flight (`FlightReflectionProbe`) **[src]**, and the sun's
@@ -233,7 +254,9 @@ the reflections' hit distance as guides.
 The guides come from the raytraced frame of the same index, from the surface its passes
 see: the G-buffer's with Deferred, the rays' own without. Ray Reconstruction therefore
 needs no G-buffer **[meas]** (harness: 64 of 64 frames reconstructed without one, off the
-reference by 0.0059 against 0.0053 with it). The upscaler sends a frame to Ray
+reference by 0.0059 against 0.0053 with it). The sky's guides are NVIDIA's defaults:
+albedo 0.5, specular albedo, normal and roughness 0, hit distance 65 504 **[doc]** (DLSS-RR
+Integration Guide 3.4.1 to 3.4.4, 3.4.9). The upscaler sends a frame to Ray
 Reconstruction when DLSS is chosen, the scene camera is raytraced and the proxy reports
 Ray Reconstruction ready; the first frame after switching goes through Super Resolution,
 as its raytraced frame made no guides yet. Where Ray Reconstruction shows no frame for a
@@ -297,9 +320,10 @@ The harness checks:
     Parallax's scatter comes, beside an empty run: the same shadows, to the pixel.
 14. **Displaced terrain.** The rays' ground 0.3 m above the drawn one: lit as terrain,
     shading itself as any other mesh.
-15. **Cut-out surfaces.** A card over the ground, its texture opaque, at the cut-out's
-    alpha and cut out in thirds, the sun straight above: shadow, half shadow and sun
-    under them, among the CPU's instances and the GPU's.
+15. **Cut-out surfaces.** A card over the ground, its small texture covered, half covered
+    and cut out in thirds, the sun straight above: shadow, half shadow and sun under them,
+    among the CPU's instances and the GPU's; with its texture not read yet, sun under all
+    of it.
 
 ## Plan
 

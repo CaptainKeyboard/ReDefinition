@@ -2154,11 +2154,12 @@ int main()
 
     // ---------------------------------------------------------------- cut-out surfaces
     {
-        // A card 3 m over the ground, the sun straight above: its texture opaque on the
-        // left third, at the cut-out's alpha in the middle, cut out on the right. Under the
-        // left third the ground lies in its shadow, under the middle in half of it, as a
-        // texel covered by half stops half the rays, under the right in the sun; with the
-        // cut-out off, under all. The same with the card among the GPU's instances.
+        // A card 3 m over the ground, the sun straight above: its small texture covered on
+        // the left third, half covered in the middle, cut out on the right. Under the left
+        // third the ground lies in its shadow, under the middle in half of it, as a texel
+        // covered by half stops half the rays, under the right in the sun; with the cut-out
+        // off, under all. The same with the card among the GPU's instances; and with its
+        // texture not read yet, in the sun under all of it.
         Mesh card;
         card.id = 40;
         AddQuad(card, { -0.5, 0, 0.5 }, { 0.5, 0, 0.5 }, { 0.5, 0, -0.5 }, { -0.5, 0, -0.5 }, { 0, 1, 0 });
@@ -2172,7 +2173,7 @@ int main()
                     x < kRtMaterialTextureSize / 3 ? 255 : x < kRtMaterialTextureSize * 2 / 3 ? 128 : 0;
         if (proxy.setMaterialTexture(7, pixels.data(), static_cast<int>(kRtMaterialTextureSize)) != 1)
             return Fatal("the cut-out texture", E_FAIL);
-        const auto cardMaterial = [&](int id, float cutoff)
+        const auto cardMaterial = [&](int id, float cutoff, int texture)
         {
             RtMaterialDesc desc = {};
             desc.size = sizeof(desc);
@@ -2182,10 +2183,11 @@ int main()
             desc.albedo[3] = cutoff;
             desc.specular[0] = desc.specular[1] = desc.specular[2] = 0.04f;
             desc.smoothness = 0.2f;
-            desc.texture = 7;
+            desc.texture = texture;
             return proxy.setMaterial(&desc);
         };
-        if (cardMaterial(41, 0.5f) != 1 || cardMaterial(42, 0.0f) != 1)
+        // 43: cut out, its texture not read yet.
+        if (cardMaterial(41, 0.5f, 7) != 1 || cardMaterial(42, 0.0f, 7) != 1 || cardMaterial(43, 0.5f, -1) != 1)
             return Fatal("the cut-out materials", E_FAIL);
         std::map<int, Mesh> cardMeshes;
         cardMeshes[2] = meshes[2];
@@ -2270,20 +2272,24 @@ int main()
             for (int t = 0; t < 3; ++t)
                 thirds[t] = counts[t] > 0 ? sums[t] / counts[t] : -1.0;
         };
-        double cut[3], whole[3], gpu[3];
+        double cut[3], whole[3], gpu[3], unread[3];
         halves(41, false, cut);
         halves(42, false, whole);
         halves(41, true, gpu);
+        halves(43, true, unread);
         proxy.setGpuGroups(nullptr, 0, kRtAnyFrame);
-        char detail[300];
+        char detail[400];
         sprintf_s(detail, "the ground in the sun under the card's opaque, half and cut-out thirds %.3f, %.3f, %.3f; as a GPU"
-                          " instance %.3f, %.3f, %.3f; with the cut-out off %.3f, %.3f, %.3f",
-                  cut[0], cut[1], cut[2], gpu[0], gpu[1], gpu[2], whole[0], whole[1], whole[2]);
+                          " instance %.3f, %.3f, %.3f; with the cut-out off %.3f, %.3f, %.3f; its texture not read %.3f,"
+                          " %.3f, %.3f",
+                  cut[0], cut[1], cut[2], gpu[0], gpu[1], gpu[2], whole[0], whole[1], whole[2], unread[0], unread[1],
+                  unread[2]);
         const auto right = [](const double* t)
         {
             return t[0] >= 0.0 && t[0] < 0.05 && t[1] > 0.4 && t[1] < 0.6 && t[2] > 0.95;
         };
-        Check(right(cut) && right(gpu) && whole[1] >= 0.0 && whole[1] < 0.05 && whole[2] >= 0.0 && whole[2] < 0.05,
+        Check(right(cut) && right(gpu) && whole[1] >= 0.0 && whole[1] < 0.05 && whole[2] >= 0.0 && whole[2] < 0.05
+                  && unread[0] > 0.95 && unread[1] > 0.95 && unread[2] > 0.95,
               "cut-out surfaces", detail);
         proxy.releaseMesh(40);
         SendInstances(proxy, scene, camera.position);

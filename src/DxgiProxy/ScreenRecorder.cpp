@@ -208,6 +208,8 @@ namespace redefinition
                     break;
                 }
 
+                // The frames are taken; writing them takes a few seconds more.
+                SetState("saving " + std::to_string(staged.size()) + " frame(s), the recording itself is over");
                 CreateDirectoryW(folder.c_str(), nullptr);
                 ComPtr<IWICImagingFactory> wic;
                 if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic))))
@@ -264,7 +266,7 @@ namespace redefinition
         if (frames < 1) frames = 1;
         if (frames > kMaxFrames) frames = kMaxFrames;
         HWND window = GetForegroundWindow();
-        SetState("running");
+        SetState("recording");
         LogLine("Screen recording started: " + std::to_string(frames) + " frame(s)");
         std::thread(Record, frames, folder, window).detach();
         return true;

@@ -12,12 +12,14 @@ RWTexture2D<float4> specularAlbedo : register(u1, space3);
 RWTexture2D<float4> normalRoughness : register(u2, space3);
 RWTexture2D<float4> hitDistance : register(u3, space3);
 
+// The sky as NVIDIA's guide gives it (DLSS-RR Integration Guide 3.4.1-3.4.4, 3.4.9):
+// albedo 0.5, specular albedo, normal and roughness 0, hit distance FP16_MAX.
 void WriteSky(uint2 pixel)
 {
-    diffuseAlbedo[pixel] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+    diffuseAlbedo[pixel] = float4(0.5f, 0.5f, 0.5f, 1.0f);
     specularAlbedo[pixel] = float4(0.0f, 0.0f, 0.0f, 1.0f);
-    normalRoughness[pixel] = float4(0.0f, 1.0f, 0.0f, 1.0f);
-    hitDistance[pixel] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    normalRoughness[pixel] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    hitDistance[pixel] = float4(65504.0f, 0.0f, 0.0f, 0.0f);
 }
 
 void WriteGuides(uint2 pixel, float3 position, float3 albedo, float3 specular, float smoothness, float3 normal,
