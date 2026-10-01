@@ -148,9 +148,12 @@ namespace redefinition
         // dropped with a line, never run later on frames without the turn.
         void RequestCheck() { checkRequestedAt = GetTickCount64(); }
 
-        // The inputs of the next frames consecutive frames, as frame generation
-        // receives them, written into folder (FrameGenerationDump.cpp).
+        // The inputs of frames consecutive frames, as frame generation receives them,
+        // written into folder (FrameGenerationDump.cpp): from the first frame the camera
+        // turns by more than kDumpTurnDegrees, or after kDumpWaitFrames frames without.
         void StartInputDump(int frames, const std::wstring& folder);
+        static constexpr float kDumpTurnDegrees = 1.0f;
+        static constexpr int kDumpWaitFrames = 600;
 
         // How the last attempt to make the context went (EnsureContextLocked).
         static constexpr int kContextFine = 0;       // made, or not yet tried
@@ -393,8 +396,24 @@ namespace redefinition
             Microsoft::WRL::ComPtr<ID3D11Texture2D> staging[4];
         };
         std::vector<DumpFrame> dumpTaken;
+        // Read back one texture a Present (dumpRead counts them), the rows kept until
+        // all are read, then written in a thread of their own: the files of eight
+        // frames, some hundred megabytes, written at once in Present stalled the game
+        // for a quarter of a second.
+        struct DumpFile
+        {
+            std::wstring path;
+            std::vector<uint8_t> bytes;
+        };
+        std::vector<DumpFile> dumpFiles;
+        std::string dumpText;
+        size_t dumpRead = 0;
         int dumpToTake = 0;
         std::wstring dumpFolder;
+        // Waiting for the camera to turn: frames waited, and the last frame's forward.
+        int dumpWaited = 0;
+        bool dumpHaveForward = false;
+        float dumpForward[3] = {};
         bool CreateCheckTexturesLocked();
         void ReleaseCheckLocked();
         // Sizes are those of the staging textures that were mapped, never the

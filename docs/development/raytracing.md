@@ -102,7 +102,9 @@ the frame after would be a jump that DLSS Ray Reconstruction takes for noise and
 a band trailing a silhouette, and the frame's edge, as the camera turns **[meas]** (test
 player: ground behind the near box, uncovered as the camera rises by a metre, 0.001 apart
 in its first frame between a dim flat and a bright gradient ambient light, 0.185 without
-the fill).
+the fill; a camera turn around a rocket at up to 12 degrees a frame through DLSS Ray
+Reconstruction, against each pose's settled frame: an error of 0.012 in the tone-mapped
+luminance where something came into view, 0.070 without the fill, 0.002 elsewhere).
 
 The screen-space shadows shader is derived from Unity's built-in one, which is MIT **[doc]**.
 For every camera but the scene camera it does what Unity's does, and for every light but

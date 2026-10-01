@@ -56,7 +56,8 @@ namespace ReDefinition.RaytracingPlayer
     //     Deferred's "deferredshaders" bundle>] [-builtinDeferred 1] [-budget 1]
     //
     // With -budget it measures instead: a scene of the size KSP's flight holds near the
-    // ground, every signal on, against the GPU time budget.
+    // ground, every signal on, against the GPU time budget. With -turn it records a
+    // camera turn instead (RtTurnRunner).
     public sealed class RtPlayerRunner : MonoBehaviour
     {
         private readonly Vector3 towardsSun = new Vector3(0.3f, 0.6f, 0.74f).normalized;
@@ -75,6 +76,13 @@ namespace ReDefinition.RaytracingPlayer
 
         private void Start()
         {
+            if (Argument("-turn") != null)
+            {
+                // The camera turning around a rocket instead (RtTurnRunner).
+                gameObject.AddComponent<RtTurnRunner>();
+                enabled = false;
+                return;
+            }
             budget = Argument("-budget") != null;
             output = Argument("-out") ?? Path.Combine(Application.dataPath, "..");
             Directory.CreateDirectory(output);

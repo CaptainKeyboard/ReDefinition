@@ -89,11 +89,38 @@ def run(exe, deferred_folder, label, extra=(), size=(1280, 720)):
     return any(line == 'all checks passed' for line in lines)
 
 
+def turn(exe, streamline):
+    # Streamline set up on the player's swapchain, as the game's proxy does with DLSS
+    # frame generation, so that Ray Reconstruction runs; only for these runs.
+    ini = os.path.join(OUTPUT, 'ReDefinitionProxy.ini')
+    with open(ini, 'w') as file:
+        file.write('[Proxy]' + chr(10) + 'enabled=1' + chr(10) + 'frameGeneration=1' + chr(10)
+                   + 'dlssFrameGeneration=1' + chr(10) + 'streamlineDirectory=' + streamline + chr(10))
+    try:
+        ok = True
+        for mode in ('rr', 'denoiser', 'plain'):
+            folder = os.path.join(OUTPUT, 'turn-' + mode)
+            if os.path.isdir(folder):
+                shutil.rmtree(folder)
+            ok = run(exe, None, 'turn-' + mode, ['-turn', mode]) and ok
+    finally:
+        os.remove(ini)
+    result = subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'analyze_rt_turn.py'),
+                             os.path.join(OUTPUT, 'turn-rr'), os.path.join(OUTPUT, 'turn-denoiser'),
+                             os.path.join(OUTPUT, 'turn-plain')])
+    return 0 if ok and result.returncode == 0 else 1
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--unity', default=r'C:\Program Files\Unity\Editor\Unity.exe')
     parser.add_argument('--ksp', default=r'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program')
     parser.add_argument('--no-build', action='store_true')
+    parser.add_argument('--turn', action='store_true',
+                        help='record the camera turn (RtTurnRunner) through DLSS Ray Reconstruction, the denoiser and'
+                             ' without raytracing, and measure it with analyze_rt_turn.py, instead of the checks')
+    parser.add_argument('--streamline', default=os.environ.get('REDEFINITION_STREAMLINE_DIR', os.path.join(
+        os.path.dirname(ROOT), 'References', 'KspUpscaler', 'streamline-sdk-v2.14.1', 'bin', 'x64')))
     arguments = parser.parse_args()
     exe = os.path.join(OUTPUT, 'RaytracingPlayer.exe')
     if not arguments.no_build:
@@ -101,6 +128,8 @@ def main():
         exe = build(arguments.unity)
     else:
         shutil.copy2(PROXY, OUTPUT)
+    if arguments.turn:
+        sys.exit(turn(exe, arguments.streamline))
     deferred = os.path.join(arguments.ksp, 'GameData', 'zzz_Deferred', 'Shaders')
     forward_ok = run(exe, None, 'forward')
     builtin_ok = run(exe, None, 'unity-deferred', ['-builtinDeferred', '1'])

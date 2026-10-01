@@ -8,21 +8,21 @@
 
 #include "Log.h"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
+#include <thread>
 
 namespace redefinition
 {
     namespace
     {
-        void WriteRaw(const std::wstring& path, const D3D11_MAPPED_SUBRESOURCE& mapped, UINT rowBytes, UINT rows)
+        void WriteFile(const std::wstring& path, const void* bytes, size_t size)
         {
             FILE* file = nullptr;
             if (_wfopen_s(&file, path.c_str(), L"wb") != 0 || file == nullptr)
                 return;
-            const auto* bytes = static_cast<const uint8_t*>(mapped.pData);
-            for (UINT y = 0; y < rows; ++y)
-                fwrite(bytes + static_cast<size_t>(y) * mapped.RowPitch, 1, rowBytes, file);
+            fwrite(bytes, 1, size, file);
             fclose(file);
         }
 
@@ -58,11 +58,36 @@ namespace redefinition
             return;
         dumpFolder = folder;
         dumpToTake = frames;
+        dumpFiles.clear();
+        dumpText.clear();
+        dumpRead = 0;
+        dumpWaited = 0;
+        dumpHaveForward = false;
     }
 
     // At Present, after the inputs were copied for this frame.
     void FrameGeneration::DumpInputsLocked(bool copied)
     {
+        if (dumpToTake > 0 && dumpTaken.empty() && dumpWaited < kDumpWaitFrames)
+        {
+            // Not yet turning: the frames of a turn are the ones worth looking at.
+            const float* f = packet.forward;
+            const float cosine = f[0] * dumpForward[0] + f[1] * dumpForward[1] + f[2] * dumpForward[2];
+            const bool turning = dumpHaveForward && cosine < std::cos(kDumpTurnDegrees * 3.14159265f / 180.0f);
+            dumpForward[0] = f[0];
+            dumpForward[1] = f[1];
+            dumpForward[2] = f[2];
+            dumpHaveForward = true;
+            if (!turning)
+            {
+                if (++dumpWaited == kDumpWaitFrames)
+                    LogLine("Input dump: no camera turn within " + std::to_string(kDumpWaitFrames) + " frames, taken as they come");
+                else
+                    return;
+            }
+            else
+                LogLine("Input dump: the camera turns, frames taken from here");
+        }
         if (dumpToTake > 0)
         {
             if (!copied)
@@ -101,72 +126,94 @@ namespace redefinition
         if (dumpTaken.empty())
             return;
 
-        // All taken: read back and write, once the GPU is done with them.
-        for (const DumpFrame& frame : dumpTaken)
-            for (const auto& staging : frame.staging)
-            {
-                if (!staging)
-                    continue;
-                D3D11_MAPPED_SUBRESOURCE probe = {};
-                const HRESULT hr = context11->Map(staging.Get(), 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &probe);
-                if (hr == DXGI_ERROR_WAS_STILL_DRAWING)
-                    return;
-                if (SUCCEEDED(hr))
-                    context11->Unmap(staging.Get(), 0);
-            }
-
-        CreateDirectoryW(dumpFolder.c_str(), nullptr);
-        static const wchar_t* const names[4] = { L"colour", L"depth", L"motion", L"frame" };
-        std::string text = "# per frame: index, packet fields, then the three textures as raw rows\n";
-        for (size_t f = 0; f < dumpTaken.size(); ++f)
+        // All taken: once the GPU is done with them, one texture read back a Present.
+        if (dumpRead == 0)
         {
-            const DumpFrame& frame = dumpTaken[f];
-            const FramePacket& p = frame.packet;
-            char line[512];
-            snprintf(line, sizeof(line),
-                     "frame %zu packetIndex %u render %ux%u reset %u jitter %.6f %.6f mvScale %.3f %.3f near %.6f far %.3f "
-                     "fov %.6f dtMs %.3f flipped %d\n",
-                     f, p.frameIndex, p.renderWidth, p.renderHeight, p.reset, p.jitterX, p.jitterY, p.motionVectorScaleX,
-                     p.motionVectorScaleY, p.nearPlane, p.farPlane, p.verticalFovRadians, p.frameTimeDeltaMs,
-                     frame.flipped ? 1 : 0);
-            text += line;
-            snprintf(line, sizeof(line), "position %.6f %.6f %.6f up %.6f %.6f %.6f right %.6f %.6f %.6f forward %.6f %.6f %.6f\n",
-                     p.position[0], p.position[1], p.position[2], p.up[0], p.up[1], p.up[2], p.right[0], p.right[1],
-                     p.right[2], p.forward[0], p.forward[1], p.forward[2]);
-            text += line;
-            AppendMatrix(text, "viewToClip", p.viewToClip);
-            AppendMatrix(text, "clipToView", p.clipToView);
-            AppendMatrix(text, "clipToPrevClip", p.clipToPrevClip);
-            AppendMatrix(text, "prevClipToClip", p.prevClipToClip);
+            for (const DumpFrame& frame : dumpTaken)
+                for (const auto& staging : frame.staging)
+                {
+                    if (!staging)
+                        continue;
+                    D3D11_MAPPED_SUBRESOURCE probe = {};
+                    const HRESULT hr = context11->Map(staging.Get(), 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &probe);
+                    if (hr == DXGI_ERROR_WAS_STILL_DRAWING)
+                        return;
+                    if (SUCCEEDED(hr))
+                        context11->Unmap(staging.Get(), 0);
+                }
+            dumpText = "# per frame: index, packet fields, then the three textures as raw rows\n";
+        }
 
-            for (int i = 0; i < 4; ++i)
+        static const wchar_t* const names[4] = { L"colour", L"depth", L"motion", L"frame" };
+        const size_t total = dumpTaken.size() * 4;
+        while (dumpRead < total)
+        {
+            const size_t f = dumpRead / 4;
+            const int i = static_cast<int>(dumpRead % 4);
+            ++dumpRead;
+            DumpFrame& frame = dumpTaken[f];
+            if (i == 0)
             {
-                if (!frame.staging[i])
-                    continue;
-                D3D11_TEXTURE2D_DESC desc = {};
-                frame.staging[i]->GetDesc(&desc);
-                D3D11_MAPPED_SUBRESOURCE mapped = {};
-                if (FAILED(context11->Map(frame.staging[i].Get(), 0, D3D11_MAP_READ, 0, &mapped)))
-                    continue;
+                const FramePacket& p = frame.packet;
+                char line[512];
+                snprintf(line, sizeof(line),
+                         "frame %zu packetIndex %u render %ux%u reset %u jitter %.6f %.6f mvScale %.3f %.3f near %.6f far %.3f "
+                         "fov %.6f dtMs %.3f flipped %d\n",
+                         f, p.frameIndex, p.renderWidth, p.renderHeight, p.reset, p.jitterX, p.jitterY, p.motionVectorScaleX,
+                         p.motionVectorScaleY, p.nearPlane, p.farPlane, p.verticalFovRadians, p.frameTimeDeltaMs,
+                         frame.flipped ? 1 : 0);
+                dumpText += line;
+                snprintf(line, sizeof(line), "position %.6f %.6f %.6f up %.6f %.6f %.6f right %.6f %.6f %.6f forward %.6f %.6f %.6f\n",
+                         p.position[0], p.position[1], p.position[2], p.up[0], p.up[1], p.up[2], p.right[0], p.right[1],
+                         p.right[2], p.forward[0], p.forward[1], p.forward[2]);
+                dumpText += line;
+                AppendMatrix(dumpText, "viewToClip", p.viewToClip);
+                AppendMatrix(dumpText, "clipToView", p.clipToView);
+                AppendMatrix(dumpText, "clipToPrevClip", p.clipToPrevClip);
+                AppendMatrix(dumpText, "prevClipToClip", p.prevClipToClip);
+            }
+            if (!frame.staging[i])
+                continue;
+            D3D11_TEXTURE2D_DESC desc = {};
+            frame.staging[i]->GetDesc(&desc);
+            D3D11_MAPPED_SUBRESOURCE mapped = {};
+            if (SUCCEEDED(context11->Map(frame.staging[i].Get(), 0, D3D11_MAP_READ, 0, &mapped)))
+            {
+                const UINT rowBytes = desc.Width * BytesPerTexel(desc.Format);
+                DumpFile out;
                 wchar_t file[64];
                 swprintf_s(file, L"\\%s-%02zu.bin", names[i], f);
-                const UINT rowBytes = desc.Width * BytesPerTexel(desc.Format);
-                WriteRaw(dumpFolder + file, mapped, rowBytes, desc.Height);
+                out.path = dumpFolder + file;
+                out.bytes.resize(static_cast<size_t>(rowBytes) * desc.Height);
+                const auto* bytes = static_cast<const uint8_t*>(mapped.pData);
+                for (UINT y = 0; y < desc.Height; ++y)
+                    memcpy(out.bytes.data() + static_cast<size_t>(y) * rowBytes, bytes + static_cast<size_t>(y) * mapped.RowPitch,
+                           rowBytes);
                 context11->Unmap(frame.staging[i].Get(), 0);
+                dumpFiles.push_back(std::move(out));
                 char entry[160];
                 snprintf(entry, sizeof(entry), "texture %ls %ux%u format %d bytesPerTexel %u\n", names[i], desc.Width,
                          desc.Height, static_cast<int>(desc.Format), BytesPerTexel(desc.Format));
-                text += entry;
+                dumpText += entry;
             }
+            frame.staging[i].Reset();
+            return;
         }
 
-        FILE* file = nullptr;
-        if (_wfopen_s(&file, (dumpFolder + L"\\frames.txt").c_str(), L"wb") == 0 && file != nullptr)
-        {
-            fwrite(text.data(), 1, text.size(), file);
-            fclose(file);
-        }
-        LogLine("Input dump written: " + std::to_string(dumpTaken.size()) + " frames");
+        // All read: written away from the render thread.
+        DumpFile text;
+        text.path = dumpFolder + L"\\frames.txt";
+        text.bytes.assign(dumpText.begin(), dumpText.end());
+        dumpFiles.push_back(std::move(text));
+        std::thread([folder = dumpFolder, files = std::move(dumpFiles)]() {
+            CreateDirectoryW(folder.c_str(), nullptr);
+            for (const DumpFile& f : files)
+                WriteFile(f.path, f.bytes.data(), f.bytes.size());
+            LogLine("Input dump written: " + std::to_string(files.size() - 1) + " files");
+        }).detach();
+        dumpFiles.clear();
+        dumpText.clear();
+        dumpRead = 0;
         dumpTaken.clear();
     }
 }

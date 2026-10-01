@@ -299,6 +299,42 @@ images of each run are in `build\RaytracingPlayer\<run>`.
 With `REDEFINITION_D3D12_DEBUG=1` set, the proxy turns on Direct3D 12's debug layer in
 either harness and the test player, and writes its messages into its log.
 
+### The camera turn
+
+```
+python tools\build_rt_player.py --turn
+```
+
+Instead of the checks, the player records a camera turn around a rocket on its pad
+(`RtTurnRunner.cs`): settled, 20 frames at 2 degrees a frame, 10 at 12, one jump of 40, as
+after a hitch, then still. It runs three times: through DLSS Ray Reconstruction as the
+upscaler sends it, at the render size; with ReDefinition's denoiser; and with Unity's
+lighting alone. For Ray Reconstruction the script writes a `ReDefinitionProxy.ini` next to
+the player that names Streamline's folder (`--streamline`, by default
+`REDEFINITION_STREAMLINE_DIR` or the SDK's `bin\x64` beside the repository), so that the
+proxy sets Streamline up on the player's swapchain, and removes it afterwards. Each frame
+of the turn and each pose again after the camera stood there, as its reference, go into
+`build\RaytracingPlayer\turn-<run>`, with the poses halfway between two frames.
+
+`tools\analyze_rt_turn.py` then compares each frame with its reference: the error over
+what came into view in that frame, behind a silhouette or past the frame's edge, over what
+came into view within four frames, and over the rest. It checks Unity's motion vectors
+against the cameras' motion as well, and writes `error_<frame>.png` images. It prints
+`PASS` or `FAIL` per run against limits of about twice the values measured on 2026-10-01;
+without raytracing the turn equals its references.
+
+The turn goes through frame generation as well:
+
+```
+python tools\turn_to_fg_dump.py build\RaytracingPlayer\turn-rr <dump folder> 18 40
+tools\replay_fg.ps1 <dump folder, absolute>
+python tools\measure_fg_turn.py <recording>\client build\RaytracingPlayer\turn-rr 18
+```
+
+The first writes frames 18 to 40 of the turn as frame generation's input dump. The last
+compares each generated frame with the reference of the pose halfway, beside a copy of
+the newer frame, which is what a reset would show there.
+
 ## Render KSP's meshes in the raytracing harness
 
 With a scene of KSP's own meshes the raytracing harness also renders the launch pad and the
@@ -315,6 +351,9 @@ build\DxgiProxy\Release\RaytracingHarness.exe
 **Record the screen** in the Debug tab also writes eight consecutive frames of what frame
 generation receives into a folder ending in `-inputs`: the HUD-less colour, depth, motion
 vectors, the frame as presented and each frame's packet (`FrameGenerationDump.cpp`). The
+frames are taken from the first frame the camera turns by more than a degree, or after 600
+frames without. They are read back one texture a frame and written in a thread of their
+own: written at once, the files stalled the game for about 300 ms in the recording. The
 replay reads each texture at its own size, so a dump rendered below the display size
 plays too.
 
