@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text;
 using System;
 using ReDefinition.Core;
+using ReDefinition.Settings;
 using UnityEngine.Rendering;
 using UnityEngine;
 
@@ -315,12 +316,52 @@ namespace ReDefinition.Upscaler
         // Setting the state
         // ------------------------------------------------------------------
 
+        // Scatterer adds its TAA to the cameras in Init at every scene change
+        // (Scatterer.cs, AddComponent<TemporalAntiAliasing>, decompiled): a postfix on its
+        // Awake switches each one off as it comes while the upscaler runs, rather than up
+        // to ReassertInterval later. Reassert stays as the net under it.
+        private static bool taaHookTried;
+
+        private static void HookScattererTaa(Type taaType)
+        {
+            if (taaHookTried || taaType == null) return;
+            taaHookTried = true;
+            MethodInfo awake = taaType.GetMethod("Awake", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                                                 null, Type.EmptyTypes, null);
+            try
+            {
+                HarmonyHooks.Install("ReDefinition.ScattererTaa", typeof(HostStack), new[]
+                {
+                    new HarmonyHook(awake, null, nameof(ScattererTaaAwakePostfix), null),
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " Scatterer's TAA is taken off once a second instead of as it comes: " + e.Message);
+            }
+        }
+
+        private static void ScattererTaaAwakePostfix(object __instance)
+        {
+            Component taa = __instance as Component;
+            if (!Applied || taa == null) return;
+            HarmonyHooks.Safely("scatterer-taa", "Scatterer's new TAA could not be switched off as it came", () =>
+            {
+                if (!HasBackup(taa)) taaBackups.Add(new TaaBackup { Component = taa, Enabled = IsEnabled(taa) });
+                Disable(taa);
+                // Awake installed its motion vector shader and floating origin globals.
+                NeutraliseFloatingOrigin(true);
+                RestoreBuiltinMotionVectorShader(true);
+            });
+        }
+
         public static string Apply()
         {
             StringBuilder report = new StringBuilder();
 
             Type taaType = TypeLookup.Find(ScattererTaaTypeName);
             List<Component> taa = ScattererTaaComponents();
+            HookScattererTaa(taaType);
 
             // Unconditionally, not only when components are found.
             //

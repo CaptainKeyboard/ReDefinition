@@ -190,11 +190,13 @@ the component, two of them the scene:
   corrected every frame. Disabled, they freeze and stop writing object motion, and the
   vessel smears.
 
-All three are cleaned up, and reasserted after scene changes, since Scatterer rebuilds
-its components. The shader and `TAA_UseFloatingOriginCameraMotion` are put back, and
-only where the value is still the one written, so a newer choice by the player or
-another mod stands. `TAA_PreviousFrameTransform` stays at identity, and the renderers
-freed from `ForceNoMotion` stay on `Object`, which is what writes their motion.
+All three are cleaned up, and reasserted after scene changes, since Scatterer rebuilds its
+components. A Harmony postfix on its TAA's `Awake` switches each new one off as Scatterer
+adds it, while the upscaler runs; the check once a second stays beneath it. The shader and
+`TAA_UseFloatingOriginCameraMotion` are put back, and only where the value is still the
+one written, so a newer choice by the player or another mod stands.
+`TAA_PreviousFrameTransform` stays at identity, and the renderers freed from
+`ForceNoMotion` stay on `Object`, which is what writes their motion.
 
 ### The distant planets
 
