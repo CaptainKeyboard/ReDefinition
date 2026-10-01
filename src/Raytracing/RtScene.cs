@@ -394,7 +394,7 @@ namespace ReDefinition.Raytracing
                 Size = (uint)Marshal.SizeOf(typeof(RtNative.MaterialDesc)),
                 Magic = RtNative.MaterialMagic,
                 Material = id,
-                AlbedoR = surface.Albedo.r, AlbedoG = surface.Albedo.g, AlbedoB = surface.Albedo.b, AlbedoA = surface.Albedo.a,
+                AlbedoR = surface.Albedo.r, AlbedoG = surface.Albedo.g, AlbedoB = surface.Albedo.b, AlbedoA = surface.Cutoff,
                 SpecularR = surface.Specular.r, SpecularG = surface.Specular.g, SpecularB = surface.Specular.b,
                 Smoothness = surface.Smoothness,
                 EmissionR = surface.Emission.r, EmissionG = surface.Emission.g, EmissionB = surface.Emission.b,

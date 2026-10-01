@@ -168,6 +168,7 @@ namespace
         int id = 0;
         std::vector<float> positions;
         std::vector<float> normals;
+        std::vector<float> uvs;   // two a vertex, or none
         std::vector<uint32_t> indices;
         ComPtr<ID3D11Buffer> vertexBuffer;
         ComPtr<ID3D11Buffer> indexBuffer;
@@ -634,6 +635,7 @@ PsOut PsMain(VsOut input)
         int (*setMesh)(const RtMeshDesc*) = nullptr;
         void (*releaseMesh)(int) = nullptr;
         int (*setMaterial)(const RtMaterialDesc*) = nullptr;
+        int (*setMaterialTexture)(int, const uint8_t*, int) = nullptr;
         int (*setInstances)(const RtInstance*, int, unsigned int) = nullptr;
         int (*setGpuGroups)(const RtGpuInstanceGroup*, int, unsigned int) = nullptr;
         void (*passTimings)(float*, int) = nullptr;
@@ -675,6 +677,7 @@ PsOut PsMain(VsOut input)
         desc.indexCount = static_cast<uint32_t>(mesh.indices.size());
         desc.positions = mesh.positions.data();
         desc.normals = mesh.normals.data();
+        desc.uvs = mesh.uvs.empty() ? nullptr : mesh.uvs.data();
         desc.indices = mesh.indices.data();
         return proxy.setMesh(&desc);
     }
@@ -721,6 +724,8 @@ PsOut PsMain(VsOut input)
         uint32_t flags = 0;
         // The main body as a sphere, centre in the world, radius; radius 0 for none.
         double body[4] = { 0, 0, 0, 0 };
+        // Whether the materials' small textures are read (RtFramePacket params[6]).
+        bool materialTextures = false;
         // Whether the service reads the G-buffer, or takes the surface from its own rays
         // as it does for forward rendering.
         bool gbuffer = true;
@@ -758,6 +763,7 @@ PsOut PsMain(VsOut input)
         packet.params[3] = lighting.specularDistance;
         packet.params[4] = lighting.clamp;
         packet.params[5] = lighting.environment != nullptr ? 1.0f : 0.0f;
+        packet.params[6] = lighting.materialTextures ? 1.0f : 0.0f;
         packet.params[7] = lighting.gbuffer ? 1.0f : 0.0f;
         packet.bodySphere[0] = float(lighting.body[0] - camera.position.x);
         packet.bodySphere[1] = float(lighting.body[1] - camera.position.y);
@@ -931,7 +937,7 @@ PsOut PsMain(VsOut input)
         desc.magic = kRtMaterialMagic;
         desc.material = id;
         memcpy(desc.albedo, albedo, 3 * sizeof(float));
-        desc.albedo[3] = 1.0f;
+        desc.albedo[3] = 0.0f;
         desc.specular[0] = desc.specular[1] = desc.specular[2] = 0.04f;
         desc.smoothness = smoothness;
         memcpy(desc.emission, emission, 3 * sizeof(float));
@@ -1040,6 +1046,7 @@ int main()
         || !proxy.Load(proxy.setMesh, "KspRtSetMesh") || !proxy.Load(proxy.releaseMesh, "KspRtReleaseMesh")
         || !proxy.Load(proxy.setMaterial, "KspRtSetMaterial") || !proxy.Load(proxy.setInstances, "KspRtSetInstances")
         || !proxy.Load(proxy.setGpuGroups, "KspRtSetGpuGroups")
+        || !proxy.Load(proxy.setMaterialTexture, "KspRtSetMaterialTexture")
         || !proxy.Load(proxy.status, "KspRtStatus") || !proxy.Load(proxy.timings, "KspRtTimings")
         || !proxy.Load(proxy.passTimings, "KspRtPassTimings")
         || !proxy.Load(proxy.reconstructionAvailable, "KspRtReconstructionAvailable")
@@ -2143,6 +2150,144 @@ int main()
         Check(asTerrain * 1000 >= expected * 995 && asTerrain * 1000 <= expected * 1005 && asMesh * 2 < expected,
               "displaced terrain", detail);
         SendInstances(proxy, scene, camera.position);
+    }
+
+    // ---------------------------------------------------------------- cut-out surfaces
+    {
+        // A card 3 m over the ground, the sun straight above: its texture opaque on the
+        // left third, at the cut-out's alpha in the middle, cut out on the right. Under the
+        // left third the ground lies in its shadow, under the middle in half of it, as a
+        // texel covered by half stops half the rays, under the right in the sun; with the
+        // cut-out off, under all. The same with the card among the GPU's instances.
+        Mesh card;
+        card.id = 40;
+        AddQuad(card, { -0.5, 0, 0.5 }, { 0.5, 0, 0.5 }, { 0.5, 0, -0.5 }, { -0.5, 0, -0.5 }, { 0, 1, 0 });
+        card.uvs = { 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f };
+        if (FAILED(UploadMeshForRaster(device.Get(), card)) || SendMesh(proxy, card) != 1)
+            return Fatal("the cut-out card", E_FAIL);
+        std::vector<uint8_t> pixels(static_cast<size_t>(kRtMaterialTextureSize) * kRtMaterialTextureSize * 4, 128);
+        for (uint32_t y = 0; y < kRtMaterialTextureSize; ++y)
+            for (uint32_t x = 0; x < kRtMaterialTextureSize; ++x)
+                pixels[(y * kRtMaterialTextureSize + x) * 4 + 3] =
+                    x < kRtMaterialTextureSize / 3 ? 255 : x < kRtMaterialTextureSize * 2 / 3 ? 128 : 0;
+        if (proxy.setMaterialTexture(7, pixels.data(), static_cast<int>(kRtMaterialTextureSize)) != 1)
+            return Fatal("the cut-out texture", E_FAIL);
+        const auto cardMaterial = [&](int id, float cutoff)
+        {
+            RtMaterialDesc desc = {};
+            desc.size = sizeof(desc);
+            desc.magic = kRtMaterialMagic;
+            desc.material = id;
+            desc.albedo[0] = desc.albedo[1] = desc.albedo[2] = 0.5f;
+            desc.albedo[3] = cutoff;
+            desc.specular[0] = desc.specular[1] = desc.specular[2] = 0.04f;
+            desc.smoothness = 0.2f;
+            desc.texture = 7;
+            return proxy.setMaterial(&desc);
+        };
+        if (cardMaterial(41, 0.5f) != 1 || cardMaterial(42, 0.0f) != 1)
+            return Fatal("the cut-out materials", E_FAIL);
+        std::map<int, Mesh> cardMeshes;
+        cardMeshes[2] = meshes[2];
+        cardMeshes[40] = card;
+        Camera low;
+        low.position = { 0, 1.5, -15 };
+        low.target = { 0, 0, 0 };
+        low.Update();
+        const Vec3 above = { 0, 1, 0 };
+        // The card's transform for the GPU's instances, in t7's layout.
+        D3D11_TEXTURE2D_DESC placesDesc = {};
+        placesDesc.Width = kRtInstancesPerRow * 3;
+        placesDesc.Height = 1;
+        placesDesc.MipLevels = 1;
+        placesDesc.ArraySize = 1;
+        placesDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        placesDesc.SampleDesc.Count = 1;
+        placesDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        std::vector<float> placeTexels(static_cast<size_t>(kRtInstancesPerRow) * 3 * 4, 0.0f);
+        Instance cardPlace;
+        cardPlace.mesh = 40;
+        cardPlace.position = { 0, 3, 0 };
+        cardPlace.scale[0] = cardPlace.scale[2] = 10.0;
+        RelativeTransform(cardPlace, low.position, placeTexels.data());
+        const D3D11_SUBRESOURCE_DATA placesData = { placeTexels.data(), placesDesc.Width * 16, 0 };
+        ComPtr<ID3D11Texture2D> places;
+        if (FAILED(device->CreateTexture2D(&placesDesc, &placesData, &places)))
+            return Fatal("the card's place", E_FAIL);
+        const auto halves = [&](int material, bool fromGpu, double* thirds)
+        {
+            std::vector<Instance> cardScene;
+            Instance ground;
+            ground.mesh = 2;
+            ground.scale[0] = ground.scale[2] = 60.0;
+            cardScene.push_back(ground);
+            Instance over = cardPlace;
+            over.material = material;
+            std::vector<Instance> drawn = cardScene;
+            drawn.push_back(over);
+            if (!fromGpu)
+                cardScene.push_back(over);
+            SendInstances(proxy, cardScene, low.position);
+            RtGpuInstanceGroup group = {};
+            group.mesh = 40;
+            group.material = material;
+            group.count = 1;
+            group.mask = 0xFF;
+            proxy.setGpuGroups(&group, fromGpu ? 1 : 0, kRtAnyFrame);
+            RenderGBuffer(context.Get(), g, low, cardMeshes, drawn);
+            Lighting cut;
+            cut.materialTextures = true;
+            cut.gpuInstances = fromGpu ? places.Get() : nullptr;
+            SendFrame(proxy, low, g, outputs, above, 0.0f, 15000 + material + (fromGpu ? 100 : 0), kRtSignalSunVisibility, cut);
+            std::vector<uint16_t> vis;
+            std::vector<float> depth;
+            ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, vis);
+            ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+            double sums[3] = {}, counts[3] = {};
+            for (uint32_t y = 0; y < kHeight; ++y)
+                for (uint32_t x = 0; x < kWidth; ++x)
+                {
+                    const size_t i = static_cast<size_t>(y) * kWidth + x;
+                    if (depth[i] <= 0.0f)
+                        continue;
+                    const double nx = ((x + 0.5) / kWidth) * 2.0 - 1.0;
+                    const double ny = 1.0 - ((y + 0.5) / kHeight) * 2.0;
+                    double q[4];
+                    for (int r = 0; r < 4; ++r)
+                        q[r] = low.clipToWorld.at(r, 0) * nx + low.clipToWorld.at(r, 1) * ny + low.clipToWorld.at(r, 2) * depth[i]
+                             + low.clipToWorld.at(r, 3);
+                    const Vec3 world = Vec3{ q[0] / q[3], q[1] / q[3], q[2] / q[3] } + low.position;
+                    if (std::fabs(world.y) > 0.05 || std::fabs(world.z) > 4.0)
+                        continue;
+                    // The card's thirds, with a margin from their edges: x -5 to -1.7, to 1.7, to 5.
+                    const int third = world.x > -4.5 && world.x < -2.5 ? 0 : world.x > -1.0 && world.x < 1.0 ? 1
+                                    : world.x > 2.5 && world.x < 4.5 ? 2 : -1;
+                    if (third < 0)
+                        continue;
+                    sums[third] += HalfToFloat(vis[i * 4]);
+                    counts[third] += 1.0;
+                }
+            for (int t = 0; t < 3; ++t)
+                thirds[t] = counts[t] > 0 ? sums[t] / counts[t] : -1.0;
+        };
+        double cut[3], whole[3], gpu[3];
+        halves(41, false, cut);
+        halves(42, false, whole);
+        halves(41, true, gpu);
+        proxy.setGpuGroups(nullptr, 0, kRtAnyFrame);
+        char detail[300];
+        sprintf_s(detail, "the ground in the sun under the card's opaque, half and cut-out thirds %.3f, %.3f, %.3f; as a GPU"
+                          " instance %.3f, %.3f, %.3f; with the cut-out off %.3f, %.3f, %.3f",
+                  cut[0], cut[1], cut[2], gpu[0], gpu[1], gpu[2], whole[0], whole[1], whole[2]);
+        const auto right = [](const double* t)
+        {
+            return t[0] >= 0.0 && t[0] < 0.05 && t[1] > 0.4 && t[1] < 0.6 && t[2] > 0.95;
+        };
+        Check(right(cut) && right(gpu) && whole[1] >= 0.0 && whole[1] < 0.05 && whole[2] >= 0.0 && whole[2] < 0.05,
+              "cut-out surfaces", detail);
+        proxy.releaseMesh(40);
+        SendInstances(proxy, scene, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
     }
 
     // ---------------------------------------------------------------- without a G-buffer

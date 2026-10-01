@@ -324,6 +324,7 @@ namespace ReDefinition.RaytracingPlayer
             if (deferredMod)
                 Check(RtLighting.ReflectionsReplaced, "Deferred's reflections shader replaced",
                       "the raytraced diffuse light and reflections enter through it");
+            yield return Uncovered(near, nearLit, nearWithout);
             if (deferredMod)
             {
                 yield return Moving(without);
@@ -391,6 +392,28 @@ namespace ReDefinition.RaytracingPlayer
             Check(plain > 0.02f && traced > 0.8f * plain, "the night side not black",
                   "the ground at " + traced.ToString("0.000") + " with raytracing, " + plain.ToString("0.000")
                   + " with KSP's night light alone");
+        }
+
+        // A point the raytraced frame before did not see: from the sun's side the near box
+        // hides its own shadow; turned back, the first frame finds no raytraced texel of
+        // that ground and takes Unity's shadow maps, not the box's lit top in front of it.
+        private IEnumerator Uncovered(Vector3 shaded, Vector3 lit, float shadowMaps)
+        {
+            Vector3 position = cam.transform.position;
+            Quaternion rotation = cam.transform.rotation;
+            cam.transform.position = shaded + towardsSun * 14f;
+            cam.transform.LookAt(shaded);
+            for (int i = 0; i < 20; i++) yield return null;
+            cam.transform.position = position;
+            cam.transform.rotation = rotation;
+            Texture2D shot = null;
+            yield return Capture(t => shot = t, "uncovered");
+            float ratio = Brightness(shot, shaded) / Mathf.Max(Brightness(shot, lit), 1e-3f);
+            Check(Mathf.Abs(ratio - shadowMaps) < 0.04f, "ground the frame before did not see",
+                  "the near box's shadow at " + (ratio * 100f).ToString("0") + " % of the light beside it in the first frame"
+                  + " after the camera turned from the sun's side, as the shadow maps give it ("
+                  + (shadowMaps * 100f).ToString("0") + " %)");
+            for (int i = 0; i < 20; i++) yield return null;
         }
 
         // Without Deferred: the raytraced light added to the frame takes the place of

@@ -81,6 +81,19 @@ shifts what is near the vessel, and the bodies move by the frame's velocity as w
 **[src]**. The lighting shaders try both shifts and take the one whose view depth matches
 the depth the raytraced frame kept for the pixel.
 
+Of the four texels around the point, the shaders read the one whose kept depth matches
+best, at its centre: a bilinear read would mix a silhouette's light with the ground's
+behind it. The point counts as seen where that texel's depth lies within 5 % of its own,
+or its depth lies between the four kept ones, as on ground seen at a grazing angle. The
+kept depth is a 32-bit float, so this holds past 65 km, in orbit. Otherwise the raytraced
+frame did not see the point: it came out from behind something, or the camera turned
+towards it. Nothing is carried there, and Unity's shadow maps and ambient light, or Deferred's, light
+it for that frame **[meas]** (test player: with the camera turned from the sun's side, the
+near box's shadow in the first frame at 92 %, 92 % and 59 % of the light beside it, the
+shadow maps' 91 %, 90 % and 58 %; before, at 100 %). A temporal filter after it, DLSS Ray
+Reconstruction or ReDefinition's denoiser, would otherwise keep the wrong light there for
+many frames.
+
 The screen-space shadows shader is derived from Unity's built-in one, which is MIT **[doc]**.
 For every camera but the scene camera it does what Unity's does, and for every light but
 the sun: a flag set by command buffers on the sun's light, before and after its mask
@@ -180,7 +193,18 @@ A ray that hits something shades it from what the proxy holds per mesh and per m
   (`UnityStandardUtils.cginc`) **[src]**;
 * specular colour and smoothness, converted from KSP's shaders as Deferred converts them
   **[src]**;
-* emission.
+* emission;
+* where the material is cut out, the alpha below which it is: Unity's and KSP's cut-out
+  shaders, and Parallax's scatter, whose grass sits at the opaque queue with its own
+  keyword (`ALPHA_CUTOFF`) **[src]**.
+
+A cut-out surface is non-opaque geometry. A ray that meets it reads the alpha of the
+material's small texture there. That texture averages a fine cut-out, a blade of grass,
+into how much of a texel it covers, so the ray stops with that chance: on average the
+surface lets through what its cut-out does **[meas]** (harness: a card opaque on its left
+third, at the cut-out's alpha in the middle, cut out on the right, leaves the ground under
+it in the sun by 0.000, 0.506 and 1.000; as a GPU instance by 0.000, 0.512 and 1.000;
+with the cut-out off, 0.000 under all).
 
 A ray that hits nothing takes the sky's light from a capture of the scene's reflection
 probe, Deferred's or KSP's own in flight (`FlightReflectionProbe`) **[src]**, and the sun's
@@ -217,10 +241,11 @@ second, the upscaler stays with Super Resolution and writes why into the log. Wh
 runs in the game is **[open]**.
 
 The proxy loads AMD's DLL from next to `KSP_x64.exe`, else from the proxy's
-`amdUpscalerDirectory`, and asks it for a context at the render size. Where it gets one, AMD's denoiser takes the diffuse light and
-the reflections, with guides the proxy makes from the frame's surfaces as AMD's
-documentation asks for them. The sun's visibility stays with ReDefinition's denoiser: its
-output keeps the view depth the next frame finds its pixels by. Where AMD's DLL gives no
+`amdUpscalerDirectory`, and asks it for a context at the render size. Where it gets one,
+AMD's denoiser takes the diffuse light and the reflections, with guides the proxy makes
+from the frame's surfaces as AMD's documentation asks for them. The sun's visibility
+stays with ReDefinition's denoiser: its output keeps the view depth the next frame finds
+its pixels by. Where AMD's DLL gives no
 context, or no DLL is there, ReDefinition's denoiser takes everything, and the log says
 why once **[meas]** (RTX 4090: the DLL, 1.2.0.2740, loads and gives no context, code 4;
 every harness check passes, with the DLL and without). A switch between the two denoisers
@@ -272,6 +297,9 @@ The harness checks:
     Parallax's scatter comes, beside an empty run: the same shadows, to the pixel.
 14. **Displaced terrain.** The rays' ground 0.3 m above the drawn one: lit as terrain,
     shading itself as any other mesh.
+15. **Cut-out surfaces.** A card over the ground, its texture opaque, at the cut-out's
+    alpha and cut out in thirds, the sun straight above: shadow, half shadow and sun
+    under them, among the CPU's instances and the GPU's.
 
 ## Plan
 

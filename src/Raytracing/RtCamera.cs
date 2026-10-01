@@ -158,6 +158,7 @@ namespace ReDefinition.Raytracing
         private static readonly int RtSunMask = Shader.PropertyToID("_ReDefinitionRtSunMask");
         private static readonly int RtLight = Shader.PropertyToID("_ReDefinitionRtLight");
         private static readonly int RtPrevViewProj = Shader.PropertyToID("_ReDefinitionRtPrevViewProj");
+        private static readonly int RtTexel = Shader.PropertyToID("_ReDefinitionRtTexel");
         private static readonly int RtOffsetNear = Shader.PropertyToID("_ReDefinitionRtOffsetNear");
         private static readonly int RtOffsetFar = Shader.PropertyToID("_ReDefinitionRtOffsetFar");
         private static readonly int RtSun = Shader.PropertyToID("_ReDefinitionRtSun");
@@ -341,13 +342,17 @@ namespace ReDefinition.Raytracing
                 Shader.SetGlobalVector(RtOffsetFar, new Vector4((float)(far.x - previousPosition.x),
                                                                 (float)(far.y - previousPosition.y),
                                                                 (float)(far.z - previousPosition.z), 0f));
-                if (sun != null) Shader.SetGlobalTexture(RtSun, sun);
+                if (sun != null)
+                {
+                    Shader.SetGlobalTexture(RtSun, sun);
+                    Shader.SetGlobalVector(RtTexel, new Vector4(1f / sun.width, 1f / sun.height, sun.width, sun.height));
+                }
                 if (diffuse != null) Shader.SetGlobalTexture(RtDiffuse, diffuse);
                 if (specular != null) Shader.SetGlobalTexture(RtSpecular, specular);
             }
             else
             {
-                // Nothing to carry: fully lit, no raytraced light until the first frame.
+                // Nothing to carry: Unity's own lighting until the first raytraced frame.
                 Shader.SetGlobalMatrix(RtPrevViewProj, Matrix4x4.zero);
             }
         }
@@ -684,7 +689,8 @@ namespace ReDefinition.Raytracing
                 wrapMode = TextureWrapMode.Repeat,
             };
             environment.Create();
-            sun = Target(RenderTextureFormat.ARGBHalf);
+            // Its w keeps the view depth, past half precision's 65 504 m in orbit.
+            sun = Target(RenderTextureFormat.ARGBFloat);
             diffuse = Target(RenderTextureFormat.ARGBHalf);
             specular = Target(RenderTextureFormat.ARGBHalf);
             forward = Target(RenderTextureFormat.ARGBHalf);

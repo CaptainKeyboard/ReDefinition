@@ -1026,7 +1026,7 @@ namespace redefinition
         std::vector<MaterialData> materialList;
         MaterialData grey = {};
         grey.albedo[0] = grey.albedo[1] = grey.albedo[2] = 0.5f;
-        grey.albedo[3] = 1.0f;
+        grey.albedo[3] = 0.0f;
         grey.specular[0] = grey.specular[1] = grey.specular[2] = 0.04f;
         grey.smoothness = 0.2f;
         grey.texture = -1;
@@ -1051,8 +1051,12 @@ namespace redefinition
             desc.InstanceID = static_cast<UINT>(data.size()) & 0xFFFFFFu;
             desc.InstanceMask = instance.mask & 0xFFu;
             desc.InstanceContributionToHitGroupIndex = 0;
+            // Terrain and cut-out surfaces go through the passes' candidate test.
+            auto materialOf = materialData.find(instance.material);
+            const bool cutout = materialOf != materialData.end() && materialOf->second.albedo[3] > 0.0f;
             desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
-                         | ((instance.flags & kRtInstanceTerrain) != 0 ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE : 0);
+                         | ((instance.flags & kRtInstanceTerrain) != 0 || cutout ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
+                                                                               : 0);
             desc.AccelerationStructure = mesh->second.blas->GetGPUVirtualAddress();
             descs.push_back(desc);
 
@@ -1060,7 +1064,7 @@ namespace redefinition
             item.meshSlot = mesh->second.slot;
             auto material = materialIndex.find(instance.material);
             item.material = material != materialIndex.end() ? material->second : 0u;
-            item.flags = instance.flags;
+            item.flags = instance.flags | (cutout ? kRtInstanceCutout : 0u);
             NormalMatrix(instance.transform, item.normalRows);
             data.push_back(item);
             if (descs.size() >= 0xFFFFFFu)
@@ -1205,6 +1209,8 @@ namespace redefinition
                 continue;
             const D3D12_GPU_VIRTUAL_ADDRESS blas = mesh->second.blas->GetGPUVirtualAddress();
             auto material = materialIndex.find(group.material);
+            auto materialOf = materialData.find(group.material);
+            const bool cutout = materialOf != materialData.end() && materialOf->second.albedo[3] > 0.0f;
             GpuGroup item = {};
             item.blasLow = static_cast<uint32_t>(blas & 0xFFFFFFFFu);
             item.blasHigh = static_cast<uint32_t>(blas >> 32);
@@ -1213,7 +1219,7 @@ namespace redefinition
             item.first = group.first;
             item.count = group.count;
             item.start = gpuCount;
-            item.maskFlags = (group.mask & 0xFFu) | ((group.flags & 0xFFFFFFu) << 8);
+            item.maskFlags = (group.mask & 0xFFu) | (((group.flags | (cutout ? kRtInstanceCutout : 0u)) & 0xFFFFFFu) << 8);
             groups.push_back(item);
             gpuCount += group.count;
         }

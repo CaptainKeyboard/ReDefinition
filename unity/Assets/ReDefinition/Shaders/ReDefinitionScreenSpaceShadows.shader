@@ -245,9 +245,11 @@ inline bool RtShadow(float3 worldPos, out fixed visibility)
     visibility = 1;
     if (_ReDefinitionRtOn < 0.5 || _ReDefinitionRtSunMask < 0.5)
         return false;
+    // Where the raytraced frame did not see this point, the shadow maps.
     float2 uv;
-    if (RtUv(worldPos, uv))
-        visibility = tex2Dlod(_ReDefinitionRtSun, float4(uv, 0.0, 0.0)).r;
+    if (!RtUv(worldPos, uv))
+        return false;
+    visibility = tex2Dlod(_ReDefinitionRtSun, float4(uv, 0.0, 0.0)).r;
     return true;
 }
 

@@ -51,8 +51,9 @@ cbuffer Step : register(b1)
 
 static const uint kPerRow = 256;
 static const uint kCullDisable = 1u;   // D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
-static const uint kNonOpaque = 2u;     // D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
+static const uint kNonOpaque = 8u;     // D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
 static const uint kTerrain = 1u;       // Raytracing.h, kRtInstanceTerrain
+static const uint kCutout = 2u;        // Raytracing.h, kRtInstanceCutout
 
 [numthreads(64, 1, 1)]
 void GpuInstances(uint3 id : SV_DispatchThreadID)
@@ -79,7 +80,7 @@ void GpuInstances(uint3 id : SV_DispatchThreadID)
     desc.rows[2] = r2;
     desc.idMask = (index & 0xFFFFFFu) | ((live ? group.maskFlags & 0xFFu : 0u) << 24);
     uint flags = group.maskFlags >> 8;
-    desc.contributionFlags = (kCullDisable | ((flags & kTerrain) != 0 ? kNonOpaque : 0u)) << 24;
+    desc.contributionFlags = (kCullDisable | ((flags & (kTerrain | kCutout)) != 0 ? kNonOpaque : 0u)) << 24;
     desc.blas = group.blas;
     descs[index] = desc;
 

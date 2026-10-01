@@ -58,9 +58,10 @@ namespace redefinition
         const uint32_t* indices;
     };
 
-    // A material: linear albedo and its alpha, specular colour, smoothness as
-    // Unity's standard shading takes it, emitted radiance, and the layer of the
-    // material texture array (-1: none).
+    // A material: linear albedo, and in w the alpha below which its texture cuts the
+    // surface out (0 for none); specular colour, smoothness as Unity's standard
+    // shading takes it, emitted radiance, and the layer of the material texture array
+    // (-1: none).
     struct RtMaterialDesc
     {
         uint32_t size;
@@ -89,6 +90,8 @@ namespace redefinition
     // Terrain, which the passes pass through for the first metre from a pixel's surface:
     // Parallax displaces the drawn terrain on the GPU, off the mesh the rays see.
     constexpr uint32_t kRtInstanceTerrain = 1u << 0;
+    // Set by the service for an instance whose material is cut out.
+    constexpr uint32_t kRtInstanceCutout = 1u << 1;
 
     // A run of instances the GPU made, in the frame's t7: mesh and material as the
     // managed side handed them over, where the run starts in t7 and how long it is, the

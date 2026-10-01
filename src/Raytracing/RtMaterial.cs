@@ -25,6 +25,8 @@ namespace ReDefinition.Raytracing
         public Color Specular;
         public float Smoothness;
         public Color Emission;
+        // The alpha below which the material's texture cuts the surface out, 0 for none.
+        public float Cutoff;
 
         private const float ShininessPower = 0.215f;
 
@@ -68,6 +70,14 @@ namespace ReDefinition.Raytracing
             }
             else if (material.HasProperty("_Metallic"))
                 Metallic(ref result, material.GetFloat("_Metallic"));
+
+            // Cut out: Unity's and KSP's cut-out shaders, at the alpha-test queue or with the
+            // standard shaders' keyword, and Parallax's scatter, whose grass sits at the
+            // opaque queue with its own keyword (InstancedSolid.shader, ALPHA_CUTOFF).
+            if (material.HasProperty("_Cutoff")
+                && (material.IsKeywordEnabled("_ALPHATEST_ON") || material.IsKeywordEnabled("ALPHA_CUTOFF")
+                    || (material.renderQueue >= 2450 && material.renderQueue < 2501)))
+                result.Cutoff = Mathf.Clamp(material.GetFloat("_Cutoff"), 0.01f, 1f);
 
             // KSP's emissive parts (_EmissiveColor, its alpha a strength), Unity's _EmissionColor.
             if (material.HasProperty("_EmissiveColor"))
