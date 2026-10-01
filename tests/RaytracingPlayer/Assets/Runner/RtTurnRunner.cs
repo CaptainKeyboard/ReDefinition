@@ -247,6 +247,10 @@ namespace ReDefinition.RaytracingPlayer
             // Tilted, a quarter of the steps: 70 degrees up in all.
             tilt = Argument("-tilt") != null;
             float step = tilt ? 0.25f : 1f;
+            // -stepScale: the same turn in larger steps, as at a lower frame rate (2.5: 24
+            // frames a second where the turn was drawn at 60).
+            string scaleArgument = Argument("-stepScale");
+            if (scaleArgument != null) step *= float.Parse(scaleArgument, CultureInfo.InvariantCulture);
             var path = new List<float>();
             float angle = 0f;
             for (int i = 0; i < 6; i++) path.Add(angle);
