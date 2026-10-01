@@ -41,24 +41,86 @@ namespace redefinition
         return multiplier >= 2.0 ? static_cast<uint32_t>(multiplier) - 1u : 1u;
     }
 
-    const sl::FrameToken* SwapChainProxy::TakeFrameToken()
+    // "Ensure the frame index provided with the common constants matches the
+    // presented frame (i.e., the frame index provided with Reflex markers
+    // ReflexMarker::ePresentStart and ReflexMarker::ePresentEnd)"
+    // (ProgrammingGuideDLSS_G.md 17.0): the game's frame from its main thread
+    // to this Present, as "Store a copy of the handle and use that in any async
+    // tasks ... asyncPresentFrame(currentFrame)" (ProgrammingGuide.md 2.10).
+    uint32_t SwapChainProxy::TakeFrameIndex(bool takeGameFrame)
     {
-        const sl::FrameToken* token = nextFrameToken;
-        nextFrameToken = nullptr;
-        return token != nullptr ? token : Streamline::Get().NewFrameToken(streamlineFrameIndex++);
+        freshGameFrame = false;
+        Streamline& streamline = Streamline::Get();
+        if (!streamline.DeviceSet())
+            return 0;
+
+        uint32_t game = 0;
+        if (takeGameFrame && streamline.TakeGameFrame(game))
+        {
+            if (game > presentedFrameIndex)
+            {
+                if (!presentingGameFrames)
+                    LogLine("Reflex: the game's frames are presented, from frame " + std::to_string(game)
+                            + " -- its main thread sleeps and marks the simulation");
+                presentingGameFrames = true;
+                streamline.NoteGameFramesPresented(true);
+                presentsWithoutGameFrame = 0;
+                nextFrameIndex = 0;
+                freshGameFrame = true;
+                presentedFrameIndex = game;
+                return game;
+            }
+            if (!loggedLateGameFrame)
+            {
+                loggedLateGameFrame = true;
+                LogLine("Reflex: the game's frame " + std::to_string(game) + " arrived after frame "
+                        + std::to_string(presentedFrameIndex) + " was presented, and goes without its Present");
+            }
+        }
+
+        if (presentingGameFrames)
+        {
+            if (!takeGameFrame || ++presentsWithoutGameFrame < kPresentsWithoutGameFrame)
+            {
+                if (!loggedPresentWithoutGameFrame)
+                {
+                    loggedPresentWithoutGameFrame = true;
+                    LogLine(std::string("Reflex: a Present ")
+                            + (takeGameFrame ? "without a frame from the game" : "that is no frame of the game's")
+                            + " after frame " + std::to_string(presentedFrameIndex)
+                            + " -- presented without DLSS frame generation and its markers");
+                }
+                return 0;
+            }
+            presentingGameFrames = false;
+            streamline.NoteGameFramesPresented(false);
+            LogLine("Reflex: no frame from the game for " + std::to_string(kPresentsWithoutGameFrame)
+                    + " Presents -- the presenting thread begins the frames again");
+        }
+
+        const uint32_t index = nextFrameIndex != 0 ? nextFrameIndex : streamline.NextFrameIndex();
+        nextFrameIndex = 0;
+        presentedFrameIndex = index;
+        return index;
     }
 
-    // The next frame's token, fetched where the presenting thread begins it, and
-    // Reflex's sleep under it: "Starting new frame, grab handle from SL" and then
-    // slReflexSleep(*currentFrame) (ProgrammingGuideReflex.md 5.0) -- its wait
-    // "regardless of Reflex Low Latency mode state" (8.0). The frame's constants,
-    // tags and markers go under the same token when it is presented.
+    // Without the game's frames, the next frame's index taken where the
+    // presenting thread begins it, and Reflex's sleep under it: "Starting new
+    // frame, grab handle from SL" and then slReflexSleep(*currentFrame)
+    // (ProgrammingGuideReflex.md 5.0) -- its wait "regardless of Reflex Low
+    // Latency mode state" (8.0). The frame's constants, tags and markers go under
+    // the same index when it is presented. With them, the game's main thread
+    // sleeps instead (Streamline::BeginGameFrame).
     void SwapChainProxy::BeginStreamlineFrame()
     {
-        Streamline::Get().NoteFrameInProgress(streamlineFrameIndex);
-        nextFrameToken = Streamline::Get().NewFrameToken(streamlineFrameIndex++);
-        if (nextFrameToken != nullptr)
-            Streamline::Get().ReflexSleep(*nextFrameToken);
+        if (presentingGameFrames)
+            return;
+        Streamline& streamline = Streamline::Get();
+        if (!streamline.DeviceSet())
+            return;
+        nextFrameIndex = streamline.NextFrameIndex();
+        streamline.NoteFrameInProgress(nextFrameIndex);
+        streamline.ReflexSleep(nextFrameIndex);
     }
 
     // DLSS-G off before the swapchain's size or full screen state changes: "Turn
@@ -118,14 +180,14 @@ namespace redefinition
             return;
         }
 
-        const sl::FrameToken* token = TakeFrameToken();
-        if (token != nullptr)
-            Streamline::Get().Marker(sl::PCLMarker::ePresentStart, *token);
+        const uint32_t frameIndex = TakeFrameIndex(false);
+        if (frameIndex != 0)
+            Streamline::Get().Marker(sl::PCLMarker::ePresentStart, frameIndex);
         // VSync: a tearing present is refused in exclusive full screen, and one
         // refresh does not matter here.
         hr = swapChain->Present(1, 0);
-        if (token != nullptr)
-            Streamline::Get().Marker(sl::PCLMarker::ePresentEnd, *token);
+        if (frameIndex != 0)
+            Streamline::Get().Marker(sl::PCLMarker::ePresentEnd, frameIndex);
         LogLine("DLSS frame generation off before " + std::string(reason) + ": last frame presented again ("
                 + Hr(hr) + ")");
 
@@ -367,10 +429,10 @@ namespace redefinition
         // Before the proxy's own copy, into the same command list: FSR records its
         // preparation here and interpolates during the Present below. DLSS-G
         // takes its constants and tags under this frame's token instead and does
-        // its work in the Present; the same token marks the Present for Reflex,
+        // its work in the Present; the same index marks the Present for Reflex,
         // as it asks: "Ensure the frame index provided with the common constants
         // matches the presented frame" (ProgrammingGuideDLSS_G.md 0.0).
-        const sl::FrameToken* frameToken = nullptr;
+        uint32_t frameIndex = 0;
         bool streamlineGenerating = false;
         presentingThread.store(GetCurrentThreadId());
         // The sync interval DLSS-G presents with while it generates, and its frame
@@ -382,9 +444,9 @@ namespace redefinition
             streamlineSync = FrameGeneration::Get().StreamlineVsyncSupported() ? 1u : 0u;
         if (streamlineSwapChain)
         {
-            frameToken = TakeFrameToken();
+            frameIndex = TakeFrameIndex(true);
             streamlineGenerating = FrameGeneration::Get().PrepareStreamlineLocked(
-                frameToken, [this, streamlineSync]() { return StreamlineFrameLimit(streamlineSync); },
+                frameIndex, [this, streamlineSync]() { return StreamlineFrameLimit(streamlineSync); },
                 streamlineOffRequested.exchange(false) ? "a window change asked for it" : nullptr);
             // The refresh rate is asked for while DLSS-G generates with VSync, and
             // let go only after long without: frames that alternate would
@@ -449,8 +511,13 @@ namespace redefinition
         else
             presentFlags &= ~static_cast<UINT>(DXGI_PRESENT_ALLOW_TEARING);
 
-        if (frameToken != nullptr)
-            Streamline::Get().Marker(sl::PCLMarker::ePresentStart, *frameToken);
+        // "RENDERSUBMIT_END should come before calling Present" (nvapi.h,
+        // NvAPI_D3D_SetLatencyMarker), for the game's frame whose
+        // eRenderSubmitStart Unity's render thread marked.
+        if (freshGameFrame)
+            Streamline::Get().Marker(sl::PCLMarker::eRenderSubmitEnd, frameIndex);
+        if (frameIndex != 0)
+            Streamline::Get().Marker(sl::PCLMarker::ePresentStart, frameIndex);
 
         hr = swapChain->Present(effectiveSync, presentFlags);
         if (FAILED(hr))
@@ -460,9 +527,9 @@ namespace redefinition
         // it may generate from the next, and the fence its work on this Present's
         // inputs completes at.
         FrameGeneration::StreamlinePresent streamlinePresent;
-        if (frameToken != nullptr)
+        if (frameIndex != 0)
         {
-            Streamline::Get().Marker(sl::PCLMarker::ePresentEnd, *frameToken);
+            Streamline::Get().Marker(sl::PCLMarker::ePresentEnd, frameIndex);
             streamlinePresent = FrameGeneration::Get().ReadStreamlineStateLocked();
         }
 

@@ -102,6 +102,8 @@ namespace
     using RegisterMainThreadFn = void (*)();
     using LoadFn = int (*)(float*, float*, float*, float*);
     constexpr int kPacketEvent = 1;
+    // The game's frame index for Reflex (ManagedBridge.cpp, render event 40).
+    constexpr int kReflexFrameEvent = 40;
 
     // The per-frame packet, laid out as FrameGeneration.h declares it.
     struct FramePacket
@@ -1039,9 +1041,30 @@ int main()
     UINT frameNumber = 0;
     // KSP's V-Sync setting as Unity passes it to Present; 0 but where a run sets it.
     UINT syncInterval = 0;
+    // The game's frames for Reflex, as the mod sends them (ReflexFrames.cs) where
+    // a run sets gameFrames: Reflex's sleep and eSimulationStart before the
+    // messages are taken, eSimulationEnd after them, and the frame's index to the
+    // render thread (render event 40) before its first Direct3D call.
+    using ReflexFrameStartFn = unsigned int (*)();
+    using ReflexSimulationEndFn = void (*)(unsigned int);
+    const auto reflexFrameStart = reinterpret_cast<ReflexFrameStartFn>(GetProcAddress(dxgi, "KspReflexFrameStart"));
+    const auto reflexSimulationEnd =
+        reinterpret_cast<ReflexSimulationEndFn>(GetProcAddress(dxgi, "KspReflexSimulationEnd"));
+    if (reflexFrameStart == nullptr || reflexSimulationEnd == nullptr)
+        return Fail("GetProcAddress(KspReflexFrameStart / KspReflexSimulationEnd)", E_FAIL);
+    bool gameFrames = false;
+    unsigned int gameFramesBegun = 0;
     auto renderFrame = [&]() -> HRESULT
     {
+        const unsigned int gameFrame = gameFrames ? reflexFrameStart() : 0u;
         PumpMessages();
+        if (gameFrame != 0)
+        {
+            ++gameFramesBegun;
+            reflexSimulationEnd(gameFrame);
+            if (renderEvent != nullptr)
+                renderEvent(kReflexFrameEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(gameFrame)));
+        }
 
         // Waiting on the object before rendering is the point of asking for it,
         // and it is what the game does too.
@@ -1357,6 +1380,36 @@ int main()
         printf("      DLSS frame generation on again: %.2f presents per frame\n", again);
         if (again < kGeneratingAtLeast)
             return Fail("DLSS frame generation switched back on, but no frames were generated", E_FAIL);
+
+        // The game's frames, as the mod sends them: Reflex paced by them, every
+        // Present under the index its frame began with, and the presenting
+        // thread's own frames again once they stop.
+        gameFrames = true;
+        float paced = 0.0f;
+        hr = presentsPerFrame(2.0f, paced);
+        gameFrames = false;
+        if (FAILED(hr))
+            return Fail("Present with the game's frames for Reflex", hr);
+        status(line, sizeof(line));
+        printf("      DLSS frame generation with the game's frames for Reflex: %.2f presents per frame, %u frames"
+               " begun  [%s]\n",
+               paced, gameFramesBegun, line);
+        if (gameFramesBegun == 0)
+            return Fail("KspReflexFrameStart began no frame while Streamline has its device", E_FAIL);
+        if (strstr(line, "reflex paced by the game's frames") == nullptr)
+            return Fail("the game's frames were sent, but Reflex was not paced by them", E_FAIL);
+        if (paced < kGeneratingAtLeast)
+            return Fail("DLSS frame generation with the game's frames for Reflex generated no frames", E_FAIL);
+        float ownFrames = 0.0f;
+        hr = presentsPerFrame(1.0f, ownFrames);
+        if (FAILED(hr))
+            return Fail("Present after the game's frames for Reflex", hr);
+        status(line, sizeof(line));
+        printf("      DLSS frame generation after the game's frames: %.2f presents per frame\n", ownFrames);
+        if (strstr(line, "reflex paced by the presenting thread") == nullptr)
+            return Fail("the game's frames stopped, but the presenting thread did not pace Reflex again", E_FAIL);
+        if (ownFrames < kGeneratingAtLeast)
+            return Fail("DLSS frame generation after the game's frames generated no frames", E_FAIL);
 
         // KSP's "Every second refresh": DLSS-G presents every refresh with it
         // (SwapChainProxy::CopyAndPresent), and goes on generating.

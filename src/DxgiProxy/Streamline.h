@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 
 namespace redefinition
@@ -69,16 +70,43 @@ namespace redefinition
         bool UpgradeInterface(void** baseInterface, const char* what);
         bool NativeInterface(void* proxy, void** native);
 
-        // Per frame: the token, the constants and tags for it, the options, and
-        // the Reflex and PCL calls around Present. Null or false on a failure,
-        // which is logged a limited number of times.
-        sl::FrameToken* NewFrameToken(uint32_t frameIndex);
-        bool SetConstants(const sl::Constants& constants, const sl::FrameToken& frame);
-        bool SetTags(const sl::FrameToken& frame, const sl::ResourceTag* tags, uint32_t count);
+        // Per frame, by frame index: the constants and tags, the options, and the
+        // Reflex and PCL calls. False on a failure, which is logged a limited
+        // number of times. The token for an index is fetched right before each
+        // call that takes it: Streamline hands out slots of a ring of
+        // MAX_FRAMES_IN_FLIGHT (6, sl_consts.h), which other threads asking for
+        // other indices move on.
+        bool SetConstants(const sl::Constants& constants, uint32_t frameIndex);
+        bool SetTags(uint32_t frameIndex, const sl::ResourceTag* tags, uint32_t count);
         bool SetOptions(const sl::DLSSGOptions& options);
         bool GetState(sl::DLSSGState& frameGenerationState);
-        void Marker(sl::PCLMarker marker, const sl::FrameToken& frame);
-        void ReflexSleep(const sl::FrameToken& frame);
+        void Marker(sl::PCLMarker marker, uint32_t frameIndex);
+        void ReflexSleep(uint32_t frameIndex);
+
+        // Whether Streamline has its device, without which every call above fails.
+        bool DeviceSet() const { return deviceSet.load(); }
+
+        // Frame indices for every token: one count for the game's frames and the
+        // presenting thread's own, so that they only rise, as NVAPI asks:
+        // "Requires calling NvAPI_D3D_SetLatencyMarker with incrementing
+        // frameID" (nvapi.h, NvAPI_D3D_GetLatency). Never 0.
+        uint32_t NextFrameIndex();
+
+        // The game's frames (ManagedBridge.cpp, KspReflex*): the main thread
+        // begins one -- Reflex's sleep, then eSimulationStart under a new index,
+        // which it returns, 0 without Streamline's device -- and ends its
+        // simulation; Unity's render thread receives the index before the frame's
+        // first Direct3D call, marks eRenderSubmitStart and notes it as the frame
+        // in progress; the presenting thread takes it for the frame's Present.
+        uint32_t BeginGameFrame();
+        void EndGameSimulation(uint32_t frameIndex);
+        void OnGameFrameRendered(uint32_t frameIndex);
+        bool TakeGameFrame(uint32_t& frameIndex);
+
+        // Whether the swapchain presents the game's frames (TakeGameFrame) rather
+        // than its own, for the status line. Set by the presenting swapchain.
+        void NoteGameFramesPresented(bool game) { gameFramesPresented = game; }
+        bool GameFramesPresented() const { return gameFramesPresented.load(); }
 
         // The viewport of frame generation: the scene.
         static constexpr uint32_t kViewport = 0;
@@ -94,9 +122,9 @@ namespace redefinition
         // evaluates under. Set by the presenting swapchain.
         void NoteFrameInProgress(uint32_t frameIndex);
 
-        // The token of the frame in progress (NoteFrameInProgress); without a
+        // The index of the frame in progress (NoteFrameInProgress); without a
         // swapchain presenting, a frame of its own each time.
-        sl::FrameToken* FrameInProgressToken();
+        uint32_t FrameInProgressIndex();
 
         // Ray Reconstruction for this frame, recorded into list: constants, options and
         // tags under its viewport, then the evaluation. The caller restores the list's
@@ -116,6 +144,18 @@ namespace redefinition
 
         bool Initialise();
         void Shutdown();
+        // The PC latency ping, picked up where the game's main thread takes its
+        // messages (OnGetMessage in Streamline.cpp).
+        void InstallPingHook();
+        static LRESULT CALLBACK OnGetMessage(int code, WPARAM wParam, LPARAM lParam);
+        void Ping();
+        // Marker and ReflexSleep, for a caller that holds callMutex.
+        void MarkerLocked(sl::PCLMarker marker, uint32_t frameIndex);
+        void ReflexSleepLocked(uint32_t frameIndex);
+        // The token for frameIndex handed to call, under tokenMutex: "This method
+        // is NOT thread safe" (sl_core_api.h, slGetNewFrameToken).
+        template <typename Call>
+        bool WithToken(uint32_t frameIndex, const char* what, Call&& call);
         bool LoadModule();
         void SetState(const std::string& text, bool log);
         bool Check(sl::Result result, const char* call);
@@ -135,8 +175,14 @@ namespace redefinition
         std::wstring pluginFolder;
         const void* owner = nullptr;
         bool initialised = false;
-        bool deviceSet = false;
-        int failedCallsLogged = 0;
+        std::atomic<bool> deviceSet{ false };
+        std::atomic<int> failedCallsLogged{ 0 };
+
+        // Held shared by the Reflex and PCL calls, which come from the game's main
+        // thread too, and exclusively by Shutdown, which unloads the plugins they
+        // run in.
+        std::shared_mutex callMutex;
+        std::mutex tokenMutex;
 
         PFun_slInit* slInit = nullptr;
         PFun_slShutdown* slShutdown = nullptr;
@@ -156,6 +202,7 @@ namespace redefinition
         PFun_slReflexSetOptions* slReflexSetOptions = nullptr;
         PFun_slReflexSleep* slReflexSleep = nullptr;
         PFun_slPCLSetMarker* slPCLSetMarker = nullptr;
+        PFun_slPCLGetState* slPCLGetState = nullptr;
         PFun_slEvaluateFeature* slEvaluateFeature = nullptr;
         PFun_slDLSSDSetOptions* slDLSSDSetOptions = nullptr;
         PFun_slDLSSDGetOptimalSettings* slDLSSDGetOptimalSettings = nullptr;
@@ -164,5 +211,15 @@ namespace redefinition
         std::atomic<int64_t> frameInProgress{ -1 };
         // Taken from the present thread and from Unity's render thread.
         std::atomic<uint32_t> ownFrameIndex{ 1000000 };
+
+        std::atomic<uint32_t> frameCounter{ 0 };
+        // The game's frame on its main thread, and the last one Unity's render
+        // thread received, until the presenting thread takes it.
+        std::atomic<uint32_t> gameFrame{ 0 };
+        std::atomic<uint32_t> renderedGameFrame{ 0 };
+        std::atomic<bool> gameFramesPresented{ false };
+        // PCLState::statsWindowMessage, 0 while unknown.
+        std::atomic<uint32_t> pingMessage{ 0 };
+        std::atomic<bool> pingSeen{ false };
     };
 }

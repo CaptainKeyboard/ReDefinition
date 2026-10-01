@@ -118,6 +118,7 @@ namespace ReDefinition
             ScattererCompatibility.InstallHook();
             EveCloudMotion.InstallHook();
             UnityMouseEvents.Install();
+            ReflexFrames.Install();
             EscapeGuard.Install();
             GameEvents.OnGameSettingsApplied.Add(OnGameSettingsApplied);
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;

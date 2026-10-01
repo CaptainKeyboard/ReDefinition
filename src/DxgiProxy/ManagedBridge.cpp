@@ -119,6 +119,22 @@ extern "C"
             wcsncpy_s(streamline, static_cast<size_t>(size), redefinition::StreamlineDirectory().c_str(), _TRUNCATE);
     }
 
+    // Reflex and PC latency for the game's frames (Streamline.h), from its main
+    // thread while Streamline has its device: KspReflexFrameStart where the frame
+    // begins -- Reflex's sleep, eSimulationStart under a new frame index, which it
+    // returns, 0 where Streamline has no device and nothing was called --
+    // KspReflexSimulationEnd once the frame's simulation is done. The index goes
+    // on to Unity's render thread as render event 40, for the frame's Present.
+    __declspec(dllexport) unsigned int KspReflexFrameStart()
+    {
+        return redefinition::Streamline::Get().BeginGameFrame();
+    }
+
+    __declspec(dllexport) void KspReflexSimulationEnd(unsigned int frameIndex)
+    {
+        redefinition::Streamline::Get().EndGameSimulation(frameIndex);
+    }
+
     // How the proxy's last attempt to make the frame generation context went:
     // FrameGeneration::kContextFine, kContextRetrying or kContextStands.
     __declspec(dllexport) int KspFgContextFailing()
@@ -231,6 +247,8 @@ extern "C"
     //    dispatched, a texture's shared copy released.
     // 30: a raytracing frame (Raytracing.h); 31: a frame for DLSS Ray Reconstruction;
     //    32: Ray Reconstruction no longer used, its resources freed.
+    // 40: the game's frame index from KspReflexFrameStart, as the pointer's value,
+    //    before the frame's first Direct3D call (Streamline::OnGameFrameRendered).
     static void UNITY_INTERFACE_API OnRenderEvent(int eventId, void* data)
     {
         if (eventId == 1)
@@ -259,6 +277,9 @@ extern "C"
             redefinition::Raytracing::Get().OnReconstruct(data);
         else if (eventId == 32)
             redefinition::Raytracing::Get().OnReconstructRelease();
+        else if (eventId == 40)
+            redefinition::Streamline::Get().OnGameFrameRendered(
+                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data)));
     }
 
     __declspec(dllexport) void* KspFgGetRenderEventFunc()
@@ -505,7 +526,9 @@ extern "C"
         char technique[200] = "none";
         const int running = redefinition::FrameGenerationTechnique();
         if (running == 2)
-            redefinition::FormatTo(technique, "dlss (%dx)", fg.StreamlineMultiplier());
+            redefinition::FormatTo(technique, "dlss (%dx, reflex paced by %s)", fg.StreamlineMultiplier(),
+                                   redefinition::Streamline::Get().GameFramesPresented() ? "the game's frames"
+                                                                                       : "the presenting thread");
         else if (redefinition::Config().frameGeneration && redefinition::Config().dlssFrameGeneration)
             _snprintf_s(technique, _TRUNCATE, "%s (dlss: %s)", running == 1 ? "fsr" : "none",
                         redefinition::Streamline::Get().Describe().c_str());

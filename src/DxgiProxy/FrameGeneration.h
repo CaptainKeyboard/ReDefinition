@@ -16,11 +16,6 @@
 #include <string>
 #include <vector>
 
-namespace sl
-{
-    struct FrameToken;
-}
-
 namespace redefinition
 {
     // Unity creates its RenderTextures typeless (R32_TYPELESS for RFloat,
@@ -271,14 +266,14 @@ namespace redefinition
         void UseStreamline(const void* caller);
 
         // Caller must hold ContextMutex. This Present's constants, tags and
-        // options for DLSS-G under its frame token: generation on when this
+        // options for DLSS-G under its frame index: generation on when this
         // frame's own inputs and packet arrived flipped to the screen's
         // orientation, the mod wants it and its status allows; off otherwise, off
-        // without a token, and off with the reason holdOff where it is given. At
+        // without an index (0), and off with the reason holdOff where it is given. At
         // most maxFrames() generated frames, asked only for a Present that
         // generates; fewer where the GPU offers fewer. Returns whether this frame
         // generates.
-        bool PrepareStreamlineLocked(const sl::FrameToken* frame, const std::function<uint32_t()>& maxFrames,
+        bool PrepareStreamlineLocked(uint32_t frameIndex, const std::function<uint32_t()>& maxFrames,
                                      const char* holdOff);
 
         // Caller must hold ContextMutex. DLSS-G off from the next Present on,

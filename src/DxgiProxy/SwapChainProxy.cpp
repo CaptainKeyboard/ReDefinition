@@ -573,7 +573,9 @@ namespace redefinition
         }
         streamlineQueue.Reset();
         streamlineDevice.Reset();
-        nextFrameToken = nullptr;
+        nextFrameIndex = 0;
+        presentingGameFrames = false;
+        Streamline::Get().NoteGameFramesPresented(false);
         for (auto& fence : inputsFence)
             fence.Reset();
         Streamline::Get().Release(this);

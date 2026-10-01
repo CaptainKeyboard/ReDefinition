@@ -107,12 +107,10 @@ namespace redefinition
             return true;
 
         constexpr int kLogged = 20;
-        if (failedCallsLogged < kLogged)
-        {
-            ++failedCallsLogged;
+        const int logged = ++failedCallsLogged;
+        if (logged <= kLogged)
             LogLine(std::string("Streamline: ") + call + " failed, " + ResultText(result)
-                    + (failedCallsLogged == kLogged ? "   (further failed calls are not logged)" : ""));
-        }
+                    + (logged == kLogged ? "   (further failed calls are not logged)" : ""));
         return false;
     }
 
@@ -318,6 +316,9 @@ namespace redefinition
         if (!initialised)
             return;
 
+        // No call from the game's main thread is inside Streamline's plugins
+        // while they are unloaded.
+        std::unique_lock<std::shared_mutex> calls(callMutex);
         Check(slShutdown(), "slShutdown");
         initialised = false;
         deviceSet = false;
@@ -326,6 +327,8 @@ namespace redefinition
         slReflexSetOptions = nullptr;
         slReflexSleep = nullptr;
         slPCLSetMarker = nullptr;
+        slPCLGetState = nullptr;
+        pingMessage = 0;
         slEvaluateFeature = nullptr;
         slDLSSDSetOptions = nullptr;
         slDLSSDGetOptimalSettings = nullptr;
@@ -397,6 +400,15 @@ namespace redefinition
         sl::ReflexOptions reflex{};
         reflex.mode = sl::ReflexMode::eLowLatency;
         Check(slReflexSetOptions(reflex), "slReflexSetOptions");
+
+        // The message PCL Stats pings the game's window with: "On seeing the ping
+        // message, the application must either call slPclSetMarker or
+        // sl::PclMarker::ePCLatencyPing to send the ping marker right away"
+        // (ProgrammingGuidePCL.md). Without it, only that ping is missing.
+        sl::PCLState pcl{};
+        if (ImportFeature(slPCLGetState, sl::kFeaturePCL, "slPCLGetState")
+            && Check(slPCLGetState(pcl), "slPCLGetState"))
+            pingMessage = pcl.statsWindowMessage;
 
         // Ray Reconstruction on the same device, where its plugin loaded and the GPU
         // runs it; its absence changes nothing for frame generation.
@@ -470,16 +482,18 @@ namespace redefinition
         if (!deviceSet || !rayReconstruction || list == nullptr)
             return false;
         // The swapchain's frame in progress, whose token its present takes.
-        sl::FrameToken* frame = FrameInProgressToken();
-        if (frame == nullptr)
-            return false;
+        const uint32_t frame = FrameInProgressIndex();
         const sl::ViewportHandle viewport(kRayReconstructionViewport);
-        if (!Check(slSetConstants(constants, *frame, viewport), "slSetConstants (Ray Reconstruction)")
+        if (!WithToken(frame, "slSetConstants (Ray Reconstruction)",
+                       [&](const sl::FrameToken& token) { return slSetConstants(constants, token, viewport); })
             || !Check(slDLSSDSetOptions(viewport, options), "slDLSSDSetOptions")
-            || !Check(slSetTagForFrame(*frame, viewport, tags, count, list), "slSetTagForFrame (Ray Reconstruction)"))
+            || !WithToken(frame, "slSetTagForFrame (Ray Reconstruction)",
+                          [&](const sl::FrameToken& token)
+                          { return slSetTagForFrame(token, viewport, tags, count, list); }))
             return false;
         const sl::BaseStructure* inputs[] = { &viewport };
-        return Check(slEvaluateFeature(sl::kFeatureDLSS_RR, *frame, inputs, 1, list), "slEvaluateFeature (Ray Reconstruction)");
+        return WithToken(frame, "slEvaluateFeature (Ray Reconstruction)", [&](const sl::FrameToken& token)
+                         { return slEvaluateFeature(sl::kFeatureDLSS_RR, token, inputs, 1, list); });
     }
 
     // "To turn off DLSS-RR set sl::DLSSDOptions.mode to sl::DLSSDMode::eOff, note
@@ -506,36 +520,36 @@ namespace redefinition
         return initialised && slGetNativeInterface(proxy, native) == sl::Result::eOk && *native != nullptr;
     }
 
-    sl::FrameToken* Streamline::FrameInProgressToken()
+    uint32_t Streamline::FrameInProgressIndex()
     {
         const int64_t current = frameInProgress.load();
-        return NewFrameToken(current >= 0 ? static_cast<uint32_t>(current) : ownFrameIndex++);
+        return current >= 0 ? static_cast<uint32_t>(current) : ownFrameIndex++;
     }
 
-    sl::FrameToken* Streamline::NewFrameToken(uint32_t frameIndex)
+    template <typename Call>
+    bool Streamline::WithToken(uint32_t frameIndex, const char* what, Call&& call)
     {
         if (!deviceSet)
-            return nullptr;
+            return false;
+        std::lock_guard<std::mutex> lock(tokenMutex);
         sl::FrameToken* token = nullptr;
         const uint32_t index = frameIndex;
-        if (!Check(slGetNewFrameToken(token, &index), "slGetNewFrameToken"))
-            return nullptr;
-        return token;
+        return Check(slGetNewFrameToken(token, &index), "slGetNewFrameToken") && Check(call(*token), what);
     }
 
-    bool Streamline::SetConstants(const sl::Constants& constants, const sl::FrameToken& frame)
+    bool Streamline::SetConstants(const sl::Constants& constants, uint32_t frameIndex)
     {
-        return deviceSet && Check(slSetConstants(constants, frame, sl::ViewportHandle(kViewport)), "slSetConstants");
+        return WithToken(frameIndex, "slSetConstants", [&](const sl::FrameToken& token)
+                         { return slSetConstants(constants, token, sl::ViewportHandle(kViewport)); });
     }
 
-    bool Streamline::SetTags(const sl::FrameToken& frame, const sl::ResourceTag* tags, uint32_t count)
+    bool Streamline::SetTags(uint32_t frameIndex, const sl::ResourceTag* tags, uint32_t count)
     {
         // No command list: every tag lasts until Present, which the API allows
         // without one ("can be null if ALL tags are null or have
         // eValidUntilPresent life-cycle").
-        return deviceSet
-               && Check(slSetTagForFrame(frame, sl::ViewportHandle(kViewport), tags, count, nullptr),
-                        "slSetTagForFrame");
+        return WithToken(frameIndex, "slSetTagForFrame", [&](const sl::FrameToken& token)
+                         { return slSetTagForFrame(token, sl::ViewportHandle(kViewport), tags, count, nullptr); });
     }
 
     bool Streamline::SetOptions(const sl::DLSSGOptions& options)
@@ -551,15 +565,135 @@ namespace redefinition
                         "slDLSSGGetState");
     }
 
-    void Streamline::Marker(sl::PCLMarker marker, const sl::FrameToken& frame)
+    void Streamline::Marker(sl::PCLMarker marker, uint32_t frameIndex)
     {
-        if (slPCLSetMarker != nullptr)
-            Check(slPCLSetMarker(marker, frame), "slPCLSetMarker");
+        std::shared_lock<std::shared_mutex> calls(callMutex);
+        MarkerLocked(marker, frameIndex);
     }
 
-    void Streamline::ReflexSleep(const sl::FrameToken& frame)
+    void Streamline::ReflexSleep(uint32_t frameIndex)
     {
-        if (slReflexSleep != nullptr)
-            Check(slReflexSleep(frame), "slReflexSleep");
+        std::shared_lock<std::shared_mutex> calls(callMutex);
+        ReflexSleepLocked(frameIndex);
+    }
+
+    // "This method is thread safe" (sl_pcl.h, slPCLSetMarker).
+    void Streamline::MarkerLocked(sl::PCLMarker marker, uint32_t frameIndex)
+    {
+        if (slPCLSetMarker != nullptr)
+            WithToken(frameIndex, "slPCLSetMarker",
+                      [&](const sl::FrameToken& token) { return slPCLSetMarker(marker, token); });
+    }
+
+    // "This method is thread safe" (sl_reflex.h, slReflexSleep). The token is
+    // fetched under tokenMutex, the sleep is not: it lasts until Reflex lets the
+    // frame begin.
+    void Streamline::ReflexSleepLocked(uint32_t frameIndex)
+    {
+        if (slReflexSleep == nullptr || !deviceSet)
+            return;
+        sl::FrameToken* token = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(tokenMutex);
+            const uint32_t index = frameIndex;
+            if (!Check(slGetNewFrameToken(token, &index), "slGetNewFrameToken"))
+                return;
+        }
+        Check(slReflexSleep(*token), "slReflexSleep");
+    }
+
+    uint32_t Streamline::NextFrameIndex()
+    {
+        uint32_t index = ++frameCounter;
+        if (index == 0)
+            index = ++frameCounter;
+        return index;
+    }
+
+    // Where the game's frame begins, on its main thread, before its messages are
+    // taken: "Starting new frame, grab handle from SL", then slReflexSleep
+    // (ProgrammingGuideReflex.md 5.0); "SIMULATION_START must be the first marker
+    // sent in a frame, after the previous frame's Sleep call (if used)" (nvapi.h,
+    // NvAPI_D3D_SetLatencyMarker).
+    uint32_t Streamline::BeginGameFrame()
+    {
+        std::shared_lock<std::shared_mutex> calls(callMutex);
+        if (!deviceSet)
+            return 0;
+        InstallPingHook();
+        const uint32_t index = NextFrameIndex();
+        ReflexSleepLocked(index);
+        gameFrame = index;
+        MarkerLocked(sl::PCLMarker::eSimulationStart, index);
+        return index;
+    }
+
+    void Streamline::EndGameSimulation(uint32_t frameIndex)
+    {
+        std::shared_lock<std::shared_mutex> calls(callMutex);
+        if (frameIndex != 0)
+            MarkerLocked(sl::PCLMarker::eSimulationEnd, frameIndex);
+    }
+
+    // "RENDERSUBMIT_START should come before any Direct3D calls are made for the
+    // given frame" (nvapi.h, NvAPI_D3D_SetLatencyMarker): Unity's render thread
+    // runs this before the frame's first one.
+    void Streamline::OnGameFrameRendered(uint32_t frameIndex)
+    {
+        if (frameIndex == 0)
+            return;
+        NoteFrameInProgress(frameIndex);
+        Marker(sl::PCLMarker::eRenderSubmitStart, frameIndex);
+        renderedGameFrame = frameIndex;
+    }
+
+    bool Streamline::TakeGameFrame(uint32_t& frameIndex)
+    {
+        frameIndex = renderedGameFrame.exchange(0);
+        return frameIndex != 0;
+    }
+
+    // Installed once, on the thread that begins the game's frames, whose queue
+    // the game window's messages arrive in -- the ping among them, which PCL
+    // Stats posts to the foreground window (PCLStatsPingThreadProc, pclstats.h).
+    // "The hMod parameter must be set to NULL if the dwThreadId parameter
+    // specifies a thread created by the current process and the hook procedure
+    // is within the code associated with the current process" (Microsoft,
+    // SetWindowsHookExW).
+    void Streamline::InstallPingHook()
+    {
+        static std::atomic<DWORD> hookedThread{ 0 };
+        const DWORD thread = GetCurrentThreadId();
+        DWORD none = 0;
+        if (pingMessage == 0 || !hookedThread.compare_exchange_strong(none, thread))
+            return;
+        if (SetWindowsHookExW(WH_GETMESSAGE, &Streamline::OnGetMessage, nullptr, thread) == nullptr)
+            LogLine("Reflex: no hook for PC latency's ping on the game's main thread ("
+                    + Hr(HRESULT_FROM_WIN32(GetLastError())) + ") -- its input latency goes unmeasured");
+    }
+
+    LRESULT CALLBACK Streamline::OnGetMessage(int code, WPARAM wParam, LPARAM lParam)
+    {
+        if (code == HC_ACTION && wParam == PM_REMOVE)
+        {
+            const MSG* message = reinterpret_cast<const MSG*>(lParam);
+            const uint32_t ping = Get().pingMessage.load();
+            if (ping != 0 && message->message == ping)
+                Get().Ping();
+        }
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+
+    // Taken while the game's frame runs, after its eSimulationStart: "First
+    // scenario, using current frame" (ProgrammingGuidePCL.md 3.0).
+    void Streamline::Ping()
+    {
+        const uint32_t frame = gameFrame.load();
+        if (frame == 0)
+            return;
+        Marker(sl::PCLMarker::ePCLatencyPing, frame);
+        if (!pingSeen.exchange(true))
+            LogLine("Reflex: PC latency's ping picked up on the game's main thread, frame "
+                    + std::to_string(frame));
     }
 }

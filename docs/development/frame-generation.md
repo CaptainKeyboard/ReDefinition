@@ -150,9 +150,22 @@ the proxy does:
 
 From NVIDIA's ProgrammingGuideDLSS_G.md and the Streamline headers:
 
-* **Frame tokens.** The presenting thread fetches the next frame's token and calls Reflex's
-  sleep under it ("Starting new frame, grab handle from SL", ProgrammingGuideReflex.md).
-  The frame's constants, tags and markers go under the same token when it is presented.
+* **Reflex and frame indices.** The game's main thread begins each frame (`ReflexFrames`,
+  the last system of Unity's `PostLateUpdate`, before the next frame's messages are taken):
+  Reflex's sleep, then `eSimulationStart` under a new frame index. `eSimulationEnd` follows
+  `LateUpdate`. The index reaches Unity's render thread as render event 40, ahead of the
+  frame's first Direct3D call, which marks `eRenderSubmitStart` there. The frame's Present
+  takes that index for its constants, tags, `eRenderSubmitEnd`, `ePresentStart` and
+  `ePresentEnd`: "Ensure the frame index provided with the common constants matches the
+  presented frame". NVAPI's order: "SIMULATION_START must be the first marker sent in a
+  frame, after the previous frame's Sleep call", "RENDERSUBMIT_START should come before any
+  Direct3D calls are made for the given frame and RENDERSUBMIT_END should come before
+  calling Present" (`nvapi.h`). PC latency's ping is picked up where the main thread takes
+  its messages and marked under its frame. Without the game's frames (the harness, or the
+  mod not loaded) the presenting thread begins each frame itself after a Present, with the
+  sleep under its index; after three Presents without one from the game it does so again.
+  The status line says which: `reflex paced by the game's frames` or `by the presenting
+  thread`.
 * **Tags.** Depth, motion vectors and HUD-less colour, tagged `eValidUntilPresent`, in
   `COMMON` state between uses; the motion vector scale as Streamline's normalisation by the
   texture's size.
@@ -289,6 +302,9 @@ many parts and re-entry. It does not pay on the pad at 80-90 fps.
 * **DLSS-G:** the same phases, counted by the proxy's own totals. It then asks for V-Sync
   every second refresh, which DLSS-G does not support, to see that the interval is clamped
   to every refresh and generation goes on: 2.00 presents per frame, 120 a second at 120 Hz.
+  One phase sends the game's frames as the mod does (`KspReflexFrameStart`,
+  `KspReflexSimulationEnd`, render event 40): 2.00 presents per frame, Reflex paced by the
+  game's frames, and by the presenting thread again once they stop.
   DLSS-G generates nothing while the harness window does not have the focus.
 
 ## Open

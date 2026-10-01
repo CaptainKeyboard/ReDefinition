@@ -17,11 +17,6 @@
 #include <cstdint>
 #include <vector>
 
-namespace sl
-{
-    struct FrameToken;
-}
-
 namespace redefinition
 {
     // Stands in for the swapchain Unity asked for.
@@ -180,9 +175,17 @@ namespace redefinition
         // The most frames DLSS-G may generate for a Present with this sync interval.
         uint32_t StreamlineFrameLimit(UINT syncInterval);
 
-        // The token of the frame about to be presented, and after a Present the
-        // next frame's, with Reflex's sleep under it.
-        const sl::FrameToken* TakeFrameToken();
+        // The index of the frame about to be presented, 0 for none: the game's,
+        // where its main thread began one and Unity's render thread received it
+        // since the last Present (Streamline::TakeGameFrame); otherwise the
+        // swapchain's own, begun after the last Present with Reflex's sleep under
+        // it (BeginStreamlineFrame). While the game's frames are presented, a
+        // Present without one -- or one that is no frame of the game's,
+        // takeGameFrame false -- gets none: an index once given its constants
+        // takes no others ("eErrorDuplicatedConstants", sl.common), and a new one
+        // would run ahead of the game's next. After kPresentsWithoutGameFrame of
+        // them in a row the swapchain begins its own frames again.
+        uint32_t TakeFrameIndex(bool takeGameFrame);
         void BeginStreamlineFrame();
 
         // Before D3D11 writes an input slot again: DLSS-G done with what it read
@@ -265,13 +268,20 @@ namespace redefinition
 
         // DLSS frame generation: Streamline's proxies of the device and of the
         // queue made through it -- the swapchain above is its proxy too -- and
-        // the frame index its tokens are asked for with. The queue above is the
-        // native one behind the queue proxy, which everything else uses.
+        // the frame indices its tokens are asked for with (TakeFrameIndex). The
+        // queue above is the native one behind the queue proxy, which everything
+        // else uses.
         ComPtr<ID3D12Device> streamlineDevice;
         ComPtr<ID3D12CommandQueue> streamlineQueue;
         bool streamlineSwapChain = false;
-        uint32_t streamlineFrameIndex = 0;
-        const sl::FrameToken* nextFrameToken = nullptr;
+        uint32_t nextFrameIndex = 0;
+        uint32_t presentedFrameIndex = 0;
+        bool presentingGameFrames = false;
+        bool freshGameFrame = false;
+        uint32_t presentsWithoutGameFrame = 0;
+        static constexpr uint32_t kPresentsWithoutGameFrame = 3;
+        bool loggedPresentWithoutGameFrame = false;
+        bool loggedLateGameFrame = false;
         uint32_t streamlineIdlePresents = 0;
 
         // DLSS-G's fence and value for its work on each input slot, from the

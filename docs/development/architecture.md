@@ -201,6 +201,7 @@ How a frame goes through all of it: [upscaler.md](upscaler.md).
 | `D3d12Bridge.cs` | the managed side of Direct3D 12 for mods: packets, render events, status |
 | `PacketRing.cs` | the packet slots render events read on Unity's render thread |
 | `StreamlineCamera.cs` | the camera matrices DLSS frame generation takes, in Streamline's form |
+| `ReflexFrames.cs` | Reflex's sleep and simulation markers on the main thread, and the frame index to the render thread |
 | `NvidiaFiles.cs` | which of NVIDIA's DLLs the GPU can use, and where they come from |
 
 ## The interface for mods, `src/Api` and `src/Shared`

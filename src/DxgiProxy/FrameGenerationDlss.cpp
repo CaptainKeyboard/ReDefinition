@@ -79,7 +79,7 @@ namespace redefinition
         loggedUnflipped = false;
     }
 
-    bool FrameGeneration::PrepareStreamlineLocked(const sl::FrameToken* frame, const std::function<uint32_t()>& maxFrames,
+    bool FrameGeneration::PrepareStreamlineLocked(uint32_t frameIndex, const std::function<uint32_t()>& maxFrames,
                                                   const char* holdOff)
     {
         // As PrepareForPresentLocked: taken and cleared first, so neither a packet
@@ -111,14 +111,14 @@ namespace redefinition
         // goes by without lines of its own.
         const bool statusFailing = streamlineStatusKnown && streamlineStatus != 0;
         const bool statusWaiting = statusFailing && streamlineGrace == 0 && GetTickCount64() < streamlineRetryAfter;
-        if (holdOff != nullptr || !inputs || unflipped || frame == nullptr || statusWaiting)
+        if (holdOff != nullptr || !inputs || unflipped || frameIndex == 0 || statusWaiting)
         {
             StreamlineOffLocked(holdOff != nullptr ? holdOff
                                 : !wanted ? "switched off in the mod"
                                 : rateTooLow ? "the rendered frame rate is below its minimum (fgMinimumFps)"
                                 : !inputs ? "no inputs this frame"
                                 : unflipped ? "its inputs are not flipped"
-                                : frame == nullptr ? "no frame token"
+                                : frameIndex == 0 ? "no frame token"
                                 : nullptr);
             return false;
         }
@@ -215,7 +215,7 @@ namespace redefinition
         constants.reset = packet.reset != 0 || resumed ? sl::Boolean::eTrue : sl::Boolean::eFalse;
 
         streamlineTagged = true;
-        if (!streamlineApi.SetConstants(constants, *frame) || !streamlineApi.SetTags(*frame, tags, 3))
+        if (!streamlineApi.SetConstants(constants, frameIndex) || !streamlineApi.SetTags(frameIndex, tags, 3))
         {
             StreamlineOffLocked("its inputs were not accepted");
             return false;
@@ -286,15 +286,14 @@ namespace redefinition
         if (streamlineTagged)
         {
             Streamline& streamlineApi = Streamline::Get();
-            const sl::FrameToken* frame = streamlineApi.FrameInProgressToken();
-            if (frame != nullptr)
+            if (streamlineApi.DeviceSet())
             {
                 const sl::ResourceTag none[] = {
                     sl::ResourceTag(nullptr, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent),
                     sl::ResourceTag(nullptr, sl::kBufferTypeMotionVectors, sl::ResourceLifecycle::eValidUntilPresent),
                     sl::ResourceTag(nullptr, sl::kBufferTypeHUDLessColor, sl::ResourceLifecycle::eValidUntilPresent),
                 };
-                if (streamlineApi.SetTags(*frame, none, 3))
+                if (streamlineApi.SetTags(streamlineApi.FrameInProgressIndex(), none, 3))
                     streamlineTagged = false;
             }
         }
