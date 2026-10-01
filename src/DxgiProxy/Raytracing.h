@@ -274,6 +274,9 @@ namespace redefinition
         // From the render thread.
         void OnFrame(const void* data);
         void OnReconstruct(const void* data);
+        // Ray Reconstruction no longer used by the mod: Streamline's resources for it
+        // freed (OnReconstructRelease, render event 32).
+        void OnReconstructRelease();
 
         // Whether DLSS Ray Reconstruction runs: 1 yes, 0 no, the reason in buffer.
         int ReconstructionAvailable(char* buffer, int size) const;
@@ -519,6 +522,8 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D11Fence> fence11;
         HANDLE fenceEvent = nullptr;
         UINT64 fenceValue = 0;
+        // Whether Ray Reconstruction was evaluated since its resources were last freed.
+        bool reconstructionEvaluated = false;
         Slot slots[kSlots];
         UINT slotIndex = 0;
         Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> list;

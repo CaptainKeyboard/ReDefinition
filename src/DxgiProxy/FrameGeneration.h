@@ -284,7 +284,7 @@ namespace redefinition
         // Caller must hold ContextMutex. DLSS-G off from the next Present on,
         // with the reason in the log -- none for nullptr; returns whether it was
         // on. The owner's swapchain may be one made before this owner's
-        // (Attach).
+        // (Attach). The inputs' tags are set to null with it.
         bool StreamlineOffLocked(const char* reason);
 
         // What DLSS-G said after a Present (ReadStreamlineStateLocked): the frames
@@ -515,6 +515,9 @@ namespace redefinition
         // logging each change once.
         bool streamline = false;
         bool streamlineOn = false;
+        // Whether DLSS-G's inputs are tagged and Streamline holds them, until
+        // StreamlineOffLocked sets the tags to null.
+        bool streamlineTagged = false;
 
         // The rendered frame rate against fgMinimumFps (Config.h): the frame times of
         // the packets over two seconds, and whether it is too low for frame

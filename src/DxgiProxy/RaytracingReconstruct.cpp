@@ -309,6 +309,7 @@ namespace redefinition
         options.dlaaPreset = options.qualityPreset = options.balancedPreset = options.performancePreset =
             options.ultraPerformancePreset = options.ultraQualityPreset = preset;
 
+        reconstructionEvaluated = true;
         const bool evaluated = Streamline::Get().EvaluateRayReconstruction(slConstants, options, tags,
                                                                            static_cast<uint32_t>(sizeof(tags) / sizeof(tags[0])),
                                                                            list.Get());
@@ -336,5 +337,22 @@ namespace redefinition
 
         std::lock_guard<std::mutex> status(statusLock);
         ++reconstructed;
+    }
+
+    // The mod stopped sending Ray Reconstruction frames (UpscalerRig.Reconstruction):
+    // the lists that evaluated it finished first, as slFreeResources asks for pending
+    // evaluations (Streamline::FreeRayReconstruction). On the render thread, after the
+    // last of its frames.
+    void Raytracing::OnReconstructRelease()
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (!reconstructionEvaluated)
+            return;
+        reconstructionEvaluated = false;
+        if (fence12 != nullptr && fenceEvent != nullptr && fence12->GetCompletedValue() < fenceValue
+            && SUCCEEDED(fence12->SetEventOnCompletion(fenceValue, fenceEvent)))
+            WaitForSingleObject(fenceEvent, INFINITE);
+        if (Streamline::Get().FreeRayReconstruction())
+            LogLine("DLSS Ray Reconstruction: no longer used, its resources freed");
     }
 }

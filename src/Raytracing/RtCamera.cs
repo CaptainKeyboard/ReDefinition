@@ -134,7 +134,9 @@ namespace ReDefinition.Raytracing
         private Mesh screenQuad;
         private CommandBuffer flagOn;
         private CommandBuffer flagOff;
-        private PacketRing ring;
+        // One for every camera raytracing attaches to, in turn: a ring is never freed
+        // (PacketRing), so one per attach would be left behind with each.
+        private static PacketRing ring;
         private RtNative.FramePacket packet;
         private RenderTexture depth, gbuffer0, gbuffer1, gbuffer2, motion, environment;
         private RenderTexture sun, diffuse, specular, forward;
@@ -183,7 +185,8 @@ namespace ReDefinition.Raytracing
         {
             cam = GetComponent<Camera>();
             packet = RtNative.NewFramePacket();
-            ring = new PacketRing(System.Runtime.InteropServices.Marshal.SizeOf(typeof(RtNative.FramePacket)));
+            if (ring == null)
+                ring = new PacketRing(System.Runtime.InteropServices.Marshal.SizeOf(typeof(RtNative.FramePacket)));
         }
 
         private void OnEnable()
@@ -798,6 +801,9 @@ namespace ReDefinition.Raytracing
             diffuseHandle = diffuse.GetNativeTexturePtr();
             specularHandle = specular.GetNativeTexturePtr();
             forwardHandle = forward.GetNativeTexturePtr();
+            // OnPreCull bound the texture let go above for this frame's forward light,
+            // which runs after this frame's trace into the new one.
+            Shader.SetGlobalTexture(RtForward, forward);
             haveHistory = false;
             gbufferReady = false;
         }

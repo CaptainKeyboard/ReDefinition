@@ -6,7 +6,8 @@ namespace ReDefinition.Raytracing
 {
     // The proxy's raytracing service (src/DxgiProxy/Raytracing.h), as the managed
     // side reaches it: exports called from the main thread, and packets for the
-    // render events 30 (a frame) and 31 (DLSS Ray Reconstruction).
+    // render events 30 (a frame) and 31 (DLSS Ray Reconstruction); event 32 frees
+    // Ray Reconstruction's resources once it is no longer used.
     //
     // Free of KSP's types, like everything in this folder but the sources that
     // collect KSP's scene: the raytracing test player compiles it on its own.
@@ -16,6 +17,7 @@ namespace ReDefinition.Raytracing
 
         internal const int FrameEvent = 30;
         internal const int ReconstructEvent = 31;
+        internal const int ReconstructReleaseEvent = 32;
 
         internal const uint MeshMagic = 0x4B53524Du;        // 'KSRM'
         internal const uint MaterialMagic = 0x4B535241u;    // 'KSRA'

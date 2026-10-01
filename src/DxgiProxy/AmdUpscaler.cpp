@@ -449,7 +449,12 @@ namespace redefinition
         dispatch.cameraFar = packet.cameraFar;
         dispatch.cameraFovAngleVertical = packet.verticalFovRadians;
         dispatch.viewSpaceToMetersFactor = 1.0f;   // in KSP one unit is one metre
-        dispatch.flags = 0;
+        // The LDR image's colour space named as well, on top of the context's
+        // NON_LINEAR_COLORSPACE: "This may improve visual quality in some circumstances
+        // above and beyond specifying FFX_UPSCALE_ENABLE_NON_LINEAR_COLORSPACE alone"
+        // (super-resolution-ml.md, "Non-linear Color"; ffx_upscale.h:64).
+        dispatch.flags = (packet.flags & kAmdUpscalerHdr) != 0
+            ? 0u : static_cast<uint32_t>(FFX_UPSCALE_FLAG_NON_LINEAR_COLOR_SRGB);
 
         const ffxReturnCode_t code = api.Dispatch(&context, &dispatch.header);
 

@@ -94,11 +94,19 @@ namespace redefinition
         // evaluates under. Set by the presenting swapchain.
         void NoteFrameInProgress(uint32_t frameIndex);
 
+        // The token of the frame in progress (NoteFrameInProgress); without a
+        // swapchain presenting, a frame of its own each time.
+        sl::FrameToken* FrameInProgressToken();
+
         // Ray Reconstruction for this frame, recorded into list: constants, options and
         // tags under its viewport, then the evaluation. The caller restores the list's
         // state afterwards, as NVIDIA's guide says (7.0).
         bool EvaluateRayReconstruction(const sl::Constants& constants, const sl::DLSSDOptions& options,
                                        const sl::ResourceTag* tags, uint32_t count, ID3D12GraphicsCommandList* list);
+
+        // Ray Reconstruction's resources under its viewport freed, once no list that
+        // evaluated it is pending on the GPU.
+        bool FreeRayReconstruction();
 
         // What the last attempt came to, for the status line.
         std::string Describe() const;
@@ -141,6 +149,7 @@ namespace redefinition
         PFun_slSetConstants* slSetConstants = nullptr;
         PFun_slSetTagForFrame* slSetTagForFrame = nullptr;
         PFun_slGetFeatureVersion* slGetFeatureVersion = nullptr;
+        PFun_slFreeResources* slFreeResources = nullptr;
 
         PFun_slDLSSGSetOptions* slDLSSGSetOptions = nullptr;
         PFun_slDLSSGGetState* slDLSSGGetState = nullptr;

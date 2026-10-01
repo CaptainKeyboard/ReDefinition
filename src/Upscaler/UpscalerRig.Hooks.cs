@@ -53,7 +53,11 @@ namespace ReDefinition.Upscaler
             vesselMotion.RecordAudit(captureBuffer, motionVectors, depthCopy);
             vesselMotion.End();
             // The camera's matrices for the vessel's shadow, without the jitter.
-            if (hudLessBuffer != null && hudLessWithShadow) vesselShadow.Begin(cam, renderSize);
+            if (hudLessBuffer != null && hudLessWithShadow)
+            {
+                vesselShadow.Begin(cam, renderSize);
+                RefreshHudLessComposition();
+            }
         }
 
         // After every OnPreCull, where Unity has built the shadow cascades from the sun's

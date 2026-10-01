@@ -214,6 +214,7 @@ namespace redefinition
         // Coming back from off is a discontinuity, as for FSR.
         constants.reset = packet.reset != 0 || resumed ? sl::Boolean::eTrue : sl::Boolean::eFalse;
 
+        streamlineTagged = true;
         if (!streamlineApi.SetConstants(constants, *frame) || !streamlineApi.SetTags(*frame, tags, 3))
         {
             StreamlineOffLocked("its inputs were not accepted");
@@ -273,6 +274,30 @@ namespace redefinition
         }
         streamlineOn = false;
         streamlineMultiplier = 0;
+
+        // The inputs let go while DLSS-G is off: "SL holds a reference to all
+        // sl::ResourceLifecycle::eValidUntilPresent resources until a null tag is
+        // set" (ProgrammingGuideDLSS_G.md 5.2), and "When resource tag of type
+        // sl::ResourceLifecycle::eValidUntilPresent is no longer needed (e.g.
+        // resource is about to be destroyed) host app must set the tag to null in
+        // order to release the reference held by SL" (ProgrammingGuide.md). Shared
+        // textures replaced while it is off (RetireLocked) would otherwise live on
+        // in Streamline. Tagged again when it comes back on.
+        if (streamlineTagged)
+        {
+            Streamline& streamlineApi = Streamline::Get();
+            const sl::FrameToken* frame = streamlineApi.FrameInProgressToken();
+            if (frame != nullptr)
+            {
+                const sl::ResourceTag none[] = {
+                    sl::ResourceTag(nullptr, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent),
+                    sl::ResourceTag(nullptr, sl::kBufferTypeMotionVectors, sl::ResourceLifecycle::eValidUntilPresent),
+                    sl::ResourceTag(nullptr, sl::kBufferTypeHUDLessColor, sl::ResourceLifecycle::eValidUntilPresent),
+                };
+                if (streamlineApi.SetTags(*frame, none, 3))
+                    streamlineTagged = false;
+            }
+        }
         return wasOn;
     }
 

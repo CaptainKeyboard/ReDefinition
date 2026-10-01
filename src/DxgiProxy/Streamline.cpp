@@ -213,7 +213,8 @@ namespace redefinition
                               && Import(slGetNewFrameToken, "slGetNewFrameToken")
                               && Import(slSetConstants, "slSetConstants")
                               && Import(slSetTagForFrame, "slSetTagForFrame")
-                              && Import(slGetFeatureVersion, "slGetFeatureVersion");
+                              && Import(slGetFeatureVersion, "slGetFeatureVersion")
+                              && Import(slFreeResources, "slFreeResources");
         if (!complete)
         {
             FreeLibrary(module);
@@ -468,11 +469,8 @@ namespace redefinition
     {
         if (!deviceSet || !rayReconstruction || list == nullptr)
             return false;
-        // The swapchain's frame in progress, whose token its present takes; without a
-        // swapchain presenting, a frame of its own each time.
-        const int64_t current = frameInProgress.load();
-        const uint32_t index = current >= 0 ? static_cast<uint32_t>(current) : ownFrameIndex++;
-        sl::FrameToken* frame = NewFrameToken(index);
+        // The swapchain's frame in progress, whose token its present takes.
+        sl::FrameToken* frame = FrameInProgressToken();
         if (frame == nullptr)
             return false;
         const sl::ViewportHandle viewport(kRayReconstructionViewport);
@@ -484,6 +482,19 @@ namespace redefinition
         return Check(slEvaluateFeature(sl::kFeatureDLSS_RR, *frame, inputs, 1, list), "slEvaluateFeature (Ray Reconstruction)");
     }
 
+    // "To turn off DLSS-RR set sl::DLSSDOptions.mode to sl::DLSSDMode::eOff, note
+    // that this does NOT release any resources, for that please use slFreeResources"
+    // (ProgrammingGuideDLSS_RR.md 5.0); "If slEvaluateFeature is pending on a command
+    // list, that command list must be flushed before calling this method"
+    // (sl_core_api.h) -- the caller's to see to.
+    bool Streamline::FreeRayReconstruction()
+    {
+        if (!deviceSet || !rayReconstruction || slFreeResources == nullptr)
+            return false;
+        return Check(slFreeResources(sl::kFeatureDLSS_RR, sl::ViewportHandle(kRayReconstructionViewport)),
+                     "slFreeResources (Ray Reconstruction)");
+    }
+
     bool Streamline::UpgradeInterface(void** baseInterface, const char* what)
     {
         return initialised && Check(slUpgradeInterface(baseInterface), what);
@@ -493,6 +504,12 @@ namespace redefinition
     {
         *native = nullptr;
         return initialised && slGetNativeInterface(proxy, native) == sl::Result::eOk && *native != nullptr;
+    }
+
+    sl::FrameToken* Streamline::FrameInProgressToken()
+    {
+        const int64_t current = frameInProgress.load();
+        return NewFrameToken(current >= 0 ? static_cast<uint32_t>(current) : ownFrameIndex++);
     }
 
     sl::FrameToken* Streamline::NewFrameToken(uint32_t frameIndex)

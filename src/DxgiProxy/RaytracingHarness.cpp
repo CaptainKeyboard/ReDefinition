@@ -2033,6 +2033,10 @@ int main()
                     image[i * 3 + c] = composed[i * 4 + c];
             SaveColour(L"rt_reconstruct_noisy.bmp", image, 1.0);
 
+            // Ray Reconstruction let go as the mod does when it stops using it (event 32):
+            // Streamline's resources freed, and made again by the next evaluation below.
+            proxy.event(32, nullptr);
+
             // Without a G-buffer, as under forward rendering: the guides from the raytraced
             // frame of the same index, which takes the surface from its rays.
             Lighting unbuffered = lighting;

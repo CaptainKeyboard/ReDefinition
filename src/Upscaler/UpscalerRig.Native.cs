@@ -73,6 +73,7 @@ namespace ReDefinition.Upscaler
                          | (dispatch.Reset ? NativeUpscalerLink.FlagReset : 0u);
             bool submitted;
             bool reconstructedShown;
+            if (Backend != UpscalerBackend.Dlss) ReleaseReconstruction(dispatchBuffer);
             if (Backend == UpscalerBackend.Dlss && SubmitReconstruction(ref flags, out reconstructedShown))
             {
                 nativeSubmitted++;

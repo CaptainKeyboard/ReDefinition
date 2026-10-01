@@ -5,6 +5,7 @@ using ReDefinition.Bridges;
 using ReDefinition.Core;
 using ReDefinition.Raytracing;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace ReDefinition.Upscaler
 {
@@ -27,8 +28,13 @@ namespace ReDefinition.Upscaler
         private const float ReconstructionGiveUpSeconds = 1f;
         private const float ReconstructionRetrySeconds = 10f;
 
-        private PacketRing reconstructRing;
+        // Shared by every rig: a ring is never freed (PacketRing), so one per rig would be
+        // left behind with each rebuild.
+        private static PacketRing reconstructRing;
         private RtNative.ReconstructPacket reconstructPacket;
+        private bool reconstructPacketMade;
+        // Whether frames went to Ray Reconstruction since its resources were last freed.
+        private bool reconstructionSent;
         private readonly StringBuilder reconstructionWhy = new StringBuilder(256);
         private float nextReconstructionCheck;
         private bool reconstructionReady;
@@ -74,15 +80,22 @@ namespace ReDefinition.Upscaler
             bool was = Reconstructing;
             Reconstructing = wanted && raytraced.GuidesFrame == Time.frameCount;
             if (Reconstructing != was) flags |= NativeUpscalerLink.FlagReset;
-            if (!Reconstructing) return false;
+            if (!Reconstructing)
+            {
+                ReleaseReconstruction(dispatchBuffer);
+                return false;
+            }
 
             if (reconstructRing == null)
-            {
                 reconstructRing = new PacketRing(Marshal.SizeOf(typeof(RtNative.ReconstructPacket)));
+            if (!reconstructPacketMade)
+            {
                 reconstructPacket = RtNative.NewReconstructPacket();
+                reconstructPacketMade = true;
             }
             FillReconstruction(raytraced, flags);
             reconstructRing.Issue(dispatchBuffer, RtNative.RenderEvent, RtNative.ReconstructEvent, ref reconstructPacket);
+            reconstructionSent = true;
 
             // Reconstructed frames are counted on the render thread, a frame or two late.
             if (!was)
@@ -107,8 +120,29 @@ namespace ReDefinition.Upscaler
                 handedBack = true;
                 Debug.Log(Log.Tag + " DLSS Ray Reconstruction " + (reconstructedEver ? "stopped showing frames" : "showed no frame")
                           + "; DLSS Super Resolution for " + ReconstructionRetrySeconds + " s. " + raytraced.Status());
+                ReleaseReconstruction(dispatchBuffer);
             }
             return true;
+        }
+
+        // Streamline keeps Ray Reconstruction's resources when its frames stop: "this
+        // does NOT release any resources, for that please use slFreeResources"
+        // (ProgrammingGuideDLSS_RR.md 5.0). The proxy frees them on the render thread,
+        // after the last frame sent (Raytracing::OnReconstructRelease): into buffer
+        // behind that frame, or on its own where the rig goes.
+        private void ReleaseReconstruction(CommandBuffer buffer)
+        {
+            if (!reconstructionSent) return;
+            reconstructionSent = false;
+            if (buffer != null)
+            {
+                buffer.IssuePluginEventAndData(RtNative.RenderEvent, RtNative.ReconstructReleaseEvent, IntPtr.Zero);
+                return;
+            }
+            var own = new CommandBuffer { name = "ReDefinition.RayReconstruction release" };
+            own.IssuePluginEventAndData(RtNative.RenderEvent, RtNative.ReconstructReleaseEvent, IntPtr.Zero);
+            Graphics.ExecuteCommandBuffer(own);
+            own.Release();
         }
 
         private bool ReconstructionReady()

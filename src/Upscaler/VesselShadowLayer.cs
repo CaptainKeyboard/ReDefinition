@@ -121,6 +121,7 @@ namespace ReDefinition.Upscaler
         private RenderTexture lightMap;
         private RenderTexture mask;
         private RenderTexture weight;
+        private RenderTexture composedWeight, composedShadowed, composedLit;
         private RenderTexture shadowed;
         private RenderTexture lit;
         private CommandBuffer maskBuffer;
@@ -322,7 +323,20 @@ namespace ReDefinition.Upscaler
             buffer.SetGlobalVector(MipsId, new Vector4(FinestMip - 1, CoarsestMip - 1, 0f, 0f));
             buffer.Blit(ColourId, hudLess, material, ComposePass);
             buffer.ReleaseTemporaryRT(ColourId);
+            composedWeight = weight;
+            composedShadowed = shadowed;
+            composedLit = lit;
             return true;
+        }
+
+        // Whether the textures Compose recorded are still the ones in place. A recorded
+        // buffer keeps the textures it was recorded with; Prepare and EnsureDisplayTargets
+        // make new ones where Unity let one go, or after Disable.
+        internal bool ComposedCurrent(RenderTexture hudLess)
+        {
+            return weight != null && weight == composedWeight && shadowed == composedShadowed && lit == composedLit
+                   && hudLess != null && shadowed.IsCreated() && lit.IsCreated()
+                   && shadowed.width == Mathf.Max(1, hudLess.width / 2) && shadowed.height == Mathf.Max(1, hudLess.height / 2);
         }
 
         private void Clear(CommandBuffer capture)

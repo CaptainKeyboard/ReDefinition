@@ -31,8 +31,8 @@ namespace ReDefinition.Raytracing
                 installed = true;
                 shadowsModeBefore = GraphicsSettings.GetShaderMode(BuiltinShaderType.ScreenSpaceShadows);
                 shadowsBefore = GraphicsSettings.GetCustomShader(BuiltinShaderType.ScreenSpaceShadows);
-                ownShadows = shadows;
-                ownReflections = reflections;
+                ownShadows = null;
+                ownReflections = null;
             }
             Shader currentShadows = GraphicsSettings.GetCustomShader(BuiltinShaderType.ScreenSpaceShadows);
             if (shadows != null && currentShadows != shadows)
@@ -47,6 +47,9 @@ namespace ReDefinition.Raytracing
                 }
                 GraphicsSettings.SetShaderMode(BuiltinShaderType.ScreenSpaceShadows, BuiltinShaderMode.UseCustom);
                 GraphicsSettings.SetCustomShader(BuiltinShaderType.ScreenSpaceShadows, shadows);
+                // Remembered where it is set, not on the first call: raytracing started in
+                // Shadows-off mode passes null here and sets the shader only later.
+                ownShadows = shadows;
             }
 
             Shader current = GraphicsSettings.GetCustomShader(BuiltinShaderType.DeferredReflections);
@@ -54,6 +57,8 @@ namespace ReDefinition.Raytracing
             {
                 reflectionsBefore = current;
                 GraphicsSettings.SetCustomShader(BuiltinShaderType.DeferredReflections, reflections);
+                // Same as above: Shadows mode passes null, Light/Full sets it later.
+                ownReflections = reflections;
             }
             ReflectionsReplaced = reflections != null
                                   && GraphicsSettings.GetCustomShader(BuiltinShaderType.DeferredReflections) == reflections;

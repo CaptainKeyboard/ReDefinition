@@ -229,7 +229,8 @@ extern "C"
     // 6: a question for DLSS's render sizes (Dlss::OnSizeQuery), before a rig.
     // 20-23: Direct3D 12 for mods (D3d12Compute.h): a compute pass made, destroyed,
     //    dispatched, a texture's shared copy released.
-    // 30: a raytracing frame (Raytracing.h); 31: a frame for DLSS Ray Reconstruction.
+    // 30: a raytracing frame (Raytracing.h); 31: a frame for DLSS Ray Reconstruction;
+    //    32: Ray Reconstruction no longer used, its resources freed.
     static void UNITY_INTERFACE_API OnRenderEvent(int eventId, void* data)
     {
         if (eventId == 1)
@@ -256,6 +257,8 @@ extern "C"
             redefinition::Raytracing::Get().OnFrame(data);
         else if (eventId == 31)
             redefinition::Raytracing::Get().OnReconstruct(data);
+        else if (eventId == 32)
+            redefinition::Raytracing::Get().OnReconstructRelease();
     }
 
     __declspec(dllexport) void* KspFgGetRenderEventFunc()

@@ -638,6 +638,7 @@ namespace ReDefinition.Upscaler
 
             if (biasApplied) { mipmapBias.UndoMipmapBias(); biasApplied = false; }
             quality.RestoreAll();
+            ReleaseReconstruction(null);
             if (dispatchBuffer != null && nativeLink != null) nativeLink.Release();
             if (context != null) { context.Destroy(); context = null; }
             if (dispatchBuffer != null) { dispatchBuffer.Release(); dispatchBuffer = null; }

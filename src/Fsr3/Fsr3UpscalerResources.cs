@@ -233,6 +233,17 @@ namespace FidelityFX.FSR3
                 return;
             
             resource.Release();
+            // ReDefinition: the object destroyed as well. Release frees only the GPU
+            // memory; the RenderTexture itself stays until destroyed, one set more with
+            // every rig rebuilt.
+#if UNITY_EDITOR
+            if (Application.isPlaying && !UnityEditor.EditorApplication.isPaused)
+                UnityEngine.Object.Destroy(resource);
+            else
+                UnityEngine.Object.DestroyImmediate(resource);
+#else
+            UnityEngine.Object.Destroy(resource);
+#endif
             resource = null;
         }
 

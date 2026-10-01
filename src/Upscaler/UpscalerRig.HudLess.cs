@@ -17,6 +17,8 @@ namespace ReDefinition.Upscaler
         private CommandBuffer hudLessBuffer;
         private readonly List<Camera> hudLessCameras = new List<Camera>();
         private float hudLessRecheckTime = float.MaxValue;
+        private bool hudLessComposed;
+        private bool hudLessCopyLogged;
 
         // Cameras that draw onto the backbuffer after the presenter and are still
         // scene, not UI. They are not redirected (UpscalerRig.SceneCameras), and
@@ -52,16 +54,8 @@ namespace ReDefinition.Upscaler
             if (!FrameGenerationBridge.Available || presenterCam == null || hudLessCopy == null) return;
 
             hudLessBuffer = new CommandBuffer { name = "ReDefinition.HudLessCapture" };
-            // The frame with the active vessel's shadow taken out where frame generation
-            // would drag it along with the ground (VesselShadowLayer), or the frame as it is.
             hudLessWithShadow = VesselShadowLayer.Enabled;
-            bool composed = hudLessWithShadow
-                            && vesselShadow.Compose(hudLessBuffer, BuiltinRenderTextureType.CameraTarget, hudLessCopy, renderSize);
-            if (!composed) hudLessBuffer.Blit(BuiltinRenderTextureType.CameraTarget, hudLessCopy);
-            Debug.Log(Log.Tag + " HUD-less copy: " + (composed ? "with the vessel's shadow taken out (VesselShadowLayer)"
-                                                              : hudLessWithShadow ? "the frame as it is -- the vessel shadow's"
-                                                                                    + " composition could not be set up"
-                                                                                  : "the frame as it is") + ".");
+            RecordHudLessCopy();
 
             // AfterEverything: after the presenter's OnRenderImage blit, and
             // after an effect camera's own drawing.
@@ -76,6 +70,33 @@ namespace ReDefinition.Upscaler
             hudLessRecheckTime = recheckLater ? Time.unscaledTime + 5f : float.MaxValue;
 
             LogHudLessCapture();
+        }
+
+        // The frame with the active vessel's shadow taken out where frame generation
+        // would drag it along with the ground (VesselShadowLayer), or the frame as it is.
+        // Recorded again into the same buffer, still on its carriers, where the vessel
+        // shadow's textures were made anew (RefreshHudLessComposition).
+        private void RecordHudLessCopy()
+        {
+            hudLessBuffer.Clear();
+            bool composed = hudLessWithShadow
+                            && vesselShadow.Compose(hudLessBuffer, BuiltinRenderTextureType.CameraTarget, hudLessCopy, renderSize);
+            if (!composed) hudLessBuffer.Blit(BuiltinRenderTextureType.CameraTarget, hudLessCopy);
+            if (composed == hudLessComposed && hudLessCopyLogged) return;
+            hudLessComposed = composed;
+            hudLessCopyLogged = true;
+            Debug.Log(Log.Tag + " HUD-less copy: " + (composed ? "with the vessel's shadow taken out (VesselShadowLayer)"
+                                                              : hudLessWithShadow ? "the frame as it is -- the vessel shadow's"
+                                                                                    + " composition could not be set up"
+                                                                                  : "the frame as it is") + ".");
+        }
+
+        // Before the HUD-less buffer runs this frame: recorded again where the textures
+        // it was recorded with are no longer the vessel shadow's.
+        private void RefreshHudLessComposition()
+        {
+            if (hudLessBuffer != null && hudLessComposed && !vesselShadow.ComposedCurrent(hudLessCopy))
+                RecordHudLessCopy();
         }
 
         // The presenter, and every effect camera drawing onto the backbuffer after
@@ -126,6 +147,8 @@ namespace ReDefinition.Upscaler
                 hudLessBuffer.Release();
                 hudLessBuffer = null;
             }
+            hudLessComposed = false;
+            hudLessCopyLogged = false;
 
             hudLessCameras.Clear();
             hudLessRecheckTime = float.MaxValue;
