@@ -16,7 +16,8 @@ namespace ReDefinition.Upscaler
     // the first one in which the camera turns by more than a degree, the image the
     // upscaler or Ray Reconstruction takes, the image it gives, and the raytracing's
     // signals traced in that frame (RtCamera: the sun's visibility with the kept view
-    // depth in w, the diffuse light, the reflections, the light added without Deferred).
+    // depth in w, the diffuse light, the reflections, the light added without Deferred),
+    // and EVE's clouds where it draws them.
     // Written into ReDefinitionCaptures\<time>-stages beside the other dumps; meta.txt
     // describes them.
     //
@@ -58,6 +59,15 @@ namespace ReDefinition.Upscaler
         private static int busy;
         private static string metaPath;
         private static string metaText;
+
+        // EVE's volumetric clouds as its reconstruction left them this frame, where EVE
+        // draws them: the layer the halo and trail around the rocket may come from.
+        private static readonly int CloudsId = Shader.PropertyToID("scattererReconstructedCloud");
+
+        private static RenderTexture Clouds()
+        {
+            return Shader.GetGlobalTexture(CloudsId) as RenderTexture;
+        }
 
         internal static void Arm()
         {
@@ -105,6 +115,7 @@ namespace ReDefinition.Upscaler
             Append(unjittered);
             Take(n, "input", input);
             Take(n, "output", output);
+            Take(n, "clouds", Clouds());
             if (raytraced != null)
             {
                 Take(n, "sun", raytraced.SunTexture);
@@ -129,6 +140,7 @@ namespace ReDefinition.Upscaler
             {
                 Prepare(n, "input", input);
                 Prepare(n, "output", output);
+                Prepare(n, "clouds", Clouds());
                 if (raytraced == null) continue;
                 Prepare(n, "sun", raytraced.SunTexture);
                 Prepare(n, "diffuse", raytraced.DiffuseTexture);
