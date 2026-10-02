@@ -23,6 +23,9 @@
 
 using Microsoft::WRL::ComPtr;
 
+#include "FileUtil.h"
+
+#include <cstring>
 #include <mutex>
 #include <string>
 
@@ -53,6 +56,40 @@ namespace
         });
     }
 
+    // An export of the system dxgi.dll, read from its export table rather than
+    // through GetProcAddress: a tool that hooks GetProcAddress -- RenderDoc does
+    // -- hands back its own CreateDXGIFactory*, which calls the first dxgi.dll in
+    // the process, this one, which asks GetProcAddress again: without end (seen
+    // under renderdoccmd, where the process ended right after loading the system
+    // dxgi.dll). Null for a forwarded export or a name not there.
+    FARPROC ExportOf(HMODULE module, const char* name)
+    {
+        const auto base = reinterpret_cast<const BYTE*>(module);
+        const auto dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+        if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+            return nullptr;
+        const auto nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+        if (nt->Signature != IMAGE_NT_SIGNATURE)
+            return nullptr;
+        const IMAGE_DATA_DIRECTORY& dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+        if (dir.VirtualAddress == 0 || dir.Size == 0)
+            return nullptr;
+        const auto exports = reinterpret_cast<const IMAGE_EXPORT_DIRECTORY*>(base + dir.VirtualAddress);
+        const auto names = reinterpret_cast<const DWORD*>(base + exports->AddressOfNames);
+        const auto ordinals = reinterpret_cast<const WORD*>(base + exports->AddressOfNameOrdinals);
+        const auto functions = reinterpret_cast<const DWORD*>(base + exports->AddressOfFunctions);
+        for (DWORD i = 0; i < exports->NumberOfNames; ++i)
+        {
+            if (std::strcmp(reinterpret_cast<const char*>(base + names[i]), name) != 0)
+                continue;
+            const DWORD rva = functions[ordinals[i]];
+            if (rva >= dir.VirtualAddress && rva < dir.VirtualAddress + dir.Size)
+                return nullptr;
+            return reinterpret_cast<FARPROC>(const_cast<BYTE*>(base + rva));
+        }
+        return nullptr;
+    }
+
     template <typename T>
     T RealProc(const char* name)
     {
@@ -60,7 +97,10 @@ namespace
         if (g_realDxgi == nullptr)
             return nullptr;
 
-        return reinterpret_cast<T>(GetProcAddress(g_realDxgi, name));
+        FARPROC proc = ExportOf(g_realDxgi, name);
+        if (proc == nullptr)
+            proc = GetProcAddress(g_realDxgi, name);
+        return reinterpret_cast<T>(proc);
     }
 
     // The replacement. Anything that fails falls through to the original, and the
