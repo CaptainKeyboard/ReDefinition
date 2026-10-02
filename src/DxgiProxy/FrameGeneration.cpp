@@ -478,6 +478,16 @@ namespace redefinition
     // Each rendered frame's time from its packet; every two seconds the average decides.
     void FrameGeneration::NoteFrameRateLocked(float frameTimeMs)
     {
+        const float minimumFps = MinimumFpsLocked();
+        const bool slow = minimumFps > 0.0f && frameTimeMs > 1500.0f / minimumFps;
+        if (slow && !slowFrame && slowFrames++ == 0)
+        {
+            char note[160];
+            std::snprintf(note, sizeof(note), "Frame generation: a frame of %.0f ms, above %.0f ms, is presented without"
+                          " generated frames (and so is each such frame after it)", frameTimeMs, 1500.0f / minimumFps);
+            LogLine(note);
+        }
+        slowFrame = slow;
         if (frameTimeMs <= 0.0f || frameTimeMs > 1000.0f)
             return;
         rateWindowMs += frameTimeMs;
@@ -519,7 +529,7 @@ namespace redefinition
         // in the mod, or no upscaler dispatch this frame -- a scene change, a
         // menu -- and the last inputs would be stale.
         const bool inputs = wanted && thisFrame && S(depth).Valid() && S(motion).Valid();
-        const bool generate = inputs && !rateTooLow;
+        const bool generate = inputs && !rateTooLow && !slowFrame;
 
         // The context is created on first use, also while the frame rate holds frame
         // generation off: its provider sets the minimum (MinimumFpsLocked). Until
@@ -539,7 +549,7 @@ namespace redefinition
         if (!generate)
         {
             ConfigureOffLocked(swapChain, !wanted ? "switched off in the mod"
-                                          : rateTooLow ? "the rendered frame rate is below its minimum (fgMinimumFps)"
+                                          : rateTooLow || slowFrame ? "the rendered frame rate is below its minimum (fgMinimumFps)"
                                           : "no inputs this frame");
             return false;
         }
