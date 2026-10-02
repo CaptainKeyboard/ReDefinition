@@ -22,6 +22,14 @@ PROJECT = os.path.join(ROOT, 'tests', 'RaytracingPlayer')
 LINKED = os.path.join(PROJECT, 'Assets', 'Linked')
 RESOURCES = os.path.join(LINKED, 'Resources')
 OUTPUT = os.path.join(ROOT, 'build', 'RaytracingPlayer')
+# The folder the main checkout lies in, also from a git worktree of it, beside which
+# References holds the vendors' SDKs.
+try:
+    MAIN_ROOT = os.path.dirname(os.path.abspath(subprocess.run(
+        ['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], cwd=ROOT, capture_output=True,
+        text=True, check=True).stdout.strip()))
+except (OSError, subprocess.CalledProcessError):
+    MAIN_ROOT = ROOT
 PROXY = os.path.join(ROOT, 'build', 'DxgiProxy', 'Release', 'dxgi.dll')
 
 SOURCES = [
@@ -176,10 +184,10 @@ def main():
     parser.add_argument('--upscale', action='store_true',
                         help='record the camera turn through FSR 3, DLSS and the AMD upscaler at two render scales, and'
                              ' natively, and measure them with analyze_upscale_turn.py, instead of the checks')
-    parser.add_argument('--amd', default=os.path.join(os.path.dirname(ROOT), 'References', 'KspUpscaler', 'FSR4'),
+    parser.add_argument('--amd', default=os.path.join(os.path.dirname(MAIN_ROOT), 'References', 'KspUpscaler', 'FSR4'),
                         help='the folder with amd_fidelityfx_upscaler_dx12.dll')
     parser.add_argument('--streamline', default=os.environ.get('REDEFINITION_STREAMLINE_DIR', os.path.join(
-        os.path.dirname(ROOT), 'References', 'KspUpscaler', 'streamline-sdk-v2.14.1', 'bin', 'x64')))
+        os.path.dirname(MAIN_ROOT), 'References', 'KspUpscaler', 'streamline-sdk-v2.14.1', 'bin', 'x64')))
     arguments = parser.parse_args()
     exe = os.path.join(OUTPUT, 'RaytracingPlayer.exe')
     if not arguments.no_build:
