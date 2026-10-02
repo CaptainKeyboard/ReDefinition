@@ -10,6 +10,7 @@
 #include <sl_security.h>
 
 #include <cstring>
+#include <mutex>
 #include <string>
 
 namespace redefinition
@@ -27,6 +28,29 @@ namespace redefinition
         constexpr int kInfoLines = 120;
         std::atomic<int> g_logLines{ 0 };
         std::atomic<int> g_infoLines{ 0 };
+
+        // A line that repeats what the one before said, behind its own time stamps,
+        // is counted rather than logged, so that a burst of one message -- 180 of
+        // RSYNC's "Flip queue is empty" as the main menu comes up -- does not use up
+        // the lines for what follows.
+        std::mutex g_repeatLock;
+        std::string g_lastLine;
+        int g_repeats = 0;
+
+        // The message after Streamline's prefix of bracketed fields, the last of them
+        // the time since start in microseconds.
+        std::string WithoutPrefix(const std::string& text)
+        {
+            const size_t end = text.find("us]");
+            return end == std::string::npos ? text : text.substr(end + 3);
+        }
+
+        void LogRepeatsLocked()
+        {
+            if (g_repeats > 0)
+                LogLine("Streamline: the line before came " + std::to_string(g_repeats) + " more time(s)");
+            g_repeats = 0;
+        }
 
         std::string ResultText(sl::Result result)
         {
@@ -141,13 +165,24 @@ namespace redefinition
                 || strstr(message, "processPluginHooks") != nullptr || strstr(message, "isAppDenylisted") != nullptr
                 || ++g_infoLines > kInfoLines))
             return;
-        const int line = ++g_logLines;
-        if (line > kLogLines)
-            return;
-
         std::string text(message);
         while (!text.empty() && (text.back() == '\n' || text.back() == '\r'))
             text.pop_back();
+        {
+            std::lock_guard<std::mutex> lock(g_repeatLock);
+            std::string key = WithoutPrefix(text);
+            if (key == g_lastLine)
+            {
+                ++g_repeats;
+                return;
+            }
+            LogRepeatsLocked();
+            g_lastLine = std::move(key);
+        }
+
+        const int line = ++g_logLines;
+        if (line > kLogLines)
+            return;
 
         const char* kind = type == sl::LogType::eError ? "error: " : type == sl::LogType::eWarn ? "warning: " : "";
         LogLine(std::string("Streamline ") + kind + text
@@ -273,6 +308,11 @@ namespace redefinition
 
         g_logLines = 0;
         g_infoLines = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_repeatLock);
+            g_lastLine.clear();
+            g_repeats = 0;
+        }
         failedCallsLogged = 0;
         const sl::Result result = slInit(preferences, sl::kSDKVersion);
         if (result != sl::Result::eOk)
@@ -325,6 +365,10 @@ namespace redefinition
     {
         if (!initialised)
             return;
+        {
+            std::lock_guard<std::mutex> lock(g_repeatLock);
+            LogRepeatsLocked();
+        }
 
         // No call from the game's main thread is inside Streamline's plugins
         // while they are unloaded.
