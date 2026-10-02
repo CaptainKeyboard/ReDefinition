@@ -244,11 +244,13 @@ reads "held off below the minimum frame rate" **[meas]** (proxy harness: frames 
 25 a second under DLSS-G, 1.00 presents per frame and the status line; at 60 again, 2.00).
 
 A single frame that took more than half again the minimum's frame time, 50 ms at a
-minimum of 30, is presented without generated frames, however the average stands. The
-game's turns of the camera measured 100 to 230 ms a frame in both input dumps of
-2026-10-01 (20:15 and 22:03) **[meas]**; the two seconds' average does not catch a turn
-that short, and interpolating across such a gap draws its whole motion into one frame.
-The log says the first such frame.
+minimum of 30, is presented without generated frames, however the average stands: the
+two seconds' average does not catch a short hitch, and interpolating across such a gap
+draws its whole motion into one frame. The log says the first such frame. The input
+dumps of 2026-10-01 (20:15 and 22:03) show 100 to 230 ms a frame through a camera turn
+**[meas]**, but the dumps read back several full-size textures every frame they cover,
+and the frame time rises from frame to frame of the dump; how long the turn's frames
+are without a dump is **[open]**.
 
 KSP's registration requires the same of KSP's V-Sync row while DLSS frame generation runs
 ([reference/requirements.md](../reference/requirements.md), R6 and R7), so the settings

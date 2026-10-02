@@ -521,10 +521,8 @@ namespace redefinition
         int rateWindowFrames = 0;
         bool rateTooLow = false;
         // This frame alone took more than half again the minimum's frame time: a
-        // hitch, which the two seconds' average does not catch. The game's turns of
-        // the camera measured 100 to 230 ms a frame (ReDefinitionCaptures,
-        // 2026-10-01 20:15 and 22:03), and interpolating across such a gap draws
-        // its whole motion into one generated frame.
+        // hitch, which the two seconds' average does not catch, and interpolating
+        // across such a gap draws its whole motion into one generated frame.
         bool slowFrame = false;
         int slowFrames = 0;
         int designedForFps = 60;
