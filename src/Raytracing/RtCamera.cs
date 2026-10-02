@@ -189,6 +189,14 @@ namespace ReDefinition.Raytracing
         private static readonly int RtCube = Shader.PropertyToID("_ReDefinitionRtCube");
         private static readonly int RtForward = Shader.PropertyToID("_ReDefinitionRtForward");
         private static readonly int RtCubeHdr = Shader.PropertyToID("_ReDefinitionRtCube_HDR");
+        // The gather pass of the GPU's instances (GatherGpuInstances).
+        private static readonly int GatherEye = Shader.PropertyToID("_Eye");
+        private static readonly int GatherOut = Shader.PropertyToID("_Out");
+        private static readonly int GatherCounts = Shader.PropertyToID("_Counts");
+        private static readonly int GatherSource = Shader.PropertyToID("_Source");
+        private static readonly int GatherCountIndex = Shader.PropertyToID("_CountIndex");
+        private static readonly int GatherCapacity = Shader.PropertyToID("_Capacity");
+        private static readonly int GatherFirst = Shader.PropertyToID("_First");
 
         private void Awake()
         {
@@ -581,9 +589,9 @@ namespace ReDefinition.Raytracing
                 gpuCounts = new ComputeBuffer(Math.Max(items, 64), 4, ComputeBufferType.Raw);
             }
             Vector3 eye = transform.position;
-            command.SetComputeVectorParam(gather, "_Eye", new Vector4(eye.x, eye.y, eye.z, 0f));
-            command.SetComputeTextureParam(gather, gatherKernel, "_Out", gpuInstances);
-            command.SetComputeBufferParam(gather, gatherKernel, "_Counts", gpuCounts);
+            command.SetComputeVectorParam(gather, GatherEye, new Vector4(eye.x, eye.y, eye.z, 0f));
+            command.SetComputeTextureParam(gather, gatherKernel, GatherOut, gpuInstances);
+            command.SetComputeBufferParam(gather, gatherKernel, GatherCounts, gpuCounts);
             // How many places each buffer took, for the next frames' reservations.
             CountRead counted = null;
             if (SystemInfo.supportsAsyncGPUReadback && countReads.Count < 4)
@@ -598,10 +606,10 @@ namespace ReDefinition.Raytracing
                 if (counted != null) counted.Buffers[i] = item.Transforms;
                 int places = Scene.GpuPlaces[i];
                 command.CopyCounterValue(item.Transforms, gpuCounts, (uint)(i * 4));
-                command.SetComputeBufferParam(gather, gatherKernel, "_Source", item.Transforms);
-                command.SetComputeIntParam(gather, "_CountIndex", i);
-                command.SetComputeIntParam(gather, "_Capacity", places);
-                command.SetComputeIntParam(gather, "_First", Scene.GpuFirst[i]);
+                command.SetComputeBufferParam(gather, gatherKernel, GatherSource, item.Transforms);
+                command.SetComputeIntParam(gather, GatherCountIndex, i);
+                command.SetComputeIntParam(gather, GatherCapacity, places);
+                command.SetComputeIntParam(gather, GatherFirst, Scene.GpuFirst[i]);
                 command.DispatchCompute(gather, gatherKernel, (places + 63) / 64, 1, 1);
             }
             if (counted != null)
