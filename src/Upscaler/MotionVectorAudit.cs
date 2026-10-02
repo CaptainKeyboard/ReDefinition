@@ -65,8 +65,12 @@ namespace ReDefinition.Upscaler
             internal float Depth = float.NaN;
             internal Vector2 Read = new Vector2(float.NaN, float.NaN);
             internal bool Failed;
-            // Kept and used again, with its read-backs' callbacks: back once both came.
+            // Kept and used again, with its read-backs' callbacks: back once both came,
+            // and taken again only some frames later. A camera that renders twice in a
+            // frame (a supersized screenshot) runs the capture buffer twice; the
+            // callbacks past the two awaited find Pending at 0 and change nothing.
             internal int Pending;
+            internal int ReleasedFrame;
             internal System.Action<AsyncGPUReadbackRequest> DepthRead;
             internal System.Action<AsyncGPUReadbackRequest> MotionRead;
 
@@ -90,7 +94,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
-        private readonly Stack<Sample> idleSamples = new Stack<Sample>();
+        private readonly Queue<Sample> idleSamples = new Queue<Sample>();
+        private const int ReuseAfterFrames = 8;
         // A part's renderers, read into this list rather than a new array each time.
         private static readonly List<Renderer> partRenderers = new List<Renderer>();
 
@@ -280,8 +285,9 @@ namespace ReDefinition.Upscaler
 
         private Sample TakeSample()
         {
-            if (idleSamples.Count == 0) return NewSample();
-            Sample sample = idleSamples.Pop();
+            if (idleSamples.Count == 0 || Time.frameCount - idleSamples.Peek().ReleasedFrame < ReuseAfterFrames)
+                return NewSample();
+            Sample sample = idleSamples.Dequeue();
             sample.Clear();
             return sample;
         }
@@ -291,6 +297,7 @@ namespace ReDefinition.Upscaler
             Sample sample = new Sample();
             sample.DepthRead = request =>
             {
+                if (sample.Pending <= 0) return;
                 if (request.hasError) sample.Failed = true;
                 else sample.Depth = request.GetData<float>()[0];
                 Finish(sample);
@@ -298,6 +305,7 @@ namespace ReDefinition.Upscaler
             };
             sample.MotionRead = request =>
             {
+                if (sample.Pending <= 0) return;
                 if (request.hasError)
                 {
                     sample.Failed = true;
@@ -315,7 +323,9 @@ namespace ReDefinition.Upscaler
 
         private void Release(Sample sample)
         {
-            if (--sample.Pending == 0) idleSamples.Push(sample);
+            if (--sample.Pending != 0) return;
+            sample.ReleasedFrame = Time.frameCount;
+            idleSamples.Enqueue(sample);
         }
 
         private void Finish(Sample sample)
