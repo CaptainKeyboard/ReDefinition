@@ -42,4 +42,9 @@ namespace redefinition
         bool ready = false;
         std::once_flag loadOnce;
     };
+
+    // AMD's debug checker's messages (Config::vendorDiagnostics) into the log: an
+    // ffxApiMessage for frame generation's and the upscaler's contexts. Each text
+    // goes in a few times at most, and all of them together a few hundred.
+    void FfxDebugMessage(uint32_t type, const wchar_t* message);
 }

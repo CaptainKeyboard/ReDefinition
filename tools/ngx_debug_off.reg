@@ -1,0 +1,7 @@
+Windows Registry Editor Version 5.00
+
+; Undoes ngx_debug_on.reg.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\NVIDIA Corporation\Global\NGXCore]
+"ShowDlssIndicator"=-
+"DLSSG_IndicatorText"=-

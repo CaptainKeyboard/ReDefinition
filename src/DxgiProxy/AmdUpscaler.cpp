@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "D3d12Util.h"
+#include "FidelityFx.h"
 #include "FileUtil.h"
 #include "Log.h"
 
@@ -388,7 +389,15 @@ namespace redefinition
                      | ((packet.flags & kAmdUpscalerAutoExposure) != 0 ? FFX_UPSCALE_ENABLE_AUTO_EXPOSURE : 0u);
         create.maxRenderSize = { packet.renderWidth, packet.renderHeight };
         create.maxUpscaleSize = { packet.outputWidth, packet.outputHeight };
-        create.fpMessage = nullptr;
+        // AMD's checks of the inputs, "in any build configuration of the runtime",
+        // their messages into the log (super-resolution-upscaler.md, Debug Checker).
+        if (Config().vendorDiagnostics)
+        {
+            create.flags |= FFX_UPSCALE_ENABLE_DEBUG_CHECKING;
+            create.fpMessage = &FfxDebugMessage;
+        }
+        else
+            create.fpMessage = nullptr;
 
         ffxCreateBackendDX12Desc backend = {};
         backend.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_DX12;

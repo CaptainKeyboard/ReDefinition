@@ -80,6 +80,9 @@ namespace redefinition
                  + (c.fgPacingHybridSpin ? "/spin" : "")
                  + (c.fgPacingWaitOnFence ? "/fence" : "")
                  + " fgMinimumFps=" + std::to_string(static_cast<int>(c.fgMinimumFps))
+                 + " vendorDiagnostics=" + (c.vendorDiagnostics ? "1" : "0")
+                 + " streamlineImgui=" + (c.streamlineImgui ? "1" : "0")
+                 + " fgShowOnlyGenerated=" + (c.fgShowOnlyGenerated ? "1" : "0")
                  + " reportSeconds=" + std::to_string(c.reportSeconds)
                  + " logInputsSeconds=" + std::to_string(c.logInputsSeconds)
                  + " dlssDirectory=" + (c.dlssDirectory[0] == L'\0' ? "(none)" : "(set)")
@@ -130,6 +133,9 @@ namespace redefinition
 
             target.logInputsSeconds = static_cast<int>(
                 GetPrivateProfileIntW(L"Proxy", L"logInputsSeconds", 0, file.c_str()));
+            target.vendorDiagnostics = ReadFlag(L"vendorDiagnostics", file, false);
+            target.streamlineImgui = ReadFlag(L"streamlineImgui", file, false);
+            target.fgShowOnlyGenerated = ReadFlag(L"fgShowOnlyGenerated", file, false);
             if (target.logInputsSeconds < 0)
                 target.logInputsSeconds = 0;
 

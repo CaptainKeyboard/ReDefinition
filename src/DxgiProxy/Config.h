@@ -161,6 +161,24 @@ namespace redefinition
         // off.
         int logInputsSeconds = 0;
 
+        // AMD's debug checker on frame generation and the upscaler ("validate
+        // application supplied inputs", frame-interpolation-api.md, Debug Checker),
+        // its messages into the log. For development.
+        bool vendorDiagnostics = false;
+
+        // Streamline's ImGUI plugin loaded, which NVIDIA's development DLLs show
+        // ("Use the sl.imgui plugin to validate that inputs ... are correct",
+        // ProgrammingGuideDLSS_G.md 15.0). For development: with it the GPU device
+        // was removed four seconds after the first frame, while KSP loaded. With
+        // NVIDIA's development DLLs in streamlineDirectory and dlssDirectory, DLSS-G's
+        // and DLSS's debug visualizations answer their hotkeys without it.
+        bool streamlineImgui = false;
+
+        // DLSS-G presents only the frames it generates (DLSSGFlags::
+        // eShowOnlyInterpolatedFrame): what interpolation makes, apart from the
+        // rendered frames.
+        bool fgShowOnlyGenerated = false;
+
         // Where a player's nvngx_dlss.dll lies if not next to KSP_x64.exe, which
         // NGX searches anyway (Dlss.h). Read when DLSS starts on a device, on
         // Unity's render thread, through DlssDirectory().

@@ -12,6 +12,7 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace redefinition
 {
@@ -274,11 +275,16 @@ namespace redefinition
         // generation runs as before. For Ray Reconstruction alone, its plugin only:
         // sl.dlss_g would take over the swapchain's pacing "whenever the plugin is
         // loaded, even while DLSS-G is turned off" (ProgrammingGuideDLSS_G.md 12.1).
-        const sl::Feature allFeatures[] = { sl::kFeatureDLSS_G, sl::kFeatureReflex, sl::kFeaturePCL,
-                                            sl::kFeatureDLSS_RR };
-        const sl::Feature reconstructionOnly[] = { sl::kFeatureDLSS_RR };
-        const sl::Feature* features = frameGenerationWanted ? allFeatures : reconstructionOnly;
-        const uint32_t featureCount = frameGenerationWanted ? 4u : 1u;
+        // Streamline's ImGUI plugin where asked for (Config.h), which its development
+        // DLLs show; "sl.imgui won't load in production builds" (Debugging - SL ImGUI
+        // (Realtime Data Inspection).md).
+        std::vector<sl::Feature> features;
+        if (frameGenerationWanted)
+            features = { sl::kFeatureDLSS_G, sl::kFeatureReflex, sl::kFeaturePCL, sl::kFeatureDLSS_RR };
+        else
+            features = { sl::kFeatureDLSS_RR };
+        if (Config().streamlineImgui)
+            features.push_back(sl::kFeatureImGUI);
 
         sl::Preferences preferences{};
         preferences.showConsole = false;
@@ -297,8 +303,8 @@ namespace redefinition
         preferences.flags = sl::PreferenceFlags::eDisableCLStateTracking | sl::PreferenceFlags::eUseManualHooking
                             | sl::PreferenceFlags::eUseFrameBasedResourceTagging
                             | sl::PreferenceFlags::eUseDXGIFactoryProxy;
-        preferences.featuresToLoad = features;
-        preferences.numFeaturesToLoad = featureCount;
+        preferences.featuresToLoad = features.data();
+        preferences.numFeaturesToLoad = static_cast<uint32_t>(features.size());
         // "if not specified then engine type and version are required": the
         // same identity DLSS gives NGX.
         preferences.engine = sl::EngineType::eCustom;

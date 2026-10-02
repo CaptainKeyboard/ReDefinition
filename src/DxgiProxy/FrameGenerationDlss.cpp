@@ -13,6 +13,7 @@
 #include "Log.h"
 #include "Streamline.h"
 
+#include <atomic>
 #include <cstring>
 #include <string>
 
@@ -20,6 +21,29 @@ namespace redefinition
 {
     namespace
     {
+        // DLSS-G's errors from its asynchronous Present: kept, and logged on the
+        // presenting thread's next frame -- "STORE ERROR AND RETURN IMMEDIATELY TO
+        // AVOID STALLING PRESENT THREAD" (ProgrammingGuideDLSS_G.md 6.7).
+        std::atomic<uint32_t> g_apiErrors{ 0 };
+        std::atomic<long> g_lastApiError{ 0 };
+        uint32_t g_apiErrorsLogged = 0;
+
+        void OnStreamlineApiError(const sl::APIError& error)
+        {
+            g_lastApiError.store(error.hres);
+            g_apiErrors.fetch_add(1);
+        }
+
+        void LogStreamlineApiErrors()
+        {
+            const uint32_t errors = g_apiErrors.load();
+            if (errors == g_apiErrorsLogged)
+                return;
+            LogLine("DLSS frame generation: " + std::to_string(errors - g_apiErrorsLogged)
+                    + " error(s) from its Present since the last frame, the last " + Hr(g_lastApiError.load()));
+            g_apiErrorsLogged = errors;
+        }
+
         void CopyMatrix(sl::float4x4& target, const float source[16])
         {
             for (int row = 0; row < 4; ++row)
@@ -228,10 +252,17 @@ namespace redefinition
         // to avoid a stutter when it comes back.
         const uint32_t limit = maxFrames ? maxFrames() : 0;
         const uint32_t frames = limit != 0 && limit < streamlineFrames ? limit : streamlineFrames;
+        LogStreamlineApiErrors();
         sl::DLSSGOptions options{};
         options.mode = sl::DLSSGMode::eOn;
         options.numFramesToGenerate = frames;
         options.flags = sl::DLSSGFlags::eRetainResourcesWhenOff;
+        // Only the frames DLSS-G generates on screen, to see them apart (Config.h).
+        if (Config().fgShowOnlyGenerated)
+            options.flags |= sl::DLSSGFlags::eShowOnlyInterpolatedFrame;
+        // "To obtain per-call API errors, you must provide an API error callback"
+        // (ProgrammingGuideDLSS_G.md 6.7): Present runs asynchronously in DLSS-G.
+        options.onErrorCallback = &OnStreamlineApiError;
         if (!streamlineApi.SetOptions(options))
         {
             StreamlineOffLocked("its options were not accepted");

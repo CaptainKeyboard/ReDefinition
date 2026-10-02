@@ -1,0 +1,10 @@
+Windows Registry Editor Version 5.00
+
+; NVIDIA NGX on-screen debug output for ReDefinition's vendor checks
+; (tools/vendor_probe.ps1): 0x400 lets development and production DLLs show
+; DLSS's indicator (NVIDIA/DLSS utils/ngx_driver_onscreenindicator.reg), and
+; DLSSG_IndicatorText 2 the detailed DLSS-G text. Undo with ngx_debug_off.reg.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\NVIDIA Corporation\Global\NGXCore]
+"ShowDlssIndicator"=dword:00000400
+"DLSSG_IndicatorText"=dword:00000002

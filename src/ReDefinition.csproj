@@ -120,6 +120,11 @@
       <HintPath>$(KspManaged)\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- The scene probe's capture of the finished frame (src/Probe/SceneProbe.cs). -->
+    <Reference Include="UnityEngine.ScreenCaptureModule">
+      <HintPath>$(KspManaged)\UnityEngine.ScreenCaptureModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- The player's download of NVIDIA's DLLs from NVIDIA's release
          (src/Window/NvidiaDownloader.cs). -->
     <Reference Include="UnityEngine.UnityWebRequestModule">

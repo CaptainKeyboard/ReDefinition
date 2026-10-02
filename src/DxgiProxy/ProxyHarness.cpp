@@ -2146,7 +2146,11 @@ int main()
             amdFrame.motionVectorScaleX = -static_cast<float>(amdRenderWidth);
             amdFrame.motionVectorScaleY = -static_cast<float>(amdRenderHeight);
             amdFrame.sharpness = 0.0f;
-            amdFrame.frameTimeDeltaMs = 16.7f;
+            // REDEFINITION_HARNESS_CHECKER: a frame time in seconds rather than
+            // milliseconds, which AMD's debug checker reports ("frameTimeDelta is less
+            // than 1.0f - this value should be milliseconds", super-resolution-
+            // upscaler.md): that its messages reach the log (vendorDiagnostics=1).
+            amdFrame.frameTimeDeltaMs = EnvironmentSet(L"REDEFINITION_HARNESS_CHECKER") ? 0.0167f : 16.7f;
             amdFrame.cameraNear = 0.1f;
             amdFrame.cameraFar = 1000.0f;
             amdFrame.verticalFovRadians = 1.0f;

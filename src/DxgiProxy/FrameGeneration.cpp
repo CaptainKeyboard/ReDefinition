@@ -293,6 +293,13 @@ namespace redefinition
         const bool async = Config().fgAsyncWorkloads;
         if (async)
             create.flags |= FFX_FRAMEGENERATION_ENABLE_ASYNC_WORKLOAD_SUPPORT;
+        // AMD's checks of what the proxy hands it: "will output textual warnings ...
+        // Calling ffxConfigure with fpMessage within a ffxConfigureDescGlobalDebug1
+        // structure ... allows the application to receive the debug messages issued"
+        // (frame-interpolation-api.md, Debug Checker).
+        const bool checked = Config().vendorDiagnostics;
+        if (checked)
+            create.flags |= FFX_FRAMEGENERATION_ENABLE_DEBUG_CHECKING;
 
         ffxCreateBackendDX12Desc backend = {};
         backend.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_DX12;
@@ -343,6 +350,18 @@ namespace redefinition
         contextCreated = true;
         contextRetryAfter = 0;
         ForgetContextFailuresLocked();
+        if (checked)
+        {
+            ffxConfigureDescGlobalDebug1 debug = {};
+            debug.header.type = FFX_API_CONFIGURE_DESC_TYPE_GLOBALDEBUG1;
+            debug.fpMessage = &FfxDebugMessage;
+            debug.debugLevel = FFX_API_CONFIGURE_GLOBALDEBUG_LEVEL_VERBOSE;
+            const ffxReturnCode_t configured = FidelityFx::Get().Api().Configure(&context, &debug.header);
+            LogLine("Frame generation: AMD's debug checker on (" + std::string(configured == FFX_API_RETURN_OK
+                                                                                  ? "its messages go into this log)"
+                                                                                  : "its messages refused, code "
+                                                                                        + std::to_string(static_cast<int>(configured)) + ")"));
+        }
         contextAsync = async;
         contextWidth = displayWidth;
         contextHeight = displayHeight;

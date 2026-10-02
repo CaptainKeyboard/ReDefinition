@@ -3,6 +3,8 @@
 #include "FileUtil.h"
 #include "Log.h"
 
+#include <map>
+#include <mutex>
 #include <string>
 
 namespace redefinition
@@ -53,5 +55,28 @@ namespace redefinition
         wchar_t loaded[MAX_PATH] = {};
         const DWORD length = GetModuleFileNameW(module, loaded, MAX_PATH);
         LogLine("FidelityFX runtime ready: " + Narrow(std::wstring(loaded, length)));
+    }
+
+    void FfxDebugMessage(uint32_t type, const wchar_t* message)
+    {
+        if (message == nullptr)
+            return;
+        static std::mutex lock;
+        static std::map<std::wstring, int> seen;
+        static int lines = 0;
+        constexpr int kTimesEach = 3;
+        constexpr int kLines = 300;
+        std::lock_guard<std::mutex> guard(lock);
+        if (lines >= kLines)
+            return;
+        int& count = seen[message];
+        if (++count > kTimesEach)
+            return;
+        ++lines;
+        const char* kind = type == FFX_API_MESSAGE_TYPE_ERROR ? "error" : type == FFX_API_MESSAGE_TYPE_WARNING ? "warning"
+                                                                                                              : "message";
+        LogLine(std::string("FidelityFX ") + kind + ": " + Narrow(message)
+                + (count == kTimesEach ? "   (not logged again)" : "")
+                + (lines == kLines ? "   (further FidelityFX messages are not logged)" : ""));
     }
 }
