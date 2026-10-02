@@ -88,12 +88,20 @@ namespace ReDefinition.Upscaler
                 // scene: that one is what Restore puts back, with the TAA it goes
                 // with.
                 BuiltinShaderMode now = GraphicsSettings.GetShaderMode(BuiltinShaderType.MotionVectors);
-                if (savedShaderMode == null || now != BuiltinShaderMode.UseBuiltin)
+                Shader custom = GraphicsSettings.GetCustomShader(BuiltinShaderType.MotionVectors);
+                Shader own = BuiltinMotionVectorShader();
+                if (savedShaderMode == null || now != BuiltinShaderMode.UseBuiltin
+                    || (custom != null && custom != own))
                 {
                     savedShaderMode = now;
-                    savedCustomShader = GraphicsSettings.GetCustomShader(BuiltinShaderType.MotionVectors);
+                    savedCustomShader = custom;
                 }
                 GraphicsSettings.SetShaderMode(BuiltinShaderType.MotionVectors, BuiltinShaderMode.UseBuiltin);
+                // The mode alone does not do it: with UseBuiltin set and Scatterer's
+                // shader left in the custom slot, RenderDoc still showed Scatterer's
+                // shader drawing the motion vector pass. With Unity's own shader in
+                // the slot, Unity's draws it.
+                if (own != null) GraphicsSettings.SetCustomShader(BuiltinShaderType.MotionVectors, own);
                 return;
             }
 
@@ -155,6 +163,15 @@ namespace ReDefinition.Upscaler
             foreach (Part part in vessel.parts)
                 if (part != null) renderers.AddRange(part.GetComponentsInChildren<Renderer>(true));
             return renderers;
+        }
+
+        private static Shader builtinMotionVectorShader;
+
+        private static Shader BuiltinMotionVectorShader()
+        {
+            if (builtinMotionVectorShader == null)
+                builtinMotionVectorShader = Shader.Find("Hidden/Internal-MotionVectors");
+            return builtinMotionVectorShader;
         }
 
         private static bool IsEnabled(Component component)
