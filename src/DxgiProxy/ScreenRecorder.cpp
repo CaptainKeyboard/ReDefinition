@@ -181,44 +181,51 @@ namespace redefinition
             std::string failure;
             do
             {
-                ComPtr<ID3D11Device> device;
-                ComPtr<ID3D11DeviceContext> context;
-                if (FAILED(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0,
-                                             D3D11_SDK_VERSION, &device, nullptr, &context)))
-                {
-                    failure = "no Direct3D 11 device for the recording";
-                    break;
-                }
-                ComPtr<IDXGIDevice> dxgiDevice;
-                ComPtr<IDXGIAdapter> adapter;
-                device.As(&dxgiDevice);
-                if (!dxgiDevice || FAILED(dxgiDevice->GetAdapter(&adapter)))
-                {
-                    failure = "no adapter";
-                    break;
-                }
-
-                // The output the game window is on.
+                // The output the game window is on, on whichever adapter drives that
+                // monitor: duplication needs a device on the output's own adapter,
+                // and the default adapter is not always the one (a monitor on the
+                // CPU's graphics beside the game's GPU).
                 HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY);
+                ComPtr<IDXGIFactory1> factory;
+                if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))))
+                {
+                    failure = "no DXGI factory for the recording";
+                    break;
+                }
+                ComPtr<IDXGIAdapter1> adapter;
                 ComPtr<IDXGIOutput> output;
                 DXGI_OUTPUT_DESC outputDesc = {};
-                for (UINT i = 0;; ++i)
+                for (UINT a = 0; !output; ++a)
                 {
-                    ComPtr<IDXGIOutput> candidate;
-                    if (adapter->EnumOutputs(i, &candidate) == DXGI_ERROR_NOT_FOUND) break;
-                    DXGI_OUTPUT_DESC desc = {};
-                    candidate->GetDesc(&desc);
-                    if (desc.Monitor == monitor)
+                    ComPtr<IDXGIAdapter1> candidateAdapter;
+                    if (factory->EnumAdapters1(a, &candidateAdapter) == DXGI_ERROR_NOT_FOUND) break;
+                    for (UINT i = 0;; ++i)
                     {
-                        output = candidate;
-                        outputDesc = desc;
-                        break;
+                        ComPtr<IDXGIOutput> candidate;
+                        if (candidateAdapter->EnumOutputs(i, &candidate) == DXGI_ERROR_NOT_FOUND) break;
+                        DXGI_OUTPUT_DESC desc = {};
+                        candidate->GetDesc(&desc);
+                        if (desc.Monitor == monitor)
+                        {
+                            adapter = candidateAdapter;
+                            output = candidate;
+                            outputDesc = desc;
+                            break;
+                        }
                     }
                 }
                 ComPtr<IDXGIOutput1> output1;
                 if (!output || FAILED(output.As(&output1)))
                 {
-                    failure = "the game's monitor is not on the default adapter";
+                    failure = "no adapter has the game's monitor among its outputs";
+                    break;
+                }
+                ComPtr<ID3D11Device> device;
+                ComPtr<ID3D11DeviceContext> context;
+                if (FAILED(D3D11CreateDevice(adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, 0, nullptr, 0,
+                                             D3D11_SDK_VERSION, &device, nullptr, &context)))
+                {
+                    failure = "no Direct3D 11 device for the recording";
                     break;
                 }
                 ComPtr<IDXGIOutputDuplication> duplication;
