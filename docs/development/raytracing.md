@@ -374,7 +374,7 @@ Each stage ends with its checks passing, a review, and one commit.
 
 Budget on the RTX 4090, 2560 by 1440 with DLSS Quality: everything together within 4 ms
 of GPU time. The test player's budget run renders 1707 by 960, as DLSS Quality does at
-that size, with 400 m of ground in 131 072 triangles, 404 instances and 20 008 from the
+that size, with 400 m of ground in 131 072 triangles, 404 instances and 25 096 from the
 GPU, every signal, two bounces and the denoiser: 1.92 ms **[meas]**. The denoiser takes
 1.38 ms of it, the scene's build 0.17 ms. The run renders without the vertical sync, as
 the game keeps the GPU busy: held to the display's refresh, the GPU idles most of each
