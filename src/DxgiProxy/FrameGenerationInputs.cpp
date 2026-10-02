@@ -467,7 +467,9 @@ namespace redefinition
 
         slot = newSlot % 2;
 
-        // The game's frames where the screen recording cannot copy the desktop's.
+        // This Present's game frame for a recording's frames.txt, and the game's frames
+        // where the screen recording cannot copy the desktop's.
+        NoteGamePresent(packet.frameIndex);
         if (backBuffer11)
             RecordBackBuffer(context11.Get(), backBuffer11.Get());
 

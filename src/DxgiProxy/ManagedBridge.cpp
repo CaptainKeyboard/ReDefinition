@@ -151,9 +151,10 @@ extern "C"
     }
 
     // The Debug tab's screen recording (ScreenRecorder.h): frames the monitor shows,
-    // generated ones included, into ReDefinitionCaptures\<time> beside KSP_x64.exe. 0
-    // where a recording already runs.
-    __declspec(dllexport) int KspRecordScreen(int frames)
+    // generated ones included, into ReDefinitionCaptures\<time> beside KSP_x64.exe, and
+    // with dumps not 0 frame generation's input dump into <time>-inputs. 0 where a
+    // recording already runs.
+    __declspec(dllexport) int KspRecordScreen(int frames, int dumps)
     {
         SYSTEMTIME now = {};
         GetLocalTime(&now);
@@ -163,7 +164,7 @@ extern "C"
         const std::wstring root = redefinition::ExecutableDirectory() + L"\\ReDefinitionCaptures";
         CreateDirectoryW(root.c_str(), nullptr);
         const bool started = redefinition::StartScreenRecording(frames, root + L"\\" + stamp);
-        if (started)
+        if (started && dumps != 0)
             redefinition::FrameGeneration::Get().StartInputDump(8, root + L"\\" + stamp + L"-inputs");
         return started ? 1 : 0;
     }

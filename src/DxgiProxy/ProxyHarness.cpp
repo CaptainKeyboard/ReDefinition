@@ -650,7 +650,7 @@ namespace
         const auto setEnabled = reinterpret_cast<SetEnabledFn>(GetProcAddress(dxgi, "KspFgSetEnabled"));
         const auto registerInputs = reinterpret_cast<RegisterInputsFn>(GetProcAddress(dxgi, "KspFgRegisterInputs3"));
         const auto status = reinterpret_cast<StatusFn>(GetProcAddress(dxgi, "KspFgStatus"));
-        using RecordFn = int(__cdecl*)(int);
+        using RecordFn = int(__cdecl*)(int, int);
         using RecordStateFn = int(__cdecl*)(char*, int);
         const auto record = reinterpret_cast<RecordFn>(GetProcAddress(dxgi, "KspRecordScreen"));
         const auto recordState = reinterpret_cast<RecordStateFn>(GetProcAddress(dxgi, "KspRecordScreenState"));
@@ -744,7 +744,7 @@ namespace
                     printf("      the replay window is not in front: nothing recorded\n");
                     break;
                 }
-                recording = record(static_cast<int>(frames.size()) * 4) == 1;
+                recording = record(static_cast<int>(frames.size()) * 4, 0) == 1;
             }
         }
         char line[512] = {};
@@ -1289,14 +1289,14 @@ int main()
         // The screen recording (ScreenRecorder.h) while it generates: the frames the
         // monitor shows, into ReDefinitionCaptures beside the harness.
         {
-            using RecordFn = int(__cdecl*)(int);
+            using RecordFn = int(__cdecl*)(int, int);
             using RecordStateFn = int(__cdecl*)(char*, int);
             HMODULE proxy = GetModuleHandleW(L"dxgi.dll");
             auto record = reinterpret_cast<RecordFn>(GetProcAddress(proxy, "KspRecordScreen"));
             auto recordState = reinterpret_cast<RecordStateFn>(GetProcAddress(proxy, "KspRecordScreenState"));
             if (record == nullptr || recordState == nullptr)
                 return Fail("the proxy exports no screen recording", E_FAIL);
-            if (record(40) != 1)
+            if (record(40, 1) != 1)
                 return Fail("the screen recording did not start", E_FAIL);
             char state[256] = {};
             for (int wait = 0; wait < 40; ++wait)
@@ -1321,6 +1321,32 @@ int main()
             if (from != std::string::npos && to != std::string::npos)
             {
                 const std::string folder = done.substr(from + 6, to - from - 6);
+                // Each recorded frame names the game's frame presented last before it
+                // (NoteGamePresent), and presents.txt lists the Presents.
+                int rows = 0, linked = 0;
+                FILE* table = nullptr;
+                if (fopen_s(&table, (folder + "\\frames.txt").c_str(), "r") == 0 && table != nullptr)
+                {
+                    char row[256];
+                    std::fgets(row, sizeof(row), table);
+                    while (std::fgets(row, sizeof(row), table) != nullptr)
+                    {
+                        unsigned index = 0, accumulated = 0, gameFrame = 0;
+                        double time = 0.0, since = 0.0;
+                        if (sscanf_s(row, "%u %lf %lf %u %u", &index, &time, &since, &accumulated, &gameFrame) == 5)
+                        {
+                            ++rows;
+                            if (gameFrame != 0)
+                                ++linked;
+                        }
+                    }
+                    std::fclose(table);
+                }
+                const bool presents = GetFileAttributesA((folder + "\\presents.txt").c_str()) != INVALID_FILE_ATTRIBUTES;
+                printf("      recorded frames with the game's frame: %d of %d, presents.txt %s\n", linked, rows,
+                       presents ? "written" : "missing");
+                if (rows == 0 || linked * 2 < rows || !presents)
+                    return Fail("the screen recording does not name the game's frames", E_FAIL);
                 WIN32_FIND_DATAA found = {};
                 const HANDLE search = FindFirstFileA((folder + "\\*").c_str(), &found);
                 if (search != INVALID_HANDLE_VALUE)

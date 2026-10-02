@@ -145,23 +145,26 @@ namespace ReDefinition
             }
         }
 
-        // When the Debug tab's screen recording starts; 0 when none is waiting.
+        // When the Debug tab's screen recording starts; 0 when none is waiting. With
+        // dumps, the stages', frame generation's inputs' and the vessel shadow's dumps of
+        // the same turn beside it; without, a recording nothing else slows.
         private float recordingAt;
+        private bool recordingDumps;
 
         private void Update()
         {
             if (recordingAt > 0f && Time.unscaledTime >= recordingAt)
             {
                 recordingAt = 0f;
-                bool started = ScreenRecordingBridge.Start(120);
+                bool started = ScreenRecordingBridge.Start(120, recordingDumps);
                 // The vessel shadow layer's own inputs and results beside it.
-                if (started)
+                if (started && recordingDumps)
                 {
                     VesselShadowLayer.DumpNextFrame();
                     StageDump.Arm();
                 }
-                Debug.Log(Log.Tag + " Screen recording " + (started ? "started." : "not started: "
-                                                                    + ScreenRecordingBridge.State() + "."));
+                Debug.Log(Log.Tag + " Screen recording " + (started ? "started" + (recordingDumps ? ", with dumps." : ", without dumps.")
+                                                                    : "not started: " + ScreenRecordingBridge.State() + "."));
             }
             if (HighLogic.LoadedScene != lastScene)
             {

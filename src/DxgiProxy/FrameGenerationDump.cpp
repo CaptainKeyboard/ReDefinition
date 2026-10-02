@@ -38,6 +38,27 @@ namespace redefinition
             }
         }
 
+        // A staging texture for a copy of source; reused where it already has its size
+        // and format.
+        void EnsureStaging(ID3D11Device* device, ID3D11Texture2D* source, Microsoft::WRL::ComPtr<ID3D11Texture2D>& staging)
+        {
+            D3D11_TEXTURE2D_DESC desc = {};
+            source->GetDesc(&desc);
+            if (staging)
+            {
+                D3D11_TEXTURE2D_DESC have = {};
+                staging->GetDesc(&have);
+                if (have.Width == desc.Width && have.Height == desc.Height && have.Format == desc.Format)
+                    return;
+                staging.Reset();
+            }
+            desc.Usage = D3D11_USAGE_STAGING;
+            desc.BindFlags = 0;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+            desc.MiscFlags = 0;
+            device->CreateTexture2D(&desc, nullptr, &staging);
+        }
+
         void AppendMatrix(std::string& text, const char* name, const float* m)
         {
             text += name;
@@ -63,11 +84,24 @@ namespace redefinition
         dumpRead = 0;
         dumpWaited = 0;
         dumpHaveForward = false;
+        dumpReady.clear();
     }
 
     // At Present, after the inputs were copied for this frame.
     void FrameGeneration::DumpInputsLocked(bool copied)
     {
+        ID3D11Texture2D* sources[4] = { S(hudLess).Valid() ? S(hudLess).d3d11.Get() : nullptr,
+                                        S(depth).Valid() ? S(depth).d3d11.Get() : nullptr,
+                                        S(motion).Valid() ? S(motion).d3d11.Get() : nullptr,
+                                        backBuffer11.Get() };
+        if (dumpToTake > 0 && dumpTaken.empty() && dumpReady.empty())
+        {
+            dumpReady.resize(static_cast<size_t>(dumpToTake));
+            for (DumpFrame& ready : dumpReady)
+                for (int i = 0; i < 4; ++i)
+                    if (sources[i] != nullptr)
+                        EnsureStaging(device11.Get(), sources[i], ready.staging[i]);
+        }
         if (dumpToTake > 0 && dumpTaken.empty() && dumpWaited < kDumpWaitFrames)
         {
             // Not yet turning: the frames of a turn are the ones worth looking at.
@@ -97,29 +131,30 @@ namespace redefinition
                 return;
             }
             DumpFrame frame;
+            if (!dumpReady.empty())
+            {
+                frame = std::move(dumpReady.back());
+                dumpReady.pop_back();
+            }
             frame.packet = packet;
             frame.flipped = flippedLastCopy;
-            ID3D11Texture2D* sources[4] = { S(hudLess).Valid() ? S(hudLess).d3d11.Get() : nullptr,
-                                            S(depth).Valid() ? S(depth).d3d11.Get() : nullptr,
-                                            S(motion).Valid() ? S(motion).d3d11.Get() : nullptr,
-                                            backBuffer11.Get() };
             for (int i = 0; i < 4; ++i)
             {
                 if (sources[i] == nullptr)
+                {
+                    frame.staging[i].Reset();
                     continue;
-                D3D11_TEXTURE2D_DESC desc = {};
-                sources[i]->GetDesc(&desc);
-                desc.Usage = D3D11_USAGE_STAGING;
-                desc.BindFlags = 0;
-                desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-                desc.MiscFlags = 0;
-                if (FAILED(device11->CreateTexture2D(&desc, nullptr, &frame.staging[i])))
-                    continue;
-                context11->CopyResource(frame.staging[i].Get(), sources[i]);
+                }
+                EnsureStaging(device11.Get(), sources[i], frame.staging[i]);
+                if (frame.staging[i])
+                    context11->CopyResource(frame.staging[i].Get(), sources[i]);
             }
-            dumpTaken.push_back(frame);
+            dumpTaken.push_back(std::move(frame));
             if (--dumpToTake == 0)
+            {
+                dumpReady.clear();
                 LogLine("Input dump: " + std::to_string(dumpTaken.size()) + " consecutive frames taken");
+            }
             return;
         }
 

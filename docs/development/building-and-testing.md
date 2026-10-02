@@ -373,14 +373,20 @@ build\DxgiProxy\Release\RaytracingHarness.exe
 generation receives into a folder ending in `-inputs`: the HUD-less colour, depth, motion
 vectors, the frame as presented and each frame's packet (`FrameGenerationDump.cpp`). The
 frames are taken from the first frame the camera turns by more than a degree, or after 600
-frames without. They are read back one texture a frame and written in a thread of their
-own: written at once, the files stalled the game for about 300 ms in the recording.
+frames without. The staging textures they are copied into are made while the dump waits
+for the turn, so the frames taken cost a copy each; they are read back one texture a frame
+and written in a thread of their own: written at once, the files stalled the game for
+about 300 ms in the recording.
 
 From the same turn, four frames of the stages go into a folder ending in `-stages`
 (`StageDump.cs`): the image the upscaler or DLSS Ray Reconstruction takes (`input`) and
 gives (`output`), and the raytracing's signals traced in that frame, `sun` with the kept
 view depth in w, `diffuse`, `specular`, `forward` and `depth`, rows bottom-up as Unity
 reads them back. `meta.txt` gives each frame's camera, without jitter, and the jitter.
+The textures are copied on the GPU into textures made while the dump waits for the turn,
+and read back one a frame afterwards through one buffer, so the frames dumped cost a copy
+each. `frames.txt` of the recording names each recorded frame's game frame, the number
+`meta.txt` and the input dump's `packetIndex` give.
 They show at which stage a fault enters the frame: in the signals, in the lighting that
 reads them, or in the upscaler.
 

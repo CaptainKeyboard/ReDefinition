@@ -304,9 +304,19 @@ namespace ReDefinition
             // 120 frames of what the monitor shows, frame generation's frames included,
             // into ReDefinitionCaptures beside KSP_x64.exe (ScreenRecordingBridge).
             // Five seconds after the click, time to close the windows and turn the camera.
+            // With the dumps of the same turn for comparing, or without, as nothing else
+            // slows the frames it shows.
             if (GUILayout.Button(recordingAt > 0f ? "Recording in " + Mathf.CeilToInt(recordingAt - Time.unscaledTime) + " s"
                                                   : "Record the screen in 5 s (120 frames)"))
+            {
                 recordingAt = Time.unscaledTime + 5f;
+                recordingDumps = true;
+            }
+            if (recordingAt <= 0f && GUILayout.Button("Record the screen in 5 s, without dumps"))
+            {
+                recordingAt = Time.unscaledTime + 5f;
+                recordingDumps = false;
+            }
             GUILayout.Label("Last recording: " + ScreenRecordingBridge.State());
 
             Heading("What the upscaler receives");

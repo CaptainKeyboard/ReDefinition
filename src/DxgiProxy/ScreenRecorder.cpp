@@ -55,6 +55,50 @@ namespace redefinition
         std::vector<BackBufferFrame> g_backFrames;
         DXGI_FORMAT g_backFormat = DXGI_FORMAT_UNKNOWN;
         UINT g_backWidth = 0, g_backHeight = 0;
+        // The game's Presents while a recording runs (NoteGamePresent): time, frame.
+        std::mutex g_presentLock;
+        std::vector<std::pair<LONGLONG, uint32_t>> g_presents;
+
+        // The game's frame presented last at or before time, or 0 where none was noted.
+        uint32_t GameFrameAt(const std::vector<std::pair<LONGLONG, uint32_t>>& presents, LONGLONG time)
+        {
+            uint32_t frame = 0;
+            for (const auto& present : presents)
+            {
+                if (present.first > time)
+                    break;
+                frame = present.second;
+            }
+            return frame;
+        }
+
+        std::vector<std::pair<LONGLONG, uint32_t>> TakePresents()
+        {
+            std::lock_guard<std::mutex> lock(g_presentLock);
+            std::vector<std::pair<LONGLONG, uint32_t>> presents;
+            presents.swap(g_presents);
+            return presents;
+        }
+
+        void WritePresents(const std::wstring& folder, const std::vector<std::pair<LONGLONG, uint32_t>>& presents,
+                           LONGLONG frequency)
+        {
+            std::string table = "presentTimeMs gameFrame\n";
+            for (const auto& present : presents)
+            {
+                char line[64];
+                std::snprintf(line, sizeof(line), "%.3f %u\n", present.first * 1000.0 / static_cast<double>(frequency),
+                              present.second);
+                table += line;
+            }
+            FILE* file = nullptr;
+            if (_wfopen_s(&file, (folder + L"\\presents.txt").c_str(), L"wb") == 0 && file != nullptr)
+            {
+                std::fwrite(table.data(), 1, table.size(), file);
+                std::fclose(file);
+            }
+        }
+
         std::mutex g_stateLock;
         std::string g_state = "never started";
 
@@ -323,7 +367,9 @@ namespace redefinition
                 }
                 LARGE_INTEGER frequency = {};
                 QueryPerformanceFrequency(&frequency);
-                std::string table = "frame presentTimeMs sinceBeforeMs accumulatedFrames\n";
+                const std::vector<std::pair<LONGLONG, uint32_t>> presents = TakePresents();
+                WritePresents(folder, presents, frequency.QuadPart);
+                std::string table = "frame presentTimeMs sinceBeforeMs accumulatedFrames gameFrame\n";
                 for (size_t i = 0; i < staged.size(); ++i)
                 {
                     D3D11_MAPPED_SUBRESOURCE mapped = {};
@@ -347,8 +393,8 @@ namespace redefinition
                     const double since = i == 0 ? 0.0
                         : (presentTimes[i] - presentTimes[i - 1]) * 1000.0 / static_cast<double>(frequency.QuadPart);
                     char line[128];
-                    std::snprintf(line, sizeof(line), "%03u %.3f %.3f %u\n", static_cast<unsigned>(i), ms, since,
-                                  accumulated[i]);
+                    std::snprintf(line, sizeof(line), "%03u %.3f %.3f %u %u\n", static_cast<unsigned>(i), ms, since,
+                                  accumulated[i], GameFrameAt(presents, presentTimes[i]));
                     table += line;
                 }
                 FILE* file = nullptr;
@@ -377,6 +423,10 @@ namespace redefinition
     {
         bool expected = false;
         if (!g_running.compare_exchange_strong(expected, true)) return false;
+        {
+            std::lock_guard<std::mutex> lock(g_presentLock);
+            g_presents.clear();
+        }
         if (frames < 1) frames = 1;
         if (frames > kMaxFrames) frames = kMaxFrames;
         HWND window = GetForegroundWindow();
@@ -384,6 +434,19 @@ namespace redefinition
         LogLine("Screen recording started: " + std::to_string(frames) + " frame(s)");
         std::thread(Record, frames, folder, window).detach();
         return true;
+    }
+
+    void NoteGamePresent(uint32_t gameFrame)
+    {
+        if (!g_running.load())
+            return;
+        LARGE_INTEGER now = {};
+        QueryPerformanceCounter(&now);
+        std::lock_guard<std::mutex> lock(g_presentLock);
+        // Ten seconds at 144 frames a second at most: a recording that never ends
+        // keeps no more.
+        if (g_presents.size() < 1440)
+            g_presents.emplace_back(now.QuadPart, gameFrame);
     }
 
     void RecordBackBuffer(ID3D11DeviceContext* context, ID3D11Texture2D* backBuffer)
@@ -483,7 +546,9 @@ namespace redefinition
             CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic));
             LARGE_INTEGER frequency = {};
             QueryPerformanceFrequency(&frequency);
-            std::string table = "frame presentTimeMs sinceBeforeMs accumulatedFrames\n";
+            const std::vector<std::pair<LONGLONG, uint32_t>> presents = TakePresents();
+            WritePresents(folder, presents, frequency.QuadPart);
+            std::string table = "frame presentTimeMs sinceBeforeMs accumulatedFrames gameFrame\n";
             for (size_t i = 0; i < frames.size() && wic; ++i)
             {
                 wchar_t name[32];
@@ -493,7 +558,8 @@ namespace redefinition
                 const double since = i == 0 ? 0.0
                     : (frames[i].presentTime - frames[i - 1].presentTime) * 1000.0 / static_cast<double>(frequency.QuadPart);
                 char line[128];
-                std::snprintf(line, sizeof(line), "%03u %.3f %.3f 1\n", static_cast<unsigned>(i), ms, since);
+                std::snprintf(line, sizeof(line), "%03u %.3f %.3f 1 %u\n", static_cast<unsigned>(i), ms, since,
+                              GameFrameAt(presents, frames[i].presentTime));
                 table += line;
             }
             FILE* file = nullptr;

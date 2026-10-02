@@ -554,7 +554,12 @@ In the diagnostics window's *Debug* tab
 * **Record the screen**: five seconds after the click, the proxy records 120 frames of
   what the monitor shows through DXGI desktop duplication, frame generation's frames
   included, as PNG files of a 1600x900 cut-out around the middle of the game window, with
-  `frames.txt` giving each frame's present time. An HDR or 10-bit desktop is taken through
+  `frames.txt` giving each frame's present time and the game's frame (Unity's frame count,
+  as in the dumps) presented last before it, and `presents.txt` each of the game's
+  Presents with its time and frame. A frame that frame generation made between two of the
+  game's frames is shown after the newer one's Present and carries its number too.
+  *Record the screen in 5 s, without dumps* records the same without the dumps below,
+  which then slow nothing the recording shows. An HDR or 10-bit desktop is taken through
   `DuplicateOutput1` and written as 8-bit sRGB. Where Windows refuses the desktop's copy
   (`DXGI_ERROR_UNSUPPORTED`, as with KSP in exclusive fullscreen at another size than the
   desktop's), the proxy records the game's own frames at its Presents instead, whole, read

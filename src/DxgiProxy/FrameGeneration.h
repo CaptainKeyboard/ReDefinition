@@ -400,6 +400,10 @@ namespace redefinition
             Microsoft::WRL::ComPtr<ID3D11Texture2D> staging[4];
         };
         std::vector<DumpFrame> dumpTaken;
+        // The staging textures for the frames to take, made while the dump waits for
+        // the camera to turn: made in the frames taken, thirty-two textures of up to
+        // 33 MB slowed exactly the frames the dump is about.
+        std::vector<DumpFrame> dumpReady;
         // Read back one texture a Present (dumpRead counts them), the rows kept until
         // all are read, then written in a thread of their own: the files of eight
         // frames, some hundred megabytes, written at once in Present stalled the game

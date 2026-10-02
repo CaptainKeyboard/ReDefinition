@@ -12,17 +12,18 @@ namespace ReDefinition.Bridges
         private const string Proxy = "dxgi.dll";
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
-        private static extern int KspRecordScreen(int frames);
+        private static extern int KspRecordScreen(int frames, int dumps);
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspRecordScreenState(StringBuilder buffer, int size);
 
-        // False where a recording runs or the proxy has none.
-        internal static bool Start(int frames)
+        // False where a recording runs or the proxy has none. With dumps, frame
+        // generation's input dump beside it.
+        internal static bool Start(int frames, bool dumps)
         {
             try
             {
-                return KspRecordScreen(frames) == 1;
+                return KspRecordScreen(frames, dumps ? 1 : 0) == 1;
             }
             catch (Exception e) when (e is DllNotFoundException || e is EntryPointNotFoundException)
             {
