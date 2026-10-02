@@ -248,8 +248,8 @@ namespace ReDefinition.Upscaler
             if (vessel != null)
             {
                 int frozen = 0;
-                Renderer[] renderers = vessel.GetComponentsInChildren<Renderer>(true);
-                for (int i = 0; i < renderers.Length; i++)
+                List<Renderer> renderers = VesselRenderers(vessel);
+                for (int i = 0; i < renderers.Count; i++)
                     if (renderers[i] != null
                         && renderers[i].motionVectorGenerationMode == MotionVectorGenerationMode.ForceNoMotion)
                         frozen++;
@@ -258,8 +258,8 @@ namespace ReDefinition.Upscaler
                 {
                     Label = "Vessel renderers",
                     Value = frozen == 0
-                        ? renderers.Length + " renderers, none on ForceNoMotion"
-                        : frozen + " of " + renderers.Length + " on ForceNoMotion -- these will smear",
+                        ? renderers.Count + " renderers, none on ForceNoMotion"
+                        : frozen + " of " + renderers.Count + " on ForceNoMotion -- these will smear",
                     Ok = frozen == 0,
                     Present = true,
                 });

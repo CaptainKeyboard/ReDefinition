@@ -122,12 +122,12 @@ namespace ReDefinition.Upscaler
         // vessels keep arriving on ForceNoMotion, and the sweep repeats.
         private static int ReleaseMotionVectorModes(bool activeVesselOnly)
         {
-            Renderer[] renderers;
+            IList<Renderer> renderers;
             if (activeVesselOnly)
             {
                 Vessel vessel = ActiveVessel();
                 if (vessel == null) return 0;
-                renderers = vessel.GetComponentsInChildren<Renderer>(true);
+                renderers = VesselRenderers(vessel);
             }
             else
             {
@@ -135,7 +135,7 @@ namespace ReDefinition.Upscaler
             }
 
             int freed = 0;
-            for (int i = 0; i < renderers.Length; i++)
+            for (int i = 0; i < renderers.Count; i++)
             {
                 Renderer renderer = renderers[i];
                 if (renderer == null) continue;
@@ -144,6 +144,17 @@ namespace ReDefinition.Upscaler
                 freed++;
             }
             return freed;
+        }
+
+        // A vessel's renderers. In flight its parts are not children of its
+        // transform: GetComponentsInChildren on the vessel finds the root part's
+        // alone (17 of 382 renderers on a Kerbal X).
+        private static List<Renderer> VesselRenderers(Vessel vessel)
+        {
+            List<Renderer> renderers = new List<Renderer>();
+            foreach (Part part in vessel.parts)
+                if (part != null) renderers.AddRange(part.GetComponentsInChildren<Renderer>(true));
+            return renderers;
         }
 
         private static bool IsEnabled(Component component)
