@@ -6,11 +6,41 @@ namespace ReDefinition.Raytracing
     // What the rays see in KSP (docs/development/raytracing.md, "What the rays see").
     // Each source keeps its renderers and hands those in range over every frame.
 
-    // Opaque, drawn, on a layer the scene camera draws.
+    // Opaque, drawn, on a layer the scene camera draws, and not hung on a camera.
     internal static class RtFilter
     {
         // The scene camera's culling mask, set each frame (RtKsp).
         internal static int CullingMask = ~0;
+
+        // What hangs on a camera is no part of the scene: mods hang helper meshes
+        // there for Unity to run a pass -- EVE a quad with EVE/InvisibleShadowCaster
+        // under FlightCamera (ScreenSpaceShadowsManager), Deferred one with
+        // Deferred/DummyForwardShader under the camera it works on
+        // (ForwardRenderingCompatibility), both with bounds far beyond the quad so
+        // that nothing culls them (Atmosphere.dll, Deferred.dll, decompiled). The
+        // flight camera itself hangs under the vessel it follows, among the renderers
+        // the vessel's parts are read from: taken in, such a quad would stand at the
+        // eye and cast a shadow. Found anew every frame (RtKsp): cameras come and go,
+        // and the flight camera moves from vessel to vessel.
+        private static readonly HashSet<Renderer> onCameras = new HashSet<Renderer>();
+        private static readonly List<Renderer> found = new List<Renderer>();
+        private static Camera[] cameras = new Camera[8];
+
+        internal static void FindOnCameras(Transform flightCamera)
+        {
+            onCameras.Clear();
+            if (cameras.Length < Camera.allCamerasCount) cameras = new Camera[Camera.allCamerasCount * 2];
+            int count = Camera.GetAllCameras(cameras);
+            for (int i = 0; i < count; i++)
+                if (cameras[i] != null) Take(cameras[i].transform);
+            if (flightCamera != null) Take(flightCamera);
+        }
+
+        private static void Take(Transform root)
+        {
+            root.GetComponentsInChildren(true, found);
+            foreach (Renderer renderer in found) onCameras.Add(renderer);
+        }
 
         // Parallax's material for a quad whose finer copy draws in its place: it
         // discards everything (DiscardAll.shader), at the alpha-test queue.
@@ -39,7 +69,7 @@ namespace ReDefinition.Raytracing
         internal static bool Drawn(Renderer renderer)
         {
             return renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy
-                   && (CullingMask & (1 << renderer.gameObject.layer)) != 0;
+                   && (CullingMask & (1 << renderer.gameObject.layer)) != 0 && !onCameras.Contains(renderer);
         }
 
         internal static void Add(Renderer renderer, Mesh mesh, List<RtItem> into, uint flags = 0)

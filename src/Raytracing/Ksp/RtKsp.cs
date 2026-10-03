@@ -73,6 +73,7 @@ namespace ReDefinition.Raytracing
             // What the scene camera draws is what the rays see: FreeIva's and
             // ThroughTheEyes' IVA layers stay out, as the internal camera draws them.
             RtFilter.CullingMask = sceneCamera.cullingMask;
+            RtFilter.FindOnCameras(FlightCamera.fetch != null ? FlightCamera.fetch.transform : null);
             if (attached != null && attachedTo == sceneCamera && attached.enabled)
             {
                 RtKspMods.HoldPlanetShine((mode == RaytracingMode.Light || mode == RaytracingMode.Full) && Probe() != null);
