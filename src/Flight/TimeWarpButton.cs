@@ -46,6 +46,13 @@ namespace ReDefinition.Flight
         private static float lookedAt = -10f;
         private static int routed;
 
+        // Whether the mod's own button is drawn through Toggle, which hides it while
+        // the copy stands: without that, a copy would stand beside it.
+        internal static bool Routed
+        {
+            get { return routed == 2; }
+        }
+
         internal static bool Installed
         {
             get { return UiScaling.TypeOf(ModType) != null; }
@@ -75,10 +82,13 @@ namespace ReDefinition.Flight
         }
 
         // The mod's GUI.Toggle through Toggle, and the Rect built right before it
-        // through Place.
+        // through Place -- both or neither: the toggle routed without its Rect would
+        // draw the button where the mod put it, hidden only where the copy stands.
         private static IEnumerable<CodeInstruction> Route(IEnumerable<CodeInstruction> instructions)
         {
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> original = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> code = new List<CodeInstruction>(original);
+            routed = 0;
             ConstructorInfo rect = typeof(Rect).GetConstructor(new[] { typeof(float), typeof(float), typeof(float), typeof(float) });
             MethodInfo place = typeof(TimeWarpButton).GetMethod(nameof(Place), BindingFlags.Static | BindingFlags.NonPublic);
             MethodInfo toggle = typeof(TimeWarpButton).GetMethod(nameof(Toggle), BindingFlags.Static | BindingFlags.NonPublic);
@@ -98,7 +108,9 @@ namespace ReDefinition.Flight
                 }
                 break;
             }
-            return code;
+            if (routed == 2) return code;
+            routed = 0;
+            return original;
         }
 
         private static bool Toggle(Rect position, bool value, GUIContent content, GUIStyle style)
@@ -170,7 +182,7 @@ namespace ReDefinition.Flight
         private IEnumerator Start()
         {
             System.Type type = UiScaling.TypeOf(TimeWarpButton.ModType);
-            if (type == null) yield break;
+            if (type == null || !TimeWarpButton.Routed) yield break;
             float until = Time.unscaledTime + 15f;
             UIWarpToNextMorning sunrise = null;
             while (Time.unscaledTime < until)

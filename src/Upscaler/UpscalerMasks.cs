@@ -323,7 +323,10 @@ namespace ReDefinition.Upscaler
             if (modsChecked) return;
             modsChecked = true;
             clouds = EveCloudMotion.Present;
-            ocean = TypeLookup.Find("Scatterer.OceanCommandBuffer") != null;
+            // The globals Scatterer sets for its ocean, checked in its code
+            // (ForeignAssumptions.ScattererOceanMask): renamed, they would read as
+            // no ocean anywhere, unseen.
+            ocean = ForeignAssumptions.ScattererOceanMask.Holds;
         }
 
         // Once a second: the renderers with a transparent material. Visibility is

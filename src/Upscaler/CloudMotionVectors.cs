@@ -213,10 +213,14 @@ namespace ReDefinition.Upscaler
             if (reconstruction != judgedReconstruction)
             {
                 judgedReconstruction = reconstruction;
-                reconstructionVerdict = reconstruction.name == EveCloudMotion.KnownReconstruction
-                    ? null
-                    : "EVE reconstructs its clouds with " + reconstruction.name + ", which leaves no motion vectors"
-                      + " this build reads (it reads " + EveCloudMotion.KnownReconstruction + "'s, Scatterer's)";
+                reconstructionVerdict = reconstruction.name != EveCloudMotion.KnownReconstruction
+                    ? "EVE reconstructs its clouds with " + reconstruction.name + ", which leaves no motion vectors"
+                      + " this build reads (it reads " + EveCloudMotion.KnownReconstruction + "'s, Scatterer's)"
+                    // The same name over other code: what it writes is not known to be
+                    // what is read (ForeignAssumptions; the Debug tab says what changed).
+                    : !ForeignAssumptions.EveCloudMotion.Holds || !ForeignAssumptions.ScattererCloudReconstruction.Holds
+                        ? "the clouds' reconstruction is not the code this build reads"
+                        : null;
             }
             fromShell = reconstructionVerdict != null;
             if (fromShell)

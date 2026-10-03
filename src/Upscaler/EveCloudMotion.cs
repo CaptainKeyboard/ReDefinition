@@ -89,6 +89,10 @@ namespace ReDefinition.Upscaler
             Resolve();
             Type renderer = TypeLookup.Find(RendererTypeName);
             if (renderer == null) return;
+            // Its code checked first (ForeignAssumptions.EveCloudJitter): where it is
+            // not the one this hook was written against, the clouds render as EVE
+            // renders them, and the report says why.
+            if (!ForeignAssumptions.EveCloudJitter.Holds) return;
             // EVE with its clouds but without the helper is another build: said,
             // like any other member missing.
             Type vrUtils = TypeLookup.Find(VrUtilsTypeName);
@@ -228,6 +232,9 @@ namespace ReDefinition.Upscaler
         // where there is no composite.
         internal static float Fade()
         {
+            // A renamed property would read 0, the clouds gone from the masks unseen:
+            // the name is checked in EVE's code (ForeignAssumptions.EveCloudComposite).
+            if (!ForeignAssumptions.EveCloudComposite.Holds) return 1f;
             Material material = Composite();
             return material != null ? material.GetFloat(FadeId) : 1f;
         }
@@ -240,6 +247,7 @@ namespace ReDefinition.Upscaler
         internal static bool Shell(out float inner, out float outer)
         {
             inner = outer = 0f;
+            if (!ForeignAssumptions.EveCloudComposite.Holds) return false;
             Material material = Composite();
             if (material == null) return false;
             inner = material.GetFloat(InnerRadiusId);

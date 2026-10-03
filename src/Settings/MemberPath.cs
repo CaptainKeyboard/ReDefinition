@@ -375,6 +375,15 @@ namespace ReDefinition.Settings
             return assemblies.Contains(assembly);
         }
 
+        // Whether code of the folder's assemblies loads the string -- a shader
+        // property or global the mod sets by name (ForeignCode).
+        public bool Loads(string literal)
+        {
+            foreach (Assembly assembly in assemblies)
+                if (ForeignCode.AssemblyLoads(assembly, literal)) return true;
+            return false;
+        }
+
         // In the order the assemblies were loaded; null where none has it.
         internal Type FindType(string name)
         {

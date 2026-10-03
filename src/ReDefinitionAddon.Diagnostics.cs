@@ -30,6 +30,7 @@ namespace ReDefinition
         // from the GPU and cost frame rate while they are shown.
         private bool previewVisible;
         private bool registrationsVisible;
+        private bool foreignCodeVisible;
         private Vector2 registrationsScroll;
         private const float RegistrationsHeight = 260f;
         private UpscalerRig.PreviewMode previewMode = UpscalerRig.PreviewMode.MotionVectors;
@@ -422,7 +423,37 @@ namespace ReDefinition
 
             GUILayout.Space(6f);
 
+            DrawForeignCode();
+
+            GUILayout.Space(6f);
+
             DrawPreview();
+        }
+
+        // What came of the assumptions about other mods' code (ForeignAssumptions):
+        // the installed mods' ones, those not verified first and coloured.
+        private void DrawForeignCode()
+        {
+            if (GUILayout.Button(foreignCodeVisible ? "Hide other mods' code" : "Show other mods' code"))
+                foreignCodeVisible = !foreignCodeVisible;
+            if (!foreignCodeVisible) return;
+
+            List<ForeignAssumption> installed = ForeignAssumptions.Installed();
+            if (installed.Count == 0)
+            {
+                GUILayout.Label("None of the mods whose code ReDefinition relies on is installed.");
+                return;
+            }
+            Color previous = GUI.color;
+            foreach (ForeignState state in new[] { ForeignState.Broken, ForeignState.Changed, ForeignState.Verified })
+            foreach (ForeignAssumption assumption in installed)
+            {
+                if (assumption.State != state) continue;
+                GUI.color = state == ForeignState.Verified ? previous
+                    : assumption.Holds ? new Color(1f, 0.9f, 0.4f) : new Color(1f, 0.6f, 0.3f);
+                GUILayout.Label(ForeignAssumptionReport.Line(assumption));
+            }
+            GUI.color = previous;
         }
 
         // What the mod registrations built (docs/modders/registering-a-mod.md): the

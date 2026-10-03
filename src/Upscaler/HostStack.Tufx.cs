@@ -40,6 +40,13 @@ namespace ReDefinition.Upscaler
                 tufxBackups[profile] = new TufxBackup { Primary = mode, Secondary = secondary };
             }
 
+            // TUFX's antialiasing modes as PostProcessing v2 names them; without a
+            // None there is nothing to set.
+            if (!Enum.IsDefined(modeType, "None"))
+            {
+                if (report != null) report.Append("TUFX has no antialiasing mode None.");
+                return;
+            }
             object none = Enum.Parse(modeType, "None");
             tufxBackups[profile].Applied = none;
             TrySetAaMode(profile, profileType, "Antialiasing", none);

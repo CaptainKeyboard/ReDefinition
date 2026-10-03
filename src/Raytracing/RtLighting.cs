@@ -1,3 +1,4 @@
+using ReDefinition.Core;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -53,7 +54,11 @@ namespace ReDefinition.Raytracing
             }
 
             Shader current = GraphicsSettings.GetCustomShader(BuiltinShaderType.DeferredReflections);
-            if (reflections != null && current != reflections && current != null && current.name == DeferredReflectionsName)
+            // The copy reads the globals Deferred sets, checked in Deferred's code
+            // (ForeignAssumptions.DeferredReflections): renamed, it would light with
+            // zeros where Deferred's own would not.
+            if (reflections != null && current != reflections && current != null && current.name == DeferredReflectionsName
+                && ForeignAssumptions.DeferredReflections.Holds)
             {
                 reflectionsBefore = current;
                 GraphicsSettings.SetCustomShader(BuiltinShaderType.DeferredReflections, reflections);

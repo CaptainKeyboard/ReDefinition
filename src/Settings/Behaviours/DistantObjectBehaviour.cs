@@ -242,7 +242,9 @@ namespace ReDefinition.Settings.Behaviours
                 ? darken.GetMethod("Update", BindingFlags.NonPublic | BindingFlags.Instance, null, Type.EmptyTypes, null)
                 : null;
             solarSystem = engine != null ? engine.GetProperty("Instance", BindingFlags.NonPublic | BindingFlags.Static) : null;
-            planetsBrightness = contract != null ? contract.GetMethod("CalculatePlanetsBrightness") : null;
+            planetsBrightness = contract != null
+                ? contract.GetMethod("CalculatePlanetsBrightness", new[] { typeof(double), typeof(double), typeof(double), typeof(Camera) })
+                : null;
             settingsInstance = instance;
             skybox = settingsType.GetField("SkyboxBrightness", TypeLookup.Any);
             Type group = skybox != null ? skybox.FieldType : null;
@@ -252,6 +254,16 @@ namespace ReDefinition.Settings.Behaviours
                 minimumTargetRelativeAngle = group.GetField("minimumTargetRelativeAngle", TypeLookup.Any);
                 referenceBodySize = group.GetField("referenceBodySize", TypeLookup.Any);
                 maxBrightness = group.GetField("maxBrightness", TypeLookup.Any);
+            }
+            // DarkenSky.Update is replaced in part by what was read out of its code, and
+            // CalculatePlanetsBrightness called with its arguments by position: both
+            // checked first (ForeignAssumptions.DistantObjectSky).
+            if (ForeignAssumptions.DistantObjectSky.State != ForeignState.Absent && !ForeignAssumptions.DistantObjectSky.Holds)
+            {
+                hooked.Drop("DarkenSky.Update", "Distant Object's sky dimming is not the code this build was written"
+                                                + " against, so it dims the sky its own way: on the night side the stars"
+                                                + " still go out towards the sun behind the planet");
+                return;
             }
             if (update == null || solarSystem == null || planetsBrightness == null || minimumSignificantBodySize == null
                 || minimumTargetRelativeAngle == null || referenceBodySize == null || maxBrightness == null)

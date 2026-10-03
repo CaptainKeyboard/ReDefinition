@@ -747,6 +747,15 @@ namespace ReDefinition.Settings
                 problems.Add(where + ": shaderGlobal takes a number that reads the right way round -- ignored.");
                 global = null;
             }
+            // The global is set by name, which the mod's code must still use: renamed,
+            // setting it would reach nothing, unseen.
+            if (global != null && folder != null && !folder.Loads(global))
+            {
+                problems.Add(where + ": shaderGlobal " + global + " is not set anywhere in " + ModName
+                             + "'s code -- ignored; the value takes effect when " + ModName + " next reads it.");
+                global = null;
+                if (call == null && window == ApplyWindow.Live) window = ApplyWindow.NextScene;
+            }
             string key = "after-" + Id + "-" + entry.After;
             MemberPath follow = call;
             string after = entry.After;

@@ -17,9 +17,10 @@ namespace ReDefinition.Upscaler
     //
     // A renderer gets its camera's size -- pixelWidth, which for a redirected
     // camera is the rig texture's and for any other the screen's, as Scatterer
-    // takes it -- the fraction Scatterer takes of it, and Scatterer's own
-    // ResizeRenderTextures, but only when the size really differs: a resize
-    // releases the godrays' history as Scatterer's own screenshot resize does.
+    // takes it -- the fraction Scatterer takes of it, as Scatterer's Init left it
+    // in screenWidth over renderWidth, and Scatterer's own ResizeRenderTextures,
+    // but only when the size really differs: a resize releases the godrays'
+    // history as Scatterer's own screenshot resize does.
     // Checked whenever the rig attaches or detaches, and -- since Scatterer
     // makes godrays whenever it loads a body's effects, often with the rig long
     // in place (SkyNode.Init) -- straight after each Init, through a Harmony
@@ -54,7 +55,6 @@ namespace ReDefinition.Upscaler
         private static FieldInfo screenHeight;
         private static FieldInfo renderWidth;
         private static FieldInfo renderHeight;
-        private static FieldInfo useTerrainGodrays;
         private static FieldInfo occlusionMaterial;
         private static FieldInfo downscaledDepth;
         private static MethodInfo resize;
@@ -71,8 +71,7 @@ namespace ReDefinition.Upscaler
             {
                 Resolve();
                 return godraysType != null && screenWidth != null && screenHeight != null && renderWidth != null
-                       && renderHeight != null && useTerrainGodrays != null && occlusionMaterial != null
-                       && downscaledDepth != null && resize != null;
+                       && renderHeight != null && occlusionMaterial != null && downscaledDepth != null && resize != null;
             }
         }
 
@@ -81,6 +80,10 @@ namespace ReDefinition.Upscaler
         {
             Resolve();
             if (godraysType == null) return;
+            // Its code checked first (ForeignAssumptions.ScattererGodrays): where
+            // what is named here is missing, neither hook goes in, and the report
+            // says why.
+            if (!ForeignAssumptions.ScattererGodrays.Holds) return;
 
             if (Present && init != null)
             {
@@ -166,6 +169,10 @@ namespace ReDefinition.Upscaler
             try
             {
                 if (!__result) return;
+                // Init has just set the fractions anew -- with or without terrain
+                // godrays: read again.
+                Component component = __instance as Component;
+                if (component != null) divisors.Remove(component.GetInstanceID());
                 UpscalerRig rig = UpscalerRig.Current;
                 if (rig == null) return;   // nothing redirected: Scatterer's own size is right
 
@@ -182,7 +189,7 @@ namespace ReDefinition.Upscaler
 
         public static void AfterRenderSizeChange(string reason)
         {
-            if (!Present) return;
+            if (!Present || !ForeignAssumptions.ScattererGodrays.Holds) return;
 
             int resized = 0;
             foreach (Object found in Object.FindObjectsOfType(godraysType))
@@ -216,10 +223,12 @@ namespace ReDefinition.Upscaler
             Camera camera = renderer.GetComponent<Camera>();
             if (camera == null) return false;
 
+            Vector2Int divisor = Divisor(renderer);
+            if (divisor.x <= 0 || divisor.y <= 0) return false;
             int width = camera.pixelWidth;
             int height = camera.pixelHeight;
-            int partWidth = width / 4;
-            int partHeight = (bool)useTerrainGodrays.GetValue(renderer) ? height / 2 : height / 4;
+            int partWidth = width / divisor.x;
+            int partHeight = height / divisor.y;
 
             if ((int)renderWidth.GetValue(renderer) == partWidth && (int)renderHeight.GetValue(renderer) == partHeight)
                 return false;
@@ -231,6 +240,25 @@ namespace ReDefinition.Upscaler
             material.SetVector("godrayRenderingResolution", new Vector2(partWidth, partHeight));
             resize.Invoke(renderer, new object[] { false });
             return true;
+        }
+
+        // The fraction of its screen Scatterer renders a renderer's godrays at, as its
+        // Init set them -- a quarter of the width, a half or a quarter of the height --,
+        // read once per renderer before anything here changes them: afterwards both
+        // sizes are the ones set here, in the same ratio. Zero where Init has not run.
+        private static readonly System.Collections.Generic.Dictionary<int, Vector2Int> divisors =
+            new System.Collections.Generic.Dictionary<int, Vector2Int>();
+
+        private static Vector2Int Divisor(Component renderer)
+        {
+            Vector2Int divisor;
+            if (divisors.TryGetValue(renderer.GetInstanceID(), out divisor)) return divisor;
+            int fullWidth = (int)screenWidth.GetValue(renderer), fullHeight = (int)screenHeight.GetValue(renderer);
+            int partWidth = (int)renderWidth.GetValue(renderer), partHeight = (int)renderHeight.GetValue(renderer);
+            if (fullWidth <= 0 || fullHeight <= 0 || partWidth <= 0 || partHeight <= 0) return Vector2Int.zero;
+            divisor = new Vector2Int(Mathf.RoundToInt((float)fullWidth / partWidth), Mathf.RoundToInt((float)fullHeight / partHeight));
+            divisors[renderer.GetInstanceID()] = divisor;
+            return divisor;
         }
 
         private static void Resolve()
@@ -245,7 +273,6 @@ namespace ReDefinition.Upscaler
             screenHeight = godraysType.GetField("screenHeight", TypeLookup.Any);
             renderWidth = godraysType.GetField("renderWidth", TypeLookup.Any);
             renderHeight = godraysType.GetField("renderHeight", TypeLookup.Any);
-            useTerrainGodrays = godraysType.GetField("useTerrainGodrays", TypeLookup.Any);
             occlusionMaterial = godraysType.GetField("scatteringOcclusionMaterial", TypeLookup.Any);
             downscaledDepth = godraysType.GetField("downscaledDepth", TypeLookup.Any);
             resize = godraysType.GetMethod("ResizeRenderTextures", TypeLookup.Any, null, new[] { typeof(bool) }, null);
