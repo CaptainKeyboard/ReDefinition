@@ -127,6 +127,7 @@ namespace ReDefinition.Raytracing
         private int frame;
         private int epoch;
         private readonly Stack<TextureRead> idleReads = new Stack<TextureRead>();
+        private int lostTargets;
         private int readsInFlight;
         // Where AsyncGPUReadback is not supported: read at once into this texture.
         private Texture2D textureRead;
@@ -483,6 +484,16 @@ namespace ReDefinition.Raytracing
         private void ReadTexture(Material material, MaterialEntry entry, Texture texture, bool worldMapped)
         {
             TextureRead read = idleReads.Count > 0 ? idleReads.Pop() : NewRead();
+            // A pooled target destroyed under it -- a scene change's unloading of
+            // unused assets took them before they were marked (NewRead) -- is
+            // replaced: AsyncGPUReadback.Request on it throws.
+            if (read.Target == null)
+            {
+                lostTargets++;
+                Debug.Log("[ReDefinition] Raytracing: a texture read target was destroyed while pooled, made anew ("
+                          + lostTargets + " so far).");
+                read = NewRead();
+            }
             read.Material = material;
             read.Entry = entry;
             read.Layer = entry.Layer;
@@ -521,7 +532,12 @@ namespace ReDefinition.Raytracing
             int size = RtNative.MaterialTextureSize;
             var read = new TextureRead
             {
-                Target = new RenderTexture(size, size, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default),
+                // Pooled across scenes: the unloading of unused assets at a scene
+                // change destroyed pooled targets without it (counted in the log).
+                Target = new RenderTexture(size, size, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default)
+                {
+                    hideFlags = HideFlags.DontUnloadUnusedAsset,
+                },
             };
             read.Target.Create();
             read.Done = request => Done(read, request);
