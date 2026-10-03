@@ -169,6 +169,7 @@ namespace
         std::vector<float> positions;
         std::vector<float> normals;
         std::vector<float> uvs;   // two a vertex, or none
+        std::vector<uint32_t> colors;   // RGBA bytes a vertex, or none
         std::vector<uint32_t> indices;
         ComPtr<ID3D11Buffer> vertexBuffer;
         ComPtr<ID3D11Buffer> indexBuffer;
@@ -678,6 +679,7 @@ PsOut PsMain(VsOut input)
         desc.positions = mesh.positions.data();
         desc.normals = mesh.normals.data();
         desc.uvs = mesh.uvs.empty() ? nullptr : mesh.uvs.data();
+        desc.colors = mesh.colors.empty() ? nullptr : mesh.colors.data();
         desc.indices = mesh.indices.data();
         return proxy.setMesh(&desc);
     }
@@ -941,9 +943,11 @@ PsOut PsMain(VsOut input)
         WriteBmp(NextToExecutable(name), kWidth, kHeight, rgb);
     }
 
-    int SendMaterial(Proxy& proxy, int id, const float albedo[3], const float emission[3], float smoothness)
+    int SendMaterial(Proxy& proxy, int id, const float albedo[3], const float emission[3], float smoothness,
+                     float vertexColour = 0.0f)
     {
         RtMaterialDesc desc = {};
+        desc.vertexColour = vertexColour;
         desc.size = sizeof(desc);
         desc.magic = kRtMaterialMagic;
         desc.material = id;
@@ -2498,6 +2502,56 @@ int main()
         Check(seen && std::fabs(open - wanted) < 0.05 * wanted && shaded < 0.05 * wanted
                   && std::fabs(mainBody - moon) < 0.05 * moon && otherBody >= 0.0 && otherBody < 0.01 * moon,
               "moonlight", detail);
+    }
+
+    // ---------------------------------------------------------------- vertex colours
+    {
+        // The ground as Parallax's terrain: a colour in Unity's colour space plus the
+        // vertex colour times a factor, taken to linear as a whole. In gamma space,
+        // without a G-buffer, under a white sky and nothing else, the forward light of
+        // the open ground is that sum.
+        Mesh coloured = MakePlane(50, 32);
+        const uint32_t vertex = 0x00996633u;   // R 0x33, G 0x66, B 0x99
+        coloured.colors.assign(coloured.positions.size() / 3, vertex);
+        const float base[3] = { 0.1f, 0.1f, 0.1f };
+        const float none[3] = { 0.0f, 0.0f, 0.0f };
+        const float factor = 0.5f;
+        const bool sent = SendMesh(proxy, coloured) == 1 && SendMaterial(proxy, 51, base, none, 0.0f, factor) == 1;
+        std::vector<Instance> ground = scene;
+        ground[0].mesh = 50;
+        ground[0].material = 51;
+        SendInstances(proxy, ground, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        Lighting lighting;
+        lighting.gbuffer = false;
+        lighting.gamma = true;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.bounces = 0.0f;
+        lighting.flags = kRtFrameDenoise | kRtFrameReset;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 16000,
+                  kRtSignalSunVisibility | kRtSignalDiffuse | kRtSignalAmbientOcclusion | kRtSignalForwardLight, lighting);
+        std::vector<uint16_t> forward;
+        ReadTexture(device.Get(), context.Get(), outputs.forward.Get(), 8, forward);
+        std::vector<double> image(static_cast<size_t>(kWidth) * kHeight * 3);
+        for (size_t i = 0; i < image.size() / 3; ++i)
+            for (int c = 0; c < 3; ++c)
+                image[i * 3 + c] = HalfToFloat(forward[i * 4 + c]);
+        int x = 0, y = 0;
+        const bool seen = Project(camera, Vec3{ 15, 0, -15 } - camera.position, x, y);
+        double got[3], want[3];
+        bool right = sent && seen;
+        for (int c = 0; c < 3; ++c)
+        {
+            got[c] = seen ? MeanAround(image, x, y, c) : 0.0;
+            want[c] = base[c] + factor * double((vertex >> (8 * c)) & 0xFFu) / 255.0;
+            right = right && std::fabs(got[c] - want[c]) < 0.05 * want[c];
+        }
+        char detail[200];
+        sprintf_s(detail, "the open ground %.3f, %.3f, %.3f, where the colour plus half the vertex colour is %.3f, %.3f, %.3f",
+                  got[0], got[1], got[2], want[0], want[1], want[2]);
+        Check(right, "vertex colours", detail);
+        SendInstances(proxy, scene, camera.position);
+        proxy.releaseMesh(50);
     }
 
     // ---------------------------------------------------------------- churn

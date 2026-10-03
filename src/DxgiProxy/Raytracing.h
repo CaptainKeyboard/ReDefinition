@@ -42,7 +42,8 @@ namespace redefinition
     constexpr uint32_t kRtMaxTextures = 8;
 
     // A mesh: vertexCount positions (three floats each), normals (three) and
-    // texture coordinates (two) or null, and indexCount indices, three per
+    // texture coordinates (two) or null, vertex colours (RGBA, a byte each, as
+    // Unity's Color32) or null for white, and indexCount indices, three per
     // triangle.
     struct RtMeshDesc
     {
@@ -56,6 +57,7 @@ namespace redefinition
         const float* normals;
         const float* uvs;
         const uint32_t* indices;
+        const uint32_t* colors;
     };
 
     // A material: linear albedo, and in w the alpha below which its texture cuts the
@@ -73,6 +75,11 @@ namespace redefinition
         float smoothness;
         float emission[3];
         int32_t texture;
+        // Where vertexColour > 0, the albedo is in Unity's colour space and the vertex
+        // colour times this is added to it at each hit, the sum taken to linear as
+        // Unity's colours are (Parallax's terrain: RtTerrainColour); no texture then.
+        float vertexColour;
+        float reserved[3];
     };
 
     // One instance of a mesh this frame: a 3x4 transform, rows first, from the
@@ -192,6 +199,10 @@ namespace redefinition
         // the G-buffer's albedo, the sun's and the sky's colour, the environment -- are
         // gamma-space values, which the light transport takes as linear first.
         float lightParams[4];
+        // The least diffuse light the forward light gives a point, as Unity's colours
+        // are (rgb): KSP's flat ambient light (RenderSettings.ambientLight, which
+        // Deferred's lighting takes too) times the player's share of it.
+        float nightLight[4];
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
@@ -248,13 +259,13 @@ namespace redefinition
     static_assert(offsetof(RtReconstructPacket, colour) == 576, "RtReconstructPacket layout changed");
     static_assert(sizeof(RtReconstructPacket) == 640, "RtReconstructPacket layout changed: update the managed side");
 
-    static_assert(sizeof(RtMeshDesc) == 56, "RtMeshDesc layout changed: update the managed side");
-    static_assert(sizeof(RtMaterialDesc) == 64, "RtMaterialDesc layout changed: update the managed side");
+    static_assert(sizeof(RtMeshDesc) == 64, "RtMeshDesc layout changed: update the managed side");
+    static_assert(sizeof(RtMaterialDesc) == 80, "RtMaterialDesc layout changed: update the managed side");
     static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
     static_assert(sizeof(RtGpuInstanceGroup) == 32, "RtGpuInstanceGroup layout changed: update the managed side");
     static_assert(offsetof(RtFramePacket, clipToWorld) == 32, "RtFramePacket layout changed");
-    static_assert(offsetof(RtFramePacket, inputs) == 608, "RtFramePacket layout changed");
-    static_assert(sizeof(RtFramePacket) == 736, "RtFramePacket layout changed: update the managed side");
+    static_assert(offsetof(RtFramePacket, inputs) == 624, "RtFramePacket layout changed");
+    static_assert(sizeof(RtFramePacket) == 752, "RtFramePacket layout changed: update the managed side");
 
     class Raytracing
     {
@@ -332,6 +343,7 @@ namespace redefinition
             float smoothness;
             float emission[3];
             int32_t texture;
+            float vertexColour[4];
         };
 
         struct InstanceData

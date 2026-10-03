@@ -11,6 +11,9 @@ using Microsoft::WRL::ComPtr;
 
 namespace redefinition
 {
+    // Per vertex: normal (three floats), texture coordinate (two), colour (four bytes).
+    constexpr size_t kAttributeFloats = 6;
+
     namespace
     {
         // A shared copy of a Unity texture not used for this long is released.
@@ -266,10 +269,13 @@ namespace redefinition
         PendingMesh pending;
         pending.vertexCount = desc->vertexCount;
         pending.positions.assign(desc->positions, desc->positions + static_cast<size_t>(desc->vertexCount) * 3);
-        pending.attributes.resize(static_cast<size_t>(desc->vertexCount) * 5, 0.0f);
+        pending.attributes.resize(static_cast<size_t>(desc->vertexCount) * kAttributeFloats, 0.0f);
+        const uint32_t white = 0xFFFFFFFFu;
         for (uint32_t v = 0; v < desc->vertexCount; ++v)
         {
-            float* attribute = &pending.attributes[static_cast<size_t>(v) * 5];
+            float* attribute = &pending.attributes[static_cast<size_t>(v) * kAttributeFloats];
+            // The colour's four bytes as the shader's uint (VertexAttributes.color).
+            memcpy(attribute + 5, desc->colors != nullptr ? desc->colors + v : &white, sizeof(uint32_t));
             if (desc->normals != nullptr)
                 memcpy(attribute, desc->normals + static_cast<size_t>(v) * 3, 3 * sizeof(float));
             else
@@ -311,7 +317,8 @@ namespace redefinition
         memcpy(data.specular, desc->specular, sizeof(data.specular));
         data.smoothness = desc->smoothness;
         memcpy(data.emission, desc->emission, sizeof(data.emission));
-        data.texture = desc->texture;
+        data.texture = desc->vertexColour > 0.0f ? -1 : desc->texture;
+        data.vertexColour[0] = desc->vertexColour;
         std::lock_guard<std::mutex> lock(mutex);
         materialData[desc->material] = data;
         return 1;
@@ -664,6 +671,7 @@ namespace redefinition
         memcpy(constants + 336, tail, sizeof(tail));
         memcpy(constants + 352, packet->lights, 64);
         memcpy(constants + 416, packet->lightParams, 16);
+        memcpy(constants + 432, packet->nightLight, 16);
 
         std::vector<D3D12_RESOURCE_BARRIER> into;
         std::vector<D3D12_RESOURCE_BARRIER> back;
@@ -1027,7 +1035,7 @@ namespace redefinition
         structured.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         structured.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         structured.Buffer.NumElements = pending.vertexCount;
-        structured.Buffer.StructureByteStride = 5 * sizeof(float);
+        structured.Buffer.StructureByteStride = kAttributeFloats * sizeof(float);
         device->CreateShaderResourceView(mesh.attributes.Get(), &structured, attributeView);
 
         mesh.vertexCount = pending.vertexCount;

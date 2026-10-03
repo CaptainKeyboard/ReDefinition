@@ -74,6 +74,9 @@ namespace ReDefinition.Raytracing
         // far its shadow ray goes, negative for the main body itself -- and says how many.
         // None by default.
         internal Func<float[], int> Lights = lights => 0;
+        // How much of Unity's ambient light stays as the least light a raytraced point
+        // gets, 0 to 1 (KSP's night light: the player's Night light). All by default.
+        internal Func<float> NightLight = () => 1f;
         // Unity's ambient light, which its shading adds by itself: the raytraced light
         // added to the frame is this much less. Handed over facing up, sideways and down.
         // The probe Unity shades with: RenderSettings.ambientProbe holds only a baked one.
@@ -368,7 +371,7 @@ namespace ReDefinition.Raytracing
             // The previous frame's results, carried to this frame's world.
             bool valid = haveHistory && !Cut();
             Shader.SetGlobalVector(RtLight, new Vector4(valid && Settings.Diffuse ? 1f : 0f,
-                                                        valid && Settings.Reflections ? 1f : 0f, 0f, 0f));
+                                                        valid && Settings.Reflections ? 1f : 0f, Mathf.Clamp01(NightLight()), 0f));
             if (valid)
             {
                 RtPosition near = WorldShift();
@@ -466,7 +469,8 @@ namespace ReDefinition.Raytracing
             Shader.SetGlobalMatrix(RtPrevViewProj, worldToClip);
             Shader.SetGlobalVector(RtOffsetNear, toCamera);
             Shader.SetGlobalVector(RtOffsetFar, toCamera);
-            Shader.SetGlobalVector(RtLight, new Vector4(Settings.Diffuse ? 1f : 0f, Settings.Reflections ? 1f : 0f, 0f, 0f));
+            Shader.SetGlobalVector(RtLight, new Vector4(Settings.Diffuse ? 1f : 0f, Settings.Reflections ? 1f : 0f,
+                                                        Mathf.Clamp01(NightLight()), 0f));
             if (sun != null)
             {
                 Shader.SetGlobalTexture(RtSun, sun);
@@ -738,6 +742,11 @@ namespace ReDefinition.Raytracing
             // Unity's colours are gamma-space values in gamma space; the light transport
             // takes them to linear (RtCommon.hlsli, InputColor).
             packet.LightParams[1] = QualitySettings.activeColorSpace == ColorSpace.Gamma ? 1f : 0f;
+            // KSP's flat ambient light, as Deferred takes it (RefreshLegacyAmbient).
+            Color night = RenderSettings.ambientLight * Mathf.Clamp01(NightLight());
+            packet.NightLight[0] = night.r;
+            packet.NightLight[1] = night.g;
+            packet.NightLight[2] = night.b;
             Vector4 body = Body();
             packet.BodySphere[0] = (float)(body.x - position.x);
             packet.BodySphere[1] = (float)(body.y - position.y);

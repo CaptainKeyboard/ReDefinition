@@ -92,7 +92,7 @@ namespace ReDefinition.Tests
         public void TheUpscalingRowsStandInTheirOrder()
         {
             CollectionAssert.AreEqual(new[] { "Upscaler", "Technique", "Mode", "DLSS model", "Sharpness", "Frame generation",
-                                            "Raytracing", "Light bounces", "Moonlight" },
+                                            "Raytracing", "Light bounces", "Moonlight", "Night light" },
                 OurModules.Rows().Select(setting => setting.Title).ToArray());
         }
 

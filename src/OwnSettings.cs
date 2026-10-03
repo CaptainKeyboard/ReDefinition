@@ -37,7 +37,10 @@ namespace ReDefinition
         public int RaytracingBounces = 2;
         // How bright the moons' and planets' light is, in percent of the raytracing's
         // artistic scale (Raytracing/Ksp/RtReflectors).
-        public float RaytracingNightLight = 100f;
+        public float RaytracingMoonlight = 150f;
+        // How much of KSP's night light stays under raytracing, in percent: the least
+        // light a point gets where neither the sun nor a moon reaches it.
+        public float RaytracingNightAmbient = 30f;
 
         // Whether the settings window holds the flight while it is open.
         public bool PauseWhileOpen;
@@ -111,7 +114,8 @@ namespace ReDefinition
             settings.FrameGeneration = Bool(node, "frameGeneration", settings.FrameGeneration);
             settings.Raytracing = Enum(node, "raytracing", settings.Raytracing);
             settings.RaytracingBounces = (int)Float(node, "raytracingBounces", settings.RaytracingBounces);
-            settings.RaytracingNightLight = Float(node, "raytracingNightLight", settings.RaytracingNightLight);
+            settings.RaytracingMoonlight = Float(node, "raytracingMoonlight", settings.RaytracingMoonlight);
+            settings.RaytracingNightAmbient = Float(node, "raytracingNightAmbient", settings.RaytracingNightAmbient);
             settings.Backend = Enum(node, "technique", settings.Backend);
             settings.DlssModel = Enum(node, "dlssModel", settings.DlssModel);
             settings.UpscalerKey = Binding(node, "upscalerKey", settings.UpscalerKey);
@@ -165,7 +169,8 @@ namespace ReDefinition
             node.AddValue("flightPanelAuto", FlightPanelAuto);
             node.AddValue("raytracing", Raytracing);
             node.AddValue("raytracingBounces", RaytracingBounces);
-            node.AddValue("raytracingNightLight", RaytracingNightLight.ToString("0", CultureInfo.InvariantCulture));
+            node.AddValue("raytracingMoonlight", RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture));
+            node.AddValue("raytracingNightAmbient", RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture));
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -197,7 +202,8 @@ namespace ReDefinition
               .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode)
               .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto).Append('|').Append(WorldButtons)
               .Append('|').Append(Raytracing).Append('|').Append(RaytracingBounces)
-              .Append('|').Append(RaytracingNightLight.ToString("0", CultureInfo.InvariantCulture));
+              .Append('|').Append(RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture))
+              .Append('|').Append(RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture));
             return sb.ToString();
         }
 

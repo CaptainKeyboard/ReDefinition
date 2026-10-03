@@ -138,7 +138,8 @@ namespace ReDefinition
             settings.AutoAltimeter = from.AutoAltimeter;
             settings.FlightPanelAuto = from.FlightPanelAuto;
             settings.WorldButtons = from.WorldButtons;
-            settings.RaytracingNightLight = from.RaytracingNightLight;
+            settings.RaytracingMoonlight = from.RaytracingMoonlight;
+            settings.RaytracingNightAmbient = from.RaytracingNightAmbient;
         }
 
         // What a view changed of the hotkeys, and nothing else: KSP's settings
@@ -158,7 +159,9 @@ namespace ReDefinition
             if (before.AutoAltimeter != after.AutoAltimeter) settings.AutoAltimeter = after.AutoAltimeter;
             if (before.FlightPanelAuto != after.FlightPanelAuto) settings.FlightPanelAuto = after.FlightPanelAuto;
             if (before.WorldButtons != after.WorldButtons) settings.WorldButtons = after.WorldButtons;
-            if (before.RaytracingNightLight != after.RaytracingNightLight) settings.RaytracingNightLight = after.RaytracingNightLight;
+            if (before.RaytracingMoonlight != after.RaytracingMoonlight) settings.RaytracingMoonlight = after.RaytracingMoonlight;
+            if (before.RaytracingNightAmbient != after.RaytracingNightAmbient)
+                settings.RaytracingNightAmbient = after.RaytracingNightAmbient;
         }
 
         // Where the navball stands; NavballDrag moves it there and writes it as

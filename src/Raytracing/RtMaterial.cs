@@ -125,6 +125,9 @@ namespace ReDefinition.Raytracing
                 textureKinds[shader] = kind;
             }
             if (kind == TextureKind.None) return null;
+            // Parallax's terrain with its influence map: its colour comes from
+            // RtTerrainColour, without a texture.
+            if (kind != TextureKind.Main && RtTerrainColour.Applies(material)) return null;
             if (kind == TextureKind.Main) return material.GetTexture(MainTexId);
             worldMapped = true;
             if (kind == TextureKind.Bands)

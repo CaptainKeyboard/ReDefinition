@@ -72,6 +72,8 @@ namespace ReDefinition.Raytracing
             public IntPtr Normals;
             public IntPtr Uvs;
             public IntPtr Indices;
+            // RGBA bytes a vertex, as Color32, or zero for white.
+            public IntPtr Colors;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -86,6 +88,10 @@ namespace ReDefinition.Raytracing
             public float Smoothness;
             public float EmissionR, EmissionG, EmissionB;
             public int Texture;
+            // Above 0: the albedo is in Unity's colour space and the vertex colour times
+            // this is added to it (RtTerrainColour); the texture is not used.
+            public float VertexColour;
+            public float Reserved0, Reserved1, Reserved2;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -141,6 +147,7 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public float[] DepthRange;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] Lights;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] LightParams;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] NightLight;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -241,6 +248,7 @@ namespace ReDefinition.Raytracing
                 DepthRange = new float[2],
                 Lights = new float[16],
                 LightParams = new float[4],
+                NightLight = new float[4],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

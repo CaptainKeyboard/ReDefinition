@@ -86,10 +86,16 @@ lighting buffer. It is derived from Deferred's shader, which is GPL 3.0 like ReD
 and credited in [credits-and-licences.md](../credits-and-licences.md). When raytracing is
 off, Deferred's shader is set again.
 
-The raytraced diffuse light never falls below KSP's own night light. ReDefinition's
-reflections shader mixes it with Deferred's legacy ambient as Deferred mixes its probe's
-light, so that a planet's night side keeps the brightness KSP gives it **[meas]** (test
-player: the ground at 0.323 with raytracing and without).
+The raytraced diffuse light never falls below the player's share of KSP's own night
+light (*Night light*, 30 % unless set). KSP's night light is its flat ambient colour
+(`RenderSettings.ambientLight`), which Deferred hands its shader as `legacyAmbientColor`
+(`RefreshLegacyAmbient`) **[src]**. ReDefinition's reflections shader mixes the raytraced
+light with that colour times the share, as Deferred mixes its probe's light. At 100 % a
+planet's night side keeps the brightness KSP gives it **[meas]** (test player: the ground
+at 0.323 with raytracing and without). Lower, the night is darker and the moonlight's
+shadows show **[meas]** (KSP, at the launch pad at night with the Mun up, moonlight 150 %:
+the craft at 17, 23 and 41 of 255 with 0, 30 and 100 %, 41 without raytracing; the far
+grass at 20 and 31, 29 without).
 
 KSP moves its world between two frames in two ways under Krakensbane: the floating origin
 shifts what is near the vessel, and the bodies move by the frame's velocity as well
@@ -154,7 +160,8 @@ and raytracing works as follows:
 * A pass of the proxy works out the light to add: the albedo times the traced diffuse
   light, less Unity's ambient light, which forward shading added already; and the
   reflections, weighed by Unity's Fresnel term. The traced diffuse light has the
-  occlusion in it.
+  occlusion in it, and is kept above the player's share of KSP's flat ambient colour, as
+  with Deferred.
 * ReDefinition's shader adds that light to the frame after the opaque geometry's
   lighting: after Unity's forward opaque pass, or with Unity's deferred lighting after
   the lighting, as the forward opaque pass is left out when nothing is drawn forward
@@ -224,7 +231,8 @@ A ray that hits something shades it from what the proxy holds per mesh and per m
 * the albedo: the material's colour times a small copy of its main texture, 64 by 64
   pixels, which Unity renders once per material into a texture array; for Unity's
   standard shaders less what their specular colour takes of it, as they shade it
-  (`UnityStandardUtils.cginc`) **[src]**;
+  (`UnityStandardUtils.cginc`) **[src]**; for Parallax's terrain, its colour as
+  Parallax gives it (see below);
 * specular colour and smoothness, converted from KSP's shaders as Deferred converts them
   **[src]**;
 * emission;
@@ -239,6 +247,21 @@ and the colour of the cut-away texels is never seen. The texture is read again w
 material's main texture changes. Parallax sets its scatter's textures a frame or more
 after it makes the materials (`ScatterRenderer.SetMaterialTexturesAsync`) **[src]**, and
 read only once, its cards would stay untextured.
+
+Parallax's terrain shaders colour the ground with their influence map
+(`INFLUENCE_MAPPING`, always in `KSCTerrain.shader`) as
+`lerp(vertexColour * (luminance(texture) + 0.5), texture, influence)`
+(`ParallaxUtils.cginc`) **[src]**. The vertex colours carry the planet's colour map; the
+KSC's shader takes `_GrassColor` for them. Kerbin's influence averages 0.09 to 0.13, and
+its grass texture is a bright yellow green (gamma 0.523, 0.655, 0.039) **[meas]**
+(KSP.log). Taken alone, as the rays first did, the ground was about twice as bright as
+drawn and had almost no blue: the yellow green under a craft. The rays therefore take
+`vertexColour * (L + 0.5) * (1 - I) + T * I`, with T, L and I the band's texture, its
+luminance and its influence channel averaged, all in Unity's colour space
+(`RtTerrainColour`). The meshes hand their vertex colours to the proxy, which adds them
+at each hit and takes the sum to linear. Against the G-buffer, on a terrain quad 136 km
+out, the rays take 0.249, 0.288, 0.143 where Parallax drew 0.243, 0.255, 0.187
+**[meas]** (KSP, `-redefinitionProbeLight`).
 
 A cut-out surface is non-opaque geometry. A ray that meets it reads the share its small
 texture keeps there and stops with that chance: on average the surface lets through what
@@ -437,6 +460,8 @@ The harness checks:
     times N.L, the ground in the box's shadow nothing. The main body's light reaches a
     box's underside past its own sphere, and another body's light from below the horizon
     does not.
+18. **Vertex colours.** A ground of a colour plus its vertex colours times a factor, as
+    Parallax's terrain: in gamma space its forward light under a white sky is that sum.
 
 ## Plan
 

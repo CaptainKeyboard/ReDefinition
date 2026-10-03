@@ -168,10 +168,16 @@ namespace ReDefinition.Raytracing
                                      : HighLogic.LoadedScene == GameScenes.SPACECENTER ? FlightGlobals.GetHomeBody() : null;
                 if (body == null) return 0;
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                float percent = addon != null ? addon.Live.RaytracingNightLight : 100f;
+                float percent = addon != null ? addon.Live.RaytracingMoonlight : 150f;
                 // The reflection probe sees the main body already: the rays that miss take its
                 // light from there.
                 return RtReflectors.Fill(lights, sceneCamera.transform.position, body, percent, Probe() == null);
+            };
+
+            camera.NightLight = () =>
+            {
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+                return (addon != null ? addon.Live.RaytracingNightAmbient : 30f) / 100f;
             };
 
             vessels = new RtVesselSource(camera.Scene);

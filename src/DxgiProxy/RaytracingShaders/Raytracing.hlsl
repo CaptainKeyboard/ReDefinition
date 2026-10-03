@@ -186,7 +186,12 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
     // none. Added to a frame Unity shaded in its colour space: the linear signals taken
     // there, the surface's albedo as Unity has it.
     float3 albedo = OutputColor(surface.albedo);
-    float3 light = albedo * (OutputColor(finishedDiffuse[id.xy].rgb) - UnityAmbient(surface.normal));
+    float3 ambient = UnityAmbient(surface.normal);
+    float3 diffuse = OutputColor(finishedDiffuse[id.xy].rgb);
+    // Never below the player's share of KSP's night light, as the deferred reflections
+    // shader mixes it (ReDefinitionDeferredReflections.shader).
+    diffuse = lerp(nightLight.rgb, diffuse, saturate((length(diffuse) - length(nightLight.rgb)) * 100.0f));
+    float3 light = albedo * (diffuse - ambient);
     float3 view = -normalize(position);
     float nv = saturate(dot(surface.normal, view));
     float perceptual = 1.0f - surface.smoothness;

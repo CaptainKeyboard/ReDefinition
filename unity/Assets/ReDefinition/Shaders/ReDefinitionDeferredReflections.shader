@@ -53,7 +53,7 @@ float3 legacyAmbientColor;
 // ReDefinition: the raytraced diffuse light and reflections, set around the raytraced
 // camera's rendering (RtCamera); _ReDefinitionRtLight says which of them to use.
 #include "ReDefinitionRtReproject.cginc"
-float4 _ReDefinitionRtLight;   // x: diffuse light, y: reflections
+float4 _ReDefinitionRtLight;   // x: diffuse light, y: reflections, z: the share of KSP's night light kept
 sampler2D _ReDefinitionRtDiffuse;
 sampler2D _ReDefinitionRtSpecular;
 
@@ -151,10 +151,11 @@ half4 frag (unity_v2f_deferred i) : SV_Target
     {
         if (_ReDefinitionRtLight.x > 0.5)
         {
-            // Never below KSP's own night light: mixed with Deferred's legacy ambient as
-            // Deferred mixes its probe's, so that a planet's night side is not black.
+            // Never below the player's share of KSP's own night light: mixed with
+            // Deferred's legacy ambient as Deferred mixes its probe's.
             float3 raytraced = ReDefinitionRtSignal(tex2Dlod(_ReDefinitionRtDiffuse, float4(rtUv, 0.0, 0.0)).rgb);
-            raytraced = lerp(legacyAmbientColor, raytraced, saturate((length(raytraced) - legacyAmbientMagnitude) * 100.0));
+            float3 nightLight = legacyAmbientColor * _ReDefinitionRtLight.z;
+            raytraced = lerp(nightLight, raytraced, saturate((length(raytraced) - length(nightLight)) * 100.0));
             ind.diffuse = raytraced * data.occlusion;
         }
         if (_ReDefinitionRtLight.y > 0.5)

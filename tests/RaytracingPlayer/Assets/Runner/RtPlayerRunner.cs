@@ -214,6 +214,9 @@ namespace ReDefinition.RaytracingPlayer
             raytracing.SunColor = () => light.color * light.intensity;
             raytracing.SunLight = () => light;
             raytracing.SkyColor = () => new Color(0.4f, 0.5f, 0.7f);
+            // None of Unity's ambient light kept: the checks that the raytraced light takes
+            // its place; the night's check sets it.
+            raytracing.NightLight = () => 0f;
             raytracing.Environment = () => probe.texture;
             raytracing.Scene.AddSource(new RtUnitySource());
             // As the game traces: before the lighting of the same frame; -late after it.
@@ -381,7 +384,8 @@ namespace ReDefinition.RaytracingPlayer
         }
 
         // The sun under the horizon: the ground gets no sun and a dark sky. With the
-        // raytraced light it must be as bright as KSP's own night light keeps it.
+        // raytraced light and all of KSP's night light kept it must be as bright as KSP's
+        // own night light keeps it.
         private IEnumerator Night()
         {
             Light sun = FindObjectOfType<Light>();
@@ -395,6 +399,7 @@ namespace ReDefinition.RaytracingPlayer
             for (int i = 0; i < 20; i++) yield return null;
             Texture2D dark = null;
             yield return Capture(t => dark = t, "night_without_raytracing");
+            raytracing.NightLight = () => 1f;
             raytracing.enabled = true;
             for (int i = 0; i < 60; i++) yield return null;
             Texture2D darkWith = null;

@@ -31,6 +31,7 @@ cbuffer Frame : register(b0)
     float4 lightDirection1;
     float4 lightColor1;
     float4 lightParams;     // x: how many lights; y: 1 where Unity's colours are gamma-space values
+    float4 nightLight;      // rgb: the least diffuse light of the forward light, as Unity's colours are
 };
 
 struct InstanceData
@@ -51,13 +52,22 @@ struct MaterialData
     float smoothness;
     float3 emission;
     int texture;
+    // x: where > 0, the albedo is in Unity's colour space and the vertex colour times x
+    // is added to it (Raytracing.h, RtMaterialDesc).
+    float4 vertexColour;
 };
 
 struct VertexAttributes
 {
     float3 normal;
     float2 uv;
+    uint color;   // RGBA, a byte each, R lowest
 };
+
+float3 UnpackColor(uint c)
+{
+    return float3(c & 0xFFu, (c >> 8) & 0xFFu, (c >> 16) & 0xFFu) * (1.0f / 255.0f);
+}
 
 RaytracingAccelerationStructure scene : register(t0);
 Texture2D<float> depthTexture : register(t1);
@@ -350,6 +360,7 @@ struct Hit
     float3 position;
     float3 normal;
     float2 uv;
+    float3 color;
     uint material;
 };
 
@@ -361,6 +372,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.position = 0.0f;
     hit.normal = float3(0.0f, 1.0f, 0.0f);
     hit.uv = 0.0f;
+    hit.color = 1.0f;
     hit.material = 0u;
 
     RayDesc ray;
@@ -398,13 +410,16 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.position = origin + direction * hit.distance;
     hit.normal = normal;
     hit.uv = a0.uv * w + a1.uv * bary.x + a2.uv * bary.y;
+    hit.color = UnpackColor(a0.color) * w + UnpackColor(a1.color) * bary.x + UnpackColor(a2.color) * bary.y;
     hit.material = instance.material;
     return hit;
 }
 
 // A material's albedo at a point: its colour times its small texture.
-float3 Albedo(MaterialData material, float2 uv)
+float3 Albedo(MaterialData material, float2 uv, float3 color)
 {
+    if (material.vertexColour.x > 0.0f)
+        return InputColor(material.albedo.rgb + color * material.vertexColour.x);
     float3 albedo = material.albedo.rgb;
     if (MATERIAL_TEXTURES && material.texture >= 0)
         albedo *= materialTextures.SampleLevel(linearWrap, float3(uv, float(material.texture)), 0.0f).rgb;
@@ -478,7 +493,7 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
             break;
         }
         MaterialData material = materialData[hit.material];
-        float3 albedo = Albedo(material, hit.uv);
+        float3 albedo = Albedo(material, hit.uv, hit.color);
         total += weight * (SunAt(hit, albedo, random) + albedo * ReflectedLightAt(hit.position, hit.normal, random)
                            + material.emission);
         if (bounce == bounces)
@@ -532,7 +547,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
         surface.normal = hit.normal;
         surface.smoothness = material.smoothness;
         surface.specular = material.specular;
-        surface.albedo = Albedo(material, hit.uv);
+        surface.albedo = Albedo(material, hit.uv, hit.color);
         return surface;
     }
     surface.normal = DepthNormal(pixel, position);

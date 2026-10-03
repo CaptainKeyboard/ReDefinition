@@ -192,7 +192,7 @@ namespace ReDefinition
             },
             new ModuleSetting
             {
-                Key = "nightLight",
+                Key = "moonlight",
                 Title = "Moonlight",
                 Kind = SettingKind.Other,
                 Order = 70,
@@ -204,10 +204,30 @@ namespace ReDefinition
                 Tooltip = "How bright the light of moons and planets is that the sun shines on: the night side under\n"
                           + "the Mun, and the planet's light in orbit. It falls only where the body stands in the sky,\n"
                           + "with its shadows. Real moonlight would be too faint to see; 100 % is ReDefinition's scale.",
-                Read = settings => settings.RaytracingNightLight.ToString("0", CultureInfo.InvariantCulture),
+                Read = settings => settings.RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture),
                 Write = (settings, value) =>
-                    settings.RaytracingNightLight = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+                    settings.RaytracingMoonlight = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
                 // The bodies' light comes with the traced diffuse light.
+                Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Light
+                                           || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
+            },
+            new ModuleSetting
+            {
+                Key = "nightAmbient",
+                Title = "Night light",
+                Kind = SettingKind.Other,
+                Order = 80,
+                Control = SettingControl.Slider,
+                Min = 0f,
+                Max = 100f,
+                StepsPerUnit = 0.2f,
+                Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %",
+                Tooltip = "How much of KSP's own night light stays: the least light anything gets where neither\n"
+                          + "the sun nor a moon reaches it. 100 % is KSP's night; lower makes the night darker\n"
+                          + "and the moonlight's shadows stand out.",
+                Read = settings => settings.RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture),
+                Write = (settings, value) =>
+                    settings.RaytracingNightAmbient = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
                 Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Light
                                            || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
             });

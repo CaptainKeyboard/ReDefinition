@@ -338,6 +338,8 @@ namespace ReDefinition.Raytracing
             Vector3[] vertices = mesh.vertices;
             Vector3[] normals = mesh.normals;
             Vector2[] uvs = mesh.uv;
+            // Parallax's terrain takes the planet's colour from them (RtTerrainColour).
+            Color32[] colors = mesh.colors32;
             int[] indices = mesh.GetIndices(subMesh);
             if (vertices.Length == 0 || indices.Length < 3)
             {
@@ -349,6 +351,7 @@ namespace ReDefinition.Raytracing
             GCHandle positions = GCHandle.Alloc(vertices, GCHandleType.Pinned);
             GCHandle normalHandle = GCHandle.Alloc(normals, GCHandleType.Pinned);
             GCHandle uvHandle = uvs.Length == vertices.Length ? GCHandle.Alloc(uvs, GCHandleType.Pinned) : default(GCHandle);
+            GCHandle colorHandle = colors.Length == vertices.Length ? GCHandle.Alloc(colors, GCHandleType.Pinned) : default(GCHandle);
             GCHandle indexHandle = GCHandle.Alloc(indices, GCHandleType.Pinned);
             try
             {
@@ -363,6 +366,7 @@ namespace ReDefinition.Raytracing
                     Normals = normalHandle.AddrOfPinnedObject(),
                     Uvs = uvHandle.IsAllocated ? uvHandle.AddrOfPinnedObject() : IntPtr.Zero,
                     Indices = indexHandle.AddrOfPinnedObject(),
+                    Colors = colorHandle.IsAllocated ? colorHandle.AddrOfPinnedObject() : IntPtr.Zero,
                 };
                 return RtNative.KspRtSetMesh(ref desc) == 1;
             }
@@ -371,6 +375,7 @@ namespace ReDefinition.Raytracing
                 positions.Free();
                 normalHandle.Free();
                 if (uvHandle.IsAllocated) uvHandle.Free();
+                if (colorHandle.IsAllocated) colorHandle.Free();
                 indexHandle.Free();
             }
         }
@@ -440,9 +445,19 @@ namespace ReDefinition.Raytracing
         private void SendMaterial(Material material, int id, int layer)
         {
             RtMaterial surface = RtMaterial.Of(material);
+            // Parallax's terrain: its colour from the planet's vertex colours, which the
+            // proxy adds and takes to linear itself where vertexFactor > 0.
+            Color terrain;
+            float vertexFactor = 0f;
+            bool isTerrain = RtTerrainColour.Of(material, out terrain, out vertexFactor);
+            if (isTerrain)
+            {
+                surface.Albedo = terrain;
+                layer = -1;
+            }
             if (GammaSpace)
             {
-                surface.Albedo = surface.Albedo.linear;
+                if (vertexFactor <= 0f) surface.Albedo = surface.Albedo.linear;
                 surface.Emission = surface.Emission.linear;
             }
             var desc = new RtNative.MaterialDesc
@@ -455,6 +470,7 @@ namespace ReDefinition.Raytracing
                 Smoothness = surface.Smoothness,
                 EmissionR = surface.Emission.r, EmissionG = surface.Emission.g, EmissionB = surface.Emission.b,
                 Texture = layer,
+                VertexColour = vertexFactor,
             };
             RtNative.KspRtSetMaterial(ref desc);
         }
