@@ -183,6 +183,15 @@ namespace redefinition
         float cameraDelta[4];
         float jitter[2];
         float depthRange[2];
+        // Up to two bodies lit by the sun, each a light of the size of its disc
+        // (RtReflectors): towards it with its angular radius in w, then its radiance at
+        // the scene, linear rgb, with in w how far its shadow ray goes -- negative for the
+        // main body itself, which its own sphere does not shade.
+        float lights[16];
+        // x: how many of lights are used; y: 1 where the colours Unity hands over --
+        // the G-buffer's albedo, the sun's and the sky's colour, the environment -- are
+        // gamma-space values, which the light transport takes as linear first.
+        float lightParams[4];
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
@@ -244,8 +253,8 @@ namespace redefinition
     static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
     static_assert(sizeof(RtGpuInstanceGroup) == 32, "RtGpuInstanceGroup layout changed: update the managed side");
     static_assert(offsetof(RtFramePacket, clipToWorld) == 32, "RtFramePacket layout changed");
-    static_assert(offsetof(RtFramePacket, inputs) == 528, "RtFramePacket layout changed");
-    static_assert(sizeof(RtFramePacket) == 656, "RtFramePacket layout changed: update the managed side");
+    static_assert(offsetof(RtFramePacket, inputs) == 608, "RtFramePacket layout changed");
+    static_assert(sizeof(RtFramePacket) == 736, "RtFramePacket layout changed: update the managed side");
 
     class Raytracing
     {

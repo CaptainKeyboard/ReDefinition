@@ -384,6 +384,15 @@ namespace ReDefinition.Probe
                 yield break;
             }
 
+            if (LightProbe.Requested)
+            {
+                Detach();
+                yield return LightProbe.Run(folder);
+                yield return new WaitForSeconds(1f);
+                Application.Quit();
+                yield break;
+            }
+
             yield return Run("baseline");
             string wanted = SceneProbe.Variants;
             foreach (string cameraName in wanted == null ? new string[0] : CameraNames)

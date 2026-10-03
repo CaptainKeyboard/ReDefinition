@@ -662,6 +662,8 @@ namespace redefinition
         memcpy(constants + 288, packet->ambient, 48);
         const uint32_t tail[4] = { packet->width, packet->height, packet->frameIndex, packet->flags };
         memcpy(constants + 336, tail, sizeof(tail));
+        memcpy(constants + 352, packet->lights, 64);
+        memcpy(constants + 416, packet->lightParams, 16);
 
         std::vector<D3D12_RESOURCE_BARRIER> into;
         std::vector<D3D12_RESOURCE_BARRIER> back;

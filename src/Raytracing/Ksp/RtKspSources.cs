@@ -303,7 +303,7 @@ namespace ReDefinition.Raytracing
         private readonly List<PQ> forgotten = new List<PQ>();
         private readonly Stack<PQ> stack = new Stack<PQ>();
         private readonly RtScene scene;
-        private const float range = 30000f;
+        internal const float Range = 30000f;
 
         internal RtTerrainSource(RtScene scene)
         {
@@ -321,7 +321,7 @@ namespace ReDefinition.Raytracing
             PQS pqs = body != null ? body.pqsController : null;
             if (pqs == null || pqs.quads == null || !pqs.isActiveAndEnabled) return;
             Vector3 eye = scene.Eye;
-            float range2 = range * range;
+            float range2 = Range * Range;
 
             stack.Clear();
             foreach (PQ root in pqs.quads)

@@ -76,7 +76,7 @@ namespace ReDefinition.Raytracing
             RtFilter.FindOnCameras(FlightCamera.fetch != null ? FlightCamera.fetch.transform : null);
             if (attached != null && attachedTo == sceneCamera && attached.enabled)
             {
-                RtKspMods.HoldPlanetShine((mode == RaytracingMode.Light || mode == RaytracingMode.Full) && Probe() != null);
+                RtKspMods.HoldPlanetShine(mode == RaytracingMode.Light || mode == RaytracingMode.Full);
                 RtKspMods.HoldDeferredReflections(attached.Settings.Reflections && RtLighting.ReflectionsReplaced, sceneCamera);
                 Report();
             }
@@ -161,6 +161,17 @@ namespace ReDefinition.Raytracing
                 if (body == null) return Vector4.zero;
                 Vector3d centre = body.position;
                 return new Vector4((float)centre.x, (float)centre.y, (float)centre.z, (float)body.Radius);
+            };
+            camera.Lights = lights =>
+            {
+                CelestialBody body = HighLogic.LoadedSceneIsFlight ? FlightGlobals.currentMainBody
+                                     : HighLogic.LoadedScene == GameScenes.SPACECENTER ? FlightGlobals.GetHomeBody() : null;
+                if (body == null) return 0;
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+                float percent = addon != null ? addon.Live.RaytracingNightLight : 100f;
+                // The reflection probe sees the main body already: the rays that miss take its
+                // light from there.
+                return RtReflectors.Fill(lights, sceneCamera.transform.position, body, percent, Probe() == null);
             };
 
             vessels = new RtVesselSource(camera.Scene);
@@ -265,6 +276,7 @@ namespace ReDefinition.Raytracing
                 .Append(", diffuse ").Append(attached.PassTimings[2].ToString("0.00"))
                 .Append(", reflections ").Append(attached.PassTimings[3].ToString("0.00"))
                 .Append(", denoiser ").Append(attached.PassTimings[6].ToString("0.00"))
+                .Append("; ").Append(RtReflectors.Describe())
                 .Append("; ").Append(status);
             Debug.Log(line.ToString());
         }

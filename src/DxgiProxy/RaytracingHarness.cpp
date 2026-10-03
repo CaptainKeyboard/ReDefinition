@@ -734,6 +734,12 @@ PsOut PsMain(VsOut input)
         const Mat4* previous = nullptr;
         // The width the packet gives, kWidth where 0; the textures stay kWidth wide.
         UINT width = 0;
+        // The bodies the sun lights, as RtFramePacket has them: per light the direction
+        // and angular radius, the colour and the shadow ray's reach; how many.
+        float lights[16] = {};
+        int lightCount = 0;
+        // Whether Unity's colours are gamma-space values (RtFramePacket lightParams y).
+        bool gamma = false;
     };
 
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
@@ -771,6 +777,9 @@ PsOut PsMain(VsOut input)
         packet.bodySphere[1] = float(lighting.body[1] - camera.position.y);
         packet.bodySphere[2] = float(lighting.body[2] - camera.position.z);
         packet.bodySphere[3] = float(lighting.body[3]);
+        memcpy(packet.lights, lighting.lights, sizeof(lighting.lights));
+        packet.lightParams[0] = float(lighting.lightCount);
+        packet.lightParams[1] = lighting.gamma ? 1.0f : 0.0f;
         packet.inputs[kRtInputEnvironment] = lighting.environment;
         packet.inputs[kRtInputInstances] = lighting.gpuInstances;
         packet.inputs[kRtInputDepth] = g.depth.Get();
@@ -2365,36 +2374,130 @@ int main()
         lighting.ambient[2] = down;
         // Through the denoiser, as the game runs it: the pass reads what the denoiser left.
         lighting.flags = kRtFrameDenoise | kRtFrameReset;
-        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 14000,
-                  kRtSignalSunVisibility | kRtSignalDiffuse | kRtSignalAmbientOcclusion | kRtSignalForwardLight, lighting);
-        std::vector<uint16_t> forward, diffuse;
-        std::vector<uint32_t> albedo, normals;
-        std::vector<float> depth;
-        ReadTexture(device.Get(), context.Get(), outputs.forward.Get(), 8, forward);
-        ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
-        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, diffuse);
-        ReadTexture(device.Get(), context.Get(), g.gbuffer0.Get(), 4, albedo);
-        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
-        size_t drawn = 0, right = 0, empty = 0, emptyRight = 0;
-        for (size_t i = 0; i < depth.size(); ++i)
+        // Linear, and as KSP shades, in gamma space: there the pass takes the linear
+        // signals and the surface's albedo into gamma space, as Unity's lighting adds them.
+        const auto toGamma = [](double c) { c = c > 0.0 ? c : 0.0; return std::max(1.055 * std::pow(c, 0.416666667) - 0.055, 0.0); };
+        const auto toLinear = [](double c) { return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878); };
+        for (int gamma = 0; gamma < 2; ++gamma)
         {
-            const double got = HalfToFloat(forward[i * 4 + 1]);
-            if (depth[i] <= 0.0f)
+            lighting.gamma = gamma != 0;
+            // The materials' colours linear, as the mod sends them in gamma space (RtScene).
+            const float linearAlbedo[3] = { float(toLinear(albedoOf[0])), float(toLinear(albedoOf[1])), float(toLinear(albedoOf[2])) };
+            SendMaterial(proxy, 30, gamma != 0 ? linearAlbedo : albedoOf, none, 0.2f);
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, 14000,
+                      kRtSignalSunVisibility | kRtSignalDiffuse | kRtSignalAmbientOcclusion | kRtSignalForwardLight, lighting);
+            std::vector<uint16_t> forward, diffuse;
+            std::vector<uint32_t> albedo, normals;
+            std::vector<float> depth;
+            ReadTexture(device.Get(), context.Get(), outputs.forward.Get(), 8, forward);
+            ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+            ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, diffuse);
+            ReadTexture(device.Get(), context.Get(), g.gbuffer0.Get(), 4, albedo);
+            ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+            size_t drawn = 0, right = 0, empty = 0, emptyRight = 0;
+            for (size_t i = 0; i < depth.size(); ++i)
             {
-                ++empty;
-                emptyRight += got == 0.0 ? 1 : 0;
-                continue;
+                const double got = HalfToFloat(forward[i * 4 + 1]);
+                if (depth[i] <= 0.0f)
+                {
+                    ++empty;
+                    emptyRight += got == 0.0 ? 1 : 0;
+                    continue;
+                }
+                ++drawn;
+                const double ny = ((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1;
+                const double ambient = side + 0.5 * (up - down) * ny + (0.5 * (up + down) - side) * ny * ny;
+                const double drawnAlbedo = ((albedo[i] >> 8) & 0xFF) / 255.0;
+                const double light = HalfToFloat(diffuse[i * 4 + 1]);
+                const double want = gamma != 0 ? toGamma(toLinear(drawnAlbedo)) * (toGamma(light) - ambient)
+                                               : drawnAlbedo * (light - ambient);
+                right += std::fabs(got - want) < 0.01 + 0.02 * std::fabs(want) ? 1 : 0;
             }
-            ++drawn;
-            const double ny = ((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1;
-            const double ambient = side + 0.5 * (up - down) * ny + (0.5 * (up + down) - side) * ny * ny;
-            const double want = ((albedo[i] >> 8) & 0xFF) / 255.0 * (HalfToFloat(diffuse[i * 4 + 1]) - ambient);
-            right += std::fabs(got - want) < 0.01 + 0.02 * std::fabs(want) ? 1 : 0;
+            char detail[200];
+            sprintf_s(detail, "%zu of %zu drawn pixels get the albedo times the diffuse light less the ambient, %zu of %zu empty ones nothing", right,
+                      drawn, emptyRight, empty);
+            Check(drawn > 100000 && right * 100 >= drawn * 99 && emptyRight == empty,
+                  gamma != 0 ? "forward light in gamma space" : "forward light", detail);
         }
-        char detail[200];
-        sprintf_s(detail, "%zu of %zu drawn pixels get the albedo times the diffuse light less the ambient, %zu of %zu empty ones nothing", right,
-                  drawn, emptyRight, empty);
-        Check(drawn > 100000 && right * 100 >= drawn * 99 && emptyRight == empty, "forward light", detail);
+    }
+
+    // ---------------------------------------------------------------- moonlight
+    {
+        // A body the sun lights as the only light, from the west 45 degrees up, no sun and
+        // no sky: the open ground gets its colour times N.L, the ground in the box's
+        // shadow nothing. Then the main body as the light below a box high over the
+        // ground: its own sphere does not shade it (a negative reach), another body's
+        // light in the same place is shaded by the planet.
+        SendInstances(proxy, scene, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        Lighting lighting;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.sky[0] = lighting.sky[1] = lighting.sky[2] = 0.0f;
+        lighting.bounces = 0.0f;
+        const float moon = 0.1f;
+        const float diagonal = float(std::sqrt(0.5));
+        const float west[8] = { -diagonal, diagonal, 0.0f, 0.01f, moon, moon, moon, 1.0e8f };
+        memcpy(lighting.lights, west, sizeof(west));
+        lighting.lightCount = 1;
+        std::vector<double> mean;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                        lighting, sun, 128, 15000, mean))
+            return Fatal("reading the moonlight back", E_FAIL);
+        int openX = 0, openY = 0, shadeX = 0, shadeY = 0;
+        const bool seen = Project(camera, Vec3{ 15, 0, -15 } - camera.position, openX, openY)
+                          && Project(camera, Vec3{ 9, 0, 0 } - camera.position, shadeX, shadeY);
+        const double open = seen ? MeanAround(mean, openX, openY, 0) : 0.0;
+        const double shaded = seen ? MeanAround(mean, shadeX, shadeY, 0) : 1.0;
+        const double wanted = moon * diagonal;
+
+        // The main body: a planet under the high box, its light straight from below.
+        std::vector<Instance> high = { box };
+        high[0].position = { 0, 150, 0 };
+        Camera under = camera;
+        under.position = { 30, 120, 60 };
+        under.target = { 0, 150, 0 };
+        under.Update();
+        SendInstances(proxy, high, under.position);
+        RenderGBuffer(context.Get(), g, under, meshes, high);
+        Lighting below = lighting;
+        below.body[0] = 0.0;
+        below.body[1] = -6.0e5;
+        below.body[2] = 0.0;
+        below.body[3] = 6.0e5;
+        const auto bottomLight = [&](float reach, double& result) -> bool
+        {
+            const float light[8] = { 0.0f, -1.0f, 0.0f, 1.0f, moon, moon, moon, reach };
+            memcpy(below.lights, light, sizeof(light));
+            std::vector<double> m;
+            if (!Accumulate(proxy, device.Get(), context.Get(), under, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                            below, sun, 64, 15200, m))
+                return false;
+            std::vector<uint32_t> normals;
+            std::vector<float> depth;
+            ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+            ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+            double total = 0.0;
+            size_t count = 0;
+            for (size_t i = 0; i < normals.size(); ++i)
+            {
+                if (depth[i] <= 0.0f || ((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1 > -0.9)
+                    continue;
+                total += m[i * 3 + 1];
+                ++count;
+            }
+            result = count > 1000 ? total / count : -1.0;
+            return true;
+        };
+        double mainBody = 0.0, otherBody = 0.0;
+        if (!bottomLight(-150.0f, mainBody) || !bottomLight(150.0f, otherBody))
+            return Fatal("reading the main body's light back", E_FAIL);
+        char detail[240];
+        sprintf_s(detail, "open ground %.4f (N.L times the light %.4f), in the box's shadow %.4f; the box's underside %.4f by "
+                          "the main body's light, %.4f by another's below the horizon",
+                  open, wanted, shaded, mainBody, otherBody);
+        Check(seen && std::fabs(open - wanted) < 0.05 * wanted && shaded < 0.05 * wanted
+                  && std::fabs(mainBody - moon) < 0.05 * moon && otherBody >= 0.0 && otherBody < 0.01 * moon,
+              "moonlight", detail);
     }
 
     // ---------------------------------------------------------------- churn
@@ -2473,14 +2576,25 @@ int main()
         SendInstances(proxy, scene, camera.position);
         RenderGBuffer(context.Get(), g, camera, meshes, scene);
         const uint32_t all = kRtSignalSunVisibility | kRtSignalAmbientOcclusion | kRtSignalDiffuse | kRtSignalSpecular;
-        for (int i = 0; i < 8; ++i)
-            SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 2000 + i, all);
-        float build = 0, trace = 0;
-        proxy.timings(&build, &trace);
-        float passes[kRtPassTimings] = {};
-        proxy.passTimings(passes, kRtPassTimings);
-        printf("      timings at %ux%u: scene build %.3f ms; sun %.3f, occlusion %.3f, diffuse %.3f, specular %.3f;"
-               " all passes %.3f ms\n", kWidth, kHeight, build, passes[0], passes[1], passes[2], passes[3], trace);
+        // Without the bodies' lights, and with two of them in gamma space, as in KSP.
+        Lighting lit;
+        const float two[16] = { -0.5f, 0.7f, 0.1f, 0.01f, 0.05f, 0.05f, 0.05f, 1.0e8f,
+                                0.2f, -0.9f, 0.1f, 0.5f, 0.1f, 0.1f, 0.1f, -1.0e3f };
+        memcpy(lit.lights, two, sizeof(two));
+        lit.lightCount = 2;
+        lit.gamma = true;
+        for (int run = 0; run < 2; ++run)
+        {
+            for (int i = 0; i < 8; ++i)
+                SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 2000 + run * 8 + i, all, run == 1 ? lit : Lighting());
+            float build = 0, trace = 0;
+            proxy.timings(&build, &trace);
+            float passes[kRtPassTimings] = {};
+            proxy.passTimings(passes, kRtPassTimings);
+            printf("      timings at %ux%u%s: scene build %.3f ms; sun %.3f, occlusion %.3f, diffuse %.3f, specular %.3f;"
+                   " all passes %.3f ms\n", kWidth, kHeight, run == 1 ? " with two moonlights" : "", build, passes[0],
+                   passes[1], passes[2], passes[3], trace);
+        }
     }
 
     printf(failures == 0 ? "all raytracing checks passed\n" : "%d raytracing check(s) failed\n", failures);

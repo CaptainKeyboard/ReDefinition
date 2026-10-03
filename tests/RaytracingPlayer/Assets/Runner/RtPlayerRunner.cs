@@ -503,8 +503,8 @@ namespace ReDefinition.RaytracingPlayer
                 done = true;
                 failed = request.hasError;
                 if (failed) return;
-                RtScene.Pack(request.GetData<byte>(), rows, size, false, false);
-                RtScene.Pack(request.GetData<byte>(), average, size, false, true);
+                RtScene.Pack(request.GetData<byte>(), rows, size, false);
+                RtScene.Pack(request.GetData<byte>(), average, size, true);
             });
             for (int i = 0; i < 30 && !done; i++) yield return null;
             Destroy(texture);

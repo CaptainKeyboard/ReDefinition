@@ -57,6 +57,19 @@ float4 _ReDefinitionRtLight;   // x: diffuse light, y: reflections
 sampler2D _ReDefinitionRtDiffuse;
 sampler2D _ReDefinitionRtSpecular;
 
+// The raytraced signals are linear light (the raytracing's RtCommon.hlsli, InputColor):
+// in gamma space, as KSP renders, taken to the values Unity's lighting works with here.
+// Unity's lighting multiplies them by the albedo in gamma space, which for a product is
+// the same as multiplying in linear and converting the result.
+float3 ReDefinitionRtSignal(float3 linearLight)
+{
+#ifdef UNITY_COLORSPACE_GAMMA
+    return LinearToGammaSpace(max(linearLight, 0.0));
+#else
+    return linearLight;
+#endif
+}
+
 half4 frag (unity_v2f_deferred i) : SV_Target
 {
     [branch]
@@ -140,12 +153,12 @@ half4 frag (unity_v2f_deferred i) : SV_Target
         {
             // Never below KSP's own night light: mixed with Deferred's legacy ambient as
             // Deferred mixes its probe's, so that a planet's night side is not black.
-            float3 raytraced = tex2Dlod(_ReDefinitionRtDiffuse, float4(rtUv, 0.0, 0.0)).rgb;
+            float3 raytraced = ReDefinitionRtSignal(tex2Dlod(_ReDefinitionRtDiffuse, float4(rtUv, 0.0, 0.0)).rgb);
             raytraced = lerp(legacyAmbientColor, raytraced, saturate((length(raytraced) - legacyAmbientMagnitude) * 100.0));
             ind.diffuse = raytraced * data.occlusion;
         }
         if (_ReDefinitionRtLight.y > 0.5)
-            ind.specular = tex2Dlod(_ReDefinitionRtSpecular, float4(rtUv, 0.0, 0.0)).rgb * data.occlusion;
+            ind.specular = ReDefinitionRtSignal(tex2Dlod(_ReDefinitionRtSpecular, float4(rtUv, 0.0, 0.0)).rgb) * data.occlusion;
     }
 
     half3 rgb = UNITY_BRDF_PBS (data.diffuseColor, data.specularColor, oneMinusReflectivity, data.smoothness, data.normalWorld, -eyeVec, light, ind).rgb;

@@ -139,6 +139,8 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] CameraDelta;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public float[] Jitter;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public float[] DepthRange;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] Lights;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] LightParams;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -237,6 +239,8 @@ namespace ReDefinition.Raytracing
                 CameraDelta = new float[4],
                 Jitter = new float[2],
                 DepthRange = new float[2],
+                Lights = new float[16],
+                LightParams = new float[4],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

@@ -69,6 +69,11 @@ namespace ReDefinition.Raytracing
         // The main body's centre in the world and its radius, which the sun's rays test
         // as a sphere; radius 0 for none.
         internal Func<Vector4> Body = () => Vector4.zero;
+        // The bodies the sun lights, as lights (RtReflectors in the game): fills the
+        // packet's lights -- towards each, its angular radius, its radiance linear and how
+        // far its shadow ray goes, negative for the main body itself -- and says how many.
+        // None by default.
+        internal Func<float[], int> Lights = lights => 0;
         // Unity's ambient light, which its shading adds by itself: the raytraced light
         // added to the frame is this much less. Handed over facing up, sideways and down.
         // The probe Unity shades with: RenderSettings.ambientProbe holds only a baked one.
@@ -728,6 +733,11 @@ namespace ReDefinition.Raytracing
             packet.Params[5] = withEnvironment ? 1f : 0f;
             packet.Params[6] = 1f;
             packet.Params[7] = deferred ? 1f : 0f;
+            for (int i = 0; i < 16; i++) packet.Lights[i] = 0f;
+            packet.LightParams[0] = Mathf.Clamp(Lights(packet.Lights), 0, 2);
+            // Unity's colours are gamma-space values in gamma space; the light transport
+            // takes them to linear (RtCommon.hlsli, InputColor).
+            packet.LightParams[1] = QualitySettings.activeColorSpace == ColorSpace.Gamma ? 1f : 0f;
             Vector4 body = Body();
             packet.BodySphere[0] = (float)(body.x - position.x);
             packet.BodySphere[1] = (float)(body.y - position.y);

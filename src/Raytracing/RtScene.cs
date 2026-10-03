@@ -132,7 +132,6 @@ namespace ReDefinition.Raytracing
         // Where AsyncGPUReadback is not supported: read at once into this texture.
         private Texture2D textureRead;
         private byte[] texturePixels;
-        private static byte[] gammaToSrgb;
         private static float[] srgbToLinear;
 
         internal int InstanceCount { get; private set; }
@@ -151,9 +150,11 @@ namespace ReDefinition.Raytracing
         internal int Skipped { get; private set; }
         internal string LastSkip { get; private set; }
 
-        // In gamma space, as KSP renders, a texture's values are what the lighting
-        // works with; the proxy's array is sRGB, so they are encoded to come out as
-        // they were.
+        // In gamma space, as KSP renders, Unity's colours are gamma-space values; the
+        // light transport is linear (RtCommon.hlsli), so the materials' colours are taken
+        // to linear before they go over. Their small textures need nothing: the proxy's
+        // array is sRGB, and its decoding of the bytes Unity renders -- gamma-space
+        // values there, sRGB codes in linear space -- gives the linear value either way.
         internal bool GammaSpace = QualitySettings.activeColorSpace == ColorSpace.Gamma;
 
         internal void AddSource(IRtSource source)
@@ -439,6 +440,11 @@ namespace ReDefinition.Raytracing
         private void SendMaterial(Material material, int id, int layer)
         {
             RtMaterial surface = RtMaterial.Of(material);
+            if (GammaSpace)
+            {
+                surface.Albedo = surface.Albedo.linear;
+                surface.Emission = surface.Emission.linear;
+            }
             var desc = new RtNative.MaterialDesc
             {
                 Size = (uint)Marshal.SizeOf(typeof(RtNative.MaterialDesc)),
@@ -585,41 +591,29 @@ namespace ReDefinition.Raytracing
                 return;
             }
             if (texturePixels == null) texturePixels = new byte[size * size * 4];
-            Pack(raw, texturePixels, size, GammaSpace, read.WorldMapped);
+            Pack(raw, texturePixels, size, read.WorldMapped);
             if (RtNative.KspRtSetMaterialTexture(read.Layer, texturePixels, size) == 1)
                 SendMaterial(read.Material, entry.Id, read.Layer);
         }
 
         // A small texture as the proxy takes it from Unity's pixels (RGBA, rows from the
-        // bottom): rows from the top, and in gamma space sRGB-encoded (GammaSpace). A
-        // world-mapped one (RtMaterial.MainTexture) is its average colour throughout, the
-        // average taken of the values the lighting works with.
-        internal static void Pack(NativeArray<byte> raw, byte[] into, int size, bool gammaSpace, bool average)
+        // bottom): rows from the top, the bytes as they are, which the proxy's sRGB array
+        // decodes to linear values (GammaSpace). A world-mapped one
+        // (RtMaterial.MainTexture) is its average colour throughout, averaged in linear.
+        internal static void Pack(NativeArray<byte> raw, byte[] into, int size, bool average)
         {
-            byte[] encode = gammaSpace ? GammaToSrgb() : null;
             if (average)
             {
-                // In gamma space the bytes are those values; in linear space sRGB codes, as
-                // the render texture is sRGB.
                 float[] decode = SrgbToLinear();
                 double r = 0, g = 0, b = 0;
                 int count = size * size;
                 for (int i = 0; i < count * 4; i += 4)
                 {
-                    if (gammaSpace)
-                    {
-                        r += raw[i];
-                        g += raw[i + 1];
-                        b += raw[i + 2];
-                    }
-                    else
-                    {
-                        r += decode[raw[i]];
-                        g += decode[raw[i + 1]];
-                        b += decode[raw[i + 2]];
-                    }
+                    r += decode[raw[i]];
+                    g += decode[raw[i + 1]];
+                    b += decode[raw[i + 2]];
                 }
-                double scale = gammaSpace ? 1.0 / (255.0 * count) : 1.0 / count;
+                double scale = 1.0 / count;
                 byte red = LinearToSrgb(r * scale), green = LinearToSrgb(g * scale), blue = LinearToSrgb(b * scale);
                 for (int o = 0; o < count * 4; o += 4)
                 {
@@ -637,9 +631,9 @@ namespace ReDefinition.Raytracing
                 for (int x = 0; x < size * 4; x += 4)
                 {
                     byte cr = raw[from + x], cg = raw[from + x + 1], cb = raw[from + x + 2];
-                    into[to + x] = encode != null ? encode[cr] : cr;
-                    into[to + x + 1] = encode != null ? encode[cg] : cg;
-                    into[to + x + 2] = encode != null ? encode[cb] : cb;
+                    into[to + x] = cr;
+                    into[to + x + 1] = cg;
+                    into[to + x + 2] = cb;
                     into[to + x + 3] = raw[from + x + 3];
                 }
             }
@@ -652,14 +646,6 @@ namespace ReDefinition.Raytracing
             return (byte)Math.Max(0, Math.Min(255, (int)Math.Round(s * 255.0)));
         }
 
-        // The sRGB code whose decoded value is the byte's own value.
-        private static byte[] GammaToSrgb()
-        {
-            if (gammaToSrgb != null) return gammaToSrgb;
-            gammaToSrgb = new byte[256];
-            for (int i = 0; i < 256; i++) gammaToSrgb[i] = LinearToSrgb(i / 255.0);
-            return gammaToSrgb;
-        }
 
         // An sRGB code's decoded value.
         private static float[] SrgbToLinear()

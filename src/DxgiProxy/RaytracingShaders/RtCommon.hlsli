@@ -24,6 +24,13 @@ cbuffer Frame : register(b0)
     uint2 frameSize;
     uint frameIndex;
     uint frameFlags;
+    // Bodies lit by the sun as lights (RtReflectors): towards each with its angular
+    // radius in w, and its radiance, linear.
+    float4 lightDirection0;
+    float4 lightColor0;     // w: how far its shadow ray goes, negative for the main body
+    float4 lightDirection1;
+    float4 lightColor1;
+    float4 lightParams;     // x: how many lights; y: 1 where Unity's colours are gamma-space values
 };
 
 struct InstanceData
@@ -87,6 +94,31 @@ SamplerState linearWrap : register(s2);
 #define HAS_ENVIRONMENT (params1.y > 0.5f)
 #define MATERIAL_TEXTURES (params1.z > 0.5f)
 #define HAS_GBUFFER (params1.w > 0.5f)
+#define LIGHT_COUNT ((uint)lightParams.x)
+#define GAMMA_INPUTS (lightParams.y > 0.5f)
+
+// The light transport is linear: sums and averages of light -- a hemisphere of sky and
+// ground, samples -- hold only there. Where Unity shades in gamma space, as KSP does,
+// the colours it hands over are gamma-space values, taken to linear here with the
+// curve Unity converts by (GammaToLinearSpace, UnityCG.cginc); the materials' colours
+// and small textures come linear from the mod (RtScene). The signals stay linear
+// through the denoiser and are taken back where Unity's lighting reads them.
+float3 InputColor(float3 c)
+{
+    if (!GAMMA_INPUTS)
+        return c;
+    c = max(c, 0.0f);
+    return c * (c * (c * 0.305306011f + 0.682171111f) + 0.012522878f);
+}
+
+// Unity's LinearToGammaSpace (UnityCG.cginc), for a signal read in gamma space.
+float3 OutputColor(float3 c)
+{
+    if (!GAMMA_INPUTS)
+        return c;
+    c = max(c, 0.0f);
+    return max(1.055f * pow(c, 0.416666667f) - 0.055f, 0.0f);
+}
 
 static const float kPi = 3.14159265358979f;
 
@@ -268,10 +300,10 @@ bool Unoccluded(float3 origin, float3 direction, float maxDistance, float terrai
 float3 Sky(float3 direction)
 {
     if (!HAS_ENVIRONMENT)
-        return skyColor.rgb;
+        return InputColor(skyColor.rgb);
     float u = atan2(direction.x, direction.z) * (0.5f / kPi) + 0.5f;
     float v = acos(clamp(direction.y, -1.0f, 1.0f)) / kPi;
-    return environmentTexture.SampleLevel(linearWrap, float2(u, v), 0.0f).rgb;
+    return InputColor(environmentTexture.SampleLevel(linearWrap, float2(u, v), 0.0f).rgb);
 }
 
 // A direction over the hemisphere around n, by the cosine of its angle to n.
@@ -391,7 +423,40 @@ float3 SunAt(Hit hit, float3 albedo, inout Random random)
     float3 direction = SampleCone(towardsSun, sunDirection.w, u);
     if (!Unoccluded(RayOrigin(hit.position, hit.normal), direction, 1.0e7f))
         return 0.0f;
-    return albedo * sunColor.rgb * nl;
+    return albedo * InputColor(sunColor.rgb) * nl;
+}
+
+// The light of the bodies the sun lights (RtReflectors) arriving at a surface point:
+// one of them a sample, chosen by its brightness, towards its disc and in its shadow --
+// the main body, the scene -- as the sun's, weighed back by the chance it was chosen;
+// a white surface returns this times N.L, as for the sun.
+float3 ReflectedLightAt(float3 position, float3 normal, inout Random random, float terrainSkip = 0.0f)
+{
+    uint count = LIGHT_COUNT;
+    if (count == 0u)
+        return 0.0f;
+    float w0 = dot(lightColor0.rgb, float3(0.2126f, 0.7152f, 0.0722f));
+    float w1 = count > 1u ? dot(lightColor1.rgb, float3(0.2126f, 0.7152f, 0.0722f)) : 0.0f;
+    if (w0 + w1 <= 0.0f)
+        return 0.0f;
+    bool first = NextFloat(random) * (w0 + w1) < w0;
+    float4 towards = first ? lightDirection0 : lightDirection1;
+    float3 colour = first ? lightColor0.rgb : lightColor1.rgb;
+    // How far the shadow ray goes: to the body's surface. Negative for the main body
+    // itself, the light of the ground below an orbit: its own sphere does not shade it,
+    // and the ray stays within the scene's reach, short of the body test.
+    float reach = first ? lightColor0.w : lightColor1.w;
+    float maxDistance = reach < 0.0f ? min(-reach, 1.0e6f) : max(reach, 1.0e6f + 1.0f);
+    float chance = (first ? w0 : w1) / (w0 + w1);
+    float3 axis = normalize(towards.xyz);
+    float nl = dot(normal, axis);
+    if (nl <= 0.0f)
+        return 0.0f;
+    float2 u = float2(NextFloat(random), NextFloat(random));
+    float3 direction = SampleCone(axis, towards.w, u);
+    if (!Unoccluded(RayOrigin(position, normal), direction, maxDistance, terrainSkip))
+        return 0.0f;
+    return colour * nl / chance;
 }
 
 // The radiance arriving along a ray, from what it hits and, bounce by bounce, what
@@ -414,7 +479,8 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
         }
         MaterialData material = materialData[hit.material];
         float3 albedo = Albedo(material, hit.uv);
-        total += weight * (SunAt(hit, albedo, random) + material.emission);
+        total += weight * (SunAt(hit, albedo, random) + albedo * ReflectedLightAt(hit.position, hit.normal, random)
+                           + material.emission);
         if (bounce == bounces)
             break;
         weight *= albedo;
@@ -455,7 +521,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
         float4 g1 = gbuffer1[pixel];
         surface.smoothness = g1.a;
         surface.specular = g1.rgb;
-        surface.albedo = gbuffer0[pixel].rgb;
+        surface.albedo = InputColor(gbuffer0[pixel].rgb);
         return surface;
     }
     float distance = length(position);

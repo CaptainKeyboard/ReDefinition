@@ -19,6 +19,8 @@ namespace ReDefinition.Raytracing
         // FieldInfo's GetValue boxes the bool.
         private static Func<bool> planetShineRead;
         private static Type deferredReflections;
+        private static FieldInfo starShifter;
+        private static FieldInfo shifterColour;
         // Parallax's fields, read through compiled getters: a FieldInfo's GetValue costs
         // a reflection call per field, nine per scatter renderer a frame.
         private static Func<object, object> scatterManager;
@@ -56,6 +58,12 @@ namespace ReDefinition.Raytracing
                         Type star = assembly.GetType("Kopernicus.Components.KopernicusStar");
                         kopernicusCurrent = star?.GetField("Current", BindingFlags.Public | BindingFlags.Static);
                         starLight = typeof(Sun).GetProperty("sunLight", BindingFlags.Public | BindingFlags.Instance);
+                        // The star's own colour: KopernicusStar.shifter, a LightShifter, its
+                        // sunlightColor, which Kopernicus gives the star's light
+                        // (KopernicusStar.cs, LightShifter.cs; public).
+                        starShifter = star?.GetField("shifter", BindingFlags.Public | BindingFlags.Instance);
+                        shifterColour = starShifter?.FieldType.GetField("sunlightColor", BindingFlags.Public | BindingFlags.Instance);
+                        if (shifterColour != null && shifterColour.FieldType != typeof(Color)) shifterColour = null;
                     }
                     else if (name == "ParallaxContinued")
                     {
@@ -114,6 +122,35 @@ namespace ReDefinition.Raytracing
             }
             if (Sun.Instance != null && Sun.Instance.sunLight != null) return Sun.Instance.sunLight;
             return BrightestDirectional();
+        }
+
+        // The colour of the star's light as it leaves the star, before any atmosphere
+        // tints the scene's light (Scatterer does): Kopernicus's for its current star,
+        // white for KSP's sun.
+        internal static Color StarColour()
+        {
+            Look();
+            if (kopernicusCurrent != null && starShifter != null && shifterColour != null)
+            {
+                object current = kopernicusCurrent.GetValue(null);
+                object shifter = current != null ? starShifter.GetValue(current) : null;
+                if (shifter != null) return (Color)shifterColour.GetValue(shifter);
+            }
+            return Color.white;
+        }
+
+        // The star that lights the scene as a body: Kopernicus's current star, or KSP's
+        // sun (Sun.sun); null where there is none, as in the editors.
+        internal static CelestialBody StarBody()
+        {
+            Look();
+            if (kopernicusCurrent != null)
+            {
+                Sun current = kopernicusCurrent.GetValue(null) as Sun;
+                if (current != null && current.sun != null) return current.sun;
+            }
+            if (Sun.Instance != null && Sun.Instance.sun != null) return Sun.Instance.sun;
+            return Planetarium.fetch != null ? Planetarium.fetch.Sun : null;
         }
 
         // Where KSP has no Sun, as in the editors: the scene's brightest directional
@@ -183,8 +220,9 @@ namespace ReDefinition.Raytracing
         }
 
         // PlanetShine's light off while the raytraced diffuse light brings the planet's
-        // from the reflection probe, which sees it (FlightReflectionProbe's culling mask
-        // has Scaled Scenery), and back as it was afterwards. Where the player switches it
+        // and the moons': the planet's from the reflection probe, which sees it
+        // (FlightReflectionProbe's culling mask has Scaled Scenery), or as a light where
+        // there is none, the moons' as lights (RtReflectors); back as it was afterwards. Where the player switches it
         // on meanwhile, in PlanetShine's own window, that is the player's choice: it stays.
         private static bool planetShineHeld;
         private static bool planetShineBefore;

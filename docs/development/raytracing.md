@@ -17,7 +17,7 @@ through the scene instead of from Unity's approximations:
 | Part | Unity's approximation | Raytraced |
 |---|---|---|
 | Sun shadows | cascaded shadow maps, a few kilometres deep | a shadow ray per pixel, soft by the sun's angular size, as far as the scene reaches |
-| Ambient light | KSP's flat or gradient ambient colour, or Deferred's reflection probe, blurred; the same for every point | one or more bounces of diffuse light, from the sky, the sun and lit surfaces |
+| Ambient light | KSP's flat or gradient ambient colour, or Deferred's reflection probe, blurred; the same for every point | one or more bounces of diffuse light, from the sky, the sun, the moons and lit surfaces |
 | Ambient occlusion | none | part of the traced diffuse light: sky a point does not see brings it no light |
 | Reflections | the reflection probe, or Deferred's screen-space reflections | rays into the scene, sharp or rough by the surface's smoothness |
 | Emissive surfaces | light only themselves | light what is around them |
@@ -255,6 +255,80 @@ A ray that hits nothing takes the sky's light from a capture of the scene's refl
 probe, Deferred's or KSP's own in flight (`FlightReflectionProbe`) **[src]**, and the sun's
 disc for sharp reflections. Without a probe it takes KSP's ambient sky colour.
 
+## Light sources
+
+Every light the rays carry is traced with a shadow ray and bounces off what it lights:
+
+| Source | Where it comes from | Shadow |
+|---|---|---|
+| The sun | the scene's sunlight, its colour and the size of its disc | a ray towards the disc, and the main body's sphere |
+| Moons and the planet | each a disc of its angular size, lit by the sun (see below) | a ray towards the disc, as far as the body's surface |
+| The sky | rays that hit nothing take the reflection probe's capture, or KSP's ambient sky colour | the scene, as occlusion |
+| Emission | the material's emission | none; it lights what its rays reach |
+| Bounces | each hit lit by all of the above, times its albedo, again for each bounce | as for each source |
+
+### Linear light
+
+KSP renders in Unity's gamma colour space: its colours, its G-buffer and its lights are
+gamma-space values **[src]**. Light adds up only in linear values. Averaged in gamma
+values, a hemisphere half sky of 1.0 and half grass of 0.1 linear gives the grass a share
+of 26 % in place of 9 %. The bounce light then takes far too much of the ground's colour,
+as green under a craft over grass did **[meas]**.
+
+The rays therefore carry linear light. In gamma space, the proxy takes each colour Unity
+hands over to linear with Unity's own curve (`GammaToLinearSpace`, `UnityCG.cginc`): the
+G-buffer's albedo, the sun's and the sky's colour, the reflection probe's capture. The
+materials' colours and small textures come linear from the C# side (`RtScene`). The
+signals stay linear through the denoiser, which also averages. Each consumer then takes
+them back into gamma space with `LinearToGammaSpace`: the reflections shader under
+`UNITY_COLORSPACE_GAMMA`, the forward pass, and Ray Reconstruction's albedo guide, so that
+it matches the frame it guides. Converting per sample, before the denoiser, would bias the
+average **[src]** (Jensen's inequality). A game in linear colour space converts nothing.
+
+After the change, the craft's underside over the launch pad's grass keeps the colour
+ratio it has without raytracing **[meas]** (green over red 0.96 with raytracing, 0.97
+without).
+
+### Moons and the planet as lights
+
+The moons of the planet the camera is at, and that planet, light the scene as the sun
+does. Each is a disc of its angular size, and its light reaches only where the disc is in
+view with nothing between. The Mun lights the launch pad only while it stands over it.
+Bodies of other planets are left out: their light is far below what the screen shows.
+
+Physically, a sphere that scatters by Lambert's law sends, at phase angle a,
+`E = E_sun * albedo * 2/3 * phase(a) * (R/d)^2`, with
+`phase(a) = (sin a + (pi - a) cos a) / pi` (Lambert's sphere). The full Mun over Kerbin
+sends some 6e-5 of the sunlight **[src]** (`RtReflectorLight`, tests). That is too faint
+to see on a screen without the eye's adaptation. The raytracing therefore takes the
+square root of that share times ten, eased towards 0.3 of the sunlight. This keeps the
+bodies' order: Minmus is fainter than the Mun, and a crescent fainter than the full disc.
+It brings the full Mun to some 0.06 of the sunlight. The player's *Moonlight* percentage
+scales the result.
+
+A body's albedo and colour are the linear average of its scaled-space texture, rendered
+down to 16 by 16 pixels: Parallax's `_ColorMap`, otherwise `_MainTex` **[src]**. Parallax
+leaves `_MainTex` white and loads `_ColorMap` only when the body comes into view
+(`ScaledOnDemandComponent`) **[src]**. A body is grey until its texture is there, and is
+read again every ten seconds **[meas]** (KSP.log: the Mun 0.176 grey, Minmus 0.358, 0.501,
+0.384). The light's colour is the star's own, Kopernicus's `LightShifter.sunlightColor`
+or white. The scene's sunlight is no guide: Scatterer tints it by the atmosphere, and at
+night it is dark **[meas]** (moonlight orange by day, none at night, before the change).
+
+The planet itself is a light only where nothing else brings its light:
+
+* With a reflection probe, the rays that miss already see the planet in it.
+* Below the terrain's 30 km, the rays hit the ground as terrain.
+
+Its own sphere does not shade it: its shadow ray ends at the surface, short of the
+sphere test.
+
+Two lights at most go to the proxy each frame, the brightest. Each sample picks one by
+its brightness and weighs it back by that chance. Each light costs a shadow ray per
+diffuse sample and per bounce hit **[meas]** (harness, 1280x720: all passes 0.140 ms
+without and 0.162 ms with two lights, in the same run). PlanetShine's lights are off
+while the diffuse light is traced.
+
 ## Denoising
 
 Each signal is traced with few rays per pixel and is noisy. A denoiser turns it into a
@@ -322,7 +396,7 @@ the installed mods live.
 |---|---|---|
 | Raytracing harness | a native program that loads the proxy as Unity does, rasterises a G-buffer in Unity's layout and runs the raytracing through the proxy's own interface | the acceleration structures, every signal against a formula or a reference, the denoisers, floating-origin shifts, timings on the GPU |
 | Scenes from KSP | meshes exported from KSP's own files with UnityPy: the launch pad, the runway, the VAB, the SPH, part meshes | real geometry, real triangle counts, real scale |
-| C# unit tests | the layout of the frame packet | that the managed side and the proxy read the same packet |
+| C# unit tests | the layout of the frame packet; the moons' light (`RtReflectorLight`) | that the managed side and the proxy read the same packet; Lambert's sphere and the brightness the rays give it |
 | Unity test player | a Unity 2019.4.18f1 player built like KSP's, with forward rendering, Unity's deferred lighting and Deferred's own shader bundle from `GameData`, and the proxy beside it (`tools/build_rt_player.py`) | the shaders in Unity's lighting, the timing of the render events, the one-frame carry-over |
 
 The harness checks:
@@ -357,6 +431,12 @@ The harness checks:
     and cut out in thirds, the sun straight above: shadow, half shadow and sun under them,
     among the CPU's instances and the GPU's; with its texture not read yet, sun under all
     of it.
+16. **Forward light in gamma space.** As check 11, the colours as gamma-space values: the
+    pass takes the linear signals and the albedo back into gamma space.
+17. **Moonlight.** A body's light as the only light: the open ground gets its colour
+    times N.L, the ground in the box's shadow nothing. The main body's light reaches a
+    box's underside past its own sphere, and another body's light from below the horizon
+    does not.
 
 ## Plan
 
@@ -400,7 +480,7 @@ night side, and DLSS Ray Reconstruction where DLSS frame generation runs **[open
 | Waterfall, Firefly | out of the scene: every material of theirs is transparent **[src]**; Firefly draws its effects after the raytraced light **[src]** |
 | TUFX | its post-processing runs on the scene camera after the lit frame **[src]** |
 | Kopernicus | the scene's star is its current star (`KopernicusStar.Current`), not `Sun.Instance`, which its star clones set **[src]**; the other stars' lights keep their shadow maps; its ShadowMan's shadows shader is handled as Scatterer's **[src]** |
-| PlanetShine | its lights are turned off while the raytraced diffuse light brings the planet's light from the reflection probe, which sees the planet **[src]**, and set back as they were afterwards; without a probe they stay |
+| PlanetShine | its lights are turned off while the raytraced diffuse light brings the planet's and the moons' light (see "Light sources"), and set back as they were afterwards **[src]** |
 | DistantObject | its flares are transparent and stay out of the scene **[src]** |
 | FreeIva, ThroughTheEyes | the IVA and the first-person kerbal are drawn by the internal camera, on layers the scene camera does not draw: out of the scene, with Unity's lighting **[src]** |
 | JSI (RasterPropMonitor), VesselView | RasterPropMonitor's cameras copy the scene camera without its command buffers **[src]** **[doc]** and keep Unity's lighting; VesselView draws without a camera **[src]** |

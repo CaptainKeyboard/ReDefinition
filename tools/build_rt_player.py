@@ -37,6 +37,11 @@ SOURCES = [
     'src/Raytracing/RtScene.cs',
     'src/Raytracing/RtMaterial.cs',
     'src/Raytracing/RtLighting.cs',
+    # RtLighting asks ForeignAssumptions before it takes Deferred's shader.
+    'src/Core/ForeignCode.cs',
+    'src/Core/ForeignAssumption.cs',
+    'src/Core/ForeignAssumptions.cs',
+    'src/Core/TypeLookup.cs',
     'src/Raytracing/RtCamera.cs',
     'src/Bridges/PacketRing.cs',
     'src/Bridges/StreamlineCamera.cs',

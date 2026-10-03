@@ -189,6 +189,27 @@ namespace ReDefinition
                     settings.RaytracingBounces = (int)float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
                 Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Light
                                            || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
+            },
+            new ModuleSetting
+            {
+                Key = "nightLight",
+                Title = "Moonlight",
+                Kind = SettingKind.Other,
+                Order = 70,
+                Control = SettingControl.Slider,
+                Min = 0f,
+                Max = 300f,
+                StepsPerUnit = 0.2f,
+                Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %",
+                Tooltip = "How bright the light of moons and planets is that the sun shines on: the night side under\n"
+                          + "the Mun, and the planet's light in orbit. It falls only where the body stands in the sky,\n"
+                          + "with its shadows. Real moonlight would be too faint to see; 100 % is ReDefinition's scale.",
+                Read = settings => settings.RaytracingNightLight.ToString("0", CultureInfo.InvariantCulture),
+                Write = (settings, value) =>
+                    settings.RaytracingNightLight = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+                // The bodies' light comes with the traced diffuse light.
+                Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Light
+                                           || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
             });
 
         private static ReDefinition.Raytracing.RaytracingMode RaytracingModeOf(string value)

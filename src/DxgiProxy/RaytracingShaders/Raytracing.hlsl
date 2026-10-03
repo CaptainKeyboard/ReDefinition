@@ -114,6 +114,8 @@ void DiffuseLight(uint3 id : SV_DispatchThreadID)
     float distance;
     float3 radiance = Radiance(RayOrigin(position, normal), direction, DIFFUSE_DISTANCE, BOUNCES, random, distance,
                                kTerrainSkip);
+    // The bodies' light on the pixel itself: Unity's lighting has no light for them.
+    radiance += ReflectedLightAt(position, normal, random, kTerrainSkip);
     // The distance of a miss is the ray's length (100000 from the mod), past a half
     // float's largest value: written as is, it reads as infinity in the half-float
     // target. Clamped to FP16_MAX, as the sky in Reconstruct.hlsl.
@@ -180,8 +182,11 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
     }
     float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
     SurfaceData surface = SurfaceAt(id.xy, position);
-    // The traced diffuse light has the occlusion in it already; Unity's ambient light has none.
-    float3 light = surface.albedo * (finishedDiffuse[id.xy].rgb - UnityAmbient(surface.normal));
+    // The traced diffuse light has the occlusion in it already; Unity's ambient light has
+    // none. Added to a frame Unity shaded in its colour space: the linear signals taken
+    // there, the surface's albedo as Unity has it.
+    float3 albedo = OutputColor(surface.albedo);
+    float3 light = albedo * (OutputColor(finishedDiffuse[id.xy].rgb) - UnityAmbient(surface.normal));
     float3 view = -normalize(position);
     float nv = saturate(dot(surface.normal, view));
     float perceptual = 1.0f - surface.smoothness;
@@ -190,6 +195,6 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
     float grazing = saturate(surface.smoothness + max(surface.specular.r, max(surface.specular.g, surface.specular.b)));
     float t = pow(1.0f - nv, 5.0f);
     float3 fresnel = lerp(surface.specular, grazing.xxx, t);
-    light += finishedSpecular[id.xy].rgb * fresnel * reduction;
+    light += OutputColor(finishedSpecular[id.xy].rgb) * fresnel * reduction;
     output4[id.xy] = float4(light, 1.0f);
 }

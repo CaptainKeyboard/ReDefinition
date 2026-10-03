@@ -13,12 +13,13 @@ own.
 
 ## The settings
 
-Both rows are under *Display* in the settings window, below the upscaler's.
+The rows are under *Display* in the settings window, below the upscaler's.
 
 | Setting | Does |
 |---|---|
 | Raytracing | *Off*; *Shadows*: the sun's shadows from rays, as far as the scene reaches; *Shadows and light*: also the light bouncing off surfaces and the sky, which darkens corners and colours what stands beside something bright; *Full*: also reflections |
 | Light bounces | how often the traced light bounces between surfaces, from 1 to 4. More bounces light shadowed sides and rooms more fully, at more GPU time. Only with *Shadows and light* or *Full* |
+| Moonlight | how brightly the moons, and the planet seen from orbit, light the scene, from 0 to 300 %. Their light falls only where the moon stands in the sky, with shadows. Only with *Shadows and light* or *Full* |
 
 A profile never switches raytracing on: it needs a GPU with raytracing, and it costs what
 you decide to spend.
@@ -28,6 +29,8 @@ you decide to spend.
 * The sun's shadows reach as far as the scene the rays see, soft by the sun's size.
   Unity's shadow maps end a few kilometres out.
 * A planet's side away from the sun is never darker than KSP's own night light.
+* At night the moons light the ground and your craft where they stand in the sky, with
+  shadows. *Moonlight* sets how brightly.
 * The planet shadows what flies over its night side.
 * With *Shadows and light*, the sky and lit surfaces light what the sun does not reach.
 * With *Full*, surfaces reflect the scene by how smooth they are.

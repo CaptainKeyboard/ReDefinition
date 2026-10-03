@@ -65,5 +65,6 @@ void FrameGuides(uint3 id : SV_DispatchThreadID)
     }
     float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
     SurfaceData surface = SurfaceAt(id.xy, position);
-    WriteGuides(id.xy, position, surface.albedo, surface.specular, surface.smoothness, surface.normal, output2[id.xy].w);
+    // The albedo as the G-buffer has it, in the colour space of the frame it guides.
+    WriteGuides(id.xy, position, OutputColor(surface.albedo), surface.specular, surface.smoothness, surface.normal, output2[id.xy].w);
 }
