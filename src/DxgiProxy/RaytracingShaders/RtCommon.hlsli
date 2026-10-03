@@ -32,6 +32,7 @@ cbuffer Frame : register(b0)
     float4 lightColor1;
     float4 lightParams;     // x: how many lights; y: 1 where Unity's colours are gamma-space values
     float4 nightLight;      // rgb: the least diffuse light of the forward light, as Unity's colours are
+    float4 planetAlbedo;    // rgb: the main body's albedo, linear
 };
 
 struct InstanceData
@@ -441,6 +442,30 @@ float3 SunAt(Hit hit, float3 albedo, inout Random random)
     return albedo * InputColor(sunColor.rgb) * nl;
 }
 
+// Where a ray that missed the scene meets the main body's sphere: the light the sphere
+// sends back there, its albedo times the sun's and the moons' light on it, unshaded but
+// by the sphere itself. Below the horizon the ground is there -- past the terrain the
+// scene holds, over the ocean, under the metre of terrain a pixel's rays pass through --
+// and the sky's capture would show it as drawn, lit by KSP's ambient light.
+bool PlanetRadiance(float3 origin, float3 direction, out float3 radiance)
+{
+    radiance = 0.0f;
+    if (!BodyBlocks(origin, direction))
+        return false;
+    float3 toCentre = bodySphere.xyz - origin;
+    float along = dot(toCentre, direction);
+    float closest2 = dot(toCentre, toCentre) - along * along;
+    float t = along - sqrt(max(bodySphere.w * bodySphere.w - closest2, 0.0f));
+    float3 normal = normalize(origin + direction * max(t, 0.0f) - bodySphere.xyz);
+    float3 light = InputColor(sunColor.rgb) * saturate(dot(normal, normalize(sunDirection.xyz)));
+    if (LIGHT_COUNT > 0u)
+        light += lightColor0.rgb * saturate(dot(normal, normalize(lightDirection0.xyz)));
+    if (LIGHT_COUNT > 1u)
+        light += lightColor1.rgb * saturate(dot(normal, normalize(lightDirection1.xyz)));
+    radiance = planetAlbedo.rgb * light;
+    return true;
+}
+
 // The light of the bodies the sun lights (RtReflectors) arriving at a surface point:
 // one of them a sample, chosen by its brightness, towards its disc and in its shadow --
 // the main body, the scene -- as the sun's, weighed back by the chance it was chosen;
@@ -489,7 +514,8 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
             firstDistance = hit.distance;
         if (!hit.found)
         {
-            total += weight * Sky(direction);
+            float3 ground;
+            total += weight * (PlanetRadiance(origin, direction, ground) ? ground : Sky(direction));
             break;
         }
         MaterialData material = materialData[hit.material];

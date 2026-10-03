@@ -203,6 +203,10 @@ namespace redefinition
         // are (rgb): KSP's flat ambient light (RenderSettings.ambientLight, which
         // Deferred's lighting takes too) times the player's share of it.
         float nightLight[4];
+        // The main body's albedo, linear rgb: a ray that misses the scene and meets the
+        // body's sphere (bodySphere) takes the sun's and the moons' light on the
+        // sphere there times this, in place of the sky.
+        float planet[4];
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
@@ -264,8 +268,8 @@ namespace redefinition
     static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
     static_assert(sizeof(RtGpuInstanceGroup) == 32, "RtGpuInstanceGroup layout changed: update the managed side");
     static_assert(offsetof(RtFramePacket, clipToWorld) == 32, "RtFramePacket layout changed");
-    static_assert(offsetof(RtFramePacket, inputs) == 624, "RtFramePacket layout changed");
-    static_assert(sizeof(RtFramePacket) == 752, "RtFramePacket layout changed: update the managed side");
+    static_assert(offsetof(RtFramePacket, inputs) == 640, "RtFramePacket layout changed");
+    static_assert(sizeof(RtFramePacket) == 768, "RtFramePacket layout changed: update the managed side");
 
     class Raytracing
     {

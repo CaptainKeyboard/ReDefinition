@@ -13,8 +13,8 @@ namespace ReDefinition.Probe
     // The raytracing's light, driven by the scene probe (-redefinitionProbeLight): at
     // the launch pad by day and, after a time warp, by night with the Mun high over
     // it, screenshots of the vessel from below and of the ground from above with the
-    // raytracing off and on -- by day the moonlight at 0 and 150 %, by night also KSP's
-    // night light at 0, 30 and 100 % -- each with the passes' GPU time into KSP.log
+    // raytracing off and on -- by day at the default moonlight, by night the moonlight at
+    // 0, 10, 50 and 150 %, without KSP's night light -- each with the passes' GPU time into KSP.log
     // ("Probe: light ..."), then the settings put back. By day, the ground's albedo as
     // the G-buffer has it beside the one the rays take (RtTerrainColour).
     // The screenshots land in ReDefinitionCaptures\<time>-light.
@@ -76,13 +76,13 @@ namespace ReDefinition.Probe
             RaytracingMode on = addon.Live.Raytracing == RaytracingMode.Off ? RaytracingMode.Full : addon.Live.Raytracing;
             // Moonlight and night light in percent.
             float[][] variants = night
-                ? new[] { new[] { 0f, 30f }, new[] { 150f, 0f }, new[] { 150f, 30f }, new[] { 150f, 100f } }
-                : new[] { new[] { 0f, 30f }, new[] { 150f, 30f } };
+                ? new[] { new[] { 0f, 0f }, new[] { 10f, 0f }, new[] { 50f, 0f }, new[] { 150f, 0f } }
+                : new[] { new[] { 10f, 0f } };
             foreach (Pose pose in Poses)
             {
                 FlightCamera.fetch.camHdg = heading;
                 FlightCamera.fetch.camPitch = pose.Pitch * Mathf.Deg2Rad;
-                Set(addon, RaytracingMode.Off, 150f, 30f);
+                Set(addon, RaytracingMode.Off, 10f, 0f);
                 yield return Shot(folder, time + "-" + pose.Name + "-off");
                 foreach (float[] variant in variants)
                 {

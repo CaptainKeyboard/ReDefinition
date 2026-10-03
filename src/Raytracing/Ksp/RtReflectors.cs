@@ -10,9 +10,12 @@ namespace ReDefinition.Raytracing
     // (RtReflectorLight), in the colour of its surface and of the star; the two brightest
     // go to the proxy, each a disc of its angular size, which the rays sample with its
     // shadow -- the Mun lights only where it stands in the sky and nothing lies between.
-    // The main body is one of them as the ground under an orbit, its own sphere not
-    // shading it (RtCommon.hlsli, ReflectedLightAt) -- only where the rays that miss do
-    // not see it already, in the reflection probe, and above the terrain the rays hit.
+    // The main body is none of them: rays that miss the scene and meet its sphere take
+    // its light there (RtCommon.hlsli, PlanetRadiance), from its albedo (PlanetAlbedo).
+    //
+    // The lights are tinted cool: at night the eye sees moonlight bluish, though it is
+    // nearly the sun's colour (the Purkinje effect), and a night lit in the sun's colour
+    // looks warm (the player, 2026-10-03: "not cool enough").
     //
     // A body's colour and albedo are its scaled-space texture's average, linear: read
     // once per body, rendered down to a few pixels, as its texture is not readable.
@@ -34,10 +37,12 @@ namespace ReDefinition.Raytracing
 
         private static readonly List<Candidate> candidates = new List<Candidate>();
         private static readonly List<CelestialBody> system = new List<CelestialBody>();
+        // Luminance 1: 0.2126 * 0.83 + 0.7152 * 1.01 + 0.0722 * 1.42.
+        private static readonly Color NightTint = new Color(0.83f, 1.01f, 1.42f);
 
-        // Fills lights as RtCamera.Lights asks, for a camera at `eye` (world), the
-        // player's percentage, whether the main body may be one; the number of lights.
-        internal static int Fill(float[] lights, Vector3d eye, CelestialBody main, float percent, bool mainLight)
+        // Fills lights as RtCamera.Lights asks, for a camera at `eye` (world) over `main`,
+        // the player's percentage; the number of lights.
+        internal static int Fill(float[] lights, Vector3d eye, CelestialBody main, float percent)
         {
             lastCount = 0;
             if (percent <= 0f || main == null) return 0;
@@ -48,7 +53,7 @@ namespace ReDefinition.Raytracing
             // moonlight, and none with the Mun high).
             Color tint = RtKspMods.StarColour().linear;
             float tintLuminance = Luminance(tint);
-            tint = tintLuminance > 0f ? tint / tintLuminance : Color.white;
+            tint = (tintLuminance > 0f ? tint / tintLuminance : Color.white) * NightTint;
 
             candidates.Clear();
             Vector3d sun = star.position;
@@ -65,9 +70,7 @@ namespace ReDefinition.Raytracing
                 if (body == null || body == star || body.scaledBody == null) continue;
                 Vector3d toBody = body.position - eye;
                 double distance = toBody.magnitude;
-                if (distance <= body.Radius) continue;
-                // Below that the rays meet the ground under the camera as terrain.
-                if (body == main && (!mainLight || distance - body.Radius < RtTerrainSource.Range)) continue;
+                if (distance <= body.Radius || body == main) continue;
                 Vector3d bodyToSun = sun - body.position;
                 double angle = Vector3d.Angle(bodyToSun, -toBody) * Mathf.Deg2Rad;
                 Color colour = ColourOf(body);
@@ -82,9 +85,8 @@ namespace ReDefinition.Raytracing
                     Towards = ((Vector3)(toBody / distance)),
                     Radius = Mathf.Asin(Mathf.Clamp01((float)(body.Radius / distance))),
                     Colour = light,
-                    // To its surface; negative for the main body, which its own sphere
-                    // does not shade.
-                    Reach = (body == main ? -1f : 1f) * (float)(distance - body.Radius),
+                    // To its surface.
+                    Reach = (float)(distance - body.Radius),
                     Luminance = Luminance(light),
                 });
             }
@@ -102,7 +104,6 @@ namespace ReDefinition.Raytracing
                 lights[i * 8 + 6] = c.Colour.b;
                 lights[i * 8 + 7] = c.Reach;
                 lastLuminance[i] = c.Luminance;
-                lastMain[i] = c.Reach < 0f;
             }
             lastCount = count;
             return count;
@@ -111,16 +112,20 @@ namespace ReDefinition.Raytracing
         // What Fill handed over last, for the diagnostics log (RtKsp.Report).
         private static int lastCount;
         private static readonly float[] lastLuminance = new float[2];
-        private static readonly bool[] lastMain = new bool[2];
 
         internal static string Describe()
         {
             if (lastCount == 0) return "no moonlight";
             var text = new System.Text.StringBuilder("moonlight");
             for (int i = 0; i < lastCount; i++)
-                text.Append(i > 0 ? ", " : " ").Append(lastLuminance[i].ToString("0.0000"))
-                    .Append(lastMain[i] ? " (the main body)" : "");
+                text.Append(i > 0 ? ", " : " ").Append(lastLuminance[i].ToString("0.0000"));
             return text.ToString();
+        }
+
+        // The main body's albedo, linear, for the rays that meet its sphere.
+        internal static Color PlanetAlbedo(CelestialBody main)
+        {
+            return main != null && main.scaledBody != null ? ColourOf(main) : Grey;
         }
 
         private static float Luminance(Color c)

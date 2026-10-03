@@ -77,6 +77,9 @@ namespace ReDefinition.Raytracing
         // How much of Unity's ambient light stays as the least light a raytraced point
         // gets, 0 to 1 (KSP's night light: the player's Night light). All by default.
         internal Func<float> NightLight = () => 1f;
+        // The main body's albedo, linear: rays that miss the scene and meet its sphere
+        // (Body) take the sun's and the lights' light on it times this.
+        internal Func<Color> PlanetAlbedo = () => new Color(0.12f, 0.12f, 0.12f);
         // Unity's ambient light, which its shading adds by itself: the raytraced light
         // added to the frame is this much less. Handed over facing up, sideways and down.
         // The probe Unity shades with: RenderSettings.ambientProbe holds only a baked one.
@@ -747,6 +750,10 @@ namespace ReDefinition.Raytracing
             packet.NightLight[0] = night.r;
             packet.NightLight[1] = night.g;
             packet.NightLight[2] = night.b;
+            Color planet = PlanetAlbedo();
+            packet.Planet[0] = planet.r;
+            packet.Planet[1] = planet.g;
+            packet.Planet[2] = planet.b;
             Vector4 body = Body();
             packet.BodySphere[0] = (float)(body.x - position.x);
             packet.BodySphere[1] = (float)(body.y - position.y);

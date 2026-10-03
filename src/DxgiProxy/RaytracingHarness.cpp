@@ -742,6 +742,8 @@ PsOut PsMain(VsOut input)
         int lightCount = 0;
         // Whether Unity's colours are gamma-space values (RtFramePacket lightParams y).
         bool gamma = false;
+        // The main body's albedo (RtFramePacket planet).
+        float planet[3] = { 0.0f, 0.0f, 0.0f };
     };
 
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
@@ -782,6 +784,7 @@ PsOut PsMain(VsOut input)
         memcpy(packet.lights, lighting.lights, sizeof(lighting.lights));
         packet.lightParams[0] = float(lighting.lightCount);
         packet.lightParams[1] = lighting.gamma ? 1.0f : 0.0f;
+        memcpy(packet.planet, lighting.planet, sizeof(lighting.planet));
         packet.inputs[kRtInputEnvironment] = lighting.environment;
         packet.inputs[kRtInputInstances] = lighting.gpuInstances;
         packet.inputs[kRtInputDepth] = g.depth.Get();
@@ -2502,6 +2505,58 @@ int main()
         Check(seen && std::fabs(open - wanted) < 0.05 * wanted && shaded < 0.05 * wanted
                   && std::fabs(mainBody - moon) < 0.05 * moon && otherBody >= 0.0 && otherBody < 0.01 * moon,
               "moonlight", detail);
+    }
+
+    // ---------------------------------------------------------------- the ground below
+    {
+        // A box high over a planet, a white sky: the rays from its underside meet the
+        // planet's sphere, which sends its albedo times the sun on it -- with the sun
+        // overhead the albedo, with the sun under the horizon nothing -- not the sky.
+        std::vector<Instance> high = { box };
+        high[0].position = { 0, 150, 0 };
+        Camera under = camera;
+        under.position = { 30, 120, 60 };
+        under.target = { 0, 150, 0 };
+        under.Update();
+        SendInstances(proxy, high, under.position);
+        RenderGBuffer(context.Get(), g, under, meshes, high);
+        Lighting lighting;
+        lighting.bounces = 0.0f;
+        lighting.body[1] = -6.0e5;
+        lighting.body[3] = 6.0e5;
+        lighting.planet[0] = 0.3f;
+        lighting.planet[1] = 0.2f;
+        lighting.planet[2] = 0.1f;
+        const auto underside = [&](Vec3 towardsSun, double& result) -> bool
+        {
+            std::vector<double> m;
+            if (!Accumulate(proxy, device.Get(), context.Get(), under, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                            lighting, towardsSun, 64, 17000, m))
+                return false;
+            std::vector<uint32_t> normals;
+            std::vector<float> depth;
+            ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+            ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+            double total = 0.0;
+            size_t count = 0;
+            for (size_t i = 0; i < normals.size(); ++i)
+            {
+                if (depth[i] <= 0.0f || ((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1 > -0.9)
+                    continue;
+                total += m[i * 3];
+                ++count;
+            }
+            result = count > 1000 ? total / count : -1.0;
+            return true;
+        };
+        double day = 0.0, night = 0.0;
+        if (!underside(Vec3{ 0, 1, 0 }, day) || !underside(Vec3{ 0, -1, 0 }, night))
+            return Fatal("reading the ground's light back", E_FAIL);
+        char detail[200];
+        sprintf_s(detail, "the box's underside %.3f in red with the sun overhead (the planet's albedo 0.3), %.3f with the sun "
+                          "under the horizon, under a white sky", day, night);
+        Check(std::fabs(day - 0.3) < 0.03 && night >= 0.0 && night < 0.01, "the ground below", detail);
+        SendInstances(proxy, scene, camera.position);
     }
 
     // ---------------------------------------------------------------- vertex colours

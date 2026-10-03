@@ -148,6 +148,7 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] Lights;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] LightParams;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] NightLight;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] Planet;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -249,6 +250,7 @@ namespace ReDefinition.Raytracing
                 Lights = new float[16],
                 LightParams = new float[4],
                 NightLight = new float[4],
+                Planet = new float[4],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

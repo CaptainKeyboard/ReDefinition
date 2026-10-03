@@ -37,10 +37,10 @@ namespace ReDefinition
         public int RaytracingBounces = 2;
         // How bright the moons' and planets' light is, in percent of the raytracing's
         // artistic scale (Raytracing/Ksp/RtReflectors).
-        public float RaytracingMoonlight = 150f;
+        public float RaytracingMoonlight = 10f;
         // How much of KSP's night light stays under raytracing, in percent: the least
         // light a point gets where neither the sun nor a moon reaches it.
-        public float RaytracingNightAmbient = 30f;
+        public float RaytracingNightAmbient = 0f;
 
         // Whether the settings window holds the flight while it is open.
         public bool PauseWhileOpen;

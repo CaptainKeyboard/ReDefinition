@@ -87,7 +87,7 @@ and credited in [credits-and-licences.md](../credits-and-licences.md). When rayt
 off, Deferred's shader is set again.
 
 The raytraced diffuse light never falls below the player's share of KSP's own night
-light (*Night light*, 30 % unless set). KSP's night light is its flat ambient colour
+light (*Night light*, 0 % unless set). KSP's night light is its flat ambient colour
 (`RenderSettings.ambientLight`), which Deferred hands its shader as `legacyAmbientColor`
 (`RefreshLegacyAmbient`) **[src]**. ReDefinition's reflections shader mixes the raytraced
 light with that colour times the share, as Deferred mixes its probe's light. At 100 % a
@@ -285,8 +285,9 @@ Every light the rays carry is traced with a shadow ray and bounces off what it l
 | Source | Where it comes from | Shadow |
 |---|---|---|
 | The sun | the scene's sunlight, its colour and the size of its disc | a ray towards the disc, and the main body's sphere |
-| Moons and the planet | each a disc of its angular size, lit by the sun (see below) | a ray towards the disc, as far as the body's surface |
-| The sky | rays that hit nothing take the reflection probe's capture, or KSP's ambient sky colour | the scene, as occlusion |
+| Moons | each a disc of its angular size, lit by the sun (see below) | a ray towards the disc, as far as the body's surface |
+| The planet | rays that miss the scene and meet the main body's sphere: its albedo times the sun's and the moons' light there (see below) | the scene, as occlusion |
+| The sky | the other rays that hit nothing take the reflection probe's capture, or KSP's ambient sky colour | the scene, as occlusion |
 | Emission | the material's emission | none; it lights what its rays reach |
 | Bounces | each hit lit by all of the above, times its albedo, again for each bounce | as for each source |
 
@@ -312,12 +313,13 @@ After the change, the craft's underside over the launch pad's grass keeps the co
 ratio it has without raytracing **[meas]** (green over red 0.96 with raytracing, 0.97
 without).
 
-### Moons and the planet as lights
+### Moons as lights
 
-The moons of the planet the camera is at, and that planet, light the scene as the sun
-does. Each is a disc of its angular size, and its light reaches only where the disc is in
-view with nothing between. The Mun lights the launch pad only while it stands over it.
-Bodies of other planets are left out: their light is far below what the screen shows.
+The moons of the planet the camera is at light the scene as the sun does; on a moon, the
+planet it orbits does too. Each is a disc of its angular size, and its light reaches only
+where the disc is in view with nothing between. The Mun lights the launch pad only while
+it stands over it. Bodies of other planets are left out: their light is far below what
+the screen shows.
 
 Physically, a sphere that scatters by Lambert's law sends, at phase angle a,
 `E = E_sun * albedo * 2/3 * phase(a) * (R/d)^2`, with
@@ -327,7 +329,12 @@ to see on a screen without the eye's adaptation. The raytracing therefore takes 
 square root of that share times ten, eased towards 0.3 of the sunlight. This keeps the
 bodies' order: Minmus is fainter than the Mun, and a crescent fainter than the full disc.
 It brings the full Mun to some 0.06 of the sunlight. The player's *Moonlight* percentage
-scales the result.
+scales the result, 10 % unless set.
+
+The lights are tinted cool, (0.83, 1.01, 1.42) at the same luminance. Moonlight is nearly
+the sun's colour, but at night the eye sees it bluish (the Purkinje effect), and a night
+lit in the sun's colour looked warm **[meas]** (KSP, the craft's blue over red at night:
+1.26 to 1.46 with the moonlight, 1.03 without raytracing).
 
 A body's albedo and colour are the linear average of its scaled-space texture, rendered
 down to 16 by 16 pixels: Parallax's `_ColorMap`, otherwise `_MainTex` **[src]**. Parallax
@@ -338,13 +345,21 @@ read again every ten seconds **[meas]** (KSP.log: the Mun 0.176 grey, Minmus 0.3
 or white. The scene's sunlight is no guide: Scatterer tints it by the atmosphere, and at
 night it is dark **[meas]** (moonlight orange by day, none at night, before the change).
 
-The planet itself is a light only where nothing else brings its light:
+### The planet below
 
-* With a reflection probe, the rays that miss already see the planet in it.
-* Below the terrain's 30 km, the rays hit the ground as terrain.
-
-Its own sphere does not shade it: its shadow ray ends at the surface, short of the
-sphere test.
+A ray that misses the scene below the horizon meets the ground beyond it: past the 30 km
+of terrain the scene holds, over the ocean, which is not in it, and under the first metre
+of terrain a pixel's rays pass through. The reflection probe shows that ground as drawn,
+lit by KSP's ambient light: at night a craft over grass got a green light from below,
+brighter than the moon's **[meas]** (the player's screenshot). Such a ray therefore meets
+the main body's sphere, which sends its albedo times the sun's and the moons' light on
+the sphere there, by N.L and unshaded but by the sphere (`RtCommon.hlsli`,
+`PlanetRadiance`). The albedo is the body's, as for the moons (Kerbin 0.139, 0.169, 0.168
+**[meas]**, KSP.log). By day this is the sunlit ground's light, at night nothing but the
+moons' **[meas]** (harness: a box's underside over a planet of albedo 0.3 at 0.302 with
+the sun overhead and 0.002 with it under the horizon; KSP at night without moonlight:
+the craft at 0.7 of 255, 37 without raytracing). The probe still brings the sky above
+the horizon.
 
 Two lights at most go to the proxy each frame, the brightest. Each sample picks one by
 its brightness and weighs it back by that chance. Each light costs a shadow ray per
@@ -460,7 +475,9 @@ The harness checks:
     times N.L, the ground in the box's shadow nothing. The main body's light reaches a
     box's underside past its own sphere, and another body's light from below the horizon
     does not.
-18. **Vertex colours.** A ground of a colour plus its vertex colours times a factor, as
+18. **The ground below.** A box high over a planet under a white sky: its underside gets
+    the planet's albedo with the sun overhead and nothing with the sun under the horizon.
+19. **Vertex colours.** A ground of a colour plus its vertex colours times a factor, as
     Parallax's terrain: in gamma space its forward light under a white sky is that sum.
 
 ## Plan

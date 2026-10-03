@@ -19,7 +19,7 @@ The rows are under *Display* in the settings window, below the upscaler's.
 |---|---|
 | Raytracing | *Off*; *Shadows*: the sun's shadows from rays, as far as the scene reaches; *Shadows and light*: also the light bouncing off surfaces and the sky, which darkens corners and colours what stands beside something bright; *Full*: also reflections |
 | Light bounces | how often the traced light bounces between surfaces, from 1 to 4. More bounces light shadowed sides and rooms more fully, at more GPU time. Only with *Shadows and light* or *Full* |
-| Moonlight | how brightly the moons, and the planet seen from orbit, light the scene, from 0 to 300 %. Their light falls only where the moon is in the sky, with shadows. Only with *Shadows and light* or *Full* |
+| Moonlight | how brightly the moons light the scene, from 0 to 300 %, in a cool colour, as the eye sees moonlight at night. Their light falls only where the moon is in the sky, with shadows. Only with *Shadows and light* or *Full* |
 | Night light | how much of KSP's own night light stays, from 0 to 100 %: the least light anything gets where neither the sun nor a moon reaches it. Lower makes the night darker, and the moonlight's shadows show more clearly. Only with *Shadows and light* or *Full* |
 
 A profile never switches raytracing on: it needs a GPU with raytracing, and it costs what

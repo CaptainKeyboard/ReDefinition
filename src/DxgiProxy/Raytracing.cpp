@@ -672,6 +672,7 @@ namespace redefinition
         memcpy(constants + 352, packet->lights, 64);
         memcpy(constants + 416, packet->lightParams, 16);
         memcpy(constants + 432, packet->nightLight, 16);
+        memcpy(constants + 448, packet->planet, 16);
 
         std::vector<D3D12_RESOURCE_BARRIER> into;
         std::vector<D3D12_RESOURCE_BARRIER> back;
