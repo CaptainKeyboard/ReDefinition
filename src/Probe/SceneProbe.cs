@@ -31,6 +31,23 @@ namespace ReDefinition.Probe
         internal const string SaveFolder = "ReDefinitionProbe";
         internal static bool Launched;
 
+        // -redefinitionProbeScenes <n>: n round trips from the flight to the space
+        // centre and back, each flight settled, for what scene changes leave behind
+        // in the logs (memory, devices, the upscaler's and raytracing's setup). -1
+        // where not asked for.
+        internal static int ScenesLeft = SceneCount();
+        // On each round trip the space centre first opens the VAB, then the flight.
+        internal static bool EditorVisited;
+
+        private static int SceneCount()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i + 1 < args.Length; i++)
+                if (string.Equals(args[i], "-redefinitionProbeScenes", StringComparison.OrdinalIgnoreCase))
+                    return int.Parse(args[i + 1], CultureInfo.InvariantCulture);
+            return -1;
+        }
+
         // The variants to run, -redefinitionProbeVariants <part of their name, or all>:
         // none without it. The baseline first says at which stage the halo enters.
         internal static string Variants
@@ -83,6 +100,50 @@ namespace ReDefinition.Probe
             HighLogic.CurrentGame = game;
             Debug.Log(Log.Tag + " Probe: flight of " + game.flightState.protoVessels[index].vesselName + ".");
             FlightDriver.StartAndFocusVessel(game, index);
+        }
+    }
+
+    // At the space centre during the scene round trips: back to the vessel's flight.
+    [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
+    internal sealed class SceneProbeReturn : MonoBehaviour
+    {
+        private IEnumerator Start()
+        {
+            if (!SceneProbe.Requested || SceneProbe.ScenesLeft < 0 || HighLogic.SaveFolder != SceneProbe.SaveFolder)
+                yield break;
+            yield return new WaitForSeconds(10f);
+            if (!SceneProbe.EditorVisited)
+            {
+                SceneProbe.EditorVisited = true;
+                Debug.Log(Log.Tag + " Probe: to the VAB.");
+                EditorDriver.StartEditor(EditorFacility.VAB);
+                yield break;
+            }
+            SceneProbe.EditorVisited = false;
+            Game game = HighLogic.CurrentGame;
+            int index = game.flightState.protoVessels.FindIndex(v => v.situation == Vessel.Situations.PRELAUNCH);
+            if (index < 0)
+            {
+                Debug.LogWarning(Log.Tag + " Probe: no vessel on the launch pad after the round trip; quitting.");
+                Application.Quit();
+                yield break;
+            }
+            Debug.Log(Log.Tag + " Probe: back to the flight of " + game.flightState.protoVessels[index].vesselName + ".");
+            FlightDriver.StartAndFocusVessel(game, index);
+        }
+    }
+
+    // In the VAB during the scene round trips: back to the space centre.
+    [KSPAddon(KSPAddon.Startup.EditorAny, false)]
+    internal sealed class SceneProbeEditor : MonoBehaviour
+    {
+        private IEnumerator Start()
+        {
+            if (!SceneProbe.Requested || SceneProbe.ScenesLeft < 0 || HighLogic.SaveFolder != SceneProbe.SaveFolder)
+                yield break;
+            yield return new WaitForSeconds(15f);
+            Debug.Log(Log.Tag + " Probe: from the VAB back to the space centre.");
+            HighLogic.LoadScene(GameScenes.SPACECENTER);
         }
     }
 
@@ -148,6 +209,26 @@ namespace ReDefinition.Probe
             while (!FlightGlobals.ready || FlightGlobals.ActiveVessel == null || FlightCamera.fetch == null)
                 yield return null;
             yield return new WaitForSeconds(SettleSeconds);
+
+            if (SceneProbe.ScenesLeft >= 0)
+            {
+                if (SceneProbe.ScenesLeft == 0)
+                {
+                    Debug.Log(Log.Tag + " Probe: scene round trips done; quitting.");
+                    yield return new WaitForSeconds(1f);
+                    Application.Quit();
+                    yield break;
+                }
+                SceneProbe.ScenesLeft--;
+                Debug.Log(Log.Tag + " Probe: map view.");
+                MapView.EnterMapView();
+                yield return new WaitForSeconds(8f);
+                MapView.ExitMapView();
+                yield return new WaitForSeconds(3f);
+                Debug.Log(Log.Tag + " Probe: to the space centre, " + SceneProbe.ScenesLeft + " round trip(s) after this.");
+                HighLogic.LoadScene(GameScenes.SPACECENTER);
+                yield break;
+            }
 
             foreach (Camera c in Camera.allCameras)
                 if (c.name == "Camera 00") scene = c;
@@ -224,6 +305,30 @@ namespace ReDefinition.Probe
                 Detach();
                 File.WriteAllText(Path.Combine(folder, "meta.txt"), meta.ToString());
                 Debug.Log(Log.Tag + " Probe: vendor checks done; quitting.");
+                yield return new WaitForSeconds(1f);
+                Application.Quit();
+                yield break;
+            }
+
+            // -redefinitionProbeMapToggles <n>: into the map view and out again n
+            // times, four seconds each (-redefinitionProbeMapTenths), then KSP quits -- each switch turns the
+            // upscaler, Ray Reconstruction and frame generation off and on.
+            int toggles = IntArgument("-redefinitionProbeMapToggles");
+            // -redefinitionProbeMapTenths <n>: each phase n tenths of a second, 40 if not given.
+            int tenths = IntArgument("-redefinitionProbeMapTenths");
+            float mapSeconds = (tenths > 0 ? tenths : 40) / 10f;
+            if (toggles > 0)
+            {
+                Detach();
+                for (int i = 0; i < toggles; i++)
+                {
+                    Debug.Log(Log.Tag + " Probe: map view " + (i + 1) + " of " + toggles + ".");
+                    MapView.EnterMapView();
+                    yield return new WaitForSeconds(mapSeconds);
+                    MapView.ExitMapView();
+                    yield return new WaitForSeconds(mapSeconds);
+                }
+                Debug.Log(Log.Tag + " Probe: map view toggles done; quitting.");
                 yield return new WaitForSeconds(1f);
                 Application.Quit();
                 yield break;
@@ -399,6 +504,14 @@ namespace ReDefinition.Probe
             Time.timeScale = timeScale;
         }
 
+        private static int IntArgument(string name)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i + 1 < args.Length; i++)
+                if (args[i] == name) return int.Parse(args[i + 1], CultureInfo.InvariantCulture);
+            return 0;
+        }
+
         private static int SoakSeconds
         {
             get
@@ -557,10 +670,14 @@ namespace ReDefinition.Probe
             // reaches it only after its own last event (measured: AfterEverything
             // holds the frame without the vessel).
             yield return new WaitForEndOfFrame();
-            int screenX = Mathf.RoundToInt((float)x * Screen.width / width);
-            // The screenshot's rows run the other way from the camera's buffers: the same
-            // region counted from the other edge.
-            int screenY = Screen.height - Mathf.RoundToInt((float)(y + Crop) * Screen.height / height);
+            // Around the same point of the screen, Crop screen pixels wide whatever the
+            // render size, so that runs at different render sizes compare. The
+            // screenshot's rows run the other way from the camera's buffers: counted
+            // from the other edge.
+            int screenX = Mathf.Clamp(Mathf.RoundToInt(screen.x * Screen.width / width) - Crop / 2, 0,
+                                      Mathf.Max(0, Screen.width - Crop));
+            int screenY = Mathf.Clamp(Screen.height - Mathf.RoundToInt(screen.y * Screen.height / height) - Crop / 2, 0,
+                                      Mathf.Max(0, Screen.height - Crop));
             RenderTexture full = RenderTexture.GetTemporary(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
             ScreenCapture.CaptureScreenshotIntoRenderTexture(full);
             RenderTexture screenCrop = Target(RenderTextureFormat.ARGB32);

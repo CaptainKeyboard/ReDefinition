@@ -15,6 +15,10 @@ band over the floor. 1-4 px holds the edge's own antialiasing. Sky is where the 
 after the scene camera's lighting is still empty (deferred shading) and the vessel's
 mask is empty.
 
+The vessel's mask is drawn at the render size; the screen station is cut at the
+display size around the same point, so it lines up with the mask only where both
+sizes are one (NativeAA, or no upscaler).
+
 The two passes lie seconds apart: run the probe with -redefinitionProbeFreeze, game
 time stopped, or clouds and water drifting between them fill every band.
 """
