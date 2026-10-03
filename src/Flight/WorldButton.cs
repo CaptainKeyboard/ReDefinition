@@ -47,6 +47,7 @@ namespace ReDefinition.Flight
         private readonly Button button;
         private readonly TooltipController_Text tooltip;
         private string look;
+        private bool kscLook;
 
         // `metres`: how large it stands in the world.
         internal WorldButton(string name, UnityAction click, float metres)
@@ -95,8 +96,10 @@ namespace ReDefinition.Flight
         // else -- or with no name -- `fallback` on the round plate.
         internal void Look(string ksc, Sprite fallback)
         {
-            if (look == ksc && face.sprite != null) return;
+            // Again once the space centre's button has been taken, where the
+            // fallback stood till then.
             KscButtons.Look states = ksc != null ? KscButtons.Get(ksc) : null;
+            if (look == ksc && face.sprite != null && (states == null || kscLook)) return;
             if (states != null)
             {
                 face.sprite = states.Normal;
@@ -111,6 +114,7 @@ namespace ReDefinition.Flight
                 };
                 button.spriteState = swap;
                 glyph.enabled = false;
+                kscLook = true;
             }
             else
             {
@@ -124,6 +128,7 @@ namespace ReDefinition.Flight
                 button.colors = tint;
                 glyph.sprite = fallback;
                 glyph.enabled = fallback != null;
+                kscLook = false;
             }
             look = ksc;
         }
@@ -310,7 +315,11 @@ namespace ReDefinition.Flight
             internal Sprite Normal, Highlighted, Pressed, Disabled;
         }
 
-        internal static readonly string[] Wanted = { "Buttons_VAB", "Buttons_SPH", "Buttons_Launchpad", "Buttons_Runway" };
+        internal static readonly string[] Wanted =
+        {
+            "Buttons_VAB", "Buttons_SPH", "Buttons_Launchpad", "Buttons_Runway", "Buttons_TrackingStation",
+            "Buttons_MissionControl", "Buttons_AstronautComplex", "Buttons_RnD", "Buttons_Admin",
+        };
         private static readonly Dictionary<string, Look> looks = new Dictionary<string, Look>();
 
         internal static Look Get(string name)
