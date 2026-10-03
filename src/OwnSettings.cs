@@ -70,6 +70,9 @@ namespace ReDefinition
         public bool AutoAltimeter = true;
         // The flight panel switches to the profile of the situation (Flight/Panel/FlightPanel).
         public bool FlightPanelAuto = true;
+        // The buttons standing over the space centre's buildings in flight and over
+        // the launch site in the editors (Flight/WorldButton).
+        public bool WorldButtons = true;
 
         private const string RootName = "ReDefinition";
 
@@ -117,6 +120,7 @@ namespace ReDefinition
             settings.TimeWarpToolbarButton = Bool(node, "timeWarpToolbarButton", settings.TimeWarpToolbarButton);
             settings.FlightStartsInManeuverMode = Bool(node, "flightStartsInManeuverMode", settings.FlightStartsInManeuverMode);
             settings.AutoAltimeter = Bool(node, "autoAltimeter", settings.AutoAltimeter);
+            settings.WorldButtons = Bool(node, "worldButtons", settings.WorldButtons);
             settings.FlightPanelAuto = Bool(node, "flightPanelAuto", settings.FlightPanelAuto);
             return settings;
         }
@@ -153,6 +157,7 @@ namespace ReDefinition
             node.AddValue("timeWarpToolbarButton", TimeWarpToolbarButton);
             node.AddValue("flightStartsInManeuverMode", FlightStartsInManeuverMode);
             node.AddValue("autoAltimeter", AutoAltimeter);
+            node.AddValue("worldButtons", WorldButtons);
             node.AddValue("flightPanelAuto", FlightPanelAuto);
             node.AddValue("raytracing", Raytracing);
             node.AddValue("raytracingBounces", RaytracingBounces);
@@ -185,7 +190,7 @@ namespace ReDefinition
               .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
               .Append(NavballScreen).Append('|').Append(ScaleModWindows)
               .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode)
-              .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto)
+              .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto).Append('|').Append(WorldButtons)
               .Append('|').Append(Raytracing).Append('|').Append(RaytracingBounces);
             return sb.ToString();
         }

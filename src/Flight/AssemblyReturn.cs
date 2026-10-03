@@ -39,10 +39,7 @@ namespace ReDefinition.Flight
         private sealed class Building
         {
             internal EditorFacility Facility;
-            internal Transform Place;
-            internal Vector3 Middle;
-            internal Collider[] Solid;
-            internal bool Measured;
+            internal FacilitySpot Spot;
         }
 
         private Building vab, sph;
@@ -71,7 +68,10 @@ namespace ReDefinition.Flight
                 if (Named(facility, SpaceCenterFacility.VehicleAssemblyBuilding.ToString())) editor = EditorFacility.VAB;
                 else if (Named(facility, SpaceCenterFacility.SpaceplaneHangar.ToString())) editor = EditorFacility.SPH;
                 else continue;
-                Building building = new Building { Facility = editor, Place = facility.facilityTransform };
+                Building building = new Building
+                {
+                    Facility = editor, Spot = new FacilitySpot(editor.ToString(), facility.facilityTransform),
+                };
                 if (editor == EditorFacility.VAB) vab = building;
                 else sph = building;
                 if (facility.hostBody != null) home = facility.hostBody;
@@ -99,7 +99,7 @@ namespace ReDefinition.Flight
 
         private static string Where(Building building)
         {
-            return building == null || building.Place == null ? "missing" : "at " + building.Place.name;
+            return building == null || building.Spot.Place == null ? "missing" : "at " + building.Spot.Place.name;
         }
 
         private static Sprite Load(string name)
@@ -126,9 +126,9 @@ namespace ReDefinition.Flight
                 return;
             }
             Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-            Vector3 middle = Middle(building);
+            Vector3 middle = building.Spot.Middle(home);
             // Before the building's front, not inside it.
-            if (!marker.Place(middle, camera, 0f, false, building.Solid))
+            if (!marker.Place(middle, camera, 0f, false, building.Spot.Solid))
             {
                 Note("the building behind the camera or too far to see, or KSP's interface hidden");
                 return;
@@ -136,7 +136,7 @@ namespace ReDefinition.Flight
             // Put together only for the log, where the note changes: this runs every frame.
             if (noted != Shown)
                 Note("shown on the " + building.Facility + (revert ? ", reverting" : ", recovering") + ", "
-                     + ((Vector3d)building.Place.position - FlightGlobals.ActiveVessel.CoMD).magnitude.ToString("0") + " m off");
+                     + ((Vector3d)building.Spot.Place.position - FlightGlobals.ActiveVessel.CoMD).magnitude.ToString("0") + " m off");
             marker.Look(building.Facility == EditorFacility.SPH ? "Buttons_SPH" : "Buttons_VAB",
                 building.Facility == EditorFacility.SPH ? sphIcon : vabIcon);
             marker.Tooltip = Title(building.Facility, revert);
@@ -157,8 +157,8 @@ namespace ReDefinition.Flight
             EditorFacility facility = revert ? ShipConstruction.ShipType
                 : vessel.landedAt != null && vessel.landedAt.Contains("Runway") ? EditorFacility.SPH : EditorFacility.VAB;
             building = facility == EditorFacility.SPH ? sph : vab;
-            if (building == null || building.Place == null) return Note("no " + facility);
-            double distance = (vessel.CoMD - (Vector3d)building.Place.position).magnitude;
+            if (building == null || building.Spot.Place == null) return Note("no " + facility);
+            double distance = (vessel.CoMD - (Vector3d)building.Spot.Place.position).magnitude;
             if (distance > Range) return noted != Far && Note(distance.ToString("0") + " m from the " + facility);
             return revert || CanRecover(vessel) || Note("neither a revert nor a recovery possible");
         }
@@ -198,54 +198,6 @@ namespace ReDefinition.Flight
             if (facility == EditorFacility.SPH) return revert ? "Revert to Spaceplane Hangar" : "Recover vessel and go to Spaceplane Hangar";
             return revert ? "Revert to Vehicle Assembly" : "Recover vessel and go to Vehicle Assembly";
         }
-
-        // The middle of the building's hall, found once it is there: over the
-        // middle of the largest drawn part that is also solid (a collider on it:
-        // the SPH's model_sph_exterior_main, not the flat ground around it or the
-        // light flare 90 m up its tower, sharedassets9), half as high as its roof
-        // stands there -- a ray down onto the building's colliders; the tower
-        // beside the SPH's hall would make the hall's box twice as high.
-        private Vector3 Middle(Building building)
-        {
-            if (!building.Measured)
-            {
-                Vector3 ground = building.Place.position;
-                Vector3 up = (ground - home.position).normalized;
-                Renderer hall = null;
-                float most = -1f;
-                foreach (Renderer part in building.Place.GetComponentsInChildren<Renderer>(false))
-                {
-                    if (part.GetComponent<Collider>() == null) continue;
-                    Vector3 size = part.bounds.size;
-                    float volume = size.x * size.y * size.z;
-                    if (volume <= most) continue;
-                    most = volume;
-                    hall = part;
-                }
-                if (hall == null) return ground;
-                building.Solid = building.Place.GetComponentsInChildren<Collider>(false);
-                Bounds bounds = hall.bounds;
-                Vector3 extent = bounds.extents;
-                float top = Vector3.Dot(bounds.center - ground, up)
-                            + Mathf.Abs(extent.x * up.x) + Mathf.Abs(extent.y * up.y) + Mathf.Abs(extent.z * up.z);
-                Vector3 across = bounds.center - up * Vector3.Dot(bounds.center - ground, up);
-                float roof = 0f;
-                Ray down = new Ray(across + up * (top + 10f), -up);
-                foreach (Collider solid in building.Solid)
-                {
-                    RaycastHit hit;
-                    if (solid != null && !solid.isTrigger && solid.Raycast(down, out hit, top + 20f))
-                        roof = Mathf.Max(roof, Vector3.Dot(hit.point - ground, up));
-                }
-                if (roof <= 0f) roof = top;
-                building.Middle = building.Place.InverseTransformPoint(across + up * (roof / 2f));
-                building.Measured = true;
-                Debug.Log(Log.Tag + " The " + building.Facility + "'s roof stands " + roof.ToString("0") + " m high over "
-                          + hall.name + "; its button half as high.");
-            }
-            return building.Place.TransformPoint(building.Middle);
-        }
-
 
         // ---------------------------------------------------------------- click
 

@@ -137,6 +137,7 @@ namespace ReDefinition
             settings.FlightStartsInManeuverMode = from.FlightStartsInManeuverMode;
             settings.AutoAltimeter = from.AutoAltimeter;
             settings.FlightPanelAuto = from.FlightPanelAuto;
+            settings.WorldButtons = from.WorldButtons;
         }
 
         // What a view changed of the hotkeys, and nothing else: KSP's settings
@@ -155,6 +156,7 @@ namespace ReDefinition
                 settings.FlightStartsInManeuverMode = after.FlightStartsInManeuverMode;
             if (before.AutoAltimeter != after.AutoAltimeter) settings.AutoAltimeter = after.AutoAltimeter;
             if (before.FlightPanelAuto != after.FlightPanelAuto) settings.FlightPanelAuto = after.FlightPanelAuto;
+            if (before.WorldButtons != after.WorldButtons) settings.WorldButtons = after.WorldButtons;
         }
 
         // Where the navball stands; NavballDrag moves it there and writes it as

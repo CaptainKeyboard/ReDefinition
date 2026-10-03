@@ -92,11 +92,11 @@ namespace ReDefinition.Flight
         }
 
         // The space centre's button of that name (Buttons_VAB, ...) with its states,
-        // else `fallback` on the round plate.
+        // else -- or with no name -- `fallback` on the round plate.
         internal void Look(string ksc, Sprite fallback)
         {
             if (look == ksc && face.sprite != null) return;
-            KscButtons.Look states = KscButtons.Get(ksc);
+            KscButtons.Look states = ksc != null ? KscButtons.Get(ksc) : null;
             if (states != null)
             {
                 face.sprite = states.Normal;
@@ -136,7 +136,8 @@ namespace ReDefinition.Flight
         // before as a whole -- its middle and its four corners are looked at from
         // the camera, and it is brought nearer until none of them lies behind one;
         // its size on the screen stays. Hidden too while KSP's interface is (F2, or a
-        // mod that hides it): it is interface, though it stands in the world.
+        // mod that hides it) -- it is interface, though it stands in the world --,
+        // and where the player switched these buttons off.
         internal bool Place(Vector3 world, Camera camera, float pull, bool standing = false, Collider[] solid = null)
         {
             bool shown = false;
@@ -175,9 +176,12 @@ namespace ReDefinition.Flight
 
         // KSP's own flag for whether its interface shows (UIMasterController
         // .isUIShowing), which F2 and onHideUI/onShowUI set and TUFX reads the same
-        // way; where there is no controller, it shows.
+        // way; where there is no controller, it shows. And the player's setting for
+        // these buttons (OwnSettings.WorldButtons).
         private static bool InterfaceShows()
         {
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon != null && !addon.Live.WorldButtons) return false;
             UIMasterController ui = UIMasterController.Instance;
             return ui == null || ui.IsUIShowing;
         }

@@ -15,7 +15,8 @@ light with a glow while on and black while off: GameData/ReDefinition/Icons/Flig
 
 **The planner's symbols** are white on clear, 64x64, for KSP's buttons to show them over
 their own background: GameData/ReDefinition/Icons/Planner_*.png. So are the assembly
-buildings' symbols over the space centre in flight: GameData/ReDefinition/Icons/Assembly_*.png.
+buildings' symbols over the space centre in flight: GameData/ReDefinition/Icons/Assembly_*.png and
+Facility_*.png.
 
 **The picture for a page** is "Re:" on a planet's night side, the atmosphere lit at the
 lower right. It is too fine for a toolbar button but carries a forum post or a mod site,
@@ -428,6 +429,76 @@ def draw_sph():
 ASSEMBLY_DRAWINGS = {"VAB": draw_vab, "SPH": draw_sph}
 
 
+CLEAR = (0, 0, 0, 0)
+
+
+def draw_tracking_station():
+    # A dish on its mount, turned up to the sky, its feed on a strut over it.
+    image, draw = planner_canvas()
+    dish = Image.new("RGBA", (PLANNER_SIZE, PLANNER_SIZE), CLEAR)
+    ImageDraw.Draw(dish).chord([60, 120, 452, 400], 0, 180, fill=WHITE)
+    dish = dish.rotate(-35, resample=Image.BICUBIC, center=(256, 260))
+    image.alpha_composite(dish, (0, -70))
+    draw = ImageDraw.Draw(image)
+    draw.line([(250, 175), (330, 70)], fill=WHITE, width=22)
+    draw.ellipse([308, 46, 354, 92], fill=WHITE)
+    draw.polygon([(215, 280), (275, 280), (330, 450), (160, 450)], fill=WHITE)
+    draw.rounded_rectangle([100, 432, 412, 470], radius=16, fill=WHITE)
+    return image
+
+
+def draw_mission_control():
+    # A screen on its foot with a trajectory across it.
+    image, draw = planner_canvas()
+    draw.rounded_rectangle([50, 70, 462, 360], radius=28, fill=WHITE)
+    draw.rounded_rectangle([86, 106, 426, 324], radius=12, fill=CLEAR)
+    draw.arc([60, 150, 450, 520], 200, 340, fill=WHITE, width=24)
+    draw.ellipse([300, 150, 346, 196], fill=WHITE)
+    draw.rectangle([226, 360, 286, 420], fill=WHITE)
+    draw.rounded_rectangle([140, 410, 372, 450], radius=16, fill=WHITE)
+    return image
+
+
+def draw_astronaut_complex():
+    # A helmet with its visor.
+    image, draw = planner_canvas()
+    draw.ellipse([86, 50, 426, 390], fill=WHITE)
+    draw.rounded_rectangle([140, 150, 372, 290], radius=60, fill=CLEAR)
+    draw.rounded_rectangle([116, 360, 396, 450], radius=30, fill=WHITE)
+    return image
+
+
+def draw_research():
+    # A flask, its neck up, liquid in its body.
+    image, draw = planner_canvas()
+    draw.rounded_rectangle([196, 40, 316, 80], radius=12, fill=WHITE)
+    draw.rectangle([212, 70, 300, 210], fill=WHITE)
+    draw.polygon([(212, 200), (300, 200), (450, 440), (62, 440)], fill=WHITE)
+    draw.rounded_rectangle([62, 400, 450, 470], radius=24, fill=WHITE)
+    draw.rectangle([234, 80, 278, 220], fill=CLEAR)
+    draw.polygon([(234, 214), (278, 214), (370, 360), (142, 360)], fill=CLEAR)
+    return image
+
+
+def draw_administration():
+    # A building with columns under its pediment.
+    image, draw = planner_canvas()
+    draw.polygon([(256, 40), (470, 160), (42, 160)], fill=WHITE)
+    for x in (80, 170, 262, 352):
+        draw.rectangle([x, 190, x + 60, 400], fill=WHITE)
+    draw.rectangle([50, 410, 462, 470], fill=WHITE)
+    return image
+
+
+# The space centre's other buildings, for their buttons before a launch
+# (Flight/SpaceCentreButtons), white on clear, 64x64:
+# GameData/ReDefinition/Icons/Facility_<name>.png.
+FACILITY_DRAWINGS = {
+    "TrackingStation": draw_tracking_station, "MissionControl": draw_mission_control,
+    "AstronautComplex": draw_astronaut_complex, "RnD": draw_research, "Administration": draw_administration,
+}
+
+
 PLANNER_DRAWINGS = {
     "Surface": draw_surface, "Orbit": draw_orbit, "Chute": draw_chute, "Aerobrake": draw_aerobrake,
     "Whole": draw_whole, "Lander": draw_lander, "Rest": draw_rest, "Dot": draw_dot,
@@ -581,6 +652,10 @@ def main():
         drawing().resize((64, 64), Image.LANCZOS).save(path)
     for name, drawing in ASSEMBLY_DRAWINGS.items():
         path = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "Assembly_%s.png" % name)
+        drawing().resize((64, 64), Image.LANCZOS).save(path)
+        print("in the game:", os.path.relpath(path, ROOT))
+    for name, drawing in FACILITY_DRAWINGS.items():
+        path = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "Facility_%s.png" % name)
         drawing().resize((64, 64), Image.LANCZOS).save(path)
         print("in the game:", os.path.relpath(path, ROOT))
 

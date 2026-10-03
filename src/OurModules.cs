@@ -310,6 +310,21 @@ namespace ReDefinition
                           + "than in the staging mode. The mode buttons switch it as before.",
                 Read = settings => SettingValues.Text(settings.FlightStartsInManeuverMode),
                 Write = (settings, value) => settings.FlightStartsInManeuverMode = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "worldButtons",
+                Title = "Buttons over the buildings",
+                Order = 106,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Buttons over the space centre's buildings while the vessel stands near them -- back to the "
+                          + "assembly building, and before the launch to every other building -- and over the launch pad and "
+                          + "the runway in the editors.",
+                Read = settings => SettingValues.Text(settings.WorldButtons),
+                Write = (settings, value) => settings.WorldButtons = bool.Parse(value),
             });
 
         // What KSP leaves unscaled (Scaling/UiScaling).
