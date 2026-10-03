@@ -24,6 +24,25 @@ namespace ReDefinition.Upscaler
     // makes godrays whenever it loads a body's effects, often with the rig long
     // in place (SkyNode.Init) -- straight after each Init, through a Harmony
     // postfix.
+    //
+    // And their history leaves copies of a vessel's outline in the sky while the
+    // camera turns. RaymarchScatteringOcclusion reads last frame's occlusion
+    // (historyGodrayOcclusionBuffer) and its depth (historyGodrayDepthBuffer) at
+    // the reprojected position and keeps the occlusion where the depth matches --
+    // sky against sky, geometry against geometry (disassembled from
+    // scatterershaders-directx). The depth texture is made with point filtering,
+    // the occlusion texture with bilinear (Init: CreateVRFlipFlopRT ... ARGBHalf,
+    // FilterMode.Bilinear), at a quarter of the width. Beside a vessel's edge the
+    // depth read is the sky's and passes, while the occlusion read mixes in the
+    // vessel's texel; the sky keeps about two thirds of its history a frame at
+    // slow turns, so each frame's edge stays behind as one more fading outline.
+    // Measured with the scene probe, the upscaler, frame generation and
+    // raytracing off: the outlines go with useRaymarchedCloudGodrays off, stay
+    // with the terrain godrays off, and go with the history read with point
+    // filtering. The same texture is the next frame's history and this frame's
+    // godrays, which the sky upsamples, so it is set per frame after Scatterer's
+    // OnPreCull has chosen the pair: the history it reads to point, the one it
+    // writes to bilinear, as Scatterer made it.
     internal static class ScattererCompatibility
     {
         private const string GodraysTypeName = "Scatterer.RaymarchedGodraysRenderer";
@@ -40,6 +59,11 @@ namespace ReDefinition.Upscaler
         private static FieldInfo downscaledDepth;
         private static MethodInfo resize;
         private static MethodInfo init;
+        private static MethodInfo preCull;
+        private static FieldInfo godraysTextures;
+        private static FieldInfo useFlipBuffer;
+        private static FieldInfo targetCamera;
+        private static bool historyWarned;
 
         public static bool Present
         {
@@ -55,19 +79,85 @@ namespace ReDefinition.Upscaler
         // From the addon's Awake, before any scene has godrays.
         public static void InstallHook()
         {
-            if (!Present || init == null) return;
+            Resolve();
+            if (godraysType == null) return;
 
+            if (Present && init != null)
+            {
+                try
+                {
+                    MethodInfo postfix = typeof(ScattererCompatibility).GetMethod(nameof(AfterInit),
+                        BindingFlags.NonPublic | BindingFlags.Static);
+                    new HarmonyLib.Harmony(HarmonyId).Patch(init, postfix: new HarmonyLib.HarmonyMethod(postfix));
+                }
+                catch (Exception e)
+                {
+                    CompatibilityLog.Warn("scatterer-hook", "Scatterer's godrays could not be hooked ("
+                                                            + CompatibilityLog.Reason(e) + ").");
+                }
+            }
+
+            if (preCull == null || godraysTextures == null || useFlipBuffer == null || targetCamera == null)
+            {
+                CompatibilityLog.Warn("scatterer-godray-history", "Scatterer's godrays are not the ones this mod was"
+                                      + " written against; their history may leave outlines of a vessel in the sky.");
+                return;
+            }
             try
             {
-                MethodInfo postfix = typeof(ScattererCompatibility).GetMethod(nameof(AfterInit),
+                MethodInfo postfix = typeof(ScattererCompatibility).GetMethod(nameof(AfterPreCull),
                     BindingFlags.NonPublic | BindingFlags.Static);
-                new HarmonyLib.Harmony(HarmonyId).Patch(init, postfix: new HarmonyLib.HarmonyMethod(postfix));
+                new HarmonyLib.Harmony(HarmonyId).Patch(preCull, postfix: new HarmonyLib.HarmonyMethod(postfix));
             }
             catch (Exception e)
             {
-                CompatibilityLog.Warn("scatterer-hook", "Scatterer's godrays could not be hooked ("
-                                                        + CompatibilityLog.Reason(e) + ").");
+                CompatibilityLog.Warn("scatterer-godray-history", "Scatterer's godray history could not be hooked ("
+                                                                  + CompatibilityLog.Reason(e) + ").");
             }
+        }
+
+        // Runs inside Scatterer: nothing may escape.
+        private static void AfterPreCull(object __instance)
+        {
+            try
+            {
+                Camera camera = targetCamera.GetValue(__instance) as Camera;
+                object perEye = godraysTextures.GetValue(__instance);
+                if (camera == null || perEye == null) return;
+                object pair = Pick(perEye, camera.stereoActiveEye == Camera.MonoOrStereoscopicEye.Right);
+                bool written = (bool)useFlipBuffer.GetValue(__instance);
+                Filter(Pick(pair, !written) as RenderTexture, FilterMode.Point);
+                Filter(Pick(pair, written) as RenderTexture, FilterMode.Bilinear);
+            }
+            catch (Exception e)
+            {
+                if (historyWarned) return;
+                historyWarned = true;
+                CompatibilityLog.Warn("scatterer-godray-history", "Scatterer's godray history could not be set to"
+                                      + " point filtering (" + CompatibilityLog.Reason(e) + ").");
+            }
+        }
+
+        // Scatterer's FlipFlop<T>: its indexer by bool, per closed type.
+        private static readonly System.Collections.Generic.Dictionary<Type, PropertyInfo> indexers =
+            new System.Collections.Generic.Dictionary<Type, PropertyInfo>();
+
+        private static object Pick(object flipFlop, bool flip)
+        {
+            if (flipFlop == null) return null;
+            Type type = flipFlop.GetType();
+            PropertyInfo item;
+            if (!indexers.TryGetValue(type, out item))
+            {
+                item = type.GetProperty("Item", TypeLookup.Any, null, null, new[] { typeof(bool) }, null);
+                indexers[type] = item;
+            }
+            return item != null ? item.GetValue(flipFlop, new object[] { flip }) : null;
+        }
+
+        private static void Filter(RenderTexture texture, FilterMode mode)
+        {
+            if (texture != null && texture.filterMode != mode) texture.filterMode = mode;
         }
 
         // Runs inside Scatterer: nothing may escape.
@@ -159,6 +249,10 @@ namespace ReDefinition.Upscaler
             occlusionMaterial = godraysType.GetField("scatteringOcclusionMaterial", TypeLookup.Any);
             downscaledDepth = godraysType.GetField("downscaledDepth", TypeLookup.Any);
             resize = godraysType.GetMethod("ResizeRenderTextures", TypeLookup.Any, null, new[] { typeof(bool) }, null);
+            preCull = godraysType.GetMethod("OnPreCull", TypeLookup.Any, null, Type.EmptyTypes, null);
+            godraysTextures = godraysType.GetField("godraysRT", TypeLookup.Any);
+            useFlipBuffer = godraysType.GetField("useFlipBuffer", TypeLookup.Any);
+            targetCamera = godraysType.GetField("targetCamera", TypeLookup.Any);
 
             // Init(Light, SkyNode, bool, bool, int, int), returning bool: the one
             // overload there is, found without naming Scatterer's SkyNode type.
