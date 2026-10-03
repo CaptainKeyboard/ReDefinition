@@ -549,9 +549,11 @@ namespace ReDefinition.Probe
             float hdg = startHeading;
             camera.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
             int n = sweepSubdivide;
+            // -redefinitionProbeSweepRight: the same path the other way round.
+            float sign = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeSweepRight") >= 0 ? -1f : 1f;
             for (int i = 0; i < 60 * n; i++)
             {
-                hdg += (i < 20 * n || i >= 40 * n ? 1.5f : -1.5f) / n * Mathf.Deg2Rad;
+                hdg += sign * (i < 20 * n || i >= 40 * n ? 1.5f : -1.5f) / n * Mathf.Deg2Rad;
                 camera.camHdg = hdg;
                 camera.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
                 // The capture without the vessel spans the frames either side of the

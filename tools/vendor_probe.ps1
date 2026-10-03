@@ -24,6 +24,8 @@ param(
     [switch]$Imgui,
     # FSR's frame generation in place of DLSS-G, for AMD's checker to see its inputs.
     [switch]$Fsr,
+    # The camera sweep the other way round (-redefinitionProbeSweepRight).
+    [switch]$SweepRight,
     # KSP is ended after this long: a lost device leaves it hanging.
     [int]$TimeoutSeconds = 420
 )
@@ -61,7 +63,7 @@ try {
     Set-Content -Path $json -Encoding ASCII -Value '{ "text_indicator_level": 2 }'
 
     $process = Start-Process -FilePath (Join-Path $Ksp 'KSP_x64.exe') -WorkingDirectory $Ksp -PassThru `
-        -ArgumentList '-redefinitionProbe', '-redefinitionProbeVendor'
+        -ArgumentList (@('-redefinitionProbe', '-redefinitionProbeVendor') + $(if ($SweepRight) { @('-redefinitionProbeSweepRight') } else { @() }))
     if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
         Stop-Process -Id $process.Id -Force
         Write-Output "KSP did not finish within $TimeoutSeconds s and was ended."

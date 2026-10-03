@@ -74,31 +74,31 @@ namespace ReDefinition.Probe
         {
             yield return Record("plain", move);
 
-            Press(Control, Shift, KeyV);
+            yield return Press(Control, Shift, KeyV);
             for (int mode = 0; mode < FrameGenerationModes; mode++)
             {
                 yield return Record("dlssg-mode" + mode, move);
-                Press(F5);
+                yield return Press(F5);
             }
-            Press(Control, Shift, KeyV);
+            yield return Press(Control, Shift, KeyV);
 
             for (int layer = 0; layer < OverlayLayers; layer++)
             {
-                Press(Control, Alt, F12);
+                yield return Press(Control, Alt, F12);
                 // KSP's console opened with it; alt+F12 alone closes it again and
                 // leaves DLSS's overlay where it is.
                 yield return null;
-                Press(Alt, F12);
+                yield return Press(Alt, F12);
                 yield return Record("dlss-overlay" + layer, move);
             }
 
-            Press(Control, Shift, Insert);
+            yield return Press(Control, Shift, Insert);
             for (int view = 0; view < StreamlineViews; view++)
             {
                 yield return Record("sl-view" + view, move);
-                Press(Control, Shift, End);
+                yield return Press(Control, Shift, End);
             }
-            Press(Control, Shift, Insert);
+            yield return Press(Control, Shift, Insert);
         }
 
         private static IEnumerator Record(string name, Func<string, IEnumerator> move)
@@ -121,17 +121,42 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: vendor " + name + ": " + ScreenRecordingBridge.State());
         }
 
-        // A key combination, pressed and let go, through Windows' input queue: the
-        // DLLs read it as the player's.
-        private static void Press(params ushort[] keys)
+        // A key combination, pressed, held for a few frames and let go, through
+        // Windows' input queue: the DLLs read it as the player's. A press let go
+        // within the same frame goes unseen by them.
+        private static IEnumerator Press(params ushort[] keys)
         {
-            Input[] inputs = new Input[keys.Length * 2];
+            // SendInput goes to whatever window is in front: only while that is KSP's.
+            if (!KspInFront())
+            {
+                SetForegroundWindow(System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle);
+                for (int i = 0; i < 10; i++) yield return null;
+                if (!KspInFront())
+                {
+                    Debug.LogWarning(Log.Tag + " Probe: vendor keys not sent -- another window is in front.");
+                    yield break;
+                }
+            }
+            Input[] down = new Input[keys.Length];
+            Input[] up = new Input[keys.Length];
             for (int i = 0; i < keys.Length; i++)
             {
-                inputs[i] = Key(keys[i], false);
-                inputs[keys.Length * 2 - 1 - i] = Key(keys[i], true);
+                down[i] = Key(keys[i], false);
+                up[keys.Length - 1 - i] = Key(keys[i], true);
             }
-            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(Input)));
+            SendInput((uint)down.Length, down, Marshal.SizeOf(typeof(Input)));
+            for (int i = 0; i < 6; i++) yield return null;
+            SendInput((uint)up.Length, up, Marshal.SizeOf(typeof(Input)));
+            for (int i = 0; i < 2; i++) yield return null;
+        }
+
+        private static bool KspInFront()
+        {
+            IntPtr window = GetForegroundWindow();
+            if (window == IntPtr.Zero) return false;
+            uint process;
+            GetWindowThreadProcessId(window, out process);
+            return process == (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
         }
 
         private static Input Key(ushort key, bool up)
@@ -163,5 +188,14 @@ namespace ReDefinition.Probe
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint SendInput(uint count, Input[] inputs, int size);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr window);
     }
 }
