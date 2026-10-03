@@ -130,7 +130,7 @@ namespace ReDefinition.Flight
             // Before the building's front, not inside it.
             if (!marker.Place(middle, camera, 0f, false, building.Solid))
             {
-                Note("the building behind the camera or too far to see");
+                Note("the building behind the camera or too far to see, or KSP's interface hidden");
                 return;
             }
             // Put together only for the log, where the note changes: this runs every frame.

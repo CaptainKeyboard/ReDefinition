@@ -135,11 +135,12 @@ namespace ReDefinition.Flight
         // what is there rather than halfway in it. `solid`: colliders it must stand
         // before as a whole -- its middle and its four corners are looked at from
         // the camera, and it is brought nearer until none of them lies behind one;
-        // its size on the screen stays.
+        // its size on the screen stays. Hidden too while KSP's interface is (F2, or a
+        // mod that hides it): it is interface, though it stands in the world.
         internal bool Place(Vector3 world, Camera camera, float pull, bool standing = false, Collider[] solid = null)
         {
             bool shown = false;
-            if (camera != null)
+            if (camera != null && InterfaceShows())
             {
                 Vector3 eye = camera.transform.position;
                 Vector3 toEye = eye - world;
@@ -170,6 +171,15 @@ namespace ReDefinition.Flight
             }
             if (root.activeSelf != shown) root.SetActive(shown);
             return shown;
+        }
+
+        // KSP's own flag for whether its interface shows (UIMasterController
+        // .isUIShowing), which F2 and onHideUI/onShowUI set and TUFX reads the same
+        // way; where there is no controller, it shows.
+        private static bool InterfaceShows()
+        {
+            UIMasterController ui = UIMasterController.Instance;
+            return ui == null || ui.IsUIShowing;
         }
 
         // How far along from the eye towards the button its middle and corners are
