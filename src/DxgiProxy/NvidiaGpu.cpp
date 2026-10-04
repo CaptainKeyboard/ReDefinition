@@ -169,6 +169,13 @@ namespace redefinition
         AskLocked();
     }
 
+    bool SwapChainAdapter(LUID& adapter)
+    {
+        std::lock_guard<std::mutex> lock(g_gpuMutex);
+        adapter = g_adapter;
+        return g_adapterKnown;
+    }
+
     bool KnownNvidiaGpu(NvidiaGpuInfo& info)
     {
         std::lock_guard<std::mutex> lock(g_gpuMutex);

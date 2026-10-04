@@ -27,6 +27,8 @@
 
 #include <cstdio>
 #include <cstring>
+#include <exception>
+#include <string>
 
 // Unity spells its render event callback with this macro. On x64 Windows there
 // is only one calling convention, so it expands to nothing; keeping the name
@@ -250,7 +252,7 @@ extern "C"
     //    32: Ray Reconstruction no longer used, its resources freed.
     // 40: the game's frame index from KspReflexFrameStart, as the pointer's value,
     //    before the frame's first Direct3D call (Streamline::OnGameFrameRendered).
-    static void UNITY_INTERFACE_API OnRenderEvent(int eventId, void* data)
+    static void DispatchRenderEvent(int eventId, void* data)
     {
         if (eventId == 1)
             redefinition::FrameGeneration::Get().OnFramePacket(data);
@@ -281,6 +283,35 @@ extern "C"
         else if (eventId == 40)
             redefinition::Streamline::Get().OnGameFrameRendered(
                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data)));
+    }
+
+    // No exception leaves for Unity's render thread, which would end the process:
+    // the event is dropped and said, a few times.
+    static void UNITY_INTERFACE_API OnRenderEvent(int eventId, void* data)
+    {
+        try
+        {
+            DispatchRenderEvent(eventId, data);
+        }
+        catch (const std::exception& error)
+        {
+            static int logged = 0;
+            if (logged < 10)
+            {
+                ++logged;
+                redefinition::LogLine("Render event " + std::to_string(eventId) + " ended in an exception: "
+                                      + error.what());
+            }
+        }
+        catch (...)
+        {
+            static int logged = 0;
+            if (logged < 10)
+            {
+                ++logged;
+                redefinition::LogLine("Render event " + std::to_string(eventId) + " ended in an exception");
+            }
+        }
     }
 
     __declspec(dllexport) void* KspFgGetRenderEventFunc()

@@ -143,7 +143,9 @@ target_compile_definitions(ReDefinitionProxy PRIVATE
 
 target_compile_options(ReDefinitionProxy PRIVATE /W4 /permissive-)
 
-target_link_libraries(ReDefinitionProxy PRIVATE d3d11 d3d12 dxgi winmm version windowscodecs ole32)
+# Not dxgi.lib: an import of dxgi.dll from this dxgi.dll would resolve to itself.
+# CreateDXGIFactory1, which the proxy calls too, is its own export.
+target_link_libraries(ReDefinitionProxy PRIVATE d3d11 d3d12 winmm version windowscodecs ole32)
 
 # A test driver that exercises the proxy without KSP. It lands in the same
 # directory as dxgi.dll, so LoadLibrary("dxgi.dll") finds the proxy by the

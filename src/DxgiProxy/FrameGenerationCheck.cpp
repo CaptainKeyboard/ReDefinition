@@ -159,6 +159,8 @@ namespace redefinition
         // motion vectors, all as FSR gets them.
         if (checkHavePrevious)
         {
+            checkPacket = packet;
+            checkFlipped = flippedLastCopy;
             context11->CopyResource(checkSnapshot.Get(), S(hudLess).d3d11.Get());
             context11->CopyResource(checkPresented.Get(), backBuffer11.Get());
             if (checkDepth)
@@ -227,8 +229,8 @@ namespace redefinition
         // Eight hypotheses: rows as delivered or mirrored, X sign, Y sign. The
         // vector is read in its own texture's units and scaled to display
         // pixels by the magnitude of the scale the packet carries.
-        const float scaleX = std::fabs(packet.motionVectorScaleX) * static_cast<float>(width) / static_cast<float>(mvWidth);
-        const float scaleY = std::fabs(packet.motionVectorScaleY) * static_cast<float>(height) / static_cast<float>(mvHeight);
+        const float scaleX = std::fabs(checkPacket.motionVectorScaleX) * static_cast<float>(width) / static_cast<float>(mvWidth);
+        const float scaleY = std::fabs(checkPacket.motionVectorScaleY) * static_cast<float>(height) / static_cast<float>(mvHeight);
 
         double error[8] = {};
         uint64_t counted[8] = {};
@@ -316,8 +318,8 @@ namespace redefinition
         // What FSR is actually given: the rows as delivered, and the sign of
         // the scale after fgNegateMotionScale and the flip's Y turn.
         const float negate = Config().fgNegateMotionScale ? -1.0f : 1.0f;
-        const float givenX = packet.motionVectorScaleX * negate;
-        const float givenY = packet.motionVectorScaleY * negate * (flippedLastCopy ? -1.0f : 1.0f);
+        const float givenX = checkPacket.motionVectorScaleX * negate;
+        const float givenY = checkPacket.motionVectorScaleY * negate * (checkFlipped ? -1.0f : 1.0f);
         const int given = (givenX < 0.0f ? 1 : 0) | (givenY < 0.0f ? 2 : 0);
 
         char line[640] = {};
@@ -521,7 +523,7 @@ namespace redefinition
                   "HUD-less check (frame %u, inputs %s): direct %.2f %% of the frame differs from the copy, "
                   "mirrored %.2f %%. The smaller one is what FSR treats as UI; the flip is right when "
                   "direct is the smaller.",
-                  packet.frameIndex, flippedLastCopy ? "flipped" : "not flipped",
+                  checkPacket.frameIndex, checkFlipped ? "flipped" : "not flipped",
                   100.0 * static_cast<double>(lastDirect), 100.0 * static_cast<double>(lastMirrored));
         LogLine(line);
 

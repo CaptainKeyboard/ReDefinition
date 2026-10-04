@@ -77,7 +77,7 @@ namespace redefinition
                  + " fgObjectSeparationMetres=" + std::to_string(c.fgObjectSeparationMetres)
                  + " pacing=" + std::to_string(c.fgPacingSafetyMarginMs) + "/"
                  + std::to_string(c.fgPacingVarianceFactor)
-                 + (c.fgPacingHybridSpin ? "/spin" : "")
+                 + (c.fgPacingHybridSpin ? "/spin " + std::to_string(c.fgPacingHybridSpinTime) : "")
                  + (c.fgPacingWaitOnFence ? "/fence" : "")
                  + " fgMinimumFps=" + std::to_string(static_cast<int>(c.fgMinimumFps))
                  + " vendorDiagnostics=" + (c.vendorDiagnostics ? "1" : "0")
@@ -128,6 +128,9 @@ namespace redefinition
             target.fgPacingHybridSpin = ReadFlag(L"fgPacingHybridSpin", file, false);
             target.fgPacingHybridSpinTime = static_cast<int>(
                 GetPrivateProfileIntW(L"Proxy", L"fgPacingHybridSpinTime", 2, file.c_str()));
+            // Handed to FSR unsigned: a negative value would be a spin of years.
+            if (target.fgPacingHybridSpinTime < 0)
+                target.fgPacingHybridSpinTime = 0;
             target.fgPacingWaitOnFence = ReadFlag(L"fgPacingWaitOnFence", file, false);
             target.fgMinimumFps = ReadFloat(L"fgMinimumFps", file, -1.0f);
 
@@ -217,6 +220,7 @@ namespace redefinition
         fresh.frameGeneration = g_config.frameGeneration;
         fresh.dlssFrameGeneration = g_config.dlssFrameGeneration;
         fresh.measureOnly = g_config.measureOnly;
+        fresh.allowTearing = g_config.allowTearing;
 
         // The settings that change how the context was built.
         const bool needsRebuild = fresh.fgDepthInverted != g_config.fgDepthInverted
@@ -227,7 +231,9 @@ namespace redefinition
             g_config = fresh;
         }
         LogLine("Config reloaded: " + Describe(g_config)
-                + (needsRebuild ? "   (frame generation context will be rebuilt)" : ""));
+                + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
+                + "   (enabled, allowTearing, measureOnly, frameGeneration and dlssFrameGeneration as at load;"
+                  " the folders, streamlineImgui and vendorDiagnostics apply when what they serve starts)");
 
         rebuild = needsRebuild;
         return true;

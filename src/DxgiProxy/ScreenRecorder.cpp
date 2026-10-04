@@ -12,6 +12,7 @@
 #include "D3d12Util.h"
 #include "FileUtil.h"
 #include "Log.h"
+#include "SwapChainProxy.h"
 
 #include <d3d11.h>
 #include <dxgi1_2.h>
@@ -27,6 +28,7 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <vector>
 
@@ -55,7 +57,12 @@ namespace redefinition
         std::wstring g_backFolder;
         std::vector<BackBufferFrame> g_backFrames;
         DXGI_FORMAT g_backFormat = DXGI_FORMAT_UNKNOWN;
+        // The backbuffer's size, and that of the cut-out taken of it.
+        UINT g_backSourceWidth = 0, g_backSourceHeight = 0;
         UINT g_backWidth = 0, g_backHeight = 0;
+        // Frames taken or read back so far, for the watch over a recording whose
+        // Presents stop (Record).
+        uint64_t g_backProgress = 0;
         // The game's Presents while a recording runs (NoteGamePresent): time, frame.
         std::mutex g_presentLock;
         std::vector<std::pair<LONGLONG, uint32_t>> g_presents;
@@ -245,29 +252,46 @@ namespace redefinition
                     std::snprintf(text, sizeof(text), "desktop duplication refused (0x%08lX): the game's frames without frame"
                                   " generation's", static_cast<unsigned long>(hr));
                     LogLine(std::string("Screen recording: ") + text);
+                    uint64_t seen = 0;
                     {
                         std::lock_guard<std::mutex> lock(g_backLock);
                         g_backFrames.clear();
                         g_backRead = 0;
                         g_backFolder = folder;
                         g_backWanted = frames;
+                        seen = g_backProgress;
                     }
                     SetState(std::string("recording, ") + text);
                     if (coInit) CoUninitialize();
                     // The game's frames come only through the D3D12 proxy's Present with
-                    // frame generation attached; none within two seconds, and there is no
-                    // such Present.
-                    Sleep(2000);
-                    std::lock_guard<std::mutex> lock(g_backLock);
-                    if (g_backWanted == frames && g_backFrames.empty())
+                    // frame generation attached: two seconds without a frame taken or
+                    // read back, and there is no such Present any more -- or never was.
+                    // The recording then ends here; once all frames are read back, the
+                    // thread that writes them ends it.
+                    while (true)
                     {
+                        Sleep(2000);
+                        std::lock_guard<std::mutex> lock(g_backLock);
+                        if (g_backWanted == 0 && g_backFrames.empty())
+                            return;
+                        if (g_backProgress != seen)
+                        {
+                            seen = g_backProgress;
+                            continue;
+                        }
+                        const bool none = g_backWanted == frames && g_backFrames.empty();
                         g_backWanted = 0;
-                        SetState("failed: desktop duplication refused, and no game frame reached the proxy's Present"
-                                 " (it takes them only while frame generation is attached)");
-                        LogLine("Screen recording: no game frame within two seconds, stopped");
+                        g_backFrames.clear();
+                        g_backRead = 0;
+                        SetState(none ? "failed: desktop duplication refused, and no game frame reached the proxy's"
+                                        " Present (it takes them only while frame generation is attached)"
+                                      : "failed: the proxy's Presents stopped before the game's frames were all taken"
+                                        " and read back");
+                        LogLine(none ? "Screen recording: no game frame within two seconds, stopped"
+                                     : "Screen recording: no Present for two seconds, stopped");
                         g_running = false;
+                        return;
                     }
-                    return;
                 }
 
                 // The cut-out around the middle of the window's client area, in the
@@ -428,10 +452,23 @@ namespace redefinition
         }
         if (frames < 1) frames = 1;
         if (frames > kMaxFrames) frames = kMaxFrames;
-        HWND window = GetForegroundWindow();
+        // The game's window, as its swapchain was made for it; the window in front
+        // where no swapchain went through the proxy.
+        HWND window = PresentingWindow();
+        if (window == nullptr)
+            window = GetForegroundWindow();
         SetState("recording");
         LogLine("Screen recording started: " + std::to_string(frames) + " frame(s)");
-        std::thread(Record, frames, folder, window).detach();
+        try
+        {
+            std::thread(Record, frames, folder, window).detach();
+        }
+        catch (const std::system_error&)
+        {
+            SetState("failed: no thread for the recording");
+            g_running = false;
+            return false;
+        }
         return true;
     }
 
@@ -460,19 +497,28 @@ namespace redefinition
             // A backbuffer of another size or format than the frames before ends the
             // capture: they are all read back and written as the first one is.
             if (!g_backFrames.empty()
-                && (desc.Width != g_backWidth || desc.Height != g_backHeight || desc.Format != g_backFormat))
+                && (desc.Width != g_backSourceWidth || desc.Height != g_backSourceHeight || desc.Format != g_backFormat))
             {
                 g_backWanted = 0;
                 return;
             }
-            desc = StagingDesc(desc);
-            desc.MipLevels = 1;
-            desc.ArraySize = 1;
-            desc.SampleDesc.Count = 1;
+            // The cut-out around the middle, as the desktop's frames are taken: whole
+            // frames, up to kMaxFrames of them, are gigabytes at 4K.
+            const UINT width = std::min(desc.Width, kCutWidth);
+            const UINT height = std::min(desc.Height, kCutHeight);
+            const UINT left = (desc.Width - width) / 2;
+            const UINT top = (desc.Height - height) / 2;
+            const D3D11_BOX box = { left, top, 0, left + width, top + height, 1 };
+            D3D11_TEXTURE2D_DESC stagingDesc = StagingDesc(desc);
+            stagingDesc.Width = width;
+            stagingDesc.Height = height;
+            stagingDesc.MipLevels = 1;
+            stagingDesc.ArraySize = 1;
+            stagingDesc.SampleDesc.Count = 1;
             ComPtr<ID3D11Device> device;
             context->GetDevice(&device);
             BackBufferFrame frame;
-            if (!device || FAILED(device->CreateTexture2D(&desc, nullptr, &frame.staging)))
+            if (!device || FAILED(device->CreateTexture2D(&stagingDesc, nullptr, &frame.staging)))
             {
                 g_backWanted = 0;
                 g_backFrames.clear();
@@ -480,15 +526,18 @@ namespace redefinition
                 g_running = false;
                 return;
             }
-            context->CopyResource(frame.staging.Get(), backBuffer);
+            context->CopySubresourceRegion(frame.staging.Get(), 0, 0, 0, 0, backBuffer, 0, &box);
             LARGE_INTEGER now = {};
             QueryPerformanceCounter(&now);
             frame.presentTime = now.QuadPart;
             g_backFormat = desc.Format;
-            g_backWidth = desc.Width;
-            g_backHeight = desc.Height;
+            g_backSourceWidth = desc.Width;
+            g_backSourceHeight = desc.Height;
+            g_backWidth = width;
+            g_backHeight = height;
             g_backFrames.push_back(std::move(frame));
             --g_backWanted;
+            ++g_backProgress;
             return;
         }
 
@@ -524,6 +573,7 @@ namespace redefinition
             context->Unmap(frame.staging.Get(), 0);
             frame.staging.Reset();
             ++g_backRead;
+            ++g_backProgress;
             return;
         }
 
@@ -535,43 +585,52 @@ namespace redefinition
         const UINT width = g_backWidth, height = g_backHeight;
         lock.unlock();
         SetState("saving " + std::to_string(frames.size()) + " frame(s), the recording itself is over");
-        std::thread([frames = std::move(frames), folder, width, height]() {
-            const HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-            CreateDirectoryW(folder.c_str(), nullptr);
-            ComPtr<IWICImagingFactory> wic;
-            CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic));
-            LARGE_INTEGER frequency = {};
-            QueryPerformanceFrequency(&frequency);
-            const std::vector<std::pair<LONGLONG, uint32_t>> presents = TakePresents();
-            WritePresents(folder, presents, frequency.QuadPart);
-            std::string table = "frame presentTimeMs sinceBeforeMs accumulatedFrames gameFrame\n";
-            for (size_t i = 0; i < frames.size() && wic; ++i)
-            {
-                wchar_t name[32];
-                swprintf_s(name, L"\\%03u.png", static_cast<unsigned>(i));
-                WritePng(wic.Get(), folder + name, frames[i].pixels.data(), width, height, width * 4);
-                const double ms = frames[i].presentTime * 1000.0 / static_cast<double>(frequency.QuadPart);
-                const double since = i == 0 ? 0.0
-                    : (frames[i].presentTime - frames[i - 1].presentTime) * 1000.0 / static_cast<double>(frequency.QuadPart);
-                char line[128];
-                std::snprintf(line, sizeof(line), "%03u %.3f %.3f 1 %u\n", static_cast<unsigned>(i), ms, since,
-                              GameFrameAt(presents, frames[i].presentTime));
-                table += line;
-            }
-            FILE* file = nullptr;
-            if (_wfopen_s(&file, (folder + L"\\frames.txt").c_str(), L"wb") == 0 && file != nullptr)
-            {
-                std::fwrite(table.data(), 1, table.size(), file);
-                std::fclose(file);
-            }
-            char done[160];
-            std::snprintf(done, sizeof(done), "%u game frame(s) of %ux%u, frame generation's not among them",
-                          static_cast<unsigned>(frames.size()), width, height);
-            SetState("done: " + Narrow(folder) + " (" + done + ")");
-            LogLine("Screen recording: " + std::string(done) + " in " + Narrow(folder));
-            if (SUCCEEDED(hr)) CoUninitialize();
+        // On the present path: a thread Windows refuses is no exception out of Present.
+        try
+        {
+            std::thread([frames = std::move(frames), folder, width, height]() {
+                const HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+                CreateDirectoryW(folder.c_str(), nullptr);
+                ComPtr<IWICImagingFactory> wic;
+                CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic));
+                LARGE_INTEGER frequency = {};
+                QueryPerformanceFrequency(&frequency);
+                const std::vector<std::pair<LONGLONG, uint32_t>> presents = TakePresents();
+                WritePresents(folder, presents, frequency.QuadPart);
+                std::string table = "frame presentTimeMs sinceBeforeMs accumulatedFrames gameFrame\n";
+                for (size_t i = 0; i < frames.size() && wic; ++i)
+                {
+                    wchar_t name[32];
+                    swprintf_s(name, L"\\%03u.png", static_cast<unsigned>(i));
+                    WritePng(wic.Get(), folder + name, frames[i].pixels.data(), width, height, width * 4);
+                    const double ms = frames[i].presentTime * 1000.0 / static_cast<double>(frequency.QuadPart);
+                    const double since = i == 0 ? 0.0
+                        : (frames[i].presentTime - frames[i - 1].presentTime) * 1000.0 / static_cast<double>(frequency.QuadPart);
+                    char line[128];
+                    std::snprintf(line, sizeof(line), "%03u %.3f %.3f 1 %u\n", static_cast<unsigned>(i), ms, since,
+                                  GameFrameAt(presents, frames[i].presentTime));
+                    table += line;
+                }
+                FILE* file = nullptr;
+                if (_wfopen_s(&file, (folder + L"\\frames.txt").c_str(), L"wb") == 0 && file != nullptr)
+                {
+                    std::fwrite(table.data(), 1, table.size(), file);
+                    std::fclose(file);
+                }
+                char done[160];
+                std::snprintf(done, sizeof(done), "%u game frame(s) of %ux%u, frame generation's not among them",
+                              static_cast<unsigned>(frames.size()), width, height);
+                SetState("done: " + Narrow(folder) + " (" + done + ")");
+                LogLine("Screen recording: " + std::string(done) + " in " + Narrow(folder));
+                if (SUCCEEDED(hr)) CoUninitialize();
+                g_running = false;
+            }).detach();
+        }
+        catch (const std::system_error&)
+        {
+            SetState("failed: no thread to write the game's frames");
             g_running = false;
-        }).detach();
+        }
     }
 
     std::string ScreenRecordingState()

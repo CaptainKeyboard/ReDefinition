@@ -26,4 +26,7 @@ namespace redefinition
     // generate frames, and of those the ones made through Streamline.
     inline std::atomic<int> g_generatingSwapChains{ 0 };
     inline std::atomic<int> g_streamlineSwapChains{ 0 };
+
+    // The window of the last swapchain made, until it goes (PresentingWindow).
+    inline std::atomic<HWND> g_presentingWindow{ nullptr };
 }

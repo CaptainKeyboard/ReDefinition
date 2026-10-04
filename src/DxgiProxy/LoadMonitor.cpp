@@ -1,6 +1,7 @@
 #include "LoadMonitor.h"
 
 #include "Log.h"
+#include "NvidiaGpu.h"
 
 #include <dxgi1_4.h>
 #include <pdh.h>
@@ -510,15 +511,19 @@ namespace redefinition
             return text;
         }
 
-        // The adapter this process renders on, made and released within the call:
-        // a static one would be released at process exit, when DXGI may already be
+        // The adapter this process renders on -- the one KSP's swapchain was made on,
+        // the first adapter before that -- made and released within the call: a
+        // static one would be released at process exit, when DXGI may already be
         // gone -- which ends the process in its own teardown. A factory every ten
         // seconds costs nothing next to that.
         Microsoft::WRL::ComPtr<IDXGIAdapter3> VideoAdapter()
         {
-            Microsoft::WRL::ComPtr<IDXGIFactory1> factory;
+            Microsoft::WRL::ComPtr<IDXGIFactory4> factory;
             Microsoft::WRL::ComPtr<IDXGIAdapter3> found;
             if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))))
+                return found;
+            LUID luid = {};
+            if (SwapChainAdapter(luid) && SUCCEEDED(factory->EnumAdapterByLuid(luid, IID_PPV_ARGS(&found))))
                 return found;
             Microsoft::WRL::ComPtr<IDXGIAdapter1> first;
             if (SUCCEEDED(factory->EnumAdapters1(0, &first)))

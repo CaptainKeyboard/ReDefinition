@@ -20,7 +20,6 @@
 #include <FidelityFX/framegeneration/include/dx12/ffx_api_framegeneration_dx12.h>
 #include <FidelityFX/framegeneration/include/ffx_framegeneration_api_types.h>
 
-#include <cstdio>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -57,6 +56,11 @@ namespace redefinition
         return g_generatingSwapChains.load() > 0;
     }
 
+    HWND PresentingWindow()
+    {
+        return g_presentingWindow.load();
+    }
+
     namespace
     {
         std::string Describe(const DXGI_SWAP_CHAIN_DESC1& desc)
@@ -66,7 +70,10 @@ namespace redefinition
                  + " buffers " + std::to_string(desc.BufferCount)
                  + " swapEffect " + std::to_string(static_cast<int>(desc.SwapEffect))
                  + " flags 0x" + [&] { char b[16]; FormatTo(b, "%X", desc.Flags); return std::string(b); }()
-                 + " samples " + std::to_string(desc.SampleDesc.Count);
+                 + " samples " + std::to_string(desc.SampleDesc.Count)
+                 + " usage 0x" + [&] { char b[16]; FormatTo(b, "%X", desc.BufferUsage); return std::string(b); }()
+                 + " scaling " + std::to_string(static_cast<int>(desc.Scaling))
+                 + " alpha " + std::to_string(static_cast<int>(desc.AlphaMode));
         }
     }
 
@@ -109,7 +116,7 @@ namespace redefinition
         return S_OK;
     }
 
-    HRESULT SwapChainProxy::CreateMeasuring(IUnknown* device, IDXGISwapChain1* real,
+    HRESULT SwapChainProxy::CreateMeasuring(IUnknown* device, HWND hwnd, IDXGISwapChain1* real,
                                             const DXGI_SWAP_CHAIN_DESC1& desc,
                                             IDXGISwapChain1** result)
     {
@@ -118,6 +125,8 @@ namespace redefinition
         SwapChainProxy* proxy = new SwapChainProxy();
         proxy->measureOnly = true;
         proxy->realSwapChain = real;
+        proxy->window = hwnd;
+        g_presentingWindow.store(hwnd);
         proxy->description = desc;
         proxy->swapChain = nullptr;
 
@@ -136,6 +145,8 @@ namespace redefinition
 
     SwapChainProxy::~SwapChainProxy()
     {
+        HWND own = window;
+        g_presentingWindow.compare_exchange_strong(own, nullptr);
         StopRefreshMonitor();
 
         // Everything must be off the GPU before the D3D12 objects go away, or
@@ -196,6 +207,7 @@ namespace redefinition
         // them, which it referenced for itself when they were tagged.
         if (streamlineDevice != nullptr)
         {
+            streamlineNativeSwapChain.Reset();
             swapChain.Reset();
             target2.Reset();
             target3.Reset();
@@ -210,6 +222,7 @@ namespace redefinition
                                        IDXGIOutput* restrictToOutput)
     {
         window = hwnd;
+        g_presentingWindow.store(hwnd);
         description = desc;
 
         // ID3D11Device5 and ID3D11DeviceContext4 exist from Windows 10 1703 and
@@ -271,6 +284,11 @@ namespace redefinition
         // generation on and no DLSS-G, FSR's swapchain takes the place. Set up now,
         // because the queue has to come from Streamline's device proxy ("Mandatory -
         // ID3D12Device* eID3D12Device_CreateCommandQueue", sl_hooks.h).
+        //
+        // So Ray Reconstruction and FSR's frame generation exclude each other: both
+        // need the presenting swapchain to be their own, Streamline's or FidelityFX's,
+        // and there is one. With frame generation on and DLSS-G not running,
+        // raytracing goes without Ray Reconstruction.
         const bool dlssFrameGeneration = Config().frameGeneration && Config().dlssFrameGeneration;
         const bool dlss = (dlssFrameGeneration || !Config().frameGeneration)
                           && SetUpStreamline(adapter.Get(), dlssFrameGeneration);
@@ -553,6 +571,12 @@ namespace redefinition
             return hr;
         }
 
+        // The native swapchain behind the proxy, for DXGI_PRESENT_TEST: a test asks
+        // DXGI alone and is no frame for Streamline's plugins.
+        void* native = nullptr;
+        if (Streamline::Get().NativeInterface(swapChain.Get(), &native))
+            streamlineNativeSwapChain.Attach(static_cast<IDXGISwapChain*>(native));
+
         streamlineSwapChain = true;
         streamlineGenerates = Streamline::Get().FrameGenerationAvailable();
         if (streamlineGenerates)
@@ -569,6 +593,7 @@ namespace redefinition
     {
         if (streamlineSwapChain)
         {
+            streamlineNativeSwapChain.Reset();
             swapChain.Reset();
             if (streamlineGenerates)
             {
@@ -767,6 +792,11 @@ namespace redefinition
         target->QueryInterface(IID_PPV_ARGS(&target3));
         target->QueryInterface(IID_PPV_ARGS(&target4));
 
+        // Said where it changes: a resize keeps the swapchain.
+        const int found = (target2 ? 1 : 0) | (target3 ? 2 : 0) | (target4 ? 4 : 0);
+        if (found == loggedTargets)
+            return;
+        loggedTargets = found;
         LogLine(std::string("Target interfaces: SwapChain2=") + (target2 ? "yes" : "no")
                 + " SwapChain3=" + (target3 ? "yes" : "no")
                 + " SwapChain4=" + (target4 ? "yes" : "no"));

@@ -58,6 +58,7 @@ namespace redefinition
         // D3D11 baseline from the same code that measures the D3D12 path.
         static HRESULT CreateMeasuring(
             IUnknown* device,
+            HWND hwnd,
             IDXGISwapChain1* real,
             const DXGI_SWAP_CHAIN_DESC1& desc,
             IDXGISwapChain1** result);
@@ -148,8 +149,9 @@ namespace redefinition
         // creation so the forwarders do not query per call.
         void ResolveTargetInterfaces();
 
-        // Creates the presentation swapchain: through Streamline when DLSS frame
-        // generation runs (SetUpStreamline), through FidelityFX when frame
+        // Creates the presentation swapchain: through Streamline where it was set
+        // up (SetUpStreamline) -- for DLSS frame generation, or for DLSS Ray
+        // Reconstruction with frame generation off -- through FidelityFX when frame
         // generation is wanted and AMD's runtime is there, otherwise straight
         // from DXGI.
         HRESULT CreatePresentationSwapChain(
@@ -157,10 +159,11 @@ namespace redefinition
             const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc,
             IDXGIOutput* restrictToOutput);
 
-        // DLSS frame generation (Streamline.h): Streamline initialised for the
-        // adapter, the D3D12 device handed to it and upgraded to its proxy --
-        // before the queue, which is made through that proxy. False, with
-        // Streamline shut down again, wherever it does not run.
+        // Streamline (Streamline.h), for DLSS frame generation or Ray
+        // Reconstruction alone: initialised for the adapter, the D3D12 device
+        // handed to it and upgraded to its proxy -- before the queue, which is
+        // made through that proxy. False, with Streamline shut down again,
+        // wherever it does not run.
         bool SetUpStreamline(IDXGIAdapter* adapter, bool frameGenerationWanted);
         HRESULT CreateStreamlineSwapChain(IDXGIFactory2* factory, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1& desc,
                                           const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc,
@@ -199,6 +202,16 @@ namespace redefinition
         HRESULT CreateSharedColour(UINT width, UINT height, DXGI_FORMAT format);
         void ReleaseSharedColour();
         HRESULT CopyAndPresent(UINT syncInterval, UINT flags);
+
+        // DXGI_PRESENT_TEST: the swapchain's state asked of DXGI -- occluded or
+        // not -- with nothing presented: of the native swapchain behind
+        // Streamline's, of FidelityFX's, which answers it from its own, or of the
+        // plain one.
+        HRESULT PresentTest(UINT syncInterval, UINT flags);
+
+        // The running totals behind KspFgCounters after a Present of the game's
+        // frame: one more rendered, and as many presented as the swapchain says.
+        void CountPresent(uint32_t streamlinePresented);
 
         // The frame presented as it stands where it could not be copied, so the
         // picture never goes away: counted, and said now and then.
@@ -239,6 +252,8 @@ namespace redefinition
         ComPtr<IDXGISwapChain2> target2;
         ComPtr<IDXGISwapChain3> target3;
         ComPtr<IDXGISwapChain4> target4;
+        // The interfaces last logged, as bits; -1 before the first.
+        int loggedTargets = -1;
 
         std::vector<double> frameTimesMs;
         UINT lastPresentCount = 0;
@@ -273,6 +288,7 @@ namespace redefinition
         // else uses.
         ComPtr<ID3D12Device> streamlineDevice;
         ComPtr<ID3D12CommandQueue> streamlineQueue;
+        ComPtr<IDXGISwapChain> streamlineNativeSwapChain;
         bool streamlineSwapChain = false;
         // Whether it generates frames, not only presents for Ray Reconstruction.
         bool streamlineGenerates = false;
@@ -382,4 +398,7 @@ namespace redefinition
 
     // Which frame generation the swapchains present with: 2 DLSS, 1 FSR, 0 none.
     int FrameGenerationTechnique();
+
+    // The window the last swapchain made through the proxy presents to, or null.
+    HWND PresentingWindow();
 }

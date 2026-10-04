@@ -91,6 +91,11 @@ namespace redefinition
     {
         std::lock_guard<std::mutex> lock(mutex);
 
+        // The context of an earlier owner whose swapchain still lives was made on
+        // that owner's D3D12 device: it goes, switched off on that swapchain first.
+        if (contextCreated && owner != nullptr && owner != newOwner)
+            DestroyContextLocked(contextSwapChain);
+
         owner = newOwner;
         device11 = newDevice11;
         context11 = newContext11;
@@ -108,6 +113,41 @@ namespace redefinition
         streamline = false;
         streamlineOn = false;
         streamlineMultiplier = 0;
+
+        // Unity's textures, which the rig registers once, outlive a swapchain made
+        // anew without a resize: shared again on the new devices. Only textures of
+        // the D3D11 device attached can be copied from.
+        if (depth.unity || motion.unity || hudLess.unity)
+        {
+            ComPtr<IUnknown> attachedDevice;
+            if (device11 != nullptr)
+                device11.As(&attachedDevice);
+            bool sameDevice = attachedDevice != nullptr && device12 != nullptr;
+            for (const Input* input : { &depth, &motion, &hudLess })
+            {
+                if (!sameDevice || !input->unity)
+                    continue;
+                ComPtr<ID3D11Device> owning;
+                ComPtr<IUnknown> owningUnknown;
+                input->unity->GetDevice(&owning);
+                sameDevice = owning != nullptr && SUCCEEDED(owning.As(&owningUnknown))
+                             && owningUnknown.Get() == attachedDevice.Get();
+            }
+            if (sameDevice)
+            {
+                const ComPtr<ID3D11Resource> unityDepth = depth.unity;
+                const ComPtr<ID3D11Resource> unityMotion = motion.unity;
+                const ComPtr<ID3D11Resource> unityHudLess = hudLess.unity;
+                LogLine("Frame generation's inputs, registered before, shared on the new swapchain's devices");
+                ShareInputsLocked(unityDepth.Get(), unityMotion.Get(), unityHudLess.Get());
+            }
+            else
+            {
+                // Held, they would keep another device alive.
+                for (Input* input : { &depth, &motion, &hudLess })
+                    input->unity.Reset();
+            }
+        }
     }
 
     void FrameGeneration::Detach(const void* caller, void* swapChain)
@@ -127,12 +167,13 @@ namespace redefinition
         DestroyContextLocked(swapChain);
         ForgetContextFailuresLocked();
 
+        // Unity's textures stay: the rig registers them once, and a swapchain made
+        // anew shares them again (Attach).
         for (Input* input : { &depth, &motion, &hudLess })
         {
             input->buffers[0].Reset();
             input->buffers[1].Reset();
             input->unityView.Reset();
-            input->unity.Reset();
         }
 
         // The proxy's destructor waited for the GPU before this, so nothing
@@ -188,12 +229,6 @@ namespace redefinition
     {
         std::lock_guard<std::mutex> lock(mutex);
         return wanted;
-    }
-
-    bool FrameGeneration::Ready() const
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        return contextCreated;
     }
 
     bool FrameGeneration::ContextSize(UINT& width, UINT& height) const
@@ -406,6 +441,7 @@ namespace redefinition
         FidelityFx::Get().Api().DestroyContext(&context, nullptr);
         context = nullptr;
         contextCreated = false;
+        contextSwapChain = nullptr;
         contextAsync = false;
         configuredOn = false;
         LogLine("Frame generation context destroyed");
@@ -436,6 +472,7 @@ namespace redefinition
                                   static_cast<int32_t>(displayHeight) };
 
         const ffxReturnCode_t code = FidelityFx::Get().Api().Configure(&context, &config.header);
+        contextSwapChain = swapChain;
 
         if (code != FFX_API_RETURN_OK)
         {
@@ -631,6 +668,7 @@ namespace redefinition
         }
 
         ffxReturnCode_t code = FidelityFx::Get().Api().Configure(&context, &config.header);
+        contextSwapChain = swapChain;
         if (code != FFX_API_RETURN_OK)
         {
             LogLine("Frame generation configure failed, code " + std::to_string(static_cast<int>(code)));

@@ -41,4 +41,7 @@ namespace redefinition
     // KnownNvidiaGpu, at most every ten seconds and a few times.
     void NoteSwapChainAdapter(const LUID& adapter);
     bool KnownNvidiaGpu(NvidiaGpuInfo& info);
+
+    // That adapter's LUID; false before a swapchain was made.
+    bool SwapChainAdapter(LUID& adapter);
 }

@@ -5,6 +5,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -44,6 +45,14 @@ namespace redefinition
 
     constexpr uint32_t kDlssPacketMagic = 0x4B535044u;   // 'KSPD'
 
+    // The layout the managed side's DlssBridge.DlssPacket is tested against
+    // (DlssPacketLayoutTests): what either side changes, both have to.
+    static_assert(sizeof(DlssPacket) == 88, "DlssPacket layout changed: update DlssBridge.DlssPacket");
+    static_assert(offsetof(DlssPacket, colour) == 8, "DlssPacket layout changed");
+    static_assert(offsetof(DlssPacket, renderWidth) == 40, "DlssPacket layout changed");
+    static_assert(offsetof(DlssPacket, quality) == 56, "DlssPacket layout changed");
+    static_assert(offsetof(DlssPacket, motionVectorScaleY) == 80, "DlssPacket layout changed");
+
     constexpr uint32_t kDlssHdr = 1u << 0;
     constexpr uint32_t kDlssDepthInverted = 1u << 1;
     constexpr uint32_t kDlssAutoExposure = 1u << 2;
@@ -62,6 +71,11 @@ namespace redefinition
     };
 
     constexpr uint32_t kDlssSizeQueryMagic = 0x4B535051u;   // 'KSPQ'
+
+    // As DlssBridge.SizeQuery (DlssPacketLayoutTests).
+    static_assert(sizeof(DlssSizeQuery) == 24, "DlssSizeQuery layout changed: update DlssBridge.SizeQuery");
+    static_assert(offsetof(DlssSizeQuery, texture) == 8, "DlssSizeQuery layout changed");
+    static_assert(offsetof(DlssSizeQuery, outputWidth) == 16, "DlssSizeQuery layout changed");
 
     // DLSS Super Resolution through NVIDIA's NGX, on Unity's D3D11 device.
     //

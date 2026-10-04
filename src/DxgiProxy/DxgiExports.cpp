@@ -11,7 +11,6 @@
 
 #include "LoadMonitor.h"
 #include "Config.h"
-#include "FidelityFx.h"
 #include "Log.h"
 #include "NvidiaGpu.h"
 #include "SwapChainProxy.h"
@@ -22,8 +21,6 @@
 #include <wrl/client.h>
 
 using Microsoft::WRL::ComPtr;
-
-#include "FileUtil.h"
 
 #include <cstring>
 #include <mutex>
@@ -121,7 +118,8 @@ namespace
             && SUCCEEDED(dxgiDevice->GetAdapter(&adapter)) && SUCCEEDED(adapter->GetDesc(&adapterDesc)))
             redefinition::NoteSwapChainAdapter(adapterDesc.AdapterLuid);
 
-        if (redefinition::Config().enabled && desc != nullptr && swapChain != nullptr && hwnd != nullptr)
+        if (redefinition::Config().enabled && device != nullptr && desc != nullptr && swapChain != nullptr
+            && hwnd != nullptr)
         {
             // Baseline mode: let the original create exactly the swapchain the
             // game asked for, then wrap it so Present is timed by the same code
@@ -137,7 +135,7 @@ namespace
                     IDXGISwapChain1* real = *swapChain;
                     IDXGISwapChain1* wrapper = nullptr;
 
-                    if (SUCCEEDED(redefinition::SwapChainProxy::CreateMeasuring(device, real, *desc, &wrapper)))
+                    if (SUCCEEDED(redefinition::SwapChainProxy::CreateMeasuring(device, hwnd, real, *desc, &wrapper)))
                     {
                         // The wrapper took its own reference in CreateMeasuring.
                         real->Release();
@@ -196,7 +194,7 @@ namespace
         });
     }
 
-    void HookIfFactory(REFIID riid, void* object)
+    void HookIfFactory(void* object)
     {
         if (object == nullptr)
             return;
@@ -206,10 +204,6 @@ namespace
         {
             HookFactory(factory);
             factory->Release();
-        }
-        else
-        {
-            (void)riid;
         }
     }
 }
@@ -253,7 +247,7 @@ extern "C" HRESULT WINAPI CreateDXGIFactory(REFIID riid, void** factory)
 
     const HRESULT hr = real(riid, factory);
     if (SUCCEEDED(hr))
-        HookIfFactory(riid, *factory);
+        HookIfFactory(*factory);
 
     return hr;
 }
@@ -267,7 +261,7 @@ extern "C" HRESULT WINAPI CreateDXGIFactory1(REFIID riid, void** factory)
 
     const HRESULT hr = real(riid, factory);
     if (SUCCEEDED(hr))
-        HookIfFactory(riid, *factory);
+        HookIfFactory(*factory);
 
     return hr;
 }
@@ -281,7 +275,7 @@ extern "C" HRESULT WINAPI CreateDXGIFactory2(UINT flags, REFIID riid, void** fac
 
     const HRESULT hr = real(flags, riid, factory);
     if (SUCCEEDED(hr))
-        HookIfFactory(riid, *factory);
+        HookIfFactory(*factory);
 
     return hr;
 }

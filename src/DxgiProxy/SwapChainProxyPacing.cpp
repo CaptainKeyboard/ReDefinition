@@ -20,6 +20,7 @@
 #include <cwchar>
 #include <mutex>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace redefinition
@@ -126,24 +127,33 @@ namespace redefinition
     {
         if (!refreshThread.joinable())
         {
-            refreshThread = std::thread([this]()
+            // On the present path: a thread Windows refuses is no exception out of
+            // Present, only no rate yet -- asked again at the next call.
+            try
             {
-                std::unique_lock<std::mutex> lock(refreshMutex);
-                while (!refreshStop)
+                refreshThread = std::thread([this]()
                 {
-                    if (!refreshActive.load())
+                    std::unique_lock<std::mutex> lock(refreshMutex);
+                    while (!refreshStop)
                     {
-                        refreshWake.wait(lock, [this]() { return refreshStop || refreshActive.load(); });
-                        continue;
+                        if (!refreshActive.load())
+                        {
+                            refreshWake.wait(lock, [this]() { return refreshStop || refreshActive.load(); });
+                            continue;
+                        }
+                        refreshNow = false;
+                        lock.unlock();
+                        refreshRate.store(QueryRefreshRate(window));
+                        lock.lock();
+                        refreshWake.wait_for(lock, std::chrono::seconds(2),
+                                             [this]() { return refreshStop || refreshNow || !refreshActive.load(); });
                     }
-                    refreshNow = false;
-                    lock.unlock();
-                    refreshRate.store(QueryRefreshRate(window));
-                    lock.lock();
-                    refreshWake.wait_for(lock, std::chrono::seconds(2),
-                                         [this]() { return refreshStop || refreshNow || !refreshActive.load(); });
-                }
-            });
+                });
+            }
+            catch (const std::system_error&)
+            {
+                return 0.0;
+            }
         }
         if (!refreshActive.exchange(true))
         {

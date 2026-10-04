@@ -64,7 +64,9 @@ namespace redefinition
             if (status == 0)
                 return "ok";
             std::string text;
+            uint32_t named = 0;
             auto add = [&](sl::DLSSGStatus flag, const char* what) {
+                named |= static_cast<uint32_t>(flag);
                 if ((status & static_cast<uint32_t>(flag)) != 0)
                     text += (text.empty() ? "" : ", ") + std::string(what);
             };
@@ -73,7 +75,15 @@ namespace redefinition
             add(sl::DLSSGStatus::eFailHDRFormatNotSupported, "the backbuffer format is not supported");
             add(sl::DLSSGStatus::eFailCommonConstantsInvalid, "some constants are invalid");
             add(sl::DLSSGStatus::eFailGetCurrentBackBufferIndexNotCalled, "GetCurrentBackBufferIndex was not called");
-            return text.empty() ? "status 0x" + std::to_string(status) : text;
+            // Bits sl_dlss_g.h 2.14.1 does not name, in hex as the header writes them.
+            const uint32_t rest = status & ~named;
+            if (rest != 0)
+            {
+                char bits[32] = {};
+                FormatTo(bits, "status bits 0x%X", rest);
+                text += (text.empty() ? "" : ", ") + std::string(bits);
+            }
+            return text;
         }
 
         // How long a failing status keeps DLSS-G off before it is tried again, and

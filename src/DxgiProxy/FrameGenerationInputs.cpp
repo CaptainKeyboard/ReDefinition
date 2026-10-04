@@ -300,18 +300,24 @@ namespace redefinition
     {
         std::lock_guard<std::mutex> lock(mutex);
 
-        depth.name = "depth";
-        motion.name = "motion vectors";
-        hudLess.name = "HUD-less";
-
         if (device11 == nullptr || device12 == nullptr)
         {
-            LogLine("Textures registered before the devices exist -- ignored");
+            LogLine("Textures registered before the devices exist -- shared once a swapchain is made");
             depth.unity = newDepth;
             motion.unity = newMotion;
             hudLess.unity = newHudLess;
             return;
         }
+
+        ShareInputsLocked(newDepth, newMotion, newHudLess);
+    }
+
+    void FrameGeneration::ShareInputsLocked(ID3D11Resource* newDepth, ID3D11Resource* newMotion,
+                                            ID3D11Resource* newHudLess)
+    {
+        depth.name = "depth";
+        motion.name = "motion vectors";
+        hudLess.name = "HUD-less";
 
         CreateInputLocked(depth, newDepth, DXGI_FORMAT_UNKNOWN);
         CreateInputLocked(motion, newMotion, DXGI_FORMAT_UNKNOWN);

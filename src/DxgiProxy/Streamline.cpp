@@ -53,6 +53,17 @@ namespace redefinition
             g_repeats = 0;
         }
 
+        // What the lines are about: what Acquire set Streamline up for.
+        const char* SubjectFor(bool frameGeneration)
+        {
+            return frameGeneration ? "DLSS frame generation: " : "DLSS Ray Reconstruction: ";
+        }
+
+        const char* InsteadFor(bool frameGeneration)
+        {
+            return frameGeneration ? " -- FSR frame generation instead" : " -- no DLSS Ray Reconstruction";
+        }
+
         std::string ResultText(sl::Result result)
         {
             switch (result)
@@ -117,7 +128,7 @@ namespace redefinition
             state = text;
         }
         if (log)
-            LogLine("DLSS frame generation: " + text);
+            LogLine(SubjectFor(frameGenerationWanted) + text);
     }
 
     std::string Streamline::Describe() const
@@ -258,8 +269,8 @@ namespace redefinition
         }
 
         pluginFolder = folder;
-        LogLine("DLSS frame generation: sl.interposer.dll " + version + ", signed by NVIDIA, loaded from "
-                + Narrow(folder));
+        LogLine(SubjectFor(frameGenerationWanted) + std::string("sl.interposer.dll ") + version
+                + ", signed by NVIDIA, loaded from " + Narrow(folder));
         return true;
     }
 
@@ -329,22 +340,25 @@ namespace redefinition
 
         initialised = true;
         SetState("initialised", false);
-        LogLine("DLSS frame generation: Streamline initialised");
+        LogLine(SubjectFor(frameGenerationWanted) + std::string("Streamline initialised"));
         return true;
     }
 
     std::string Streamline::Instead() const
     {
-        return frameGenerationWanted ? " -- FSR frame generation instead" : " -- no DLSS Ray Reconstruction";
+        return InsteadFor(frameGenerationWanted);
     }
 
     bool Streamline::Acquire(const void* newOwner, bool forFrameGeneration)
     {
         // A swapchain made while an earlier one lives presents with FSR for as long
-        // as it lives: its swapchain is made now, through Streamline or not.
+        // as it lives: its swapchain is made now, through Streamline or not. Logged
+        // only: the state stays the owner's, whose Streamline still runs.
         if (owner != nullptr && owner != newOwner)
         {
-            SetState("Streamline belonged to an earlier swapchain still when this one was made" + Instead(), true);
+            LogLine(SubjectFor(forFrameGeneration)
+                    + std::string("Streamline belonged to an earlier swapchain still when this one was made")
+                    + InsteadFor(forFrameGeneration));
             return false;
         }
         frameGenerationWanted = forFrameGeneration;
@@ -382,6 +396,7 @@ namespace redefinition
         Check(slShutdown(), "slShutdown");
         initialised = false;
         deviceSet = false;
+        frameGeneration = false;
         slDLSSGSetOptions = nullptr;
         slDLSSGGetState = nullptr;
         slReflexSetOptions = nullptr;
@@ -391,7 +406,6 @@ namespace redefinition
         pingMessage = 0;
         slEvaluateFeature = nullptr;
         slDLSSDSetOptions = nullptr;
-        slDLSSDGetOptimalSettings = nullptr;
         rayReconstruction = false;
         frameInProgress = -1;
         // A reason already stated stays; "ready" does not outlast the shutdown.
@@ -401,7 +415,7 @@ namespace redefinition
             if (state == "ready" || state == "initialised")
                 state = "shut down with its swapchain";
         }
-        LogLine("DLSS frame generation: Streamline shut down");
+        LogLine(SubjectFor(frameGenerationWanted) + std::string("Streamline shut down"));
     }
 
     bool Streamline::Supported(const LUID& adapter)
@@ -480,9 +494,11 @@ namespace redefinition
         // The message PCL Stats pings the game's window with: "On seeing the ping
         // message, the application must either call slPclSetMarker or
         // sl::PclMarker::ePCLatencyPing to send the ping marker right away"
-        // (ProgrammingGuidePCL.md). Without it, only that ping is missing.
+        // (ProgrammingGuidePCL.md). Without it, only that ping is missing. With
+        // frame generation only: for Ray Reconstruction alone its plugin is not
+        // loaded (Initialise).
         sl::PCLState pcl{};
-        if (ImportFeature(slPCLGetState, sl::kFeaturePCL, "slPCLGetState")
+        if (frameGeneration && ImportFeature(slPCLGetState, sl::kFeaturePCL, "slPCLGetState")
             && Check(slPCLGetState(pcl), "slPCLGetState"))
             pingMessage = pcl.statsWindowMessage;
 
@@ -506,16 +522,12 @@ namespace redefinition
             {
                 slEvaluateFeature = reinterpret_cast<PFun_slEvaluateFeature*>(evaluate);
                 void* setOptions = nullptr;
-                void* optimal = nullptr;
                 if (slGetFeatureFunction(sl::kFeatureDLSS_RR, "slDLSSDSetOptions", setOptions) != sl::Result::eOk
-                    || setOptions == nullptr
-                    || slGetFeatureFunction(sl::kFeatureDLSS_RR, "slDLSSDGetOptimalSettings", optimal) != sl::Result::eOk
-                    || optimal == nullptr)
+                    || setOptions == nullptr)
                     why = "sl.dlss_d.dll lacks its functions";
                 else
                 {
                     slDLSSDSetOptions = reinterpret_cast<PFun_slDLSSDSetOptions*>(setOptions);
-                    slDLSSDGetOptimalSettings = reinterpret_cast<PFun_slDLSSDGetOptimalSettings*>(optimal);
                     rayReconstruction = true;
                     why = "ready";
                 }
@@ -611,7 +623,7 @@ namespace redefinition
     uint32_t Streamline::FrameInProgressIndex()
     {
         const int64_t current = frameInProgress.load();
-        return current >= 0 ? static_cast<uint32_t>(current) : ownFrameIndex++;
+        return current >= 0 ? static_cast<uint32_t>(current) : NextFrameIndex();
     }
 
     template <typename Call>

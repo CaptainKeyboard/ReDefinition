@@ -41,8 +41,9 @@ namespace redefinition
     public:
         static Streamline& Get();
 
-        // Loads sl.interposer.dll and calls slInit with manual hooking, DLSS-G,
-        // Reflex and PCL, for this owner. Not from DllMain: "slInit must NOT be
+        // Loads sl.interposer.dll and calls slInit with manual hooking, for this
+        // owner: DLSS-G, Reflex, PCL and Ray Reconstruction for frame generation,
+        // Ray Reconstruction alone otherwise. Not from DllMain: "slInit must NOT be
         // called within DLLMain entry point because that can cause a deadlock"
         // (ProgrammingGuide.md 2.2.1). False while another owner holds it, and on a
         // failure, which is logged with its reason and shows in Describe.
@@ -132,8 +133,8 @@ namespace redefinition
         void NoteFrameInProgress(uint32_t frameIndex);
         void ClearGameFrame();
 
-        // The index of the frame in progress (NoteFrameInProgress); without a
-        // swapchain presenting, a frame of its own each time.
+        // The index of the frame in progress (NoteFrameInProgress); without one, a
+        // new index each time, from the same count as every other (NextFrameIndex).
         uint32_t FrameInProgressIndex();
 
         // Ray Reconstruction for this frame, recorded into list: constants, options and
@@ -215,15 +216,12 @@ namespace redefinition
         PFun_slPCLGetState* slPCLGetState = nullptr;
         PFun_slEvaluateFeature* slEvaluateFeature = nullptr;
         PFun_slDLSSDSetOptions* slDLSSDSetOptions = nullptr;
-        PFun_slDLSSDGetOptimalSettings* slDLSSDGetOptimalSettings = nullptr;
         std::atomic<bool> rayReconstruction{ false };
         std::atomic<bool> frameGeneration{ false };
         // What the owner set Streamline up for (Acquire).
         bool frameGenerationWanted = true;
         std::string rayReconstructionWhy = "Streamline not set up";
         std::atomic<int64_t> frameInProgress{ -1 };
-        // Taken from the present thread and from Unity's render thread.
-        std::atomic<uint32_t> ownFrameIndex{ 1000000 };
 
         std::atomic<uint32_t> frameCounter{ 0 };
         // The game's frame on its main thread, and the last one Unity's render

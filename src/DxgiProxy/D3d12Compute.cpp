@@ -234,6 +234,13 @@ namespace redefinition
         const uint8_t* bytes = static_cast<const uint8_t*>(packet->bytecode);
         pass.bytecode.assign(bytes, bytes + packet->bytecodeSize);
 
+        // A pass made again under its handle: the results its last dispatch left for
+        // the next one go into Unity's textures first, as that dispatch would have
+        // copied them.
+        auto existing = passes.find(packet->pass);
+        if (existing != passes.end() && attached)
+            CompletePendingLocked(existing->second);
+
         Pass& stored = passes[packet->pass] = std::move(pass);
         if (!attached)
         {
@@ -294,7 +301,9 @@ namespace redefinition
         auto found = passes.find(packet->pass);
         if (found == passes.end())
         {
-            SetPassStatus(packet->pass, -1, "dispatched, but no pass of that handle was created");
+            // Not as the pass's status: that would make a state for a handle no pass
+            // has, which PassStatus would then report and the status line count.
+            SetProblem("a dispatch for pass " + std::to_string(packet->pass) + ", which was never created");
             return;
         }
         Pass& pass = found->second;

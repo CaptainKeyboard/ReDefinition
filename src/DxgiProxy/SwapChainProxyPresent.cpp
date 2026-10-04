@@ -12,6 +12,7 @@
 #include "Streamline.h"
 #include "SwapChainProxyState.h"
 
+#include <cmath>
 #include <string>
 
 using Microsoft::WRL::ComPtr;
@@ -90,7 +91,10 @@ namespace redefinition
                             + " after frame " + std::to_string(presentedFrameIndex)
                             + " -- presented without DLSS frame generation and its markers");
                 }
-                streamline.ClearGameFrame();
+                // A Present that is no frame of the game's comes between two of its
+                // frames: the one in progress stays.
+                if (takeGameFrame)
+                    streamline.ClearGameFrame();
                 return 0;
             }
             presentingGameFrames = false;
@@ -361,9 +365,54 @@ namespace redefinition
             LogLine(std::string("Frame not copied (") + why + "): presented as it stands, "
                     + std::to_string(uncopiedPresents) + " so far. The picture holds the frame before it.");
 
-        std::lock_guard<std::mutex> fgLock(FrameGeneration::Get().ContextMutex());
-        const HRESULT hr = swapChain->Present(syncInterval, flags & ~static_cast<UINT>(DXGI_PRESENT_ALLOW_TEARING));
+        HRESULT hr = S_OK;
+        {
+            std::lock_guard<std::mutex> fgLock(FrameGeneration::Get().ContextMutex());
+            hr = swapChain->Present(syncInterval, flags & ~static_cast<UINT>(DXGI_PRESENT_ALLOW_TEARING));
+        }
+        // The game's frame went out, if as the one before it.
+        CountPresent(0);
         return SUCCEEDED(hr) ? S_OK : hr;
+    }
+
+    HRESULT SwapChainProxy::PresentTest(UINT syncInterval, UINT flags)
+    {
+        if (streamlineNativeSwapChain != nullptr)
+            return streamlineNativeSwapChain->Present(syncInterval, flags);
+        // FidelityFX's Present is one of the calls its lock covers.
+        std::lock_guard<std::mutex> fgLock(FrameGeneration::Get().ContextMutex());
+        return swapChain->Present(syncInterval, flags);
+    }
+
+    // For the mod's window (KspFgCounters): one more frame rendered, and as
+    // many presented as the swapchain counted since the last one -- FSR's
+    // own count, generated frames included, trailing a little as its
+    // presenter thread presents them. Outside the lock, on the thread that
+    // presents.
+    void SwapChainProxy::CountPresent(uint32_t streamlinePresented)
+    {
+        UINT presents = 0;
+        const bool gotPresents = SUCCEEDED(swapChain->GetLastPresentCount(&presents));
+        UINT step = gotPresents && haveCountedPresents && presents >= countedPresents
+                        ? presents - countedPresents
+                        : 1u;
+        // DLSS-G's own count: "Number of frames presented since the last
+        // 'slDLSSGGetState' call" (sl_dlss_g.h).
+        if (streamlineSwapChain)
+            step = streamlinePresented != 0 ? streamlinePresented : 1u;
+        countedPresents = presents;
+        haveCountedPresents = gotPresents;
+        // Compare and swap: one proxy presents at a time in practice, but two
+        // overlapping ones must not lose each other's frames.
+        uint64_t both = g_counters.load();
+        uint64_t next = 0;
+        do
+        {
+            const uint32_t rendered = static_cast<uint32_t>(both >> 32) + 1u;
+            const uint32_t presentedTotal = static_cast<uint32_t>(both & 0xFFFFFFFFu) + step;
+            next = (static_cast<uint64_t>(rendered) << 32) | presentedTotal;
+        } while (!g_counters.compare_exchange_weak(both, next));
+        g_countersValid.store(true);
     }
 
     HRESULT SwapChainProxy::CopyAndPresent(UINT syncInterval, UINT flags)
@@ -537,33 +586,7 @@ namespace redefinition
 
         fgLock.unlock();
 
-        // For the mod's window (KspFgCounters): one more frame rendered, and as
-        // many presented as the swapchain counted since the last one -- FSR's
-        // own count, generated frames included, trailing a little as its
-        // presenter thread presents them. Outside the lock, on the thread that
-        // presents.
-        UINT presents = 0;
-        const bool gotPresents = SUCCEEDED(swapChain->GetLastPresentCount(&presents));
-        UINT step = gotPresents && haveCountedPresents && presents >= countedPresents
-                        ? presents - countedPresents
-                        : 1u;
-        // DLSS-G's own count: "Number of frames presented since the last
-        // 'slDLSSGGetState' call" (sl_dlss_g.h).
-        if (streamlineSwapChain)
-            step = streamlinePresent.presented != 0 ? streamlinePresent.presented : 1u;
-        countedPresents = presents;
-        haveCountedPresents = gotPresents;
-        // Compare and swap: one proxy presents at a time in practice, but two
-        // overlapping ones must not lose each other's frames.
-        uint64_t both = g_counters.load();
-        uint64_t next = 0;
-        do
-        {
-            const uint32_t rendered = static_cast<uint32_t>(both >> 32) + 1u;
-            const uint32_t presentedTotal = static_cast<uint32_t>(both & 0xFFFFFFFFu) + step;
-            next = (static_cast<uint64_t>(rendered) << 32) | presentedTotal;
-        } while (!g_counters.compare_exchange_weak(both, next));
-        g_countersValid.store(true);
+        CountPresent(streamlinePresent.presented);
 
         // The interpolation FSR recorded in Present reads this slot's depth,
         // motion vectors and HUD-less copy. D3D11 writes from another API,
@@ -609,7 +632,7 @@ namespace redefinition
     HRESULT STDMETHODCALLTYPE SwapChainProxy::Present(UINT syncInterval, UINT flags)
     {
         if ((flags & DXGI_PRESENT_TEST) != 0)
-            return measureOnly ? realSwapChain->Present(syncInterval, flags) : S_OK;
+            return measureOnly ? realSwapChain->Present(syncInterval, flags) : PresentTest(syncInterval, flags);
 
         RecordFrameTime();
 
@@ -626,7 +649,8 @@ namespace redefinition
                                                        const DXGI_PRESENT_PARAMETERS* parameters)
     {
         if ((flags & DXGI_PRESENT_TEST) != 0)
-            return measureOnly ? realSwapChain->Present1(syncInterval, flags, parameters) : S_OK;
+            return measureOnly ? realSwapChain->Present1(syncInterval, flags, parameters)
+                               : PresentTest(syncInterval, flags);
 
         RecordFrameTime();
 

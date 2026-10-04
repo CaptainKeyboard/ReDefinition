@@ -99,7 +99,9 @@ namespace redefinition
     static_assert(offsetof(FramePacket, viewToClip) == 104, "FramePacket layout changed");
     static_assert(offsetof(FramePacket, prevClipToClip) == 296, "FramePacket layout changed");
 
-    // FSR 3.1 frame interpolation fed with KSP's own depth and motion vectors.
+    // Frame generation fed with KSP's own depth and motion vectors: FSR's, through
+    // FidelityFX's swapchain and whichever provider AMD's DLL carries, or DLSS-G's,
+    // through Streamline's (FrameGenerationDlss.cpp).
     class FrameGeneration
     {
     public:
@@ -124,13 +126,12 @@ namespace redefinition
         bool Enabled() const;
 
         // Whether the rendered frame rate holds frame generation off (fgMinimumFps).
-
-        bool HeldOffForRate() const { return rateTooLow; }
+        // From any thread: the status line asks it.
+        bool HeldOffForRate() const { return rateTooLow.load(); }
 
         // Whether the last Present was prepared for a generated frame, for the
         // proxy's frame limit, which is taken outside the context lock.
         bool GeneratedLastPresent() const;
-        bool Ready() const;
 
         // The display size the current context was made for, or false when
         // there is none. Reported, so that a context left at an old size shows
@@ -181,7 +182,8 @@ namespace redefinition
         // backbuffer, release it or detach, so a proxy whose Initialise failed
         // cannot tear down the state of the one that presents. Unity makes one
         // swapchain per window and resizes it; two proxies presenting at once are
-        // not handled beyond that.
+        // not handled beyond that. A new owner gets the textures Unity registered
+        // shared again on its devices, and an earlier owner's context goes.
         void Attach(const void* owner, ID3D11Device* device11, ID3D11DeviceContext* context11,
                     ID3D12Device* device12, UINT displayWidth, UINT displayHeight,
                     DXGI_FORMAT backBufferFormat);
@@ -364,6 +366,8 @@ namespace redefinition
         bool contextEscalated = false;
 
         bool CreateInputLocked(Input& input, ID3D11Resource* unity, DXGI_FORMAT sharedFormat);
+        // The three of them shared on the devices attached (RegisterInputs, Attach).
+        void ShareInputsLocked(ID3D11Resource* newDepth, ID3D11Resource* newMotion, ID3D11Resource* newHudLess);
         void CopyInputLocked(Input& input, bool flip);
 
         // Replaced shared textures that frames on the GPU may still read.
@@ -483,6 +487,10 @@ namespace redefinition
         // vectors can be tested by reprojecting one onto the other.
         bool checkHavePrevious = false;
         bool checkPending = false;
+        // The packet and orientation of the check's second frame, whose copies are
+        // read back frames later.
+        FramePacket checkPacket = {};
+        bool checkFlipped = false;
         bool checkBroken = false;
         ULONGLONG lastCheckTicks = 0;
         float lastDirect = -1.0f;
@@ -490,6 +498,9 @@ namespace redefinition
 
         ffxContext context = nullptr;
         bool contextCreated = false;
+        // The swapchain the context was last configured on, which it is switched
+        // off on before it goes.
+        void* contextSwapChain = nullptr;
         UINT contextWidth = 0;
         UINT contextHeight = 0;
         // Atomic so SetEnabled, called by the mod every frame, returns without the
@@ -523,7 +534,7 @@ namespace redefinition
         // generation now. designedForFps is FSR's provider's, once its context is made.
         double rateWindowMs = 0.0;
         int rateWindowFrames = 0;
-        bool rateTooLow = false;
+        std::atomic<bool> rateTooLow{ false };
         // This frame alone took more than half again the minimum's frame time: a
         // hitch, which the two seconds' average does not catch, and interpolating
         // across such a gap draws its whole motion into one generated frame.

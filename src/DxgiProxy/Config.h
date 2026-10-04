@@ -22,8 +22,9 @@ namespace redefinition
         // that starts.
         bool enabled = true;
 
-        // Present with no vsync so the frame rate is comparable to the D3D11
-        // baseline. ALLOW_TEARING is already in the flags Unity asks for.
+        // The D3D12 swapchain made with ALLOW_TEARING, so a Present without V-Sync
+        // is shown at once, as KSP asks: its flags already carry it, and this adds
+        // it where they do not. Read once at load, like enabled.
         bool allowTearing = true;
 
         // Wrap the swapchain Unity asked for and only measure it, presenting
@@ -31,9 +32,11 @@ namespace redefinition
         // same timing code on both sides of the comparison.
         bool measureOnly = false;
 
-        // Create the swapchain through FidelityFX instead of DXGI directly.
-        // Read once at creation, for the same reason as enabled. On by
-        // default: the player package ships AMD's runtime (Config.cpp).
+        // Frame generation: the swapchain made through Streamline (with
+        // dlssFrameGeneration) or FidelityFX instead of DXGI directly. Off, the
+        // swapchain is Streamline's only for DLSS Ray Reconstruction. Read once at
+        // creation, for the same reason as enabled. On by default: the player
+        // package ships AMD's runtime (Config.cpp).
         bool frameGeneration = true;
 
         // DLSS frame generation where NVIDIA's Streamline 2.14.1 is there and the
@@ -41,7 +44,8 @@ namespace redefinition
         // frameGeneration: which swapchain presents is decided once.
         bool dlssFrameGeneration = true;
 
-        // ---- live from here down ----
+        // ---- live from here down, but for the folders, vendorDiagnostics and
+        // streamlineImgui, which apply when what they serve starts ----
 
         // Keep the UI out of the interpolated frames by handing FSR a HUD-less
         // snapshot: the backbuffer copied after the last scene camera and before

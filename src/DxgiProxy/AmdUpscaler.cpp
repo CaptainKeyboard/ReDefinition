@@ -220,8 +220,12 @@ namespace redefinition
         module = LoadLibraryExW(path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
         if (module == nullptr)
         {
-            SetStatus(-2, "no amd_fidelityfx_upscaler_dx12.dll in " + Narrow(folder)
-                              + " -- copy it from a game that has it");
+            const DWORD error = GetLastError();
+            if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES)
+                SetStatus(-2, "no amd_fidelityfx_upscaler_dx12.dll in " + Narrow(folder)
+                                  + " -- copy it from a game that has it");
+            else
+                SetStatus(-2, Narrow(path) + " could not be loaded (" + Hr(HRESULT_FROM_WIN32(error)) + ")");
             return false;
         }
 
@@ -279,11 +283,12 @@ namespace redefinition
             return false;
         }
 
-        const bool same = colour.Valid() && colour.width == colourDesc.Width && colour.height == colourDesc.Height
-                          && output.Valid() && output.width == outputDesc.Width && output.height == outputDesc.Height
-                          && depth.Valid() && depth.width == depthDesc.Width && motion.Valid()
-                          && motion.width == motionDesc.Width && colour.format == TypedFormat(colourDesc.Format)
-                          && output.format == TypedFormat(outputDesc.Format);
+        const auto matches = [](const SharedTexture& shared, const D3D11_TEXTURE2D_DESC& desc) {
+            return shared.Valid() && shared.width == desc.Width && shared.height == desc.Height
+                   && shared.format == TypedFormat(desc.Format);
+        };
+        const bool same = matches(colour, colourDesc) && matches(output, outputDesc) && matches(depth, depthDesc)
+                          && matches(motion, motionDesc);
         if (same)
             return true;
 
@@ -453,8 +458,14 @@ namespace redefinition
         if (listDone[index] != 0 && fence12->GetCompletedValue() < listDone[index]
             && SUCCEEDED(fence12->SetEventOnCompletion(listDone[index], fenceEvent)))
             WaitForSingleObject(fenceEvent, INFINITE);
-        allocators[index]->Reset();
-        list->Reset(allocators[index].Get(), nullptr);
+        HRESULT hr = allocators[index]->Reset();
+        if (SUCCEEDED(hr))
+            hr = list->Reset(allocators[index].Get(), nullptr);
+        if (FAILED(hr))
+        {
+            SetStatus(-1, "the command list could not be reset (" + Hr(hr) + ")");
+            return false;
+        }
 
         // Shared resources are back in COMMON whenever D3D11 touches them. The
         // inputs as AMD asks, "transitioned to D3D12_RESOURCE_STATE_NON_PIXEL_
@@ -514,9 +525,14 @@ namespace redefinition
         Transition(list.Get(), motion.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
         Transition(list.Get(), depth.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
         Transition(list.Get(), colour.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
-        list->Close();
-        ID3D12CommandList* lists[] = { list.Get() };
-        queue->ExecuteCommandLists(1, lists);
+        // A list that does not close is not executed; the fence below is signalled
+        // all the same.
+        hr = list->Close();
+        if (SUCCEEDED(hr))
+        {
+            ID3D12CommandList* lists[] = { list.Get() };
+            queue->ExecuteCommandLists(1, lists);
+        }
         const UINT64 finished = ++fenceValue;
         queue->Signal(fence12.Get(), finished);
         listDone[index] = finished;
@@ -525,6 +541,11 @@ namespace redefinition
         // queued either way, and a later D3D11 signal on the shared fence that ran ahead
         // of it would set the fence back.
         context11->Wait(fence11.Get(), finished);
+        if (FAILED(hr))
+        {
+            SetStatus(-1, "the command list could not be closed (" + Hr(hr) + ")");
+            return false;
+        }
         if (code != FFX_API_RETURN_OK)
         {
             SetStatus(-1, providerName + " dispatch failed, code " + std::to_string(static_cast<int>(code)));

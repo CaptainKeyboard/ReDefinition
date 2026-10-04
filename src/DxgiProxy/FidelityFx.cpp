@@ -34,8 +34,14 @@ namespace redefinition
 
         if (module == nullptr)
         {
-            LogLine("FidelityFX runtime not found next to the executable -- FSR frame generation unavailable, "
-                    "presentation continues unchanged");
+            const DWORD error = GetLastError();
+            if (GetFileAttributesW(beside.c_str()) == INVALID_FILE_ATTRIBUTES)
+                LogLine("FidelityFX runtime not found next to the executable -- FSR frame generation unavailable, "
+                        "presentation continues unchanged");
+            else
+                LogLine("FidelityFX runtime next to the executable could not be loaded ("
+                        + Hr(HRESULT_FROM_WIN32(error)) + ") -- FSR frame generation unavailable, presentation"
+                        " continues unchanged");
             return;
         }
 
