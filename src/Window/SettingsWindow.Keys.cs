@@ -345,11 +345,12 @@ namespace ReDefinition.Window
                 take, new DialogGUISpace(4f), clear);
         }
 
-        // On Apply: into GameSettings, then KSP's own save.
-        private static void ApplyKeyBindings()
+        // On Apply: into GameSettings; true where one was written, for KSP's save
+        // at the end of Apply.
+        private static bool ApplyKeyBindings()
         {
             KeysChanged();
-            if (kspPending.Count == 0) return;
+            if (kspPending.Count == 0) return false;
             bool written = false;
             foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
             {
@@ -357,15 +358,7 @@ namespace ReDefinition.Window
                 written |= Write(binding, true);
             }
             kspPending.Clear();
-            if (!written) return;
-            try
-            {
-                KspKeyBindings.Save();
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " KSP's key bindings could not be saved: " + e);
-            }
+            return written;
         }
 
         private static bool Write(KspKeyBindings.Binding binding, bool second)
@@ -436,7 +429,7 @@ namespace ReDefinition.Window
             // Placed in one of KSP's groups, it counts where that group does.
             DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, shown.Owner.ModName, text,
                 value => model.Change(key, value),
-                () => model.Bundled && model.HasPending(key), shown.MaxModifiers,
+                () => (model.Bundled || SetDirectly(shown, false)) && model.HasPending(key), shown.MaxModifiers,
                 KspKeyBindings.SituationsOfGroup(shown.Group));
             if (inKeysTab) row.OptionEnabledCondition = () => MatchesSearch(shown.Title, shown.Owner.ModName);
             return row;

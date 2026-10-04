@@ -522,15 +522,12 @@ namespace ReDefinition
             captureFailures = 0;
             loggedSetupProblem = null;
             // Switched on by the player: a context the proxy could not make gets
-            // another try, a standing failure included; and what the mods require
-            // of KSP's V-Sync with it is put right at the end of the frame, as at a
-            // scene change.
-            if (frameGeneration)
-            {
-                FrameGenerationBridge.RetryContext();
-                BundledSettingsAddon.AtEndOfFrame("frame-generation-requirements",
-                                                  () => Requirements.Enforce("frame generation switched on"));
-            }
+            // another try, a standing failure included. What it requires of KSP's
+            // V-Sync is held at the end of the frame, and let go once it is off
+            // (Requirements.Hold).
+            if (frameGeneration) FrameGenerationBridge.RetryContext();
+            string switched = frameGeneration ? "frame generation switched on" : "frame generation switched off";
+            BundledSettingsAddon.AtEndOfFrame("frame-generation-requirements", () => Requirements.Enforce(switched));
             if (rig != null) rig.FrameGeneration = frameGeneration;
             else if (frameGeneration) nextAttachAttempt = 0f;
             // Off at once, rig or not: without a rig nobody dispatches, and a rig on

@@ -79,6 +79,7 @@ namespace ReDefinition.Window
                 Stop();
                 return;
             }
+            Lock();
             if (Input.GetKeyDown(KeyCode.Escape))
             {
                 // Escape cancels and does nothing else (EscapeGuard); the lock
@@ -143,9 +144,11 @@ namespace ReDefinition.Window
             return "Joystick " + device;
         }
 
+        // Set again where KSP cleared every lock meanwhile (the flight UI's
+        // docking mode, the pause menus: InputLockManager.ClearControlLocks).
         private static void Lock()
         {
-            if (locked) return;
+            if (locked && InputLockManager.GetControlLock(LockId) != ControlTypes.None) return;
             InputLockManager.SetControlLock(ControlTypes.All, LockId);
             locked = true;
         }

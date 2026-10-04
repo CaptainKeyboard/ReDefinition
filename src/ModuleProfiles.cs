@@ -11,11 +11,13 @@ namespace ReDefinition
     internal static class ModuleProfiles
     {
         // Each MODULE node's values onto the settings they name, in `settings`.
-        public static void Apply(GraphicsProfile profile, OwnSettings settings, List<string> problems)
+        // `active`: a profile is chosen already, so the settings only the first
+        // one sets (ModuleSetting.OnlyActivates) stay as the player has them.
+        public static void Apply(GraphicsProfile profile, OwnSettings settings, List<string> problems, bool active = false)
         {
             if (settings == null) return;
             foreach (KeyValuePair<ModuleSetting, string> pair in Values(profile, problems))
-                pair.Key.Write(settings, pair.Value);
+                if (!active || !pair.Key.OnlyActivates) pair.Key.Write(settings, pair.Value);
         }
 
         // The values a profile's MODULE nodes set, each as its setting holds it --
@@ -68,13 +70,17 @@ namespace ReDefinition
         }
 
         // How many of the modules' settings in `settings` no longer match the
-        // profile: each that differs counts as one, as a mod's setting does.
-        public static int Differences(GraphicsProfile profile, OwnSettings settings)
+        // profile: each that differs counts as one, as a mod's setting does --
+        // with `active` as for Apply, not the ones it leaves to the player.
+        public static int Differences(GraphicsProfile profile, OwnSettings settings, bool active = false)
         {
             int count = 0;
             if (settings == null) return count;
             foreach (KeyValuePair<ModuleSetting, string> pair in Values(profile, null))
+            {
+                if (active && pair.Key.OnlyActivates) continue;
                 if (!SettingValues.Same(pair.Key.Normalize(pair.Key.Read(settings)), pair.Value)) count++;
+            }
             return count;
         }
 
@@ -82,6 +88,7 @@ namespace ReDefinition
         // registered mods' part, then the modules'. Bundling must be on already.
         public static void ApplyNow(GraphicsProfile profile, IList<GraphicsProfile> all, List<string> problems)
         {
+            bool active = BundledSettings.ProfileChosen;
             ProfileApplier.ApplyNow(profile, all, problems);
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon == null) return;
@@ -91,7 +98,7 @@ namespace ReDefinition
             {
                 OwnSettings before = addon.Current();
                 OwnSettings after = before.Clone();
-                Apply(profile, after, problems);
+                Apply(profile, after, problems, active);
                 addon.Apply(before, after);
             }
             catch (Exception e)

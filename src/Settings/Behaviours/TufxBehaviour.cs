@@ -349,6 +349,14 @@ namespace ReDefinition.Settings.Behaviours
             object profile = profileByName != null
                 ? profileByName.Invoke(loader, new object[] { name })
                 : all != null && all.Contains(name) ? all[name] : null;
+            // A name TUFX does not know -- a profile pack removed since: TUFX's
+            // own ApplyProfile takes no null. The name stays set, as TUFX's own
+            // window leaves one it cannot find.
+            if (profile == null)
+            {
+                CompatibilityLog.Warn("tufx-apply-" + name, "TUFX has no profile named '" + name + "' to apply now.");
+                return;
+            }
             applyProfile.Invoke(loader, new[] { profile, scene });
             Action applied = ProfileApplied;
             if (applied != null) applied();

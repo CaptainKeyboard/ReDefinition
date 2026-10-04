@@ -199,16 +199,29 @@ namespace ReDefinition.Window
         // options in the parts' menus, such as autostrut), the extended burn
         // indicator (when to start a manoeuvre burn, on the navball), the closest
         // approach always shown, and six encounters ahead on the map. Saved as
-        // KSP's own screen saves them (GameSettings.SaveSettings).
+        // KSP's own screen saves them (GameSettings.SaveSettings). The two the
+        // registration bundles go through the store, which keeps what KSP had
+        // for Restore; the others are set straight, as their rows are.
         private static void RecommendedKspSettings()
         {
             GameSettings.ADVANCED_TWEAKABLES = true;
             GameSettings.EXTENDED_BURNTIME = true;
-            GameSettings.ALWAYS_SHOW_TARGET_APPROACH_MARKERS = true;
-            GameSettings.CONIC_PATCH_LIMIT = 6;
+            SetBundled("ksp.ALWAYS_SHOW_TARGET_APPROACH_MARKERS", "True",
+                () => GameSettings.ALWAYS_SHOW_TARGET_APPROACH_MARKERS = true);
+            SetBundled("ksp.CONIC_PATCH_LIMIT", "6", () => GameSettings.CONIC_PATCH_LIMIT = 6);
             GameSettings.SaveSettings();
+            BundledSettings.SaveNow();
             Debug.Log(Log.Tag + " KSP's settings set as control is taken: advanced tweakables, extended burn indicator,"
                       + " closest approach always shown, conic patch limit 6.");
+        }
+
+        // Through the store where KSP's registration bundles the setting; straight
+        // into GameSettings where it does not.
+        private static void SetBundled(string key, string value, System.Action direct)
+        {
+            BundledSetting setting = BundledSettings.Find(key);
+            if (setting != null && setting.Bundled && BundledSettings.Enabled) BundledSettings.Set(setting, value, false);
+            else direct();
         }
 
         // KSP's UI scale to its default for this screen (KspBehaviour.Default), where

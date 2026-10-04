@@ -88,6 +88,56 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, ModuleProfiles.Differences(profile, settings));
         }
 
+        // The profile that makes ReDefinition active switches the upscaler on; once
+        // one is chosen, the switch is the player's, and another profile neither
+        // sets it nor counts it as a difference.
+        [TestMethod]
+        public void OnlyTheFirstProfileSwitchesTheUpscalerOn()
+        {
+            GraphicsProfile profile = Profile(Upscaler("  enabled = True\n  quality = Balanced\n"));
+            OwnSettings switchedOff = new OwnSettings();
+
+            ModuleProfiles.Apply(profile, switchedOff, new List<string>(), true);
+            Assert.IsFalse(switchedOff.Enabled);
+            Assert.AreEqual(Fsr3Upscaler.QualityMode.Balanced, switchedOff.Quality);
+            Assert.AreEqual(0, ModuleProfiles.Differences(profile, switchedOff, true));
+
+            OwnSettings first = new OwnSettings();
+            ModuleProfiles.Apply(profile, first, new List<string>());
+            Assert.IsTrue(first.Enabled);
+        }
+
+        // Reset: every setting back to its default and frame generation off, but
+        // the player's hardware and menu choices, and once a profile is chosen
+        // the upscaler's switch.
+        [TestMethod]
+        public void TheResetKeepsWhatIsNoQuality()
+        {
+            OwnSettings now = new OwnSettings
+            {
+                Enabled = true,
+                Backend = Bridges.UpscalerBackend.Dlss,
+                Raytracing = Raytracing.RaytracingMode.Full,
+                RaytracingBounces = 3,
+                ReplaceKspSettings = true,
+                FrameGeneration = true,
+                Sharpness = 0.3f,
+                Quality = Fsr3Upscaler.QualityMode.Performance,
+            };
+
+            OwnSettings reset = OwnSettingsReset.From(now, true);
+            Assert.AreEqual(Bridges.UpscalerBackend.Dlss, reset.Backend);
+            Assert.AreEqual(Raytracing.RaytracingMode.Full, reset.Raytracing);
+            Assert.AreEqual(3, reset.RaytracingBounces);
+            Assert.IsTrue(reset.ReplaceKspSettings);
+            Assert.IsTrue(reset.Enabled);
+            Assert.IsFalse(reset.FrameGeneration);
+            Assert.AreEqual(1.0f, reset.Sharpness);
+            Assert.AreEqual(Fsr3Upscaler.QualityMode.NativeAA, reset.Quality);
+
+            Assert.IsFalse(OwnSettingsReset.From(now, false).Enabled, "without a profile, High switches it on");
+        }
+
         [TestMethod]
         public void TheUpscalingRowsStandInTheirOrder()
         {

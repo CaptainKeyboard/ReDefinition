@@ -264,6 +264,8 @@ namespace ReDefinition.Tests
             binding.Write("LeftControl+F9");
             Assert.AreEqual("LeftControl+F9", binding.Read());
             Assert.IsFalse(ProviderFake.Instance.Values.ContainsKey("window"));
+            Assert.IsFalse(binding.Bundled, "ReDefinition's own to keep, with the bundling on or off");
+            Assert.IsTrue(binding.KeptHere);
         }
 
         [TestMethod]

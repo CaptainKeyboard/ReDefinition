@@ -137,13 +137,12 @@ namespace ReDefinition.Window
             {
                 OwnSettings now = addon.Current();
                 // ReDefinition's own rows follow the profile the other rows were filled from,
-                // applied or not -- with the bundling, without which no profile is
-                // stored.
+                // applied or not.
                 edit = new KspSettingsSection.Edit
                 {
                     Before = now,
                     After = now.Clone(),
-                    ProfileChosen = () => model.Bundled && !string.IsNullOrEmpty(model.Profile),
+                    ProfileChosen = () => !string.IsNullOrEmpty(model.Profile),
                 };
                 ReadBundled();
                 LoadProfiles();
@@ -800,6 +799,7 @@ namespace ReDefinition.Window
         internal static void SyncFromMods()
         {
             if (!Visible) return;
+            SyncOwn();
             bool changed = false;
             try
             {
@@ -826,6 +826,40 @@ namespace ReDefinition.Window
             }
             if (changed || !model.ProfilesStale) return;
             LoadProfiles();
+        }
+
+        // ReDefinition's own settings changed meanwhile outside this window -- in
+        // the diagnostics window, by a hotkey: each row the player has not changed
+        // here takes the value now; one changed here keeps the change, which
+        // Accept sets. Not while a reset waits, which has set every one of them.
+        private static string ownLiveSnapshot;
+
+        private static void SyncOwn()
+        {
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon == null || edit == null || edit.Before == null || edit.After == null || model.Resetting) return;
+            OwnSettings live = addon.Current();
+            string snapshot = live.Snapshot();
+            if (snapshot == ownLiveSnapshot) return;
+            ownLiveSnapshot = snapshot;
+            if (snapshot == edit.Before.Snapshot()) return;
+
+            OwnSettings after = live.Clone();
+            foreach (IGraphicsModule module in OurModules.All)
+            {
+                foreach (ModuleSetting setting in module.Settings)
+                {
+                    string changed = setting.Read(edit.After);
+                    if (changed != setting.Read(edit.Before)) setting.Write(after, changed);
+                }
+            }
+            if (edit.Before.ReplaceKspSettings != edit.After.ReplaceKspSettings)
+                after.ReplaceKspSettings = edit.After.ReplaceKspSettings;
+            if (edit.Before.TimeWarpToolbarButton != edit.After.TimeWarpToolbarButton)
+                after.TimeWarpToolbarButton = edit.After.TimeWarpToolbarButton;
+            edit.Before = live;
+            edit.After = after;
+            status = null;
         }
 
         // Every setting of that mod at the next sync: KSP's, as its own settings
@@ -909,15 +943,35 @@ namespace ReDefinition.Window
             // KSP's key bindings and axes wait in their tabs as well, and so does
             // every setting of ReDefinition's own, the upscaler's and the rest.
             unapplied = kspPending.Count > 0 || AxesDiffer() || layoutPending != null
-                        || (edit != null && edit.Before != null && edit.After != null
-                            && edit.Before.Snapshot() != edit.After.Snapshot())
-                        || model.Unapplied(UpscalerPending(), BundledSettings.Enabled, BundledSettings.ProfileName);
+                        || model.Unapplied(OwnSettingsPending(), BundledSettings.Enabled, BundledSettings.ProfileName);
             return unapplied;
         }
 
-        private static bool UpscalerPending()
+        // Whether any of ReDefinition's own settings waits for Accept, the ones no
+        // row shows included -- a reset sets them too. Compared as a whole, as the
+        // add-on saves them: the copy the window started from once per copy, the
+        // one it edits at most ten times a second, or at once where it is a new
+        // copy -- after Apply, Cancel or Reset.
+        private static OwnSettings ownBefore;
+        private static OwnSettings ownAfter;
+        private static string ownBeforeSnapshot;
+        private static float ownCheckedAt = -10f;
+        private static bool ownPending;
+
+        private static bool OwnSettingsPending()
         {
-            return edit != null && edit.Before != null && edit.After != null && !SameUpscaler(edit.Before, edit.After);
+            if (edit == null || edit.Before == null || edit.After == null) return false;
+            float now = Time.unscaledTime;
+            if (edit.Before == ownBefore && edit.After == ownAfter && now - ownCheckedAt < 0.1f) return ownPending;
+            if (edit.Before != ownBefore)
+            {
+                ownBefore = edit.Before;
+                ownBeforeSnapshot = edit.Before.Snapshot();
+            }
+            ownAfter = edit.After;
+            ownCheckedAt = now;
+            ownPending = ownBeforeSnapshot != edit.After.Snapshot();
+            return ownPending;
         }
 
         // The profiles as the GameDatabase holds them -- a visual pack's patches
@@ -952,9 +1006,9 @@ namespace ReDefinition.Window
             status = null;
         }
 
-        // Low to Max. Choosing one fills the rows of every tab with its values
-        // and switches the bundling on, which a profile needs; nothing is set
-        // until Apply or Accept, as with any other row.
+        // Low to Max. Choosing one fills the rows of every tab with its values --
+        // with the bundling off, ReDefinition's own and those set straight into
+        // their mods; nothing is set until Apply or Accept, as with any other row.
         private static DialogGUIBase[] ProfileRows()
         {
             if (profiles.Count == 0) return new DialogGUIBase[0];
@@ -1023,10 +1077,13 @@ namespace ReDefinition.Window
                            + (model.Bundled ? " Their settings stay in this window." : " Their settings are bundled in this window.")
                            + "\n\n";
             }
-            message += "ReDefinition's own settings go back to theirs, with frame generation off.\n\n"
+            bool active = BundledSettings.ProfileChosen;
+            message += "ReDefinition's own settings go back to theirs, with frame generation off. The upscaling"
+                       + " technique, the raytracing and \"Replace original settings\" stay as they are"
+                       + (active ? ", and so does whether the upscaler is on" : "") + ".\n\n"
                        + "Then the graphics profile High is chosen over the defaults, as its button chooses it: the"
                        + " quality settings as High has them, what the mods need of KSP's settings, and the upscaler"
-                       + " at AA only.\n\n"
+                       + " at AA only" + (active ? "" : ", switched on") + ".\n\n"
                        + "The rows are only filled in: Accept sets them, Cancel puts them back as they were."
                        + " \"Restore settings from before ReDefinition\" under Mods and toolbar brings back what the mods"
                        + " had before ReDefinition first changed them.\n\nThe key bindings go back to their defaults"
@@ -1052,7 +1109,9 @@ namespace ReDefinition.Window
             ProfileApplier.Report("Reset", problems);
             if (values.Count > 0)
             {
-                model.ChooseDefaults(values);
+                // A setting never bundled is set straight into its mod, which may
+                // not be there in this scene: reset only where its row has a value.
+                model.ChooseDefaults(values, setting => !setting.Bundled);
             }
             else
             {
@@ -1061,7 +1120,7 @@ namespace ReDefinition.Window
                         5f);
                 model.Profile = "";
             }
-            if (edit != null) edit.After = new OwnSettings();
+            if (edit != null) edit.After = OwnSettingsReset.From(edit.After, BundledSettings.ProfileChosen);
             // ReDefinition's own bindings went back with the settings above, the
             // mods' go with their other settings, and KSP's are filled in here.
             ResetKeyBindings();
@@ -1092,10 +1151,12 @@ namespace ReDefinition.Window
                     Debug.LogWarning(Log.Tag + " The graphics profiles could not be read again: " + e);
                 }
             }
-            if (!model.ChooseProfile(profile.Name)) return;
+            // With the bundling off only the rows that need none; the others take
+            // the profile's values once it is switched on (SettingsEdit.SetBundled).
+            if (!model.ChooseProfile(profile.Name, setting => model.Bundled || SetDirectly(setting, false))) return;
 
             List<string> problems = new List<string>();
-            if (edit != null) ModuleProfiles.Apply(profile, edit.After, problems);
+            if (edit != null) ModuleProfiles.Apply(profile, edit.After, problems, BundledSettings.ProfileChosen);
             ProfileApplier.Report("Graphics profile '" + profile.Title + "'", problems);
         }
 
@@ -1106,7 +1167,7 @@ namespace ReDefinition.Window
             string applied = BundledSettings.ProfileName;
             bool enabled = BundledSettings.Enabled;
             OwnSettings after = edit != null ? edit.After : null;
-            bool upscalerPending = UpscalerPending();
+            bool upscalerPending = OwnSettingsPending();
             bool modulesSame = SameModules(after);
 
             if (status != null && statusVersion == model.Version && statusProfile == model.Profile
@@ -1122,7 +1183,8 @@ namespace ReDefinition.Window
             statusUpscalerPending = upscalerPending;
             GraphicsProfile profile = ProfileApplier.Find(profiles, model.Profile);
             status = model.Status(applied, enabled, upscalerPending, profile != null ? profile.Title : null,
-                values => ProfileApplier.Differences(values, PendingValue) + ModuleProfiles.Differences(profile, after));
+                values => ProfileApplier.Differences(values, PendingValue)
+                          + ModuleProfiles.Differences(profile, after, BundledSettings.ProfileChosen));
             return status;
         }
 
@@ -1160,20 +1222,6 @@ namespace ReDefinition.Window
             return same;
         }
 
-        // Field by field, since the status line asks every frame.
-        private static bool SameUpscaler(OwnSettings a, OwnSettings b)
-        {
-            return a.Enabled == b.Enabled && a.Quality == b.Quality && a.DlssModel == b.DlssModel && a.Sharpness == b.Sharpness
-                   && a.MipmapBias == b.MipmapBias && a.CompensateLodBias == b.CompensateLodBias
-                   && a.DisableMsaa == b.DisableMsaa && a.ForceAnisotropic == b.ForceAnisotropic && a.Jitter == b.Jitter
-                   && a.SkinnedMotionVectors == b.SkinnedMotionVectors
-                   && a.TufxAfterUpscaling == b.TufxAfterUpscaling && a.TransparencyMask == b.TransparencyMask
-                   && a.ReactiveMask == b.ReactiveMask && a.AutoExposure == b.AutoExposure
-                   && a.FrameGeneration == b.FrameGeneration && a.Backend == b.Backend
-                   && a.UpscalerKey == b.UpscalerKey && a.SettingsWindowKey == b.SettingsWindowKey
-                   && a.DiagnosticsKey == b.DiagnosticsKey && a.CameraListKey == b.CameraListKey;
-        }
-
         private static string PendingValue(BundledSetting setting)
         {
             string value;
@@ -1191,14 +1239,14 @@ namespace ReDefinition.Window
             string list = string.Join(", ", names.ToArray());
 
             DialogGUIToggle bundle = new DialogGUIToggle(() => model.Bundled,
-                () => KspSettingsSection.StateText(model.Bundled), b => model.Bundled = b, ControlWidth);
+                () => KspSettingsSection.StateText(model.Bundled), model.SetBundled, ControlWidth);
             bundle.tooltipText = "On: the settings of " + list + " are changed here, sorted by feature, and saved in\n"
                                  + "those mods as their own windows save them; their own toolbar buttons are hidden\n"
                                  + "where the Advanced buttons here open their windows.\n"
                                  + "Off: each keeps its own button and window, and ReDefinition leaves their settings to them.\n"
                                  + "What was saved in the mods stays. What only ReDefinition kept is dropped: the choices\n"
                                  + "for every save of TUFX and Distant Object, and Deferred's and Waterfall's settings.\n"
-                                 + "Off also clears the graphics profile: the upscaler and frame generation go off until one is chosen.";
+                                 + "The graphics profile stays chosen, and with it the upscaler and frame generation.";
 
             DialogGUIButton restore = new DialogGUIButton("Restore settings from before ReDefinition", ConfirmRestore,
                 300f, 30f, false);
@@ -1626,14 +1674,11 @@ namespace ReDefinition.Window
         }
 
         // The rows set directly whose value the player changed, or the reset
-        // filled in: written into their mods, then each mod saves once. KSP's own
-        // reset goes first where the window resets (KspReset), so that what
-        // KSP's reset covers and no row shows -- its key layout, its terrain
-        // presets -- is reset as well.
-        private static void ApplyDirect(bool resetting)
+        // filled in, written into their mods; the mods written, for the one save
+        // each gets at the end of Apply. A row whose mod cannot take a value in
+        // this scene keeps what the mod has.
+        private static HashSet<IBundledMod> ApplyDirect()
         {
-            if (resetting) KspReset.Run();
-
             HashSet<IBundledMod> written = new HashSet<IBundledMod>();
             foreach (BundledSetting setting in InstalledSettings())
             {
@@ -1642,12 +1687,18 @@ namespace ReDefinition.Window
                 if (!SetDirectly(setting, true) || !model.Changed(setting.Key)) continue;
                 string value;
                 if (!model.TryGetPending(setting.Key, out value) || value == null) continue;
+                if (!Applicable(setting))
+                {
+                    CompatibilityLog.Warn("direct-apply-" + setting.Key, setting.Owner.ModName + ", " + setting.Title
+                                          + ": not set -- " + setting.Owner.ModName + " cannot take it in this scene.");
+                    continue;
+                }
                 string now = SafeRead(setting);
                 if (now != null && SettingValues.Same(now, value)) continue;
                 try
                 {
                     setting.Write(value);
-                    written.Add(setting.Owner);
+                    if (!setting.KeptHere) written.Add(setting.Owner);
                 }
                 catch (Exception e)
                 {
@@ -1655,17 +1706,18 @@ namespace ReDefinition.Window
                                           + ": could not be set (" + CompatibilityLog.Reason(e) + ").");
                 }
             }
-            foreach (IBundledMod mod in written)
+            return written;
+        }
+
+        private static bool Applicable(BundledSetting setting)
+        {
+            try
             {
-                try
-                {
-                    mod.Save();
-                }
-                catch (Exception e)
-                {
-                    CompatibilityLog.Warn("direct-save-" + mod.Id, mod.ModName + "'s settings could not be saved ("
-                                          + CompatibilityLog.Reason(e) + ").");
-                }
+                return setting.Applicable == null || setting.Applicable();
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 
@@ -1681,154 +1733,178 @@ namespace ReDefinition.Window
             }
         }
 
-        // Apply and Accept, as in KSP's dialog: the bundling switch (on hands the
-        // stored values over, off takes them back), the model's steps and the
-        // profile, saved once -- then ReDefinition's own through the add-on's
-        // setters, which switch nothing on without the profile in place, and read
-        // back afterwards, as the section in KSP's settings dialog does.
+        // KSP's registration, which saves KSP's settings as its own screens do.
+        private static IBundledMod KspMod()
+        {
+            foreach (IBundledMod mod in BundledSettings.Installed())
+                if (mod.Id == KspId) return mod;
+            return null;
+        }
+
+        private const string KspId = "ksp";
+
+        // KSP's own reset, where the window resets (KspReset), so that what KSP's
+        // reset covers and no row shows -- its key layout, its terrain presets --
+        // is reset as well. What KSP's rows held before it stays their value from
+        // before ReDefinition where the reset changed it: the store would read
+        // KSP's default there otherwise. Then the rows are compared with what KSP
+        // holds after it.
+        private static void ResetKsp()
+        {
+            List<BundledSetting> ksp = new List<BundledSetting>();
+            List<KeyValuePair<BundledSetting, string>> before = new List<KeyValuePair<BundledSetting, string>>();
+            foreach (BundledSetting setting in InstalledSettings())
+            {
+                if (setting.Owner.Id != KspId) continue;
+                ksp.Add(setting);
+                if (!SetDirectly(setting, true)) before.Add(new KeyValuePair<BundledSetting, string>(setting, SafeRead(setting)));
+            }
+            KspReset.Run();
+            if (!BundledSettings.KeepBefore(before))
+                Debug.LogWarning(Log.Tag + " " + BundledSettings.Path + " could not be written: Restore cannot bring back"
+                                 + " KSP's settings from before the reset.");
+            foreach (BundledSetting setting in ksp) model.Reread(setting.Key, SafeRead(setting));
+        }
+
+        // Apply and Accept, as in KSP's dialog, in this order:
+        //   1. the bundling switch and the toolbar buttons -- on hands the stored
+        //      values over, off takes them back;
+        //   2. KSP's own reset, where the window resets;
+        //   3. the rows set directly;
+        //   4. KSP's keyboard layout, key bindings and axes -- a rebind to the
+        //      layout's preset before the keys changed by hand;
+        //   5. the store's steps and the profile;
+        //   6. every mod written saved once, KSP's settings among them;
+        //   7. ReDefinition's own settings through the add-on's setters, which
+        //      switch nothing on without the profile in place;
+        // then everything read back, as the section in KSP's settings dialog does.
+        // Each step is caught on its own: one that fails does not take the
+        // others with it.
         private static void Apply()
         {
             KeyCapture.Stop();
             NoteWaiting();
-            try
-            {
-                ApplyLayout();
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " KSP's keyboard layout from the window could not be applied: " + e);
-            }
+            bool resetting = model.Resetting;
+            HashSet<IBundledMod> written = new HashSet<IBundledMod>();
 
-            try
+            Step("The bundling switch and the toolbar buttons from the window could not be applied", ApplySwitches);
+            if (resetting) Step("KSP's settings could not be reset", ResetKsp);
+            Step("Settings set directly from the window applied only in part", () => written.UnionWith(ApplyDirect()));
+            bool kspWritten = resetting;
+            Step("KSP's keyboard layout from the window could not be applied", () => { kspWritten |= ApplyLayout(); });
+            Step("KSP's key bindings from the window applied only in part", () => { kspWritten |= ApplyKeyBindings(); });
+            Step("KSP's axes from the window applied only in part", () => { kspWritten |= ApplyAxes(); });
+            if (kspWritten)
             {
-                ApplyKeyBindings();
+                IBundledMod ksp = KspMod();
+                if (ksp != null) written.Add(ksp);
+                else Step("KSP's settings could not be saved", GameSettings.SaveSettings);
             }
-            catch (Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " KSP's key bindings from the window applied only in part: " + e);
-            }
-
-            try
-            {
-                ApplyAxes();
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " KSP's axes from the window applied only in part: " + e);
-            }
-
-            try
-            {
-                bool buttonsChanged = model.ButtonsPending();
-                foreach (KeyValuePair<string, bool> pair in model.Buttons)
-                    BundledSettings.SetHidesButton(pair.Key, pair.Value);
-
-                if (model.Bundled != BundledSettings.Enabled)
-                {
-                    BundledSettings.SetEnabled(model.Bundled);
-                    ToolbarTakeover.Refresh();
-                }
-                else if (buttonsChanged)
-                {
-                    ToolbarTakeover.Refresh();
-                }
-
-                bool resettingAll = model.Resetting;
-                try
-                {
-                    ApplyDirect(resettingAll);
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning(Log.Tag + " Settings set directly from the window applied only in part: " + e);
-                }
-
-                if (BundledSettings.Enabled)
-                {
-                    bool changed = false;
-                    bool resetting = resettingAll;
-                    foreach (SettingsEdit.Step step in model.Steps(BundledNow(), BundledSettings.Holds))
-                    {
-                        BundledSetting setting = step.Setting;
-                        // One setting that cannot be handed over must not take the
-                        // other mods' changes with it -- nor the saving of the ones
-                        // already made, which the outer catch would skip as well.
-                        try
-                        {
-                            if (step.Kind == SettingsEdit.StepKind.Reset) BundledSettings.ResetTo(setting, step.Value);
-                            else if (step.Kind == SettingsEdit.StepKind.Release) BundledSettings.Release(setting);
-                            else BundledSettings.Set(setting, step.Value, false);
-                            changed = true;
-                        }
-                        catch (Exception e)
-                        {
-                            CompatibilityLog.Warn("bundled-apply-" + setting.Key, setting.Owner.ModName + ", "
-                                                  + setting.Title + ": could not be applied from the window ("
-                                                  + CompatibilityLog.Reason(e) + ").");
-                        }
-                    }
-
-                    // The profile the rows came from, once they are set -- in the
-                    // same write as they are.
-                    if (model.Profile != BundledSettings.ProfileName)
-                    {
-                        BundledSettings.ProfileName = model.Profile;
-                        changed = true;
-                    }
-                    if (changed) BundledSettings.SaveNow();
-                    if (resetting)
-                        Debug.Log(Log.Tag + " Bundled settings: every setting set to its mod's default"
-                                  + " (Reset).");
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " Other mods' settings from the window applied only in part: " + e);
-            }
-
-            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            if (addon != null && edit != null)
-            {
-                try
-                {
-                    addon.Apply(edit.Before, edit.After);
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning(Log.Tag + " The upscaler's settings from the window applied only in part: " + e);
-                }
-                finally
-                {
-                    // A throw in here would replace the one just caught.
-                    try
-                    {
-                        // Both or neither: a half-written pair would take the
-                        // player's earlier changes for new ones at the next
-                        // Apply.
-                        OwnSettings now = addon.Current();
-                        OwnSettings copy = now.Clone();
-                        edit.Before = now;
-                        edit.After = copy;
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogWarning(Log.Tag + " The upscaler's settings could not be read back into the"
-                                         + " window: " + e);
-                    }
-                }
-            }
+            Step("Other mods' settings from the window applied only in part", () => ApplyBundled(resetting));
+            Step("The settings set from the window could not be saved", () => BundledSettings.SaveNow(written));
+            ApplyOwn();
 
             // The new starting point, read back -- a failure there stays a warning,
             // not an exception the button handler sees.
-            try
+            Step("The other mods' values could not be read back into the window", () =>
             {
                 ReadBundled();
                 LoadProfiles();
+            });
+        }
+
+        private static void Step(string failure, Action step)
+        {
+            try
+            {
+                step();
             }
             catch (Exception e)
             {
-                Debug.LogWarning(Log.Tag + " The other mods' values could not be read back into the"
-                                 + " window: " + e);
+                Debug.LogWarning(Log.Tag + " " + failure + ": " + e);
+            }
+        }
+
+        private static void ApplySwitches()
+        {
+            bool buttonsChanged = model.ButtonsPending();
+            foreach (KeyValuePair<string, bool> pair in model.Buttons)
+                BundledSettings.SetHidesButton(pair.Key, pair.Value);
+
+            if (model.Bundled != BundledSettings.Enabled)
+            {
+                BundledSettings.SetEnabled(model.Bundled);
+                ToolbarTakeover.Refresh();
+            }
+            else if (buttonsChanged)
+            {
+                ToolbarTakeover.Refresh();
+            }
+        }
+
+        // The model's steps with the bundling on, and the profile the rows came
+        // from, with it on or off: the upscaler's part of a profile needs no
+        // bundling.
+        private static void ApplyBundled(bool resetting)
+        {
+            if (BundledSettings.Enabled)
+            {
+                foreach (SettingsEdit.Step step in model.Steps(BundledNow(), BundledSettings.Holds))
+                {
+                    BundledSetting setting = step.Setting;
+                    // One setting that cannot be handed over must not take the
+                    // other mods' changes with it -- nor the saving of the ones
+                    // already made.
+                    try
+                    {
+                        if (step.Kind == SettingsEdit.StepKind.Reset) BundledSettings.ResetTo(setting, step.Value);
+                        else if (step.Kind == SettingsEdit.StepKind.Release) BundledSettings.Release(setting);
+                        else BundledSettings.Set(setting, step.Value, false);
+                    }
+                    catch (Exception e)
+                    {
+                        CompatibilityLog.Warn("bundled-apply-" + setting.Key, setting.Owner.ModName + ", "
+                                              + setting.Title + ": could not be applied from the window ("
+                                              + CompatibilityLog.Reason(e) + ").");
+                    }
+                }
+                if (resetting) Debug.Log(Log.Tag + " Bundled settings: every setting set to its mod's default (Reset).");
+            }
+
+            // Saved with the values it came with, at the end of Apply.
+            if (model.Profile != BundledSettings.ProfileName) BundledSettings.ProfileName = model.Profile;
+        }
+
+        private static void ApplyOwn()
+        {
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon == null || edit == null) return;
+            try
+            {
+                addon.Apply(edit.Before, edit.After);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " The upscaler's settings from the window applied only in part: " + e);
+            }
+            finally
+            {
+                // A throw in here would replace the one just caught.
+                try
+                {
+                    // Both or neither: a half-written pair would take the
+                    // player's earlier changes for new ones at the next
+                    // Apply.
+                    OwnSettings now = addon.Current();
+                    OwnSettings copy = now.Clone();
+                    edit.Before = now;
+                    edit.After = copy;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning(Log.Tag + " The upscaler's settings could not be read back into the"
+                                     + " window: " + e);
+                }
             }
         }
     }

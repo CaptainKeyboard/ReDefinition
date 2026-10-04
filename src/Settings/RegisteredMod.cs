@@ -482,6 +482,7 @@ namespace ReDefinition.Settings
             // binding or a behaviour reaches it (which lowers it where its mod keeps
             // fewer), else as many as its members hold (BindingThrough).
             int maxModifiers = 2;
+            bool kept = false;
             if (behaviour != null && behaviour.Reach(this, entry, out read, out write, out type))
             {
                 if (read == null) return;
@@ -489,10 +490,11 @@ namespace ReDefinition.Settings
             else if (entry.Member == null)
             {
                 // ReDefinition keeps it: the mod reads it through ReDefinition.Api.
-                string kept = Id + "." + entry.Name;
+                string key = Id + "." + entry.Name;
                 string fallback = entry.Default ?? KeyCombination.NoneText;
-                read = () => KeptBindings.Get(kept, fallback);
-                write = text => KeptBindings.Set(kept, text);
+                read = () => KeptBindings.Get(key, fallback);
+                write = text => KeptBindings.Set(key, text);
+                kept = true;
             }
             else if (!BindingThrough(entry, where, problems, out read, out write, out maxModifiers))
             {
@@ -507,6 +509,12 @@ namespace ReDefinition.Settings
             setting.Control = SettingControl.Binding;
             setting.Kind = SettingKind.Other;
             setting.MaxModifiers = maxModifiers;
+            // ReDefinition's own to keep, with the bundling on or off (KeptBindings).
+            if (kept)
+            {
+                setting.Bundled = false;
+                setting.KeptHere = true;
+            }
             if (!string.IsNullOrEmpty(entry.KeyGroup)) setting.Group = entry.KeyGroup;
             if (registration.Saving == SettingsSaving.PerSave && entry.PerSave != false) setting.Context = LoadedSave;
             if (behaviour != null) behaviour.Finish(this, setting, entry);
@@ -881,6 +889,7 @@ namespace ReDefinition.Settings
         {
             foreach (BundledSetting setting in settings)
             {
+                if (setting.KeptHere) continue;
                 Func<bool> applicable = setting.Applicable;
                 Func<string> read = setting.Read;
                 setting.Applicable = applicable == null ? (Func<bool>)IsReady : () => IsReady() && applicable();

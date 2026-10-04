@@ -73,7 +73,6 @@ namespace ReDefinition.Tests
             SettingsEdit.Origin from;
             Assert.IsTrue(edit.FilledBy(ocean.Key, "True", out from));
             Assert.AreEqual(SettingsEdit.Origin.Profile, from);
-            Assert.IsTrue(edit.Bundled, "a profile switches the bundling on");
             Assert.AreEqual("high", edit.Profile);
 
             edit.Change(ocean.Key, "False");
@@ -158,6 +157,66 @@ namespace ReDefinition.Tests
             Assert.AreEqual("5", Pending(edit, changed.Key), "the player's change stays for Apply");
             Assert.AreEqual("1", Pending(edit, profiles.Key), "the profile's row is still the profile's");
             Assert.IsFalse(edit.Sync(untouched.Key, "2"), "nothing new");
+        }
+
+        // With the bundling off a profile fills only the rows that need none --
+        // ReDefinition's own and those set straight into their mods -- and leaves
+        // the switch as the player has it; switched on, the others follow.
+        [TestMethod]
+        public void AProfileChosenWithTheBundlingOffFillsOnlyTheRowsItReaches()
+        {
+            BundledSetting direct = Setting("ksp.direct");
+            BundledSetting bundled = Setting("scatterer.useOceanShaders");
+            SettingsEdit edit = new SettingsEdit();
+            edit.Open(false, "", new[] { Row(direct.Key, "1"), Row(bundled.Key, "False") });
+            Profile(edit, "high", new Dictionary<BundledSetting, string> { { direct, "2" }, { bundled, "True" } });
+
+            Assert.IsTrue(edit.ChooseProfile("high", setting => edit.Bundled || setting == direct));
+            Assert.IsFalse(edit.Bundled, "a profile leaves the bundling as it is");
+            Assert.AreEqual("high", edit.Profile);
+            Assert.AreEqual("2", Pending(edit, direct.Key));
+            Assert.AreEqual("False", Pending(edit, bundled.Key));
+
+            edit.SetBundled(true);
+            Assert.AreEqual("True", Pending(edit, bundled.Key));
+            SettingsEdit.Origin from;
+            Assert.IsTrue(edit.FilledBy(bundled.Key, "True", out from));
+            Assert.AreEqual(SettingsEdit.Origin.Profile, from);
+        }
+
+        // A setting set straight into its mod cannot wait for the mod: where its
+        // row has no value in this scene, the reset leaves it alone. One that goes
+        // through the bundling is reset all the same, and waits in the store.
+        [TestMethod]
+        public void TheResetLeavesADirectRowWithoutAValueAlone()
+        {
+            BundledSetting direct = Setting("persistentrotation.window");
+            BundledSetting bundled = Setting("trajectories.enabled");
+            SettingsEdit edit = Opened(Row(direct.Key, null), Row(bundled.Key, null));
+
+            edit.ChooseDefaults(new Dictionary<BundledSetting, string> { { direct, "False" }, { bundled, "True" } },
+                setting => setting == direct);
+
+            Assert.IsFalse(edit.HasPending(direct.Key));
+            Assert.IsFalse(edit.Changed(direct.Key));
+            Assert.AreEqual("True", Pending(edit, bundled.Key));
+        }
+
+        // KSP's own reset changes KSP's values under the rows as Apply runs: each
+        // row keeps what it holds and is compared with KSP's value after it.
+        [TestMethod]
+        public void ARowReadAgainKeepsWhatItHolds()
+        {
+            BundledSetting tweakables = Setting("ksp.ADVANCED_TWEAKABLES");
+            SettingsEdit edit = Opened(Row(tweakables.Key, "True"));
+            Assert.IsFalse(edit.Changed(tweakables.Key));
+
+            edit.Reread(tweakables.Key, "False");
+            Assert.AreEqual("True", Pending(edit, tweakables.Key));
+            Assert.IsTrue(edit.Changed(tweakables.Key));
+            List<SettingsEdit.Step> steps = edit.Steps(new[] { tweakables }, (setting, value) => true).ToList();
+            Assert.AreEqual(1, steps.Count);
+            Assert.AreEqual("True", steps[0].Value);
         }
 
         [TestMethod]

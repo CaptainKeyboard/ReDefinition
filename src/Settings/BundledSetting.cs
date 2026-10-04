@@ -124,6 +124,10 @@ namespace ReDefinition.Settings
         public const string ModsGroup = "Mods";
         public string Group = ModsGroup;
 
+        // Binding: kept by ReDefinition, not by the mod (KeptBindings) -- there to
+        // set whether or not the mod is ready, and nothing of the mod's to save.
+        public bool KeptHere;
+
         // Value: the member's type, which a value must parse into.
         public Type ValueType;
 

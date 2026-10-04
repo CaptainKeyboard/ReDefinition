@@ -221,9 +221,12 @@ namespace ReDefinition.Window
                         break;
                     }
                 }
-                if (UpscalerPending()) pendingIn.Add(SettingCategory.Display);
+                // ReDefinition's own: the rows of General stand in Display's
+                // upscaling section, its hotkeys under Keys.
+                if (OwnPending(SettingCategory.General)) pendingIn.Add(SettingCategory.Display);
                 if (model.Profile != BundledSettings.ProfileName || model.Resetting) pendingIn.Add(SettingCategory.Profiles);
-                if (kspPending.Count > 0 || layoutPending != null) pendingIn.Add(SettingCategory.Keys);
+                if (kspPending.Count > 0 || layoutPending != null || OwnPending(SettingCategory.Keys))
+                    pendingIn.Add(SettingCategory.Keys);
                 if (AxesDiffer()) pendingIn.Add(SettingCategory.Axes);
                 if (model.Bundled != BundledSettings.Enabled || model.ButtonsPending() || OwnPending(SettingCategory.Interface))
                     pendingIn.Add(SettingCategory.Interface);

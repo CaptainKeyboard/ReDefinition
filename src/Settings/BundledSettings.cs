@@ -206,6 +206,11 @@ namespace ReDefinition.Settings
             store.ResetTo(setting, value);
         }
 
+        internal static bool KeepBefore(IEnumerable<KeyValuePair<BundledSetting, string>> coming)
+        {
+            return store.KeepBefore(coming);
+        }
+
         internal static bool Correct(BundledSetting setting, string value)
         {
             return store.Correct(setting, value);
@@ -224,6 +229,11 @@ namespace ReDefinition.Settings
         public static void SaveNow()
         {
             store.SaveNow();
+        }
+
+        internal static void SaveNow(IEnumerable<IBundledMod> also)
+        {
+            store.SaveNow(also);
         }
 
         public static void ReapplyStored(string when, IBundledMod only = null, bool sceneChange = false)

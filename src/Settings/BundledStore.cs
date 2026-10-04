@@ -69,8 +69,9 @@ namespace ReDefinition.Settings
         }
 
         // The graphics profile last chosen, by name; empty when none was
-        // (ProfileApplier), and again once the bundling is switched off or the
-        // settings are restored. Whether the values still match it is the
+        // (ProfileApplier), and again once the settings are restored. It stays
+        // with the bundling switched off: the upscaler's part of it does not
+        // depend on the other mods. Whether the values still match it is the
         // window's to tell -- a value changed after it makes it Custom. Saved by
         // the caller's SaveNow, in one write with the values it came with.
         public string ProfileName
@@ -223,6 +224,32 @@ namespace ReDefinition.Settings
                           : " -- kept; it reaches the mod once the mod can take it."));
         }
 
+        // After something outside the store changed settings it is about to set
+        // -- KSP's own reset ahead of the window's steps, before KSP saves: the
+        // value each had before, given here, becomes its value from before
+        // ReDefinition where its mod holds another now and none is kept yet.
+        // Written to bundled.cfg at once, as WriteToMod writes a backup before the
+        // mod can save the new value. False where that write failed.
+        public bool KeepBefore(IEnumerable<KeyValuePair<BundledSetting, string>> before)
+        {
+            Load();
+            if (!state.Enabled) return true;
+            bool taken = false;
+            foreach (KeyValuePair<BundledSetting, string> pair in before)
+            {
+                BundledSetting setting = pair.Key;
+                if (setting == null || pair.Value == null) continue;
+                string context = Context(setting);
+                BundledLedger.Backup kept;
+                if (context == null || ledger.TryBackup(context, setting.Key, out kept)) continue;
+                string now = SafeRead(setting);
+                if (now == null || SettingValues.Same(now, pair.Value)) continue;
+                ledger.SetBackup(context, setting.Key, pair.Value);
+                taken = true;
+            }
+            return !taken || Save();
+        }
+
         // A setting a newly chosen profile leaves alone while it still holds the
         // profile applied before (ProfileApplier.WithReleased): no value is kept
         // for it any more, and every value from before ReDefinition kept
@@ -329,7 +356,16 @@ namespace ReDefinition.Settings
         // save routine.
         public void SaveNow()
         {
+            SaveNow(null);
+        }
+
+        // With the mods `also` names, which were written past the store -- the
+        // settings window's direct rows: every mod saved once.
+        public void SaveNow(IEnumerable<IBundledMod> also)
+        {
             Load();
+            if (also != null)
+                foreach (IBundledMod mod in also) ledger.Unsaved(mod);
             SaveMods(null);
             Save();
         }
@@ -426,7 +462,9 @@ namespace ReDefinition.Settings
         // Off: each mod's own window decides again, and what is kept here only
         // -- values set at every start, choices for every save, values still
         // waiting -- is dropped. What the mods saved stays theirs; RestoreBackup
-        // is the way back to before.
+        // is the way back to before. The profile stays chosen. On: the mods
+        // installed now count as having had it, so that the next start does not
+        // put its values over what they hold.
         public void SetEnabled(bool on)
         {
             Load();
@@ -435,12 +473,12 @@ namespace ReDefinition.Settings
             state.Enabled = on;
             if (on)
             {
+                NoteProfileApplied();
                 ReapplyStored("bundling switched on", null, false);
             }
             else
             {
                 ledger.ForgetAll();
-                state.ProfileName = "";
             }
             Save();
             host.Info("Other mods' settings " + (on

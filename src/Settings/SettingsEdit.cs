@@ -77,6 +77,10 @@ namespace ReDefinition.Settings
         private Dictionary<string, HashSet<BundledSetting>> profileReleased =
             new Dictionary<string, HashSet<BundledSetting>>();
 
+        // The chosen profile's values for rows it could not fill while the
+        // bundling was off: filled once it is switched on (SetBundled).
+        private readonly Dictionary<BundledSetting, string> unreached = new Dictionary<BundledSetting, string>();
+
         // RowsPending, worked out again only when the rows have changed: the
         // Advanced and Restore buttons ask for it every frame.
         private int rowsPendingVersion = -1;
@@ -86,9 +90,9 @@ namespace ReDefinition.Settings
         // front.
         public Action<string, string> Offered;
 
-        // The bundling switch as the window shows it, and the profile the rows
-        // were last filled from; empty for none.
-        public bool Bundled;
+        // The bundling switch as the window shows it (SetBundled), and the
+        // profile the rows were last filled from; empty for none.
+        public bool Bundled { get; private set; }
         public string Profile = "";
 
         // The profiles' lists were worked out before a mod's value changed: read
@@ -163,6 +167,7 @@ namespace ReDefinition.Settings
             opened.Clear();
             filled.Clear();
             resetValues.Clear();
+            unreached.Clear();
             Bundled = bundled;
             Profile = profile ?? "";
             foreach (KeyValuePair<string, string> pair in values)
@@ -232,39 +237,54 @@ namespace ReDefinition.Settings
         }
 
         // Every setting's default, as choosing a profile fills its rows -- the
-        // settings the window does not show included. Nothing is set until Apply,
-        // and no profile is chosen.
-        public void ChooseDefaults(IDictionary<BundledSetting, string> values)
+        // settings the window does not show included -- and the bundling on,
+        // which the reset of the other mods' settings needs. A setting `direct`
+        // names is set straight into its mod and cannot wait for it: filled only
+        // where its row has a value now. Nothing is set until Apply, and no
+        // profile is chosen.
+        public void ChooseDefaults(IDictionary<BundledSetting, string> values, Func<BundledSetting, bool> direct = null)
         {
-            foreach (KeyValuePair<BundledSetting, string> pair in values) Change(pair.Key.Key, pair.Value);
+            Dictionary<BundledSetting, string> taken = new Dictionary<BundledSetting, string>();
+            foreach (KeyValuePair<BundledSetting, string> pair in values)
+                if (direct == null || pending.ContainsKey(pair.Key.Key) || !direct(pair.Key)) taken[pair.Key] = pair.Value;
+            foreach (KeyValuePair<BundledSetting, string> pair in taken) Change(pair.Key.Key, pair.Value);
             filled.Clear();
             resetValues.Clear();
-            foreach (KeyValuePair<BundledSetting, string> pair in values) resetValues[pair.Key.Key] = pair.Value;
+            unreached.Clear();
+            foreach (KeyValuePair<BundledSetting, string> pair in taken) resetValues[pair.Key.Key] = pair.Value;
             Bundled = true;
             Profile = "";
             Version++;
         }
 
-        // Fills the rows of every tab with the profile's values and switches the
-        // bundling on, which a profile needs; nothing is set until Apply. False
-        // where the profile is not known. After the reset nothing is handed back:
-        // a row the profile leaves keeps the reset's default.
-        public bool ChooseProfile(string name)
+        // Fills the rows of every tab with the profile's values; nothing is set
+        // until Apply. False where the profile is not known. `reaches`: whether
+        // a row can take its value now -- null for every row; the window's
+        // leaves out the rows that go through the bundling while it is off,
+        // which take theirs once it is switched on (SetBundled). After the reset
+        // nothing is handed back: a row the profile leaves keeps the reset's
+        // default.
+        public bool ChooseProfile(string name, Func<BundledSetting, bool> reaches = null)
         {
             Dictionary<BundledSetting, string> values;
             if (name == null || !profileValues.TryGetValue(name, out values)) return false;
             values = OwnValues(name, values);
 
-            foreach (KeyValuePair<BundledSetting, string> pair in values) Change(pair.Key.Key, pair.Value);
+            unreached.Clear();
+            Dictionary<BundledSetting, string> reached = values;
+            if (reaches != null)
+            {
+                reached = new Dictionary<BundledSetting, string>();
+                foreach (KeyValuePair<BundledSetting, string> pair in values)
+                {
+                    if (reaches(pair.Key)) reached[pair.Key] = pair.Value;
+                    else unreached[pair.Key] = pair.Value;
+                }
+            }
+
             List<string> filledBefore = new List<string>(filled.Keys);
             filled.Clear();
-            HashSet<BundledSetting> released;
-            profileReleased.TryGetValue(name, out released);
-            foreach (KeyValuePair<BundledSetting, string> pair in values)
-            {
-                Origin from = released != null && released.Contains(pair.Key) ? Origin.Released : Origin.Profile;
-                filled[pair.Key.Key] = new Filled { From = from, Value = pair.Value };
-            }
+            Fill(name, reached);
             // A row a profile chosen before filled and this one leaves goes back to
             // the reset's default, where a reset is chosen.
             foreach (string key in filledBefore)
@@ -272,9 +292,36 @@ namespace ReDefinition.Settings
                 string reset;
                 if (!filled.ContainsKey(key) && resetValues.TryGetValue(key, out reset)) Change(key, reset);
             }
-            Bundled = true;
             Profile = name;
+            Version++;
             return true;
+        }
+
+        // The bundling switch. Switched on, the rows the chosen profile could not
+        // fill while it was off take its values.
+        public void SetBundled(bool on)
+        {
+            if (Bundled == on) return;
+            Bundled = on;
+            Version++;
+            if (!on || unreached.Count == 0) return;
+            Dictionary<BundledSetting, string> values = new Dictionary<BundledSetting, string>(unreached);
+            unreached.Clear();
+            Fill(Profile, values);
+        }
+
+        // The profile's values into their rows, each marked as the profile's or
+        // as one it hands back.
+        private void Fill(string name, Dictionary<BundledSetting, string> values)
+        {
+            foreach (KeyValuePair<BundledSetting, string> pair in values) Change(pair.Key.Key, pair.Value);
+            HashSet<BundledSetting> released;
+            profileReleased.TryGetValue(name, out released);
+            foreach (KeyValuePair<BundledSetting, string> pair in values)
+            {
+                Origin from = released != null && released.Contains(pair.Key) ? Origin.Released : Origin.Profile;
+                filled[pair.Key.Key] = new Filled { From = from, Value = pair.Value };
+            }
         }
 
         // A profile's values as choosing it fills them in: without its hand-backs
@@ -314,6 +361,16 @@ namespace ReDefinition.Settings
             }
             Version++;
             return true;
+        }
+
+        // The mod's value changed under the window as Apply runs -- KSP's own
+        // reset ahead of the rows: what each row holds stays, and is compared
+        // with the value the mod holds now.
+        public void Reread(string key, string now)
+        {
+            if (now == null) return;
+            opened[key] = now;
+            Version++;
         }
 
         // Whether one row holds something other than what it was read with --

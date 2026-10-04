@@ -92,6 +92,21 @@ namespace ReDefinition.Settings
         {
             return false;
         }
+
+        // Whether a REQUIRES with the check of that name holds only while
+        // something runs -- DLSS frame generation's limits on V-Sync: the
+        // setting's own value, the player's, stays as it is, and what runs is held
+        // to the fix instead (Hold).
+        public virtual bool HeldAtRunTime(string check)
+        {
+            return false;
+        }
+
+        // Holds what runs of the setting at `value`, its own value left as it is;
+        // null lets go and puts its own value back into what runs.
+        public virtual void Hold(RegisteredMod mod, BundledSetting setting, string value)
+        {
+        }
     }
 
     // The behaviours by the names registrations give them.

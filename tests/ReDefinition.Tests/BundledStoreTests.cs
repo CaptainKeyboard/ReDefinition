@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Settings;
 
@@ -378,9 +379,82 @@ namespace ReDefinition.Tests
             store.SetEnabled(false);
 
             Assert.IsFalse(store.Ledger.Contains(lights.Key));
-            Assert.AreEqual("", store.ProfileName);
+            Assert.AreEqual("high", store.ProfileName, "the profile stays chosen: the upscaler's part needs no bundling");
             store.Set(lights, "True", false);
             Assert.AreEqual("False", waterfall.Values["EnableLights"], "nothing is set while the bundling is off");
+        }
+
+        // Switched on again, the mods installed now count as having had the
+        // profile: the next start does not put its values over what they hold.
+        [TestMethod]
+        public void SwitchingTheBundlingOnAgainCatchesNothingUp()
+        {
+            Mod("scatterer", SettingsSaving.InModFiles);
+            store.SetEnabled(false);
+            store.ProfileName = "high";
+            Mod("eve", SettingsSaving.InModFiles);
+
+            store.SetEnabled(true);
+            Assert.AreEqual(0, store.ModsWithoutTheProfile().Count);
+        }
+
+        // KSP's own reset runs before the window's steps: what KSP held before it
+        // stays the value from before ReDefinition, which Restore puts back --
+        // also for a setting the steps give back the value it had.
+        [TestMethod]
+        public void AValueChangedFromOutsideAheadOfTheStepsKeepsItsValueFromBefore()
+        {
+            FakeMod ksp = Mod("ksp", SettingsSaving.InModFiles);
+            BundledSetting antialiasing = ksp.Add("ANTI_ALIASING", "4");
+            BundledSetting vsync = ksp.Add("SYNC_VBL", "1");
+            BundledSetting untouched = ksp.Add("FRAMERATE_LIMIT", "120");
+            KeyValuePair<BundledSetting, string>[] before =
+            {
+                new KeyValuePair<BundledSetting, string>(antialiasing, "4"),
+                new KeyValuePair<BundledSetting, string>(vsync, "1"),
+                new KeyValuePair<BundledSetting, string>(untouched, "120"),
+            };
+
+            ksp.Values["ANTI_ALIASING"] = "2";
+            ksp.Values["SYNC_VBL"] = "0";
+            int written = host.FileWrites;
+            Assert.IsTrue(store.KeepBefore(before));
+            Assert.IsTrue(host.FileWrites > written, "on disk before KSP saves");
+            store.ResetTo(antialiasing, "0");
+            store.ResetTo(vsync, "1");
+            store.SaveNow();
+
+            Assert.AreEqual("4", store.BeforeReDefinition(antialiasing));
+            Assert.AreEqual("1", store.BeforeReDefinition(vsync));
+            BundledLedger.Backup backup;
+            Assert.IsFalse(store.Ledger.TryBackup("", untouched.Key, out backup), "what the reset left needs nothing");
+
+            store.RestoreBackup();
+            Assert.AreEqual("4", ksp.Values["ANTI_ALIASING"]);
+            Assert.AreEqual("1", ksp.Values["SYNC_VBL"]);
+        }
+
+        [TestMethod]
+        public void AValueFromBeforeKeptAlreadyIsNotReplacedAheadOfTheSteps()
+        {
+            FakeMod ksp = Mod("ksp", SettingsSaving.InModFiles);
+            BundledSetting antialiasing = ksp.Add("ANTI_ALIASING", "4");
+            store.Set(antialiasing, "8", true);
+
+            ksp.Values["ANTI_ALIASING"] = "2";
+            store.KeepBefore(new[] { new KeyValuePair<BundledSetting, string>(antialiasing, "8") });
+            Assert.AreEqual("4", store.BeforeReDefinition(antialiasing));
+        }
+
+        [TestMethod]
+        public void AValueFromBeforeThatCannotBeWrittenIsSaid()
+        {
+            FakeMod ksp = Mod("ksp", SettingsSaving.InModFiles);
+            BundledSetting antialiasing = ksp.Add("ANTI_ALIASING", "4");
+            ksp.Values["ANTI_ALIASING"] = "2";
+            host.FileWriteFails = true;
+
+            Assert.IsFalse(store.KeepBefore(new[] { new KeyValuePair<BundledSetting, string>(antialiasing, "4") }));
         }
 
         [TestMethod]

@@ -148,18 +148,19 @@ namespace ReDefinition.Window
         }
 
         // Before KSP's keys from the Keys tab: a rebind sets them all to the
-        // preset, and a key changed by hand in the same Apply comes after it.
-        private static void ApplyLayout()
+        // preset, and a key changed by hand in the same Apply comes after it. True
+        // where the layout was set, for KSP's save at the end of Apply.
+        private static bool ApplyLayout()
         {
-            if (layoutPending == null) return;
+            if (layoutPending == null) return false;
             string layout = layoutPending;
             bool rebind = rebindPending;
             layoutPending = null;
             rebindPending = false;
             GameSettings.CURRENT_LAYOUT_SETTINGS = layout;
             GameSettings.LoadLayoutKeyBindings(layout, rebind);
-            GameSettings.SaveSettings();
             Debug.Log(Log.Tag + " KSP's keyboard layout: " + layout + (rebind ? ", keys bound to its preset." : "."));
+            return true;
         }
 
         private static string detectedLayout;

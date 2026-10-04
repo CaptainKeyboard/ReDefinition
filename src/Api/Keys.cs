@@ -22,7 +22,9 @@ namespace ReDefinition.Api
         {
             BundledSetting setting = Find(key);
             if (setting == null || setting.Read == null) return null;
-            return setting.Read() ?? KeyCombination.NoneText;
+            // Asked from other mods' Update: a member that cannot be read now --
+            // its holder gone -- reads as unbound rather than throwing into them.
+            return BundledSettings.SafeRead(setting) ?? KeyCombination.NoneText;
         }
 
         /// <summary>

@@ -12,7 +12,10 @@ namespace ReDefinition.Settings
     // profile and the window alike. Each rule is a mod's REQUIRES
     // (docs/modders/registering-a-mod.md), in force while that mod -- and the one its
     // `whenInstalled` names -- is loaded: the mod errors or warns about the setting
-    // whether or not ReDefinition bundles it. Enforced only with the bundling on. A mod
+    // whether or not ReDefinition bundles it. Enforced only with the bundling on --
+    // but for a rule whose check holds only while something runs
+    // (ModBehaviour.HeldAtRunTime), which holds what runs and leaves the
+    // setting's own value as the player set it, with the bundling on or off. A mod
     // that enforces a setting itself -- Firefly, Deferred, Kopernicus -- is left to it;
     // its registration or behaviour leaves out or limits the row. Several mods may
     // require the same setting: a value passes only what all of them allow.
@@ -32,6 +35,11 @@ namespace ReDefinition.Settings
 
         private static readonly Dictionary<string, List<Rule>> None = new Dictionary<string, List<Rule>>();
 
+        // The rules held at run time, by key, beside `active`; and the value each
+        // setting is held at now, for the log.
+        private static Dictionary<string, List<Rule>> held;
+        private static readonly Dictionary<string, string> heldAt = new Dictionary<string, string>();
+
         // Rules one message was shown for this run.
         private static readonly HashSet<string> told = new HashSet<string>();
 
@@ -44,8 +52,8 @@ namespace ReDefinition.Settings
         // the mods nor their builds change in a run, and the window asks in every
         // frame. Whether the bundling is on is asked where it matters: Enforce acts
         // only with it on, while a profile's values and a row's lock are worked out
-        // as with it on -- a profile switches it on, and Apply may do so in the
-        // same frame as it sets them.
+        // as with it on -- the window switches it on in the same Apply as it
+        // sets them.
         private static Dictionary<string, List<Rule>> active;
 
         // The rules of the registered mods among `mods`; `inForce`: only those whose
@@ -111,22 +119,31 @@ namespace ReDefinition.Settings
                 if (!Passes(rule, setting, value)) Say(rule);
         }
 
+        // Asked by the rows in every frame.
         internal static bool Locked(BundledSetting setting)
         {
-            List<Rule> rules = RulesFor(setting);
+            return Locks(RulesFor(setting)) || Locks(HeldFor(setting));
+        }
+
+        private static bool Locks(List<Rule> rules)
+        {
             if (rules == null) return false;
             foreach (Rule rule in rules)
                 if (rule.Locks) return true;
             return false;
         }
 
-        // For a row's tooltip: why it is locked or limited, or nothing.
+        // For a row's tooltip: why it is locked, limited or held, or nothing.
         internal static string Note(BundledSetting setting)
         {
             List<Rule> rules = RulesFor(setting);
-            if (rules == null) return "";
+            List<Rule> holding = HeldFor(setting);
+            if (rules == null && holding == null) return "";
             StringBuilder note = new StringBuilder();
-            foreach (Rule rule in rules) note.Append("\n").Append(rule.Locks ? "Locked: " : "Limited: ").Append(rule.Reason);
+            if (rules != null)
+                foreach (Rule rule in rules) note.Append("\n").Append(rule.Locks ? "Locked: " : "Limited: ").Append(rule.Reason);
+            if (holding != null)
+                foreach (Rule rule in holding) note.Append("\nHeld while it applies, the value set here kept: ").Append(rule.Reason);
             return note.ToString();
         }
 
@@ -162,10 +179,12 @@ namespace ReDefinition.Settings
         // Correct).
         internal static void Enforce(string when)
         {
-            if (enforcing || !BundledSettings.Enabled) return;
+            if (enforcing) return;
             enforcing = true;
             try
             {
+                Hold(when);
+                if (!BundledSettings.Enabled) return;
                 bool changed = false;
                 foreach (KeyValuePair<string, List<Rule>> pair in new List<KeyValuePair<string, List<Rule>>>(Active()))
                 {
@@ -203,6 +222,49 @@ namespace ReDefinition.Settings
             finally
             {
                 enforcing = false;
+            }
+        }
+
+        // The rules held at run time: what runs of each setting held at the fix
+        // where the setting's own value fails them, and let go where it passes.
+        private static void Hold(string when)
+        {
+            Active();
+            if (held == null) return;
+            foreach (KeyValuePair<string, List<Rule>> pair in held)
+            {
+                try
+                {
+                    BundledSetting setting = BundledSettings.Find(pair.Key);
+                    RegisteredMod owner = setting != null ? setting.Owner as RegisteredMod : null;
+                    ModBehaviour behaviour = owner != null ? owner.MainBehaviour : null;
+                    if (behaviour == null || (setting.Applicable != null && !setting.Applicable())) continue;
+                    string now = BundledSettings.SafeRead(setting);
+                    if (now == null) continue;
+
+                    List<Rule> failing = new List<Rule>();
+                    foreach (Rule rule in pair.Value)
+                        if (!Passes(rule, setting, now)) failing.Add(rule);
+                    string fix = failing.Count > 0 ? FixFor(pair.Value, setting, now) : null;
+                    behaviour.Hold(owner, setting, fix);
+
+                    string before;
+                    heldAt.TryGetValue(pair.Key, out before);
+                    if (before == fix) continue;
+                    if (fix == null) heldAt.Remove(pair.Key);
+                    else heldAt[pair.Key] = fix;
+                    Debug.Log(Log.Tag + " " + setting.Owner.ModName + ", " + setting.Title + ": "
+                              + (fix != null
+                                  ? "held at " + fix + " while it applies, the setting itself kept at " + now + " (" + when
+                                    + "). " + Reasons(failing)
+                                  : "no longer held; " + now + " again (" + when + ")."));
+                    foreach (Rule rule in failing) Say(rule);
+                }
+                catch (Exception e)
+                {
+                    CompatibilityLog.Warn("requirement-" + pair.Key, "A requirement could not be held (" + pair.Key
+                                                                     + ": " + CompatibilityLog.Reason(e) + ").");
+                }
             }
         }
 
@@ -274,17 +336,30 @@ namespace ReDefinition.Settings
             if (!BundledSettings.Built) return None;
 
             Dictionary<string, List<Rule>> found = new Dictionary<string, List<Rule>>();
+            Dictionary<string, List<Rule>> holding = new Dictionary<string, List<Rule>>();
             foreach (Rule rule in RulesOf(mods, true))
             {
+                Dictionary<string, List<Rule>> into = HeldAtRunTime(rule) ? holding : found;
                 List<Rule> list;
-                if (!found.TryGetValue(rule.Key, out list)) found[rule.Key] = list = new List<Rule>();
+                if (!into.TryGetValue(rule.Key, out list)) into[rule.Key] = list = new List<Rule>();
                 list.Add(rule);
             }
             active = found;
-            foreach (List<Rule> list in found.Values)
-                foreach (Rule rule in list)
-                    if (rule.Registration.Test == RequirementTest.Check) SayUnknownCheck(rule);
+            held = holding;
+            foreach (Dictionary<string, List<Rule>> rules in new[] { found, holding })
+                foreach (List<Rule> list in rules.Values)
+                    foreach (Rule rule in list)
+                        if (rule.Registration.Test == RequirementTest.Check) SayUnknownCheck(rule);
             return active;
+        }
+
+        // A check the behaviour of the setting's mod holds at run time.
+        private static bool HeldAtRunTime(Rule rule)
+        {
+            if (rule.Registration.Test != RequirementTest.Check) return false;
+            BundledSetting setting = BundledSettings.Find(rule.Key);
+            RegisteredMod owner = setting != null ? setting.Owner as RegisteredMod : null;
+            return owner != null && owner.MainBehaviour != null && owner.MainBehaviour.HeldAtRunTime(rule.Registration.Value);
         }
 
         private static List<Rule> RulesFor(BundledSetting setting)
@@ -292,6 +367,14 @@ namespace ReDefinition.Settings
             if (setting == null) return null;
             List<Rule> rules;
             return Active().TryGetValue(setting.Key, out rules) ? rules : null;
+        }
+
+        private static List<Rule> HeldFor(BundledSetting setting)
+        {
+            if (setting == null) return null;
+            Active();
+            List<Rule> rules;
+            return held != null && held.TryGetValue(setting.Key, out rules) ? rules : null;
         }
 
         private static bool PassesAll(List<Rule> rules, BundledSetting setting, string value)

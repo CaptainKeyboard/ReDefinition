@@ -30,6 +30,7 @@ namespace ReDefinition
                 Key = "enabled",
                 Title = "Upscaler",
                 Kind = SettingKind.Quality,
+                OnlyActivates = true,
                 Order = 10,
                 Control = SettingControl.Toggle,
                 // KSP's tooltip draws its text as one line across the screen, so
@@ -399,6 +400,7 @@ namespace ReDefinition
             {
                 Key = "flightStartsInManeuverMode",
                 Title = "Start flight in maneuver mode",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 105,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",

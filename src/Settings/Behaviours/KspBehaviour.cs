@@ -82,20 +82,24 @@ namespace ReDefinition.Settings.Behaviours
         // KSP.cfg's REQUIRES on V-Sync while DLSS frame generation runs: every
         // refresh at most -- "SyncInterval > 1: Not supported" -- and none where its
         // build does not support V-Sync -- "hide or disable VSync toggle"
-        // (ProgrammingGuideDLSS_G.md 22.1, 22.2). The proxy holds the same at
-        // Present, until a value set in KSP's own screen is put right.
+        // (ProgrammingGuideDLSS_G.md 22.1, 22.2). Held at run time: Unity's V-Sync
+        // count while it runs, KSP's SYNC_VBL left as the player set it (Hold). The
+        // proxy holds the same at Present.
         private const string DlssEveryRefreshCheck = "DlssFrameGenerationEveryRefresh";
         private const string DlssVsyncCheck = "DlssFrameGenerationVSync";
 
-        // Set by the upscaler's add-on in the game: whether DLSS frame generation
-        // presents ReDefinition's frame generation now, and whether its build
-        // presents with V-Sync. Unset outside the game, where every value passes.
         // KSP's settings applied, with the id of KSP's registration: the settings
         // window reads them all at its next sync (SettingsWindow.FollowModSoon).
         internal static Action<string> SettingsApplied;
 
+        // Set by the upscaler's add-on in the game: whether DLSS frame generation
+        // presents ReDefinition's frame generation now, and whether its build
+        // presents with V-Sync. Unset outside the game, where every value passes.
         internal static Func<bool> DlssFrameGenerationRuns;
         internal static Func<bool> DlssFrameGenerationVsync;
+
+        // Whether Unity's V-Sync count is held apart from SYNC_VBL now.
+        private static bool vSyncHeld;
 
         private bool deferred;
         private bool capRefresh;
@@ -173,9 +177,12 @@ namespace ReDefinition.Settings.Behaviours
                     // says so in the main menu when it changed: the player's choice, like
                     // one made in KSP's own screen.
                     read = () => PQSCache.PresetList != null ? PQSCache.PresetList.preset : null;
+                    // Not there yet, nothing is set: the store waits (Finish).
                     write = text =>
                     {
-                        if (PQSCache.PresetList != null) KspPresets.Select(text);
+                        if (PQSCache.PresetList == null)
+                            throw new InvalidOperationException("KSP's terrain detail presets are not loaded yet.");
+                        KspPresets.Select(text);
                     };
                     type = typeof(string);
                     return true;
@@ -317,6 +324,29 @@ namespace ReDefinition.Settings.Behaviours
             return check == DlssEveryRefreshCheck || check == DlssVsyncCheck;
         }
 
+        public override bool HeldAtRunTime(string check)
+        {
+            return check == DlssEveryRefreshCheck || check == DlssVsyncCheck;
+        }
+
+        // V-Sync as KSP hands it to Unity (GameSettings.ApplySettings), set again
+        // after every time KSP's settings are applied, which hands it SYNC_VBL.
+        public override void Hold(RegisteredMod mod, BundledSetting setting, string value)
+        {
+            if (setting == null || setting.Key != mod.Id + ".SYNC_VBL") return;
+            if (value == null)
+            {
+                if (!vSyncHeld) return;
+                vSyncHeld = false;
+                QualitySettings.vSyncCount = GameSettings.SYNC_VBL;
+                return;
+            }
+            int interval;
+            if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out interval)) return;
+            vSyncHeld = true;
+            QualitySettings.vSyncCount = interval;
+        }
+
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             switch (registration.Name)
@@ -325,6 +355,8 @@ namespace ReDefinition.Settings.Behaviours
                     setting.Control = SettingControl.Choice;
                     setting.ValueType = null;
                     setting.ChoicesSource = KspPresets.Names;
+                    Func<bool> applicable = setting.Applicable;
+                    setting.Applicable = () => PQSCache.PresetList != null && (applicable == null || applicable());
                     break;
                 case "screenResolution":
                     setting.Control = SettingControl.Choice;

@@ -44,6 +44,14 @@ namespace ReDefinition
         // active. The flight UI's and the scaling are the player's at any time.
         public bool NeedsProfile = true;
 
+        // Set by a profile only where none is chosen yet: the profile that makes
+        // ReDefinition active switches it on. Once one is, it is the player's
+        // switch, which choosing another profile, or the reset, leaves as it is.
+        public bool OnlyActivates;
+
+        // When a change takes effect: at once, unless the row says otherwise.
+        public ApplyWindow TakesEffect = ApplyWindow.Live;
+
         // The heading the row stands under in its tab, where the tab groups
         // ReDefinition's own rows (Mods / Toolbar: flight, scaling).
         public string Section;

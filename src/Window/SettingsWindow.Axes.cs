@@ -196,12 +196,12 @@ namespace ReDefinition.Window
             return value.ToString("0.00", CultureInfo.InvariantCulture);
         }
 
-        // The copies that differ from KSP's bindings, written into them, and KSP
-        // saves its settings once.
-        private static void ApplyAxes()
+        // The copies that differ from KSP's bindings, written into them; true where
+        // one was, for KSP's save at the end of Apply.
+        private static bool ApplyAxes()
         {
             AxisCapture.Stop();
-            if (axisPending.Count == 0) return;
+            if (axisPending.Count == 0) return false;
             bool written = false;
             foreach (KspAxes.Axis axis in KspAxes.All())
             {
@@ -221,15 +221,7 @@ namespace ReDefinition.Window
                 }
             }
             axisPending.Clear();
-            if (!written) return;
-            try
-            {
-                GameSettings.SaveSettings();
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " KSP's axes could not be saved: " + e);
-            }
+            return written;
         }
 
         // Reset to defaults: every axis to what KSP ships. Filled in only.
