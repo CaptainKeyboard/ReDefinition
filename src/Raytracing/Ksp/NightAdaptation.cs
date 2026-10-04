@@ -11,15 +11,15 @@ namespace ReDefinition.Raytracing
     {
         // At full night, a moon's disc in the water as many times as bright as its albedo
         // makes it. The real moon outshines the night sea by orders of magnitude, so that
-        // the few per cent water reflects looking down still show its disc; the screen
-        // clips the disc in the sky to white, the water's reflection takes its light as it
-        // is, as the sun's. The real moon (about 2500 cd/m^2) over a moonlit sea (about
-        // 0.005 cd/m^2): a glint from steeply above, 2.6 % of the moon spread by the waves to
-        // a fifteenth, still some hundred times brighter than the sea (measured at sea,
-        // 2026-10-04: at 300 times the Mun high gave glints of 0.05, unseen; at 3000 the
-        // glints of slopes near three times the usual were as bright as the path's middle,
-        // and the path too wide, the player found).
-        internal const float MoonBoost = 1000f;
+        // the few per cent water reflects still show its path; the screen clips the disc in
+        // the sky to white, the water's reflection takes its light as it is, as the sun's.
+        // So much that the path's middle comes to about white at night: brighter, the
+        // screen clips it to a white band wider than the path the waves give (Beckmann's,
+        // as tools/sea_reflection_check.py measures it). Measured at sea, 2026-10-04, at
+        // 1000: the path's middle 3 to 17 times white (7 on average), its half width on the
+        // screen 1.6 to 2 times the waves' (5.0 for 2.5 degrees from 10 m, 6.5 for 4.0
+        // from 1 km), the player's "far too wide".
+        internal const float MoonBoost = 150f;
 
         internal static float Night(Vector3d eye, CelestialBody main, CelestialBody star)
         {

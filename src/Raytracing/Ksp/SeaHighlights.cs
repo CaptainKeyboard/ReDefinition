@@ -26,14 +26,9 @@ namespace ReDefinition.Raytracing
         private const float RescanSeconds = 10f;
         private static readonly int PropertyId = Shader.PropertyToID(Property);
         private static readonly int SpecColorId = Shader.PropertyToID("_SpecColor");
-        // Scatterer's ocean multiplies all its reflections with its node's reflectionColor
-        // but its own sun glint; the raytraced glints stand in for that glint, so the
-        // reflections' shader takes it back from them (ReDefinitionRtCapture.shader,
-        // fragOceanCompose).
-        private static readonly int ReflectionColorId = Shader.PropertyToID("_ReDefinitionOceanReflectionColor");
 
         private Type node;
-        private FieldInfo nodeMaterial, nodeStrength, nodeReflectionColor;
+        private FieldInfo nodeMaterial, nodeStrength;
         private UnityEngine.Object[] nodes = new UnityEngine.Object[0];
         // KSP's sea materials, and those whose highlight is off with their own colour.
         private readonly List<Material> stockSeas = new List<Material>();
@@ -47,7 +42,6 @@ namespace ReDefinition.Raytracing
             node = ForeignAssumptions.ScattererOceanSun.Holds ? TypeLookup.Find("Scatterer.OceanNode") : null;
             nodeMaterial = node != null ? node.GetField("m_oceanMaterial", TypeLookup.Any) : null;
             nodeStrength = node != null ? node.GetField(Property, TypeLookup.Any) : null;
-            nodeReflectionColor = node != null ? node.GetField("reflectionColor", TypeLookup.Any) : null;
             var wait = new WaitForSeconds(1f);
             while (true)
             {
@@ -101,8 +95,6 @@ namespace ReDefinition.Raytracing
                 if (ocean == null || !ocean.HasProperty(PropertyId)) continue;
                 float wanted = (float)nodeStrength.GetValue(found) * Mathf.Max(percent, 0f) / 100f;
                 if (ocean.GetFloat(PropertyId) != wanted) ocean.SetFloat(PropertyId, wanted);
-                if (nodeReflectionColor != null && nodeReflectionColor.GetValue(found) is Vector3 colour)
-                    Shader.SetGlobalVector(ReflectionColorId, new Vector4(colour.x, colour.y, colour.z, 1f));
             }
         }
 

@@ -671,10 +671,11 @@ float3 SeaRipples(SeaFrame f, float scale)
         float frequency = 1.0f / wavelength;
         float speed = sqrt(9.81f * wavelength / (2.0f * kPi));
         float2 p = (f.at - wind * speed * time) * frequency + float2(octave * 37.0f, octave * 11.0f);
-        // The noise's derivative is about 1.3 in deviation per unit of p: to a slope of
-        // slopeDeviation.
+        // The noise's gradient is 1.097 in root mean square per unit of p (0.776 along
+        // each axis; tools/sea_reflection_check.py --noise): to a slope of
+        // slopeDeviation, as the roughness counts what is lost.
         float2 derivative = RippleNoise(p, octave).yz * frequency;
-        slope += derivative * (slopeDeviation * shown * wavelength / 1.3f);
+        slope += derivative * (slopeDeviation * shown * wavelength / 1.097f);
     }
     return float3(slope, lost);
 }

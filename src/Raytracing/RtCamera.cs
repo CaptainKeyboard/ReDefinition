@@ -166,6 +166,10 @@ namespace ReDefinition.Raytracing
         private IntPtr oceanDepthHandle, oceanSurface1Handle, oceanSurface2Handle, oceanTracedHandle;
         private CommandBuffer oceanCommand;
         private bool oceanAttached;
+        // The sun's and the moons' discs added to Scatterer's ocean once it is drawn
+        // (OceanDiscsEvent; ReDefinitionRtCapture.shader, fragOceanDiscs).
+        private CommandBuffer oceanDiscs;
+        private bool oceanDiscsAttached;
         private RtNative.FramePacket oceanPacket;
         // The targets' native textures, taken once as they are made: GetNativeTexturePtr
         // waits for the render thread.
@@ -213,6 +217,12 @@ namespace ReDefinition.Raytracing
         // after the opaque image effects (OceanCommandBuffer); Deferred's screen-space
         // reflections read that G-buffer before them, where this goes too.
         private const CameraEvent OceanEvent = CameraEvent.BeforeImageEffectsOpaque;
+        // Scatterer's ocean is shaded after the opaque image effects, its atmosphere over it
+        // after the transparent pass (OceanRenderingHook): between the two.
+        private const CameraEvent OceanDiscsEvent = CameraEvent.BeforeForwardAlpha;
+        private const int OceanDiscsPass = 11;
+        private static readonly int OceanFrameId = Shader.PropertyToID("_ReDefinitionOceanFrame");
+        private static readonly int OceanScreenToWorldId = Shader.PropertyToID("_ReDefinitionOceanScreenToWorld");
         private static readonly int RtPrevViewProj = Shader.PropertyToID("_ReDefinitionRtPrevViewProj");
         private static readonly int RtTexel = Shader.PropertyToID("_ReDefinitionRtTexel");
         private static readonly int RtOffsetNear = Shader.PropertyToID("_ReDefinitionRtOffsetNear");
@@ -264,6 +274,7 @@ namespace ReDefinition.Raytracing
             Scene.TextureReader = capture;
             command = new CommandBuffer { name = "ReDefinition raytracing" };
             oceanCommand = new CommandBuffer { name = "ReDefinition raytracing ocean reflections" };
+            oceanDiscs = new CommandBuffer { name = "ReDefinition raytracing ocean discs" };
 
             // The flag the lighting shaders read: on around this camera's rendering,
             // off for every other camera. Forward rendering collects the sun's shadow
@@ -338,6 +349,8 @@ namespace ReDefinition.Raytracing
             command?.Release();
             oceanCommand?.Release();
             oceanCommand = null;
+            oceanDiscs?.Release();
+            oceanDiscs = null;
             gbufferCopy?.Release();
             forwardLight?.Release();
             forwardLight = null;
@@ -533,6 +546,15 @@ namespace ReDefinition.Raytracing
         private void TraceOcean(bool wanted, bool stockSea)
         {
             StockSeaTraced = wanted && stockSea;
+            AttachOceanDiscs(wanted && !stockSea);
+            if (wanted && !stockSea)
+            {
+                // The camera's screen to world directions, its position taken out: the
+                // projection without the upscaler's jitter, as the reflections' rays go.
+                Matrix4x4 view = cam.worldToCameraMatrix;
+                view.SetColumn(3, new Vector4(0f, 0f, 0f, 1f));
+                Shader.SetGlobalMatrix(OceanScreenToWorldId, (cam.nonJitteredProjectionMatrix * view).inverse);
+            }
             if (!wanted)
             {
                 if (oceanAttached)
@@ -579,6 +601,26 @@ namespace ReDefinition.Raytracing
             if (stockSea) return;
             oceanCommand.Blit(source, oceanReflections, capture, 10);
             oceanCommand.SetGlobalTexture(SsrOutput, oceanReflections);
+        }
+
+        // Scatterer's ocean weighs the reflections it reads (ssrOutput) down from 1 km of the
+        // camera's height and to nothing from 2 km: the discs the waves mirror go onto it
+        // once it is drawn instead, through its tonemapper (fragOceanDiscs).
+        private void AttachOceanDiscs(bool wanted)
+        {
+            if (wanted == oceanDiscsAttached) return;
+            oceanDiscsAttached = wanted;
+            if (!wanted)
+            {
+                cam.RemoveCommandBuffer(OceanDiscsEvent, oceanDiscs);
+                return;
+            }
+            oceanDiscs.Clear();
+            oceanDiscs.GetTemporaryRT(OceanFrameId, -1, -1, 0, FilterMode.Point, RenderTextureFormat.DefaultHDR);
+            oceanDiscs.Blit(BuiltinRenderTextureType.CameraTarget, OceanFrameId);
+            oceanDiscs.Blit(OceanFrameId, BuiltinRenderTextureType.CameraTarget, capture, OceanDiscsPass);
+            oceanDiscs.ReleaseTemporaryRT(OceanFrameId);
+            cam.AddCommandBuffer(OceanDiscsEvent, oceanDiscs);
         }
 
         private void EnsureOceanTargets()

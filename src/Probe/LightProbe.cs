@@ -46,26 +46,45 @@ namespace ReDefinition.Probe
             new Pose { Name = "above", Pitch = 35f },
         };
 
-        // The bodies' heights for the ocean: low, its reflection a long path towards the
-        // horizon; half up; high, its disc seen steeply in the water. The camera looks
-        // down by Pitch, or, for a high body, 10 degrees less than the body stands, so that
-        // its reflection lies below the vessel in the frame; from Distance metres out, and
-        // once more for a half-up body from 2 km, 1 km over the sea, and a high one from 2 km,
-        // where the glints blend into the glow of the waves' slopes.
-        private struct Angle
+        // The ocean's cases (tools/sea_reflection_check.py, its CASES): a body's height over
+        // the horizon, and for each the camera's height over the sea and how far it looks
+        // down; one warp to each height, the cases at it one after the other. The camera
+        // looks at the vessel, so from Height / sin(Down) metres out.
+        private struct SeaCase
         {
             internal string Name;
-            internal float Lowest, Highest, Pitch, Distance;
-            internal bool Steep;
+            internal float Height, Down;
         }
 
-        private static readonly Angle[] Angles =
+        // -redefinitionProbeCases sun-case09,mun-case06: only these shots.
+        private const string CasesArgument = "-redefinitionProbeCases";
+
+        private static bool Wanted(string shot)
         {
-            new Angle { Name = "low", Lowest = 4f, Highest = 10f, Pitch = 2f, Distance = 50f },
-            new Angle { Name = "half", Lowest = 22f, Highest = 32f, Pitch = 5f, Distance = 50f },
-            new Angle { Name = "half-far", Lowest = 22f, Highest = 32f, Pitch = 30f, Distance = 2000f },
-            new Angle { Name = "high", Lowest = 55f, Highest = 72f, Steep = true, Distance = 50f },
-            new Angle { Name = "high-far", Lowest = 55f, Highest = 72f, Steep = true, Distance = 2000f },
+            string[] args = Environment.GetCommandLineArgs();
+            int at = Array.IndexOf(args, CasesArgument);
+            if (at < 0 || at + 1 >= args.Length) return true;
+            return Array.IndexOf(args[at + 1].Split(','), shot) >= 0;
+        }
+
+        private struct BodyHeight
+        {
+            internal float Elevation;
+            internal SeaCase[] Cases;
+        }
+
+        private static readonly BodyHeight[] Heights =
+        {
+            new BodyHeight { Elevation = 5f, Cases = new[] { new SeaCase { Name = "case01", Height = 2f, Down = 1f },
+                                                             new SeaCase { Name = "case10", Height = 15000f, Down = 8f } } },
+            new BodyHeight { Elevation = 10f, Cases = new[] { new SeaCase { Name = "case05", Height = 300f, Down = 5f } } },
+            new BodyHeight { Elevation = 15f, Cases = new[] { new SeaCase { Name = "case02", Height = 10f, Down = 5f } } },
+            new BodyHeight { Elevation = 25f, Cases = new[] { new SeaCase { Name = "case03", Height = 50f, Down = 10f },
+                                                              new SeaCase { Name = "case06", Height = 1000f, Down = 30f } } },
+            new BodyHeight { Elevation = 35f, Cases = new[] { new SeaCase { Name = "case09", Height = 5000f, Down = 30f } } },
+            new BodyHeight { Elevation = 45f, Cases = new[] { new SeaCase { Name = "case07", Height = 1000f, Down = 45f } } },
+            new BodyHeight { Elevation = 60f, Cases = new[] { new SeaCase { Name = "case04", Height = 50f, Down = 50f } } },
+            new BodyHeight { Elevation = 65f, Cases = new[] { new SeaCase { Name = "case08", Height = 2000f, Down = 55f } } },
         };
 
         internal static IEnumerator Run(string folder)
@@ -83,35 +102,43 @@ namespace ReDefinition.Probe
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), OceanArgument) >= 0)
                 {
                     // Out at sea (SceneProbe, -redefinitionProbeSea): the sun, then the Mun at
-                    // night, each low, half up and high over the horizon (Angles); the camera
-                    // 50 m out towards the body, its reflection in the frame.
+                    // night, at each height (Heights), each case's camera looking towards it.
                     CelestialBody sun = RtKspMods.StarBody();
                     CelestialBody mun = FlightGlobals.Bodies.Find(b => b.bodyName == "Mun");
                     foreach (CelestialBody body in new[] { sun, mun })
-                        foreach (Angle angle in Angles)
+                        foreach (BodyHeight height in Heights)
                         {
                             if (body == null) continue;
-                            Angle a = angle;
+                            string bodyPrefix = body == sun ? "sun-" : "mun-";
+                            if (!Array.Exists(height.Cases, c => Wanted(bodyPrefix + c.Name))
+                                && !(body == mun && height.Elevation <= 5f && Wanted("mun-zoom")))
+                                continue;
+                            float lowest = height.Elevation - 2.5f, highest = height.Elevation + 2.5f;
                             CelestialBody b = body;
                             Func<bool> wanted = b == sun
-                                ? (Func<bool>)(() => Elevation(sun) > a.Lowest && Elevation(sun) < a.Highest)
-                                : () => Elevation(sun) < -12f && Elevation(b) > a.Lowest && Elevation(b) < a.Highest && PhaseAngle(b, sun) < 60f;
-                            string name = (b == sun ? "sun" : "mun") + "-" + a.Name;
+                                ? (Func<bool>)(() => Elevation(sun) > lowest && Elevation(sun) < highest)
+                                : () => Elevation(sun) < -12f && Elevation(b) > lowest && Elevation(b) < highest && PhaseAngle(b, sun) < 60f;
+                            string prefix = b == sun ? "sun-" : "mun-";
                             bool reached = false;
-                            yield return WarpUntil(name, wanted, result => reached = result,
-                                                   b == sun ? 43200.0 : 4.0 * b.orbit.period);
+                            yield return WarpUntil(prefix + height.Elevation.ToString("0", CultureInfo.InvariantCulture), wanted,
+                                                   result => reached = result, b == sun ? 43200.0 : 4.0 * b.orbit.period);
                             if (!reached) continue;
-                            float elevation = Elevation(b);
-                            yield return LookTowards(b, a.Steep ? elevation - 10f : a.Pitch, a.Distance);
-                            yield return OceanShot(addon, folder, name, elevation);
+                            foreach (SeaCase c in height.Cases)
+                            {
+                                if (!Wanted(prefix + c.Name)) continue;
+                                float distance = c.Height / Mathf.Sin(c.Down * Mathf.Deg2Rad);
+                                yield return LookTowards(b, c.Down, distance);
+                                yield return OceanShot(addon, folder, prefix + c.Name, Elevation(b));
+                            }
                             // The Mun low once more, looked at level through a narrow field of
                             // view that just holds it: its glow (MoonGlow) on its disc at any
                             // field of view. The flight camera stays over the sea, so it cannot
                             // look up to a higher Mun.
-                            if (b == mun && a.Name == "low")
+                            if (b == mun && height.Elevation <= 5f && Wanted("mun-zoom"))
                             {
+                                float elevation = Elevation(b);
                                 FlightCamera.fetch.SetFoV(Mathf.Max(15f, 2f * elevation + 6f));
-                                yield return LookTowards(b, 0f, a.Distance);
+                                yield return LookTowards(b, 0f, 50f);
                                 yield return OceanShot(addon, folder, "mun-zoom", elevation);
                                 FlightCamera.fetch.SetFoV(FlightCamera.fetch.fovDefault);
                             }
@@ -300,7 +327,19 @@ namespace ReDefinition.Probe
             GameEvents.onHideUI.Fire();
             Set(addon, RaytracingMode.Full, addon.Live.RaytracingMoonlight, addon.Live.RaytracingNightAmbient);
             yield return Shot(folder, name);
-            LogOceanTextures(folder, name);
+            Color[] mean = null;
+            yield return AverageTraced(result => mean = result);
+            LogOceanTextures(folder, name, mean);
+            // KSP's own sea's tests as colour (ReDefinitionDeferredReflections.shader,
+            // _ReDefinitionWaterDebug): which fails where.
+            if (RtCamera.StockSeaTraced)
+            {
+                Shader.SetGlobalFloat(WaterDebugId, 1f);
+                for (int i = 0; i < 5; i++) yield return null;
+                yield return Shot(folder, name + "-water-debug");
+                Shader.SetGlobalFloat(WaterDebugId, 0f);
+                for (int i = 0; i < 5; i++) yield return null;
+            }
             Camera camera = FlightCamera.fetch.mainCamera;
             Debug.Log(Log.Tag + " Probe: light " + name + ": the body " + elevation.ToString("0", CultureInfo.InvariantCulture)
                       + " degrees up, the camera " + (FlightCamera.fetch.camPitch * Mathf.Rad2Deg).ToString("0", CultureInfo.InvariantCulture)
@@ -313,7 +352,43 @@ namespace ReDefinition.Probe
 
         // The ocean's raytraced reflections as the last frame left them: the share of
         // pixels the ocean covers with a weight, and of the traced ones that met something.
-        private static void LogOceanTextures(string folder, string name)
+        // The traced reflections averaged over TracedSamples frames TracedSpacing seconds
+        // apart, as the waves move on: near by, where a pixel shows single glints and a few
+        // waves tilt all the water in view, what the sea gives over time.
+        private static readonly int WaterDebugId = Shader.PropertyToID("_ReDefinitionWaterDebug");
+        private const int TracedSamples = 16;
+        private const float TracedSpacing = 0.5f;
+
+        private static IEnumerator AverageTraced(Action<Color[]> done)
+        {
+            RtCamera camera = RtCamera.Current;
+            RenderTexture traced = camera != null ? camera.OceanTracedTexture : null;
+            if (traced == null)
+            {
+                done(null);
+                yield break;
+            }
+            Color[] sum = null;
+            var wait = new WaitForSeconds(TracedSpacing);
+            for (int k = 0; k < TracedSamples; k++)
+            {
+                yield return wait;
+                yield return new WaitForEndOfFrame();
+                if (camera.OceanTracedTexture != traced)
+                {
+                    done(null);
+                    yield break;
+                }
+                Color[] sample = Read(traced);
+                if (sum == null) sum = sample;
+                else
+                    for (int i = 0; i < sum.Length; i++) sum[i] += sample[i];
+            }
+            for (int i = 0; i < sum.Length; i++) sum[i] /= TracedSamples;
+            done(sum);
+        }
+
+        private static void LogOceanTextures(string folder, string name, Color[] mean)
         {
             RtCamera camera = RtCamera.Current;
             RenderTexture reflections = camera != null ? camera.OceanReflectionsTexture : null;
@@ -343,6 +418,29 @@ namespace ReDefinition.Probe
                     file.Write(row, 0, row.Length);
                 }
             }
+            // The traced light as it is, and the ocean's roughness, as float pictures (PFM,
+            // from the bottom row up), and what was given for them: the numbers
+            // tools/sea_reflection_check.py checks against its model.
+            WritePfm(Path.Combine(folder, name + "-traced.pfm"), t, traced.width, traced.height, c => c);
+            if (mean != null)
+                WritePfm(Path.Combine(folder, name + "-traced-mean.pfm"), mean, traced.width, traced.height, c => c);
+            RenderTexture roughness = camera.OceanRoughnessTexture;
+            if (roughness != null)
+                WritePfm(Path.Combine(folder, name + "-alpha.pfm"), Read(roughness), roughness.width, roughness.height,
+                         c => c.r > 0f ? new Color((1f - c.a) * (1f - c.a), 0f, 0f) : Color.clear);
+            RenderTexture normals = camera.OceanSurfaceTexture;
+            if (normals != null)
+                WritePfm(Path.Combine(folder, name + "-normal.pfm"), Read(normals), normals.width, normals.height,
+                         c => new Color(c.r * 2f - 1f, c.g * 2f - 1f, c.b * 2f - 1f));
+            // The frame's depth (the device's, as Unity's depth texture holds it) and G-buffer
+            // normal, as the reflections' shader composes KSP's own sea with them.
+            if (camera.DepthTexture != null)
+                WritePfm(Path.Combine(folder, name + "-depth.pfm"), Read(camera.DepthTexture), camera.DepthTexture.width,
+                         camera.DepthTexture.height, c => new Color(c.r, 0f, 0f));
+            if (camera.NormalTexture != null)
+                WritePfm(Path.Combine(folder, name + "-gbuffer-normal.pfm"), Read(camera.NormalTexture), camera.NormalTexture.width,
+                         camera.NormalTexture.height, c => new Color(c.r * 2f - 1f, c.g * 2f - 1f, c.b * 2f - 1f));
+            WriteShotData(Path.Combine(folder, name + ".json"), camera, traced);
             // The traced hits by distance: what the reflected rays meet.
             int[] near = new int[6];
             float[] bounds = { 1f, 10f, 100f, 1000f, 10000f, 60000f };
@@ -403,6 +501,71 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: light " + name + ": ocean reflections weighted on " + weighted + " of " + r.Length
                       + " pixels (mean " + (weighted > 0 ? (sum / weighted / 3).ToString("0.000", CultureInfo.InvariantCulture) : "-")
                       + "), traced rays met something on " + hit + ".");
+        }
+
+        private static void WritePfm(string path, Color[] pixels, int width, int height, Func<Color, Color> value)
+        {
+            using (var file = new FileStream(path, FileMode.Create))
+            using (var writer = new BinaryWriter(file))
+            {
+                writer.Write(System.Text.Encoding.ASCII.GetBytes("PF\n" + width + " " + height + "\n-1.0\n"));
+                foreach (Color pixel in pixels)
+                {
+                    Color c = value(pixel);
+                    writer.Write(c.r);
+                    writer.Write(c.g);
+                    writer.Write(c.b);
+                }
+            }
+        }
+
+        // The camera, the sea's sphere and the lights as the raytracing was given them for a
+        // shot, world space, JSON.
+        private static void WriteShotData(string path, RtCamera camera, RenderTexture traced)
+        {
+            Camera view = camera.GetComponent<Camera>();
+            CelestialBody main = FlightGlobals.currentMainBody;
+            var lights = new float[16];
+            var surfaces = new float[8];
+            int count = camera.Lights(lights, surfaces);
+            Vector4 sun = camera.Sun();
+            Color sunColour = camera.TracedSunColour;
+            Func<float, string> f = v => v.ToString("R", CultureInfo.InvariantCulture);
+            Func<double, string> d = v => v.ToString("R", CultureInfo.InvariantCulture);
+            Func<Matrix4x4, string> m = x =>
+            {
+                var parts = new string[16];
+                for (int i = 0; i < 16; i++) parts[i] = f(x[i / 4, i % 4]);
+                return "[" + string.Join(", ", parts) + "]";
+            };
+            Func<float[], string> a = x => "[" + string.Join(", ", Array.ConvertAll(x, v => f(v))) + "]";
+            Vector3d eye = view.transform.position;
+            var text = new System.Text.StringBuilder();
+            text.Append("{\n");
+            text.Append("  \"width\": " + traced.width + ", \"height\": " + traced.height + ",\n");
+            text.Append("  \"projection\": " + m(view.nonJitteredProjectionMatrix) + ",\n");
+            text.Append("  \"cameraToWorld\": " + m(view.cameraToWorldMatrix) + ",\n");
+            text.Append("  \"eye\": [" + d(eye.x) + ", " + d(eye.y) + ", " + d(eye.z) + "],\n");
+            text.Append("  \"bodyCentre\": [" + d(main.position.x) + ", " + d(main.position.y) + ", " + d(main.position.z) + "],\n");
+            text.Append("  \"bodyRadius\": " + d(main.Radius) + ",\n");
+            text.Append("  \"sun\": [" + f(sun.x) + ", " + f(sun.y) + ", " + f(sun.z) + ", " + f(sun.w) + "],\n");
+            text.Append("  \"sunColour\": [" + f(sunColour.r) + ", " + f(sunColour.g) + ", " + f(sunColour.b) + "],\n");
+            text.Append("  \"sunMirror\": " + f(camera.SunMirror()) + ",\n");
+            text.Append("  \"gammaInputs\": " + (QualitySettings.activeColorSpace == ColorSpace.Gamma ? "true" : "false") + ",\n");
+            text.Append("  \"stockWater\": " + (camera.StockWater() ? "true" : "false") + ",\n");
+            ReflectionProbe probe = FlightCamera.fetch != null && FlightCamera.fetch.reflectionProbe != null
+                ? FlightCamera.fetch.reflectionProbe.probeComponent : null;
+            if (probe != null)
+                text.Append("  \"reflectionProbe\": {\"enabled\": " + (probe.enabled && probe.gameObject.activeInHierarchy ? "true" : "false")
+                            + ", \"position\": [" + f(probe.transform.position.x) + ", " + f(probe.transform.position.y) + ", "
+                            + f(probe.transform.position.z) + "], \"size\": " + f(probe.size.x) + ", \"blendDistance\": "
+                            + f(probe.blendDistance) + "},\n");
+            text.Append("  \"defaultReflection\": \"" + RenderSettings.defaultReflectionMode + "\",\n");
+            text.Append("  \"lightCount\": " + count + ",\n");
+            text.Append("  \"lights\": " + a(lights) + ",\n");
+            text.Append("  \"surfaces\": " + a(surfaces) + "\n");
+            text.Append("}\n");
+            File.WriteAllText(path, text.ToString());
         }
 
         private static Color[] Read(RenderTexture texture)

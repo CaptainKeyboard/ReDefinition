@@ -434,6 +434,18 @@ namespace ReDefinition.RaytracingPlayer
             var reader = new CommandBuffer { name = "test: what Scatterer's ocean reads" };
             reader.Blit(BuiltinRenderTextureType.CameraTarget, read, readMaterial, 0);
             cam.AddCommandBuffer(CameraEvent.AfterImageEffectsOpaque, reader);
+            // The frame before the discs go onto the ocean (where Scatterer has drawn it) and
+            // after (RtCamera, AttachOceanDiscs, at BeforeForwardAlpha).
+            var before = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            var after = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            before.Create();
+            after.Create();
+            var frameBefore = new CommandBuffer { name = "test: the frame before the discs" };
+            frameBefore.Blit(BuiltinRenderTextureType.CameraTarget, before);
+            cam.AddCommandBuffer(CameraEvent.AfterImageEffectsOpaque, frameBefore);
+            var frameAfter = new CommandBuffer { name = "test: the frame after the discs" };
+            frameAfter.Blit(BuiltinRenderTextureType.CameraTarget, after);
+            cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, frameAfter);
             Shader.SetGlobalVector("_VarianceMax", new Vector4(1f, 1f, 0f, 0f));
 
             // The moon where the water mirrors it to the camera, beside the boxes: the
@@ -462,38 +474,56 @@ namespace ReDefinition.RaytracingPlayer
             yield return new WaitForEndOfFrame();
 
             // Without a tonemapper (TONEMAPPING_MODE 0) and with Scatterer's default,
-            // Uncharted's (2): where the water mirrors the moon, a small weight and a colour
-            // as much brighter in Scatterer's light (its inverse, ScattererLight), the two
-            // together the disc's light as the frame shows it -- the same with either.
+            // Uncharted's (2): where the water mirrors the moon, nothing handed to the ocean
+            // through ssrOutput (weight 0, Scatterer keeps its sky), the scene's boxes
+            // handed whole; and the frame after the ocean the frame before in Scatterer's
+            // light plus the disc's light by water's Fresnel term, through its tonemapper
+            // (ReDefinitionRtCapture.shader, fragOceanDiscs) -- the same with either.
             Shader.SetGlobalInt("TONEMAPPING_MODE", 0);
             for (int i = 0; i < 30; i++) yield return null;
             yield return new WaitForEndOfFrame();
             Color[] plain = Pixels(read);
+            Color[] plainBefore = Pixels(before), plainAfter = Pixels(after);
+            Color[] traced = Pixels(raytracing.OceanTracedTexture);
             Shader.SetGlobalInt("TONEMAPPING_MODE", 2);
             for (int i = 0; i < 10; i++) yield return null;
             yield return new WaitForEndOfFrame();
-            Color[] uncharted = Pixels(read);
+            Color[] unchartedBefore = Pixels(before), unchartedAfter = Pixels(after);
             Shader.SetGlobalInt("TONEMAPPING_MODE", 0);
 
             int boxes = 0, open = 0;
-            float atMoon = 0f, weightAtMoon = 0f, unchartedLight = 0f, expected = 0f;
             foreach (Color c in plain)
             {
                 if (c.a >= 0.999f && c.g < 0.3f) boxes++;
                 if (c.a <= 0.001f) open++;
             }
+            // The stand-in ocean faces straight up, without variance: Fresnel's term
+            // 0.02 + 0.98 (1 - N.V)^5.
+            float nv = Mathf.Clamp01(-down.y);
+            float fresnel = 0.02f + 0.98f * Mathf.Pow(1f - nv, 5f);
             Vector3 screen = cam.WorldToScreenPoint(mirrored);
+            float atMoon = 0f, weightAtMoon = 1f, added = 0f, expectedAdded = 0f, unchartedAfterLight = 0f, unchartedExpected = 0f;
+            int tx = Mathf.RoundToInt(screen.x * raytracing.OceanTracedTexture.width / Screen.width);
+            int ty = Mathf.RoundToInt(screen.y * raytracing.OceanTracedTexture.height / Screen.height);
             int x = Mathf.RoundToInt(screen.x * read.width / Screen.width);
             int y = Mathf.RoundToInt(screen.y * read.height / Screen.height);
             for (int dy = -2; dy <= 2; dy++)
                 for (int dx = -2; dx <= 2; dx++)
                 {
+                    int t = (ty + dy) * raytracing.OceanTracedTexture.width + tx + dx;
                     int i = (y + dy) * read.width + x + dx;
-                    if (i < 0 || i >= plain.Length || plain[i].a <= 0f || plain[i].g * plain[i].a <= atMoon) continue;
-                    atMoon = plain[i].g * plain[i].a;
+                    if (t < 0 || t >= traced.Length || i < 0 || i >= plain.Length || traced[t].g <= atMoon) continue;
+                    atMoon = traced[t].g;
                     weightAtMoon = plain[i].a;
-                    unchartedLight = uncharted[i].a * UnchartedLight(uncharted[i].g);
-                    expected = UnchartedLight(atMoon);
+                    // The disc's light as the frame's colour (gamma-encoded where the project's
+                    // colours are), which without a tonemapper is Scatterer's light.
+                    added = plainAfter[i].g - plainBefore[i].g;
+                    float shown = Mathf.Min(atMoon, 1f);
+                    float screenShown = QualitySettings.activeColorSpace == ColorSpace.Gamma ? Mathf.LinearToGammaSpace(shown) : shown;
+                    expectedAdded = fresnel * atMoon * screenShown / Mathf.Max(shown, 1e-6f);
+                    float unchartedLight = atMoon * UnchartedLight(screenShown) / Mathf.Max(shown, 1e-6f);
+                    unchartedAfterLight = UnchartedLight(unchartedAfter[i].g);
+                    unchartedExpected = UnchartedLight(unchartedBefore[i].g) + fresnel * unchartedLight;
                 }
             Log("ocean: status " + raytracing.Status() + "; traced " + Census(raytracing.OceanTracedTexture) + "; read "
                 + Census(read) + "; depth " + Census(raytracing.OceanDepthTexture) + " " + Mean(raytracing.OceanDepthTexture)
@@ -501,12 +531,16 @@ namespace ReDefinition.RaytracingPlayer
                 + "; the stand-in's depth " + Mean(depth));
             Dump(read, "ocean_reflections_read", 1f);
             Dump(raytracing.OceanTracedTexture, "ocean_traced", 1f);
-            bool same = expected > 0f && Mathf.Abs(unchartedLight - expected) <= 0.05f * expected;
-            Check(atMoon > 0.4f && weightAtMoon > 0f && weightAtMoon <= 0.05f && same && boxes > 200 && open > 10000,
+            Dump(before, "ocean_frame_before", 1f);
+            Dump(after, "ocean_frame_after", 1f);
+            bool plainSame = expectedAdded > 0f && Mathf.Abs(added - expectedAdded) <= 0.05f * expectedAdded;
+            bool unchartedSame = unchartedExpected > 0f && Mathf.Abs(unchartedAfterLight - unchartedExpected) <= 0.05f * unchartedExpected;
+            Check(atMoon > 0.3f && weightAtMoon == 0f && plainSame && unchartedSame && boxes > 200 && open > 10000,
                   "the ocean's reflections from the rays",
-                  "where the water mirrors the moon " + atMoon.ToString("0.000") + " as weight " + weightAtMoon.ToString("0.000")
-                  + " times the colour (its disc's average 0.333, 0.61 as the frame's colour), in Uncharted's light "
-                  + unchartedLight.ToString("0.000") + " for " + expected.ToString("0.000") + "; " + boxes
+                  "where the water mirrors the moon " + atMoon.ToString("0.000") + " traced (its disc's average 0.333), weight "
+                  + weightAtMoon.ToString("0.000") + " handed through ssrOutput; added to the ocean " + added.ToString("0.0000")
+                  + " for " + expectedAdded.ToString("0.0000") + " (Fresnel " + fresnel.ToString("0.000") + "), in Uncharted's light "
+                  + unchartedAfterLight.ToString("0.000") + " for " + unchartedExpected.ToString("0.000") + "; " + boxes
                   + " pixels mirror the scene, " + open + " leave the sky to the ocean");
 
             raytracing.OceanReflections = () => false;
@@ -516,8 +550,14 @@ namespace ReDefinition.RaytracingPlayer
             raytracing.Environment = environmentBefore;
             cam.RemoveCommandBuffer(CameraEvent.AfterLighting, gbuffer);
             cam.RemoveCommandBuffer(CameraEvent.AfterImageEffectsOpaque, reader);
+            cam.RemoveCommandBuffer(CameraEvent.AfterImageEffectsOpaque, frameBefore);
+            cam.RemoveCommandBuffer(CameraEvent.AfterForwardAlpha, frameAfter);
             gbuffer.Release();
             reader.Release();
+            frameBefore.Release();
+            frameAfter.Release();
+            before.Release();
+            after.Release();
             read.Release();
             Destroy(readMaterial);
             depth.Release();

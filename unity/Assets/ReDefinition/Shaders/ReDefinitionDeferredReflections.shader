@@ -55,14 +55,39 @@ float3 legacyAmbientColor;
 #include "ReDefinitionRtReproject.cginc"
 float4 _ReDefinitionRtLight;   // x: diffuse light, y: reflections, z: the share of KSP's night light kept
 // KSP's own sea, where the raytracing takes it as water (RtCamera, StockWater): the main
-// body's centre in Unity's world and its radius, the sea level; w 0 for none. A point
-// within 2 m of it whose normal faces up is the sea (as the raytracing's RtCommon.hlsli,
-// IsStockWater).
+// body's centre in Unity's world and its radius, the sea level; w 0 for none
+// (IsStockSea).
 float4 _ReDefinitionWaterSphere;
+// 1: where the sea could be, which of the sea's tests (IsStockSea) a pixel fails, as
+// colour far over white (the light probe's -water-debug shots, src/Probe/LightProbe.cs):
+// red outside the band about the sea's level, green its normal not facing up, blue not
+// traced as water; none where it passes all.
+float _ReDefinitionWaterDebug;
 // Its reflections from the water's own trace, whole and undenoised (RtCamera, TraceOcean).
 sampler2D _ReDefinitionRtOcean;
 sampler2D _ReDefinitionRtDiffuse;
 sampler2D _ReDefinitionRtSpecular;
+
+// Whether a point is KSP's own sea, as the raytracing took it (its water frame holds the
+// reflected rays' hit distance in w where it traced water, 0 elsewhere: Raytracing.hlsl,
+// SpecularLight, with RtCommon.hlsli's IsStockWater on positions it rebuilds exactly),
+// facing up, and near the sea's level, against a hull beside the water. The level test
+// loose, as the position this pass rebuilds from Unity's depth is off by a share of the
+// distance, a height error of about that share of the camera's height over the sea in
+// every pixel (measured at sea, 2026-10-04: from 5 km up the sea in front failed a band
+// of a thousandth of the distance and only the far sea kept its reflection, at an edge):
+// within 2 m, a thousandth of the distance or a hundredth of the camera's height.
+// `outside`, `facing`: the level and normal tests, for the debug view.
+bool IsStockSea(float3 worldPos, float3 normal, float4 traced, out bool outside, out bool facing)
+{
+    float3 up = worldPos - _ReDefinitionWaterSphere.xyz;
+    float level = length(up);
+    float cameraHeight = length(_WorldSpaceCameraPos - _ReDefinitionWaterSphere.xyz) - _ReDefinitionWaterSphere.w;
+    float band = max(max(2.0, 0.001 * length(worldPos - _WorldSpaceCameraPos)), 0.01 * cameraHeight);
+    outside = abs(level - _ReDefinitionWaterSphere.w) >= band;
+    facing = dot(normal, up / level) > 0.8;
+    return _ReDefinitionWaterSphere.w > 0.0 && traced.w > 0.0 && !outside && facing;
+}
 
 // The raytraced signals are linear light (the raytracing's RtCommon.hlsli, InputColor):
 // in gamma space, as KSP renders, taken to the values Unity's lighting works with here.
@@ -158,6 +183,14 @@ half4 frag (unity_v2f_deferred i) : SV_Target
     [branch]
     if (_ReDefinitionRtLight.x > 0.5 || _ReDefinitionRtLight.y > 0.5)
         rtFilled = RtUvFilled(worldPos, rtUv);
+    [branch]
+    if (_ReDefinitionWaterDebug > 0.5 && _ReDefinitionWaterSphere.w > 0.0)
+    {
+        bool outside, facing;
+        float4 traced = rtFilled ? tex2Dlod(_ReDefinitionRtOcean, float4(rtUv, 0.0, 0.0)) : 0.0;
+        IsStockSea(worldPos, data.normalWorld, traced, outside, facing);
+        return half4(outside ? 50.0 : 0.0, facing ? 0.0 : 50.0, traced.w > 0.0 ? 0.0 : 50.0, 1.0);
+    }
     if (rtFilled)
     {
         if (_ReDefinitionRtLight.x > 0.5)
@@ -172,16 +205,15 @@ half4 frag (unity_v2f_deferred i) : SV_Target
         if (_ReDefinitionRtLight.y > 0.5)
         {
             float3 reflected = tex2Dlod(_ReDefinitionRtSpecular, float4(rtUv, 0.0, 0.0)).rgb;
-            // KSP's own sea: its reflection by water's Fresnel term (Schlick, 0.02 head on),
-            // in linear light, added to its lighting without one -- the raytracing traced
-            // it as water, with the sun's and the moons' discs (ReDefinition turns the sea
-            // shader's own highlight off).
-            float3 seaUp = worldPos - _ReDefinitionWaterSphere.xyz;
-            float seaLevel = length(seaUp);
-            if (_ReDefinitionWaterSphere.w > 0.0 && abs(seaLevel - _ReDefinitionWaterSphere.w) < 2.0
-                && dot(data.normalWorld, seaUp / seaLevel) > 0.8)
+            // KSP's own sea (IsStockSea): its reflection by water's Fresnel term (Schlick,
+            // 0.02 head on), in linear light, added to its lighting without one -- the
+            // raytracing traced it as water, with the sun's and the moons' discs
+            // (ReDefinition turns the sea shader's own highlight off).
+            float4 sea = tex2Dlod(_ReDefinitionRtOcean, float4(rtUv, 0.0, 0.0));
+            bool outside, facing;
+            if (IsStockSea(worldPos, data.normalWorld, sea, outside, facing))
             {
-                reflected = tex2Dlod(_ReDefinitionRtOcean, float4(rtUv, 0.0, 0.0)).rgb;
+                reflected = sea.rgb;
                 float nv = saturate(dot(data.normalWorld, -eyeVec));
                 float fresnel = 0.02 + 0.98 * pow(1.0 - nv, 5.0);
                 ind.specular = 0;

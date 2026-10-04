@@ -5,7 +5,8 @@
 // there for its orientation. The last pass makes a material's small texture
 // (src/Raytracing/RtScene.cs, ReadTexture) from its full-size one. Passes 7 to 10:
 // Scatterer's ocean as a surface for the raytraced reflections, and their result as
-// the reflections Scatterer's ocean reads (RtCamera, the ocean's reflections).
+// the reflections Scatterer's ocean reads (RtCamera, the ocean's reflections); pass 11
+// the sun's and the moons' discs the waves mirror, added to the ocean Scatterer drew.
 Shader "Hidden/ReDefinition/RtCapture"
 {
     Properties
@@ -39,9 +40,6 @@ Shader "Hidden/ReDefinition/RtCapture"
     sampler2D _ReDefinitionRtOcean;
     // Scatterer's tonemapper (Utils.SetToneMapping: 0 none, 1 Bruneton's, 2 Uncharted's).
     int TONEMAPPING_MODE;
-    // The colour Scatterer's ocean multiplies its reflections with but not its own sun
-    // glint (OceanNode.reflectionColor; src/Raytracing/Ksp/SeaHighlights.cs); w 0 where unknown.
-    float4 _ReDefinitionOceanReflectionColor;
 
     bool NoOcean(float depth)
     {
@@ -148,32 +146,78 @@ Shader "Hidden/ReDefinition/RtCapture"
     }
 
     // The reflections as Deferred's ssrOutput gives them to the ocean, which moves its own
-    // reflection of the sky towards them by their weight (alpha) and its Fresnel term.
-    // Where a ray met the scene (w its distance, below 60000), what it met, as the frame's
-    // colour, and the whole weight. Where it met nothing, only the sun's and the moons'
-    // discs the waves mirror (RtCommon.hlsli, BodiesMirroredAt), as light added to the
-    // ocean's own sky: a small weight, which keeps nearly all of that sky, and a colour
-    // as much brighter in Scatterer's light, so that the weight times it is the discs'
-    // light as the frame shows it -- past white as bright as it is: the sun in a wave
-    // outshines the sky by far. The colour is past white then: the target is float.
+    // reflection of the sky towards them by their weight (alpha) and its Fresnel term:
+    // where a ray met the scene (w its distance, below 60000), what it met, as the frame's
+    // colour, and the whole weight; where it met nothing the weight 0, and the ocean keeps
+    // its own reflection of the sky. The sun's and the moons' discs the waves mirror there
+    // are added to the ocean once Scatterer has drawn it (fragOceanDiscs): Scatterer
+    // weighs what it reads here down from 1 km of the camera's height over the sea and to
+    // nothing from 2 km (its OceanWhiteCapsDeferred, disassembled: 1 - saturate((height -
+    // 1000) / 1000) on the weight), where the discs would vanish from the sea.
     float4 fragOceanCompose(v2f i) : SV_Target
     {
         if (NoOcean(tex2D(oceanGbufferDepth, i.uv).r))
             return 0.0;
         float4 traced = tex2D(_ReDefinitionRtOcean, i.uv);
+        if (traced.w >= 60000.0)
+            return 0.0;
         float3 linearLight = max(traced.rgb, 0.0);
         float brightest = max(linearLight.r, max(linearLight.g, linearLight.b));
         float3 colour = linearLight / max(brightest, 1.0);
     #if defined(UNITY_COLORSPACE_GAMMA)
         colour = LinearToGammaSpace(colour);
     #endif
-        if (traced.w < 60000.0)
-            return float4(colour, 1.0);
-        if (brightest <= 0.0)
-            return 0.0;
-        // Scatterer's light for the discs' brightness (their luminance as the frame's
-        // colour), the light's own colour kept in proportion: Scatterer's inverse taken per
-        // channel would tint a faint light towards its strongest channel.
+        return float4(colour, 1.0);
+    }
+
+    // The sun's and the moons' discs the waves mirror (RtCommon.hlsli, BodiesMirroredAt;
+    // the traced reflections where a ray met nothing, w 60000 and more), added to the
+    // ocean Scatterer drew, before its atmosphere draws over it: its pixel turned back
+    // into Scatterer's light (ScattererLight), the discs' light added in its light as the
+    // frame's colour gives it, and the sum through its tonemapper again. Water's Fresnel
+    // term over the waves' variance as Scatterer takes it for its sky, 0.02 + 0.98 times
+    // Bruneton's MeanFresnel ((1 - N.V) to the power 5 exp(-2.69 sigma), over 1 + 22.7
+    // sigma^1.5): what it reads from ssrOutput it weighs by MeanFresnel alone (its
+    // OceanWhiteCapsDeferred, disassembled), near 0 looking steeply down, where water
+    // reflects 2 %. The discs' light as Scatterer's
+    // light by its luminance as the frame's colour, its own colour kept in proportion:
+    // Scatterer's inverse taken per channel would tint a faint light towards its strongest
+    // channel.
+    struct v2fScreen
+    {
+        float4 pos : SV_POSITION;
+        float2 uv : TEXCOORD0;
+        float4 screen : TEXCOORD1;
+    };
+
+    // The scene camera's screen position (-1 to 1, y up) to a world direction: inside a
+    // blit Unity's own camera matrices are the blit's (RtCamera, AttachOceanDiscs).
+    float4x4 _ReDefinitionOceanScreenToWorld;
+
+    v2fScreen vertScreen(appdata_img v)
+    {
+        v2fScreen o;
+        o.pos = UnityObjectToClipPos(v.vertex);
+        o.uv = v.texcoord;
+        o.screen = ComputeScreenPos(o.pos);
+        return o;
+    }
+
+    float4 fragOceanDiscs(v2fScreen i) : SV_Target
+    {
+        // The frame as Scatterer's ocean left it, copied (RtCamera, AttachOceanDiscs), at
+        // the blit's own coordinate; the other screen textures at the pixel's place on the
+        // screen, which the blit to the camera's target turns upside down where that is the
+        // back buffer (measured in the raytracing test player: the light added mirrored
+        // about the moon's point).
+        float4 frame = tex2D(_MainTex, i.uv);
+        float2 uv = i.screen.xy / i.screen.w;
+        if (NoOcean(tex2D(oceanGbufferDepth, uv).r))
+            return frame;
+        float4 traced = tex2D(_ReDefinitionRtOcean, uv);
+        float3 linearLight = max(traced.rgb, 0.0);
+        if (traced.w < 60000.0 || all(linearLight <= 0.0))
+            return frame;
         float luminance = dot(linearLight, float3(0.2126, 0.7152, 0.0722));
         float shown = min(luminance, 1.0);
     #if defined(UNITY_COLORSPACE_GAMMA)
@@ -182,12 +226,18 @@ Shader "Hidden/ReDefinition/RtCapture"
         float screen = shown;
     #endif
         float3 light = linearLight * (ScattererLight(screen.xxx).x / max(shown, 1e-6));
-        // The discs' glints stand in for Scatterer's sun glint, which its reflection colour
-        // does not dim: taken back from them.
-        if (_ReDefinitionOceanReflectionColor.w > 0.0)
-            light /= max(_ReDefinitionOceanReflectionColor.rgb, 0.05);
-        float weight = 0.05 * saturate(brightest / 0.0005);
-        return float4(ScattererScreen(light / weight), weight);
+
+        float4 packed = tex2D(oceanGbufferNormalsAndSigma, uv);
+        float3 normal;
+        normal.xy = packed.xy * 2.0 - 1.0;
+        normal.z = sqrt(1.0 - saturate(dot(normal.xy, normal.xy)));
+        normal.z = packed.w > 0.0 ? normal.z : -normal.z;
+        float sigma = sqrt(max(packed.z * _VarianceMax.x, 0.0));
+        float4 far = mul(_ReDefinitionOceanScreenToWorld, float4(uv * 2.0 - 1.0, 1.0, 1.0));
+        float3 ray = normalize(far.xyz / far.w);
+        float nv = saturate(dot(-ray, normal));
+        float fresnel = 0.02 + 0.98 * min(pow(1.0 - nv, 5.0 * exp(-2.69 * sigma)) / (1.0 + 22.7 * pow(sigma, 1.5)), 1.0);
+        return float4(ScattererScreen(ScattererLight(frame.rgb) + fresnel * light), frame.a);
     }
 
     half2 fragMotion(v2f i) : SV_Target
@@ -290,6 +340,11 @@ Shader "Hidden/ReDefinition/RtCapture"
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragOceanCompose
+            ENDCG }
+        Pass { CGPROGRAM
+            #pragma vertex vertScreen
+            #pragma fragment fragOceanDiscs
+            #pragma target 3.0
             ENDCG }
     }
     Fallback Off
