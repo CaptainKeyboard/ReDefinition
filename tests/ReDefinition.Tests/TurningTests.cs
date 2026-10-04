@@ -117,5 +117,26 @@ namespace ReDefinition.Tests
             Assert.IsFalse(double.IsInfinity(Turning.Seconds(parts, new[] { 0, 1 }, 2, 2)));
             Assert.IsTrue(double.IsInfinity(Turning.Seconds(parts, new[] { 0, 1 }, 2, -1)));
         }
+
+        // A group's RCS counts the parts still on as the stage starts: a monopropellant
+        // tank the stage drops as it fires is gone, with its propellant.
+        [TestMethod]
+        public void RcsCountsThePartsStillOn()
+        {
+            PartFacts pod = new PartFacts { DecoupleStage = -1, DryMass = 1.0, RcsThrust = 1.0, RcsThrustOverIsp = 1.0 / 240.0 };
+            pod.RcsMix["MonoPropellant"] = new Dictionary<string, double> { { "MonoPropellant", 1.0 } };
+            pod.RcsResources["MonoPropellant"] = 0.3;
+            PartFacts tank = new PartFacts { DecoupleStage = 2, DryMass = 0.1 };
+            tank.RcsResources["MonoPropellant"] = 0.4;
+            List<PartFacts> parts = new List<PartFacts> { pod, tank };
+            double thrust, overIsp, propellant, deltaV;
+            SectionRcs.Of(parts, new[] { 0, 1 }, 3, 1.8, out thrust, out overIsp, out propellant, out deltaV);
+            Assert.AreEqual(0.7, propellant, 1e-9);
+            Assert.AreEqual(240.0 * StageTable.StandardGravity * Math.Log(1.8 / 1.1), deltaV, 1e-6);
+            SectionRcs.Of(parts, new[] { 0, 1 }, 2, 1.3, out thrust, out overIsp, out propellant, out deltaV);
+            Assert.AreEqual(0.3, propellant, 1e-9);
+            Assert.AreEqual(240.0 * StageTable.StandardGravity * Math.Log(1.3 / 1.0), deltaV, 1e-6);
+            Assert.AreEqual(1.0, thrust, 1e-12);
+        }
     }
 }
