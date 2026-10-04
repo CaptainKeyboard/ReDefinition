@@ -1,6 +1,10 @@
 // A moon's disc made to stand out in the sky (src/Raytracing/Ksp/MoonGlow.cs): a brighter
 // disc and a soft glow round it, added where the scene camera sees sky, before the
 // transparent pass, so that clouds and the atmosphere draw over it. It lights nothing.
+// Each pixel's direction from the camera as it renders this frame -- its projection and
+// orientation, whatever its field of view, its render size or the upscaler's jitter --
+// against the moon's direction and angular radius: the glow lies on the disc as the sky
+// draws it.
 Shader "Hidden/ReDefinition/MoonGlow"
 {
     SubShader
@@ -16,8 +20,7 @@ Shader "Hidden/ReDefinition/MoonGlow"
             #include "UnityCG.cginc"
 
             UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
-            // xy: the disc's middle on the screen (0 to 1, from the bottom left); z: its
-            // radius in heights of the screen; w: the screen's width over its height.
+            // xyz: towards the moon, world space; w: its angular radius, radians.
             float4 _ReDefinitionMoon;
             // rgb: the disc's colour as the frame's; a: how strongly it stands out.
             float4 _ReDefinitionMoonColour;
@@ -47,9 +50,14 @@ Shader "Hidden/ReDefinition/MoonGlow"
                 if (depth < 1.0)
                     return 0.0;
             #endif
-                float2 offset = uv - _ReDefinitionMoon.xy;
-                offset.x *= _ReDefinitionMoon.w;
-                float r = length(offset) / max(_ReDefinitionMoon.z, 1e-5);
+                // The pixel's direction: its point on the far plane in the camera's view
+                // space (unity_CameraInvProjection, OpenGL's: -z ahead), turned to the
+                // camera's space (+z ahead) and from there to the world's.
+                float4 view = mul(unity_CameraInvProjection, float4(uv * 2.0 - 1.0, 1.0, 1.0));
+                float3 camera = float3(view.x, view.y, -view.z) / view.w;
+                float3 direction = normalize(mul((float3x3)unity_CameraToWorld, camera));
+                float angle = acos(clamp(dot(direction, _ReDefinitionMoon.xyz), -1.0, 1.0));
+                float r = angle / max(_ReDefinitionMoon.w, 1e-5);
                 // The disc a little brighter, its edge soft; round it a glow falling off
                 // over a few radii.
                 float disc = 1.0 - smoothstep(0.85, 1.05, r);

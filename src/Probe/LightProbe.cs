@@ -50,8 +50,8 @@ namespace ReDefinition.Probe
         // horizon; half up; high, its disc seen steeply in the water. The camera looks
         // down by Pitch, or, for a high body, 10 degrees less than the body stands, so that
         // its reflection lies below the vessel in the frame; from Distance metres out, and
-        // once more for a high body from 2 km, where the glints blend into the round glow
-        // of the waves' slopes.
+        // once more for a half-up body from 2 km, 1 km over the sea, and a high one from 2 km,
+        // where the glints blend into the glow of the waves' slopes.
         private struct Angle
         {
             internal string Name;
@@ -63,6 +63,7 @@ namespace ReDefinition.Probe
         {
             new Angle { Name = "low", Lowest = 4f, Highest = 10f, Pitch = 2f, Distance = 50f },
             new Angle { Name = "half", Lowest = 22f, Highest = 32f, Pitch = 5f, Distance = 50f },
+            new Angle { Name = "half-far", Lowest = 22f, Highest = 32f, Pitch = 30f, Distance = 2000f },
             new Angle { Name = "high", Lowest = 55f, Highest = 72f, Steep = true, Distance = 50f },
             new Angle { Name = "high-far", Lowest = 55f, Highest = 72f, Steep = true, Distance = 2000f },
         };
@@ -103,6 +104,17 @@ namespace ReDefinition.Probe
                             float elevation = Elevation(b);
                             yield return LookTowards(b, a.Steep ? elevation - 10f : a.Pitch, a.Distance);
                             yield return OceanShot(addon, folder, name, elevation);
+                            // The Mun low once more, looked at level through a narrow field of
+                            // view that just holds it: its glow (MoonGlow) on its disc at any
+                            // field of view. The flight camera stays over the sea, so it cannot
+                            // look up to a higher Mun.
+                            if (b == mun && a.Name == "low")
+                            {
+                                FlightCamera.fetch.SetFoV(Mathf.Max(15f, 2f * elevation + 6f));
+                                yield return LookTowards(b, 0f, a.Distance);
+                                yield return OceanShot(addon, folder, "mun-zoom", elevation);
+                                FlightCamera.fetch.SetFoV(FlightCamera.fetch.fovDefault);
+                            }
                         }
                     yield break;
                 }

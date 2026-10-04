@@ -545,22 +545,23 @@ namespace ReDefinition.RaytracingPlayer
         }
 
         // The moon's glow (MoonGlow.cs, ReDefinitionMoonGlow.shader) as the game draws it,
-        // before the transparent pass: in the sky beside a box a moon's disc brighter and
-        // a glow round it; the box in front of where the glow would reach untouched.
+        // before the transparent pass, at fields of view of 30 and 70 degrees and with a
+        // projection shifted off centre, as the upscaler's jitter and a render size other
+        // than the screen's leave it: the brightened disc where the camera's own
+        // projection puts a moon of that angular radius, as wide, the glow round it, the
+        // box in front of the sky untouched.
         private IEnumerator MoonGlowCheck()
         {
             Vector3 position = cam.transform.position;
             Quaternion rotation = cam.transform.rotation;
             CameraClearFlags clear = cam.clearFlags;
             Color background = cam.backgroundColor;
+            float fieldOfView = cam.fieldOfView;
             cam.transform.position = new Vector3(0f, 2f, -30f);
             cam.transform.rotation = Quaternion.Euler(-15f, 0f, 0f);
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = Color.black;
             cam.depthTextureMode |= DepthTextureMode.Depth;
-            for (int i = 0; i < 10; i++) yield return null;
-            Texture2D before = null;
-            yield return Capture(t => before = t, "glow_before");
 
             var material = new Material(Shader.Find("Hidden/ReDefinition/MoonGlow"));
             var screen = new Mesh();
@@ -568,34 +569,74 @@ namespace ReDefinition.RaytracingPlayer
             screen.triangles = new[] { 0, 1, 2, 0, 2, 3 };
             screen.bounds = new Bounds(Vector3.zero, Vector3.one * 1e6f);
             var properties = new MaterialPropertyBlock();
-            // The moon in the sky high in the frame, its disc 1 % of the screen's height.
-            Vector2 moon = new Vector2(0.5f, 0.85f);
-            properties.SetVector("_ReDefinitionMoon", new Vector4(moon.x, moon.y, 0.01f, (float)cam.pixelWidth / cam.pixelHeight));
+            // The moon 8 degrees over the view and 5 to its right, 0.6 degrees in radius.
+            Vector3 towards = Quaternion.Euler(-8f, 5f, 0f) * cam.transform.forward;
+            const float radius = 0.6f * Mathf.Deg2Rad;
+            properties.SetVector("_ReDefinitionMoon", new Vector4(towards.x, towards.y, towards.z, radius));
             properties.SetVector("_ReDefinitionMoonColour", new Vector4(0.5f, 0.5f, 0.5f, 1f));
             var command = new CommandBuffer { name = "test: moon glow" };
             command.DrawMesh(screen, Matrix4x4.identity, material, 0, 0, properties);
-            cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, command);
-            for (int i = 0; i < 10; i++) yield return null;
-            Texture2D after = null;
-            yield return Capture(t => after = t, "glow_after");
-            cam.RemoveCommandBuffer(CameraEvent.BeforeForwardAlpha, command);
-            command.Release();
 
-            Func<Texture2D, float, float, float> at = (image, x, y) =>
+            bool all = true;
+            string detail = "";
+            foreach (int variant in new[] { 0, 1, 2 })
             {
-                Color c = image.GetPixel(Mathf.RoundToInt(x * image.width), Mathf.RoundToInt(y * image.height));
-                return (c.r + c.g + c.b) / 3f;
-            };
-            float aspect = (float)cam.pixelWidth / cam.pixelHeight;
-            float disc = at(after, moon.x, moon.y) - at(before, moon.x, moon.y);
-            float glow = at(after, moon.x + 0.02f / aspect, moon.y) - at(before, moon.x + 0.02f / aspect, moon.y);
-            float far = at(after, moon.x + 0.2f, moon.y) - at(before, moon.x + 0.2f, moon.y);
-            // The ground in the middle of the frame, in front of the sky.
-            float ground = at(after, 0.5f, 0.2f) - at(before, 0.5f, 0.2f);
-            Check(disc > 0.2f && glow > 0.02f && glow < disc && far < 0.01f && Mathf.Abs(ground) < 0.01f,
-                  "the moon's glow", "the disc " + disc.ToString("0.000") + " brighter, the glow one radius out "
-                                     + glow.ToString("0.000") + ", twenty radii out " + far.ToString("0.000")
-                                     + ", the ground " + ground.ToString("0.000"));
+                cam.ResetProjectionMatrix();
+                cam.fieldOfView = variant == 1 ? 70f : 30f;
+                if (variant == 2)
+                {
+                    // Off centre by a twentieth of the frame, as a jitter or a cropped render.
+                    Matrix4x4 shifted = cam.projectionMatrix;
+                    shifted.m02 += 0.1f;
+                    shifted.m12 -= 0.06f;
+                    cam.projectionMatrix = shifted;
+                }
+                for (int i = 0; i < 5; i++) yield return null;
+                Texture2D before = null;
+                yield return Capture(t => before = t, "glow_before_" + variant);
+                cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, command);
+                for (int i = 0; i < 5; i++) yield return null;
+                Texture2D after = null;
+                yield return Capture(t => after = t, "glow_after_" + variant);
+                cam.RemoveCommandBuffer(CameraEvent.BeforeForwardAlpha, command);
+
+                // Where the camera's projection puts the disc's centre and edge, in the
+                // captured image's pixels.
+                Vector3 eye = cam.transform.position;
+                Vector3 centre = cam.WorldToViewportPoint(eye + towards);
+                Vector3 edgeDirection = Quaternion.AngleAxis(radius * Mathf.Rad2Deg, cam.transform.up) * towards;
+                Vector3 edge = cam.WorldToViewportPoint(eye + edgeDirection);
+                float cx = centre.x * after.width, cy = centre.y * after.height;
+                float expected = Vector2.Distance(new Vector2(cx, cy), new Vector2(edge.x * after.width, edge.y * after.height));
+                Func<float, float, float> added = (x, y) =>
+                {
+                    Color a = after.GetPixel(Mathf.RoundToInt(x), Mathf.RoundToInt(y));
+                    Color b = before.GetPixel(Mathf.RoundToInt(x), Mathf.RoundToInt(y));
+                    return (a.r + a.g + a.b - b.r - b.g - b.b) / 3f;
+                };
+                float disc = added(cx, cy);
+                // The disc's measured radius: along the row, where the light added falls
+                // under half the centre's on the right and on the left.
+                float right = 0f, left = 0f;
+                for (float d = 0f; d < 4f * expected + 4f; d += 0.5f)
+                    if (added(cx + d, cy) < 0.5f * disc) { right = d; break; }
+                for (float d = 0f; d < 4f * expected + 4f; d += 0.5f)
+                    if (added(cx - d, cy) < 0.5f * disc) { left = d; break; }
+                float glow = added(cx + 1.6f * expected, cy);
+                float far = added(cx + 25f * expected, cy);
+                bool ok = disc > 0.2f && Mathf.Abs(right - expected) <= 0.15f * expected + 1.5f
+                          && Mathf.Abs(left - expected) <= 0.15f * expected + 1.5f && glow > 0.01f && glow < disc
+                          && far < 0.01f;
+                all &= ok;
+                detail += (variant == 0 ? "30 degrees" : variant == 1 ? "; 70 degrees" : "; off centre") + ": disc "
+                          + disc.ToString("0.000") + ", radius " + left.ToString("0.0") + "/" + right.ToString("0.0")
+                          + " px for " + expected.ToString("0.0") + ", glow " + glow.ToString("0.000") + ", far "
+                          + far.ToString("0.000");
+            }
+            command.Release();
+            cam.ResetProjectionMatrix();
+            cam.fieldOfView = fieldOfView;
+            Check(all, "the moon's glow on its disc", detail);
             Destroy(material);
             Destroy(screen);
             cam.transform.position = position;

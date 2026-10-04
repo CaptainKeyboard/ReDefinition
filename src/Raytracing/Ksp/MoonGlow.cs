@@ -86,18 +86,19 @@ namespace ReDefinition.Raytracing
             // sun is some degrees under the horizon (NightAdaptation).
             float night = NightAdaptation.Night(eye, main, star);
             float strength = Mathf.Lerp(0.15f, 1f, night);
-            float aspect = (float)camera.pixelWidth / Mathf.Max(camera.pixelHeight, 1);
-            float halfHeight = Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            Vector3 forward = camera.transform.forward;
+            float halfDiagonal = Mathf.Atan(Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad)
+                                            * Mathf.Sqrt(1f + camera.aspect * camera.aspect));
             foreach (CelestialBody moon in moons)
             {
                 Vector3d toMoon = moon.position - eye;
                 double distance = toMoon.magnitude;
                 if (distance <= moon.Radius) continue;
                 Vector3 direction = (Vector3)(toMoon / distance);
-                Vector3 view = camera.WorldToViewportPoint(camera.transform.position + direction);
-                float radius = Mathf.Tan(Mathf.Asin(Mathf.Clamp01((float)(moon.Radius / distance)))) / (2f * halfHeight);
-                if (view.z <= 0f || view.x < -6f * radius || view.x > 1f + 6f * radius || view.y < -6f * radius
-                    || view.y > 1f + 6f * radius)
+                float radius = Mathf.Asin(Mathf.Clamp01((float)(moon.Radius / distance)));
+                // Off the frame by more than its glow's reach: not drawn. The shader finds
+                // the disc itself from each pixel's direction.
+                if (Vector3.Angle(forward, direction) * Mathf.Deg2Rad > halfDiagonal + 6f * Mathf.Max(radius, 0.002f))
                     continue;
                 // The disc as the sky shows it: its albedo at its phase, as the frame's colour.
                 double phaseAngle = Vector3d.Angle(star.position - moon.position, eye - moon.position) * Mathf.Deg2Rad;
@@ -105,7 +106,7 @@ namespace ReDefinition.Raytracing
                 float lit = (float)(2.0 / 3.0 * RtReflectorLight.Phase(phaseAngle));
                 Color shown = new Color(Mathf.LinearToGammaSpace(albedo.r * lit), Mathf.LinearToGammaSpace(albedo.g * lit),
                                         Mathf.LinearToGammaSpace(albedo.b * lit), 1f);
-                properties.SetVector(MoonId, new Vector4(view.x, view.y, Mathf.Max(radius, 0.002f), aspect));
+                properties.SetVector(MoonId, new Vector4(direction.x, direction.y, direction.z, radius));
                 properties.SetVector(ColourId, new Vector4(shown.r, shown.g, shown.b, strength));
                 command.DrawMesh(screen, Matrix4x4.identity, material, 0, 0, properties);
             }
