@@ -39,7 +39,7 @@ namespace ReDefinition.Flight
         protected override void Pass()
         {
             base.Pass();
-            if (found) return;
+            if (found || !Tips) return;
             AltitudeTumbler tumbler = AltitudeTumbler.Instance;
             Transform mode = tumbler != null ? Named(Above(tumbler.transform, "SlideFrameParent"), "AltitudeModeButton") : null;
             Transform alarm = null;
@@ -65,6 +65,14 @@ namespace ReDefinition.Flight
         private static readonly MethodInfo ResetMethod =
             typeof(StageManager).GetMethod("Reset", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
         private Button asking;
+        // The reset asks first in this scene (OwnSettings.StagingResetAsks).
+        private bool asks;
+
+        protected override void Awake()
+        {
+            base.Awake();
+            asks = FlightUiSwitch.On(s => s.StagingResetAsks);
+        }
 
         protected override void Pass()
         {
@@ -72,8 +80,8 @@ namespace ReDefinition.Flight
             StageManager manager = StageManager.Instance;
             Button reset = manager != null ? manager.resetButton : null;
             if (reset == null) return;
-            Tip(reset.gameObject, "Reset Staging");
-            if (asking == reset || ResetMethod == null) return;
+            if (Tips) Tip(reset.gameObject, "Reset Staging");
+            if (asking == reset || ResetMethod == null || !asks) return;
             // KSP's own listener is the reset itself (StageManager.Start); ours asks
             // first.
             asking = reset;
@@ -96,6 +104,13 @@ namespace ReDefinition.Flight
     {
         private float next;
         private bool failed;
+        // The tooltips in this scene (OwnSettings.HudTooltips).
+        protected bool Tips { get; private set; }
+
+        protected virtual void Awake()
+        {
+            Tips = FlightUiSwitch.On(s => s.HudTooltips);
+        }
 
         private void Update()
         {
@@ -114,6 +129,7 @@ namespace ReDefinition.Flight
 
         protected virtual void Pass()
         {
+            if (!Tips) return;
             StageManager manager = StageManager.Instance;
             if (manager != null)
             {

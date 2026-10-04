@@ -108,6 +108,7 @@ namespace ReDefinition.Flight
 
         private IEnumerator Start()
         {
+            if (!FlightUiSwitch.On(s => s.RoundGauge)) yield break;
             float until = Time.unscaledTime + 15f;
             VerticalSpeedGauge gauge = null;
             while (Time.unscaledTime < until && (gauge = FindObjectOfType<VerticalSpeedGauge>()) == null) yield return null;

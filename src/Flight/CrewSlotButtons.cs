@@ -25,6 +25,7 @@ namespace ReDefinition.Flight
 
         private IEnumerator Start()
         {
+            if (!FlightUiSwitch.On(s => s.CrewSlotButtons)) yield break;
             float until = Time.unscaledTime + 15f;
             while (Time.unscaledTime < until && (KerbalPortraitGallery.Instance == null || StageManager.Instance == null
                                                  || StageManager.Instance.stageGroupPrefab == null))

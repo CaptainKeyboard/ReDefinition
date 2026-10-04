@@ -26,6 +26,7 @@ namespace ReDefinition.Flight
 
         private IEnumerator Start()
         {
+            if (!FlightUiSwitch.On(s => s.NavballSpeeds)) yield break;
             float until = Time.unscaledTime + 15f;
             while (Time.unscaledTime < until && (NavBallToggle.Instance == null || NavBallToggle.Instance.panel == null))
                 yield return null;

@@ -91,15 +91,20 @@ namespace ReDefinition.Flight
             });
         }
 
+        // The tools stand in the staging stack in this scene (OwnSettings.DeltaVTools);
+        // KSP's own window and buttons otherwise.
+        private static bool active = true;
+
         private static bool SkipWindow()
         {
-            return false;
+            return !active;
         }
 
         // The total delta-v's button presses the tools' button, so that both open
         // and close the same.
         private static bool PressButton()
         {
+            if (!active) return true;
             ApplicationLauncherButton button = DeltaVApp.Instance != null ? DeltaVApp.Instance.appLauncherButton : null;
             if (button == null || button.toggleButton == null) return true;
             if (Pinned(button)) button.SetFalse();
@@ -119,6 +124,12 @@ namespace ReDefinition.Flight
 
         private void Start()
         {
+            active = FlightUiSwitch.On(s => s.DeltaVTools);
+            if (!active)
+            {
+                enabled = false;
+                return;
+            }
             GameEvents.onEditorStarted.Add(EditorStarted);
             StageInfoColumns.Arranged += Follow;
         }

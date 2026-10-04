@@ -130,5 +130,24 @@ namespace ReDefinition.Tests
                 }
             }
         }
+
+        // Every switch of the flight UI is on as it ships, and each turns off its own
+        // feature alone, which the settings file's change check sees.
+        [TestMethod]
+        public void TheFlightUiSwitchesStartOnAndTurnOffAlone()
+        {
+            IList<ModuleSetting> rows = OurModules.FlightUi.Settings;
+            foreach (ModuleSetting row in rows)
+                Assert.AreEqual(bool.TrueString, row.Read(new OwnSettings()), row.Key + " ships on");
+            foreach (ModuleSetting row in rows)
+            {
+                OwnSettings settings = new OwnSettings();
+                string before = settings.Snapshot();
+                row.Write(settings, bool.FalseString);
+                Assert.AreNotEqual(before, settings.Snapshot(), row.Key + " is saved");
+                foreach (ModuleSetting other in rows)
+                    Assert.AreEqual(other == row ? bool.FalseString : bool.TrueString, other.Read(settings), row.Key + " leaves " + other.Key);
+            }
+        }
     }
 }

@@ -411,6 +411,172 @@ namespace ReDefinition
                           + "the runway in the editors.",
                 Read = settings => SettingValues.Text(settings.WorldButtons),
                 Write = (settings, value) => settings.WorldButtons = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "roundGauge",
+                Title = "Round gauge",
+                Order = 107,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "KSP's vertical speed gauge shows the stage's burn time, the burn, the time to impact, the closing "
+                          + "speed or the angle of attack, picked by a click or following the situation. From the next flight.",
+                Read = settings => SettingValues.Text(settings.RoundGauge),
+                Write = (settings, value) => settings.RoundGauge = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "navballSpeeds",
+                Title = "Speeds at the navball",
+                Order = 108,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The vertical and horizontal speed in two fields left of the navball, under its SAS modes. From the "
+                          + "next flight.",
+                Read = settings => SettingValues.Text(settings.NavballSpeeds),
+                Write = (settings, value) => settings.NavballSpeeds = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "navballDockingMarker",
+                Title = "Docking marker on the navball",
+                Order = 109,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "While a docking port is the target, a marker on the navball shows where to point the nose so that "
+                          + "the two ports face each other.",
+                Read = settings => SettingValues.Text(settings.NavballDockingMarker),
+                Write = (settings, value) => settings.NavballDockingMarker = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "navballDrag",
+                Title = "Navball moves by dragging",
+                Order = 110,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Dragging the navball's show and hide button moves the navball sideways; it keeps clear of the mode "
+                          + "buttons and the crew portraits and is drawn over the staging stack. From the next flight.",
+                Read = settings => SettingValues.Text(settings.NavballDrag),
+                Write = (settings, value) => settings.NavballDrag = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "flightPanel",
+                Title = "Flight panel profiles",
+                Order = 111,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The maneuver mode's orbit tabs give way to the flight panel's profiles of readouts, with a pencil to "
+                          + "edit them. From the next flight.",
+                Read = settings => SettingValues.Text(settings.FlightPanel),
+                Write = (settings, value) => settings.FlightPanel = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "stageDetailColumns",
+                Title = "Stage details in two columns",
+                Order = 112,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "More than four stage details stand in two columns, and the stage's part icons beside them, so that a "
+                          + "stage grows wider rather than taller. From the next scene.",
+                Read = settings => SettingValues.Text(settings.StageDetailColumns),
+                Write = (settings, value) => settings.StageDetailColumns = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "stageTwrRange",
+                Title = "TWR at the stage's start and end",
+                Order = 113,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The stage details' TWR gives the TWR at the end of the stage beside the one at its start.",
+                Read = settings => SettingValues.Text(settings.StageTwrRange),
+                Write = (settings, value) => settings.StageTwrRange = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "deltaVTools",
+                Title = "Delta-v tools in the staging stack",
+                Order = 114,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The delta-v tools' button opens every stage's details with every value, and in the editors a compact "
+                          + "situation window under the stages, in place of KSP's own window. From the next scene.",
+                Read = settings => SettingValues.Text(settings.DeltaVTools),
+                Write = (settings, value) => settings.DeltaVTools = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "hudTooltips",
+                Title = "Tooltips on the HUD's buttons",
+                Order = 115,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Tooltips for the HUD's buttons that have none: the staging stack's, the alarm clock's, the "
+                          + "altimeter's mode switch and the navball's speed field. From the next scene.",
+                Read = settings => SettingValues.Text(settings.HudTooltips),
+                Write = (settings, value) => settings.HudTooltips = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "stagingResetAsks",
+                Title = "Ask before resetting the staging",
+                Order = 116,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The editors' button that resets the staging asks first. From the next scene.",
+                Read = settings => SettingValues.Text(settings.StagingResetAsks),
+                Write = (settings, value) => settings.StagingResetAsks = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "crewSlotButtons",
+                Title = "Crew slot buttons in the staging look",
+                Order = 117,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The crew portraits' buttons that add and remove a slot look like the staging stack's add and delete "
+                          + "buttons. From the next flight.",
+                Read = settings => SettingValues.Text(settings.CrewSlotButtons),
+                Write = (settings, value) => settings.CrewSlotButtons = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "timeWarpPanelButton",
+                Title = "Better Time Warp in the time panel",
+                Order = 118,
+                Row = SettingCategory.Gameplay,
+                Section = "Flight",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "With Better Time Warp installed, its button stands at the end of the time panel's warp row instead "
+                          + "of where the mod draws it. From the next scene.",
+                Read = settings => SettingValues.Text(settings.TimeWarpPanelButton),
+                Write = (settings, value) => settings.TimeWarpPanelButton = bool.Parse(value),
             });
 
         // What KSP leaves unscaled (Scaling/UiScaling).

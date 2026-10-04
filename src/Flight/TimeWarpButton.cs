@@ -109,8 +109,10 @@ namespace ReDefinition.Flight
 
         private static bool Toggle(Rect position, bool value, GUIContent content, GUIStyle style)
         {
-            if (Replaced || HighLogic.LoadedScene == GameScenes.LOADING || HighLogic.LoadedScene == GameScenes.LOADINGBUFFER
-                || Label() == null)
+            if (Replaced) return value;
+            // Switched off: drawn where and when the mod draws it.
+            if (!FlightUiSwitch.On(s => s.TimeWarpPanelButton)) return GUI.Toggle(position, value, content, style);
+            if (HighLogic.LoadedScene == GameScenes.LOADING || HighLogic.LoadedScene == GameScenes.LOADINGBUFFER || Label() == null)
                 return value;
             return GUI.Toggle(position, value, content, style);
         }
@@ -119,6 +121,7 @@ namespace ReDefinition.Flight
         // as IMGUI counts them; the mod's own place where it is not found.
         private static Rect Place(float x, float y, float width, float height)
         {
+            if (!FlightUiSwitch.On(s => s.TimeWarpPanelButton)) return new Rect(x, y, width, height);
             TextMeshProUGUI text = Label();
             Camera camera = UIMasterController.Instance != null ? UIMasterController.Instance.uiCamera : null;
             if (text == null || camera == null || !text.gameObject.activeInHierarchy) return new Rect(x, y, width, height);

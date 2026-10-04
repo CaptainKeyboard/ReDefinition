@@ -140,6 +140,18 @@ namespace ReDefinition
             settings.FlightPanelAuto = from.FlightPanelAuto;
             settings.WorldButtons = from.WorldButtons;
             settings.MenuFireworks = from.MenuFireworks;
+            settings.RoundGauge = from.RoundGauge;
+            settings.NavballSpeeds = from.NavballSpeeds;
+            settings.NavballDockingMarker = from.NavballDockingMarker;
+            settings.NavballDrag = from.NavballDrag;
+            settings.FlightPanel = from.FlightPanel;
+            settings.StageDetailColumns = from.StageDetailColumns;
+            settings.StageTwrRange = from.StageTwrRange;
+            settings.DeltaVTools = from.DeltaVTools;
+            settings.HudTooltips = from.HudTooltips;
+            settings.StagingResetAsks = from.StagingResetAsks;
+            settings.CrewSlotButtons = from.CrewSlotButtons;
+            settings.TimeWarpPanelButton = from.TimeWarpPanelButton;
             settings.RaytracingMoonlight = from.RaytracingMoonlight;
             settings.RaytracingMoonReflection = from.RaytracingMoonReflection;
             settings.SunReflection = from.SunReflection;
@@ -164,6 +176,18 @@ namespace ReDefinition
             if (before.FlightPanelAuto != after.FlightPanelAuto) settings.FlightPanelAuto = after.FlightPanelAuto;
             if (before.WorldButtons != after.WorldButtons) settings.WorldButtons = after.WorldButtons;
             if (before.MenuFireworks != after.MenuFireworks) settings.MenuFireworks = after.MenuFireworks;
+            if (before.RoundGauge != after.RoundGauge) settings.RoundGauge = after.RoundGauge;
+            if (before.NavballSpeeds != after.NavballSpeeds) settings.NavballSpeeds = after.NavballSpeeds;
+            if (before.NavballDockingMarker != after.NavballDockingMarker) settings.NavballDockingMarker = after.NavballDockingMarker;
+            if (before.NavballDrag != after.NavballDrag) settings.NavballDrag = after.NavballDrag;
+            if (before.FlightPanel != after.FlightPanel) settings.FlightPanel = after.FlightPanel;
+            if (before.StageDetailColumns != after.StageDetailColumns) settings.StageDetailColumns = after.StageDetailColumns;
+            if (before.StageTwrRange != after.StageTwrRange) settings.StageTwrRange = after.StageTwrRange;
+            if (before.DeltaVTools != after.DeltaVTools) settings.DeltaVTools = after.DeltaVTools;
+            if (before.HudTooltips != after.HudTooltips) settings.HudTooltips = after.HudTooltips;
+            if (before.StagingResetAsks != after.StagingResetAsks) settings.StagingResetAsks = after.StagingResetAsks;
+            if (before.CrewSlotButtons != after.CrewSlotButtons) settings.CrewSlotButtons = after.CrewSlotButtons;
+            if (before.TimeWarpPanelButton != after.TimeWarpPanelButton) settings.TimeWarpPanelButton = after.TimeWarpPanelButton;
             if (before.RaytracingMoonlight != after.RaytracingMoonlight) settings.RaytracingMoonlight = after.RaytracingMoonlight;
             if (before.RaytracingMoonReflection != after.RaytracingMoonReflection)
                 settings.RaytracingMoonReflection = after.RaytracingMoonReflection;

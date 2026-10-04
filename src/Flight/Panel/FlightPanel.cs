@@ -88,9 +88,12 @@ namespace ReDefinition.Flight.Panel
         // Before KSP builds its tabs: the profiles in place of its orbit tabs.
         private static void BeforeStart(ManeuverNodeEditorManager __instance)
         {
+            replaced = false;
+            if (!FlightUiSwitch.On(s => s.FlightPanel)) return;
             try
             {
                 Replace(__instance);
+                replaced = true;
             }
             catch (Exception e)
             {
@@ -126,6 +129,8 @@ namespace ReDefinition.Flight.Panel
         }
 
         private static GameObject holder;
+        // The profiles stand in this panel in place of KSP's orbit tabs.
+        private static bool replaced;
         private static ManeuverNodeEditorTab orbitTab;
         private static ManeuverNodeEditorTab interceptTab;
 
@@ -154,6 +159,7 @@ namespace ReDefinition.Flight.Panel
         // one without its toggle, that opens the profile editor for the tab shown.
         private static void AfterStart(ManeuverNodeEditorManager __instance)
         {
+            if (!replaced) return;
             try
             {
                 Pencil(__instance);

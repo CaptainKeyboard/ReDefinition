@@ -49,7 +49,7 @@ namespace ReDefinition.Flight
         private IEnumerator Start()
         {
             System.Type type = TypeLookup.Find(TimeWarpButton.ModType);
-            if (type == null || !TimeWarpButton.Routed) yield break;
+            if (type == null || !TimeWarpButton.Routed || !FlightUiSwitch.On(s => s.TimeWarpPanelButton)) yield break;
             float until = Time.unscaledTime + 15f;
             UIWarpToNextMorning sunrise = null;
             while (Time.unscaledTime < until)

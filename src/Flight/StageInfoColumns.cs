@@ -115,6 +115,7 @@ namespace ReDefinition.Flight
                     if (stage == null) return "";
                     float start = stage.GetSituationTWR(situation);
                     string text = start.ToString("0.00");
+                    if (!FlightUiSwitch.On(s => s.StageTwrRange)) return text;
                     if (start <= 0f || stage.endMass <= 0f || stage.startMass <= stage.endMass + 1e-4f) return text;
                     return text + "-" + (start * stage.startMass / stage.endMass).ToString("0.00");
                 };
@@ -210,6 +211,8 @@ namespace ReDefinition.Flight
         private static float twoColumnPadding = 10f;
         private bool noted;
         private bool failed;
+        // The details in two columns in this scene (OwnSettings.StageDetailColumns).
+        private bool columnsOn = true;
 
         private void Start()
         {
@@ -220,6 +223,7 @@ namespace ReDefinition.Flight
                 enabled = false;
                 return;
             }
+            columnsOn = FlightUiSwitch.On(s => s.StageDetailColumns);
         }
 
         // Arranged, for the delta-v tools' window to follow in the same frame.
@@ -243,8 +247,9 @@ namespace ReDefinition.Flight
             try
             {
                 TakeOutDeltaV();
-                foreach (StageGroup group in manager.Stages)
-                    if (group != null) Arrange(group, column);
+                if (columnsOn)
+                    foreach (StageGroup group in manager.Stages)
+                        if (group != null) Arrange(group, column);
                 KeepStackWide(manager);
                 if (HoverArea != null) HoverArea(manager);
                 Prune();

@@ -53,7 +53,7 @@ namespace ReDefinition.Flight
             if (marker == null || navBall == null) return;
             Vessel vessel = FlightGlobals.ActiveVessel;
             ModuleDockingNode port = vessel != null ? vessel.targetObject as ModuleDockingNode : null;
-            if (port == null || port.nodeTransform == null)
+            if (port == null || port.nodeTransform == null || !FlightUiSwitch.On(s => s.NavballDockingMarker))
             {
                 if (marker.gameObject.activeSelf) marker.gameObject.SetActive(false);
                 return;

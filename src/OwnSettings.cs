@@ -87,6 +87,30 @@ namespace ReDefinition
         public bool WorldButtons = true;
         // Fireworks on Kerbin's night side in the main menu (Menu/MenuFireworks).
         public bool MenuFireworks = true;
+        // The round gauge in place of the vertical speed's (Flight/RoundGauge).
+        public bool RoundGauge = true;
+        // The vertical and horizontal speed at the navball (Flight/NavballSpeeds).
+        public bool NavballSpeeds = true;
+        // The navball's marker for a docking port as the target (Flight/NavballDockingMarker).
+        public bool NavballDockingMarker = true;
+        // The navball moved by dragging (Flight/NavballDrag).
+        public bool NavballDrag = true;
+        // The flight panel's profiles in the maneuver mode (Flight/Panel/FlightPanel).
+        public bool FlightPanel = true;
+        // The stage details in two columns (Flight/StageInfoColumns).
+        public bool StageDetailColumns = true;
+        // The stage details' TWR at the stage's start and end (Flight/StageInfoColumns).
+        public bool StageTwrRange = true;
+        // KSP's delta-v tools as part of the staging stack (Flight/DeltaVTools).
+        public bool DeltaVTools = true;
+        // Tooltips on the HUD's buttons (Flight/HudTooltips).
+        public bool HudTooltips = true;
+        // The editors' staging reset asks first (Flight/HudTooltips).
+        public bool StagingResetAsks = true;
+        // The crew slot buttons in the staging stack's look (Flight/CrewSlotButtons).
+        public bool CrewSlotButtons = true;
+        // Better Time Warp's button in the time panel (Flight/TimeWarpBar).
+        public bool TimeWarpPanelButton = true;
 
         private const string RootName = "ReDefinition";
 
@@ -141,6 +165,18 @@ namespace ReDefinition
             settings.WorldButtons = Bool(node, "worldButtons", settings.WorldButtons);
             settings.FlightPanelAuto = Bool(node, "flightPanelAuto", settings.FlightPanelAuto);
             settings.MenuFireworks = Bool(node, "menuFireworks", settings.MenuFireworks);
+            settings.RoundGauge = Bool(node, "roundGauge", settings.RoundGauge);
+            settings.NavballSpeeds = Bool(node, "navballSpeeds", settings.NavballSpeeds);
+            settings.NavballDockingMarker = Bool(node, "navballDockingMarker", settings.NavballDockingMarker);
+            settings.NavballDrag = Bool(node, "navballDrag", settings.NavballDrag);
+            settings.FlightPanel = Bool(node, "flightPanel", settings.FlightPanel);
+            settings.StageDetailColumns = Bool(node, "stageDetailColumns", settings.StageDetailColumns);
+            settings.StageTwrRange = Bool(node, "stageTwrRange", settings.StageTwrRange);
+            settings.DeltaVTools = Bool(node, "deltaVTools", settings.DeltaVTools);
+            settings.HudTooltips = Bool(node, "hudTooltips", settings.HudTooltips);
+            settings.StagingResetAsks = Bool(node, "stagingResetAsks", settings.StagingResetAsks);
+            settings.CrewSlotButtons = Bool(node, "crewSlotButtons", settings.CrewSlotButtons);
+            settings.TimeWarpPanelButton = Bool(node, "timeWarpPanelButton", settings.TimeWarpPanelButton);
             return settings;
         }
 
@@ -179,6 +215,18 @@ namespace ReDefinition
             node.AddValue("worldButtons", WorldButtons);
             node.AddValue("flightPanelAuto", FlightPanelAuto);
             node.AddValue("menuFireworks", MenuFireworks);
+            node.AddValue("roundGauge", RoundGauge);
+            node.AddValue("navballSpeeds", NavballSpeeds);
+            node.AddValue("navballDockingMarker", NavballDockingMarker);
+            node.AddValue("navballDrag", NavballDrag);
+            node.AddValue("flightPanel", FlightPanel);
+            node.AddValue("stageDetailColumns", StageDetailColumns);
+            node.AddValue("stageTwrRange", StageTwrRange);
+            node.AddValue("deltaVTools", DeltaVTools);
+            node.AddValue("hudTooltips", HudTooltips);
+            node.AddValue("stagingResetAsks", StagingResetAsks);
+            node.AddValue("crewSlotButtons", CrewSlotButtons);
+            node.AddValue("timeWarpPanelButton", TimeWarpPanelButton);
             node.AddValue("raytracing", Raytracing);
             node.AddValue("raytracingBounces", RaytracingBounces);
             node.AddValue("raytracingMoonlight", RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture));
@@ -216,6 +264,18 @@ namespace ReDefinition
               .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode)
               .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto).Append('|').Append(WorldButtons)
               .Append('|').Append(MenuFireworks)
+              .Append('|').Append(RoundGauge)
+              .Append('|').Append(NavballSpeeds)
+              .Append('|').Append(NavballDockingMarker)
+              .Append('|').Append(NavballDrag)
+              .Append('|').Append(FlightPanel)
+              .Append('|').Append(StageDetailColumns)
+              .Append('|').Append(StageTwrRange)
+              .Append('|').Append(DeltaVTools)
+              .Append('|').Append(HudTooltips)
+              .Append('|').Append(StagingResetAsks)
+              .Append('|').Append(CrewSlotButtons)
+              .Append('|').Append(TimeWarpPanelButton)
               .Append('|').Append(Raytracing).Append('|').Append(RaytracingBounces)
               .Append('|').Append(RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture))
               .Append('|').Append(RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture))
