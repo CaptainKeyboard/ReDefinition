@@ -215,11 +215,11 @@ namespace ReDefinition.Upscaler
             p.FarPlane = cam.farClipPlane;
             p.VerticalFov = dispatch.CameraFovAngleVertical;
 
-            p.Colour = lowResHandle;
-            p.Depth = depthHandle;
-            p.Motion = motionHandle;
+            p.Colour = textures.LowResHandle;
+            p.Depth = textures.DepthHandle;
+            p.Motion = textures.MotionHandle;
             p.GBuffer0 = p.GBuffer1 = p.GBuffer2 = p.Specular = IntPtr.Zero;
-            p.Output = dlssSharpener != null ? dlssSharpenInputHandle : upscaledHandle;
+            p.Output = dlssSharpener != null ? dlssSharpenInputHandle : textures.UpscaledHandle;
             reconstructPacket = p;
         }
 

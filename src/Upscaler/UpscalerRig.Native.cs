@@ -9,16 +9,6 @@ namespace ReDefinition.Upscaler
     // AMD's DLL: the textures handed to it, the packets, and what its state means.
     public partial class UpscalerRig
     {
-        // The proxy hands the rig's textures to its D3D12 device, which relies on
-        // their underlying ID3D11Resource staying the same. Captured once at setup and
-        // compared on demand -- GetNativeTexturePtr flushes the render thread,
-        // so it must never be called per frame.
-        private IntPtr upscaledHandle;
-        private IntPtr lowResHandle;
-        private IntPtr depthHandle;
-        private IntPtr motionHandle;
-        private int handleFrame = -1;
-
         // RCAS after DLSS, which sharpens nothing itself (RcasSharpener): DLSS writes
         // into its input, RCAS from there into the output. Only with sharpening on,
         // which the slider decides at the rig's setup.
@@ -85,11 +75,11 @@ namespace ReDefinition.Upscaler
             {
                 DlssBridge.DlssPacket packet = new DlssBridge.DlssPacket
                 {
-                    Colour = lowResHandle,
+                    Colour = textures.LowResHandle,
                     // With sharpening, into RCAS's input, which writes the output.
-                    Output = dlssSharpener != null ? dlssSharpenInputHandle : upscaledHandle,
-                    Depth = depthHandle,
-                    MotionVectors = motionHandle,
+                    Output = dlssSharpener != null ? dlssSharpenInputHandle : textures.UpscaledHandle,
+                    Depth = textures.DepthHandle,
+                    MotionVectors = textures.MotionHandle,
                     RenderWidth = (uint)renderSize.x,
                     RenderHeight = (uint)renderSize.y,
                     OutputWidth = (uint)displaySize.x,
@@ -108,10 +98,10 @@ namespace ReDefinition.Upscaler
             {
                 AmdUpscalerBridge.AmdPacket packet = new AmdUpscalerBridge.AmdPacket
                 {
-                    Colour = lowResHandle,
-                    Output = upscaledHandle,
-                    Depth = depthHandle,
-                    MotionVectors = motionHandle,
+                    Colour = textures.LowResHandle,
+                    Output = textures.UpscaledHandle,
+                    Depth = textures.DepthHandle,
+                    MotionVectors = textures.MotionHandle,
                     RenderWidth = (uint)renderSize.x,
                     RenderHeight = (uint)renderSize.y,
                     OutputWidth = (uint)displaySize.x,
@@ -129,8 +119,8 @@ namespace ReDefinition.Upscaler
                     VerticalFovRadians = dispatch.CameraFovAngleVertical,
                     // The masks as FSR 3 gets them (SetupDispatch); FSR's automatic
                     // reactive mask has no counterpart here.
-                    Reactive = ReactiveMask == UpscalerMasks.ReactiveSource.Renderers ? masks.ReactiveHandle : IntPtr.Zero,
-                    TransparencyAndComposition = TransparencyMask ? masks.TransparencyHandle : IntPtr.Zero,
+                    Reactive = ReactiveMask == UpscalerMasks.ReactiveSource.Renderers ? inputs.Masks.ReactiveHandle : IntPtr.Zero,
+                    TransparencyAndComposition = TransparencyMask ? inputs.Masks.TransparencyHandle : IntPtr.Zero,
                 };
                 submitted = AmdUpscalerBridge.Submit(dispatchBuffer, ref packet);
             }

@@ -12,8 +12,8 @@ namespace ReDefinition.Upscaler
     // after the last camera that draws the scene, before the UI.
     public partial class UpscalerRig
     {
-        // Frame generation's HUD-less copy. See AttachHudLessCapture.
-        private RenderTexture hudLessCopy;
+        // Frame generation's HUD-less capture into UpscalerTextures.HudLess. See
+        // AttachHudLessCapture.
         private CommandBuffer hudLessBuffer;
         private readonly List<Camera> hudLessCameras = new List<Camera>();
         private float hudLessRecheckTime = float.MaxValue;
@@ -51,7 +51,7 @@ namespace ReDefinition.Upscaler
         private void AttachHudLessCapture(Camera presenterCam, bool recheckLater)
         {
             DetachHudLessCapture();
-            if (!FrameGenerationBridge.Available || presenterCam == null || hudLessCopy == null) return;
+            if (!FrameGenerationBridge.Available || presenterCam == null || textures.HudLess == null) return;
 
             hudLessBuffer = new CommandBuffer { name = "ReDefinition.HudLessCapture" };
             hudLessWithShadow = VesselShadowLayer.Enabled;
@@ -80,8 +80,8 @@ namespace ReDefinition.Upscaler
         {
             hudLessBuffer.Clear();
             bool composed = hudLessWithShadow
-                            && vesselShadow.Compose(hudLessBuffer, BuiltinRenderTextureType.CameraTarget, hudLessCopy, renderSize);
-            if (!composed) hudLessBuffer.Blit(BuiltinRenderTextureType.CameraTarget, hudLessCopy);
+                            && vesselShadow.Compose(hudLessBuffer, BuiltinRenderTextureType.CameraTarget, textures.HudLess, renderSize);
+            if (!composed) hudLessBuffer.Blit(BuiltinRenderTextureType.CameraTarget, textures.HudLess);
             if (composed == hudLessComposed && hudLessCopyLogged) return;
             hudLessComposed = composed;
             hudLessCopyLogged = true;
@@ -95,7 +95,7 @@ namespace ReDefinition.Upscaler
         // it was recorded with are no longer the vessel shadow's.
         private void RefreshHudLessComposition()
         {
-            if (hudLessBuffer != null && hudLessComposed && !vesselShadow.ComposedCurrent(hudLessCopy))
+            if (hudLessBuffer != null && hudLessComposed && !vesselShadow.ComposedCurrent(textures.HudLess))
                 RecordHudLessCopy();
         }
 
@@ -120,7 +120,7 @@ namespace ReDefinition.Upscaler
         {
             hudLessRecheckTime = float.MaxValue;
 
-            Camera presenterCam = presenterObject != null ? presenterObject.GetComponent<Camera>() : null;
+            Camera presenterCam = cameras.Presenter;
             if (presenterCam == null)
             {
                 DetachHudLessCapture();

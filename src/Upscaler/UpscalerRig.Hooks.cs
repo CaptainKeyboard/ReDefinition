@@ -36,25 +36,25 @@ namespace ReDefinition.Upscaler
         // vessel are placed (ScaledSpaceMotion, VesselMotionVectors).
         private void OnPreCull()
         {
-            if (lowRes == null || captureBuffer == null) return;
+            if (textures.LowRes == null || inputs.Capture == null) return;
             // After LateUpdate, where KSP places the scaled bodies and the flight camera.
-            scaledMotion.Sample();
-            cloudMotion.Sample(cam);
+            inputs.ScaledMotion.Sample();
+            inputs.CloudMotion.Sample(cam);
             if (motionVectorHooksFrame == Time.frameCount) return;
             motionVectorHooksFrame = Time.frameCount;
             SharedFrame.EnsureBegun();
             // The vessel's own motion vectors before the hooks, so a mod's for a part
             // are drawn over them.
             vesselMotion.Begin(cam, renderSize);
-            vesselMotion.RecordDepth(captureBuffer, depthCopy);
-            vesselMotion.RecordRepair(captureBuffer, motionVectors, depthCopy);
+            vesselMotion.RecordDepth(inputs.Capture, textures.DepthCopy);
+            vesselMotion.RecordRepair(inputs.Capture, textures.MotionVectors, textures.DepthCopy);
             RecordMotionVectorHooks();
             // After the hooks: they read the motion vectors as the upscaler gets them.
             // Diagnostic measurements only (ReDefinitionAddon.DebugMode).
             if (ReDefinitionAddon.DebugMode)
             {
-                motionAudit.Record(captureBuffer, cam, motionVectors, depthCopy, renderSize);
-                vesselMotion.RecordAudit(captureBuffer, motionVectors, depthCopy);
+                motionAudit.Record(inputs.Capture, cam, textures.MotionVectors, textures.DepthCopy, renderSize);
+                vesselMotion.RecordAudit(inputs.Capture, textures.MotionVectors, textures.DepthCopy);
             }
             vesselMotion.End();
             // The camera's matrices for the vessel's shadow, without the jitter.
@@ -72,9 +72,10 @@ namespace ReDefinition.Upscaler
 
         private void OnPreRender()
         {
-            if (lowRes == null || captureBuffer == null || vesselShadowFrame == Time.frameCount) return;
+            if (textures.LowRes == null || inputs.Capture == null || vesselShadowFrame == Time.frameCount) return;
             vesselShadowFrame = Time.frameCount;
-            if (hudLessBuffer != null && hudLessWithShadow) vesselShadow.Record(captureBuffer, depthCopy, motionVectors);
+            if (hudLessBuffer != null && hudLessWithShadow)
+                vesselShadow.Record(inputs.Capture, textures.DepthCopy, textures.MotionVectors);
         }
 
         // Into the capture at BeforeImageEffects, after Unity's motion vectors and
@@ -83,7 +84,7 @@ namespace ReDefinition.Upscaler
         {
             if (!SharedFrame.MotionVectorHooks.Any) return;
             if (callMotionVectorHook == null)
-                callMotionVectorHook = handler => handler(captureBuffer, motionVectors, depthCopy, cam);
+                callMotionVectorHook = handler => handler(inputs.Capture, textures.MotionVectors, textures.DepthCopy, cam);
             SharedFrame.MotionVectorHooks.Invoke(callMotionVectorHook);
         }
 
@@ -108,7 +109,7 @@ namespace ReDefinition.Upscaler
         // and go.
         private void RefreshOverlay()
         {
-            if (!SharedFrame.OverlayHooks.Any || presenterObject == null)
+            if (!SharedFrame.OverlayHooks.Any || cameras.Presenter == null)
             {
                 DestroyOverlay();
                 return;
@@ -144,7 +145,7 @@ namespace ReDefinition.Upscaler
             {
                 overlayDepthCheck = Time.unscaledTime + 1f;
                 float depth = float.MinValue;
-                foreach (Camera carrier in HudLessCarriers(presenterObject.GetComponent<Camera>()))
+                foreach (Camera carrier in HudLessCarriers(cameras.Presenter))
                     if (carrier != null) depth = Mathf.Max(depth, carrier.depth);
                 overlayCamera.depth = depth + 0.05f;
             }

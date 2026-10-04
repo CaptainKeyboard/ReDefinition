@@ -34,13 +34,13 @@ namespace ReDefinition.Upscaler
         // a fixed factor.
         public Texture GetPreview(PreviewMode mode)
         {
-            if (mode == PreviewMode.LowRes) return lowRes;
-            if (mode == PreviewMode.Upscaled) return upscaled;
+            if (mode == PreviewMode.LowRes) return textures.LowRes;
+            if (mode == PreviewMode.Upscaled) return textures.Upscaled;
 
-            RenderTexture source = mode == PreviewMode.Depth ? depthCopy
-                : mode == PreviewMode.TransparencyMask ? masks.TransparencyTexture
+            RenderTexture source = mode == PreviewMode.Depth ? textures.DepthCopy
+                : mode == PreviewMode.TransparencyMask ? inputs.Masks.TransparencyTexture
                 : mode == PreviewMode.ReactiveMask ? ReactiveTexture()
-                : motionVectors;
+                : textures.MotionVectors;
             if (source == null) return null;
 
             // Four times a second: every readback stalls the frame briefly.
@@ -122,7 +122,7 @@ namespace ReDefinition.Upscaler
         private RenderTexture ReactiveTexture()
         {
             if (ReactiveMask == UpscalerMasks.ReactiveSource.Automatic) return context != null ? context.AutoReactive : null;
-            return masks.ReactiveTexture;
+            return inputs.Masks.ReactiveTexture;
         }
     }
 }

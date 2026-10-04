@@ -21,14 +21,14 @@ namespace ReDefinition.Upscaler
         private string DescribeNativeHandles()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append("captured on frame ").Append(handleFrame)
+            sb.Append("captured on frame ").Append(textures.HandleFrame)
               .Append(", now frame ").Append(Time.frameCount);
 
-            AppendHandle(sb, "upscaled", upscaled, upscaledHandle);
+            AppendHandle(sb, "upscaled", textures.Upscaled, textures.UpscaledHandle);
             if (dlssSharpener != null)
                 AppendHandle(sb, "DLSS output (RCAS input)", dlssSharpener.Input, dlssSharpenInputHandle);
-            AppendHandle(sb, "depthCopy", depthCopy, depthHandle);
-            AppendHandle(sb, "motionVectors", motionVectors, motionHandle);
+            AppendHandle(sb, "depthCopy", textures.DepthCopy, textures.DepthHandle);
+            AppendHandle(sb, "motionVectors", textures.MotionVectors, textures.MotionHandle);
 
             return sb.ToString();
         }
@@ -69,18 +69,18 @@ namespace ReDefinition.Upscaler
               .Append(", bypass ").Append(Bypass).AppendLine();
 
             sb.Append("  lowRes: ");
-            if (lowRes == null) sb.Append("not present");
-            else sb.Append(lowRes.width).Append("x").Append(lowRes.height)
-                   .Append(" created=").Append(lowRes.IsCreated())
-                   .Append(" format=").Append(lowRes.format)
-                   .Append(" centre pixel=").Append(SamplePixel(lowRes));
+            if (textures.LowRes == null) sb.Append("not present");
+            else sb.Append(textures.LowRes.width).Append("x").Append(textures.LowRes.height)
+                   .Append(" created=").Append(textures.LowRes.IsCreated())
+                   .Append(" format=").Append(textures.LowRes.format)
+                   .Append(" centre pixel=").Append(SamplePixel(textures.LowRes));
             sb.AppendLine();
 
             sb.Append("  upscaled: ");
-            if (upscaled == null) sb.Append("not present");
-            else sb.Append(upscaled.width).Append("x").Append(upscaled.height)
-                   .Append(" created=").Append(upscaled.IsCreated())
-                   .Append(" centre pixel=").Append(SamplePixel(upscaled));
+            if (textures.Upscaled == null) sb.Append("not present");
+            else sb.Append(textures.Upscaled.width).Append("x").Append(textures.Upscaled.height)
+                   .Append(" created=").Append(textures.Upscaled.IsCreated())
+                   .Append(" centre pixel=").Append(SamplePixel(textures.Upscaled));
             sb.AppendLine();
 
             sb.Append("  sharpness ").Append(Sharpness.ToString("0.00"))
@@ -90,12 +90,12 @@ namespace ReDefinition.Upscaler
               .Append(biasApplied ? mipmapBias.TextureCount + " textures" : "off").AppendLine();
 
             sb.Append("  motion vectors: ");
-            if (motionVectors == null) sb.Append("not present");
-            else sb.Append(motionVectors.width).Append("x").Append(motionVectors.height)
-                   .Append("  ").Append(DescribeMotion(motionVectors));
+            if (textures.MotionVectors == null) sb.Append("not present");
+            else sb.Append(textures.MotionVectors.width).Append("x").Append(textures.MotionVectors.height)
+                   .Append("  ").Append(DescribeMotion(textures.MotionVectors));
             sb.AppendLine();
             sb.Append("  EVE's cloud motion vectors: ")
-              .Append(cloudMotion.State == null ? "blended in" : "left out -- " + cloudMotion.State).AppendLine();
+              .Append(inputs.CloudMotion.State == null ? "blended in" : "left out -- " + inputs.CloudMotion.State).AppendLine();
 
             sb.Append("  upscaler: ").Append(PassThrough ? "off, frame generation's inputs only" : UpscalerBackends.Name(Backend));
             if (Backend == UpscalerBackend.Dlss) sb.Append(", preset ").Append(DlssPreset);
@@ -110,9 +110,9 @@ namespace ReDefinition.Upscaler
             sb.Append("  native texture handles: ").Append(DescribeNativeHandles()).AppendLine();
 
             sb.Append("  depth: ");
-            if (depthCopy == null) sb.Append("not present");
-            else sb.Append(depthCopy.width).Append("x").Append(depthCopy.height)
-                   .Append("  ").Append(DescribeDepth(depthCopy));
+            if (textures.DepthCopy == null) sb.Append("not present");
+            else sb.Append(textures.DepthCopy.width).Append("x").Append(textures.DepthCopy.height)
+                   .Append("  ").Append(DescribeDepth(textures.DepthCopy));
             sb.AppendLine();
 
             // Every switch position, so a diagnostics block can be attributed.
@@ -127,8 +127,8 @@ namespace ReDefinition.Upscaler
               .AppendLine();
 
             sb.Append("  colour space ").Append(QualitySettings.activeColorSpace)
-              .Append(", buffer ").Append(lowRes != null ? lowRes.format.ToString() : "-")
-              .Append(" sRGB=").Append(lowRes != null && lowRes.sRGB)
+              .Append(", buffer ").Append(textures.LowRes != null ? textures.LowRes.format.ToString() : "-")
+              .Append(" sRGB=").Append(textures.LowRes != null && textures.LowRes.sRGB)
               .Append(", camera allowHDR=").Append(cam != null && cam.allowHDR)
               .Append(", path ").Append(cam != null ? cam.actualRenderingPath.ToString() : "-")
               .AppendLine();
@@ -138,7 +138,7 @@ namespace ReDefinition.Upscaler
 
             sb.Append("  projection per redirected camera (n/f from the matrix against n/f of the camera):")
               .AppendLine();
-            foreach (CameraRedirect redirect in redirects)
+            foreach (CameraRedirect redirect in cameras.Redirects)
             {
                 if (redirect == null || redirect.Camera == null) continue;
                 Camera other = redirect.Camera;
@@ -167,7 +167,7 @@ namespace ReDefinition.Upscaler
             foreach (Camera other in Camera.allCameras)
             {
                 bool redirected = false;
-                foreach (CameraRedirect redirect in redirects)
+                foreach (CameraRedirect redirect in cameras.Redirects)
                     if (redirect != null && redirect.Camera == other) { redirected = true; break; }
 
                 sb.Append("    ").Append(other.name.PadRight(20))
@@ -336,12 +336,12 @@ namespace ReDefinition.Upscaler
         private string DescribeInputMasks()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append("transparency ").Append(TransparencyMask ? Coverage(masks.TransparencyTexture) : "off");
+            sb.Append("transparency ").Append(TransparencyMask ? Coverage(inputs.Masks.TransparencyTexture) : "off");
             sb.Append(", reactive ").Append(ReactiveMask);
             if (ReactiveMask != UpscalerMasks.ReactiveSource.Off) sb.Append(' ').Append(Coverage(ReactiveTexture()));
             if (ReactiveMask == UpscalerMasks.ReactiveSource.Renderers)
-                sb.Append(", ").Append(masks.Drawn).Append(" draw(s) from ").Append(masks.Candidates).Append(" transparent renderer(s)");
-            if (masks.Problem != null) sb.Append(" -- ").Append(masks.Problem);
+                sb.Append(", ").Append(inputs.Masks.Drawn).Append(" draw(s) from ").Append(inputs.Masks.Candidates).Append(" transparent renderer(s)");
+            if (inputs.Masks.Problem != null) sb.Append(" -- ").Append(inputs.Masks.Problem);
             return sb.ToString();
         }
 
