@@ -38,6 +38,11 @@ cbuffer Frame : register(b0)
                             // waves of KSP's own sea (StockWaves)
     float4 lightSurface0;   // rgb: the light's body lit by the star, linear: albedo times the star's colour
     float4 lightSurface1;
+    // The sea's frame, fixed to the main body (RtCamera.Sea, SeaFrameAnchor in the game): a
+    // point on the sea relative to the camera, and its east and north; all 0 for none.
+    float4 seaOrigin;
+    float4 seaEast;
+    float4 seaNorth;
 };
 
 struct InstanceData
@@ -111,6 +116,8 @@ SamplerState linearWrap : register(s2);
 #define MATERIAL_TEXTURES (params1.z > 0.5f)
 #define HAS_GBUFFER (params1.w > 0.5f)
 #define WATER_SURFACE ((frameFlags & 64u) != 0u)
+#define WATER_NORMALS ((frameFlags & 128u) != 0u)
+#define LEGACY_SMOOTHNESS ((frameFlags & 256u) != 0u)
 #define LIGHT_COUNT ((uint)lightParams.x)
 #define GAMMA_INPUTS (lightParams.y > 0.5f)
 #define SUN_MIRROR (lightParams.z)
@@ -558,8 +565,8 @@ float DiscSpecular(float3 normal, float3 view, float3 towards, float radius, flo
 
 // KSP's own sea (STOCK_WATER), drawn into Unity's G-buffer by its ocean shader with
 // normals from its normal map: a pixel within kStockWaterBand metres of the main
-// body's sea level whose normal faces up, as the sea's does and a hull floating in it
-// mostly not. Its waves and roughness are ReDefinition's (StockWaves); kWaterLeastRoughness
+// body's sea level whose normal faces up, as the sea's does, and which is no surface
+// of the raytracing's scene, as a vessel's deck is. Its waves and roughness are ReDefinition's (StockWaves); kWaterLeastRoughness
 // the least roughness, of ripples shorter than the shortest wave.
 static const float kStockWaterBand = 2.0f;
 static const float kWaterLeastRoughness = 0.004f;
@@ -568,8 +575,15 @@ bool IsStockWater(float3 position, float3 normal)
 {
     float3 up = position - bodySphere.xyz;
     float level = length(up);
-    return STOCK_WATER && bodySphere.w > 0.0f && abs(level - bodySphere.w) < kStockWaterBand
-           && dot(normal, up / level) > 0.8f;
+    if (!(STOCK_WATER && bodySphere.w > 0.0f && abs(level - bodySphere.w) < kStockWaterBand
+          && dot(normal, up / level) > 0.8f))
+        return false;
+    // Not where the camera's ray meets the scene's own surface there: the sea is not in the
+    // raytracing's scene, a vessel's deck or a flat shore at the sea's level is (the
+    // player saw the sea's waves and glints on a capsule's hatch).
+    float distance = length(position);
+    Hit hit = TraceClosest(float3(0.0f, 0.0f, 0.0f), position / max(distance, 1e-6f), distance * 1.01f + 0.1f);
+    return !(hit.found && abs(hit.distance - distance) < distance * 0.005f + 0.1f);
 }
 
 // KSP's own sea's waves, which its normal map barely carries. The long waves, 40 m down
@@ -622,9 +636,14 @@ float3 RippleNoise(float2 p, uint octave)
     return float3(value, derivative);
 }
 
-// The sea under a pixel: the tangent plane under the camera, where the sea in view lies
-// (positions fixed to the body, in metres along it), the view's direction along it, and
-// the water the pixel covers across the view and, stretched by the grazing angle, along it.
+// The sea under a pixel: where it lies on the sea, in metres east and north of a point
+// fixed to the main body near the camera (seaOrigin, seaEast, seaNorth: RtCamera.Sea), so
+// that the waves stay where they are on the water as the camera moves and the body turns;
+// its own up, and east and north turned into its own plane; the view's direction along
+// it; and the water the pixel covers across the view and, stretched by the grazing angle,
+// along it. Positions relative to that point, which lies near the camera, keep a float's
+// precision to millimetres. Without the point (seaEast 0, as in the raytracing's test
+// player) the plane under the camera.
 struct SeaFrame
 {
     float3 up, east, north;
@@ -636,12 +655,25 @@ SeaFrame MakeSeaFrame(float3 position, float acrossFootprint)
 {
     SeaFrame f;
     f.up = normalize(position - bodySphere.xyz);
-    float3 below = normalize(-bodySphere.xyz);
-    float3 east = cross(float3(0.0f, 1.0f, 0.0f), below);
-    f.east = dot(east, east) > 1e-6f ? normalize(east) : float3(1.0f, 0.0f, 0.0f);
-    f.north = cross(below, f.east);
-    float3 fromCentre = position - bodySphere.xyz;
-    f.at = float2(dot(fromCentre, f.east), dot(fromCentre, f.north));
+    float3 origin, east;
+    if (dot(seaEast.xyz, seaEast.xyz) > 0.5f)
+    {
+        origin = seaOrigin.xyz;
+        east = seaEast.xyz;
+        float3 fromOrigin = position - origin;
+        f.at = float2(dot(fromOrigin, seaEast.xyz), dot(fromOrigin, seaNorth.xyz));
+    }
+    else
+    {
+        float3 below = normalize(-bodySphere.xyz);
+        east = cross(float3(0.0f, 1.0f, 0.0f), below);
+        east = dot(east, east) > 1e-6f ? normalize(east) : float3(1.0f, 0.0f, 0.0f);
+        float3 fromCentre = position - bodySphere.xyz;
+        f.at = float2(dot(fromCentre, east), dot(fromCentre, cross(below, east)));
+    }
+    float3 flatEast = east - dot(east, f.up) * f.up;
+    f.east = dot(flatEast, flatEast) > 1e-8f ? normalize(flatEast) : east;
+    f.north = cross(f.up, f.east);
     float3 towardsPixel = normalize(position);
     float2 along = float2(dot(towardsPixel, f.east), dot(towardsPixel, f.north));
     f.along = dot(along, along) > 1e-8f ? normalize(along) : float2(1.0f, 0.0f);
@@ -855,6 +887,34 @@ struct SurfaceData
     float3 specular;
 };
 
+// A surface's smoothness as KSP's legacy part shaders give its highlight. Deferred turns
+// their Blinn-Phong shininess into a smoothness for its G-buffer by look
+// (LegacyToStandard.cginc: shininess ^ 0.215 times the specular map times the root of the
+// specular colour's length, the specular colour over pi), which reaches 1, a mirror,
+// from a shininess of about 0.4 with a white specular colour (measured at sea,
+// 2026-10-04: a capsule at 0.96 with a specular colour of 0.24; the player saw the Mun's
+// disc sharp in a wing). KSP's own shaders light those parts with Blinn-Phong's exponent
+// 128 times the shininess, which Beckmann's distribution matches with
+// m = sqrt(2 / (n + 2)) (Walter et al. 2007): at most a shininess of 1, m 0.124, a
+// smoothness of 0.65. In the game only (LEGACY_SMOOTHNESS: RtCamera.LegacySmoothness);
+// a test's G-buffer is Unity's own. Specular colours over Deferred's 1 / pi are Unity's standard
+// shaders' own and kept, and so is the water's frame (WATER_SURFACE), whose surface is
+// Scatterer's ocean with its own variance; the specular map's share is taken for the
+// shininess's.
+static const float kLegacyShininessPower = 0.215f;
+
+float LegacySmoothness(float smoothness, float3 specular)
+{
+    if (!LEGACY_SMOOTHNESS || WATER_SURFACE || max(specular.r, max(specular.g, specular.b)) > 1.0f / kPi + 0.004f)
+        return smoothness;
+    float length3 = length(specular * kPi);
+    if (length3 <= 1e-4f)
+        return smoothness;
+    float shininess = pow(saturate(smoothness / sqrt(length3)), 1.0f / kLegacyShininessPower);
+    float m = sqrt(2.0f / (128.0f * shininess + 2.0f));
+    return 1.0f - sqrt(m);
+}
+
 SurfaceData SurfaceAt(uint2 pixel, float3 position)
 {
     SurfaceData surface;
@@ -862,7 +922,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
     {
         surface.normal = DecodeNormal(gbuffer2[pixel]);
         float4 g1 = gbuffer1[pixel];
-        surface.smoothness = g1.a;
+        surface.smoothness = LegacySmoothness(g1.a, g1.rgb);
         surface.specular = g1.rgb;
         surface.albedo = InputColor(gbuffer0[pixel].rgb);
         return surface;

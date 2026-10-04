@@ -24,6 +24,7 @@ not:
 
   python tools/sea_reflection_check.py <ReDefinitionCaptures/...-probe folder> [--log KSP.log] [name ...]
   python tools/sea_reflection_check.py --noise
+  python tools/sea_reflection_check.py --waves <ReDefinitionCaptures/...-probe folder>
 
 With --log, the sun's colour the raytracing traced with is taken from the probe's line
 for the shot ("traced RGBA(...)"), for shots whose data predate it in the JSON.
@@ -315,8 +316,80 @@ def ripple_gradient_rms(samples=400000, seed=1):
     return math.sqrt((d ** 2).sum(1).mean()), d.std(0)
 
 
+def world_points(folder, name):
+    """A shot's pixels as points relative to the main body's centre, world space, from its
+    depth (Scatterer's ocean's where the probe wrote it; Direct3D's reversed z), and its
+    camera; with the shot's data."""
+    data = json.load(open(os.path.join(folder, name + '.json')))
+    ocean = os.path.join(folder, name + '-ocean-depth.pfm')
+    depth = read_pfm(ocean if os.path.exists(ocean) else os.path.join(folder, name + '-depth.pfm'))[..., 0].astype(float)
+    height, width = depth.shape
+    projection = np.array(data['projection']).reshape(4, 4)
+    to_world = np.array(data['cameraToWorld']).reshape(4, 4)
+    a, b = projection[2, 2], projection[2, 3]
+    near, far = b / (a - 1.0), b / (a + 1.0)
+    xs = (np.arange(width) + 0.5) / width * 2.0 - 1.0
+    ys = (np.arange(height) + 0.5) / height * 2.0 - 1.0
+    gx, gy = np.meshgrid(xs, ys)
+    with np.errstate(divide='ignore'):
+        distance = near * far / (depth * (far - near) + near)
+    view = np.stack([gx / projection[0, 0] * distance, gy / projection[1, 1] * distance, -distance], -1)
+    world = view @ to_world[:3, :3].T + to_world[:3, 3]
+    return world - np.array(data['bodyCentre']), depth > 0, data
+
+
+def waves_in_place(folder, prefix):
+    """The light probe's check that the waves stay on the water (LightProbe.WavesInPlace):
+    each water pixel of the first shot found in the second, taken after the camera moved,
+    by its place on the body; the angle between the two shots' wave normals there. Waves
+    fixed to the water give the same normal at the same place."""
+    first, first_valid, _ = world_points(folder, prefix + '-a')
+    second_points, second_valid, data = world_points(folder, prefix + '-b')
+    n1 = read_pfm(os.path.join(folder, prefix + '-a-traced.pfm')).astype(float) * 2.0 - 1.0
+    n2 = read_pfm(os.path.join(folder, prefix + '-b-traced.pfm')).astype(float) * 2.0 - 1.0
+    water1 = first_valid & (np.linalg.norm(n1, axis=-1) > 0.5)
+    water2 = second_valid & (np.linalg.norm(n2, axis=-1) > 0.5)
+    height, width = water2.shape
+    projection = np.array(data['projection']).reshape(4, 4)
+    to_world = np.array(data['cameraToWorld']).reshape(4, 4)
+    to_camera = np.linalg.inv(to_world)
+    centre = np.array(data['bodyCentre'])
+    points = first[water1] + centre
+    camera = points @ to_camera[:3, :3].T + to_camera[:3, 3]
+    clip = np.concatenate([camera, np.ones((len(camera), 1))], 1) @ projection.T
+    ndc = clip[:, :2] / clip[:, 3:4]
+    px = np.floor((ndc[:, 0] + 1.0) * 0.5 * width).astype(int)
+    py = np.floor((ndc[:, 1] + 1.0) * 0.5 * height).astype(int)
+    inside = (clip[:, 3] > 0) & (px >= 0) & (px < width) & (py >= 0) & (py < height)
+    a_normals = n1[water1][inside]
+    a_points = first[water1][inside]
+    px, py = px[inside], py[inside]
+    found = water2[py, px]
+    # The same place: the second shot's point at that pixel within a pixel's width.
+    gap = np.linalg.norm(second_points[py, px] - a_points, axis=-1)
+    reach = np.linalg.norm(camera[inside], axis=-1) * 2.0 / (projection[1, 1] * height)
+    same = found & (gap < 2.0 * reach + 0.01)
+    a_n = a_normals[same]
+    b_n = n2[py[same], px[same]]
+    a_n /= np.linalg.norm(a_n, axis=-1, keepdims=True)
+    b_n /= np.linalg.norm(b_n, axis=-1, keepdims=True)
+    angle = np.degrees(np.arccos(np.clip(np.sum(a_n * b_n, -1), -1, 1)))
+    return len(angle), angle
+
+
 def main():
     args = sys.argv[1:]
+    if args[:1] == ['--waves']:
+        folder = args[1]
+        names = sorted({f[:-len('-a.json')] for f in os.listdir(folder) if f.endswith('-a.json') and '-waves-' in f})
+        for name in names:
+            count, angle = waves_in_place(folder, name)
+            if count == 0:
+                print('%-32s no water seen in both shots' % name)
+                continue
+            print('%-32s %8d places: the normals %5.2f degrees apart (median), %5.2f (90 %%), %4.1f %% within 1 degree' % (
+                name, count, np.median(angle), np.percentile(angle, 90), 100.0 * np.mean(angle < 1.0)))
+        return
     if args[:1] == ['--noise']:
         total, axes = ripple_gradient_rms()
         print('RippleNoise gradient: %.4f in root mean square, %.4f / %.4f along x / y' % (total, axes[0], axes[1]))

@@ -13,7 +13,7 @@ namespace ReDefinition.Tests
         public void ThePacketIsLaidOutAsTheProxyReadsIt()
         {
             System.Type packet = typeof(RtNative.FramePacket);
-            Assert.AreEqual(800, Marshal.SizeOf(packet));
+            Assert.AreEqual(848, Marshal.SizeOf(packet));
             Assert.AreEqual(32, Marshal.OffsetOf(packet, "ClipToWorld").ToInt32());
             Assert.AreEqual(304, Marshal.OffsetOf(packet, "BodySphere").ToInt32());
             Assert.AreEqual(320, Marshal.OffsetOf(packet, "Ambient").ToInt32());
@@ -23,7 +23,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(608, Marshal.OffsetOf(packet, "NightLight").ToInt32());
             Assert.AreEqual(624, Marshal.OffsetOf(packet, "Planet").ToInt32());
             Assert.AreEqual(640, Marshal.OffsetOf(packet, "LightSurface").ToInt32());
-            Assert.AreEqual(672, Marshal.OffsetOf(packet, "Inputs").ToInt32());
+            Assert.AreEqual(672, Marshal.OffsetOf(packet, "Sea").ToInt32());
+            Assert.AreEqual(720, Marshal.OffsetOf(packet, "Inputs").ToInt32());
         }
 
         // The ocean's packet is the frame's copied (RtCamera.TraceOcean): every field, the

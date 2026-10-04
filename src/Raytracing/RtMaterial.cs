@@ -6,13 +6,12 @@ namespace ReDefinition.Raytracing
     // What a ray that hits a surface takes of its material: albedo, specular colour,
     // smoothness and emission, from the material's properties.
     //
-    // KSP's part shaders are legacy Blinn-Phong ones (_Shininess, _SpecColor). Deferred
-    // turns them into Unity's standard specular set for its G-buffer
-    // (LegacyToStandard.cginc, GetStandardSpecularPropertiesFromLegacy, Deferred 1.3.5,
-    // GPL 3.0), and the rays take them the same way so that a hit looks as the part
-    // does on screen: smoothness = shininess ^ 0.215 * sqrt(|specular colour|),
-    // specular = specular colour / pi. The texture's alpha, Deferred's specular map,
-    // is taken as 1: the rays see one value per material.
+    // KSP's part shaders are legacy Blinn-Phong ones (_Shininess, _SpecColor): the
+    // specular colour over pi as Deferred takes it for its G-buffer (LegacyToStandard.cginc,
+    // Deferred 1.3.5, GPL 3.0), the smoothness as KSP's own shaders give the highlight --
+    // Blinn-Phong's exponent 128 times the shininess, Beckmann's m = sqrt(2 / (n + 2)) --,
+    // as the raytracing takes the G-buffer's (RtCommon.hlsli, LegacySmoothness), not
+    // Deferred's look, which turns many parts into mirrors.
     //
     // Unity's standard shaders give the diffuse light less than their albedo, what the
     // specular colour takes of it (UnityStandardUtils.cginc, Unity's built-in shaders
@@ -28,8 +27,6 @@ namespace ReDefinition.Raytracing
         public Color Emission;
         // The alpha below which the material's texture cuts the surface out, 0 for none.
         public float Cutoff;
-
-        private const float ShininessPower = 0.215f;
 
         internal static RtMaterial Of(Material material)
         {
@@ -66,8 +63,8 @@ namespace ReDefinition.Raytracing
                 legacy.r = Mathf.Clamp01(legacy.r);
                 legacy.g = Mathf.Clamp01(legacy.g);
                 legacy.b = Mathf.Clamp01(legacy.b);
-                float length = Mathf.Sqrt(legacy.r * legacy.r + legacy.g * legacy.g + legacy.b * legacy.b);
-                result.Smoothness = Mathf.Pow(Mathf.Clamp01(material.GetFloat("_Shininess")), ShininessPower) * Mathf.Sqrt(length);
+                float exponent = 128f * Mathf.Clamp01(material.GetFloat("_Shininess"));
+                result.Smoothness = 1f - Mathf.Sqrt(Mathf.Sqrt(2f / (exponent + 2f)));
                 result.Specular = new Color(legacy.r / Mathf.PI, legacy.g / Mathf.PI, legacy.b / Mathf.PI);
             }
             else if (material.HasProperty("_Metallic"))

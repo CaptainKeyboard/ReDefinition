@@ -111,7 +111,8 @@ namespace ReDefinition.Probe
                             if (body == null) continue;
                             string bodyPrefix = body == sun ? "sun-" : "mun-";
                             if (!Array.Exists(height.Cases, c => Wanted(bodyPrefix + c.Name))
-                                && !(body == mun && height.Elevation <= 5f && Wanted("mun-zoom")))
+                                && !(body == mun && height.Elevation <= 5f && Wanted("mun-zoom"))
+                                && !(body == mun && height.Elevation == 25f && Wanted("mun-vessel")))
                                 continue;
                             float lowest = height.Elevation - 2.5f, highest = height.Elevation + 2.5f;
                             CelestialBody b = body;
@@ -129,6 +130,21 @@ namespace ReDefinition.Probe
                                 float distance = c.Height / Mathf.Sin(c.Down * Mathf.Deg2Rad);
                                 yield return LookTowards(b, c.Down, distance);
                                 yield return OceanShot(addon, folder, prefix + c.Name, Elevation(b));
+                            }
+                            // The vessel 10 m away, its top mirroring the Mun to the camera, with
+                            // the parts' smoothness as Deferred writes it and as the raytracing
+                            // takes it (RtCommon.hlsli, LegacySmoothness): a mirror or a sheen.
+                            if (b == mun && height.Elevation == 25f && Wanted("mun-vessel"))
+                            {
+                                float elevation = Elevation(b);
+                                yield return LookTowards(b, elevation, 10f);
+                                foreach (bool deferred in new[] { true, false })
+                                {
+                                    RtCamera.DeferredSmoothness = deferred;
+                                    for (int i = 0; i < 60; i++) yield return null;
+                                    yield return OceanShot(addon, folder, "mun-vessel-" + (deferred ? "deferred" : "legacy"), elevation);
+                                }
+                                RtCamera.DeferredSmoothness = false;
                             }
                             // The Mun low once more, looked at level through a narrow field of
                             // view that just holds it: its glow (MoonGlow) on its disc at any
@@ -330,6 +346,7 @@ namespace ReDefinition.Probe
             Color[] mean = null;
             yield return AverageTraced(result => mean = result);
             LogOceanTextures(folder, name, mean);
+            yield return WavesInPlace(folder, name);
             // KSP's own sea's tests as colour (ReDefinitionDeferredReflections.shader,
             // _ReDefinitionWaterDebug): which fails where.
             if (RtCamera.StockSeaTraced)
@@ -356,6 +373,57 @@ namespace ReDefinition.Probe
         // apart, as the waves move on: near by, where a pixel shows single glints and a few
         // waves tilt all the water in view, what the sea gives over time.
         private static readonly int WaterDebugId = Shader.PropertyToID("_ReDefinitionWaterDebug");
+
+        // Whether the waves stay on the water as the camera moves
+        // (tools/sea_reflection_check.py --waves): the water's normals with the waves' time
+        // held, before and after the camera moved a tenth further out, once with the sea's
+        // frame fixed to the body (RtCamera.Sea) and once with the plane under the camera.
+        private static IEnumerator WavesInPlace(string folder, string name)
+        {
+            RtCamera camera = RtCamera.Current;
+            if (camera == null || camera.OceanTracedTexture == null || FlightCamera.fetch == null) yield break;
+            float distance = FlightCamera.fetch.Distance;
+            RtCamera.WaveTimeHeld = Time.time % 3600f;
+            RtCamera.WaterNormalsShown = true;
+            try
+            {
+                foreach (bool fixedToBody in new[] { true, false })
+                {
+                    RtCamera.SeaFrameLeftOut = !fixedToBody;
+                    string tag = name + "-waves-" + (fixedToBody ? "body" : "camera");
+                    for (int i = 0; i < 20; i++) yield return null;
+                    yield return new WaitForEndOfFrame();
+                    WriteNormals(folder, tag + "-a", camera);
+                    FlightCamera.fetch.SetDistance(distance * 1.1f);
+                    for (int i = 0; i < 60; i++) yield return null;
+                    yield return new WaitForEndOfFrame();
+                    WriteNormals(folder, tag + "-b", camera);
+                    FlightCamera.fetch.SetDistance(distance);
+                    for (int i = 0; i < 60; i++) yield return null;
+                }
+            }
+            finally
+            {
+                RtCamera.SeaFrameLeftOut = false;
+                RtCamera.WaterNormalsShown = false;
+                RtCamera.WaveTimeHeld = null;
+            }
+        }
+
+        private static void WriteNormals(string folder, string name, RtCamera camera)
+        {
+            RenderTexture traced = camera.OceanTracedTexture;
+            if (traced == null) return;
+            WritePfm(Path.Combine(folder, name + "-traced.pfm"), Read(traced), traced.width, traced.height, c => c);
+            if (camera.DepthTexture != null)
+                WritePfm(Path.Combine(folder, name + "-depth.pfm"), Read(camera.DepthTexture), camera.DepthTexture.width,
+                         camera.DepthTexture.height, c => new Color(c.r, 0f, 0f));
+            RenderTexture oceanDepth = camera.OceanDepthTexture;
+            if (oceanDepth != null && !RtCamera.StockSeaTraced)
+                WritePfm(Path.Combine(folder, name + "-ocean-depth.pfm"), Read(oceanDepth), oceanDepth.width, oceanDepth.height,
+                         c => new Color(c.r, 0f, 0f));
+            WriteShotData(Path.Combine(folder, name + ".json"), camera, traced);
+        }
         private const int TracedSamples = 16;
         private const float TracedSpacing = 0.5f;
 
@@ -437,6 +505,10 @@ namespace ReDefinition.Probe
             if (camera.DepthTexture != null)
                 WritePfm(Path.Combine(folder, name + "-depth.pfm"), Read(camera.DepthTexture), camera.DepthTexture.width,
                          camera.DepthTexture.height, c => new Color(c.r, 0f, 0f));
+            if (camera.SpecularSmoothnessTexture != null)
+                WritePfm(Path.Combine(folder, name + "-gbuffer-specular.pfm"), Read(camera.SpecularSmoothnessTexture),
+                         camera.SpecularSmoothnessTexture.width, camera.SpecularSmoothnessTexture.height,
+                         c => new Color((c.r + c.g + c.b) / 3f, c.a, 0f));
             if (camera.NormalTexture != null)
                 WritePfm(Path.Combine(folder, name + "-gbuffer-normal.pfm"), Read(camera.NormalTexture), camera.NormalTexture.width,
                          camera.NormalTexture.height, c => new Color(c.r * 2f - 1f, c.g * 2f - 1f, c.b * 2f - 1f));

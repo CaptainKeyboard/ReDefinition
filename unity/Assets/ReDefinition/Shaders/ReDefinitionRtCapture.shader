@@ -212,8 +212,20 @@ Shader "Hidden/ReDefinition/RtCapture"
         // about the moon's point).
         float4 frame = tex2D(_MainTex, i.uv);
         float2 uv = i.screen.xy / i.screen.w;
-        if (NoOcean(tex2D(oceanGbufferDepth, uv).r))
+        float oceanDepth = tex2D(oceanGbufferDepth, uv).r;
+        if (NoOcean(oceanDepth))
             return frame;
+        // Only where the ocean is in front: its G-buffer holds the ocean behind a vessel too,
+        // where the scene's depth lies nearer (Direct3D's z reversed, nearer larger; the
+        // player saw the sea's glints on a plane's parts).
+        float sceneDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
+    #if defined(UNITY_REVERSED_Z)
+        if (sceneDepth > oceanDepth * 1.0001 + 1e-7)
+            return frame;
+    #else
+        if (sceneDepth < oceanDepth * 0.9999 - 1e-7)
+            return frame;
+    #endif
         float4 traced = tex2D(_ReDefinitionRtOcean, uv);
         float3 linearLight = max(traced.rgb, 0.0);
         if (traced.w < 60000.0 || all(linearLight <= 0.0))

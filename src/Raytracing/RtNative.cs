@@ -31,6 +31,8 @@ namespace ReDefinition.Raytracing
         internal const uint FlagGuides = 1u << 4;
         internal const uint FlagExtra = 1u << 5;
         internal const uint FlagWater = 1u << 6;
+        internal const uint FlagWaterNormals = 1u << 7;
+        internal const uint FlagLegacySmoothness = 1u << 8;
 
         internal const uint SignalSun = 1u << 0;
         internal const uint SignalOcclusion = 1u << 1;
@@ -153,6 +155,9 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] NightLight;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] Planet;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public float[] LightSurface;
+            // The sea's frame, fixed to the main body (RtCamera.Sea): a point on the sea
+            // relative to the camera, its east and north, each with a w; all 0 for none.
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)] public float[] Sea;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -191,6 +196,7 @@ namespace ReDefinition.Raytracing
                 Array.Copy(NightLight, target.NightLight, NightLight.Length);
                 Array.Copy(Planet, target.Planet, Planet.Length);
                 Array.Copy(LightSurface, target.LightSurface, LightSurface.Length);
+                Array.Copy(Sea, target.Sea, Sea.Length);
                 Array.Copy(Inputs, target.Inputs, Inputs.Length);
                 Array.Copy(Outputs, target.Outputs, Outputs.Length);
             }
@@ -290,6 +296,7 @@ namespace ReDefinition.Raytracing
                 NightLight = new float[4],
                 Planet = new float[4],
                 LightSurface = new float[8],
+                Sea = new float[12],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

@@ -32,6 +32,7 @@ namespace ReDefinition.Raytracing
         private RtScenerySource scenery;
         private RtParallaxScatter scatter;
         private ReflectionProbe probe;
+        private readonly SeaFrameAnchor seaFrame = new SeaFrameAnchor();
         private GameScenes lookedUpIn = GameScenes.LOADING;
         private float lookedUpAt = float.NegativeInfinity;
         private string loggedProblem;
@@ -168,6 +169,9 @@ namespace ReDefinition.Raytracing
                 Vector3d centre = body.position;
                 return new Vector4((float)centre.x, (float)centre.y, (float)centre.z, (float)body.Radius);
             };
+            camera.LegacySmoothness = () => true;
+            camera.Sea = (out Vector3 origin, out Vector3 east, out Vector3 north) =>
+                seaFrame.Frame(RtKspMods.SceneBody(), sceneCamera.transform.position, out origin, out east, out north);
             camera.Lights = (lights, surfaces) =>
             {
                 CelestialBody body = RtKspMods.SceneBody();

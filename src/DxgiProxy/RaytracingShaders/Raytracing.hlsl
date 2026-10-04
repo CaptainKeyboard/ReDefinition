@@ -159,6 +159,11 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     {
         float4 waves = StockWaves(position, pixelWidth);
         normal = waves.xyz;
+        if (WATER_NORMALS)
+        {
+            output2[id.xy] = float4(normal * 0.5f + 0.5f, 1.0f);
+            return;
+        }
         waterM = sqrt(waves.w * waves.w + kWaterLeastRoughness * kWaterLeastRoughness);
         // GGX's alpha for the reflected rays, which spread about as Beckmann's m / sqrt(2).
         alpha = 0.7071f * waterM;
@@ -203,6 +208,14 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
         // Scatterer's variance (alpha = sqrt(sigmaSq) / 2) as ripples on its normals.
         float4 rippled = bodySphere.w > 0.0f ? ScattererRipples(position, normal, 2.0f * alpha, pixelWidth)
                                              : float4(normal, 2.0f * alpha);
+        if (WATER_NORMALS)
+        {
+            // ReDefinition's ripples alone, on the level sea: Scatterer's own waves run on
+            // its own time.
+            float4 ripples = ScattererRipples(position, normalize(position - bodySphere.xyz), 2.0f * alpha, pixelWidth);
+            output2[id.xy] = float4(ripples.xyz * 0.5f + 0.5f, kWaterSky);
+            return;
+        }
         float m = sqrt(rippled.w * rippled.w + kWaterLeastRoughness * kWaterLeastRoughness);
         output2[id.xy] = float4(BodiesMirroredAt(position, rippled.xyz, view, m, kTerrainSkip), kWaterSky);
         return;

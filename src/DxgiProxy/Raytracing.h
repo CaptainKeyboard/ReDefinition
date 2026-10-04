@@ -130,6 +130,13 @@ namespace redefinition
     // moons' discs mirrored by the waves, not single rays meeting them, and 65000 in w
     // (RtCommon.hlsli, BodiesMirroredAt).
     constexpr uint32_t kRtFrameWater = 1u << 6;
+    // With kRtFrameWater, for the light probe: the water's normal with ReDefinition's waves
+    // in place of its reflections (n * 0.5 + 0.5; on Scatterer's ocean its ripples on the
+    // level sea), to check that the waves stay on the water.
+    constexpr uint32_t kRtFrameWaterNormals = 1u << 7;
+    // The G-buffer's smoothness is Deferred's from KSP's legacy part shaders: taken as
+    // their highlight (RtCommon.hlsli, LegacySmoothness). The game's; not a test's.
+    constexpr uint32_t kRtFrameLegacySmoothness = 1u << 8;
 
     // The signals a frame traces; each writes its output slot.
     constexpr uint32_t kRtSignalSunVisibility = 1u << 0;   // u0: visibility of the sun, 0 to 1
@@ -189,7 +196,7 @@ namespace redefinition
     // as a Direct3D 12 texture array holds (D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION).
     constexpr uint32_t kRtMaterialTextureSize = 64;
     // The bytes of a slot's constant buffer (cbuffer Frame, RtCommon.hlsli).
-    constexpr uint64_t kRtConstantsSize = 512;
+    constexpr uint64_t kRtConstantsSize = 768;
 
     // cbuffer Frame as the shaders read it (RtCommon.hlsli), field for field.
     struct RtFrameConstants
@@ -211,6 +218,7 @@ namespace redefinition
         float nightLight[4];
         float planet[4];
         float lightSurface[8];
+        float sea[12];
     };
     static_assert(offsetof(RtFrameConstants, sunDirection) == 192, "cbuffer Frame changed: update RtCommon.hlsli");
     static_assert(offsetof(RtFrameConstants, params) == 240, "cbuffer Frame changed: update RtCommon.hlsli");
@@ -220,6 +228,7 @@ namespace redefinition
     static_assert(offsetof(RtFrameConstants, lightParams) == 416, "cbuffer Frame changed: update RtCommon.hlsli");
     static_assert(offsetof(RtFrameConstants, planet) == 448, "cbuffer Frame changed: update RtCommon.hlsli");
     static_assert(offsetof(RtFrameConstants, lightSurface) == 464, "cbuffer Frame changed: update RtCommon.hlsli");
+    static_assert(offsetof(RtFrameConstants, sea) == 496, "cbuffer Frame changed: update RtCommon.hlsli");
     static_assert(sizeof(RtFrameConstants) <= kRtConstantsSize, "cbuffer Frame outgrew its buffer");
     constexpr uint32_t kRtMaxMaterialTextures = 2048;
 
@@ -283,6 +292,10 @@ namespace redefinition
         // Per light (lights): its surface lit by the star, linear rgb -- its albedo times
         // the star's colour --, for a reflected ray that meets its disc.
         float lightSurface[8];
+        // The sea's frame, fixed to the main body, for the waves (RtCommon.hlsli,
+        // MakeSeaFrame): a point on the sea relative to the camera, and its east and north;
+        // all 0 for none.
+        float sea[12];
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
@@ -344,8 +357,8 @@ namespace redefinition
     static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
     static_assert(sizeof(RtGpuInstanceGroup) == 32, "RtGpuInstanceGroup layout changed: update the managed side");
     static_assert(offsetof(RtFramePacket, clipToWorld) == 32, "RtFramePacket layout changed");
-    static_assert(offsetof(RtFramePacket, inputs) == 672, "RtFramePacket layout changed");
-    static_assert(sizeof(RtFramePacket) == 800, "RtFramePacket layout changed: update the managed side");
+    static_assert(offsetof(RtFramePacket, inputs) == 720, "RtFramePacket layout changed");
+    static_assert(sizeof(RtFramePacket) == 848, "RtFramePacket layout changed: update the managed side");
 
     class Raytracing
     {

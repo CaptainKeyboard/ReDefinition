@@ -69,6 +69,28 @@ namespace ReDefinition.Raytracing
         // The main body's centre in the world and its radius, which the sun's rays test
         // as a sphere; radius 0 for none.
         internal Func<Vector4> Body = () => Vector4.zero;
+        // The sea's frame fixed to the main body, for the waves (RtCommon.hlsli,
+        // MakeSeaFrame): a point on the sea relative to the camera, and its east and north,
+        // world space; false for none, where the waves take the plane under the camera.
+        internal SeaFrameSource Sea = (out Vector3 origin, out Vector3 east, out Vector3 north) =>
+        {
+            origin = east = north = Vector3.zero;
+            return false;
+        };
+        internal delegate bool SeaFrameSource(out Vector3 origin, out Vector3 east, out Vector3 north);
+        // For the light probe's check that the waves stay on the water: the water's trace
+        // gives its normals, the waves' time held, and the sea's frame left out (the plane
+        // under the camera) where wanted.
+        internal static bool WaterNormalsShown;
+        internal static float? WaveTimeHeld;
+        internal static bool SeaFrameLeftOut;
+        // For the light probe: the G-buffer's smoothness as Deferred wrote it, without
+        // LegacySmoothness, to compare.
+        internal static bool DeferredSmoothness;
+        // Whether the G-buffer's smoothness is Deferred's from KSP's legacy part shaders,
+        // which the raytracing takes as their highlight (RtCommon.hlsli, LegacySmoothness):
+        // the game's; a test's G-buffer is Unity's own.
+        internal Func<bool> LegacySmoothness = () => false;
         // The bodies the sun lights, as lights (RtReflectors in the game): fills the
         // packet's lights -- towards each, its angular radius, its radiance linear and how
         // far its shadow ray goes, negative for the main body itself -- and says how many.
@@ -583,7 +605,8 @@ namespace ReDefinition.Raytracing
 
             packet.CopyTo(ref oceanPacket);
             oceanPacket.Signals = RtNative.SignalSpecular;
-            oceanPacket.Flags = RtNative.FlagSameFrame | RtNative.FlagExtra | RtNative.FlagWater;
+            oceanPacket.Flags = RtNative.FlagSameFrame | RtNative.FlagExtra | RtNative.FlagWater
+                                | (WaterNormalsShown ? RtNative.FlagWaterNormals : 0u);
             oceanPacket.Params[7] = 1f;
             for (int i = 0; i < 8; i++) oceanPacket.Outputs[i] = IntPtr.Zero;
             if (!stockSea)
@@ -925,7 +948,7 @@ namespace ReDefinition.Raytracing
             packet.Planet[2] = planet.b;
             // The time for the waves of KSP's own sea (RtCommon.hlsli, StockWaves), within an
             // hour, where a float still counts tenths of a millisecond.
-            packet.Planet[3] = Time.time % 3600f;
+            packet.Planet[3] = WaveTimeHeld ?? Time.time % 3600f;
             Vector4 body = Body();
             // The sea's sphere for the reflections' shader, in Unity's world: none but for
             // KSP's own sea.
@@ -934,6 +957,20 @@ namespace ReDefinition.Raytracing
             packet.BodySphere[1] = (float)(body.y - position.y);
             packet.BodySphere[2] = (float)(body.z - position.z);
             packet.BodySphere[3] = body.w;
+            for (int i = 0; i < 12; i++) packet.Sea[i] = 0f;
+            Vector3 seaOrigin, seaEast, seaNorth;
+            if (!SeaFrameLeftOut && Sea(out seaOrigin, out seaEast, out seaNorth))
+            {
+                packet.Sea[0] = seaOrigin.x;
+                packet.Sea[1] = seaOrigin.y;
+                packet.Sea[2] = seaOrigin.z;
+                packet.Sea[4] = seaEast.x;
+                packet.Sea[5] = seaEast.y;
+                packet.Sea[6] = seaEast.z;
+                packet.Sea[8] = seaNorth.x;
+                packet.Sea[9] = seaNorth.y;
+                packet.Sea[10] = seaNorth.z;
+            }
 
             // The sun's pass always: its output keeps the view depth the next frame finds
             // its pixels by.
@@ -958,7 +995,8 @@ namespace ReDefinition.Raytracing
             packet.Flags = RtNative.FlagSameFrame | (Settings.Denoise && !reconstruct ? RtNative.FlagDenoise : 0u)
                            | (!haveHistory || Cut() || switched ? RtNative.FlagReset : 0u)
                            | (withMotion ? RtNative.FlagMotionVectors : 0u)
-                           | (reconstruct ? RtNative.FlagGuides : 0u);
+                           | (reconstruct ? RtNative.FlagGuides : 0u)
+                           | (LegacySmoothness() && !DeferredSmoothness ? RtNative.FlagLegacySmoothness : 0u);
             if (reconstruct)
             {
                 GuidesFrame = Time.frameCount;
@@ -1091,6 +1129,7 @@ namespace ReDefinition.Raytracing
         internal RenderTexture DiffuseTexture { get { return diffuse; } }
         internal RenderTexture SpecularTexture { get { return specular; } }
         internal RenderTexture NormalTexture { get { return gbuffer2; } }
+        internal RenderTexture SpecularSmoothnessTexture { get { return gbuffer1; } }
         internal RenderTexture EnvironmentTexture { get { return environment; } }
         internal RenderTexture ForwardTexture { get { return forward; } }
         internal RenderTexture OceanReflectionsTexture { get { return oceanReflections; } }

@@ -604,6 +604,7 @@ namespace redefinition
         memcpy(constants.nightLight, packet->nightLight, sizeof(constants.nightLight));
         memcpy(constants.planet, packet->planet, sizeof(constants.planet));
         memcpy(constants.lightSurface, packet->lightSurface, sizeof(constants.lightSurface));
+        memcpy(constants.sea, packet->sea, sizeof(constants.sea));
 
         std::vector<D3D12_RESOURCE_BARRIER> into;
         std::vector<D3D12_RESOURCE_BARRIER> back;
