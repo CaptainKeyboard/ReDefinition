@@ -1,93 +1,19 @@
+// The raytracing service: its device attached, what the managed side hands over from the
+// main thread, and a frame on the render thread, step by step (OnFrame).
+
 #include "Raytracing.h"
 
 #include "D3d12Util.h"
 #include "Log.h"
+#include "RaytracingInternal.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 
 using Microsoft::WRL::ComPtr;
 
 namespace redefinition
 {
-    // Per vertex: normal (three floats), texture coordinate (two), colour (four bytes).
-    constexpr size_t kAttributeFloats = 6;
-
-    namespace
-    {
-        // A shared copy of a Unity texture not used for this long is released.
-        constexpr ULONGLONG kUnusedMs = 10000;
-        // Start, after the build, after each pass.
-        constexpr UINT kTimestampsPerSlot = 2 + kRtPassTimings;
-
-        // The passes, by the signal bit that asks for them, and the entry point
-        // each is compiled from (CMakeLists.txt embeds them as RT_<entry>).
-        struct PassEntry
-        {
-            uint32_t signal;
-            const wchar_t* resource;
-        };
-        const PassEntry kPasses[] = {
-            { kRtSignalSunVisibility, L"RT_SunVisibility" },
-            { kRtSignalAmbientOcclusion, L"RT_AmbientOcclusion" },
-            { kRtSignalDiffuse, L"RT_DiffuseLight" },
-            { kRtSignalSpecular, L"RT_SpecularLight" },
-            { kRtSignalForwardLight, L"RT_ForwardLight" },
-            { kRtSignalPrimaryCheck, L"RT_PrimaryCheck" },
-        };
-
-        // The passes in the order they run, each by its place in PassTimings: the signals
-        // first, then the denoiser, then what reads the denoised signals.
-        constexpr UINT kPassOrder[kRtPassTimings] = { 0, 1, 2, 3, kRtPassDenoiser, 4, 5, 7 };
-
-        // The denoiser's entry points (RaytracingShaders/Denoise.hlsl).
-        const wchar_t* const kDenoiseEntries[] = {
-            L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous",
-            L"RT_ReconstructGuides", L"RT_FrameGuides", L"RT_GpuInstances", L"RT_RegenerationGuides",
-            L"RT_RegenerationAlbedo",
-        };
-
-        D3D12_RESOURCE_DESC BufferDesc(UINT64 size, D3D12_RESOURCE_FLAGS flags)
-        {
-            D3D12_RESOURCE_DESC desc = {};
-            desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-            desc.Width = std::max<UINT64>(size, 256);
-            desc.Height = 1;
-            desc.DepthOrArraySize = 1;
-            desc.MipLevels = 1;
-            desc.SampleDesc.Count = 1;
-            desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-            desc.Flags = flags;
-            return desc;
-        }
-
-        // The inverse transpose of a 3x3 given as the first three columns of a 3x4,
-        // rows first, into three padded rows.
-        void NormalMatrix(const float* m, float* out)
-        {
-            const float a = m[0], b = m[1], c = m[2];
-            const float d = m[4], e = m[5], f = m[6];
-            const float g = m[8], h = m[9], i = m[10];
-            const float A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
-            const float D = -(b * i - c * h), E = a * i - c * g, F = -(a * h - b * g);
-            const float G = b * f - c * e, H = -(a * f - c * d), I = a * e - b * d;
-            const float det = a * A + b * B + c * C;
-            const float s = std::fabs(det) > 1e-20f ? 1.0f / det : 0.0f;
-            // inverse = adjugate / det; its transpose has the cofactors in place.
-            const float rows[12] = { A * s, B * s, C * s, 0.0f, D * s, E * s, F * s, 0.0f, G * s, H * s, I * s, 0.0f };
-            memcpy(out, rows, sizeof(rows));
-        }
-
-        HMODULE OwnModule()
-        {
-            HMODULE module = nullptr;
-            GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                               reinterpret_cast<LPCWSTR>(&OwnModule), &module);
-            return module;
-        }
-    }
-
     // Never destroyed, like D3d12Compute: at process exit the devices it holds may be
     // gone.
     Raytracing& Raytracing::Get()
@@ -156,45 +82,6 @@ namespace redefinition
         if (!attached)
             return 0;
         return unavailable.empty() ? 1 : -1;
-    }
-
-    bool Raytracing::LoadShadersLocked()
-    {
-        if (!shaders.empty())
-            return true;
-        const HMODULE module = OwnModule();
-        for (const PassEntry& pass : kPasses)
-        {
-            const HRSRC found = FindResourceW(module, pass.resource, MAKEINTRESOURCEW(10));   // RT_RCDATA
-            const HGLOBAL loaded = found != nullptr ? LoadResource(module, found) : nullptr;
-            const void* bytes = loaded != nullptr ? LockResource(loaded) : nullptr;
-            const DWORD length = found != nullptr ? SizeofResource(module, found) : 0;
-            if (bytes == nullptr || length == 0)
-            {
-                shaders.clear();
-                return false;
-            }
-            std::vector<uint8_t> code(static_cast<const uint8_t*>(bytes), static_cast<const uint8_t*>(bytes) + length);
-            char name[64] = {};
-            WideCharToMultiByte(CP_UTF8, 0, pass.resource, -1, name, sizeof(name), nullptr, nullptr);
-            shaders[name] = std::move(code);
-        }
-        for (const wchar_t* entry : kDenoiseEntries)
-        {
-            const HRSRC found = FindResourceW(module, entry, MAKEINTRESOURCEW(10));
-            const HGLOBAL loaded = found != nullptr ? LoadResource(module, found) : nullptr;
-            const void* bytes = loaded != nullptr ? LockResource(loaded) : nullptr;
-            const DWORD length = found != nullptr ? SizeofResource(module, found) : 0;
-            if (bytes == nullptr || length == 0)
-            {
-                shaders.clear();
-                return false;
-            }
-            char name[64] = {};
-            WideCharToMultiByte(CP_UTF8, 0, entry, -1, name, sizeof(name), nullptr, nullptr);
-            shaders[name].assign(static_cast<const uint8_t*>(bytes), static_cast<const uint8_t*>(bytes) + length);
-        }
-        return true;
     }
 
     // ---------------------------------------------------------------- main thread
@@ -357,30 +244,70 @@ namespace redefinition
         }
         if (!EnsureDeviceLocked())
             return;
+        EvictTexturesLocked();
 
-        // Retire unused shared copies once a second.
-        const ULONGLONG now = GetTickCount64();
-        if (now >= nextEviction)
+        FrameWork frame;
+        frame.packet = packet;
+        frame.denoising = (packet->flags & kRtFrameDenoise) != 0;
+        frame.extra = (packet->flags & kRtFrameExtra) != 0;
+        if (!TakeTexturesLocked(frame) || !BeginListLocked(frame))
+            return;
+        Slot& slot = *frame.slot;
+
+        frame.built = BuildMeshesLocked(slot);
+        // A frame that stops early is submitted all the same (SubmitLocked).
+        if (!UploadMaterialTexturesLocked(slot)
+            || !BuildSceneLocked(slot, frame.slotNumber, packet->frameIndex, frame.inputs[kRtInputInstances],
+                                 frame.instanceCount))
         {
-            nextEviction = now + 1000;
-            for (auto it = textures.begin(); it != textures.end();)
-                it = now - it->second.lastUse > kUnusedMs ? textures.erase(it) : std::next(it);
+            SubmitLocked(slot, frame.inputs, frame.outputs);
+            return;
+        }
+        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + 1);
+        if (!TakeNoisyTargetsLocked(frame))
+        {
+            SubmitLocked(slot, frame.inputs, frame.outputs);
+            return;
         }
 
-        Shared* inputs[kRtMaxTextures] = {};
-        Shared* outputs[kRtMaxTextures] = {};
+        WriteFrameViewsLocked(frame);
+        WriteConstantsLocked(frame);
+        TransitionTexturesLocked(frame);
+        WriteMaterialViewLocked(frame.slotNumber);
+        BindFrameLocked(frame);
+        slot.held.push_back(materialTextures);
+
+        RunPassesLocked(frame);
+        WriteFrameGuidesLocked(frame);
+        FinishFrameLocked(frame);
+    }
+
+    void Raytracing::EvictTexturesLocked()
+    {
+        // Retire unused shared copies once a second.
+        const ULONGLONG now = GetTickCount64();
+        if (now < nextEviction)
+            return;
+        nextEviction = now + 1000;
+        for (auto it = textures.begin(); it != textures.end();)
+            it = now - it->second.lastUse > kUnusedMs ? textures.erase(it) : std::next(it);
+    }
+
+    bool Raytracing::TakeTexturesLocked(FrameWork& frame)
+    {
+        const RtFramePacket& packet = *frame.packet;
         std::string problem;
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
         {
-            if (packet->inputs[i] != nullptr && (inputs[i] = SharedForLocked(packet->inputs[i], problem)) == nullptr)
+            if (packet.inputs[i] != nullptr && (frame.inputs[i] = SharedForLocked(packet.inputs[i], problem)) == nullptr)
             {
                 SetProblem("input " + std::to_string(i) + ": " + problem);
-                return;
+                return false;
             }
-            if (packet->outputs[i] != nullptr && (outputs[i] = SharedForLocked(packet->outputs[i], problem)) == nullptr)
+            if (packet.outputs[i] != nullptr && (frame.outputs[i] = SharedForLocked(packet.outputs[i], problem)) == nullptr)
             {
                 SetProblem("output " + std::to_string(i) + ": " + problem);
-                return;
+                return false;
             }
         }
 
@@ -389,24 +316,29 @@ namespace redefinition
         UINT64 usedUntil = 0;
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
         {
-            if (inputs[i] != nullptr)
-                usedUntil = std::max(usedUntil, inputs[i]->lastFence);
-            if (outputs[i] != nullptr)
-                usedUntil = std::max(usedUntil, outputs[i]->lastFence);
+            if (frame.inputs[i] != nullptr)
+                usedUntil = std::max(usedUntil, frame.inputs[i]->lastFence);
+            if (frame.outputs[i] != nullptr)
+                usedUntil = std::max(usedUntil, frame.outputs[i]->lastFence);
         }
         if (usedUntil != 0)
             context11->Wait(fence11.Get(), usedUntil);
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
-            if (inputs[i] != nullptr)
-                context11->CopyResource(inputs[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(packet->inputs[i]));
+            if (frame.inputs[i] != nullptr)
+                context11->CopyResource(frame.inputs[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(packet.inputs[i]));
         const UINT64 inputsCopied = ++copiedValue;
         context11->Signal(copied11.Get(), inputsCopied);
         context11->Flush();
         queue->Wait(copied12.Get(), inputsCopied);
+        return true;
+    }
 
-        const UINT slotNumber = slotIndex;
-        Slot& slot = slots[slotIndex];
+    bool Raytracing::BeginListLocked(FrameWork& frame)
+    {
+        frame.slotNumber = slotIndex;
+        frame.slot = &slots[slotIndex];
         slotIndex = (slotIndex + 1) % kSlots;
+        Slot& slot = *frame.slot;
         WaitForSlotLocked(slot);
         slot.held.clear();
         HRESULT hr = slot.allocator->Reset();
@@ -415,1312 +347,290 @@ namespace redefinition
         if (FAILED(hr))
         {
             SetProblem("the command list could not be reset (" + Hr(hr) + ")");
-            return;
+            return false;
         }
+        frame.timestampBase = frame.slotNumber * kTimestampsPerSlot;
+        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase);
+        return true;
+    }
 
-        const UINT timestampBase = slotNumber * kTimestampsPerSlot;
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase);
-
-        // Meshes: releases first, then what is new, each into its own acceleration
-        // structure.
-        for (int32_t id : pendingReleases)
-        {
-            auto found = meshes.find(id);
-            if (found == meshes.end())
-                continue;
-            RetireMeshLocked(found->second, slot);
-            meshes.erase(found);
-        }
-        pendingReleases.clear();
-        // SetMesh told the managed side the mesh is taken, and it does not hand it over
-        // again: a mesh leaves the pending ones once it is built. Where the descriptor
-        // slots run out, it and the rest wait for a later frame; one whose buffers
-        // cannot be made is tried again in later frames, after the others, and
-        // dropped after kMeshAttempts.
-        uint32_t built = 0;
-        for (auto entry = pendingMeshes.begin(); entry != pendingMeshes.end();)
-        {
-            Mesh mesh;
-            if (!TakeDescriptorSlotLocked(mesh.slot))
-            {
-                if (!meshSlotsFull)
-                {
-                    meshSlotsFull = true;
-                    SetProblem("more meshes than the service holds (" + std::to_string(kMaxMeshes)
-                               + "); the rest wait until meshes are released");
-                }
-                break;
-            }
-            if (!UploadMeshLocked(mesh, entry->second, slot))
-            {
-                // The list may already copy into the buffers made before the failure.
-                RetireMeshLocked(mesh, slot);
-                if (++entry->second.failures >= kMeshAttempts)
-                {
-                    SetProblem("a mesh could not be built in " + std::to_string(kMeshAttempts)
-                               + " frames and is left out");
-                    entry = pendingMeshes.erase(entry);
-                }
-                else
-                    ++entry;
-                continue;
-            }
-            auto existing = meshes.find(entry->first);
-            if (existing != meshes.end())
-                RetireMeshLocked(existing->second, slot);
-            meshes[entry->first] = std::move(mesh);
-            entry = pendingMeshes.erase(entry);
-            ++built;
-        }
-        if (built > 0)
-        {
-            D3D12_RESOURCE_BARRIER barrier = UavBarrier(nullptr);
-            list->ResourceBarrier(1, &barrier);
-        }
-
-        // Material textures: the array grows to hold the highest layer, then the new
-        // layers are copied in.
-        if (!pendingTextures.empty() || materialTextures == nullptr)
-        {
-            UINT highest = 0;
-            for (const auto& entry : pendingTextures)
-                highest = std::max<UINT>(highest, static_cast<UINT>(entry.first) + 1);
-            if (!EnsureMaterialTexturesLocked(std::max<UINT>(highest, 1), slot))
-            {
-                SubmitLocked(slot, inputs, outputs);
-                return;
-            }
-            if (!pendingTextures.empty())
-            {
-                const UINT64 layerBytes = static_cast<UINT64>(kRtMaterialTextureSize) * kRtMaterialTextureSize * 4;
-                ComPtr<ID3D12Resource> upload;
-                uint8_t* mapped = nullptr;
-                const D3D12_RANGE none = { 0, 0 };
-                if (EnsureUploadBuffer(upload, layerBytes * pendingTextures.size())
-                    && SUCCEEDED(upload->Map(0, &none, reinterpret_cast<void**>(&mapped))))
-                {
-                    const D3D12_RESOURCE_BARRIER toCopy = TransitionBarrier(
-                        materialTextures.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-                    list->ResourceBarrier(1, &toCopy);
-                    UINT64 offset = 0;
-                    for (const auto& entry : pendingTextures)
-                    {
-                        memcpy(mapped + offset, entry.second.data(), static_cast<size_t>(layerBytes));
-                        D3D12_TEXTURE_COPY_LOCATION source = {};
-                        source.pResource = upload.Get();
-                        source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-                        source.PlacedFootprint.Offset = offset;
-                        source.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-                        source.PlacedFootprint.Footprint.Width = kRtMaterialTextureSize;
-                        source.PlacedFootprint.Footprint.Height = kRtMaterialTextureSize;
-                        source.PlacedFootprint.Footprint.Depth = 1;
-                        source.PlacedFootprint.Footprint.RowPitch = kRtMaterialTextureSize * 4;
-                        D3D12_TEXTURE_COPY_LOCATION destination = {};
-                        destination.pResource = materialTextures.Get();
-                        destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-                        destination.SubresourceIndex = static_cast<UINT>(entry.first);
-                        list->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
-                        offset += layerBytes;
-                    }
-                    upload->Unmap(0, nullptr);
-                    const D3D12_RESOURCE_BARRIER toRead = TransitionBarrier(
-                        materialTextures.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-                    list->ResourceBarrier(1, &toRead);
-                    slot.held.push_back(upload);
-                    pendingTextures.clear();
-                }
-                else
-                    SetProblem("the material textures' upload buffer could not be made");
-            }
-        }
-
-        UINT instanceCount = 0;
-        if (!BuildSceneLocked(slot, slotNumber, packet->frameIndex, inputs[kRtInputInstances], instanceCount))
-        {
-            SubmitLocked(slot, inputs, outputs);
-            return;
-        }
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 1);
-
+    bool Raytracing::TakeNoisyTargetsLocked(FrameWork& frame)
+    {
         // With the denoiser, the passes write its noisy textures, and it writes Unity's.
-        const bool denoising = (packet->flags & kRtFrameDenoise) != 0;
-        if (denoising && !EnsureDenoiseTargetsLocked(packet->width, packet->height, slot))
-        {
-            SubmitLocked(slot, inputs, outputs);
-            return;
-        }
-        DenoiseTarget* noisyFor[kRtMaxTextures] = {};
-        if (denoising)
-            for (const RtDenoisedSignal& noisy : kRtDenoised)
-                if ((packet->signals & noisy.signal) != 0 && outputs[noisy.output] != nullptr)
-                {
-                    noisyFor[noisy.output] = &denoise.noisy[noisy.index];
-                    UseLocked(denoise.noisy[noisy.index], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                }
+        if (!frame.denoising)
+            return true;
+        if (!EnsureDenoiseTargetsLocked(frame.packet->width, frame.packet->height, *frame.slot))
+            return false;
+        for (const RtDenoisedSignal& noisy : kRtDenoised)
+            if ((frame.packet->signals & noisy.signal) != 0 && frame.outputs[noisy.output] != nullptr)
+            {
+                frame.noisyFor[noisy.output] = &denoise.noisy[noisy.index];
+                UseLocked(denoise.noisy[noisy.index], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            }
+        return true;
+    }
 
+    void Raytracing::WriteFrameViewsLocked(FrameWork& frame)
+    {
         // Descriptors of this frame: t1-t8, then u0-u7, in the slot's part of the heap.
-        const D3D12_CPU_DESCRIPTOR_HANDLE heapCpu = heap->GetCPUDescriptorHandleForHeapStart();
-        const D3D12_GPU_DESCRIPTOR_HANDLE heapGpu = heap->GetGPUDescriptorHandleForHeapStart();
-        D3D12_CPU_DESCRIPTOR_HANDLE cpu = heapCpu;
-        cpu.ptr += static_cast<SIZE_T>(slotNumber) * kFrameDescriptors * increment;
-        D3D12_GPU_DESCRIPTOR_HANDLE frameTable = heapGpu;
-        frameTable.ptr += static_cast<UINT64>(slotNumber) * kFrameDescriptors * increment;
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu = heap->GetCPUDescriptorHandleForHeapStart();
+        cpu.ptr += static_cast<SIZE_T>(frame.slotNumber) * kFrameDescriptors * increment;
+        frame.frameTable = heap->GetGPUDescriptorHandleForHeapStart();
+        frame.frameTable.ptr += static_cast<UINT64>(frame.slotNumber) * kFrameDescriptors * increment;
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
         {
-            const D3D12_SHADER_RESOURCE_VIEW_DESC srv =
-                SrvDesc(inputs[i] != nullptr ? inputs[i]->texture.format : DXGI_FORMAT_R8G8B8A8_UNORM);
-            device->CreateShaderResourceView(inputs[i] != nullptr ? inputs[i]->texture.d3d12.Get() : nullptr, &srv, cpu);
+            Shared* input = frame.inputs[i];
+            const D3D12_SHADER_RESOURCE_VIEW_DESC srv = SrvDesc(input != nullptr ? input->texture.format : DXGI_FORMAT_R8G8B8A8_UNORM);
+            device->CreateShaderResourceView(input != nullptr ? input->texture.d3d12.Get() : nullptr, &srv, cpu);
             cpu.ptr += increment;
         }
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
         {
-            if (noisyFor[i] != nullptr)
+            if (frame.noisyFor[i] != nullptr)
             {
-                const D3D12_UNORDERED_ACCESS_VIEW_DESC uav = UavDesc(noisyFor[i]->format);
-                device->CreateUnorderedAccessView(noisyFor[i]->resource.Get(), nullptr, &uav, cpu);
+                const D3D12_UNORDERED_ACCESS_VIEW_DESC uav = UavDesc(frame.noisyFor[i]->format);
+                device->CreateUnorderedAccessView(frame.noisyFor[i]->resource.Get(), nullptr, &uav, cpu);
             }
             else
             {
+                Shared* output = frame.outputs[i];
                 const D3D12_UNORDERED_ACCESS_VIEW_DESC uav =
-                    UavDesc(outputs[i] != nullptr ? outputs[i]->texture.format : DXGI_FORMAT_R16G16B16A16_FLOAT);
-                device->CreateUnorderedAccessView(outputs[i] != nullptr ? outputs[i]->texture.d3d12.Get() : nullptr, nullptr,
-                                                  &uav, cpu);
+                    UavDesc(output != nullptr ? output->texture.format : DXGI_FORMAT_R16G16B16A16_FLOAT);
+                device->CreateUnorderedAccessView(output != nullptr ? output->texture.d3d12.Get() : nullptr, nullptr, &uav,
+                                                  cpu);
             }
             cpu.ptr += increment;
         }
+    }
 
+    void Raytracing::WriteConstantsLocked(const FrameWork& frame)
+    {
         // Constants: the packet's matrices and vectors, the size, frame and flags.
-        memset(slot.constantsMapped, 0, static_cast<size_t>(kRtConstantsSize));
-        RtFrameConstants& constants = *reinterpret_cast<RtFrameConstants*>(slot.constantsMapped);
-        memcpy(constants.clipToWorld, packet->clipToWorld, sizeof(constants.clipToWorld));
-        memcpy(constants.worldToClip, packet->worldToClip, sizeof(constants.worldToClip));
-        memcpy(constants.prevWorldToClip, packet->prevWorldToClip, sizeof(constants.prevWorldToClip));
-        memcpy(constants.sunDirection, packet->sunDirection, sizeof(constants.sunDirection));
-        memcpy(constants.sunColor, packet->sunColor, sizeof(constants.sunColor));
-        memcpy(constants.skyColor, packet->skyColor, sizeof(constants.skyColor));
-        memcpy(constants.params, packet->params, sizeof(constants.params));
-        memcpy(constants.bodySphere, packet->bodySphere, sizeof(constants.bodySphere));
-        memcpy(constants.ambient, packet->ambient, sizeof(constants.ambient));
-        constants.frameSize[0] = packet->width;
-        constants.frameSize[1] = packet->height;
-        constants.frameIndex = packet->frameIndex;
-        constants.frameFlags = packet->flags;
-        memcpy(constants.lights, packet->lights, sizeof(constants.lights));
-        memcpy(constants.lightParams, packet->lightParams, sizeof(constants.lightParams));
-        memcpy(constants.nightLight, packet->nightLight, sizeof(constants.nightLight));
-        memcpy(constants.planet, packet->planet, sizeof(constants.planet));
-        memcpy(constants.lightSurface, packet->lightSurface, sizeof(constants.lightSurface));
-        memcpy(constants.sea, packet->sea, sizeof(constants.sea));
+        const RtFramePacket& packet = *frame.packet;
+        memset(frame.slot->constantsMapped, 0, static_cast<size_t>(kRtConstantsSize));
+        RtFrameConstants& constants = *reinterpret_cast<RtFrameConstants*>(frame.slot->constantsMapped);
+        memcpy(constants.clipToWorld, packet.clipToWorld, sizeof(constants.clipToWorld));
+        memcpy(constants.worldToClip, packet.worldToClip, sizeof(constants.worldToClip));
+        memcpy(constants.prevWorldToClip, packet.prevWorldToClip, sizeof(constants.prevWorldToClip));
+        memcpy(constants.sunDirection, packet.sunDirection, sizeof(constants.sunDirection));
+        memcpy(constants.sunColor, packet.sunColor, sizeof(constants.sunColor));
+        memcpy(constants.skyColor, packet.skyColor, sizeof(constants.skyColor));
+        memcpy(constants.params, packet.params, sizeof(constants.params));
+        memcpy(constants.bodySphere, packet.bodySphere, sizeof(constants.bodySphere));
+        memcpy(constants.ambient, packet.ambient, sizeof(constants.ambient));
+        constants.frameSize[0] = packet.width;
+        constants.frameSize[1] = packet.height;
+        constants.frameIndex = packet.frameIndex;
+        constants.frameFlags = packet.flags;
+        memcpy(constants.lights, packet.lights, sizeof(constants.lights));
+        memcpy(constants.lightParams, packet.lightParams, sizeof(constants.lightParams));
+        memcpy(constants.nightLight, packet.nightLight, sizeof(constants.nightLight));
+        memcpy(constants.planet, packet.planet, sizeof(constants.planet));
+        memcpy(constants.lightSurface, packet.lightSurface, sizeof(constants.lightSurface));
+        memcpy(constants.sea, packet.sea, sizeof(constants.sea));
+    }
 
+    void Raytracing::TransitionTexturesLocked(FrameWork& frame)
+    {
+        // Unity's textures from COMMON into the states the passes use them in, each once,
+        // and back once the passes are done (FinishFrameLocked).
         std::vector<D3D12_RESOURCE_BARRIER> into;
-        std::vector<D3D12_RESOURCE_BARRIER> back;
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
         {
-            if (inputs[i] != nullptr)
+            Shared* input = frame.inputs[i];
+            bool inputBefore = false;
+            for (uint32_t j = 0; j < i; ++j)
+                inputBefore = inputBefore || frame.inputs[j] == input;
+            if (input != nullptr && !inputBefore)
             {
-                bool before = false;
-                for (uint32_t j = 0; j < i; ++j)
-                    before = before || inputs[j] == inputs[i];
-                if (!before)
-                {
-                    into.push_back(TransitionBarrier(inputs[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
-                                                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
-                    back.push_back(TransitionBarrier(inputs[i]->texture.d3d12.Get(),
-                                                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                                                     D3D12_RESOURCE_STATE_COMMON));
-                    slot.held.push_back(inputs[i]->texture.d3d12);
-                }
+                into.push_back(TransitionBarrier(input->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
+                                                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+                frame.back.push_back(TransitionBarrier(input->texture.d3d12.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                                                       D3D12_RESOURCE_STATE_COMMON));
+                frame.slot->held.push_back(input->texture.d3d12);
             }
+            Shared* output = frame.outputs[i];
             bool outputBefore = false;
             for (uint32_t j = 0; j < i; ++j)
-                outputBefore = outputBefore || outputs[j] == outputs[i];
-            if (outputs[i] != nullptr && !outputBefore)
+                outputBefore = outputBefore || frame.outputs[j] == output;
+            if (output != nullptr && !outputBefore)
             {
-                into.push_back(TransitionBarrier(outputs[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
+                into.push_back(TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
                                                  D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
-                back.push_back(TransitionBarrier(outputs[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                                                 D3D12_RESOURCE_STATE_COMMON));
-                slot.held.push_back(outputs[i]->texture.d3d12);
+                frame.back.push_back(TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                                       D3D12_RESOURCE_STATE_COMMON));
+                frame.slot->held.push_back(output->texture.d3d12);
             }
         }
         if (!into.empty())
             list->ResourceBarrier(static_cast<UINT>(into.size()), into.data());
+    }
 
-        // The frame's bindings: set now, and again after anything that sets its own.
-        const auto bindFrame = [&]()
-        {
-            ID3D12DescriptorHeap* heaps[] = { heap.Get() };
-            list->SetDescriptorHeaps(1, heaps);
-            list->SetComputeRootSignature(rootSignature.Get());
-            list->SetComputeRootConstantBufferView(0, slot.constants->GetGPUVirtualAddress());
-            list->SetComputeRootShaderResourceView(1, tlas->GetGPUVirtualAddress());
-            list->SetComputeRootDescriptorTable(2, frameTable);
-            D3D12_GPU_DESCRIPTOR_HANDLE outputTable = frameTable;
-            outputTable.ptr += static_cast<UINT64>(kRtMaxTextures) * increment;
-            list->SetComputeRootDescriptorTable(3, outputTable);
-            list->SetComputeRootShaderResourceView(4, slot.instanceDataAddress);
-            list->SetComputeRootShaderResourceView(5, slot.materials->GetGPUVirtualAddress());
-            D3D12_GPU_DESCRIPTOR_HANDLE meshTable = heapGpu;
-            meshTable.ptr += static_cast<UINT64>(kSlots) * kFrameDescriptors * increment;
-            list->SetComputeRootDescriptorTable(6, meshTable);
-            meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
-            list->SetComputeRootDescriptorTable(7, meshTable);
-            meshTable.ptr += static_cast<UINT64>(kMaxMeshes + slotNumber) * increment;
-            list->SetComputeRootDescriptorTable(8, meshTable);
-        };
-        WriteMaterialViewLocked(slotNumber);
-        bindFrame();
-        slot.held.push_back(materialTextures);
+    void Raytracing::BindFrameLocked(const FrameWork& frame)
+    {
+        // The frame's bindings: set before the passes, and again after anything that sets
+        // its own.
+        const D3D12_GPU_DESCRIPTOR_HANDLE heapGpu = heap->GetGPUDescriptorHandleForHeapStart();
+        ID3D12DescriptorHeap* heaps[] = { heap.Get() };
+        list->SetDescriptorHeaps(1, heaps);
+        list->SetComputeRootSignature(rootSignature.Get());
+        list->SetComputeRootConstantBufferView(0, frame.slot->constants->GetGPUVirtualAddress());
+        list->SetComputeRootShaderResourceView(1, tlas->GetGPUVirtualAddress());
+        list->SetComputeRootDescriptorTable(2, frame.frameTable);
+        D3D12_GPU_DESCRIPTOR_HANDLE outputTable = frame.frameTable;
+        outputTable.ptr += static_cast<UINT64>(kRtMaxTextures) * increment;
+        list->SetComputeRootDescriptorTable(3, outputTable);
+        list->SetComputeRootShaderResourceView(4, frame.slot->instanceDataAddress);
+        list->SetComputeRootShaderResourceView(5, frame.slot->materials->GetGPUVirtualAddress());
+        D3D12_GPU_DESCRIPTOR_HANDLE meshTable = heapGpu;
+        meshTable.ptr += static_cast<UINT64>(kSlots) * kFrameDescriptors * increment;
+        list->SetComputeRootDescriptorTable(6, meshTable);
+        meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
+        list->SetComputeRootDescriptorTable(7, meshTable);
+        meshTable.ptr += static_cast<UINT64>(kMaxMeshes + frame.slotNumber) * increment;
+        list->SetComputeRootDescriptorTable(8, meshTable);
+    }
 
-        const UINT groupsX = (packet->width + 7) / 8;
-        const UINT groupsY = (packet->height + 7) / 8;
-        // Each pass's end is stamped, in kPassOrder; a pass that does not run stamps where
+    void Raytracing::RunPassesLocked(FrameWork& frame)
+    {
+        const RtFramePacket& packet = *frame.packet;
+        // Each pass's end is stamped, in kRtPassOrder; a pass that does not run stamps where
         // the one before it ended, so it counts nothing.
         for (UINT position = 0; position < kRtPassTimings; ++position)
         {
-            const UINT index = kPassOrder[position];
+            const UINT index = kRtPassOrder[position];
             const uint32_t signal = 1u << index;
-            const PassEntry* pass = nullptr;
-            for (const PassEntry& entry : kPasses)
+            const RtPassEntry* pass = nullptr;
+            for (const RtPassEntry& entry : kRtPasses)
                 if (entry.signal == signal)
                     pass = &entry;
             auto pipeline = pass != nullptr ? pipelines.find(pass->signal) : pipelines.end();
-            if ((packet->signals & signal) != 0 && pipeline != pipelines.end())
-            {
-                // What an earlier pass or the denoiser wrote, finished before this one reads it.
-                const D3D12_RESOURCE_BARRIER written = UavBarrier(nullptr);
-                list->ResourceBarrier(1, &written);
-                // The forward light reads the finished signals, Unity's outputs, as textures.
-                std::vector<D3D12_RESOURCE_BARRIER> toRead, toWrite;
-                if (signal == kRtSignalForwardLight)
-                {
-                    const uint32_t finished[2] = { 1, 2 };
-                    const uint32_t traced[2] = { kRtSignalDiffuse, kRtSignalSpecular };
-                    View reads[8] = {};
-                    for (UINT k = 0; k < 2; ++k)
-                    {
-                        // A signal not traced this frame reads as none, whatever its texture holds.
-                        Shared* output = (packet->signals & traced[k]) != 0 ? outputs[finished[k]] : nullptr;
-                        if (output == nullptr)
-                            continue;
-                        reads[k] = Of(output);
-                        toRead.push_back(TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                                                           D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
-                        toWrite.push_back(TransitionBarrier(output->texture.d3d12.Get(),
-                                                            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                                                            D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
-                    }
-                    if (!toRead.empty())
-                        list->ResourceBarrier(static_cast<UINT>(toRead.size()), toRead.data());
-                    UINT used = kForwardLightTable;
-                    const View writes[4] = {};
-                    list->SetComputeRootDescriptorTable(10, TableLocked(slotNumber, used, reads, writes));
-                }
-                list->SetPipelineState(pipeline->second.Get());
-                list->Dispatch(groupsX, groupsY, 1);
-                if (!toWrite.empty())
-                    list->ResourceBarrier(static_cast<UINT>(toWrite.size()), toWrite.data());
-            }
-            if (index == kRtPassDenoiser && denoising)
-            {
-                // AMD FSR Ray Regeneration for the diffuse light and the reflections where it
-                // runs, ReDefinition's denoiser for the rest; for all where it does not.
-                bool amdDenoised = false;
-                if (RegenerationReadyLocked(*packet))
-                {
-                    amdDenoised = RunRegenerationLocked(*packet, slotNumber, outputs, inputs[kRtInputMotion], slot);
-                    // AMD's denoiser sets its own heap and root signature on the list.
-                    bindFrame();
-                }
-                RtFramePacket rest = *packet;
-                if (amdDenoised)
-                    rest.signals &= ~(kRtSignalDiffuse | kRtSignalSpecular);
-                // ReDefinition's history stood still while AMD's denoiser had the frames.
-                else if (regeneration.previousWasAmd)
-                    rest.flags |= kRtFrameReset;
-                regeneration.previousWasAmd = amdDenoised;
-                RunDenoiserLocked(rest, slotNumber, outputs, inputs[kRtInputMotion]);
-            }
-            list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 2 + position);
+            if ((packet.signals & signal) != 0 && pipeline != pipelines.end())
+                DispatchPassLocked(frame, signal, pipeline->second.Get());
+            if (index == kRtPassDenoiser && frame.denoising)
+                RunDenoisersLocked(frame);
+            list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + 2 + position);
         }
+    }
 
+    void Raytracing::DispatchPassLocked(FrameWork& frame, uint32_t signal, ID3D12PipelineState* pipeline)
+    {
+        // What an earlier pass or the denoiser wrote, finished before this one reads it.
+        const D3D12_RESOURCE_BARRIER written = UavBarrier(nullptr);
+        list->ResourceBarrier(1, &written);
+        // The forward light reads the finished signals, Unity's outputs, as textures.
+        std::vector<D3D12_RESOURCE_BARRIER> toRead, toWrite;
+        if (signal == kRtSignalForwardLight)
+        {
+            const uint32_t finished[2] = { 1, 2 };
+            const uint32_t traced[2] = { kRtSignalDiffuse, kRtSignalSpecular };
+            View reads[8] = {};
+            for (UINT k = 0; k < 2; ++k)
+            {
+                // A signal not traced this frame reads as none, whatever its texture holds.
+                Shared* output = (frame.packet->signals & traced[k]) != 0 ? frame.outputs[finished[k]] : nullptr;
+                if (output == nullptr)
+                    continue;
+                reads[k] = Of(output);
+                toRead.push_back(TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                                   D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+                toWrite.push_back(TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                                                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+            }
+            if (!toRead.empty())
+                list->ResourceBarrier(static_cast<UINT>(toRead.size()), toRead.data());
+            UINT used = kForwardLightTable;
+            const View writes[4] = {};
+            list->SetComputeRootDescriptorTable(10, TableLocked(frame.slotNumber, used, reads, writes));
+        }
+        list->SetPipelineState(pipeline);
+        list->Dispatch((frame.packet->width + 7) / 8, (frame.packet->height + 7) / 8, 1);
+        if (!toWrite.empty())
+            list->ResourceBarrier(static_cast<UINT>(toWrite.size()), toWrite.data());
+    }
+
+    void Raytracing::RunDenoisersLocked(FrameWork& frame)
+    {
+        // AMD FSR Ray Regeneration for the diffuse light and the reflections where it
+        // runs, ReDefinition's denoiser for the rest; for all where it does not.
+        const RtFramePacket& packet = *frame.packet;
+        bool amdDenoised = false;
+        if (RegenerationReadyLocked(packet))
+        {
+            amdDenoised = RunRegenerationLocked(packet, frame.slotNumber, frame.outputs, frame.inputs[kRtInputMotion], *frame.slot);
+            // AMD's denoiser sets its own heap and root signature on the list.
+            BindFrameLocked(frame);
+        }
+        RtFramePacket rest = packet;
+        if (amdDenoised)
+            rest.signals &= ~(kRtSignalDiffuse | kRtSignalSpecular);
+        // ReDefinition's history stood still while AMD's denoiser had the frames.
+        else if (regeneration.previousWasAmd)
+            rest.flags |= kRtFrameReset;
+        regeneration.previousWasAmd = amdDenoised;
+        RunDenoiserLocked(rest, frame.slotNumber, frame.outputs, frame.inputs[kRtInputMotion]);
+    }
+
+    void Raytracing::WriteFrameGuidesLocked(FrameWork& frame)
+    {
         // DLSS Ray Reconstruction's guides from this frame's surfaces, which the
         // reconstruction of the same frame takes (RaytracingReconstruct.cpp). Not with the
         // denoiser: the guides read the reflections' hit distance from u2, which the
         // denoiser's steps have overwritten by then, and Ray Reconstruction takes the
         // noisy signals.
-        const bool extra = (packet->flags & kRtFrameExtra) != 0;
-        if (!extra)
-            guides.fromFrame = false;
-        if (!extra && !denoising && (packet->flags & kRtFrameGuides) != 0)
-        {
-            auto pipeline = denoisePipelines.find("RT_FrameGuides");
-            if (pipeline != denoisePipelines.end() && EnsureGuidesLocked(slot.held, packet->width, packet->height))
-            {
-                const D3D12_RESOURCE_BARRIER written = UavBarrier(nullptr);
-                list->ResourceBarrier(1, &written);
-                for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-                    UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                UINT used = kFrameGuidesTable;
-                const View reads[8] = {};
-                const View writes[4] = { Of(&guides.albedo), Of(&guides.specularAlbedo), Of(&guides.normalRoughness),
-                                         Of(&guides.hitDistance) };
-                BindTablesLocked(TableLocked(slotNumber, used, reads, writes));
-                list->SetPipelineState(pipeline->second.Get());
-                list->Dispatch(groupsX, groupsY, 1);
-                // Streamline takes them in the state it is given.
-                for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-                    UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-                guides.fromFrame = true;
-                guides.frame = packet->frameIndex;
-            }
-        }
+        const RtFramePacket& packet = *frame.packet;
+        if (frame.extra)
+            return;
+        guides.fromFrame = false;
+        if (frame.denoising || (packet.flags & kRtFrameGuides) == 0)
+            return;
+        auto pipeline = denoisePipelines.find("RT_FrameGuides");
+        if (pipeline == denoisePipelines.end() || !EnsureGuidesLocked(frame.slot->held, packet.width, packet.height))
+            return;
+        const D3D12_RESOURCE_BARRIER written = UavBarrier(nullptr);
+        list->ResourceBarrier(1, &written);
+        for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
+            UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        UINT used = kFrameGuidesTable;
+        const View reads[8] = {};
+        const View writes[4] = { Of(&guides.albedo), Of(&guides.specularAlbedo), Of(&guides.normalRoughness),
+                                 Of(&guides.hitDistance) };
+        BindTablesLocked(TableLocked(frame.slotNumber, used, reads, writes));
+        list->SetPipelineState(pipeline->second.Get());
+        list->Dispatch((packet.width + 7) / 8, (packet.height + 7) / 8, 1);
+        // Streamline takes them in the state it is given.
+        for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
+            UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        guides.fromFrame = true;
+        guides.frame = packet.frameIndex;
+    }
 
-        if (!back.empty())
-            list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
+    void Raytracing::FinishFrameLocked(FrameWork& frame)
+    {
+        if (!frame.back.empty())
+            list->ResourceBarrier(static_cast<UINT>(frame.back.size()), frame.back.data());
         // The timings are the frame's: a further trace of it leaves them as they are.
-        if (!extra)
-            list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase, kTimestampsPerSlot,
-                                   timestampReadback.Get(), static_cast<UINT64>(timestampBase) * sizeof(UINT64));
-        slot.timed = !extra;
-        const UINT64 finished = SubmitLocked(slot, inputs, outputs);
+        if (!frame.extra)
+            list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase, kTimestampsPerSlot,
+                                   timestampReadback.Get(), static_cast<UINT64>(frame.timestampBase) * sizeof(UINT64));
+        frame.slot->timed = !frame.extra;
+        const UINT64 finished = SubmitLocked(*frame.slot, frame.inputs, frame.outputs);
         if (finished == 0)
             return;
 
         // The results back into Unity's textures before the event returns.
         context11->Wait(fence11.Get(), finished);
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
-            if (outputs[i] != nullptr)
-                context11->CopyResource(static_cast<ID3D11Resource*>(packet->outputs[i]), outputs[i]->texture.d3d11.Get());
+            if (frame.outputs[i] != nullptr)
+                context11->CopyResource(static_cast<ID3D11Resource*>(frame.packet->outputs[i]), frame.outputs[i]->texture.d3d11.Get());
 
         std::lock_guard<std::mutex> status(statusLock);
-        if (extra)
+        if (frame.extra)
             return;
         ++frames;
         liveMeshes = static_cast<uint32_t>(meshes.size());
-        lastInstances = instanceCount;
-        lastBuilt = built;
-    }
-
-    UINT64 Raytracing::SubmitLocked(Slot& slot, Shared* const* inputs, Shared* const* outputs)
-    {
-        // A frame that stops early is submitted too: its list holds the meshes' uploads
-        // and builds, which the meshes count as built, the material textures' copies,
-        // which leave the pending ones, and barriers whose end states UseLocked and
-        // sceneStateRecorded already took.
-        const HRESULT hr = list->Close();
-        if (FAILED(hr))
-        {
-            // None of it runs: everything made on the device goes, and the managed side,
-            // seeing the generation change, hands its meshes and textures over again.
-            SetProblem("the command list could not be closed (" + Hr(hr) + ")");
-            ReleaseLocked();
-            return 0;
-        }
-        ID3D12CommandList* lists[] = { list.Get() };
-        queue->ExecuteCommandLists(1, lists);
-        slot.sceneState = slot.sceneStateRecorded;
-        const UINT64 finished = ++fenceValue;
-        queue->Signal(fence12.Get(), finished);
-        slot.done = finished;
-        for (uint32_t i = 0; i < kRtMaxTextures; ++i)
-        {
-            if (inputs[i] != nullptr)
-                inputs[i]->lastFence = finished;
-            if (outputs[i] != nullptr)
-                outputs[i]->lastFence = finished;
-        }
-        return finished;
-    }
-
-    bool Raytracing::TakeDescriptorSlotLocked(uint32_t& slot)
-    {
-        // Slots retired by lists the queue is past come back first.
-        const UINT64 completed = fence12 != nullptr ? fence12->GetCompletedValue() : 0;
-        for (auto it = retiredSlots.begin(); it != retiredSlots.end();)
-        {
-            if (it->second <= completed)
-            {
-                freeSlots.push_back(it->first);
-                it = retiredSlots.erase(it);
-            }
-            else
-                ++it;
-        }
-        if (freeSlots.empty())
-            return false;
-        slot = freeSlots.back();
-        freeSlots.pop_back();
-        return true;
-    }
-
-    void Raytracing::RetireMeshLocked(Mesh& mesh, Slot& slot)
-    {
-        slot.held.push_back(mesh.positions);
-        slot.held.push_back(mesh.attributes);
-        slot.held.push_back(mesh.indices);
-        slot.held.push_back(mesh.blas);
-        retiredSlots.emplace_back(mesh.slot, fenceValue + 1);
-    }
-
-    bool Raytracing::IsCutoutLocked(int32_t material) const
-    {
-        const auto found = materialData.find(material);
-        return found != materialData.end() && found->second.albedo[3] > 0.0f;
-    }
-
-    bool Raytracing::UploadMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot)
-    {
-        const UINT64 positionsSize = pending.positions.size() * sizeof(float);
-        const UINT64 attributesSize = pending.attributes.size() * sizeof(float);
-        const UINT64 indicesSize = pending.indices.size() * sizeof(uint32_t);
-
-        D3D12_HEAP_PROPERTIES defaultHeap = {};
-        defaultHeap.Type = D3D12_HEAP_TYPE_DEFAULT;
-        D3D12_HEAP_PROPERTIES uploadHeap = {};
-        uploadHeap.Type = D3D12_HEAP_TYPE_UPLOAD;
-
-        const D3D12_RESOURCE_DESC positionsDesc = BufferDesc(positionsSize, D3D12_RESOURCE_FLAG_NONE);
-        const D3D12_RESOURCE_DESC attributesDesc = BufferDesc(attributesSize, D3D12_RESOURCE_FLAG_NONE);
-        const D3D12_RESOURCE_DESC indicesDesc = BufferDesc(indicesSize, D3D12_RESOURCE_FLAG_NONE);
-        const UINT64 uploadSize = positionsSize + attributesSize + indicesSize;
-        const D3D12_RESOURCE_DESC uploadDesc = BufferDesc(uploadSize, D3D12_RESOURCE_FLAG_NONE);
-
-        ComPtr<ID3D12Resource> upload;
-        // Buffers start in COMMON whatever is asked for, and the copy promotes them
-        // to COPY_DEST.
-        HRESULT hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &positionsDesc,
-                                                     D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&mesh.positions));
-        if (SUCCEEDED(hr))
-            hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &attributesDesc,
-                                                 D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&mesh.attributes));
-        if (SUCCEEDED(hr))
-            hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &indicesDesc,
-                                                 D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&mesh.indices));
-        if (SUCCEEDED(hr))
-            hr = device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &uploadDesc,
-                                                 D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&upload));
-        uint8_t* mapped = nullptr;
-        if (SUCCEEDED(hr))
-        {
-            const D3D12_RANGE none = { 0, 0 };
-            hr = upload->Map(0, &none, reinterpret_cast<void**>(&mapped));
-        }
-        if (FAILED(hr))
-        {
-            SetProblem("a mesh's buffers could not be made (" + Hr(hr) + ")");
-            return false;
-        }
-        memcpy(mapped, pending.positions.data(), static_cast<size_t>(positionsSize));
-        memcpy(mapped + positionsSize, pending.attributes.data(), static_cast<size_t>(attributesSize));
-        memcpy(mapped + positionsSize + attributesSize, pending.indices.data(), static_cast<size_t>(indicesSize));
-        upload->Unmap(0, nullptr);
-
-        list->CopyBufferRegion(mesh.positions.Get(), 0, upload.Get(), 0, positionsSize);
-        list->CopyBufferRegion(mesh.attributes.Get(), 0, upload.Get(), positionsSize, attributesSize);
-        list->CopyBufferRegion(mesh.indices.Get(), 0, upload.Get(), positionsSize + attributesSize, indicesSize);
-        const D3D12_RESOURCE_BARRIER readable[3] = {
-            TransitionBarrier(mesh.positions.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
-                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
-            TransitionBarrier(mesh.attributes.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
-                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
-            TransitionBarrier(mesh.indices.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
-                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
-        };
-        list->ResourceBarrier(3, readable);
-        slot.held.push_back(upload);
-
-        D3D12_RAYTRACING_GEOMETRY_DESC geometry = {};
-        geometry.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-        geometry.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-        geometry.Triangles.VertexBuffer.StartAddress = mesh.positions->GetGPUVirtualAddress();
-        geometry.Triangles.VertexBuffer.StrideInBytes = 3 * sizeof(float);
-        geometry.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-        geometry.Triangles.VertexCount = pending.vertexCount;
-        geometry.Triangles.IndexBuffer = mesh.indices->GetGPUVirtualAddress();
-        geometry.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
-        geometry.Triangles.IndexCount = static_cast<UINT>(pending.indices.size());
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
-        inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-        inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-        inputs.NumDescs = 1;
-        inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        inputs.pGeometryDescs = &geometry;
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
-        device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-        if (info.ResultDataMaxSizeInBytes == 0)
-        {
-            SetProblem("a mesh's acceleration structure has no size");
-            return false;
-        }
-
-        ComPtr<ID3D12Resource> scratch;
-        const D3D12_RESOURCE_DESC blasDesc =
-            BufferDesc(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-        const D3D12_RESOURCE_DESC scratchDesc =
-            BufferDesc(info.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-        hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &blasDesc,
-                                             D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, nullptr,
-                                             IID_PPV_ARGS(&mesh.blas));
-        if (SUCCEEDED(hr))
-            hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &scratchDesc,
-                                                 D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&scratch));
-        if (FAILED(hr))
-        {
-            SetProblem("a mesh's acceleration structure could not be made (" + Hr(hr) + ")");
-            return false;
-        }
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = {};
-        build.Inputs = inputs;
-        build.DestAccelerationStructureData = mesh.blas->GetGPUVirtualAddress();
-        build.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
-        list->BuildRaytracingAccelerationStructure(&build, 0, nullptr);
-        slot.held.push_back(scratch);
-
-        // The index and attribute views the passes read at a hit.
-        const D3D12_CPU_DESCRIPTOR_HANDLE heapCpu = heap->GetCPUDescriptorHandleForHeapStart();
-        D3D12_CPU_DESCRIPTOR_HANDLE indexView = heapCpu;
-        indexView.ptr += static_cast<SIZE_T>(kSlots * kFrameDescriptors + mesh.slot) * increment;
-        D3D12_SHADER_RESOURCE_VIEW_DESC raw = {};
-        raw.Format = DXGI_FORMAT_R32_TYPELESS;
-        raw.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        raw.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        raw.Buffer.NumElements = static_cast<UINT>(pending.indices.size());
-        raw.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-        device->CreateShaderResourceView(mesh.indices.Get(), &raw, indexView);
-        D3D12_CPU_DESCRIPTOR_HANDLE attributeView = heapCpu;
-        attributeView.ptr += static_cast<SIZE_T>(kSlots * kFrameDescriptors + kMaxMeshes + mesh.slot) * increment;
-        D3D12_SHADER_RESOURCE_VIEW_DESC structured = {};
-        structured.Format = DXGI_FORMAT_UNKNOWN;
-        structured.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        structured.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        structured.Buffer.NumElements = pending.vertexCount;
-        structured.Buffer.StructureByteStride = kAttributeFloats * sizeof(float);
-        device->CreateShaderResourceView(mesh.attributes.Get(), &structured, attributeView);
-
-        mesh.built = true;
-        return true;
-    }
-
-    bool Raytracing::BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances,
-                                      UINT& instanceCount)
-    {
-        // This frame's scene, or the newest where it sent none of its own.
-        static const FrameScene none;
-        const FrameScene* scene = frameScenes.empty() ? &none : &frameScenes.back();
-        for (const FrameScene& candidate : frameScenes)
-            if (candidate.frameIndex == frameIndex)
-                scene = &candidate;
-        const std::vector<RtInstance>& instances = scene->instances;
-
-        // Materials: index 0 is a plain grey for instances whose material is unknown.
-        std::unordered_map<int32_t, uint32_t> materialIndex;
-        std::vector<MaterialData> materialList;
-        MaterialData grey = {};
-        grey.albedo[0] = grey.albedo[1] = grey.albedo[2] = 0.5f;
-        grey.albedo[3] = 0.0f;
-        grey.specular[0] = grey.specular[1] = grey.specular[2] = 0.04f;
-        grey.smoothness = 0.2f;
-        grey.texture = -1;
-        materialList.push_back(grey);
-        for (const auto& entry : materialData)
-        {
-            materialIndex[entry.first] = static_cast<uint32_t>(materialList.size());
-            materialList.push_back(entry.second);
-        }
-
-        std::vector<D3D12_RAYTRACING_INSTANCE_DESC> descs;
-        std::vector<InstanceData> data;
-        descs.reserve(instances.size());
-        data.reserve(instances.size());
-        for (const RtInstance& instance : instances)
-        {
-            auto mesh = meshes.find(instance.mesh);
-            if (mesh == meshes.end() || !mesh->second.built)
-                continue;
-            // InstanceID has 24 bits.
-            if (descs.size() >= 0xFFFFFFu)
-            {
-                SetProblem("more instances than a scene's 16 777 215; the rest are left out");
-                break;
-            }
-            D3D12_RAYTRACING_INSTANCE_DESC desc = {};
-            memcpy(desc.Transform, instance.transform, sizeof(desc.Transform));
-            desc.InstanceID = static_cast<UINT>(data.size()) & 0xFFFFFFu;
-            desc.InstanceMask = instance.mask & 0xFFu;
-            desc.InstanceContributionToHitGroupIndex = 0;
-            // Terrain and cut-out surfaces go through the passes' candidate test.
-            const bool cutout = IsCutoutLocked(instance.material);
-            desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
-                         | ((instance.flags & kRtInstanceTerrain) != 0 || cutout ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
-                                                                               : 0);
-            desc.AccelerationStructure = mesh->second.blas->GetGPUVirtualAddress();
-            descs.push_back(desc);
-
-            InstanceData item = {};
-            item.meshSlot = mesh->second.slot;
-            auto material = materialIndex.find(instance.material);
-            item.material = material != materialIndex.end() ? material->second : 0u;
-            item.flags = instance.flags | (cutout ? kRtInstanceCutout : 0u);
-            NormalMatrix(instance.transform, item.normalRows);
-            data.push_back(item);
-        }
-        instanceCount = static_cast<UINT>(descs.size());
-
-        const UINT capacity = std::max<UINT>(instanceCount, 1);
-        if (slot.instanceCapacity < capacity)
-        {
-            UINT grown = std::max<UINT>(capacity, slot.instanceCapacity * 2);
-            grown = std::max<UINT>(grown, 256);
-            if (!EnsureUploadBuffer(slot.instanceDescs, static_cast<UINT64>(grown) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC))
-                || !EnsureUploadBuffer(slot.instanceData, static_cast<UINT64>(grown) * sizeof(InstanceData)))
-            {
-                SetProblem("the instance buffers could not be made");
-                return false;
-            }
-            slot.instanceCapacity = grown;
-        }
-        const UINT materialCount = static_cast<UINT>(materialList.size());
-        if (slot.materialCapacity < materialCount)
-        {
-            const UINT grown = std::max<UINT>(std::max<UINT>(materialCount, slot.materialCapacity * 2), 64);
-            if (!EnsureUploadBuffer(slot.materials, static_cast<UINT64>(grown) * sizeof(MaterialData)))
-            {
-                SetProblem("the material buffer could not be made");
-                return false;
-            }
-            slot.materialCapacity = grown;
-        }
-
-        const D3D12_RANGE nothing = { 0, 0 };
-        void* mapped = nullptr;
-        if (instanceCount > 0 && SUCCEEDED(slot.instanceDescs->Map(0, &nothing, &mapped)))
-        {
-            memcpy(mapped, descs.data(), descs.size() * sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
-            slot.instanceDescs->Unmap(0, nullptr);
-        }
-        if (instanceCount > 0 && SUCCEEDED(slot.instanceData->Map(0, &nothing, &mapped)))
-        {
-            memcpy(mapped, data.data(), data.size() * sizeof(InstanceData));
-            slot.instanceData->Unmap(0, nullptr);
-        }
-        if (SUCCEEDED(slot.materials->Map(0, &nothing, &mapped)))
-        {
-            memcpy(mapped, materialList.data(), materialList.size() * sizeof(MaterialData));
-            slot.materials->Unmap(0, nullptr);
-        }
-
-        // The GPU's instances after these, where the frame has any.
-        D3D12_GPU_VIRTUAL_ADDRESS descsAddress = slot.instanceDescs->GetGPUVirtualAddress();
-        slot.instanceDataAddress = slot.instanceData->GetGPUVirtualAddress();
-        UINT total = instanceCount;
-        if (!scene->groups.empty() && gpuInstances != nullptr
-            && AddGpuInstancesLocked(slot, slotNumber, gpuInstances, scene->groups, materialIndex, instanceCount, total)
-            && total > instanceCount)
-        {
-            descsAddress = slot.sceneDescs->GetGPUVirtualAddress();
-            slot.instanceDataAddress = slot.sceneData->GetGPUVirtualAddress();
-            instanceCount = total;
-        }
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
-        inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-        inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
-        inputs.NumDescs = instanceCount;
-        inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        inputs.InstanceDescs = descsAddress;
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
-        device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-
-        // The scene's structure is used by one list at a time on one queue, so one is
-        // enough; it grows, and the one it replaces is held until its lists are done.
-        if (tlas == nullptr || tlasSize < info.ResultDataMaxSizeInBytes)
-        {
-            if (tlas != nullptr)
-                slot.held.push_back(tlas);
-            tlas.Reset();
-            tlasSize = std::max<UINT64>(info.ResultDataMaxSizeInBytes * 3 / 2, 4096);
-            if (!EnsureDefaultBuffer(tlas, tlasSize, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
-                                     D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS))
-            {
-                SetProblem("the scene's acceleration structure could not be made");
-                return false;
-            }
-        }
-        if (tlasScratch == nullptr || tlasScratchSize < info.ScratchDataSizeInBytes)
-        {
-            if (tlasScratch != nullptr)
-                slot.held.push_back(tlasScratch);
-            tlasScratch.Reset();
-            tlasScratchSize = std::max<UINT64>(info.ScratchDataSizeInBytes * 3 / 2, 4096);
-            if (!EnsureDefaultBuffer(tlasScratch, tlasScratchSize, D3D12_RESOURCE_STATE_COMMON,
-                                     D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS))
-            {
-                SetProblem("the scene's scratch buffer could not be made");
-                return false;
-            }
-        }
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = {};
-        build.Inputs = inputs;
-        build.DestAccelerationStructureData = tlas->GetGPUVirtualAddress();
-        build.ScratchAccelerationStructureData = tlasScratch->GetGPUVirtualAddress();
-        list->BuildRaytracingAccelerationStructure(&build, 0, nullptr);
-        const D3D12_RESOURCE_BARRIER barrier = UavBarrier(tlas.Get());
-        list->ResourceBarrier(1, &barrier);
-        slot.held.push_back(tlas);
-        return true;
-    }
-
-    // A group as the GPU pass reads it (RaytracingShaders/GpuInstances.hlsl).
-    struct GpuGroup
-    {
-        uint32_t blasLow;
-        uint32_t blasHigh;
-        uint32_t meshSlot;
-        uint32_t material;
-        uint32_t first;
-        uint32_t count;
-        uint32_t start;
-        uint32_t maskFlags;
-    };
-
-    bool Raytracing::AddGpuInstancesLocked(Slot& slot, UINT slotNumber, Shared* gpuInstances,
-                                           const std::vector<RtGpuInstanceGroup>& given,
-                                           const std::unordered_map<int32_t, uint32_t>& materialIndex, UINT cpuCount, UINT& total)
-    {
-        auto pipeline = denoisePipelines.find("RT_GpuInstances");
-        if (pipeline == denoisePipelines.end())
-            return false;
-        // What each group is on the device; the ones whose mesh is not built are left out,
-        // and the ones past InstanceID's 24 bits.
-        const UINT capacityTexels = gpuInstances->texture.width / 3 * gpuInstances->texture.height;
-        std::vector<GpuGroup> groups;
-        UINT gpuCount = 0;
-        bool full = false;
-        for (const RtGpuInstanceGroup& group : given)
-        {
-            auto mesh = meshes.find(group.mesh);
-            if (mesh == meshes.end() || !mesh->second.built || group.count == 0
-                || static_cast<uint64_t>(group.first) + group.count > capacityTexels)
-                continue;
-            if (static_cast<uint64_t>(cpuCount) + gpuCount + group.count >= 0xFFFFFFu)
-            {
-                full = true;
-                continue;
-            }
-            const D3D12_GPU_VIRTUAL_ADDRESS blas = mesh->second.blas->GetGPUVirtualAddress();
-            auto material = materialIndex.find(group.material);
-            const bool cutout = IsCutoutLocked(group.material);
-            GpuGroup item = {};
-            item.blasLow = static_cast<uint32_t>(blas & 0xFFFFFFFFu);
-            item.blasHigh = static_cast<uint32_t>(blas >> 32);
-            item.meshSlot = mesh->second.slot;
-            item.material = material != materialIndex.end() ? material->second : 0u;
-            item.first = group.first;
-            item.count = group.count;
-            item.start = gpuCount;
-            item.maskFlags = (group.mask & 0xFFu) | (((group.flags | (cutout ? kRtInstanceCutout : 0u)) & 0xFFFFFFu) << 8);
-            groups.push_back(item);
-            gpuCount += group.count;
-        }
-        if (full)
-            SetProblem("more instances than a scene's 16 777 215; groups of the GPU's instances are left out");
-        if (gpuCount == 0)
-            return false;
-        total = cpuCount + gpuCount;
-
-        // The buffers, grown as needed; the ones they replace held until the slot is done.
-        if (slot.sceneCapacity < total)
-        {
-            const UINT grown = std::max<UINT>(std::max<UINT>(total, slot.sceneCapacity * 2), 1024);
-            if (slot.sceneDescs != nullptr)
-                slot.held.push_back(slot.sceneDescs);
-            if (slot.sceneData != nullptr)
-                slot.held.push_back(slot.sceneData);
-            slot.sceneDescs.Reset();
-            slot.sceneData.Reset();
-            if (!EnsureDefaultBuffer(slot.sceneDescs, static_cast<UINT64>(grown) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC),
-                                     D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
-                || !EnsureDefaultBuffer(slot.sceneData, static_cast<UINT64>(grown) * sizeof(InstanceData),
-                                        D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS))
-            {
-                SetProblem("the buffers for the GPU's instances could not be made");
-                slot.sceneCapacity = 0;
-                return false;
-            }
-            slot.sceneCapacity = grown;
-            slot.sceneState = slot.sceneStateRecorded = D3D12_RESOURCE_STATE_COMMON;
-        }
-        const UINT groupCount = static_cast<UINT>(groups.size());
-        if (slot.gpuGroupCapacity < groupCount)
-        {
-            const UINT grown = std::max<UINT>(std::max<UINT>(groupCount, slot.gpuGroupCapacity * 2), 64);
-            if (!EnsureUploadBuffer(slot.gpuGroups, static_cast<UINT64>(grown) * sizeof(GpuGroup)))
-            {
-                SetProblem("the GPU instance groups' buffer could not be made");
-                return false;
-            }
-            slot.gpuGroupCapacity = grown;
-        }
-        const D3D12_RANGE nothing = { 0, 0 };
-        void* mapped = nullptr;
-        if (FAILED(slot.gpuGroups->Map(0, &nothing, &mapped)))
-            return false;
-        memcpy(mapped, groups.data(), groups.size() * sizeof(GpuGroup));
-        slot.gpuGroups->Unmap(0, nullptr);
-
-        // The CPU's instances first, copied from their upload buffers.
-        std::vector<D3D12_RESOURCE_BARRIER> barriers;
-        const auto move = [&](ID3D12Resource* resource, D3D12_RESOURCE_STATES from, D3D12_RESOURCE_STATES to)
-        {
-            if (from != to)
-                barriers.push_back(TransitionBarrier(resource, from, to));
-        };
-        move(slot.sceneDescs.Get(), slot.sceneState, D3D12_RESOURCE_STATE_COPY_DEST);
-        move(slot.sceneData.Get(), slot.sceneState, D3D12_RESOURCE_STATE_COPY_DEST);
-        move(gpuInstances->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        if (!barriers.empty())
-            list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
-        if (cpuCount > 0)
-        {
-            list->CopyBufferRegion(slot.sceneDescs.Get(), 0, slot.instanceDescs.Get(), 0,
-                                   static_cast<UINT64>(cpuCount) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
-            list->CopyBufferRegion(slot.sceneData.Get(), 0, slot.instanceData.Get(), 0,
-                                   static_cast<UINT64>(cpuCount) * sizeof(InstanceData));
-        }
-        barriers.clear();
-        move(slot.sceneDescs.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        move(slot.sceneData.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
-
-        // The pass's views: the groups and the transforms to read, the two buffers to write.
-        const UINT base = kSlotTables + slotNumber * kDenoiseDescriptors + kGpuInstancesTable;
-        D3D12_CPU_DESCRIPTOR_HANDLE cpu = heap->GetCPUDescriptorHandleForHeapStart();
-        cpu.ptr += static_cast<SIZE_T>(base) * increment;
-        D3D12_GPU_DESCRIPTOR_HANDLE gpu = heap->GetGPUDescriptorHandleForHeapStart();
-        gpu.ptr += static_cast<UINT64>(base) * increment;
-        for (UINT i = 0; i < 8; ++i)
-        {
-            D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
-            srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            if (i == 0)
-            {
-                srv.Format = DXGI_FORMAT_UNKNOWN;
-                srv.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-                srv.Buffer.NumElements = groupCount;
-                srv.Buffer.StructureByteStride = sizeof(GpuGroup);
-                device->CreateShaderResourceView(slot.gpuGroups.Get(), &srv, cpu);
-            }
-            else
-            {
-                srv = SrvDesc(i == 1 ? gpuInstances->texture.format : DXGI_FORMAT_R32G32B32A32_FLOAT);
-                device->CreateShaderResourceView(i == 1 ? gpuInstances->texture.d3d12.Get() : nullptr, &srv, cpu);
-            }
-            cpu.ptr += increment;
-        }
-        for (UINT i = 0; i < 4; ++i)
-        {
-            D3D12_UNORDERED_ACCESS_VIEW_DESC uav = {};
-            if (i < 2)
-            {
-                uav.Format = DXGI_FORMAT_UNKNOWN;
-                uav.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-                uav.Buffer.NumElements = slot.sceneCapacity;
-                uav.Buffer.StructureByteStride = i == 0 ? sizeof(D3D12_RAYTRACING_INSTANCE_DESC) : sizeof(InstanceData);
-                device->CreateUnorderedAccessView(i == 0 ? slot.sceneDescs.Get() : slot.sceneData.Get(), nullptr, &uav, cpu);
-            }
-            else
-            {
-                uav = UavDesc(DXGI_FORMAT_R16G16B16A16_FLOAT);
-                device->CreateUnorderedAccessView(nullptr, nullptr, &uav, cpu);
-            }
-            cpu.ptr += increment;
-        }
-
-        ID3D12DescriptorHeap* heaps[] = { heap.Get() };
-        list->SetDescriptorHeaps(1, heaps);
-        list->SetComputeRootSignature(rootSignature.Get());
-        BindTablesLocked(gpu);
-        const UINT values[4] = { groupCount, gpuCount, cpuCount, 0 };
-        list->SetComputeRoot32BitConstants(9, 4, values, 0);
-        list->SetPipelineState(pipeline->second.Get());
-        list->Dispatch((gpuCount + 63) / 64, 1, 1);
-
-        barriers.clear();
-        barriers.push_back(UavBarrier(nullptr));
-        move(slot.sceneDescs.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        move(slot.sceneData.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        move(gpuInstances->texture.d3d12.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COMMON);
-        list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
-        slot.sceneStateRecorded = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-        return true;
-    }
-
-    bool Raytracing::EnsureUploadBuffer(ComPtr<ID3D12Resource>& buffer, UINT64 size)
-    {
-        D3D12_HEAP_PROPERTIES upload = {};
-        upload.Type = D3D12_HEAP_TYPE_UPLOAD;
-        const D3D12_RESOURCE_DESC desc = BufferDesc(size, D3D12_RESOURCE_FLAG_NONE);
-        buffer.Reset();
-        return SUCCEEDED(device->CreateCommittedResource(&upload, D3D12_HEAP_FLAG_NONE, &desc,
-                                                         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                                                         IID_PPV_ARGS(&buffer)));
-    }
-
-    bool Raytracing::EnsureDefaultBuffer(ComPtr<ID3D12Resource>& buffer, UINT64 size, D3D12_RESOURCE_STATES state,
-                                         D3D12_RESOURCE_FLAGS flags)
-    {
-        D3D12_HEAP_PROPERTIES heapProperties = {};
-        heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
-        const D3D12_RESOURCE_DESC desc = BufferDesc(size, flags);
-        buffer.Reset();
-        return SUCCEEDED(device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &desc, state, nullptr,
-                                                         IID_PPV_ARGS(&buffer)));
-    }
-
-    Raytracing::Shared* Raytracing::SharedForLocked(void* unityTexture, std::string& problem)
-    {
-        ComPtr<ID3D11Texture2D> texture2d;
-        if (FAILED(static_cast<ID3D11Resource*>(unityTexture)->QueryInterface(IID_PPV_ARGS(&texture2d))))
-        {
-            problem = "not a 2D texture";
-            return nullptr;
-        }
-        D3D11_TEXTURE2D_DESC desc = {};
-        texture2d->GetDesc(&desc);
-        if (desc.MipLevels != 1 || desc.ArraySize != 1 || desc.SampleDesc.Count != 1)
-        {
-            problem = "a texture with mipmaps, an array or multisampling";
-            return nullptr;
-        }
-        const DXGI_FORMAT format = ShareFormat(desc.Format);
-        Shared& shared = textures[unityTexture];
-        shared.lastUse = GetTickCount64();
-        if (shared.texture.Valid() && shared.texture.width == desc.Width && shared.texture.height == desc.Height
-            && shared.texture.format == format)
-            return &shared;
-        if (!shared.texture.Create(device11.Get(), device.Get(), desc.Width, desc.Height, format))
-        {
-            textures.erase(unityTexture);
-            problem = "format " + std::to_string(static_cast<int>(desc.Format)) + " cannot be shared";
-            return nullptr;
-        }
-        return &shared;
-    }
-
-    bool Raytracing::EnsureDeviceLocked()
-    {
-        if (list != nullptr)
-            return true;
-
-        HRESULT hr = SharedFence(device11.Get(), device.Get(), copied12, copied11);
-        if (SUCCEEDED(hr))
-            hr = SharedFence(device11.Get(), device.Get(), fence12, fence11);
-
-        D3D12_HEAP_PROPERTIES upload = {};
-        upload.Type = D3D12_HEAP_TYPE_UPLOAD;
-        const D3D12_RESOURCE_DESC constantsDesc = BufferDesc(kRtConstantsSize, D3D12_RESOURCE_FLAG_NONE);
-        for (UINT i = 0; SUCCEEDED(hr) && i < kSlots; ++i)
-        {
-            Slot& slot = slots[i];
-            hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&slot.allocator));
-            if (SUCCEEDED(hr))
-                hr = device->CreateCommittedResource(&upload, D3D12_HEAP_FLAG_NONE, &constantsDesc,
-                                                     D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                                                     IID_PPV_ARGS(&slot.constants));
-            if (SUCCEEDED(hr))
-            {
-                const D3D12_RANGE none = { 0, 0 };
-                void* mapped = nullptr;
-                hr = slot.constants->Map(0, &none, &mapped);
-                slot.constantsMapped = static_cast<uint8_t*>(mapped);
-            }
-            if (SUCCEEDED(hr) && !EnsureUploadBuffer(slot.materials, 64 * sizeof(MaterialData)))
-                hr = E_OUTOFMEMORY;
-            slot.materialCapacity = 64;
-            if (SUCCEEDED(hr) && (!EnsureUploadBuffer(slot.instanceDescs, 256 * sizeof(D3D12_RAYTRACING_INSTANCE_DESC))
-                                  || !EnsureUploadBuffer(slot.instanceData, 256 * sizeof(InstanceData))))
-                hr = E_OUTOFMEMORY;
-            slot.instanceCapacity = 256;
-            slot.done = 0;
-        }
-
-        if (SUCCEEDED(hr))
-        {
-            D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-            heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            heapDesc.NumDescriptors = kHeapDescriptors;
-            heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-            hr = device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&heap));
-            increment = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        }
-        if (SUCCEEDED(hr))
-        {
-            ComPtr<ID3D12GraphicsCommandList> created;
-            hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, slots[0].allocator.Get(), nullptr,
-                                           IID_PPV_ARGS(&created));
-            if (SUCCEEDED(hr))
-                hr = created.As(&list);
-            if (SUCCEEDED(hr))
-                list->Close();
-        }
-        if (SUCCEEDED(hr))
-        {
-            D3D12_QUERY_HEAP_DESC queryDesc = {};
-            queryDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
-            queryDesc.Count = kSlots * kTimestampsPerSlot;
-            hr = device->CreateQueryHeap(&queryDesc, IID_PPV_ARGS(&timestamps));
-        }
-        if (SUCCEEDED(hr))
-        {
-            D3D12_HEAP_PROPERTIES readback = {};
-            readback.Type = D3D12_HEAP_TYPE_READBACK;
-            const D3D12_RESOURCE_DESC readbackDesc =
-                BufferDesc(static_cast<UINT64>(kSlots) * kTimestampsPerSlot * sizeof(UINT64), D3D12_RESOURCE_FLAG_NONE);
-            hr = device->CreateCommittedResource(&readback, D3D12_HEAP_FLAG_NONE, &readbackDesc,
-                                                 D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&timestampReadback));
-        }
-        if (SUCCEEDED(hr))
-            hr = queue->GetTimestampFrequency(&timestampFrequency);
-        if (FAILED(hr) || !BuildPipelinesLocked())
-        {
-            if (FAILED(hr))
-                SetProblem("the fences, lists or heaps could not be made (" + Hr(hr) + ")");
-            ReleaseLocked();
-            unavailable = lastProblem;
-            return false;
-        }
-
-        freeSlots.clear();
-        for (uint32_t i = kMaxMeshes; i > 0; --i)
-            freeSlots.push_back(i - 1);
-        retiredSlots.clear();
-        if (fenceEvent == nullptr)
-            fenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-        fenceValue = 0;
-        copiedValue = 0;
-        slotIndex = 0;
-        return true;
-    }
-
-    bool Raytracing::BuildPipelinesLocked()
-    {
-        D3D12_DESCRIPTOR_RANGE ranges[7] = {};
-        ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t1-t8
-        ranges[0].NumDescriptors = kRtMaxTextures;
-        ranges[0].BaseShaderRegister = 1;
-        ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;   // u0-u7
-        ranges[1].NumDescriptors = kRtMaxTextures;
-        ranges[1].BaseShaderRegister = 0;
-        ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t0, space1 onwards: index buffers
-        ranges[2].NumDescriptors = kMaxMeshes;
-        ranges[2].BaseShaderRegister = 0;
-        ranges[2].RegisterSpace = 1;
-        ranges[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t0, space2 onwards: attributes
-        ranges[3].NumDescriptors = kMaxMeshes;
-        ranges[3].BaseShaderRegister = 0;
-        ranges[3].RegisterSpace = 2;
-        ranges[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t11: the material textures
-        ranges[4].NumDescriptors = 1;
-        ranges[4].BaseShaderRegister = 11;
-        ranges[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;   // t0-t7, space3: the denoiser's reads
-        ranges[5].NumDescriptors = 8;
-        ranges[5].RegisterSpace = 3;
-        ranges[6].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;   // u0-u3, space3: the denoiser's writes
-        ranges[6].NumDescriptors = 4;
-        ranges[6].RegisterSpace = 3;
-
-        D3D12_ROOT_PARAMETER parameters[12] = {};
-        parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        parameters[0].Descriptor.ShaderRegister = 0;
-        parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-        parameters[1].Descriptor.ShaderRegister = 0;
-        for (UINT i = 0; i < 2; ++i)
-        {
-            parameters[2 + i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-            parameters[2 + i].DescriptorTable.NumDescriptorRanges = 1;
-            parameters[2 + i].DescriptorTable.pDescriptorRanges = &ranges[i];
-        }
-        parameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-        parameters[4].Descriptor.ShaderRegister = 9;
-        parameters[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-        parameters[5].Descriptor.ShaderRegister = 10;
-        for (UINT i = 0; i < 2; ++i)
-        {
-            parameters[6 + i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-            parameters[6 + i].DescriptorTable.NumDescriptorRanges = 1;
-            parameters[6 + i].DescriptorTable.pDescriptorRanges = &ranges[2 + i];
-        }
-        parameters[8].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        parameters[8].DescriptorTable.NumDescriptorRanges = 1;
-        parameters[8].DescriptorTable.pDescriptorRanges = &ranges[4];
-        parameters[9].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;   // b1: the denoiser's step
-        parameters[9].Constants.ShaderRegister = 1;
-        parameters[9].Constants.Num32BitValues = 4;
-        for (UINT i = 0; i < 2; ++i)
-        {
-            parameters[10 + i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-            parameters[10 + i].DescriptorTable.NumDescriptorRanges = 1;
-            parameters[10 + i].DescriptorTable.pDescriptorRanges = &ranges[5 + i];
-        }
-        for (D3D12_ROOT_PARAMETER& parameter : parameters)
-            parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-
-        D3D12_STATIC_SAMPLER_DESC samplers[3] = {};
-        for (UINT i = 0; i < 3; ++i)
-        {
-            samplers[i].Filter = i == 0 ? D3D12_FILTER_MIN_MAG_MIP_POINT : D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-            samplers[i].AddressU = samplers[i].AddressV = samplers[i].AddressW =
-                i == 2 ? D3D12_TEXTURE_ADDRESS_MODE_WRAP : D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-            samplers[i].MaxLOD = D3D12_FLOAT32_MAX;
-            samplers[i].ShaderRegister = i;
-            samplers[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-        }
-
-        D3D12_ROOT_SIGNATURE_DESC desc = {};
-        desc.NumParameters = 12;
-        desc.pParameters = parameters;
-        desc.NumStaticSamplers = 3;
-        desc.pStaticSamplers = samplers;
-        ComPtr<ID3DBlob> serialized;
-        ComPtr<ID3DBlob> errors;
-        HRESULT hr = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, &errors);
-        if (SUCCEEDED(hr))
-            hr = device->CreateRootSignature(0, serialized->GetBufferPointer(), serialized->GetBufferSize(),
-                                             IID_PPV_ARGS(&rootSignature));
-        if (FAILED(hr))
-        {
-            std::string text = "the raytracing root signature could not be made (" + Hr(hr) + ")";
-            if (errors != nullptr)
-                text += ": " + std::string(static_cast<const char*>(errors->GetBufferPointer()), errors->GetBufferSize());
-            SetProblem(text);
-            return false;
-        }
-
-        for (const PassEntry& pass : kPasses)
-        {
-            char name[64] = {};
-            WideCharToMultiByte(CP_UTF8, 0, pass.resource, -1, name, sizeof(name), nullptr, nullptr);
-            const auto code = shaders.find(name);
-            if (code == shaders.end())
-                continue;
-            D3D12_COMPUTE_PIPELINE_STATE_DESC pipelineDesc = {};
-            pipelineDesc.pRootSignature = rootSignature.Get();
-            pipelineDesc.CS.pShaderBytecode = code->second.data();
-            pipelineDesc.CS.BytecodeLength = code->second.size();
-            ComPtr<ID3D12PipelineState> pipeline;
-            hr = device->CreateComputePipelineState(&pipelineDesc, IID_PPV_ARGS(&pipeline));
-            if (FAILED(hr))
-            {
-                SetProblem(std::string("the raytracing pass ") + name + " could not be built (" + Hr(hr) + ")");
-                return false;
-            }
-            pipelines[pass.signal] = pipeline;
-        }
-        for (const wchar_t* entry : kDenoiseEntries)
-        {
-            char name[64] = {};
-            WideCharToMultiByte(CP_UTF8, 0, entry, -1, name, sizeof(name), nullptr, nullptr);
-            const auto code = shaders.find(name);
-            if (code == shaders.end())
-                continue;
-            D3D12_COMPUTE_PIPELINE_STATE_DESC pipelineDesc = {};
-            pipelineDesc.pRootSignature = rootSignature.Get();
-            pipelineDesc.CS.pShaderBytecode = code->second.data();
-            pipelineDesc.CS.BytecodeLength = code->second.size();
-            ComPtr<ID3D12PipelineState> pipeline;
-            hr = device->CreateComputePipelineState(&pipelineDesc, IID_PPV_ARGS(&pipeline));
-            if (FAILED(hr))
-            {
-                SetProblem(std::string("the denoiser's pass ") + name + " could not be built (" + Hr(hr) + ")");
-                return false;
-            }
-            denoisePipelines[name] = pipeline;
-        }
-        return true;
-    }
-
-    void Raytracing::WaitForSlotLocked(Slot& slot)
-    {
-        if (slot.done == 0 || fence12 == nullptr || fenceEvent == nullptr)
-            return;
-        if (fence12->GetCompletedValue() < slot.done && SUCCEEDED(fence12->SetEventOnCompletion(slot.done, fenceEvent)))
-            WaitForSingleObject(fenceEvent, INFINITE);
-
-        // The slot's list is done: its timestamps are there to read where it resolved them.
-        const bool timed = slot.timed;
-        slot.timed = false;
-        if (!timed)
-            return;
-        const UINT slotNumber = static_cast<UINT>(&slot - slots);
-        const D3D12_RANGE range = { slotNumber * kTimestampsPerSlot * sizeof(UINT64),
-                                    (slotNumber + 1) * kTimestampsPerSlot * sizeof(UINT64) };
-        void* mapped = nullptr;
-        if (timestampFrequency != 0 && SUCCEEDED(timestampReadback->Map(0, &range, &mapped)))
-        {
-            const UINT64* ticks = reinterpret_cast<const UINT64*>(static_cast<const uint8_t*>(mapped) + range.Begin);
-            const double toMs = 1000.0 / static_cast<double>(timestampFrequency);
-            std::lock_guard<std::mutex> status(statusLock);
-            buildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
-            traceMs = static_cast<float>(static_cast<double>(ticks[kTimestampsPerSlot - 1] - ticks[1]) * toMs);
-            for (UINT position = 0; position < kRtPassTimings; ++position)
-                passMs[kPassOrder[position]] =
-                    static_cast<float>(static_cast<double>(ticks[2 + position] - ticks[1 + position]) * toMs);
-            const D3D12_RANGE none = { 0, 0 };
-            timestampReadback->Unmap(0, &none);
-        }
-    }
-
-    void Raytracing::WaitForAllLocked()
-    {
-        if (fence12 == nullptr || fenceEvent == nullptr || fenceValue == 0)
-            return;
-        if (fence12->GetCompletedValue() < fenceValue && SUCCEEDED(fence12->SetEventOnCompletion(fenceValue, fenceEvent)))
-            WaitForSingleObject(fenceEvent, INFINITE);
-    }
-
-    // The device is going or changing: everything made on it goes. The meshes the
-    // managed side handed over go too; it hands them over again when it sees the
-    // service ready on a new device (Status).
-    void Raytracing::ReleaseLocked()
-    {
-        WaitForAllLocked();
-        ReleaseRegenerationLocked();
-        meshes.clear();
-        meshSlotsFull = false;
-        textures.clear();
-        pipelines.clear();
-        denoisePipelines.clear();
-        denoise = DenoiseTargets{};
-        guides = GuideTargets{};
-        rootSignature.Reset();
-        list.Reset();
-        for (Slot& slot : slots)
-        {
-            if (slot.constants != nullptr && slot.constantsMapped != nullptr)
-                slot.constants->Unmap(0, nullptr);
-            slot = Slot{};
-        }
-        heap.Reset();
-        materialTextures.Reset();
-        materialTextureLayers = 0;
-        tlas.Reset();
-        tlasScratch.Reset();
-        tlasSize = tlasScratchSize = 0;
-        timestamps.Reset();
-        timestampReadback.Reset();
-        freeSlots.clear();
-        retiredSlots.clear();
-        fence11.Reset();
-        fence12.Reset();
-        copied11.Reset();
-        copied12.Reset();
-        fenceValue = 0;
-        copiedValue = 0;
-        ++generation;
+        lastInstances = frame.instanceCount;
+        lastBuilt = frame.built;
     }
 
     int Raytracing::Status(char* buffer, int size) const
@@ -1781,79 +691,6 @@ namespace redefinition
         std::lock_guard<std::mutex> status(statusLock);
         for (int i = 0; i < count && i < static_cast<int>(kRtPassTimings); ++i)
             out[i] = passMs[i];
-    }
-
-    static_assert(kRtMaxMaterialTextures <= D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION,
-                  "the material textures exceed a Direct3D 12 texture array");
-
-    bool Raytracing::EnsureMaterialTexturesLocked(UINT layers, Slot& slot)
-    {
-        if (materialTextures != nullptr && materialTextureLayers >= layers)
-            return true;
-        UINT grown = std::max<UINT>(materialTextureLayers, 1);
-        while (grown < layers)
-            grown *= 2;
-        grown = std::min<UINT>(grown, kRtMaxMaterialTextures);
-
-        D3D12_HEAP_PROPERTIES heapProperties = {};
-        heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
-        D3D12_RESOURCE_DESC desc = {};
-        desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-        desc.Width = kRtMaterialTextureSize;
-        desc.Height = kRtMaterialTextureSize;
-        desc.DepthOrArraySize = static_cast<UINT16>(grown);
-        desc.MipLevels = 1;
-        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-        desc.SampleDesc.Count = 1;
-        ComPtr<ID3D12Resource> created;
-        HRESULT hr = device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &desc,
-                                                     D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&created));
-        if (FAILED(hr))
-        {
-            SetProblem("the material textures could not be made (" + Hr(hr) + ")");
-            return false;
-        }
-        // The layers there are come along.
-        if (materialTextures != nullptr)
-        {
-            const D3D12_RESOURCE_BARRIER toSource = TransitionBarrier(
-                materialTextures.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
-            list->ResourceBarrier(1, &toSource);
-            for (UINT layer = 0; layer < materialTextureLayers; ++layer)
-            {
-                D3D12_TEXTURE_COPY_LOCATION source = {};
-                source.pResource = materialTextures.Get();
-                source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-                source.SubresourceIndex = layer;
-                D3D12_TEXTURE_COPY_LOCATION destination = {};
-                destination.pResource = created.Get();
-                destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-                destination.SubresourceIndex = layer;
-                list->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
-            }
-            slot.held.push_back(materialTextures);
-        }
-        const D3D12_RESOURCE_BARRIER toRead =
-            TransitionBarrier(created.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        list->ResourceBarrier(1, &toRead);
-        materialTextures = created;
-        materialTextureLayers = grown;
-        return true;
-    }
-
-    void Raytracing::WriteMaterialViewLocked(UINT slotNumber)
-    {
-        if (materialTextures == nullptr)
-            return;
-        D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
-        srv.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-        srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
-        srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srv.Texture2DArray.MipLevels = 1;
-        srv.Texture2DArray.ArraySize = materialTextureLayers;
-        D3D12_CPU_DESCRIPTOR_HANDLE view = heap->GetCPUDescriptorHandleForHeapStart();
-        view.ptr += static_cast<SIZE_T>(kMaterialViews + slotNumber) * increment;
-        device->CreateShaderResourceView(materialTextures.Get(), &srv, view);
     }
 
     void Raytracing::SetProblem(const std::string& text)

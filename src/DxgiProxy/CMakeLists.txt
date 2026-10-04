@@ -102,8 +102,11 @@ add_library(ReDefinitionProxy SHARED
     Raytracing.cpp
     Raytracing.h
     RaytracingDenoise.cpp
+    RaytracingDevice.cpp
+    RaytracingInternal.h
     RaytracingReconstruct.cpp
     RaytracingRegenerate.cpp
+    RaytracingScene.cpp
     Streamline.cpp
     Streamline.h
     SwapChainProxy.cpp

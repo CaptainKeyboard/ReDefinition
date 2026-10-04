@@ -591,10 +591,57 @@ namespace redefinition
             std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> held;
         };
 
+        // One frame's work between the steps of OnFrame (Raytracing.cpp).
+        struct FrameWork
+        {
+            const RtFramePacket* packet = nullptr;
+            UINT slotNumber = 0;
+            Slot* slot = nullptr;
+            Shared* inputs[kRtMaxTextures] = {};
+            Shared* outputs[kRtMaxTextures] = {};
+            // With the denoiser, its noisy texture an output slot's pass writes in place of
+            // Unity's.
+            DenoiseTarget* noisyFor[kRtMaxTextures] = {};
+            bool denoising = false;
+            bool extra = false;
+            UINT timestampBase = 0;
+            // The frame's views in the heap: t1-t8, then u0-u7.
+            D3D12_GPU_DESCRIPTOR_HANDLE frameTable = {};
+            // Unity's textures back into COMMON once the passes are done.
+            std::vector<D3D12_RESOURCE_BARRIER> back;
+            uint32_t built = 0;
+            UINT instanceCount = 0;
+        };
+
+        // OnFrame's steps, in the order it takes them (Raytracing.cpp).
+        void EvictTexturesLocked();
+        // The shared copies of the frame's textures, its inputs copied into them.
+        bool TakeTexturesLocked(FrameWork& frame);
+        // The next slot, its list reset, the first timestamp.
+        bool BeginListLocked(FrameWork& frame);
+        // The released meshes retired, the pending ones built; how many were built.
+        uint32_t BuildMeshesLocked(Slot& slot);
+        bool UploadMaterialTexturesLocked(Slot& slot);
+        bool TakeNoisyTargetsLocked(FrameWork& frame);
+        void WriteFrameViewsLocked(FrameWork& frame);
+        void WriteConstantsLocked(const FrameWork& frame);
+        void TransitionTexturesLocked(FrameWork& frame);
+        void BindFrameLocked(const FrameWork& frame);
+        void RunPassesLocked(FrameWork& frame);
+        void DispatchPassLocked(FrameWork& frame, uint32_t signal, ID3D12PipelineState* pipeline);
+        // AMD FSR Ray Regeneration and ReDefinition's denoiser, in the denoiser's place
+        // among the passes.
+        void RunDenoisersLocked(FrameWork& frame);
+        void WriteFrameGuidesLocked(FrameWork& frame);
+        // The textures back, the list submitted, the results copied into Unity's textures.
+        void FinishFrameLocked(FrameWork& frame);
+
+        // The device's objects (RaytracingDevice.cpp).
         bool EnsureDeviceLocked();
         bool LoadShadersLocked();
         bool BuildPipelinesLocked();
         Shared* SharedForLocked(void* unityTexture, std::string& problem);
+        // The scene (RaytracingScene.cpp).
         bool TakeDescriptorSlotLocked(uint32_t& slot);
         bool UploadMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot);
         // A mesh's buffers held by the slot, its descriptor slot free again once the
