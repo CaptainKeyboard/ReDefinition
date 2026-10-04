@@ -38,6 +38,12 @@ namespace ReDefinition
         // How bright the moons' and planets' light is, in percent of the raytracing's
         // artistic scale (Raytracing/Ksp/RtReflectors).
         public float RaytracingMoonlight = 10f;
+        // How strongly water mirrors the moons, in percent of their discs as the eye sees
+        // them at night (NightAdaptation).
+        public float RaytracingMoonReflection = 100f;
+        // How strongly Scatterer's ocean mirrors the sun, in percent of its configuration's
+        // strength (OceanSunReflection).
+        public float SunReflection = 100f;
         // How much of KSP's night light stays under raytracing, in percent: the least
         // light a point gets where neither the sun nor a moon reaches it.
         public float RaytracingNightAmbient = 0f;
@@ -115,6 +121,8 @@ namespace ReDefinition
             settings.Raytracing = Enum(node, "raytracing", settings.Raytracing);
             settings.RaytracingBounces = (int)Float(node, "raytracingBounces", settings.RaytracingBounces);
             settings.RaytracingMoonlight = Float(node, "raytracingMoonlight", settings.RaytracingMoonlight);
+            settings.RaytracingMoonReflection = Float(node, "raytracingMoonReflection", settings.RaytracingMoonReflection);
+            settings.SunReflection = Float(node, "sunReflection", settings.SunReflection);
             settings.RaytracingNightAmbient = Float(node, "raytracingNightAmbient", settings.RaytracingNightAmbient);
             settings.Backend = Enum(node, "technique", settings.Backend);
             settings.DlssModel = Enum(node, "dlssModel", settings.DlssModel);
@@ -170,6 +178,8 @@ namespace ReDefinition
             node.AddValue("raytracing", Raytracing);
             node.AddValue("raytracingBounces", RaytracingBounces);
             node.AddValue("raytracingMoonlight", RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture));
+            node.AddValue("raytracingMoonReflection", RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture));
+            node.AddValue("sunReflection", SunReflection.ToString("0", CultureInfo.InvariantCulture));
             node.AddValue("raytracingNightAmbient", RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture));
 
             string directory = System.IO.Path.GetDirectoryName(Path);
@@ -203,6 +213,8 @@ namespace ReDefinition
               .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto).Append('|').Append(WorldButtons)
               .Append('|').Append(Raytracing).Append('|').Append(RaytracingBounces)
               .Append('|').Append(RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture))
+              .Append('|').Append(RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture))
+              .Append('|').Append(SunReflection.ToString("0", CultureInfo.InvariantCulture))
               .Append('|').Append(RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture));
             return sb.ToString();
         }

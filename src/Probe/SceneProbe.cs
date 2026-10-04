@@ -30,6 +30,13 @@ namespace ReDefinition.Probe
         internal const string Argument = "-redefinitionProbe";
         internal const string SaveFolder = "ReDefinitionProbe";
         internal static bool Launched;
+        // -redefinitionProbeSea: a capsule afloat out at sea, no land within kilometres.
+        internal const string CoastArgument = "-redefinitionProbeCoast";
+        // -redefinitionProbeStay: the flight left to the player, the clouds hidden, no
+        // measurement, KSP left running (with -redefinitionProbeSea: a capsule at sea to
+        // look at the water's reflections oneself).
+        internal const string StayArgument = "-redefinitionProbeStay";
+        internal const string SeaArgument = "-redefinitionProbeSea";
 
         // -redefinitionProbeScenes <n>: n round trips from the flight to the space
         // centre and back, each flight settled, for what scene changes leave behind
@@ -82,7 +89,11 @@ namespace ReDefinition.Probe
             if (SceneProbe.Launched || !SceneProbe.Requested) yield break;
             SceneProbe.Launched = true;
             yield return new WaitForSeconds(3f);
-            Game game = GamePersistence.LoadGame("persistent", SceneProbe.SaveFolder, true, false);
+            // From the template the probe never writes, where it is: KSP saves the flight it
+            // leaves into "persistent", time warps and moved vessels with it.
+            bool template = System.IO.File.Exists(System.IO.Path.Combine(System.IO.Path.Combine(
+                KSPUtil.ApplicationRootPath, "saves"), System.IO.Path.Combine(SceneProbe.SaveFolder, "probe.sfs")));
+            Game game = GamePersistence.LoadGame(template ? "probe" : "persistent", SceneProbe.SaveFolder, true, false);
             if (game == null)
             {
                 Debug.LogWarning(Log.Tag + " Probe: no save " + SceneProbe.SaveFolder + "; quitting.");
@@ -96,10 +107,67 @@ namespace ReDefinition.Probe
                 Application.Quit();
                 yield break;
             }
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.SeaArgument) >= 0)
+            {
+                int capsule = SeaCapsule(game);
+                if (capsule < 0)
+                {
+                    // Elsewhere than asked for, every measurement would be of the wrong place.
+                    Debug.LogError(Log.Tag + " Probe: the capsule could not be put at sea; quitting.");
+                    Application.Quit();
+                    yield break;
+                }
+                index = capsule;
+            }
             HighLogic.SaveFolder = SceneProbe.SaveFolder;
             HighLogic.CurrentGame = game;
             Debug.Log(Log.Tag + " Probe: flight of " + game.flightState.protoVessels[index].vesselName + ".");
             FlightDriver.StartAndFocusVessel(game, index);
+        }
+
+        // A Mk1 command pod afloat out at sea east of the space centre, no land within
+        // kilometres: the first of a few places where the sea floor lies deep there and
+        // round it. Made as KSP makes a vessel (ProtoVessel.CreateVesselNode), splashed at
+        // sea level and not set down on the ground, which there is the sea floor.
+        private static int SeaCapsule(Game game)
+        {
+            CelestialBody home = FlightGlobals.GetHomeBody();
+            if (home == null || home.pqsController == null) return -1;
+            Func<double, double, double> ground = (lat, lon) =>
+                home.pqsController.GetSurfaceHeight(home.GetRelSurfaceNVector(lat, lon)) - home.Radius;
+            // -redefinitionProbeCoast: 2.6 km off the island airfield's east shore, the
+            // island and its sea floor in view; otherwise far out at sea.
+            bool coast = Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.CoastArgument) >= 0;
+            double[][] places = coast
+                ? new[] { new[] { -1.54, -71.66 }, new[] { -1.54, -71.62 } }
+                : new[] { new[] { -1.0, -66.0 }, new[] { 0.0, -62.0 }, new[] { -4.0, -64.0 }, new[] { 3.0, -60.0 } };
+            foreach (double[] place in places)
+            {
+                bool deep = true;
+                for (int i = -2; i <= 2 && deep; i++)
+                    for (int j = -2; j <= 2 && deep; j++)
+                        deep = ground(place[0] + i * (coast ? 0.01 : 0.2), place[1] + j * (coast ? 0.01 : 0.2)) < (coast ? -10.0 : -100.0);
+                if (!deep) continue;
+                ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
+                var orbit = new Orbit(0.0, 0.0, home.Radius + 100000.0, 0.0, 0.0, 0.0, Planetarium.GetUniversalTime(), home);
+                ConfigNode node = ProtoVessel.CreateVesselNode("ReDefinition sea probe", VesselType.Ship, orbit, 0, new[] { part });
+                node.SetValue("sit", Vessel.Situations.SPLASHED.ToString());
+                node.SetValue("landed", "False");
+                node.SetValue("splashed", "True");
+                node.SetValue("skipGroundPositioning", "True");
+                node.SetValue("lat", place[0].ToString(CultureInfo.InvariantCulture));
+                node.SetValue("lon", place[1].ToString(CultureInfo.InvariantCulture));
+                node.SetValue("alt", "0");
+                Quaternion upright = Quaternion.FromToRotation(Vector3.up, (Vector3)home.GetRelSurfaceNVector(place[0], place[1]));
+                node.SetValue("rot", KSPUtil.WriteQuaternion(upright));
+                game.flightState.protoVessels.Add(new ProtoVessel(node, game));
+                Debug.Log(Log.Tag + " Probe: a capsule afloat at latitude " + place[0].ToString(CultureInfo.InvariantCulture)
+                          + ", longitude " + place[1].ToString(CultureInfo.InvariantCulture) + ", the sea floor "
+                          + ground(place[0], place[1]).ToString("0", CultureInfo.InvariantCulture) + " m.");
+                return game.flightState.protoVessels.Count - 1;
+            }
+            Debug.LogWarning(Log.Tag + " Probe: no open sea found at any of the places tried.");
+            return -1;
         }
     }
 
@@ -208,6 +276,13 @@ namespace ReDefinition.Probe
             if (!SceneProbe.Requested || HighLogic.SaveFolder != SceneProbe.SaveFolder) yield break;
             while (!FlightGlobals.ready || FlightGlobals.ActiveVessel == null || FlightCamera.fetch == null)
                 yield return null;
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.StayArgument) >= 0)
+            {
+                yield return new WaitForSeconds(5f);
+                LightProbe.HideClouds();
+                Debug.Log(Log.Tag + " Probe: the flight is the player's.");
+                yield break;
+            }
             yield return new WaitForSeconds(SettleSeconds);
 
             if (SceneProbe.ScenesLeft >= 0)

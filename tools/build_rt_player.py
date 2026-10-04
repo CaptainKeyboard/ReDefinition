@@ -62,6 +62,7 @@ SOURCES = [
 ]
 SHADERS = [
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtCapture.shader',
+    'unity/Assets/ReDefinition/Shaders/ReDefinitionMoonGlow.shader',
     'unity/Assets/ReDefinition/Shaders/ReDefinitionScreenSpaceShadows.shader',
     'unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader',
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtReproject.cginc',
@@ -184,6 +185,8 @@ def main():
     parser.add_argument('--unity', default=r'C:\Program Files\Unity\Editor\Unity.exe')
     parser.add_argument('--ksp', default=r'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program')
     parser.add_argument('--no-build', action='store_true')
+    # One check alone, in the run with Deferred's lighting (RtPlayerRunner, -only).
+    parser.add_argument('--only', choices=['ocean', 'glow'])
     parser.add_argument('--turn', action='store_true',
                         help='record the camera turn (RtTurnRunner) through DLSS Ray Reconstruction, the denoiser and'
                              ' without raytracing, and measure it with analyze_rt_turn.py, instead of the checks')
@@ -206,6 +209,9 @@ def main():
     if arguments.turn:
         sys.exit(turn(exe, arguments.streamline, os.path.join(arguments.ksp, 'GameData', 'zzz_Deferred', 'Shaders')))
     deferred = os.path.join(arguments.ksp, 'GameData', 'zzz_Deferred', 'Shaders')
+    if arguments.only:
+        sys.exit(0 if run(exe, deferred if os.path.isdir(deferred) else None, 'deferred-' + arguments.only,
+                          ['-only', arguments.only]) else 1)
     forward_ok = run(exe, None, 'forward')
     builtin_ok = run(exe, None, 'unity-deferred', ['-builtinDeferred', '1'])
     deferred_ok = run(exe, deferred if os.path.isdir(deferred) else None, 'deferred')

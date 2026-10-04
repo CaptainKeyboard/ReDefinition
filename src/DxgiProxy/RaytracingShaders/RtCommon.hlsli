@@ -30,9 +30,14 @@ cbuffer Frame : register(b0)
     float4 lightColor0;     // w: how far its shadow ray goes, negative for the main body
     float4 lightDirection1;
     float4 lightColor1;
-    float4 lightParams;     // x: how many lights; y: 1 where Unity's colours are gamma-space values
+    float4 lightParams;     // x: how many lights; y: 1 where Unity's colours are gamma-space values;
+                            // z: how strongly water mirrors the sun's disc, 1 as it is; w: 1 where
+                            // the main body's sea is KSP's own (no Scatterer), found by its level
     float4 nightLight;      // rgb: the least diffuse light of the forward light, as Unity's colours are
-    float4 planetAlbedo;    // rgb: the main body's albedo, linear
+    float4 planetAlbedo;    // rgb: the main body's albedo, linear; w: the time in seconds, for the
+                            // waves of KSP's own sea (StockWaves)
+    float4 lightSurface0;   // rgb: the light's body lit by the star, linear: albedo times the star's colour
+    float4 lightSurface1;
 };
 
 struct InstanceData
@@ -105,8 +110,11 @@ SamplerState linearWrap : register(s2);
 #define HAS_ENVIRONMENT (params1.y > 0.5f)
 #define MATERIAL_TEXTURES (params1.z > 0.5f)
 #define HAS_GBUFFER (params1.w > 0.5f)
+#define WATER_SURFACE ((frameFlags & 64u) != 0u)
 #define LIGHT_COUNT ((uint)lightParams.x)
 #define GAMMA_INPUTS (lightParams.y > 0.5f)
+#define SUN_MIRROR (lightParams.z)
+#define STOCK_WATER (lightParams.w > 0.5f)
 
 // The light transport is linear: sums and averages of light -- a hemisphere of sky and
 // ground, samples -- hold only there. Where Unity shades in gamma space, as KSP does,
@@ -465,6 +473,289 @@ bool PlanetRadiance(float3 origin, float3 direction, out float3 radiance)
     radiance = planetAlbedo.rgb * light;
     return true;
 }
+
+// A reflected ray that met nothing: the disc of a body the sun lights (RtReflectors)
+// where the ray meets it, the body's surface there as the sun lights it -- its albedo
+// times the star's light by N.L on its sphere, so a crescent shows as one. The diffuse
+// light takes the bodies as lights (ReflectedLightAt), and not this.
+float3 BodyDiscs(float3 direction)
+{
+    float3 total = 0.0f;
+    float3 towardsSun = normalize(sunDirection.xyz);
+    for (uint i = 0u; i < min(LIGHT_COUNT, 2u); ++i)
+    {
+        float4 towards = i == 0u ? lightDirection0 : lightDirection1;
+        float3 surface = i == 0u ? lightSurface0.rgb : lightSurface1.rgb;
+        // The body at distance 1: its sphere's radius the sine of its angular radius.
+        float3 centre = normalize(towards.xyz);
+        float radius = sin(towards.w);
+        float along = dot(direction, centre);
+        float closest2 = 1.0f - along * along;
+        if (along <= 0.0f || closest2 >= radius * radius)
+            continue;
+        float3 hit = direction * (along - sqrt(radius * radius - closest2));
+        float3 normal = normalize(hit - centre);
+        total += surface * saturate(dot(normal, towardsSun));
+    }
+    return total;
+}
+
+// The specular light a disc of angular `radius` towards `towards` gives water of
+// Beckmann roughness `m` (the root mean square of its slopes), per unit of the disc's
+// illuminance. Beckmann's distribution, not GGX's: a sea's slopes are near Gaussian (Cox
+// and Munk), as Bruneton's ocean and Scatterer take them, and GGX's long tails let the
+// glints of slopes four and five times the usual mirror a disc as bright as the moon's
+// far to its sides -- measured at sea, 2026-10-04, a moon's path 2.5 times as wide as its
+// waves allow. The representative point --
+// the direction on the disc closest to the reflection vector, after Frostbite's sun as a
+// disc area light (Lagarde and de Rousiers, "Moving Frostbite to Physically Based
+// Rendering", 2014, listing 6) -- lit as a punctual light, with the energy the wider
+// lobe adds taken back by (alpha / alpha')^2, alpha' = alpha + radius / 3 (Karis, "Real
+// Shading in Unreal Engine 4", 2013, equations 10 and 14), and never brighter than the
+// disc itself, which that approximation overshoots at grazing angles. Without the
+// Fresnel term, which the reader applies. Smooth water mirrors the disc as it is; rough
+// water spreads it into a highlight stretched at grazing angles, the sea's long path.
+float BeckmannG1(float cosine, float m)
+{
+    float c = cosine / (m * sqrt(max(1.0f - cosine * cosine, 1e-8f)));
+    return c < 1.6f ? (3.535f * c + 2.181f * c * c) / (1.0f + 2.276f * c + 2.577f * c * c) : 1.0f;
+}
+
+float DiscSpecular(float3 normal, float3 view, float3 towards, float radius, float m)
+{
+    float3 r = reflect(-view, normal);
+    float sinRadius = sin(radius);
+    float cosRadius = cos(radius);
+    float along = dot(towards, r);
+    float3 aside = r - along * towards;
+    float3 l = along < cosRadius && dot(aside, aside) > 1e-12f ? normalize(cosRadius * towards + normalize(aside) * sinRadius) : r;
+    float nl = dot(normal, l);
+    if (nl <= 0.0f)
+        return 0.0f;
+    float nv = max(dot(normal, view), 1e-4f);
+    float3 h = normalize(view + l);
+    float nh = max(dot(normal, h), 1e-4f);
+    float a = max(m, 1e-3f);
+    float a2 = a * a;
+    float nh2 = nh * nh;
+    float D = exp(-(1.0f - nh2) / (nh2 * a2)) / (kPi * a2 * nh2 * nh2);
+    // Smith's shadowing for Beckmann's distribution, per direction (Walter et al.,
+    // "Microfacet Models for Refraction through Rough Surfaces", 2007, equation 27).
+    float visibility = BeckmannG1(nv, a) * BeckmannG1(nl, a) / (4.0f * nl * nv);
+    float wide = saturate(a + radius / 3.0f);
+    return min(D * visibility * nl * (a * a) / (wide * wide), 1.0f / (kPi * sinRadius * sinRadius));
+}
+
+// KSP's own sea (STOCK_WATER), drawn into Unity's G-buffer by its ocean shader with
+// normals from its normal map: a pixel within kStockWaterBand metres of the main
+// body's sea level whose normal faces up, as the sea's does and a hull floating in it
+// mostly not. Its waves and roughness are ReDefinition's (StockWaves); kStockWaterSmooth
+// the least roughness, of ripples shorter than the shortest wave.
+static const float kStockWaterBand = 2.0f;
+static const float kStockWaterSmooth = 0.004f;
+
+bool IsStockWater(float3 position, float3 normal)
+{
+    float3 up = position - bodySphere.xyz;
+    float level = length(up);
+    return STOCK_WATER && bodySphere.w > 0.0f && abs(level - bodySphere.w) < kStockWaterBand
+           && dot(normal, up / level) > 0.8f;
+}
+
+// KSP's own sea's waves, which its normal map barely carries. The long waves, 40 m down
+// to 2 m, as kStockWaves sine waves spread about a wind direction and across it, each of
+// slope kStockWaveSlope, running as deep water's waves do (omega^2 = g k); the ripples,
+// 2 m down to 5 cm, as kStockRippleOctaves octaves of gradient noise, short-crested as
+// ripples are -- sine waves that short would draw straight crests across the sea, a weave
+// -- each of slope deviation kStockRippleSlope, drifting with the wind at their waves'
+// speed. Together a slope variance of about 0.025, Scatterer's ocean's (measured at sea:
+// its variance as Beckmann's m^2, m = 2 alpha, alpha 0.073 to 0.1). The time is
+// planetAlbedo.w, in seconds. Fixed to the body: positions from its centre along the
+// tangent plane under the camera. A wave is drawn as
+// far as a pixel resolves it -- its length against the water the pixel covers along the
+// wave's own direction (a ripple octave: along the view, the most), across the view and,
+// stretched by the grazing angle, along it -- and what it loses goes into the roughness,
+// as Bruneton's ocean and LEAN mapping move the slopes a pixel cannot show into the BRDF:
+// the glints of the ripples near by, a smooth glow far off, no flicker. xyz the normal,
+// w the Beckmann roughness of the waves no pixel shows, the root of their slopes' mean
+// square.
+static const uint kStockWaves = 24u;
+static const float kStockWaveSlope = 0.0254f;
+static const uint kStockRippleOctaves = 6u;
+static const float kStockRippleSlope = 0.055f;
+
+// A cell's random unit gradient, from its integer coordinates (an integer hash, exact at
+// any distance from the origin, as sin-based hashes are not).
+float2 RippleGradient(int2 cell, uint octave)
+{
+    uint h = uint(cell.x) * 1597334677u ^ uint(cell.y) * 3812015801u ^ octave * 2654435761u;
+    h = (h ^ (h >> 16)) * 2246822519u;
+    h ^= h >> 13;
+    float angle = float(h & 0xffffu) * (2.0f * kPi / 65536.0f);
+    return float2(cos(angle), sin(angle));
+}
+
+// Gradient noise at p and its derivative (quintic interpolation): x the value, yz d/dp.
+float3 RippleNoise(float2 p, uint octave)
+{
+    float2 cellF = floor(p);
+    int2 cell = int2(cellF);
+    float2 f = p - cellF;
+    float2 w = f * f * f * (f * (f * 6.0f - 15.0f) + 10.0f);
+    float2 dw = 30.0f * f * f * (f * (f - 2.0f) + 1.0f);
+    float2 ga = RippleGradient(cell, octave), gb = RippleGradient(cell + int2(1, 0), octave);
+    float2 gc = RippleGradient(cell + int2(0, 1), octave), gd = RippleGradient(cell + int2(1, 1), octave);
+    float va = dot(ga, f), vb = dot(gb, f - float2(1, 0)), vc = dot(gc, f - float2(0, 1)), vd = dot(gd, f - float2(1, 1));
+    float value = va + w.x * (vb - va) + w.y * (vc - va) + w.x * w.y * (va - vb - vc + vd);
+    float2 derivative = ga + w.x * (gb - ga) + w.y * (gc - ga) + w.x * w.y * (ga - gb - gc + gd)
+                        + dw * (float2(vb - va, vc - va) + (va - vb - vc + vd) * w.yx);
+    return float3(value, derivative);
+}
+
+// The sea under a pixel: the tangent plane under the camera, where the sea in view lies
+// (positions fixed to the body, in metres along it), the view's direction along it, and
+// the water the pixel covers across the view and, stretched by the grazing angle, along it.
+struct SeaFrame
+{
+    float3 up, east, north;
+    float2 at, along;
+    float acrossFootprint, alongFootprint;
+};
+
+SeaFrame MakeSeaFrame(float3 position, float acrossFootprint)
+{
+    SeaFrame f;
+    f.up = normalize(position - bodySphere.xyz);
+    float3 below = normalize(-bodySphere.xyz);
+    float3 east = cross(float3(0.0f, 1.0f, 0.0f), below);
+    f.east = dot(east, east) > 1e-6f ? normalize(east) : float3(1.0f, 0.0f, 0.0f);
+    f.north = cross(below, f.east);
+    float3 fromCentre = position - bodySphere.xyz;
+    f.at = float2(dot(fromCentre, f.east), dot(fromCentre, f.north));
+    float3 towardsPixel = normalize(position);
+    float2 along = float2(dot(towardsPixel, f.east), dot(towardsPixel, f.north));
+    f.along = dot(along, along) > 1e-8f ? normalize(along) : float2(1.0f, 0.0f);
+    f.acrossFootprint = acrossFootprint;
+    f.alongFootprint = acrossFootprint / max(abs(dot(towardsPixel, f.up)), 0.02f);
+    return f;
+}
+
+// The ripples' slopes along the frame's east and north (xy) and the slope variance of the
+// octaves no pixel shows (z), each octave of slope deviation kStockRippleSlope times `scale`.
+float3 SeaRipples(SeaFrame f, float scale)
+{
+    const float2 wind = float2(cos(0.35f), sin(0.35f));
+    float time = planetAlbedo.w;
+    float slopeDeviation = kStockRippleSlope * scale;
+    float2 slope = 0.0f;
+    float lost = 0.0f;
+    for (uint octave = 0u; octave < kStockRippleOctaves; ++octave)
+    {
+        // Each octave half the last one's length, from 2 m: a noise cell is about a
+        // ripple's length.
+        float wavelength = 2.0f * exp2(-float(octave) * 0.97f);
+        float shown = saturate(wavelength / (2.0f * max(f.alongFootprint, 1e-4f)) - 1.0f);
+        lost += slopeDeviation * slopeDeviation * (1.0f - shown * shown);
+        if (shown <= 0.0f)
+            continue;
+        float frequency = 1.0f / wavelength;
+        float speed = sqrt(9.81f * wavelength / (2.0f * kPi));
+        float2 p = (f.at - wind * speed * time) * frequency + float2(octave * 37.0f, octave * 11.0f);
+        // The noise's derivative is about 1.3 in deviation per unit of p: to a slope of
+        // slopeDeviation.
+        float2 derivative = RippleNoise(p, octave).yz * frequency;
+        slope += derivative * (slopeDeviation * shown * wavelength / 1.3f);
+    }
+    return float3(slope, lost);
+}
+
+float4 StockWaves(float3 position, float acrossFootprint)
+{
+    SeaFrame f = MakeSeaFrame(position, acrossFootprint);
+    float time = planetAlbedo.w;
+    float2 slope = 0.0f;
+    float lost = 0.0f;
+    for (uint i = 0u; i < kStockWaves; ++i)
+    {
+        // Lengths spread over the range, each at random within its step, and directions
+        // at random: no two waves in step with each other.
+        float3 dice = frac(sin(float3(i, i + 17u, i + 41u) * float3(12.9898f, 78.233f, 37.719f)) * 43758.5453f);
+        float t = saturate((float(i) + dice.x) / float(kStockWaves));
+        float wavelength = 40.0f * pow(2.0f / 40.0f, t);
+        // Directions about the wind, most within 50 degrees, some across it.
+        float u = dice.y * 2.0f - 1.0f;
+        float angle = 0.35f + u * abs(u) * 2.2f;
+        float2 direction = float2(cos(angle), sin(angle));
+        float alongPart = dot(direction, f.along);
+        float footprint = sqrt(alongPart * alongPart * f.alongFootprint * f.alongFootprint
+                               + (1.0f - alongPart * alongPart) * f.acrossFootprint * f.acrossFootprint);
+        float shown = saturate(wavelength / (2.0f * max(footprint, 1e-4f)) - 1.0f);
+        lost += 0.5f * kStockWaveSlope * kStockWaveSlope * (1.0f - shown * shown);
+        if (shown <= 0.0f)
+            continue;
+        float k = 2.0f * kPi / wavelength;
+        float phase = dice.z * 2.0f * kPi - sqrt(9.81f * k) * time;
+        slope += direction * (kStockWaveSlope * shown * cos(k * dot(direction, f.at) + phase));
+    }
+    float3 ripples = SeaRipples(f, 1.0f);
+    slope += ripples.xy;
+    lost += ripples.z;
+    return float4(normalize(f.up - slope.x * f.east - slope.y * f.north), sqrt(lost));
+}
+
+// Scatterer's ocean with the same ripples on its own normals: its waves are geometry and
+// normal maps down to some metres, the rest it keeps as a variance its glint spreads the
+// sun over (Bruneton's BRDF), which mirrors a disc as a flat patch. The ripples carry that
+// variance (`m`, Beckmann's, from it) as normals a pixel shows as glints, and the
+// roughness only what no pixel shows. xyz the normal, w the roughness.
+float4 ScattererRipples(float3 position, float3 normal, float m, float acrossFootprint)
+{
+    SeaFrame f = MakeSeaFrame(position, acrossFootprint);
+    float scale = m / sqrt(float(kStockRippleOctaves) * kStockRippleSlope * kStockRippleSlope);
+    float3 ripples = SeaRipples(f, scale);
+    return float4(normalize(normal - ripples.x * f.east - ripples.y * f.north), sqrt(ripples.z));
+}
+
+// The same for water of roughness `roughness` (GGX's alpha) as it is.
+// The sun's and the moons' discs mirrored by water of Beckmann roughness `m`
+// (DiscSpecular), with nothing in the way towards the body: the sun by its light at the
+// player's strength (Sun reflection); a moon by its disc's light, its surface as the sun
+// lights it averaged over a Lambert sphere at its phase (2/3 of the full disc's centre at
+// full phase) times its solid angle.
+float3 BodiesMirroredAt(float3 position, float3 normal, float3 view, float m, float terrainSkip)
+{
+    float3 total = 0.0f;
+    float3 towardsSun = normalize(sunDirection.xyz);
+    if (SUN_MIRROR > 0.0f && dot(normal, towardsSun) > 0.0f)
+    {
+        float sunRadius = max(sunDirection.w, 0.0047f);
+        float specular = DiscSpecular(normal, view, towardsSun, sunRadius, m);
+        if (specular > 0.0f && Unoccluded(RayOrigin(position, normal), towardsSun, 1.0e7f, terrainSkip))
+            total += InputColor(sunColor.rgb) * specular * SUN_MIRROR;
+    }
+    for (uint i = 0u; i < min(LIGHT_COUNT, 2u); ++i)
+    {
+        float4 towards = i == 0u ? lightDirection0 : lightDirection1;
+        float3 surface = i == 0u ? lightSurface0.rgb : lightSurface1.rgb;
+        if (all(surface <= 0.0f))
+            continue;
+        float3 l = normalize(towards.xyz);
+        if (dot(normal, l) <= 0.0f)
+            continue;
+        float specular = DiscSpecular(normal, view, l, towards.w, m);
+        if (specular <= 0.0f)
+            continue;
+        float cosPhase = clamp(dot(towardsSun, -l), -1.0f, 1.0f);
+        float phaseAngle = acos(cosPhase);
+        float phase = (sin(phaseAngle) + (kPi - phaseAngle) * cosPhase) / kPi;
+        if (!Unoccluded(RayOrigin(position, normal), l, 1.0e7f, terrainSkip))
+            continue;
+        float solidAngle = kPi * sin(towards.w) * sin(towards.w);
+        total += surface * (2.0f / 3.0f) * phase * solidAngle * specular;
+    }
+    return total;
+}
+
 
 // The light of the bodies the sun lights (RtReflectors) arriving at a surface point:
 // one of them a sample, chosen by its brightness, towards its disc and in its shadow --

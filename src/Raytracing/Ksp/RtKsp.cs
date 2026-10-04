@@ -77,7 +77,8 @@ namespace ReDefinition.Raytracing
             if (attached != null && attachedTo == sceneCamera && attached.enabled)
             {
                 RtKspMods.HoldPlanetShine(mode == RaytracingMode.Light || mode == RaytracingMode.Full);
-                RtKspMods.HoldDeferredReflections(attached.Settings.Reflections && RtLighting.ReflectionsReplaced, sceneCamera);
+                RtKspMods.HoldDeferredReflections(attached.Settings.Reflections && RtLighting.ReflectionsReplaced
+                                                  && !RtKspMods.OceanNeedsDeferredReflections(), sceneCamera);
                 Report();
             }
             else if (sceneCamera != failedOn) Attach(sceneCamera);
@@ -162,14 +163,15 @@ namespace ReDefinition.Raytracing
                 Vector3d centre = body.position;
                 return new Vector4((float)centre.x, (float)centre.y, (float)centre.z, (float)body.Radius);
             };
-            camera.Lights = lights =>
+            camera.Lights = (lights, surfaces) =>
             {
                 CelestialBody body = HighLogic.LoadedSceneIsFlight ? FlightGlobals.currentMainBody
                                      : HighLogic.LoadedScene == GameScenes.SPACECENTER ? FlightGlobals.GetHomeBody() : null;
                 if (body == null) return 0;
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 float percent = addon != null ? addon.Live.RaytracingMoonlight : 10f;
-                return RtReflectors.Fill(lights, sceneCamera.transform.position, body, percent);
+                float mirrored = addon != null ? addon.Live.RaytracingMoonReflection : 100f;
+                return RtReflectors.Fill(lights, surfaces, sceneCamera.transform.position, body, percent, mirrored);
             };
             camera.PlanetAlbedo = () =>
             {
@@ -178,6 +180,13 @@ namespace ReDefinition.Raytracing
                 return RtReflectors.PlanetAlbedo(body);
             };
 
+            camera.OceanReflections = RtKspMods.OceanReadsHeldReflections;
+            camera.StockWater = RtKspMods.StockOcean;
+            camera.SunMirror = () =>
+            {
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+                return (addon != null ? addon.Live.SunReflection : 100f) / 100f;
+            };
             camera.NightLight = () =>
             {
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;

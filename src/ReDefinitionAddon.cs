@@ -742,8 +742,9 @@ namespace ReDefinition
                 if (HostStack.Applied) HostStack.Restore();
             });
 
-            // The throttled check may not have run since the last change.
-            Guarded("settings-save", () => Collect().Save());
+            // The throttled check may not have run since the last change. Not after a scene
+            // probe, whose settings were its measurements' (SaveSettingsIfChanged).
+            if (!Probe.SceneProbe.Requested) Guarded("settings-save", () => Collect().Save());
 
             Detach();
             KeyCapture.Stop();

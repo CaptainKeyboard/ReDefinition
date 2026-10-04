@@ -54,6 +54,13 @@ float3 legacyAmbientColor;
 // camera's rendering (RtCamera); _ReDefinitionRtLight says which of them to use.
 #include "ReDefinitionRtReproject.cginc"
 float4 _ReDefinitionRtLight;   // x: diffuse light, y: reflections, z: the share of KSP's night light kept
+// KSP's own sea, where the raytracing takes it as water (RtCamera, StockWater): the main
+// body's centre in Unity's world and its radius, the sea level; w 0 for none. A point
+// within 2 m of it whose normal faces up is the sea (as the raytracing's RtCommon.hlsli,
+// IsStockWater).
+float4 _ReDefinitionWaterSphere;
+// Its reflections from the water's own trace, whole and undenoised (RtCamera, TraceOcean).
+sampler2D _ReDefinitionRtOcean;
 sampler2D _ReDefinitionRtDiffuse;
 sampler2D _ReDefinitionRtSpecular;
 
@@ -159,7 +166,34 @@ half4 frag (unity_v2f_deferred i) : SV_Target
             ind.diffuse = raytraced * data.occlusion;
         }
         if (_ReDefinitionRtLight.y > 0.5)
-            ind.specular = ReDefinitionRtSignal(tex2Dlod(_ReDefinitionRtSpecular, float4(rtUv, 0.0, 0.0)).rgb) * data.occlusion;
+        {
+            float3 reflected = tex2Dlod(_ReDefinitionRtSpecular, float4(rtUv, 0.0, 0.0)).rgb;
+            // KSP's own sea: its reflection by water's Fresnel term (Schlick, 0.02 head on),
+            // in linear light, added to its lighting without one -- the raytracing traced
+            // it as water, with the sun's and the moons' discs (ReDefinition turns the sea
+            // shader's own highlight off).
+            float3 seaUp = worldPos - _ReDefinitionWaterSphere.xyz;
+            float seaLevel = length(seaUp);
+            if (_ReDefinitionWaterSphere.w > 0.0 && abs(seaLevel - _ReDefinitionWaterSphere.w) < 2.0
+                && dot(data.normalWorld, seaUp / seaLevel) > 0.8)
+            {
+                reflected = tex2Dlod(_ReDefinitionRtOcean, float4(rtUv, 0.0, 0.0)).rgb;
+                float nv = saturate(dot(data.normalWorld, -eyeVec));
+                float fresnel = 0.02 + 0.98 * pow(1.0 - nv, 5.0);
+                ind.specular = 0;
+                half3 lit = UNITY_BRDF_PBS (data.diffuseColor, data.specularColor, oneMinusReflectivity, data.smoothness, data.normalWorld, -eyeVec, light, ind).rgb;
+                // At most four times white, its colour kept: a glint of the sun is white on
+                // the screen as the sun's own disc is, and far brighter only spreads the
+                // bloom of post-processing (TUFX) over the sea into a smooth white band
+                // (measured at sea, 2026-10-04: the traced path 100 px wide, the frame's 190).
+                float3 waterLight = max(reflected, 0.0) * fresnel * data.occlusion;
+                waterLight *= min(1.0, 4.0 / max(max(waterLight.r, max(waterLight.g, waterLight.b)), 1e-6));
+                float3 water = ReDefinitionRtSignal(waterLight);
+                half3 distanceToBox = distanceFromAABB(worldPos, unity_SpecCube0_BoxMin.xyz, unity_SpecCube0_BoxMax.xyz);
+                return half4(lit + water, saturate(1.0 - length(distanceToBox) / blendDistance));
+            }
+            ind.specular = ReDefinitionRtSignal(reflected) * data.occlusion;
+        }
     }
 
     half3 rgb = UNITY_BRDF_PBS (data.diffuseColor, data.specularColor, oneMinusReflectivity, data.smoothness, data.normalWorld, -eyeVec, light, ind).rgb;

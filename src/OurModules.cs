@@ -213,6 +213,41 @@ namespace ReDefinition
             },
             new ModuleSetting
             {
+                Key = "moonReflection",
+                Title = "Moon reflection",
+                Kind = SettingKind.Other,
+                Order = 75,
+                Control = SettingControl.Slider,
+                Min = 0f,
+                Max = 500f,
+                StepsPerUnit = 0.2f,
+                Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %",
+                Tooltip = "How strongly water mirrors the moons. 100 % is the moon as bright in the water as the eye\n"
+                          + "sees it at night; it lights nothing. Only with Full, which traces reflections.",
+                Read = settings => settings.RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture),
+                Write = (settings, value) =>
+                    settings.RaytracingMoonReflection = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+                Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
+            },
+            new ModuleSetting
+            {
+                Key = "sunReflection",
+                Title = "Sun reflection",
+                Kind = SettingKind.Other,
+                Order = 77,
+                Control = SettingControl.Slider,
+                Min = 0f,
+                Max = 300f,
+                StepsPerUnit = 0.2f,
+                Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %",
+                Tooltip = "How strongly the ocean mirrors the sun: Scatterer's glint on the water. 100 % is\n"
+                          + "Scatterer's own strength.",
+                Read = settings => settings.SunReflection.ToString("0", CultureInfo.InvariantCulture),
+                Write = (settings, value) =>
+                    settings.SunReflection = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+            },
+            new ModuleSetting
+            {
                 Key = "nightAmbient",
                 Title = "Night light",
                 Kind = SettingKind.Other,

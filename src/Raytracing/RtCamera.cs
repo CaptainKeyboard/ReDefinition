@@ -73,13 +73,22 @@ namespace ReDefinition.Raytracing
         // packet's lights -- towards each, its angular radius, its radiance linear and how
         // far its shadow ray goes, negative for the main body itself -- and says how many.
         // None by default.
-        internal Func<float[], int> Lights = lights => 0;
+        internal Func<float[], float[], int> Lights = (lights, surfaces) => 0;
         // How much of Unity's ambient light stays as the least light a raytraced point
         // gets, 0 to 1 (KSP's night light: the player's Night light). All by default.
         internal Func<float> NightLight = () => 1f;
         // The main body's albedo, linear: rays that miss the scene and meet its sphere
         // (Body) take the sun's and the lights' light on it times this.
         internal Func<Color> PlanetAlbedo = () => new Color(0.12f, 0.12f, 0.12f);
+        // Whether Scatterer's ocean takes its reflections from the raytracing this frame:
+        // where Deferred's screen-space reflections give way to the raytraced ones, the
+        // ocean, which reads theirs (ssrOutput), would show whatever they last held.
+        internal Func<bool> OceanReflections = () => false;
+        // How strongly water mirrors the sun's disc, 1 as it is (RtCommon.hlsli, SUN_MIRROR).
+        internal Func<float> SunMirror = () => 1f;
+        // Whether the main body's sea is KSP's own, which the reflections take as water by
+        // its level (RtCommon.hlsli, STOCK_WATER; ReDefinitionDeferredReflections.shader).
+        internal Func<bool> StockWater = () => false;
         // Unity's ambient light, which its shading adds by itself: the raytraced light
         // added to the frame is this much less. Handed over facing up, sideways and down.
         // The probe Unity shades with: RenderSettings.ambientProbe holds only a baked one.
@@ -151,6 +160,13 @@ namespace ReDefinition.Raytracing
         private RtNative.FramePacket packet;
         private RenderTexture depth, gbuffer0, gbuffer1, gbuffer2, motion, environment;
         private RenderTexture sun, diffuse, specular, forward;
+        // Scatterer's ocean as a surface, its raytraced reflections, and those as the
+        // ocean reads them.
+        private RenderTexture oceanDepth, oceanSurface1, oceanSurface2, oceanTraced, oceanReflections;
+        private IntPtr oceanDepthHandle, oceanSurface1Handle, oceanSurface2Handle, oceanTracedHandle;
+        private CommandBuffer oceanCommand;
+        private bool oceanAttached;
+        private RtNative.FramePacket oceanPacket;
         // The targets' native textures, taken once as they are made: GetNativeTexturePtr
         // waits for the render thread.
         private IntPtr depthHandle, gbuffer0Handle, gbuffer1Handle, gbuffer2Handle, motionHandle, environmentHandle;
@@ -190,6 +206,15 @@ namespace ReDefinition.Raytracing
         private static readonly int RtOn = Shader.PropertyToID("_ReDefinitionRtOn");
         private static readonly int RtSunMask = Shader.PropertyToID("_ReDefinitionRtSunMask");
         private static readonly int RtLight = Shader.PropertyToID("_ReDefinitionRtLight");
+        private static readonly int RtOcean = Shader.PropertyToID("_ReDefinitionRtOcean");
+        private static readonly int SsrOutput = Shader.PropertyToID("ssrOutput");
+        private static readonly int WaterSphereId = Shader.PropertyToID("_ReDefinitionWaterSphere");
+        // Scatterer's ocean draws its G-buffer after the forward opaque pass and is shaded
+        // after the opaque image effects (OceanCommandBuffer); Deferred's screen-space
+        // reflections read that G-buffer before them, where this goes too.
+        private const CameraEvent OceanEvent = CameraEvent.BeforeImageEffectsOpaque;
+        private static readonly System.Reflection.FieldInfo[] PacketFields =
+            typeof(RtNative.FramePacket).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
         private static readonly int RtPrevViewProj = Shader.PropertyToID("_ReDefinitionRtPrevViewProj");
         private static readonly int RtTexel = Shader.PropertyToID("_ReDefinitionRtTexel");
         private static readonly int RtOffsetNear = Shader.PropertyToID("_ReDefinitionRtOffsetNear");
@@ -213,8 +238,10 @@ namespace ReDefinition.Raytracing
         {
             cam = GetComponent<Camera>();
             packet = RtNative.NewFramePacket();
+            oceanPacket = RtNative.NewFramePacket();
             if (ring == null)
-                ring = new PacketRing(System.Runtime.InteropServices.Marshal.SizeOf(typeof(RtNative.FramePacket)));
+                // Two packets a frame where the ocean's reflections are traced too.
+                ring = new PacketRing(System.Runtime.InteropServices.Marshal.SizeOf(typeof(RtNative.FramePacket)), 16);
         }
 
         private void OnEnable()
@@ -238,6 +265,7 @@ namespace ReDefinition.Raytracing
             capture = new Material(captureShader) { hideFlags = HideFlags.HideAndDontSave };
             Scene.TextureReader = capture;
             command = new CommandBuffer { name = "ReDefinition raytracing" };
+            oceanCommand = new CommandBuffer { name = "ReDefinition raytracing ocean reflections" };
 
             // The flag the lighting shaders read: on around this camera's rendering,
             // off for every other camera. Forward rendering collects the sun's shadow
@@ -305,10 +333,13 @@ namespace ReDefinition.Raytracing
             RtLighting.Restore();
             Scene.Clear();
             ReleaseTargets();
+            ReleaseOceanTargets();
             ReleaseGpuInstances();
             if (capture != null) Destroy(capture);
             capture = null;
             command?.Release();
+            oceanCommand?.Release();
+            oceanCommand = null;
             gbufferCopy?.Release();
             forwardLight?.Release();
             forwardLight = null;
@@ -418,6 +449,7 @@ namespace ReDefinition.Raytracing
 
         private void DetachTrace()
         {
+            TraceOcean(false, false);
             if (!traceAttached) return;
             cam.RemoveCommandBuffer(traceEvent, command);
             traceAttached = false;
@@ -464,6 +496,8 @@ namespace ReDefinition.Raytracing
             FillPacket(deferredPath, false, cube != null);
             if (withGpu) packet.Inputs[RtNative.InputInstances] = gpuInstancesHandle;
             ring.Issue(command, RtNative.RenderEvent, RtNative.FrameEvent, ref packet);
+            bool stockSea = StockWater();
+            TraceOcean(deferredPath && Settings.Reflections && (OceanReflections() || stockSea), stockSea);
 
             // This frame's results for this frame's lighting: the same pixel. The matrix is
             // relative to the camera, the shaders' positions are Unity's world.
@@ -486,6 +520,103 @@ namespace ReDefinition.Raytracing
             previousPosition = position;
             haveHistory = true;
             frameIndex++;
+        }
+
+        // Scatterer's ocean's reflections from the rays, in this frame: its surface from
+        // its G-buffer into the shape of Unity's, traced as a second frame of the same
+        // camera and scene with the reflections alone, and handed to the ocean where it
+        // reads Deferred's screen-space reflections (ssrOutput). Where a reflected ray
+        // meets nothing the weight is 0, and the ocean keeps its own reflection of Scatterer's sky.
+        // KSP's own sea (`stockSea`) the same way from Unity's G-buffer as the frame's
+        // trace took it, its reflections whole and undenoised for the reflections' shader
+        // (_ReDefinitionRtOcean, ReDefinitionDeferredReflections.shader), which reads them
+        // the frame after, where it reads the rest of the raytracing.
+        private void TraceOcean(bool wanted, bool stockSea)
+        {
+            StockSeaTraced = wanted && stockSea;
+            if (!wanted)
+            {
+                if (oceanAttached)
+                {
+                    cam.RemoveCommandBuffer(OceanEvent, oceanCommand);
+                    Debug.Log("[ReDefinition] Raytracing: the sea's own reflections back.");
+                }
+                oceanAttached = false;
+                return;
+            }
+            EnsureOceanTargets();
+            if (!oceanAttached)
+            {
+                cam.AddCommandBuffer(OceanEvent, oceanCommand);
+                oceanAttached = true;
+                Debug.Log("[ReDefinition] Raytracing: " + (stockSea ? "KSP's sea" : "Scatterer's ocean") + " takes the raytraced reflections.");
+            }
+            oceanCommand.Clear();
+            RenderTargetIdentifier source = BuiltinRenderTextureType.CameraTarget;
+            if (!stockSea)
+            {
+                oceanCommand.Blit(source, oceanDepth, capture, 7);
+                oceanCommand.Blit(source, oceanSurface1, capture, 8);
+                oceanCommand.Blit(source, oceanSurface2, capture, 9);
+            }
+
+            object copy = oceanPacket;
+            foreach (System.Reflection.FieldInfo field in PacketFields)
+            {
+                object value = field.GetValue(packet);
+                Array array = value as Array;
+                if (array != null) Array.Copy(array, (Array)field.GetValue(copy), array.Length);
+                else field.SetValue(copy, value);
+            }
+            oceanPacket = (RtNative.FramePacket)copy;
+            oceanPacket.Signals = RtNative.SignalSpecular;
+            oceanPacket.Flags = RtNative.FlagSameFrame | RtNative.FlagExtra | RtNative.FlagWater;
+            oceanPacket.Params[7] = 1f;
+            for (int i = 0; i < 8; i++) oceanPacket.Outputs[i] = IntPtr.Zero;
+            if (!stockSea)
+            {
+                oceanPacket.Inputs[RtNative.InputDepth] = oceanDepthHandle;
+                oceanPacket.Inputs[RtNative.InputGBuffer0] = oceanSurface1Handle;
+                oceanPacket.Inputs[RtNative.InputGBuffer1] = oceanSurface1Handle;
+                oceanPacket.Inputs[RtNative.InputGBuffer2] = oceanSurface2Handle;
+            }
+            oceanPacket.Inputs[RtNative.InputMotion] = IntPtr.Zero;
+            oceanPacket.Outputs[RtNative.OutputSpecular] = oceanTracedHandle;
+            ring.Issue(oceanCommand, RtNative.RenderEvent, RtNative.FrameEvent, ref oceanPacket);
+
+            oceanCommand.SetGlobalTexture(RtOcean, oceanTraced);
+            if (stockSea) return;
+            oceanCommand.Blit(source, oceanReflections, capture, 10);
+            oceanCommand.SetGlobalTexture(SsrOutput, oceanReflections);
+        }
+
+        private void EnsureOceanTargets()
+        {
+            if (oceanDepth != null && oceanDepth.width == width && oceanDepth.height == height && oceanDepth.IsCreated()
+                && oceanTraced.IsCreated())
+                return;
+            ReleaseOceanTargets();
+            oceanDepth = Target(RenderTextureFormat.RFloat);
+            oceanSurface1 = Target(RenderTextureFormat.ARGB32);
+            oceanSurface2 = Target(RenderTextureFormat.ARGB2101010);
+            oceanTraced = Target(RenderTextureFormat.ARGBHalf);
+            oceanReflections = Target(RenderTextureFormat.ARGBFloat);
+            oceanDepthHandle = oceanDepth.GetNativeTexturePtr();
+            oceanSurface1Handle = oceanSurface1.GetNativeTexturePtr();
+            oceanSurface2Handle = oceanSurface2.GetNativeTexturePtr();
+            oceanTracedHandle = oceanTraced.GetNativeTexturePtr();
+        }
+
+        private void ReleaseOceanTargets()
+        {
+            foreach (RenderTexture texture in new[] { oceanDepth, oceanSurface1, oceanSurface2, oceanTraced, oceanReflections })
+                if (texture != null)
+                {
+                    texture.Release();
+                    Destroy(texture);
+                }
+            oceanDepth = oceanSurface1 = oceanSurface2 = oceanTraced = oceanReflections = null;
+            oceanDepthHandle = oceanSurface1Handle = oceanSurface2Handle = oceanTracedHandle = IntPtr.Zero;
         }
 
         // After this camera's scene, before its OnPostRender, where the sun's colour is
@@ -711,6 +842,7 @@ namespace ReDefinition.Raytracing
             packet.SunDirection[2] = direction.z;
             packet.SunDirection[3] = towards.w;
             Color sunColour = drawnSunFrame == Time.frameCount ? drawnSunColour : SunColor();
+            TracedSunColour = sunColour;
             packet.SunColor[0] = sunColour.r;
             packet.SunColor[1] = sunColour.g;
             packet.SunColor[2] = sunColour.b;
@@ -741,10 +873,14 @@ namespace ReDefinition.Raytracing
             packet.Params[6] = 1f;
             packet.Params[7] = deferred ? 1f : 0f;
             for (int i = 0; i < 16; i++) packet.Lights[i] = 0f;
-            packet.LightParams[0] = Mathf.Clamp(Lights(packet.Lights), 0, 2);
+            for (int i = 0; i < 8; i++) packet.LightSurface[i] = 0f;
+            packet.LightParams[0] = Mathf.Clamp(Lights(packet.Lights, packet.LightSurface), 0, 2);
             // Unity's colours are gamma-space values in gamma space; the light transport
             // takes them to linear (RtCommon.hlsli, InputColor).
             packet.LightParams[1] = QualitySettings.activeColorSpace == ColorSpace.Gamma ? 1f : 0f;
+            packet.LightParams[2] = Mathf.Max(SunMirror(), 0f);
+            bool stockWater = StockWater();
+            packet.LightParams[3] = stockWater ? 1f : 0f;
             // KSP's flat ambient light, as Deferred takes it (RefreshLegacyAmbient).
             Color night = RenderSettings.ambientLight * Mathf.Clamp01(NightLight());
             packet.NightLight[0] = night.r;
@@ -754,7 +890,13 @@ namespace ReDefinition.Raytracing
             packet.Planet[0] = planet.r;
             packet.Planet[1] = planet.g;
             packet.Planet[2] = planet.b;
+            // The time for the waves of KSP's own sea (RtCommon.hlsli, StockWaves), within an
+            // hour, where a float still counts tenths of a millisecond.
+            packet.Planet[3] = Time.time % 3600f;
             Vector4 body = Body();
+            // The sea's sphere for the reflections' shader, in Unity's world: none but for
+            // KSP's own sea.
+            Shader.SetGlobalVector(WaterSphereId, stockWater ? body : Vector4.zero);
             packet.BodySphere[0] = (float)(body.x - position.x);
             packet.BodySphere[1] = (float)(body.y - position.y);
             packet.BodySphere[2] = (float)(body.z - position.z);
@@ -918,6 +1060,16 @@ namespace ReDefinition.Raytracing
         internal RenderTexture NormalTexture { get { return gbuffer2; } }
         internal RenderTexture EnvironmentTexture { get { return environment; } }
         internal RenderTexture ForwardTexture { get { return forward; } }
+        internal RenderTexture OceanReflectionsTexture { get { return oceanReflections; } }
+        // Whether KSP's own sea took the raytraced reflections, with the sun's disc, in the
+        // last frame (TraceOcean).
+        internal static bool StockSeaTraced { get; private set; }
+        // The sun's colour the last frame's trace took (SunColor as the frame drew it).
+        internal Color TracedSunColour { get; private set; }
+        internal RenderTexture OceanTracedTexture { get { return oceanTraced; } }
+        internal RenderTexture OceanDepthTexture { get { return oceanDepth; } }
+        internal RenderTexture OceanSurfaceTexture { get { return oceanSurface2; } }
+        internal RenderTexture OceanRoughnessTexture { get { return oceanSurface1; } }
 
         // The service's line and each pass's time, for the diagnostics.
         internal string Status()

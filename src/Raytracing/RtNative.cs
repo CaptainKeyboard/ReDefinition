@@ -29,6 +29,8 @@ namespace ReDefinition.Raytracing
         internal const uint FlagDenoise = 1u << 2;
         internal const uint FlagMotionVectors = 1u << 3;
         internal const uint FlagGuides = 1u << 4;
+        internal const uint FlagExtra = 1u << 5;
+        internal const uint FlagWater = 1u << 6;
 
         internal const uint SignalSun = 1u << 0;
         internal const uint SignalOcclusion = 1u << 1;
@@ -149,6 +151,7 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] LightParams;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] NightLight;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] Planet;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public float[] LightSurface;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -251,6 +254,7 @@ namespace ReDefinition.Raytracing
                 LightParams = new float[4],
                 NightLight = new float[4],
                 Planet = new float[4],
+                LightSurface = new float[8],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

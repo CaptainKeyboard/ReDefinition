@@ -673,6 +673,7 @@ namespace redefinition
         memcpy(constants + 416, packet->lightParams, 16);
         memcpy(constants + 432, packet->nightLight, 16);
         memcpy(constants + 448, packet->planet, 16);
+        memcpy(constants + 464, packet->lightSurface, 32);
 
         std::vector<D3D12_RESOURCE_BARRIER> into;
         std::vector<D3D12_RESOURCE_BARRIER> back;
@@ -806,8 +807,10 @@ namespace redefinition
 
         // DLSS Ray Reconstruction's guides from this frame's surfaces, which the
         // reconstruction of the same frame takes (RaytracingReconstruct.cpp).
-        guides.fromFrame = false;
-        if ((packet->flags & kRtFrameGuides) != 0)
+        const bool extra = (packet->flags & kRtFrameExtra) != 0;
+        if (!extra)
+            guides.fromFrame = false;
+        if (!extra && (packet->flags & kRtFrameGuides) != 0)
         {
             auto pipeline = denoisePipelines.find("RT_FrameGuides");
             if (pipeline != denoisePipelines.end() && EnsureGuidesLocked(slot.held, packet->width, packet->height))
@@ -850,6 +853,8 @@ namespace redefinition
                 context11->CopyResource(static_cast<ID3D11Resource*>(packet->outputs[i]), outputs[i]->texture.d3d11.Get());
 
         std::lock_guard<std::mutex> status(statusLock);
+        if (extra)
+            return;
         ++frames;
         liveMeshes = static_cast<uint32_t>(meshes.size());
         lastInstances = instanceCount;

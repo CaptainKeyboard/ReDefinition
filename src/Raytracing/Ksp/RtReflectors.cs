@@ -33,6 +33,9 @@ namespace ReDefinition.Raytracing
             internal Color Colour;
             internal float Reach;
             internal float Luminance;
+            internal Color Surface;
+            // The brightest at 100 %, whatever the player's percentage.
+            internal float Order;
         }
 
         private static readonly List<Candidate> candidates = new List<Candidate>();
@@ -42,18 +45,27 @@ namespace ReDefinition.Raytracing
 
         // Fills lights as RtCamera.Lights asks, for a camera at `eye` (world) over `main`,
         // the player's percentage; the number of lights.
-        internal static int Fill(float[] lights, Vector3d eye, CelestialBody main, float percent)
+        // surfaces: per light its body's albedo times the star's colour, linear, which a
+        // reflected ray sees on its disc, at the player's percentage `mirrored`.
+        internal static int Fill(float[] lights, float[] surfaces, Vector3d eye, CelestialBody main, float percent,
+                                 float mirrored)
         {
             lastCount = 0;
-            if (percent <= 0f || main == null) return 0;
+            // Also at 0 %: a reflected ray still sees the moons' discs (surfaces).
+            if (main == null) return 0;
             CelestialBody star = RtKspMods.StarBody();
             if (star == null) return 0;
             // The star's colour as the bodies get it: the scene's light is tinted by the
             // atmosphere (Scatterer), and darkened at night (measured, KSP.log: an orange
             // moonlight, and none with the Mun high).
-            Color tint = RtKspMods.StarColour().linear;
-            float tintLuminance = Luminance(tint);
-            tint = (tintLuminance > 0f ? tint / tintLuminance : Color.white) * NightTint;
+            Color starColour = RtKspMods.StarColour().linear;
+            float tintLuminance = Luminance(starColour);
+            starColour = tintLuminance > 0f ? starColour / tintLuminance : Color.white;
+            Color tint = starColour * NightTint;
+
+            // The discs as the eye sees them at night, brighter than their albedo makes them
+            // (NightAdaptation): what water mirrors of them.
+            float discFactor = NightAdaptation.DiscFactor(eye, main, star) * Mathf.Max(mirrored, 0f) / 100f;
 
             candidates.Clear();
             Vector3d sun = star.position;
@@ -76,8 +88,8 @@ namespace ReDefinition.Raytracing
                 Color colour = ColourOf(body);
                 double share = RtReflectorLight.Share(Luminance(colour), angle, body.Radius, distance, sunToEye,
                                                       bodyToSun.magnitude);
+                if (share <= 0.0) continue;
                 double brightness = RtReflectorLight.Brightness(share, percent);
-                if (brightness <= 1e-5) continue;
                 float albedo = Mathf.Max(Luminance(colour), 1e-4f);
                 Color light = tint * (colour / albedo) * (float)brightness;
                 candidates.Add(new Candidate
@@ -88,9 +100,11 @@ namespace ReDefinition.Raytracing
                     // To its surface.
                     Reach = (float)(distance - body.Radius),
                     Luminance = Luminance(light),
+                    Surface = colour * starColour * discFactor,
+                    Order = (float)RtReflectorLight.Brightness(share, 100.0),
                 });
             }
-            candidates.Sort((a, b) => b.Luminance.CompareTo(a.Luminance));
+            candidates.Sort((a, b) => b.Order.CompareTo(a.Order));
             int count = Mathf.Min(2, candidates.Count);
             for (int i = 0; i < count; i++)
             {
@@ -103,6 +117,9 @@ namespace ReDefinition.Raytracing
                 lights[i * 8 + 5] = c.Colour.g;
                 lights[i * 8 + 6] = c.Colour.b;
                 lights[i * 8 + 7] = c.Reach;
+                surfaces[i * 4 + 0] = c.Surface.r;
+                surfaces[i * 4 + 1] = c.Surface.g;
+                surfaces[i * 4 + 2] = c.Surface.b;
                 lastLuminance[i] = c.Luminance;
             }
             lastCount = count;

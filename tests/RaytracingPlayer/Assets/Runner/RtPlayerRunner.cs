@@ -247,6 +247,21 @@ namespace ReDefinition.RaytracingPlayer
         private IEnumerator Run()
         {
             probe.RenderProbe();
+            // -only <check>: that check alone (tools/build_rt_player.py --only).
+            if (Argument("-only") == "glow")
+            {
+                yield return MoonGlowCheck();
+                Finish();
+                yield break;
+            }
+            if (Argument("-only") == "ocean")
+            {
+                raytracing.enabled = true;
+                for (int i = 0; i < 30; i++) yield return null;
+                yield return OceanReflections();
+                Finish();
+                yield break;
+            }
             if (budget)
             {
                 yield return Budget();
@@ -342,6 +357,8 @@ namespace ReDefinition.RaytracingPlayer
             yield return SmallTextureRows();
             if (deferredMod)
             {
+                // Before the world moves away under the floating origin's jump.
+                yield return OceanReflections();
                 yield return Moving(without);
                 yield return Night();
             }
@@ -381,6 +398,254 @@ namespace ReDefinition.RaytracingPlayer
             float before = Brightness(without, far - total) / Mathf.Max(Brightness(without, farLit - total), 1e-3f);
             Check(ratio < 0.8f * before, "the far shadow over a floating origin jump",
                   (ratio * 100f).ToString("0") + " % of the light beside it after the camera moved 2 m and the world 670 m");
+        }
+
+        // Scatterer's ocean as ReDefinition hands it the raytraced reflections (RtCamera,
+        // the ocean's reflections): a stand-in for its G-buffer -- the drawn scene as calm
+        // water, its depth the camera's, its normal straight up, its variance 0 -- a dark sky and a
+        // full moon low ahead. The reflections handed on (ssrOutput) show the moon where
+        // the water mirrors it, the boxes with the whole weight, and leave the sky to
+        // the ocean.
+        private IEnumerator OceanReflections()
+        {
+            Vector3 position = cam.transform.position;
+            Quaternion rotation = cam.transform.rotation;
+            cam.transform.position = new Vector3(0f, 12f, -30f);
+            cam.transform.LookAt(new Vector3(0f, 0f, 30f));
+            int width = cam.pixelWidth, height = cam.pixelHeight;
+            var depth = new RenderTexture(width, height, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
+            var normals = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB2101010, RenderTextureReadWrite.Linear);
+            depth.Create();
+            normals.Create();
+            var copy = new Material(Shader.Find("Hidden/ReDefinition/RtCapture"));
+            var gbuffer = new CommandBuffer { name = "test: Scatterer's ocean G-buffer" };
+            gbuffer.Blit(BuiltinRenderTextureType.CameraTarget, depth, copy, 0);
+            gbuffer.SetRenderTarget(normals);
+            gbuffer.ClearRenderTarget(false, true, new Color(0.5f, 1f, 0f, 1f));
+            gbuffer.SetGlobalTexture("oceanGbufferDepth", depth);
+            gbuffer.SetGlobalTexture("oceanGbufferNormalsAndSigma", normals);
+            // Scatterer writes it after the forward opaque pass, which Unity leaves out here,
+            // where nothing is drawn forward: after the lighting, before the same events.
+            cam.AddCommandBuffer(CameraEvent.AfterLighting, gbuffer);
+            // Where Scatterer's ocean is shaded and reads them: what it is given.
+            var read = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            read.Create();
+            var readMaterial = new Material(Shader.Find("Hidden/ReDefinitionTest/ReadSsr"));
+            var reader = new CommandBuffer { name = "test: what Scatterer's ocean reads" };
+            reader.Blit(BuiltinRenderTextureType.CameraTarget, read, readMaterial, 0);
+            cam.AddCommandBuffer(CameraEvent.AfterImageEffectsOpaque, reader);
+            Shader.SetGlobalVector("_VarianceMax", new Vector4(1f, 1f, 0f, 0f));
+
+            // The moon where the water mirrors it to the camera, beside the boxes: the
+            // camera's ray to that point turned up at the water.
+            Vector3 mirrored = new Vector3(-14f, 0f, 30f);
+            Vector3 down = (mirrored - cam.transform.position).normalized;
+            Vector3 moon = new Vector3(down.x, -down.y, down.z);
+            Func<Vector4> sunBefore = raytracing.Sun;
+            Func<Color> skyBefore = raytracing.SkyColor;
+            Func<Texture> environmentBefore = raytracing.Environment;
+            raytracing.Sun = () => new Vector4(-moon.x, -moon.y, -moon.z, 0.0047f);
+            raytracing.SkyColor = () => Color.black;
+            raytracing.Environment = () => null;
+            raytracing.Lights = (lights, surfaces) =>
+            {
+                lights[0] = moon.x;
+                lights[1] = moon.y;
+                lights[2] = moon.z;
+                lights[3] = 0.0166f;
+                lights[7] = 1e8f;
+                surfaces[0] = surfaces[1] = surfaces[2] = 0.5f;
+                return 1;
+            };
+            raytracing.OceanReflections = () => true;
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return new WaitForEndOfFrame();
+
+            // Without a tonemapper (TONEMAPPING_MODE 0) and with Scatterer's default,
+            // Uncharted's (2): where the water mirrors the moon, a small weight and a colour
+            // as much brighter in Scatterer's light (its inverse, ScattererLight), the two
+            // together the disc's light as the frame shows it -- the same with either.
+            Shader.SetGlobalInt("TONEMAPPING_MODE", 0);
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return new WaitForEndOfFrame();
+            Color[] plain = Pixels(read);
+            Shader.SetGlobalInt("TONEMAPPING_MODE", 2);
+            for (int i = 0; i < 10; i++) yield return null;
+            yield return new WaitForEndOfFrame();
+            Color[] uncharted = Pixels(read);
+            Shader.SetGlobalInt("TONEMAPPING_MODE", 0);
+
+            int boxes = 0, open = 0;
+            float atMoon = 0f, weightAtMoon = 0f, unchartedLight = 0f, expected = 0f;
+            foreach (Color c in plain)
+            {
+                if (c.a >= 0.999f && c.g < 0.3f) boxes++;
+                if (c.a <= 0.001f) open++;
+            }
+            Vector3 screen = cam.WorldToScreenPoint(mirrored);
+            int x = Mathf.RoundToInt(screen.x * read.width / Screen.width);
+            int y = Mathf.RoundToInt(screen.y * read.height / Screen.height);
+            for (int dy = -2; dy <= 2; dy++)
+                for (int dx = -2; dx <= 2; dx++)
+                {
+                    int i = (y + dy) * read.width + x + dx;
+                    if (i < 0 || i >= plain.Length || plain[i].a <= 0f || plain[i].g * plain[i].a <= atMoon) continue;
+                    atMoon = plain[i].g * plain[i].a;
+                    weightAtMoon = plain[i].a;
+                    unchartedLight = uncharted[i].a * UnchartedLight(uncharted[i].g);
+                    expected = UnchartedLight(atMoon);
+                }
+            Log("ocean: status " + raytracing.Status() + "; traced " + Census(raytracing.OceanTracedTexture) + "; read "
+                + Census(read) + "; depth " + Census(raytracing.OceanDepthTexture) + " " + Mean(raytracing.OceanDepthTexture)
+                + "; normal " + Mean(raytracing.OceanSurfaceTexture) + "; the frame's depth " + Mean(raytracing.DepthTexture)
+                + "; the stand-in's depth " + Mean(depth));
+            Dump(read, "ocean_reflections_read", 1f);
+            Dump(raytracing.OceanTracedTexture, "ocean_traced", 1f);
+            bool same = expected > 0f && Mathf.Abs(unchartedLight - expected) <= 0.05f * expected;
+            Check(atMoon > 0.4f && weightAtMoon > 0f && weightAtMoon <= 0.05f && same && boxes > 200 && open > 10000,
+                  "the ocean's reflections from the rays",
+                  "where the water mirrors the moon " + atMoon.ToString("0.000") + " as weight " + weightAtMoon.ToString("0.000")
+                  + " times the colour (its disc's average 0.333, 0.61 as the frame's colour), in Uncharted's light "
+                  + unchartedLight.ToString("0.000") + " for " + expected.ToString("0.000") + "; " + boxes
+                  + " pixels mirror the scene, " + open + " leave the sky to the ocean");
+
+            raytracing.OceanReflections = () => false;
+            raytracing.Lights = (lights, surfaces) => 0;
+            raytracing.Sun = sunBefore;
+            raytracing.SkyColor = skyBefore;
+            raytracing.Environment = environmentBefore;
+            cam.RemoveCommandBuffer(CameraEvent.AfterLighting, gbuffer);
+            cam.RemoveCommandBuffer(CameraEvent.AfterImageEffectsOpaque, reader);
+            gbuffer.Release();
+            reader.Release();
+            read.Release();
+            Destroy(readMaterial);
+            depth.Release();
+            normals.Release();
+            Destroy(copy);
+            cam.transform.position = position;
+            cam.transform.rotation = rotation;
+        }
+
+        private static string Mean(RenderTexture texture)
+        {
+            if (texture == null) return "none";
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture.active = texture;
+            var image = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
+            image.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
+            RenderTexture.active = previous;
+            Color sum = Color.clear;
+            Color[] pixels = image.GetPixels();
+            foreach (Color c in pixels) sum += c;
+            Destroy(image);
+            sum /= pixels.Length;
+            return "mean " + sum.r.ToString("0.0000") + "/" + sum.g.ToString("0.0000") + "/" + sum.b.ToString("0.0000") + "/"
+                   + sum.a.ToString("0.0000");
+        }
+
+        // The moon's glow (MoonGlow.cs, ReDefinitionMoonGlow.shader) as the game draws it,
+        // before the transparent pass: in the sky beside a box a moon's disc brighter and
+        // a glow round it; the box in front of where the glow would reach untouched.
+        private IEnumerator MoonGlowCheck()
+        {
+            Vector3 position = cam.transform.position;
+            Quaternion rotation = cam.transform.rotation;
+            CameraClearFlags clear = cam.clearFlags;
+            Color background = cam.backgroundColor;
+            cam.transform.position = new Vector3(0f, 2f, -30f);
+            cam.transform.rotation = Quaternion.Euler(-15f, 0f, 0f);
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = Color.black;
+            cam.depthTextureMode |= DepthTextureMode.Depth;
+            for (int i = 0; i < 10; i++) yield return null;
+            Texture2D before = null;
+            yield return Capture(t => before = t, "glow_before");
+
+            var material = new Material(Shader.Find("Hidden/ReDefinition/MoonGlow"));
+            var screen = new Mesh();
+            screen.vertices = new[] { new Vector3(-1f, -1f, 0f), new Vector3(-1f, 1f, 0f), new Vector3(1f, 1f, 0f), new Vector3(1f, -1f, 0f) };
+            screen.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            screen.bounds = new Bounds(Vector3.zero, Vector3.one * 1e6f);
+            var properties = new MaterialPropertyBlock();
+            // The moon in the sky high in the frame, its disc 1 % of the screen's height.
+            Vector2 moon = new Vector2(0.5f, 0.85f);
+            properties.SetVector("_ReDefinitionMoon", new Vector4(moon.x, moon.y, 0.01f, (float)cam.pixelWidth / cam.pixelHeight));
+            properties.SetVector("_ReDefinitionMoonColour", new Vector4(0.5f, 0.5f, 0.5f, 1f));
+            var command = new CommandBuffer { name = "test: moon glow" };
+            command.DrawMesh(screen, Matrix4x4.identity, material, 0, 0, properties);
+            cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, command);
+            for (int i = 0; i < 10; i++) yield return null;
+            Texture2D after = null;
+            yield return Capture(t => after = t, "glow_after");
+            cam.RemoveCommandBuffer(CameraEvent.BeforeForwardAlpha, command);
+            command.Release();
+
+            Func<Texture2D, float, float, float> at = (image, x, y) =>
+            {
+                Color c = image.GetPixel(Mathf.RoundToInt(x * image.width), Mathf.RoundToInt(y * image.height));
+                return (c.r + c.g + c.b) / 3f;
+            };
+            float aspect = (float)cam.pixelWidth / cam.pixelHeight;
+            float disc = at(after, moon.x, moon.y) - at(before, moon.x, moon.y);
+            float glow = at(after, moon.x + 0.02f / aspect, moon.y) - at(before, moon.x + 0.02f / aspect, moon.y);
+            float far = at(after, moon.x + 0.2f, moon.y) - at(before, moon.x + 0.2f, moon.y);
+            // The ground in the middle of the frame, in front of the sky.
+            float ground = at(after, 0.5f, 0.2f) - at(before, 0.5f, 0.2f);
+            Check(disc > 0.2f && glow > 0.02f && glow < disc && far < 0.01f && Mathf.Abs(ground) < 0.01f,
+                  "the moon's glow", "the disc " + disc.ToString("0.000") + " brighter, the glow one radius out "
+                                     + glow.ToString("0.000") + ", twenty radii out " + far.ToString("0.000")
+                                     + ", the ground " + ground.ToString("0.000"));
+            Destroy(material);
+            Destroy(screen);
+            cam.transform.position = position;
+            cam.transform.rotation = rotation;
+            cam.clearFlags = clear;
+            cam.backgroundColor = background;
+        }
+
+        // A texture's pixels by kind: not numbers, all zero, the rest; and the largest w.
+        private static Color[] Pixels(RenderTexture texture)
+        {
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture.active = texture;
+            var image = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
+            image.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
+            RenderTexture.active = previous;
+            Color[] pixels = image.GetPixels();
+            Destroy(image);
+            return pixels;
+        }
+
+        // Scatterer's ocean turning a screen colour back into its light with Uncharted's
+        // tonemapper (Scatterer 0.0908, OceanWhiteCapsDeferred, its main lighting pass).
+        private static float UnchartedLight(float v)
+        {
+            if (v > 1.224076f) return ((0.76055f * v - 0.930971f) * 100000f + 1000f) / 3f;
+            float a = 0.114083f * v - 0.005f;
+            float root = Mathf.Sqrt(Mathf.Max(a * a - 0.05476f * v * (0.043351f * v - 0.0532f), 0f));
+            return (-a - root) / (0.38f * (0.228165f * v - 0.28f)) / 3f;
+        }
+
+        private static string Census(RenderTexture texture)
+        {
+            if (texture == null) return "none";
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture.active = texture;
+            var image = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
+            image.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
+            RenderTexture.active = previous;
+            int nan = 0, zero = 0, rest = 0;
+            float maxW = 0f;
+            foreach (Color c in image.GetPixels())
+            {
+                if (float.IsNaN(c.r + c.g + c.b + c.a)) nan++;
+                else if (c.r == 0f && c.g == 0f && c.b == 0f && c.a == 0f) zero++;
+                else rest++;
+                if (!float.IsNaN(c.a)) maxW = Mathf.Max(maxW, c.a);
+            }
+            Destroy(image);
+            return nan + " not numbers, " + zero + " zero, " + rest + " else, w up to " + maxW;
         }
 
         // The sun under the horizon: the ground gets no sun and a dark sky. With the

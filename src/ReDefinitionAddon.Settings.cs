@@ -139,6 +139,8 @@ namespace ReDefinition
             settings.FlightPanelAuto = from.FlightPanelAuto;
             settings.WorldButtons = from.WorldButtons;
             settings.RaytracingMoonlight = from.RaytracingMoonlight;
+            settings.RaytracingMoonReflection = from.RaytracingMoonReflection;
+            settings.SunReflection = from.SunReflection;
             settings.RaytracingNightAmbient = from.RaytracingNightAmbient;
         }
 
@@ -160,6 +162,9 @@ namespace ReDefinition
             if (before.FlightPanelAuto != after.FlightPanelAuto) settings.FlightPanelAuto = after.FlightPanelAuto;
             if (before.WorldButtons != after.WorldButtons) settings.WorldButtons = after.WorldButtons;
             if (before.RaytracingMoonlight != after.RaytracingMoonlight) settings.RaytracingMoonlight = after.RaytracingMoonlight;
+            if (before.RaytracingMoonReflection != after.RaytracingMoonReflection)
+                settings.RaytracingMoonReflection = after.RaytracingMoonReflection;
+            if (before.SunReflection != after.SunReflection) settings.SunReflection = after.SunReflection;
             if (before.RaytracingNightAmbient != after.RaytracingNightAmbient)
                 settings.RaytracingNightAmbient = after.RaytracingNightAmbient;
         }
@@ -242,6 +247,9 @@ namespace ReDefinition
         // dirty.
         private void SaveSettingsIfChanged(bool now = false)
         {
+            // The scene probe switches settings for its measurements: the player's stay
+            // as they were on disk, however the probe ends.
+            if (Probe.SceneProbe.Requested) return;
             if (!now && Time.unscaledTime < nextSettingsCheck) return;
             nextSettingsCheck = Time.unscaledTime + 2f;
 

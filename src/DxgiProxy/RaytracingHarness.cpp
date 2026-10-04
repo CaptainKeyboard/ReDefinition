@@ -744,6 +744,10 @@ PsOut PsMain(VsOut input)
         bool gamma = false;
         // The main body's albedo (RtFramePacket planet).
         float planet[3] = { 0.0f, 0.0f, 0.0f };
+        // Per light its surface lit by the star (RtFramePacket lightSurface).
+        float lightSurface[8] = {};
+        // How strongly water mirrors the sun's disc (RtFramePacket lightParams z).
+        float sunMirror = 0.0f;
     };
 
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
@@ -784,7 +788,9 @@ PsOut PsMain(VsOut input)
         memcpy(packet.lights, lighting.lights, sizeof(lighting.lights));
         packet.lightParams[0] = float(lighting.lightCount);
         packet.lightParams[1] = lighting.gamma ? 1.0f : 0.0f;
+        packet.lightParams[2] = lighting.sunMirror;
         memcpy(packet.planet, lighting.planet, sizeof(lighting.planet));
+        memcpy(packet.lightSurface, lighting.lightSurface, sizeof(lighting.lightSurface));
         packet.inputs[kRtInputEnvironment] = lighting.environment;
         packet.inputs[kRtInputInstances] = lighting.gpuInstances;
         packet.inputs[kRtInputDepth] = g.depth.Get();
@@ -2505,6 +2511,238 @@ int main()
         Check(seen && std::fabs(open - wanted) < 0.05 * wanted && shaded < 0.05 * wanted
                   && std::fabs(mainBody - moon) < 0.05 * moon && otherBody >= 0.0 && otherBody < 0.01 * moon,
               "moonlight", detail);
+    }
+
+    // ---------------------------------------------------------------- a moon in the mirror
+    {
+        // A mirror-smooth plane, no sky, a full moon of 0.2 radians 30 degrees up behind
+        // the box, the sun behind the camera: the plane reflects the moon's disc at its
+        // surface's brightness, and nothing else.
+        std::vector<Instance> mirrored = scene;
+        mirrored[0].smoothness = 1.0f;
+        SendInstances(proxy, mirrored, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, mirrored);
+        Lighting lighting;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.sky[0] = lighting.sky[1] = lighting.sky[2] = 0.0f;
+        lighting.bounces = 0.0f;
+        const Vec3 view = Normalize(Vec3{ 0, 5, 0 } - camera.position);
+        const Vec3 flat = Normalize(Vec3{ view.x, 0, view.z });
+        const Vec3 moon = Normalize(Vec3{ flat.x, std::tan(30.0 * 3.14159265 / 180.0), flat.z });
+        const float disc[8] = { float(moon.x), float(moon.y), float(moon.z), 0.2f, 0.0f, 0.0f, 0.0f, 1.0e8f };
+        memcpy(lighting.lights, disc, sizeof(disc));
+        lighting.lightCount = 1;
+        lighting.lightSurface[0] = lighting.lightSurface[1] = lighting.lightSurface[2] = 0.5f;
+        std::vector<double> mean;
+        // The sun opposite the moon: its side facing the scene lit, full.
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.specular.Get(), kRtSignalSpecular,
+                        lighting, Vec3{ -moon.x, -moon.y, -moon.z }, 4, 18000, mean))
+            return Fatal("reading the moon's reflection back", E_FAIL);
+        size_t lit = 0, over = 0;
+        double brightest = 0.0;
+        for (size_t i = 0; i < mean.size() / 3; ++i)
+        {
+            const double value = mean[i * 3 + 1];
+            brightest = std::max(brightest, value);
+            lit += value > 0.25 ? 1 : 0;
+            over += value > 0.55 ? 1 : 0;
+        }
+        char detail[200];
+        sprintf_s(detail, "%zu pixels show the moon's disc, the brightest at %.3f (its surface 0.5 lit head-on), %zu above it",
+                  lit, brightest, over);
+        Check(lit > 200 && brightest > 0.45 && over == 0, "a moon in the mirror", detail);
+        SendInstances(proxy, scene, camera.position);
+    }
+
+    // ---------------------------------------------------------------- the moon on water
+    {
+        // A flat sea, the Mun's disc of 0.95 degrees 15 degrees up and full, nothing
+        // else; only the ground counted, its normal up (the boxes' walls mirror too).
+        // Calm (smoothness 1): the disc mirrored as it is, round, no brighter than its
+        // average (2/3 of its lit centre) but by the jitter at its edge. Rough (0.75, a
+        // sea's slopes): its light spread over a patch longer towards the horizon than
+        // across, dimmer at its brightest, less of it at the grazing angle where the
+        // waves shadow each other (Smith's term). Each the same
+        // in every frame but for a few pixels at its edge, which the jitter moves, and no
+        // ray counted as meeting something.
+        Lighting lighting;
+        lighting.flags = kRtFrameWater;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.sky[0] = lighting.sky[1] = lighting.sky[2] = 0.0f;
+        lighting.bounces = 0.0f;
+        // Ahead, turned 30 degrees aside, where its reflection meets open ground past the box.
+        const Vec3 view = Normalize(Vec3{ 0, 5, 0 } - camera.position);
+        const double turn = 30.0 * 3.14159265 / 180.0;
+        const Vec3 flat = Normalize(Vec3{ view.x * std::cos(turn) - view.z * std::sin(turn), 0,
+                                          view.x * std::sin(turn) + view.z * std::cos(turn) });
+        const Vec3 moon = Normalize(Vec3{ flat.x, std::tan(15.0 * 3.14159265 / 180.0), flat.z });
+        const float radius = 0.0166f;
+        const float disc[8] = { float(moon.x), float(moon.y), float(moon.z), radius, 0.0f, 0.0f, 0.0f, 1.0e8f };
+        memcpy(lighting.lights, disc, sizeof(disc));
+        lighting.lightCount = 1;
+        lighting.lightSurface[0] = lighting.lightSurface[1] = lighting.lightSurface[2] = 0.5f;
+        const Vec3 behind = { -moon.x, -moon.y, -moon.z };
+        struct Patch
+        {
+            size_t lit = 0, changed = 0, hits = 0, wide = 0, high = 0;
+            double brightest = 0.0, sum = 0.0;
+        };
+        const auto mirrored = [&](float smoothness, Patch& patch)
+        {
+            std::vector<Instance> water = scene;
+            water[0].smoothness = smoothness;
+            SendInstances(proxy, water, camera.position);
+            RenderGBuffer(context.Get(), g, camera, meshes, water);
+            std::vector<uint16_t> first, second;
+            std::vector<uint32_t> normals;
+            SendFrame(proxy, camera, g, outputs, behind, 0.0f, 19000, kRtSignalSpecular, lighting);
+            ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, first);
+            SendFrame(proxy, camera, g, outputs, behind, 0.0f, 19001, kRtSignalSpecular, lighting);
+            ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, second);
+            ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+            const auto ground = [&](size_t i) { return ((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1 > 0.9; };
+            for (size_t i = 0; i < first.size() / 4; ++i)
+                if (ground(i))
+                    patch.brightest = std::max(patch.brightest, double(HalfToFloat(first[i * 4 + 1])));
+            size_t left = kWidth, right = 0, top = kHeight, bottom = 0;
+            for (size_t i = 0; i < first.size() / 4; ++i)
+            {
+                if (!ground(i))
+                    continue;
+                const double value = HalfToFloat(first[i * 4 + 1]);
+                patch.sum += value;
+                patch.hits += HalfToFloat(first[i * 4 + 3]) < 60000.0 && value > 0.0 ? 1 : 0;
+                // The patch: a tenth of its brightest and more.
+                if (value <= 0.1 * patch.brightest)
+                    continue;
+                ++patch.lit;
+                patch.changed += std::fabs(value - HalfToFloat(second[i * 4 + 1])) > 1e-3 ? 1 : 0;
+                left = std::min(left, i % kWidth);
+                right = std::max(right, i % kWidth);
+                top = std::min(top, i / kWidth);
+                bottom = std::max(bottom, i / kWidth);
+            }
+            patch.wide = right >= left ? right - left + 1 : 0;
+            patch.high = bottom >= top ? bottom - top + 1 : 0;
+            std::vector<float> rgb(static_cast<size_t>(kWidth) * kHeight * 3);
+            for (size_t i = 0; i < rgb.size() / 3; ++i)
+                rgb[i * 3] = rgb[i * 3 + 1] = rgb[i * 3 + 2] =
+                    static_cast<float>(std::min(HalfToFloat(first[i * 4 + 1]) / std::max(patch.brightest, 1e-6), 1.0));
+            WriteBmp(NextToExecutable(smoothness >= 1.0f ? L"rt_moon_on_water_calm.bmp" : L"rt_moon_on_water_rough.bmp"),
+                     kWidth, kHeight, rgb);
+        };
+        Patch calm, rough;
+        mirrored(1.0f, calm);
+        mirrored(0.75f, rough);
+        const double light = calm.sum > 0.0 ? rough.sum / calm.sum : 0.0;
+        const size_t calmLonger = std::max(calm.wide, calm.high), calmShorter = std::min(calm.wide, calm.high);
+        char detail[320];
+        sprintf_s(detail, "calm: %zu pixels, %zu wide and %zu high, the brightest at %.3f (the disc's average 0.333); rough: %zu "
+                          "pixels, %zu wide and %zu high, the brightest at %.3f, its light %.2f of the calm one's; %zu changed "
+                          "between frames, %zu counted as hits",
+                  calm.lit, calm.wide, calm.high, calm.brightest, rough.lit, rough.wide, rough.high, rough.brightest, light,
+                  calm.changed + rough.changed, calm.hits + rough.hits);
+        Check(calm.lit > 30 && calmShorter * 10 >= calmLonger * 6 && calm.brightest > 0.25 && calm.brightest < 0.34
+                  && rough.lit > 2 * calm.lit && rough.brightest < calm.brightest && rough.high > rough.wide && light > 0.4
+                  && light < 2.0 && (calm.changed + rough.changed) * 10 <= calm.lit + rough.lit && calm.hits + rough.hits == 0,
+              "the moon on water", detail);
+        SendInstances(proxy, scene, camera.position);
+    }
+
+    // ---------------------------------------------------------------- the sun on water
+    {
+        // Rough water, the sun 10 degrees up, no sky; only the ground counted: where
+        // the water mirrors its disc, glitter brighter than white, a path half as long
+        // again as it is wide; with the sun's mirroring off, none (the sunlit box
+        // mirrored stays below white).
+        std::vector<Instance> water = scene;
+        water[0].smoothness = 0.75f;
+        SendInstances(proxy, water, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, water);
+        std::vector<uint32_t> normals;
+        ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+        Lighting lighting;
+        lighting.flags = kRtFrameWater;
+        lighting.sky[0] = lighting.sky[1] = lighting.sky[2] = 0.0f;
+        lighting.bounces = 0.0f;
+        lighting.sunMirror = 1.0f;
+        // Ahead, turned 30 degrees aside, where its reflection meets open ground past the box.
+        const Vec3 view = Normalize(Vec3{ 0, 5, 0 } - camera.position);
+        const double turn = 30.0 * 3.14159265 / 180.0;
+        const Vec3 flat = Normalize(Vec3{ view.x * std::cos(turn) - view.z * std::sin(turn), 0,
+                                          view.x * std::sin(turn) + view.z * std::cos(turn) });
+        const Vec3 towardsSun = Normalize(Vec3{ flat.x, std::tan(10.0 * 3.14159265 / 180.0), flat.z });
+        size_t left = kWidth, right = 0, top = kHeight, bottom = 0;
+        const auto glitter = [&](const Lighting& l, size_t& count, double& brightest)
+        {
+            std::vector<uint16_t> out;
+            SendFrame(proxy, camera, g, outputs, towardsSun, 0.0047f, 19200, kRtSignalSpecular, l);
+            ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, out);
+            count = 0;
+            brightest = 0.0;
+            for (size_t i = 0; i < out.size() / 4; ++i)
+            {
+                if (((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1 <= 0.9)
+                    continue;
+                const double value = HalfToFloat(out[i * 4 + 1]);
+                brightest = std::max(brightest, value);
+                if (value <= 1.0)
+                    continue;
+                ++count;
+                left = std::min(left, i % kWidth);
+                right = std::max(right, i % kWidth);
+                top = std::min(top, i / kWidth);
+                bottom = std::max(bottom, i / kWidth);
+            }
+        };
+        size_t lit = 0, litOff = 0;
+        double brightest = 0.0, brightestOff = 0.0;
+        glitter(lighting, lit, brightest);
+        const size_t wide = right >= left ? right - left + 1 : 0, high = bottom >= top ? bottom - top + 1 : 0;
+        Lighting off = lighting;
+        off.sunMirror = 0.0f;
+        glitter(off, litOff, brightestOff);
+        char detail[200];
+        sprintf_s(detail, "%zu pixels mirror the sun brighter than white, the brightest at %.0f, %zu wide and %zu high; with it "
+                          "off %zu, at most %.3f", lit, brightest, wide, high, litOff, brightestOff);
+        Check(lit > 50 && brightest > 10.0 && 2 * high > 3 * wide && litOff == 0 && brightestOff < 1.0, "the sun on water", detail);
+        SendInstances(proxy, scene, camera.position);
+    }
+
+    // ---------------------------------------------------------------- water over the horizon
+    {
+        // The box's walls as water, a white sky, a dark ground, nothing lit: a wall's
+        // reflection that points down is turned back over the horizon and meets nothing --
+        // the ocean's own sky shows there -- not the ground.
+        std::vector<Instance> walls = scene;
+        for (Instance& instance : walls)
+            instance.smoothness = 1.0f;
+        SendInstances(proxy, walls, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, walls);
+        Lighting lighting;
+        lighting.flags = kRtFrameWater;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.bounces = 0.0f;
+        std::vector<uint16_t> out;
+        std::vector<uint32_t> normals;
+        std::vector<float> depth;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19100, kRtSignalSpecular, lighting);
+        ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, out);
+        ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+        size_t wall = 0, sky = 0;
+        for (size_t i = 0; i < depth.size(); ++i)
+        {
+            const double ny = ((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1;
+            if (depth[i] <= 0.0f || std::fabs(ny) > 0.1)
+                continue;
+            ++wall;
+            sky += HalfToFloat(out[i * 4 + 3]) >= 60000.0 ? 1 : 0;
+        }
+        char detail[200];
+        sprintf_s(detail, "%zu of %zu wall pixels reflect the sky, their rays meeting nothing", sky, wall);
+        Check(wall > 1000 && sky * 100 >= wall * 90, "water over the horizon", detail);
+        SendInstances(proxy, scene, camera.position);
     }
 
     // ---------------------------------------------------------------- the ground below

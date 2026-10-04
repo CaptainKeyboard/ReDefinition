@@ -16,11 +16,13 @@ namespace ReDefinition.Core
     {
         private const string Camera = "UnityEngine.Camera";
         private const string Material = "UnityEngine.Material";
+        private const string Vector3Type = "UnityEngine.Vector3";
         private const string RenderTexture = "UnityEngine.RenderTexture";
         private const string Shader = "UnityEngine.Shader";
         private const string Bool = "System.Boolean";
         private const string Int = "System.Int32";
         private const string Double = "System.Double";
+        private const string Float = "System.Single";
 
         private const string EveClouds = "Atmosphere.DeferredRaymarchedVolumetricCloudsRenderer";
         private const string EveToScreen = "Atmosphere.DeferredRaymarchedRendererToScreen";
@@ -139,6 +141,32 @@ namespace ReDefinition.Core
                 .Literal("Scatterer.ShaderProperties", "ScattererOceanActiveOnCurrentCamera")
                 .OnChange(WhenChanged.Keep, "the ocean is left out of the masks");
 
+        // Scatterer's ocean taking the raytraced reflections where Deferred's are held
+        // (RtCamera, the ocean's reflections): its G-buffer as Deferred's reflections read
+        // it, and its switch for them, which it reads with Deferred's ssrOutput
+        // (OceanCommandBuffer, Scatterer 0.0908).
+        public static readonly ForeignAssumption ScattererOceanReflections =
+            new ForeignAssumption("scatterer-ocean-reflections", "Scatterer", "Scatterer's ocean mirrors the raytraced scene")
+                .Type("Scatterer.OceanCommandBuffer").Type("Scatterer.ShaderProperties")
+                .Literal("Scatterer.OceanCommandBuffer", "oceanGbufferDepth", "oceanGbufferNormalsAndSigma", "useOceanSSR")
+                .Literal("Scatterer.ShaderProperties", "_VarianceMax")
+                .TestedVersions("0.908.0.0")
+                .OnChange(WhenChanged.Fallback, "the ocean keeps Deferred's screen-space reflections, which stay on");
+
+        // The strength of Scatterer's sun glint on the ocean, which it sets on its ocean's
+        // material once, from its node's field (OceanNode.InitOceanMaterial); and the
+        // colour its ocean multiplies its reflections with, but not its sun glint, which
+        // the raytraced sun's and moons' glints stand in for.
+        public static readonly ForeignAssumption ScattererOceanSun =
+            new ForeignAssumption("scatterer-ocean-sun", "Scatterer", "the sun's reflection on the ocean")
+                .Type("Scatterer.OceanNode")
+                .Field("Scatterer.OceanNode", "m_oceanMaterial", Material)
+                .Field("Scatterer.OceanNode", "sunReflectionStrength", Float)
+                .Field("Scatterer.OceanNode", "reflectionColor", Vector3Type)
+                .Literal("Scatterer.OceanNode", "sunReflectionStrength", "reflectionColor")
+                .TestedVersions("0.908.0.0")
+                .OnChange(WhenChanged.Fallback, "the sun's reflection stays as Scatterer sets it");
+
         // Deferred's reflections shader, of which ReDefinition carries a changed copy
         // for the raytraced camera (ReDefinitionDeferredReflections.shader, from
         // Deferred 1.3.5): the globals it reads, which Deferred sets. Its shading
@@ -244,7 +272,7 @@ namespace ReDefinition.Core
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
+            ScattererGodrays, ScattererTemporalAa, ScattererSmaa, ScattererOceanMask, ScattererOceanReflections, ScattererOceanSun,
             DeferredReflections, DeferredSsr, TufxPostProcessing, ParallaxTessellation, ParallaxScatters,
             DistantObjectSky, FourkSp, BetterTimeWarp, ManeuverNodeEvolved, KopernicusShaders,
         };

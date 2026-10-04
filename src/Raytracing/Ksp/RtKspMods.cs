@@ -20,6 +20,8 @@ namespace ReDefinition.Raytracing
         private static Func<bool> planetShineRead;
         private static Type deferredReflections;
         private static FieldInfo starShifter;
+        private static bool scatterer;
+        private static bool oceanReadsLogged;
         private static FieldInfo shifterColour;
         // Parallax's fields, read through compiled getters: a FieldInfo's GetValue costs
         // a reflection call per field, nine per scatter renderer a frame.
@@ -91,6 +93,11 @@ namespace ReDefinition.Raytracing
                         planetShineRead = planetShineOn != null && planetShineOn.FieldType == typeof(bool)
                             ? Expression.Lambda<Func<bool>>(Expression.Field(null, planetShineOn)).Compile()
                             : null;
+                    }
+                    // Scatterer's assembly is "scatterer" (GameData/scatterer/Scatterer.dll).
+                    else if (string.Equals(name, "Scatterer", StringComparison.OrdinalIgnoreCase))
+                    {
+                        scatterer = true;
                     }
                     else if (name == "Deferred")
                     {
@@ -277,6 +284,46 @@ namespace ReDefinition.Raytracing
         // back to 0. Where the player or another mod switches it on meanwhile, it stays.
         private static Behaviour reflectionsHeld;
         private static bool reflectionsLeft;
+
+        // Whether Scatterer's ocean is drawn and reads Deferred's screen-space reflections
+        // while they are held for the raytraced ones: then it takes the raytraced
+        // reflections in their place (RtCamera.OceanReflections). Scatterer registers its
+        // ocean with Deferred's reflections and reads their result, ssrOutput, whether
+        // they run or not (measured: useOceanSSR 1 with them off, KSP.log).
+        // Whether Scatterer's ocean is there and its code is not the one the raytraced
+        // reflections were checked against (ForeignAssumptions.ScattererOceanReflections):
+        // then Deferred's screen-space reflections stay on, as the ocean reads their
+        // result whether they run or not.
+        internal static bool OceanNeedsDeferredReflections()
+        {
+            Look();
+            CelestialBody body = FlightGlobals.currentMainBody;
+            return scatterer && body != null && body.ocean && !Core.ForeignAssumptions.ScattererOceanReflections.Holds;
+        }
+
+        // Whether the main body has a sea and it is KSP's own: no Scatterer draws it.
+        internal static bool StockOcean()
+        {
+            Look();
+            CelestialBody body = FlightGlobals.currentMainBody;
+            return !scatterer && body != null && body.ocean;
+        }
+
+        internal static bool OceanReadsHeldReflections()
+        {
+            Look();
+            CelestialBody body = FlightGlobals.currentMainBody;
+            bool reads = scatterer && reflectionsHeld != null && body != null && body.ocean
+                         && Core.ForeignAssumptions.ScattererOceanReflections.Holds;
+            if (reads != oceanReadsLogged)
+            {
+                oceanReadsLogged = reads;
+                Debug.Log(Core.Log.Tag + " Raytracing: Scatterer " + (scatterer ? "found" : "not found") + ", Deferred's reflections "
+                          + (reflectionsHeld != null ? "held" : "not held") + ", ocean " + (body != null && body.ocean)
+                          + ": the ocean " + (reads ? "takes" : "does not take") + " the raytraced reflections.");
+            }
+            return reads;
+        }
 
         internal static void HoldDeferredReflections(bool hold, Camera sceneCamera)
         {

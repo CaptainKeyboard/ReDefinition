@@ -122,6 +122,14 @@ namespace redefinition
     constexpr uint32_t kRtFrameDenoise = 1u << 2;     // the signals through ReDefinition's denoiser
     constexpr uint32_t kRtFrameMotionVectors = 1u << 3;   // t5 holds motion: the previous uv is uv - motion.xy
     constexpr uint32_t kRtFrameGuides = 1u << 4;      // DLSS Ray Reconstruction's guides from this frame's surfaces
+    // A further trace of a frame already traced (the ocean's reflections): it leaves the
+    // frame's Ray Reconstruction guides and the frame count as they are.
+    constexpr uint32_t kRtFrameExtra = 1u << 5;
+    // The surface is water (Scatterer's ocean): its reflected rays stay above the
+    // horizon; where they meet nothing, the reflections hold only the sun's and the
+    // moons' discs mirrored by the waves, not single rays meeting them, and 65000 in w
+    // (RtCommon.hlsli, BodiesMirrored).
+    constexpr uint32_t kRtFrameWater = 1u << 6;
 
     // The signals a frame traces; each writes its output slot.
     constexpr uint32_t kRtSignalSunVisibility = 1u << 0;   // u0: visibility of the sun, 0 to 1
@@ -195,7 +203,10 @@ namespace redefinition
         // the scene, linear rgb, with in w how far its shadow ray goes -- negative for the
         // main body itself, which its own sphere does not shade.
         float lights[16];
-        // x: how many of lights are used; y: 1 where the colours Unity hands over --
+        // x: how many of lights are used; z: how strongly water mirrors the sun's disc
+        // (kRtFrameWater), 1 as it is; w: 1 where the main body's sea is KSP's own, which
+        // the specular signal takes as water by its level; y: 1 where the colours Unity
+        // hands over --
         // the G-buffer's albedo, the sun's and the sky's colour, the environment -- are
         // gamma-space values, which the light transport takes as linear first.
         float lightParams[4];
@@ -207,6 +218,9 @@ namespace redefinition
         // body's sphere (bodySphere) takes the sun's and the moons' light on the
         // sphere there times this, in place of the sky.
         float planet[4];
+        // Per light (lights): its surface lit by the star, linear rgb -- its albedo times
+        // the star's colour --, for a reflected ray that meets its disc.
+        float lightSurface[8];
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
@@ -268,8 +282,8 @@ namespace redefinition
     static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
     static_assert(sizeof(RtGpuInstanceGroup) == 32, "RtGpuInstanceGroup layout changed: update the managed side");
     static_assert(offsetof(RtFramePacket, clipToWorld) == 32, "RtFramePacket layout changed");
-    static_assert(offsetof(RtFramePacket, inputs) == 640, "RtFramePacket layout changed");
-    static_assert(sizeof(RtFramePacket) == 768, "RtFramePacket layout changed: update the managed side");
+    static_assert(offsetof(RtFramePacket, inputs) == 672, "RtFramePacket layout changed");
+    static_assert(sizeof(RtFramePacket) == 800, "RtFramePacket layout changed: update the managed side");
 
     class Raytracing
     {
