@@ -21,36 +21,20 @@ Usage: python tools/analyze_fg_inputs.py <folder> [--near 15]
 
 import argparse
 import os
-import re
 import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import fg_dump  # noqa: E402
+
 
 def load_frames(folder):
-    text = open(os.path.join(folder, "frames.txt"), encoding="utf-8").read().splitlines()
-    frames = []
-    for line in text:
-        if line.startswith("frame "):
-            f = {}
-            parts = line.split()
-            f["index"] = int(parts[1])
-            m = re.search(r"render (\d+)x(\d+)", line)
-            f["render"] = (int(m.group(1)), int(m.group(2)))
-            for key in ("jitter", "mvScale"):
-                i = parts.index(key)
-                f[key] = (float(parts[i + 1]), float(parts[i + 2]))
-            for key in ("near", "far", "fov", "dtMs", "flipped", "reset"):
-                f[key] = float(parts[parts.index(key) + 1])
-            f["textures"] = {}
-            frames.append(f)
-        elif line.split(" ")[0] in ("viewToClip", "clipToView", "clipToPrevClip", "prevClipToClip"):
-            name, *values = line.split()
-            frames[-1][name] = np.array([float(v) for v in values], dtype=np.float64).reshape(4, 4)
-        elif line.startswith("texture "):
-            parts = line.split()
-            w, h = (int(v) for v in parts[2].split("x"))
-            frames[-1]["textures"][parts[1]] = (w, h, int(parts[4]))
+    frames = fg_dump.read_index(folder)
+    for f in frames:
+        for name in fg_dump.MATRICES:
+            if name in f:
+                f[name] = np.array(f[name], dtype=np.float64).reshape(4, 4)
     for f in frames:
         n = f["index"]
         tex = f["textures"]

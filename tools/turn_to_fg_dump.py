@@ -14,6 +14,9 @@ import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import fg_dump  # noqa: E402
+
 
 def main():
     if len(sys.argv) < 3:
@@ -47,17 +50,11 @@ def main():
         depth.tofile(os.path.join(target, 'depth-%02d.bin' % n))
         motion = np.fromfile(os.path.join(source, name + '_motion.bin'), dtype=np.uint32).reshape(h, w)[::-1]
         motion.tofile(os.path.join(target, 'motion-%02d.bin' % n))
-        text.append('frame %d packetIndex %d render %dx%d reset 0 jitter 0.000000 0.000000 mvScale %.3f %.3f near 0.300000 '
-                    'far 5000.000000 fov 1.047198 dtMs 16.667 flipped 1' % (n, n + 1, w, h, -w, -h))
-        text.append('position %.6f %.6f %.6f up %.6f %.6f %.6f right %.6f %.6f %.6f forward %.6f %.6f %.6f' % tuple(vectors))
-        for label, offset in (('viewToClip', 0), ('clipToView', 16), ('clipToPrevClip', 32), ('prevClipToClip', 48)):
-            text.append(label + ''.join(' %.9g' % v for v in fg[offset:offset + 16]))
-        text.append('texture colour %dx%d format 28 bytesPerTexel 4' % (w, h))
-        text.append('texture depth %dx%d format 39 bytesPerTexel 4' % (w, h))
-        text.append('texture motion %dx%d format 33 bytesPerTexel 4' % (w, h))
-        text.append('texture frame %dx%d format 28 bytesPerTexel 4' % (w, h))
-    with open(os.path.join(target, 'frames.txt'), 'w', encoding='utf-8') as file:
-        file.write('\n'.join(text) + '\n')
+        # The turn's frame number in place of the game's (RtTurnRunner, 60 degrees, 0.3 to 5000 m).
+        text += fg_dump.entry(n, int(name[len('turn_'):]), (w, h), (-w, -h), 0.3, 5000.0, 1.047198, 16.667,
+                              [fg[k:k + 16] for k in (0, 16, 32, 48)], vectors=vectors,
+                              textures=('colour', 'depth', 'motion', 'frame'))
+    fg_dump.write_index(target, text)
     print('%d frames into %s' % (len(rows), target))
 
 

@@ -13,46 +13,9 @@
 # from the KspRoot environment variable, as in Directory.Build.props, and
 # defaults to the Steam location.
 
-$repo = Split-Path -Parent $PSScriptRoot
-$kspRoot = if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }
-$managed = [IO.Path]::Combine($kspRoot, 'KSP_x64_Data\Managed')
-$gameData = [IO.Path]::Combine($kspRoot, 'GameData')
-
-# Plain .NET calls only, no cmdlets, and no re-entry (see check_profile_parser.ps1).
-$global:resolving = $false
-[System.AppDomain]::CurrentDomain.add_AssemblyResolve({
-    param($s, $e)
-    if ($global:resolving) { return $null }
-    $n = ($e.Name -split ',')[0]
-    if ($n.EndsWith('.resources')) { return $null }
-    $global:resolving = $true
-    try {
-        $p = [IO.Path]::Combine($managed, $n + '.dll')
-        if ([IO.File]::Exists($p)) { return [Reflection.Assembly]::LoadFrom($p) }
-        foreach ($f in [IO.Directory]::GetFiles($gameData, $n + '.dll', [IO.SearchOption]::AllDirectories)) {
-            return [Reflection.Assembly]::LoadFrom($f)
-        }
-        return $null
-    }
-    finally { $global:resolving = $false }
-})
-
-$failures = 0
-$lastThrow = $null
-function Expect($what, $ok) {
-    # A method that threw can never be a pass, whatever the assertion made of
-    # the $null it returned: the net belongs here, not at each call site.
-    if ($ok -and -not $script:lastThrow) {
-        "PASS  $what"
-    } else {
-        "FAIL  $what"
-        # The cause on the same stream as the failure it explains, so a
-        # redirected log keeps them together.
-        if ($script:lastThrow) { "      $script:lastThrow" }
-        $script:failures++
-    }
-    $script:lastThrow = $null
-}
+. ([IO.Path]::Combine($PSScriptRoot, 'check_common.ps1'))
+$resolveFolders = @($managed)
+$resolveUnder = $gameData
 
 [void][Reflection.Assembly]::LoadFrom([IO.Path]::Combine($managed, 'Assembly-CSharp.dll'))
 [void][Reflection.Assembly]::LoadFrom([IO.Path]::Combine($managed, 'UnityEngine.CoreModule.dll'))
@@ -211,10 +174,10 @@ foreach ($m in $registered) {
         # Only the known ones pass: a new one is a change to look at.
         $expected = @()
         if ($expectedDrops.ContainsKey($id)) { $expected = $expectedDrops[$id] }
-        # Volumetric Clouds' members, which the public build of Scatterer has not.
-        if ($id -eq 'scatterer' -and $m.Build -eq 'public') {
-            $expected += @('oceanScreenSpaceReflections', 'useRaymarchedCloudGodrays', 'raymarchedGodraysStepCount')
-        }
+        # What this build of the mod has not ($buildAbsent), such as Volumetric
+        # Clouds' members in the public build of Scatterer.
+        $buildKey = "$id.$($m.Build)"
+        if ($buildAbsent.ContainsKey($buildKey)) { $expected += $buildAbsent[$buildKey] }
         $droppedNames = @($dropped | ForEach-Object { ($_ -split ' -- ')[0] })
         # '<=' is the reference side, $droppedNames: a member dropped that is not
         # known. A known drop that did not happen passes.

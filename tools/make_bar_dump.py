@@ -11,8 +11,12 @@ Usage: python tools/make_bar_dump.py <folder> [--speed 30] [--frames 8] [--hard]
 
 import argparse
 import os
+import sys
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import fg_dump  # noqa: E402
 
 W, H = 2560, 1440
 
@@ -67,7 +71,6 @@ def main():
     view_to_clip = [x_scale, 0, 0, 0, 0, y_scale, 0, 0, 0, 0, 0, 1, 0, 0, near, 0]
     clip_to_view = [1 / x_scale, 0, 0, 0, 0, 1 / y_scale, 0, 0, 0, 0, 0, 1 / near, 0, 0, 1, 0]
     identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
-    fmt = lambda m: " ".join(f"{v:.9g}" for v in m)
 
     depth = np.zeros((H, W), dtype=np.float32)
     depth[:, in_front] = 0.0064
@@ -85,17 +88,9 @@ def main():
         rgba.tofile(os.path.join(args.folder, f"colour-{n:02d}.bin"))
         depth.tofile(os.path.join(args.folder, f"depth-{n:02d}.bin"))
         motion.tofile(os.path.join(args.folder, f"motion-{n:02d}.bin"))
-        lines.append(f"frame {n} packetIndex {n} render {W}x{H} reset 0 jitter 0 0 mvScale -{W} -{H} "
-                     f"near {near} far {far} fov {fov} dtMs 16.7 flipped 1")
-        lines.append("position 0 0 0 up 0 1 0 right 1 0 0 forward 0 0 1")
-        lines.append("viewToClip " + fmt(view_to_clip))
-        lines.append("clipToView " + fmt(clip_to_view))
-        lines.append("clipToPrevClip " + fmt(identity))
-        lines.append("prevClipToClip " + fmt(identity))
-        lines.append(f"texture colour {W}x{H} format 28 bytesPerTexel 4")
-        lines.append(f"texture depth {W}x{H} format 41 bytesPerTexel 4")
-        lines.append(f"texture motion {W}x{H} format 34 bytesPerTexel 4")
-    open(os.path.join(args.folder, "frames.txt"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
+        lines += fg_dump.entry(n, n, (W, H), (-W, -H), near, far, fov, 16.7,
+                               [view_to_clip, clip_to_view, identity, identity])
+    fg_dump.write_index(args.folder, lines)
 
 
 if __name__ == "__main__":

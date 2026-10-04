@@ -13,7 +13,8 @@
 #   tools\renderdoc_probe.ps1 [-Ksp <KSP folder>] [-RenderDoc <renderdoccmd.exe>]
 #                             [-KeepProxy] [-TimeoutSeconds 420]
 param(
-    [string]$Ksp = 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program',
+    # By default KspRoot, as the build takes it, or the Steam location.
+    [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),
     [string]$RenderDoc = 'C:\Program Files\RenderDoc\renderdoccmd.exe',
     [switch]$KeepProxy,
     [int]$TimeoutSeconds = 420

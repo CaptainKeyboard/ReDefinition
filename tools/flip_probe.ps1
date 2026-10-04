@@ -10,7 +10,8 @@
 #
 # The game's own settings (upscaler, raytracing) stay as they are in both runs.
 param(
-    [string]$Ksp = 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program',
+    # By default KspRoot, as the build takes it, or the Steam location.
+    [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),
     # FSR's frame generation in place of DLSS-G.
     [switch]$Fsr,
     # Unity's -monitor (1 = the first display): the desktop recording needs the game

@@ -19,7 +19,11 @@ namespace ReDefinition.EditorTools
     //   * In the editor: menu "ReDefinition / Build AssetBundle"
     //   * Headless:      Unity.exe -batchmode -quit -projectPath <unity>
     //                      -executeMethod ReDefinition.EditorTools.BundleBuilder.BuildFromCommandLine
-    //                      [-kspRoot "<path to KSP>"]
+    //                      [-kspRoot "<path to KSP>"] [-output "<bundle file>"]
+    //
+    // The KSP folder: -kspRoot, else the KspRoot environment variable as the build
+    // takes it, else the Steam location. -output writes the bundle to that file
+    // instead of into the game's GameData.
     public static class BundleBuilder
     {
         public const string BundleName = "redefinition.shaders";
@@ -62,9 +66,9 @@ namespace ReDefinition.EditorTools
         // tell whether it worked.
         public static void BuildFromCommandLine()
         {
-            string kspRoot = ArgumentValue("-kspRoot") ?? DefaultKspRoot;
+            string kspRoot = ArgumentValue("-kspRoot") ?? Environment.GetEnvironmentVariable("KspRoot") ?? DefaultKspRoot;
             string message;
-            bool ok = Build(kspRoot, out message);
+            bool ok = Build(kspRoot, ArgumentValue("-output"), out message);
 
             if (ok)
             {
@@ -79,6 +83,12 @@ namespace ReDefinition.EditorTools
         }
 
         public static bool Build(string kspRoot, out string message)
+        {
+            return Build(kspRoot, null, out message);
+        }
+
+        // output: the bundle file to write; null for the game's GameData.
+        public static bool Build(string kspRoot, string output, out string message)
         {
             List<string> shaders = new List<string>();
             foreach (string path in Directory.GetFiles(ShaderFolder, "*.compute", SearchOption.TopDirectoryOnly))
@@ -130,19 +140,25 @@ namespace ReDefinition.EditorTools
                 return false;
             }
 
-            string targetDir = Path.Combine(kspRoot, Path.Combine("GameData",
-                Path.Combine("ReDefinition", "Shaders")));
-
-            if (!Directory.Exists(Path.Combine(kspRoot, "GameData")))
+            string target;
+            if (output != null)
             {
-                message = "No GameData at '" + kspRoot
-                          + "'. Correct the path via 'ReDefinition / Set KSP path'"
-                          + " or pass -kspRoot.";
-                return false;
+                target = Path.GetFullPath(output);
+            }
+            else
+            {
+                if (!Directory.Exists(Path.Combine(kspRoot, "GameData")))
+                {
+                    message = "No GameData at '" + kspRoot
+                              + "'. Correct the path via 'ReDefinition / Set KSP path'"
+                              + " or pass -kspRoot.";
+                    return false;
+                }
+                target = Path.Combine(Path.Combine(kspRoot, Path.Combine("GameData",
+                    Path.Combine("ReDefinition", "Shaders"))), BundleName);
             }
 
-            Directory.CreateDirectory(targetDir);
-            string target = Path.Combine(targetDir, BundleName);
+            Directory.CreateDirectory(Path.GetDirectoryName(target));
             File.Copy(built, target, true);
 
             long kb = new FileInfo(target).Length / 1024;

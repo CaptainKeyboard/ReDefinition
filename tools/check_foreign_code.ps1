@@ -16,29 +16,9 @@
 # from the KspRoot environment variable, as in Directory.Build.props, and
 # defaults to the Steam location.
 
-$repo = Split-Path -Parent $PSScriptRoot
-$kspRoot = if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }
-$managed = [IO.Path]::Combine($kspRoot, 'KSP_x64_Data\Managed')
-$gameData = [IO.Path]::Combine($kspRoot, 'GameData')
-
-# Plain .NET calls only, no cmdlets, and no re-entry (see check_profile_parser.ps1).
-$global:resolving = $false
-[System.AppDomain]::CurrentDomain.add_AssemblyResolve({
-    param($s, $e)
-    if ($global:resolving) { return $null }
-    $n = ($e.Name -split ',')[0]
-    if ($n.EndsWith('.resources')) { return $null }
-    $global:resolving = $true
-    try {
-        $p = [IO.Path]::Combine($managed, $n + '.dll')
-        if ([IO.File]::Exists($p)) { return [Reflection.Assembly]::LoadFrom($p) }
-        foreach ($f in [IO.Directory]::GetFiles($gameData, $n + '.dll', [IO.SearchOption]::AllDirectories)) {
-            return [Reflection.Assembly]::LoadFrom($f)
-        }
-        return $null
-    }
-    finally { $global:resolving = $false }
-})
+. ([IO.Path]::Combine($PSScriptRoot, 'check_common.ps1'))
+$resolveFolders = @($managed)
+$resolveUnder = $gameData
 
 [void][Reflection.Assembly]::LoadFrom([IO.Path]::Combine($managed, 'Assembly-CSharp.dll'))
 [void][Reflection.Assembly]::LoadFrom([IO.Path]::Combine($managed, 'UnityEngine.CoreModule.dll'))
@@ -60,7 +40,6 @@ function Get($object, $name) {
     return $object.GetType().GetField($name, $flags).GetValue($object)
 }
 
-$failures = 0
 foreach ($assumption in $all) {
     $id = Get $assumption 'Id'
     $state = (Get $assumption 'State').ToString()

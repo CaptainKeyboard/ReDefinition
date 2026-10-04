@@ -14,8 +14,10 @@
 # KSP.log ("Probe: vendor ..."). The window must stay in front: the hotkeys go
 # through Windows' input queue.
 param(
-    [string]$Ksp = 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program',
-    [string]$Development = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'References\KspUpscaler\streamline-sdk-v2.14.1\bin\x64\development'),
+    # By default KspRoot, as the build takes it, or the Steam location.
+    [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),
+    # Beside the main checkout, also from a git worktree of it: References holds the vendors' SDKs.
+    [string]$Development = (Join-Path (Split-Path -Parent (Split-Path -Parent (git -C $PSScriptRoot rev-parse --path-format=absolute --git-common-dir))) 'References\KspUpscaler\streamline-sdk-v2.14.1\bin\x64\development'),
     [switch]$ShowOnlyGenerated,
     # Without AMD's debug checker (vendorDiagnostics).
     [switch]$NoDiagnostics,

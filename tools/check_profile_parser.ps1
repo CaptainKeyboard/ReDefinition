@@ -8,40 +8,13 @@
 # from the KspRoot environment variable, as in Directory.Build.props, and
 # defaults to the Steam location.
 
-$repo = Split-Path -Parent $PSScriptRoot
-$kspRoot = if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }
-$managed = [IO.Path]::Combine($kspRoot, 'KSP_x64_Data\Managed')
-$harmony = [IO.Path]::Combine($kspRoot, 'GameData\000_Harmony')
-
-# Plain .NET calls only, no cmdlets, and no re-entry: a resolver that calls a
-# cmdlet can make PowerShell resolve an assembly again from inside itself,
-# which overflows the stack in Windows PowerShell 5.1.
-$global:resolving = $false
-[System.AppDomain]::CurrentDomain.add_AssemblyResolve({
-    param($s, $e)
-    if ($global:resolving) { return $null }
-    $n = ($e.Name -split ',')[0]
-    if ($n.EndsWith('.resources')) { return $null }
-    $global:resolving = $true
-    try {
-        foreach ($d in @($managed, $harmony)) {
-            $p = [IO.Path]::Combine($d, $n + '.dll')
-            if ([IO.File]::Exists($p)) { return [Reflection.Assembly]::LoadFrom($p) }
-        }
-        return $null
-    }
-    finally { $global:resolving = $false }
-})
+. ([IO.Path]::Combine($PSScriptRoot, 'check_common.ps1'))
 
 $ksp = [Reflection.Assembly]::LoadFrom([IO.Path]::Combine($managed, 'Assembly-CSharp.dll'))
 # From the file, as check_bundled_mods.ps1 loads it. Microsoft Defender has blocked a script that
 # loads an assembly from bytes in memory as Trojan:Win32/ClickFix.IIN!MTB.
 $mod = [Reflection.Assembly]::LoadFrom([IO.Path]::Combine($repo, 'build\ReDefinition.dll'))
 
-$failures = 0
-function Expect($what, $ok) {
-    if ($ok) { "PASS  $what" } else { "FAIL  $what"; $script:failures++ }
-}
 function Has($list, $pattern) { return @($list | Where-Object { $_ -like $pattern }).Count -eq 1 }
 
 try {

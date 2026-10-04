@@ -103,30 +103,29 @@ def main():
     print('variant'.ljust(20), 'cap phase       ', ' '.join(('%d-%d' % b).rjust(7) for b in BANDS),
           '   ' + ' '.join(('%d-%d' % b).rjust(5) for b in BANDS[:-1]))
     for variant, n, phase in captures:
-        if True:
-            with_v = os.path.join(folder, variant, n)
-            without = os.path.join(folder, variant, 'h' + n)
-            mask = read(with_v, 'mask', np.uint8, 1, crop)
-            a = grey(with_v, station, crop)
-            b = grey(without, station, crop)
-            opaque = grey(with_v, 'opaque', crop)
-            if mask is None or a is None or b is None or opaque is None:
-                continue
-            vessel = mask > 127
-            # Both passes of a station come out of the same buffer: one orientation.
-            if oriented(a, vessel) is not a:
-                a, b = a[::-1], b[::-1]
-            if oriented(opaque, vessel) is not opaque:
-                opaque = opaque[::-1]
-            contrast = edge_contrast(a, vessel)
-            if contrast < 1.5:
-                print(variant.ljust(20), n.rjust(3), phase.ljust(12), 'invalid: no vessel in the image (edge contrast %.2f)' % contrast)
-                continue
-            sky = (opaque < 1e-4) & ~vessel
-            values = bands(np.abs(a - b), vessel, sky)
-            floor = values[-1]
-            print(variant.ljust(20), n.rjust(3), phase.ljust(12), ' '.join('%7.4f' % v for v in values),
-                  '   ' + ' '.join('%5.1f' % (v / floor if floor > 0 else float('nan')) for v in values[:-1]))
+        with_v = os.path.join(folder, variant, n)
+        without = os.path.join(folder, variant, 'h' + n)
+        mask = read(with_v, 'mask', np.uint8, 1, crop)
+        a = grey(with_v, station, crop)
+        b = grey(without, station, crop)
+        opaque = grey(with_v, 'opaque', crop)
+        if mask is None or a is None or b is None or opaque is None:
+            continue
+        vessel = mask > 127
+        # Both passes of a station come out of the same buffer: one orientation.
+        if oriented(a, vessel) is not a:
+            a, b = a[::-1], b[::-1]
+        if oriented(opaque, vessel) is not opaque:
+            opaque = opaque[::-1]
+        contrast = edge_contrast(a, vessel)
+        if contrast < 1.5:
+            print(variant.ljust(20), n.rjust(3), phase.ljust(12), 'invalid: no vessel in the image (edge contrast %.2f)' % contrast)
+            continue
+        sky = (opaque < 1e-4) & ~vessel
+        values = bands(np.abs(a - b), vessel, sky)
+        floor = values[-1]
+        print(variant.ljust(20), n.rjust(3), phase.ljust(12), ' '.join('%7.4f' % v for v in values),
+              '   ' + ' '.join('%5.1f' % (v / floor if floor > 0 else float('nan')) for v in values[:-1]))
 
 
 if __name__ == '__main__':
