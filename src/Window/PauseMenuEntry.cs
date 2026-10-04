@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using System;
 using KSP.Localization;
@@ -56,19 +57,20 @@ namespace ReDefinition.Window
             if (postfix == null)
                 throw new MissingMethodException("PauseMenuEntry", nameof(DrawPostfix));
 
-            HarmonyLib.Harmony harmony = new HarmonyLib.Harmony(HarmonyId);
-            Patch(harmony, postfix, typeof(PauseMenu));
-            Patch(harmony, postfix, typeof(KSCPauseMenu));
+            HarmonyHooks.Install(HarmonyId, typeof(PauseMenuEntry), new List<HarmonyHook>
+            {
+                new HarmonyHook(Draw(typeof(PauseMenu)), null, nameof(DrawPostfix), null),
+                new HarmonyHook(Draw(typeof(KSCPauseMenu)), null, nameof(DrawPostfix), null),
+            });
         }
 
-        private static void Patch(HarmonyLib.Harmony harmony, MethodInfo postfix, Type menu)
+        private static MethodInfo Draw(Type menu)
         {
             MethodInfo original = menu.GetMethod("draw",
                 BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
             if (original == null)
                 throw new MissingMethodException(menu.Name, "draw");
-
-            harmony.Patch(original, postfix: new HarmonyLib.HarmonyMethod(postfix));
+            return original;
         }
 
         // Inside KSP's own dialog code: an exception escaping here would take the

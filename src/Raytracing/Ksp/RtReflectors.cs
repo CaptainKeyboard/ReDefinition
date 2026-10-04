@@ -43,6 +43,20 @@ namespace ReDefinition.Raytracing
         // Luminance 1: 0.2126 * 0.83 + 0.7152 * 1.01 + 0.0722 * 1.42.
         private static readonly Color NightTint = new Color(0.83f, 1.01f, 1.42f);
 
+        // The planet `main` belongs to -- itself, or the one it circles -- and its moons,
+        // into `bodies`; false where there is none, as at the star itself.
+        internal static bool SystemOf(CelestialBody main, CelestialBody star, List<CelestialBody> bodies)
+        {
+            bodies.Clear();
+            CelestialBody planet = main;
+            while (planet != null && planet.referenceBody != null && planet.referenceBody != star && planet.referenceBody != planet)
+                planet = planet.referenceBody;
+            if (planet == null || planet == star) return false;
+            bodies.Add(planet);
+            if (planet.orbitingBodies != null) bodies.AddRange(planet.orbitingBodies);
+            return true;
+        }
+
         // Fills lights as RtCamera.Lights asks, for a camera at `eye` (world) over `main`,
         // the player's percentage; the number of lights.
         // surfaces: per light its body's albedo times the star's colour, linear, which a
@@ -70,13 +84,7 @@ namespace ReDefinition.Raytracing
             candidates.Clear();
             Vector3d sun = star.position;
             double sunToEye = (sun - eye).magnitude;
-            CelestialBody planet = main;
-            while (planet != null && planet.referenceBody != null && planet.referenceBody != star && planet.referenceBody != planet)
-                planet = planet.referenceBody;
-            if (planet == null || planet == star) return 0;
-            system.Clear();
-            system.Add(planet);
-            if (planet.orbitingBodies != null) system.AddRange(planet.orbitingBodies);
+            if (!SystemOf(main, star, system)) return 0;
             foreach (CelestialBody body in system)
             {
                 if (body == null || body == star || body.scaledBody == null) continue;

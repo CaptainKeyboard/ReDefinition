@@ -86,7 +86,7 @@ namespace ReDefinition.Engineer
 
         // ---------------------------------------------------------------- update
 
-        internal void Update()
+        internal void Tick()
         {
             string name = VesselName();
             if (bodies == null)

@@ -213,8 +213,6 @@ namespace ReDefinition.Raytracing
         // after the opaque image effects (OceanCommandBuffer); Deferred's screen-space
         // reflections read that G-buffer before them, where this goes too.
         private const CameraEvent OceanEvent = CameraEvent.BeforeImageEffectsOpaque;
-        private static readonly System.Reflection.FieldInfo[] PacketFields =
-            typeof(RtNative.FramePacket).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
         private static readonly int RtPrevViewProj = Shader.PropertyToID("_ReDefinitionRtPrevViewProj");
         private static readonly int RtTexel = Shader.PropertyToID("_ReDefinitionRtTexel");
         private static readonly int RtOffsetNear = Shader.PropertyToID("_ReDefinitionRtOffsetNear");
@@ -393,9 +391,10 @@ namespace ReDefinition.Raytracing
             }
 
             // The G-buffer's copy at this frame's size, which the previous frame's
-            // OnRenderImage found; at a new size, from the next frame on.
+            // OnRenderImage found; at a new size, from the next frame on. Only for the trace
+            // after the frame: the trace in the frame copies it itself (TraceThisFrame).
             gbufferCopy.Clear();
-            if (gbuffer0 != null && cam.actualRenderingPath == RenderingPath.DeferredShading)
+            if (!TraceBeforeLighting && gbuffer0 != null && cam.actualRenderingPath == RenderingPath.DeferredShading)
             {
                 gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer0, gbuffer0);
                 gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer1, gbuffer1);
@@ -560,15 +559,7 @@ namespace ReDefinition.Raytracing
                 oceanCommand.Blit(source, oceanSurface2, capture, 9);
             }
 
-            object copy = oceanPacket;
-            foreach (System.Reflection.FieldInfo field in PacketFields)
-            {
-                object value = field.GetValue(packet);
-                Array array = value as Array;
-                if (array != null) Array.Copy(array, (Array)field.GetValue(copy), array.Length);
-                else field.SetValue(copy, value);
-            }
-            oceanPacket = (RtNative.FramePacket)copy;
+            packet.CopyTo(ref oceanPacket);
             oceanPacket.Signals = RtNative.SignalSpecular;
             oceanPacket.Flags = RtNative.FlagSameFrame | RtNative.FlagExtra | RtNative.FlagWater;
             oceanPacket.Params[7] = 1f;

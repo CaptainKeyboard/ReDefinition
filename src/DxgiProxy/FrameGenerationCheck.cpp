@@ -6,6 +6,7 @@
 #include "FrameGeneration.h"
 
 #include "Config.h"
+#include "D3d12Util.h"
 #include "Log.h"
 
 #include <algorithm>
@@ -33,33 +34,6 @@ namespace redefinition
 
             const int tenths = static_cast<int>(std::ceil(share * 10.0));
             return static_cast<char>('0' + std::min(std::max(tenths, 1), 9));
-        }
-
-        float HalfToFloat(uint16_t h)
-        {
-            const uint32_t sign = (h & 0x8000u) << 16;
-            uint32_t exponent = (h >> 10) & 0x1Fu;
-            uint32_t mantissa = h & 0x3FFu;
-            uint32_t bits;
-            if (exponent == 0)
-            {
-                if (mantissa == 0)
-                    bits = sign;
-                else
-                {
-                    exponent = 127 - 15 + 1;
-                    while ((mantissa & 0x400u) == 0) { mantissa <<= 1; --exponent; }
-                    mantissa &= 0x3FFu;
-                    bits = sign | (exponent << 23) | (mantissa << 13);
-                }
-            }
-            else if (exponent == 31)
-                bits = sign | 0x7F800000u | (mantissa << 13);
-            else
-                bits = sign | ((exponent + 127 - 15) << 23) | (mantissa << 13);
-            float f;
-            memcpy(&f, &bits, sizeof(f));
-            return f;
         }
 
         float Luminance(uint32_t rgba)
@@ -404,10 +378,7 @@ namespace redefinition
         desc.ArraySize = 1;
         desc.SampleDesc.Count = 1;
         desc.SampleDesc.Quality = 0;
-        desc.Usage = D3D11_USAGE_STAGING;
-        desc.BindFlags = 0;
-        desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        desc.MiscFlags = 0;
+        desc = StagingDesc(desc);
 
         HRESULT hr = device11->CreateTexture2D(&desc, nullptr, &checkPresented);
         if (SUCCEEDED(hr))
@@ -429,10 +400,7 @@ namespace redefinition
         {
             D3D11_TEXTURE2D_DESC depthDesc = {};
             S(depth).d3d11->GetDesc(&depthDesc);
-            depthDesc.Usage = D3D11_USAGE_STAGING;
-            depthDesc.BindFlags = 0;
-            depthDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-            depthDesc.MiscFlags = 0;
+            depthDesc = StagingDesc(depthDesc);
             if (FAILED(device11->CreateTexture2D(&depthDesc, nullptr, &checkDepth)))
                 checkDepth.Reset();
         }
@@ -441,10 +409,7 @@ namespace redefinition
         {
             D3D11_TEXTURE2D_DESC motionDesc = {};
             S(motion).d3d11->GetDesc(&motionDesc);
-            motionDesc.Usage = D3D11_USAGE_STAGING;
-            motionDesc.BindFlags = 0;
-            motionDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-            motionDesc.MiscFlags = 0;
+            motionDesc = StagingDesc(motionDesc);
             if (FAILED(device11->CreateTexture2D(&motionDesc, nullptr, &checkMotion)))
                 checkMotion.Reset();
         }

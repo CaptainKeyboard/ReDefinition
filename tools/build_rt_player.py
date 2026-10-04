@@ -53,7 +53,7 @@ SOURCES = [
     'src/Fsr3/Fsr3Constants.cs',
     'src/Fsr3/Fsr3ShaderIDs.cs',
     'src/Fsr3/Fsr3Upscaler.cs',
-    'src/Fsr3/Fsr3UpscalerAssets.cs',
+    'src/Fsr3/Fsr3UpscalerShaders.cs',
     'src/Fsr3/Fsr3UpscalerContext.cs',
     'src/Fsr3/Fsr3UpscalerPass.cs',
     'src/Fsr3/Fsr3UpscalerResources.cs',

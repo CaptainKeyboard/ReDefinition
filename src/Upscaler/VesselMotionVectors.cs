@@ -100,8 +100,6 @@ namespace ReDefinition.Upscaler
         private string state;
         private Matrix4x4 previousViewProjection;
         private int previousFrame = -10;
-        private bool shifted;
-        private bool subscribed;
         private float windowStart = -1f;
 
         // This frame's, from Begin.
@@ -131,30 +129,13 @@ namespace ReDefinition.Upscaler
             physicsSteps++;
         }
 
-        internal void Enable()
-        {
-            if (subscribed) return;
-            GameEvents.onFloatingOriginShift.Add(OnShift);
-            subscribed = true;
-        }
-
         internal void Disable()
         {
-            if (subscribed)
-            {
-                GameEvents.onFloatingOriginShift.Remove(OnShift);
-                subscribed = false;
-            }
             if (stats != null) stats.Release();
             stats = null;
-            UpscalerRig.Release(ref target);
+            RenderTextures.Release(ref target);
             if (material != null) Object.Destroy(material);
             material = null;
-        }
-
-        private void OnShift(Vector3d offset, Vector3d nonFrame)
-        {
-            shifted = true;
         }
 
         // In the scene camera's OnPreCull, after LateUpdate, where KSP has placed the
@@ -172,17 +153,14 @@ namespace ReDefinition.Upscaler
 
             Matrix4x4 projection = camera.projectionMatrix;
             viewProjection = GL.GetGPUProjectionMatrix(projection, false) * camera.worldToCameraMatrix;
-            Matrix4x4 jittered = CameraRedirect.JitterActive
-                ? Matrix4x4.Translate(new Vector3(CameraRedirect.JitterNdc.x, CameraRedirect.JitterNdc.y, 0f)) * projection
-                : projection;
+            Matrix4x4 jittered = CameraRedirect.JitterActive ? CameraRedirect.Jittered(projection) : projection;
             raster = GL.GetGPUProjectionMatrix(jittered, true) * camera.worldToCameraMatrix;
 
             if (vessel != drawnFor || vessel.parts.Count != partCount) Choose(vessel);
 
             stepped = physicsSteps != stepsAtPreviousFrame;
             stepsAtPreviousFrame = physicsSteps;
-            continuous = previousFrame == Time.frameCount - 1 && !shifted && SharedFrame.RigResetReason == null;
-            shifted = false;
+            continuous = previousFrame == Time.frameCount - 1 && !SharedFrame.Shifted && SharedFrame.RigResetReason == null;
             if (!continuous) skipped++;
         }
 
@@ -283,24 +261,19 @@ namespace ReDefinition.Upscaler
             if (material == null)
             {
                 string error;
-                Shader shader = FsrShaderBundle.LoadShader(FsrShaderBundle.MotionAuditShaderName, out error);
-                if (shader == null)
+                bool outdated;
+                material = ShaderBundle.MakeMaterial(ShaderBundle.MotionAuditShaderName, "ReDefinition vessel motion", DepthPass + 1,
+                    out error, out outdated);
+                if (material == null)
                 {
                     state = error;
                     Debug.Log(Log.Tag + " The vessel's own motion vectors left out: " + error + ".");
                     return false;
                 }
-                material = new Material(shader) { name = "ReDefinition vessel motion", hideFlags = HideFlags.DontSave };
-                if (material.passCount <= DepthPass)
-                {
-                    state = FsrShaderBundle.MotionAuditShaderName + " in the shader bundle is older than this build";
-                    Debug.Log(Log.Tag + " The vessel's own motion vectors left out: " + state + ".");
-                    return false;
-                }
             }
             if (stats == null) stats = new ComputeBuffer(MaxParts * 4, sizeof(uint));
             bool created;
-            return UpscalerMasks.Ensure(ref target, renderSize, RenderTextureFormat.R8, "ReDefinition_MotionAudit",
+            return RenderTextures.Ensure(ref target, renderSize, RenderTextureFormat.R8, "ReDefinition_MotionAudit",
                                         out created);
         }
 

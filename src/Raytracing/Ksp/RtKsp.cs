@@ -39,6 +39,10 @@ namespace ReDefinition.Raytracing
         // try leaves a packet ring behind (PacketRing, never freed).
         private Camera failedOn;
         private float nextReport;
+        // When attaching may be tried again after the proxy or the shaders were not ready:
+        // not every frame, which would ask the proxy and load the bundle each time.
+        private float retryAt;
+        private const float RetrySeconds = 5f;
 
         internal RaytracingMode Mode { get { return mode; } }
 
@@ -47,6 +51,7 @@ namespace ReDefinition.Raytracing
             mode = newMode;
             bounces = Mathf.Clamp(newBounces, 1, 8);
             failedOn = null;
+            retryAt = 0f;
             if (attached != null) attached.Settings = SettingsFor(mode, bounces);
             if (mode == RaytracingMode.Off) Detach("off");
         }
@@ -81,7 +86,7 @@ namespace ReDefinition.Raytracing
                                                   && !RtKspMods.OceanNeedsDeferredReflections(), sceneCamera);
                 Report();
             }
-            else if (sceneCamera != failedOn) Attach(sceneCamera);
+            else if (sceneCamera != failedOn && Time.realtimeSinceStartup >= retryAt) Attach(sceneCamera);
         }
 
         private void Attach(Camera sceneCamera)
@@ -91,12 +96,14 @@ namespace ReDefinition.Raytracing
             if (!RtNative.Ready(out why))
             {
                 Problem("Raytracing does not run: " + why);
+                retryAt = Time.realtimeSinceStartup + RetrySeconds;
                 return;
             }
             string bundleProblem;
-            if (FsrShaderBundle.LoadShader("Hidden/ReDefinition/RtCapture", out bundleProblem) == null)
+            if (ShaderBundle.LoadShader("Hidden/ReDefinition/RtCapture", out bundleProblem) == null)
             {
                 Problem("Raytracing does not run: " + bundleProblem);
+                retryAt = Time.realtimeSinceStartup + RetrySeconds;
                 return;
             }
 
@@ -106,26 +113,25 @@ namespace ReDefinition.Raytracing
             camera.ShaderSource = name =>
             {
                 string error;
-                return FsrShaderBundle.LoadShader(name, out error);
+                return ShaderBundle.LoadShader(name, out error);
             };
             camera.ComputeSource = name =>
             {
                 string error;
-                return FsrShaderBundle.LoadCompute(name, out error);
+                return ShaderBundle.LoadCompute(name, out error);
             };
             camera.Sun = () =>
             {
-                Light sun = SunLight();
+                Light sun = RtKspMods.SunLight();
                 Vector3 towards = sun != null ? -sun.transform.forward : Vector3.up;
                 return new Vector4(towards.x, towards.y, towards.z, 0.0047f);
             };
             camera.SunColor = () =>
             {
-                Light sun = SunLight();
+                Light sun = RtKspMods.SunLight();
                 return sun != null && sun.enabled ? sun.color * sun.intensity : Color.black;
             };
-            camera.SunLight = SunLight;
-            camera.SkyColor = () => RenderSettings.ambientSkyColor;
+            camera.SunLight = RtKspMods.SunLight;
             camera.Environment = () =>
             {
                 ReflectionProbe found = Probe();
@@ -157,16 +163,14 @@ namespace ReDefinition.Raytracing
             };
             camera.Body = () =>
             {
-                CelestialBody body = HighLogic.LoadedSceneIsFlight ? FlightGlobals.currentMainBody
-                                     : HighLogic.LoadedScene == GameScenes.SPACECENTER ? FlightGlobals.GetHomeBody() : null;
+                CelestialBody body = RtKspMods.SceneBody();
                 if (body == null) return Vector4.zero;
                 Vector3d centre = body.position;
                 return new Vector4((float)centre.x, (float)centre.y, (float)centre.z, (float)body.Radius);
             };
             camera.Lights = (lights, surfaces) =>
             {
-                CelestialBody body = HighLogic.LoadedSceneIsFlight ? FlightGlobals.currentMainBody
-                                     : HighLogic.LoadedScene == GameScenes.SPACECENTER ? FlightGlobals.GetHomeBody() : null;
+                CelestialBody body = RtKspMods.SceneBody();
                 if (body == null) return 0;
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 float percent = addon != null ? addon.Live.RaytracingMoonlight : 10f;
@@ -175,8 +179,7 @@ namespace ReDefinition.Raytracing
             };
             camera.PlanetAlbedo = () =>
             {
-                CelestialBody body = HighLogic.LoadedSceneIsFlight ? FlightGlobals.currentMainBody
-                                     : HighLogic.LoadedScene == GameScenes.SPACECENTER ? FlightGlobals.GetHomeBody() : null;
+                CelestialBody body = RtKspMods.SceneBody();
                 return RtReflectors.PlanetAlbedo(body);
             };
 
@@ -244,14 +247,6 @@ namespace ReDefinition.Raytracing
             if (text == loggedProblem) return;
             loggedProblem = text;
             Debug.Log(Log.Tag + " " + text);
-        }
-
-        // The scene's sun: the light of the star that lights it (RtKspMods). Not the
-        // brightest directional light: KSP's scaled-space copy of the sun is at least as
-        // bright, and PlanetShine's and Kopernicus's other stars' lights are directional.
-        private static Light SunLight()
-        {
-            return RtKspMods.SunLight();
         }
 
         private ReflectionProbe Probe()

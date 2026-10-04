@@ -180,26 +180,18 @@ namespace redefinition
         for (DenoiseTarget* target : { &r.linearDepth, &r.motion, &r.normals, &r.specularAlbedo, &r.diffuseAlbedo })
             UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         {
-            UINT used = kDenoiseDescriptors - 4 * kTableSize;
+            UINT used = kRegenerationGuidesTable;
             const View reads[8] = {};
             const View writes[4] = { Of(&r.linearDepth), Of(&r.motion), Of(&r.normals), Of(&r.specularAlbedo) };
-            const D3D12_GPU_DESCRIPTOR_HANDLE table = TableLocked(slotNumber, used, reads, writes);
-            D3D12_GPU_DESCRIPTOR_HANDLE writeTable = table;
-            writeTable.ptr += static_cast<UINT64>(8) * increment;
-            list->SetComputeRootDescriptorTable(10, table);
-            list->SetComputeRootDescriptorTable(11, writeTable);
+            BindTablesLocked(TableLocked(slotNumber, used, reads, writes));
             list->SetPipelineState(guidePass->second.Get());
             list->Dispatch(groupsX, groupsY, 1);
         }
         {
-            UINT used = kDenoiseDescriptors - 5 * kTableSize;
+            UINT used = kRegenerationAlbedoTable;
             const View reads[8] = {};
             const View writes[4] = { Of(&r.diffuseAlbedo) };
-            const D3D12_GPU_DESCRIPTOR_HANDLE table = TableLocked(slotNumber, used, reads, writes);
-            D3D12_GPU_DESCRIPTOR_HANDLE writeTable = table;
-            writeTable.ptr += static_cast<UINT64>(8) * increment;
-            list->SetComputeRootDescriptorTable(10, table);
-            list->SetComputeRootDescriptorTable(11, writeTable);
+            BindTablesLocked(TableLocked(slotNumber, used, reads, writes));
             list->SetPipelineState(albedo->second.Get());
             list->Dispatch(groupsX, groupsY, 1);
         }
@@ -238,24 +230,23 @@ namespace redefinition
         ffxApiHeader* last = &dispatch.header;
         const struct
         {
-            uint32_t signal;
-            UINT output;
-            UINT noisy;
+            const RtDenoisedSignal& denoised;
             FfxApiDenoiserSignal* target;
             ffxApiHeader* header;
         } signals[2] = {
-            { kRtSignalDiffuse, 1, 1, &diffuse.signal, &diffuse.header },
-            { kRtSignalSpecular, 2, 2, &specular.signal, &specular.header },
+            { RtDenoisedFor(kRtSignalDiffuse), &diffuse.signal, &diffuse.header },
+            { RtDenoisedFor(kRtSignalSpecular), &specular.signal, &specular.header },
         };
         for (const auto& signal : signals)
         {
-            if ((r.signals & AmdSignals(signal.signal)) == 0)
+            if ((r.signals & AmdSignals(signal.denoised.signal)) == 0)
                 continue;
-            if (outputs[signal.output] == nullptr || denoise.noisy[signal.noisy].resource == nullptr)
+            DenoiseTarget& noisy = denoise.noisy[signal.denoised.index];
+            if (outputs[signal.denoised.output] == nullptr || noisy.resource == nullptr)
                 return false;
-            UseLocked(denoise.noisy[signal.noisy], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            signal.target->input = ffxApiGetResourceDX12(denoise.noisy[signal.noisy].resource.Get(), read);
-            signal.target->output = ffxApiGetResourceDX12(outputs[signal.output]->texture.d3d12.Get(), write);
+            UseLocked(noisy, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            signal.target->input = ffxApiGetResourceDX12(noisy.resource.Get(), read);
+            signal.target->output = ffxApiGetResourceDX12(outputs[signal.denoised.output]->texture.d3d12.Get(), write);
             signal.target->checkerboardOrigin = 0;
             last->pNext = signal.header;
             last = signal.header;

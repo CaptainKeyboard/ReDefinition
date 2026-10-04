@@ -111,19 +111,9 @@ namespace ReDefinition.Window
                     throw new MissingMethodException("KspSettingsSection", pairs[i][1]);
             }
 
-            HarmonyLib.Harmony harmony = new HarmonyLib.Harmony(HarmonyId);
-            try
-            {
-                for (int i = 0; i < pairs.Length; i++)
-                    harmony.Patch(originals[i], postfix: new HarmonyLib.HarmonyMethod(postfixes[i]));
-            }
-            catch
-            {
-                // ReDefinition's own id only: UnpatchAll without one removes every mod's
-                // patches.
-                harmony.UnpatchAll(HarmonyId);
-                throw;
-            }
+            List<HarmonyHook> hooks = new List<HarmonyHook>();
+            for (int i = 0; i < pairs.Length; i++) hooks.Add(new HarmonyHook(originals[i], null, pairs[i][1], null));
+            HarmonyHooks.Install(HarmonyId, typeof(KspSettingsSection), hooks);
         }
 
         // The postfixes run inside KSP's dialog code. An exception escaping

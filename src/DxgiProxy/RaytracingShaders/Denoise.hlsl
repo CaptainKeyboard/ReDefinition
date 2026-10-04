@@ -32,7 +32,9 @@ Texture2D<float4> motion : register(t7, space3);
 RWTexture2D<float4> outputA : register(u0, space3);
 RWTexture2D<float4> outputB : register(u1, space3);
 // The à-trous steps' fourth signal, and their third and fourth outputs; Reconstruct.hlsl
-// has the Ray Reconstruction guides in u2 and u3.
+// has the Ray Reconstruction guides in u2 and u3. inputD shares t5 with
+// linearDepthBefore: the temporal step reads the one, the à-trous steps the other, and
+// no pass reads both (RaytracingDenoise.cpp binds t5 by the step).
 Texture2D<float4> inputD : register(t5, space3);
 RWTexture2D<float4> outputC : register(u2, space3);
 RWTexture2D<float4> outputD : register(u3, space3);

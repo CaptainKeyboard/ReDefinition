@@ -13,18 +13,10 @@ namespace ReDefinition.Engineer
     internal static class PlannerIcons
     {
         private const string Path = "ReDefinition/Icons/Planner_";
-        private static readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
 
         internal static Sprite Get(string name)
         {
-            Sprite sprite;
-            if (sprites.TryGetValue(name, out sprite) && sprite != null) return sprite;
-            Texture2D texture = GameDatabase.Instance != null ? GameDatabase.Instance.GetTexture(Path + name, false) : null;
-            sprite = texture != null
-                ? Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f)
-                : null;
-            sprites[name] = sprite;
-            return sprite;
+            return Shared.IconSprites.Load(Path + name);
         }
     }
 
@@ -182,16 +174,6 @@ namespace ReDefinition.Engineer
 
     internal static class PlannerWidgets
     {
-        // A toggle button of KSP's skin with a symbol on it.
-        internal static DialogGUIToggleButton IconToggle(string icon, Func<bool> set, Callback<bool> selected, float size,
-                                                         string tip, AfterCreate after)
-        {
-            DialogGUIToggleButton toggle = new DialogGUIToggleButton(set, "", selected, size, size);
-            toggle.tooltipText = tip;
-            after.Add(() => AddIcon(toggle.uiItem, icon, size, Color.white));
-            return toggle;
-        }
-
         // A button of KSP's skin with a symbol on it.
         internal static DialogGUIButton IconButton(string icon, Callback click, float size, string tip, AfterCreate after)
         {

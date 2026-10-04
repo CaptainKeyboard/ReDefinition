@@ -18,6 +18,10 @@ namespace ReDefinition.Flight
         internal Collider[] Solid;
         private Vector3 middle;
         private bool measured;
+        // Where no hall is drawn yet, looked for again only after this time: the
+        // search goes through every renderer of the building.
+        private float retryAt;
+        private const float RetryEvery = 1f;
 
         internal FacilitySpot(string name, Transform place)
         {
@@ -31,6 +35,7 @@ namespace ReDefinition.Flight
             if (!measured)
             {
                 Vector3 ground = Place.position;
+                if (Time.unscaledTime < retryAt) return ground;
                 Vector3 up = (ground - home.position).normalized;
                 Renderer hall = null;
                 float most = -1f;
@@ -43,7 +48,11 @@ namespace ReDefinition.Flight
                     most = volume;
                     hall = part;
                 }
-                if (hall == null) return ground;
+                if (hall == null)
+                {
+                    retryAt = Time.unscaledTime + RetryEvery;
+                    return ground;
+                }
                 Solid = Place.GetComponentsInChildren<Collider>(false);
                 Bounds bounds = hall.bounds;
                 Vector3 extent = bounds.extents;
@@ -88,8 +97,9 @@ namespace ReDefinition.Flight
 
         // The space centre's facility of that name (PSystemSetup's: VAB, SPH,
         // TrackingStation, AstronautComplex, MissionControl, RnD, Administration, ...),
-        // with the body it stands on; null where it is not there.
-        internal static FacilitySpot Find(string name, out CelestialBody body)
+        // with the body it stands on; null where it is not there. `label` names it
+        // in the log; the facility's name where null.
+        internal static FacilitySpot Find(string name, out CelestialBody body, string label = null)
         {
             body = null;
             if (PSystemSetup.Instance == null) return null;
@@ -100,7 +110,7 @@ namespace ReDefinition.Flight
                     && (facility.facilityTransformName == null || !facility.facilityTransformName.Contains(name)))
                     continue;
                 body = facility.hostBody;
-                return new FacilitySpot(name, facility.facilityTransform);
+                return new FacilitySpot(label ?? name, facility.facilityTransform);
             }
             return null;
         }

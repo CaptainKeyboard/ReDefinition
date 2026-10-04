@@ -172,27 +172,23 @@ namespace redefinition
         {
             if (i < kRtMaxTextures)
             {
-                D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
-                srv.Format = table[i] != nullptr ? table[i]->texture.format : DXGI_FORMAT_R8G8B8A8_UNORM;
-                srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-                srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-                srv.Texture2D.MipLevels = 1;
+                const D3D12_SHADER_RESOURCE_VIEW_DESC srv =
+                    SrvDesc(table[i] != nullptr ? table[i]->texture.format : DXGI_FORMAT_R8G8B8A8_UNORM);
                 device->CreateShaderResourceView(table[i] != nullptr ? table[i]->texture.d3d12.Get() : nullptr, &srv, cpu);
             }
             else
             {
-                D3D12_UNORDERED_ACCESS_VIEW_DESC uav = {};
-                uav.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-                uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+                const D3D12_UNORDERED_ACCESS_VIEW_DESC uav = UavDesc(DXGI_FORMAT_R16G16B16A16_FLOAT);
                 device->CreateUnorderedAccessView(nullptr, nullptr, &uav, cpu);
             }
             cpu.ptr += increment;
         }
-        uint8_t* constants = slot.constantsMapped;
-        memset(constants, 0, 512);
-        memcpy(constants, packet->clipToWorld, 64);
-        const uint32_t tail[4] = { width, height, packet->frameIndex, 0 };
-        memcpy(constants + 336, tail, sizeof(tail));
+        memset(slot.constantsMapped, 0, static_cast<size_t>(kRtConstantsSize));
+        RtFrameConstants& constants = *reinterpret_cast<RtFrameConstants*>(slot.constantsMapped);
+        memcpy(constants.clipToWorld, packet->clipToWorld, sizeof(constants.clipToWorld));
+        constants.frameSize[0] = width;
+        constants.frameSize[1] = height;
+        constants.frameIndex = packet->frameIndex;
 
         ID3D12DescriptorHeap* heaps[] = { heap.Get() };
         list->SetDescriptorHeaps(1, heaps);
@@ -201,13 +197,7 @@ namespace redefinition
         list->SetComputeRootDescriptorTable(2, frameTable);
         if (!prepared)
         {
-            for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-                UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-            UINT used = 0;
-            const View reads[8] = { Of(specular) };
-            const View writes[4] = { Of(&guides.albedo), Of(&guides.specularAlbedo), Of(&guides.normalRoughness),
-                                     Of(&guides.hitDistance) };
-            const D3D12_GPU_DESCRIPTOR_HANDLE guideTable = TableLocked(slotNumber, used, reads, writes);
+            // The pipeline first: the guides' states are recorded only for a list that runs.
             auto pipeline = denoisePipelines.find("RT_ReconstructGuides");
             if (pipeline == denoisePipelines.end())
             {
@@ -215,11 +205,15 @@ namespace redefinition
                 list->Close();
                 return;
             }
+            for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
+                UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            UINT used = 0;
+            const View reads[8] = { Of(specular) };
+            const View writes[4] = { Of(&guides.albedo), Of(&guides.specularAlbedo), Of(&guides.normalRoughness),
+                                     Of(&guides.hitDistance) };
+            const D3D12_GPU_DESCRIPTOR_HANDLE guideTable = TableLocked(slotNumber, used, reads, writes);
             list->SetPipelineState(pipeline->second.Get());
-            list->SetComputeRootDescriptorTable(10, guideTable);
-            D3D12_GPU_DESCRIPTOR_HANDLE writeTable = guideTable;
-            writeTable.ptr += static_cast<UINT64>(8) * increment;
-            list->SetComputeRootDescriptorTable(11, writeTable);
+            BindTablesLocked(guideTable);
             list->Dispatch((width + 7) / 8, (height + 7) / 8, 1);
             // Streamline takes every resource in the state it is given and leaves it so.
             for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
@@ -316,7 +310,10 @@ namespace redefinition
         hr = list->Close();
         if (FAILED(hr))
         {
+            // None of it runs, its recorded states neither: everything made goes, as
+            // SubmitLocked does.
             SetProblem("the command list could not be closed (" + Hr(hr) + ")");
+            ReleaseLocked();
             return;
         }
         ID3D12CommandList* lists[] = { list.Get() };

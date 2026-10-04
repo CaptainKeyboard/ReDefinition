@@ -42,7 +42,7 @@ namespace ReDefinition
         // them at night (NightAdaptation).
         public float RaytracingMoonReflection = 100f;
         // How strongly Scatterer's ocean mirrors the sun, in percent of its configuration's
-        // strength (OceanSunReflection).
+        // strength (SeaHighlights).
         public float SunReflection = 100f;
         // How much of KSP's night light stays under raytracing, in percent: the least
         // light a point gets where neither the sun nor a moon reaches it.

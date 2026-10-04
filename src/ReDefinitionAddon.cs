@@ -131,9 +131,9 @@ namespace ReDefinition
             // Both sets, with and without HDR_COLOR_INPUT, right at startup: then the
             // log already says whether AssetBundle and plugin match. Which one a rig
             // takes is known once its camera is (TryAttach).
-            if (FsrShaderBundle.Load(true) == null || FsrShaderBundle.Load(false) == null)
+            if (ShaderBundle.Load(true) == null || ShaderBundle.Load(false) == null)
             {
-                problem = FsrShaderBundle.LastError;
+                problem = ShaderBundle.LastError;
                 Debug.LogWarning(Log.Tag + " Upscaler not operational: " + problem);
             }
             else
@@ -484,13 +484,13 @@ namespace ReDefinition
             // in the editor, with it in flight.
             // Without the upscaler, for frame generation alone: no FSR, no shaders.
             bool passThrough = PassThroughWanted;
-            Fsr3UpscalerShaders shaders = passThrough ? null : FsrShaderBundle.Load(target.allowHDR, sharpness > 0f);
+            Fsr3UpscalerShaders shaders = passThrough ? null : ShaderBundle.Load(target.allowHDR, sharpness > 0f);
             if (!passThrough && shaders == null)
             {
                 // What a loaded bundle lacks it lacks until KSP starts again: not
                 // tried again before the player switches something, and the
                 // player's setting stays as it is.
-                problem = FsrShaderBundle.LastError ?? "Shaders not loaded.";
+                problem = ShaderBundle.LastError ?? "Shaders not loaded.";
                 problemIsCamera = false;
                 if (loggedSetupProblem != problem) Debug.LogError(Log.Tag + " " + problem);
                 loggedSetupProblem = problem;
@@ -749,7 +749,7 @@ namespace ReDefinition
             Detach();
             KeyCapture.Stop();
             SharedFrame.Uninstall();
-            FsrShaderBundle.Unload();
+            ShaderBundle.Unload();
         }
     }
 }

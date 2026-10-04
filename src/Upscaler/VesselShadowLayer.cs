@@ -167,13 +167,13 @@ namespace ReDefinition.Upscaler
         internal void Disable()
         {
             DetachLight();
-            UpscalerRig.Release(ref lightMap);
-            UpscalerRig.Release(ref mask);
-            UpscalerRig.Release(ref weight);
-            UpscalerRig.Release(ref shadowed);
-            UpscalerRig.Release(ref lit);
-            UpscalerRig.Release(ref maskSample);
-            UpscalerRig.Release(ref weightSample);
+            RenderTextures.Release(ref lightMap);
+            RenderTextures.Release(ref mask);
+            RenderTextures.Release(ref weight);
+            RenderTextures.Release(ref shadowed);
+            RenderTextures.Release(ref lit);
+            RenderTextures.Release(ref maskSample);
+            RenderTextures.Release(ref weightSample);
             if (material != null) Object.Destroy(material);
             material = null;
             casters.Clear();
@@ -198,9 +198,7 @@ namespace ReDefinition.Upscaler
             Matrix4x4 view = camera.worldToCameraMatrix;
             Matrix4x4 projection = camera.projectionMatrix;
             Matrix4x4 thisViewProjection = GL.GetGPUProjectionMatrix(projection, false) * view;
-            Matrix4x4 jittered = CameraRedirect.JitterActive
-                ? Matrix4x4.Translate(new Vector3(CameraRedirect.JitterNdc.x, CameraRedirect.JitterNdc.y, 0f)) * projection
-                : projection;
+            Matrix4x4 jittered = CameraRedirect.JitterActive ? CameraRedirect.Jittered(projection) : projection;
             rasterInverse = (GL.GetGPUProjectionMatrix(jittered, false) * view).inverse;
             continuous = previousFrame == Time.frameCount - 1 && SharedFrame.RigResetReason == null;
             if (!continuous) previousViewProjection = thisViewProjection;
@@ -461,14 +459,15 @@ namespace ReDefinition.Upscaler
             if (material == null)
             {
                 string error;
-                Shader shader = FsrShaderBundle.LoadShader(FsrShaderBundle.VesselShadowShaderName, out error);
-                if (shader == null)
+                bool outdated;
+                material = ShaderBundle.MakeMaterial(ShaderBundle.VesselShadowShaderName, "ReDefinition vessel shadow", 0, out error,
+                    out outdated);
+                if (material == null)
                 {
                     state = error;
                     Debug.Log(Log.Tag + " Vessel shadow for frame generation left out: " + error + ".");
                     return false;
                 }
-                material = new Material(shader) { name = "ReDefinition vessel shadow", hideFlags = HideFlags.DontSave };
             }
             if (lightMap == null)
             {
@@ -480,7 +479,7 @@ namespace ReDefinition.Upscaler
                 lightMap.Create();
             }
             bool created;
-            if (!UpscalerMasks.Ensure(ref mask, renderSize, RenderTextureFormat.R8, "ReDefinition_VesselShadowMask", out created))
+            if (!RenderTextures.Ensure(ref mask, renderSize, RenderTextureFormat.R8, "ReDefinition_VesselShadowMask", out created))
                 return false;
             if (created)
             {
@@ -488,7 +487,7 @@ namespace ReDefinition.Upscaler
                 // The light's copy into the old one is recorded with it: attached anew.
                 DetachLight();
             }
-            if (!UpscalerMasks.Ensure(ref weight, renderSize, RenderTextureFormat.ARGBHalf, "ReDefinition_VesselShadowWeight",
+            if (!RenderTextures.Ensure(ref weight, renderSize, RenderTextureFormat.ARGBHalf, "ReDefinition_VesselShadowWeight",
                                       out created))
                 return false;
             if (created) weight.filterMode = FilterMode.Bilinear;
@@ -507,7 +506,7 @@ namespace ReDefinition.Upscaler
         private static bool EnsureMipped(ref RenderTexture texture, int width, int height, string name)
         {
             if (texture != null && texture.width == width && texture.height == height && texture.IsCreated()) return true;
-            UpscalerRig.Release(ref texture);
+            RenderTextures.Release(ref texture);
             texture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf)
             {
                 name = name,
@@ -643,11 +642,11 @@ namespace ReDefinition.Upscaler
             });
         }
 
-        // Per sample: Unity's mask (r), the share of the sun the vessel takes (g), the
-        // weight (r), lit ground near the shadow (b).
+        // Per sample: Unity's mask (the mask's r); the weight (r), the share of the sun
+        // the vessel takes (g) and lit ground near the shadow (b) of the weight texture.
         private void Summarise(NativeArray<ushort> maskData, NativeArray<ushort> weightData)
         {
-            int samples = SampleWidth * SampleHeight, shadowed = 0, taken = 0, weighted = 0, lit = 0;
+            int samples = SampleWidth * SampleHeight, inShadow = 0, taken = 0, weighted = 0, litGround = 0;
             float maskMin = 1f;
             double weightSum = 0;
             for (int i = 0; i < samples; i++)
@@ -657,19 +656,19 @@ namespace ReDefinition.Upscaler
                 float g = Mathf.HalfToFloat(weightData[i * 4 + 1]);
                 float b = Mathf.HalfToFloat(weightData[i * 4 + 2]);
                 if (m < maskMin) maskMin = m;
-                if (m < 0.9f) shadowed++;
+                if (m < 0.9f) inShadow++;
                 if (g > 0.1f) taken++;
                 if (w > 0.1f)
                 {
                     weighted++;
                     weightSum += w;
                 }
-                if (b > 0.5f) lit++;
+                if (b > 0.5f) litGround++;
             }
             sampleLine = string.Format(CultureInfo.InvariantCulture,
                 "of {0} samples, {1} in shadow in Unity's mask (lowest {2:0.00}), {3} in the vessel's shadow, {4} weighted"
                 + " (mean {5:0.00}), {6} lit ground to compare with",
-                samples, shadowed, maskMin, taken, weighted, weighted > 0 ? weightSum / weighted : 0.0, lit);
+                samples, inShadow, maskMin, taken, weighted, weighted > 0 ? weightSum / weighted : 0.0, litGround);
         }
 
         private void Report()

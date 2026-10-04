@@ -13,7 +13,7 @@ namespace ReDefinition.Upscaler
     // editor of exactly the version the game was built with, 2019.4.18f1. The
     // bundle is built in unity/ with the menu item "ReDefinition / Build
     // AssetBundle".
-    internal static class FsrShaderBundle
+    internal static class ShaderBundle
     {
         public const string BundleName = "redefinition.shaders";
 
@@ -177,6 +177,31 @@ namespace ReDefinition.Upscaler
             return found;
         }
 
+        // How many passes each loaded shader has, once a material of it was made.
+        private static readonly Dictionary<Shader, int> passCounts = new Dictionary<Shader, int>();
+
+        // A material of the bundle's shader `shaderName`, named `materialName`; null
+        // and the reason where the shader is not there or has fewer than `passes`
+        // passes -- `outdated` then: the bundle is older than this build.
+        public static Material MakeMaterial(string shaderName, string materialName, int passes, out string error,
+                                            out bool outdated)
+        {
+            outdated = false;
+            Shader shader = LoadShader(shaderName, out error);
+            if (shader == null) return null;
+            int known;
+            if (!passCounts.TryGetValue(shader, out known) || known >= passes)
+            {
+                Material material = new Material(shader) { name = materialName, hideFlags = HideFlags.DontSave };
+                passCounts[shader] = material.passCount;
+                if (material.passCount >= passes) return material;
+                UnityEngine.Object.Destroy(material);
+            }
+            outdated = true;
+            error = shaderName + " in the shader bundle is older than this build";
+            return null;
+        }
+
         // A compute shader of ReDefinition's own by its file name, or null and the
         // reason; searched once per loaded bundle, like LoadShader.
         public static ComputeShader LoadCompute(string name, out string error)
@@ -210,6 +235,7 @@ namespace ReDefinition.Upscaler
         public static void Unload()
         {
             namedComputes.Clear();
+            passCounts.Clear();
             byName = null;
             namedShaders.Clear();
             namedShaderErrors.Clear();

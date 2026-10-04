@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using UnityEngine;
 
 namespace ReDefinition.Scaling
@@ -52,7 +51,12 @@ namespace ReDefinition.Scaling
         // By the assembly of a window's function: whether its windows are scaled.
         private static readonly Dictionary<Assembly, bool> scaled = new Dictionary<Assembly, bool>();
         // By window id: where a scaled window was last drawn, in the screen's pixels.
+        // Windows not drawn for a while are dropped now and then: a mod may draw each
+        // window under a new id.
         private static readonly Dictionary<int, Drawn> drawn = new Dictionary<int, Drawn>();
+        private const int PruneEvery = 300;
+        private static int prunedFrame;
+        private static readonly List<int> stale = new List<int>();
 
         // What the prefix hands the postfix: whether it set a matrix, and the one
         // before.
@@ -153,8 +157,6 @@ namespace ReDefinition.Scaling
             if (__exception != null && __state.Applied) GUI.matrix = __state.Saved;
         }
 
-
-
         // Whether the pointer is over a scaled window drawn in the last frames. The
         // mouse is measured from the bottom left.
         internal static bool PointerOverScaledWindow()
@@ -164,6 +166,7 @@ namespace ReDefinition.Scaling
 
         private static bool Over(Dictionary<int, Drawn> windows)
         {
+            Prune(windows);
             if (windows.Count == 0) return false;
             Vector3 mouse = Input.mousePosition;
             Vector2 point = new Vector2(mouse.x, Screen.height - mouse.y);
@@ -172,6 +175,18 @@ namespace ReDefinition.Scaling
                 if (frame - window.Frame <= 2 && window.Area.width > 0f && window.Area.height > 0f && window.Area.Contains(point))
                     return true;
             return false;
+        }
+
+        // Only windows drawn in the last frames count (Over).
+        private static void Prune(Dictionary<int, Drawn> windows)
+        {
+            int frame = Time.frameCount;
+            if (frame - prunedFrame < PruneEvery) return;
+            prunedFrame = frame;
+            stale.Clear();
+            foreach (KeyValuePair<int, Drawn> window in windows)
+                if (frame - window.Value.Frame > 2) stale.Add(window.Key);
+            foreach (int id in stale) windows.Remove(id);
         }
 
         private static bool Scaled(GUI.WindowFunction function)

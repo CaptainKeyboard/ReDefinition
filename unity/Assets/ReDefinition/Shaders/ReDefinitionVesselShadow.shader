@@ -169,25 +169,26 @@ Shader "Hidden/ReDefinition/VesselShadow"
                         }
                     }
                 }
-                // Near the shadow: the vessel in the way somewhere within the reach -- eight
-                // directions at a third, two thirds and all of it -- for the lit ground the
-                // ratio is measured against.
-                [unroll] for (int ring = 1; ring <= 3; ring++)
-                {
-                    [unroll] for (int k = 0; k < 8; k++)
-                    {
-                        float angle = k * 0.785398;
-                        float2 offset = float2(cos(angle), sin(angle)) * (_VesselShadowParams.w * ring / 3.0) * texelStep;
-                        float4 texel = tex2Dlod(_VesselShadowLightMap, float4(lightUv + offset, 0.0, 0.0));
-                        if (texel.w < distance - _VesselShadowParams.z)
-                            nearby = 1.0;
-                    }
-                }
-
                 float mask = tex2Dlod(_VesselShadowMask, float4(uv, 0.0, 0.0)).r;
-                float lit = nearby * step(0.98, mask) * (blocked < 0.5 ? 1.0 : 0.0);
+                [branch]
                 if (blocked < 0.5)
-                    return float4(0.0, 0.0, lit, 0.0);
+                {
+                    // Near the shadow: the vessel in the way somewhere within the reach --
+                    // eight directions at a third, two thirds and all of it -- for the lit
+                    // ground the ratio is measured against. Only lit ground needs it.
+                    [unroll] for (int ring = 1; ring <= 3; ring++)
+                    {
+                        [unroll] for (int k = 0; k < 8; k++)
+                        {
+                            float angle = k * (UNITY_PI / 4.0);
+                            float2 offset = float2(cos(angle), sin(angle)) * (_VesselShadowParams.w * ring / 3.0) * texelStep;
+                            float4 texel = tex2Dlod(_VesselShadowLightMap, float4(lightUv + offset, 0.0, 0.0));
+                            if (texel.w < distance - _VesselShadowParams.z)
+                                nearby = 1.0;
+                        }
+                    }
+                    return float4(0.0, 0.0, nearby * step(0.98, mask), 0.0);
+                }
 
                 // The share of the sun the vessel takes, where it takes part: Unity's mask is
                 // 1 - strength in full shadow and 1 in full light, and Unity lights a point

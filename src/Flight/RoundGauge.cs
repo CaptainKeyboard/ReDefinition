@@ -193,6 +193,13 @@ namespace ReDefinition.Flight
                       + ", the label under " + label.transform.parent.name + ".");
         }
 
+        // The painted picture, kept for the next flight scene: the gauge's own
+        // picture is the same there.
+        private static Sprite blankFrom;
+        private static Sprite blankSprite;
+        private static Vector2 blankCentre;
+        private static float blankReach;
+
         // The gauge's picture with its face painted over, where the dial's middle
         // lies off the picture's, as a share of its size, and how far the face
         // reaches, as a share of its width; false where the picture cannot be
@@ -202,8 +209,15 @@ namespace ReDefinition.Flight
             centre = Vector2.zero;
             reach = 0f;
             Sprite sprite = image.sprite;
+            if (blankSprite != null && sprite != null && (sprite == blankFrom || sprite == blankSprite))
+            {
+                centre = blankCentre;
+                reach = blankReach;
+                image.sprite = blankSprite;
+                return true;
+            }
             int width, height;
-            Color32[] pixels = TimeWarpBar.Pixels(sprite, out width, out height);
+            Color32[] pixels = Shared.TexturePixels.OfSprite(sprite, out width, out height);
             if (pixels == null) return false;
             int left = width, right = -1, bottom = height, top = -1;
             for (int y = 0; y < height; y++)
@@ -234,7 +248,16 @@ namespace ReDefinition.Flight
             Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, false);
             texture.SetPixels32(pixels);
             texture.Apply();
-            image.sprite = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+            if (blankSprite != null)
+            {
+                Destroy(blankSprite.texture);
+                Destroy(blankSprite);
+            }
+            blankFrom = sprite;
+            blankSprite = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+            blankCentre = centre;
+            blankReach = reach;
+            image.sprite = blankSprite;
             return true;
         }
 
@@ -306,9 +329,20 @@ namespace ReDefinition.Flight
             return image;
         }
 
+        private static readonly Dictionary<float, Sprite> annuli = new Dictionary<float, Sprite>();
+
         // A white ring, its inner edge at `inner` of its radius (0 for a disc),
-        // its edges smoothed over a texel.
+        // its edges smoothed over a texel; made once per `inner`.
         private static Sprite Annulus(float inner)
+        {
+            Sprite made;
+            if (annuli.TryGetValue(inner, out made) && made != null) return made;
+            made = MakeAnnulus(inner);
+            annuli[inner] = made;
+            return made;
+        }
+
+        private static Sprite MakeAnnulus(float inner)
         {
             const int size = 128;
             Texture2D texture = new Texture2D(size, size, TextureFormat.ARGB32, false);

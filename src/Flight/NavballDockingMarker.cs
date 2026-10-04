@@ -19,6 +19,8 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class NavballDockingMarker : MonoBehaviour
     {
+        private static readonly int OpacityId = Shader.PropertyToID("_Opacity");
+
         private NavBall navBall;
         private Transform marker;
         private Material material;
@@ -60,7 +62,7 @@ namespace ReDefinition.Flight
             marker.localPosition = position;
             bool front = position.z >= navBall.VectorUnitCutoff;
             if (marker.gameObject.activeSelf != front) marker.gameObject.SetActive(front);
-            if (front && material != null) material.SetFloat("_Opacity", Opacity(position));
+            if (front && material != null) material.SetFloat(OpacityId, Opacity(position));
         }
 
         // As KSP fades its markers: by how far they face out of the ball, and more

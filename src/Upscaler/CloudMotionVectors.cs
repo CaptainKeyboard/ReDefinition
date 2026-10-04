@@ -59,7 +59,6 @@ namespace ReDefinition.Upscaler
         private Material material;
         // A shader from the bundle with too few passes, not made into a material
         // again every frame; and the reconstruction last judged, with its verdict.
-        private Shader outdatedShader;
         private Shader judgedReconstruction;
         private string reconstructionVerdict;
         private RenderTexture clouds;
@@ -92,8 +91,8 @@ namespace ReDefinition.Upscaler
             State = Why(camera);
             bool created;
             if (State == null
-                && (!UpscalerMasks.Ensure(ref clouds, size, RenderTextureFormat.ARGBHalf, "ReDefinition_CloudMotion", out created)
-                    || !UpscalerMasks.Ensure(ref unityMotion, size, RenderTextureFormat.RGHalf, "ReDefinition_UnityMotion",
+                && (!RenderTextures.Ensure(ref clouds, size, RenderTextureFormat.ARGBHalf, "ReDefinition_CloudMotion", out created)
+                    || !RenderTextures.Ensure(ref unityMotion, size, RenderTextureFormat.RGHalf, "ReDefinition_UnityMotion",
                                              out created)))
                 State = "their textures could not be created";
             LogState();
@@ -129,7 +128,7 @@ namespace ReDefinition.Upscaler
         // body -- SceneMotion's matrix with an identity for this frame's projection.
         // Until there is a frame before with the same body, w of the origin is 0 and
         // the shader leaves the clouds out.
-        internal void Update(Camera camera)
+        internal void Sample(Camera camera)
         {
             if (!Active || !fromShell || camera == null || updatedFrame == Time.frameCount) return;
             updatedFrame = Time.frameCount;
@@ -195,8 +194,8 @@ namespace ReDefinition.Upscaler
         internal void Dispose()
         {
             Detach();
-            UpscalerRig.Release(ref clouds);
-            UpscalerRig.Release(ref unityMotion);
+            RenderTextures.Release(ref clouds);
+            RenderTextures.Release(ref unityMotion);
             if (material != null) Object.Destroy(material);
             material = null;
             Active = false;
@@ -239,18 +238,10 @@ namespace ReDefinition.Upscaler
             if (material == null)
             {
                 string error;
-                Shader shader = FsrShaderBundle.LoadShader(FsrShaderBundle.CloudMotionShaderName, out error);
-                if (shader == null) return error;
-                const string outdated = FsrShaderBundle.CloudMotionShaderName + " in the shader bundle is older than this build";
-                if (shader == outdatedShader) return outdated;
-                material = new Material(shader) { name = "ReDefinition cloud motion", hideFlags = HideFlags.DontSave };
-                if (material.passCount <= ShellPass)
-                {
-                    Object.Destroy(material);
-                    material = null;
-                    outdatedShader = shader;
-                    return outdated;
-                }
+                bool outdated;
+                material = ShaderBundle.MakeMaterial(ShaderBundle.CloudMotionShaderName, "ReDefinition cloud motion", ShellPass + 1,
+                    out error, out outdated);
+                if (material == null) return error;
             }
             return null;
         }

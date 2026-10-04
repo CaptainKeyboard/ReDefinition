@@ -18,7 +18,6 @@ namespace redefinition
     {
         // A shared copy of a Unity texture not used for this long is released.
         constexpr ULONGLONG kUnusedMs = 10000;
-        constexpr UINT64 kConstantsSize = 512;
         // Start, after the build, after each pass.
         constexpr UINT kTimestampsPerSlot = 2 + kRtPassTimings;
 
@@ -38,49 +37,16 @@ namespace redefinition
             { kRtSignalPrimaryCheck, L"RT_PrimaryCheck" },
         };
 
+        // The passes in the order they run, each by its place in PassTimings: the signals
+        // first, then the denoiser, then what reads the denoised signals.
+        constexpr UINT kPassOrder[kRtPassTimings] = { 0, 1, 2, 3, kRtPassDenoiser, 4, 5, 7 };
+
         // The denoiser's entry points (RaytracingShaders/Denoise.hlsl).
         const wchar_t* const kDenoiseEntries[] = {
             L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous",
             L"RT_ReconstructGuides", L"RT_FrameGuides", L"RT_GpuInstances", L"RT_RegenerationGuides",
             L"RT_RegenerationAlbedo",
         };
-
-        // The output slot of each signal the denoiser filters, and its place among the
-        // denoiser's noisy textures.
-        struct NoisySlot
-        {
-            uint32_t signal;
-            uint32_t output;
-            uint32_t index;
-        };
-        const NoisySlot kNoisy[] = {
-            { kRtSignalSunVisibility, 0, 0 },
-            { kRtSignalDiffuse, 1, 1 },
-            { kRtSignalSpecular, 2, 2 },
-            { kRtSignalAmbientOcclusion, 3, 3 },
-        };
-
-        UINT SignalIndex(uint32_t signal)
-        {
-            UINT index = 0;
-            while (signal > 1u)
-            {
-                signal >>= 1;
-                ++index;
-            }
-            return index;
-        }
-
-        DXGI_FORMAT ShareFormat(DXGI_FORMAT format)
-        {
-            const DXGI_FORMAT typed = TypedFormat(format);
-            switch (typed)
-            {
-            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return DXGI_FORMAT_R8G8B8A8_UNORM;
-            case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return DXGI_FORMAT_B8G8R8A8_UNORM;
-            default: return typed;
-            }
-        }
 
         D3D12_RESOURCE_DESC BufferDesc(UINT64 size, D3D12_RESOURCE_FLAGS flags)
         {
@@ -94,14 +60,6 @@ namespace redefinition
             desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
             desc.Flags = flags;
             return desc;
-        }
-
-        D3D12_RESOURCE_BARRIER UavBarrier(ID3D12Resource* resource)
-        {
-            D3D12_RESOURCE_BARRIER barrier = {};
-            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-            barrier.UAV.pResource = resource;
-            return barrier;
         }
 
         // The inverse transpose of a 3x3 given as the first three columns of a 3x4,
@@ -119,21 +77,6 @@ namespace redefinition
             // inverse = adjugate / det; its transpose has the cofactors in place.
             const float rows[12] = { A * s, B * s, C * s, 0.0f, D * s, E * s, F * s, 0.0f, G * s, H * s, I * s, 0.0f };
             memcpy(out, rows, sizeof(rows));
-        }
-
-        HRESULT SharedFence(ID3D11Device5* device11, ID3D12Device* device12, ComPtr<ID3D12Fence>& fence12,
-                            ComPtr<ID3D11Fence>& fence11)
-        {
-            HRESULT hr = device12->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&fence12));
-            HANDLE handle = nullptr;
-            if (SUCCEEDED(hr))
-                hr = device12->CreateSharedHandle(fence12.Get(), nullptr, GENERIC_ALL, nullptr, &handle);
-            if (SUCCEEDED(hr))
-            {
-                hr = device11->OpenSharedFence(handle, IID_PPV_ARGS(&fence11));
-                CloseHandle(handle);
-            }
-            return hr;
         }
 
         HMODULE OwnModule()
@@ -163,6 +106,7 @@ namespace redefinition
         context11 = newContext11;
         queue = newQueue;
         device.Reset();
+        debugMessages.Reset();
         tier = 0;
         unavailable.clear();
 
@@ -170,6 +114,7 @@ namespace redefinition
             unavailable = "the Direct3D 12 device has no raytracing interface (ID3D12Device5)";
         else
         {
+            device.As(&debugMessages);
             D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
             if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5))))
                 tier = static_cast<int>(options5.RaytracingTier);
@@ -194,6 +139,7 @@ namespace redefinition
             return;
         ReleaseLocked();
         queue.Reset();
+        debugMessages.Reset();
         device.Reset();
         context11.Reset();
         device11.Reset();
@@ -476,12 +422,7 @@ namespace redefinition
             auto found = meshes.find(id);
             if (found == meshes.end())
                 continue;
-            Mesh& mesh = found->second;
-            slot.held.push_back(mesh.positions);
-            slot.held.push_back(mesh.attributes);
-            slot.held.push_back(mesh.indices);
-            slot.held.push_back(mesh.blas);
-            retiredSlots.emplace_back(mesh.slot, fenceValue + 1);
+            RetireMeshLocked(found->second, slot);
             meshes.erase(found);
         }
         pendingReleases.clear();
@@ -507,11 +448,7 @@ namespace redefinition
             if (!UploadMeshLocked(mesh, entry->second, slot))
             {
                 // The list may already copy into the buffers made before the failure.
-                slot.held.push_back(mesh.positions);
-                slot.held.push_back(mesh.attributes);
-                slot.held.push_back(mesh.indices);
-                slot.held.push_back(mesh.blas);
-                retiredSlots.emplace_back(mesh.slot, fenceValue + 1);
+                RetireMeshLocked(mesh, slot);
                 if (++entry->second.failures >= kMeshAttempts)
                 {
                     SetProblem("a mesh could not be built in " + std::to_string(kMeshAttempts)
@@ -524,14 +461,7 @@ namespace redefinition
             }
             auto existing = meshes.find(entry->first);
             if (existing != meshes.end())
-            {
-                Mesh& old = existing->second;
-                slot.held.push_back(old.positions);
-                slot.held.push_back(old.attributes);
-                slot.held.push_back(old.indices);
-                slot.held.push_back(old.blas);
-                retiredSlots.emplace_back(old.slot, fenceValue + 1);
-            }
+                RetireMeshLocked(existing->second, slot);
             meshes[entry->first] = std::move(mesh);
             entry = pendingMeshes.erase(entry);
             ++built;
@@ -558,11 +488,11 @@ namespace redefinition
             {
                 const UINT64 layerBytes = static_cast<UINT64>(kRtMaterialTextureSize) * kRtMaterialTextureSize * 4;
                 ComPtr<ID3D12Resource> upload;
-                if (EnsureUploadBuffer(upload, layerBytes * pendingTextures.size()))
+                uint8_t* mapped = nullptr;
+                const D3D12_RANGE none = { 0, 0 };
+                if (EnsureUploadBuffer(upload, layerBytes * pendingTextures.size())
+                    && SUCCEEDED(upload->Map(0, &none, reinterpret_cast<void**>(&mapped))))
                 {
-                    uint8_t* mapped = nullptr;
-                    const D3D12_RANGE none = { 0, 0 };
-                    upload->Map(0, &none, reinterpret_cast<void**>(&mapped));
                     const D3D12_RESOURCE_BARRIER toCopy = TransitionBarrier(
                         materialTextures.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
                     list->ResourceBarrier(1, &toCopy);
@@ -615,7 +545,7 @@ namespace redefinition
         }
         DenoiseTarget* noisyFor[kRtMaxTextures] = {};
         if (denoising)
-            for (const NoisySlot& noisy : kNoisy)
+            for (const RtDenoisedSignal& noisy : kRtDenoised)
                 if ((packet->signals & noisy.signal) != 0 && outputs[noisy.output] != nullptr)
                 {
                     noisyFor[noisy.output] = &denoise.noisy[noisy.index];
@@ -631,49 +561,49 @@ namespace redefinition
         frameTable.ptr += static_cast<UINT64>(slotNumber) * kFrameDescriptors * increment;
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
         {
-            D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
-            srv.Format = inputs[i] != nullptr ? inputs[i]->texture.format : DXGI_FORMAT_R8G8B8A8_UNORM;
-            srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            srv.Texture2D.MipLevels = 1;
+            const D3D12_SHADER_RESOURCE_VIEW_DESC srv =
+                SrvDesc(inputs[i] != nullptr ? inputs[i]->texture.format : DXGI_FORMAT_R8G8B8A8_UNORM);
             device->CreateShaderResourceView(inputs[i] != nullptr ? inputs[i]->texture.d3d12.Get() : nullptr, &srv, cpu);
             cpu.ptr += increment;
         }
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
         {
-            D3D12_UNORDERED_ACCESS_VIEW_DESC uav = {};
-            uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
             if (noisyFor[i] != nullptr)
             {
-                uav.Format = noisyFor[i]->format;
+                const D3D12_UNORDERED_ACCESS_VIEW_DESC uav = UavDesc(noisyFor[i]->format);
                 device->CreateUnorderedAccessView(noisyFor[i]->resource.Get(), nullptr, &uav, cpu);
             }
             else
             {
-                uav.Format = outputs[i] != nullptr ? outputs[i]->texture.format : DXGI_FORMAT_R16G16B16A16_FLOAT;
+                const D3D12_UNORDERED_ACCESS_VIEW_DESC uav =
+                    UavDesc(outputs[i] != nullptr ? outputs[i]->texture.format : DXGI_FORMAT_R16G16B16A16_FLOAT);
                 device->CreateUnorderedAccessView(outputs[i] != nullptr ? outputs[i]->texture.d3d12.Get() : nullptr, nullptr,
                                                   &uav, cpu);
             }
             cpu.ptr += increment;
         }
 
-        // Constants: the packet's matrices and vectors, then the size, frame and flags.
-        uint8_t* constants = slot.constantsMapped;
-        memset(constants, 0, static_cast<size_t>(kConstantsSize));
-        memcpy(constants, packet->clipToWorld, 3 * 64);
-        memcpy(constants + 192, packet->sunDirection, 16);
-        memcpy(constants + 208, packet->sunColor, 16);
-        memcpy(constants + 224, packet->skyColor, 16);
-        memcpy(constants + 240, packet->params, 32);
-        memcpy(constants + 272, packet->bodySphere, 16);
-        memcpy(constants + 288, packet->ambient, 48);
-        const uint32_t tail[4] = { packet->width, packet->height, packet->frameIndex, packet->flags };
-        memcpy(constants + 336, tail, sizeof(tail));
-        memcpy(constants + 352, packet->lights, 64);
-        memcpy(constants + 416, packet->lightParams, 16);
-        memcpy(constants + 432, packet->nightLight, 16);
-        memcpy(constants + 448, packet->planet, 16);
-        memcpy(constants + 464, packet->lightSurface, 32);
+        // Constants: the packet's matrices and vectors, the size, frame and flags.
+        memset(slot.constantsMapped, 0, static_cast<size_t>(kRtConstantsSize));
+        RtFrameConstants& constants = *reinterpret_cast<RtFrameConstants*>(slot.constantsMapped);
+        memcpy(constants.clipToWorld, packet->clipToWorld, sizeof(constants.clipToWorld));
+        memcpy(constants.worldToClip, packet->worldToClip, sizeof(constants.worldToClip));
+        memcpy(constants.prevWorldToClip, packet->prevWorldToClip, sizeof(constants.prevWorldToClip));
+        memcpy(constants.sunDirection, packet->sunDirection, sizeof(constants.sunDirection));
+        memcpy(constants.sunColor, packet->sunColor, sizeof(constants.sunColor));
+        memcpy(constants.skyColor, packet->skyColor, sizeof(constants.skyColor));
+        memcpy(constants.params, packet->params, sizeof(constants.params));
+        memcpy(constants.bodySphere, packet->bodySphere, sizeof(constants.bodySphere));
+        memcpy(constants.ambient, packet->ambient, sizeof(constants.ambient));
+        constants.frameSize[0] = packet->width;
+        constants.frameSize[1] = packet->height;
+        constants.frameIndex = packet->frameIndex;
+        constants.frameFlags = packet->flags;
+        memcpy(constants.lights, packet->lights, sizeof(constants.lights));
+        memcpy(constants.lightParams, packet->lightParams, sizeof(constants.lightParams));
+        memcpy(constants.nightLight, packet->nightLight, sizeof(constants.nightLight));
+        memcpy(constants.planet, packet->planet, sizeof(constants.planet));
+        memcpy(constants.lightSurface, packet->lightSurface, sizeof(constants.lightSurface));
 
         std::vector<D3D12_RESOURCE_BARRIER> into;
         std::vector<D3D12_RESOURCE_BARRIER> back;
@@ -725,21 +655,20 @@ namespace redefinition
             list->SetComputeRootDescriptorTable(6, meshTable);
             meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
             list->SetComputeRootDescriptorTable(7, meshTable);
-            meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
+            meshTable.ptr += static_cast<UINT64>(kMaxMeshes + slotNumber) * increment;
             list->SetComputeRootDescriptorTable(8, meshTable);
         };
+        WriteMaterialViewLocked(slotNumber);
         bindFrame();
         slot.held.push_back(materialTextures);
 
         const UINT groupsX = (packet->width + 7) / 8;
         const UINT groupsY = (packet->height + 7) / 8;
-        // Each pass's end is stamped; a pass that does not run stamps where the one
-        // before it ended, so it counts nothing. The signals first, then the denoiser
-        // (its time as pass 6), then what reads the denoised signals.
-        const UINT order[kRtPassTimings] = { 0, 1, 2, 3, 6, 4, 5, 7 };
+        // Each pass's end is stamped, in kPassOrder; a pass that does not run stamps where
+        // the one before it ended, so it counts nothing.
         for (UINT position = 0; position < kRtPassTimings; ++position)
         {
-            const UINT index = order[position];
+            const UINT index = kPassOrder[position];
             const uint32_t signal = 1u << index;
             const PassEntry* pass = nullptr;
             for (const PassEntry& entry : kPasses)
@@ -773,7 +702,7 @@ namespace redefinition
                     }
                     if (!toRead.empty())
                         list->ResourceBarrier(static_cast<UINT>(toRead.size()), toRead.data());
-                    UINT used = kDenoiseDescriptors - kTableSize;
+                    UINT used = kForwardLightTable;
                     const View writes[4] = {};
                     list->SetComputeRootDescriptorTable(10, TableLocked(slotNumber, used, reads, writes));
                 }
@@ -782,7 +711,7 @@ namespace redefinition
                 if (!toWrite.empty())
                     list->ResourceBarrier(static_cast<UINT>(toWrite.size()), toWrite.data());
             }
-            if (index == 6 && denoising)
+            if (index == kRtPassDenoiser && denoising)
             {
                 // AMD FSR Ray Regeneration for the diffuse light and the reflections where it
                 // runs, ReDefinition's denoiser for the rest; for all where it does not.
@@ -819,15 +748,11 @@ namespace redefinition
                 list->ResourceBarrier(1, &written);
                 for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
                     UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-                UINT used = kDenoiseDescriptors - 2 * kTableSize;
+                UINT used = kFrameGuidesTable;
                 const View reads[8] = {};
                 const View writes[4] = { Of(&guides.albedo), Of(&guides.specularAlbedo), Of(&guides.normalRoughness),
                                          Of(&guides.hitDistance) };
-                const D3D12_GPU_DESCRIPTOR_HANDLE guideTable = TableLocked(slotNumber, used, reads, writes);
-                D3D12_GPU_DESCRIPTOR_HANDLE writeTable = guideTable;
-                writeTable.ptr += static_cast<UINT64>(8) * increment;
-                list->SetComputeRootDescriptorTable(10, guideTable);
-                list->SetComputeRootDescriptorTable(11, writeTable);
+                BindTablesLocked(TableLocked(slotNumber, used, reads, writes));
                 list->SetPipelineState(pipeline->second.Get());
                 list->Dispatch(groupsX, groupsY, 1);
                 // Streamline takes them in the state it is given.
@@ -842,6 +767,7 @@ namespace redefinition
             list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
         list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase, kTimestampsPerSlot,
                                timestampReadback.Get(), static_cast<UINT64>(timestampBase) * sizeof(UINT64));
+        slot.timed = true;
         const UINT64 finished = SubmitLocked(slot, inputs, outputs);
         if (finished == 0)
             return;
@@ -911,6 +837,21 @@ namespace redefinition
         slot = freeSlots.back();
         freeSlots.pop_back();
         return true;
+    }
+
+    void Raytracing::RetireMeshLocked(Mesh& mesh, Slot& slot)
+    {
+        slot.held.push_back(mesh.positions);
+        slot.held.push_back(mesh.attributes);
+        slot.held.push_back(mesh.indices);
+        slot.held.push_back(mesh.blas);
+        retiredSlots.emplace_back(mesh.slot, fenceValue + 1);
+    }
+
+    bool Raytracing::IsCutoutLocked(int32_t material) const
+    {
+        const auto found = materialData.find(material);
+        return found != materialData.end() && found->second.albedo[3] > 0.0f;
     }
 
     bool Raytracing::UploadMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot)
@@ -1044,8 +985,6 @@ namespace redefinition
         structured.Buffer.StructureByteStride = kAttributeFloats * sizeof(float);
         device->CreateShaderResourceView(mesh.attributes.Get(), &structured, attributeView);
 
-        mesh.vertexCount = pending.vertexCount;
-        mesh.indexCount = static_cast<uint32_t>(pending.indices.size());
         mesh.built = true;
         return true;
     }
@@ -1092,8 +1031,7 @@ namespace redefinition
             desc.InstanceMask = instance.mask & 0xFFu;
             desc.InstanceContributionToHitGroupIndex = 0;
             // Terrain and cut-out surfaces go through the passes' candidate test.
-            auto materialOf = materialData.find(instance.material);
-            const bool cutout = materialOf != materialData.end() && materialOf->second.albedo[3] > 0.0f;
+            const bool cutout = IsCutoutLocked(instance.material);
             desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
                          | ((instance.flags & kRtInstanceTerrain) != 0 || cutout ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
                                                                                : 0);
@@ -1249,8 +1187,7 @@ namespace redefinition
                 continue;
             const D3D12_GPU_VIRTUAL_ADDRESS blas = mesh->second.blas->GetGPUVirtualAddress();
             auto material = materialIndex.find(group.material);
-            auto materialOf = materialData.find(group.material);
-            const bool cutout = materialOf != materialData.end() && materialOf->second.albedo[3] > 0.0f;
+            const bool cutout = IsCutoutLocked(group.material);
             GpuGroup item = {};
             item.blasLow = static_cast<uint32_t>(blas & 0xFFFFFFFFu);
             item.blasHigh = static_cast<uint32_t>(blas >> 32);
@@ -1332,8 +1269,7 @@ namespace redefinition
         list->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
 
         // The pass's views: the groups and the transforms to read, the two buffers to write.
-        const UINT base = kSlots * kFrameDescriptors + 2 * kMaxMeshes + 1 + slotNumber * kDenoiseDescriptors
-                          + kDenoiseDescriptors - 3 * kTableSize;
+        const UINT base = kSlotTables + slotNumber * kDenoiseDescriptors + kGpuInstancesTable;
         D3D12_CPU_DESCRIPTOR_HANDLE cpu = heap->GetCPUDescriptorHandleForHeapStart();
         cpu.ptr += static_cast<SIZE_T>(base) * increment;
         D3D12_GPU_DESCRIPTOR_HANDLE gpu = heap->GetGPUDescriptorHandleForHeapStart();
@@ -1352,9 +1288,7 @@ namespace redefinition
             }
             else
             {
-                srv.Format = i == 1 ? gpuInstances->texture.format : DXGI_FORMAT_R32G32B32A32_FLOAT;
-                srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-                srv.Texture2D.MipLevels = 1;
+                srv = SrvDesc(i == 1 ? gpuInstances->texture.format : DXGI_FORMAT_R32G32B32A32_FLOAT);
                 device->CreateShaderResourceView(i == 1 ? gpuInstances->texture.d3d12.Get() : nullptr, &srv, cpu);
             }
             cpu.ptr += increment;
@@ -1372,8 +1306,7 @@ namespace redefinition
             }
             else
             {
-                uav.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-                uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+                uav = UavDesc(DXGI_FORMAT_R16G16B16A16_FLOAT);
                 device->CreateUnorderedAccessView(nullptr, nullptr, &uav, cpu);
             }
             cpu.ptr += increment;
@@ -1382,10 +1315,7 @@ namespace redefinition
         ID3D12DescriptorHeap* heaps[] = { heap.Get() };
         list->SetDescriptorHeaps(1, heaps);
         list->SetComputeRootSignature(rootSignature.Get());
-        list->SetComputeRootDescriptorTable(10, gpu);
-        D3D12_GPU_DESCRIPTOR_HANDLE writes = gpu;
-        writes.ptr += static_cast<UINT64>(8) * increment;
-        list->SetComputeRootDescriptorTable(11, writes);
+        BindTablesLocked(gpu);
         const UINT values[4] = { groupCount, gpuCount, cpuCount, 0 };
         list->SetComputeRoot32BitConstants(9, 4, values, 0);
         list->SetPipelineState(pipeline->second.Get());
@@ -1464,7 +1394,7 @@ namespace redefinition
 
         D3D12_HEAP_PROPERTIES upload = {};
         upload.Type = D3D12_HEAP_TYPE_UPLOAD;
-        const D3D12_RESOURCE_DESC constantsDesc = BufferDesc(kConstantsSize, D3D12_RESOURCE_FLAG_NONE);
+        const D3D12_RESOURCE_DESC constantsDesc = BufferDesc(kRtConstantsSize, D3D12_RESOURCE_FLAG_NONE);
         for (UINT i = 0; SUCCEEDED(hr) && i < kSlots; ++i)
         {
             Slot& slot = slots[i];
@@ -1494,7 +1424,7 @@ namespace redefinition
         {
             D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
             heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            heapDesc.NumDescriptors = kSlots * kFrameDescriptors + 2 * kMaxMeshes + 1 + kSlots * kDenoiseDescriptors;
+            heapDesc.NumDescriptors = kHeapDescriptors;
             heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             hr = device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&heap));
             increment = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -1692,7 +1622,11 @@ namespace redefinition
         if (fence12->GetCompletedValue() < slot.done && SUCCEEDED(fence12->SetEventOnCompletion(slot.done, fenceEvent)))
             WaitForSingleObject(fenceEvent, INFINITE);
 
-        // The slot's list is done: its timestamps are there to read.
+        // The slot's list is done: its timestamps are there to read where it resolved them.
+        const bool timed = slot.timed;
+        slot.timed = false;
+        if (!timed)
+            return;
         const UINT slotNumber = static_cast<UINT>(&slot - slots);
         const D3D12_RANGE range = { slotNumber * kTimestampsPerSlot * sizeof(UINT64),
                                     (slotNumber + 1) * kTimestampsPerSlot * sizeof(UINT64) };
@@ -1704,9 +1638,8 @@ namespace redefinition
             std::lock_guard<std::mutex> status(statusLock);
             buildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
             traceMs = static_cast<float>(static_cast<double>(ticks[kTimestampsPerSlot - 1] - ticks[1]) * toMs);
-            const UINT order[kRtPassTimings] = { 0, 1, 2, 3, 6, 4, 5, 7 };
             for (UINT position = 0; position < kRtPassTimings; ++position)
-                passMs[order[position]] =
+                passMs[kPassOrder[position]] =
                     static_cast<float>(static_cast<double>(ticks[2 + position] - ticks[1 + position]) * toMs);
             const D3D12_RANGE none = { 0, 0 };
             timestampReadback->Unmap(0, &none);
@@ -1772,9 +1705,9 @@ namespace redefinition
             {
                 removed = device->GetDeviceRemovedReason();
                 // The debug layer's messages, where it is on, into the log once.
-                ComPtr<ID3D12InfoQueue> messages;
-                if (SUCCEEDED(device.As(&messages)))
+                if (debugMessages != nullptr)
                 {
+                    ID3D12InfoQueue* messages = debugMessages.Get();
                     const UINT64 count = messages->GetNumStoredMessages();
                     for (UINT64 i = 0; i < count && i < 20; ++i)
                     {
@@ -1821,6 +1754,9 @@ namespace redefinition
         for (int i = 0; i < count && i < static_cast<int>(kRtPassTimings); ++i)
             out[i] = passMs[i];
     }
+
+    static_assert(kRtMaxMaterialTextures <= D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION,
+                  "the material textures exceed a Direct3D 12 texture array");
 
     bool Raytracing::EnsureMaterialTexturesLocked(UINT layers, Slot& slot)
     {
@@ -1874,17 +1810,22 @@ namespace redefinition
         list->ResourceBarrier(1, &toRead);
         materialTextures = created;
         materialTextureLayers = grown;
+        return true;
+    }
 
+    void Raytracing::WriteMaterialViewLocked(UINT slotNumber)
+    {
+        if (materialTextures == nullptr)
+            return;
         D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
         srv.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
         srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srv.Texture2DArray.MipLevels = 1;
-        srv.Texture2DArray.ArraySize = grown;
+        srv.Texture2DArray.ArraySize = materialTextureLayers;
         D3D12_CPU_DESCRIPTOR_HANDLE view = heap->GetCPUDescriptorHandleForHeapStart();
-        view.ptr += static_cast<SIZE_T>(kSlots * kFrameDescriptors + 2 * kMaxMeshes) * increment;
+        view.ptr += static_cast<SIZE_T>(kMaterialViews + slotNumber) * increment;
         device->CreateShaderResourceView(materialTextures.Get(), &srv, view);
-        return true;
     }
 
     void Raytracing::SetProblem(const std::string& text)

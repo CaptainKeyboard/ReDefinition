@@ -29,7 +29,7 @@ namespace ReDefinition.Engineer
             Texture2D mask = null;
             try
             {
-                mask = Copy(GameDatabase.Instance.GetTexture(GlyphPath + "Fill", false));
+                mask = Shared.TexturePixels.ReadableCopy(GameDatabase.Instance.GetTexture(GlyphPath + "Fill", false));
                 int width = (int)source.rect.width;
                 int height = (int)source.rect.height;
                 if (mask == null) return null;
@@ -114,7 +114,7 @@ namespace ReDefinition.Engineer
         // (textureRect at textureRectOffset), the rest clear.
         private static Color32[] ReadSprite(Sprite source, int width, int height)
         {
-            Color32[] all = Read(source.texture);
+            Color32[] all = Shared.TexturePixels.Of(source.texture);
             Color32[] pixels = new Color32[width * height];
             if (all == null) throw new InvalidOperationException("the texture cannot be read");
             Rect packed = source.textureRect;
@@ -180,38 +180,6 @@ namespace ReDefinition.Engineer
         private static bool Face(Color32 pixel)
         {
             return pixel.a > 230 && (pixel.b - pixel.r > 28 || pixel.g - pixel.r > 28);
-        }
-
-        private static Color32[] Read(Texture texture)
-        {
-            Texture2D copy = Copy(texture);
-            if (copy == null) return null;
-            Color32[] pixels = copy.GetPixels32();
-            UnityEngine.Object.Destroy(copy);
-            return pixels;
-        }
-
-        // A readable copy of the texture, through a render texture.
-        private static Texture2D Copy(Texture texture)
-        {
-            if (texture == null) return null;
-            RenderTexture target = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32,
-                RenderTextureReadWrite.sRGB);
-            RenderTexture before = RenderTexture.active;
-            try
-            {
-                Graphics.Blit(texture, target);
-                RenderTexture.active = target;
-                Texture2D copy = new Texture2D(texture.width, texture.height, TextureFormat.ARGB32, false);
-                copy.ReadPixels(new Rect(0f, 0f, texture.width, texture.height), 0, 0);
-                copy.Apply();
-                return copy;
-            }
-            finally
-            {
-                RenderTexture.active = before;
-                RenderTexture.ReleaseTemporary(target);
-            }
         }
     }
 }

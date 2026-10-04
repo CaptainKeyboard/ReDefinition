@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using KSP.UI.Screens;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -89,7 +88,8 @@ namespace ReDefinition.Scaling
         {
             RectTransform mask = controller.partList != null ? controller.partList.partTransformMask : null;
             if (mask == null) return null;
-            GridLayoutGroup grid = mask.GetComponent<GridLayoutGroup>() ?? mask.GetComponentInChildren<GridLayoutGroup>(true);
+            GridLayoutGroup grid = mask.GetComponent<GridLayoutGroup>();
+            if (grid == null) grid = mask.GetComponentInChildren<GridLayoutGroup>(true);
             if (grid == null) return null;
             Vector2 cell = grid.cellSize;
             float grow = TileScale - 1f;

@@ -61,21 +61,9 @@ namespace ReDefinition.Flight
             // enum KSP names its facilities by).
             System.Collections.Generic.List<string> names = new System.Collections.Generic.List<string>();
             foreach (PSystemSetup.SpaceCenterFacility facility in PSystemSetup.Instance.SpaceCenterFacilities)
-            {
-                if (facility == null || facility.facilityTransform == null) continue;
-                names.Add(facility.name);
-                EditorFacility editor;
-                if (Named(facility, SpaceCenterFacility.VehicleAssemblyBuilding.ToString())) editor = EditorFacility.VAB;
-                else if (Named(facility, SpaceCenterFacility.SpaceplaneHangar.ToString())) editor = EditorFacility.SPH;
-                else continue;
-                Building building = new Building
-                {
-                    Facility = editor, Spot = new FacilitySpot(editor.ToString(), facility.facilityTransform),
-                };
-                if (editor == EditorFacility.VAB) vab = building;
-                else sph = building;
-                if (facility.hostBody != null) home = facility.hostBody;
-            }
+                if (facility != null && facility.facilityTransform != null) names.Add(facility.name);
+            vab = Find(SpaceCenterFacility.VehicleAssemblyBuilding, EditorFacility.VAB);
+            sph = Find(SpaceCenterFacility.SpaceplaneHangar, EditorFacility.SPH);
             Debug.Log(Log.Tag + " The space centre's facilities: " + string.Join(", ", names.ToArray()) + ".");
             // The facility knows its body only where its PQS hangs under it.
             if (home == null) home = FlightGlobals.GetHomeBody();
@@ -91,10 +79,13 @@ namespace ReDefinition.Flight
                       + ", on " + (home != null ? home.bodyName : "no body") + ".");
         }
 
-        private static bool Named(PSystemSetup.SpaceCenterFacility facility, string name)
+        private Building Find(SpaceCenterFacility building, EditorFacility editor)
         {
-            return facility.name == name || facility.facilityName == name
-                   || (facility.facilityTransformName != null && facility.facilityTransformName.Contains(name));
+            CelestialBody body;
+            FacilitySpot spot = FacilitySpot.Find(building.ToString(), out body, editor.ToString());
+            if (spot == null) return null;
+            if (body != null) home = body;
+            return new Building { Facility = editor, Spot = spot };
         }
 
         private static string Where(Building building)
@@ -104,8 +95,7 @@ namespace ReDefinition.Flight
 
         private static Sprite Load(string name)
         {
-            Texture2D texture = GameDatabase.Instance != null ? GameDatabase.Instance.GetTexture("ReDefinition/Icons/" + name, false) : null;
-            return texture != null ? Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f)) : null;
+            return Shared.IconSprites.Load("ReDefinition/Icons/" + name);
         }
 
         // The button goes with the flight scene: KSP's main canvas stays.
@@ -211,13 +201,8 @@ namespace ReDefinition.Flight
             string message = revert
                 ? "The flight since the launch is lost."
                 : "The vessel is recovered, then opened in the " + (facility == EditorFacility.SPH ? "Spaceplane Hangar." : "Vehicle Assembly Building.");
-            MultiOptionDialog question = new MultiOptionDialog("ReDefinitionAssemblyReturn", message, title, HighLogic.UISkin, 340f,
-                new DialogGUIHorizontalLayout(
-                    new DialogGUIButton(revert ? "Revert" : "Recover", () => Go(facility, revert), 110f, 30f, true),
-                    new DialogGUIFlexibleSpace(),
-                    new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), () => { }, 110f, 30f, true)));
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), question, false,
-                HighLogic.UISkin));
+            ConfirmDialog.Show("ReDefinitionAssemblyReturn", title, message, 340f, revert ? "Revert" : "Recover",
+                () => Go(facility, revert), 110f);
         }
 
         private static void Go(EditorFacility facility, bool revert)
@@ -230,13 +215,7 @@ namespace ReDefinition.Flight
                 return;
             }
             // As KSP's own recover button asks (AltimeterSliderButtons).
-            ClearToSaveStatus clear = FlightGlobals.ClearToSave();
-            if (clear != ClearToSaveStatus.CLEAR)
-            {
-                ScreenMessages.PostScreenMessage(FlightGlobals.GetNotClearToSaveStatusReason(clear, "recover the vessel"), 5f,
-                    ScreenMessageStyle.UPPER_CENTER);
-                return;
-            }
+            if (!ConfirmDialog.ClearToSave("recover the vessel")) return;
             if (!CanRecover(vessel)) return;
             AssemblyAfterRecovery.Plan(Craft(vessel, facility), facility);
             Debug.Log(Log.Tag + " Recovering " + vessel.vesselName + " for the " + facility + ".");

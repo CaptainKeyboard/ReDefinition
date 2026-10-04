@@ -40,7 +40,7 @@ Shader "Hidden/ReDefinition/RtCapture"
     // Scatterer's tonemapper (Utils.SetToneMapping: 0 none, 1 Bruneton's, 2 Uncharted's).
     int TONEMAPPING_MODE;
     // The colour Scatterer's ocean multiplies its reflections with but not its own sun
-    // glint (OceanNode.reflectionColor; src/Flight/OceanSunReflection.cs); w 0 where unknown.
+    // glint (OceanNode.reflectionColor; src/Raytracing/Ksp/SeaHighlights.cs); w 0 where unknown.
     float4 _ReDefinitionOceanReflectionColor;
 
     bool NoOcean(float depth)
@@ -151,7 +151,7 @@ Shader "Hidden/ReDefinition/RtCapture"
     // reflection of the sky towards them by their weight (alpha) and its Fresnel term.
     // Where a ray met the scene (w its distance, below 60000), what it met, as the frame's
     // colour, and the whole weight. Where it met nothing, only the sun's and the moons'
-    // discs the waves mirror (RtCommon.hlsli, BodiesMirrored), as light added to the
+    // discs the waves mirror (RtCommon.hlsli, BodiesMirroredAt), as light added to the
     // ocean's own sky: a small weight, which keeps nearly all of that sky, and a colour
     // as much brighter in Scatterer's light, so that the weight times it is the discs'
     // light as the frame shows it -- past white as bright as it is: the sun in a wave

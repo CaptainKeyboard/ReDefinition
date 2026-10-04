@@ -5,7 +5,6 @@ using EditorGizmos;
 using KSP.UI.Screens.Flight;
 using KSP.UI.Screens.Mapview;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using UnityEngine;
 using Vectrosity;
 

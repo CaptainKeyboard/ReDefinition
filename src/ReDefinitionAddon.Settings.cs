@@ -100,9 +100,9 @@ namespace ReDefinition
             raytracingBounces = loaded.RaytracingBounces;
             backend = loaded.Backend;
             dlssModel = loaded.DlssModel;
-            // The hotkeys are read from the settings object itself (HandleHotkeys),
-            // so the file's bindings go there.
-            SetBindings(loaded);
+            // The hotkeys and the settings read live are read from the settings object
+            // itself (HandleHotkeys and the views), so the file's values go there.
+            CopyLiveSettings(loaded);
 
             savedSnapshot = asSaved;
         }
@@ -124,9 +124,10 @@ namespace ReDefinition
             if (wantEnabled) SetEnabled(false);
         }
 
-        // The hotkeys as the player set them, into the settings object the add-on
-        // reads and saves.
-        private void SetBindings(OwnSettings from)
+        // The hotkeys and the settings read live -- the flight interface's, the
+        // raytraced moonlight and reflections -- as the player set them, into the settings
+        // object the add-on reads and saves.
+        private void CopyLiveSettings(OwnSettings from)
         {
             settings.UpscalerKey = from.UpscalerKey;
             settings.SettingsWindowKey = from.SettingsWindowKey;
@@ -144,10 +145,10 @@ namespace ReDefinition
             settings.RaytracingNightAmbient = from.RaytracingNightAmbient;
         }
 
-        // What a view changed of the hotkeys, and nothing else: KSP's settings
-        // dialog holds a copy from when it opened, and its Apply must not bring back
-        // a key this window set meanwhile.
-        private void ChangeBindings(OwnSettings before, OwnSettings after)
+        // What a view changed of those (CopyLiveSettings), and nothing else: KSP's
+        // settings dialog holds a copy from when it opened, and its Apply must not bring
+        // back a value this window set meanwhile.
+        private void ChangeLiveSettings(OwnSettings before, OwnSettings after)
         {
             if (before.UpscalerKey != after.UpscalerKey) settings.UpscalerKey = after.UpscalerKey;
             if (before.SettingsWindowKey != after.SettingsWindowKey) settings.SettingsWindowKey = after.SettingsWindowKey;
@@ -569,7 +570,7 @@ namespace ReDefinition
                 Debug.Log(Log.Tag + " KSP's Settings buttons open " + (replaceKspSettings ? "ReDefinition's window" : "KSP's"
                           + " own screens") + " from the next time a menu is built.");
             }
-            ChangeBindings(before, after);
+            ChangeLiveSettings(before, after);
         }
 
         private static Fsr3Upscaler.QualityMode Step(Fsr3Upscaler.QualityMode mode, int direction)

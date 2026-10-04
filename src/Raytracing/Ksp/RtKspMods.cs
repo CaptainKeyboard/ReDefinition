@@ -113,9 +113,58 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // The body the scene stands on: the flight's main body, the home body at the space
+        // centre; null elsewhere.
+        internal static CelestialBody SceneBody()
+        {
+            return HighLogic.LoadedSceneIsFlight ? FlightGlobals.currentMainBody
+                   : HighLogic.LoadedScene == GameScenes.SPACECENTER ? FlightGlobals.GetHomeBody() : null;
+        }
+
+        // The star, its light and its colour as this frame found them: asked for several
+        // times a frame, by reflection where Kopernicus is installed.
+        private static int starFrame = -1;
+        private static Light frameSunLight;
+        private static Color frameStarColour;
+        private static CelestialBody frameStarBody;
+
+        private static void LookAtStar()
+        {
+            if (starFrame == Time.frameCount) return;
+            starFrame = Time.frameCount;
+            frameSunLight = FindSunLight();
+            frameStarColour = FindStarColour();
+            frameStarBody = FindStarBody();
+        }
+
         // The light of the star that lights the scene: Kopernicus's current star, or
-        // KSP's sun.
+        // KSP's sun. Not the brightest directional light: KSP's scaled-space copy of the
+        // sun is at least as bright, and PlanetShine's and Kopernicus's other stars'
+        // lights are directional.
         internal static Light SunLight()
+        {
+            LookAtStar();
+            return frameSunLight;
+        }
+
+        // The colour of the star's light as it leaves the star, before any atmosphere
+        // tints the scene's light (Scatterer does): Kopernicus's for its current star,
+        // white for KSP's sun.
+        internal static Color StarColour()
+        {
+            LookAtStar();
+            return frameStarColour;
+        }
+
+        // The star that lights the scene as a body: Kopernicus's current star, or KSP's
+        // sun (Sun.sun); null where there is none, as in the editors.
+        internal static CelestialBody StarBody()
+        {
+            LookAtStar();
+            return frameStarBody;
+        }
+
+        private static Light FindSunLight()
         {
             Look();
             if (kopernicusCurrent != null && starLight != null)
@@ -131,10 +180,7 @@ namespace ReDefinition.Raytracing
             return BrightestDirectional();
         }
 
-        // The colour of the star's light as it leaves the star, before any atmosphere
-        // tints the scene's light (Scatterer does): Kopernicus's for its current star,
-        // white for KSP's sun.
-        internal static Color StarColour()
+        private static Color FindStarColour()
         {
             Look();
             if (kopernicusCurrent != null && starShifter != null && shifterColour != null)
@@ -146,9 +192,7 @@ namespace ReDefinition.Raytracing
             return Color.white;
         }
 
-        // The star that lights the scene as a body: Kopernicus's current star, or KSP's
-        // sun (Sun.sun); null where there is none, as in the editors.
-        internal static CelestialBody StarBody()
+        private static CelestialBody FindStarBody()
         {
             Look();
             if (kopernicusCurrent != null)
@@ -285,11 +329,6 @@ namespace ReDefinition.Raytracing
         private static Behaviour reflectionsHeld;
         private static bool reflectionsLeft;
 
-        // Whether Scatterer's ocean is drawn and reads Deferred's screen-space reflections
-        // while they are held for the raytraced ones: then it takes the raytraced
-        // reflections in their place (RtCamera.OceanReflections). Scatterer registers its
-        // ocean with Deferred's reflections and reads their result, ssrOutput, whether
-        // they run or not (measured: useOceanSSR 1 with them off, KSP.log).
         // Whether Scatterer's ocean is there and its code is not the one the raytraced
         // reflections were checked against (ForeignAssumptions.ScattererOceanReflections):
         // then Deferred's screen-space reflections stay on, as the ocean reads their
@@ -309,6 +348,11 @@ namespace ReDefinition.Raytracing
             return !scatterer && body != null && body.ocean;
         }
 
+        // Whether Scatterer's ocean is drawn and reads Deferred's screen-space reflections
+        // while they are held for the raytraced ones: then it takes the raytraced
+        // reflections in their place (RtCamera.OceanReflections). Scatterer registers its
+        // ocean with Deferred's reflections and reads their result, ssrOutput, whether
+        // they run or not (measured: useOceanSSR 1 with them off, KSP.log).
         internal static bool OceanReadsHeldReflections()
         {
             Look();

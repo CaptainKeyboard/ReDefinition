@@ -9,6 +9,7 @@
 #include "AmdUpscaler.h"
 #include "Config.h"
 #include "D3d12Compute.h"
+#include "D3d12Util.h"
 #include "Raytracing.h"
 #include "FidelityFx.h"
 #include "FrameGeneration.h"
@@ -20,6 +21,7 @@
 #include <FidelityFX/framegeneration/include/ffx_framegeneration_api_types.h>
 
 #include <cstdio>
+#include <cstring>
 #include <mutex>
 #include <string>
 
@@ -334,24 +336,14 @@ namespace redefinition
         // Created on the D3D12 side and opened on the D3D11 side, so the queue
         // can wait on exactly the point in Unity's command stream where the
         // frame is finished.
-        hr = d3d12Device->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&sharedFence12));
-        if (FAILED(hr))
-            return hr;
-
-        HANDLE fenceHandle = nullptr;
-        hr = d3d12Device->CreateSharedHandle(sharedFence12.Get(), nullptr, GENERIC_ALL,
-                                             nullptr, &fenceHandle);
+        const char* failedCall = nullptr;
+        hr = SharedFence(d3d11Device.Get(), d3d12Device.Get(), sharedFence12, sharedFence11, &failedCall);
         if (FAILED(hr))
         {
-            LogLine("CreateSharedHandle for the fence failed (" + Hr(hr) + ")");
-            return hr;
-        }
-
-        hr = d3d11Device->OpenSharedFence(fenceHandle, IID_PPV_ARGS(&sharedFence11));
-        CloseHandle(fenceHandle);
-        if (FAILED(hr))
-        {
-            LogLine("OpenSharedFence failed (" + Hr(hr) + ")");
+            if (strcmp(failedCall, "CreateSharedHandle") == 0)
+                LogLine("CreateSharedHandle for the fence failed (" + Hr(hr) + ")");
+            else if (strcmp(failedCall, "OpenSharedFence") == 0)
+                LogLine("OpenSharedFence failed (" + Hr(hr) + ")");
             return hr;
         }
 

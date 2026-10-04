@@ -19,7 +19,6 @@
 // THE SOFTWARE.
 
 using System;
-using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -36,8 +35,6 @@ namespace FidelityFX.FSR3
         private const int MaxQueuedFrames = 16;
         
         private Fsr3Upscaler.ContextDescription _contextDescription;
-        private CommandBuffer _commandBuffer;
-        
         private Fsr3UpscalerPass _prepareInputsPass;
         private Fsr3UpscalerPass _lumaPyramidPass;
         private Fsr3UpscalerPass _shadingChangePyramidPass;
@@ -46,7 +43,6 @@ namespace FidelityFX.FSR3
         private Fsr3UpscalerPass _lumaInstabilityPass;
         private Fsr3UpscalerPass _accumulatePass;
         private Fsr3UpscalerPass _sharpenPass;
-        private Fsr3UpscalerPass _generateReactivePass;
         private Fsr3UpscalerPass _tcrAutogeneratePass;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private Fsr3UpscalerPass _debugViewPass;
@@ -66,10 +62,6 @@ namespace FidelityFX.FSR3
         private readonly Fsr3Upscaler.RcasConstants[] _rcasConstantsArray = new Fsr3Upscaler.RcasConstants[1];
         private ref Fsr3Upscaler.RcasConstants RcasConsts => ref _rcasConstantsArray[0];
 
-        private IFsr3ConstantBinder _generateReactiveConstantsBuffer;
-        private readonly Fsr3Upscaler.GenerateReactiveConstants[] _generateReactiveConstantsArray = { new Fsr3Upscaler.GenerateReactiveConstants() };
-        private ref Fsr3Upscaler.GenerateReactiveConstants GenReactiveConsts => ref _generateReactiveConstantsArray[0];
-
         private IFsr3ConstantBinder _tcrAutogenerateConstantsBuffer;
         private readonly Fsr3Upscaler.GenerateReactiveConstants2[] _tcrAutogenerateConstantsArray = { new Fsr3Upscaler.GenerateReactiveConstants2() };
         private ref Fsr3Upscaler.GenerateReactiveConstants2 TcrAutoGenConsts => ref _tcrAutogenerateConstantsArray[0];
@@ -83,12 +75,10 @@ namespace FidelityFX.FSR3
         public void Create(Fsr3Upscaler.ContextDescription contextDescription)
         {
             _contextDescription = contextDescription;
-            _commandBuffer = new CommandBuffer { name = "FSR3 Upscaler" };
             
             _upscalerConstantsBuffer = new Fsr3ConstantBinder<Fsr3Upscaler.UpscalerConstants>(_upscalerConstantsArray, Fsr3ConstantBuffers.Upscaler);
             _spdConstantsBuffer = new Fsr3ConstantBinder<Fsr3Upscaler.SpdConstants>(_spdConstantsArray, Fsr3ConstantBuffers.Spd);
             _rcasConstantsBuffer = new Fsr3ConstantBinder<Fsr3Upscaler.RcasConstants>(_rcasConstantsArray, Fsr3ConstantBuffers.Rcas);
-            _generateReactiveConstantsBuffer = new Fsr3ConstantBinder<Fsr3Upscaler.GenerateReactiveConstants>(_generateReactiveConstantsArray, Fsr3ConstantBuffers.GenerateReactive);
             _tcrAutogenerateConstantsBuffer = new Fsr3ConstantBinder<Fsr3Upscaler.GenerateReactiveConstants2>(_tcrAutogenerateConstantsArray, Fsr3ConstantBuffers.GenerateReactive);
 
             // Set defaults
@@ -116,7 +106,6 @@ namespace FidelityFX.FSR3
             _lumaInstabilityPass = new Fsr3UpscalerLumaInstabilityPass(_contextDescription, _resources, _upscalerConstantsBuffer);
             _accumulatePass = new Fsr3UpscalerAccumulatePass(_contextDescription, _resources, _upscalerConstantsBuffer);
             _sharpenPass = new Fsr3UpscalerSharpenPass(_contextDescription, _resources, _upscalerConstantsBuffer, _rcasConstantsBuffer);
-            _generateReactivePass = new Fsr3UpscalerGenerateReactivePass(_contextDescription, _resources, _generateReactiveConstantsBuffer);
             _tcrAutogeneratePass = new Fsr3UpscalerTcrAutogeneratePass(_contextDescription, _resources, _upscalerConstantsBuffer, _tcrAutogenerateConstantsBuffer);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             _debugViewPass = new Fsr3UpscalerDebugViewPass(_contextDescription, _resources, _upscalerConstantsBuffer);
@@ -129,7 +118,6 @@ namespace FidelityFX.FSR3
             DestroyPass(ref _debugViewPass);
 #endif
             DestroyPass(ref _tcrAutogeneratePass);
-            DestroyPass(ref _generateReactivePass);
             DestroyPass(ref _lumaPyramidPass);
             DestroyPass(ref _sharpenPass);
             DestroyPass(ref _accumulatePass);
@@ -142,25 +130,11 @@ namespace FidelityFX.FSR3
             _resources.Destroy();
             
             if (_tcrAutogenerateConstantsBuffer != null) { _tcrAutogenerateConstantsBuffer.Dispose(); _tcrAutogenerateConstantsBuffer = null; }
-            if (_generateReactiveConstantsBuffer != null) { _generateReactiveConstantsBuffer.Dispose(); _generateReactiveConstantsBuffer = null; }
             if (_rcasConstantsBuffer != null) { _rcasConstantsBuffer.Dispose(); _rcasConstantsBuffer = null; }
             if (_spdConstantsBuffer != null) { _spdConstantsBuffer.Dispose(); _spdConstantsBuffer = null; }
             if (_upscalerConstantsBuffer != null) { _upscalerConstantsBuffer.Dispose(); _upscalerConstantsBuffer = null; }
-
-            if (_commandBuffer != null)
-            {
-                _commandBuffer.Dispose();
-                _commandBuffer = null;
-            }
         }
 
-        public void Dispatch(Fsr3Upscaler.DispatchDescription dispatchParams)
-        {
-            _commandBuffer.Clear();
-            Dispatch(dispatchParams, _commandBuffer);
-            Graphics.ExecuteCommandBuffer(_commandBuffer);
-        }
-        
         public void Dispatch(Fsr3Upscaler.DispatchDescription dispatchParams, CommandBuffer commandBuffer)
         {
             if ((_contextDescription.Flags & Fsr3Upscaler.InitializationFlags.EnableDebugChecking) != 0)
@@ -302,27 +276,6 @@ namespace FidelityFX.FSR3
         // ReDefinition: the reactive mask the generator made, for the preview.
         internal RenderTexture AutoReactive => _resources.AutoReactive;
 
-        public void GenerateReactiveMask(Fsr3Upscaler.GenerateReactiveDescription dispatchParams)
-        {
-            _commandBuffer.Clear();
-            GenerateReactiveMask(dispatchParams, _commandBuffer);
-            Graphics.ExecuteCommandBuffer(_commandBuffer);
-        }
-
-        public void GenerateReactiveMask(Fsr3Upscaler.GenerateReactiveDescription dispatchParams, CommandBuffer commandBuffer)
-        {
-            const int threadGroupWorkRegionDim = 8;
-            int dispatchSrcX = (dispatchParams.RenderSize.x + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
-            int dispatchSrcY = (dispatchParams.RenderSize.y + (threadGroupWorkRegionDim - 1)) / threadGroupWorkRegionDim;
-
-            GenReactiveConsts.scale = dispatchParams.Scale;
-            GenReactiveConsts.threshold = dispatchParams.CutoffThreshold;
-            GenReactiveConsts.binaryValue = dispatchParams.BinaryValue;
-            GenReactiveConsts.flags = (uint)dispatchParams.Flags;
-            
-            ((Fsr3UpscalerGenerateReactivePass)_generateReactivePass).ScheduleDispatch(commandBuffer, dispatchParams, dispatchSrcX, dispatchSrcY);
-        }
-
         private void GenerateTransparencyCompositionReactive(Fsr3Upscaler.DispatchDescription dispatchParams, CommandBuffer commandBuffer, int frameIndex)
         {
             const int threadGroupWorkRegionDim = 8;
@@ -459,9 +412,9 @@ namespace FidelityFX.FSR3
         }
 
         // ReDefinition: the RCAS constants computed. From 0 to 1 they are bit for
-        // bit those of RcasConfigs, which end at FidelityFX's maximum of 1, zero
-        // stops of attenuation; above 1 the same formula goes on. Also for RCAS
-        // after another upscaler (ReDefinition.RcasSharpener).
+        // bit those of FSR3Unity's precomputed table, which ends at FidelityFX's
+        // maximum of 1, zero stops of attenuation; above 1 the same formula goes
+        // on. Also for RCAS after another upscaler (ReDefinition.RcasSharpener).
         internal static Fsr3Upscaler.RcasConstants RcasConstantsFor(float sharpness)
         {
             float stops = 2f * (1f - Mathf.Max(0f, sharpness));
@@ -630,35 +583,6 @@ namespace FidelityFX.FSR3
             }
         }
 
-        /// <summary>
-        /// The FSR3 C++ codebase uses floats bitwise converted to ints to pass sharpness parameters to the RCAS shader.
-        /// This is not possible in C# without enabling unsafe code compilation, so to avoid that we instead use a table of precomputed values.
-        /// </summary>
-        private static readonly Fsr3Upscaler.RcasConstants[] RcasConfigs = new []
-        {
-            new Fsr3Upscaler.RcasConstants(1048576000u, 872428544u),
-            new Fsr3Upscaler.RcasConstants(1049178080u, 877212745u),
-            new Fsr3Upscaler.RcasConstants(1049823372u, 882390168u),
-            new Fsr3Upscaler.RcasConstants(1050514979u, 887895276u),
-            new Fsr3Upscaler.RcasConstants(1051256227u, 893859143u),
-            new Fsr3Upscaler.RcasConstants(1052050675u, 900216232u),
-            new Fsr3Upscaler.RcasConstants(1052902144u, 907032080u),
-            new Fsr3Upscaler.RcasConstants(1053814727u, 914306687u),
-            new Fsr3Upscaler.RcasConstants(1054792807u, 922105590u),
-            new Fsr3Upscaler.RcasConstants(1055841087u, 930494326u),
-            new Fsr3Upscaler.RcasConstants(1056964608u, 939538432u),
-            new Fsr3Upscaler.RcasConstants(1057566688u, 944322633u),
-            new Fsr3Upscaler.RcasConstants(1058211980u, 949500056u),
-            new Fsr3Upscaler.RcasConstants(1058903587u, 955005164u),
-            new Fsr3Upscaler.RcasConstants(1059644835u, 960969031u),
-            new Fsr3Upscaler.RcasConstants(1060439283u, 967326120u),
-            new Fsr3Upscaler.RcasConstants(1061290752u, 974141968u),
-            new Fsr3Upscaler.RcasConstants(1062203335u, 981416575u),
-            new Fsr3Upscaler.RcasConstants(1063181415u, 989215478u),
-            new Fsr3Upscaler.RcasConstants(1064229695u, 997604214u),
-            new Fsr3Upscaler.RcasConstants(1065353216u, 1006648320),
-        };
-        
         private static void DestroyPass(ref Fsr3UpscalerPass pass)
         {
             if (pass == null)

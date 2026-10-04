@@ -1,4 +1,4 @@
-// A moon's disc made to stand out in the sky (src/Flight/MoonGlow.cs): a brighter
+// A moon's disc made to stand out in the sky (src/Raytracing/Ksp/MoonGlow.cs): a brighter
 // disc and a soft glow round it, added where the scene camera sees sky, before the
 // transparent pass, so that clouds and the atmosphere draw over it. It lights nothing.
 Shader "Hidden/ReDefinition/MoonGlow"

@@ -195,20 +195,20 @@ namespace ReDefinition.Window
             if (patched) return;
             patched = true;
 
-            HarmonyLib.Harmony harmony = new HarmonyLib.Harmony(HarmonyId);
-            Patch(harmony, "lockEverything", nameof(LockPostfix));
-            Patch(harmony, "unlockEverything", nameof(UnlockPostfix));
+            HarmonyHooks.Install(HarmonyId, typeof(MainMenuEntry), new List<HarmonyHook>
+            {
+                new HarmonyHook(Original("lockEverything"), null, nameof(LockPostfix), null),
+                new HarmonyHook(Original("unlockEverything"), null, nameof(UnlockPostfix), null),
+            });
         }
 
-        private static void Patch(HarmonyLib.Harmony harmony, string method, string postfixName)
+        private static MethodInfo Original(string method)
         {
             MethodInfo original = typeof(MainMenu).GetMethod(method,
                 BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
             if (original == null)
                 throw new MissingMethodException("MainMenu", method);
-
-            MethodInfo postfix = typeof(MainMenuEntry).GetMethod(postfixName, BindingFlags.NonPublic | BindingFlags.Static);
-            harmony.Patch(original, postfix: new HarmonyLib.HarmonyMethod(postfix));
+            return original;
         }
 
         // Inside KSP's own menu code: nothing may escape from here.

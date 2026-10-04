@@ -1,8 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
 using ReDefinition.Core;
-using ReDefinition.Scaling;
-using ReDefinition.Settings;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -31,7 +29,7 @@ namespace ReDefinition.Window
 
         private static void Skip(string type, string what)
         {
-            System.Type found = UiScaling.TypeOf(type);
+            System.Type found = TypeLookup.Find(type);
             if (found == null) return;
             HarmonyHooks.Safely("loading-screen-" + found.Name, what + " show on KSP's loading screen", () =>
             {

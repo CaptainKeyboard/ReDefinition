@@ -42,6 +42,12 @@ namespace ReDefinition.Flight
     // simulated flight.
     internal static class GaugeReadings
     {
+        // The bands that do not change, made once: a reading is made every frame.
+        // Read only.
+        private static readonly double[] TenthToQuarter = { 0.1, 0.25 };
+        private static readonly double[] LastTenth = { 0.0, 0.1 };
+        private static readonly double[] LastTenSeconds = { 0.0, TimeScale(10.0) };
+
         // Seconds on a logarithmic scale up to ten minutes: a minute at 64 %, ten
         // seconds at 37 %.
         internal static double TimeScale(double seconds)
@@ -87,8 +93,8 @@ namespace ReDefinition.Flight
             {
                 Text = EngineerFormat.Time(burnTime),
                 Fill = share,
-                Caution = new[] { 0.1, 0.25 },
-                Warning = new[] { 0.0, 0.1 },
+                Caution = TenthToQuarter,
+                Warning = LastTenth,
                 Level = share < 0.1 ? 2 : share < 0.25 ? 1 : 0,
             };
         }
@@ -101,7 +107,7 @@ namespace ReDefinition.Flight
             {
                 Text = "T-" + EngineerFormat.Time(until),
                 Fill = TimeScale(until),
-                Caution = new[] { 0.0, TimeScale(10.0) },
+                Caution = LastTenSeconds,
                 Level = until < 10.0 ? 1 : 0,
             };
         }
@@ -115,7 +121,7 @@ namespace ReDefinition.Flight
             {
                 Text = ReadoutMath.Speed(left),
                 Fill = share,
-                Caution = new[] { 0.0, 0.1 },
+                Caution = LastTenth,
                 Level = share < 0.1 ? 1 : 0,
             };
         }

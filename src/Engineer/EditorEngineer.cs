@@ -102,7 +102,7 @@ namespace ReDefinition.Engineer
 
             try
             {
-                if (panel != null) panel.Update();
+                if (panel != null) panel.Tick();
             }
             catch (Exception e)
             {
@@ -259,10 +259,28 @@ namespace ReDefinition.Engineer
             madeFrom = null;
         }
 
+        // The cargo button's and the planner button's pictures, looked up once per
+        // pair: asked for at every canvas render.
+        private Button imagesOfCargo, imagesOfButton;
+        private Image cargoImage, buttonImage;
+
+        private void Images(Button cargo, out Image source, out Image image)
+        {
+            if (!ReferenceEquals(cargo, imagesOfCargo) || !ReferenceEquals(button, imagesOfButton) || cargoImage == null || buttonImage == null)
+            {
+                imagesOfCargo = cargo;
+                imagesOfButton = button;
+                cargoImage = cargo != null ? cargo.GetComponent<Image>() : null;
+                buttonImage = button != null ? button.GetComponent<Image>() : null;
+            }
+            source = cargoImage;
+            image = buttonImage;
+        }
+
         private void Tiles(Button cargo)
         {
-            Image source = cargo != null ? cargo.GetComponent<Image>() : null;
-            Image image = button != null ? button.GetComponent<Image>() : null;
+            Image source, image;
+            Images(cargo, out source, out image);
             if (source == null || image == null || source.sprite == madeFrom) return;
             madeFrom = source.sprite;
             SpriteState from = cargo.spriteState;
@@ -289,9 +307,7 @@ namespace ReDefinition.Engineer
 
         private static Sprite Tile(string state)
         {
-            Texture2D texture = GameDatabase.Instance.GetTexture(TilePath + state, false);
-            if (texture == null) return null;
-            return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
+            return Shared.IconSprites.Load(TilePath + state);
         }
 
         // While a panel slides in or out, no mode button can be clicked. KSP
@@ -375,12 +391,12 @@ namespace ReDefinition.Engineer
             if (to.pivot != from.pivot) to.pivot = from.pivot;
             if (to.anchorMin != from.anchorMin) to.anchorMin = from.anchorMin;
             if (to.anchorMax != from.anchorMax) to.anchorMax = from.anchorMax;
-            Image source = cargo.GetComponent<Image>();
-            Image image = button.GetComponent<Image>();
+            Image source, image;
+            Images(cargo, out source, out image);
             if (source != null && image != null)
             {
-                image.type = source.type;
-                image.preserveAspect = source.preserveAspect;
+                if (image.type != source.type) image.type = source.type;
+                if (image.preserveAspect != source.preserveAspect) image.preserveAspect = source.preserveAspect;
             }
         }
 
@@ -418,8 +434,14 @@ namespace ReDefinition.Engineer
                 ? editor.editorBtnOrigPos.position - editor.cargoBtnOrigPos.position
                 : Vector3.zero;
             if (step == Vector3.zero) return;
-            button.transform.position = last.position + step;
-            if (editor.switchEditorBtn != null) editor.switchEditorBtn.transform.position = last.position + step * 2f;
+            MoveTo(button.transform, last.position + step);
+            if (editor.switchEditorBtn != null) MoveTo(editor.switchEditorBtn.transform, last.position + step * 2f);
+        }
+
+        // Written only where it changes: a write marks the layout dirty.
+        private static void MoveTo(Transform moved, Vector3 position)
+        {
+            if (moved.position != position) moved.position = position;
         }
     }
 }

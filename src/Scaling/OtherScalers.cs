@@ -3,7 +3,6 @@ using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using UnityEngine;
 
 namespace ReDefinition.Scaling
@@ -54,7 +53,7 @@ namespace ReDefinition.Scaling
 
         private static void KeepManeuverGizmo()
         {
-            System.Type controller = UiScaling.TypeOf(UiScaling.ManeuverNodeEvolved);
+            System.Type controller = TypeLookup.Find(UiScaling.ManeuverNodeEvolved);
             if (controller == null) return;
             List<HarmonyHook> hooks = new List<HarmonyHook>();
             foreach (string name in new[] { "LateUpdate", "gizmoSpawn" })
@@ -85,7 +84,7 @@ namespace ReDefinition.Scaling
         // The methods named on the mod's type skipped, where the mod is installed.
         private static void Skip(string mod, string type, params string[] names)
         {
-            System.Type found = UiScaling.TypeOf(type);
+            System.Type found = TypeLookup.Find(type);
             if (found == null) return;
             List<HarmonyHook> hooks = new List<HarmonyHook>();
             List<string> skipped = new List<string>();

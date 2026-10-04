@@ -6,6 +6,7 @@
 
 #include "FrameGeneration.h"
 
+#include "D3d12Util.h"
 #include "Log.h"
 
 #include <cmath>
@@ -52,10 +53,7 @@ namespace redefinition
                     return;
                 staging.Reset();
             }
-            desc.Usage = D3D11_USAGE_STAGING;
-            desc.BindFlags = 0;
-            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-            desc.MiscFlags = 0;
+            desc = StagingDesc(desc);
             device->CreateTexture2D(&desc, nullptr, &staging);
         }
 

@@ -5,13 +5,15 @@ namespace ReDefinition.Upscaler
     internal class FrameRateMeter
     {
         private const int WarmupFrames = 30;
+        // Frames measured before the mean counts.
+        private const int MinimumSamples = 30;
 
         private double accumulated;
         private int samples;
         private int warmup;
 
-        public bool HasData { get { return samples >= 30; } }
-        public float Average { get { return samples > 0 ? (float)(samples / accumulated) : 0f; } }
+        public bool HasData { get { return samples >= MinimumSamples; } }
+        public float AverageFps { get { return samples > 0 ? (float)(samples / accumulated) : 0f; } }
 
         public void Sample(float deltaTime)
         {
@@ -39,7 +41,7 @@ namespace ReDefinition.Upscaler
 
         public string Describe()
         {
-            return HasData ? Average.ToString("0.0") : "--";
+            return HasData ? AverageFps.ToString("0.0") : "--";
         }
     }
 }

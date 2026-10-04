@@ -59,7 +59,8 @@ namespace ReDefinition.Raytracing
         internal const int OutputForwardLight = 4;
 
         internal const int MaterialTextureSize = 64;
-        internal const int MaxMaterialTextures = 4096;
+        // As Raytracing.h: a Direct3D 12 texture array's most layers.
+        internal const int MaxMaterialTextures = 2048;
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct MeshDesc
@@ -158,6 +159,40 @@ namespace ReDefinition.Raytracing
             void Bridges.IRingPacket<FramePacket>.CopyFrom(ref FramePacket packet)
             {
                 this = packet;
+            }
+
+            // Into `target`, whose arrays are its own: every field, the arrays' contents.
+            internal void CopyTo(ref FramePacket target)
+            {
+                target.Size = Size;
+                target.Magic = Magic;
+                target.FrameIndex = FrameIndex;
+                target.Flags = Flags;
+                target.Width = Width;
+                target.Height = Height;
+                target.Signals = Signals;
+                target.Reserved = Reserved;
+                Array.Copy(ClipToWorld, target.ClipToWorld, ClipToWorld.Length);
+                Array.Copy(WorldToClip, target.WorldToClip, WorldToClip.Length);
+                Array.Copy(PrevWorldToClip, target.PrevWorldToClip, PrevWorldToClip.Length);
+                Array.Copy(SunDirection, target.SunDirection, SunDirection.Length);
+                Array.Copy(SunColor, target.SunColor, SunColor.Length);
+                Array.Copy(SkyColor, target.SkyColor, SkyColor.Length);
+                Array.Copy(Params, target.Params, Params.Length);
+                Array.Copy(BodySphere, target.BodySphere, BodySphere.Length);
+                Array.Copy(Ambient, target.Ambient, Ambient.Length);
+                Array.Copy(WorldToView, target.WorldToView, WorldToView.Length);
+                Array.Copy(ViewToClip, target.ViewToClip, ViewToClip.Length);
+                Array.Copy(CameraDelta, target.CameraDelta, CameraDelta.Length);
+                Array.Copy(Jitter, target.Jitter, Jitter.Length);
+                Array.Copy(DepthRange, target.DepthRange, DepthRange.Length);
+                Array.Copy(Lights, target.Lights, Lights.Length);
+                Array.Copy(LightParams, target.LightParams, LightParams.Length);
+                Array.Copy(NightLight, target.NightLight, NightLight.Length);
+                Array.Copy(Planet, target.Planet, Planet.Length);
+                Array.Copy(LightSurface, target.LightSurface, LightSurface.Length);
+                Array.Copy(Inputs, target.Inputs, Inputs.Length);
+                Array.Copy(Outputs, target.Outputs, Outputs.Length);
             }
         }
 
@@ -352,11 +387,5 @@ namespace ReDefinition.Raytracing
             get { return renderEvent; }
         }
 
-        internal static string Status(out int generation)
-        {
-            var text = new StringBuilder(512);
-            generation = KspRtStatus(text, text.Capacity);
-            return text.ToString();
-        }
     }
 }

@@ -12,6 +12,7 @@
 #include "FrameGeneration.h"
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -48,6 +49,9 @@ namespace redefinition
         void* reactive;
         void* transparencyAndComposition;
     };
+
+    static_assert(sizeof(AmdUpscalerPacket) == 112, "AmdUpscalerPacket layout changed: update the managed side");
+    static_assert(offsetof(AmdUpscalerPacket, reactive) == 96, "AmdUpscalerPacket layout changed");
 
     constexpr uint32_t kAmdUpscalerPacketMagic = 0x4B535041u;   // 'KSPA'
 

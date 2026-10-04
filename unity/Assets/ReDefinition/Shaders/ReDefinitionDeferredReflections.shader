@@ -152,9 +152,13 @@ half4 frag (unity_v2f_deferred i) : SV_Target
     ind.diffuse *= data.occlusion; // Take the occlusion into account for the one IVA where it's used and for AO
 
     // ReDefinition: the raytraced light in place of the probe's, where the raytraced
-    // frame before has this point.
-    float2 rtUv;
-    if (RtUvFilled(worldPos, rtUv))
+    // frame before has this point; looked for only where either signal is used.
+    float2 rtUv = 0.0;
+    bool rtFilled = false;
+    [branch]
+    if (_ReDefinitionRtLight.x > 0.5 || _ReDefinitionRtLight.y > 0.5)
+        rtFilled = RtUvFilled(worldPos, rtUv);
+    if (rtFilled)
     {
         if (_ReDefinitionRtLight.x > 0.5)
         {

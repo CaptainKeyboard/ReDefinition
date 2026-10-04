@@ -20,9 +20,7 @@
 
 using System;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using UnityEngine;
-using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 
 namespace FidelityFX.FSR3
@@ -338,7 +336,7 @@ namespace FidelityFX.FSR3
         protected override void DoScheduleDispatch(CommandBuffer commandBuffer, Fsr3Upscaler.DispatchDescription dispatchParams, int frameIndex, int dispatchX, int dispatchY)
         {
             // ReDefinition: FFX_FSR3UPSCALER_OPTION_APPLY_SHARPENING is baked into
-            // the accumulate shader the context was given (FsrShaderBundle), not
+            // the accumulate shader the context was given (ShaderBundle), not
             // switched here: on Unity 2019.4 that is a global keyword, which
             // reaches no compute shader and every other shader in the game.
 
@@ -400,42 +398,6 @@ namespace FidelityFX.FSR3
             _rcasConstants.Bind(commandBuffer, ComputeShader, KernelIndex);
 
             commandBuffer.DispatchCompute(ComputeShader, KernelIndex, dispatchX, dispatchY, 1);
-        }
-    }
-
-    internal class Fsr3UpscalerGenerateReactivePass : Fsr3UpscalerPass
-    {
-        private readonly IFsr3ConstantBinder _generateReactiveConstants;
-
-        public Fsr3UpscalerGenerateReactivePass(Fsr3Upscaler.ContextDescription contextDescription, Fsr3UpscalerResources resources, IFsr3ConstantBinder generateReactiveConstants)
-            : base(contextDescription, resources, null)
-        {
-            _generateReactiveConstants = generateReactiveConstants;
-            
-            InitComputeShader("Auto-Generate Reactive Mask", contextDescription.Shaders.autoGenReactivePass);
-        }
-
-        protected override void DoScheduleDispatch(CommandBuffer commandBuffer, Fsr3Upscaler.DispatchDescription dispatchParams, int frameIndex, int dispatchX, int dispatchY)
-        {
-        }
-
-        public void ScheduleDispatch(CommandBuffer commandBuffer, Fsr3Upscaler.GenerateReactiveDescription dispatchParams, int dispatchX, int dispatchY)
-        {
-            BeginSample(commandBuffer);
-            
-            ref var opaqueOnly = ref dispatchParams.ColorOpaqueOnly;
-            ref var color = ref dispatchParams.ColorPreUpscale;
-            ref var reactive = ref dispatchParams.OutReactive;
-            
-            commandBuffer.SetComputeTextureParam(ComputeShader, KernelIndex, Fsr3ShaderIDs.SrvOpaqueOnly, opaqueOnly.RenderTarget, opaqueOnly.MipLevel, opaqueOnly.SubElement);
-            commandBuffer.SetComputeTextureParam(ComputeShader, KernelIndex, Fsr3ShaderIDs.SrvInputColor, color.RenderTarget, color.MipLevel, color.SubElement);
-            commandBuffer.SetComputeTextureParam(ComputeShader, KernelIndex, Fsr3ShaderIDs.UavAutoReactive, reactive.RenderTarget, reactive.MipLevel, reactive.SubElement);
-            
-            _generateReactiveConstants.Bind(commandBuffer, ComputeShader, KernelIndex);
-            
-            commandBuffer.DispatchCompute(ComputeShader, KernelIndex, dispatchX, dispatchY, 1);
-            
-            EndSample(commandBuffer);
         }
     }
 

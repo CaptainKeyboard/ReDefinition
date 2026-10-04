@@ -25,6 +25,13 @@ namespace ReDefinition.Upscaler
         public static Vector2 JitterNdc;
         public static bool JitterActive;
 
+        // `projection` shifted by this frame's jitter, as the redirected cameras
+        // render with it.
+        internal static Matrix4x4 Jittered(Matrix4x4 projection)
+        {
+            return Matrix4x4.Translate(new Vector3(JitterNdc.x, JitterNdc.y, 0f)) * projection;
+        }
+
         // The jitter is applied in OnPreRender. Scatterer's TemporalAntiAliasing
         // assigns projectionMatrix in its own OnPreCull on Camera 00 and Camera
         // ScaledSpace, and the order of two OnPreCull handlers is undefined;
@@ -182,8 +189,7 @@ namespace ReDefinition.Upscaler
             // Unity needs nonJitteredProjectionMatrix to produce correct motion
             // vectors despite the offset projection.
             cam.nonJitteredProjectionMatrix = previousProjection;
-            cam.projectionMatrix =
-                Matrix4x4.Translate(new Vector3(JitterNdc.x, JitterNdc.y, 0f)) * previousProjection;
+            cam.projectionMatrix = Jittered(previousProjection);
 
             // Saved before the first assignment: KSP or another mod may have
             // changed it from its default, true.

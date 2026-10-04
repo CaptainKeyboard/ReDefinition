@@ -43,7 +43,6 @@ namespace FidelityFX.FSR3
         public static readonly int SrvLanczosLut = Shader.PropertyToID("r_lanczos_lut");
         public static readonly int SrvSpdMips = Shader.PropertyToID("r_spd_mips");
         public static readonly int SrvDilatedReactiveMasks = Shader.PropertyToID("r_dilated_reactive_masks");
-        public static readonly int SrvNewLocks = Shader.PropertyToID("r_new_locks");
         public static readonly int SrvFarthestDepth = Shader.PropertyToID("r_farthest_depth");
         public static readonly int SrvFarthestDepthMip1 = Shader.PropertyToID("r_farthest_depth_mip1");
         public static readonly int SrvShadingChange = Shader.PropertyToID("r_shading_change");
@@ -81,11 +80,5 @@ namespace FidelityFX.FSR3
         public static readonly int UavAutoComposition = Shader.PropertyToID("rw_output_autocomposition");
         public static readonly int UavPrevColorPreAlpha = Shader.PropertyToID("rw_output_prev_color_pre_alpha");
         public static readonly int UavPrevColorPostAlpha = Shader.PropertyToID("rw_output_prev_color_post_alpha");
-
-        // Constant buffer bindings
-        public static readonly int CbFsr3Upscaler = Shader.PropertyToID("cbFSR3Upscaler");
-        public static readonly int CbSpd = Shader.PropertyToID("cbSPD");
-        public static readonly int CbRcas = Shader.PropertyToID("cbRCAS");
-        public static readonly int CbGenReactive = Shader.PropertyToID("cbGenerateReactive");
     }
 }

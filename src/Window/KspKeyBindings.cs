@@ -233,15 +233,6 @@ namespace ReDefinition.Window
             });
         }
 
-        // The groups in the order their rows stand.
-        internal static List<string> GroupNames()
-        {
-            List<string> names = new List<string>();
-            foreach (Binding binding in All())
-                if (!names.Contains(binding.Group)) names.Add(binding.Group);
-            return names;
-        }
-
         // PITCH_DOWN as "Pitch down", Editor_pitchUp as "Editor pitch up",
         // CustomActionGroup1 as "Custom action group 1": words apart, the first
         // letter upper case, the rest lower case. KSP's own texts for these rows

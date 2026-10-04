@@ -9,7 +9,8 @@ using ReDefinition.Window;
 namespace ReDefinition
 {
     // ReDefinition's own features as modules (docs/development/architecture.md):
-    // the upscaler and frame generation, their settings over ReDefinition's
+    // the upscaler, frame generation, raytracing, the hotkeys, the flight interface
+    // and the scaling of mods' windows, their settings over ReDefinition's
     // settings file (OwnSettings). What a profile's MODULE node names comes from
     // here (ProfileApplier), and so do the rows under General in the settings
     // window and in KSP's settings dialog (KspSettingsSection). Both edit a copy
@@ -187,8 +188,7 @@ namespace ReDefinition
                 Read = settings => settings.RaytracingBounces.ToString(CultureInfo.InvariantCulture),
                 Write = (settings, value) =>
                     settings.RaytracingBounces = (int)float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
-                Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Light
-                                           || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
+                Interactable = TracesDiffuseLight,
             },
             new ModuleSetting
             {
@@ -200,7 +200,7 @@ namespace ReDefinition
                 Min = 0f,
                 Max = 300f,
                 StepsPerUnit = 0.2f,
-                Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %",
+                Label = PercentLabel,
                 Tooltip = "How bright the light of moons and planets is that the sun shines on: the night side under\n"
                           + "the Mun, and the planet's light in orbit. It falls only where the body stands in the sky,\n"
                           + "with its shadows. Real moonlight would be too faint to see; 100 % is ReDefinition's scale.",
@@ -208,8 +208,7 @@ namespace ReDefinition
                 Write = (settings, value) =>
                     settings.RaytracingMoonlight = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
                 // The bodies' light comes with the traced diffuse light.
-                Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Light
-                                           || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
+                Interactable = TracesDiffuseLight,
             },
             new ModuleSetting
             {
@@ -221,7 +220,7 @@ namespace ReDefinition
                 Min = 0f,
                 Max = 500f,
                 StepsPerUnit = 0.2f,
-                Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %",
+                Label = PercentLabel,
                 Tooltip = "How strongly water mirrors the moons. 100 % is the moon as bright in the water as the eye\n"
                           + "sees it at night; it lights nothing. Only with Full, which traces reflections.",
                 Read = settings => settings.RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture),
@@ -239,9 +238,9 @@ namespace ReDefinition
                 Min = 0f,
                 Max = 300f,
                 StepsPerUnit = 0.2f,
-                Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %",
-                Tooltip = "How strongly the ocean mirrors the sun: Scatterer's glint on the water. 100 % is\n"
-                          + "Scatterer's own strength.",
+                Label = PercentLabel,
+                Tooltip = "How strongly water mirrors the sun: the raytraced sun on the sea, or Scatterer's own\n"
+                          + "glint without raytraced reflections. 100 % is the sun's own brightness and Scatterer's.",
                 Read = settings => settings.SunReflection.ToString("0", CultureInfo.InvariantCulture),
                 Write = (settings, value) =>
                     settings.SunReflection = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
@@ -256,16 +255,27 @@ namespace ReDefinition
                 Min = 0f,
                 Max = 100f,
                 StepsPerUnit = 0.2f,
-                Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %",
+                Label = PercentLabel,
                 Tooltip = "How much of KSP's own night light stays: the least light anything gets where neither\n"
                           + "the sun nor a moon reaches it. 100 % is KSP's night; lower makes the night darker\n"
                           + "and the moonlight's shadows stand out.",
                 Read = settings => settings.RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture),
                 Write = (settings, value) =>
                     settings.RaytracingNightAmbient = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
-                Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Light
-                                           || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
+                Interactable = TracesDiffuseLight,
             });
+
+        private static string PercentLabel(string value)
+        {
+            return float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %";
+        }
+
+        // Whether the raytracing traces the diffuse light: in Light and Full.
+        private static bool TracesDiffuseLight(OwnSettings settings)
+        {
+            return settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Light
+                   || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full;
+        }
 
         private static ReDefinition.Raytracing.RaytracingMode RaytracingModeOf(string value)
         {

@@ -3,7 +3,6 @@ using System.Reflection;
 using System.Text;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using UnityEngine.Rendering;
 using UnityEngine;
 

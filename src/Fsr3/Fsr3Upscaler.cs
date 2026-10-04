@@ -21,7 +21,6 @@
 using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace FidelityFX.FSR3
 {
@@ -227,31 +226,6 @@ namespace FidelityFX.FSR3
             public float AutoReactiveMax = 0.9f;
         }
 
-        /// <summary>
-        /// A structure encapsulating the parameters for automatic generation of a reactive mask.
-        /// The default values for Scale, CutoffThreshold, BinaryValue and Flags were taken from the FSR3 demo project.
-        /// </summary>
-        public class GenerateReactiveDescription
-        {
-            public ResourceView ColorOpaqueOnly;
-            public ResourceView ColorPreUpscale;
-            public ResourceView OutReactive;
-            public Vector2Int RenderSize;
-            public float Scale = 0.5f;
-            public float CutoffThreshold = 0.2f;
-            public float BinaryValue = 0.9f;
-            public GenerateReactiveFlags Flags = GenerateReactiveFlags.ApplyTonemap | GenerateReactiveFlags.ApplyThreshold | GenerateReactiveFlags.UseComponentsMax;
-        }
-
-        [Flags]
-        public enum GenerateReactiveFlags
-        {
-            ApplyTonemap = 1 << 0,
-            ApplyInverseTonemap = 1 << 1,
-            ApplyThreshold = 1 << 2,
-            UseComponentsMax = 1 << 3,
-        }
-        
         [Serializable, StructLayout(LayoutKind.Sequential)]
         internal struct UpscalerConstants
         {
@@ -298,15 +272,6 @@ namespace FidelityFX.FSR3
             public uint numWorkGroups;
             public uint workGroupOffsetX, workGroupOffsetY;
             public uint renderSizeX, renderSizeY;
-        }
-
-        [Serializable, StructLayout(LayoutKind.Sequential)]
-        internal struct GenerateReactiveConstants
-        {
-            public float scale;
-            public float threshold;
-            public float binaryValue;
-            public uint flags;
         }
 
         [Serializable, StructLayout(LayoutKind.Sequential)]

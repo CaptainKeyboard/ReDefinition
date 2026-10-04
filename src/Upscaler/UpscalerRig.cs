@@ -22,14 +22,15 @@ namespace ReDefinition.Upscaler
     // UI cameras draw on top.
     //
     // Here the rig's setup, its frame and its teardown; its other parts in
-    // UpscalerRig.*.cs: the HUD-less copy, the upscalers in the proxy, the camera
-    // and its cuts, the diagnostics and the preview.
+    // UpscalerRig.*.cs: the HUD-less copy, the upscalers in the proxy, DLSS Ray
+    // Reconstruction, the hooks other mods register, the camera and its cuts, the
+    // diagnostics and the preview.
     public partial class UpscalerRig : MonoBehaviour
     {
         public Fsr3Upscaler.QualityMode QualityMode = Fsr3Upscaler.QualityMode.NativeAA;
         public float Sharpness = 0.4f;
 
-        // Which accumulate shader the context was built with (FsrShaderBundle.Load):
+        // Which accumulate shader the context was built with (ShaderBundle.Load):
         // with sharpening it writes for the RCAS pass, without it straight into the
         // output. Fixed for the life of the rig.
         public bool Sharpening = true;
@@ -285,24 +286,6 @@ namespace ReDefinition.Upscaler
             get { return dispatch.JitterOffset; }
         }
 
-        internal Camera SceneCamera
-        {
-            get { return cam; }
-        }
-
-        // Unity's Create() answers true even where Direct3D could not make the
-        // texture: it writes "D3D11: Failed to create RenderTexture ... 0x8007000e"
-        // into the log and carries on. Measured in the game on 2026-09-20: the rig
-        // was set up on textures that were never made, the cameras were redirected
-        // into them, and the player got a black screen until the upscaler was
-        // switched off and on. The native handle is what says a texture is there.
-        private static bool Made(RenderTexture texture)
-        {
-            if (texture == null) return false;
-            if (!texture.Create() && !texture.IsCreated()) return false;
-            return texture.GetNativeTexturePtr() != IntPtr.Zero;
-        }
-
         public bool Setup(Camera target, Fsr3UpscalerShaders shaders)
         {
             cam = target;
@@ -313,7 +296,7 @@ namespace ReDefinition.Upscaler
                 return false;
             }
 
-            displaySize =new Vector2Int(Screen.width, Screen.height);
+            displaySize = new Vector2Int(Screen.width, Screen.height);
             if (displaySize.x <= 0 || displaySize.y <= 0)
             {
                 Status = "Screen reports " + displaySize.x + "x" + displaySize.y + ".";
@@ -345,60 +328,7 @@ namespace ReDefinition.Upscaler
             addedDepthModes = wanted & ~originalDepthMode;
             cam.depthTextureMode |= wanted;
 
-            lowRes = new RenderTexture(renderSize.x, renderSize.y, 24,
-                EffectiveHdr ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default,
-                RenderTextureReadWrite.Default);
-            lowRes.name = "ReDefinition_LowRes";
-            lowRes.filterMode = FilterMode.Bilinear;
-            if (!Made(lowRes))
-            {
-                Status = "RenderTexture " + renderSize.x + "x" + renderSize.y
-                         + " could not be created -- memory, most likely.";
-                return false;
-            }
-
-            // No output without an upscaler to write it.
-            if (!PassThrough)
-            {
-                upscaled = new RenderTexture(displaySize.x, displaySize.y, 0,
-                    RenderTextureFormat.DefaultHDR, RenderTextureReadWrite.Default);
-                upscaled.name = "ReDefinition_Upscaled";
-                upscaled.enableRandomWrite = true;   // FSR writes into it via UAV
-                upscaled.filterMode = FilterMode.Bilinear;
-                if (!Made(upscaled))
-                {
-                    Status = "Output texture could not be created -- memory, most likely.";
-                    return false;
-                }
-            }
-
-            motionVectors = new RenderTexture(renderSize.x, renderSize.y, 0,
-                RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
-            motionVectors.name = "ReDefinition_MotionVectors";
-            motionVectors.filterMode = FilterMode.Point;
-
-            depthCopy = new RenderTexture(renderSize.x, renderSize.y, 0,
-                RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
-            depthCopy.name = "ReDefinition_Depth";
-            depthCopy.filterMode = FilterMode.Point;
-
-            if (!Made(motionVectors) || !Made(depthCopy))
-            {
-                Status = "Depth and motion vector buffers could not be created -- memory, most likely.";
-                return false;
-            }
-
-            // In the backbuffer's own format, ARGB32, so frame generation compares
-            // like with like.
-            hudLessCopy = new RenderTexture(displaySize.x, displaySize.y, 0,
-                RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
-            hudLessCopy.name = "ReDefinition_HudLess";
-            hudLessCopy.filterMode = FilterMode.Point;
-            if (!Made(hudLessCopy))
-            {
-                Status = "HUD-less texture could not be created -- memory, most likely.";
-                return false;
-            }
+            if (!MakeTextures()) return false;
 
             FrameGenerationBridge.RegisterInputs(depthCopy, motionVectors, hudLessCopy);
 
@@ -425,6 +355,98 @@ namespace ReDefinition.Upscaler
             // Before the first frame renders: TUFX's layers are split from it on.
             tufx.Refresh(redirects, cam, TufxAfterUpscaling && !DebugView && !PassThrough, EffectiveHdr, displaySize);
 
+            StartUpscaler(shaders);
+
+            ApplyMipmapBias();
+            RefreshQualityOverrides();
+
+            // The presenter camera renders in the frame the rig is created in,
+            // before the rig's first Update: without parameters here the dispatch
+            // would get an image size of 0x0 ("Thread group size must be above
+            // zero").
+            if (!Bypass) SetupDispatch();
+
+            Status = Bypass ? "bypass, without FSR"
+                : PassThrough ? "upscaler off, frame generation's inputs only"
+                : "active";
+
+            // The capture keeps the single-sample target the upscaler uses, so KSP's
+            // MSAA does not reach the 3D scene; said once a session.
+            if (PassThrough && QualitySettings.antiAliasing > 1 && !loggedPassThroughMsaa)
+            {
+                loggedPassThroughMsaa = true;
+                Debug.LogWarning(Log.Tag + " Frame generation without the upscaler captures the scene without KSP's "
+                                 + QualitySettings.antiAliasing + "x MSAA; the upscaler at AA only antialiases it.");
+            }
+            resetHistory = true;
+            return true;
+        }
+
+        // The rig's textures at render and display size; false, and the reason in
+        // Status, where one could not be made.
+        private bool MakeTextures()
+        {
+            lowRes = new RenderTexture(renderSize.x, renderSize.y, 24,
+                EffectiveHdr ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default,
+                RenderTextureReadWrite.Default);
+            lowRes.name = "ReDefinition_LowRes";
+            lowRes.filterMode = FilterMode.Bilinear;
+            if (!RenderTextures.Made(lowRes))
+            {
+                Status = "RenderTexture " + renderSize.x + "x" + renderSize.y
+                         + " could not be created -- memory, most likely.";
+                return false;
+            }
+
+            // No output without an upscaler to write it.
+            if (!PassThrough)
+            {
+                upscaled = new RenderTexture(displaySize.x, displaySize.y, 0,
+                    RenderTextureFormat.DefaultHDR, RenderTextureReadWrite.Default);
+                upscaled.name = "ReDefinition_Upscaled";
+                upscaled.enableRandomWrite = true;   // FSR writes into it via UAV
+                upscaled.filterMode = FilterMode.Bilinear;
+                if (!RenderTextures.Made(upscaled))
+                {
+                    Status = "Output texture could not be created -- memory, most likely.";
+                    return false;
+                }
+            }
+
+            motionVectors = new RenderTexture(renderSize.x, renderSize.y, 0,
+                RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
+            motionVectors.name = "ReDefinition_MotionVectors";
+            motionVectors.filterMode = FilterMode.Point;
+
+            depthCopy = new RenderTexture(renderSize.x, renderSize.y, 0,
+                RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
+            depthCopy.name = "ReDefinition_Depth";
+            depthCopy.filterMode = FilterMode.Point;
+
+            if (!RenderTextures.Made(motionVectors) || !RenderTextures.Made(depthCopy))
+            {
+                Status = "Depth and motion vector buffers could not be created -- memory, most likely.";
+                return false;
+            }
+
+            // In the backbuffer's own format, ARGB32, so frame generation compares
+            // like with like.
+            hudLessCopy = new RenderTexture(displaySize.x, displaySize.y, 0,
+                RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
+            hudLessCopy.name = "ReDefinition_HudLess";
+            hudLessCopy.filterMode = FilterMode.Point;
+            if (!RenderTextures.Made(hudLessCopy))
+            {
+                Status = "HUD-less texture could not be created -- memory, most likely.";
+                return false;
+            }
+            return true;
+        }
+
+        // The link to the upscaler in the proxy, DLSS's sharpening, and FSR 3's
+        // context.
+        private void StartUpscaler(Fsr3UpscalerShaders shaders)
+        {
             nativeLink = Bypass || PassThrough ? null : UpscalerBackends.Link(Backend);
             if (Backend == UpscalerBackend.Dlss && !Bypass && !PassThrough && Sharpening && shaders != null && upscaled != null)
             {
@@ -456,30 +478,6 @@ namespace ReDefinition.Upscaler
                 }
                 dispatchBuffer = new CommandBuffer { name = "ReDefinition.UpscalerDispatch" };
             }
-
-            ApplyMipmapBias();
-            RefreshQualityOverrides();
-
-            // The presenter camera renders in the frame the rig is created in,
-            // before the rig's first Update: without parameters here the dispatch
-            // would get an image size of 0x0 ("Thread group size must be above
-            // zero").
-            if (!Bypass) SetupDispatch();
-
-            Status = Bypass ? "bypass, without FSR"
-                : PassThrough ? "upscaler off, frame generation's inputs only"
-                : "active";
-
-            // The capture keeps the single-sample target the upscaler uses, so KSP's
-            // MSAA does not reach the 3D scene; said once a session.
-            if (PassThrough && QualitySettings.antiAliasing > 1 && !loggedPassThroughMsaa)
-            {
-                loggedPassThroughMsaa = true;
-                Debug.LogWarning(Log.Tag + " Frame generation without the upscaler captures the scene without KSP's "
-                                 + QualitySettings.antiAliasing + "x MSAA; the upscaler at AA only antialiases it.");
-            }
-            resetHistory = true;
-            return true;
         }
 
         // The scene camera's inputs, recorded anew every frame: the masks follow
@@ -519,16 +517,24 @@ namespace ReDefinition.Upscaler
             motionVectorHooksFrame = -1;
         }
 
+        // Made once: the capture buffer is recorded every frame.
+        private static class DepthTargets
+        {
+            internal static readonly RenderTargetIdentifier Global = new RenderTargetIdentifier("_CameraDepthTexture");
+            internal static readonly RenderTargetIdentifier Resolved = new RenderTargetIdentifier(BuiltinRenderTextureType.ResolvedDepth);
+            internal static readonly RenderTargetIdentifier Depth = new RenderTargetIdentifier(BuiltinRenderTextureType.Depth);
+        }
+
         private static RenderTargetIdentifier DepthIdentifier(DepthSource source)
         {
             switch (source)
             {
                 case DepthSource.GlobalDepthTexture:
-                    return new RenderTargetIdentifier("_CameraDepthTexture");
+                    return DepthTargets.Global;
                 case DepthSource.ResolvedDepth:
-                    return new RenderTargetIdentifier(BuiltinRenderTextureType.ResolvedDepth);
+                    return DepthTargets.Resolved;
                 default:
-                    return new RenderTargetIdentifier(BuiltinRenderTextureType.Depth);
+                    return DepthTargets.Depth;
             }
         }
 
@@ -656,17 +662,17 @@ namespace ReDefinition.Upscaler
             // Released only now: until the cameras are restored they still render
             // into them, and Unity reports "Releasing render texture that is set as
             // Camera.targetTexture!".
-            Release(ref lowRes);
-            Release(ref upscaled);
+            RenderTextures.Release(ref lowRes);
+            RenderTextures.Release(ref upscaled);
             // After the proxy's release of DLSS, whose output it holds.
             if (dlssSharpener != null)
             {
                 dlssSharpener.Release();
                 dlssSharpener = null;
             }
-            Release(ref motionVectors);
-            Release(ref depthCopy);
-            Release(ref hudLessCopy);
+            RenderTextures.Release(ref motionVectors);
+            RenderTextures.Release(ref depthCopy);
+            RenderTextures.Release(ref hudLessCopy);
 
             if (probePixel != null) { Destroy(probePixel); probePixel = null; }
             if (readback != null) { Destroy(readback); readback = null; }
@@ -692,19 +698,9 @@ namespace ReDefinition.Upscaler
             quality.Reassert();
         }
 
-        internal static void Release(ref RenderTexture texture)
-        {
-            if (texture == null) return;
-            texture.Release();
-            Destroy(texture);
-            texture = null;
-        }
-
         private void Awake()
         {
             GameEvents.onFloatingOriginShift.Add(OnFloatingOriginShift);
-            motionAudit.Enable();
-            vesselMotion.Enable();
         }
 
         // Counts KSP's physics steps for VesselMotionVectors.
@@ -722,7 +718,6 @@ namespace ReDefinition.Upscaler
         private void OnDestroy()
         {
             GameEvents.onFloatingOriginShift.Remove(OnFloatingOriginShift);
-            motionAudit.Disable();
             vesselMotion.Disable();
             vesselShadow.Disable();
             Teardown();
@@ -781,25 +776,7 @@ namespace ReDefinition.Upscaler
             if (Time.unscaledTime >= hudLessRecheckTime)
                 RecheckHudLessCapture();
 
-            // Checked here, not at setup: the editors' switch between VAB and SPH is a
-            // load that keeps the rig.
-            if (sceneLoads != skinnedReportedLoad && skinnedReportTime == float.MaxValue)
-                skinnedReportTime = Time.unscaledTime + 5f;
-            if (Time.unscaledTime >= skinnedReportTime)
-            {
-                skinnedReportTime = float.MaxValue;
-                skinnedReportedLoad = sceneLoads;
-                // It walks the scene's renderers and their materials: a shader
-                // unloaded with the scene must not take this frame's inputs with it.
-                try
-                {
-                    Debug.Log(Log.Tag + " Skinned renderers: " + skinned.Describe(VisibleLayerMask()) + ".");
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning(Log.Tag + " The skinned renderers could not be reported: " + e);
-                }
-            }
+            ReportSkinnedIfDue();
 
             ReportCameraMotionIfDue(false);
             if (pendingTurnLine != null)
@@ -838,9 +815,38 @@ namespace ReDefinition.Upscaler
                 return;
             }
 
-            // With DLSS or AMD's DLL only while the proxy's image is the one shown:
-            // before its first frame and after anything stopped it, the rendered
-            // image goes out as it is, and jittered it would shake.
+            ChooseJitter();
+            SetupDispatch();
+        }
+
+        // Checked here, not at setup: the editors' switch between VAB and SPH is a
+        // load that keeps the rig.
+        private void ReportSkinnedIfDue()
+        {
+            if (sceneLoads != skinnedReportedLoad && skinnedReportTime == float.MaxValue)
+                skinnedReportTime = Time.unscaledTime + 5f;
+            if (Time.unscaledTime >= skinnedReportTime)
+            {
+                skinnedReportTime = float.MaxValue;
+                skinnedReportedLoad = sceneLoads;
+                // It walks the scene's renderers and their materials: a shader
+                // unloaded with the scene must not take this frame's inputs with it.
+                try
+                {
+                    Debug.Log(Log.Tag + " Skinned renderers: " + skinned.Describe(VisibleLayerMask()) + ".");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning(Log.Tag + " The skinned renderers could not be reported: " + e);
+                }
+            }
+        }
+
+        // With DLSS or AMD's DLL only while the proxy's image is the one shown:
+        // before its first frame and after anything stopped it, the rendered
+        // image goes out as it is, and jittered it would shake.
+        private void ChooseJitter()
+        {
             if (EnableJitter && !PassThrough && !RebuildWanted && (Backend == UpscalerBackend.Fsr3 || nativeShown))
             {
                 int phaseCount = Fsr3Upscaler.GetJitterPhaseCount(renderSize.x, displaySize.x);
@@ -858,8 +864,6 @@ namespace ReDefinition.Upscaler
                 dispatch.JitterOffset = Vector2.zero;
                 CameraRedirect.JitterActive = false;
             }
-
-            SetupDispatch();
         }
 
         private void SetupDispatch()
@@ -923,9 +927,10 @@ namespace ReDefinition.Upscaler
 
         private bool TexturesCreated()
         {
-            if (!(Created(lowRes) && (PassThrough || Created(upscaled)) && Created(motionVectors)
-                  && Created(depthCopy) && Created(hudLessCopy)
-                  && (dlssSharpener == null || Created(dlssSharpener.Input))))
+            if (!(RenderTextures.Created(lowRes) && (PassThrough || RenderTextures.Created(upscaled))
+                  && RenderTextures.Created(motionVectors) && RenderTextures.Created(depthCopy)
+                  && RenderTextures.Created(hudLessCopy)
+                  && (dlssSharpener == null || RenderTextures.Created(dlssSharpener.Input))))
                 return false;
 
             // IsCreated() is true for a texture Direct3D never made or has lost
@@ -935,19 +940,10 @@ namespace ReDefinition.Upscaler
             // before the rig is rebuilt, not a black screen that stays.
             if (Time.frameCount - nativeChecked < 60) return true;
             nativeChecked = Time.frameCount;
-            return Native(lowRes) && (PassThrough || Native(upscaled)) && Native(motionVectors)
-                   && Native(depthCopy) && Native(hudLessCopy)
-                   && (dlssSharpener == null || Native(dlssSharpener.Input));
-        }
-
-        private static bool Created(RenderTexture texture)
-        {
-            return texture != null && texture.IsCreated();
-        }
-
-        private static bool Native(RenderTexture texture)
-        {
-            return texture != null && texture.GetNativeTexturePtr() != IntPtr.Zero;
+            return RenderTextures.Native(lowRes) && (PassThrough || RenderTextures.Native(upscaled))
+                   && RenderTextures.Native(motionVectors) && RenderTextures.Native(depthCopy)
+                   && RenderTextures.Native(hudLessCopy)
+                   && (dlssSharpener == null || RenderTextures.Native(dlssSharpener.Input));
         }
 
         // The add-on builds the new rig in its next Update; until then the frame
@@ -1031,55 +1027,7 @@ namespace ReDefinition.Upscaler
             // frame's cameras draw: the proxy generates from frames with a packet,
             // and so never from a copy nobody wrote -- in the frame's own order,
             // which SetEnabled, taking effect at once, is not.
-            if (FrameGeneration && hudLessBuffer != null)
-            {
-                Transform t = cam.transform;
-                Vector3 p = t.position, u = t.up, r = t.right, f = t.forward;
-
-                // Streamline's matrices, for DLSS frame generation only, from the
-                // projection Unity drew with and without the jitter: the camera's
-                // own while no jitter runs, since nonJitteredProjectionMatrix, once
-                // set, is never reset (CameraRedirect). Reprojected into the frame
-                // before only when that frame sent a packet and nothing cut in
-                // between; otherwise into itself, which reprojects nothing.
-                if (FrameGenerationBridge.DlssFrameGenerationRuns)
-                {
-                    Matrix4x4 projection = CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix;
-                    Matrix4x4 gpuProjection = GL.GetGPUProjectionMatrix(projection, false);
-                    Matrix4x4 viewProjection = gpuProjection * cam.worldToCameraMatrix;
-                    bool previousFrame = lastViewProjectionFrame == Time.frameCount - 1 && !dispatch.Reset;
-                    StreamlineCamera.Fill(gpuProjection, viewProjection,
-                                          previousFrame ? AcrossOriginShift(lastViewProjection) : viewProjection,
-                                          viewToClip, clipToView, clipToPrevClip, prevClipToClip);
-                    lastViewProjection = viewProjection;
-                    lastViewProjectionFrame = Time.frameCount;
-                }
-
-                FrameGenerationBridge.FramePacket packet = new FrameGenerationBridge.FramePacket
-                {
-                    FrameIndex = (uint)Time.frameCount,
-                    RenderWidth = (uint)renderSize.x,
-                    RenderHeight = (uint)renderSize.y,
-                    Reset = dispatch.Reset ? 1u : 0u,
-                    JitterX = dispatch.JitterOffset.x,
-                    JitterY = dispatch.JitterOffset.y,
-                    MotionVectorScaleX = dispatch.MotionVectorScale.x,
-                    MotionVectorScaleY = dispatch.MotionVectorScale.y,
-                    NearPlane = cam.nearClipPlane,
-                    FarPlane = cam.farClipPlane,
-                    VerticalFovRadians = dispatch.CameraFovAngleVertical,
-                    FrameTimeDeltaMs = dispatch.FrameTimeDelta * 1000f,
-                    PositionX = p.x, PositionY = p.y, PositionZ = p.z,
-                    UpX = u.x, UpY = u.y, UpZ = u.z,
-                    RightX = r.x, RightY = r.y, RightZ = r.z,
-                    ForwardX = f.x, ForwardY = f.y, ForwardZ = f.z,
-                    ViewToClip = viewToClip,
-                    ClipToView = clipToView,
-                    ClipToPrevClip = clipToPrevClip,
-                    PrevClipToClip = prevClipToClip,
-                };
-                FrameGenerationBridge.SubmitFrame(dispatchBuffer, ref packet);
-            }
+            if (FrameGeneration && hudLessBuffer != null) SubmitFramePacket();
 
             Graphics.ExecuteCommandBuffer(dispatchBuffer);
             StageDump.AfterDispatch(cam, CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix,
@@ -1104,6 +1052,57 @@ namespace ReDefinition.Upscaler
                 }
             }
             return true;
+        }
+
+        // Frame generation's packet for this frame, into the dispatch buffer.
+        private void SubmitFramePacket()
+        {
+            Transform t = cam.transform;
+            Vector3 p = t.position, u = t.up, r = t.right, f = t.forward;
+
+            // Streamline's matrices, for DLSS frame generation only, from the
+            // projection Unity drew with and without the jitter: the camera's
+            // own while no jitter runs, since nonJitteredProjectionMatrix, once
+            // set, is never reset (CameraRedirect). Reprojected into the frame
+            // before only when that frame sent a packet and nothing cut in
+            // between; otherwise into itself, which reprojects nothing.
+            if (FrameGenerationBridge.DlssFrameGenerationRuns)
+            {
+                Matrix4x4 projection = CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix;
+                Matrix4x4 gpuProjection = GL.GetGPUProjectionMatrix(projection, false);
+                Matrix4x4 viewProjection = gpuProjection * cam.worldToCameraMatrix;
+                bool previousFrame = lastViewProjectionFrame == Time.frameCount - 1 && !dispatch.Reset;
+                StreamlineCamera.Fill(gpuProjection, viewProjection,
+                                      previousFrame ? AcrossOriginShift(lastViewProjection) : viewProjection,
+                                      viewToClip, clipToView, clipToPrevClip, prevClipToClip);
+                lastViewProjection = viewProjection;
+                lastViewProjectionFrame = Time.frameCount;
+            }
+
+            FrameGenerationBridge.FramePacket packet = new FrameGenerationBridge.FramePacket
+            {
+                FrameIndex = (uint)Time.frameCount,
+                RenderWidth = (uint)renderSize.x,
+                RenderHeight = (uint)renderSize.y,
+                Reset = dispatch.Reset ? 1u : 0u,
+                JitterX = dispatch.JitterOffset.x,
+                JitterY = dispatch.JitterOffset.y,
+                MotionVectorScaleX = dispatch.MotionVectorScale.x,
+                MotionVectorScaleY = dispatch.MotionVectorScale.y,
+                NearPlane = cam.nearClipPlane,
+                FarPlane = cam.farClipPlane,
+                VerticalFovRadians = dispatch.CameraFovAngleVertical,
+                FrameTimeDeltaMs = dispatch.FrameTimeDelta * 1000f,
+                PositionX = p.x, PositionY = p.y, PositionZ = p.z,
+                UpX = u.x, UpY = u.y, UpZ = u.z,
+                RightX = r.x, RightY = r.y, RightZ = r.z,
+                ForwardX = f.x, ForwardY = f.y, ForwardZ = f.z,
+                ViewToClip = viewToClip,
+                ClipToView = clipToView,
+                ClipToPrevClip = clipToPrevClip,
+                PrevClipToClip = prevClipToClip,
+            };
+            FrameGenerationBridge.SubmitFrame(dispatchBuffer, ref packet);
         }
 
         private void OnDisable()

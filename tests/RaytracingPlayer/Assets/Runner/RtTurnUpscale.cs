@@ -107,7 +107,7 @@ namespace ReDefinition.RaytracingPlayer
             }
         }
 
-        // FSR 3's compute shaders from ReDefinition's bundle, as FsrShaderBundle loads them
+        // FSR 3's compute shaders from ReDefinition's bundle, as ShaderBundle loads them
         // in the game: the HDR set, accumulation without sharpening.
         private static Fsr3UpscalerShaders FsrShaders(out string problem)
         {

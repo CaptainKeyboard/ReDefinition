@@ -31,12 +31,6 @@ namespace ReDefinition.Engineer
             return value.ToString(value >= 100.0 ? "#,0.0" : "#,0.00", Invariant) + " t";
         }
 
-        // Kilonewton-metres.
-        internal static string Torque(double kiloNewtonMetres)
-        {
-            return Clean(kiloNewtonMetres).ToString("#,0.00", Invariant) + " kNm";
-        }
-
         internal static string Ratio(double value)
         {
             return Clean(value).ToString("0.00", Invariant);
@@ -45,29 +39,6 @@ namespace ReDefinition.Engineer
         internal static string Isp(double seconds)
         {
             return Clean(seconds).ToString("0", Invariant) + " s";
-        }
-
-        internal static string Cost(double funds)
-        {
-            return Clean(funds).ToString("#,0", Invariant);
-        }
-
-        internal static string Count(int count)
-        {
-            return count.ToString("#,0", Invariant);
-        }
-
-        internal static string Amount(double amount)
-        {
-            double value = Clean(amount);
-            return value.ToString(value >= 100.0 ? "#,0" : "0.0", Invariant);
-        }
-
-        internal static string Distance(double metres)
-        {
-            double value = Clean(metres);
-            if (value >= 1000.0) return (value / 1000.0).ToString("#,0.0", Invariant) + " km";
-            return value.ToString("0", Invariant) + " m";
         }
 
         // 1h 02m 03s, 2m 05s, 7.4s; days as KSP counts them are not needed for a

@@ -12,22 +12,9 @@ namespace redefinition
 {
     namespace
     {
-        // The signals the denoiser filters, by output slot: sun visibility and
-        // occlusion as a scalar, diffuse light and reflections as a colour.
-        struct Filtered
-        {
-            uint32_t signal;
-            uint32_t output;
-            uint32_t kind;
-        };
-        const Filtered kFiltered[] = {
-            { kRtSignalSunVisibility, 0, 0 },
-            { kRtSignalDiffuse, 1, 1 },
-            { kRtSignalSpecular, 2, 1 },
-            { kRtSignalAmbientOcclusion, 3, 0 },
-        };
-
         constexpr UINT kAtrousSteps = 5;
+        // The tables of one frame: the preparation, two per signal, one per à-trous step.
+        constexpr UINT kDenoiserTables = 1 + 2 * kRtDenoisedSignals + kAtrousSteps;
     }
 
     bool Raytracing::DenoiseTarget::Create(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT newFormat)
@@ -56,9 +43,7 @@ namespace redefinition
         {
             if (wanted == D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
             {
-                D3D12_RESOURCE_BARRIER barrier = {};
-                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-                barrier.UAV.pResource = target.resource.Get();
+                const D3D12_RESOURCE_BARRIER barrier = UavBarrier(target.resource.Get());
                 list->ResourceBarrier(1, &barrier);
             }
             return;
@@ -78,7 +63,7 @@ namespace redefinition
             if (target.resource != nullptr)
                 slot.held.push_back(target.resource);
         };
-        for (UINT s = 0; s < 4; ++s)
+        for (UINT s = 0; s < kRtDenoisedSignals; ++s)
         {
             hold(denoise.noisy[s]);
             hold(denoise.workHalf[s]);
@@ -102,7 +87,7 @@ namespace redefinition
         bool ok = true;
         const DXGI_FORMAT colour = DXGI_FORMAT_R16G16B16A16_FLOAT;
         const DXGI_FORMAT precise = DXGI_FORMAT_R32G32B32A32_FLOAT;
-        for (UINT s = 0; s < 4 && ok; ++s)
+        for (UINT s = 0; s < kRtDenoisedSignals && ok; ++s)
         {
             ok = ok && denoise.noisy[s].Create(device.Get(), width, height, colour)
                  && denoise.workHalf[s].Create(device.Get(), width, height, colour);
@@ -129,7 +114,10 @@ namespace redefinition
     D3D12_GPU_DESCRIPTOR_HANDLE Raytracing::TableLocked(UINT slotNumber, UINT& used, const View (&reads)[8],
                                                          const View (&writes)[4])
     {
-        const UINT base = kSlots * kFrameDescriptors + 2 * kMaxMeshes + 1 + slotNumber * kDenoiseDescriptors + used;
+        // Tables taken from the start stay below the fixed ones.
+        if (used < kFixedTables && used + kTableSize > kFixedTables)
+            SetProblem("the denoiser's descriptor tables reach the fixed ones");
+        const UINT base = kSlotTables + slotNumber * kDenoiseDescriptors + used;
         used += kTableSize;
         D3D12_CPU_DESCRIPTOR_HANDLE cpu = heap->GetCPUDescriptorHandleForHeapStart();
         cpu.ptr += static_cast<SIZE_T>(base) * increment;
@@ -137,28 +125,31 @@ namespace redefinition
         gpu.ptr += static_cast<UINT64>(base) * increment;
         for (const View& read : reads)
         {
-            D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
-            srv.Format = read.format;
-            srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            srv.Texture2D.MipLevels = 1;
+            const D3D12_SHADER_RESOURCE_VIEW_DESC srv = SrvDesc(read.format);
             device->CreateShaderResourceView(read.resource, &srv, cpu);
             cpu.ptr += increment;
         }
         for (const View& write : writes)
         {
-            D3D12_UNORDERED_ACCESS_VIEW_DESC uav = {};
-            uav.Format = write.format;
-            uav.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+            const D3D12_UNORDERED_ACCESS_VIEW_DESC uav = UavDesc(write.format);
             device->CreateUnorderedAccessView(write.resource, nullptr, &uav, cpu);
             cpu.ptr += increment;
         }
         return gpu;
     }
 
+    void Raytracing::BindTablesLocked(D3D12_GPU_DESCRIPTOR_HANDLE table)
+    {
+        list->SetComputeRootDescriptorTable(10, table);
+        D3D12_GPU_DESCRIPTOR_HANDLE writeTable = table;
+        writeTable.ptr += static_cast<UINT64>(8) * increment;
+        list->SetComputeRootDescriptorTable(11, writeTable);
+    }
+
     void Raytracing::RunDenoiserLocked(const RtFramePacket& packet, UINT slotNumber, Shared* const* outputs,
                                        Shared* motionInput)
     {
+        static_assert(kDenoiserTables * kTableSize <= kFixedTables, "the denoiser's tables reach the fixed ones");
         const auto pipeline = [&](const char* name) -> ID3D12PipelineState*
         {
             auto found = denoisePipelines.find(name);
@@ -186,10 +177,7 @@ namespace redefinition
         const auto dispatch = [&](ID3D12PipelineState* state, D3D12_GPU_DESCRIPTOR_HANDLE table)
         {
             list->SetPipelineState(state);
-            list->SetComputeRootDescriptorTable(10, table);
-            D3D12_GPU_DESCRIPTOR_HANDLE writeTable = table;
-            writeTable.ptr += static_cast<UINT64>(8) * increment;
-            list->SetComputeRootDescriptorTable(11, writeTable);
+            BindTablesLocked(table);
             list->Dispatch(groupsX, groupsY, 1);
         };
 
@@ -211,9 +199,9 @@ namespace redefinition
         // work texture, the moments into this frame's; then into the history of the frame
         // before, which the temporal pass has read by then, as the first à-trous step's input.
         uint32_t present = 0;
-        for (UINT s = 0; s < 4; ++s)
+        for (UINT s = 0; s < kRtDenoisedSignals; ++s)
         {
-            const Filtered& filtered = kFiltered[s];
+            const RtDenoisedSignal& filtered = kRtDenoised[s];
             if ((packet.signals & filtered.signal) == 0 || outputs[filtered.output] == nullptr)
                 continue;
             present |= 1u << s;
@@ -251,16 +239,16 @@ namespace redefinition
         // À-trous, all signals in each step: the first step into this frame's history; the
         // steps after it between the noisy texture, read by now, and the half-float work
         // texture; the last into Unity's texture.
-        DenoiseTarget* from[4] = {};
-        for (UINT s = 0; s < 4; ++s)
+        DenoiseTarget* from[kRtDenoisedSignals] = {};
+        for (UINT s = 0; s < kRtDenoisedSignals; ++s)
             from[s] = &denoise.history[s][before];
         for (UINT step = 0; present != 0 && step < kAtrousSteps; ++step)
         {
             const bool last = step + 1 == kAtrousSteps;
             View reads[8] = {};
             View writes[4] = {};
-            DenoiseTarget* to[4] = {};
-            for (UINT s = 0; s < 4; ++s)
+            DenoiseTarget* to[kRtDenoisedSignals] = {};
+            for (UINT s = 0; s < kRtDenoisedSignals; ++s)
             {
                 if ((present & (1u << s)) == 0)
                     continue;
@@ -271,13 +259,13 @@ namespace redefinition
                     UseLocked(*to[s], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
                 // The signals in t0, t1, t2 and t5, beside the depth and normal in t3 and t4.
                 reads[s == 3 ? 5 : s] = Of(from[s]);
-                writes[s] = last ? Of(outputs[kFiltered[s].output]) : Of(to[s]);
+                writes[s] = last ? Of(outputs[kRtDenoised[s].output]) : Of(to[s]);
             }
             reads[3] = Of(&denoise.linearDepth[now]);
             reads[4] = Of(&denoise.normal[now]);
             constants(1u << step, present, last ? 4u : 0u, step);
             dispatch(atrous, TableLocked(slotNumber, used, reads, writes));
-            for (UINT s = 0; s < 4; ++s)
+            for (UINT s = 0; s < kRtDenoisedSignals; ++s)
                 from[s] = to[s];
         }
 

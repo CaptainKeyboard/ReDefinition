@@ -162,7 +162,7 @@ namespace ReDefinition.Upscaler
             RenderTexture copy;
             prepared[n].TryGetValue(name, out copy);
             if (Fits(copy, source)) return;
-            UpscalerRig.Release(ref copy);
+            RenderTextures.Release(ref copy);
             RenderTextureDescriptor desc = source.descriptor;
             desc.msaaSamples = 1;
             desc.depthBufferBits = 0;
@@ -218,7 +218,7 @@ namespace ReDefinition.Upscaler
             AsyncGPUReadback.Request(next.Texture, 0, request =>
             {
                 RenderTexture texture = next.Texture;
-                UpscalerRig.Release(ref texture);
+                RenderTextures.Release(ref texture);
                 if (request.hasError)
                 {
                     Volatile.Write(ref busy, 0);
@@ -265,7 +265,7 @@ namespace ReDefinition.Upscaler
                 foreach (RenderTexture texture in frame.Values)
                 {
                     RenderTexture copy = texture;
-                    UpscalerRig.Release(ref copy);
+                    RenderTextures.Release(ref copy);
                 }
                 frame.Clear();
             }

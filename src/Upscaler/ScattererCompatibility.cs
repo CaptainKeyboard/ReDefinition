@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using System;
 using Object = UnityEngine.Object;
@@ -48,6 +49,8 @@ namespace ReDefinition.Upscaler
     {
         private const string GodraysTypeName = "Scatterer.RaymarchedGodraysRenderer";
         private const string HarmonyId = "ReDefinition.ScattererGodrays";
+        // Its own id: a failure takes back only this hook, not the one above.
+        private const string HarmonyHistoryId = "ReDefinition.ScattererGodrayHistory";
 
         private static bool resolved;
         private static Type godraysType;
@@ -89,9 +92,8 @@ namespace ReDefinition.Upscaler
             {
                 try
                 {
-                    MethodInfo postfix = typeof(ScattererCompatibility).GetMethod(nameof(AfterInit),
-                        BindingFlags.NonPublic | BindingFlags.Static);
-                    new HarmonyLib.Harmony(HarmonyId).Patch(init, postfix: new HarmonyLib.HarmonyMethod(postfix));
+                    HarmonyHooks.Install(HarmonyId, typeof(ScattererCompatibility),
+                        new List<HarmonyHook> { new HarmonyHook(init, null, nameof(AfterInit), null) });
                 }
                 catch (Exception e)
                 {
@@ -108,9 +110,8 @@ namespace ReDefinition.Upscaler
             }
             try
             {
-                MethodInfo postfix = typeof(ScattererCompatibility).GetMethod(nameof(AfterPreCull),
-                    BindingFlags.NonPublic | BindingFlags.Static);
-                new HarmonyLib.Harmony(HarmonyId).Patch(preCull, postfix: new HarmonyLib.HarmonyMethod(postfix));
+                HarmonyHooks.Install(HarmonyHistoryId, typeof(ScattererCompatibility),
+                    new List<HarmonyHook> { new HarmonyHook(preCull, null, nameof(AfterPreCull), null) });
             }
             catch (Exception e)
             {
@@ -142,8 +143,10 @@ namespace ReDefinition.Upscaler
         }
 
         // Scatterer's FlipFlop<T>: its indexer by bool, per closed type.
-        private static readonly System.Collections.Generic.Dictionary<Type, PropertyInfo> indexers =
-            new System.Collections.Generic.Dictionary<Type, PropertyInfo>();
+        private static readonly Dictionary<Type, PropertyInfo> indexers = new Dictionary<Type, PropertyInfo>();
+        // The indexer's argument, made once: read every frame per renderer.
+        private static readonly object[] FlipTrue = { true };
+        private static readonly object[] FlipFalse = { false };
 
         private static object Pick(object flipFlop, bool flip)
         {
@@ -155,7 +158,7 @@ namespace ReDefinition.Upscaler
                 item = type.GetProperty("Item", TypeLookup.Any, null, null, new[] { typeof(bool) }, null);
                 indexers[type] = item;
             }
-            return item != null ? item.GetValue(flipFlop, new object[] { flip }) : null;
+            return item != null ? item.GetValue(flipFlop, flip ? FlipTrue : FlipFalse) : null;
         }
 
         private static void Filter(RenderTexture texture, FilterMode mode)
@@ -246,8 +249,7 @@ namespace ReDefinition.Upscaler
         // Init set them -- a quarter of the width, a half or a quarter of the height --,
         // read once per renderer before anything here changes them: afterwards both
         // sizes are the ones set here, in the same ratio. Zero where Init has not run.
-        private static readonly System.Collections.Generic.Dictionary<int, Vector2Int> divisors =
-            new System.Collections.Generic.Dictionary<int, Vector2Int>();
+        private static readonly Dictionary<int, Vector2Int> divisors = new Dictionary<int, Vector2Int>();
 
         private static Vector2Int Divisor(Component renderer)
         {

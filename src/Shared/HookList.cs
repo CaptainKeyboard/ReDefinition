@@ -11,6 +11,7 @@ namespace ReDefinition.Shared
         private readonly Action<string> report;
         private readonly List<T> handlers = new List<T>();
         private readonly List<T> snapshot = new List<T>();
+        private int invoking;
 
         internal HookList(string name, Action<string> report)
         {
@@ -38,25 +39,36 @@ namespace ReDefinition.Shared
             if (handler != null) handlers.Remove(handler);
         }
 
-        // Over a copy: a handler may register or remove handlers.
+        // Over a copy: a handler may register or remove handlers. A handler that
+        // invokes the same list again gets a copy of its own.
         internal void Invoke(Action<T> call)
         {
             if (handlers.Count == 0) return;
-            snapshot.Clear();
+            List<T> copy = invoking == 0 ? snapshot : new List<T>(handlers.Count);
+            copy.Clear();
             // One by one: Mono's AddRange copies through a new array.
-            for (int i = 0; i < handlers.Count; i++) snapshot.Add(handlers[i]);
-            foreach (T handler in snapshot)
+            for (int i = 0; i < handlers.Count; i++) copy.Add(handlers[i]);
+            invoking++;
+            try
             {
-                try
+                for (int i = 0; i < copy.Count; i++)
                 {
-                    call(handler);
+                    T handler = copy[i];
+                    try
+                    {
+                        call(handler);
+                    }
+                    catch (Exception e)
+                    {
+                        handlers.Remove(handler);
+                        report("A handler registered for " + name + " threw and is removed: " + Describe(handler) + " ("
+                               + e.GetType().Name + ": " + e.Message + ").");
+                    }
                 }
-                catch (Exception e)
-                {
-                    handlers.Remove(handler);
-                    report("A handler registered for " + name + " threw and is removed: " + Describe(handler) + " ("
-                           + e.GetType().Name + ": " + e.Message + ").");
-                }
+            }
+            finally
+            {
+                invoking--;
             }
         }
 

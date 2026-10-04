@@ -242,8 +242,8 @@ namespace ReDefinition.Window
             lent.Clear();
         }
 
-        // Whether the cursor is over the frame of one of ReDefinition's windows, on the
-        // canvas it is drawn on.
+        // Whether the cursor is over the diagnostics window (ImguiWindow), drawn by
+        // IMGUI: GUI coordinates run down from the top of the screen.
         private static bool OverDiagnostics()
         {
             if (ImguiWindow.width <= 0f) return false;
@@ -288,10 +288,9 @@ namespace ReDefinition.Window
         // but uGUI's raycasts still find ReDefinition's window below it, and a click
         // on the mod's window would press the control there too. While the cursor is
         // over such a window, ReDefinition's windows let raycasts through -- by a
-        // canvas group of their
-        // own on the window's frame. The dialog's own group is the one KSP takes
-        // raycasts from the other dialogs by while a modal one is open
-        // (UIMasterController.FocusModalDialog), and a group below it can only
+        // canvas group of their own on the window's frame. The dialog's own group is
+        // the one KSP takes raycasts from the other dialogs by while a modal one is
+        // open (UIMasterController.FocusModalDialog), and a group below it can only
         // narrow what that lets through.
         private static bool passing;
 

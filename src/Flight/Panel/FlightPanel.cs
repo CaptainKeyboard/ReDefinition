@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using KSP.UI;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using UnityEngine;
 
 namespace ReDefinition.Flight.Panel
@@ -204,8 +203,8 @@ namespace ReDefinition.Flight.Panel
             pencil.transform.SetParent(row, false);
             pencil.transform.localPosition = Vector3.zero;
             pencil.transform.localScale = Vector3.one;
-            UnityEngine.UI.LayoutElement width = pencil.GetComponent<UnityEngine.UI.LayoutElement>()
-                                                 ?? pencil.AddComponent<UnityEngine.UI.LayoutElement>();
+            UnityEngine.UI.LayoutElement width = pencil.GetComponent<UnityEngine.UI.LayoutElement>();
+            if (width == null) width = pencil.AddComponent<UnityEngine.UI.LayoutElement>();
             width.preferredWidth = each;
             Transform onIcon = pencil.transform.Find("IconOn");
             if (onIcon != null) onIcon.gameObject.SetActive(false);
@@ -226,8 +225,8 @@ namespace ReDefinition.Flight.Panel
             float each = Mathf.Min(44f, Mathf.Floor(room / (buttons.Count + 1)));
             foreach (ManeuverNodeEditorTabButton button in buttons)
             {
-                UnityEngine.UI.LayoutElement layout = button.GetComponent<UnityEngine.UI.LayoutElement>()
-                                                      ?? button.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+                UnityEngine.UI.LayoutElement layout = button.GetComponent<UnityEngine.UI.LayoutElement>();
+                if (layout == null) layout = button.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
                 layout.preferredWidth = each;
             }
             // The pencil shares the row.
@@ -356,14 +355,15 @@ namespace ReDefinition.Flight.Panel
                 off = intercept.tabIconOff;
                 return;
             }
-            on = Icon(situation + "_On") ?? orbit.tabIconOn;
-            off = Icon(situation + "_Off") ?? orbit.tabIconOff;
+            on = Icon(situation + "_On");
+            if (on == null) on = orbit.tabIconOn;
+            off = Icon(situation + "_Off");
+            if (off == null) off = orbit.tabIconOff;
         }
 
         internal static Sprite Icon(string name)
         {
-            Texture2D texture = GameDatabase.Instance != null ? GameDatabase.Instance.GetTexture("ReDefinition/Icons/FlightPanel_" + name, false) : null;
-            return texture != null ? Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f)) : null;
+            return Shared.IconSprites.Load("ReDefinition/Icons/FlightPanel_" + name);
         }
 
         // ----------------------------------------------------------- widening

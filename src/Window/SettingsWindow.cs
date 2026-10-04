@@ -420,6 +420,21 @@ namespace ReDefinition.Window
             // out like the other rows there, KSP's among them.
             if (category == SettingCategory.General) return new DialogGUIBase[0];
             bool upscalingDone = category != SettingCategory.Display;
+            AddTabRows(category, rows);
+            AddBundledRows(category, rows, upscalingDone);
+            if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
+                && category != SettingCategory.Keys)
+            {
+                DialogGUIBase advanced = OwnWindowRow(category);
+                if (advanced != null) rows.Add(advanced);
+            }
+            return rows.ToArray();
+        }
+
+        // The rows of the tabs that hold more than the registrations' settings:
+        // Interface, Keys and Axes.
+        private static void AddTabRows(SettingCategory category, List<DialogGUIBase> rows)
+        {
             if (category == SettingCategory.Interface)
             {
                 rows.Add(Searchable(ReplaceRow(), "Replace original settings KSP menu"));
@@ -433,7 +448,12 @@ namespace ReDefinition.Window
                 rows.AddRange(KeyRows());
             }
             if (category == SettingCategory.Axes) rows.AddRange(AxisRows());
+        }
 
+        // The registrations' settings of a tab, by section, with ReDefinition's own
+        // rows in theirs, and the upscaling section where it is not done yet.
+        private static void AddBundledRows(SettingCategory category, List<DialogGUIBase> rows, bool upscalingDone)
+        {
             // The Keys tab builds its sections itself (KeyRows). A heading goes
             // before the first row of each group a registration names (`section`);
             // in the long tabs the groups open and fold instead (AddFold).
@@ -493,13 +513,6 @@ namespace ReDefinition.Window
                 rows.Add(SectionHeading(left.Key));
                 rows.AddRange(left.Value);
             }
-            if (rows.Count > 0 && category != SettingCategory.Profiles && category != SettingCategory.Interface
-                && category != SettingCategory.Keys)
-            {
-                DialogGUIBase advanced = OwnWindowRow(category);
-                if (advanced != null) rows.Add(advanced);
-            }
-            return rows.ToArray();
         }
 
         // Whether KSP's own Settings buttons -- in the main menu and the pause

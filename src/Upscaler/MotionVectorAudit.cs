@@ -133,29 +133,8 @@ namespace ReDefinition.Upscaler
         private Vessel partsOf;
         private Matrix4x4 previousViewProjection;
         private int previousFrame = -10;
-        private bool shifted;
         private int skippedFrames;
         private float windowStart = -1f;
-        private bool subscribed;
-
-        internal void Enable()
-        {
-            if (subscribed) return;
-            GameEvents.onFloatingOriginShift.Add(OnShift);
-            subscribed = true;
-        }
-
-        internal void Disable()
-        {
-            if (!subscribed) return;
-            GameEvents.onFloatingOriginShift.Remove(OnShift);
-            subscribed = false;
-        }
-
-        private void OnShift(Vector3d offset, Vector3d nonFrame)
-        {
-            shifted = true;
-        }
 
         // In the scene camera's OnPreCull, after the motion vector hooks: the readbacks
         // go at the end of the capture, which has written the motion vectors by then.
@@ -171,9 +150,10 @@ namespace ReDefinition.Upscaler
                                        * camera.worldToCameraMatrix;
             if (active != partsOf) ChooseParts(active);
 
-            bool continuous = previousFrame == Time.frameCount - 1 && !shifted
+            // A shift of the floating origin since the previous frame (SharedFrame,
+            // begun before this): the previous frame's matrices no longer fit.
+            bool continuous = previousFrame == Time.frameCount - 1 && !SharedFrame.Shifted
                               && SharedFrame.RigResetReason == null;
-            shifted = false;
             bool sampling = continuous && Time.frameCount % FrameSpacing == 0;
             if (!continuous) skippedFrames++;
 

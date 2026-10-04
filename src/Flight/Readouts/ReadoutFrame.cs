@@ -5,7 +5,8 @@ using UnityEngine;
 namespace ReDefinition.Flight.Readouts
 {
     // What the readouts read, taken once per refresh: the active vessel, its orbit
-    // and body, its target, and the heavier sums, each worked out on first use.
+    // and body, its target, and the heavier sums, each worked out on first use and
+    // kept for the refresh.
     // Vectors are in KSP's orbit frame ("zup": z towards the body's north, as
     // Orbit.getRelativePositionAtUT gives them); the world's is its xzy.
     internal sealed class ReadoutFrame
@@ -73,16 +74,19 @@ namespace ReDefinition.Flight.Readouts
             }
         }
 
+        private double engineThrust = double.NaN;
+
         // What the engines give now, in kN.
         internal double Thrust
         {
             get
             {
+                if (!double.IsNaN(engineThrust)) return engineThrust;
                 double sum = 0.0;
                 foreach (Part part in Vessel.parts)
                     foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
                         if (engine != null && engine.EngineIgnited) sum += engine.finalThrust;
-                return sum;
+                return engineThrust = sum;
             }
         }
 
@@ -171,9 +175,24 @@ namespace ReDefinition.Flight.Readouts
 
         // ------------------------------------------------------------- heat
 
+        private bool hottestDone;
+        private double hottest;
+        private string hottestName;
+
         // The part nearest its limit: the higher of its inside's and its skin's
         // temperature against their maximum, as a share, and its name.
         internal double Hottest(out string name)
+        {
+            if (!hottestDone)
+            {
+                hottestDone = true;
+                hottest = FindHottest(out hottestName);
+            }
+            name = hottestName;
+            return hottest;
+        }
+
+        private double FindHottest(out string name)
         {
             double worst = 0.0;
             name = "";
@@ -193,6 +212,8 @@ namespace ReDefinition.Flight.Readouts
         // How long until the vessel crosses the plane with normal `normal` (zup)
         // going to its normal's side (ascending) or away from it; NaN where the
         // orbit does not cross it in a turn.
+        private static readonly double[] Signs = { 1.0, -1.0 };
+
         internal double TimeToNode(Orbit orbit, Vector3d normal, bool ascending)
         {
             if (orbit == null || orbit.eccentricity >= 1.0) return double.NaN;
@@ -200,7 +221,7 @@ namespace ReDefinition.Flight.Readouts
             Vector3d line = Vector3d.Cross(normal, own);
             if (line.sqrMagnitude < 1e-12) return double.NaN;
             double best = double.NaN;
-            foreach (double sign in new[] { 1.0, -1.0 })
+            foreach (double sign in Signs)
             {
                 double anomaly = orbit.GetTrueAnomalyOfZupVector(line * sign);
                 double at = orbit.GetUTforTrueAnomaly(anomaly, orbit.period);
@@ -332,34 +353,47 @@ namespace ReDefinition.Flight.Readouts
         // Isp, ModuleRCS: thrusterPower at thrustPercentage, atmosphereCurve at 0),
         // and the mass of every resource they burn that the vessel holds, by the
         // rocket equation. NaN without RCS.
+        private bool rcsDone;
+        private double rcsDeltaV;
+
         internal double RcsDeltaV
         {
             get
             {
-                double thrust = 0.0, overIsp = 0.0;
-                HashSet<string> burnt = new HashSet<string>();
-                foreach (Part part in Vessel.parts)
-                    foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
-                    {
-                        if (rcs == null || !rcs.moduleIsEnabled || !rcs.rcsEnabled) continue;
-                        double isp = rcs.atmosphereCurve != null ? rcs.atmosphereCurve.Evaluate(0f) : 0.0;
-                        double power = rcs.thrusterPower * rcs.thrustPercentage * 0.01;
-                        if (isp <= 0.0 || power <= 0.0) continue;
-                        thrust += power;
-                        overIsp += power / isp;
-                        if (rcs.propellants != null)
-                            foreach (Propellant propellant in rcs.propellants) burnt.Add(propellant.name);
-                    }
-                if (thrust <= 0.0 || overIsp <= 0.0) return double.NaN;
-                double propellantMass = 0.0;
-                foreach (Part part in Vessel.parts)
-                    foreach (PartResource resource in part.Resources)
-                        if (resource != null && resource.info != null && burnt.Contains(resource.resourceName))
-                            propellantMass += resource.amount * resource.info.density;
-                double mass = Vessel.totalMass;
-                if (mass <= propellantMass || propellantMass <= 0.0) return 0.0;
-                return thrust / overIsp * PhysicsGlobals.GravitationalAcceleration * Math.Log(mass / (mass - propellantMass));
+                if (!rcsDone)
+                {
+                    rcsDone = true;
+                    rcsDeltaV = FindRcsDeltaV();
+                }
+                return rcsDeltaV;
             }
+        }
+
+        private double FindRcsDeltaV()
+        {
+            double thrust = 0.0, overIsp = 0.0;
+            HashSet<string> burnt = new HashSet<string>();
+            foreach (Part part in Vessel.parts)
+                foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+                {
+                    if (rcs == null || !rcs.moduleIsEnabled || !rcs.rcsEnabled) continue;
+                    double isp = rcs.atmosphereCurve != null ? rcs.atmosphereCurve.Evaluate(0f) : 0.0;
+                    double power = rcs.thrusterPower * rcs.thrustPercentage * 0.01;
+                    if (isp <= 0.0 || power <= 0.0) continue;
+                    thrust += power;
+                    overIsp += power / isp;
+                    if (rcs.propellants != null)
+                        foreach (Propellant propellant in rcs.propellants) burnt.Add(propellant.name);
+                }
+            if (thrust <= 0.0 || overIsp <= 0.0) return double.NaN;
+            double propellantMass = 0.0;
+            foreach (Part part in Vessel.parts)
+                foreach (PartResource resource in part.Resources)
+                    if (resource != null && resource.info != null && burnt.Contains(resource.resourceName))
+                        propellantMass += resource.amount * resource.info.density;
+            double mass = Vessel.totalMass;
+            if (mass <= propellantMass || propellantMass <= 0.0) return 0.0;
+            return thrust / overIsp * PhysicsGlobals.GravitationalAcceleration * Math.Log(mass / (mass - propellantMass));
         }
 
         // The target's docking port, where the target is one.

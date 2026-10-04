@@ -105,7 +105,7 @@ namespace ReDefinition
               .Append("   off ").Append(meterOff.Describe());
             if (meterOn.HasData && meterOff.HasData)
             {
-                float gain = (meterOn.Average / meterOff.Average - 1f) * 100f;
+                float gain = (meterOn.AverageFps / meterOff.AverageFps - 1f) * 100f;
                 sb.Append("   (").Append(gain >= 0f ? "+" : "").Append(gain.ToString("0.0")).Append(" %)");
             }
             return sb.ToString();

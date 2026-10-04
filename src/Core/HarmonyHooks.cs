@@ -2,9 +2,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System;
-using ReDefinition.Core;
 
-namespace ReDefinition.Settings
+namespace ReDefinition.Core
 {
     // One Harmony patch of a bundled mod: the method patched, and the names of
     // the static hooks on the class that installs it -- null where it has none of
@@ -39,7 +38,7 @@ namespace ReDefinition.Settings
         }
     }
 
-    // The Harmony plumbing the behaviours and ModWindowClose share.
+    // The Harmony plumbing every hook into KSP or another mod goes through.
     internal static class HarmonyHooks
     {
         // All or none: one that cannot be installed takes the ones before it

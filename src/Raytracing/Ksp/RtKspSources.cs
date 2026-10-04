@@ -316,8 +316,7 @@ namespace ReDefinition.Raytracing
         {
             Quads = 0;
             frame++;
-            CelestialBody body = HighLogic.LoadedSceneIsFlight ? FlightGlobals.currentMainBody
-                                 : HighLogic.LoadedScene == GameScenes.SPACECENTER ? FlightGlobals.GetHomeBody() : null;
+            CelestialBody body = RtKspMods.SceneBody();
             PQS pqs = body != null ? body.pqsController : null;
             if (pqs == null || pqs.quads == null || !pqs.isActiveAndEnabled) return;
             Vector3 eye = scene.Eye;

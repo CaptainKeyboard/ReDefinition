@@ -5,7 +5,6 @@ using System.Reflection;
 using System.Text;
 using System;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using UnityEngine.Rendering;
 using UnityEngine;
 
@@ -443,7 +442,7 @@ namespace ReDefinition.Upscaler
                 };
                 if (!output.Create() || output.GetNativeTexturePtr() == IntPtr.Zero)
                 {
-                    UpscalerRig.Release(ref output);
+                    RenderTextures.Release(ref output);
                     Stop("its output texture could not be created");
                     return false;
                 }
@@ -477,7 +476,7 @@ namespace ReDefinition.Upscaler
             if (motion == null || output == null) return false;
             if (motionAtDisplaySize != null && motionAtDisplaySize.width == output.width
                 && motionAtDisplaySize.height == output.height) return true;
-            UpscalerRig.Release(ref motionAtDisplaySize);
+            RenderTextures.Release(ref motionAtDisplaySize);
             motionAtDisplaySize = new RenderTexture(output.width, output.height, 0,
                 RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear)
             {
@@ -486,15 +485,15 @@ namespace ReDefinition.Upscaler
             };
             if (motionAtDisplaySize.Create() && motionAtDisplaySize.GetNativeTexturePtr() != IntPtr.Zero)
                 return true;
-            UpscalerRig.Release(ref motionAtDisplaySize);
+            RenderTextures.Release(ref motionAtDisplaySize);
             return false;
         }
 
         private void ReleaseTextures()
         {
             if (ownCamera != null) ownCamera.targetTexture = null;
-            UpscalerRig.Release(ref output);
-            UpscalerRig.Release(ref motionAtDisplaySize);
+            RenderTextures.Release(ref output);
+            RenderTextures.Release(ref motionAtDisplaySize);
             boxedSourceOf = null;
             boxedSource = null;
             boxedOutputOf = null;

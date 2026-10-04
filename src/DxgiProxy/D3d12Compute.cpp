@@ -22,55 +22,6 @@ namespace redefinition
         // Constant buffers are sized in multiples of 256 bytes.
         constexpr UINT64 kConstantBufferSize = 256;
 
-        // The format of the shared copy: the typed format of a typeless one, and the
-        // linear twin of an sRGB one, which can be bound for unordered access.
-        // CopyResource copies between formats of one group, so the bytes arrive as
-        // they are.
-        DXGI_FORMAT ShareFormat(DXGI_FORMAT format)
-        {
-            const DXGI_FORMAT typed = TypedFormat(format);
-            switch (typed)
-            {
-            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return DXGI_FORMAT_R8G8B8A8_UNORM;
-            case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return DXGI_FORMAT_B8G8R8A8_UNORM;
-            default: return typed;
-            }
-        }
-
-        D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc(DXGI_FORMAT format)
-        {
-            D3D12_SHADER_RESOURCE_VIEW_DESC desc = {};
-            desc.Format = format;
-            desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            desc.Texture2D.MipLevels = 1;
-            return desc;
-        }
-
-        D3D12_UNORDERED_ACCESS_VIEW_DESC UavDesc(DXGI_FORMAT format)
-        {
-            D3D12_UNORDERED_ACCESS_VIEW_DESC desc = {};
-            desc.Format = format;
-            desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-            return desc;
-        }
-
-        // A fence made on Direct3D 12 and opened on Direct3D 11.
-        HRESULT SharedFence(ID3D11Device5* device11, ID3D12Device* device12, ComPtr<ID3D12Fence>& fence12,
-                            ComPtr<ID3D11Fence>& fence11)
-        {
-            HRESULT hr = device12->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&fence12));
-            HANDLE handle = nullptr;
-            if (SUCCEEDED(hr))
-                hr = device12->CreateSharedHandle(fence12.Get(), nullptr, GENERIC_ALL, nullptr, &handle);
-            if (SUCCEEDED(hr))
-            {
-                hr = device11->OpenSharedFence(handle, IID_PPV_ARGS(&fence11));
-                CloseHandle(handle);
-            }
-            return hr;
-        }
-
         int HighestFeatureLevel(ID3D12Device* device)
         {
             const D3D_FEATURE_LEVEL levels[] = {

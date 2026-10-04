@@ -375,23 +375,42 @@ namespace ReDefinition.Upscaler
         public static string Restore()
         {
             StringBuilder report = new StringBuilder();
+            RestoreScattererTaa(report);
+            RestoreTufxProfiles(report);
+            ReEnableComponents(report);
+            HandBackSmaa(report);
+            report.Append(RestoreKfg());
 
+            Applied = false;
+            LastMessage = report.ToString();
+            Debug.Log(Log.Tag + " Host stack restored: " + LastMessage);
+            Refresh(true);
+            return LastMessage;
+        }
+
+        private static void RestoreScattererTaa(StringBuilder report)
+        {
             Type taaType = TypeLookup.Find(ScattererTaaTypeName);
             int restored = 0;
             for (int i = 0; i < taaBackups.Count; i++)
             {
                 TaaBackup backup = taaBackups[i];
                 if (backup.Component == null || taaType == null) continue;
+                // Counted only where something is handed back: a component that is
+                // no Behaviour has no switch.
                 Behaviour behaviour = backup.Component as Behaviour;
-                if (behaviour != null && behaviour.enabled) continue;
-                if (behaviour != null) behaviour.enabled = backup.Enabled;
+                if (behaviour == null || behaviour.enabled) continue;
+                behaviour.enabled = backup.Enabled;
                 restored++;
             }
             taaBackups.Clear();
             NeutraliseFloatingOrigin(false);
             RestoreBuiltinMotionVectorShader(false);
             report.Append(restored).Append(" Scatterer TAA restored. ");
+        }
 
+        private static void RestoreTufxProfiles(StringBuilder report)
+        {
             // Every profile changed here, not just the active one: across a scene
             // change there may have been several.
             int profiles = 0;
@@ -431,7 +450,10 @@ namespace ReDefinition.Upscaler
                 report.Append(' ').Append(changedElsewhere)
                       .Append(" TUFX profile(s) left alone, changed since they were set here.");
             tufxBackups.Clear();
+        }
 
+        private static void ReEnableComponents(StringBuilder report)
+        {
             // Same rule for the components switched off here: only what is still
             // off goes back on. One re-enabled meanwhile keeps that state.
             int reEnabled = 0;
@@ -444,7 +466,10 @@ namespace ReDefinition.Upscaler
             }
             report.Append(' ').Append(reEnabled).Append(" component(s) re-enabled.");
             disabledComponents.Clear();
+        }
 
+        private static void HandBackSmaa(StringBuilder report)
+        {
             // Each SMAA back as it was found. One that was running is switched
             // on again with its "initialized" reset, so it builds and attaches
             // its buffer itself on its next frame -- once, for the camera as it
@@ -489,13 +514,6 @@ namespace ReDefinition.Upscaler
             }
             smaaStates.Clear();
             report.Append(' ').Append(handedBack).Append(" SMAA back as found.");
-            report.Append(RestoreKfg());
-
-            Applied = false;
-            LastMessage = report.ToString();
-            Debug.Log(Log.Tag + " Host stack restored: " + LastMessage);
-            Refresh(true);
-            return LastMessage;
         }
 
         // At once rather than at the next interval: TUFX has just applied a

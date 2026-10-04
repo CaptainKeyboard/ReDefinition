@@ -183,55 +183,10 @@ namespace ReDefinition.Settings
                     Drop(WholeMod, behaviourProblem);
                     return;
                 }
-                // A behaviour that cannot hook in says why where it knows. The whole
-                // mod goes with it, said so where the behaviour named only a setting
-                // or nothing, so the log tells why all its rows are gone after an
-                // update of the mod.
-                int droppedBefore = dropped.Count;
-                if (!modBehaviour.Attach(this))
-                {
-                    if (!wholeModDropped)
-                        Drop(WholeMod, "this build of " + ModName + " lacks what ReDefinition's "
-                                                + registration.Behaviour + " behaviour hooks into"
-                                                + (dropped.Count > droppedBefore ? ", named above" : ""));
-                    return;
-                }
-                // Empty: the behaviour knows the version cannot be told here.
-                string version = modBehaviour.Version(this);
-                if (version != null) Version = version.Length > 0 ? version : null;
+                if (!AttachBehaviour()) return;
             }
-
-            if (registration.Save != null)
-            {
-                string problem;
-                save = MemberPath.Resolve(registration.Save, folder, out problem);
-                if (save == null || !save.IsMethod)
-                {
-                    Drop(WholeMod, "this build of " + ModName + " has no " + registration.Save
-                                            + " to save its settings with");
-                    return;
-                }
-            }
-
-            if (registration.Ready != null)
-            {
-                string problem;
-                ready = MemberPath.ResolveReadable(registration.Ready, folder, out problem);
-                if (ready != null && ready.IsMethod)
-                {
-                    // A mistake of the registration, not a build of another
-                    // shape.
-                    problems.Add(where + ": ready: " + registration.Ready + " is a method, not a value -- not bundled.");
-                    Drop(WholeMod, "ready names a method, " + registration.Ready + ", not a value");
-                    return;
-                }
-                if (ready == null)
-                {
-                    Drop(WholeMod, "this build of " + ModName + " has no " + registration.Ready
-                                            + " to tell when it can take values");
-                    return;
-                }
-            }
+            if (registration.Save != null && !ResolveSave(out save)) return;
+            if (registration.Ready != null && !ResolveReady(where, problems, out ready)) return;
 
             foreach (SettingRegistration setting in registration.Settings) AddFrom(setting, where, problems);
             if (lostRequired)
@@ -248,6 +203,67 @@ namespace ReDefinition.Settings
             if (ready != null) WaitForReady();
             WindowFrom(where, problems);
             IsInstalled = settings.Count > 0;
+        }
+
+        // The registration's behaviour hooked in; false, the whole mod dropped,
+        // where it cannot be.
+        private bool AttachBehaviour()
+        {
+            // A behaviour that cannot hook in says why where it knows. The whole
+            // mod goes with it, said so where the behaviour named only a setting
+            // or nothing, so the log tells why all its rows are gone after an
+            // update of the mod.
+            int droppedBefore = dropped.Count;
+            if (!modBehaviour.Attach(this))
+            {
+                if (!wholeModDropped)
+                    Drop(WholeMod, "this build of " + ModName + " lacks what ReDefinition's "
+                                            + registration.Behaviour + " behaviour hooks into"
+                                            + (dropped.Count > droppedBefore ? ", named above" : ""));
+                return false;
+            }
+            // Empty: the behaviour knows the version cannot be told here.
+            string version = modBehaviour.Version(this);
+            if (version != null) Version = version.Length > 0 ? version : null;
+            return true;
+        }
+
+        // The method the registration's `save` names; false, the whole mod dropped,
+        // where this build has none.
+        private bool ResolveSave(out MemberPath save)
+        {
+            string problem;
+            save = MemberPath.Resolve(registration.Save, folder, out problem);
+            if (save == null || !save.IsMethod)
+            {
+                Drop(WholeMod, "this build of " + ModName + " has no " + registration.Save
+                                        + " to save its settings with");
+                return false;
+            }
+            return true;
+        }
+
+        // The value the registration's `ready` names; false, the whole mod dropped,
+        // where this build has none or it names a method.
+        private bool ResolveReady(string where, List<string> problems, out MemberPath ready)
+        {
+            string problem;
+            ready = MemberPath.ResolveReadable(registration.Ready, folder, out problem);
+            if (ready != null && ready.IsMethod)
+            {
+                // A mistake of the registration, not a build of another
+                // shape.
+                problems.Add(where + ": ready: " + registration.Ready + " is a method, not a value -- not bundled.");
+                Drop(WholeMod, "ready names a method, " + registration.Ready + ", not a value");
+                return false;
+            }
+            if (ready == null)
+            {
+                Drop(WholeMod, "this build of " + ModName + " has no " + registration.Ready
+                                        + " to tell when it can take values");
+                return false;
+            }
+            return true;
         }
 
         public void Save()

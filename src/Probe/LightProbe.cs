@@ -288,7 +288,7 @@ namespace ReDefinition.Probe
             GameEvents.onHideUI.Fire();
             Set(addon, RaytracingMode.Full, addon.Live.RaytracingMoonlight, addon.Live.RaytracingNightAmbient);
             yield return Shot(folder, name);
-            LogOceanTextures(name);
+            LogOceanTextures(folder, name);
             Camera camera = FlightCamera.fetch.mainCamera;
             Debug.Log(Log.Tag + " Probe: light " + name + ": the body " + elevation.ToString("0", CultureInfo.InvariantCulture)
                       + " degrees up, the camera " + (FlightCamera.fetch.camPitch * Mathf.Rad2Deg).ToString("0", CultureInfo.InvariantCulture)
@@ -301,7 +301,7 @@ namespace ReDefinition.Probe
 
         // The ocean's raytraced reflections as the last frame left them: the share of
         // pixels the ocean covers with a weight, and of the traced ones that met something.
-        private static void LogOceanTextures(string name)
+        private static void LogOceanTextures(string folder, string name)
         {
             RtCamera camera = RtCamera.Current;
             RenderTexture reflections = camera != null ? camera.OceanReflectionsTexture : null;
@@ -314,8 +314,7 @@ namespace ReDefinition.Probe
             Color[] r = Read(reflections), t = Read(traced);
             // The traced reflections as a picture beside the screenshot, x / (1 + x), a
             // binary PPM from the top row down.
-            using (var file = new FileStream(Path.Combine(Path.GetDirectoryName(Application.dataPath), "ReDefinitionCaptures",
-                                                          name + "-traced.ppm"), FileMode.Create))
+            using (var file = new FileStream(Path.Combine(folder, name + "-traced.ppm"), FileMode.Create))
             {
                 byte[] header = System.Text.Encoding.ASCII.GetBytes("P6\n" + traced.width + " " + traced.height + "\n255\n");
                 file.Write(header, 0, header.Length);

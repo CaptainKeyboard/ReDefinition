@@ -19,7 +19,7 @@ void WriteSky(uint2 pixel)
     diffuseAlbedo[pixel] = float4(0.5f, 0.5f, 0.5f, 1.0f);
     specularAlbedo[pixel] = float4(0.0f, 0.0f, 0.0f, 1.0f);
     normalRoughness[pixel] = float4(0.0f, 0.0f, 0.0f, 0.0f);
-    hitDistance[pixel] = float4(65504.0f, 0.0f, 0.0f, 0.0f);
+    hitDistance[pixel] = float4(kFp16Max, 0.0f, 0.0f, 0.0f);
 }
 
 void WriteGuides(uint2 pixel, float3 position, float3 albedo, float3 specular, float smoothness, float3 normal,

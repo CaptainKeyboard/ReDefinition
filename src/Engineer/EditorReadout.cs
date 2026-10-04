@@ -265,10 +265,6 @@ namespace ReDefinition.Engineer
             return false;
         }
 
-        // Every part as StageSim takes it, in the order of `facts`: its place, how
-        // fuel crosses it, its resources that can flow, and its engine's rocket and
-        // air-breathing modes. A fuel line (CModuleFuelLine on a CompoundPart) feeds
-        // its target from the part it is attached to.
         // The mass KSP's simulation starts from: its first stage's.
         private static double TopStart(List<StageRow> rows)
         {
@@ -283,8 +279,12 @@ namespace ReDefinition.Engineer
             return start;
         }
 
-        // `start`: KSP's start mass; what it counts beyond the parts and their
-        // resources (the crew) goes to the root part.
+        // Every part as StageSim takes it, in the order of `facts`: its place, how
+        // fuel crosses it, its resources that can flow, and its engine's rocket and
+        // air-breathing modes. A fuel line (CModuleFuelLine on a CompoundPart) feeds
+        // its target from the part it is attached to. `start`: KSP's start mass; what
+        // it counts beyond the parts and their resources (the crew) goes to the root
+        // part.
         private static List<SimPart> SimOf(List<Part> parts, List<PartFacts> facts, HashSet<string> air, Dictionary<string, double> density,
                                            double start)
         {

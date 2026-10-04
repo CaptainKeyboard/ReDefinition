@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -17,8 +16,6 @@ namespace ReDefinition.Scaling
         internal const string FourkSpWindows = "_4kSP_ModWindows.ModWindowScalerHarmonyBootstrap";
         internal const string ManeuverNodeEvolved = "BetterManeuvering.ManeuverController";
 
-        private static readonly Dictionary<string, System.Type> types = new Dictionary<string, System.Type>();
-
         // KSP's UI scale.
         internal static float World
         {
@@ -33,21 +30,6 @@ namespace ReDefinition.Scaling
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 return addon == null || addon.Live.ScaleModWindows;
             }
-        }
-
-        // The type of an installed mod, by its full name; null where none is loaded.
-        internal static System.Type TypeOf(string name)
-        {
-            System.Type found;
-            if (types.TryGetValue(name, out found)) return found;
-            found = null;
-            foreach (AssemblyLoader.LoadedAssembly assembly in AssemblyLoader.loadedAssemblies)
-            {
-                found = assembly.assembly != null ? assembly.assembly.GetType(name, false) : null;
-                if (found != null) break;
-            }
-            types[name] = found;
-            return found;
         }
 
         // Once per scene and piece: what it scales, at which scale.

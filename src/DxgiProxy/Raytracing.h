@@ -52,7 +52,7 @@ namespace redefinition
         int32_t mesh;
         uint32_t vertexCount;
         uint32_t indexCount;
-        uint32_t flags;
+        uint32_t flags;   // reserved
         const float* positions;
         const float* normals;
         const float* uvs;
@@ -69,7 +69,7 @@ namespace redefinition
         uint32_t size;
         uint32_t magic;
         int32_t material;
-        uint32_t flags;
+        uint32_t flags;   // reserved
         float albedo[4];
         float specular[3];
         float smoothness;
@@ -84,7 +84,7 @@ namespace redefinition
 
     // One instance of a mesh this frame: a 3x4 transform, rows first, from the
     // mesh into camera-relative space; its material; the ray mask (bits 0-7) and
-    // flags (none yet).
+    // flags (kRtInstance*).
     struct RtInstance
     {
         float transform[12];
@@ -128,7 +128,7 @@ namespace redefinition
     // The surface is water (Scatterer's ocean): its reflected rays stay above the
     // horizon; where they meet nothing, the reflections hold only the sun's and the
     // moons' discs mirrored by the waves, not single rays meeting them, and 65000 in w
-    // (RtCommon.hlsli, BodiesMirrored).
+    // (RtCommon.hlsli, BodiesMirroredAt).
     constexpr uint32_t kRtFrameWater = 1u << 6;
 
     // The signals a frame traces; each writes its output slot.
@@ -138,6 +138,32 @@ namespace redefinition
     constexpr uint32_t kRtSignalSpecular = 1u << 3;        // u2: light from the specular lobe, and the hit distance
     constexpr uint32_t kRtSignalForwardLight = 1u << 4;    // u4: the light to add to a forward-rendered frame
     constexpr uint32_t kRtSignalPrimaryCheck = 1u << 7;    // u7: the camera ray's hit distance against the depth's
+
+    // The signals the denoiser filters: the output slot each writes, its place among
+    // the denoiser's textures, and its kind, 0 a scalar (the sun's visibility, the
+    // occlusion), 1 a colour (the diffuse light, the reflections).
+    struct RtDenoisedSignal
+    {
+        uint32_t signal;
+        uint32_t output;
+        uint32_t index;
+        uint32_t kind;
+    };
+    constexpr uint32_t kRtDenoisedSignals = 4;
+    constexpr RtDenoisedSignal kRtDenoised[kRtDenoisedSignals] = {
+        { kRtSignalSunVisibility, 0, 0, 0 },
+        { kRtSignalDiffuse, 1, 1, 1 },
+        { kRtSignalSpecular, 2, 2, 1 },
+        { kRtSignalAmbientOcclusion, 3, 3, 0 },
+    };
+    // The entry of a signal the denoiser filters.
+    constexpr const RtDenoisedSignal& RtDenoisedFor(uint32_t signal)
+    {
+        uint32_t i = 0;
+        while (i + 1 < kRtDenoisedSignals && kRtDenoised[i].signal != signal)
+            ++i;
+        return kRtDenoised[i];
+    }
 
     // The inputs, by slot: t1 depth as Direct3D's clip-space z (R32_FLOAT), t2-t4 the
     // G-buffer in Unity's layout (albedo and occlusion, specular and smoothness, the
@@ -159,12 +185,48 @@ namespace redefinition
     constexpr uint32_t kRtAnyFrame = 0xFFFFFFFFu;
 
     // The material textures: small copies of each material's main texture, in one
-    // array of kRtMaterialTextureSize square RGBA8 layers, sRGB.
+    // array of kRtMaterialTextureSize square RGBA8 layers, sRGB; at most as many layers
+    // as a Direct3D 12 texture array holds (D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION).
     constexpr uint32_t kRtMaterialTextureSize = 64;
-    constexpr uint32_t kRtMaxMaterialTextures = 4096;
+    // The bytes of a slot's constant buffer (cbuffer Frame, RtCommon.hlsli).
+    constexpr uint64_t kRtConstantsSize = 512;
 
-    // The number of passes whose GPU time KspRtPassTimings reports, in signal bit order.
+    // cbuffer Frame as the shaders read it (RtCommon.hlsli), field for field.
+    struct RtFrameConstants
+    {
+        float clipToWorld[16];
+        float worldToClip[16];
+        float prevWorldToClip[16];
+        float sunDirection[4];
+        float sunColor[4];
+        float skyColor[4];
+        float params[8];
+        float bodySphere[4];
+        float ambient[12];
+        uint32_t frameSize[2];
+        uint32_t frameIndex;
+        uint32_t frameFlags;
+        float lights[16];
+        float lightParams[4];
+        float nightLight[4];
+        float planet[4];
+        float lightSurface[8];
+    };
+    static_assert(offsetof(RtFrameConstants, sunDirection) == 192, "cbuffer Frame changed: update RtCommon.hlsli");
+    static_assert(offsetof(RtFrameConstants, params) == 240, "cbuffer Frame changed: update RtCommon.hlsli");
+    static_assert(offsetof(RtFrameConstants, bodySphere) == 272, "cbuffer Frame changed: update RtCommon.hlsli");
+    static_assert(offsetof(RtFrameConstants, frameSize) == 336, "cbuffer Frame changed: update RtCommon.hlsli");
+    static_assert(offsetof(RtFrameConstants, lights) == 352, "cbuffer Frame changed: update RtCommon.hlsli");
+    static_assert(offsetof(RtFrameConstants, lightParams) == 416, "cbuffer Frame changed: update RtCommon.hlsli");
+    static_assert(offsetof(RtFrameConstants, planet) == 448, "cbuffer Frame changed: update RtCommon.hlsli");
+    static_assert(offsetof(RtFrameConstants, lightSurface) == 464, "cbuffer Frame changed: update RtCommon.hlsli");
+    static_assert(sizeof(RtFrameConstants) <= kRtConstantsSize, "cbuffer Frame outgrew its buffer");
+    constexpr uint32_t kRtMaxMaterialTextures = 2048;
+
+    // The number of passes whose GPU time KspRtPassTimings reports, in signal bit order;
+    // the denoiser's time in place kRtPassDenoiser, which no signal has.
     constexpr uint32_t kRtPassTimings = 8;
+    constexpr uint32_t kRtPassDenoiser = 6;
 
     // Event 30: a frame. Matrices rows first, for column vectors: clip = worldToClip *
     // (camera-relative position, 1). Clip y is +1 at the texture's first row, as
@@ -324,8 +386,8 @@ namespace redefinition
 
         // What the last frame took on the GPU, in milliseconds: building, tracing.
         void Timings(float& build, float& trace) const;
-        // Pass 6 of PassTimings is the denoiser.
-        // Each pass's time, by signal bit; 0 for a pass that did not run.
+        // Each pass's time, by signal bit, the denoiser's at kRtPassDenoiser; 0 for a pass
+        // that did not run.
         void PassTimings(float* out, int count) const;
 
     private:
@@ -334,7 +396,7 @@ namespace redefinition
         struct PendingMesh
         {
             std::vector<float> positions;
-            std::vector<float> attributes;   // normal xyz, uv xy: five floats a vertex
+            std::vector<float> attributes;   // normal xyz, uv xy, the colour's four bytes: six floats a vertex
             std::vector<uint32_t> indices;
             uint32_t vertexCount = 0;
             // Frames its build failed in; at kMeshAttempts it is dropped.
@@ -349,8 +411,6 @@ namespace redefinition
             Microsoft::WRL::ComPtr<ID3D12Resource> indices;
             Microsoft::WRL::ComPtr<ID3D12Resource> blas;
             uint32_t slot = 0;
-            uint32_t vertexCount = 0;
-            uint32_t indexCount = 0;
             bool built = false;
         };
 
@@ -389,9 +449,6 @@ namespace redefinition
             bool Create(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT format);
         };
 
-        // Per signal (sun, diffuse, specular, occlusion): the noisy trace, and the history
-        // and its moments for this frame and the one before; two work textures; the view
-        // distance and normal for this frame and the one before.
         // The guides DLSS Ray Reconstruction takes (RaytracingShaders/Reconstruct.hlsl).
         struct GuideTargets
         {
@@ -447,13 +504,17 @@ namespace redefinition
             DenoiseTarget diffuseAlbedo;
         };
 
+        // Per signal (kRtDenoised: sun, diffuse, specular, occlusion): the noisy trace, and
+        // the history and its moments for this frame and the one before; a work texture,
+        // and one in half floats per signal; the view distance and normal for this frame
+        // and the one before.
         struct DenoiseTargets
         {
-            DenoiseTarget noisy[4];
-            DenoiseTarget history[4][2];
-            DenoiseTarget moments[4][2];
+            DenoiseTarget noisy[kRtDenoisedSignals];
+            DenoiseTarget history[kRtDenoisedSignals][2];
+            DenoiseTarget moments[kRtDenoisedSignals][2];
             DenoiseTarget work;
-            DenoiseTarget workHalf[4];
+            DenoiseTarget workHalf[kRtDenoisedSignals];
             DenoiseTarget linearDepth[2];
             DenoiseTarget normal[2];
             UINT width = 0;
@@ -467,6 +528,22 @@ namespace redefinition
         static constexpr UINT kFrameDescriptors = 2 * kRtMaxTextures;
         static constexpr UINT kDenoiseDescriptors = 512;
         static constexpr UINT kTableSize = 12;
+        // Tables at fixed places at the end of a slot's kDenoiseDescriptors, counted back
+        // from it; the denoiser's and Ray Reconstruction's guides' tables are taken from
+        // its start and stay below kFixedTables.
+        static constexpr UINT kForwardLightTable = kDenoiseDescriptors - 1 * kTableSize;
+        static constexpr UINT kFrameGuidesTable = kDenoiseDescriptors - 2 * kTableSize;
+        static constexpr UINT kGpuInstancesTable = kDenoiseDescriptors - 3 * kTableSize;
+        static constexpr UINT kRegenerationGuidesTable = kDenoiseDescriptors - 4 * kTableSize;
+        static constexpr UINT kRegenerationAlbedoTable = kDenoiseDescriptors - 5 * kTableSize;
+        static constexpr UINT kFixedTables = kRegenerationAlbedoTable;
+        // The shader-visible heap: per slot its frame's views (kFrameDescriptors); the
+        // meshes' index and attribute views (2 kMaxMeshes); per slot the material
+        // textures' view, written with the frame so that a slot still running reads its
+        // own; per slot its tables of the passes after the trace (kDenoiseDescriptors).
+        static constexpr UINT kMaterialViews = kSlots * kFrameDescriptors + 2 * kMaxMeshes;
+        static constexpr UINT kSlotTables = kMaterialViews + kSlots;
+        static constexpr UINT kHeapDescriptors = kSlotTables + kSlots * kDenoiseDescriptors;
 
         struct Slot
         {
@@ -491,6 +568,9 @@ namespace redefinition
             D3D12_RESOURCE_STATES sceneStateRecorded = D3D12_RESOURCE_STATE_COMMON;
             D3D12_GPU_VIRTUAL_ADDRESS instanceDataAddress = 0;
             UINT64 done = 0;
+            // Whether the slot's list resolves its timestamps: not for a frame that stopped
+            // early, nor for Ray Reconstruction's.
+            bool timed = false;
             // What the slot's list uses, held until the slot comes round again.
             std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> held;
         };
@@ -501,11 +581,17 @@ namespace redefinition
         Shared* SharedForLocked(void* unityTexture, std::string& problem);
         bool TakeDescriptorSlotLocked(uint32_t& slot);
         bool UploadMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot);
+        // A mesh's buffers held by the slot, its descriptor slot free again once the
+        // slot's list is done.
+        void RetireMeshLocked(Mesh& mesh, Slot& slot);
+        // Whether a material's texture cuts its surface out.
+        bool IsCutoutLocked(int32_t material) const;
         bool BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances, UINT& instanceCount);
         // The GPU's instances after the CPU's in the slot's scene buffers.
         bool AddGpuInstancesLocked(Slot& slot, UINT slotNumber, Shared* gpuInstances, const std::vector<RtGpuInstanceGroup>& given,
                                    const std::unordered_map<int32_t, uint32_t>& materialIndex, UINT cpuCount, UINT& total);
         bool EnsureUploadBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size);
+        void WriteMaterialViewLocked(UINT slotNumber);
         bool EnsureMaterialTexturesLocked(UINT layers, Slot& slot);
         bool EnsureDenoiseTargetsLocked(UINT width, UINT height, Slot& slot);
         void UseLocked(DenoiseTarget& target, D3D12_RESOURCE_STATES wanted);
@@ -513,6 +599,9 @@ namespace redefinition
         // Returns the table's start on the GPU; the writes follow the reads.
         D3D12_GPU_DESCRIPTOR_HANDLE TableLocked(UINT slotNumber, UINT& used, const View (&reads)[8],
                                                 const View (&writes)[4]);
+        // A table of TableLocked's layout bound: its reads at root parameter 10, its writes
+        // at 11.
+        void BindTablesLocked(D3D12_GPU_DESCRIPTOR_HANDLE table);
         void RunDenoiserLocked(const RtFramePacket& packet, UINT slotNumber, Shared* const* outputs, Shared* motionInput);
         // AMD FSR Ray Regeneration for the diffuse light and the reflections where its DLL
         // runs on this GPU; false where ReDefinition's denoiser takes them.
@@ -540,6 +629,8 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D11DeviceContext4> context11;
         Microsoft::WRL::ComPtr<ID3D12Device5> device;
         Microsoft::WRL::ComPtr<ID3D12CommandQueue> queue;
+        // The debug layer's messages, where it is on (REDEFINITION_D3D12_DEBUG).
+        Microsoft::WRL::ComPtr<ID3D12InfoQueue> debugMessages;
         int tier = 0;
         std::string unavailable;
 

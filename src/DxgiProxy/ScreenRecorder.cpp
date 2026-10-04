@@ -9,6 +9,7 @@
 
 #include "ScreenRecorder.h"
 
+#include "D3d12Util.h"
 #include "FileUtil.h"
 #include "Log.h"
 
@@ -108,19 +109,10 @@ namespace redefinition
             g_state = state;
         }
 
-        float HalfToFloat(uint16_t h)
-        {
-            const uint32_t sign = (h >> 15) & 1u, exponent = (h >> 10) & 0x1Fu, mantissa = h & 0x3FFu;
-            float value;
-            if (exponent == 0) value = std::ldexp(static_cast<float>(mantissa), -24);
-            else if (exponent == 31) value = mantissa ? 0.0f : 65504.0f;
-            else value = std::ldexp(static_cast<float>(mantissa | 0x400u), static_cast<int>(exponent) - 25);
-            return sign ? -value : value;
-        }
-
+        // Linear 0 to 1 as an sRGB byte; NaN as 0.
         uint8_t Encode(float linear)
         {
-            linear = std::min(std::max(linear, 0.0f), 1.0f);
+            linear = std::isnan(linear) ? 0.0f : std::min(std::max(linear, 0.0f), 1.0f);
             const float s = linear <= 0.0031308f ? linear * 12.92f : 1.055f * std::pow(linear, 1.0f / 2.4f) - 0.055f;
             return static_cast<uint8_t>(s * 255.0f + 0.5f);
         }
@@ -473,10 +465,7 @@ namespace redefinition
                 g_backWanted = 0;
                 return;
             }
-            desc.Usage = D3D11_USAGE_STAGING;
-            desc.BindFlags = 0;
-            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-            desc.MiscFlags = 0;
+            desc = StagingDesc(desc);
             desc.MipLevels = 1;
             desc.ArraySize = 1;
             desc.SampleDesc.Count = 1;

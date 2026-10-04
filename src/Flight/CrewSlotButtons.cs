@@ -22,8 +22,6 @@ namespace ReDefinition.Flight
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
         private static readonly FieldInfo AddSlot = typeof(KerbalPortraitGallery).GetField("btnAddSlot", Private);
         private static readonly FieldInfo RemoveSlot = typeof(KerbalPortraitGallery).GetField("btnRemSlot", Private);
-        private static readonly FieldInfo AddStage = typeof(StageGroup).GetField("addButton", Private);
-        private static readonly FieldInfo DeleteStage = typeof(StageGroup).GetField("deleteButton", Private);
 
         private IEnumerator Start()
         {
@@ -33,14 +31,14 @@ namespace ReDefinition.Flight
                 yield return null;
             KerbalPortraitGallery gallery = KerbalPortraitGallery.Instance;
             StageGroup stage = StageManager.Instance != null ? StageManager.Instance.stageGroupPrefab : null;
-            if (gallery == null || stage == null || AddSlot == null || RemoveSlot == null || AddStage == null || DeleteStage == null)
+            if (gallery == null || stage == null || AddSlot == null || RemoveSlot == null || StageGroupFields.AddButton == null || StageGroupFields.DeleteButton == null)
             {
                 Debug.Log(Log.Tag + " The crew slot buttons keep KSP's look: the portraits or the staging stack's buttons were not found.");
                 yield break;
             }
             int done = 0;
-            if (Dress(AddSlot.GetValue(gallery) as Button, AddStage.GetValue(stage) as Button)) done++;
-            if (Dress(RemoveSlot.GetValue(gallery) as Button, DeleteStage.GetValue(stage) as Button)) done++;
+            if (Dress(AddSlot.GetValue(gallery) as Button, StageGroupFields.AddButton(stage))) done++;
+            if (Dress(RemoveSlot.GetValue(gallery) as Button, StageGroupFields.DeleteButton(stage))) done++;
             Debug.Log(Log.Tag + " The crew slot buttons take the staging stack's add and delete look: " + done + " of 2.");
         }
 
@@ -48,8 +46,10 @@ namespace ReDefinition.Flight
         private static bool Dress(Button slot, Button look)
         {
             if (slot == null || look == null) return false;
-            Image face = slot.targetGraphic as Image ?? slot.GetComponent<Image>();
-            Image lookFace = look.targetGraphic as Image ?? look.GetComponent<Image>();
+            Image face = slot.targetGraphic as Image;
+            if (face == null) face = slot.GetComponent<Image>();
+            Image lookFace = look.targetGraphic as Image;
+            if (lookFace == null) lookFace = look.GetComponent<Image>();
             if (face == null || lookFace == null) return false;
             face.sprite = lookFace.sprite;
             face.type = Image.Type.Simple;

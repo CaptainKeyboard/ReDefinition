@@ -67,7 +67,6 @@ namespace ReDefinition.Upscaler
         private RenderTexture scene;
         private RenderTexture merged;
         private Material material;
-        private Shader outdatedShader;
         private Matrix4x4 previousViewProjection;
         private bool havePrevious;
         private int updatedFrame = -1;
@@ -119,7 +118,7 @@ namespace ReDefinition.Upscaler
         // As the scene camera culls, once a frame: the bodies in view and the
         // scaled camera, as this frame draws them. Globals, read by the capture at
         // the scene camera's BeforeImageEffects.
-        internal void Update()
+        internal void Sample()
         {
             if (!Active || camera == null || updatedFrame == Time.frameCount) return;
             updatedFrame = Time.frameCount;
@@ -194,8 +193,8 @@ namespace ReDefinition.Upscaler
             havePrevious = false;
             updatedFrame = -1;
             previousLocalToWorld.Clear();
-            UpscalerRig.Release(ref scene);
-            UpscalerRig.Release(ref merged);
+            RenderTextures.Release(ref scene);
+            RenderTextures.Release(ref merged);
         }
 
         internal void Dispose()
@@ -211,22 +210,14 @@ namespace ReDefinition.Upscaler
             if (material == null)
             {
                 string error;
-                Shader shader = FsrShaderBundle.LoadShader(FsrShaderBundle.CloudMotionShaderName, out error);
-                if (shader == null) return error;
-                const string outdated = FsrShaderBundle.CloudMotionShaderName + " in the shader bundle is older than this build";
-                if (shader == outdatedShader) return outdated;
-                material = new Material(shader) { name = "ReDefinition scaled space motion", hideFlags = HideFlags.DontSave };
-                if (material.passCount <= MergePass)
-                {
-                    Object.Destroy(material);
-                    material = null;
-                    outdatedShader = shader;
-                    return outdated;
-                }
+                bool outdated;
+                material = ShaderBundle.MakeMaterial(ShaderBundle.CloudMotionShaderName, "ReDefinition scaled space motion",
+                    MergePass + 1, out error, out outdated);
+                if (material == null) return error;
             }
             bool created;
-            if (!UpscalerMasks.Ensure(ref scene, size, RenderTextureFormat.RGHalf, "ReDefinition_SceneMotion", out created)
-                || !UpscalerMasks.Ensure(ref merged, size, RenderTextureFormat.RGHalf, "ReDefinition_MergedMotion", out created))
+            if (!RenderTextures.Ensure(ref scene, size, RenderTextureFormat.RGHalf, "ReDefinition_SceneMotion", out created)
+                || !RenderTextures.Ensure(ref merged, size, RenderTextureFormat.RGHalf, "ReDefinition_MergedMotion", out created))
                 return "its textures could not be created";
             return null;
         }

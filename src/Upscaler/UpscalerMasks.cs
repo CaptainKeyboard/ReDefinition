@@ -131,7 +131,7 @@ namespace ReDefinition.Upscaler
         private bool modsChecked;
         private bool clouds;
         private bool ocean;
-        private Shader outdatedShader;
+        private bool outdatedSeen;
         private RenderTexture transparency;
         private RenderTexture reactive;
         private RenderTexture opaqueOnly;
@@ -164,9 +164,9 @@ namespace ReDefinition.Upscaler
                              RenderTextureFormat colourFormat, Vector2Int size)
         {
             Drawn = 0;
-            if (!transparencyWanted) UpscalerRig.Release(ref transparency);
-            if (!renderersWanted) UpscalerRig.Release(ref reactive);
-            if (!automaticWanted) UpscalerRig.Release(ref postAlpha);
+            if (!transparencyWanted) RenderTextures.Release(ref transparency);
+            if (!renderersWanted) RenderTextures.Release(ref reactive);
+            if (!automaticWanted) RenderTextures.Release(ref postAlpha);
             SyncOpaqueCopy(camera, automaticWanted, colourFormat, size);
 
             if (camera == null || (!transparencyWanted && !renderersWanted && !automaticWanted))
@@ -178,19 +178,19 @@ namespace ReDefinition.Upscaler
             maskBuffer.Clear();
 
             bool created;
-            if (automaticWanted && Ensure(ref postAlpha, size, colourFormat, "ReDefinition_PostAlpha", out created))
+            if (automaticWanted && RenderTextures.Ensure(ref postAlpha, size, colourFormat, "ReDefinition_PostAlpha", out created))
                 maskBuffer.Blit(BuiltinRenderTextureType.CameraTarget, postAlpha);
 
             if ((!transparencyWanted && !renderersWanted) || !EnsureMaterial()) return;
             maskBuffer.SetGlobalVector(Ids.MaskTexel, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
 
-            if (transparencyWanted && Ensure(ref transparency, size, RenderTextureFormat.R8, "ReDefinition_TransparencyMask", out created))
+            if (transparencyWanted && RenderTextures.Ensure(ref transparency, size, RenderTextureFormat.R8, "ReDefinition_TransparencyMask", out created))
             {
                 if (created) transparencyHandle = transparency.GetNativeTexturePtr();
                 RecordTransparency();
             }
 
-            if (renderersWanted && Ensure(ref reactive, size, RenderTextureFormat.R8, "ReDefinition_ReactiveMask", out created))
+            if (renderersWanted && RenderTextures.Ensure(ref reactive, size, RenderTextureFormat.R8, "ReDefinition_ReactiveMask", out created))
             {
                 if (created) reactiveHandle = reactive.GetNativeTexturePtr();
                 RecordReactive(camera, depthSource, sceneDepth);
@@ -201,10 +201,10 @@ namespace ReDefinition.Upscaler
         {
             DetachMaskBuffer();
             DetachOpaqueCopy();
-            UpscalerRig.Release(ref transparency);
-            UpscalerRig.Release(ref reactive);
-            UpscalerRig.Release(ref opaqueOnly);
-            UpscalerRig.Release(ref postAlpha);
+            RenderTextures.Release(ref transparency);
+            RenderTextures.Release(ref reactive);
+            RenderTextures.Release(ref opaqueOnly);
+            RenderTextures.Release(ref postAlpha);
             foreach (MaskCopy copy in copies.Values)
                 if (copy.Material != null) UnityEngine.Object.Destroy(copy.Material);
             copies.Clear();
@@ -271,11 +271,11 @@ namespace ReDefinition.Upscaler
             if (!wanted || camera == null)
             {
                 DetachOpaqueCopy();
-                UpscalerRig.Release(ref opaqueOnly);
+                RenderTextures.Release(ref opaqueOnly);
                 return;
             }
             bool created;
-            if (!Ensure(ref opaqueOnly, size, format, "ReDefinition_OpaqueOnly", out created))
+            if (!RenderTextures.Ensure(ref opaqueOnly, size, format, "ReDefinition_OpaqueOnly", out created))
             {
                 DetachOpaqueCopy();
                 return;
@@ -292,25 +292,23 @@ namespace ReDefinition.Upscaler
         {
             if (fullscreen != null) return true;
             string error;
-            Shader shader = FsrShaderBundle.LoadShader(FsrShaderBundle.MaskShaderName, out error);
-            if (shader == null)
+            bool outdated;
+            // A bundle built before the clamp pass has two passes, and a pass 1
+            // that clamps by a value no longer set.
+            fullscreen = ShaderBundle.MakeMaterial(ShaderBundle.MaskShaderName, "ReDefinition masks", 3, out error, out outdated);
+            if (fullscreen == null && outdated)
+            {
+                if (outdatedSeen) return false;
+                outdatedSeen = true;
+                Problem = "the mask shader in the shader bundle is older than this build -- rebuild the bundle";
+                CompatibilityLog.Warn("masks", "The masks for FSR cannot be drawn: " + Problem + ".");
+                return false;
+            }
+            if (fullscreen == null)
             {
                 if (Problem == null)
                     CompatibilityLog.Warn("masks", "The masks for FSR cannot be drawn: " + error + ".");
                 Problem = error;
-                return false;
-            }
-            if (shader == outdatedShader) return false;
-            fullscreen = new Material(shader) { name = "ReDefinition masks", hideFlags = HideFlags.DontSave };
-            // A bundle built before the clamp pass has two passes, and a pass 1
-            // that clamps by a value no longer set.
-            if (fullscreen.passCount < 3)
-            {
-                UnityEngine.Object.Destroy(fullscreen);
-                fullscreen = null;
-                outdatedShader = shader;
-                Problem = "the mask shader in the shader bundle is older than this build -- rebuild the bundle";
-                CompatibilityLog.Warn("masks", "The masks for FSR cannot be drawn: " + Problem + ".");
                 return false;
             }
             fullscreen.SetFloat(Ids.Max, ReactiveMaximum);
@@ -493,26 +491,6 @@ namespace ReDefinition.Upscaler
             opaqueBuffer.Release();
             opaqueBuffer = null;
             opaqueCamera = null;
-        }
-
-        internal static bool Ensure(ref RenderTexture texture, Vector2Int size, RenderTextureFormat format, string name, out bool created)
-        {
-            created = false;
-            if (texture != null && texture.width == size.x && texture.height == size.y && texture.format == format
-                && texture.IsCreated()) return true;
-            UpscalerRig.Release(ref texture);
-            texture = new RenderTexture(size.x, size.y, 0, format, RenderTextureReadWrite.Linear)
-            {
-                name = name,
-                filterMode = FilterMode.Point,
-            };
-            if (!texture.Create() || texture.GetNativeTexturePtr() == IntPtr.Zero)
-            {
-                UpscalerRig.Release(ref texture);
-                return false;
-            }
-            created = true;
-            return true;
         }
     }
 }

@@ -79,8 +79,7 @@ namespace ReDefinition.Flight
 
         private static Sprite Load(string name)
         {
-            Texture2D texture = GameDatabase.Instance != null ? GameDatabase.Instance.GetTexture("ReDefinition/Icons/" + name, false) : null;
-            return texture != null ? Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f)) : null;
+            return Shared.IconSprites.Load("ReDefinition/Icons/" + name);
         }
 
         private void OnDestroy()
@@ -124,15 +123,8 @@ namespace ReDefinition.Flight
         private void Ask(Facility facility)
         {
             if (HighLogic.CurrentGame == null || !Allowed(facility)) return;
-            MultiOptionDialog question = new MultiOptionDialog("ReDefinitionFacility", "The game is saved, and the vessel stays "
-                                                                                       + "where it stands.",
-                facility.Title, HighLogic.UISkin, 340f,
-                new DialogGUIHorizontalLayout(
-                    new DialogGUIButton("Go", () => Go(facility), 110f, 30f, true),
-                    new DialogGUIFlexibleSpace(),
-                    new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), () => { }, 110f, 30f, true)));
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), question, false,
-                HighLogic.UISkin));
+            ConfirmDialog.Show("ReDefinitionFacility", facility.Title, "The game is saved, and the vessel stays where it stands.",
+                340f, "Go", () => Go(facility), 110f);
         }
 
         // As the pause menu leaves the flight where the game can be saved
@@ -140,13 +132,7 @@ namespace ReDefinition.Flight
         private static void Go(Facility facility)
         {
             if (HighLogic.CurrentGame == null || !Allowed(facility)) return;
-            ClearToSaveStatus clear = FlightGlobals.ClearToSave();
-            if (clear != ClearToSaveStatus.CLEAR)
-            {
-                ScreenMessages.PostScreenMessage(FlightGlobals.GetNotClearToSaveStatusReason(clear, "leave the flight"), 5f,
-                    ScreenMessageStyle.UPPER_CENTER);
-                return;
-            }
+            if (!ConfirmDialog.ClearToSave("leave the flight")) return;
             GameScenes scene = facility.TrackingStation ? GameScenes.TRACKSTATION : GameScenes.SPACECENTER;
             if (!facility.TrackingStation) SpaceCentreEntry.Plan(facility.Name);
             Debug.Log(Log.Tag + " Leaving the flight for the " + facility.Name + ".");

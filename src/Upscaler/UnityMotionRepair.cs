@@ -132,8 +132,8 @@ namespace ReDefinition.Upscaler
             if (attached == null) return;
             Vector2Int now = new Vector2Int(cam.pixelWidth, cam.pixelHeight);
             bool created;
-            if (!UpscalerMasks.Ensure(ref motionCopy, now, RenderTextureFormat.RGHalf, "ReDefinition_RepairMotion", out created)
-                || !UpscalerMasks.Ensure(ref depthCopy, now, RenderTextureFormat.RFloat, "ReDefinition_RepairDepth", out created))
+            if (!RenderTextures.Ensure(ref motionCopy, now, RenderTextureFormat.RGHalf, "ReDefinition_RepairMotion", out created)
+                || !RenderTextures.Ensure(ref depthCopy, now, RenderTextureFormat.RFloat, "ReDefinition_RepairDepth", out created))
             {
                 SetState("its textures could not be created");
                 // Without them the last mark cannot be repaired: taken out as none.
@@ -156,20 +156,13 @@ namespace ReDefinition.Upscaler
             if (material == null)
             {
                 string error;
-                Shader shader = FsrShaderBundle.LoadShader(FsrShaderBundle.CloudMotionShaderName, out error);
-                if (shader == null)
+                bool outdated;
+                material = ShaderBundle.MakeMaterial(ShaderBundle.CloudMotionShaderName, "ReDefinition motion vector repair",
+                    RepairPass + 1, out error, out outdated);
+                if (material == null)
                 {
                     unavailable = true;
                     SetState(error);
-                    return;
-                }
-                material = new Material(shader) { name = "ReDefinition motion vector repair", hideFlags = HideFlags.DontSave };
-                if (material.passCount <= RepairPass)
-                {
-                    Destroy(material);
-                    material = null;
-                    unavailable = true;
-                    SetState(FsrShaderBundle.CloudMotionShaderName + " in the shader bundle is older than this build");
                     return;
                 }
             }
@@ -206,8 +199,8 @@ namespace ReDefinition.Upscaler
             if (mark != null) mark.Release();
             repair = null;
             mark = null;
-            UpscalerRig.Release(ref motionCopy);
-            UpscalerRig.Release(ref depthCopy);
+            RenderTextures.Release(ref motionCopy);
+            RenderTextures.Release(ref depthCopy);
             retireAfter = -1;
         }
 

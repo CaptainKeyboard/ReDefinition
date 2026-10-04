@@ -94,6 +94,9 @@ namespace ReDefinition.Raytracing
         }
 
         private readonly Dictionary<long, MeshEntry> meshes = new Dictionary<long, MeshEntry>();
+        // Submeshes that can never be handed over -- not readable, or not triangles -- not
+        // tried again each frame.
+        private readonly HashSet<long> unusable = new HashSet<long>();
         private readonly Dictionary<Mesh, List<long>> keysOf = new Dictionary<Mesh, List<long>>();
         private readonly Dictionary<Material, MaterialEntry> materials = new Dictionary<Material, MaterialEntry>();
         private readonly List<RtItem> items = new List<RtItem>();
@@ -115,6 +118,10 @@ namespace ReDefinition.Raytracing
         // A material's texture looked at again: every frame while it has none, else
         // once in this many frames.
         private const int TextureCheckFrames = 120;
+        // A material without its texture yet: looked at again this often, frames.
+        private const int MissingTextureCheckFrames = 10;
+        // Meshes and materials not seen for UnseenFrames: looked for this often, frames.
+        private const int ReleaseCheckFrames = 30;
         private static readonly int RtCutoff = Shader.PropertyToID("_ReDefinitionRtCutoff");
         // The capture shader's pass that makes a material's small texture.
         private const int MaterialTexturePass = 6;
@@ -144,7 +151,6 @@ namespace ReDefinition.Raytracing
         internal int GpuTotal { get; private set; }
         // Where the camera is this frame, for the sources' range.
         internal Vector3 Eye { get; private set; }
-        internal int Uploads { get; private set; }
         internal int MeshCount { get { return meshes.Count; } }
         internal int MaterialCount { get { return materials.Count; } }
         internal int Skipped { get; private set; }
@@ -160,11 +166,6 @@ namespace ReDefinition.Raytracing
         internal void AddSource(IRtSource source)
         {
             if (!sources.Contains(source)) sources.Add(source);
-        }
-
-        internal void RemoveSource(IRtSource source)
-        {
-            sources.Remove(source);
         }
 
         internal void AddGpuSource(IRtGpuSource source)
@@ -191,7 +192,6 @@ namespace ReDefinition.Raytracing
             }
 
             Eye = new Vector3((float)cameraPosition.x, (float)cameraPosition.y, (float)cameraPosition.z);
-            Uploads = 0;
             items.Clear();
             foreach (IRtSource source in sources)
                 source.Collect(items);
@@ -227,7 +227,7 @@ namespace ReDefinition.Raytracing
             UpdateGpu(frameIndex);
 
             ReadTextures();
-            ReleaseUnseen();
+            if (frame % ReleaseCheckFrames == 0) ReleaseUnseen();
         }
 
         // The GPU's runs, each where it starts among them, and their groups for the proxy.
@@ -290,7 +290,7 @@ namespace ReDefinition.Raytracing
 
         private static long Key(Mesh mesh, int subMesh)
         {
-            return ((long)mesh.GetInstanceID() << 8) ^ subMesh;
+            return ((long)mesh.GetInstanceID() << 32) | (uint)subMesh;
         }
 
         // The proxy's id of a submesh, handed over when first seen; 0 where it cannot
@@ -308,18 +308,24 @@ namespace ReDefinition.Raytracing
                     // Built again since: handed over again under the same id.
                     entry.Dirty = false;
                     if (!Upload(mesh, subMesh, entry.Id)) return 0;
-                    Uploads++;
                 }
                 return entry.Id;
             }
+            if (unusable.Contains(key)) return 0;
             if (!mesh.isReadable)
             {
+                unusable.Add(key);
                 LastSkip = "mesh " + mesh.name + " is not readable";
+                return 0;
+            }
+            if (subMesh < 0 || subMesh >= mesh.subMeshCount || mesh.GetTopology(subMesh) != MeshTopology.Triangles)
+            {
+                unusable.Add(key);
+                LastSkip = "mesh " + mesh.name + " has no triangles in submesh " + subMesh;
                 return 0;
             }
             int id = nextMeshId++;
             if (!Upload(mesh, subMesh, id)) return 0;
-            Uploads++;
             meshes[key] = new MeshEntry { Id = id, LastSeen = frame, Mesh = mesh, SubMesh = subMesh };
             List<long> keys;
             if (!keysOf.TryGetValue(mesh, out keys)) keysOf[mesh] = keys = new List<long>();
@@ -416,7 +422,7 @@ namespace ReDefinition.Raytracing
             if (materials.TryGetValue(material, out entry))
             {
                 if (entry.LastSeen != frame && !entry.Queued
-                    && (entry.Texture == null || (frame + entry.Id) % TextureCheckFrames == 0)
+                    && (frame + entry.Id) % (entry.Texture == null ? MissingTextureCheckFrames : TextureCheckFrames) == 0
                     && MainTexture(material) != entry.Texture)
                 {
                     entry.Queued = true;
@@ -715,6 +721,8 @@ namespace ReDefinition.Raytracing
                 foreach (Mesh mesh in keysOf.Keys)
                     if (mesh == null) dead.Add(mesh);
                 foreach (Mesh mesh in dead) keysOf.Remove(mesh);
+                // The unusable ones of meshes long gone: asked once more if still around.
+                if (unusable.Count > 4096) unusable.Clear();
             }
         }
 
@@ -726,6 +734,7 @@ namespace ReDefinition.Raytracing
             foreach (MaterialEntry entry in materials.Values)
                 RtNative.KspRtReleaseMaterial(entry.Id);
             meshes.Clear();
+            unusable.Clear();
             keysOf.Clear();
             materials.Clear();
             texturesToRead.Clear();

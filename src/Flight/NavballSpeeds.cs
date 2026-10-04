@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using KSP.UI.Screens.Flight;
 using ReDefinition.Core;
+using ReDefinition.Flight.Readouts;
 using TMPro;
 using UnityEngine;
 
@@ -193,7 +194,7 @@ namespace ReDefinition.Flight
 
         private static void Show(TextMeshProUGUI field, double metresPerSecond, ref double before)
         {
-            double shown = Shown(metresPerSecond);
+            double shown = ReadoutMath.ShownSpeed(metresPerSecond);
             if (shown == before) return;
             before = shown;
             field.text = Speed(metresPerSecond);
@@ -202,16 +203,7 @@ namespace ReDefinition.Flight
         // "12.3m/s" below 100, "123m/s" above, as KSP's speed display writes it.
         internal static string Speed(double metresPerSecond)
         {
-            double size = System.Math.Abs(metresPerSecond);
-            // No "-0.0" for a speed that rounds to nothing.
-            return Shown(metresPerSecond).ToString(size < 99.95 ? "0.0" : "0", System.Globalization.CultureInfo.InvariantCulture) + "m/s";
-        }
-
-        // The speed rounded as it is written, which alone decides the text.
-        private static double Shown(double metresPerSecond)
-        {
-            double shown = System.Math.Abs(metresPerSecond) < 99.95 ? System.Math.Round(metresPerSecond, 1) : System.Math.Round(metresPerSecond);
-            return shown == 0.0 ? 0.0 : shown;
+            return ReadoutMath.Speed(metresPerSecond, "");
         }
     }
 }

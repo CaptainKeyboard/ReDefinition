@@ -84,27 +84,16 @@ namespace ReDefinition.Flight
 
         private static void Ask(StageManager manager)
         {
-            MultiOptionDialog confirm = new MultiOptionDialog("ReDefinitionResetStaging",
-                "Put every part back into the stage KSP gives it?", "Reset Staging", HighLogic.UISkin, 320f,
-                new DialogGUIHorizontalLayout(
-                    new DialogGUIButton("Reset", () =>
-                    {
-                        if (manager != null) ResetMethod.Invoke(manager, null);
-                    }, 100f, 30f, true),
-                    new DialogGUIFlexibleSpace(),
-                    new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), () => { }, 100f, 30f, true)));
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), confirm, false,
-                HighLogic.UISkin));
+            ConfirmDialog.Show("ReDefinitionResetStaging", "Reset Staging", "Put every part back into the stage KSP gives it?", 320f,
+                "Reset", () =>
+                {
+                    if (manager != null) ResetMethod.Invoke(manager, null);
+                }, 100f);
         }
     }
 
     public abstract class HudTooltips : MonoBehaviour
     {
-        private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
-        private static readonly FieldInfo AddButton = typeof(StageGroup).GetField("addButton", Private);
-        private static readonly FieldInfo DeleteButton = typeof(StageGroup).GetField("deleteButton", Private);
-        private static readonly FieldInfo DeltaVBar = typeof(StageGroup).GetField("DeltaVHeadingObject", Private);
-
         private float next;
         private bool failed;
 
@@ -133,18 +122,18 @@ namespace ReDefinition.Flight
                     foreach (StageGroup group in manager.Stages)
                     {
                         if (group == null) continue;
-                        Tip(AddButton, group, "Add Stage");
-                        Tip(DeleteButton, group, "Remove Stage");
-                        Tip(DeltaVBar, group, "Toggle Stage Details");
+                        Tip(StageGroupFields.AddButton, group, "Add Stage");
+                        Tip(StageGroupFields.DeleteButton, group, "Remove Stage");
+                        Tip(StageGroupFields.DeltaVHeading, group, "Toggle Stage Details");
                     }
             }
             DeltaVApp app = DeltaVApp.Instance;
             if (app != null && app.appLauncherButton != null) Tip(app.appLauncherButton.gameObject, "Delta-V Tools");
         }
 
-        private static void Tip(FieldInfo field, StageGroup group, string text)
+        private static void Tip<T>(HarmonyLib.AccessTools.FieldRef<StageGroup, T> field, StageGroup group, string text) where T : Component
         {
-            Component part = field != null ? field.GetValue(group) as Component : null;
+            T part = field != null ? field(group) : null;
             if (part != null) Tip(part.gameObject, text);
         }
 

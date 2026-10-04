@@ -4,7 +4,6 @@ using System.Reflection;
 using KSP.UI;
 using KSP.UI.Screens;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -58,12 +57,6 @@ namespace ReDefinition.Flight
 
         private static readonly FieldInfo FramePrefabField = typeof(DeltaVApp).GetField("appFramePrefab", Private);
         private static readonly FieldInfo SituationPrefabField = typeof(DeltaVApp).GetField("situationPrefab", Private);
-        private static readonly FieldInfo PanelField = typeof(StageGroup).GetField("InfoPanelLayout", Private);
-        private static readonly FieldInfo PanelWidthField = typeof(StageGroup).GetField("InfoPanelWidth", Private);
-        // Read for every stage in every frame: without a FieldInfo's boxing.
-        private static readonly HarmonyLib.AccessTools.FieldRef<StageGroup, float> PanelWidthOf =
-            PanelWidthField != null ? HarmonyLib.AccessTools.FieldRefAccess<StageGroup, float>(PanelWidthField) : null;
-        private static readonly FieldInfo ShownField = typeof(StageGroup).GetField("infoPanelShown", Private);
         private static readonly FieldInfo PinnedField = typeof(ApplicationLauncher).GetField("lastPinnedButton", Private);
         private static readonly MethodInfo ClickField = typeof(ApplicationLauncher).GetMethod("MutuallyExclusiveStockApplistCLICK", Private);
         private static readonly MethodInfo InitEnabled = typeof(DeltaVAppValues.InfoLine).GetMethod("InitEnabledValue", Private);
@@ -212,7 +205,7 @@ namespace ReDefinition.Flight
         private void Stages(StageManager manager)
         {
             foreach (StageGroup group in manager.Stages)
-                if (group != null && seen.Add(group) && open && !(bool)ShownField.GetValue(group)) group.ToggleInfoPanel(true);
+                if (group != null && seen.Add(group) && open && !StageGroupFields.PanelShown(group)) group.ToggleInfoPanel(true);
             seen.RemoveWhere(IsGone);
         }
 
@@ -244,9 +237,9 @@ namespace ReDefinition.Flight
             float target = 0f, now = 0f;
             foreach (StageGroup group in manager.Stages)
             {
-                LayoutElement panel = group != null ? PanelField.GetValue(group) as LayoutElement : null;
+                LayoutElement panel = group != null ? StageGroupFields.Panel(group) : null;
                 if (panel == null) continue;
-                target = Mathf.Max(target, PanelWidthOf(group));
+                target = Mathf.Max(target, StageGroupFields.PanelWidth(group));
                 if (panel.gameObject.activeInHierarchy)
                     now = Mathf.Max(now, StageInfoColumns.IconsWidth(group) + Mathf.Max(0f, panel.preferredWidth));
             }
@@ -276,8 +269,8 @@ namespace ReDefinition.Flight
             GenericAppFrame framePrefab = FramePrefabField != null ? FramePrefabField.GetValue(app) as GenericAppFrame : null;
             DeltaVAppSituation situationPrefab = SituationPrefabField != null ? SituationPrefabField.GetValue(app) as DeltaVAppSituation : null;
             Transform total = manager.deltaVTotalSection != null ? manager.deltaVTotalSection.transform : null;
-            if (framePrefab == null || situationPrefab == null || total == null || total.parent == null || PanelField == null
-                || PanelWidthField == null || PanelWidthOf == null)
+            if (framePrefab == null || situationPrefab == null || total == null || total.parent == null || StageGroupFields.Panel == null
+                || StageGroupFields.PanelWidth == null)
             {
                 failed = true;
                 CompatibilityLog.Warn("deltav-tools", "The delta-v tools could not be built into the staging stack: KSP's parts are not as expected.");
@@ -339,7 +332,8 @@ namespace ReDefinition.Flight
             {
                 pressure.SetParent(row, false);
                 pressure.SetAsLastSibling();
-                LayoutElement layout = pressure.GetComponent<LayoutElement>() ?? pressure.gameObject.AddComponent<LayoutElement>();
+                LayoutElement layout = pressure.GetComponent<LayoutElement>();
+                if (layout == null) layout = pressure.gameObject.AddComponent<LayoutElement>();
                 layout.flexibleWidth = 1f;
                 TextMeshProUGUI text = pressure.GetComponent<TextMeshProUGUI>();
                 if (text != null) text.alignment = TextAlignmentOptions.MidlineRight;

@@ -245,15 +245,7 @@ namespace redefinition
         if (list != nullptr)
             return true;
 
-        HRESULT hr = device12->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&fence12));
-        HANDLE handle = nullptr;
-        if (SUCCEEDED(hr))
-            hr = device12->CreateSharedHandle(fence12.Get(), nullptr, GENERIC_ALL, nullptr, &handle);
-        if (SUCCEEDED(hr))
-        {
-            hr = device11->OpenSharedFence(handle, IID_PPV_ARGS(&fence11));
-            CloseHandle(handle);
-        }
+        HRESULT hr = SharedFence(device11.Get(), device12.Get(), fence12, fence11);
         for (UINT i = 0; SUCCEEDED(hr) && i < kLists; ++i)
             hr = device12->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&allocators[i]));
         if (SUCCEEDED(hr))

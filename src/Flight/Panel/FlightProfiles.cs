@@ -33,13 +33,6 @@ namespace ReDefinition.Flight.Panel
         {
             get { return Situation != PanelSituation.Manual; }
         }
-
-        internal FlightProfile Copy()
-        {
-            FlightProfile copy = new FlightProfile { Name = Name, Situation = Situation };
-            copy.Keys.AddRange(Keys);
-            return copy;
-        }
     }
 
     // The flight panel's profiles as the player keeps them, in

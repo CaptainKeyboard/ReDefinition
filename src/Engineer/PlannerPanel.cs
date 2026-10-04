@@ -198,12 +198,12 @@ namespace ReDefinition.Engineer
             transition = null;
         }
 
-        internal void Update()
+        internal void Tick()
         {
             if (root == null || !Shown) return;
             // The typing lock first: it has to go even where the rest throws.
             view.Keep(root.uiItem);
-            view.Update();
+            view.Tick();
             root.Update();
         }
     }

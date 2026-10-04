@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;

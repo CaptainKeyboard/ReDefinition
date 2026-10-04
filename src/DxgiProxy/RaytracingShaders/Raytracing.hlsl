@@ -119,7 +119,7 @@ void DiffuseLight(uint3 id : SV_DispatchThreadID)
     // The distance of a miss is the ray's length (100000 from the mod), past a half
     // float's largest value: written as is, it reads as infinity in the half-float
     // target. Clamped to FP16_MAX, as the sky in Reconstruct.hlsl.
-    output1[id.xy] = float4(radiance, min(distance, 65504.0f));
+    output1[id.xy] = float4(radiance, min(distance, kFp16Max));
 }
 
 // u2: the light the pixel's surface reflects towards the camera from its specular
@@ -129,7 +129,7 @@ void DiffuseLight(uint3 id : SV_DispatchThreadID)
 // frame (kRtFrameWater) on KSP's own sea (STOCK_WATER) only the sea (IsStockWater), its
 // waves and their roughness (StockWaves), whose highlight ReDefinition turns off:
 // what the rays meet and the sky, and the sun's and the moons' discs as on Scatterer's
-// ocean (BodiesMirrored), undenoised, as the glints are; the reflections' shader takes
+// ocean (BodiesMirroredAt), undenoised, as the glints are; the reflections' shader takes
 // it there with water's Fresnel term (ReDefinitionDeferredReflections.shader).
 [numthreads(8, 8, 1)]
 void SpecularLight(uint3 id : SV_DispatchThreadID)
@@ -148,6 +148,8 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     float alpha = SmoothnessToAlpha(surface.smoothness);
     bool stockWater = WATER_SURFACE && STOCK_WATER;
     float waterM = 0.0f;
+    // The water a pixel covers across the view: its width at its distance.
+    float pixelWidth = WATER_SURFACE ? length(ClipToWorld(PixelToNdc(id.xy + uint2(1u, 0u)), depth) - position) : 0.0f;
     if (stockWater && !IsStockWater(position, normal))
     {
         output2[id.xy] = float4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -155,11 +157,9 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     }
     if (stockWater)
     {
-        // The water a pixel covers across the view: its width at its distance.
-        float3 beside = ClipToWorld(PixelToNdc(id.xy + uint2(1u, 0u)), depth);
-        float4 waves = StockWaves(position, length(beside - position));
+        float4 waves = StockWaves(position, pixelWidth);
         normal = waves.xyz;
-        waterM = sqrt(waves.w * waves.w + kStockWaterSmooth * kStockWaterSmooth);
+        waterM = sqrt(waves.w * waves.w + kWaterLeastRoughness * kWaterLeastRoughness);
         // GGX's alpha for the reflected rays, which spread about as Beckmann's m / sqrt(2).
         alpha = 0.7071f * waterM;
     }
@@ -178,7 +178,7 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     // Water reflects nothing under its own surface: a wave's reflection that points
     // below the horizon is turned back over it, or it would meet the sea floor.
     float3 up = bodySphere.w > 0.0f ? normalize(position - bodySphere.xyz) : float3(0.0f, 1.0f, 0.0f);
-    if ((WATER_SURFACE || stockWater) && dot(direction, up) < 0.0f)
+    if (WATER_SURFACE && dot(direction, up) < 0.0f)
         direction -= 2.0f * dot(direction, up) * up;
     float distance;
     float3 radiance = Radiance(RayOrigin(position, normal), direction, SPECULAR_DISTANCE, BOUNCES, random, distance,
@@ -186,27 +186,25 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     if (stockWater)
     {
         radiance += BodiesMirroredAt(position, normal, view, waterM, kTerrainSkip);
-        output2[id.xy] = float4(radiance, min(distance, 65504.0f));
+        output2[id.xy] = float4(radiance, min(distance, kFp16Max));
         return;
     }
     if (WATER_SURFACE)
     {
-        // Where the ray met the scene, what it met, and its distance in w, below 60000.
-        // Where it met nothing, only the light of the sun's and the moons' discs the wave
-        // mirrors, and 65000 in w: the ocean keeps its own
-        // reflection of the sky, and this light adds to it (ReDefinitionRtCapture.shader,
-        // fragOceanCompose).
+        // Where the ray met the scene, what it met, and its distance in w, at most
+        // kWaterHitLimit. Where it met nothing, only the light of the sun's and the moons'
+        // discs the wave mirrors, and kWaterSky in w: the ocean keeps its own reflection of
+        // the sky, and this light adds to it (ReDefinitionRtCapture.shader, fragOceanCompose).
         if (distance < SPECULAR_DISTANCE)
         {
-            output2[id.xy] = float4(radiance, min(distance, 59999.0f));
+            output2[id.xy] = float4(radiance, min(distance, kWaterHitLimit));
             return;
         }
         // Scatterer's variance (alpha = sqrt(sigmaSq) / 2) as ripples on its normals.
-        float3 beside = ClipToWorld(PixelToNdc(id.xy + uint2(1u, 0u)), depth);
-        float4 rippled = bodySphere.w > 0.0f ? ScattererRipples(position, normal, 2.0f * alpha, length(beside - position))
+        float4 rippled = bodySphere.w > 0.0f ? ScattererRipples(position, normal, 2.0f * alpha, pixelWidth)
                                              : float4(normal, 2.0f * alpha);
-        float m = sqrt(rippled.w * rippled.w + kStockWaterSmooth * kStockWaterSmooth);
-        output2[id.xy] = float4(BodiesMirroredAt(position, rippled.xyz, view, m, kTerrainSkip), 65000.0f);
+        float m = sqrt(rippled.w * rippled.w + kWaterLeastRoughness * kWaterLeastRoughness);
+        output2[id.xy] = float4(BodiesMirroredAt(position, rippled.xyz, view, m, kTerrainSkip), kWaterSky);
         return;
     }
     // A ray that met nothing sees the moons' discs; one that meets a disc counts as a
@@ -217,11 +215,11 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
         if (any(disc > 0.0f))
         {
             radiance += disc;
-            distance = 60000.0f;
+            distance = kDiscHit;
         }
     }
     // A miss clamped to FP16_MAX, as in DiffuseLight.
-    output2[id.xy] = float4(radiance, min(distance, 65504.0f));
+    output2[id.xy] = float4(radiance, min(distance, kFp16Max));
 }
 
 // The signals as the denoiser left them, for ForwardLight (Raytracing.cpp binds them).

@@ -31,12 +31,13 @@ namespace ReDefinition.Probe
         internal const string SaveFolder = "ReDefinitionProbe";
         internal static bool Launched;
         // -redefinitionProbeSea: a capsule afloat out at sea, no land within kilometres.
+        internal const string SeaArgument = "-redefinitionProbeSea";
+        // -redefinitionProbeCoast, with it: the capsule off the island airfield's shore.
         internal const string CoastArgument = "-redefinitionProbeCoast";
         // -redefinitionProbeStay: the flight left to the player, the clouds hidden, no
         // measurement, KSP left running (with -redefinitionProbeSea: a capsule at sea to
         // look at the water's reflections oneself).
         internal const string StayArgument = "-redefinitionProbeStay";
-        internal const string SeaArgument = "-redefinitionProbeSea";
 
         // -redefinitionProbeScenes <n>: n round trips from the flight to the space
         // centre and back, each flight settled, for what scene changes leave behind

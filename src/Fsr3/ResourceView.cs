@@ -33,12 +33,6 @@ namespace FidelityFX
         /// </summary>
         public static readonly ResourceView Unassigned = new ResourceView(default);
             
-        /// <summary>
-        /// This value contains a valid texture reference that can be bound to a shader, however it is just an empty placeholder texture.
-        /// Binding this to a shader can be seen as setting the texture variable inside the shader to null.
-        /// </summary>
-        public static readonly ResourceView None = new ResourceView(BuiltinRenderTextureType.None);
-            
         public ResourceView(in RenderTargetIdentifier renderTarget, RenderTextureSubElement subElement = RenderTextureSubElement.Default, int mipLevel = 0)
         {
             RenderTarget = renderTarget;

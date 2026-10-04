@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace ReDefinition.Flight.Readouts
 {
@@ -6,6 +7,9 @@ namespace ReDefinition.Flight.Readouts
     // (ReadoutMathTests).
     internal static class ReadoutMath
     {
+        private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
+        private static readonly string[] DistanceUnits = { "m", "km", "Mm", "Gm", "Tm" };
+
         // The phase angle, in degrees from 0 to 360, at which a transfer from a
         // circular orbit of radius `from` to one of radius `to` about the same body
         // meets its target: the target must lead by 180 degrees less what it covers
@@ -64,7 +68,7 @@ namespace ReDefinition.Flight.Readouts
         {
             if (double.IsNaN(metres) || double.IsInfinity(metres)) return "-";
             double size = Math.Abs(metres);
-            string[] units = { "m", "km", "Mm", "Gm", "Tm" };
+            string[] units = DistanceUnits;
             int unit = 0;
             while (size >= 1000.0 && unit < units.Length - 1)
             {
@@ -74,17 +78,29 @@ namespace ReDefinition.Flight.Readouts
             }
             string format = size >= 100.0 ? "0" : size >= 10.0 ? "0.0" : "0.00";
             if (unit == 0) format = "0";
-            return metres.ToString(format, System.Globalization.CultureInfo.InvariantCulture) + " " + units[unit];
+            return metres.ToString(format, Invariant) + " " + units[unit];
         }
 
         // "12.3 m/s", "1,234 m/s" without the comma.
         internal static string Speed(double metresPerSecond)
         {
+            return Speed(metresPerSecond, " ");
+        }
+
+        // A speed with `separator` between the number and "m/s": KSP's speed
+        // display writes none.
+        internal static string Speed(double metresPerSecond, string separator)
+        {
             if (double.IsNaN(metresPerSecond) || double.IsInfinity(metresPerSecond)) return "-";
-            double size = Math.Abs(metresPerSecond);
-            double shown = Math.Round(metresPerSecond, size < 99.95 ? 1 : 0);
-            return (shown == 0.0 ? 0.0 : shown).ToString(size < 99.95 ? "0.0" : "0", System.Globalization.CultureInfo.InvariantCulture)
-                   + " m/s";
+            return ShownSpeed(metresPerSecond).ToString(Math.Abs(metresPerSecond) < 99.95 ? "0.0" : "0", Invariant) + separator + "m/s";
+        }
+
+        // A speed rounded as it is written, which alone decides the text: one
+        // decimal below 100, none above; never -0.
+        internal static double ShownSpeed(double metresPerSecond)
+        {
+            double shown = Math.Round(metresPerSecond, Math.Abs(metresPerSecond) < 99.95 ? 1 : 0);
+            return shown == 0.0 ? 0.0 : shown;
         }
 
         // "12.3°".
@@ -92,7 +108,7 @@ namespace ReDefinition.Flight.Readouts
         {
             if (double.IsNaN(degrees) || double.IsInfinity(degrees)) return "-";
             double shown = Math.Round(degrees, 1);
-            return (shown == 0.0 ? 0.0 : shown).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "°";
+            return (shown == 0.0 ? 0.0 : shown).ToString("0.0", Invariant) + "°";
         }
 
         // "T - 4m 35s" before, "T + 12s" after, as KSP's maneuver panel writes times.
@@ -110,8 +126,8 @@ namespace ReDefinition.Flight.Readouts
             long days = whole / 21600, hours = whole % 21600 / 3600, minutes = whole % 3600 / 60, secs = whole % 60;
             string sign = seconds < 0.0 && whole > 0 ? "-" : "";
             if (days > 0) return sign + days + "d " + hours + "h";
-            if (hours > 0) return sign + hours + "h " + minutes.ToString("00") + "m";
-            if (minutes > 0) return sign + minutes + "m " + secs.ToString("00") + "s";
+            if (hours > 0) return sign + hours + "h " + minutes.ToString("00", Invariant) + "m";
+            if (minutes > 0) return sign + minutes + "m " + secs.ToString("00", Invariant) + "s";
             return sign + secs + "s";
         }
     }

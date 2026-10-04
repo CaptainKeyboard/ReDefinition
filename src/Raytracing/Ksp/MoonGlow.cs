@@ -1,11 +1,10 @@
 using System.Collections.Generic;
 using ReDefinition.Core;
-using ReDefinition.Raytracing;
 using ReDefinition.Upscaler;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace ReDefinition.Flight
+namespace ReDefinition.Raytracing
 {
     // The moons of the planet the camera is at made to stand out in the sky: each disc a
     // little brighter, with a soft glow round it, the more the darker the sky. On the
@@ -31,7 +30,7 @@ namespace ReDefinition.Flight
         private void Start()
         {
             string problem;
-            Shader shader = FsrShaderBundle.LoadShader("Hidden/ReDefinition/MoonGlow", out problem);
+            Shader shader = ShaderBundle.LoadShader("Hidden/ReDefinition/MoonGlow", out problem);
             if (shader == null)
             {
                 Debug.LogWarning(Log.Tag + " The moons' glow does not run: " + problem);
@@ -79,14 +78,8 @@ namespace ReDefinition.Flight
             CelestialBody star = RtKspMods.StarBody();
             if (main == null || star == null) return;
 
-            CelestialBody planet = main;
-            while (planet.referenceBody != null && planet.referenceBody != star && planet.referenceBody != planet)
-                planet = planet.referenceBody;
-            moons.Clear();
-            if (planet != main) moons.Add(planet);
-            if (planet.orbitingBodies != null)
-                foreach (CelestialBody body in planet.orbitingBodies)
-                    if (body != main) moons.Add(body);
+            if (!RtReflectors.SystemOf(main, star, moons)) return;
+            moons.Remove(main);
 
             Vector3d eye = camera.transform.position;
             // The darker the sky, the more a disc stands out: faint by day, full once the

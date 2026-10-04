@@ -111,21 +111,17 @@ namespace ReDefinition.Upscaler
 
             try
             {
-                HarmonyLib.Harmony harmony = new HarmonyLib.Harmony(HarmonyId);
-                harmony.Patch(onPreRender, prefix: Hook(nameof(BeforePreRender)), finalizer: Hook(nameof(AfterPreRender)));
-                harmony.Patch(helper, postfix: Hook(nameof(AfterNonJitteredProjection)));
+                HarmonyHooks.Install(HarmonyId, typeof(EveCloudMotion), new List<HarmonyHook>
+                {
+                    new HarmonyHook(onPreRender, nameof(BeforePreRender), null, nameof(AfterPreRender)),
+                    new HarmonyHook(helper, null, nameof(AfterNonJitteredProjection), null),
+                });
             }
             catch (Exception e)
             {
-                new HarmonyLib.Harmony(HarmonyId).UnpatchAll(HarmonyId);
                 CompatibilityLog.Warn("eve-cloud-jitter", "EVE's clouds could not be hooked for the jitter ("
                                                           + CompatibilityLog.Reason(e) + ").");
             }
-        }
-
-        private static HarmonyLib.HarmonyMethod Hook(string name)
-        {
-            return new HarmonyLib.HarmonyMethod(typeof(EveCloudMotion).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static));
         }
 
         // Runs inside EVE: nothing may escape.

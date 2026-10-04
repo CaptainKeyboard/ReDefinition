@@ -6,7 +6,6 @@ using KSP.UI;
 using KSP.UI.Screens;
 using KSP.UI.Screens.Flight;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;

@@ -114,6 +114,15 @@ SamplerState linearWrap : register(s2);
 #define LIGHT_COUNT ((uint)lightParams.x)
 #define GAMMA_INPUTS (lightParams.y > 0.5f)
 #define SUN_MIRROR (lightParams.z)
+
+// The hit distances the signals carry in w: a miss as a half float's largest value; a
+// reflected ray that met a moon's disc (kDiscHit); in the water's frame a ray that met
+// the scene at most kWaterHitLimit, one that met nothing kWaterSky (ReDefinitionRtCapture
+// .shader, fragOceanCompose, reads both).
+static const float kFp16Max = 65504.0f;
+static const float kDiscHit = 60000.0f;
+static const float kWaterHitLimit = 59999.0f;
+static const float kWaterSky = 65000.0f;
 #define STOCK_WATER (lightParams.w > 0.5f)
 
 // The light transport is linear: sums and averages of light -- a hemisphere of sky and
@@ -500,27 +509,30 @@ float3 BodyDiscs(float3 direction)
     return total;
 }
 
-// The specular light a disc of angular `radius` towards `towards` gives water of
-// Beckmann roughness `m` (the root mean square of its slopes), per unit of the disc's
-// illuminance. Beckmann's distribution, not GGX's: a sea's slopes are near Gaussian (Cox
-// and Munk), as Bruneton's ocean and Scatterer take them, and GGX's long tails let the
-// glints of slopes four and five times the usual mirror a disc as bright as the moon's
-// far to its sides -- measured at sea, 2026-10-04, a moon's path 2.5 times as wide as its
-// waves allow. The representative point --
-// the direction on the disc closest to the reflection vector, after Frostbite's sun as a
-// disc area light (Lagarde and de Rousiers, "Moving Frostbite to Physically Based
-// Rendering", 2014, listing 6) -- lit as a punctual light, with the energy the wider
-// lobe adds taken back by (alpha / alpha')^2, alpha' = alpha + radius / 3 (Karis, "Real
-// Shading in Unreal Engine 4", 2013, equations 10 and 14), and never brighter than the
-// disc itself, which that approximation overshoots at grazing angles. Without the
-// Fresnel term, which the reader applies. Smooth water mirrors the disc as it is; rough
-// water spreads it into a highlight stretched at grazing angles, the sea's long path.
+// Smith's shadowing of one direction for Beckmann's distribution of roughness `m`
+// (Walter et al., "Microfacet Models for Refraction through Rough Surfaces", 2007,
+// equation 27).
 float BeckmannG1(float cosine, float m)
 {
     float c = cosine / (m * sqrt(max(1.0f - cosine * cosine, 1e-8f)));
     return c < 1.6f ? (3.535f * c + 2.181f * c * c) / (1.0f + 2.276f * c + 2.577f * c * c) : 1.0f;
 }
 
+// The specular light a disc of angular `radius` towards `towards` gives water of
+// Beckmann roughness `m` (the root mean square of its slopes), per unit of the disc's
+// illuminance. Beckmann's distribution, not GGX's: a sea's slopes are near Gaussian (Cox
+// and Munk), as Bruneton's ocean and Scatterer take them, and GGX's long tails let the
+// glints of slopes four and five times the usual mirror a disc as bright as the moon's
+// far to its sides -- measured at sea, 2026-10-04, a moon's path 2.5 times as wide as its
+// waves allow. The representative point -- the direction on the disc closest to the
+// reflection vector, after Frostbite's sun as a disc area light (Lagarde and de
+// Rousiers, "Moving Frostbite to Physically Based Rendering", 2014, listing 6) -- lit as
+// a punctual light, with the energy the wider lobe adds taken back by (m / m')^2,
+// m' = m + radius / 3 (Karis, "Real
+// Shading in Unreal Engine 4", 2013, equations 10 and 14), and never brighter than the
+// disc itself, which that approximation overshoots at grazing angles. Without the
+// Fresnel term, which the reader applies. Smooth water mirrors the disc as it is; rough
+// water spreads it into a highlight stretched at grazing angles, the sea's long path.
 float DiscSpecular(float3 normal, float3 view, float3 towards, float radius, float m)
 {
     float3 r = reflect(-view, normal);
@@ -539,8 +551,6 @@ float DiscSpecular(float3 normal, float3 view, float3 towards, float radius, flo
     float a2 = a * a;
     float nh2 = nh * nh;
     float D = exp(-(1.0f - nh2) / (nh2 * a2)) / (kPi * a2 * nh2 * nh2);
-    // Smith's shadowing for Beckmann's distribution, per direction (Walter et al.,
-    // "Microfacet Models for Refraction through Rough Surfaces", 2007, equation 27).
     float visibility = BeckmannG1(nv, a) * BeckmannG1(nl, a) / (4.0f * nl * nv);
     float wide = saturate(a + radius / 3.0f);
     return min(D * visibility * nl * (a * a) / (wide * wide), 1.0f / (kPi * sinRadius * sinRadius));
@@ -549,10 +559,10 @@ float DiscSpecular(float3 normal, float3 view, float3 towards, float radius, flo
 // KSP's own sea (STOCK_WATER), drawn into Unity's G-buffer by its ocean shader with
 // normals from its normal map: a pixel within kStockWaterBand metres of the main
 // body's sea level whose normal faces up, as the sea's does and a hull floating in it
-// mostly not. Its waves and roughness are ReDefinition's (StockWaves); kStockWaterSmooth
+// mostly not. Its waves and roughness are ReDefinition's (StockWaves); kWaterLeastRoughness
 // the least roughness, of ripples shorter than the shortest wave.
 static const float kStockWaterBand = 2.0f;
-static const float kStockWaterSmooth = 0.004f;
+static const float kWaterLeastRoughness = 0.004f;
 
 bool IsStockWater(float3 position, float3 normal)
 {
@@ -565,9 +575,9 @@ bool IsStockWater(float3 position, float3 normal)
 // KSP's own sea's waves, which its normal map barely carries. The long waves, 40 m down
 // to 2 m, as kStockWaves sine waves spread about a wind direction and across it, each of
 // slope kStockWaveSlope, running as deep water's waves do (omega^2 = g k); the ripples,
-// 2 m down to 5 cm, as kStockRippleOctaves octaves of gradient noise, short-crested as
+// 2 m down to 5 cm, as kRippleOctaves octaves of gradient noise, short-crested as
 // ripples are -- sine waves that short would draw straight crests across the sea, a weave
-// -- each of slope deviation kStockRippleSlope, drifting with the wind at their waves'
+// -- each of slope deviation kRippleSlope, drifting with the wind at their waves'
 // speed. Together a slope variance of about 0.025, Scatterer's ocean's (measured at sea:
 // its variance as Beckmann's m^2, m = 2 alpha, alpha 0.073 to 0.1). The time is
 // planetAlbedo.w, in seconds. Fixed to the body: positions from its centre along the
@@ -581,8 +591,8 @@ bool IsStockWater(float3 position, float3 normal)
 // square.
 static const uint kStockWaves = 24u;
 static const float kStockWaveSlope = 0.0254f;
-static const uint kStockRippleOctaves = 6u;
-static const float kStockRippleSlope = 0.055f;
+static const uint kRippleOctaves = 6u;
+static const float kRippleSlope = 0.055f;
 
 // A cell's random unit gradient, from its integer coordinates (an integer hash, exact at
 // any distance from the origin, as sin-based hashes are not).
@@ -641,15 +651,15 @@ SeaFrame MakeSeaFrame(float3 position, float acrossFootprint)
 }
 
 // The ripples' slopes along the frame's east and north (xy) and the slope variance of the
-// octaves no pixel shows (z), each octave of slope deviation kStockRippleSlope times `scale`.
+// octaves no pixel shows (z), each octave of slope deviation kRippleSlope times `scale`.
 float3 SeaRipples(SeaFrame f, float scale)
 {
     const float2 wind = float2(cos(0.35f), sin(0.35f));
     float time = planetAlbedo.w;
-    float slopeDeviation = kStockRippleSlope * scale;
+    float slopeDeviation = kRippleSlope * scale;
     float2 slope = 0.0f;
     float lost = 0.0f;
-    for (uint octave = 0u; octave < kStockRippleOctaves; ++octave)
+    for (uint octave = 0u; octave < kRippleOctaves; ++octave)
     {
         // Each octave half the last one's length, from 2 m: a noise cell is about a
         // ripple's length.
@@ -711,7 +721,7 @@ float4 StockWaves(float3 position, float acrossFootprint)
 float4 ScattererRipples(float3 position, float3 normal, float m, float acrossFootprint)
 {
     SeaFrame f = MakeSeaFrame(position, acrossFootprint);
-    float scale = m / sqrt(float(kStockRippleOctaves) * kStockRippleSlope * kStockRippleSlope);
+    float scale = m / sqrt(float(kRippleOctaves) * kRippleSlope * kRippleSlope);
     float3 ripples = SeaRipples(f, scale);
     return float4(normalize(normal - ripples.x * f.east - ripples.y * f.north), sqrt(ripples.z));
 }

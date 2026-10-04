@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using KSP.UI.Screens;
 using ReDefinition.Core;
-using ReDefinition.Settings;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -124,12 +123,6 @@ namespace ReDefinition.Flight
         }
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        private static readonly FieldInfo InfosField = typeof(StageGroup).GetField("stageGroupInfos", Private);
-        private static readonly FieldInfo WidthField = typeof(StageGroup).GetField("InfoPanelWidth", Private);
-        // Read for every stage in every frame: without the boxing a FieldInfo's
-        // GetValue does for a float.
-        private static readonly HarmonyLib.AccessTools.FieldRef<StageGroup, float> WidthOf =
-            WidthField != null ? HarmonyLib.AccessTools.FieldRefAccess<StageGroup, float>(WidthField) : null;
         private static readonly Action<StageManager> HoverArea = HoverAreaCall();
 
         private static Action<StageManager> HoverAreaCall()
@@ -144,30 +137,64 @@ namespace ReDefinition.Flight
                 return null;
             }
         }
-        private static readonly FieldInfo ShownField = typeof(StageGroup).GetField("infoPanelShown", Private);
-        private static readonly FieldInfo SlidingField = typeof(StageGroup).GetField("infoPanelSliding", Private);
-        private static readonly FieldInfo PanelField = typeof(StageGroup).GetField("InfoPanelLayout", Private);
+
+        // A vertical layout's settings, to be put back.
+        private abstract class LayoutSnapshot
+        {
+            public readonly RectOffset Padding;
+            public readonly float Spacing;
+            public readonly TextAnchor Alignment;
+            public readonly bool ControlWidth, ControlHeight, ExpandWidth, ExpandHeight;
+
+            protected LayoutSnapshot(VerticalLayoutGroup list)
+            {
+                Padding = new RectOffset(list.padding.left, list.padding.right, list.padding.top, list.padding.bottom);
+                Spacing = list.spacing;
+                Alignment = list.childAlignment;
+                ControlWidth = list.childControlWidth;
+                ControlHeight = list.childControlHeight;
+                ExpandWidth = list.childForceExpandWidth;
+                ExpandHeight = list.childForceExpandHeight;
+            }
+
+            public RectOffset CopyPadding()
+            {
+                return new RectOffset(Padding.left, Padding.right, Padding.top, Padding.bottom);
+            }
+
+            public void Restore(GameObject host)
+            {
+                VerticalLayoutGroup list = host.AddComponent<VerticalLayoutGroup>();
+                list.padding = CopyPadding();
+                list.spacing = Spacing;
+                list.childAlignment = Alignment;
+                list.childControlWidth = ControlWidth;
+                list.childControlHeight = ControlHeight;
+                list.childForceExpandWidth = ExpandWidth;
+                list.childForceExpandHeight = ExpandHeight;
+            }
+        }
 
         // The panel's own vertical layout, to be put back.
-        private sealed class Column
+        private sealed class Column : LayoutSnapshot
         {
-            public RectOffset Padding;
-            public float Spacing;
-            public TextAnchor Alignment;
-            public bool ControlWidth, ControlHeight, ExpandWidth, ExpandHeight;
             public float LineHeight;
+
+            public Column(VerticalLayoutGroup list) : base(list)
+            {
+            }
         }
 
         private readonly Dictionary<GameObject, Column> columns = new Dictionary<GameObject, Column>();
 
         // An icon list's own vertical layout and widths, to be put back.
-        private sealed class IconColumn
+        private sealed class IconColumn : LayoutSnapshot
         {
-            public RectOffset Padding;
-            public float Spacing;
-            public TextAnchor Alignment;
-            public bool ControlWidth, ControlHeight, ExpandWidth, ExpandHeight;
             public float ListWidth, ColumnWidth;
+
+            public IconColumn(VerticalLayoutGroup list) : base(list)
+            {
+            }
         }
 
         private readonly Dictionary<GameObject, IconColumn> iconColumns = new Dictionary<GameObject, IconColumn>();
@@ -186,7 +213,8 @@ namespace ReDefinition.Flight
 
         private void Start()
         {
-            if (InfosField == null || WidthField == null || WidthOf == null || ShownField == null || SlidingField == null || PanelField == null)
+            if (StageGroupFields.Infos == null || StageGroupFields.PanelWidth == null || StageGroupFields.PanelShown == null
+                || StageGroupFields.PanelSliding == null || StageGroupFields.Panel == null)
             {
                 CompatibilityLog.Warn("stage-info-columns", "The stage details stay in one column: KSP's staging stack is not as expected.");
                 enabled = false;
@@ -229,12 +257,12 @@ namespace ReDefinition.Flight
 
         private void Arrange(StageGroup group, float column)
         {
-            LayoutElement panel = PanelField.GetValue(group) as LayoutElement;
+            LayoutElement panel = StageGroupFields.Panel(group);
             if (panel == null) return;
-            float target = WidthOf(group);
+            float target = StageGroupFields.PanelWidth(group);
             float blend = panel.gameObject.activeInHierarchy && target > 0f ? Mathf.Clamp01(panel.preferredWidth / target) : 0f;
             Icons(group, blend);
-            List<StageGroupInfoItem> lines = InfosField.GetValue(group) as List<StageGroupInfoItem>;
+            List<StageGroupInfoItem> lines = StageGroupFields.Infos(group);
             int count = lines != null ? lines.Count : 0;
             GameObject host = panel.gameObject;
             // Only a panel laid out one below the other, as KSP's is, or already in
@@ -242,14 +270,14 @@ namespace ReDefinition.Flight
             bool known = columns.ContainsKey(host) || host.GetComponent<VerticalLayoutGroup>() != null;
             bool two = known && count > MostInOneColumn;
             float width = two ? 2f * column : column;
-            if (!Mathf.Approximately(WidthOf(group), width))
+            if (!Mathf.Approximately(StageGroupFields.PanelWidth(group), width))
             {
-                WidthField.SetValue(group, width);
+                StageGroupFields.PanelWidth(group) = width;
                 // A shown panel slides on to the new width from where it is: KSP's
                 // slide took its end as it started (StageGroup.ToggleInfoPanel).
-                if ((bool)ShownField.GetValue(group))
+                if (StageGroupFields.PanelShown(group))
                 {
-                    ShownField.SetValue(group, false);
+                    StageGroupFields.PanelShown(group) = false;
                     group.ToggleInfoPanel(true);
                 }
             }
@@ -265,18 +293,12 @@ namespace ReDefinition.Flight
             {
                 VerticalLayoutGroup list = host.GetComponent<VerticalLayoutGroup>();
                 if (list == null) return;
-                column = new Column
-                {
-                    Padding = new RectOffset(list.padding.left, list.padding.right, list.padding.top, list.padding.bottom),
-                    Spacing = list.spacing, Alignment = list.childAlignment, ControlWidth = list.childControlWidth,
-                    ControlHeight = list.childControlHeight, ExpandWidth = list.childForceExpandWidth,
-                    ExpandHeight = list.childForceExpandHeight, LineHeight = LineHeight(lines),
-                };
+                column = new Column(list) { LineHeight = LineHeight(lines) };
                 if (column.LineHeight <= 0f) return;
                 columns[host] = column;
                 DestroyImmediate(list);
                 grid = host.AddComponent<GridLayoutGroup>();
-                grid.padding = new RectOffset(column.Padding.left, column.Padding.right, column.Padding.top, column.Padding.bottom);
+                grid.padding = column.CopyPadding();
                 grid.childAlignment = column.Alignment;
                 grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
                 grid.startAxis = GridLayoutGroup.Axis.Vertical;
@@ -309,14 +331,7 @@ namespace ReDefinition.Flight
             Column column;
             if (grid == null || !columns.TryGetValue(host, out column)) return;
             DestroyImmediate(grid);
-            VerticalLayoutGroup list = host.AddComponent<VerticalLayoutGroup>();
-            list.padding = new RectOffset(column.Padding.left, column.Padding.right, column.Padding.top, column.Padding.bottom);
-            list.spacing = column.Spacing;
-            list.childAlignment = column.Alignment;
-            list.childControlWidth = column.ControlWidth;
-            list.childControlHeight = column.ControlHeight;
-            list.childForceExpandWidth = column.ExpandWidth;
-            list.childForceExpandHeight = column.ExpandHeight;
+            column.Restore(host);
             columns.Remove(host);
             Size(lines, width);
         }
@@ -381,14 +396,7 @@ namespace ReDefinition.Flight
                 if (blend <= 0f)
                 {
                     DestroyImmediate(columns2);
-                    VerticalLayoutGroup vertical = host.AddComponent<VerticalLayoutGroup>();
-                    vertical.padding = new RectOffset(saved.Padding.left, saved.Padding.right, saved.Padding.top, saved.Padding.bottom);
-                    vertical.spacing = saved.Spacing;
-                    vertical.childAlignment = saved.Alignment;
-                    vertical.childControlWidth = saved.ControlWidth;
-                    vertical.childControlHeight = saved.ControlHeight;
-                    vertical.childForceExpandWidth = saved.ExpandWidth;
-                    vertical.childForceExpandHeight = saved.ExpandHeight;
+                    saved.Restore(host);
                     if (listLayout != null) listLayout.preferredWidth = saved.ListWidth;
                     if (columnLayout != null) columnLayout.preferredWidth = saved.ColumnWidth;
                     iconColumns.Remove(host);
@@ -404,19 +412,16 @@ namespace ReDefinition.Flight
             if (cell.x > 0f && cell.y > 0f) lastCell = cell;
             else cell = lastCell;
             if (list1 == null || cell.x <= 0f || cell.y <= 0f) return;
-            saved = new IconColumn
+            saved = new IconColumn(list1)
             {
-                Padding = new RectOffset(list1.padding.left, list1.padding.right, list1.padding.top, list1.padding.bottom),
-                Spacing = list1.spacing, Alignment = list1.childAlignment, ControlWidth = list1.childControlWidth,
-                ControlHeight = list1.childControlHeight, ExpandWidth = list1.childForceExpandWidth,
-                ExpandHeight = list1.childForceExpandHeight, ListWidth = listLayout != null ? listLayout.preferredWidth : -1f,
+                ListWidth = listLayout != null ? listLayout.preferredWidth : -1f,
                 ColumnWidth = columnLayout != null ? columnLayout.preferredWidth : -1f,
             };
             iconColumns[host] = saved;
             twoColumnPadding = saved.Padding.left + saved.Padding.right;
             DestroyImmediate(list1);
             columns2 = host.AddComponent<IconColumnsLayout>();
-            columns2.padding = new RectOffset(saved.Padding.left, saved.Padding.right, saved.Padding.top, saved.Padding.bottom);
+            columns2.padding = saved.CopyPadding();
             columns2.childAlignment = saved.Alignment;
             columns2.Cell = cell;
             columns2.Spacing = saved.Spacing;
@@ -460,9 +465,9 @@ namespace ReDefinition.Flight
             float needed = 0f;
             foreach (StageGroup group in manager.Stages)
             {
-                LayoutElement panel = group != null ? PanelField.GetValue(group) as LayoutElement : null;
+                LayoutElement panel = group != null ? StageGroupFields.Panel(group) : null;
                 if (panel == null || !panel.gameObject.activeInHierarchy) continue;
-                needed = Mathf.Max(needed, WidthOf(group) + IconsWidth(group) + Buttons);
+                needed = Mathf.Max(needed, StageGroupFields.PanelWidth(group) + IconsWidth(group) + Buttons);
             }
             float width = Mathf.Max(stackWidth, needed);
             if (!Mathf.Approximately(root.sizeDelta.x, width)) root.sizeDelta = new Vector2(width, root.sizeDelta.y);

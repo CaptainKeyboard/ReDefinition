@@ -1,4 +1,4 @@
-using ReDefinition.Scaling;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -17,7 +17,7 @@ namespace ReDefinition.Window
 
         private void Awake()
         {
-            if (UiScaling.TypeOf("PersistentRotation.Interface") != null)
+            if (TypeLookup.Find("PersistentRotation.Interface") != null)
                 ToolbarTakeover.KeepOwn(PersistentRotation, () => false);
         }
     }

@@ -34,6 +34,8 @@
 // A failing proxy shows here as an HRESULT and a log line, without a game
 // launch.
 
+#include "D3d12Util.h"
+#include "Dlss.h"
 #include "FileUtil.h"
 
 #include <windows.h>
@@ -43,6 +45,7 @@
 #include <wrl/client.h>
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -105,7 +108,8 @@ namespace
     // The game's frame index for Reflex (ManagedBridge.cpp, render event 40).
     constexpr int kReflexFrameEvent = 40;
 
-    // The per-frame packet, laid out as FrameGeneration.h declares it.
+    // The per-frame packet, laid out as FrameGeneration.h declares it; the sizes and
+    // offsets are the ones FrameGeneration.h asserts for its own.
     struct FramePacket
     {
         uint32_t size, magic, frameIndex, renderWidth, renderHeight, reset;
@@ -114,41 +118,29 @@ namespace
         float position[3], up[3], right[3], forward[3];
         float viewToClip[16], clipToView[16], clipToPrevClip[16], prevClipToClip[16];
     };
+    static_assert(sizeof(FramePacket) == 360, "FramePacket differs from FrameGeneration.h's");
+    static_assert(offsetof(FramePacket, viewToClip) == 104, "FramePacket differs from FrameGeneration.h's");
+    static_assert(offsetof(FramePacket, prevClipToClip) == 296, "FramePacket differs from FrameGeneration.h's");
     constexpr uint32_t kPacketMagic = 0x4B535046u;
 
-    // DLSS, laid out as Dlss.h declares it.
+    // DLSS, as Dlss.h declares it.
     using DlssStatusFn = int (*)(char*, int);
     using DlssPacketSizeFn = unsigned int (*)();
     using DlssSizesFn = int (*)(unsigned int, unsigned int, int, unsigned int*, unsigned int*, unsigned int*);
     constexpr int kDlssEvent = 2;
     constexpr int kDlssReleaseEvent = 3;
-    struct DlssPacket
-    {
-        uint32_t size, magic;
-        void* colour;
-        void* output;
-        void* depth;
-        void* motionVectors;
-        uint32_t renderWidth, renderHeight, outputWidth, outputHeight;
-        int32_t quality;
-        uint32_t preset, flags;
-        float jitterX, jitterY, motionVectorScaleX, motionVectorScaleY;
-    };
-    constexpr uint32_t kDlssMagic = 0x4B535044u;
-    constexpr uint32_t kDlssHdr = 1u << 0;
-    constexpr uint32_t kDlssDepthInverted = 1u << 1;
-    constexpr uint32_t kDlssAutoExposure = 1u << 2;
-    constexpr uint32_t kDlssReset = 1u << 3;
+    using redefinition::DlssPacket;
+    constexpr uint32_t kDlssMagic = redefinition::kDlssPacketMagic;
+    using redefinition::kDlssHdr;
+    using redefinition::kDlssDepthInverted;
+    using redefinition::kDlssAutoExposure;
+    using redefinition::kDlssReset;
     constexpr int kDlssQueryEvent = 6;
-    struct DlssSizeQuery
-    {
-        uint32_t size, magic;
-        void* texture;
-        uint32_t outputWidth, outputHeight;
-    };
-    constexpr uint32_t kDlssQueryMagic = 0x4B535051u;
+    using redefinition::DlssSizeQuery;
+    constexpr uint32_t kDlssQueryMagic = redefinition::kDlssSizeQueryMagic;
 
-    // AMD's upscaler, laid out as AmdUpscaler.h declares it; the flags as DLSS's.
+    // AMD's upscaler, laid out as AmdUpscaler.h declares it, with the size and offset it
+    // asserts; the flags as DLSS's.
     constexpr int kAmdEvent = 4;
     constexpr int kAmdReleaseEvent = 5;
     struct AmdPacket
@@ -164,9 +156,12 @@ namespace
         void* reactive;
         void* transparencyAndComposition;
     };
+    static_assert(sizeof(AmdPacket) == 112, "AmdPacket differs from AmdUpscaler.h's");
+    static_assert(offsetof(AmdPacket, reactive) == 96, "AmdPacket differs from AmdUpscaler.h's");
     constexpr uint32_t kAmdMagic = 0x4B535041u;
 
-    // Direct3D 12 for mods, laid out as D3d12Compute.h declares it.
+    // Direct3D 12 for mods, laid out as D3d12Compute.h declares it, with the sizes and
+    // offsets it asserts.
     constexpr int kD3d12CreateEvent = 20;
     constexpr int kD3d12DestroyEvent = 21;
     constexpr int kD3d12DispatchEvent = 22;
@@ -195,6 +190,11 @@ namespace
         uint32_t reserved;
         void* texture;
     };
+    static_assert(sizeof(D3d12CreatePacket) == 88, "D3d12CreatePacket differs from D3d12Compute.h's");
+    static_assert(sizeof(D3d12DispatchPacket) == 424, "D3d12DispatchPacket differs from D3d12Compute.h's");
+    static_assert(offsetof(D3d12DispatchPacket, read) == 40, "D3d12DispatchPacket differs from D3d12Compute.h's");
+    static_assert(offsetof(D3d12DispatchPacket, constants) == 168, "D3d12DispatchPacket differs from D3d12Compute.h's");
+    static_assert(sizeof(D3d12HandlePacket) == 24, "D3d12HandlePacket differs from D3d12Compute.h's");
     constexpr uint32_t kD3d12CreateMagic = 0x4B534443u;
     constexpr uint32_t kD3d12DispatchMagic = 0x4B534444u;
     constexpr uint32_t kD3d12HandleMagic = 0x4B534448u;
@@ -287,17 +287,7 @@ namespace
         return device->CreateTexture2D(&desc, &initial, &out);
     }
 
-    float HalfToFloat(uint16_t half)
-    {
-        const int sign = (half >> 15) != 0 ? -1 : 1;
-        const int exponent = (half >> 10) & 0x1F;
-        const int mantissa = half & 0x3FF;
-        if (exponent == 0)
-            return static_cast<float>(sign) * std::ldexp(static_cast<float>(mantissa), -24);
-        if (exponent == 31)
-            return static_cast<float>(sign) * 65504.0f;
-        return static_cast<float>(sign) * std::ldexp(static_cast<float>(mantissa + 1024), exponent - 25);
-    }
+    using redefinition::HalfToFloat;
 
     // What the rig hands over: R32_FLOAT depth and R16G16_FLOAT motion vectors,
     // the formats measured in the game. A flat depth and no motion are enough
@@ -2008,11 +1998,9 @@ int main()
 
         D3D11_TEXTURE2D_DESC stagingDesc = {};
         dlssOutput->GetDesc(&stagingDesc);
+        stagingDesc = redefinition::StagingDesc(stagingDesc);
         stagingDesc.Width = 1;
         stagingDesc.Height = 1;
-        stagingDesc.Usage = D3D11_USAGE_STAGING;
-        stagingDesc.BindFlags = 0;
-        stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
         ComPtr<ID3D11Texture2D> staging;
         hr = dlssDevice->CreateTexture2D(&stagingDesc, nullptr, &staging);
         if (FAILED(hr))
@@ -2166,11 +2154,9 @@ int main()
 
         D3D11_TEXTURE2D_DESC amdStagingDesc = {};
         amdOutput->GetDesc(&amdStagingDesc);
+        amdStagingDesc = redefinition::StagingDesc(amdStagingDesc);
         amdStagingDesc.Width = 1;
         amdStagingDesc.Height = 1;
-        amdStagingDesc.Usage = D3D11_USAGE_STAGING;
-        amdStagingDesc.BindFlags = 0;
-        amdStagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
         ComPtr<ID3D11Texture2D> amdStaging;
         hr = device->CreateTexture2D(&amdStagingDesc, nullptr, &amdStaging);
         if (FAILED(hr))
@@ -2322,11 +2308,9 @@ int main()
         if (SUCCEEDED(hr))
         {
             computeOutput->GetDesc(&computeStagingDesc);
+            computeStagingDesc = redefinition::StagingDesc(computeStagingDesc);
             computeStagingDesc.Width = 1;
             computeStagingDesc.Height = 1;
-            computeStagingDesc.Usage = D3D11_USAGE_STAGING;
-            computeStagingDesc.BindFlags = 0;
-            computeStagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
             hr = device->CreateTexture2D(&computeStagingDesc, nullptr, &computeStaging);
         }
         if (FAILED(hr))

@@ -8,6 +8,7 @@
 //
 // 0 when every check passes.
 
+#include "D3d12Util.h"
 #include "Raytracing.h"
 
 #include <windows.h>
@@ -546,10 +547,7 @@ PsOut PsMain(VsOut input)
     {
         D3D11_TEXTURE2D_DESC desc = {};
         texture->GetDesc(&desc);
-        desc.Usage = D3D11_USAGE_STAGING;
-        desc.BindFlags = 0;
-        desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        desc.MiscFlags = 0;
+        desc = StagingDesc(desc);
         ComPtr<ID3D11Texture2D> staging;
         if (FAILED(device->CreateTexture2D(&desc, nullptr, &staging)))
             return false;
@@ -565,31 +563,6 @@ PsOut PsMain(VsOut input)
                    static_cast<size_t>(desc.Width) * texelSize);
         context->Unmap(staging.Get(), 0);
         return true;
-    }
-
-    float HalfToFloat(uint16_t h)
-    {
-        const uint32_t sign = (h & 0x8000u) << 16;
-        const uint32_t exponent = (h >> 10) & 0x1Fu;
-        const uint32_t mantissa = h & 0x3FFu;
-        uint32_t bits;
-        if (exponent == 0)
-        {
-            if (mantissa == 0)
-                bits = sign;
-            else
-            {
-                float value = std::ldexp(static_cast<float>(mantissa), -24);
-                return (h & 0x8000u) ? -value : value;
-            }
-        }
-        else if (exponent == 31)
-            bits = sign | 0x7F800000u | (mantissa << 13);
-        else
-            bits = sign | ((exponent + 112) << 23) | (mantissa << 13);
-        float result;
-        memcpy(&result, &bits, sizeof(result));
-        return result;
     }
 
     // A greyscale or colour image as a 24-bit BMP.
@@ -806,6 +779,33 @@ PsOut PsMain(VsOut input)
         proxy.event(kFrameEvent, &packet);
     }
 
+    // Where a ray from origin meets an axis-aligned box, or a negative value.
+    double RayBox(Vec3 origin, Vec3 direction, Vec3 centre, const double scale[3])
+    {
+        const double o[3] = { origin.x, origin.y, origin.z };
+        const double d[3] = { direction.x, direction.y, direction.z };
+        const double c[3] = { centre.x, centre.y, centre.z };
+        double tMin = 0.0, tMax = 1e30;
+        for (int a = 0; a < 3; ++a)
+        {
+            const double lo = c[a] - scale[a] * 0.5, hi = c[a] + scale[a] * 0.5;
+            if (std::fabs(d[a]) < 1e-12)
+            {
+                if (o[a] < lo || o[a] > hi)
+                    return -1.0;
+                continue;
+            }
+            double t0 = (lo - o[a]) / d[a], t1 = (hi - o[a]) / d[a];
+            if (t0 > t1)
+                std::swap(t0, t1);
+            tMin = std::max(tMin, t0);
+            tMax = std::min(tMax, t1);
+            if (tMin > tMax)
+                return -1.0;
+        }
+        return tMin;
+    }
+
     // The sun's visibility the CPU expects at every pixel: the depth's position, off the
     // surface as the pass sets it off, against every box in the scene.
     std::vector<int> ExpectedVisibility(const Camera& camera, const std::vector<float>& depth,
@@ -838,30 +838,7 @@ PsOut PsMain(VsOut input)
                 const Vec3 origin = position + n * (0.01 + Length(position) * 0.0005);
                 bool blocked = false;
                 for (const Instance& box : boxes)
-                {
-                    const Vec3 centre = box.position - camera.position;
-                    double tMin = 0.0, tMax = 1e30;
-                    const double o[3] = { origin.x, origin.y, origin.z };
-                    const double d[3] = { l.x, l.y, l.z };
-                    const double c[3] = { centre.x, centre.y, centre.z };
-                    bool miss = false;
-                    for (int a = 0; a < 3 && !miss; ++a)
-                    {
-                        const double lo = c[a] - box.scale[a] * 0.5, hi = c[a] + box.scale[a] * 0.5;
-                        if (std::fabs(d[a]) < 1e-12)
-                        {
-                            miss = o[a] < lo || o[a] > hi;
-                            continue;
-                        }
-                        double t0 = (lo - o[a]) / d[a], t1 = (hi - o[a]) / d[a];
-                        if (t0 > t1)
-                            std::swap(t0, t1);
-                        tMin = std::max(tMin, t0);
-                        tMax = std::min(tMax, t1);
-                        miss = tMin > tMax;
-                    }
-                    blocked = blocked || !miss;
-                }
+                    blocked = blocked || RayBox(origin, l, box.position - camera.position, box.scale) >= 0.0;
                 expected[i] = blocked ? 0 : 1;
             }
         return expected;
@@ -1019,33 +996,6 @@ PsOut PsMain(VsOut input)
             for (int dx = -2; dx <= 2; ++dx)
                 sum += image[(static_cast<size_t>(y + dy) * kWidth + (x + dx)) * 3 + channel];
         return sum / 25.0;
-    }
-
-    // Where a ray from origin meets an axis-aligned box, or a negative value.
-    double RayBox(Vec3 origin, Vec3 direction, Vec3 centre, const double scale[3])
-    {
-        const double o[3] = { origin.x, origin.y, origin.z };
-        const double d[3] = { direction.x, direction.y, direction.z };
-        const double c[3] = { centre.x, centre.y, centre.z };
-        double tMin = 0.0, tMax = 1e30;
-        for (int a = 0; a < 3; ++a)
-        {
-            const double lo = c[a] - scale[a] * 0.5, hi = c[a] + scale[a] * 0.5;
-            if (std::fabs(d[a]) < 1e-12)
-            {
-                if (o[a] < lo || o[a] > hi)
-                    return -1.0;
-                continue;
-            }
-            double t0 = (lo - o[a]) / d[a], t1 = (hi - o[a]) / d[a];
-            if (t0 > t1)
-                std::swap(t0, t1);
-            tMin = std::max(tMin, t0);
-            tMax = std::min(tMax, t1);
-            if (tMin > tMax)
-                return -1.0;
-        }
-        return tMin;
     }
 
     void SaveColour(const wchar_t* name, const std::vector<double>& image, double scale)
@@ -1278,7 +1228,7 @@ int main()
         SendInstances(proxy, scene, camera.position);
     }
 
-    // ---------------------------------------------------------------- 10 km away
+    // ---------------------------------------------------------------- 14 km away
     {
         const Vec3 offset = { 10000.0, 0.0, -10000.0 };
         std::vector<Instance> moved = scene;
@@ -1340,14 +1290,8 @@ int main()
         for (size_t i = 0; i < sum.size(); ++i)
         {
             const float v = static_cast<float>(sum[i]);
-            uint32_t half = 0;
             // Back into a half for SaveVisibility: exact for 0 and 1, close between.
-            const float clamped = std::min(std::max(v, 0.0f), 1.0f);
-            uint32_t bits;
-            memcpy(&bits, &clamped, 4);
-            half = clamped == 0.0f ? 0 : static_cast<uint16_t>(((bits >> 16) & 0x8000) | ((((bits >> 23) & 0xFF) - 112) << 10)
-                                                             | ((bits >> 13) & 0x3FF));
-            image.visibility[i * 4] = static_cast<uint16_t>(half);
+            image.visibility[i * 4] = FloatToHalf(std::min(std::max(v, 0.0f), 1.0f));
         }
         SaveVisibility(L"rt_soft_shadows.bmp", image);
     }
@@ -1510,22 +1454,14 @@ int main()
         // angle from straight up. A mirror-smooth plane alone shows it reflected.
         constexpr UINT envWidth = 256, envHeight = 128;
         std::vector<uint16_t> texels(static_cast<size_t>(envWidth) * envHeight * 4);
-        auto toHalf = [](float value)
-        {
-            uint32_t bits;
-            memcpy(&bits, &value, 4);
-            if (value == 0.0f)
-                return static_cast<uint16_t>(0);
-            return static_cast<uint16_t>(((bits >> 16) & 0x8000) | ((((bits >> 23) & 0xFF) - 112) << 10) | ((bits >> 13) & 0x3FF));
-        };
         for (UINT y = 0; y < envHeight; ++y)
             for (UINT x = 0; x < envWidth; ++x)
             {
                 uint16_t* t = &texels[(static_cast<size_t>(y) * envWidth + x) * 4];
-                t[0] = toHalf((x + 0.5f) / envWidth);
-                t[1] = toHalf((y + 0.5f) / envHeight);
-                t[2] = toHalf(0.25f);
-                t[3] = toHalf(1.0f);
+                t[0] = FloatToHalf((x + 0.5f) / envWidth);
+                t[1] = FloatToHalf((y + 0.5f) / envHeight);
+                t[2] = FloatToHalf(0.25f);
+                t[3] = FloatToHalf(1.0f);
             }
         D3D11_TEXTURE2D_DESC envDesc = {};
         envDesc.Width = envWidth;
