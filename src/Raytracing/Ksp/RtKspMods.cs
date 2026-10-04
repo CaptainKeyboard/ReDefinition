@@ -21,6 +21,14 @@ namespace ReDefinition.Raytracing
         private static Type deferredReflections;
         private static FieldInfo starShifter;
         private static bool scatterer;
+        // Scatterer's OceanNode, its prolandManager and that one's parentCelestialBody
+        // (Scatterer, OceanNode.cs, ProlandManager.cs; public); the body last looked at,
+        // when, and whether one of the nodes belongs to it.
+        private static Type oceanNode;
+        private static FieldInfo nodeManager, managerBody;
+        private static CelestialBody oceanBody;
+        private static float oceanLookedAt = float.NegativeInfinity;
+        private static bool oceanOnBody;
         private static bool oceanReadsLogged;
         private static FieldInfo shifterColour;
         // Parallax's fields, read through compiled getters: a FieldInfo's GetValue costs
@@ -98,6 +106,10 @@ namespace ReDefinition.Raytracing
                     else if (string.Equals(name, "Scatterer", StringComparison.OrdinalIgnoreCase))
                     {
                         scatterer = true;
+                        oceanNode = assembly.GetType("Scatterer.OceanNode");
+                        nodeManager = oceanNode?.GetField("prolandManager", BindingFlags.Public | BindingFlags.Instance);
+                        managerBody = nodeManager?.FieldType.GetField("parentCelestialBody", BindingFlags.Public | BindingFlags.Instance);
+                        if (managerBody != null && managerBody.FieldType != typeof(CelestialBody)) managerBody = null;
                     }
                     else if (name == "Deferred")
                     {
@@ -335,17 +347,47 @@ namespace ReDefinition.Raytracing
         // result whether they run or not.
         internal static bool OceanNeedsDeferredReflections()
         {
-            Look();
-            CelestialBody body = FlightGlobals.currentMainBody;
-            return scatterer && body != null && body.ocean && !Core.ForeignAssumptions.ScattererOceanReflections.Holds;
+            return ScattererOcean(SceneBody()) && !Core.ForeignAssumptions.ScattererOceanReflections.Holds;
         }
 
-        // Whether the main body has a sea and it is KSP's own: no Scatterer draws it.
+        // Whether the scene's body has a sea and it is KSP's own: no Scatterer ocean draws it.
         internal static bool StockOcean()
         {
+            CelestialBody body = SceneBody();
+            return body != null && body.ocean && !ScattererOcean(body);
+        }
+
+        // Whether Scatterer draws an ocean on the body: one of its ocean nodes belongs to it,
+        // looked for at most once a second. A planet pack's sea without Scatterer's ocean
+        // configuration, or Scatterer's ocean switched off, leaves KSP's sea. Where the
+        // fields are not found, Scatterer's presence decides.
+        internal static bool ScattererOcean(CelestialBody body)
+        {
             Look();
-            CelestialBody body = FlightGlobals.currentMainBody;
-            return !scatterer && body != null && body.ocean;
+            if (!scatterer || body == null || !body.ocean) return false;
+            if (oceanNode == null || nodeManager == null || managerBody == null) return true;
+            float now = Time.realtimeSinceStartup;
+            if (body == oceanBody && now < oceanLookedAt + 1f) return oceanOnBody;
+            oceanBody = body;
+            oceanLookedAt = now;
+            oceanOnBody = false;
+            try
+            {
+                foreach (UnityEngine.Object node in UnityEngine.Object.FindObjectsOfType(oceanNode))
+                {
+                    object manager = node != null ? nodeManager.GetValue(node) : null;
+                    if (manager != null && (CelestialBody)managerBody.GetValue(manager) == body)
+                    {
+                        oceanOnBody = true;
+                        break;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                oceanOnBody = true;
+            }
+            return oceanOnBody;
         }
 
         // Whether Scatterer's ocean is drawn and reads Deferred's screen-space reflections
@@ -355,15 +397,14 @@ namespace ReDefinition.Raytracing
         // they run or not (measured: useOceanSSR 1 with them off, KSP.log).
         internal static bool OceanReadsHeldReflections()
         {
-            Look();
-            CelestialBody body = FlightGlobals.currentMainBody;
-            bool reads = scatterer && reflectionsHeld != null && body != null && body.ocean
-                         && Core.ForeignAssumptions.ScattererOceanReflections.Holds;
+            CelestialBody body = SceneBody();
+            bool ocean = ScattererOcean(body);
+            bool reads = ocean && reflectionsHeld != null && Core.ForeignAssumptions.ScattererOceanReflections.Holds;
             if (reads != oceanReadsLogged)
             {
                 oceanReadsLogged = reads;
                 Debug.Log(Core.Log.Tag + " Raytracing: Scatterer " + (scatterer ? "found" : "not found") + ", Deferred's reflections "
-                          + (reflectionsHeld != null ? "held" : "not held") + ", ocean " + (body != null && body.ocean)
+                          + (reflectionsHeld != null ? "held" : "not held") + ", its ocean on " + (body != null ? body.bodyName : "no body") + " " + ocean
                           + ": the ocean " + (reads ? "takes" : "does not take") + " the raytraced reflections.");
             }
             return reads;

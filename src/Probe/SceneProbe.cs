@@ -33,6 +33,11 @@ namespace ReDefinition.Probe
         // <name>: that vessel's flight, wherever it is.
         internal static readonly string SaveFolder = ArgumentAfter("-redefinitionProbeSave") ?? "ReDefinitionProbe";
         internal static readonly string VesselName = ArgumentAfter("-redefinitionProbeVessel");
+        // -redefinitionProbeBody <name>: the sea capsule on that body's sea instead of the
+        // home body's (-redefinitionProbeSea); -redefinitionProbeMoon <name>: the moon the
+        // light probe's "mun-" shots look at instead of the Mun.
+        internal static readonly string BodyName = ArgumentAfter("-redefinitionProbeBody");
+        internal static readonly string MoonName = ArgumentAfter("-redefinitionProbeMoon") ?? "Mun";
 
         private static string ArgumentAfter(string name)
         {
@@ -146,16 +151,28 @@ namespace ReDefinition.Probe
         // sea level and not set down on the ground, which there is the sea floor.
         private static int SeaCapsule(Game game)
         {
-            CelestialBody home = FlightGlobals.GetHomeBody();
-            if (home == null || home.pqsController == null) return -1;
+            CelestialBody home = SceneProbe.BodyName != null
+                ? FlightGlobals.Bodies.Find(b => b.bodyName == SceneProbe.BodyName)
+                : FlightGlobals.GetHomeBody();
+            if (home == null || home.pqsController == null || !home.ocean) return -1;
             Func<double, double, double> ground = (lat, lon) =>
                 home.pqsController.GetSurfaceHeight(home.GetRelSurfaceNVector(lat, lon)) - home.Radius;
             // -redefinitionProbeCoast: 2.6 km off the island airfield's east shore, the
             // island and its sea floor in view; otherwise far out at sea.
             bool coast = Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.CoastArgument) >= 0;
-            double[][] places = coast
-                ? new[] { new[] { -1.54, -71.66 }, new[] { -1.54, -71.62 } }
-                : new[] { new[] { -1.0, -66.0 }, new[] { 0.0, -62.0 }, new[] { -4.0, -64.0 }, new[] { 3.0, -60.0 } };
+            var places = new List<double[]>();
+            if (coast)
+                places.AddRange(new[] { new[] { -1.54, -71.66 }, new[] { -1.54, -71.62 } });
+            else if (SceneProbe.BodyName == null)
+                places.AddRange(new[] { new[] { -1.0, -66.0 }, new[] { 0.0, -62.0 }, new[] { -4.0, -64.0 }, new[] { 3.0, -60.0 } });
+            else
+                // Another body: the first deep sea near its equator.
+                for (double lat = 0.0; lat <= 20.0; lat += 5.0)
+                    for (double lon = -180.0; lon < 180.0; lon += 10.0)
+                    {
+                        places.Add(new[] { lat, lon });
+                        if (lat > 0.0) places.Add(new[] { -lat, lon });
+                    }
             foreach (double[] place in places)
             {
                 bool deep = true;
@@ -176,7 +193,7 @@ namespace ReDefinition.Probe
                 Quaternion upright = Quaternion.FromToRotation(Vector3.up, (Vector3)home.GetRelSurfaceNVector(place[0], place[1]));
                 node.SetValue("rot", KSPUtil.WriteQuaternion(upright));
                 game.flightState.protoVessels.Add(new ProtoVessel(node, game));
-                Debug.Log(Log.Tag + " Probe: a capsule afloat at latitude " + place[0].ToString(CultureInfo.InvariantCulture)
+                Debug.Log(Log.Tag + " Probe: a capsule afloat on " + home.bodyName + " at latitude " + place[0].ToString(CultureInfo.InvariantCulture)
                           + ", longitude " + place[1].ToString(CultureInfo.InvariantCulture) + ", the sea floor "
                           + ground(place[0], place[1]).ToString("0", CultureInfo.InvariantCulture) + " m.");
                 return game.flightState.protoVessels.Count - 1;

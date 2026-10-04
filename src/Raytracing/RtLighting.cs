@@ -65,6 +65,11 @@ namespace ReDefinition.Raytracing
                 // Same as above: Shadows mode passes null, Light/Full sets it later.
                 ownReflections = reflections;
             }
+            else if (reflections == null && current != null && current == ownReflections && reflectionsBefore != null)
+            {
+                // Light or Full to Shadows: Deferred's own reflections back while raytracing goes on.
+                GraphicsSettings.SetCustomShader(BuiltinShaderType.DeferredReflections, reflectionsBefore);
+            }
             ReflectionsReplaced = reflections != null
                                   && GraphicsSettings.GetCustomShader(BuiltinShaderType.DeferredReflections) == reflections;
         }

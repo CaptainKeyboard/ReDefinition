@@ -86,6 +86,7 @@ namespace ReDefinition.Raytracing
                 RtKspMods.HoldDeferredReflections(attached.Settings.Reflections && RtLighting.ReflectionsReplaced
                                                   && !RtKspMods.OceanNeedsDeferredReflections(), sceneCamera);
                 Report();
+                SelfCheck(sceneCamera);
             }
             else if (sceneCamera != failedOn && Time.realtimeSinceStartup >= retryAt) Attach(sceneCamera);
         }
@@ -276,6 +277,48 @@ namespace ReDefinition.Raytracing
         }
 
         // What went into the scene and what it cost, every thirty seconds into the log.
+        // What the raytracing works from, as one line in the log whenever it changes, checked
+        // every two seconds: what the scene camera draws into, whose sea there is and whether
+        // it takes the raytraced reflections, and what is missing. Lines with "missing" name
+        // an input the raytracing goes without.
+        private string lastCheck;
+        private float nextCheck;
+        private readonly StringBuilder check = new StringBuilder(256);
+
+        private void SelfCheck(Camera sceneCamera)
+        {
+            if (Time.unscaledTime < nextCheck) return;
+            nextCheck = Time.unscaledTime + 2f;
+            check.Length = 0;
+            check.Append(Log.Tag).Append(" Raytracing self-check: ").Append(mode).Append(", ")
+                 .Append(sceneCamera.actualRenderingPath).Append(" into ")
+                 .Append(sceneCamera.targetTexture != null ? "a render texture" : "the screen")
+                 .Append(sceneCamera.allowHDR ? " (HDR)" : "");
+            CelestialBody body = RtKspMods.SceneBody();
+            check.Append("; ").Append(body != null ? body.bodyName : "no body");
+            if (body != null && body.ocean)
+            {
+                if (RtKspMods.ScattererOcean(body))
+                {
+                    check.Append(", Scatterer's ocean ")
+                         .Append(RtKspMods.OceanReadsHeldReflections() ? "with the raytraced reflections" : "with its own reflections");
+                }
+                else
+                {
+                    check.Append(", KSP's sea ").Append(RtCamera.StockSeaTraced ? "traced" : "not traced");
+                    if (attached.Settings.Reflections && !RtLighting.ReflectionsReplaced)
+                        check.Append(", missing the reflections' shader (Deferred's own or none)");
+                }
+            }
+            if (RtKspMods.SunLight() == null) check.Append("; missing the sun's light");
+            if (RtKspMods.StarBody() == null) check.Append("; missing the star");
+            if (attached.Settings.Reflections && Probe() == null) check.Append("; missing the sky's probe");
+            string line = check.ToString();
+            if (line == lastCheck) return;
+            lastCheck = line;
+            Debug.Log(line);
+        }
+
         private void Report()
         {
             if (Time.unscaledTime < nextReport) return;

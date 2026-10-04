@@ -43,11 +43,23 @@ namespace ReDefinition.Raytracing
             nodeMaterial = node != null ? node.GetField("m_oceanMaterial", TypeLookup.Any) : null;
             nodeStrength = node != null ? node.GetField(Property, TypeLookup.Any) : null;
             var wait = new WaitForSeconds(1f);
-            while (true)
+            bool failed = false;
+            while (!failed)
             {
-                if (Time.realtimeSinceStartup >= rescanAt || scannedBody != FlightGlobals.currentMainBody) Rescan();
-                SetScattererGlint();
-                StockSea(RtCamera.StockSeaTraced);
+                try
+                {
+                    if (Time.realtimeSinceStartup >= rescanAt || scannedBody != RtKspMods.SceneBody()) Rescan();
+                    SetScattererGlint();
+                    StockSea(RtCamera.StockSeaTraced);
+                }
+                catch (Exception e)
+                {
+                    // Another mod's version: the seas as they are, the stock highlight back.
+                    Debug.LogWarning(Log.Tag + " The sea's highlights stop: " + e.Message);
+                    StockSea(false);
+                    failed = true;
+                    continue;
+                }
                 yield return wait;
             }
         }
@@ -60,7 +72,7 @@ namespace ReDefinition.Raytracing
         private void Rescan()
         {
             rescanAt = Time.realtimeSinceStartup + RescanSeconds;
-            scannedBody = FlightGlobals.currentMainBody;
+            scannedBody = RtKspMods.SceneBody();
             nodes = node != null && nodeMaterial != null && nodeStrength != null ? FindObjectsOfType(node) : new UnityEngine.Object[0];
             stockSeas.Clear();
             foreach (PQS pqs in FindObjectsOfType<PQS>())

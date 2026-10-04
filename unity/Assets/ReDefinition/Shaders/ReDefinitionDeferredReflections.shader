@@ -142,7 +142,8 @@ half4 frag (unity_v2f_deferred i) : SV_Target
     half4 gbuffer2 = tex2D (_CameraGBufferTexture2, uv);
     UnityStandardData data = UnityStandardDataFromGbuffer(gbuffer0, gbuffer1, gbuffer2);
     if (_ReDefinitionLegacySmoothness > 0.5
-        && max(data.specularColor.r, max(data.specularColor.g, data.specularColor.b)) <= 1.0 / UNITY_PI + 0.004)
+        && max(data.specularColor.r, max(data.specularColor.g, data.specularColor.b)) <= 1.0 / UNITY_PI + 0.004
+        && any(abs(data.specularColor - unity_ColorSpaceDielectricSpec.rgb) > 0.002))
     {
         data.smoothness = LegacySmoothness(data.smoothness, data.specularColor);
         data.specularColor = 0.04;

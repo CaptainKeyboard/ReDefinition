@@ -575,15 +575,24 @@ bool IsStockWater(float3 position, float3 normal)
 {
     float3 up = position - bodySphere.xyz;
     float level = length(up);
-    if (!(STOCK_WATER && bodySphere.w > 0.0f && abs(level - bodySphere.w) < kStockWaterBand
+    // The band as the reflections' shader takes it (ReDefinitionDeferredReflections.shader,
+    // IsStockSea): the sea's quads are flat, and their middles lie below the level by
+    // their edges' length squared over 8 radii, metres on the far, coarse quads; and the
+    // depth's precision falls with the camera's height.
+    float distance = length(position);
+    float cameraHeight = max(length(bodySphere.xyz) - bodySphere.w, 0.0f);
+    float band = max(kStockWaterBand, max(0.001f * distance, 0.01f * cameraHeight));
+    if (!(STOCK_WATER && bodySphere.w > 0.0f && abs(level - bodySphere.w) < band
           && dot(normal, up / level) > 0.8f))
         return false;
     // Not where the camera's ray meets the scene's own surface there: the sea is not in the
     // raytracing's scene, a vessel's deck or a flat shore at the sea's level is (the
     // player saw the sea's waves and glints on a capsule's hatch).
-    float distance = length(position);
     Hit hit = TraceClosest(float3(0.0f, 0.0f, 0.0f), position / max(distance, 1e-6f), distance * 1.01f + 0.1f);
-    return !(hit.found && abs(hit.distance - distance) < distance * 0.005f + 0.1f);
+    // The sea's floor lies behind the water: met more than a metre beyond it, it is not
+    // the surface there (a shallow coast kept its sea).
+    float tolerance = distance * 0.005f + 0.1f;
+    return !(hit.found && hit.distance - distance > -tolerance && hit.distance - distance < min(tolerance, 1.0f));
 }
 
 // KSP's own sea's waves, which its normal map barely carries. The long waves, 40 m down
@@ -703,11 +712,11 @@ float3 SeaRipples(SeaFrame f, float scale)
         float frequency = 1.0f / wavelength;
         float speed = sqrt(9.81f * wavelength / (2.0f * kPi));
         float2 p = (f.at - wind * speed * time) * frequency + float2(octave * 37.0f, octave * 11.0f);
-        // The noise's gradient is 1.097 in root mean square per unit of p (0.776 along
+        // The noise's gradient is 0.884 in root mean square per unit of p (0.625 along
         // each axis; tools/sea_reflection_check.py --noise): to a slope of
         // slopeDeviation, as the roughness counts what is lost.
         float2 derivative = RippleNoise(p, octave).yz * frequency;
-        slope += derivative * (slopeDeviation * shown * wavelength / 1.097f);
+        slope += derivative * (slopeDeviation * shown * wavelength / 0.884f);
     }
     return float3(slope, lost);
 }
@@ -898,14 +907,22 @@ struct SurfaceData
 // m = sqrt(2 / (n + 2)) (Walter et al. 2007): at most a shininess of 1, m 0.124, a
 // smoothness of 0.65. In the game only (LEGACY_SMOOTHNESS: RtCamera.LegacySmoothness);
 // a test's G-buffer is Unity's own. Specular colours over Deferred's 1 / pi are Unity's standard
-// shaders' own and kept, and so is the water's frame (WATER_SURFACE), whose surface is
-// Scatterer's ocean with its own variance; the specular map's share is taken for the
-// shininess's.
+// shaders' own and kept, and so is the standard shader's dielectric (0.2209 grey, 4 % in
+// the game's gamma colour space: unity_ColorSpaceDielectricSpec), as well as the water's
+// frame (WATER_SURFACE), whose surface is Scatterer's ocean with its own variance; the
+// specular map's share is taken for the shininess's.
 static const float kLegacyShininessPower = 0.215f;
+static const float kStandardDielectric = 0.2209163f;
+
+bool LegacySpecular(float3 specular)
+{
+    return max(specular.r, max(specular.g, specular.b)) <= 1.0f / kPi + 0.004f
+           && any(abs(specular - kStandardDielectric) > 0.002f);
+}
 
 float LegacySmoothness(float smoothness, float3 specular)
 {
-    if (!LEGACY_SMOOTHNESS || WATER_SURFACE || max(specular.r, max(specular.g, specular.b)) > 1.0f / kPi + 0.004f)
+    if (!LEGACY_SMOOTHNESS || WATER_SURFACE || !LegacySpecular(specular))
         return smoothness;
     float length3 = length(specular * kPi);
     if (length3 <= 1e-4f)

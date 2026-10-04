@@ -104,7 +104,8 @@ namespace ReDefinition.Probe
                     // Out at sea (SceneProbe, -redefinitionProbeSea): the sun, then the Mun at
                     // night, at each height (Heights), each case's camera looking towards it.
                     CelestialBody sun = RtKspMods.StarBody();
-                    CelestialBody mun = FlightGlobals.Bodies.Find(b => b.bodyName == "Mun");
+                    // "mun-" stands for the moon asked for (SceneProbe.MoonName), the Mun by default.
+                    CelestialBody mun = FlightGlobals.Bodies.Find(b => b.bodyName == SceneProbe.MoonName);
                     foreach (CelestialBody body in new[] { sun, mun })
                         foreach (BodyHeight height in Heights)
                         {
@@ -122,7 +123,8 @@ namespace ReDefinition.Probe
                             string prefix = b == sun ? "sun-" : "mun-";
                             bool reached = false;
                             yield return WarpUntil(prefix + height.Elevation.ToString("0", CultureInfo.InvariantCulture), wanted,
-                                                   result => reached = result, b == sun ? 43200.0 : 4.0 * b.orbit.period);
+                                                   result => reached = result,
+                                                   b == sun ? Math.Max(43200.0, 1.2 * FlightGlobals.currentMainBody.solarDayLength) : 4.0 * b.orbit.period);
                             if (!reached) continue;
                             foreach (SeaCase c in height.Cases)
                             {

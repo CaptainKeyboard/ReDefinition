@@ -7,7 +7,10 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Raytracing
 {
     // The moons of the planet the camera is at made to stand out in the sky: each disc a
-    // little brighter, with a soft glow round it, the more the darker the sky. On the
+    // little brighter, with a soft glow round it, the more the darker the sky. Moons only:
+    // at a moon its planet is no moon of the sky's. Where the main body, or at a moon its
+    // planet, stands in front of a moon, the shader leaves those pixels out, and so where
+    // Scatterer's ocean, which the depth texture does not hold, covers the sky. On the
     // flight's scene camera, where it sees sky, before the transparent pass, so that
     // clouds and the atmosphere draw over it (ReDefinitionMoonGlow.shader). It lights
     // nothing: the moons' light on the scene is the raytracing's (RtReflectors). The
@@ -19,6 +22,12 @@ namespace ReDefinition.Raytracing
         private const CameraEvent Event = CameraEvent.BeforeForwardAlpha;
         private static readonly int MoonId = Shader.PropertyToID("_ReDefinitionMoon");
         private static readonly int ColourId = Shader.PropertyToID("_ReDefinitionMoonColour");
+        private static readonly int BlockersId = Shader.PropertyToID("_ReDefinitionMoonBlockers");
+        private static readonly int OceanId = Shader.PropertyToID("_ReDefinitionMoonOcean");
+        private static readonly int DistanceId = Shader.PropertyToID("_ReDefinitionMoonDistance");
+        private readonly Vector4[] blockers = new Vector4[2];
+        // Whether the camera's depth texture was asked for by this, to take back.
+        private bool depthAdded;
 
         // For the light probe: no glow, to compare.
         internal static bool HeldOff;
@@ -58,8 +67,13 @@ namespace ReDefinition.Raytracing
 
         private void Detach()
         {
-            if (attached != null) attached.RemoveCommandBuffer(Event, command);
+            if (attached != null)
+            {
+                attached.RemoveCommandBuffer(Event, command);
+                if (depthAdded) attached.depthTextureMode &= ~DepthTextureMode.Depth;
+            }
             attached = null;
+            depthAdded = false;
         }
 
         private void LateUpdate()
@@ -71,6 +85,7 @@ namespace ReDefinition.Raytracing
                 if (camera != null)
                 {
                     camera.AddCommandBuffer(Event, command);
+                    depthAdded = (camera.depthTextureMode & DepthTextureMode.Depth) == 0;
                     camera.depthTextureMode |= DepthTextureMode.Depth;
                     attached = camera;
                 }
@@ -83,8 +98,16 @@ namespace ReDefinition.Raytracing
 
             if (!RtReflectors.SystemOf(main, star, moons)) return;
             moons.Remove(main);
+            moons.RemoveAll(body => body.referenceBody == null || body.referenceBody == star);
 
             Vector3d eye = camera.transform.position;
+            // What stands in front of a moon: the main body, and at a moon its planet;
+            // centres relative to the camera, radii in w (zero for none).
+            CelestialBody planet = main.referenceBody != null && main.referenceBody != star ? main.referenceBody : null;
+            blockers[0] = Blocker(main, eye);
+            blockers[1] = planet != null ? Blocker(planet, eye) : Vector4.zero;
+            command.SetGlobalVectorArray(BlockersId, blockers);
+            command.SetGlobalFloat(OceanId, RtKspMods.ScattererOcean(main) ? 1f : 0f);
             // The darker the sky, the more a disc stands out: faint by day, full once the
             // sun is some degrees under the horizon (NightAdaptation).
             float night = NightAdaptation.Night(eye, main, star);
@@ -111,8 +134,15 @@ namespace ReDefinition.Raytracing
                                         Mathf.LinearToGammaSpace(albedo.b * lit), 1f);
                 properties.SetVector(MoonId, new Vector4(direction.x, direction.y, direction.z, radius));
                 properties.SetVector(ColourId, new Vector4(shown.r, shown.g, shown.b, strength));
+                properties.SetFloat(DistanceId, (float)distance);
                 command.DrawMesh(screen, Matrix4x4.identity, material, 0, 0, properties);
             }
+        }
+
+        private static Vector4 Blocker(CelestialBody body, Vector3d eye)
+        {
+            Vector3d centre = body.position - eye;
+            return new Vector4((float)centre.x, (float)centre.y, (float)centre.z, (float)body.Radius);
         }
     }
 }

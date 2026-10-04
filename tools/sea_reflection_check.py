@@ -312,7 +312,7 @@ def ripple_gradient_rms(samples=400000, seed=1):
     vc, vd = (gc * (f - [0, 1])).sum(1), (gd * (f - [1, 1])).sum(1)
     wx, wy = w[:, 0:1], w[:, 1:2]
     d = (ga + wx * (gb - ga) + wy * (gc - ga) + wx * wy * (ga - gb - gc + gd)
-         + dw * np.stack([vb - va, vc - va], 1) + (va - vb - vc + vd)[:, None] * w[:, ::-1])
+         + dw * (np.stack([vb - va, vc - va], 1) + (va - vb - vc + vd)[:, None] * w[:, ::-1]))
     return math.sqrt((d ** 2).sum(1).mean()), d.std(0)
 
 

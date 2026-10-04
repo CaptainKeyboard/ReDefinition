@@ -751,6 +751,8 @@ namespace ReDefinition.Raytracing
             while (idleReads.Count > 0)
             {
                 TextureRead read = idleReads.Pop();
+                // Unity destroys a texture of its own on unloading unused assets.
+                if (read.Target == null) continue;
                 read.Target.Release();
                 UnityEngine.Object.Destroy(read.Target);
             }

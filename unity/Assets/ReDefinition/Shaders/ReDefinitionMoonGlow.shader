@@ -24,6 +24,26 @@ Shader "Hidden/ReDefinition/MoonGlow"
             float4 _ReDefinitionMoon;
             // rgb: the disc's colour as the frame's; a: how strongly it stands out.
             float4 _ReDefinitionMoonColour;
+            // The bodies that can stand in front of the moon: centres relative to the
+            // camera, world space, radii in w (0 for none).
+            float4 _ReDefinitionMoonBlockers[2];
+            // 1 where Scatterer's ocean is drawn on the main body: its depth is its own.
+            float _ReDefinitionMoonOcean;
+            sampler2D oceanGbufferDepth;
+
+            // How far the moon is from the camera, metres.
+            float _ReDefinitionMoonDistance;
+
+            // Whether the ray meets the sphere nearer than the moon.
+            bool Blocked(float3 direction, float4 sphere)
+            {
+                if (sphere.w <= 0.0)
+                    return false;
+                float along = dot(sphere.xyz, direction);
+                float3 closest = sphere.xyz - direction * along;
+                float inside = sphere.w * sphere.w - dot(closest, closest);
+                return inside > 0.0 && along - sqrt(inside) > 0.0 && along - sqrt(inside) < _ReDefinitionMoonDistance;
+            }
 
             struct v2f
             {
@@ -56,6 +76,19 @@ Shader "Hidden/ReDefinition/MoonGlow"
                 float4 view = mul(unity_CameraInvProjection, float4(uv * 2.0 - 1.0, 1.0, 1.0));
                 float3 camera = float3(view.x, view.y, -view.z) / view.w;
                 float3 direction = normalize(mul((float3x3)unity_CameraToWorld, camera));
+                if (Blocked(direction, _ReDefinitionMoonBlockers[0]) || Blocked(direction, _ReDefinitionMoonBlockers[1]))
+                    return 0.0;
+                if (_ReDefinitionMoonOcean > 0.5)
+                {
+                    float ocean = tex2D(oceanGbufferDepth, uv).r;
+                #if defined(UNITY_REVERSED_Z)
+                    if (ocean > 0.0)
+                        return 0.0;
+                #else
+                    if (ocean < 1.0)
+                        return 0.0;
+                #endif
+                }
                 float angle = acos(clamp(dot(direction, _ReDefinitionMoon.xyz), -1.0, 1.0));
                 float r = angle / max(_ReDefinitionMoon.w, 1e-5);
                 // The disc a little brighter, its edge soft; round it a glow falling off

@@ -183,25 +183,32 @@ Shader "Hidden/ReDefinition/RtCapture"
     // light by its luminance as the frame's colour, its own colour kept in proportion:
     // Scatterer's inverse taken per channel would tint a faint light towards its strongest
     // channel.
-    // 1 where the scene camera draws into the back buffer, whose blit turns the screen
-    // textures upside down to the blit's coordinate; 0 where it draws into a render
-    // texture, as the upscaler has it (RtCamera, AttachOceanDiscs; measured: the light
-    // added mirrored about the frame's middle in the raytracing test player with the
-    // screen's position, in the game with the blit's -- a moon's path under a capsule).
-    float _ReDefinitionOceanBackBuffer;
-    // The scene camera's screen position (-1 to 1, y up) to a world direction: inside a
-    // blit Unity's own camera matrices are the blit's (RtCamera, AttachOceanDiscs).
+    // The scene camera's screen position (-1 to 1, y up) to a world direction, without the
+    // upscaler's jitter (RtCamera, AttachOceanDiscs).
     float4x4 _ReDefinitionOceanScreenToWorld;
+    // The frame as Scatterer's ocean left it, copied (RtCamera, AttachOceanDiscs).
+    sampler2D _ReDefinitionOceanFrame;
 
-    float4 fragOceanDiscs(v2f i) : SV_Target
+    struct v2fQuad
     {
-        // The frame as Scatterer's ocean left it, copied (RtCamera, AttachOceanDiscs), at
-        // the blit's own coordinate; the other screen textures there too, upside down where
-        // the camera draws into the back buffer.
-        float4 frame = tex2D(_MainTex, i.uv);
-        float2 uv = i.uv;
-        if (_ReDefinitionOceanBackBuffer > 0.5)
-            uv.y = 1.0 - uv.y;
+        float4 pos : SV_POSITION;
+        float4 screen : TEXCOORD0;
+    };
+
+    // The camera's full-screen quad (RtCamera, screenQuad): the screen's textures at the
+    // pixel's place as the camera's projection has it.
+    v2fQuad vertQuad(float4 vertex : POSITION)
+    {
+        v2fQuad o;
+        o.pos = float4(vertex.xy, 0.0, 1.0);
+        o.screen = ComputeScreenPos(o.pos);
+        return o;
+    }
+
+    float4 fragOceanDiscs(v2fQuad i) : SV_Target
+    {
+        float2 uv = i.screen.xy / i.screen.w;
+        float4 frame = tex2D(_ReDefinitionOceanFrame, uv);
         float oceanDepth = tex2D(oceanGbufferDepth, uv).r;
         if (NoOcean(oceanDepth))
             return frame;
@@ -344,7 +351,7 @@ Shader "Hidden/ReDefinition/RtCapture"
             #pragma fragment fragOceanCompose
             ENDCG }
         Pass { CGPROGRAM
-            #pragma vertex vert
+            #pragma vertex vertQuad
             #pragma fragment fragOceanDiscs
             #pragma target 3.0
             ENDCG }
