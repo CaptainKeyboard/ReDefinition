@@ -20,6 +20,9 @@ namespace ReDefinition.Raytracing
         private static readonly int MoonId = Shader.PropertyToID("_ReDefinitionMoon");
         private static readonly int ColourId = Shader.PropertyToID("_ReDefinitionMoonColour");
 
+        // For the light probe: no glow, to compare.
+        internal static bool HeldOff;
+
         private Material material;
         private Mesh screen;
         private CommandBuffer command;
@@ -73,7 +76,7 @@ namespace ReDefinition.Raytracing
                 }
             }
             command.Clear();
-            if (camera == null || MapView.MapIsEnabled) return;
+            if (HeldOff || camera == null || MapView.MapIsEnabled) return;
             CelestialBody main = FlightGlobals.currentMainBody;
             CelestialBody star = RtKspMods.StarBody();
             if (main == null || star == null) return;

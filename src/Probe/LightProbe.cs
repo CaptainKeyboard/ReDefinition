@@ -112,7 +112,7 @@ namespace ReDefinition.Probe
                             string bodyPrefix = body == sun ? "sun-" : "mun-";
                             if (!Array.Exists(height.Cases, c => Wanted(bodyPrefix + c.Name))
                                 && !(body == mun && height.Elevation <= 5f && Wanted("mun-zoom"))
-                                && !(body == mun && height.Elevation == 25f && Wanted("mun-vessel")))
+                                && !(body == mun && height.Elevation == 25f && (Wanted("mun-vessel") || Wanted("mun-waterline"))))
                                 continue;
                             float lowest = height.Elevation - 2.5f, highest = height.Elevation + 2.5f;
                             CelestialBody b = body;
@@ -130,6 +130,38 @@ namespace ReDefinition.Probe
                                 float distance = c.Height / Mathf.Sin(c.Down * Mathf.Deg2Rad);
                                 yield return LookTowards(b, c.Down, distance);
                                 yield return OceanShot(addon, folder, prefix + c.Name, Elevation(b));
+                            }
+                            // The vessel 10 m away at its waterline, towards the Mun and away from
+                            // it: the raytracing off, on, without the discs on Scatterer's ocean,
+                            // without the reflections handed to it -- which lights what.
+                            if (b == mun && height.Elevation == 25f && Wanted("mun-waterline"))
+                            {
+                                foreach (bool away in new[] { false, true })
+                                {
+                                    yield return LookTowards(b, 12f, 10f, away);
+                                    string side = "mun-waterline-" + (away ? "away" : "towards");
+                                    RaytracingMode on = addon.Live.Raytracing == RaytracingMode.Off ? RaytracingMode.Full : addon.Live.Raytracing;
+                                    Set(addon, RaytracingMode.Off, addon.Live.RaytracingMoonlight, addon.Live.RaytracingNightAmbient);
+                                    for (int i = 0; i < 30; i++) yield return null;
+                                    yield return Shot(folder, side + "-off");
+                                    Set(addon, on, addon.Live.RaytracingMoonlight, addon.Live.RaytracingNightAmbient);
+                                    for (int i = 0; i < 60; i++) yield return null;
+                                    yield return Shot(folder, side + "-on");
+                                    LogOceanTextures(folder, side + "-on", null);
+                                    WriteNormals(folder, side + "-on-frame", RtCamera.Current);
+                                    RtCamera.OceanDiscsHeldOff = true;
+                                    for (int i = 0; i < 30; i++) yield return null;
+                                    yield return Shot(folder, side + "-no-discs");
+                                    RtCamera.OceanDiscsHeldOff = false;
+                                    RtCamera.OceanHandoffHeldOff = true;
+                                    for (int i = 0; i < 30; i++) yield return null;
+                                    yield return Shot(folder, side + "-no-handoff");
+                                    RtCamera.OceanHandoffHeldOff = false;
+                                    MoonGlow.HeldOff = true;
+                                    for (int i = 0; i < 30; i++) yield return null;
+                                    yield return Shot(folder, side + "-no-glow");
+                                    MoonGlow.HeldOff = false;
+                                }
                             }
                             // The vessel 10 m away, its top mirroring the Mun to the camera, with
                             // the parts' smoothness as Deferred writes it and as the raytracing
@@ -170,6 +202,7 @@ namespace ReDefinition.Probe
                 yield return WarpToMoonNight(result => found = result);
                 if (!found) Debug.LogWarning(Log.Tag + " Probe: light: no night with the Mun high found.");
                 yield return Shots(addon, folder, found ? "night" : "later", heading, true);
+                if (found) yield return MirrorShots(addon, folder);
             }
             finally
             {
@@ -194,11 +227,61 @@ namespace ReDefinition.Probe
                 foreach (float[] variant in variants)
                 {
                     Set(addon, on, variant[0], variant[1]);
-                    yield return Shot(folder, time + "-" + pose.Name + "-" + on.ToString().ToLowerInvariant() + "-moon"
-                                              + variant[0].ToString("0", CultureInfo.InvariantCulture) + "-night"
-                                              + variant[1].ToString("0", CultureInfo.InvariantCulture));
+                    string shot = time + "-" + pose.Name + "-" + on.ToString().ToLowerInvariant() + "-moon"
+                                  + variant[0].ToString("0", CultureInfo.InvariantCulture) + "-night"
+                                  + variant[1].ToString("0", CultureInfo.InvariantCulture);
+                    yield return Shot(folder, shot);
+                    // The G-buffer's specular colour and smoothness, as the raytracing reads them.
+                    RtCamera camera = RtCamera.Current;
+                    if (camera != null && camera.SpecularSmoothnessTexture != null)
+                        WritePfm(Path.Combine(folder, shot + "-gbuffer-specular.pfm"), Read(camera.SpecularSmoothnessTexture),
+                                 camera.SpecularSmoothnessTexture.width, camera.SpecularSmoothnessTexture.height,
+                                 c => new Color((c.r + c.g + c.b) / 3f, c.a, Mathf.Max(c.r, Mathf.Max(c.g, c.b))));
                 }
             }
+        }
+
+        // The vessel and the ground under it seen from where they would mirror the Mun, 20 m
+        // out: the raytracing off (Deferred's reflection probe), on with the parts'
+        // smoothness as KSP's highlight (RtCommon.hlsli, LegacySmoothness) and on with
+        // Deferred's.
+        private static IEnumerator MirrorShots(ReDefinitionAddon addon, string folder)
+        {
+            CelestialBody mun = FlightGlobals.Bodies.Find(b => b.bodyName == "Mun");
+            if (mun == null) yield break;
+            RaytracingMode on = addon.Live.Raytracing == RaytracingMode.Off ? RaytracingMode.Full : addon.Live.Raytracing;
+            yield return LookTowards(mun, Elevation(mun), 20f);
+            Set(addon, RaytracingMode.Off, 10f, 0f);
+            yield return Shot(folder, "mirror-off");
+            Set(addon, on, 10f, 0f);
+            foreach (bool deferred in new[] { false, true })
+            {
+                RtCamera.DeferredSmoothness = deferred;
+                for (int i = 0; i < 60; i++) yield return null;
+                yield return Shot(folder, "mirror-" + (deferred ? "deferred-smoothness" : "ksp-highlight"));
+            }
+            RtCamera.DeferredSmoothness = false;
+            MoonGlow.HeldOff = true;
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return Shot(folder, "mirror-no-glow");
+            MoonGlow.HeldOff = false;
+            // Straight down on the vessel from 30 m, as a player looks at a plane on the runway.
+            FlightCamera.fetch.SetDistance(30f);
+            FlightCamera.fetch.camPitch = 89f * Mathf.Deg2Rad;
+            for (int i = 0; i < 60; i++) yield return null;
+            yield return Shot(folder, "down-on");
+            MoonGlow.HeldOff = true;
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return Shot(folder, "down-no-glow");
+            MoonGlow.HeldOff = false;
+            Set(addon, RaytracingMode.Off, 10f, 0f);
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return Shot(folder, "down-off");
+            MoonGlow.HeldOff = true;
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return Shot(folder, "mirror-off-no-glow");
+            MoonGlow.HeldOff = false;
+            Set(addon, on, 10f, 0f);
         }
 
         // The angle at a body between the star and the active vessel, in degrees: 0 full.
@@ -257,7 +340,7 @@ namespace ReDefinition.Probe
         // down by `pitch`, from `distance` out. SetCamCoordsFromPosition takes the camera's
         // place relative to the vessel (KerbalEngineer's TargetSelector passes it so);
         // where the camera then does not look the body's way, its world place.
-        private static IEnumerator LookTowards(CelestialBody body, float pitch, float distance)
+        private static IEnumerator LookTowards(CelestialBody body, float pitch, float distance, bool away = false)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (vessel == null || body == null) yield break;
@@ -265,7 +348,7 @@ namespace ReDefinition.Probe
             for (int attempt = 0; attempt < 2; attempt++)
             {
                 Vector3 up = ((Vector3)(vessel.CoMD - vessel.mainBody.position)).normalized;
-                Vector3 flat = Vector3.ProjectOnPlane((Vector3)(body.position - vessel.CoMD), up).normalized;
+                Vector3 flat = Vector3.ProjectOnPlane((Vector3)(body.position - vessel.CoMD), up).normalized * (away ? -1f : 1f);
                 Vector3 look = flat * Mathf.Cos(pitch * Mathf.Deg2Rad) - up * Mathf.Sin(pitch * Mathf.Deg2Rad);
                 Vector3 place = -look * FlightCamera.fetch.Distance;
                 FlightCamera.fetch.SetCamCoordsFromPosition(attempt == 0 ? place : (Vector3)vessel.CoMD + place);
@@ -490,6 +573,7 @@ namespace ReDefinition.Probe
             // from the bottom row up), and what was given for them: the numbers
             // tools/sea_reflection_check.py checks against its model.
             WritePfm(Path.Combine(folder, name + "-traced.pfm"), t, traced.width, traced.height, c => c);
+            WritePfm(Path.Combine(folder, name + "-traced-w.pfm"), t, traced.width, traced.height, c => new Color(c.a, 0f, 0f));
             if (mean != null)
                 WritePfm(Path.Combine(folder, name + "-traced-mean.pfm"), mean, traced.width, traced.height, c => c);
             RenderTexture roughness = camera.OceanRoughnessTexture;

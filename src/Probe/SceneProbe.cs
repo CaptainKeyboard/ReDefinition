@@ -28,7 +28,19 @@ namespace ReDefinition.Probe
     internal static class SceneProbe
     {
         internal const string Argument = "-redefinitionProbe";
-        internal const string SaveFolder = "ReDefinitionProbe";
+        // -redefinitionProbeSave <folder>: another save than ReDefinitionProbe, a copy of a
+        // player's (the probe saves the flight it leaves into it); -redefinitionProbeVessel
+        // <name>: that vessel's flight, wherever it is.
+        internal static readonly string SaveFolder = ArgumentAfter("-redefinitionProbeSave") ?? "ReDefinitionProbe";
+        internal static readonly string VesselName = ArgumentAfter("-redefinitionProbeVessel");
+
+        private static string ArgumentAfter(string name)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            int at = Array.IndexOf(args, name);
+            return at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
+        }
+
         internal static bool Launched;
         // -redefinitionProbeSea: a capsule afloat out at sea, no land within kilometres.
         internal const string SeaArgument = "-redefinitionProbeSea";
@@ -101,14 +113,16 @@ namespace ReDefinition.Probe
                 Application.Quit();
                 yield break;
             }
-            int index = game.flightState.protoVessels.FindIndex(v => v.situation == Vessel.Situations.PRELAUNCH);
+            int index = SceneProbe.VesselName != null
+                ? game.flightState.protoVessels.FindIndex(v => v.vesselName == SceneProbe.VesselName)
+                : game.flightState.protoVessels.FindIndex(v => v.situation == Vessel.Situations.PRELAUNCH);
             if (index < 0)
             {
                 Debug.LogWarning(Log.Tag + " Probe: no vessel on the launch pad in " + SceneProbe.SaveFolder + "; quitting.");
                 Application.Quit();
                 yield break;
             }
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.SeaArgument) >= 0)
+            if (SceneProbe.VesselName == null && Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.SeaArgument) >= 0)
             {
                 int capsule = SeaCapsule(game);
                 if (capsule < 0)

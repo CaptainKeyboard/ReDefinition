@@ -87,6 +87,10 @@ namespace ReDefinition.Raytracing
         // For the light probe: the G-buffer's smoothness as Deferred wrote it, without
         // LegacySmoothness, to compare.
         internal static bool DeferredSmoothness;
+        // For the light probe: without the discs added to Scatterer's ocean, or without
+        // the reflections handed to it through ssrOutput, to compare.
+        internal static bool OceanDiscsHeldOff;
+        internal static bool OceanHandoffHeldOff;
         // Whether the G-buffer's smoothness is Deferred's from KSP's legacy part shaders,
         // which the raytracing takes as their highlight (RtCommon.hlsli, LegacySmoothness):
         // the game's; a test's G-buffer is Unity's own.
@@ -245,6 +249,8 @@ namespace ReDefinition.Raytracing
         private const int OceanDiscsPass = 11;
         private static readonly int OceanFrameId = Shader.PropertyToID("_ReDefinitionOceanFrame");
         private static readonly int OceanScreenToWorldId = Shader.PropertyToID("_ReDefinitionOceanScreenToWorld");
+        private static readonly int OceanBackBufferId = Shader.PropertyToID("_ReDefinitionOceanBackBuffer");
+        private static readonly int LegacySmoothnessId = Shader.PropertyToID("_ReDefinitionLegacySmoothness");
         private static readonly int RtPrevViewProj = Shader.PropertyToID("_ReDefinitionRtPrevViewProj");
         private static readonly int RtTexel = Shader.PropertyToID("_ReDefinitionRtTexel");
         private static readonly int RtOffsetNear = Shader.PropertyToID("_ReDefinitionRtOffsetNear");
@@ -568,7 +574,7 @@ namespace ReDefinition.Raytracing
         private void TraceOcean(bool wanted, bool stockSea)
         {
             StockSeaTraced = wanted && stockSea;
-            AttachOceanDiscs(wanted && !stockSea);
+            AttachOceanDiscs(wanted && !stockSea && !OceanDiscsHeldOff);
             if (wanted && !stockSea)
             {
                 // The camera's screen to world directions, its position taken out: the
@@ -576,6 +582,7 @@ namespace ReDefinition.Raytracing
                 Matrix4x4 view = cam.worldToCameraMatrix;
                 view.SetColumn(3, new Vector4(0f, 0f, 0f, 1f));
                 Shader.SetGlobalMatrix(OceanScreenToWorldId, (cam.nonJitteredProjectionMatrix * view).inverse);
+                Shader.SetGlobalFloat(OceanBackBufferId, cam.targetTexture == null ? 1f : 0f);
             }
             if (!wanted)
             {
@@ -623,7 +630,7 @@ namespace ReDefinition.Raytracing
             oceanCommand.SetGlobalTexture(RtOcean, oceanTraced);
             if (stockSea) return;
             oceanCommand.Blit(source, oceanReflections, capture, 10);
-            oceanCommand.SetGlobalTexture(SsrOutput, oceanReflections);
+            oceanCommand.SetGlobalTexture(SsrOutput, OceanHandoffHeldOff ? (Texture)Texture2D.blackTexture : oceanReflections);
         }
 
         // Scatterer's ocean weighs the reflections it reads (ssrOutput) down from 1 km of the
@@ -997,6 +1004,7 @@ namespace ReDefinition.Raytracing
                            | (withMotion ? RtNative.FlagMotionVectors : 0u)
                            | (reconstruct ? RtNative.FlagGuides : 0u)
                            | (LegacySmoothness() && !DeferredSmoothness ? RtNative.FlagLegacySmoothness : 0u);
+            Shader.SetGlobalFloat(LegacySmoothnessId, LegacySmoothness() && !DeferredSmoothness ? 1f : 0f);
             if (reconstruct)
             {
                 GuidesFrame = Time.frameCount;

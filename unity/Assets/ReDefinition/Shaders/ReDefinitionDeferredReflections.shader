@@ -63,6 +63,23 @@ float4 _ReDefinitionWaterSphere;
 // red outside the band about the sea's level, green its normal not facing up, blue not
 // traced as water; none where it passes all.
 float _ReDefinitionWaterDebug;
+// 1 in the game, where the G-buffer's specular set is Deferred's from KSP's legacy
+// shaders (RtCamera.LegacySmoothness): such a surface's reflection taken as the
+// raytracing takes it -- KSP's highlight's roughness (RtCommon.hlsli, LegacySmoothness)
+// -- and with a dielectric's 4 % head on, not the legacy specular colour over pi, which
+// reached 9 to 22 % on the space centre's concrete and grass and showed its water
+// tower in them at grazing angles (measured, 2026-10-04).
+float _ReDefinitionLegacySmoothness;
+
+float LegacySmoothness(float smoothness, float3 specular)
+{
+    float length3 = length(specular * UNITY_PI);
+    if (length3 <= 1e-4)
+        return smoothness;
+    float shininess = pow(saturate(smoothness / sqrt(length3)), 1.0 / 0.215);
+    float m = sqrt(2.0 / (128.0 * shininess + 2.0));
+    return 1.0 - sqrt(m);
+}
 // Its reflections from the water's own trace, whole and undenoised (RtCamera, TraceOcean).
 sampler2D _ReDefinitionRtOcean;
 sampler2D _ReDefinitionRtDiffuse;
@@ -124,6 +141,12 @@ half4 frag (unity_v2f_deferred i) : SV_Target
     half4 gbuffer1 = tex2D (_CameraGBufferTexture1, uv);
     half4 gbuffer2 = tex2D (_CameraGBufferTexture2, uv);
     UnityStandardData data = UnityStandardDataFromGbuffer(gbuffer0, gbuffer1, gbuffer2);
+    if (_ReDefinitionLegacySmoothness > 0.5
+        && max(data.specularColor.r, max(data.specularColor.g, data.specularColor.b)) <= 1.0 / UNITY_PI + 0.004)
+    {
+        data.smoothness = LegacySmoothness(data.smoothness, data.specularColor);
+        data.specularColor = 0.04;
+    }
 
     float3 eyeVec = normalize(worldPos - _WorldSpaceCameraPos);
     half oneMinusReflectivity = 1 - SpecularStrength(data.specularColor);
