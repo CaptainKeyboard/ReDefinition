@@ -11,6 +11,10 @@ namespace ReDefinition.Raytracing
     //
     // Free of KSP's types, like everything in this folder but the sources that
     // collect KSP's scene: the raytracing test player compiles it on its own.
+    //
+    // Its constants and the packets' layouts are the contract's
+    // (src/DxgiProxy/RaytracingShaders/RtContract.h, RT_<NAME>), which
+    // tests/ReDefinition.Tests holds them to (RtContractTests).
     internal static class RtNative
     {
         private const string Proxy = "dxgi.dll";

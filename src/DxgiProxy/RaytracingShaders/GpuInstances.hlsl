@@ -4,6 +4,8 @@
 // normals up by. The transforms come in t7's layout (Raytracing.h, kRtInputInstances);
 // one all zero is no instance, its mask 0.
 
+#include "RtContract.h"
+
 struct Group
 {
     uint2 blas;
@@ -49,11 +51,11 @@ cbuffer Step : register(b1)
     uint unused;
 };
 
-static const uint kPerRow = 256;
+static const uint kPerRow = RT_INSTANCES_PER_ROW;
 static const uint kCullDisable = 1u;   // D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
 static const uint kNonOpaque = 8u;     // D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
-static const uint kTerrain = 1u;       // Raytracing.h, kRtInstanceTerrain
-static const uint kCutout = 2u;        // Raytracing.h, kRtInstanceCutout
+static const uint kTerrain = RT_INSTANCE_TERRAIN;
+static const uint kCutout = RT_INSTANCE_CUTOUT;
 
 [numthreads(64, 1, 1)]
 void GpuInstances(uint3 id : SV_DispatchThreadID)

@@ -34,7 +34,7 @@ namespace
 {
     constexpr UINT kWidth = 1280;
     constexpr UINT kHeight = 720;
-    constexpr int kFrameEvent = 30;
+    constexpr int kFrameEvent = RT_FRAME_EVENT;
 
     int failures = 0;
 
@@ -2016,7 +2016,7 @@ int main()
                 context->UpdateSubresource(colour.Get(), 0, nullptr, composed.data(), kWidth * 16, 0);
                 packet.frameIndex = static_cast<uint32_t>(f);
                 packet.flags = f == 0 ? kRtFrameReset : 0u;
-                proxy.event(31, &packet);
+                proxy.event(RT_RECONSTRUCT_EVENT, &packet);
                 if (f == 62 || f == 63)
                 {
                     ReadTexture(device.Get(), context.Get(), output.Get(), 8, result);
@@ -2085,7 +2085,7 @@ int main()
                 context->UpdateSubresource(colour.Get(), 0, nullptr, composed.data(), kWidth * 16, 0);
                 packet.frameIndex = static_cast<uint32_t>(22000 + f);
                 packet.flags = f == 0 ? kRtFrameReset : 0u;
-                proxy.event(31, &packet);
+                proxy.event(RT_RECONSTRUCT_EVENT, &packet);
             }
             ReadTexture(device.Get(), context.Get(), output.Get(), 8, result);
             double sumForward = 0.0, meanForward = 0.0;

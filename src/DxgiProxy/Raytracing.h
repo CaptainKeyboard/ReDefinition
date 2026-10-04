@@ -7,6 +7,7 @@
 #include <wrl/client.h>
 
 #include "FrameGeneration.h"
+#include "RaytracingShaders/RtContract.h"
 
 #include <FidelityFX/api/include/ffx_api_loader.h>
 
@@ -35,9 +36,11 @@ namespace redefinition
     // that what is near the camera keeps full float precision however far KSP's
     // world has moved.
 
-    constexpr uint32_t kRtMeshMagic = 0x4B53524Du;      // 'KSRM'
-    constexpr uint32_t kRtMaterialMagic = 0x4B535241u;  // 'KSRA'
-    constexpr uint32_t kRtFrameMagic = 0x4B535246u;     // 'KSRF'
+    // The values and layouts the managed side and the shaders share are the contract's
+    // (RaytracingShaders/RtContract.h); the static_asserts below hold the structures to it.
+    constexpr uint32_t kRtMeshMagic = RT_MESH_MAGIC;
+    constexpr uint32_t kRtMaterialMagic = RT_MATERIAL_MAGIC;
+    constexpr uint32_t kRtFrameMagic = RT_FRAME_MAGIC;
 
     constexpr uint32_t kRtMaxTextures = 8;
 
@@ -96,9 +99,9 @@ namespace redefinition
 
     // Terrain, which the passes pass through for the first metre from a pixel's surface:
     // Parallax displaces the drawn terrain on the GPU, off the mesh the rays see.
-    constexpr uint32_t kRtInstanceTerrain = 1u << 0;
+    constexpr uint32_t kRtInstanceTerrain = RT_INSTANCE_TERRAIN;
     // Set by the service for an instance whose material is cut out.
-    constexpr uint32_t kRtInstanceCutout = 1u << 1;
+    constexpr uint32_t kRtInstanceCutout = RT_INSTANCE_CUTOUT;
 
     // A run of instances the GPU made, in the frame's t7: mesh and material as the
     // managed side handed them over, where the run starts in t7 and how long it is, the
@@ -117,34 +120,34 @@ namespace redefinition
     // The frame's flags.
     // The results are copied back before the event returns, whatever the flags; the mod
     // still sets this bit, and it is accepted without effect.
-    constexpr uint32_t kRtFrameSameFrame = 1u << 0;
-    constexpr uint32_t kRtFrameReset = 1u << 1;       // the history is not this camera's: start afresh
-    constexpr uint32_t kRtFrameDenoise = 1u << 2;     // the signals through ReDefinition's denoiser
-    constexpr uint32_t kRtFrameMotionVectors = 1u << 3;   // t5 holds motion: the previous uv is uv - motion.xy
-    constexpr uint32_t kRtFrameGuides = 1u << 4;      // DLSS Ray Reconstruction's guides from this frame's surfaces
+    constexpr uint32_t kRtFrameSameFrame = RT_FLAG_SAME_FRAME;
+    constexpr uint32_t kRtFrameReset = RT_FLAG_RESET; // the history is not this camera's: start afresh
+    constexpr uint32_t kRtFrameDenoise = RT_FLAG_DENOISE; // the signals through ReDefinition's denoiser
+    constexpr uint32_t kRtFrameMotionVectors = RT_FLAG_MOTION_VECTORS; // t5 holds motion: the previous uv is uv - motion.xy
+    constexpr uint32_t kRtFrameGuides = RT_FLAG_GUIDES; // DLSS Ray Reconstruction's guides from this frame's surfaces
     // A further trace of a frame already traced (the ocean's reflections): it leaves the
     // frame's Ray Reconstruction guides and the frame count as they are.
-    constexpr uint32_t kRtFrameExtra = 1u << 5;
+    constexpr uint32_t kRtFrameExtra = RT_FLAG_EXTRA;
     // The surface is water (Scatterer's ocean): its reflected rays stay above the
     // horizon; where they meet nothing, the reflections hold only the sun's and the
     // moons' discs mirrored by the waves, not single rays meeting them, and 65000 in w
     // (RtCommon.hlsli, BodiesMirroredAt).
-    constexpr uint32_t kRtFrameWater = 1u << 6;
+    constexpr uint32_t kRtFrameWater = RT_FLAG_WATER;
     // With kRtFrameWater, for the light probe: the water's normal with ReDefinition's waves
     // in place of its reflections (n * 0.5 + 0.5; on Scatterer's ocean its ripples on the
     // level sea), to check that the waves stay on the water.
-    constexpr uint32_t kRtFrameWaterNormals = 1u << 7;
+    constexpr uint32_t kRtFrameWaterNormals = RT_FLAG_WATER_NORMALS;
     // The G-buffer's smoothness is Deferred's from KSP's legacy part shaders: taken as
     // their highlight (RtCommon.hlsli, LegacySmoothness). The game's; not a test's.
-    constexpr uint32_t kRtFrameLegacySmoothness = 1u << 8;
+    constexpr uint32_t kRtFrameLegacySmoothness = RT_FLAG_LEGACY_SMOOTHNESS;
 
     // The signals a frame traces; each writes its output slot.
-    constexpr uint32_t kRtSignalSunVisibility = 1u << 0;   // u0: visibility of the sun, 0 to 1
-    constexpr uint32_t kRtSignalAmbientOcclusion = 1u << 1;   // u3: the share of the sky a point sees
-    constexpr uint32_t kRtSignalDiffuse = 1u << 2;         // u1: diffuse light arriving, and the hit distance
-    constexpr uint32_t kRtSignalSpecular = 1u << 3;        // u2: light from the specular lobe, and the hit distance
-    constexpr uint32_t kRtSignalForwardLight = 1u << 4;    // u4: the light to add to a forward-rendered frame
-    constexpr uint32_t kRtSignalPrimaryCheck = 1u << 7;    // u7: the camera ray's hit distance against the depth's
+    constexpr uint32_t kRtSignalSunVisibility = RT_SIGNAL_SUN; // u0: visibility of the sun, 0 to 1
+    constexpr uint32_t kRtSignalAmbientOcclusion = RT_SIGNAL_OCCLUSION; // u3: the share of the sky a point sees
+    constexpr uint32_t kRtSignalDiffuse = RT_SIGNAL_DIFFUSE; // u1: diffuse light arriving, and the hit distance
+    constexpr uint32_t kRtSignalSpecular = RT_SIGNAL_SPECULAR; // u2: light from the specular lobe, and the hit distance
+    constexpr uint32_t kRtSignalForwardLight = RT_SIGNAL_FORWARD_LIGHT; // u4: the light to add to a forward-rendered frame
+    constexpr uint32_t kRtSignalPrimaryCheck = RT_SIGNAL_PRIMARY_CHECK; // u7: the camera ray's hit distance against the depth's
 
     // The signals the denoiser filters: the output slot each writes, its place among
     // the denoiser's textures, and its kind, 0 a scalar (the sun's visibility, the
@@ -159,10 +162,10 @@ namespace redefinition
     };
     constexpr uint32_t kRtDenoisedSignals = 4;
     constexpr RtDenoisedSignal kRtDenoised[kRtDenoisedSignals] = {
-        { kRtSignalSunVisibility, 0, 0, 0 },
-        { kRtSignalDiffuse, 1, 1, 1 },
-        { kRtSignalSpecular, 2, 2, 2 },
-        { kRtSignalAmbientOcclusion, 3, 3, 0 },
+        { kRtSignalSunVisibility, RT_OUTPUT_SUN, 0, 0 },
+        { kRtSignalDiffuse, RT_OUTPUT_DIFFUSE, 1, 1 },
+        { kRtSignalSpecular, RT_OUTPUT_SPECULAR, 2, 2 },
+        { kRtSignalAmbientOcclusion, RT_OUTPUT_OCCLUSION, 3, 0 },
     };
     // The entry of a signal the denoiser filters.
     constexpr const RtDenoisedSignal& RtDenoisedFor(uint32_t signal)
@@ -176,26 +179,26 @@ namespace redefinition
     // The inputs, by slot: t1 depth as Direct3D's clip-space z (R32_FLOAT), t2-t4 the
     // G-buffer in Unity's layout (albedo and occlusion, specular and smoothness, the
     // world normal as n * 0.5 + 0.5), t5 motion vectors.
-    constexpr uint32_t kRtInputDepth = 0;
-    constexpr uint32_t kRtInputGBuffer0 = 1;
-    constexpr uint32_t kRtInputGBuffer1 = 2;
-    constexpr uint32_t kRtInputGBuffer2 = 3;
-    constexpr uint32_t kRtInputMotion = 4;
-    constexpr uint32_t kRtInputEnvironment = 5;   // t6: the sky as a latitude-longitude image
+    constexpr uint32_t kRtInputDepth = RT_INPUT_DEPTH;
+    constexpr uint32_t kRtInputGBuffer0 = RT_INPUT_G_BUFFER0;
+    constexpr uint32_t kRtInputGBuffer1 = RT_INPUT_G_BUFFER1;
+    constexpr uint32_t kRtInputGBuffer2 = RT_INPUT_G_BUFFER2;
+    constexpr uint32_t kRtInputMotion = RT_INPUT_MOTION;
+    constexpr uint32_t kRtInputEnvironment = RT_INPUT_ENVIRONMENT;   // t6: the sky as a latitude-longitude image
     // t7: instances the GPU made (Parallax's scatter), camera-relative, as
     // R32G32B32A32_FLOAT: each the three rows of its transform in three texels side by
     // side, kRtInstancesPerRow to a texture row; all zero for none. The frame's
     // RtGpuInstanceGroup list says which mesh and material each run of them is.
-    constexpr uint32_t kRtInputInstances = 6;
-    constexpr uint32_t kRtInstancesPerRow = 256;
+    constexpr uint32_t kRtInputInstances = RT_INPUT_INSTANCES;
+    constexpr uint32_t kRtInstancesPerRow = RT_INSTANCES_PER_ROW;
 
     // A frame's instances and groups set for every frame that has none of its own.
-    constexpr uint32_t kRtAnyFrame = 0xFFFFFFFFu;
+    constexpr uint32_t kRtAnyFrame = RT_ANY_FRAME;
 
     // The material textures: small copies of each material's main texture, in one
     // array of kRtMaterialTextureSize square RGBA8 layers, sRGB; at most as many layers
     // as a Direct3D 12 texture array holds (D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION).
-    constexpr uint32_t kRtMaterialTextureSize = 64;
+    constexpr uint32_t kRtMaterialTextureSize = RT_MATERIAL_TEXTURE_SIZE;
     // The bytes of a slot's constant buffer (cbuffer Frame, RtCommon.hlsli).
     constexpr uint64_t kRtConstantsSize = 768;
 
@@ -221,17 +224,29 @@ namespace redefinition
         float lightSurface[8];
         float sea[12];
     };
-    static_assert(offsetof(RtFrameConstants, sunDirection) == 192, "cbuffer Frame changed: update RtCommon.hlsli");
-    static_assert(offsetof(RtFrameConstants, params) == 240, "cbuffer Frame changed: update RtCommon.hlsli");
-    static_assert(offsetof(RtFrameConstants, bodySphere) == 272, "cbuffer Frame changed: update RtCommon.hlsli");
-    static_assert(offsetof(RtFrameConstants, frameSize) == 336, "cbuffer Frame changed: update RtCommon.hlsli");
-    static_assert(offsetof(RtFrameConstants, lights) == 352, "cbuffer Frame changed: update RtCommon.hlsli");
-    static_assert(offsetof(RtFrameConstants, lightParams) == 416, "cbuffer Frame changed: update RtCommon.hlsli");
-    static_assert(offsetof(RtFrameConstants, planet) == 448, "cbuffer Frame changed: update RtCommon.hlsli");
-    static_assert(offsetof(RtFrameConstants, lightSurface) == 464, "cbuffer Frame changed: update RtCommon.hlsli");
-    static_assert(offsetof(RtFrameConstants, sea) == 496, "cbuffer Frame changed: update RtCommon.hlsli");
+    // Each field in the register the contract gives it (RtContract.h), as cbuffer Frame
+    // places it (packoffset, RtCommon.hlsli).
+    static_assert(offsetof(RtFrameConstants, clipToWorld) == RT_CB_CLIP_TO_WORLD * 16, "cbuffer Frame: clipToWorld");
+    static_assert(offsetof(RtFrameConstants, worldToClip) == RT_CB_WORLD_TO_CLIP * 16, "cbuffer Frame: worldToClip");
+    static_assert(offsetof(RtFrameConstants, prevWorldToClip) == RT_CB_PREV_WORLD_TO_CLIP * 16, "cbuffer Frame: prevWorldToClip");
+    static_assert(offsetof(RtFrameConstants, sunDirection) == RT_CB_SUN_DIRECTION * 16, "cbuffer Frame: sunDirection");
+    static_assert(offsetof(RtFrameConstants, sunColor) == RT_CB_SUN_COLOR * 16, "cbuffer Frame: sunColor");
+    static_assert(offsetof(RtFrameConstants, skyColor) == RT_CB_SKY_COLOR * 16, "cbuffer Frame: skyColor");
+    static_assert(offsetof(RtFrameConstants, params) == RT_CB_PARAMS * 16, "cbuffer Frame: params");
+    static_assert(offsetof(RtFrameConstants, bodySphere) == RT_CB_BODY_SPHERE * 16, "cbuffer Frame: bodySphere");
+    static_assert(offsetof(RtFrameConstants, ambient) == RT_CB_AMBIENT * 16, "cbuffer Frame: ambient");
+    static_assert(offsetof(RtFrameConstants, frameSize) == RT_CB_FRAME_SIZE * 16, "cbuffer Frame: frameSize");
+    static_assert(offsetof(RtFrameConstants, lights) == RT_CB_LIGHTS * 16, "cbuffer Frame: lights");
+    static_assert(offsetof(RtFrameConstants, lightParams) == RT_CB_LIGHT_PARAMS * 16, "cbuffer Frame: lightParams");
+    static_assert(offsetof(RtFrameConstants, nightLight) == RT_CB_NIGHT_LIGHT * 16, "cbuffer Frame: nightLight");
+    static_assert(offsetof(RtFrameConstants, planet) == RT_CB_PLANET * 16, "cbuffer Frame: planet");
+    static_assert(offsetof(RtFrameConstants, lightSurface) == RT_CB_LIGHT_SURFACE * 16, "cbuffer Frame: lightSurface");
+    static_assert(offsetof(RtFrameConstants, sea) == RT_CB_SEA * 16, "cbuffer Frame: sea");
+    static_assert(offsetof(RtFrameConstants, frameIndex) == RT_CB_FRAME_SIZE * 16 + 8, "cbuffer Frame: frameIndex");
+    static_assert(offsetof(RtFrameConstants, frameFlags) == RT_CB_FRAME_SIZE * 16 + 12, "cbuffer Frame: frameFlags");
+    static_assert(sizeof(RtFrameConstants) == RT_CB_REGISTERS * 16, "cbuffer Frame: its size");
     static_assert(sizeof(RtFrameConstants) <= kRtConstantsSize, "cbuffer Frame outgrew its buffer");
-    constexpr uint32_t kRtMaxMaterialTextures = 2048;
+    constexpr uint32_t kRtMaxMaterialTextures = RT_MAX_MATERIAL_TEXTURES;
 
     // The number of passes whose GPU time KspRtPassTimings reports, in signal bit order;
     // the denoiser's time in place kRtPassDenoiser, which no signal has.
@@ -301,7 +316,7 @@ namespace redefinition
         void* outputs[kRtMaxTextures];
     };
 
-    constexpr uint32_t kRtReconstructMagic = 0x4B535252u;   // 'KSRR'
+    constexpr uint32_t kRtReconstructMagic = RT_RECONSTRUCT_MAGIC;
 
     // Event 31: a frame for DLSS Ray Reconstruction, in place of DLSS Super Resolution.
     // The guides come from the raytraced frame of the same frameIndex where it had
@@ -350,17 +365,79 @@ namespace redefinition
         void* output;      // at the output size
     };
 
-    static_assert(offsetof(RtReconstructPacket, clipToWorld) == 48, "RtReconstructPacket layout changed");
-    static_assert(offsetof(RtReconstructPacket, colour) == 576, "RtReconstructPacket layout changed");
-    static_assert(sizeof(RtReconstructPacket) == 640, "RtReconstructPacket layout changed: update the managed side");
-
-    static_assert(sizeof(RtMeshDesc) == 64, "RtMeshDesc layout changed: update the managed side");
-    static_assert(sizeof(RtMaterialDesc) == 80, "RtMaterialDesc layout changed: update the managed side");
-    static_assert(sizeof(RtInstance) == 64, "RtInstance layout changed: update the managed side");
-    static_assert(sizeof(RtGpuInstanceGroup) == 32, "RtGpuInstanceGroup layout changed: update the managed side");
-    static_assert(offsetof(RtFramePacket, clipToWorld) == 32, "RtFramePacket layout changed");
-    static_assert(offsetof(RtFramePacket, inputs) == 720, "RtFramePacket layout changed");
-    static_assert(sizeof(RtFramePacket) == 848, "RtFramePacket layout changed: update the managed side");
+    // The layouts the managed side shares (RtContract.h; RtNative.cs, held to it by
+    // tests/ReDefinition.Tests, RtContractTests).
+    static_assert(offsetof(RtReconstructPacket, size) == RT_RECONSTRUCT_PACKET_SIZE_FIELD, "RtReconstructPacket: size");
+    static_assert(offsetof(RtReconstructPacket, magic) == RT_RECONSTRUCT_PACKET_MAGIC, "RtReconstructPacket: magic");
+    static_assert(offsetof(RtReconstructPacket, frameIndex) == RT_RECONSTRUCT_PACKET_FRAME_INDEX, "RtReconstructPacket: frameIndex");
+    static_assert(offsetof(RtReconstructPacket, flags) == RT_RECONSTRUCT_PACKET_FLAGS, "RtReconstructPacket: flags");
+    static_assert(offsetof(RtReconstructPacket, renderWidth) == RT_RECONSTRUCT_PACKET_RENDER_WIDTH, "RtReconstructPacket: renderWidth");
+    static_assert(offsetof(RtReconstructPacket, renderHeight) == RT_RECONSTRUCT_PACKET_RENDER_HEIGHT, "RtReconstructPacket: renderHeight");
+    static_assert(offsetof(RtReconstructPacket, outputWidth) == RT_RECONSTRUCT_PACKET_OUTPUT_WIDTH, "RtReconstructPacket: outputWidth");
+    static_assert(offsetof(RtReconstructPacket, outputHeight) == RT_RECONSTRUCT_PACKET_OUTPUT_HEIGHT, "RtReconstructPacket: outputHeight");
+    static_assert(offsetof(RtReconstructPacket, mode) == RT_RECONSTRUCT_PACKET_MODE, "RtReconstructPacket: mode");
+    static_assert(offsetof(RtReconstructPacket, preset) == RT_RECONSTRUCT_PACKET_PRESET, "RtReconstructPacket: preset");
+    static_assert(offsetof(RtReconstructPacket, reserved) == RT_RECONSTRUCT_PACKET_RESERVED0, "RtReconstructPacket: reserved");
+    static_assert(offsetof(RtReconstructPacket, clipToWorld) == RT_RECONSTRUCT_PACKET_CLIP_TO_WORLD, "RtReconstructPacket: clipToWorld");
+    static_assert(offsetof(RtReconstructPacket, viewToClip) == RT_RECONSTRUCT_PACKET_VIEW_TO_CLIP, "RtReconstructPacket: viewToClip");
+    static_assert(offsetof(RtReconstructPacket, clipToView) == RT_RECONSTRUCT_PACKET_CLIP_TO_VIEW, "RtReconstructPacket: clipToView");
+    static_assert(offsetof(RtReconstructPacket, clipToPrevClip) == RT_RECONSTRUCT_PACKET_CLIP_TO_PREV_CLIP, "RtReconstructPacket: clipToPrevClip");
+    static_assert(offsetof(RtReconstructPacket, prevClipToClip) == RT_RECONSTRUCT_PACKET_PREV_CLIP_TO_CLIP, "RtReconstructPacket: prevClipToClip");
+    static_assert(offsetof(RtReconstructPacket, worldToView) == RT_RECONSTRUCT_PACKET_WORLD_TO_VIEW, "RtReconstructPacket: worldToView");
+    static_assert(offsetof(RtReconstructPacket, viewToWorld) == RT_RECONSTRUCT_PACKET_VIEW_TO_WORLD, "RtReconstructPacket: viewToWorld");
+    static_assert(offsetof(RtReconstructPacket, jitter) == RT_RECONSTRUCT_PACKET_JITTER, "RtReconstructPacket: jitter");
+    static_assert(offsetof(RtReconstructPacket, motionScale) == RT_RECONSTRUCT_PACKET_MOTION_SCALE, "RtReconstructPacket: motionScale");
+    static_assert(offsetof(RtReconstructPacket, up) == RT_RECONSTRUCT_PACKET_UP, "RtReconstructPacket: up");
+    static_assert(offsetof(RtReconstructPacket, right) == RT_RECONSTRUCT_PACKET_RIGHT, "RtReconstructPacket: right");
+    static_assert(offsetof(RtReconstructPacket, forward) == RT_RECONSTRUCT_PACKET_FORWARD, "RtReconstructPacket: forward");
+    static_assert(offsetof(RtReconstructPacket, nearPlane) == RT_RECONSTRUCT_PACKET_NEAR_PLANE, "RtReconstructPacket: nearPlane");
+    static_assert(offsetof(RtReconstructPacket, farPlane) == RT_RECONSTRUCT_PACKET_FAR_PLANE, "RtReconstructPacket: farPlane");
+    static_assert(offsetof(RtReconstructPacket, verticalFov) == RT_RECONSTRUCT_PACKET_VERTICAL_FOV, "RtReconstructPacket: verticalFov");
+    static_assert(offsetof(RtReconstructPacket, reserved2) == RT_RECONSTRUCT_PACKET_RESERVED2, "RtReconstructPacket: reserved2");
+    static_assert(offsetof(RtReconstructPacket, colour) == RT_RECONSTRUCT_PACKET_COLOUR, "RtReconstructPacket: colour");
+    static_assert(offsetof(RtReconstructPacket, depth) == RT_RECONSTRUCT_PACKET_DEPTH, "RtReconstructPacket: depth");
+    static_assert(offsetof(RtReconstructPacket, motion) == RT_RECONSTRUCT_PACKET_MOTION, "RtReconstructPacket: motion");
+    static_assert(offsetof(RtReconstructPacket, gbuffer0) == RT_RECONSTRUCT_PACKET_G_BUFFER0, "RtReconstructPacket: gbuffer0");
+    static_assert(offsetof(RtReconstructPacket, gbuffer1) == RT_RECONSTRUCT_PACKET_G_BUFFER1, "RtReconstructPacket: gbuffer1");
+    static_assert(offsetof(RtReconstructPacket, gbuffer2) == RT_RECONSTRUCT_PACKET_G_BUFFER2, "RtReconstructPacket: gbuffer2");
+    static_assert(offsetof(RtReconstructPacket, specular) == RT_RECONSTRUCT_PACKET_SPECULAR, "RtReconstructPacket: specular");
+    static_assert(offsetof(RtReconstructPacket, output) == RT_RECONSTRUCT_PACKET_OUTPUT, "RtReconstructPacket: output");
+    static_assert(sizeof(RtReconstructPacket) == RT_RECONSTRUCT_PACKET_SIZE, "RtReconstructPacket: its size");
+    static_assert(offsetof(RtFramePacket, size) == RT_FRAME_PACKET_SIZE_FIELD, "RtFramePacket: size");
+    static_assert(offsetof(RtFramePacket, magic) == RT_FRAME_PACKET_MAGIC, "RtFramePacket: magic");
+    static_assert(offsetof(RtFramePacket, frameIndex) == RT_FRAME_PACKET_FRAME_INDEX, "RtFramePacket: frameIndex");
+    static_assert(offsetof(RtFramePacket, flags) == RT_FRAME_PACKET_FLAGS, "RtFramePacket: flags");
+    static_assert(offsetof(RtFramePacket, width) == RT_FRAME_PACKET_WIDTH, "RtFramePacket: width");
+    static_assert(offsetof(RtFramePacket, height) == RT_FRAME_PACKET_HEIGHT, "RtFramePacket: height");
+    static_assert(offsetof(RtFramePacket, signals) == RT_FRAME_PACKET_SIGNALS, "RtFramePacket: signals");
+    static_assert(offsetof(RtFramePacket, reserved) == RT_FRAME_PACKET_RESERVED, "RtFramePacket: reserved");
+    static_assert(offsetof(RtFramePacket, clipToWorld) == RT_FRAME_PACKET_CLIP_TO_WORLD, "RtFramePacket: clipToWorld");
+    static_assert(offsetof(RtFramePacket, worldToClip) == RT_FRAME_PACKET_WORLD_TO_CLIP, "RtFramePacket: worldToClip");
+    static_assert(offsetof(RtFramePacket, prevWorldToClip) == RT_FRAME_PACKET_PREV_WORLD_TO_CLIP, "RtFramePacket: prevWorldToClip");
+    static_assert(offsetof(RtFramePacket, sunDirection) == RT_FRAME_PACKET_SUN_DIRECTION, "RtFramePacket: sunDirection");
+    static_assert(offsetof(RtFramePacket, sunColor) == RT_FRAME_PACKET_SUN_COLOR, "RtFramePacket: sunColor");
+    static_assert(offsetof(RtFramePacket, skyColor) == RT_FRAME_PACKET_SKY_COLOR, "RtFramePacket: skyColor");
+    static_assert(offsetof(RtFramePacket, params) == RT_FRAME_PACKET_PARAMS, "RtFramePacket: params");
+    static_assert(offsetof(RtFramePacket, bodySphere) == RT_FRAME_PACKET_BODY_SPHERE, "RtFramePacket: bodySphere");
+    static_assert(offsetof(RtFramePacket, ambient) == RT_FRAME_PACKET_AMBIENT, "RtFramePacket: ambient");
+    static_assert(offsetof(RtFramePacket, worldToView) == RT_FRAME_PACKET_WORLD_TO_VIEW, "RtFramePacket: worldToView");
+    static_assert(offsetof(RtFramePacket, viewToClip) == RT_FRAME_PACKET_VIEW_TO_CLIP, "RtFramePacket: viewToClip");
+    static_assert(offsetof(RtFramePacket, cameraDelta) == RT_FRAME_PACKET_CAMERA_DELTA, "RtFramePacket: cameraDelta");
+    static_assert(offsetof(RtFramePacket, jitter) == RT_FRAME_PACKET_JITTER, "RtFramePacket: jitter");
+    static_assert(offsetof(RtFramePacket, depthRange) == RT_FRAME_PACKET_DEPTH_RANGE, "RtFramePacket: depthRange");
+    static_assert(offsetof(RtFramePacket, lights) == RT_FRAME_PACKET_LIGHTS, "RtFramePacket: lights");
+    static_assert(offsetof(RtFramePacket, lightParams) == RT_FRAME_PACKET_LIGHT_PARAMS, "RtFramePacket: lightParams");
+    static_assert(offsetof(RtFramePacket, nightLight) == RT_FRAME_PACKET_NIGHT_LIGHT, "RtFramePacket: nightLight");
+    static_assert(offsetof(RtFramePacket, planet) == RT_FRAME_PACKET_PLANET, "RtFramePacket: planet");
+    static_assert(offsetof(RtFramePacket, lightSurface) == RT_FRAME_PACKET_LIGHT_SURFACE, "RtFramePacket: lightSurface");
+    static_assert(offsetof(RtFramePacket, sea) == RT_FRAME_PACKET_SEA, "RtFramePacket: sea");
+    static_assert(offsetof(RtFramePacket, inputs) == RT_FRAME_PACKET_INPUTS, "RtFramePacket: inputs");
+    static_assert(offsetof(RtFramePacket, outputs) == RT_FRAME_PACKET_OUTPUTS, "RtFramePacket: outputs");
+    static_assert(sizeof(RtFramePacket) == RT_FRAME_PACKET_SIZE, "RtFramePacket: its size");
+    static_assert(sizeof(RtMeshDesc) == RT_MESH_DESC_SIZE, "RtMeshDesc: its size");
+    static_assert(sizeof(RtMaterialDesc) == RT_MATERIAL_DESC_SIZE, "RtMaterialDesc: its size");
+    static_assert(sizeof(RtInstance) == RT_INSTANCE_SIZE, "RtInstance: its size");
+    static_assert(sizeof(RtGpuInstanceGroup) == RT_GPU_GROUP_SIZE, "RtGpuInstanceGroup: its size");
 
     class Raytracing
     {

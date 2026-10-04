@@ -7,42 +7,60 @@
 #ifndef REDEFINITION_RT_COMMON
 #define REDEFINITION_RT_COMMON
 
+#include "RtContract.h"
+
+// A field of cbuffer Frame in the register the contract gives it (RtContract.h, RT_CB_*),
+// in a component of it.
+#define RT_AT_(r) packoffset(c##r)
+#define RT_AT(r) RT_AT_(r)
+#define RT_AT_Z_(r) packoffset(c##r.z)
+#define RT_AT_Z(r) RT_AT_Z_(r)
+#define RT_AT_W_(r) packoffset(c##r.w)
+#define RT_AT_W(r) RT_AT_W_(r)
+
 cbuffer Frame : register(b0)
 {
-    row_major float4x4 clipToWorld;
-    row_major float4x4 worldToClip;
-    row_major float4x4 prevWorldToClip;
-    float4 sunDirection;    // towards the sun; w: angular radius
-    float4 sunColor;
-    float4 skyColor;
-    float4 params0;
-    float4 params1;
-    float4 bodySphere;   // the main body: centre relative to the camera, radius; w 0 for none
-    float4 ambientUp;    // Unity's ambient light facing up, linear; w 1 in gamma space
-    float4 ambientSide;  // facing sideways
-    float4 ambientDown;  // facing down
-    uint2 frameSize;
-    uint frameIndex;
-    uint frameFlags;
+    row_major float4x4 clipToWorld : RT_AT(RT_CB_CLIP_TO_WORLD);
+    row_major float4x4 worldToClip : RT_AT(RT_CB_WORLD_TO_CLIP);
+    row_major float4x4 prevWorldToClip : RT_AT(RT_CB_PREV_WORLD_TO_CLIP);
+    float4 sunDirection : RT_AT(RT_CB_SUN_DIRECTION);   // towards the sun; w: angular radius
+    float4 sunColor : RT_AT(RT_CB_SUN_COLOR);
+    float4 skyColor : RT_AT(RT_CB_SKY_COLOR);
+    float4 params0 : RT_AT(RT_CB_PARAMS);
+    float4 params1 : RT_AT(RT_CB_PARAMS1);
+    // The main body: centre relative to the camera, radius; w 0 for none.
+    float4 bodySphere : RT_AT(RT_CB_BODY_SPHERE);
+    // Unity's ambient light facing up, linear, w 1 in gamma space; facing sideways; down.
+    float4 ambientUp : RT_AT(RT_CB_AMBIENT);
+    float4 ambientSide : RT_AT(RT_CB_AMBIENT_SIDE);
+    float4 ambientDown : RT_AT(RT_CB_AMBIENT_DOWN);
+    uint2 frameSize : RT_AT(RT_CB_FRAME_SIZE);
+    uint frameIndex : RT_AT_Z(RT_CB_FRAME_SIZE);
+    uint frameFlags : RT_AT_W(RT_CB_FRAME_SIZE);
     // Bodies lit by the sun as lights (RtReflectors): towards each with its angular
-    // radius in w, and its radiance, linear.
-    float4 lightDirection0;
-    float4 lightColor0;     // w: how far its shadow ray goes, to the body's surface
-    float4 lightDirection1;
-    float4 lightColor1;
-    float4 lightParams;     // x: how many lights; y: 1 where Unity's colours are gamma-space values;
-                            // z: how strongly water mirrors the sun's disc, 1 as it is; w: 1 where
-                            // the main body's sea is KSP's own (no Scatterer), found by its level
-    float4 nightLight;      // rgb: the least diffuse light of the forward light, as Unity's colours are
-    float4 planetAlbedo;    // rgb: the main body's albedo, linear; w: the time in seconds, for the
-                            // waves of KSP's own sea (StockWaves)
-    float4 lightSurface0;   // rgb: the light's body lit by the star, linear: albedo times the star's colour
-    float4 lightSurface1;
+    // radius in w, and its radiance, linear, with in w how far its shadow ray goes, to the
+    // body's surface.
+    float4 lightDirection0 : RT_AT(RT_CB_LIGHTS);
+    float4 lightColor0 : RT_AT(RT_CB_LIGHT_COLOR0);
+    float4 lightDirection1 : RT_AT(RT_CB_LIGHT_DIRECTION1);
+    float4 lightColor1 : RT_AT(RT_CB_LIGHT_COLOR1);
+    // x: how many lights; y: 1 where Unity's colours are gamma-space values; z: how
+    // strongly water mirrors the sun's disc, 1 as it is; w: 1 where the main body's sea is
+    // KSP's own (no Scatterer), found by its level.
+    float4 lightParams : RT_AT(RT_CB_LIGHT_PARAMS);
+    // rgb: the least diffuse light of the forward light, as Unity's colours are.
+    float4 nightLight : RT_AT(RT_CB_NIGHT_LIGHT);
+    // rgb: the main body's albedo, linear; w: the time in seconds, for the waves of KSP's
+    // own sea (StockWaves).
+    float4 planetAlbedo : RT_AT(RT_CB_PLANET);
+    // rgb: the light's body lit by the star, linear: albedo times the star's colour.
+    float4 lightSurface0 : RT_AT(RT_CB_LIGHT_SURFACE);
+    float4 lightSurface1 : RT_AT(RT_CB_LIGHT_SURFACE1);
     // The sea's frame, fixed to the main body (RtCamera.Sea, SeaFrameAnchor in the game): a
     // point on the sea relative to the camera, and its east and north; all 0 for none.
-    float4 seaOrigin;
-    float4 seaEast;
-    float4 seaNorth;
+    float4 seaOrigin : RT_AT(RT_CB_SEA);
+    float4 seaEast : RT_AT(RT_CB_SEA_EAST);
+    float4 seaNorth : RT_AT(RT_CB_SEA_NORTH);
 };
 
 struct InstanceData
@@ -115,10 +133,10 @@ SamplerState linearWrap : register(s2);
 #define HAS_ENVIRONMENT (params1.y > 0.5f)
 #define MATERIAL_TEXTURES (params1.z > 0.5f)
 #define HAS_GBUFFER (params1.w > 0.5f)
-#define EXTRA_FRAME ((frameFlags & 32u) != 0u)
-#define WATER_SURFACE ((frameFlags & 64u) != 0u)
-#define WATER_NORMALS ((frameFlags & 128u) != 0u)
-#define LEGACY_SMOOTHNESS ((frameFlags & 256u) != 0u)
+#define EXTRA_FRAME ((frameFlags & RT_FLAG_EXTRA) != 0u)
+#define WATER_SURFACE ((frameFlags & RT_FLAG_WATER) != 0u)
+#define WATER_NORMALS ((frameFlags & RT_FLAG_WATER_NORMALS) != 0u)
+#define LEGACY_SMOOTHNESS ((frameFlags & RT_FLAG_LEGACY_SMOOTHNESS) != 0u)
 #define LIGHT_COUNT ((uint)lightParams.x)
 #define GAMMA_INPUTS (lightParams.y > 0.5f)
 #define SUN_MIRROR (lightParams.z)
@@ -127,10 +145,10 @@ SamplerState linearWrap : register(s2);
 // reflected ray that met a moon's disc (kDiscHit); in the water's frame a ray that met
 // the scene at most kWaterHitLimit, one that met nothing kWaterSky (ReDefinitionRtCapture
 // .shader, fragOceanCompose, reads both).
-static const float kFp16Max = 65504.0f;
-static const float kDiscHit = 60000.0f;
-static const float kWaterHitLimit = 59999.0f;
-static const float kWaterSky = 65000.0f;
+static const float kFp16Max = RT_FP16_MAX;
+static const float kDiscHit = RT_DISC_HIT;
+static const float kWaterHitLimit = RT_WATER_HIT_LIMIT;
+static const float kWaterSky = RT_WATER_SKY;
 #define STOCK_WATER (lightParams.w > 0.5f)
 
 // The light transport is linear: sums and averages of light -- a hemisphere of sky and
@@ -294,9 +312,9 @@ static const float kTerrainSkip = 1.0f;
 bool CandidateCounts(uint instanceId, uint primitive, float2 bary, float t, float terrainSkip, float3 origin)
 {
     InstanceData instance = instanceData[instanceId];
-    if ((instance.flags & 1u) != 0u && t < terrainSkip)
+    if ((instance.flags & RT_INSTANCE_TERRAIN) != 0u && t < terrainSkip)
         return false;
-    if ((instance.flags & 2u) == 0u)
+    if ((instance.flags & RT_INSTANCE_CUTOUT) == 0u)
         return true;
     MaterialData material = materialData[instance.material];
     if (!MATERIAL_TEXTURES || material.texture < 0)

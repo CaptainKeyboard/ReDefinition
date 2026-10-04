@@ -1,0 +1,184 @@
+// The contract between the managed side (src/Raytracing/RtNative.cs), the proxy
+// (Raytracing.h) and the raytracing shaders (RtCommon.hlsli): the values and layouts all
+// three read, in one place. Plain #defines, so that C++ and HLSL include it alike;
+// tests/ReDefinition.Tests (RtContractTests) reads it and holds RtNative's constants and
+// the managed packets' offsets to it, Raytracing.h's static_asserts hold the proxy's
+// structures to it, and cbuffer Frame places its fields by it (packoffset).
+//
+// RT_<name> is RtNative's constant <Name> where it has one.
+
+#ifndef REDEFINITION_RT_CONTRACT
+#define REDEFINITION_RT_CONTRACT
+
+// The render events.
+#define RT_FRAME_EVENT 30
+#define RT_RECONSTRUCT_EVENT 31
+#define RT_RECONSTRUCT_RELEASE_EVENT 32
+
+#define RT_MESH_MAGIC 0x4B53524Du          // 'KSRM'
+#define RT_MATERIAL_MAGIC 0x4B535241u      // 'KSRA'
+#define RT_FRAME_MAGIC 0x4B535246u         // 'KSRF'
+#define RT_RECONSTRUCT_MAGIC 0x4B535252u   // 'KSRR'
+
+// A frame's flags (Raytracing.h, kRtFrame*).
+#define RT_FLAG_SAME_FRAME 0x1u
+#define RT_FLAG_RESET 0x2u
+#define RT_FLAG_DENOISE 0x4u
+#define RT_FLAG_MOTION_VECTORS 0x8u
+#define RT_FLAG_GUIDES 0x10u
+#define RT_FLAG_EXTRA 0x20u
+#define RT_FLAG_WATER 0x40u
+#define RT_FLAG_WATER_NORMALS 0x80u
+#define RT_FLAG_LEGACY_SMOOTHNESS 0x100u
+
+// The signals a frame traces (Raytracing.h, kRtSignal*).
+#define RT_SIGNAL_SUN 0x1u
+#define RT_SIGNAL_OCCLUSION 0x2u
+#define RT_SIGNAL_DIFFUSE 0x4u
+#define RT_SIGNAL_SPECULAR 0x8u
+#define RT_SIGNAL_FORWARD_LIGHT 0x10u
+#define RT_SIGNAL_PRIMARY_CHECK 0x80u
+
+// The output slot each signal writes.
+#define RT_OUTPUT_SUN 0
+#define RT_OUTPUT_DIFFUSE 1
+#define RT_OUTPUT_SPECULAR 2
+#define RT_OUTPUT_OCCLUSION 3
+#define RT_OUTPUT_FORWARD_LIGHT 4
+#define RT_OUTPUT_PRIMARY_CHECK 7
+
+// The input slots (Raytracing.h, kRtInput*).
+#define RT_INPUT_DEPTH 0
+#define RT_INPUT_G_BUFFER0 1
+#define RT_INPUT_G_BUFFER1 2
+#define RT_INPUT_G_BUFFER2 3
+#define RT_INPUT_MOTION 4
+#define RT_INPUT_ENVIRONMENT 5
+#define RT_INPUT_INSTANCES 6
+#define RT_INSTANCES_PER_ROW 256
+
+// An instance's flags (Raytracing.h, kRtInstance*).
+#define RT_INSTANCE_TERRAIN 0x1u
+#define RT_INSTANCE_CUTOUT 0x2u
+
+#define RT_ANY_FRAME 0xFFFFFFFFu
+#define RT_MATERIAL_TEXTURE_SIZE 64
+#define RT_MAX_MATERIAL_TEXTURES 2048
+
+// The hit distances the signals carry in w (RtCommon.hlsli): a miss as a half float's
+// largest value, a reflected ray that met a moon's disc; in the water's frame a ray that
+// met the scene at most RT_WATER_HIT_LIMIT, one that met nothing RT_WATER_SKY.
+#define RT_FP16_MAX 65504.0f
+#define RT_DISC_HIT 60000.0f
+#define RT_WATER_HIT_LIMIT 59999.0f
+#define RT_WATER_SKY 65000.0f
+
+// The structures' sizes in bytes.
+#define RT_MESH_DESC_SIZE 64
+#define RT_MATERIAL_DESC_SIZE 80
+#define RT_INSTANCE_SIZE 64
+#define RT_GPU_GROUP_SIZE 32
+#define RT_FRAME_PACKET_SIZE 848
+#define RT_RECONSTRUCT_PACKET_SIZE 640
+
+// RtFramePacket's fields, by their offset in bytes.
+#define RT_FRAME_PACKET_SIZE_FIELD 0
+#define RT_FRAME_PACKET_MAGIC 4
+#define RT_FRAME_PACKET_FRAME_INDEX 8
+#define RT_FRAME_PACKET_FLAGS 12
+#define RT_FRAME_PACKET_WIDTH 16
+#define RT_FRAME_PACKET_HEIGHT 20
+#define RT_FRAME_PACKET_SIGNALS 24
+#define RT_FRAME_PACKET_RESERVED 28
+#define RT_FRAME_PACKET_CLIP_TO_WORLD 32
+#define RT_FRAME_PACKET_WORLD_TO_CLIP 96
+#define RT_FRAME_PACKET_PREV_WORLD_TO_CLIP 160
+#define RT_FRAME_PACKET_SUN_DIRECTION 224
+#define RT_FRAME_PACKET_SUN_COLOR 240
+#define RT_FRAME_PACKET_SKY_COLOR 256
+#define RT_FRAME_PACKET_PARAMS 272
+#define RT_FRAME_PACKET_BODY_SPHERE 304
+#define RT_FRAME_PACKET_AMBIENT 320
+#define RT_FRAME_PACKET_WORLD_TO_VIEW 368
+#define RT_FRAME_PACKET_VIEW_TO_CLIP 432
+#define RT_FRAME_PACKET_CAMERA_DELTA 496
+#define RT_FRAME_PACKET_JITTER 512
+#define RT_FRAME_PACKET_DEPTH_RANGE 520
+#define RT_FRAME_PACKET_LIGHTS 528
+#define RT_FRAME_PACKET_LIGHT_PARAMS 592
+#define RT_FRAME_PACKET_NIGHT_LIGHT 608
+#define RT_FRAME_PACKET_PLANET 624
+#define RT_FRAME_PACKET_LIGHT_SURFACE 640
+#define RT_FRAME_PACKET_SEA 672
+#define RT_FRAME_PACKET_INPUTS 720
+#define RT_FRAME_PACKET_OUTPUTS 784
+
+// RtReconstructPacket's fields, by their offset in bytes.
+#define RT_RECONSTRUCT_PACKET_SIZE_FIELD 0
+#define RT_RECONSTRUCT_PACKET_MAGIC 4
+#define RT_RECONSTRUCT_PACKET_FRAME_INDEX 8
+#define RT_RECONSTRUCT_PACKET_FLAGS 12
+#define RT_RECONSTRUCT_PACKET_RENDER_WIDTH 16
+#define RT_RECONSTRUCT_PACKET_RENDER_HEIGHT 20
+#define RT_RECONSTRUCT_PACKET_OUTPUT_WIDTH 24
+#define RT_RECONSTRUCT_PACKET_OUTPUT_HEIGHT 28
+#define RT_RECONSTRUCT_PACKET_MODE 32
+#define RT_RECONSTRUCT_PACKET_PRESET 36
+#define RT_RECONSTRUCT_PACKET_RESERVED0 40
+#define RT_RECONSTRUCT_PACKET_RESERVED1 44
+#define RT_RECONSTRUCT_PACKET_CLIP_TO_WORLD 48
+#define RT_RECONSTRUCT_PACKET_VIEW_TO_CLIP 112
+#define RT_RECONSTRUCT_PACKET_CLIP_TO_VIEW 176
+#define RT_RECONSTRUCT_PACKET_CLIP_TO_PREV_CLIP 240
+#define RT_RECONSTRUCT_PACKET_PREV_CLIP_TO_CLIP 304
+#define RT_RECONSTRUCT_PACKET_WORLD_TO_VIEW 368
+#define RT_RECONSTRUCT_PACKET_VIEW_TO_WORLD 432
+#define RT_RECONSTRUCT_PACKET_JITTER 496
+#define RT_RECONSTRUCT_PACKET_MOTION_SCALE 504
+#define RT_RECONSTRUCT_PACKET_UP 512
+#define RT_RECONSTRUCT_PACKET_RIGHT 528
+#define RT_RECONSTRUCT_PACKET_FORWARD 544
+#define RT_RECONSTRUCT_PACKET_NEAR_PLANE 560
+#define RT_RECONSTRUCT_PACKET_FAR_PLANE 564
+#define RT_RECONSTRUCT_PACKET_VERTICAL_FOV 568
+#define RT_RECONSTRUCT_PACKET_RESERVED2 572
+#define RT_RECONSTRUCT_PACKET_COLOUR 576
+#define RT_RECONSTRUCT_PACKET_DEPTH 584
+#define RT_RECONSTRUCT_PACKET_MOTION 592
+#define RT_RECONSTRUCT_PACKET_G_BUFFER0 600
+#define RT_RECONSTRUCT_PACKET_G_BUFFER1 608
+#define RT_RECONSTRUCT_PACKET_G_BUFFER2 616
+#define RT_RECONSTRUCT_PACKET_SPECULAR 624
+#define RT_RECONSTRUCT_PACKET_OUTPUT 632
+
+// cbuffer Frame (RtCommon.hlsli, Raytracing.h RtFrameConstants): each field's register,
+// 16 bytes each, and the registers of the shaders' names within a field;
+// frameIndex and frameFlags in z and w of RT_CB_FRAME_SIZE's.
+#define RT_CB_CLIP_TO_WORLD 0
+#define RT_CB_WORLD_TO_CLIP 4
+#define RT_CB_PREV_WORLD_TO_CLIP 8
+#define RT_CB_SUN_DIRECTION 12
+#define RT_CB_SUN_COLOR 13
+#define RT_CB_SKY_COLOR 14
+#define RT_CB_PARAMS 15
+#define RT_CB_PARAMS1 16
+#define RT_CB_BODY_SPHERE 17
+#define RT_CB_AMBIENT 18
+#define RT_CB_AMBIENT_SIDE 19
+#define RT_CB_AMBIENT_DOWN 20
+#define RT_CB_FRAME_SIZE 21
+#define RT_CB_LIGHTS 22
+#define RT_CB_LIGHT_COLOR0 23
+#define RT_CB_LIGHT_DIRECTION1 24
+#define RT_CB_LIGHT_COLOR1 25
+#define RT_CB_LIGHT_PARAMS 26
+#define RT_CB_NIGHT_LIGHT 27
+#define RT_CB_PLANET 28
+#define RT_CB_LIGHT_SURFACE 29
+#define RT_CB_LIGHT_SURFACE1 30
+#define RT_CB_SEA 31
+#define RT_CB_SEA_EAST 32
+#define RT_CB_SEA_NORTH 33
+#define RT_CB_REGISTERS 34
+
+#endif

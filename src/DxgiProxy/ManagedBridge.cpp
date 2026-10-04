@@ -274,11 +274,11 @@ extern "C"
             redefinition::D3d12Compute::Get().OnDispatch(data);
         else if (eventId == 23)
             redefinition::D3d12Compute::Get().OnReleaseTexture(data);
-        else if (eventId == 30)
+        else if (eventId == RT_FRAME_EVENT)
             redefinition::Raytracing::Get().OnFrame(data);
-        else if (eventId == 31)
+        else if (eventId == RT_RECONSTRUCT_EVENT)
             redefinition::Raytracing::Get().OnReconstruct(data);
-        else if (eventId == 32)
+        else if (eventId == RT_RECONSTRUCT_RELEASE_EVENT)
             redefinition::Raytracing::Get().OnReconstructRelease();
         else if (eventId == 40)
             redefinition::Streamline::Get().OnGameFrameRendered(
