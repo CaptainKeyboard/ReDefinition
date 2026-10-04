@@ -1060,7 +1060,7 @@ namespace ReDefinition.Engineer
                 int id = group == 0 ? 0 : valid[group - 1].Plan.Id;
                 if (!step.Flying.Contains(id)) continue;
                 members.Add(i);
-                if (parts[i].Fin && (use.Stage < 0 || parts[i].DecoupleStage <= use.Stage)) fins = true;
+                if (parts[i].Fin && parts[i].AttachedIn(use.Stage)) fins = true;
             }
             // Fins steer in the air by as much as the air allows, which is not counted:
             // where they fly through it, a slow turn is no warning.
@@ -1149,7 +1149,7 @@ namespace ReDefinition.Engineer
             if (thrust <= 0.0) return;
             double overIsp = 0.0;
             foreach (int at in flying.Members)
-                if (stage < 0 || parts[at].DecoupleStage <= stage) overIsp += parts[at].RcsThrustOverIsp;
+                if (parts[at].AttachedIn(stage)) overIsp += parts[at].RcsThrustOverIsp;
             rcsOf[entry.Step] = new RcsInfo
             {
                 Mass = mass, Thrust = thrust, Propellant = propellant, DeltaV = deltaV,

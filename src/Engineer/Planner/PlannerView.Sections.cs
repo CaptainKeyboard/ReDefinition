@@ -204,10 +204,10 @@ namespace ReDefinition.Engineer
 
         // A section's RCS as it docks, after `stage` burnt (-1 for none): its thrust in
         // kN, the propellant for it, and the delta-v that gives `mass`, in m/s. Of the
-        // section's parts only those still attached count (DecoupleStage no higher
-        // than the stage), and only the resources their own RCS thrusters burn, in the
-        // mix they burn them in (StageTable.UsablePropellant), no more than what
-        // `mass` still holds over those parts' dry mass.
+        // section's parts only those still attached count (PartFacts.AttachedIn), and
+        // only the resources their own RCS thrusters burn, in the mix they burn them
+        // in (StageTable.UsablePropellant), no more than what `mass` still holds over
+        // those parts' dry mass.
         private void RcsOf(PartGroupChoice group, int stage, double mass, out double thrust, out double propellant, out double deltaV)
         {
             thrust = 0.0;
@@ -221,7 +221,7 @@ namespace ReDefinition.Engineer
             foreach (int at in group.Members)
             {
                 if (at < 0 || at >= parts.Count || parts[at].Clamp) continue;
-                if (stage >= 0 && parts[at].DecoupleStage > stage) continue;
+                if (!parts[at].AttachedIn(stage)) continue;
                 attached.Add(at);
                 thrust += parts[at].RcsThrust;
                 overIsp += parts[at].RcsThrustOverIsp;

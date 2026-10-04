@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System;
 using KSP.UI;
 using KSP.UI.Screens;
@@ -30,7 +31,11 @@ namespace ReDefinition.Engineer
     public class EditorEngineer : MonoBehaviour
     {
         private const string TilePath = "ReDefinition/Icons/EngineerButton_";
+        // The vessel read again a moment after KSP changed it or finished its
+        // delta-v simulation, and at the latest every few seconds for what fires
+        // neither.
         private const float RefreshInterval = 0.25f;
+        private const float RefreshAnyway = 2f;
 
         private EditorLogic editor;
         private Button button;
@@ -43,13 +48,17 @@ namespace ReDefinition.Engineer
         // change it causes does not close the view it is opening.
         private bool switching;
         private float nextRefresh;
+        private float refreshAnyway;
+        private bool changed = true;
 
         internal EditorReadout Readout { get; private set; }
 
         private IEnumerator Start()
         {
             // EditorLogic sets its buttons up in its own Start.
-            while (EditorLogic.fetch == null || EditorPanels.Instance == null) yield return null;
+            float until = Time.unscaledTime + 15f;
+            while (Time.unscaledTime < until && (EditorLogic.fetch == null || EditorPanels.Instance == null)) yield return null;
+            if (EditorLogic.fetch == null || EditorPanels.Instance == null) yield break;
             yield return null;
 
             editor = EditorLogic.fetch;
@@ -70,6 +79,8 @@ namespace ReDefinition.Engineer
             // scene's UI is ready (HUDReplacer, onLevelWasLoadedGUIReady): the
             // planner button's tiles are made again after it.
             GameEvents.onLevelWasLoadedGUIReady.Add(OnGuiReady);
+            GameEvents.onEditorShipModified.Add(OnShipModified);
+            GameEvents.onDeltaVCalcsCompleted.Add(OnShipChanged);
             StartCoroutine(TilesAgainLater());
         }
 
@@ -77,18 +88,23 @@ namespace ReDefinition.Engineer
         {
             GameEvents.onEditorScreenChange.Remove(OnScreenChange);
             GameEvents.onLevelWasLoadedGUIReady.Remove(OnGuiReady);
+            GameEvents.onEditorShipModified.Remove(OnShipModified);
+            GameEvents.onDeltaVCalcsCompleted.Remove(OnShipChanged);
             Canvas.willRenderCanvases -= KeepButtons;
             if (editor != null && editor.partPanelBtn != null) editor.partPanelBtn.onClick.RemoveListener(OnPartsButton);
             if (panel != null) panel.Destroy();
             if (button != null) Destroy(button.gameObject);
+            DestroyTiles();
         }
 
         private void Update()
         {
             if (editor == null || !open) return;
-            if (Time.unscaledTime >= nextRefresh)
+            if (Time.unscaledTime >= nextRefresh && (changed || Time.unscaledTime >= refreshAnyway))
             {
                 nextRefresh = Time.unscaledTime + RefreshInterval;
+                refreshAnyway = Time.unscaledTime + RefreshAnyway;
+                changed = false;
                 try
                 {
                     Readout = EditorReadout.Read();
@@ -109,6 +125,16 @@ namespace ReDefinition.Engineer
                 CompatibilityLog.Warn("engineer-update", "The planner could not be drawn ("
                                                          + CompatibilityLog.Reason(e) + ").");
             }
+        }
+
+        private void OnShipModified(ShipConstruct ship)
+        {
+            changed = true;
+        }
+
+        private void OnShipChanged()
+        {
+            changed = true;
         }
 
         // --------------------------------------------------------------- opening
@@ -135,6 +161,7 @@ namespace ReDefinition.Engineer
             open = true;
             if (PartListTooltipMasterController.Instance != null) PartListTooltipMasterController.Instance.HideTooltip();
             nextRefresh = 0f;
+            changed = true;
             if (editor.editorScreen != EditorScreen.Parts)
             {
                 // KSP counts the planner as part of the parts mode: switch to
@@ -284,13 +311,15 @@ namespace ReDefinition.Engineer
             if (source == null || image == null || source.sprite == madeFrom) return;
             madeFrom = source.sprite;
             SpriteState from = cargo.spriteState;
-            Sprite normal = ModeButtonTiles.From(source.sprite) ?? Tile("Normal");
-            Sprite hover = ModeButtonTiles.From(from.highlightedSprite) ?? Tile("Hover");
-            Sprite pressed = ModeButtonTiles.From(from.pressedSprite) ?? Tile("Active");
-            tileActive = ModeButtonTiles.From(from.disabledSprite) ?? Tile("Active");
+            List<Sprite> making = new List<Sprite>();
+            Sprite normal = Made(ModeButtonTiles.From(source.sprite), making) ?? Tile("Normal");
+            Sprite hover = Made(ModeButtonTiles.From(from.highlightedSprite), making) ?? Tile("Hover");
+            Sprite pressed = Made(ModeButtonTiles.From(from.pressedSprite), making) ?? Tile("Active");
+            tileActive = Made(ModeButtonTiles.From(from.disabledSprite), making) ?? Tile("Active");
             tileDisabled = tileActive;
             if (normal == null)
             {
+                madeTiles.AddRange(making);
                 Debug.LogWarning(Log.Tag + " The planner button's tiles could not be made; it shows the cargo tile.");
                 return;
             }
@@ -302,7 +331,30 @@ namespace ReDefinition.Engineer
             states.pressedSprite = pressed;
             states.disabledSprite = open ? tileActive : tileDisabled;
             button.spriteState = states;
+            DestroyTiles();
+            madeTiles.AddRange(making);
             Debug.Log(Log.Tag + " Planner button tiles made from " + source.sprite.name + ".");
+        }
+
+        // The tiles ModeButtonTiles made, each with a texture of its own; destroyed
+        // once the button shows newer ones, and with the editor.
+        private readonly List<Sprite> madeTiles = new List<Sprite>();
+
+        private static Sprite Made(Sprite sprite, List<Sprite> making)
+        {
+            if (sprite != null) making.Add(sprite);
+            return sprite;
+        }
+
+        private void DestroyTiles()
+        {
+            foreach (Sprite sprite in madeTiles)
+            {
+                if (sprite == null) continue;
+                if (sprite.texture != null) Destroy(sprite.texture);
+                Destroy(sprite);
+            }
+            madeTiles.Clear();
         }
 
         private static Sprite Tile(string state)

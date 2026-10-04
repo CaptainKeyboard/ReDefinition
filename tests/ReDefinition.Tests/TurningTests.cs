@@ -84,6 +84,38 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1.0, Turning.MassAt(tank, 2), 1e-9);
             // Stage 1: the tank is gone, the pod alone has no inertia to turn.
             Assert.AreEqual(0.0, Turning.Seconds(parts, new[] { 0, 1 }, 1, -1), 1e-9);
+            // Stage 2 drops the tank as it fires, as KSP's DeltaVStageInfo counts it.
+            Assert.AreEqual(0.0, Turning.Seconds(parts, new[] { 0, 1 }, 2, -1), 1e-9);
+            Assert.IsTrue(Turning.Seconds(parts, new[] { 0, 1 }, 3, -1) > 0.0);
+        }
+
+        // A part decoupled at stage s is on the vessel while the stages above s burn,
+        // gone as s fires; never decoupled (-1), always on.
+        [TestMethod]
+        public void AttachedUntilItsStageFires()
+        {
+            PartFacts booster = new PartFacts { DecoupleStage = 2 };
+            Assert.IsTrue(booster.AttachedIn(-1));
+            Assert.IsTrue(booster.AttachedIn(3));
+            Assert.IsFalse(booster.AttachedIn(2));
+            Assert.IsFalse(booster.AttachedIn(1));
+            PartFacts pod = new PartFacts { DecoupleStage = -1 };
+            Assert.IsTrue(pod.AttachedIn(0));
+        }
+
+        // A gimballing engine steers while its stage burns, not once the stage that
+        // drops it fires.
+        [TestMethod]
+        public void GimbalCountsUntilItsEngineIsDropped()
+        {
+            PartFacts engine = Part(-1f);
+            engine.GimbalSide = 1.0;
+            engine.ActivatesAt = 2;
+            engine.DecoupleStage = 1;
+            PartFacts pod = Part(1f);
+            List<PartFacts> parts = new List<PartFacts> { pod, engine };
+            Assert.IsFalse(double.IsInfinity(Turning.Seconds(parts, new[] { 0, 1 }, 2, 2)));
+            Assert.IsTrue(double.IsInfinity(Turning.Seconds(parts, new[] { 0, 1 }, 2, -1)));
         }
     }
 }

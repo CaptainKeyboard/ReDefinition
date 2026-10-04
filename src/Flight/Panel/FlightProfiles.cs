@@ -91,8 +91,10 @@ namespace ReDefinition.Flight.Panel
                 foreach (ConfigNode entry in node.GetNodes("PROFILE"))
                 {
                     FlightProfile profile = new FlightProfile { Name = entry.GetValue("name") ?? "Profile" };
+                    // One whose situation cannot be read is the player's own, shown when
+                    // picked, rather than one of the situations' in place of its own.
                     PanelSituation situation;
-                    profile.Situation = TryParse(entry.GetValue("situation"), out situation) ? situation : PanelSituation.Orbit;
+                    profile.Situation = TryParse(entry.GetValue("situation"), out situation) ? situation : PanelSituation.Manual;
                     foreach (string key in (entry.GetValue("readouts") ?? "").Split(','))
                     {
                         string trimmed = key.Trim();
@@ -134,7 +136,7 @@ namespace ReDefinition.Flight.Panel
             try
             {
                 situation = (PanelSituation)System.Enum.Parse(typeof(PanelSituation), text, true);
-                return true;
+                return System.Enum.IsDefined(typeof(PanelSituation), situation);
             }
             catch (System.ArgumentException)
             {
@@ -209,7 +211,7 @@ namespace ReDefinition.Flight.Panel
         // the panel and the round gauge alike, followed for the active vessel,
         // afresh for another.
         internal const float Hold = 2f;
-        private static Vessel heldFor;
+        private static readonly HeldVessel heldFor = new HeldVessel();
         private static PanelSituation? last;
         private static PanelSituation held;
         private static float lastSince;
@@ -218,9 +220,9 @@ namespace ReDefinition.Flight.Panel
         internal static PanelSituation Held(Vessel vessel)
         {
             if (vessel == null) return PanelSituation.Orbit;
-            if (vessel != heldFor)
+            if (!heldFor.Is(vessel))
             {
-                heldFor = vessel;
+                heldFor.Set(vessel);
                 last = null;
                 readFrame = -1;
             }
@@ -243,15 +245,15 @@ namespace ReDefinition.Flight.Panel
         // deflectionLiftCoeff: a basic fin 0.2, a wing panel 1 and more), at least 2
         // and at least 0.1 per tonne, so that a rocket's fins and a Mk2 fuselage do
         // not make it a plane.
-        private static Vessel wingedFor;
+        private static readonly HeldVessel wingedFor = new HeldVessel();
         private static float wingedAt = -10f;
         private static bool winged;
 
         // Looked at once a second: the search goes through every part's modules.
         private static bool Winged(Vessel vessel)
         {
-            if (vessel == wingedFor && Time.unscaledTime - wingedAt < 1f) return winged;
-            wingedFor = vessel;
+            if (wingedFor.Is(vessel) && Time.unscaledTime - wingedAt < 1f) return winged;
+            wingedFor.Set(vessel);
             wingedAt = Time.unscaledTime;
             winged = Wings(vessel);
             return winged;

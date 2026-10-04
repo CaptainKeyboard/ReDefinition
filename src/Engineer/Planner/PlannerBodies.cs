@@ -30,14 +30,15 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < bodies.Count; i++)
             {
                 CelestialBody body = bodies[i];
-                int parent = -1;
-                if (body.orbit != null && body.referenceBody != null && body.referenceBody != body)
-                    index.TryGetValue(body.referenceBody, out parent);
+                int parent;
+                if (body.orbit == null || body.referenceBody == null || body.referenceBody == body
+                    || !index.TryGetValue(body.referenceBody, out parent))
+                    parent = -1;
                 read.Bodies.Add(new PlannerBody
                 {
                     Name = body.displayName.LocalizeRemoveGender(),
                     Id = body.bodyName,
-                    Parent = body.orbit != null && body.referenceBody != body ? parent : -1,
+                    Parent = parent,
                     Mu = body.gravParameter,
                     Radius = body.Radius,
                     RotationPeriod = body.rotationPeriod,

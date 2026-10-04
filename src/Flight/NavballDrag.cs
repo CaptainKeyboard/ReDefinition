@@ -63,7 +63,10 @@ namespace ReDefinition.Flight
 
         private IEnumerator Start()
         {
-            while (NavBallToggle.Instance == null || NavBallToggle.Instance.panel == null) yield return null;
+            float until = Time.unscaledTime + 15f;
+            while (Time.unscaledTime < until && (NavBallToggle.Instance == null || NavBallToggle.Instance.panel == null))
+                yield return null;
+            if (NavBallToggle.Instance == null || NavBallToggle.Instance.panel == null) yield break;
             // The panel sets its states up in its own Start.
             yield return null;
 

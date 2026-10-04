@@ -36,7 +36,7 @@ namespace ReDefinition.Engineer
             foreach (int at in members)
             {
                 if (at < 0 || at >= parts.Count || parts[at].Clamp) continue;
-                if (stage >= 0 && parts[at].DecoupleStage > stage) continue;
+                if (!parts[at].AttachedIn(stage)) continue;
                 double mass = MassAt(parts[at], stage);
                 if (mass <= 0.0) continue;
                 flying.Add(at);
@@ -74,7 +74,7 @@ namespace ReDefinition.Engineer
                         else yawDown -= torque.z;
                     }
                 }
-                if (burning >= 0 && part.GimbalSide > 0.0 && part.ActivatesAt >= burning && part.DecoupleStage < burning)
+                if (burning >= 0 && part.GimbalSide > 0.0 && part.ActivatesAt >= burning && part.AttachedIn(burning))
                 {
                     double lever = offset.magnitude;
                     pitchTorque += part.GimbalSide * lever;

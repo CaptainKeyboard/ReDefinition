@@ -247,6 +247,7 @@ namespace ReDefinition.Flight
                     if (group != null) Arrange(group, column);
                 KeepStackWide(manager);
                 if (HoverArea != null) HoverArea(manager);
+                Prune();
             }
             catch (Exception e)
             {
@@ -334,6 +335,27 @@ namespace ReDefinition.Flight
             column.Restore(host);
             columns.Remove(host);
             Size(lines, width);
+        }
+
+        // The layouts kept for stages KSP has since destroyed, let go of once a second.
+        private float nextPrune;
+        private readonly List<GameObject> dead = new List<GameObject>();
+
+        private void Prune()
+        {
+            if (Time.unscaledTime < nextPrune) return;
+            nextPrune = Time.unscaledTime + 1f;
+            RemoveDead(columns);
+            RemoveDead(iconColumns);
+        }
+
+        private void RemoveDead<T>(Dictionary<GameObject, T> kept)
+        {
+            dead.Clear();
+            foreach (GameObject host in kept.Keys)
+                if (host == null) dead.Add(host);
+            foreach (GameObject host in dead) kept.Remove(host);
+            dead.Clear();
         }
 
         // As tall as KSP's layout made a line.

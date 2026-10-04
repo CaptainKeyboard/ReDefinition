@@ -29,25 +29,35 @@ namespace ReDefinition.Flight
         public override void CalculateLayoutInputHorizontal()
         {
             base.CalculateLayoutInputHorizontal();
+            CountSlots();
             float width = padding.horizontal + Cell.x * Mathf.Lerp(1f, 2f, Blend);
             SetLayoutInputForAxis(width, width, -1f, 0);
         }
 
-        // Where each child starts, in places counted from the first; and how far the
-        // lowest reaches.
-        public override void CalculateLayoutInputVertical()
+        // Where each child starts, in places counted from the first. Unity lays out the
+        // horizontal axis before it asks for the vertical inputs, so both passes count.
+        private void CountSlots()
         {
             slots.Clear();
             float at = 0f;
-            float lowest = 0f;
             for (int i = 0; i < rectChildren.Count; i++)
             {
                 slots.Add(at);
-                float share = Share(rectChildren[i]);
+                at += Share(rectChildren[i]);
+            }
+        }
+
+        // How far the lowest child reaches.
+        public override void CalculateLayoutInputVertical()
+        {
+            CountSlots();
+            float lowest = 0f;
+            for (int i = 0; i < rectChildren.Count; i++)
+            {
+                float at = slots[i];
                 Vector2 single = Single(at), pair = Pair(at);
                 float top = Mathf.Lerp(single.y, pair.y, Blend);
-                lowest = Mathf.Max(lowest, top + Cell.y * share);
-                at += share;
+                lowest = Mathf.Max(lowest, top + Cell.y * Share(rectChildren[i]));
             }
             float height = padding.vertical + lowest;
             SetLayoutInputForAxis(height, height, -1f, 1);

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using KSP.UI;
 using KSP.UI.TooltipTypes;
@@ -41,6 +42,9 @@ namespace ReDefinition.Flight
         private TextMeshProUGUI label;
         private MonoBehaviour mod;
         private Texture shown;
+        // The sprites made here, destroyed with the bar; the mod's icons by texture.
+        private readonly List<Sprite> made = new List<Sprite>();
+        private readonly Dictionary<Texture2D, Sprite> icons = new Dictionary<Texture2D, Sprite>();
 
         private IEnumerator Start()
         {
@@ -252,12 +256,14 @@ namespace ReDefinition.Flight
 
         // A sprite with a border for slicing, in pixels as the sprite's own rect
         // counts them (left, bottom, right, top); null stays null.
-        private static Sprite Sliced(Sprite sprite, Vector4 border)
+        private Sprite Sliced(Sprite sprite, Vector4 border)
         {
             if (sprite == null || sprite.texture == null) return sprite;
             float scale = sprite.rect.width > 0f ? sprite.textureRect.width / sprite.rect.width : 1f;
-            return Sprite.Create(sprite.texture, sprite.textureRect, new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit, 0,
+            Sprite sliced = Sprite.Create(sprite.texture, sprite.textureRect, new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit, 0,
                 SpriteMeshType.FullRect, border * scale);
+            made.Add(sliced);
+            return sliced;
         }
 
         // How opaque a sprite's soft lower edge is: its lowest row that is neither
@@ -383,7 +389,14 @@ namespace ReDefinition.Flight
             if (icon != null && texture != null && texture != shown)
             {
                 shown = texture;
-                icon.sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                Sprite sprite;
+                if (!icons.TryGetValue(texture, out sprite) || sprite == null)
+                {
+                    sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                    icons[texture] = sprite;
+                    made.Add(sprite);
+                }
+                icon.sprite = sprite;
                 icon.enabled = true;
             }
         }
@@ -393,6 +406,10 @@ namespace ReDefinition.Flight
         private void OnDestroy()
         {
             TimeWarpButton.Replaced = false;
+            foreach (Sprite sprite in made)
+                if (sprite != null) Destroy(sprite);
+            made.Clear();
+            icons.Clear();
         }
 
         // As a click on the mod's own button: its window opens or closes.

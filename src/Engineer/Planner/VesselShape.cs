@@ -18,8 +18,8 @@ namespace ReDefinition.Engineer
 
     // What the planner needs to know of one part (EditorReadout): where it hangs in
     // the part tree, the stage KSP decouples it at (DeltaVPartInfo.decoupleStage, -1
-    // for never; the part is attached while a stage burns whose number is no lower)
-    // and the one it is fired in (Part.inverseStage), what it is, and its masses.
+    // for never; AttachedIn) and the one it is fired in (Part.inverseStage), what it
+    // is, and its masses.
     internal sealed class PartFacts
     {
         // Its parent's index in the list, -1 for the root.
@@ -77,6 +77,20 @@ namespace ReDefinition.Engineer
         public readonly Dictionary<int, double[]> StageFuel = new Dictionary<int, double[]>();
         // The part itself, for the colours on the vessel.
         public object Tag;
+
+        // Whether the part is on the vessel as stage `stage` burns; -1: as the vessel
+        // starts. As KSP's DeltaVStageInfo.GetStageMass counts a stage: of the parts
+        // decoupled at its number or never, less those it drops as it fires
+        // (decoupleStage equal to its number).
+        internal bool AttachedIn(int stage)
+        {
+            return AttachedIn(DecoupleStage, stage);
+        }
+
+        internal static bool AttachedIn(int decoupleStage, int stage)
+        {
+            return stage < 0 || decoupleStage < stage;
+        }
     }
 
     // A part of the vessel that can fly apart from the rest: the parts on one side of a
@@ -278,6 +292,11 @@ namespace ReDefinition.Engineer
             foreach (BudgetStage stage in stages)
             {
                 int number = stage.Number;
+                // The stage after it (the next lower number), whose firing drops what
+                // StageBudget counts as this stage's drop.
+                int next = int.MinValue;
+                foreach (BudgetStage other in stages)
+                    if (other.Number < number) next = Math.Max(next, other.Number);
                 double[] fuel = new double[split.Groups];
                 double[] drop = new double[split.Groups];
                 double[] fired = new double[split.Groups];
@@ -290,7 +309,9 @@ namespace ReDefinition.Engineer
                     double[] mass;
                     bool known = part.StageFuel.TryGetValue(number, out mass) && mass != null && mass.Length >= 2;
                     if (known) fuel[g] += Math.Max(0.0, mass[0] - mass[1]);
-                    if (part.DecoupleStage == number) drop[g] += Math.Max(0.0, part.DryMass + (known ? mass[1] : part.Mass - part.DryMass));
+                    // On the vessel as this stage burns, gone as the next one does.
+                    if (next != int.MinValue && part.AttachedIn(number) && !part.AttachedIn(next))
+                        drop[g] += Math.Max(0.0, Turning.MassAt(part, next));
                     if (part.ActivatesAt == number)
                     {
                         fired[g] += 1.0;

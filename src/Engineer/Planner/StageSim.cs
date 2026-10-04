@@ -145,7 +145,7 @@ namespace ReDefinition.Engineer
             for (int stage = top; stage >= 0; stage--)
             {
                 foreach (int i in new List<int>(attached))
-                    if (parts[i].DecoupleStage == stage) attached.Remove(i);
+                    if (!PartFacts.AttachedIn(parts[i].DecoupleStage, stage)) attached.Remove(i);
                 Row row = new Row { Number = stage };
                 List<int> active = new List<int>();
                 foreach (int i in attached)

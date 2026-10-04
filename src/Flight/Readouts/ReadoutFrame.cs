@@ -64,8 +64,9 @@ namespace ReDefinition.Flight.Readouts
                 double pressure = Vessel.staticPressurekPa * PhysicsGlobals.KpaToAtmospheres;
                 double sum = 0.0;
                 foreach (Part part in Vessel.parts)
-                    foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                    for (int m = 0; m < part.Modules.Count; m++)
                     {
+                        ModuleEngines engine = part.Modules[m] as ModuleEngines;
                         if (engine == null || !engine.EngineIgnited || !engine.isOperational || engine.flameout) continue;
                         double isp = engine.atmosphereCurve != null ? engine.atmosphereCurve.Evaluate((float)pressure) : 0.0;
                         sum += engine.maxFuelFlow * isp * engine.g * engine.thrustPercentage * 0.01;
@@ -84,8 +85,11 @@ namespace ReDefinition.Flight.Readouts
                 if (!double.IsNaN(engineThrust)) return engineThrust;
                 double sum = 0.0;
                 foreach (Part part in Vessel.parts)
-                    foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                    for (int m = 0; m < part.Modules.Count; m++)
+                    {
+                        ModuleEngines engine = part.Modules[m] as ModuleEngines;
                         if (engine != null && engine.EngineIgnited) sum += engine.finalThrust;
+                    }
                 return engineThrust = sum;
             }
         }
@@ -351,8 +355,13 @@ namespace ReDefinition.Flight.Readouts
         // What the RCS propellant on board gives the vessel, in m/s: its RCS
         // thrusters' combined Isp in vacuum (thrust over the sum of thrust over
         // Isp, ModuleRCS: thrusterPower at thrustPercentage, atmosphereCurve at 0),
-        // and the mass of every resource they burn that the vessel holds, by the
-        // rocket equation. NaN without RCS.
+        // and the propellant they can burn, by the rocket equation. NaN without RCS.
+        // Each propellant counts from the parts its thrusters draw it from, as
+        // Part.GetConnectedResourceTotals finds them for its flow mode (the part
+        // itself, its crossfeed set, or the whole vessel), each part once, in the
+        // mix each kind of thruster burns it in (StageTable.UsablePropellant): a
+        // Vernor's liquid fuel and oxidizer from the tanks it reaches, as far as
+        // they go together.
         private bool rcsDone;
         private double rcsDeltaV;
 
@@ -372,28 +381,68 @@ namespace ReDefinition.Flight.Readouts
         private double FindRcsDeltaV()
         {
             double thrust = 0.0, overIsp = 0.0;
-            HashSet<string> burnt = new HashSet<string>();
+            Dictionary<string, Dictionary<string, double>> mixes = new Dictionary<string, Dictionary<string, double>>();
+            Dictionary<string, HashSet<Part>> sources = new Dictionary<string, HashSet<Part>>();
             foreach (Part part in Vessel.parts)
-                foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+                for (int m = 0; m < part.Modules.Count; m++)
                 {
+                    ModuleRCS rcs = part.Modules[m] as ModuleRCS;
                     if (rcs == null || !rcs.moduleIsEnabled || !rcs.rcsEnabled) continue;
                     double isp = rcs.atmosphereCurve != null ? rcs.atmosphereCurve.Evaluate(0f) : 0.0;
                     double power = rcs.thrusterPower * rcs.thrustPercentage * 0.01;
                     if (isp <= 0.0 || power <= 0.0) continue;
                     thrust += power;
                     overIsp += power / isp;
-                    if (rcs.propellants != null)
-                        foreach (Propellant propellant in rcs.propellants) burnt.Add(propellant.name);
+                    if (rcs.propellants == null) continue;
+                    ReDefinition.Engineer.EditorReadout.AddMix(mixes, rcs.propellants, power / isp);
+                    foreach (Propellant propellant in rcs.propellants)
+                    {
+                        if (propellant == null) continue;
+                        HashSet<Part> from;
+                        if (!sources.TryGetValue(propellant.name, out from)) sources[propellant.name] = from = new HashSet<Part>();
+                        AddSources(part, propellant.GetFlowMode(), from);
+                    }
                 }
             if (thrust <= 0.0 || overIsp <= 0.0) return double.NaN;
-            double propellantMass = 0.0;
-            foreach (Part part in Vessel.parts)
-                foreach (PartResource resource in part.Resources)
-                    if (resource != null && resource.info != null && burnt.Contains(resource.resourceName))
-                        propellantMass += resource.amount * resource.info.density;
-            double mass = Vessel.totalMass;
-            if (mass <= propellantMass || propellantMass <= 0.0) return 0.0;
-            return thrust / overIsp * PhysicsGlobals.GravitationalAcceleration * Math.Log(mass / (mass - propellantMass));
+            Dictionary<string, double> held = new Dictionary<string, double>();
+            foreach (KeyValuePair<string, HashSet<Part>> resource in sources)
+            {
+                double mass = 0.0;
+                foreach (Part source in resource.Value)
+                {
+                    PartResource stored = source != null ? source.Resources.Get(resource.Key) : null;
+                    if (stored != null && stored.info != null && stored.flowState) mass += stored.amount * stored.info.density;
+                }
+                held[resource.Key] = mass;
+            }
+            double propellantMass = ReDefinition.Engineer.StageTable.UsablePropellant(mixes, held);
+            double total = Vessel.totalMass;
+            if (total <= propellantMass || propellantMass <= 0.0) return 0.0;
+            return thrust / overIsp * PhysicsGlobals.GravitationalAcceleration * Math.Log(total / (total - propellantMass));
+        }
+
+        // The parts a thruster on `part` draws a propellant of flow mode `mode` from,
+        // as Part.GetConnectedResourceTotals takes them.
+        private void AddSources(Part part, ResourceFlowMode mode, HashSet<Part> into)
+        {
+            switch (mode)
+            {
+                case ResourceFlowMode.STACK_PRIORITY_SEARCH:
+                case ResourceFlowMode.STAGE_STACK_FLOW:
+                case ResourceFlowMode.STAGE_STACK_FLOW_BALANCE:
+                    if (part.crossfeedPartSet != null) into.UnionWith(part.crossfeedPartSet.GetParts());
+                    else into.Add(part);
+                    break;
+                case ResourceFlowMode.ALL_VESSEL:
+                case ResourceFlowMode.STAGE_PRIORITY_FLOW:
+                case ResourceFlowMode.ALL_VESSEL_BALANCE:
+                case ResourceFlowMode.STAGE_PRIORITY_FLOW_BALANCE:
+                    into.UnionWith(Vessel.parts);
+                    break;
+                default:
+                    into.Add(part);
+                    break;
+            }
         }
 
         // The target's docking port, where the target is one.

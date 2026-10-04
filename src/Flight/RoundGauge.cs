@@ -623,7 +623,7 @@ namespace ReDefinition.Flight
         private const double Tolerance = 0.05;
         private static GaugeMode traced = GaugeMode.Auto;
         private static float traceNext;
-        private static Vessel watchedVessel;
+        private static readonly HeldVessel watchedVessel = new HeldVessel();
         private static int watchedStage = -1;
         private static double arcPerSecond = double.NaN;
         private static bool warned;
@@ -647,9 +647,9 @@ namespace ReDefinition.Flight
                           + (stage ? "; stage " + vessel.currentStage + " of " + stageBurn.ToString("0.0") + " s, " + Engines() : "") + ".");
             }
             if (!stage) return;
-            if (vessel != watchedVessel || vessel.currentStage != watchedStage)
+            if (!watchedVessel.Is(vessel) || vessel.currentStage != watchedStage)
             {
-                watchedVessel = vessel;
+                watchedVessel.Set(vessel);
                 watchedStage = vessel.currentStage;
                 arcPerSecond = double.NaN;
                 warned = false;

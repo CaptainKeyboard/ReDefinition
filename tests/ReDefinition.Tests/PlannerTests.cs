@@ -1651,5 +1651,28 @@ namespace ReDefinition.Tests
 
             Assert.AreSame(rows, ClampedLaunch.Parallel(rows, parts, new Dictionary<int, string>(), 9.81));
         }
+
+        // A stage's drop is what goes as the next stage fires: a booster decoupled at
+        // stage 1 that burnt dry in stage 2 drops with stage 2, at its dry mass.
+        [TestMethod]
+        public void SplitDropsWithTheStageBeforeTheDecoupling()
+        {
+            PartFacts pod = Part(-1, -1, 1.0, "pod", command: true);
+            PartFacts booster = Part(0, 1, 5.0, "booster");
+            booster.DryMass = 1.0;
+            booster.StageFuel[2] = new[] { 4.0, 0.0 };
+            List<PartFacts> parts = new List<PartFacts> { pod, booster };
+            PartGroupChoice capsule = new PartGroupChoice { Name = "Capsule" };
+            capsule.Members.Add(0);
+            List<BudgetStage> stages = new List<BudgetStage>
+            {
+                new BudgetStage { Number = 2, StartMass = 6.0, EndMass = 2.0 },
+                new BudgetStage { Number = 1, StartMass = 1.0, EndMass = 1.0 },
+            };
+            VesselSplit split = VesselShape.Split(stages, parts, new List<PartGroupChoice> { capsule });
+            Assert.AreEqual(1.0, split.Drop[2][0], 1e-9);
+            Assert.AreEqual(0.0, split.Drop[2][1], 1e-9);
+            Assert.AreEqual(0.0, split.Drop[1].Sum(), 1e-9);
+        }
     }
 }

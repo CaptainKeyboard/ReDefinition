@@ -59,13 +59,9 @@ namespace ReDefinition.Engineer
             // otherwise its engines burn on in that stage's own figures.
             foreach (PartFacts part in parts)
             {
-                double[] after;
-                if (!part.StageFuel.TryGetValue(release, out after) || after[0] - after[1] <= 1e-6) continue;
+                if (!Burns(part, release)) continue;
                 foreach (StageRow row in held)
-                {
-                    double[] before;
-                    if (part.StageFuel.TryGetValue(row.Number, out before) && before[0] - before[1] > 1e-6) return rows;
-                }
+                    if (Burns(part, row.Number)) return rows;
             }
 
             // The core: every engine lit on the pad burns in the last held stage.
@@ -138,6 +134,13 @@ namespace ReDefinition.Engineer
             labels[core.Number] = "S" + core.Number + "+" + freed.Number;
             labels[freed.Number] = "S" + (coreGoesOn ? core.Number : freed.Number);
             return result;
+        }
+
+        // The part's resources lose mass in the stage (PartFacts.StageFuel).
+        private static bool Burns(PartFacts part, int stage)
+        {
+            double[] mass;
+            return part.StageFuel.TryGetValue(stage, out mass) && mass != null && mass.Length >= 2 && mass[0] - mass[1] > 1e-6;
         }
 
         // The highest stage that decouples the engines lit on the pad (`core`) or with

@@ -17,14 +17,14 @@ namespace ReDefinition.Flight
 
         // One search per vessel and quarter second, for the gauge and the panel
         // alike.
-        private static Vessel cachedFor;
+        private static readonly HeldVessel cachedFor = new HeldVessel();
         private static float cachedAt = -1f;
         private static double cached = double.NaN;
 
         internal static double Seconds(Vessel vessel)
         {
-            if (vessel == cachedFor && Time.unscaledTime - cachedAt < 0.2f) return cached;
-            cachedFor = vessel;
+            if (cachedFor.Is(vessel) && Time.unscaledTime - cachedAt < 0.2f) return cached;
+            cachedFor.Set(vessel);
             cachedAt = Time.unscaledTime;
             cached = Search(vessel);
             return cached;
