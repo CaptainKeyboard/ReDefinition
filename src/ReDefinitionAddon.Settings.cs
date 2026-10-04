@@ -158,6 +158,7 @@ namespace ReDefinition
             settings.CrewSlotButtons = from.CrewSlotButtons;
             settings.TimeWarpPanelButton = from.TimeWarpPanelButton;
             settings.RaytracingMoonlight = from.RaytracingMoonlight;
+            settings.MoonGlow = from.MoonGlow;
             settings.RaytracingMoonReflection = from.RaytracingMoonReflection;
             settings.SunReflection = from.SunReflection;
             settings.RaytracingNightAmbient = from.RaytracingNightAmbient;
@@ -194,6 +195,7 @@ namespace ReDefinition
             if (before.CrewSlotButtons != after.CrewSlotButtons) settings.CrewSlotButtons = after.CrewSlotButtons;
             if (before.TimeWarpPanelButton != after.TimeWarpPanelButton) settings.TimeWarpPanelButton = after.TimeWarpPanelButton;
             if (before.RaytracingMoonlight != after.RaytracingMoonlight) settings.RaytracingMoonlight = after.RaytracingMoonlight;
+            if (before.MoonGlow != after.MoonGlow) settings.MoonGlow = after.MoonGlow;
             if (before.RaytracingMoonReflection != after.RaytracingMoonReflection)
                 settings.RaytracingMoonReflection = after.RaytracingMoonReflection;
             if (before.SunReflection != after.SunReflection) settings.SunReflection = after.SunReflection;

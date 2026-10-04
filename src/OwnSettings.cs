@@ -38,6 +38,8 @@ namespace ReDefinition
         // How bright the moons' and planets' light is, in percent of the raytracing's
         // artistic scale (Raytracing/Ksp/RtReflectors).
         public float RaytracingMoonlight = 10f;
+        // The moons' discs made to stand out in the night sky (Raytracing/Ksp/MoonGlow).
+        public bool MoonGlow = true;
         // How strongly water mirrors the moons, in percent of their discs as the eye sees
         // them at night (NightAdaptation).
         public float RaytracingMoonReflection = 100f;
@@ -152,6 +154,7 @@ namespace ReDefinition
             settings.Raytracing = Enum(node, "raytracing", settings.Raytracing);
             settings.RaytracingBounces = (int)Float(node, "raytracingBounces", settings.RaytracingBounces);
             settings.RaytracingMoonlight = Float(node, "raytracingMoonlight", settings.RaytracingMoonlight);
+            settings.MoonGlow = Bool(node, "moonGlow", settings.MoonGlow);
             settings.RaytracingMoonReflection = Float(node, "raytracingMoonReflection", settings.RaytracingMoonReflection);
             settings.SunReflection = Float(node, "sunReflection", settings.SunReflection);
             settings.RaytracingNightAmbient = Float(node, "raytracingNightAmbient", settings.RaytracingNightAmbient);
@@ -236,6 +239,7 @@ namespace ReDefinition
             node.AddValue("raytracing", Raytracing);
             node.AddValue("raytracingBounces", RaytracingBounces);
             node.AddValue("raytracingMoonlight", RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture));
+            node.AddValue("moonGlow", MoonGlow);
             node.AddValue("raytracingMoonReflection", RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture));
             node.AddValue("sunReflection", SunReflection.ToString("0", CultureInfo.InvariantCulture));
             node.AddValue("raytracingNightAmbient", RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture));
@@ -283,7 +287,7 @@ namespace ReDefinition
               .Append('|').Append(CrewSlotButtons)
               .Append('|').Append(TimeWarpPanelButton)
               .Append('|').Append(Raytracing).Append('|').Append(RaytracingBounces)
-              .Append('|').Append(RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture))
+              .Append('|').Append(RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(MoonGlow)
               .Append('|').Append(RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture))
               .Append('|').Append(SunReflection.ToString("0", CultureInfo.InvariantCulture))
               .Append('|').Append(RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture));

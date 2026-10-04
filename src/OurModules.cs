@@ -230,6 +230,18 @@ namespace ReDefinition
             },
             new ModuleSetting
             {
+                Key = "moonGlow",
+                Title = "Moon glow",
+                Kind = SettingKind.Other,
+                Order = 76,
+                Control = SettingControl.Toggle,
+                Tooltip = "The moons' discs a little brighter in the night sky, with a soft glow round them.\n"
+                          + "It lights nothing.",
+                Read = settings => SettingValues.Text(settings.MoonGlow),
+                Write = (settings, value) => settings.MoonGlow = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
                 Key = "sunReflection",
                 Title = "Sun reflection",
                 Kind = SettingKind.Other,

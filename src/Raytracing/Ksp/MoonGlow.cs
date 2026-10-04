@@ -91,7 +91,8 @@ namespace ReDefinition.Raytracing
                 }
             }
             command.Clear();
-            if (HeldOff || camera == null || MapView.MapIsEnabled) return;
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (HeldOff || camera == null || MapView.MapIsEnabled || (addon != null && !addon.Live.MoonGlow)) return;
             CelestialBody main = FlightGlobals.currentMainBody;
             CelestialBody star = RtKspMods.StarBody();
             if (main == null || star == null) return;
