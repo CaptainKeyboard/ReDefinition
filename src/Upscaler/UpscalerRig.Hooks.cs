@@ -50,8 +50,12 @@ namespace ReDefinition.Upscaler
             vesselMotion.RecordRepair(captureBuffer, motionVectors, depthCopy);
             RecordMotionVectorHooks();
             // After the hooks: they read the motion vectors as the upscaler gets them.
-            motionAudit.Record(captureBuffer, cam, motionVectors, depthCopy, renderSize);
-            vesselMotion.RecordAudit(captureBuffer, motionVectors, depthCopy);
+            // Diagnostic measurements only (ReDefinitionAddon.DebugMode).
+            if (ReDefinitionAddon.DebugMode)
+            {
+                motionAudit.Record(captureBuffer, cam, motionVectors, depthCopy, renderSize);
+                vesselMotion.RecordAudit(captureBuffer, motionVectors, depthCopy);
+            }
             vesselMotion.End();
             // The camera's matrices for the vessel's shadow, without the jitter.
             if (hudLessBuffer != null && hudLessWithShadow)

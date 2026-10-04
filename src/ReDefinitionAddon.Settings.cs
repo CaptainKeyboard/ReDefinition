@@ -34,6 +34,10 @@ namespace ReDefinition
 
         // KSP's Settings buttons open ReDefinition's window (OwnSettings).
         private bool replaceKspSettings;
+
+        // The diagnostic measurements (OwnSettings.DebugMode), read by the instruments
+        // wherever they run.
+        internal static bool DebugMode { get; private set; }
         private bool forceAnisotropic = true;
         // FSR's own exposure for its internal tonemapping, as AMD recommends
         // (UpscalerRig.AutoExposure).
@@ -88,6 +92,7 @@ namespace ReDefinition
             compensateLodBias = loaded.CompensateLodBias;
             disableMsaa = loaded.DisableMsaa;
             pauseWhileOpen = loaded.PauseWhileOpen;
+            DebugMode = loaded.DebugMode;
             replaceKspSettings = loaded.ReplaceKspSettings;
             forceAnisotropic = loaded.ForceAnisotropic;
             tufxAfterUpscaling = loaded.TufxAfterUpscaling;
@@ -255,6 +260,7 @@ namespace ReDefinition
             settings.CompensateLodBias = compensateLodBias;
             settings.DisableMsaa = disableMsaa;
             settings.PauseWhileOpen = pauseWhileOpen;
+            settings.DebugMode = DebugMode;
             settings.ReplaceKspSettings = replaceKspSettings;
             settings.ForceAnisotropic = forceAnisotropic;
             settings.TufxAfterUpscaling = tufxAfterUpscaling;
@@ -334,6 +340,13 @@ namespace ReDefinition
             if (rig != null && wasSharpening != (sharpness > 0f)) Reattach();
             Debug.Log(Log.Tag + " Sharpness " + sharpness.ToString("0.00")
                       + (sharpness > 1f ? "  (beyond FidelityFX' maximum)" : ""));
+        }
+
+        // Live: each instrument asks for it as it runs.
+        private void SetDebugMode(bool value)
+        {
+            DebugMode = value;
+            Debug.Log(Log.Tag + " Diagnostic measurements " + (value ? "on" : "off") + ".");
         }
 
         private void SetMipmapBias(bool value)

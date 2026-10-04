@@ -282,6 +282,27 @@ namespace ReDefinition.Upscaler
             get { return Bypass || RebuildWanted || (context == null && Backend == UpscalerBackend.Fsr3 && !PassThrough); }
         }
 
+        // Whether the rig hands its frames to an upscaler or to frame generation: what the
+        // helpers that exist for them wait for (RenderInterpolation, UnityMotionRepair).
+        internal static bool Feeding
+        {
+            get
+            {
+                UpscalerRig rig = Current;
+                return rig != null && !rig.TornDown && rig.lowRes != null && !rig.PresentsRendered
+                       && (!rig.PassThrough || rig.hudLessBuffer != null);
+            }
+        }
+
+        // Whether the motion vectors of camera are drawn because the rig asked for them,
+        // not another mod.
+        internal static bool AskedForMotionVectors(Camera camera)
+        {
+            UpscalerRig rig = Current;
+            return rig != null && !rig.TornDown && rig.cam == camera
+                   && (rig.addedDepthModes & DepthTextureMode.MotionVectors) != 0;
+        }
+
         internal Vector2 CurrentJitter
         {
             get { return dispatch.JitterOffset; }
@@ -1120,8 +1141,9 @@ namespace ReDefinition.Upscaler
                 Graphics.Blit(result, destination);
 
             // After the frame is out, and fenced: an instrument does not stop a
-            // frame. On a failure it says so once and stops.
-            if (!instrumentFailed)
+            // frame. On a failure it says so once and stops. With the diagnostic
+            // measurements, or for the Debug switch for fast turns, which it drives.
+            if (!instrumentFailed && (ReDefinitionAddon.DebugMode || RecordFastTurns))
             {
                 try
                 {

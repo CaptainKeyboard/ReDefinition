@@ -33,7 +33,8 @@ namespace ReDefinition.Upscaler
     // them.
     //
     // Left alone: a frame with a floating origin shift, a jump of more than 50 m, a packed
-    // vessel, Krakensbane moving the world instead of the vessel, IVA and map view.
+    // vessel, Krakensbane moving the world instead of the vessel, IVA and map view. Only
+    // while the rig hands frames to an upscaler or to frame generation (UpscalerRig.Feeding).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class RenderInterpolation : MonoBehaviour
     {
@@ -90,7 +91,7 @@ namespace ReDefinition.Upscaler
         {
             offsetValid = false;
             Vessel vessel = FlightGlobals.ActiveVessel;
-            if (!Enabled || vessel == null || vessel.packed || vessel.rootPart == null
+            if (!Enabled || !UpscalerRig.Feeding || vessel == null || vessel.packed || vessel.rootPart == null
                 || CameraManager.Instance == null || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight
                 || Krakensbane.GetFrameVelocity().sqrMagnitude > 0.0)
             {

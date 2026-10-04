@@ -37,8 +37,9 @@ namespace ReDefinition.Upscaler
     // frame's through the renderer's previous matrix and the previous view-projection.
     // Pass 1 writes it into the captured motion vectors, before the other mods' hooks;
     // pass 0, after them, compares it with what the upscalers read and counts, per part,
-    // the pixels, those off by more than a pixel and the largest error, read back every
-    // frame and logged about every ten seconds. MotionVectorCheck in the Unity project
+    // the pixels, those off by more than a pixel and the largest error, read back and
+    // logged about every ten seconds -- with the diagnostic measurements on
+    // (ReDefinitionAddon.DebugMode). MotionVectorCheck in the Unity project
     // checks the shader against Unity's own motion vectors.
     //
     // Skinned renderers are left out, since their previous pose is not at hand; so are

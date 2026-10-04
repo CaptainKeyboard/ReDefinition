@@ -262,6 +262,11 @@ namespace ReDefinition
             GUILayout.Label(loadText);
             GUILayout.Label(FrameRateComparison());
 
+            // Saved: the audits, read-backs and per-frame checks of the upscaler's inputs and
+            // their log lines (OwnSettings.DebugMode).
+            if (SwitchRow("Measurements into the log", OnOff(DebugMode)))
+                SetDebugMode(!DebugMode);
+
             if (GUILayout.Button("Write diagnostics to log"))
             {
                 if (rig != null) rig.LogDiagnostics();

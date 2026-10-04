@@ -11,7 +11,8 @@ namespace ReDefinition.Upscaler
 {
     // An instrument: whether the motion vectors every upscaler reads are right on the
     // active vessel and on the ground around it, logged about every ten seconds in
-    // flight while the rig runs.
+    // flight while the rig runs with the diagnostic measurements on
+    // (ReDefinitionAddon.DebugMode).
     //
     // Every fifth frame, as the scene camera culls, the capture gets readbacks of the
     // finished motion vectors and depth at a few pixels: the centres of three of the

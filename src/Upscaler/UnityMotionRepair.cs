@@ -24,7 +24,8 @@ namespace ReDefinition.Upscaler
     // writes it back with the camera's own move where it still holds Missing: against
     // the main body where something is drawn (SceneMotion), the camera's turn alone where
     // nothing is. Both matrices are set here as the camera culls; pass 2 uses the first
-    // for far ground as well (ScaledSpaceMotion). A row of the copy is read back every
+    // for far ground as well (ScaledSpaceMotion). Only while something reads them (Wanted).
+    // With the diagnostic measurements on, a row of the copy is read back every
     // CheckEvery frames, and the share of unwritten pixels logged every ten seconds while
     // there are any.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
@@ -122,7 +123,7 @@ namespace ReDefinition.Upscaler
                     return;
                 }
             }
-            if (!Enabled || unavailable)
+            if (!Enabled || unavailable || !Wanted(cam))
             {
                 Retire();
                 return;
@@ -148,6 +149,15 @@ namespace ReDefinition.Upscaler
 
             RecordRepair();
             ReportMissing();
+        }
+
+        // While the rig hands frames to an upscaler or to frame generation, and while
+        // another mod has the camera draw motion vectors -- Scatterer's TAA, TUFX's
+        // effects, Deferred's reflections. Without either nothing reads them.
+        private static bool Wanted(Camera cam)
+        {
+            return UpscalerRig.Feeding
+                   || ((cam.depthTextureMode & DepthTextureMode.MotionVectors) != 0 && !UpscalerRig.AskedForMotionVectors(cam));
         }
 
         private void Attach(Camera cam)
@@ -215,7 +225,7 @@ namespace ReDefinition.Upscaler
             repair.SetGlobalTexture(RepairDepthId, depthCopy);
             repair.SetGlobalVector(RepairTexelId, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
             repair.Blit(Texture2D.blackTexture, BuiltinRenderTextureType.MotionVectors, material, RepairPass);
-            if (Time.frameCount % CheckEvery == 0) CheckMissing();
+            if (ReDefinitionAddon.DebugMode && Time.frameCount % CheckEvery == 0) CheckMissing();
         }
 
         // The camera's move against the main body, and its turn, from this frame's clip

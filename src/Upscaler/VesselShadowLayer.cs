@@ -142,9 +142,9 @@ namespace ReDefinition.Upscaler
         private int framesDrawn;
         private int framesSkipped;
 
-        // What the frame's passes found, read back once a report: a sample grid over the
-        // mask and the weight, so the log says which step holds where the shadow is not
-        // taken out.
+        // What the frame's passes found, read back once a report with the diagnostic
+        // measurements on: a sample grid over the mask and the weight, so the log says
+        // which step holds where the shadow is not taken out.
         private const int SampleWidth = 160;
         private const int SampleHeight = 90;
         private RenderTexture maskSample;
@@ -294,7 +294,7 @@ namespace ReDefinition.Upscaler
             capture.SetGlobalVector(ReachId, new Vector4(TakePartMetres * LightMapSize / (2f * radius), 0f, 0f, 0f));
             capture.SetGlobalVector(ReceiverShiftId, receiverShift);
             capture.Blit(depth, weight, material, WeightPass);
-            if (!sampleRequested) RequestSample(capture);
+            if (!sampleRequested && ReDefinitionAddon.DebugMode) RequestSample(capture);
             if (dumpFolder != null)
                 Dump(capture, depth, motionVectors, bounds, radius, lightRaster, lightSample, lightVector);
 
@@ -686,7 +686,8 @@ namespace ReDefinition.Upscaler
                       + elapsed.ToString("0.0", CultureInfo.InvariantCulture) + " s: " + framesDrawn + " frame(s) drawn, "
                       + framesSkipped + " left out (reset, no light or no vessel); light '"
                       + (light != null ? light.name : "none") + "', " + casters.Count + " caster(s).");
-            Debug.Log(Log.Tag + " Vessel shadow for frame generation, one frame: " + sampleLine + ".");
+            if (ReDefinitionAddon.DebugMode)
+                Debug.Log(Log.Tag + " Vessel shadow for frame generation, one frame: " + sampleLine + ".");
             sampleRequested = false;
             framesDrawn = framesSkipped = 0;
         }

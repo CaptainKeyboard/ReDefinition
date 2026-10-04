@@ -23,7 +23,7 @@ namespace ReDefinition.Upscaler
 
         // An instrument: numbers for two open questions of
         // docs/reference/graphics-mod-compatibility.md, logged about every ten seconds
-        // while the rig dispatches.
+        // while the rig dispatches with the diagnostic measurements on.
         //
         // The camera: in ordinary frames -- no cut, no origin shift -- its
         // largest turn (roll included) and its largest move against the
