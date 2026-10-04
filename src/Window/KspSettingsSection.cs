@@ -256,8 +256,8 @@ namespace ReDefinition.Window
             return Rows(edit, layout, SettingCategory.General);
         }
 
-        // The rows of one tab: the upscaler's under General, the flight UI's and
-        // the scaling under Mods / Toolbar.
+        // The rows of one tab: the upscaler's under General, the flight UI's under
+        // Gameplay, the scaling under Mods / Toolbar.
         internal static DialogGUIBase[] Rows(Edit edit, Layout layout, SettingCategory tab)
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();

@@ -53,7 +53,7 @@ namespace ReDefinition
         public ApplyWindow TakesEffect = ApplyWindow.Live;
 
         // The heading the row stands under in its tab, where the tab groups
-        // ReDefinition's own rows (Mods / Toolbar: flight, scaling).
+        // ReDefinition's own rows (Gameplay: flight; Mods / Toolbar: scaling).
         public string Section;
         public SettingControl Control = SettingControl.Toggle;
 
@@ -150,12 +150,15 @@ namespace ReDefinition
     internal sealed class GraphicsModule : IGraphicsModule
     {
         private readonly List<ModuleSetting> settings;
+        // Asked for every frame the settings window is open.
+        private readonly IList<ModuleSetting> readOnly;
 
         public GraphicsModule(string name, string title, params ModuleSetting[] settings)
         {
             Name = name;
             Title = title;
             this.settings = new List<ModuleSetting>(settings);
+            readOnly = this.settings.AsReadOnly();
         }
 
         public string Name { get; private set; }
@@ -164,7 +167,7 @@ namespace ReDefinition
 
         public IList<ModuleSetting> Settings
         {
-            get { return settings.AsReadOnly(); }
+            get { return readOnly; }
         }
 
         public ModuleSetting Setting(string key)

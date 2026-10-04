@@ -33,17 +33,9 @@ namespace ReDefinition.Core
             }
         }
 
-        // Twelve hex digits of a SHA-1 over the method's instructions, each with
-        // what it refers to by name. Null where the method has no body to read.
-        public static string Fingerprint(MethodBase method)
-        {
-            StringBuilder text = new StringBuilder();
-            if (!Describe(method, text, null)) return null;
-            return Hash(text.ToString());
-        }
-
-        // The fingerprint of several methods together, in their order. Null where
-        // one of them cannot be read.
+        // Twelve hex digits of a SHA-1 over the methods' instructions together, in
+        // their order, each with what it refers to by name. Null where one of them
+        // has no body to read.
         public static string Fingerprint(IList<MethodBase> methods)
         {
             StringBuilder text = new StringBuilder();

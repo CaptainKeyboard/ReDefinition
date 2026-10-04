@@ -132,38 +132,22 @@ namespace ReDefinition.Window
 
         private static Dictionary<string, AxisBinding> defaults;
 
-        // What KSP ships for every axis: GameSettings.SetDefaultValues assigns
-        // every static field anew and does nothing else, so every field is saved,
-        // the defaults are copied, and every field is put back -- the same objects
-        // included (as KspKeyBindings reads KSP's default keys).
+        // What KSP ships for every axis (KspShipped), copied.
         internal static AxisBinding Default(Axis axis)
         {
             if (defaults == null)
             {
                 defaults = new Dictionary<string, AxisBinding>();
-                List<FieldInfo> fields = new List<FieldInfo>();
-                foreach (FieldInfo field in typeof(GameSettings).GetFields(BindingFlags.Public | BindingFlags.NonPublic
-                                                                              | BindingFlags.Static))
+                Exception e = KspShipped.Read(() =>
                 {
-                    if (!field.IsLiteral && !field.IsInitOnly) fields.Add(field);
-                }
-                object[] saved = new object[fields.Count];
-                for (int i = 0; i < fields.Count; i++) saved[i] = fields[i].GetValue(null);
-                try
-                {
-                    GameSettings.SetDefaultValues();
                     foreach (Axis each in All()) defaults[each.Name] = Copy(each.Get());
-                }
-                catch (Exception e)
+                });
+                if (e != null)
                 {
                     defaults.Clear();
                     CompatibilityLog.Warn("ksp-axis-defaults", "KSP's default axes could not be read ("
                                                                + CompatibilityLog.Reason(e)
                                                                + "); the reset leaves them to KSP's own reset.");
-                }
-                finally
-                {
-                    for (int i = 0; i < fields.Count; i++) fields[i].SetValue(null, saved[i]);
                 }
             }
             AxisBinding shipped;

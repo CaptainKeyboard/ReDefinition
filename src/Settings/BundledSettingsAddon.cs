@@ -20,7 +20,7 @@ namespace ReDefinition.Settings
     // game, TUFX at the end of loading (its ModuleManagerPostLoad), so
     // ReDefinition's run after TUFX's, in the same frame -- no frame shows its
     // profile first.
-    // Values already in place are left alone (BundledSettings).
+    // Values already in place are left alone (BundledStore).
     //
     // In the main menu the values are handed over again on the tick below: EVE
     // sets up that scene's managers late -- five physics frames after its

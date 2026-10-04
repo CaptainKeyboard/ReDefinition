@@ -324,42 +324,28 @@ namespace ReDefinition.Window
 
         private static Dictionary<string, string[]> defaults;
 
-        // KSP's own defaults of every binding, by field name: primary and
-        // secondary. Once per run -- they are KSP's code, not the player's.
+        // KSP's own defaults of every binding (KspShipped), by field name: primary
+        // and secondary. Once per run -- they are KSP's code, not the player's.
         private static Dictionary<string, string[]> Defaults()
         {
             if (defaults != null) return defaults;
             defaults = new Dictionary<string, string[]>();
             if (All().Count == 0) return defaults;
 
-            List<FieldInfo> fields = new List<FieldInfo>();
-            foreach (FieldInfo field in typeof(GameSettings).GetFields(BindingFlags.Public | BindingFlags.NonPublic
-                                                                          | BindingFlags.Static))
+            Exception e = KspShipped.Read(() =>
             {
-                if (!field.IsLiteral && !field.IsInitOnly) fields.Add(field);
-            }
-            object[] saved = new object[fields.Count];
-            for (int i = 0; i < fields.Count; i++) saved[i] = fields[i].GetValue(null);
-            try
-            {
-                GameSettings.SetDefaultValues();
                 foreach (Binding binding in All())
                 {
                     object shipped = binding.Get();
                     defaults[binding.Name] = new[] { Text(Code(shipped, false)), Text(Code(shipped, true)) };
                 }
-            }
-            catch (Exception e)
+            });
+            if (e != null)
             {
                 defaults.Clear();
                 CompatibilityLog.Warn("ksp-binding-defaults", "KSP's default key bindings could not be read ("
                                                               + CompatibilityLog.Reason(e)
                                                               + "); the reset leaves KSP's bindings as they are.");
-            }
-            finally
-            {
-                // Everything as it was, whatever went wrong above.
-                for (int i = 0; i < fields.Count; i++) fields[i].SetValue(null, saved[i]);
             }
             return defaults;
         }
@@ -367,13 +353,6 @@ namespace ReDefinition.Window
         private static string Text(KeyCode code)
         {
             return code == KeyCode.None ? KeyCombination.NoneText : code.ToString();
-        }
-
-        // KSP writes its settings file itself; the values are read live from
-        // GameSettings, so a change counts at once and is kept on the next save.
-        internal static void Save()
-        {
-            GameSettings.SaveSettings();
         }
     }
 }

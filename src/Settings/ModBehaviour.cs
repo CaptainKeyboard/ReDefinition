@@ -128,10 +128,5 @@ namespace ReDefinition.Settings
             Func<ModBehaviour> make;
             return name != null && known.TryGetValue(name, out make) ? make() : null;
         }
-
-        internal static ICollection<string> Names()
-        {
-            return known.Keys;
-        }
     }
 }

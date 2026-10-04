@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ReDefinition.Core;
 
 namespace ReDefinition.Settings
 {
@@ -513,7 +514,7 @@ namespace ReDefinition.Settings
             catch (Exception e)
             {
                 host.Warn("bundled-read-" + setting.Key, setting.Owner.ModName + ", " + setting.Title
-                                                         + ": could not be read (" + Reason(e) + ").");
+                                                         + ": could not be read (" + CompatibilityLog.Reason(e) + ").");
                 return null;
             }
         }
@@ -653,7 +654,7 @@ namespace ReDefinition.Settings
                     ledger.DropAfterSave(mod);
                     host.Warn("bundled-save-" + mod.Id, mod.ModName + " could not save the settings set in ReDefinition's"
                                                         + " window; they hold for this run, and saving is tried again at the"
-                                                        + " next scene change (" + Reason(e) + ").");
+                                                        + " next scene change (" + CompatibilityLog.Reason(e) + ").");
                     continue;
                 }
 
@@ -675,7 +676,7 @@ namespace ReDefinition.Settings
             catch (Exception e)
             {
                 host.Warn("bundled-context-" + setting.Key, setting.Owner.ModName + ", " + setting.Title
-                                                            + ": which save it belongs to could not be told (" + Reason(e) + ").");
+                                                            + ": which save it belongs to could not be told (" + CompatibilityLog.Reason(e) + ").");
                 return null;
             }
         }
@@ -690,7 +691,7 @@ namespace ReDefinition.Settings
             catch (Exception e)
             {
                 host.Warn("bundled-applicable-" + setting.Key, setting.Owner.ModName + ", " + setting.Title
-                                                               + ": could not tell whether it applies now (" + Reason(e) + ").");
+                                                               + ": could not tell whether it applies now (" + CompatibilityLog.Reason(e) + ").");
                 return false;
             }
         }
@@ -748,7 +749,7 @@ namespace ReDefinition.Settings
             {
                 if (newBackup) ledger.RemoveBackup(context, setting.Key);
                 host.Warn("bundled-write-" + setting.Key, setting.Owner.ModName + ", " + setting.Title + ": could not be set ("
-                                                          + Reason(e) + ").");
+                                                         + CompatibilityLog.Reason(e) + ").");
                 return false;
             }
         }
@@ -768,10 +769,5 @@ namespace ReDefinition.Settings
             return true;
         }
 
-        // What went wrong inside a reflected call, not the wrapper around it.
-        private static string Reason(Exception e)
-        {
-            return (e.InnerException ?? e).Message;
-        }
     }
 }

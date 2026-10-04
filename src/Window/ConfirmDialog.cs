@@ -18,6 +18,18 @@ namespace ReDefinition.Window
                 HighLogic.UISkin));
         }
 
+        // Over the settings window (DialogOverWindow), as its own questions stand:
+        // the button that does it above KSP's Cancel.
+        internal static void OverWindow(string name, string title, string message, float width, string act,
+                                        Callback onAct)
+        {
+            MultiOptionDialog question = new MultiOptionDialog(name, message, title, HighLogic.UISkin, width,
+                new DialogGUIButton(act, onAct, true),
+                new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), () => { }, true));
+            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), question, false, HighLogic.UISkin, false)));
+        }
+
         // Whether the game can be saved now (FlightGlobals.ClearToSave); where not,
         // KSP's reason on the screen, `action` what could not be done.
         internal static bool ClearToSave(string action)
