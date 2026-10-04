@@ -85,6 +85,8 @@ namespace ReDefinition
         // The buttons standing over the space centre's buildings in flight and over
         // the launch site in the editors (Flight/WorldButton).
         public bool WorldButtons = true;
+        // Fireworks on Kerbin's night side in the main menu (Menu/MenuFireworks).
+        public bool MenuFireworks = true;
 
         private const string RootName = "ReDefinition";
 
@@ -138,6 +140,7 @@ namespace ReDefinition
             settings.AutoAltimeter = Bool(node, "autoAltimeter", settings.AutoAltimeter);
             settings.WorldButtons = Bool(node, "worldButtons", settings.WorldButtons);
             settings.FlightPanelAuto = Bool(node, "flightPanelAuto", settings.FlightPanelAuto);
+            settings.MenuFireworks = Bool(node, "menuFireworks", settings.MenuFireworks);
             return settings;
         }
 
@@ -175,6 +178,7 @@ namespace ReDefinition
             node.AddValue("autoAltimeter", AutoAltimeter);
             node.AddValue("worldButtons", WorldButtons);
             node.AddValue("flightPanelAuto", FlightPanelAuto);
+            node.AddValue("menuFireworks", MenuFireworks);
             node.AddValue("raytracing", Raytracing);
             node.AddValue("raytracingBounces", RaytracingBounces);
             node.AddValue("raytracingMoonlight", RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture));
@@ -211,6 +215,7 @@ namespace ReDefinition
               .Append(NavballScreen).Append('|').Append(ScaleModWindows)
               .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode)
               .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto).Append('|').Append(WorldButtons)
+              .Append('|').Append(MenuFireworks)
               .Append('|').Append(Raytracing).Append('|').Append(RaytracingBounces)
               .Append('|').Append(RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture))
               .Append('|').Append(RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture))

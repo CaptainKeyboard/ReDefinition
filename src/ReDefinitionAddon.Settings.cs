@@ -139,6 +139,7 @@ namespace ReDefinition
             settings.AutoAltimeter = from.AutoAltimeter;
             settings.FlightPanelAuto = from.FlightPanelAuto;
             settings.WorldButtons = from.WorldButtons;
+            settings.MenuFireworks = from.MenuFireworks;
             settings.RaytracingMoonlight = from.RaytracingMoonlight;
             settings.RaytracingMoonReflection = from.RaytracingMoonReflection;
             settings.SunReflection = from.SunReflection;
@@ -162,6 +163,7 @@ namespace ReDefinition
             if (before.AutoAltimeter != after.AutoAltimeter) settings.AutoAltimeter = after.AutoAltimeter;
             if (before.FlightPanelAuto != after.FlightPanelAuto) settings.FlightPanelAuto = after.FlightPanelAuto;
             if (before.WorldButtons != after.WorldButtons) settings.WorldButtons = after.WorldButtons;
+            if (before.MenuFireworks != after.MenuFireworks) settings.MenuFireworks = after.MenuFireworks;
             if (before.RaytracingMoonlight != after.RaytracingMoonlight) settings.RaytracingMoonlight = after.RaytracingMoonlight;
             if (before.RaytracingMoonReflection != after.RaytracingMoonReflection)
                 settings.RaytracingMoonReflection = after.RaytracingMoonReflection;

@@ -432,8 +432,24 @@ namespace ReDefinition
 
         private const string ScalingSection = "Scaling";
 
+        // The main menu's scene (Menu/MenuFireworks).
+        public static readonly IGraphicsModule MainMenuScene = new GraphicsModule("mainMenu", "Main menu",
+            new ModuleSetting
+            {
+                Key = "menuFireworks",
+                Title = "Fireworks",
+                Order = 220,
+                Row = SettingCategory.Interface,
+                Section = "Main menu",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Small fireworks on Kerbin's night side behind the main menu.",
+                Read = settings => SettingValues.Text(settings.MenuFireworks),
+                Write = (settings, value) => settings.MenuFireworks = bool.Parse(value),
+            });
+
         public static readonly IList<IGraphicsModule> All =
-            new List<IGraphicsModule> { Upscaler, FrameGeneration, Raytracing, Hotkeys, FlightUi, Scaling }.AsReadOnly();
+            new List<IGraphicsModule> { Upscaler, FrameGeneration, Raytracing, Hotkeys, FlightUi, Scaling, MainMenuScene }.AsReadOnly();
 
         public static IGraphicsModule Find(string name)
         {
