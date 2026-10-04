@@ -22,6 +22,7 @@ namespace ReDefinition.RaytracingPlayer
         private Fsr3UpscalerContext fsr;
         private readonly Fsr3Upscaler.DispatchDescription fsrDispatch = new Fsr3Upscaler.DispatchDescription();
         private int lastUpscaledFrame = -1;
+        private int upscaledFrames;
         internal bool ResetUpscaler;
         // Counter-checks of the conventions UpscalerRig hands on (-jitterSign, -motionSign:
         // "x", "y" or "xy" negated): the right ones measure best.
@@ -206,6 +207,7 @@ namespace ReDefinition.RaytracingPlayer
                 fsrDispatch.CameraFovAngleVertical = verticalFovRadians;
                 fsrDispatch.ViewSpaceToMetersFactor = 1f;
                 fsr.Dispatch(fsrDispatch, command);
+                upscaledFrames++;
             }
             else if (upscaler == "dlss")
             {
@@ -227,7 +229,8 @@ namespace ReDefinition.RaytracingPlayer
                     MotionVectorScaleX = -renderSize.x * motionSign.x,
                     MotionVectorScaleY = -renderSize.y * motionSign.y,
                 };
-                if (!DlssBridge.Submit(command, ref packet)) UpscalerProblem = DlssBridge.Link.Describe();
+                if (DlssBridge.Submit(command, ref packet)) upscaledFrames++;
+                else UpscalerProblem = DlssBridge.Link.Describe();
             }
             else if (upscaler == "amd")
             {
@@ -254,8 +257,19 @@ namespace ReDefinition.RaytracingPlayer
                     Reactive = reactiveHandle,
                     TransparencyAndComposition = transparencyHandle,
                 };
-                if (!AmdUpscalerBridge.Submit(command, ref packet)) UpscalerProblem = AmdUpscalerBridge.Link.Describe();
+                if (AmdUpscalerBridge.Submit(command, ref packet)) upscaledFrames++;
+                else UpscalerProblem = AmdUpscalerBridge.Link.Describe();
             }
+        }
+
+        // Why the upscaler did not upscale the turn, or null where it did or none is asked for.
+        internal string UpscalerFailure()
+        {
+            if (!Upscaling) return null;
+            if (upscaledFrames == 0) return upscaler + " upscaled no frame: " + (UpscalerProblem ?? "nothing dispatched");
+            if (upscaler == "dlss" && DlssBridge.Link.State() <= 0) return "DLSS not running: " + UpscalerState();
+            if (upscaler == "amd" && AmdUpscalerBridge.Link.State() <= 0) return "AMD's upscaler not running: " + UpscalerState();
+            return null;
         }
 
         // The upscaler's state as the proxy reports it: above 0 running, below stopped.

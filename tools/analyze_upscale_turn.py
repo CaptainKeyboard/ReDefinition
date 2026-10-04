@@ -15,7 +15,10 @@ averaged down to it. Per run:
   the end; the reference does not change at all there.
 
 The masks come from analyze_rt_turn.py, from the render size's depth, scaled to the
-display size.
+display size, with the row order in which Unity's motion vectors agree with the cameras.
+
+Each run prints PASS or FAIL against limits of about twice the values measured on
+2026-10-03 (LIMITS); the exit code is 1 when a run failed or has no frames.
 """
 
 import os
@@ -25,6 +28,15 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import analyze_rt_turn as turn  # noqa: E402
+
+
+# new, rest, settled, flicker at most. Natively the frame has no history to smear;
+# upscaled, the worst of FSR 3, DLSS and AMD's upscaler at half and two thirds of
+# the display size measured new 0.0078, rest 0.0025, settled 0.0027, flicker 0.0004.
+LIMITS = {
+    'native': (0.005, 0.001, 0.0012, 0.0005),
+    'upscaled': (0.016, 0.005, 0.0055, 0.001),
+}
 
 
 def load_colour(folder, name, w, h):
@@ -57,6 +69,12 @@ def analyse(folder):
     rh, rw = depths[first].shape
     # The camera's meta at the render size, for the masks.
     small = {n: dict(frames[n], width=rw, height=rh) for n in names}
+    motions = {}
+    for n in names:
+        motion = os.path.join(folder, n + '_motion.bin')
+        if os.path.exists(motion):
+            motions[n] = np.fromfile(motion, dtype=np.float16).reshape(rh, rw, 2).astype(np.float32)
+    flip = turn.pick_flip(small, depths, motions, names)
     lum = {}
     for n in names:
         lum[n] = turn.luminance(load_colour(folder, n, w, h))
@@ -69,11 +87,11 @@ def analyse(folder):
         reference = load_colour(folder, ref, r['width'], r['height'])
         reference = reference.reshape(h, r['height'] // h, w, r['width'] // w, 3).mean(axis=(1, 3))
         error = np.abs(lum[n] - turn.luminance(reference))
-        new = turn.came_into_view(small[n], depths[n], small[names[i - 1]], depths[names[i - 1]], True)
+        new = turn.came_into_view(small[n], depths[n], small[names[i - 1]], depths[names[i - 1]], flip)
         recent = new.copy()
         for k in range(2, turn.LOOK_BACK + 1):
             if i - k >= 0:
-                recent |= turn.came_into_view(small[n], depths[n], small[names[i - k]], depths[names[i - k]], True)
+                recent |= turn.came_into_view(small[n], depths[n], small[names[i - k]], depths[names[i - k]], flip)
         new = scale_mask(new, w, h)
         recent = scale_mask(recent, w, h)
         rows.append((i, error[new].mean() if new.any() else 0.0, new.mean(), error[recent].mean() if recent.any() else 0.0,
@@ -89,7 +107,7 @@ def analyse(folder):
         'new': np.mean([r[1] for r in moving]) if moving else 0.0,
         'recent': np.mean([r[3] for r in moving]) if moving else 0.0,
         'rest': np.mean([r[4] for r in moving]) if moving else 0.0,
-        'settled': settled, 'flicker': flicker, 'rows': rows,
+        'settled': settled, 'flicker': flicker, 'rows': rows, 'flip': flip,
     }
 
 
@@ -98,14 +116,24 @@ def main():
         sys.exit(__doc__)
     print('%-28s %-9s %-9s %8s %8s %8s %8s %8s' % ('run', 'render', 'display', 'new', 'recent', 'rest', 'settled',
                                                     'flicker'))
+    verdicts = []
     for folder in sys.argv[1:]:
+        label = os.path.basename(os.path.normpath(folder))
         if not os.path.exists(os.path.join(folder, 'meta.txt')):
             print('%s: no meta.txt' % folder)
+            verdicts.append('FAIL  %s: no meta.txt' % label)
             continue
         m = analyse(folder)
-        print('%-28s %-9s %-9s %8.4f %8.4f %8.4f %8.4f %8.4f' % (os.path.basename(os.path.normpath(folder)), m['render'],
-                                                                 m['display'], m['new'], m['recent'], m['rest'],
-                                                                 m['settled'], m['flicker']))
+        print('%-28s %-9s %-9s %8.4f %8.4f %8.4f %8.4f %8.4f' % (label, m['render'], m['display'], m['new'],
+                                                                 m['recent'], m['rest'], m['settled'], m['flicker']))
+        limits = LIMITS['native' if m['render'] == m['display'] else 'upscaled']
+        values = (m['new'], m['rest'], m['settled'], m['flicker'])
+        passed = bool(m['rows']) and all(v <= limit for v, limit in zip(values, limits))
+        verdicts.append('%s  %s: new %.4f (at most %.4f), rest %.4f (%.4f), settled %.4f (%.4f), flicker %.4f (%.4f)%s'
+                        % (('PASS' if passed else 'FAIL', label) + tuple(x for pair in zip(values, limits) for x in pair)
+                           + ('' if m['rows'] else ', no frames',)))
+    print('\n'.join(verdicts))
+    sys.exit(0 if verdicts and all(v.startswith('PASS') for v in verdicts) else 1)
 
 
 if __name__ == '__main__':

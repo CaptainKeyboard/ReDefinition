@@ -90,7 +90,7 @@ try:
     presents = [a for a in actions if any(names.get(o, '').startswith('SwapChain-BackBuffer') for o in a.outputs)]
     if presents:
         settings = rd.TextureSave()
-        settings.resourceId = [o for o in presents[0].outputs if o != rd.ResourceId.Null()][0]
+        settings.resourceId = [o for o in presents[-1].outputs if o != rd.ResourceId.Null()][0]
         settings.destType = rd.FileType.PNG
         ctl.SetFrameEvent(presents[-1].eventId, True)
         log('final %s' % ctl.SaveTexture(settings, os.path.join(FOLDER, TAG + '_final.png')))

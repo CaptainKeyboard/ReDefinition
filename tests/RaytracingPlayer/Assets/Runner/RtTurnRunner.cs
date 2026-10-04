@@ -315,7 +315,8 @@ namespace ReDefinition.RaytracingPlayer
             Log("turn written: " + pass.Written + " frames, reconstructed " + pass.Reconstructed + ", "
                 + (raytracing != null ? raytracing.Status() : "plain")
                 + (upscaler != null ? "; " + upscaler + " at " + renderSize.x + "x" + renderSize.y + ": " + pass.UpscalerState() : ""));
-            Log(pass.Written > 0 ? "all checks passed" : "FAIL  nothing written");
+            string failure = pass.Failure();
+            Log(failure == null ? "all checks passed" : "FAIL  " + failure);
             Finish();
         }
 
@@ -390,6 +391,15 @@ namespace ReDefinition.RaytracingPlayer
                         + " row; then frame generation's camera as its packet takes it (StreamlineCamera): viewToClip,"
                         + " clipToView, clipToPrevClip, prevClipToClip (16 each, row-major), position, up, right,"
                         + " forward (3 each)\n");
+        }
+
+        // Why the run does not count, or null: nothing written, or Ray Reconstruction or
+        // the upscaler asked for and not running.
+        internal string Failure()
+        {
+            if (Written == 0) return "nothing written";
+            if (WantsReconstruction && Reconstructed == 0) return "DLSS Ray Reconstruction reconstructed no frame";
+            return UpscalerFailure();
         }
 
         internal bool ReconstructionReady()

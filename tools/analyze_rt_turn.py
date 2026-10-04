@@ -202,7 +202,9 @@ def main():
             fast = [r for r in rows if r[3] > 0.01]
             rest = np.mean([r[5] for r in rows])
             new = np.mean([r[2] for r in fast]) if fast else 0.0
-            motion = max(r[6] for r in rows)
+            # Frames without motion vectors give NaN; none with them fails the check.
+            measured = [r[6] for r in rows if not np.isnan(r[6])]
+            motion = max(measured) if measured else float('nan')
             print('mean: all %.4f, rest %.4f; frames with more than 1 %% new: %d, their new %.4f, recent %.4f' % (
                 np.mean([r[1] for r in rows]), rest, len(fast), new, np.mean([r[4] for r in fast]) if fast else 0.0))
             # Unity's own lighting has no history: the turn equals its references. With

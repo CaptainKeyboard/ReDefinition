@@ -3,12 +3,14 @@
 
 It copies ReDefinition's raytracing sources and shaders into the player's Unity
 project, has Unity 2019.4.18f1 build the player in batch mode, puts the proxy
-(dxgi.dll) beside it, and runs it twice: with forward rendering, and with Deferred's
-lighting shaders from the installed game, and with Unity's own deferred lighting. The player's checks come back from its log.
+(dxgi.dll) beside it, and runs it four times: with forward rendering, with Unity's own
+deferred lighting, with Deferred's lighting shaders from the installed game (skipped
+where Deferred is not installed), and the budget at DLSS Quality's render size. The
+player's checks come back from its log.
 
     python tools/build_rt_player.py [--unity <Unity.exe>] [--ksp <KSP folder>] [--no-build]
 
-Exits 0 when every check of both runs passed.
+Exits 0 when every check of every run passed.
 """
 
 import argparse
@@ -183,7 +185,9 @@ def upscale(exe, streamline, amd, ksp):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--unity', default=r'C:\Program Files\Unity\Editor\Unity.exe')
-    parser.add_argument('--ksp', default=r'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program')
+    # By default KspRoot, as the build takes it, or the Steam location.
+    parser.add_argument('--ksp', default=os.environ.get(
+        'KspRoot', r'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program'))
     parser.add_argument('--no-build', action='store_true')
     # One check alone, in the run with Deferred's lighting (RtPlayerRunner, -only).
     parser.add_argument('--only', choices=['ocean', 'glow'])
@@ -214,7 +218,11 @@ def main():
                           ['-only', arguments.only]) else 1)
     forward_ok = run(exe, None, 'forward')
     builtin_ok = run(exe, None, 'unity-deferred', ['-builtinDeferred', '1'])
-    deferred_ok = run(exe, deferred if os.path.isdir(deferred) else None, 'deferred')
+    if os.path.isdir(deferred):
+        deferred_ok = run(exe, deferred, 'deferred')
+    else:
+        print('--- deferred: skipped, Deferred is not installed (%s)' % deferred)
+        deferred_ok = True
     # 2560 by 1440 with DLSS Quality renders 1707 by 960.
     budget_ok = run(exe, None, 'budget', ['-budget', '1'], (1707, 960))
     sys.exit(0 if forward_ok and builtin_ok and deferred_ok and budget_ok else 1)

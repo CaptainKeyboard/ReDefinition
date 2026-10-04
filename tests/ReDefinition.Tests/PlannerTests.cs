@@ -10,7 +10,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class PlannerTests
     {
-        private const int Sun = 0, Kerbin = 1, Mun = 2, Minmus = 3, Duna = 4, Eve = 5, Laythe = 6, Tylo = 7;
+        private const int Sun = 0, Kerbin = 1, Mun = 2, Minmus = 3, Duna = 4, Eve = 5, Laythe = 6, Tylo = 7, StockJool = 8;
 
         // The stock bodies, as KSP 1.12.5 defines them.
         internal static List<PlannerBody> Stock()
@@ -49,13 +49,19 @@ namespace ReDefinition.Tests
                 },
                 new PlannerBody
                 {
-                    Name = "Laythe", Parent = Sun, Mu = 1.962e12, Radius = 500000, RotationPeriod = 52980.879,
+                    Name = "Laythe", Parent = StockJool, Mu = 1.962e12, Radius = 500000, RotationPeriod = 52980.879,
                     AtmosphereDepth = 50000, SurfacePressure = 0.6, SemiMajorAxis = 27184000, LowOrbitAltitude = 60000,
                 },
                 new PlannerBody
                 {
-                    Name = "Tylo", Parent = Sun, Mu = 2.82528e12, Radius = 600000, RotationPeriod = 211926.36,
-                    SemiMajorAxis = 68500000, LowOrbitAltitude = 17000,
+                    Name = "Tylo", Parent = StockJool, Mu = 2.82528e12, Radius = 600000, RotationPeriod = 211926.36,
+                    SemiMajorAxis = 68500000, Inclination = 0.025, LowOrbitAltitude = 17000,
+                },
+                new PlannerBody
+                {
+                    Name = "Jool", Parent = Sun, Mu = 2.82528e14, Radius = 6000000, RotationPeriod = 36000,
+                    AtmosphereDepth = 200000, SurfacePressure = 15, SemiMajorAxis = 68773560320, Inclination = 1.304,
+                    LowOrbitAltitude = 210000,
                 },
             };
         }
@@ -937,7 +943,7 @@ namespace ReDefinition.Tests
                 new PlannerBody
                 {
                     Name = "Tylo", Parent = 2, Mu = 2.82528e12, Radius = 600000, RotationPeriod = 211926.36,
-                    SemiMajorAxis = 68500000, LowOrbitAltitude = 17000,
+                    SemiMajorAxis = 68500000, Inclination = 0.025, LowOrbitAltitude = 17000,
                 },
             };
         }

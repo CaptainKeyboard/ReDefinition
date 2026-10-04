@@ -5,7 +5,7 @@ using ReDefinition.Window;
 
 namespace ReDefinition.Tests
 {
-    // The Keys tab's decisions without the game: what a KEY block in a registration
+    // The Controls tab's decisions without the game: what a KEY block in a registration
     // means, which rows share a combination, and what KSP's field names are called
     // in the window.
     [TestClass]

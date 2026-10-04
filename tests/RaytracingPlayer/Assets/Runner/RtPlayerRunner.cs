@@ -93,14 +93,7 @@ namespace ReDefinition.RaytracingPlayer
             StartCoroutine(Run());
         }
 
-        private static string Argument(string name)
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length - 1; i++)
-                if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
-                    return args[i + 1];
-            return null;
-        }
+        private static string Argument(string name) => RtTurnRunner.Argument(name);
 
         private static void Log(string text)
         {
@@ -303,11 +296,6 @@ namespace ReDefinition.RaytracingPlayer
                 + ", specular " + raytracing.PassTimings[3].ToString("0.000") + ", denoiser "
                 + raytracing.PassTimings[6].ToString("0.000"));
 
-            // Where the boxes' shadows fall on the ground: their centres along the sun's ray.
-            Vector3 ShadowOf(Vector3 centre)
-            {
-                return centre - towardsSun * (centre.y / towardsSun.y);
-            }
             float Ratio(Texture2D image, Vector3 shaded, Vector3 lit)
             {
                 return Brightness(image, shaded) / Mathf.Max(Brightness(image, lit), 1e-3f);
@@ -359,7 +347,7 @@ namespace ReDefinition.RaytracingPlayer
             {
                 // Before the world moves away under the floating origin's jump.
                 yield return OceanReflections();
-                yield return Moving(without);
+                yield return Moving(farWithout);
                 yield return Night();
             }
             else
@@ -369,8 +357,9 @@ namespace ReDefinition.RaytracingPlayer
 
         // The camera gliding sideways while the world jumps as KSP's floating origin makes
         // it: everything moved by minus an offset, reported as the frame's shift. The far
-        // box's shadow stays where it is, carried over the jump.
-        private IEnumerator Moving(Texture2D without)
+        // box's shadow stays where it is, carried over the jump. before is the far
+        // shadow's ratio without raytracing, taken where the camera stood for it.
+        private IEnumerator Moving(float before)
         {
             Vector3 shift = Vector3.zero;
             raytracing.WorldShift = () => new RtPosition(shift.x, shift.y, shift.z);
@@ -392,12 +381,12 @@ namespace ReDefinition.RaytracingPlayer
             }
             Texture2D moved = null;
             yield return Capture(t => moved = t, "moved");
-            Vector3 far = ShadowOfPublic(new Vector3(0f, 5f, 60f)) + total;
+            Vector3 far = ShadowOf(new Vector3(0f, 5f, 60f)) + total;
             Vector3 farLit = far + new Vector3(15f, 0f, 0f);
             float ratio = Brightness(moved, far) / Mathf.Max(Brightness(moved, farLit), 1e-3f);
-            float before = Brightness(without, far - total) / Mathf.Max(Brightness(without, farLit - total), 1e-3f);
             Check(ratio < 0.8f * before, "the far shadow over a floating origin jump",
-                  (ratio * 100f).ToString("0") + " % of the light beside it after the camera moved 2 m and the world 670 m");
+                  (ratio * 100f).ToString("0") + " % of the light beside it after the camera moved 2 m and the world 670 m, without raytracing "
+                  + (before * 100f).ToString("0") + " %");
         }
 
         // Scatterer's ocean as ReDefinition hands it the raytraced reflections (RtCamera,
@@ -947,7 +936,8 @@ namespace ReDefinition.RaytracingPlayer
                   + ", " + behindChange.ToString("0.000") + " without raytracing");
         }
 
-        private Vector3 ShadowOfPublic(Vector3 centre)
+        // Where a box's shadow falls on the ground: its centre along the sun's ray.
+        private Vector3 ShadowOf(Vector3 centre)
         {
             return centre - towardsSun * (centre.y / towardsSun.y);
         }

@@ -8,8 +8,8 @@ using ReDefinition.Engineer;
 
 namespace ReDefinition.Tests
 {
-    // A stock craft as KSP's delta-v simulation gives it, worked out from its file by
-    // tools/craft_stages.py (StockCrafts.cs).
+    // A stock craft's stages, worked out from its file by tools/craft_stages.py
+    // (StockCrafts.cs).
     internal sealed class StockCraft
     {
         public string Name;
@@ -327,15 +327,32 @@ namespace ReDefinition.Tests
             }
             Flight ravenspear = Log(Fly(StockCrafts.Named("Ravenspear Mk3"), ToOrbit()));
             Assert.IsTrue(ravenspear.Short > 0.5, "Ravenspear Mk3 does not reach orbit:\n" + ravenspear.Report);
-            foreach (string name in new[] { "Stratolauncher", "Satellite Launcher" }) Log(Fly(StockCrafts.Named(name), ToOrbit()));
+            // Jets that carry a rocket up: no destination in their descriptions, the
+            // take-off along the runway and a planned flight checked.
+            foreach (string name in new[] { "Stratolauncher", "Satellite Launcher" })
+            {
+                Flight flight = Log(Fly(StockCrafts.Named(name), ToOrbit()));
+                Assert.IsTrue(flight.Runway, name + " takes off along the runway");
+                Planned(flight);
+            }
         }
 
         [TestMethod]
         public void TheOtherLaunchersAsTheModelHasThem()
         {
-            // No destination in their descriptions: logged for the record.
-            foreach (string name in new[] { "Kerbal 1", "Science Jr", "Orbiter One", "Z-MAP Satellite Launch Kit" })
-                Log(Fly(StockCrafts.Named(name), ToOrbit()));
+            // "capable of actually putting its payload into orbit!"
+            Flight zmap = Log(Fly(StockCrafts.Named("Z-MAP Satellite Launch Kit"), ToOrbit()));
+            Assert.IsTrue(zmap.Short < 0.5, "Z-MAP Satellite Launch Kit reaches orbit:\n" + zmap.Report);
+            // No destination in their descriptions: a planned flight checked, the rest logged.
+            foreach (string name in new[] { "Kerbal 1", "Science Jr", "Orbiter One" })
+                Planned(Log(Fly(StockCrafts.Named(name), ToOrbit())));
+        }
+
+        // A flight the planner worked out: steps to fly and a finite shortfall.
+        private static void Planned(Flight flight)
+        {
+            Assert.IsTrue(flight.Steps != null && flight.Steps.Count > 0, flight.Craft + " has steps:\n" + flight.Report);
+            Assert.IsFalse(double.IsNaN(flight.Short) || double.IsInfinity(flight.Short), flight.Craft + " short " + flight.Short);
         }
     }
 }

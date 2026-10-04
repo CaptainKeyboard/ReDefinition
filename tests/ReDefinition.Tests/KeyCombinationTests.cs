@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ReDefinition.Tests
 {
     // The key binding as text: what the registrations, the store and KSP's
-    // settings.cfg hold, and what the Keys tab shows.
+    // settings.cfg hold, and what the Controls tab shows.
     [TestClass]
     public class KeyCombinationTests
     {

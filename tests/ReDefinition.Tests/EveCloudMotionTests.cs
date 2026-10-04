@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Upscaler;
 using UnityEngine;
 
 namespace ReDefinition.Tests
@@ -38,8 +39,19 @@ namespace ReDefinition.Tests
             Vector2 previousJitter = new Vector2(0.25f / 960f, -0.4f / 540f);
             Vector2 jitter = new Vector2(-0.3f / 960f, 0.1f / 540f);
             // As CameraRedirect.ApplyJitter makes them.
-            Matrix4x4 previous = Matrix4x4.Translate(new Vector3(previousJitter.x, previousJitter.y, 0f)) * unjittered;
-            Matrix4x4 current = Matrix4x4.Translate(new Vector3(jitter.x, jitter.y, 0f)) * unjittered;
+            Matrix4x4 previous, current;
+            Vector2 saved = CameraRedirect.JitterNdc;
+            try
+            {
+                CameraRedirect.JitterNdc = previousJitter;
+                previous = CameraRedirect.Jittered(unjittered);
+                CameraRedirect.JitterNdc = jitter;
+                current = CameraRedirect.Jittered(unjittered);
+            }
+            finally
+            {
+                CameraRedirect.JitterNdc = saved;
+            }
 
             foreach (Vector3 point in new[] { new Vector3(10f, 5f, -2000f), new Vector3(-300f, 80f, -40000f) })
             {

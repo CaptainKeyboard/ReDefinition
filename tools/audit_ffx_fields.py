@@ -73,9 +73,22 @@ def fields_of(text, struct):
     return names
 
 
+def without_comments(text):
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    return re.sub(r"//[^\n]*", "", text)
+
+
+def assigned(impl, prefix, name):
+    """Whether the code assigns the field: prefix.name, or an element of it, on the
+    left of an equals sign. A longer field name, a comparison or a comment does not
+    count."""
+    pattern = r"\b" + re.escape(prefix + name) + r"\b(?:\s*\[[^\]]*\])?\s*=(?!=)"
+    return re.search(pattern, impl) is not None
+
+
 def main():
     header = read(HEADER)
-    impl = "\n".join(read(path) for path in IMPL)
+    impl = without_comments("\n".join(read(path) for path in IMPL))
 
     failures = []
     for struct, prefix in ASSIGNED_AS.items():
@@ -84,7 +97,7 @@ def main():
 
         print(struct + "  (%d fields)" % len(names))
         for name in names:
-            if (prefix + name) in impl:
+            if assigned(impl, prefix, name):
                 print("   set          %s" % name)
             elif name in allowed:
                 print("   left unset   %-28s %s" % (name, allowed[name]))
