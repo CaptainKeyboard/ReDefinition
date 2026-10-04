@@ -90,7 +90,7 @@ struct KspCb_cbFSR3Upscaler
 StructuredBuffer<KspCb_cbFSR3Upscaler> KspCbBuf_cbFSR3Upscaler;
 
 
-#define FFX_FSR3UPSCALER_CONSTANT_BUFFER_1_SIZE (sizeof(cbFSR3Upscaler) / 4)  // Number of 32-bit values. This must be kept in sync with the cbFSR3Upscaler size.
+#define FFX_FSR3UPSCALER_CONSTANT_BUFFER_1_SIZE (sizeof(KspCb_cbFSR3Upscaler) / 4)  // Number of 32-bit values. This must be kept in sync with the cbFSR3Upscaler size.
 
 /* Define getter functions in the order they are defined in the CB! */
 FfxInt32x2 RenderSize()

@@ -310,8 +310,8 @@ FfxFloat32 GetViewSpaceDepth(FfxFloat32 fDeviceDepth)
 {
     const FfxFloat32x4 fDeviceToViewDepth = DeviceToViewSpaceTransformFactors();
 
-    // KspCbBuf_cbFSR3Upscaler[0].fDeviceToViewDepth details found in ffx_fsr3upscaler.cpp
-    return (KspCbBuf_cbFSR3Upscaler[0].fDeviceToViewDepth[1] / (fDeviceDepth - KspCbBuf_cbFSR3Upscaler[0].fDeviceToViewDepth[0]));
+    // fDeviceToViewDepth details found in ffx_fsr3upscaler.cpp
+    return (fDeviceToViewDepth[1] / (fDeviceDepth - fDeviceToViewDepth[0]));
 }
 
 FfxFloat32 GetViewSpaceDepthInMeters(FfxFloat32 fDeviceDepth)
@@ -326,8 +326,8 @@ FfxFloat32x3 GetViewSpacePosition(FfxInt32x2 iViewportPos, FfxInt32x2 iViewportS
     const FfxFloat32 Z = GetViewSpaceDepth(fDeviceDepth);
 
     const FfxFloat32x2 fNdcPos = ComputeNdc(iViewportPos, iViewportSize);
-    const FfxFloat32 X = KspCbBuf_cbFSR3Upscaler[0].fDeviceToViewDepth[2] * fNdcPos.x * Z;
-    const FfxFloat32 Y = KspCbBuf_cbFSR3Upscaler[0].fDeviceToViewDepth[3] * fNdcPos.y * Z;
+    const FfxFloat32 X = fDeviceToViewDepth[2] * fNdcPos.x * Z;
+    const FfxFloat32 Y = fDeviceToViewDepth[3] * fNdcPos.y * Z;
 
     return FfxFloat32x3(X, Y, Z);
 }

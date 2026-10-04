@@ -84,7 +84,7 @@ FfxFloat32 ComputeMotionDivergence(FfxFloat32x2 fUv, FfxFloat32x2 fMotionVector,
 
     const FfxFloat32 fDistanceFactor = MinDividedByMax(fNucleusDepthInMeters, fCurrentDepthInMeters);
     const FfxFloat32 fVelocityFactor = ffxSaturate(f4KVelocity / 10.0f);
-    const FfxFloat32 fMotionVectorFieldConfidence = (1.0f - ffxSaturate(fReprojectedVelocity / f4KVelocity)) * fDistanceFactor * KspCbBuf_cbFSR3Upscaler[0].fVelocityFactor;
+    const FfxFloat32 fMotionVectorFieldConfidence = (1.0f - ffxSaturate(fReprojectedVelocity / f4KVelocity)) * fDistanceFactor * fVelocityFactor;
 
     return fMotionVectorFieldConfidence;
 }

@@ -4,12 +4,12 @@
 
 Two things stand in the way, both only available from Unity 2020.1:
 
-  1. "#pragma multi_compile" in compute shaders. FSR3Unity uses it for seven
+  1. "#pragma multi_compile" in compute shaders. FSR3Unity uses it for eight
      keywords. Six of those are set once by the runtime at initialisation and
      never again -- for a fixed integration into KSP the combination is therefore
-     known up front and can be baked in as a define. Only APPLY_SHARPENING
-     switches at runtime, so a second variant of the accumulate pass is
-     generated for it.
+     known up front and can be baked in as a define. HDR_COLOR_INPUT follows the
+     camera and APPLY_SHARPENING switches at runtime, so each pass is generated
+     with and without HDR, and the accumulate pass with and without sharpening.
 
   2. CommandBuffer.SetComputeConstantBufferParam. Without that API an explicitly
      registered cbuffer cannot be filled. Global uniforms set through
@@ -31,6 +31,9 @@ not have.
 The FSR files in unity/Assets/ReDefinition/Shaders are replaced; Unity's .meta
 files and ReDefinition's own shaders there stay.
 
+The shaders in the repository are ported from FSR3Unity commit 71879e7
+(FSR 3.1.3 upscaler).
+
 Usage:  python tools/port_fsr3_shaders.py <FSR3Unity checkout>
 """
 
@@ -45,8 +48,8 @@ BAKED_DEFINES = [
     # KSP's motion vector buffer is produced at the camera's render resolution --
     # and with upscaling active that is the low one.
     ("FFX_FSR3UPSCALER_OPTION_LOW_RESOLUTION_MOTION_VECTORS", True),
-    # Unity's motion vectors already contain the jitter, FSR does not have to
-    # cancel it out.
+    # Unity's motion vectors come from the projection without jitter
+    # (Camera.nonJitteredProjectionMatrix), so FSR has no jitter to cancel out.
     ("FFX_FSR3UPSCALER_OPTION_JITTERED_MOTION_VECTORS", False),
     # Fsr3Upscaler.CreateContext sets EnableDepthInverted itself as soon as
     # SystemInfo.usesReversedZBuffer holds -- and under D3D11 it always does.
@@ -274,38 +277,80 @@ def convert_cbuffers(source):
         out.append("StructuredBuffer<%s> %s;" % (struct_name, buffer_name))
         out.append("")
 
-    for number in range(len(out)):
-        if number not in protected:
-            out[number] = rewrite_line(out[number])
+    out, _shadowed = rewrite_lines(out, True, protected)
 
-    return chr(10).join(out), converted
+    text = chr(10).join(out)
+    for name in converted:
+        text = text.replace("sizeof(%s)" % name, "sizeof(KspCb_%s)" % name)
+    return text, converted
 
 
-def rewrite_line(line, inside_callbacks=True):
-    """Redirects field accesses to the struct member.
+def rewrite_lines(lines, inside_callbacks=True, skip=()):
+    """Redirects field accesses to the struct member, except where a local
+    variable or parameter of the same name shadows the field.
 
-    Declarations are left alone: ffx_fsr3upscaler_common.h keeps a local variable
-    named fDeviceToViewDepth, and that must not turn into a buffer access -- it
-    would become a nonsensical declaration.
+    FidelityFX declares locals named like fields: "const FfxFloat32x4
+    fDeviceToViewDepth = ..." in ffx_fsr3upscaler_common.h, "const FfxFloat32
+    fVelocityFactor = ..." in ffx_fsr3upscaler_prepare_reactivity.h. Such a name
+    means the local up to the end of its block, a parameter up to the end of its
+    function, and stays as it is there. Lines declaring a field name stay as they
+    are too, and so do the line numbers in skip.
+
+    Returns the lines and the number of shadowed uses left alone.
     """
     usable = dict(ACCESSORS)
     if not inside_callbacks:
         for name in GENERIC_NAMES:
             usable.pop(name, None)
     if not usable:
-        return line
+        return list(lines), 0
 
-    boundary = chr(92) + "b"
     names = "|".join(sorted(usable, key=len, reverse=True))
 
-    # Skip declarations and parameter lists -- there the name is followed by an
-    # equals sign, semicolon, comma or a closing parenthesis.
-    declaration = re.compile(r"(?:const\s+)?Ffx\w+\s+(" + names + r")\s*[=;,)]")
-    if declaration.search(line):
-        return line
+    # A declaration or a parameter: the name is followed by an equals sign,
+    # semicolon, comma or a closing parenthesis.
+    declaration = re.compile(r"(?:const\s+)?Ffx\w+\s+(" + names + r")\s*([=;,)])")
+    access = re.compile(r"\b(" + names + r")\b")
 
-    pattern = re.compile(boundary + "(" + names + ")" + boundary)
-    return pattern.sub(lambda m: usable[m.group(1)], line)
+    depth = 0
+    shadows = {}  # name -> [depth of its scope, scope entered]
+    out = []
+    shadowed = 0
+
+    for number, line in enumerate(lines):
+        if number in skip:
+            out.append(line)
+        else:
+            declared = list(declaration.finditer(line))
+            for match in declared:
+                if match.group(2) in ",)":
+                    shadows[match.group(1)] = [depth + 1, False]
+                elif depth > 0:
+                    shadows[match.group(1)] = [depth, True]
+
+            if declared:
+                out.append(line)
+            else:
+                shadowed += sum(1 for m in access.finditer(line) if m.group(1) in shadows)
+                out.append(access.sub(
+                    lambda m: m.group(0) if m.group(1) in shadows else usable[m.group(1)],
+                    line))
+
+        for char in line.split("//", 1)[0]:
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+            else:
+                continue
+            for name in list(shadows):
+                scope = shadows[name]
+                if depth >= scope[0]:
+                    scope[1] = True
+                elif scope[1]:
+                    del shadows[name]
+
+    return out, shadowed
 
 
 def remove_ported(dst_root):
@@ -372,7 +417,10 @@ def main():
         text = read(source_path)
         if name == "ffx_fsr3upscaler_prepare_reactivity.h":
             text = backport_accumulation(text)
-        write(target_path, chr(10).join(rewrite_line(l, False) for l in text.split(chr(10))))
+        lines, shadowed = rewrite_lines(text.split(chr(10)), False)
+        if shadowed:
+            print("  %-52s %d use(s) of shadowing locals kept" % (name, shadowed))
+        write(target_path, chr(10).join(lines))
 
     write(os.path.join(dst_root, "ffx_fsr_unity_common.cginc"),
           read(os.path.join(src_root, "ffx_fsr_unity_common.cginc")))
