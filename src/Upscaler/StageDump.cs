@@ -61,17 +61,61 @@ namespace ReDefinition.Upscaler
         private static string metaText;
 
         // EVE's volumetric clouds as its reconstruction left them this frame, where EVE
-        // draws them: the layer the halo and trail around the rocket may come from.
+        // draws them: the layer the halo and trail around the rocket may come from. EVE
+        // binds them only while the scene camera renders and puts a white one back after
+        // (CloudMotionVectors), so while a dump is armed a buffer on the scene camera
+        // copies them at AfterForwardAlpha into cloudsNow, which the dump takes from.
         private static readonly int CloudsId = Shader.PropertyToID("scattererReconstructedCloud");
+        private static readonly RenderTargetIdentifier CloudsSource = new RenderTargetIdentifier(CloudsId);
+        private static RenderTexture cloudsNow;
+        private static CommandBuffer cloudsCopy;
+        private static Camera cloudsCamera;
 
         private static RenderTexture Clouds()
         {
-            return Shader.GetGlobalTexture(CloudsId) as RenderTexture;
+            return cloudsCopy != null ? cloudsNow : null;
+        }
+
+        // The copy at the scene camera's size, while the dump is armed and EVE has bound
+        // clouds at all.
+        private static void FollowClouds(Camera cam, RenderTexture input)
+        {
+            bool created;
+            if (folder == null || cam == null || input == null || !EveCloudMotion.Present
+                || Shader.GetGlobalTexture(CloudsId) == null
+                || !RenderTextures.Ensure(ref cloudsNow, new Vector2Int(input.width, input.height), RenderTextureFormat.ARGBHalf,
+                                          "ReDefinition_StageDump_CloudsNow", out created))
+            {
+                DropClouds();
+                return;
+            }
+            if (cloudsCopy != null && cloudsCamera == cam && !created) return;
+            DetachClouds();
+            cloudsCopy = new CommandBuffer { name = "ReDefinition.StageDump clouds" };
+            cloudsCopy.Blit(CloudsSource, cloudsNow);
+            cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, cloudsCopy);
+            cloudsCamera = cam;
+        }
+
+        private static void DetachClouds()
+        {
+            if (cloudsCopy == null) return;
+            if (cloudsCamera != null) cloudsCamera.RemoveCommandBuffer(CameraEvent.AfterForwardAlpha, cloudsCopy);
+            cloudsCopy.Release();
+            cloudsCopy = null;
+            cloudsCamera = null;
+        }
+
+        private static void DropClouds()
+        {
+            DetachClouds();
+            RenderTextures.Release(ref cloudsNow);
         }
 
         internal static void Arm()
         {
             ReleasePrepared();
+            DropClouds();
             folder = Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"),
                                   System.DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-stages");
             taken = 0;
@@ -87,6 +131,7 @@ namespace ReDefinition.Upscaler
                                            RenderTexture input, RenderTexture output)
         {
             ReadNext();
+            FollowClouds(cam, input);
             if (folder == null || cam == null) return;
             RtCamera raytraced = RtCamera.Current;
             if (raytraced != null && raytraced.Camera != cam) raytraced = null;
@@ -132,6 +177,7 @@ namespace ReDefinition.Upscaler
             metaText = meta.ToString();
             folder = null;
             ReleasePrepared();
+            DropClouds();
         }
 
         private static void Prepare(RenderTexture input, RenderTexture output, RtCamera raytraced)

@@ -458,74 +458,90 @@ namespace FidelityFX.FSR3
             }
         }
 
+        // ReDefinition: each finding once per context, with the mod's tag; the checks
+        // run on every dispatch, and a constant finding would fill the log.
+        private readonly System.Collections.Generic.HashSet<string> _debugCheckReported = new System.Collections.Generic.HashSet<string>();
+
+        private void DebugCheckFailed(bool error, string message)
+        {
+            if (!_debugCheckReported.Add(message))
+                return;
+
+            string line = "[ReDefinition] FSR 3 dispatch check: " + message;
+            if (error)
+                Debug.LogError(line);
+            else
+                Debug.LogWarning(line);
+        }
+
         private void DebugCheckDispatch(Fsr3Upscaler.DispatchDescription dispatchParams)
         {
             if (!dispatchParams.Color.IsValid)
             {
-                Debug.LogError("Color resource is null");
+                DebugCheckFailed(true, "Color resource is null");
             }
             
             if (!dispatchParams.Depth.IsValid)
             {
-                Debug.LogError("Depth resource is null");
+                DebugCheckFailed(true, "Depth resource is null");
             }
             
             if (!dispatchParams.MotionVectors.IsValid)
             {
-                Debug.LogError("MotionVectors resource is null");
+                DebugCheckFailed(true, "MotionVectors resource is null");
             }
             
             if (dispatchParams.Exposure.IsValid && (_contextDescription.Flags & Fsr3Upscaler.InitializationFlags.EnableAutoExposure) != 0)
             {
-                Debug.LogWarning("Exposure resource provided, however auto exposure flag is present");
+                DebugCheckFailed(false, "Exposure resource provided, however auto exposure flag is present");
             }
             
             if (!dispatchParams.Output.IsValid)
             {
-                Debug.LogError("Output resource is null");
+                DebugCheckFailed(true, "Output resource is null");
             }
 
             if (Mathf.Abs(dispatchParams.JitterOffset.x) > 1.0f || Mathf.Abs(dispatchParams.JitterOffset.y) > 1.0f)
             {
-                Debug.LogWarning("JitterOffset contains value outside of expected range [-1.0, 1.0]");
+                DebugCheckFailed(false, "JitterOffset contains value outside of expected range [-1.0, 1.0]");
             }
 
             if (dispatchParams.MotionVectorScale.x > _contextDescription.MaxRenderSize.x || dispatchParams.MotionVectorScale.y > _contextDescription.MaxRenderSize.y)
             {
-                Debug.LogWarning("MotionVectorScale contains scale value greater than MaxRenderSize");
+                DebugCheckFailed(false, "MotionVectorScale contains scale value greater than MaxRenderSize");
             }
 
             if (dispatchParams.MotionVectorScale.x == 0.0f || dispatchParams.MotionVectorScale.y == 0.0f)
             {
-                Debug.LogWarning("MotionVectorScale contains zero scale value");
+                DebugCheckFailed(false, "MotionVectorScale contains zero scale value");
             }
 
             if (dispatchParams.RenderSize.x > _contextDescription.MaxRenderSize.x || dispatchParams.RenderSize.y > _contextDescription.MaxRenderSize.y)
             {
-                Debug.LogWarning("RenderSize is greater than context MaxRenderSize");
+                DebugCheckFailed(false, "RenderSize is greater than context MaxRenderSize");
             }
 
             if (dispatchParams.RenderSize.x == 0 || dispatchParams.RenderSize.y == 0)
             {
-                Debug.LogWarning("RenderSize contains zero dimension");
+                DebugCheckFailed(false, "RenderSize contains zero dimension");
             }
 
             // ReDefinition: sharpness up to UpscalerRig.MaximumSharpness, past
             // FidelityFX's 1.
             if (dispatchParams.Sharpness < 0.0f || dispatchParams.Sharpness > ReDefinition.Upscaler.UpscalerRig.MaximumSharpness)
             {
-                Debug.LogWarning("Sharpness contains value outside of expected range [0.0, "
+                DebugCheckFailed(false, "Sharpness contains value outside of expected range [0.0, "
                                  + ReDefinition.Upscaler.UpscalerRig.MaximumSharpness + "]");
             }
 
             if (dispatchParams.FrameTimeDelta > 1.0f)
             {
-                Debug.LogWarning("FrameTimeDelta is greater than 1.0f - this value should be seconds (~0.0166 for 60fps)");
+                DebugCheckFailed(false, "FrameTimeDelta is greater than 1.0f - this value should be seconds (~0.0166 for 60fps)");
             }
 
             if (dispatchParams.PreExposure == 0.0f)
             {
-                Debug.LogError("PreExposure provided as 0.0f which is invalid");
+                DebugCheckFailed(true, "PreExposure provided as 0.0f which is invalid");
             }
 
             bool infiniteDepth = (_contextDescription.Flags & Fsr3Upscaler.InitializationFlags.EnableDepthInfinite) != 0;
@@ -535,51 +551,51 @@ namespace FidelityFX.FSR3
             {
                 if (dispatchParams.CameraNear < dispatchParams.CameraFar)
                 {
-                    Debug.LogWarning("EnableDepthInverted flag is present yet CameraNear is less than CameraFar");
+                    DebugCheckFailed(false, "EnableDepthInverted flag is present yet CameraNear is less than CameraFar");
                 }
 
                 if (infiniteDepth)
                 {
                     if (dispatchParams.CameraNear < float.MaxValue)
                     {
-                        Debug.LogWarning("EnableDepthInfinite and EnableDepthInverted present, yet CameraNear != float.MaxValue");
+                        DebugCheckFailed(false, "EnableDepthInfinite and EnableDepthInverted present, yet CameraNear != float.MaxValue");
                     }
                 }
                 
                 if (dispatchParams.CameraFar < 0.075f)
                 {
-                    Debug.LogWarning("EnableDepthInverted present, CameraFar value is very low which may result in depth separation artefacting");
+                    DebugCheckFailed(false, "EnableDepthInverted present, CameraFar value is very low which may result in depth separation artefacting");
                 }
             }
             else
             {
                 if (dispatchParams.CameraNear > dispatchParams.CameraFar)
                 {
-                    Debug.LogWarning("CameraNear is greater than CameraFar in non-inverted-depth context");
+                    DebugCheckFailed(false, "CameraNear is greater than CameraFar in non-inverted-depth context");
                 }
 
                 if (infiniteDepth)
                 {
                     if (dispatchParams.CameraFar < float.MaxValue)
                     {
-                        Debug.LogWarning("EnableDepthInfinite present, yet CameraFar != float.MaxValue");
+                        DebugCheckFailed(false, "EnableDepthInfinite present, yet CameraFar != float.MaxValue");
                     }
                 }
 
                 if (dispatchParams.CameraNear < 0.075f)
                 {
-                    Debug.LogWarning("CameraNear value is very low which may result in depth separation artefacting");
+                    DebugCheckFailed(false, "CameraNear value is very low which may result in depth separation artefacting");
                 }
             }
 
             if (dispatchParams.CameraFovAngleVertical <= 0.0f)
             {
-                Debug.LogError("CameraFovAngleVertical is 0.0f - this value should be > 0.0f");
+                DebugCheckFailed(true, "CameraFovAngleVertical is 0.0f - this value should be > 0.0f");
             }
 
             if (dispatchParams.CameraFovAngleVertical > Mathf.PI)
             {
-                Debug.LogError("CameraFovAngleVertical is greater than 180 degrees/PI");
+                DebugCheckFailed(true, "CameraFovAngleVertical is greater than 180 degrees/PI");
             }
         }
 

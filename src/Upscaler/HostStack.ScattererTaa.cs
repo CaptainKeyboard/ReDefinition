@@ -63,11 +63,23 @@ namespace ReDefinition.Upscaler
         //
         // Turning Scatterer's TAA off in its config does not have this problem:
         // the shader is then never installed in the first place. Disabling the
-        // component at runtime has to neutralise the globals by hand.
+        // component at runtime has to neutralise the globals by hand. Undone, the
+        // switch goes back to what the first neutralising found; a TAA switched on
+        // again sets it itself as it renders (TemporalAntiAliasing.OnPreCull, decompiled).
+        private static int? savedUseFloatingOrigin;
+
         private static void NeutraliseFloatingOrigin(bool neutralise)
         {
-            Shader.SetGlobalInt(UseFloatingOriginId, neutralise ? 0 : 1);
-            if (neutralise) Shader.SetGlobalMatrix(PreviousFrameTransformId, Matrix4x4.identity);
+            if (neutralise)
+            {
+                if (savedUseFloatingOrigin == null) savedUseFloatingOrigin = Shader.GetGlobalInt(UseFloatingOriginId);
+                Shader.SetGlobalInt(UseFloatingOriginId, 0);
+                Shader.SetGlobalMatrix(PreviousFrameTransformId, Matrix4x4.identity);
+                return;
+            }
+            if (savedUseFloatingOrigin == null) return;
+            Shader.SetGlobalInt(UseFloatingOriginId, savedUseFloatingOrigin.Value);
+            savedUseFloatingOrigin = null;
         }
 
         // Neutralising the globals is not enough either -- the replacement shader
@@ -123,13 +135,16 @@ namespace ReDefinition.Upscaler
         //
         // Scatterer's TAA sets every vessel renderer to ForceNoMotion on load and
         // corrects that to Object each frame in OnPreCull once the model matrix
-        // changes. Disable the component and they freeze on ForceNoMotion: they
+        // changes (RegisterVesselRenderers, UpdateVesselRendererMotionModes,
+        // decompiled). Disable the component and they freeze on ForceNoMotion: they
         // stop writing object motion while still moving in the image, and smear.
         // Its GameEvents registration survives the disable too, so newly loaded
-        // vessels keep arriving on ForceNoMotion, and the sweep repeats.
+        // vessels keep arriving on ForceNoMotion, and the sweep repeats. Only the
+        // renderers of vessels, the ones Scatterer sets: ForceNoMotion elsewhere is
+        // another mod's choice and stands.
         private static int ReleaseMotionVectorModes(bool activeVesselOnly)
         {
-            IList<Renderer> renderers;
+            List<Renderer> renderers;
             if (activeVesselOnly)
             {
                 Vessel vessel = ActiveVessel();
@@ -138,7 +153,11 @@ namespace ReDefinition.Upscaler
             }
             else
             {
-                renderers = UnityEngine.Object.FindObjectsOfType<Renderer>();
+                renderers = new List<Renderer>();
+                List<Vessel> loaded = FlightGlobals.fetch != null ? FlightGlobals.VesselsLoaded : null;
+                if (loaded != null)
+                    foreach (Vessel vessel in loaded)
+                        if (vessel != null) renderers.AddRange(VesselRenderers(vessel));
             }
 
             int freed = 0;

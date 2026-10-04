@@ -460,8 +460,8 @@ namespace ReDefinition.Upscaler
             {
                 string error;
                 bool outdated;
-                material = ShaderBundle.MakeMaterial(ShaderBundle.VesselShadowShaderName, "ReDefinition vessel shadow", 0, out error,
-                    out outdated);
+                material = ShaderBundle.MakeMaterial(ShaderBundle.VesselShadowShaderName, "ReDefinition vessel shadow", ComposePass + 1,
+                    out error, out outdated);
                 if (material == null)
                 {
                     state = error;
@@ -469,6 +469,7 @@ namespace ReDefinition.Upscaler
                     return false;
                 }
             }
+            if (lightMap != null && !lightMap.IsCreated()) RenderTextures.Release(ref lightMap);
             if (lightMap == null)
             {
                 lightMap = new RenderTexture(LightMapSize, LightMapSize, 24, RenderTextureFormat.ARGBFloat)
@@ -476,7 +477,11 @@ namespace ReDefinition.Upscaler
                     name = "ReDefinition_VesselShadowLightMap",
                     filterMode = FilterMode.Point,
                 };
-                lightMap.Create();
+                if (!RenderTextures.Made(lightMap))
+                {
+                    RenderTextures.Release(ref lightMap);
+                    return false;
+                }
             }
             bool created;
             if (!RenderTextures.Ensure(ref mask, renderSize, RenderTextureFormat.R8, "ReDefinition_VesselShadowMask", out created))
@@ -514,7 +519,9 @@ namespace ReDefinition.Upscaler
                 autoGenerateMips = false,
                 filterMode = FilterMode.Bilinear,
             };
-            return texture.Create();
+            if (RenderTextures.Made(texture)) return true;
+            RenderTextures.Release(ref texture);
+            return false;
         }
 
         // Without a frame drawn: why, and the light and settings, so the dump says it.

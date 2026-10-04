@@ -13,9 +13,13 @@ namespace ReDefinition.Scaling
     // (GUI.BeginWindows keeps the matrix around the native calls; decompiled), and
     // maps the pointer back through it. So a prefix on every GUI.Window,
     // GUI.ModalWindow and GUILayout.Window (all take the id, the rect and the window
-    // function first) sets a matrix that scales about the window's top left corner,
-    // shifted back onto the screen where the grown window would leave it, and a
-    // postfix puts the one before back; a finalizer does so where the call throws.
+    // function first) sets a matrix that scales about the window's top left corner
+    // as it was first drawn, shifted back onto the screen where the grown window
+    // would leave it, and a postfix puts the one before back; a finalizer does so
+    // where the call throws. The point scaled about stays put while the window is
+    // shown: GUI.DragWindow moves the rect by the pointer's travel mapped back
+    // through the matrix, 1/scale of it, and a matrix that followed the corner
+    // would leave the window behind the pointer (above 1) or ahead of it (below).
     //
     // Left as they are: a window drawn while GUI.matrix is not the identity; those
     // of Unity and KSP and ReDefinition's own; and those of mods that scale their
@@ -46,13 +50,15 @@ namespace ReDefinition.Scaling
         {
             public Rect Area;
             public int Frame;
+            // The point the window is scaled about.
+            public Vector2 Anchor;
         }
 
         // By the assembly of a window's function: whether its windows are scaled.
         private static readonly Dictionary<Assembly, bool> scaled = new Dictionary<Assembly, bool>();
-        // By window id: where a scaled window was last drawn, in the screen's pixels.
-        // Windows not drawn for a while are dropped now and then: a mod may draw each
-        // window under a new id.
+        // By window id: where a scaled window was last drawn, in the screen's pixels,
+        // and the point it is scaled about. Windows not drawn for a while are dropped
+        // now and then: a mod may draw each window under a new id.
         private static readonly Dictionary<int, Drawn> drawn = new Dictionary<int, Drawn>();
         private const int PruneEvery = 300;
         private static int prunedFrame;
@@ -88,27 +94,30 @@ namespace ReDefinition.Scaling
                    && parameters[2].ParameterType == typeof(GUI.WindowFunction);
         }
 
-        private static void Prefix(Rect __1, GUI.WindowFunction __2, out State __state)
+        private static void Prefix(int __0, Rect __1, GUI.WindowFunction __2, out State __state)
         {
             __state = new State();
             try
             {
                 if (__2 == null || !UiScaling.ModWindows) return;
-                float scale = GameSettings.UI_SCALE;
+                float scale = UiScaling.World;
                 if (Mathf.Abs(scale - 1f) < 0.01f || GUI.matrix != Matrix4x4.identity || !Scaled(__2)) return;
-                // Back onto the screen where the grown window would leave it; a
-                // GUILayout window's rect can have no size before its layout.
+                Vector2 anchor = AnchorOf(__0, __1);
+                // Where the grown window lands, then back onto the screen where it
+                // would leave it; a GUILayout window's rect can have no size before
+                // its layout.
+                Vector2 at = anchor + scale * (__1.position - anchor);
                 Vector2 shift = Vector2.zero;
-                if (__1.width > 0f) shift.x = Mathf.Min(0f, Screen.width - (__1.x + __1.width * scale));
-                if (__1.height > 0f) shift.y = Mathf.Min(0f, Screen.height - (__1.y + __1.height * scale));
-                shift.x = Mathf.Max(shift.x, -__1.x);
-                shift.y = Mathf.Max(shift.y, -__1.y);
-                Vector3 corner = new Vector3(__1.x, __1.y, 0f);
+                if (__1.width > 0f) shift.x = Mathf.Min(0f, Screen.width - (at.x + __1.width * scale));
+                if (__1.height > 0f) shift.y = Mathf.Min(0f, Screen.height - (at.y + __1.height * scale));
+                shift.x = Mathf.Max(shift.x, -at.x);
+                shift.y = Mathf.Max(shift.y, -at.y);
+                Vector3 pivot = new Vector3(anchor.x, anchor.y, 0f);
                 __state.Saved = GUI.matrix;
                 __state.Applied = true;
-                GUI.matrix = Matrix4x4.TRS(corner + (Vector3)shift, Quaternion.identity, Vector3.one)
+                GUI.matrix = Matrix4x4.TRS(pivot + (Vector3)shift, Quaternion.identity, Vector3.one)
                              * Matrix4x4.Scale(new Vector3(scale, scale, 1f))
-                             * Matrix4x4.TRS(-corner, Quaternion.identity, Vector3.one);
+                             * Matrix4x4.TRS(-pivot, Quaternion.identity, Vector3.one);
                 if (noted) return;
                 noted = true;
                 Debug.Log(Log.Tag + " UI scaling: other mods' windows at " + scale.ToString("0.00") + ", first "
@@ -151,6 +160,17 @@ namespace ReDefinition.Scaling
             window.Frame = Time.frameCount;
         }
 
+        // The point window id is scaled about: its top left corner when first drawn.
+        private static Vector2 AnchorOf(int id, Rect rect)
+        {
+            Prune(drawn);
+            Drawn window;
+            if (drawn.TryGetValue(id, out window)) return window.Anchor;
+            window = new Drawn { Anchor = rect.position, Frame = Time.frameCount };
+            drawn[id] = window;
+            return window.Anchor;
+        }
+
         // The matrix put back where the window's call threw, which skips the postfix.
         private static void Finalizer(Exception __exception, State __state)
         {
@@ -177,7 +197,8 @@ namespace ReDefinition.Scaling
             return false;
         }
 
-        // Only windows drawn in the last frames count (Over).
+        // Only windows drawn in the last frames count (Over); a window not drawn for
+        // PruneEvery frames is dropped with its anchor.
         private static void Prune(Dictionary<int, Drawn> windows)
         {
             int frame = Time.frameCount;
@@ -185,7 +206,7 @@ namespace ReDefinition.Scaling
             prunedFrame = frame;
             stale.Clear();
             foreach (KeyValuePair<int, Drawn> window in windows)
-                if (frame - window.Value.Frame > 2) stale.Add(window.Key);
+                if (frame - window.Value.Frame > PruneEvery) stale.Add(window.Key);
             foreach (int id in stale) windows.Remove(id);
         }
 

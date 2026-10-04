@@ -262,11 +262,12 @@ namespace ReDefinition.Upscaler
 
         // What the frame's state tells other mods (SharedFrame): whether this rig
         // upscales -- not its bypass, not frame generation's capture alone, not a rig
-        // waiting to be rebuilt --, whether frame generation receives its frames, the
+        // waiting to be rebuilt, not DLSS or AMD's DLL while the proxy shows none of
+        // their frames --, whether frame generation receives its frames, the
         // jitter the upscaler is told of, and the camera it is built on.
         internal bool UpscalerRuns
         {
-            get { return Ready && !Bypass && !RebuildWanted; }
+            get { return Ready && !Bypass && !RebuildWanted && (Backend == UpscalerBackend.Fsr3 || nativeShown); }
         }
 
         internal bool FrameGenerationReceives
@@ -293,6 +294,14 @@ namespace ReDefinition.Upscaler
             if (!PassThrough && !SystemInfo.supportsComputeShaders)
             {
                 Status = "This graphics API cannot run compute shaders.";
+                return false;
+            }
+
+            // FSR 3's shaders are built with INVERTED_DEPTH (Fsr3UpscalerPass.VerifyBakedFlags):
+            // on a graphics API without reversed depth they would give a wrong image.
+            if (Backend == UpscalerBackend.Fsr3 && !Bypass && !PassThrough && !SystemInfo.usesReversedZBuffer)
+            {
+                Status = "FSR 3 needs reversed depth, which " + SystemInfo.graphicsDeviceType + " does not use.";
                 return false;
             }
 
@@ -620,6 +629,9 @@ namespace ReDefinition.Upscaler
             cloudMotion.Dispose();
             scaledMotion.Dispose();
             skinned.Restore();
+            // The light keeps the shadow's mask buffer until taken off.
+            vesselMotion.Disable();
+            vesselShadow.Disable();
 
             // The proxy hears about frame generation only through the dispatch, and
             // with the rig gone there is none: left on, it would keep pacing by
@@ -627,8 +639,17 @@ namespace ReDefinition.Upscaler
             if (FrameGeneration) FrameGenerationBridge.SetEnabled(false);
             CameraRedirect.JitterActive = false;
 
+            // Switched off before the deferred Destroy: a camera with OnRenderImage
+            // still renders in this frame, and without the rig it would blit its own
+            // target -- never cleared, drawn into by nothing -- over the frame buffer.
             if (presenter != null) { presenter.Rig = null; presenter = null; }
-            if (presenterObject != null) { Destroy(presenterObject); presenterObject = null; }
+            if (presenterObject != null)
+            {
+                Camera presenterCam = presenterObject.GetComponent<Camera>();
+                if (presenterCam != null) presenterCam.enabled = false;
+                Destroy(presenterObject);
+                presenterObject = null;
+            }
 
             foreach (CameraRedirect redirect in redirects)
             {
@@ -701,6 +722,8 @@ namespace ReDefinition.Upscaler
         private void Awake()
         {
             GameEvents.onFloatingOriginShift.Add(OnFloatingOriginShift);
+            GameEvents.onVesselLoaded.Add(OnVesselLoaded);
+            GameEvents.onEditorShipModified.Add(OnEditorShipModified);
         }
 
         // Counts KSP's physics steps for VesselMotionVectors.
@@ -718,6 +741,8 @@ namespace ReDefinition.Upscaler
         private void OnDestroy()
         {
             GameEvents.onFloatingOriginShift.Remove(OnFloatingOriginShift);
+            GameEvents.onVesselLoaded.Remove(OnVesselLoaded);
+            GameEvents.onEditorShipModified.Remove(OnEditorShipModified);
             vesselMotion.Disable();
             vesselShadow.Disable();
             Teardown();
@@ -751,10 +776,66 @@ namespace ReDefinition.Upscaler
             float started = Time.realtimeSinceStartup;
             mipmapBias.ApplyMipmapBias(bias);
             biasApplied = true;
+            biasSeenLoads = sceneLoads;
 
             Debug.Log(Log.Tag + " Mipmap bias " + bias.ToString("0.00") + " applied to "
                       + mipmapBias.TextureCount + " textures in "
                       + ((Time.realtimeSinceStartup - started) * 1000f).ToString("0") + " ms.");
+        }
+
+        // The mipmap bias for what came after ApplyMipmapBias: the parts of a vessel
+        // loaded or of the ship in the editors, taken in the frame after, when they
+        // are in place; and a few seconds after a load that keeps the rig -- the
+        // editors' switch between VAB and SPH -- the whole scene again.
+        private readonly List<Part> biasParts = new List<Part>();
+        private readonly List<Renderer> biasRenderers = new List<Renderer>();
+        private int biasPartsFrame = -1;
+        private int biasSeenLoads = -1;
+        private float biasSceneTime = float.MaxValue;
+
+        private void OnVesselLoaded(Vessel vessel)
+        {
+            if (vessel != null) NoteBiasParts(vessel.parts);
+        }
+
+        private void OnEditorShipModified(ShipConstruct ship)
+        {
+            if (ship != null) NoteBiasParts(ship.parts);
+        }
+
+        private void NoteBiasParts(List<Part> parts)
+        {
+            if (!biasApplied || parts == null) return;
+            biasParts.AddRange(parts);
+            biasPartsFrame = Time.frameCount;
+        }
+
+        private void ExtendMipmapBias()
+        {
+            if (!biasApplied) return;
+            if (sceneLoads != biasSeenLoads)
+            {
+                biasSeenLoads = sceneLoads;
+                biasSceneTime = Time.unscaledTime + 3f;
+            }
+            int added = 0;
+            if (Time.unscaledTime >= biasSceneTime)
+            {
+                biasSceneTime = float.MaxValue;
+                biasParts.Clear();
+                added = mipmapBias.Extend(FindObjectsOfType<Renderer>());
+            }
+            else if (biasParts.Count > 0 && Time.frameCount > biasPartsFrame)
+            {
+                biasRenderers.Clear();
+                foreach (Part part in biasParts)
+                    if (part != null) biasRenderers.AddRange(part.GetComponentsInChildren<Renderer>(true));
+                biasParts.Clear();
+                added = mipmapBias.Extend(biasRenderers);
+                biasRenderers.Clear();
+            }
+            if (added > 0)
+                Debug.Log(Log.Tag + " Mipmap bias applied to " + added + " more textures, " + mipmapBias.TextureCount + " in all.");
         }
 
         // Jitter and dispatch parameters once per frame, before any camera
@@ -792,6 +873,7 @@ namespace ReDefinition.Upscaler
                 skinned.MarkDirty();
             }
             skinned.Refresh(ForceSkinnedMotionVectors);
+            ExtendMipmapBias();
 
             tufx.Refresh(redirects, cam, TufxAfterUpscaling && !DebugView && !PassThrough, EffectiveHdr, displaySize);
             RecordInputs();

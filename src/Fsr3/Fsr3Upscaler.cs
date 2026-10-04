@@ -43,7 +43,8 @@ namespace FidelityFX.FSR3
             flags |= InitializationFlags.EnableDebugChecking;
 #endif
             
-            Debug.Log($"Setting up FSR3 Upscaler with render size: {maxRenderSize.x}x{maxRenderSize.y}, display size: {displaySize.x}x{displaySize.y}, flags: {flags}");
+            // ReDefinition: with the mod's tag, as a literal like Fsr3UpscalerPass.
+            Debug.Log($"[ReDefinition] Setting up FSR3 Upscaler with render size: {maxRenderSize.x}x{maxRenderSize.y}, display size: {displaySize.x}x{displaySize.y}, flags: {flags}");
             
             var contextDescription = new ContextDescription
             {

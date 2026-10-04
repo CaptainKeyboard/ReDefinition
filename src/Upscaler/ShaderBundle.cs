@@ -109,7 +109,9 @@ namespace ReDefinition.Upscaler
                 accumulatePass = Get((sharpening ? AccumulateSharpen : Accumulate) + suffix, missing),
 
                 sharpenPass = Get(Rcas + suffix, missing),
-                autoGenReactivePass = Get(AutoGenReactive + suffix, missing),
+                // FSR3Unity's separate reactive mask generation, which the rig does not
+                // run: taken where the bundle has it, not required.
+                autoGenReactivePass = Get(AutoGenReactive + suffix, null),
                 tcrAutoGenPass = Get(TcrAutoGen + suffix, missing),
                 debugViewPass = Get(DebugView + suffix, missing),
             };
@@ -249,7 +251,7 @@ namespace ReDefinition.Upscaler
             ComputeShader shader;
             if (!byName.TryGetValue(name, out shader) || shader == null)
             {
-                missing.Add(name);
+                if (missing != null) missing.Add(name);
                 return null;
             }
             return shader;
