@@ -189,6 +189,7 @@ namespace redefinition
         constants.frameSize[0] = width;
         constants.frameSize[1] = height;
         constants.frameIndex = packet->frameIndex;
+        constants.frameFlags = packet->flags & kRtFrameLegacySmoothness;
 
         ID3D12DescriptorHeap* heaps[] = { heap.Get() };
         list->SetDescriptorHeaps(1, heaps);

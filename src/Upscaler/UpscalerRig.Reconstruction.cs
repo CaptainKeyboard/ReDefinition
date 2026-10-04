@@ -179,7 +179,9 @@ namespace ReDefinition.Upscaler
         {
             RtNative.ReconstructPacket p = reconstructPacket;
             p.FrameIndex = raytraced.GuidesIndex;
-            p.Flags = (flags & NativeUpscalerLink.FlagReset) != 0 ? RtNative.FlagReset : 0u;
+            // The G-buffer's smoothness as the raytraced frame took it, for guides from it.
+            p.Flags = ((flags & NativeUpscalerLink.FlagReset) != 0 ? RtNative.FlagReset : 0u)
+                      | (raytraced.LegacySmoothness() && !RtCamera.DeferredSmoothness ? RtNative.FlagLegacySmoothness : 0u);
             p.RenderWidth = (uint)renderSize.x;
             p.RenderHeight = (uint)renderSize.y;
             p.OutputWidth = (uint)displaySize.x;

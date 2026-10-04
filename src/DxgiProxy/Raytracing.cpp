@@ -258,6 +258,12 @@ namespace redefinition
             SetProblem("a material rejected: the mod and the proxy disagree on its layout");
             return 0;
         }
+        if (desc->vertexColour <= 0.0f && (desc->texture < -1 || desc->texture >= static_cast<int32_t>(kRtMaxMaterialTextures)))
+        {
+            SetProblem("material " + std::to_string(desc->material) + " rejected: texture "
+                       + std::to_string(desc->texture) + " past the material textures");
+            return 0;
+        }
         MaterialData data = {};
         memcpy(data.albedo, desc->albedo, sizeof(data.albedo));
         memcpy(data.specular, desc->specular, sizeof(data.specular));
@@ -625,7 +631,10 @@ namespace redefinition
                     slot.held.push_back(inputs[i]->texture.d3d12);
                 }
             }
-            if (outputs[i] != nullptr)
+            bool outputBefore = false;
+            for (uint32_t j = 0; j < i; ++j)
+                outputBefore = outputBefore || outputs[j] == outputs[i];
+            if (outputs[i] != nullptr && !outputBefore)
             {
                 into.push_back(TransitionBarrier(outputs[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
                                                  D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
@@ -736,11 +745,14 @@ namespace redefinition
         }
 
         // DLSS Ray Reconstruction's guides from this frame's surfaces, which the
-        // reconstruction of the same frame takes (RaytracingReconstruct.cpp).
+        // reconstruction of the same frame takes (RaytracingReconstruct.cpp). Not with the
+        // denoiser: the guides read the reflections' hit distance from u2, which the
+        // denoiser's steps have overwritten by then, and Ray Reconstruction takes the
+        // noisy signals.
         const bool extra = (packet->flags & kRtFrameExtra) != 0;
         if (!extra)
             guides.fromFrame = false;
-        if (!extra && (packet->flags & kRtFrameGuides) != 0)
+        if (!extra && !denoising && (packet->flags & kRtFrameGuides) != 0)
         {
             auto pipeline = denoisePipelines.find("RT_FrameGuides");
             if (pipeline != denoisePipelines.end() && EnsureGuidesLocked(slot.held, packet->width, packet->height))
@@ -766,9 +778,11 @@ namespace redefinition
 
         if (!back.empty())
             list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
-        list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase, kTimestampsPerSlot,
-                               timestampReadback.Get(), static_cast<UINT64>(timestampBase) * sizeof(UINT64));
-        slot.timed = true;
+        // The timings are the frame's: a further trace of it leaves them as they are.
+        if (!extra)
+            list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase, kTimestampsPerSlot,
+                                   timestampReadback.Get(), static_cast<UINT64>(timestampBase) * sizeof(UINT64));
+        slot.timed = !extra;
         const UINT64 finished = SubmitLocked(slot, inputs, outputs);
         if (finished == 0)
             return;
@@ -1026,6 +1040,12 @@ namespace redefinition
             auto mesh = meshes.find(instance.mesh);
             if (mesh == meshes.end() || !mesh->second.built)
                 continue;
+            // InstanceID has 24 bits.
+            if (descs.size() >= 0xFFFFFFu)
+            {
+                SetProblem("more instances than a scene's 16 777 215; the rest are left out");
+                break;
+            }
             D3D12_RAYTRACING_INSTANCE_DESC desc = {};
             memcpy(desc.Transform, instance.transform, sizeof(desc.Transform));
             desc.InstanceID = static_cast<UINT>(data.size()) & 0xFFFFFFu;
@@ -1046,8 +1066,6 @@ namespace redefinition
             item.flags = instance.flags | (cutout ? kRtInstanceCutout : 0u);
             NormalMatrix(instance.transform, item.normalRows);
             data.push_back(item);
-            if (descs.size() >= 0xFFFFFFu)
-                break;
         }
         instanceCount = static_cast<UINT>(descs.size());
 
@@ -1176,16 +1194,23 @@ namespace redefinition
         auto pipeline = denoisePipelines.find("RT_GpuInstances");
         if (pipeline == denoisePipelines.end())
             return false;
-        // What each group is on the device; the ones whose mesh is not built are left out.
+        // What each group is on the device; the ones whose mesh is not built are left out,
+        // and the ones past InstanceID's 24 bits.
         const UINT capacityTexels = gpuInstances->texture.width / 3 * gpuInstances->texture.height;
         std::vector<GpuGroup> groups;
         UINT gpuCount = 0;
+        bool full = false;
         for (const RtGpuInstanceGroup& group : given)
         {
             auto mesh = meshes.find(group.mesh);
             if (mesh == meshes.end() || !mesh->second.built || group.count == 0
                 || static_cast<uint64_t>(group.first) + group.count > capacityTexels)
                 continue;
+            if (static_cast<uint64_t>(cpuCount) + gpuCount + group.count >= 0xFFFFFFu)
+            {
+                full = true;
+                continue;
+            }
             const D3D12_GPU_VIRTUAL_ADDRESS blas = mesh->second.blas->GetGPUVirtualAddress();
             auto material = materialIndex.find(group.material);
             const bool cutout = IsCutoutLocked(group.material);
@@ -1201,7 +1226,9 @@ namespace redefinition
             groups.push_back(item);
             gpuCount += group.count;
         }
-        if (gpuCount == 0 || cpuCount + static_cast<uint64_t>(gpuCount) >= 0xFFFFFFu)
+        if (full)
+            SetProblem("more instances than a scene's 16 777 215; groups of the GPU's instances are left out");
+        if (gpuCount == 0)
             return false;
         total = cpuCount + gpuCount;
 

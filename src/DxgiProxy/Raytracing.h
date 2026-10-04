@@ -148,7 +148,8 @@ namespace redefinition
 
     // The signals the denoiser filters: the output slot each writes, its place among
     // the denoiser's textures, and its kind, 0 a scalar (the sun's visibility, the
-    // occlusion), 1 a colour (the diffuse light, the reflections).
+    // occlusion), 1 a colour (the diffuse light), 2 a colour that moves with the view
+    // (the reflections), whose history and filter smooth surfaces shorten.
     struct RtDenoisedSignal
     {
         uint32_t signal;
@@ -160,7 +161,7 @@ namespace redefinition
     constexpr RtDenoisedSignal kRtDenoised[kRtDenoisedSignals] = {
         { kRtSignalSunVisibility, 0, 0, 0 },
         { kRtSignalDiffuse, 1, 1, 1 },
-        { kRtSignalSpecular, 2, 2, 1 },
+        { kRtSignalSpecular, 2, 2, 2 },
         { kRtSignalAmbientOcclusion, 3, 3, 0 },
     };
     // The entry of a signal the denoiser filters.
@@ -271,15 +272,15 @@ namespace redefinition
         float depthRange[2];
         // Up to two bodies lit by the sun, each a light of the size of its disc
         // (RtReflectors): towards it with its angular radius in w, then its radiance at
-        // the scene, linear rgb, with in w how far its shadow ray goes -- negative for the
-        // main body itself, which its own sphere does not shade.
+        // the scene, linear rgb, with in w how far its shadow ray goes, to the body's
+        // surface.
         float lights[16];
-        // x: how many of lights are used; z: how strongly water mirrors the sun's disc
-        // (kRtFrameWater), 1 as it is; w: 1 where the main body's sea is KSP's own, which
-        // the specular signal takes as water by its level; y: 1 where the colours Unity
-        // hands over --
-        // the G-buffer's albedo, the sun's and the sky's colour, the environment -- are
-        // gamma-space values, which the light transport takes as linear first.
+        // x: how many of lights are used; y: 1 where the colours Unity hands over -- the
+        // G-buffer's albedo, the sun's and the sky's colour, the environment -- are
+        // gamma-space values, which the light transport takes as linear first; z: how
+        // strongly water mirrors the sun's disc (kRtFrameWater), 1 as it is; w: 1 where
+        // the main body's sea is KSP's own, which the specular signal takes as water by
+        // its level.
         float lightParams[4];
         // The least diffuse light the forward light gives a point, as Unity's colours
         // are (rgb): KSP's flat ambient light (RenderSettings.ambientLight, which
@@ -308,7 +309,8 @@ namespace redefinition
     // clipToWorld as RtFramePacket has it, for the guides; the other matrices as
     // Streamline takes them (sl::Constants, DLSSDOptions), without jitter; the
     // jitter in pixels and the motion vector scale as Streamline's constants say.
-    // mode is sl::DLSSMode's value, preset sl::DLSSDPreset's.
+    // mode is sl::DLSSMode's value, preset sl::DLSSDPreset's. flags: kRtFrameReset, and
+    // kRtFrameLegacySmoothness as the raytraced frame had it, for guides from gbuffer1.
     struct RtReconstructPacket
     {
         uint32_t size;
@@ -520,7 +522,7 @@ namespace redefinition
         // Per signal (kRtDenoised: sun, diffuse, specular, occlusion): the noisy trace, and
         // the history and its moments for this frame and the one before; a work texture,
         // and one in half floats per signal; the view distance and normal for this frame
-        // and the one before.
+        // and the one before; the signals the last run filtered, by their place.
         struct DenoiseTargets
         {
             DenoiseTarget noisy[kRtDenoisedSignals];
@@ -534,6 +536,7 @@ namespace redefinition
             UINT height = 0;
             UINT parity = 0;
             bool fresh = true;
+            uint32_t lastPresent = 0;
         };
 
         static constexpr UINT kSlots = 3;

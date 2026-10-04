@@ -721,6 +721,13 @@ PsOut PsMain(VsOut input)
         float lightSurface[8] = {};
         // How strongly water mirrors the sun's disc (RtFramePacket lightParams z).
         float sunMirror = 0.0f;
+        // Whether the main body's sea is KSP's own (RtFramePacket lightParams w), and the
+        // time its waves run on (planet w).
+        bool stockSea = false;
+        float time = 0.0f;
+        // The sea's frame (RtFramePacket sea): a point on the sea in the world, its east
+        // and north; none where sea[4..6] is zero.
+        double sea[12] = {};
     };
 
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
@@ -762,7 +769,14 @@ PsOut PsMain(VsOut input)
         packet.lightParams[0] = float(lighting.lightCount);
         packet.lightParams[1] = lighting.gamma ? 1.0f : 0.0f;
         packet.lightParams[2] = lighting.sunMirror;
+        packet.lightParams[3] = lighting.stockSea ? 1.0f : 0.0f;
         memcpy(packet.planet, lighting.planet, sizeof(lighting.planet));
+        packet.planet[3] = lighting.time;
+        const double origin[3] = { camera.position.x, camera.position.y, camera.position.z };
+        for (int k = 0; k < 12; ++k)
+            packet.sea[k] = float(k < 3 ? lighting.sea[k] - origin[k] : lighting.sea[k]);
+        if (lighting.sea[4] == 0.0 && lighting.sea[5] == 0.0 && lighting.sea[6] == 0.0)
+            memset(packet.sea, 0, sizeof(packet.sea));
         memcpy(packet.lightSurface, lighting.lightSurface, sizeof(lighting.lightSurface));
         packet.inputs[kRtInputEnvironment] = lighting.environment;
         packet.inputs[kRtInputInstances] = lighting.gpuInstances;
@@ -930,7 +944,7 @@ PsOut PsMain(VsOut input)
     }
 
     int SendMaterial(Proxy& proxy, int id, const float albedo[3], const float emission[3], float smoothness,
-                     float vertexColour = 0.0f)
+                     float vertexColour = 0.0f, float specular = 0.04f)
     {
         RtMaterialDesc desc = {};
         desc.vertexColour = vertexColour;
@@ -939,7 +953,7 @@ PsOut PsMain(VsOut input)
         desc.material = id;
         memcpy(desc.albedo, albedo, 3 * sizeof(float));
         desc.albedo[3] = 0.0f;
-        desc.specular[0] = desc.specular[1] = desc.specular[2] = 0.04f;
+        desc.specular[0] = desc.specular[1] = desc.specular[2] = specular;
         desc.smoothness = smoothness;
         memcpy(desc.emission, emission, 3 * sizeof(float));
         desc.texture = -1;
@@ -973,6 +987,25 @@ PsOut PsMain(VsOut input)
             if ((h & 0x7C00u) == 0x7C00u)
                 return false;
         return true;
+    }
+
+    // The camera-relative point a pixel's depth stands for.
+    Vec3 PositionAt(const Camera& camera, const std::vector<float>& depth, size_t x, size_t y)
+    {
+        const double nx = ((x + 0.5) / kWidth) * 2.0 - 1.0;
+        const double ny = 1.0 - ((y + 0.5) / kHeight) * 2.0;
+        const Mat4& m = camera.clipToWorld;
+        double p[4];
+        for (int r = 0; r < 4; ++r)
+            p[r] = m.at(r, 0) * nx + m.at(r, 1) * ny + m.at(r, 2) * depth[y * kWidth + x] + m.at(r, 3);
+        return { p[0] / p[3], p[1] / p[3], p[2] / p[3] };
+    }
+
+    // A G-buffer normal, R10G10B10A2 as n * 0.5 + 0.5.
+    Vec3 NormalOf(uint32_t packed)
+    {
+        return { (packed & 0x3FF) / 1023.0 * 2 - 1, ((packed >> 10) & 0x3FF) / 1023.0 * 2 - 1,
+                 ((packed >> 20) & 0x3FF) / 1023.0 * 2 - 1 };
     }
 
     // The pixel a camera-relative point falls on.
@@ -1709,36 +1742,42 @@ int main()
         error(noisySun, false, noisySunError, unused, unusedReference);
         const double noisyFlicker = flicker(noisyDiffuse, noisyDiffuse2);
 
-        // The glide, denoised: from 6 m to the side, the previous frame's matrix given.
-        Camera previous = end;
-        std::vector<uint16_t> denoisedDiffuse, denoisedSun, lastDiffuse;
-        for (int f = 0; f < 90; ++f)
+        // The glide, denoised: from 6 m to the side, the previous frame's matrix given;
+        // `drawn` the G-buffer's scene.
+        const auto glide = [&](const std::vector<Instance>& drawn, uint32_t firstFrame, std::vector<uint16_t>& diffuseOut,
+                               std::vector<uint16_t>& sunOut, std::vector<uint16_t>& lastOut)
         {
-            Camera now = end;
-            const double t = std::min(1.0, f / 60.0);
-            now.position = end.position + Vec3{ -6.0 * (1.0 - t), 2.0 * (1.0 - t), 0.0 };
-            now.Update();
-            // The previous camera's clip from this camera's relative space: shift by the
-            // cameras' offset, then the previous transform.
-            Mat4 shift;
-            for (int d = 0; d < 4; ++d)
-                shift.at(d, d) = 1.0;
-            shift.at(0, 3) = now.position.x - previous.position.x;
-            shift.at(1, 3) = now.position.y - previous.position.y;
-            shift.at(2, 3) = now.position.z - previous.position.z;
-            const Mat4 previousClip = Multiply(previous.worldToClip, shift);
-            Lighting moving = lighting;
-            moving.flags = kRtFrameDenoise | (f == 0 ? kRtFrameReset : 0u);
-            moving.previous = &previousClip;
-            SendInstances(proxy, scene, now.position);
-            RenderGBuffer(context.Get(), g, now, meshes, scene);
-            SendFrame(proxy, now, g, outputs, sun, sunRadius, 10000 + f, signals, moving);
-            if (f == 88)
-                ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, lastDiffuse);
-            previous = now;
-        }
-        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, denoisedDiffuse);
-        ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, denoisedSun);
+            Camera previous = end;
+            for (int f = 0; f < 90; ++f)
+            {
+                Camera now = end;
+                const double t = std::min(1.0, f / 60.0);
+                now.position = end.position + Vec3{ -6.0 * (1.0 - t), 2.0 * (1.0 - t), 0.0 };
+                now.Update();
+                // The previous camera's clip from this camera's relative space: shift by the
+                // cameras' offset, then the previous transform.
+                Mat4 shift;
+                for (int d = 0; d < 4; ++d)
+                    shift.at(d, d) = 1.0;
+                shift.at(0, 3) = now.position.x - previous.position.x;
+                shift.at(1, 3) = now.position.y - previous.position.y;
+                shift.at(2, 3) = now.position.z - previous.position.z;
+                const Mat4 previousClip = Multiply(previous.worldToClip, shift);
+                Lighting moving = lighting;
+                moving.flags = kRtFrameDenoise | (f == 0 ? kRtFrameReset : 0u);
+                moving.previous = &previousClip;
+                SendInstances(proxy, scene, now.position);
+                RenderGBuffer(context.Get(), g, now, meshes, drawn);
+                SendFrame(proxy, now, g, outputs, sun, sunRadius, firstFrame + f, signals, moving);
+                if (f == 88)
+                    ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, lastOut);
+                previous = now;
+            }
+            ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, diffuseOut);
+            ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, sunOut);
+        };
+        std::vector<uint16_t> denoisedDiffuse, denoisedSun, lastDiffuse;
+        glide(scene, 10000, denoisedDiffuse, denoisedSun, lastDiffuse);
         double diffuseError, diffuseMean, diffuseReference, sunError, sunMean, sunReference;
         error(denoisedDiffuse, true, diffuseError, diffuseMean, diffuseReference);
         error(denoisedSun, false, sunError, sunMean, sunReference);
@@ -1773,6 +1812,40 @@ int main()
         float passes[kRtPassTimings] = {};
         proxy.passTimings(passes, kRtPassTimings);
         printf("      denoiser at %ux%u: %.3f ms for sun and diffuse light\n", kWidth, kHeight, passes[6]);
+
+        // The same glide over a mirror-smooth ground: the diffuse light does not move with
+        // the view, and keeps its history and filter as on the rough ground.
+        std::vector<Instance> smooth = scene;
+        smooth[0].smoothness = 1.0f;
+        std::vector<uint16_t> smoothDiffuse, smoothSun, smoothLast;
+        glide(smooth, 10200, smoothDiffuse, smoothSun, smoothLast);
+        double smoothError, smoothMean, smoothReference;
+        error(smoothDiffuse, true, smoothError, smoothMean, smoothReference);
+        const double smoothFlicker = flicker(smoothLast, smoothDiffuse);
+        sprintf_s(detail, "over a smooth ground off the reference by %.4f and frame to frame %.4f, over a rough one %.4f and "
+                          "%.4f",
+                  smoothError, smoothFlicker, diffuseError, denoisedFlicker);
+        Check(smoothError < 1.3 * diffuseError + 1e-4 && smoothFlicker < 1.5 * denoisedFlicker + 1e-4,
+              "denoised diffuse light on a smooth surface", detail);
+
+        // A signal paused and back: the diffuse light off for four frames while the light
+        // goes out, then on again without a reset. Its history from before the pause is
+        // not this light's: the first frame back is dark, as the light is.
+        Lighting dark = lighting;
+        dark.sky[0] = dark.sky[1] = dark.sky[2] = 0.0f;
+        dark.sunColor[0] = dark.sunColor[1] = dark.sunColor[2] = 0.0f;
+        dark.flags = kRtFrameDenoise;
+        SendInstances(proxy, scene, end.position);
+        RenderGBuffer(context.Get(), g, end, meshes, scene);
+        for (int f = 0; f < 4; ++f)
+            SendFrame(proxy, end, g, outputs, sun, sunRadius, 10400 + f, kRtSignalSunVisibility, dark);
+        std::vector<uint16_t> back;
+        SendFrame(proxy, end, g, outputs, sun, sunRadius, 10404, signals, dark);
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, back);
+        double backError, backMean, backReference;
+        error(back, true, backError, backMean, backReference);
+        sprintf_s(detail, "the first frame back %.4f in the dark, before the pause %.4f", backMean, diffuseMean);
+        Check(backMean < 0.01 * diffuseMean, "a denoised signal paused and back", detail);
     }
 
     // ---------------------------------------------------------------- Ray Reconstruction
@@ -2368,15 +2441,55 @@ int main()
             Check(drawn > 100000 && right * 100 >= drawn * 99 && emptyRight == empty,
                   gamma != 0 ? "forward light in gamma space" : "forward light", detail);
         }
+
+        // The reflections as well, of a rough surface whose specular colour is 0.5 under a
+        // white sky: Unity's Fresnel term is then 0.5 at every angle, and its surface
+        // reduction, in gamma space, 1 - 0.28 roughness^3 = 0.72 (BRDF1_Unity_PBS), and
+        // 1 / (roughness^4 + 1) = 0.5 linear.
+        const float shiny[3] = { float(toLinear(0.5)), float(toLinear(0.5)), float(toLinear(0.5)) };
+        lighting.ambient[0] = lighting.ambient[1] = lighting.ambient[2] = 0.0f;
+        for (int gamma = 0; gamma < 2; ++gamma)
+        {
+            lighting.gamma = gamma != 0;
+            SendMaterial(proxy, 30, gamma != 0 ? shiny : albedoOf, none, 0.0f, 0.0f, 0.5f);
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, 14100,
+                      kRtSignalDiffuse | kRtSignalSpecular | kRtSignalForwardLight, lighting);
+            std::vector<uint16_t> forward, diffuse, specular;
+            std::vector<float> depth;
+            ReadTexture(device.Get(), context.Get(), outputs.forward.Get(), 8, forward);
+            ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, diffuse);
+            ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, specular);
+            ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+            const double reduction = gamma != 0 ? 0.72 : 0.5;
+            const double albedo = gamma != 0 ? 0.5 : albedoOf[1];
+            size_t drawn = 0, right = 0;
+            for (size_t i = 0; i < depth.size(); ++i)
+            {
+                if (depth[i] <= 0.0f)
+                    continue;
+                ++drawn;
+                const double light = HalfToFloat(diffuse[i * 4 + 1]);
+                const double reflected = HalfToFloat(specular[i * 4 + 1]);
+                const double want = gamma != 0 ? albedo * toGamma(light) + toGamma(reflected) * 0.5 * reduction
+                                               : albedo * light + reflected * 0.5 * reduction;
+                const double got = HalfToFloat(forward[i * 4 + 1]);
+                right += std::fabs(got - want) < 0.01 + 0.02 * std::fabs(want) ? 1 : 0;
+            }
+            char detail[200];
+            sprintf_s(detail, "%zu of %zu drawn pixels get the diffuse light and the reflections times 0.5 and %.2f", right,
+                      drawn, reduction);
+            Check(drawn > 100000 && right * 100 >= drawn * 99,
+                  gamma != 0 ? "forward light's reflections in gamma space" : "forward light's reflections", detail);
+        }
+        SendMaterial(proxy, 30, albedoOf, none, 0.2f);
     }
 
     // ---------------------------------------------------------------- moonlight
     {
         // A body the sun lights as the only light, from the west 45 degrees up, no sun and
         // no sky: the open ground gets its colour times N.L, the ground in the box's
-        // shadow nothing. Then the main body as the light below a box high over the
-        // ground: its own sphere does not shade it (a negative reach), another body's
-        // light in the same place is shaded by the planet.
+        // shadow nothing. Then a body's light straight from below a box high over a
+        // planet: the planet shades it.
         SendInstances(proxy, scene, camera.position);
         RenderGBuffer(context.Get(), g, camera, meshes, scene);
         Lighting lighting;
@@ -2399,7 +2512,7 @@ int main()
         const double shaded = seen ? MeanAround(mean, shadeX, shadeY, 0) : 1.0;
         const double wanted = moon * diagonal;
 
-        // The main body: a planet under the high box, its light straight from below.
+        // A planet under the high box, a body's light straight from below.
         std::vector<Instance> high = { box };
         high[0].position = { 0, 150, 0 };
         Camera under = camera;
@@ -2437,15 +2550,15 @@ int main()
             result = count > 1000 ? total / count : -1.0;
             return true;
         };
-        double mainBody = 0.0, otherBody = 0.0;
-        if (!bottomLight(-150.0f, mainBody) || !bottomLight(150.0f, otherBody))
-            return Fatal("reading the main body's light back", E_FAIL);
+        double otherBody = 0.0;
+        if (!bottomLight(150.0f, otherBody))
+            return Fatal("reading the light from below back", E_FAIL);
         char detail[240];
         sprintf_s(detail, "open ground %.4f (N.L times the light %.4f), in the box's shadow %.4f; the box's underside %.4f by "
-                          "the main body's light, %.4f by another's below the horizon",
-                  open, wanted, shaded, mainBody, otherBody);
-        Check(seen && std::fabs(open - wanted) < 0.05 * wanted && shaded < 0.05 * wanted
-                  && std::fabs(mainBody - moon) < 0.05 * moon && otherBody >= 0.0 && otherBody < 0.01 * moon,
+                          "a body's light below the horizon",
+                  open, wanted, shaded, otherBody);
+        Check(seen && std::fabs(open - wanted) < 0.05 * wanted && shaded < 0.05 * wanted && otherBody >= 0.0
+                  && otherBody < 0.01 * moon,
               "moonlight", detail);
     }
 
@@ -2487,6 +2600,22 @@ int main()
         sprintf_s(detail, "%zu pixels show the moon's disc, the brightest at %.3f (its surface 0.5 lit head-on), %zu above it",
                   lit, brightest, over);
         Check(lit > 200 && brightest > 0.45 && over == 0, "a moon in the mirror", detail);
+
+        // The main body between the mirror and the moon, of no albedo: its sphere hides
+        // the disc.
+        const Vec3 between = camera.position + moon * 3.0e5;
+        lighting.body[0] = between.x;
+        lighting.body[1] = between.y;
+        lighting.body[2] = between.z;
+        lighting.body[3] = 1.5e5;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.specular.Get(), kRtSignalSpecular,
+                        lighting, Vec3{ -moon.x, -moon.y, -moon.z }, 4, 18010, mean))
+            return Fatal("reading the moon's reflection back", E_FAIL);
+        size_t hidden = 0;
+        for (size_t i = 0; i < mean.size() / 3; ++i)
+            hidden += mean[i * 3 + 1] > 0.25 ? 1 : 0;
+        sprintf_s(detail, "%zu pixels show the moon's disc through the main body", hidden);
+        Check(hidden == 0, "a moon behind the main body", detail);
         SendInstances(proxy, scene, camera.position);
     }
 
@@ -2681,6 +2810,155 @@ int main()
         SendInstances(proxy, scene, camera.position);
     }
 
+    // ---------------------------------------------------------------- KSP's own sea
+    {
+        // The ground as KSP's sea at the level of a planet's sphere, drawn into the G-buffer
+        // but not in the rays' scene, and a deck at the same level that the rays' scene
+        // holds. With the waves' normals shown (kRtFrameWaterNormals) the sea gets
+        // ReDefinition's waves, unit normals near up that vary, and neither the deck nor
+        // the boxes any.
+        Instance deck = box;
+        deck.position = { 15, -0.5, -15 };
+        deck.scale[0] = 8.0;
+        deck.scale[1] = 1.0;
+        deck.scale[2] = 8.0;
+        std::vector<Instance> drawn = scene;
+        drawn.push_back(deck);
+        const std::vector<Instance> traced(drawn.begin() + 1, drawn.end());
+        Lighting lighting;
+        lighting.flags = kRtFrameWater | kRtFrameWaterNormals;
+        lighting.stockSea = true;
+        lighting.bounces = 0.0f;
+        lighting.body[1] = -6.0e5;
+        lighting.body[3] = 6.0e5;
+        lighting.time = 12.5f;
+        // The sea's frame: at the world's origin, east along x, north along z.
+        lighting.sea[4] = 1.0;
+        lighting.sea[10] = 1.0;
+        struct SeaView
+        {
+            std::vector<uint16_t> out;
+            std::vector<uint32_t> normals;
+            std::vector<float> depth;
+        };
+        const auto look = [&](const Camera& view, const std::vector<Instance>& rays, const std::vector<Instance>& gbuffer,
+                              const Lighting& l, SeaView& result)
+        {
+            SendInstances(proxy, rays, view.position);
+            RenderGBuffer(context.Get(), g, view, meshes, gbuffer);
+            SendFrame(proxy, view, g, outputs, sun, 0.0f, 19400, kRtSignalSpecular, l);
+            ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, result.out);
+            ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, result.normals);
+            ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, result.depth);
+        };
+        // The wave normal a pixel shows, where its w says it shows one: 1 on KSP's sea, on
+        // Scatterer's ocean kWaterSky (65000, RtCommon.hlsli) as a half float.
+        const auto waveAt = [](const SeaView& v, size_t i, float w, Vec3& n)
+        {
+            const float got = HalfToFloat(v.out[i * 4 + 3]);
+            if (w > 60000.0f ? got < 60000.0f : got != w)
+                return false;
+            n = { HalfToFloat(v.out[i * 4]) * 2.0 - 1.0, HalfToFloat(v.out[i * 4 + 1]) * 2.0 - 1.0,
+                  HalfToFloat(v.out[i * 4 + 2]) * 2.0 - 1.0 };
+            return true;
+        };
+        SeaView here;
+        look(camera, traced, drawn, lighting, here);
+        size_t sea = 0, water = 0, waves = 0, deckPixels = 0, deckWater = 0, raised = 0, raisedWater = 0;
+        double sumX = 0.0, sumX2 = 0.0;
+        for (size_t y = 0; y < kHeight; ++y)
+            for (size_t x = 0; x < kWidth; ++x)
+            {
+                const size_t i = y * kWidth + x;
+                if (here.depth[i] <= 0.0f)
+                    continue;
+                const Vec3 p = PositionAt(camera, here.depth, x, y) + camera.position;
+                Vec3 n;
+                const bool wet = waveAt(here, i, 1.0f, n);
+                const bool nearDeck = std::fabs(p.x - 15.0) < 4.5 && std::fabs(p.z + 15.0) < 4.5;
+                if (std::fabs(p.y) > 0.5)
+                {
+                    ++raised;
+                    raisedWater += wet ? 1 : 0;
+                }
+                else if (std::fabs(p.x - 15.0) < 3.5 && std::fabs(p.z + 15.0) < 3.5 && std::fabs(p.y) < 0.05)
+                {
+                    ++deckPixels;
+                    deckWater += wet ? 1 : 0;
+                }
+                else if (!nearDeck && std::fabs(p.y) < 0.05 && NormalOf(here.normals[i]).y > 0.9)
+                {
+                    ++sea;
+                    if (!wet)
+                        continue;
+                    ++water;
+                    if (std::fabs(Length(n) - 1.0) < 0.01 && n.y > 0.9)
+                        ++waves;
+                    sumX += n.x;
+                    sumX2 += n.x * n.x;
+                }
+            }
+        const double spread = water > 0 ? std::sqrt(std::max(sumX2 / water - (sumX / water) * (sumX / water), 0.0)) : 0.0;
+        char detail[300];
+        sprintf_s(detail, "%zu of %zu sea pixels water, %zu of them unit normals near up, spread %.4f across; %zu of %zu deck "
+                          "pixels and %zu of %zu raised ones water",
+                  water, sea, waves, spread, deckWater, deckPixels, raisedWater, raised);
+        Check(sea > 100000 && water * 100 >= sea * 99 && waves == water && spread > 0.005 && deckPixels > 1000 && deckWater == 0
+                  && raised > 10000 && raisedWater == 0,
+              "KSP's own sea", detail);
+
+        // The same water from a camera moved sideways by 16 pixels' width of ground at one
+        // row: each of its pixels there shows the point the first camera showed 16 pixels to
+        // its right, and the waves on it are the same, as the sea's frame holds them to the
+        // water.
+        const size_t row = kHeight * 3 / 4, from = kWidth / 8;
+        const Vec3 step = PositionAt(camera, here.depth, from + 1, row) - PositionAt(camera, here.depth, from, row);
+        Camera moved = camera;
+        moved.position = camera.position + step * 16.0;
+        moved.target = camera.target + step * 16.0;
+        moved.Update();
+        SeaView there;
+        look(moved, traced, drawn, lighting, there);
+        double aligned = 0.0, unaligned = 0.0;
+        size_t compared = 0;
+        for (size_t x = from + 16; x < kWidth - 16; ++x)
+        {
+            Vec3 a, b, c;
+            if (!waveAt(here, row * kWidth + x, 1.0f, a) || !waveAt(there, row * kWidth + x - 16, 1.0f, b)
+                || !waveAt(there, row * kWidth + x, 1.0f, c))
+                continue;
+            ++compared;
+            aligned += Length(a - b);
+            unaligned += Length(a - c);
+        }
+        aligned /= std::max<size_t>(compared, 1);
+        unaligned /= std::max<size_t>(compared, 1);
+        sprintf_s(detail, "%zu pixels along a row: the same point's normal %.5f apart, the same pixel's %.5f", compared, aligned,
+                  unaligned);
+        Check(compared > 500 && unaligned > 0.002 && aligned < 0.25 * unaligned, "the waves stay on the water", detail);
+
+        // Scatterer's ocean: the ground as water in the rays' scene, the waves' normals shown:
+        // every ground pixel shows ReDefinition's ripples, whatever its reflected ray meets.
+        std::vector<Instance> ocean = scene;
+        ocean[0].smoothness = 0.75f;
+        Lighting scatterer = lighting;
+        scatterer.stockSea = false;
+        SeaView open;
+        look(camera, ocean, ocean, scatterer, open);
+        size_t ground = 0, rippled = 0;
+        for (size_t i = 0; i < open.depth.size(); ++i)
+        {
+            if (open.depth[i] <= 0.0f || NormalOf(open.normals[i]).y < 0.99)
+                continue;
+            ++ground;
+            Vec3 n;
+            rippled += waveAt(open, i, 65000.0f, n) && std::fabs(Length(n) - 1.0) < 0.01 && n.y > 0.5 ? 1 : 0;
+        }
+        sprintf_s(detail, "%zu of %zu ground pixels show the ripples' normals", rippled, ground);
+        Check(ground > 100000 && rippled == ground, "the waves on Scatterer's ocean", detail);
+        SendInstances(proxy, scene, camera.position);
+    }
+
     // ---------------------------------------------------------------- the ground below
     {
         // A box high over a planet, a white sky: the rays from its underside meet the
@@ -2783,6 +3061,40 @@ int main()
         proxy.releaseMesh(50);
     }
 
+    // ---------------------------------------------------------------- a further trace
+    {
+        // The reflections of a rough ground traced twice in one frame, the second as a
+        // further trace (kRtFrameExtra): each its own random numbers, so the two differ
+        // where the next frame's differ.
+        std::vector<Instance> rough = scene;
+        rough[0].smoothness = 0.5f;
+        SendInstances(proxy, rough, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, rough);
+        Lighting lighting;
+        lighting.bounces = 0.0f;
+        std::vector<uint16_t> own, next, further;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19300, kRtSignalSpecular, lighting);
+        ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, own);
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19301, kRtSignalSpecular, lighting);
+        ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, next);
+        lighting.flags = kRtFrameExtra;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19300, kRtSignalSpecular, lighting);
+        ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, further);
+        const auto differ = [&](const std::vector<uint16_t>& a, const std::vector<uint16_t>& b)
+        {
+            size_t count = 0;
+            for (size_t i = 0; i < a.size() / 4; ++i)
+                count += a[i * 4] != b[i * 4] || a[i * 4 + 1] != b[i * 4 + 1] || a[i * 4 + 3] != b[i * 4 + 3] ? 1 : 0;
+            return count;
+        };
+        const size_t nextDiffers = differ(own, next), furtherDiffers = differ(own, further);
+        char detail[200];
+        sprintf_s(detail, "%zu pixels differ from the frame's trace in its further one, %zu in the next frame's", furtherDiffers,
+                  nextDiffers);
+        Check(nextDiffers > 10000 && furtherDiffers * 10 > nextDiffers * 8, "a further trace's own random numbers", detail);
+        SendInstances(proxy, scene, camera.position);
+    }
+
     // ---------------------------------------------------------------- churn
     {
         std::vector<Instance> crowd = scene;
@@ -2854,6 +3166,23 @@ int main()
                             ExpectedVisibility(camera, after.depth, after.normals, boxes, sun));
     }
 
+    // ---------------------------------------------------------------- a material's texture
+    {
+        // A material whose texture lies past the material textures' array is refused.
+        RtMaterialDesc past = {};
+        past.size = sizeof(past);
+        past.magic = kRtMaterialMagic;
+        past.material = 60;
+        past.texture = static_cast<int32_t>(kRtMaxMaterialTextures);
+        const int refused = proxy.setMaterial(&past);
+        past.texture = -1;
+        const int taken = proxy.setMaterial(&past);
+        char detail[200];
+        sprintf_s(detail, "texture %u %s, texture -1 %s", kRtMaxMaterialTextures, refused == 0 ? "refused" : "taken",
+                  taken == 1 ? "taken" : "refused");
+        Check(refused == 0 && taken == 1, "a material's texture past the array", detail);
+    }
+
     // ---------------------------------------------------------------- timings
     {
         SendInstances(proxy, scene, camera.position);
@@ -2862,7 +3191,7 @@ int main()
         // Without the bodies' lights, and with two of them in gamma space, as in KSP.
         Lighting lit;
         const float two[16] = { -0.5f, 0.7f, 0.1f, 0.01f, 0.05f, 0.05f, 0.05f, 1.0e8f,
-                                0.2f, -0.9f, 0.1f, 0.5f, 0.1f, 0.1f, 0.1f, -1.0e3f };
+                                0.2f, -0.9f, 0.1f, 0.5f, 0.1f, 0.1f, 0.1f, 1.0e3f };
         memcpy(lit.lights, two, sizeof(two));
         lit.lightCount = 2;
         lit.gamma = true;
@@ -2878,6 +3207,20 @@ int main()
                    " all passes %.3f ms\n", kWidth, kHeight, run == 1 ? " with two moonlights" : "", build, passes[0],
                    passes[1], passes[2], passes[3], trace);
         }
+
+        // Further traces of the last frame, of the reflections alone, as the ocean's: the
+        // timings stay the frame's, whose list is read once its slot comes round again.
+        Lighting further;
+        further.flags = kRtFrameExtra | kRtFrameWater;
+        for (int i = 0; i < 6; ++i)
+            SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 2015, kRtSignalSpecular, further);
+        float passes[kRtPassTimings] = {};
+        proxy.passTimings(passes, kRtPassTimings);
+        char detail[200];
+        sprintf_s(detail, "after six further traces: sun %.3f, occlusion %.3f, diffuse %.3f, specular %.3f ms", passes[0],
+                  passes[1], passes[2], passes[3]);
+        Check(passes[0] > 0.0f && passes[1] > 0.0f && passes[2] > 0.0f && passes[3] > 0.0f, "timings past further traces",
+              detail);
     }
 
     printf(failures == 0 ? "all raytracing checks passed\n" : "%d raytracing check(s) failed\n", failures);

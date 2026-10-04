@@ -168,6 +168,14 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
         // GGX's alpha for the reflected rays, which spread about as Beckmann's m / sqrt(2).
         alpha = 0.7071f * waterM;
     }
+    else if (WATER_SURFACE && WATER_NORMALS)
+    {
+        // ReDefinition's ripples alone, on the level sea, whatever the reflected ray meets:
+        // Scatterer's own waves run on its own time.
+        float4 ripples = ScattererRipples(position, normalize(position - bodySphere.xyz), 2.0f * alpha, pixelWidth);
+        output2[id.xy] = float4(ripples.xyz * 0.5f + 0.5f, kWaterSky);
+        return;
+    }
     float3 view = -normalize(position);
     float3 t, b;
     Basis(normal, t, b);
@@ -186,8 +194,8 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     if (WATER_SURFACE && dot(direction, up) < 0.0f)
         direction -= 2.0f * dot(direction, up) * up;
     float distance;
-    float3 radiance = Radiance(RayOrigin(position, normal), direction, SPECULAR_DISTANCE, BOUNCES, random, distance,
-                               kTerrainSkip);
+    float3 origin = RayOrigin(position, normal);
+    float3 radiance = Radiance(origin, direction, SPECULAR_DISTANCE, BOUNCES, random, distance, kTerrainSkip);
     if (stockWater)
     {
         radiance += BodiesMirroredAt(position, normal, view, waterM, kTerrainSkip);
@@ -208,21 +216,13 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
         // Scatterer's variance (alpha = sqrt(sigmaSq) / 2) as ripples on its normals.
         float4 rippled = bodySphere.w > 0.0f ? ScattererRipples(position, normal, 2.0f * alpha, pixelWidth)
                                              : float4(normal, 2.0f * alpha);
-        if (WATER_NORMALS)
-        {
-            // ReDefinition's ripples alone, on the level sea: Scatterer's own waves run on
-            // its own time.
-            float4 ripples = ScattererRipples(position, normalize(position - bodySphere.xyz), 2.0f * alpha, pixelWidth);
-            output2[id.xy] = float4(ripples.xyz * 0.5f + 0.5f, kWaterSky);
-            return;
-        }
         float m = sqrt(rippled.w * rippled.w + kWaterLeastRoughness * kWaterLeastRoughness);
         output2[id.xy] = float4(BodiesMirroredAt(position, rippled.xyz, view, m, kTerrainSkip), kWaterSky);
         return;
     }
-    // A ray that met nothing sees the moons' discs; one that meets a disc counts as a
-    // hit, far off.
-    if (distance >= SPECULAR_DISTANCE)
+    // A ray that met nothing, nor the main body's sphere, sees the moons' discs; one that
+    // meets a disc counts as a hit, far off.
+    if (distance >= SPECULAR_DISTANCE && !BodyBlocks(origin, direction))
     {
         float3 disc = BodyDiscs(direction);
         if (any(disc > 0.0f))
@@ -271,7 +271,9 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
     float nv = saturate(dot(surface.normal, view));
     float perceptual = 1.0f - surface.smoothness;
     float roughness = perceptual * perceptual;
-    float reduction = 1.0f / (roughness * roughness + 1.0f);
+    // Unity's surface reduction as BRDF1_Unity_PBS has it, in gamma space its approximation
+    // of the linear one taken there (UnityStandardBRDF.cginc).
+    float reduction = GAMMA_INPUTS ? 1.0f - 0.28f * roughness * perceptual : 1.0f / (roughness * roughness + 1.0f);
     float grazing = saturate(surface.smoothness + max(surface.specular.r, max(surface.specular.g, surface.specular.b)));
     float t = pow(1.0f - nv, 5.0f);
     float3 fresnel = lerp(surface.specular, grazing.xxx, t);

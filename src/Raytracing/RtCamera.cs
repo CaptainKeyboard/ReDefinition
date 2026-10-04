@@ -110,7 +110,7 @@ namespace ReDefinition.Raytracing
         internal Func<bool> LegacySmoothness = () => false;
         // The bodies the sun lights, as lights (RtReflectors in the game): fills the
         // packet's lights -- towards each, its angular radius, its radiance linear and how
-        // far its shadow ray goes, negative for the main body itself -- and says how many.
+        // far its shadow ray goes, to the body's surface -- and says how many.
         // None by default.
         internal Func<float[], float[], int> Lights = (lights, surfaces) => 0;
         // How much of Unity's ambient light stays as the least light a raytraced point

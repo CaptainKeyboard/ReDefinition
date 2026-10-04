@@ -46,8 +46,9 @@ void ReconstructGuides(uint3 id : SV_DispatchThreadID)
         WriteSky(id.xy);
         return;
     }
+    // The smoothness as the raytraced frame took it (SurfaceAt).
     float4 g1 = gbuffer1[id.xy];
-    WriteGuides(id.xy, ClipToWorld(PixelToNdc(id.xy), depth), gbuffer0[id.xy].rgb, g1.rgb, g1.a,
+    WriteGuides(id.xy, ClipToWorld(PixelToNdc(id.xy), depth), gbuffer0[id.xy].rgb, g1.rgb, LegacySmoothness(g1.a, g1.rgb),
                 DecodeNormal(gbuffer2[id.xy]), specularLight[id.xy].w);
 }
 

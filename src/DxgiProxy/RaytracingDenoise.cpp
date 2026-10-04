@@ -198,6 +198,7 @@ namespace redefinition
         // Temporal and variance for each signal: the noisy signal and its history into the
         // work texture, the moments into this frame's; then into the history of the frame
         // before, which the temporal pass has read by then, as the first à-trous step's input.
+        // A signal the last run did not filter starts afresh: its history is older.
         uint32_t present = 0;
         for (UINT s = 0; s < kRtDenoisedSignals; ++s)
         {
@@ -220,7 +221,8 @@ namespace redefinition
                                         Of(&denoise.normal[now]), Of(&denoise.linearDepth[before]),
                                         Of(&denoise.normal[before]), motion ? Of(motionInput) : View{} };
                 const View writes[4] = { Of(&denoise.work), Of(&moments) };
-                constants(1, filtered.kind, (reset ? 1u : 0u) | (motion ? 2u : 0u), 0);
+                const bool afresh = reset || (denoise.lastPresent & (1u << s)) == 0;
+                constants(1, filtered.kind, (afresh ? 1u : 0u) | (motion ? 2u : 0u), 0);
                 dispatch(temporal, TableLocked(slotNumber, used, reads, writes));
             }
 
@@ -271,5 +273,6 @@ namespace redefinition
 
         denoise.parity = before;
         denoise.fresh = false;
+        denoise.lastPresent = present;
     }
 }

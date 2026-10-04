@@ -27,7 +27,7 @@ cbuffer Frame : register(b0)
     // Bodies lit by the sun as lights (RtReflectors): towards each with its angular
     // radius in w, and its radiance, linear.
     float4 lightDirection0;
-    float4 lightColor0;     // w: how far its shadow ray goes, negative for the main body
+    float4 lightColor0;     // w: how far its shadow ray goes, to the body's surface
     float4 lightDirection1;
     float4 lightColor1;
     float4 lightParams;     // x: how many lights; y: 1 where Unity's colours are gamma-space values;
@@ -115,6 +115,7 @@ SamplerState linearWrap : register(s2);
 #define HAS_ENVIRONMENT (params1.y > 0.5f)
 #define MATERIAL_TEXTURES (params1.z > 0.5f)
 #define HAS_GBUFFER (params1.w > 0.5f)
+#define EXTRA_FRAME ((frameFlags & 32u) != 0u)
 #define WATER_SURFACE ((frameFlags & 64u) != 0u)
 #define WATER_NORMALS ((frameFlags & 128u) != 0u)
 #define LEGACY_SMOOTHNESS ((frameFlags & 256u) != 0u)
@@ -199,7 +200,8 @@ float3 DepthNormal(uint2 pixel, float3 position)
 }
 
 // A per-pixel, per-frame random stream: PCG hashes of the pixel, the frame and a
-// counter.
+// counter. A further trace of a frame (EXTRA_FRAME, the ocean's) draws streams of its
+// own, independent of the frame's.
 uint Pcg(uint value)
 {
     uint state = value * 747796405u + 2891336453u;
@@ -215,7 +217,7 @@ struct Random
 Random MakeRandom(uint2 pixel, uint frame, uint stream)
 {
     Random r;
-    r.state = Pcg(pixel.x + Pcg(pixel.y + Pcg(frame * 16u + stream)));
+    r.state = Pcg(pixel.x + Pcg(pixel.y + Pcg(frame * 16u + stream + (EXTRA_FRAME ? 8u : 0u))));
     return r;
 }
 
@@ -730,8 +732,9 @@ float4 StockWaves(float3 position, float acrossFootprint)
     for (uint i = 0u; i < kStockWaves; ++i)
     {
         // Lengths spread over the range, each at random within its step, and directions
-        // at random: no two waves in step with each other.
-        float3 dice = frac(sin(float3(i, i + 17u, i + 41u) * float3(12.9898f, 78.233f, 37.719f)) * 43758.5453f);
+        // at random: no two waves in step with each other. The dice from integer hashes,
+        // the same on every GPU, as sin-based hashes are not.
+        float3 dice = float3(Pcg(3u * i + 101u) >> 8, Pcg(3u * i + 102u) >> 8, Pcg(3u * i + 103u) >> 8) * (1.0f / 16777216.0f);
         float t = saturate((float(i) + dice.x) / float(kStockWaves));
         float wavelength = 40.0f * pow(2.0f / 40.0f, t);
         // Directions about the wind, most within 50 degrees, some across it.
@@ -768,7 +771,6 @@ float4 ScattererRipples(float3 position, float3 normal, float m, float acrossFoo
     return float4(normalize(normal - ripples.x * f.east - ripples.y * f.north), sqrt(ripples.z));
 }
 
-// The same for water of roughness `roughness` (GGX's alpha) as it is.
 // The sun's and the moons' discs mirrored by water of Beckmann roughness `m`
 // (DiscSpecular), with nothing in the way towards the body: the sun by its light at the
 // player's strength (Sun reflection); a moon by its disc's light, its surface as the sun
@@ -825,11 +827,9 @@ float3 ReflectedLightAt(float3 position, float3 normal, inout Random random, flo
     bool first = NextFloat(random) * (w0 + w1) < w0;
     float4 towards = first ? lightDirection0 : lightDirection1;
     float3 colour = first ? lightColor0.rgb : lightColor1.rgb;
-    // How far the shadow ray goes: to the body's surface. Negative for the main body
-    // itself, the light of the ground below an orbit: its own sphere does not shade it,
-    // and the ray stays within the scene's reach, short of the body test.
-    float reach = first ? lightColor0.w : lightColor1.w;
-    float maxDistance = reach < 0.0f ? min(-reach, 1.0e6f) : max(reach, 1.0e6f + 1.0f);
+    // How far the shadow ray goes: to the body's surface, and past the main body's sphere
+    // test (Unoccluded), which the light of a body beyond its horizon takes.
+    float maxDistance = max(first ? lightColor0.w : lightColor1.w, 1.0e6f + 1.0f);
     float chance = (first ? w0 : w1) / (w0 + w1);
     float3 axis = normalize(towards.xyz);
     float nl = dot(normal, axis);

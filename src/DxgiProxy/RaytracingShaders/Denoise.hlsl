@@ -13,14 +13,16 @@
 cbuffer Step : register(b1)
 {
     uint stepSize;      // the à-trous step, 1, 2, 4...
-    uint signalKind;    // 0 a scalar in x, 1 a colour in rgb; for the à-trous steps, which
-                        // of the four signals (kAtrousSignals) are there, one bit each
+    uint signalKind;    // 0 a scalar in x, 1 a colour in rgb, 2 the reflections' colour
+                        // (Raytracing.h, kRtDenoised); for the à-trous steps, which of the
+                        // four signals (kAtrousSignals) are there, one bit each
     uint stepFlags;     // 1: the history is not to be used; 2: motion vectors are bound;
                         // 4: the last à-trous step, which writes the texture Unity reads
     uint iteration;
 };
 
-// Bindings of the denoiser's own root signature (Raytracing.cpp, BuildDenoiser).
+// The denoiser's bindings in space 3 of the service's root signature (Raytracing.cpp,
+// BuildPipelinesLocked).
 Texture2D<float4> inputA : register(t0, space3);
 Texture2D<float4> inputB : register(t1, space3);
 Texture2D<float4> inputC : register(t2, space3);
@@ -134,8 +136,9 @@ void DenoiseTemporal(uint3 id : SV_DispatchThreadID)
         history /= weightSum;
         moments /= weightSum;
         float length = min(moments.z + 1.0f, 32.0f);
-        // Smooth surfaces keep a shorter history, as their reflections move with the view.
-        float smooth = signalKind == 1u ? normalNow[id.xy].w : 0.0f;
+        // Smooth surfaces keep a shorter history of their reflections, which move with the
+        // view.
+        float smooth = signalKind == 2u ? normalNow[id.xy].w : 0.0f;
         float maxLength = lerp(32.0f, 8.0f, saturate((smooth - 0.6f) / 0.4f));
         length = min(length, maxLength);
         float alpha = max(1.0f / length, 0.03f);
@@ -218,7 +221,7 @@ void DenoiseVariance(uint3 id : SV_DispatchThreadID)
 }
 
 // The signals of the à-trous steps, by their bit in signalKind: the sun's visibility, the
-// diffuse light, the reflections, the occlusion (RaytracingDenoise.cpp, kFiltered).
+// diffuse light, the reflections, the occlusion (Raytracing.h, kRtDenoised).
 static const uint kAtrousSignals = 4u;
 
 bool IsColour(uint s)
@@ -285,7 +288,7 @@ void DenoiseAtrous(uint3 id : SV_DispatchThreadID)
         centre[s] = (signalKind & (1u << s)) != 0u ? ReadSignal(s, int2(id.xy)) : 0.0f;
     float zp = linearDepthNow[id.xy];
     float4 normalSmooth = normalNow[id.xy];
-    // Smooth reflections keep their detail: only the first two steps filter the colours.
+    // Smooth reflections keep their detail: only the first two steps filter them.
     bool smoothStop = normalSmooth.w > 0.8f && iteration >= 2u;
     bool filtered[kAtrousSignals];
     float lp[kAtrousSignals];
@@ -293,7 +296,7 @@ void DenoiseAtrous(uint3 id : SV_DispatchThreadID)
     [unroll]
     for (uint s = 0u; s < kAtrousSignals; ++s)
     {
-        filtered[s] = (signalKind & (1u << s)) != 0u && zp > 0.0f && !(IsColour(s) && smoothStop);
+        filtered[s] = (signalKind & (1u << s)) != 0u && zp > 0.0f && !(s == 2u && smoothStop);
         lp[s] = SignalLuminance(s, centre[s]);
         lumaRate[s] = 0.0f;
         if (!filtered[s])
