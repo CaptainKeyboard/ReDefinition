@@ -34,12 +34,14 @@ namespace ReDefinition.Menu
     public class MenuFireworks : MonoBehaviour
     {
         internal const string BurstArgument = "-redefinitionFireworksBurst";
+        // With it as well: a screenshot into ReDefinitionCaptures after some bursts, then quit.
+        internal const string ShotArgument = "-redefinitionFireworksShot";
 
         // Below this, the sun stands under the ground's horizon.
         private const float NightDot = -0.1f;
         // Points closer to the planet's rim than this, in the cosine between the
         // ground and the view, lie too flat to see.
-        private const float FacingDot = 0.08f;
+        private const float FacingDot = 0.15f;
         // The menu's buttons stand left of this, in the screen's width.
         private const float ButtonsRight = 0.35f;
         private const float ScreenMargin = 0.03f;
@@ -106,6 +108,15 @@ namespace ReDefinition.Menu
             {
                 Fail("start", e);
             }
+            if (!test || Array.IndexOf(Environment.GetCommandLineArgs(), ShotArgument) < 0) yield break;
+            yield return new WaitForSeconds(6f);
+            string folder = System.IO.Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
+            System.IO.Directory.CreateDirectory(folder);
+            string file = System.IO.Path.Combine(folder, "fireworks-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".png");
+            ScreenCapture.CaptureScreenshot(file);
+            Debug.Log(Log.Tag + " Main menu fireworks: screenshot " + file + ".");
+            yield return new WaitForSeconds(2f);
+            Application.Quit();
         }
 
         private void Update()
@@ -186,9 +197,13 @@ namespace ReDefinition.Menu
                 }
                 if (kerbin == null) continue;
                 int layer = 1 << kerbin.gameObject.layer;
+                // The light that shades Kerbin as the menu shows it: PlanetLight in the orbit
+                // scene, "Directional light" in the Mun's; BackLight, brighter, only rims it
+                // from behind (measured: its night side was the lit face the camera sees).
                 foreach (Light light in area.GetComponentsInChildren<Light>())
                     if (light.type == LightType.Directional && (light.cullingMask & layer) != 0
-                        && (sun == null || light.intensity > sun.intensity))
+                        && (sun == null || Rank(light) > Rank(sun)
+                            || (Rank(light) == Rank(sun) && light.intensity > sun.intensity)))
                         sun = light;
                 break;
             }
@@ -199,6 +214,12 @@ namespace ReDefinition.Menu
                 return false;
             }
             return true;
+        }
+
+        private static int Rank(Light light)
+        {
+            return light.name == "PlanetLight" || light.name == "Directional light" ? 2
+                   : light.name.IndexOf("Back", StringComparison.OrdinalIgnoreCase) >= 0 ? 0 : 1;
         }
 
         private void BuildPool()
