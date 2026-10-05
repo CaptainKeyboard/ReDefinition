@@ -642,8 +642,26 @@ namespace ReDefinition
                 Write = (settings, value) => settings.MenuKscZoom = bool.Parse(value),
             });
 
+        // The space centre's look (Scenery/KscGrass).
+        public static readonly IGraphicsModule SpaceCentre = new GraphicsModule("spaceCentre", "Space centre",
+            new ModuleSetting
+            {
+                Key = "kscGrass",
+                Title = "Grass on the lawns",
+                Order = 230,
+                Row = SettingCategory.Planets,
+                Section = "Space centre",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Parallax's grass on the space centre's lawns, where Parallax itself grows it under them.\n"
+                          + "Needs Parallax.",
+                Read = settings => SettingValues.Text(settings.KscGrass),
+                Write = (settings, value) => settings.KscGrass = bool.Parse(value),
+            });
+
         public static readonly IList<IGraphicsModule> All =
-            new List<IGraphicsModule> { Upscaler, FrameGeneration, Raytracing, Hotkeys, FlightUi, Scaling, MainMenuScene }.AsReadOnly();
+            new List<IGraphicsModule> { Upscaler, FrameGeneration, Raytracing, Hotkeys, FlightUi, Scaling, MainMenuScene, SpaceCentre }
+                .AsReadOnly();
 
         public static IGraphicsModule Find(string name)
         {

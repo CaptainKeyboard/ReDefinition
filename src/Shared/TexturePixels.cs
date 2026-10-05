@@ -55,6 +55,35 @@ namespace ReDefinition.Shared
             return pixels;
         }
 
+        // A texture's pixels at most `largest` on a side, row by row from the bottom, as its
+        // texture coordinates run; null for none.
+        internal static Color32[] Read(Texture texture, int largest, out Vector2Int size)
+        {
+            size = Vector2Int.zero;
+            if (texture == null) return null;
+            int width = Mathf.Max(1, Mathf.Min(texture.width, largest));
+            int height = Mathf.Max(1, Mathf.Min(texture.height, largest));
+            RenderTexture target = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32,
+                RenderTextureReadWrite.sRGB);
+            RenderTexture before = RenderTexture.active;
+            Texture2D copy = new Texture2D(width, height, TextureFormat.ARGB32, false);
+            try
+            {
+                Graphics.Blit(texture, target);
+                RenderTexture.active = target;
+                copy.ReadPixels(new Rect(0f, 0f, width, height), 0, 0);
+                copy.Apply();
+                size = new Vector2Int(width, height);
+                return copy.GetPixels32();
+            }
+            finally
+            {
+                RenderTexture.active = before;
+                RenderTexture.ReleaseTemporary(target);
+                Object.Destroy(copy);
+            }
+        }
+
         // A readable copy of the texture, through a render texture.
         internal static Texture2D ReadableCopy(Texture texture)
         {

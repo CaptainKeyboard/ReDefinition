@@ -1,0 +1,39 @@
+// Parallax's clumps of one scatter and level of detail lifted onto the space centre's lawns
+// (src/Scenery/KscGrass.cs): each TransformData of Parallax's output whose position lies
+// on the lawns' map with room for the clump is appended with its position raised to the
+// lawn; the rest of the matrix -- rotation, scale, the terrain's colour in row 3 -- stays
+// as Parallax made it.
+#pragma kernel Lift
+
+StructuredBuffer<float4x4> _Source;     // Parallax's output this frame (TransformData)
+ByteAddressBuffer _Counts;              // its count, copied this frame
+uint _CountIndex;
+uint _Capacity;
+AppendStructuredBuffer<float4x4> _Lifted;
+float4x4 _WorldToRoot;                  // the space centre's root, y up
+float4x4 _RootToWorld;
+Texture2D<float2> _Lawns;               // per metre: the lawn's height over _Grid.w, room in metres (0: no lawn)
+float4 _Grid;                           // x, z of texel (0, 0)'s corner, metres per texel, base height
+uint2 _Size;
+float _Reach;                           // the model's horizontal reach that must stand on lawn, unscaled
+
+[numthreads(64, 1, 1)]
+void Lift(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Capacity || id.x >= _Counts.Load(_CountIndex * 4))
+        return;
+    float4x4 m = _Source[id.x];
+    float3 local = mul(_WorldToRoot, float4(m[0].w, m[1].w, m[2].w, 1)).xyz;
+    int2 at = int2(floor((local.xz - _Grid.xy) / _Grid.z));
+    if (any(at < 0) || any(at >= int2(_Size)))
+        return;
+    float2 lawn = _Lawns.Load(int3(at, 0));
+    float scale = max(length(float3(m[0].x, m[1].x, m[2].x)), length(float3(m[0].z, m[1].z, m[2].z)));
+    if (lawn.y <= 0 || lawn.y < _Reach * scale)
+        return;
+    float3 world = mul(_RootToWorld, float4(local.x, lawn.x + _Grid.w, local.z, 1)).xyz;
+    m[0].w = world.x;
+    m[1].w = world.y;
+    m[2].w = world.z;
+    _Lifted.Append(m);
+}

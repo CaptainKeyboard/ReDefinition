@@ -401,7 +401,8 @@ namespace ReDefinition.Raytracing
     }
 
     // Parallax's scatter -- rocks, trees, grass -- as the GPU placed it this frame
-    // (RtKspMods.ParallaxScatter): culled by Parallax to the view and a short radius
+    // (RtKspMods.ParallaxScatter), and its grass lifted onto the space centre's lawns
+    // (Scenery.KscGrass): culled by Parallax to the view and a short radius
     // around the camera, so what lies behind the camera further out casts no shadow.
     internal sealed class RtParallaxScatter : IRtGpuSource
     {
@@ -410,7 +411,7 @@ namespace ReDefinition.Raytracing
         public void CollectGpu(List<RtGpuItem> into)
         {
             Buffers = HighLogic.LoadedSceneIsFlight || HighLogic.LoadedScene == GameScenes.SPACECENTER
-                ? RtKspMods.ParallaxScatter(into)
+                ? RtKspMods.ParallaxScatter(into) + Scenery.KscGrass.CollectGpu(into)
                 : 0;
         }
     }
