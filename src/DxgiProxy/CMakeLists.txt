@@ -89,9 +89,12 @@ add_library(ReDefinitionProxy SHARED
     FrameGeneration.cpp
     FrameGeneration.h
     FrameGenerationCheck.cpp
+    FrameGenerationContext.cpp
     FrameGenerationDump.cpp
     FrameGenerationInputs.cpp
     FrameGenerationDlss.cpp
+    FrameGenerationPrepare.cpp
+    FrameGenerationRate.cpp
     LoadMonitor.cpp
     LoadMonitor.h
     ManagedBridge.cpp

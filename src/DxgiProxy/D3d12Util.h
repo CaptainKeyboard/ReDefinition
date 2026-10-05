@@ -11,7 +11,7 @@
 
 namespace redefinition
 {
-    // FrameGeneration.cpp: the typed format of a typeless one.
+    // FrameGenerationInputs.cpp: the typed format of a typeless one.
     DXGI_FORMAT TypedFormat(DXGI_FORMAT format);
 
     // A transition of every subresource of a D3D12 resource, as the copies into

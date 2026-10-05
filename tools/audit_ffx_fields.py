@@ -21,7 +21,8 @@ HEADER = os.path.join(ROOT, "src", "DxgiProxy", "extern", "FidelityFX",
                       "framegeneration", "include", "ffx_framegeneration.h")
 # Frame generation's files, all of them: a descriptor filled in one of them counts.
 IMPL = [os.path.join(ROOT, "src", "DxgiProxy", name)
-        for name in ("FrameGeneration.cpp", "FrameGenerationInputs.cpp", "FrameGenerationCheck.cpp")]
+        for name in ("FrameGeneration.cpp", "FrameGenerationContext.cpp", "FrameGenerationPrepare.cpp",
+                     "FrameGenerationInputs.cpp", "FrameGenerationCheck.cpp")]
 
 # Fields left at their zero value, each with its reason.
 INTENTIONALLY_UNSET = {
