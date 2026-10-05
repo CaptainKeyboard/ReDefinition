@@ -182,6 +182,16 @@ namespace ReDefinition.Upscaler
         internal void RecordRepair(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
         {
             if (!active || !continuous || !RepairEnabled || motionVectors == null || depth == null) return;
+            // Where none of the vessel's renderers moved since the frame before, each part's
+            // motion is the camera's alone, which is what Unity's motion vectors (or the
+            // repair of them, UnityMotionRepair) hold there already: the repair would write
+            // the same again. On the pad that was 1 ms of the GPU's frame for some 600 draws
+            // (RenderDoc, 2026-10-06); the matrices are compared on the CPU in microseconds.
+            if (!AnyMoved())
+            {
+                standing++;
+                return;
+            }
             repairedThisWindow = true;
             capture.SetRenderTarget(motionVectors);
             SetCommon(capture, motionVectors, depth);
@@ -219,6 +229,19 @@ namespace ReDefinition.Upscaler
                 readWithoutStep = request => Read(request, false);
             }
             capture.RequestAsyncReadback(stats, stepped ? readWithStep : readWithoutStep);
+        }
+
+        private int standing;
+
+        private bool AnyMoved()
+        {
+            foreach (Drawn d in drawn)
+            {
+                Matrix4x4 before;
+                if (d.Renderer == null || !d.Renderer.enabled || !d.Renderer.gameObject.activeInHierarchy) continue;
+                if (!previousModel.TryGetValue(d.Renderer, out before) || d.Renderer.localToWorldMatrix != before) return true;
+            }
+            return false;
         }
 
         // After both: this frame's matrices become the previous ones.
@@ -367,6 +390,10 @@ namespace ReDefinition.Upscaler
         {
             float elapsed = Time.unscaledTime - windowStart;
             windowStart = Time.unscaledTime;
+            if (standing > 0)
+                Debug.Log(Log.Tag + " Vessel motion vectors, last " + elapsed.ToString("0.0", CultureInfo.InvariantCulture) + " s: the repair left out in "
+                          + standing + " frame(s), nothing of the vessel moved.");
+            standing = 0;
             if (framesRead > 0)
             {
                 StringBuilder sb = new StringBuilder();
