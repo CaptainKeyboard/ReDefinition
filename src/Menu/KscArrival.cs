@@ -13,7 +13,9 @@ namespace ReDefinition.Menu
     // stands still for seconds there and draws nothing (measured 2026-10-05: 2.5 s and
     // 1.6 s) -- the last picture of it stays on the screen in place of KSP's black
     // loading screen; in the space centre the camera starts over the same place at the
-    // same height, the picture fades and the camera comes down to KSP's own view.
+    // same height, the picture fades and the camera comes down to KSP's own view. On the
+    // way in the menu's sun turns to stand over the space centre as the save's does, so
+    // that a save at night is flown into the night side (MenuSun).
     // A click or a key ends the descent there. OwnSettings.MenuKscZoom switches it.
     internal static class KscArrival
     {
@@ -100,6 +102,56 @@ namespace ReDefinition.Menu
             north = body.transform.InverseTransformDirection(worldNorth);
             return north.sqrMagnitude > 0.5f;
         }
+
+        // The sun's hour angle over the space centre, in degrees: 0 at noon, -90 at sunrise,
+        // +90 at sunset, from the sun's direction there in the local up and north.
+        internal static float HourAngle(Vector3 sunDirection, Vector3 up, Vector3 north)
+        {
+            Vector3 east = Vector3.Cross(up, north);
+            return Mathf.Atan2(-Vector3.Dot(sunDirection, east), Vector3.Dot(sunDirection, up)) * Mathf.Rad2Deg;
+        }
+
+        // The direction of the sun at that hour angle, in the local up and north.
+        internal static Vector3 SunAt(float hourAngle, Vector3 up, Vector3 north)
+        {
+            float h = hourAngle * Mathf.Deg2Rad;
+            return Mathf.Cos(h) * up - Mathf.Sin(h) * Vector3.Cross(up, north);
+        }
+
+        // The sun's hour angle over the space centre now, as the bodies stand.
+        internal static bool HourAngleNow(CelestialBody body, out float hourAngle)
+        {
+            hourAngle = 0f;
+            CelestialBody sun = body != null ? body.referenceBody : null;
+            Vector3 up, north;
+            if (sun == null || sun == body || !LocalFrame(body, out up, out north)) return false;
+            Vector3d here = body.GetWorldSurfacePosition(Latitude, Longitude, 0.0);
+            hourAngle = HourAngle(((Vector3)(sun.position - here)).normalized, body.transform.TransformDirection(up),
+                                  body.transform.TransformDirection(north));
+            return true;
+        }
+
+        // The sun's hour angle over the space centre at the save's time: now's, turned on by
+        // the solar day's share of the time between (the body's turn less its way round the
+        // sun). Null where there is no save or no sun. Checked in the space centre against
+        // the sun there (the descent's log line).
+        internal static float? SaveHourAngle()
+        {
+            Game game = HighLogic.CurrentGame;
+            CelestialBody body = Home();
+            float now;
+            if (game == null || game.flightState == null || body == null || body.orbit == null || !HourAngleNow(body, out now))
+                return null;
+            double between = game.flightState.universalTime - Planetarium.GetUniversalTime();
+            double perSecond = 360.0 / body.rotationPeriod - 360.0 / body.orbit.period;
+            double angle = (now + between * perSecond) % 360.0;
+            if (angle > 180.0) angle -= 360.0;
+            if (angle < -180.0) angle += 360.0;
+            return (float)angle;
+        }
+
+        // The hour angle the menu showed, for the space centre's check.
+        internal static float? PlannedHourAngle;
 
         // The menu camera's vertical field of view at the end of the way in: the space
         // centre's camera starts with it, so that the planet stands as large on the screen.
@@ -252,6 +304,14 @@ namespace ReDefinition.Menu
 
         private IEnumerator WayIn(Camera camera, Transform kerbin, float radius, Vector3 localUp, Vector3 localNorth)
         {
+            var sun = new MenuSun();
+            float? hourAngle = sun.Sun != null ? KscArrival.SaveHourAngle() : null;
+            KscArrival.PlannedHourAngle = hourAngle;
+            if (hourAngle.HasValue)
+                Debug.Log(Log.Tag + " Menu to the space centre: the save's sun over the space centre at "
+                          + hourAngle.Value.ToString("0", CultureInfo.InvariantCulture) + " degrees from noon, the menu's at "
+                          + KscArrival.HourAngle(-sun.Sun.transform.forward, kerbin.TransformDirection(localUp), kerbin.TransformDirection(localNorth))
+                              .ToString("0", CultureInfo.InvariantCulture) + " ('" + sun.Sun.name + "').");
             List<Canvas> hidden = new List<Canvas>();
             foreach (Canvas canvas in FindObjectsOfType<Canvas>())
                 if (canvas.enabled && canvas.isRootCanvas)
@@ -287,6 +347,7 @@ namespace ReDefinition.Menu
                 view.position = kerbin.position + direction * distance;
                 Quaternion end = Quaternion.LookRotation(-up, north);
                 view.rotation = Quaternion.Slerp(startRotation, end, e);
+                if (hourAngle.HasValue) sun.Turn(KscArrival.SunAt(hourAngle.Value, up, north), e);
                 if (t >= 1f) break;
                 KscArrival.TestFrame("1-menu", Time.unscaledTime - started, KscArrival.ScreenShare(radius, distance, camera.fieldOfView));
                 yield return null;
@@ -294,6 +355,10 @@ namespace ReDefinition.Menu
             }
             KscArrival.FrameTimes("the way in");
 
+            if (hourAngle.HasValue)
+                Debug.Log(Log.Tag + " Menu to the space centre: the menu's sun at the end "
+                          + KscArrival.HourAngle(-sun.Sun.transform.forward, kerbin.TransformDirection(localUp), kerbin.TransformDirection(localNorth))
+                              .ToString("0", CultureInfo.InvariantCulture) + " degrees from noon.");
             KscArrival.MenuFieldOfView = camera.fieldOfView;
             yield return new WaitForEndOfFrame();
             KscArrival.TestShot("1-menu-end");
@@ -303,6 +368,53 @@ namespace ReDefinition.Menu
                 if (canvas != null) canvas.enabled = true;
             yield return null;
             KscArrival.LoadSpaceCentre();
+        }
+    }
+
+    // The menu's sun turned to an hour angle over the space centre. Every directional
+    // light of the menu turns with it. Parallax's main menu sets the direction of
+    // PlanetLight, FillLight and RenderSettings.sun in each Update (ScaledMainMenu.Update),
+    // so the lights are turned each frame after that, from where they stand then; a light
+    // nobody set again since the last turn turns from where it stood before it, so that
+    // it does not turn on and on.
+    internal sealed class MenuSun
+    {
+        private readonly List<Light> lights = new List<Light>();
+        private readonly Dictionary<Light, Quaternion> before = new Dictionary<Light, Quaternion>();
+        private readonly Dictionary<Light, Quaternion> written = new Dictionary<Light, Quaternion>();
+        internal readonly Light Sun;
+
+        internal MenuSun()
+        {
+            foreach (Light light in UnityEngine.Object.FindObjectsOfType<Light>())
+                if (light.type == LightType.Directional && light.isActiveAndEnabled)
+                {
+                    lights.Add(light);
+                    // The sun as Scatterer and Parallax take it in the menu: PlanetLight.
+                    if (Sun == null || light.name.Contains("PlanetLight")) Sun = light;
+                }
+        }
+
+        // The lights turned so that the sun shines from `towards`, `share` of the way from
+        // where it stands now.
+        internal void Turn(Vector3 towards, float share)
+        {
+            if (Sun == null) return;
+            foreach (Light light in lights)
+            {
+                if (light == null) continue;
+                Quaternion last;
+                if (!written.TryGetValue(light, out last) || light.transform.rotation != last)
+                    before[light] = light.transform.rotation;
+            }
+            Vector3 from = -(before[Sun] * Vector3.forward);
+            Quaternion turn = Quaternion.Slerp(Quaternion.identity, Quaternion.FromToRotation(from, towards), share);
+            foreach (Light light in lights)
+            {
+                if (light == null) continue;
+                light.transform.rotation = turn * before[light];
+                written[light] = light.transform.rotation;
+            }
         }
     }
 
@@ -403,6 +515,10 @@ namespace ReDefinition.Menu
             Vector3 endOffset = endPosition - place;
             float endDistance = endOffset.magnitude;
             control.enabled = false;
+            float actual;
+            if (KscArrival.PlannedHourAngle.HasValue && KscArrival.HourAngleNow(body, out actual))
+                Debug.Log(Log.Tag + " Menu to the space centre: the sun over the space centre at " + actual.ToString("0", CultureInfo.InvariantCulture)
+                          + " degrees from noon; the menu showed it at " + KscArrival.PlannedHourAngle.Value.ToString("0", CultureInfo.InvariantCulture) + ".");
             Debug.Log(Log.Tag + " Menu to the space centre: the descent from " + (startHeight / 1000f).ToString("0", CultureInfo.InvariantCulture)
                       + " km to KSP's view " + endDistance.ToString("0", CultureInfo.InvariantCulture) + " m from the pad.");
 
