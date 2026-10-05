@@ -1,21 +1,21 @@
 using System.Collections.Generic;
 using ReDefinition.Core;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace ReDefinition.Flight
 {
-    // The space centre's facility buttons (the column of buttons for the VAB, the
-    // SPH, the launch pad, the runway and the rest), so that the buttons over the
-    // buildings and in the editors look like them: KSP's own sprites, as their
-    // Buttons show them and swap to (normal, highlighted, pressed, disabled),
-    // held. They belong to the space centre's scene (Buttons_VAB_0 to _3 and so
-    // on, sharedassets5) and are there only once it has been shown, which a game
-    // loaded always is first; held here, Unity keeps them after it (it unloads
-    // an asset only where nothing reaches it, static fields included:
-    // Resources.UnloadUnusedAssets). A UI theme that replaces their textures
-    // (HUDReplacer) shows here as well.
-    [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
+    // The space centre's facility buttons (Buttons_VAB, Buttons_SPH, ... in
+    // sharedassets5, the space centre scene's assets), so that the buttons over the
+    // buildings and in the editors are KSP's own: each a texture of four sprites,
+    // Buttons_<name>_0 to _3 (normal top left, highlighted top right, pressed
+    // bottom left, disabled bottom right; their rects, read with UnityPy). Taken by
+    // name from the loaded sprites wherever they are loaded -- the space centre, and
+    // a flight or an editor while they still are -- and held: Unity keeps an asset
+    // where something reaches it, static fields included
+    // (Resources.UnloadUnusedAssets). A UI theme replaces their texture in place
+    // (HUDReplacer: Texture2D.LoadImage on KSP's own texture), so the sprites held
+    // show the theme.
+    [KSPAddon(KSPAddon.Startup.FlightEditorAndKSC, false)]
     public class KscButtons : MonoBehaviour
     {
         internal sealed class Look
@@ -36,15 +36,14 @@ namespace ReDefinition.Flight
             return looks.TryGetValue(name, out look) && look.Normal != null ? look : null;
         }
 
-        // Taken a second and a half into the scene, where a theme has swapped the
-        // pictures as the scene's UI stands; looked at again every second until all
-        // four are there, for ten seconds.
+        // Looked for a second into the scene and every second after until all are
+        // there, for ten seconds.
         private float next;
         private float until;
 
         private void Awake()
         {
-            next = Time.unscaledTime + 1.5f;
+            next = Time.unscaledTime + 1f;
             until = next + 10f;
         }
 
@@ -52,7 +51,7 @@ namespace ReDefinition.Flight
         {
             if (next <= 0f || Time.unscaledTime < next) return;
             next = Time.unscaledTime + 1f;
-            int found = 0;
+            int found;
             try
             {
                 found = Capture();
@@ -65,44 +64,52 @@ namespace ReDefinition.Flight
             }
             if (found < Wanted.Length && Time.unscaledTime < until) return;
             next = 0f;
-            Debug.Log(Log.Tag + " The space centre's facility buttons taken for the buttons in the world: " + found + " of "
-                      + Wanted.Length + ".");
+            Debug.Log(Log.Tag + " The space centre's facility buttons held for the buttons in the world: " + found + " of "
+                      + Wanted.Length + (found < Wanted.Length ? " (" + Missing() + " not loaded in this scene)" : "") + ".");
         }
 
         private static int Capture()
         {
-            Seen.Clear();
-            foreach (Button button in Resources.FindObjectsOfTypeAll<Button>())
+            if (Held() == Wanted.Length) return Wanted.Length;
+            Dictionary<string, Sprite> byName = new Dictionary<string, Sprite>();
+            foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
             {
-                Image image = button != null ? button.targetGraphic as Image : null;
-                if (image == null || image.sprite == null || !button.gameObject.scene.IsValid()) continue;
-                string name = Base(image.sprite.name);
-                if (name == null || Seen.Contains(name)) continue;
-                Look look = new Look
-                {
-                    Normal = image.sprite,
-                    Highlighted = button.spriteState.highlightedSprite,
-                    Pressed = button.spriteState.pressedSprite,
-                    Disabled = button.spriteState.disabledSprite,
-                };
-                if (look.Normal == null) continue;
+                if (sprite == null || sprite.texture == null) continue;
+                string name = sprite.name;
+                if (name.StartsWith("Buttons_", System.StringComparison.Ordinal) && !byName.ContainsKey(name))
+                    byName[name] = sprite;
+            }
+            foreach (string wanted in Wanted)
+            {
+                if (Get(wanted) != null) continue;
+                Sprite normal;
+                if (!byName.TryGetValue(wanted + "_0", out normal)) continue;
+                Look look = new Look { Normal = normal };
+                byName.TryGetValue(wanted + "_1", out look.Highlighted);
+                byName.TryGetValue(wanted + "_2", out look.Pressed);
+                byName.TryGetValue(wanted + "_3", out look.Disabled);
                 if (look.Highlighted == null) look.Highlighted = look.Normal;
                 if (look.Pressed == null) look.Pressed = look.Highlighted;
                 if (look.Disabled == null) look.Disabled = look.Normal;
-                looks[name] = look;
-                Seen.Add(name);
+                looks[wanted] = look;
             }
-            return Seen.Count;
+            return Held();
         }
 
-        private static readonly HashSet<string> Seen = new HashSet<string>();
-
-        // "Buttons_VAB" for "Buttons_VAB_0"; null for another sprite.
-        private static string Base(string sprite)
+        private static int Held()
         {
+            int held = 0;
             foreach (string wanted in Wanted)
-                if (sprite.StartsWith(wanted + "_", System.StringComparison.Ordinal)) return wanted;
-            return null;
+                if (Get(wanted) != null) held++;
+            return held;
+        }
+
+        private static string Missing()
+        {
+            List<string> missing = new List<string>();
+            foreach (string wanted in Wanted)
+                if (Get(wanted) == null) missing.Add(wanted);
+            return string.Join(", ", missing.ToArray());
         }
     }
 }

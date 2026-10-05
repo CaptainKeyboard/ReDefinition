@@ -89,7 +89,7 @@ namespace ReDefinition.Engineer
                 measured = drawn != place.position;
             }
             if (marker.Place(place.TransformPoint(middle), editor.editorCamera, reach, true))
-                marker.Look(look, null);
+                marker.Look(look, "Launch");
         }
 
         // On the top of what the place draws: over the launch pad above the model's

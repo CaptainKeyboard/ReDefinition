@@ -45,7 +45,6 @@ namespace ReDefinition.Flight
         private Building vab, sph;
         private CelestialBody home;
         private WorldButton marker;
-        private Sprite vabIcon, sphIcon;
 
         private IEnumerator Start()
         {
@@ -72,8 +71,6 @@ namespace ReDefinition.Flight
                 Debug.Log(Log.Tag + " No assembly building found in the space centre: no way back to it from its symbol.");
                 yield break;
             }
-            vabIcon = Load("Assembly_VAB");
-            sphIcon = Load("Assembly_SPH");
             marker = new WorldButton("ReDefinitionAssemblyReturn", Ask, 40f);
             Debug.Log(Log.Tag + " The assembly buildings' symbols are ready: the VAB " + Where(vab) + ", the SPH " + Where(sph)
                       + ", on " + (home != null ? home.bodyName : "no body") + ".");
@@ -91,11 +88,6 @@ namespace ReDefinition.Flight
         private static string Where(Building building)
         {
             return building == null || building.Spot.Place == null ? "missing" : "at " + building.Spot.Place.name;
-        }
-
-        private static Sprite Load(string name)
-        {
-            return Shared.IconSprites.Load("ReDefinition/Icons/" + name);
         }
 
         // The button goes with the flight scene: KSP's main canvas stays.
@@ -128,7 +120,7 @@ namespace ReDefinition.Flight
                 Note("shown on the " + building.Facility + (revert ? ", reverting" : ", recovering") + ", "
                      + ((Vector3d)building.Spot.Place.position - FlightGlobals.ActiveVessel.CoMD).magnitude.ToString("0") + " m off");
             marker.Look(building.Facility == EditorFacility.SPH ? "Buttons_SPH" : "Buttons_VAB",
-                building.Facility == EditorFacility.SPH ? sphIcon : vabIcon);
+                building.Facility == EditorFacility.SPH ? "SPH" : "VAB");
             marker.Tooltip = Title(building.Facility, revert);
         }
 

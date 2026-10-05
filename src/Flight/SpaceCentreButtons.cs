@@ -30,22 +30,21 @@ namespace ReDefinition.Flight
             internal string Name;
             internal string Title;
             internal string Look;
-            internal Sprite Icon;
+            internal string Short;
             internal bool TrackingStation;
             internal FacilitySpot Spot;
             internal WorldButton Button;
         }
 
         // PSystemSetup's names for them, what the button says, the space centre's
-        // button for it (KscButtons), and ReDefinition's symbol where that has not
-        // been seen yet.
+        // button for it (KscButtons), and its short name where that is not loaded.
         private static readonly string[][] Wanted =
         {
-            new[] { "TrackingStation", "Go to the Tracking Station", "Buttons_TrackingStation", "Facility_TrackingStation" },
-            new[] { "MissionControl", "Go to Mission Control", "Buttons_MissionControl", "Facility_MissionControl" },
-            new[] { "AstronautComplex", "Go to the Astronaut Complex", "Buttons_AstronautComplex", "Facility_AstronautComplex" },
-            new[] { "RnD", "Go to Research and Development", "Buttons_RnD", "Facility_RnD" },
-            new[] { "Administration", "Go to the Administration", "Buttons_Admin", "Facility_Administration" },
+            new[] { "TrackingStation", "Go to the Tracking Station", "Buttons_TrackingStation", "Tracking" },
+            new[] { "MissionControl", "Go to Mission Control", "Buttons_MissionControl", "Mission" },
+            new[] { "AstronautComplex", "Go to the Astronaut Complex", "Buttons_AstronautComplex", "Crew" },
+            new[] { "RnD", "Go to Research and Development", "Buttons_RnD", "R&D" },
+            new[] { "Administration", "Go to the Administration", "Buttons_Admin", "Admin" },
         };
 
         private readonly List<Facility> facilities = new List<Facility>();
@@ -66,7 +65,7 @@ namespace ReDefinition.Flight
                 if (home == null) home = body;
                 Facility facility = new Facility
                 {
-                    Name = wanted[0], Title = wanted[1], Look = wanted[2], Icon = Load(wanted[3]),
+                    Name = wanted[0], Title = wanted[1], Look = wanted[2], Short = wanted[3],
                     TrackingStation = wanted[0] == "TrackingStation", Spot = spot,
                 };
                 facility.Button = new WorldButton("ReDefinitionFacility_" + wanted[0], () => Ask(facility), 40f);
@@ -75,11 +74,6 @@ namespace ReDefinition.Flight
             }
             if (home == null) home = FlightGlobals.GetHomeBody();
             Debug.Log(Log.Tag + " Buttons over the space centre's buildings before a launch: " + facilities.Count + ".");
-        }
-
-        private static Sprite Load(string name)
-        {
-            return Shared.IconSprites.Load("ReDefinition/Icons/" + name);
         }
 
         private void OnDestroy()
@@ -106,7 +100,7 @@ namespace ReDefinition.Flight
                 // Looked at as it shows, as the assembly building's is: the space
                 // centre's buttons may be taken after this flight started.
                 if (facility.Button.Place(facility.Spot.Middle(home), camera, 0f, false, facility.Spot.Solid))
-                    facility.Button.Look(facility.Look, facility.Icon);
+                    facility.Button.Look(facility.Look, facility.Short);
             }
         }
 

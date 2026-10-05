@@ -1,6 +1,8 @@
 using KSP.UI;
 using KSP.UI.TooltipTypes;
+using ReDefinition.Core;
 using ReDefinition.Window;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -18,9 +20,9 @@ namespace ReDefinition.Flight
     // camera of its own that follows the scene's and draws nothing (Eyes): the
     // upscaler has the scene's camera draw into a texture of the render size, and
     // a ray from the screen's pixels would miss there. It looks like one of the
-    // space centre's facility buttons (KscButtons) where those have been seen,
-    // else a symbol of ReDefinition's own on a round plate. It goes with the
-    // add-on that made it (Destroy).
+    // space centre's facility buttons (KscButtons) where those are held, else a
+    // short name in KSP's font on a round plate. It goes with the add-on that made
+    // it (Destroy).
     internal sealed class WorldButton
     {
         // The canvas's units: the button's size in them, and its pixels on the
@@ -40,9 +42,10 @@ namespace ReDefinition.Flight
         private readonly float metres;
         private readonly RectTransform rect;
         private readonly Image face;
-        private readonly Image glyph;
+        private readonly TextMeshProUGUI label;
         private readonly Button button;
         private readonly TooltipController_Text tooltip;
+        private readonly string name;
         private string look;
         private bool kscLook;
 
@@ -50,6 +53,7 @@ namespace ReDefinition.Flight
         internal WorldButton(string name, UnityAction click, float metres)
         {
             this.metres = metres;
+            this.name = name;
             root = new GameObject(name, typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
             root.layer = 0;
             canvas = root.GetComponent<Canvas>();
@@ -74,14 +78,35 @@ namespace ReDefinition.Flight
             tooltip = UiHygiene.Tooltip(item, "");
             if (tooltip != null) tooltip.continuousUpdate = true;
 
-            GameObject symbol = UiHygiene.Child("Symbol", rect, typeof(RectTransform), typeof(Image));
-            RectTransform symbolRect = (RectTransform)symbol.transform;
-            symbolRect.anchorMin = symbolRect.anchorMax = symbolRect.pivot = new Vector2(0.5f, 0.5f);
-            symbolRect.sizeDelta = new Vector2(Size - 14f, Size - 14f);
-            glyph = symbol.GetComponent<Image>();
-            glyph.preserveAspect = true;
-            glyph.raycastTarget = false;
+            GameObject text = UiHygiene.Child("Label", rect, typeof(RectTransform), typeof(TextMeshProUGUI));
+            RectTransform textRect = (RectTransform)text.transform;
+            textRect.anchorMin = textRect.anchorMax = textRect.pivot = new Vector2(0.5f, 0.5f);
+            textRect.sizeDelta = new Vector2(Size - 8f, Size - 8f);
+            label = text.GetComponent<TextMeshProUGUI>();
+            TMP_FontAsset font = KspFont();
+            if (font != null) label.font = font;
+            label.enableAutoSizing = true;
+            label.fontSizeMax = 13f;
+            label.fontSizeMin = 6f;
+            label.enableWordWrapping = false;
+            label.alignment = TextAlignmentOptions.Center;
+            label.color = new Color(0.9f, 0.9f, 0.91f, 1f);
+            label.raycastTarget = false;
+            label.enabled = false;
             root.SetActive(false);
+        }
+
+        // KSP's interface font; null before its skin manager stands.
+        private static TMP_FontAsset KspFont()
+        {
+            try
+            {
+                return UISkinManager.TMPFont;
+            }
+            catch (System.NullReferenceException)
+            {
+                return null;
+            }
         }
 
         internal string Tooltip
@@ -90,11 +115,12 @@ namespace ReDefinition.Flight
         }
 
         // The space centre's button of that name (Buttons_VAB, ...) with its states,
-        // else -- or with no name -- `fallback` on the round plate.
-        internal void Look(string ksc, Sprite fallback)
+        // else `fallback`, a short name, on the round plate. What it took is logged
+        // where that changes.
+        internal void Look(string ksc, string fallback)
         {
-            // Again once the space centre's button has been taken, where the
-            // fallback stood till then.
+            // Again once the space centre's button is held, where the fallback
+            // stood till then.
             KscButtons.Look states = ksc != null ? KscButtons.Get(ksc) : null;
             if (look == ksc && face.sprite != null && (states == null || kscLook)) return;
             if (states != null)
@@ -110,8 +136,11 @@ namespace ReDefinition.Flight
                     disabledSprite = states.Disabled,
                 };
                 button.spriteState = swap;
-                glyph.enabled = false;
+                label.enabled = false;
                 kscLook = true;
+                Texture2D sheet = states.Normal.texture;
+                Debug.Log(Log.Tag + " World button " + name + " shows KSP's sprite " + states.Normal.name + " (texture "
+                          + (sheet != null ? sheet.name + ", " + sheet.width + "x" + sheet.height : "none") + ").");
             }
             else
             {
@@ -123,9 +152,11 @@ namespace ReDefinition.Flight
                 tint.pressedColor = new Color(2.6f, 2.6f, 2.8f, 1f);
                 tint.colorMultiplier = 1f;
                 button.colors = tint;
-                glyph.sprite = fallback;
-                glyph.enabled = fallback != null;
+                label.text = fallback ?? "";
+                label.enabled = !string.IsNullOrEmpty(fallback);
                 kscLook = false;
+                Debug.Log(Log.Tag + " World button " + name + " shows the text \"" + fallback + "\": KSP's " + ksc
+                          + " is not loaded (the space centre not shown since the game started).");
             }
             look = ksc;
         }
