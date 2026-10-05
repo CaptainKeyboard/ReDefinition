@@ -427,66 +427,197 @@ namespace ReDefinition.Raytracing
     // near the camera; in the editors, their own scenery.
     internal sealed class RtScenerySource : IRtSource
     {
-        private readonly List<MeshFilter> filters = new List<MeshFilter>();
+        // A city's (or an editor hall's) mesh filters with their renderers, found when its
+        // hierarchy last changed, and the sphere they lie in, relative to its root.
+        private sealed class Site
+        {
+            public Transform Root;
+            public bool Found;
+            // Looked through again then: filters without their mesh yet.
+            public float AgainAt = -1f;
+            public int Retries;
+            public readonly List<MeshFilter> Filters = new List<MeshFilter>();
+            public readonly List<MeshRenderer> Renderers = new List<MeshRenderer>();
+            // Per renderer, its mesh's middle relative to the root and its reach.
+            public readonly List<Vector4> Spheres = new List<Vector4>();
+            public Vector3 LocalCentre;
+            public float Radius;
+        }
+
+        private readonly List<Site> sites = new List<Site>();
+        private readonly List<MeshFilter> found = new List<MeshFilter>();
+        private readonly List<MeshFilter> all = new List<MeshFilter>();
         private readonly RtScene scene;
-        private GameScenes found = GameScenes.LOADING;
+        private GameScenes sitesOf = GameScenes.LOADING;
+        private float sceneAt;
+        private int laterLooks;
         private float lookedAt;
         private const float range = 8000f;
 
         internal RtScenerySource(RtScene scene)
         {
             this.scene = scene;
+            if (!listening)
+            {
+                listening = true;
+                GameEvents.OnKSCFacilityUpgraded.Add((facility, level) => changedAt = Time.unscaledTime);
+                GameEvents.OnKSCStructureCollapsed.Add(building => changedAt = Time.unscaledTime);
+                GameEvents.OnKSCStructureRepaired.Add(building => changedAt = Time.unscaledTime);
+            }
         }
 
+        // The space centre's buildings changed -- upgraded, collapsed, rebuilt -- at this
+        // time: every site is looked through again a second later, when the new models
+        // stand. Otherwise a site is looked through once a scene: KSP switches its parts on
+        // and off by distance, and the inactive ones are among its filters.
+        private static bool listening;
+        private static float changedAt = -1f;
+
         internal int Renderers { get; private set; }
+        // How often a site's filters were looked for again.
+        internal static int Refreshes;
 
         // The scenery's mesh filters as last found.
-        internal IEnumerable<MeshFilter> Filters { get { return filters; } }
+        internal IEnumerable<MeshFilter> Filters
+        {
+            get
+            {
+                all.Clear();
+                foreach (Site site in sites) all.AddRange(site.Filters);
+                return all;
+            }
+        }
 
         public void Collect(List<RtItem> into)
         {
-            // The scenery found anew when the scene changes, and every ten seconds, as
-            // the space centre's buildings upgrade.
-            if (found != HighLogic.LoadedScene || Time.unscaledTime - lookedAt > 10f)
+            // The sites found anew when the scene changes and every ten seconds, which is
+            // cheap; a site's filters once (measured 2026-10-05: looking through all of them
+            // every ten seconds held a frame for 6.8 ms).
+            if (changedAt >= 0f && Time.unscaledTime - changedAt > 1f)
             {
-                found = HighLogic.LoadedScene;
+                changedAt = -1f;
+                foreach (Site site in sites) site.Found = false;
+            }
+            // And 5 and 20 seconds into the scene, for the models spawned after it began.
+            float sinceScene = Time.unscaledTime - sceneAt;
+            if (sitesOf == HighLogic.LoadedScene && (laterLooks == 0 && sinceScene > 5f || laterLooks == 1 && sinceScene > 20f))
+            {
+                laterLooks++;
+                foreach (Site site in sites) site.Found = false;
+            }
+            if (sitesOf != HighLogic.LoadedScene || Time.unscaledTime - lookedAt > 10f)
+            {
                 lookedAt = Time.unscaledTime;
-                filters.Clear();
-                if (HighLogic.LoadedSceneIsEditor)
+                if (sitesOf != HighLogic.LoadedScene)
                 {
-                    foreach (string root in new[] { "VABscenery", "SPHscenery" })
-                    {
-                        GameObject scenery = GameObject.Find(root);
-                        if (scenery != null) filters.AddRange(scenery.GetComponentsInChildren<MeshFilter>(false));
-                    }
+                    sites.Clear();
+                    sceneAt = Time.unscaledTime;
+                    laterLooks = 0;
                 }
-                else
-                {
-                    foreach (PQSCity city in Object.FindObjectsOfType<PQSCity>())
-                        filters.AddRange(city.GetComponentsInChildren<MeshFilter>(false));
-                    foreach (PQSCity2 city in Object.FindObjectsOfType<PQSCity2>())
-                        filters.AddRange(city.GetComponentsInChildren<MeshFilter>(false));
-                }
+                sitesOf = HighLogic.LoadedScene;
+                FindSites();
             }
             Vector3 eye = scene.Eye;
             float range2 = range * range;
             Renderers = 0;
-            foreach (MeshFilter filter in filters)
+            foreach (Site site in sites)
             {
-                if (filter == null) continue;
-                MeshRenderer renderer = filter.GetComponent<MeshRenderer>();
-                if (renderer == null || (renderer.bounds.ClosestPoint(eye) - eye).sqrMagnitude > range2) continue;
-                // The VAB's and SPH's halls stand on the scenery's layer (15), which the
-                // editor's camera does not draw itself (its mask 0, 1 and 16, measured
-                // 2026-10-05): taken as long as they are shown.
-                if (HighLogic.LoadedSceneIsEditor)
+                if (site.Root == null) continue;
+                if (!site.Found || (site.AgainAt >= 0f && Time.unscaledTime >= site.AgainAt)) Refresh(site);
+                // A whole site out of range is passed over with one test, and each renderer
+                // by its mesh's sphere, as math, without asking the engine for its bounds.
+                Matrix4x4 toWorld = site.Root.localToWorldMatrix;
+                float scale = site.Root.lossyScale.x;
+                Vector3 centre = toWorld.MultiplyPoint3x4(site.LocalCentre);
+                float reach = range + site.Radius * scale;
+                if ((centre - eye).sqrMagnitude > reach * reach) continue;
+                for (int i = 0; i < site.Filters.Count; i++)
                 {
-                    if (renderer.enabled && renderer.gameObject.activeInHierarchy && filter.sharedMesh != null)
-                        RtFilter.Add(renderer, filter.sharedMesh, renderer.localToWorldMatrix, into, RtNative.InstanceScenery);
+                    MeshFilter filter = site.Filters[i];
+                    MeshRenderer renderer = site.Renderers[i];
+                    Vector4 sphere = site.Spheres[i];
+                    float near = range + sphere.w * scale;
+                    if ((toWorld.MultiplyPoint3x4(sphere) - eye).sqrMagnitude > near * near) continue;
+                    if (filter == null || renderer == null) continue;
+                    int before = into.Count;
+                    // The VAB's and SPH's halls stand on the scenery's layer (15), which the
+                    // editor's camera does not draw itself (its mask 0, 1 and 16, measured
+                    // 2026-10-05): taken as long as they are shown.
+                    if (HighLogic.LoadedSceneIsEditor)
+                    {
+                        if (renderer.enabled && renderer.gameObject.activeInHierarchy && filter.sharedMesh != null)
+                            RtFilter.Add(renderer, filter.sharedMesh, renderer.localToWorldMatrix, into, RtNative.InstanceScenery);
+                    }
+                    else RtFilter.Add(renderer, filter.sharedMesh, into, RtNative.InstanceScenery);
+                    if (into.Count > before) Renderers++;
                 }
-                else RtFilter.Add(renderer, filter.sharedMesh, into, RtNative.InstanceScenery);
-                Renderers++;
             }
+        }
+
+        private void FindSites()
+        {
+            var roots = new List<Transform>();
+            if (HighLogic.LoadedSceneIsEditor)
+            {
+                foreach (string name in new[] { "VABscenery", "SPHscenery" })
+                {
+                    GameObject scenery = GameObject.Find(name);
+                    if (scenery != null) roots.Add(scenery.transform);
+                }
+            }
+            else
+            {
+                foreach (PQSCity city in Object.FindObjectsOfType<PQSCity>()) roots.Add(city.transform);
+                foreach (PQSCity2 city in Object.FindObjectsOfType<PQSCity2>()) roots.Add(city.transform);
+            }
+            sites.RemoveAll(s => s.Root == null || !roots.Contains(s.Root));
+            foreach (Transform root in roots)
+                if (!sites.Exists(s => s.Root == root)) sites.Add(new Site { Root = root });
+        }
+
+        // A site's filters with their renderers, and the sphere round them.
+        private void Refresh(Site site)
+        {
+            if (site.AgainAt >= 0f) site.Retries++;
+            site.Found = true;
+            site.AgainAt = -1f;
+            site.Filters.Clear();
+            site.Renderers.Clear();
+            site.Spheres.Clear();
+            Refreshes++;
+            // Inactive ones too: KSP switches a city's parts on and off by distance without
+            // changing its hierarchy; whether one is drawn is asked each frame (RtFilter).
+            site.Root.GetComponentsInChildren(true, found);
+            Bounds around = new Bounds();
+            bool any = false;
+            Matrix4x4 toRoot = site.Root.worldToLocalMatrix;
+            foreach (MeshFilter filter in found)
+            {
+                MeshRenderer renderer = filter != null ? filter.GetComponent<MeshRenderer>() : null;
+                if (renderer == null) continue;
+                // From the mesh, which an inactive renderer's bounds do not hold; one without
+                // its mesh yet is looked for again in two seconds.
+                if (filter.sharedMesh == null)
+                {
+                    // At most five times: a filter may stay without a mesh for good.
+                    if (site.Retries < 5) site.AgainAt = Time.unscaledTime + 2f;
+                    continue;
+                }
+                Bounds b = filter.sharedMesh.bounds;
+                Matrix4x4 meshToRoot = toRoot * filter.transform.localToWorldMatrix;
+                Vector3 local = meshToRoot.MultiplyPoint3x4(b.center);
+                Vector3 scale = meshToRoot.lossyScale;
+                float extent = b.extents.magnitude * Mathf.Max(Mathf.Abs(scale.x), Mathf.Max(Mathf.Abs(scale.y), Mathf.Abs(scale.z)));
+                Bounds piece = new Bounds(local, Vector3.one * (2f * extent));
+                site.Filters.Add(filter);
+                site.Renderers.Add(renderer);
+                site.Spheres.Add(new Vector4(local.x, local.y, local.z, extent));
+                if (any) around.Encapsulate(piece);
+                else around = piece;
+                any = true;
+            }
+            site.LocalCentre = around.center;
+            site.Radius = around.extents.magnitude;
         }
     }
 }

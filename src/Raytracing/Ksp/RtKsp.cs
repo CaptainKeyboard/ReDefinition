@@ -330,7 +330,7 @@ namespace ReDefinition.Raytracing
             var line = new StringBuilder(Log.Tag).Append(" Raytracing: ")
                 .Append(attached.Scene.InstanceCount).Append(" instances (")
                 .Append(vessels.Parts).Append(" parts, ").Append(terrain.Quads).Append(" terrain quads, ")
-                .Append(scenery.Renderers).Append(" scenery renderers, ").Append(scatter.Buffers).Append(" scatter buffers with ")
+                .Append(scenery.Renderers).Append(" scenery renderers (sites looked through ").Append(RtScenerySource.Refreshes).Append(" times), ").Append(scatter.Buffers).Append(" scatter buffers with ")
                 .Append(attached.Scene.GpuTotal).Append(" places), ")
                 .Append(attached.Scene.MeshCount).Append(" meshes, ").Append(attached.Scene.MaterialCount).Append(" materials");
             if (attached.Scene.Skipped > 0)

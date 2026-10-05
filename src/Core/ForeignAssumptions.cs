@@ -269,12 +269,29 @@ namespace ReDefinition.Core
                 .Type("Kopernicus.RuntimeUtility.RuntimeUtility")
                 .OnChange(WhenChanged.Keep, "KSP's terrain shader quality is offered as it is");
 
+        // Firefly (FireflyIdle): its AtmoFxModule's fxVessel with the command buffer it
+        // keeps on the flight camera, its airstream camera and its effect material, whose
+        // _EntryStrength it sets each physics frame (UpdateMaterialProperties); its
+        // PopulateCommandBuffer fills the buffer again. Its shader draws nothing below a
+        // strength of 50 in its main pass and of 1000 in its bow shock, and next to nothing
+        // in its glow below 1 (FireflyShader, GlowPass.cginc of the Firefly repository).
+        public static readonly ForeignAssumption FireflyIdle =
+            new ForeignAssumption("firefly-idle", "Firefly", "Firefly's re-entry effects skipped while they show nothing")
+                .Type("Firefly.AtmoFxModule").Type("Firefly.AtmoFxVessel")
+                .Field("Firefly.AtmoFxModule", "fxVessel").Field("Firefly.AtmoFxModule", "isLoaded", Bool)
+                .Field("Firefly.AtmoFxVessel", "commandBuffer").Field("Firefly.AtmoFxVessel", "airstreamCamera", Camera)
+                .Field("Firefly.AtmoFxVessel", "material", Material)
+                .Method("Firefly.AtmoFxModule", "PopulateCommandBuffer")
+                .Method("Firefly.AtmoFxModule", "UpdateMaterialProperties")
+                .Tested("fdf8ca4c28ff") // Firefly 1.0.6
+                .OnChange(WhenChanged.Fallback, "Firefly draws its effects every frame, as it does by itself");
+
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
             ScattererGodrays, ScattererTemporalAa, ScattererSmaa, ScattererOceanMask, ScattererOceanReflections, ScattererOceanSun,
             DeferredReflections, DeferredSsr, TufxPostProcessing, ParallaxTessellation, ParallaxScatters,
-            DistantObjectSky, FourkSp, BetterTimeWarp, ManeuverNodeEvolved, KopernicusShaders,
+            DistantObjectSky, FourkSp, BetterTimeWarp, ManeuverNodeEvolved, KopernicusShaders, FireflyIdle,
         };
 
         // The installed mods' assumptions, in the catalogue's order.
