@@ -124,6 +124,88 @@ namespace ReDefinition.Probe
                         .AppendLine(string.Join(", ", group.TextureSet.Select(t => t.Key + " " + t.Value).ToArray()));
                 foreach (string example in group.Examples) text.Append("   e.g. ").AppendLine(example);
             }
+            // The space centre's materials one by one, with the shine the raytracing gives them.
+            var scenery = new Dictionary<Material, List<string>>();
+            foreach (Renderer renderer in FindObjectsOfType<Renderer>())
+            {
+                string kind = renderer != null ? Kind(renderer) : null;
+                if (renderer == null || !renderer.enabled || (kind != "scenery" && kind != "vessel")) continue;
+                renderer.GetSharedMaterials(materials);
+                foreach (Material material in materials)
+                {
+                    if (material == null || material.shader == null) continue;
+                    List<string> on;
+                    if (!scenery.TryGetValue(material, out on)) scenery[material] = on = new List<string>();
+                    if (on.Count < 4) on.Add(renderer.name + (kind == "vessel" ? " (vessel)" : ""));
+                }
+            }
+            text.AppendLine().AppendLine("== The space centre's and the vessels' materials: shader, _SpecColor, _Shininess, main texture, raytracing mode, on");
+            foreach (KeyValuePair<Material, List<string>> entry in scenery.OrderBy(e => e.Key.shader.name).ThenBy(e => e.Key.name))
+            {
+                Material material = entry.Key;
+                Color spec = material.HasProperty("_SpecColor") ? material.GetColor("_SpecColor") : Color.clear;
+                Texture main = material.HasProperty("_MainTex") ? material.GetTexture("_MainTex") : null;
+                text.Append("   ").Append(material.name.Replace(" (Instance)", "")).Append(" | ").Append(material.shader.name)
+                    .Append(" | ").Append(material.HasProperty("_SpecColor") ? F(spec.r) + "," + F(spec.g) + "," + F(spec.b) : "-")
+                    .Append(" | ").Append(material.HasProperty("_Shininess") ? F(material.GetFloat("_Shininess")) : "-")
+                    .Append(" | ").Append(main != null ? main.name : "-")
+                    .Append(" | ").Append(Raytracing.RtMaterialIntent.Of(material, !entry.Value.Exists(n => n.EndsWith(" (vessel)", StringComparison.Ordinal))).Mode)
+                    .Append(" | ").AppendLine(string.Join(", ", entry.Value.ToArray()));
+            }
+            // Transparent renderers within 150 m of the active vessel: what draws there after
+            // the opaque scene, by name, material and shader.
+            Vessel active = FlightGlobals.ActiveVessel;
+            if (active != null)
+            {
+                text.AppendLine().AppendLine("== Transparent renderers within 150 m of the vessel: renderer, parent, material, shader, queue, size, distance");
+                foreach (Renderer renderer in FindObjectsOfType<Renderer>())
+                {
+                    if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
+                    float distance = (renderer.bounds.center - (Vector3)active.CoMD).magnitude;
+                    if (distance > 150f || renderer.bounds.size.magnitude > 1000f) continue;
+                    renderer.GetSharedMaterials(materials);
+                    foreach (Material material in materials)
+                        if (material != null && material.renderQueue >= 2450)
+                            text.Append("   ").Append(renderer.GetType().Name).Append(" '").Append(renderer.name).Append("' under '")
+                                .Append(renderer.transform.parent != null ? renderer.transform.parent.name : "-").Append("' | ")
+                                .Append(material.name).Append(" | ").Append(material.shader != null ? material.shader.name : "-").Append(" | ")
+                                .Append(material.renderQueue).Append(" | ").Append(renderer.bounds.size.ToString("F1")).Append(" | ")
+                                .AppendLine(distance.ToString("0", CultureInfo.InvariantCulture));
+                }
+            }
+            // Every level of the launch pad and the runway, from each level's prefab
+            // (UpgradeableObject.upgradeLevels): its shiny materials and the shine the
+            // raytracing gives them, whichever level stands.
+            text.AppendLine().AppendLine("== Launch pad and runway levels: facility, level, material, shader, _SpecColor, _Shininess, raytracing mode");
+            var levelMaterials = new List<Material>();
+            foreach (Upgradeables.UpgradeableObject facility in FindObjectsOfType<Upgradeables.UpgradeableObject>())
+            {
+                if (facility == null || facility.id == null
+                    || (facility.id.IndexOf("LaunchPad", StringComparison.Ordinal) < 0 && facility.id.IndexOf("Runway", StringComparison.Ordinal) < 0)
+                    || facility.UpgradeLevels == null)
+                    continue;
+                for (int level = 0; level < facility.UpgradeLevels.Length; level++)
+                {
+                    GameObject prefab = facility.UpgradeLevels[level].facilityPrefab;
+                    if (prefab == null) continue;
+                    var seen = new HashSet<Material>();
+                    foreach (Renderer renderer in prefab.GetComponentsInChildren<Renderer>(true))
+                    {
+                        renderer.GetSharedMaterials(levelMaterials);
+                        foreach (Material material in levelMaterials)
+                        {
+                            if (material == null || material.shader == null || !seen.Add(material)) continue;
+                            if (material.shader.name.IndexOf("Specular", StringComparison.Ordinal) < 0) continue;
+                            Color spec = material.HasProperty("_SpecColor") ? material.GetColor("_SpecColor") : Color.clear;
+                            text.Append("   ").Append(facility.id).Append(" | ").Append(level).Append(" | ").Append(material.name)
+                                .Append(" | ").Append(material.shader.name).Append(" | ")
+                                .Append(material.HasProperty("_SpecColor") ? F(spec.r) + "," + F(spec.g) + "," + F(spec.b) : "-").Append(" | ")
+                                .Append(material.HasProperty("_Shininess") ? F(material.GetFloat("_Shininess")) : "-").Append(" | ")
+                                .AppendLine(Raytracing.RtMaterialIntent.Of(material, true).Mode.ToString());
+                        }
+                    }
+                }
+            }
             string folder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
             Directory.CreateDirectory(folder);
             string file = Path.Combine(folder, "shader-inventory-" + scene + ".txt");

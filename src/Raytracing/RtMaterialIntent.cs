@@ -12,7 +12,7 @@ namespace ReDefinition.Raytracing
     //
     // * Diffuse-only shaders (KSP/Diffuse, Bumped, the scenery's Diffuse and Bumped, the
     //   ground without specular, cut-outs, lightmapped and flag shaders, Unity's Lambert):
-    //   no shine.
+    //   no shine on the scenery; a vessel's parts keep Deferred's.
     // * KSP's legacy specular shaders: Blinn-Phong, _SpecColor times the gloss in the main
     //   texture's alpha times (N.H)^(128 _Shininess). Its roughness from the exponent n as
     //   Unity relates them (UnityStandardBRDF.cginc: n = 2 / m^2 - 2), its specular colour as
@@ -20,7 +20,8 @@ namespace ReDefinition.Raytracing
     //   gives back divided by _Shininess^0.215 sqrt(|c|) (LegacyToStandard.cginc). Unity's
     //   own legacy specular shaders write c gloss / pi as their specular colour instead.
     //   The space centre's buildings with Unity's untouched defaults (_Shininess 0.078,
-    //   _SpecColor 0.5) as matt (the player, 2026-10-05: buildings matt rather than shiny).
+    //   _SpecColor 0.5) as matt (the player, 2026-10-05: buildings matt rather than shiny),
+    //   and its concrete by its materials' names (Concrete).
     // * The space centre's ground (Diffuse Ground KSC Specular): Unity's specular setup with
     //   _SpecularColor as its specular colour, black on every stock material.
     // * Parallax's terrain: its own Blinn-Phong, _SpecularIntensity at _SpecularPower, the
@@ -77,6 +78,7 @@ namespace ReDefinition.Raytracing
                 if (Max(c) < 0.004f) return Dry();
                 if (scenery && Mathf.Abs(shininess - DefaultShininess) < 0.003f && Mathf.Abs(Max(c) - DefaultSpecular) < 0.01f)
                     return Dry();
+                if (scenery && Concrete(material.name)) return Dry();
                 float exponent = 128f * shininess;
                 if (unityLegacy)
                     return Legacy(c, exponent, Max(c) / Mathf.PI, RtNative.SurfaceUnityLegacy);
@@ -91,7 +93,10 @@ namespace ReDefinition.Raytracing
                     || shader.IndexOf("Cutoff", StringComparison.Ordinal) >= 0 || shader.IndexOf("Lightmapper", StringComparison.Ordinal) >= 0
                     || shader.IndexOf("Decal", StringComparison.Ordinal) >= 0 || shader.IndexOf("Flag", StringComparison.Ordinal) >= 0
                     || shader.IndexOf("Emissive", StringComparison.Ordinal) >= 0)
-                    return Dry();
+                    // A vessel's part with no highlight of KSP's (the Mk1-3 pod, KSP/Emissive/
+                    // Diffuse) keeps the shine Deferred gives it (the player, 2026-10-05: the
+                    // pod looks like a shiny material); the scenery's stays matt.
+                    return scenery ? Dry() : keep;
             }
             if (!material.HasProperty("_Glossiness") && !material.HasProperty("_Metallic") && Unknown.Add(shader))
                 Debug.Log("[ReDefinition] Raytracing: the shine of shader '" + shader + "' is taken from Deferred's G-buffer, at most "
@@ -117,6 +122,20 @@ namespace ReDefinition.Raytracing
                 GlossDivisor = Mathf.Max(divisor, 1e-4f),
                 GlossMean = MeanGloss,
             };
+        }
+
+        // The space centre's concrete, which KSP gives a highlight (the launch pad's
+        // kap_pad_launchPad_mat, _SpecColor 0.28, _Shininess 0.45; its ramps, floors and
+        // foundations; the shader inventory, 2026-10-05): matt (the player: the pad must not
+        // shine). Its metal -- tanks, the water tower, pipes, steel beams -- keeps its shine.
+        private static readonly string[] ConcreteNames = { "launchPad", "ramp", "floor", "Foundation", "runway", "concrete" };
+
+        private static bool Concrete(string name)
+        {
+            if (name.IndexOf("Steel", StringComparison.OrdinalIgnoreCase) >= 0) return false;
+            foreach (string concrete in ConcreteNames)
+                if (name.IndexOf(concrete, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            return false;
         }
 
         private static float Max(Color c)

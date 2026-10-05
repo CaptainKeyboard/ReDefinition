@@ -282,6 +282,10 @@ namespace ReDefinition.Raytracing
         {
             public Vector3d Place;
             public PQS.EdgeState Edge;
+            // Parallax adds its finer copy as a child once the camera comes near and takes
+            // it away again (TerrainShaderQuadData.CreateFakeQuad, OutOfRange): the filters
+            // are looked for again when the children change.
+            public int Children;
             public MeshFilter[] Filters;
             // Per filter, the mesh's shape when last handed over: Parallax refills its
             // finer copy in place as the camera moves (JobifiedSubdivision), with no
@@ -338,7 +342,9 @@ namespace ReDefinition.Raytracing
                 if ((quad.meshRenderer.bounds.ClosestPoint(eye) - eye).sqrMagnitude > range2) continue;
 
                 QuadState state;
-                if (!quads.TryGetValue(quad, out state) || state.Place != quad.positionPlanet || state.Edge != quad.edgeState)
+                int children = quad.transform.childCount;
+                if (!quads.TryGetValue(quad, out state) || state.Place != quad.positionPlanet || state.Edge != quad.edgeState
+                    || state.Children != children)
                 {
                     if (state != null)
                         foreach (MeshFilter filter in state.Filters)
@@ -348,6 +354,7 @@ namespace ReDefinition.Raytracing
                     {
                         Place = quad.positionPlanet,
                         Edge = quad.edgeState,
+                        Children = children,
                         Filters = filters,
                         Vertices = new int[filters.Length],
                         Extent = new Bounds[filters.Length],
