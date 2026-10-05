@@ -97,13 +97,6 @@ namespace ReDefinition.Probe
             Debug.Log(text.ToString());
         }
 
-        private static string Facility(Transform t)
-        {
-            // The facility's model under the city: the child of the root that holds it.
-            while (t.parent != null && t.parent.parent != null) t = t.parent;
-            return t.name;
-        }
-
         private static string Stats(List<float> values)
         {
             if (values.Count == 0) return "none";
