@@ -184,6 +184,8 @@ namespace
         double scale[3] = { 1, 1, 1 };
         float albedo[3] = { 0.5f, 0.5f, 0.5f };
         float smoothness = 0.2f;
+        // The G-buffer's specular colour, grey.
+        float specular = 0.04f;
         // RtInstance's flags (kRtInstance*).
         uint32_t flags = 0;
         // A full transform in place of position and scale, rows first, mesh to world.
@@ -362,7 +364,7 @@ PsOut PsMain(VsOut input)
     PsOut o;
     o.depth = input.position.z;
     o.gbuffer0 = float4(albedo.rgb, 1.0);
-    o.gbuffer1 = float4(0.04, 0.04, 0.04, surface.x);
+    o.gbuffer1 = float4(surface.yyy, surface.x);
     o.gbuffer2 = float4(normalize(input.normal) * 0.5 + 0.5, 1.0);
     return o;
 }
@@ -523,6 +525,7 @@ PsOut PsMain(VsOut input)
             memcpy(constants.albedo, instance.albedo, sizeof(instance.albedo));
             constants.albedo[3] = 1.0f;
             constants.surface[0] = instance.smoothness;
+            constants.surface[1] = instance.specular;
             D3D11_MAPPED_SUBRESOURCE mapped = {};
             if (SUCCEEDED(context->Map(g.constants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
             {
@@ -678,6 +681,8 @@ PsOut PsMain(VsOut input)
         ComPtr<ID3D11Texture2D> specular;     // u2
         ComPtr<ID3D11Texture2D> occlusion;    // u3
         ComPtr<ID3D11Texture2D> forward;      // u4
+        ComPtr<ID3D11Texture2D> surface;      // u5
+        ComPtr<ID3D11Texture2D> surfaceMode;  // u6
         ComPtr<ID3D11Texture2D> primary;      // u7, R32G32B32A32_FLOAT
     };
 
@@ -789,6 +794,11 @@ PsOut PsMain(VsOut input)
         packet.outputs[2] = outputs.specular.Get();
         packet.outputs[3] = outputs.occlusion.Get();
         packet.outputs[4] = outputs.forward.Get();
+        if ((lighting.flags & kRtFrameSurfaceIntent) != 0)
+        {
+            packet.outputs[RT_OUTPUT_SURFACE] = outputs.surface.Get();
+            packet.outputs[RT_OUTPUT_SURFACE_MODE] = outputs.surfaceMode.Get();
+        }
         packet.outputs[7] = outputs.primary.Get();
         proxy.event(kFrameEvent, &packet);
     }
@@ -944,10 +954,14 @@ PsOut PsMain(VsOut input)
     }
 
     int SendMaterial(Proxy& proxy, int id, const float albedo[3], const float emission[3], float smoothness,
-                     float vertexColour = 0.0f, float specular = 0.04f)
+                     float vertexColour = 0.0f, float specular = 0.04f, uint32_t flags = RT_SURFACE_KEEP,
+                     float glossDivisor = 0.0f, float glossMean = 0.0f)
     {
         RtMaterialDesc desc = {};
         desc.vertexColour = vertexColour;
+        desc.flags = flags;
+        desc.glossDivisor = glossDivisor;
+        desc.glossMean = glossMean;
         desc.size = sizeof(desc);
         desc.magic = kRtMaterialMagic;
         desc.material = id;
@@ -1139,6 +1153,10 @@ int main()
         hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.occlusion);
     if (SUCCEEDED(hr))
         hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.forward);
+    if (SUCCEEDED(hr))
+        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.surface);
+    if (SUCCEEDED(hr))
+        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.surfaceMode);
     if (SUCCEEDED(hr))
         hr = CreateTarget(device.Get(), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.primary);
     if (FAILED(hr))
@@ -3181,6 +3199,168 @@ int main()
         sprintf_s(detail, "texture %u %s, texture -1 %s", kRtMaxMaterialTextures, refused == 0 ? "refused" : "taken",
                   taken == 1 ? "taken" : "refused");
         Check(refused == 0 && taken == 1, "a material's texture past the array", detail);
+    }
+
+    // ---------------------------------------------------------------- surface intent
+    {
+        // The sun's pass finds each pixel's material by the camera's ray and writes its
+        // shine as the material means it (u5) and how it was found (u6, the mode / 8). The
+        // plane diffuse under Deferred's values for a diffuse shader, the box KSP's legacy
+        // highlight whose gloss Deferred's smoothness gives back, the tower the G-buffer's
+        // own, and a box drawn into the G-buffer only, which no ray finds, under a diffuse
+        // shader's 0.5 / pi grey.
+        const float none[3] = { 0.0f, 0.0f, 0.0f };
+        const float glow[3] = { 4.0f, 2.0f, 1.0f };
+        SendMaterial(proxy, 70, scene[0].albedo, none, 0.0f, 0.0f, 0.0f, RT_SURFACE_DRY);
+        SendMaterial(proxy, 71, scene[1].albedo, none, 0.55f, 0.0f, 0.3f, RT_SURFACE_LEGACY, 0.5f, 0.5f);
+        SendMaterial(proxy, 72, scene[2].albedo, glow, 0.2f, 0.0f, 0.04f, RT_SURFACE_KEEP);
+        std::vector<Instance> traced = scene;
+        traced[0].material = 70;
+        traced[0].specular = 0.159f;
+        traced[0].smoothness = 0.45f;
+        traced[1].material = 71;
+        traced[1].smoothness = 0.25f;
+        traced[2].material = 72;
+        traced[2].smoothness = 1.0f;
+        Instance ghost;
+        ghost.mesh = 1;
+        ghost.position = { 18, 2, -8 };
+        ghost.scale[0] = ghost.scale[1] = ghost.scale[2] = 4.0;
+        ghost.albedo[0] = 0.2f; ghost.albedo[1] = 0.8f; ghost.albedo[2] = 0.3f;
+        ghost.specular = 0.5f / 3.14159265f;
+        ghost.smoothness = 0.45f;
+        std::vector<Instance> drawn = traced;
+        drawn.push_back(ghost);
+        SendInstances(proxy, traced, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, drawn);
+        Lighting lighting;
+        lighting.flags = kRtFrameSurfaceIntent;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.bounces = 0.0f;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 15000, kRtSignalSunVisibility, lighting);
+        std::vector<uint16_t> surface, mode;
+        std::vector<uint32_t> albedo;
+        std::vector<float> depth;
+        ReadTexture(device.Get(), context.Get(), outputs.surface.Get(), 8, surface);
+        ReadTexture(device.Get(), context.Get(), outputs.surfaceMode.Get(), 8, mode);
+        ReadTexture(device.Get(), context.Get(), g.gbuffer0.Get(), 4, albedo);
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+
+        // Each pixel's object by the albedo the G-buffer has: 0 plane, 1 box, 2 tower,
+        // 3 the box no ray finds, -1 the sky; a pixel near another object's is left out.
+        std::vector<int> object(depth.size(), -1);
+        for (size_t i = 0; i < depth.size(); ++i)
+        {
+            if (depth[i] <= 0.0f)
+                continue;
+            double nearest = 1e9;
+            for (int k = 0; k < 4; ++k)
+            {
+                double d = 0.0;
+                for (int c = 0; c < 3; ++c)
+                {
+                    const double e = ((albedo[i] >> (8 * c)) & 0xFF) / 255.0 - drawn[k].albedo[c];
+                    d += e * e;
+                }
+                if (d < nearest)
+                {
+                    nearest = d;
+                    object[i] = k;
+                }
+            }
+        }
+        const auto inside = [&](size_t i)
+        {
+            const size_t x = i % kWidth, y = i / kWidth;
+            if (object[i] < 0 || x < 2 || y < 2 || x + 2 >= kWidth || y + 2 >= kHeight)
+                return false;
+            for (int dy = -2; dy <= 2; ++dy)
+                for (int dx = -2; dx <= 2; ++dx)
+                    if (object[i + dy * static_cast<int>(kWidth) + dx] != object[i])
+                        return false;
+            return true;
+        };
+        // Per object the specular colour and smoothness it should get, in the G-buffer's
+        // 8 bits, and its mode: the box's gloss 0.25 / 0.5, the tower's smoothness 1 kept
+        // at 0.95, the unfound box's grey as diffuse.
+        const float gloss = std::min((std::lround(0.25 * 255.0) / 255.0f) / 0.5f, 1.0f);
+        const float kept = std::lround(0.04 * 255.0) / 255.0f;
+        const float want[4][5] = { { 0.0f, 0.0f, 0.0f, 0.0f, float(RT_SURFACE_DRY) },
+                                   { 0.3f * gloss, 0.3f * gloss, 0.3f * gloss, 0.55f, float(RT_SURFACE_LEGACY) },
+                                   { kept, kept, kept, 0.95f, float(RT_SURFACE_KEEP) },
+                                   { 0.0f, 0.0f, 0.0f, 0.0f, float(RT_SURFACE_MISSED) } };
+        size_t count[4] = {}, right[4] = {};
+        double sum[4][5] = {};
+        for (size_t i = 0; i < depth.size(); ++i)
+        {
+            if (!inside(i))
+                continue;
+            const int k = object[i];
+            ++count[k];
+            const float found = HalfToFloat(mode[i * 4]) * 8.0f;
+            bool ok = std::fabs(found - want[k][4]) < 0.01f;
+            for (int c = 0; c < 4; ++c)
+            {
+                const float got = HalfToFloat(surface[i * 4 + c]);
+                sum[k][c] += got;
+                ok = ok && std::fabs(got - want[k][c]) < 0.002f;
+            }
+            sum[k][4] += found;
+            right[k] += ok ? 1 : 0;
+        }
+        const char* names[4] = { "surface intent: diffuse under Deferred's shine", "surface intent: legacy gloss",
+                                 "surface intent: kept, never a mirror", "surface intent: no material found" };
+        for (int k = 0; k < 4; ++k)
+        {
+            const double n = count[k] > 0 ? double(count[k]) : 1.0;
+            char detail[300];
+            sprintf_s(detail, "%zu of %zu pixels right; mean specular %.4f, smoothness %.4f, mode %.2f (want %.4f, %.4f, %d)",
+                      right[k], count[k], sum[k][0] / n, sum[k][3] / n, sum[k][4] / n, want[k][0], want[k][3],
+                      int(want[k][4]));
+            Check(count[k] > 2000 && right[k] * 1000 >= count[k] * 995, names[k], detail);
+        }
+        std::vector<float> rgb(depth.size() * 3);
+        for (size_t i = 0; i < depth.size(); ++i)
+        {
+            rgb[i * 3 + 0] = HalfToFloat(surface[i * 4]) * 4.0f;
+            rgb[i * 3 + 1] = HalfToFloat(surface[i * 4 + 3]);
+            rgb[i * 3 + 2] = HalfToFloat(mode[i * 4]);
+        }
+        WriteBmp(NextToExecutable(L"rt_surface_intent.bmp"), kWidth, kHeight, rgb);
+
+        // The forward light's reflections take the surface from u5: none on the diffuse
+        // plane under a white sky and the tower's glow, some on the box and the tower; on
+        // the plane some without the intent, from the G-buffer's values.
+        lighting.sky[0] = lighting.sky[1] = lighting.sky[2] = 1.0f;
+        const uint32_t reflections = kRtSignalSunVisibility | kRtSignalSpecular | kRtSignalForwardLight;
+        double reflected[2][3] = {};
+        for (int intent = 1; intent >= 0; --intent)
+        {
+            Lighting run = lighting;
+            run.flags = intent != 0 ? kRtFrameSurfaceIntent : 0u;
+            std::vector<double> mean;
+            if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.forward.Get(), reflections, run,
+                            sun, 8, 15100 + intent * 10, mean))
+                return Fatal("reading the forward light back", E_FAIL);
+            size_t counted[3] = {};
+            for (size_t i = 0; i < depth.size(); ++i)
+            {
+                if (!inside(i) || object[i] > 2)
+                    continue;
+                ++counted[object[i]];
+                reflected[intent][object[i]] += (mean[i * 3] + mean[i * 3 + 1] + mean[i * 3 + 2]) / 3.0;
+            }
+            for (int k = 0; k < 3; ++k)
+                reflected[intent][k] /= counted[k] > 0 ? double(counted[k]) : 1.0;
+            if (intent != 0)
+                SaveColour(L"rt_surface_intent_reflections.bmp", mean, 2.0);
+        }
+        char detail[300];
+        sprintf_s(detail, "mean reflection: plane %.5f (%.4f from the G-buffer), legacy box %.4f, kept tower %.4f",
+                  reflected[1][0], reflected[0][0], reflected[1][1], reflected[1][2]);
+        Check(reflected[1][0] < 1e-4 && reflected[0][0] > 0.02 && reflected[1][1] > 0.02 && reflected[1][2] > 0.01,
+              "surface intent: reflections read it", detail);
+        SendInstances(proxy, scene, camera.position);
     }
 
     // ---------------------------------------------------------------- timings
