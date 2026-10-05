@@ -101,7 +101,7 @@ namespace ReDefinition.Menu
                 test = Array.IndexOf(Environment.GetCommandLineArgs(), BurstArgument) >= 0;
                 if (!FindScene()) yield break;
                 BuildPool();
-                nextBurst = Time.time + (test ? TestInterval : UnityEngine.Random.Range(2f, 5f));
+                nextBurst = Time.time + (test ? TestInterval : UnityEngine.Random.Range(0.5f, 1.5f));
                 Debug.Log(Log.Tag + " Main menu fireworks: " + Describe());
             }
             catch (Exception e)
@@ -141,8 +141,8 @@ namespace ReDefinition.Menu
                     nextBurst = Time.time + TestInterval;
                     return;
                 }
-                // A few a minute, now and then several together.
-                nextBurst = Time.time + UnityEngine.Random.Range(3f, 12f);
+                // About two a second, as the player liked them, now and then several together.
+                nextBurst = Time.time + UnityEngine.Random.Range(0.3f, 0.8f);
                 if (UnityEngine.Random.value < 0.25f)
                 {
                     int more = UnityEngine.Random.Range(1, 4);
@@ -472,7 +472,7 @@ namespace ReDefinition.Menu
                    + view.name + "', sun '" + sun.name + "'; " + where + "; shader " + material.shader.name
                    + "; " + PoolSize + " bursts at most at once, "
                    + (test ? "one every " + TestInterval.ToString("0.0", c) + " s (" + BurstArgument + ")"
-                           : "one every 3-12 s, a quarter of them with 1-3 more")
+                           : "one every 0.3-0.8 s, a quarter of them with 1-3 more")
                    + (Enabled() ? "." : "; switched off in the settings.");
         }
     }
