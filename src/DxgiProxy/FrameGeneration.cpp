@@ -81,8 +81,12 @@ namespace redefinition
 
     FrameGeneration& FrameGeneration::Get()
     {
-        static FrameGeneration instance;
-        return instance;
+        // Never destroyed: it holds Unity's textures across a swapchain made anew, and
+        // releasing Direct3D objects while the DLL unloads at the process's end cut the
+        // process short (the harness lost the output it had printed). The process's
+        // end takes them back.
+        static FrameGeneration* instance = new FrameGeneration();
+        return *instance;
     }
 
     void FrameGeneration::Attach(const void* newOwner, ID3D11Device* newDevice11, ID3D11DeviceContext* newContext11,

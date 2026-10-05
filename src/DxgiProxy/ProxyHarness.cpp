@@ -748,6 +748,8 @@ namespace
 
 int main()
 {
+    // Unbuffered: a process ended from elsewhere keeps every line it printed.
+    setvbuf(stdout, nullptr, _IONBF, 0);
     printf("ReDefinition proxy harness\n");
 
     {
