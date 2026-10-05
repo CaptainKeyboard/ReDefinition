@@ -518,8 +518,7 @@ namespace ReDefinition.Raytracing
                 FindSites();
             }
             Vector3 eye = scene.Eye;
-            float range2 = range * range;
-            Renderers = 0;
+                        Renderers = 0;
             foreach (Site site in sites)
             {
                 if (site.Root == null) continue;

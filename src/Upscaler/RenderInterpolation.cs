@@ -32,8 +32,11 @@ namespace ReDefinition.Upscaler
     // -- does not follow it and stays where it is. Other vessels are left as KSP draws
     // them.
     //
-    // Left alone: a frame with a floating origin shift, a jump of more than 50 m, a packed
-    // vessel, Krakensbane moving the world instead of the vessel, IVA and map view. Only
+    // The vessel's way is taken against its main body, so that it holds where Krakensbane
+    // moves the world instead of the vessel (in flight above a few metres a second, where
+    // it was left alone before: in the log never at work in flight, 2026-10-05) and over a
+    // floating origin shift. Left alone: a jump of more than four steps' worth of its
+    // speed or 50 m, a packed vessel, IVA and map view. Only
     // while the rig hands frames to an upscaler or to frame generation (UpscalerRig.Feeding).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class RenderInterpolation : MonoBehaviour
@@ -54,7 +57,9 @@ namespace ReDefinition.Upscaler
         private readonly HashSet<Transform> partTransforms = new HashSet<Transform>();
         private readonly StepInterpolator interpolator = new StepInterpolator();
         private Vessel tracked;
-        private bool shifted;
+        private Vector3d reference;
+        // The reference follows the vessel once it is this far from it.
+        private const float RebaseMetres = 1000f;
         private int appliedFrame = -1;
         private Vector3 offset;
         private bool offsetValid;
@@ -68,21 +73,14 @@ namespace ReDefinition.Upscaler
 
         private void Start()
         {
-            GameEvents.onFloatingOriginShift.Add(OnShift);
             Camera.onPreCull += OnAnyPreCull;
             StartCoroutine(RestoreAtEndOfFrame());
         }
 
         private void OnDestroy()
         {
-            GameEvents.onFloatingOriginShift.Remove(OnShift);
             Camera.onPreCull -= OnAnyPreCull;
             Restore();
-        }
-
-        private void OnShift(Vector3d offsetShift, Vector3d nonFrame)
-        {
-            shifted = true;
         }
 
         // After physics, before LateUpdate: where the last step left the vessel, and
@@ -92,20 +90,38 @@ namespace ReDefinition.Upscaler
             offsetValid = false;
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (!Enabled || !UpscalerRig.Feeding || vessel == null || vessel.packed || vessel.rootPart == null
-                || CameraManager.Instance == null || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight
-                || Krakensbane.GetFrameVelocity().sqrMagnitude > 0.0)
+                || vessel.mainBody == null || CameraManager.Instance == null
+                || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight)
             {
                 interpolator.Reset();
                 return;
             }
 
-            Vector3 position = vessel.rootPart.transform.position;
-            if (vessel != tracked || !interpolator.Known || shifted
-                || (position - interpolator.Current).magnitude > JumpMetres)
+            // Relative to the body: Krakensbane, above a few metres a second, keeps the
+            // vessel near the origin and moves the world instead, the body with it, and a
+            // floating origin shift moves both; the vessel's way against the world is the
+            // same either way. In doubles, against a reference that follows the vessel, so
+            // that what the interpolator holds stays small.
+            Vector3d relative = (Vector3d)vessel.rootPart.transform.position - vessel.mainBody.position;
+            float jump = Mathf.Max(JumpMetres, (float)vessel.obt_speed * Time.fixedDeltaTime * 4f);
+            if (vessel != tracked || !interpolator.Known)
             {
                 tracked = vessel;
-                shifted = false;
+                reference = relative;
                 interpolator.Reset();
+            }
+            Vector3 position = (Vector3)(relative - reference);
+            if ((position - interpolator.Current).magnitude > jump)
+            {
+                reference = relative;
+                position = Vector3.zero;
+                interpolator.Reset();
+            }
+            else if (position.sqrMagnitude > RebaseMetres * RebaseMetres)
+            {
+                interpolator.Rebase(position);
+                reference += (Vector3d)position;
+                position = Vector3.zero;
             }
             offset = interpolator.Advance(position, Time.time, Time.fixedTime, Time.fixedDeltaTime);
             framesSeen++;

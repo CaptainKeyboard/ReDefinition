@@ -47,6 +47,14 @@ namespace ReDefinition.Upscaler
             return (previousStep - current) * (1f - alpha);
         }
 
+        // The positions it keeps moved by `delta`, as when the frame of reference it is
+        // given positions in moves by it: the offsets go on as they were.
+        internal void Rebase(Vector3 delta)
+        {
+            current -= delta;
+            previousStep -= delta;
+        }
+
         // Where the last step left it, for a jump test.
         internal Vector3 Current
         {

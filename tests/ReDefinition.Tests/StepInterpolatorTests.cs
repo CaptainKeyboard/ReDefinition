@@ -52,6 +52,21 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void ARebaseKeepsTheOffsets()
+        {
+            StepInterpolator plain = new StepInterpolator(), rebased = new StepInterpolator();
+            Vector3 shift = new Vector3(1000f, 0f, 0f);
+            plain.Advance(Vector3.zero, 0.02f, 0.02f, FixedDelta);
+            rebased.Advance(Vector3.zero, 0.02f, 0.02f, FixedDelta);
+            plain.Advance(new Vector3(2f, 0f, 0f), 0.05f, 0.04f, FixedDelta);
+            rebased.Advance(new Vector3(2f, 0f, 0f), 0.05f, 0.04f, FixedDelta);
+            rebased.Rebase(shift);
+            Vector3 a = plain.Advance(new Vector3(4f, 0f, 0f), 0.07f, 0.06f, FixedDelta);
+            Vector3 b = rebased.Advance(new Vector3(4f, 0f, 0f) - shift, 0.07f, 0.06f, FixedDelta);
+            Assert.AreEqual(a.x, b.x, 1e-3f);
+        }
+
+        [TestMethod]
         public void TwoStepsInOneFrameAreSpreadOverTheFrame()
         {
             StepInterpolator interpolator = new StepInterpolator();
