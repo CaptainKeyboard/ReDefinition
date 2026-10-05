@@ -101,6 +101,63 @@ namespace ReDefinition.Menu
             return north.sqrMagnitude > 0.5f;
         }
 
+        // The menu camera's vertical field of view at the end of the way in: the space
+        // centre's camera starts with it, so that the planet stands as large on the screen.
+        internal static float MenuFieldOfView;
+
+        // How much of the screen's height the planet's disc fills, seen from `distance`
+        // off its centre: its angular radius against half the field of view.
+        internal static float ScreenShare(float radius, float distance, float fieldOfView)
+        {
+            float angle = Mathf.Asin(Mathf.Clamp01(radius / Mathf.Max(distance, radius)));
+            return Mathf.Tan(angle) / Mathf.Tan(fieldOfView * 0.5f * Mathf.Deg2Rad);
+        }
+
+        // In the test, the way down frame by frame: a picture each tenth of a second and
+        // the planet's share of the screen, to see the whole movement.
+        private static float nextFrameShot;
+        private static readonly bool NoShots = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionKscArrivalNoShots") >= 0;
+
+        // Each part's frame times, into the log at its end: how smooth the way was.
+        private static int frames;
+        private static float frameSum, frameMost;
+
+        internal static void FrameTime()
+        {
+            float ms = Time.unscaledDeltaTime * 1000f;
+            frames++;
+            frameSum += ms;
+            frameMost = Mathf.Max(frameMost, ms);
+            if (ms > 100f)
+                Debug.Log(Log.Tag + " Menu to the space centre: a frame of " + ms.ToString("0", CultureInfo.InvariantCulture) + " ms.");
+        }
+
+        internal static void FrameTimes(string part)
+        {
+            if (frames > 0)
+                Debug.Log(Log.Tag + " Menu to the space centre: " + part + ": " + frames + " frames, "
+                          + (frameSum / frames).ToString("0.0", CultureInfo.InvariantCulture) + " ms on average, the longest "
+                          + frameMost.ToString("0.0", CultureInfo.InvariantCulture) + " ms.");
+            frames = 0;
+            frameSum = frameMost = 0f;
+        }
+
+        internal static void TestFrame(string part, float elapsed, float share)
+        {
+            if (!Test || NoShots) return;
+            if (elapsed < nextFrameShot) return;
+            nextFrameShot = elapsed + 0.1f;
+            string name = part + "-" + elapsed.ToString("00.00", CultureInfo.InvariantCulture);
+            TestShot(name);
+            Debug.Log(Log.Tag + " Menu to the space centre: frame " + name + ", the planet " + share.ToString("0.000", CultureInfo.InvariantCulture)
+                      + " of the screen's height.");
+        }
+
+        internal static void TestFramesFrom(float elapsed)
+        {
+            nextFrameShot = elapsed;
+        }
+
         internal static CelestialBody Home()
         {
             if (FlightGlobals.Bodies != null)
@@ -178,6 +235,11 @@ namespace ReDefinition.Menu
                     return false;
                 }
                 running = true;
+                // The menu's own camera chase stands still from here: it would pull the camera
+                // back to its stage as soon as the way in stops placing it (measured
+                // 2026-10-05: the planet shrank again after the way in, the player's "zooms
+                // out again").
+                env.enabled = false;
                 StartCoroutine(WayIn(env.landscapeCamera, kerbin, radius, up, north));
                 return true;
             }
@@ -213,6 +275,7 @@ namespace ReDefinition.Menu
                       + (endDistance / radius).ToString("0.00", CultureInfo.InvariantCulture) + " radii.");
 
             float started = Time.unscaledTime;
+            KscArrival.TestFramesFrom(0f);
             while (true)
             {
                 float t = (Time.unscaledTime - started) / Seconds;
@@ -225,11 +288,15 @@ namespace ReDefinition.Menu
                 Quaternion end = Quaternion.LookRotation(-up, north);
                 view.rotation = Quaternion.Slerp(startRotation, end, e);
                 if (t >= 1f) break;
-                if (t > 0.5f && t - Time.unscaledDeltaTime / Seconds <= 0.5f) KscArrival.TestShot("1-menu-half");
+                KscArrival.TestFrame("1-menu", Time.unscaledTime - started, KscArrival.ScreenShare(radius, distance, camera.fieldOfView));
                 yield return null;
+                KscArrival.FrameTime();
             }
+            KscArrival.FrameTimes("the way in");
 
+            KscArrival.MenuFieldOfView = camera.fieldOfView;
             yield return new WaitForEndOfFrame();
+            KscArrival.TestShot("1-menu-end");
             Texture2D picture = ScreenCapture.CaptureScreenshotAsTexture();
             KscArrival.Overlay = KscArrivalOverlay.Show(picture);
             foreach (Canvas canvas in hidden)
@@ -289,6 +356,17 @@ namespace ReDefinition.Menu
     {
         private const float Seconds = 5f;
         private const float FadeSeconds = 0.8f;
+        // The picture held whole this long first, the camera still: the space centre's
+        // first frames are not yet its picture (measured 2026-10-05 under the picture:
+        // rings at 0.05 s, black at 0.4 s, the planet from 0.7 s).
+        private const float HoldSeconds = 1f;
+        private bool interfaceHidden;
+
+        private void OnDestroy()
+        {
+            // Left early, the interface comes back all the same.
+            if (interfaceHidden) GameEvents.onShowUI.Fire();
+        }
 
         private IEnumerator Start()
         {
@@ -328,7 +406,32 @@ namespace ReDefinition.Menu
             Debug.Log(Log.Tag + " Menu to the space centre: the descent from " + (startHeight / 1000f).ToString("0", CultureInfo.InvariantCulture)
                       + " km to KSP's view " + endDistance.ToString("0", CultureInfo.InvariantCulture) + " m from the pad.");
 
+            // The menu's field of view first, KSP's at the end.
+            float endFieldOfView = FlightCamera.fetch.mainCamera != null ? FlightCamera.fetch.mainCamera.fieldOfView : 60f;
+            float startFieldOfView = KscArrival.MenuFieldOfView > 1f ? KscArrival.MenuFieldOfView : endFieldOfView;
+            FlightCamera.fetch.SetFoV(startFieldOfView);
+            float planetRadius = (float)body.Radius;
+            // KSP's interface away on the way down, as with F2, and back at the end.
+            GameEvents.onHideUI.Fire();
+            interfaceHidden = true;
+            float held = Time.unscaledTime;
+            KscArrival.TestFramesFrom(0f);
+            view.position = place + up * startHeight;
+            view.rotation = startRotation;
+            while (Time.unscaledTime - held < HoldSeconds)
+            {
+                view.position = place + up * startHeight;
+                view.rotation = startRotation;
+                float waited = Time.unscaledTime - held;
+                FlightCamera.fetch.SetFoV(startFieldOfView);
+                KscArrival.TestFrame("2-hold", waited, KscArrival.ScreenShare(planetRadius, planetRadius + startHeight, startFieldOfView));
+                if (waited > 0f) KscArrival.FrameTime();
+                yield return null;
+            }
+
+            KscArrival.FrameTimes("the held picture");
             float started = Time.unscaledTime;
+            KscArrival.TestFramesFrom(0f);
             bool skipped = false;
             while (true)
             {
@@ -342,10 +445,11 @@ namespace ReDefinition.Menu
                 Vector3 direction = Vector3.Slerp(up, endOffset / Mathf.Max(endDistance, 1f), e);
                 view.position = place + direction * distance;
                 view.rotation = Quaternion.Slerp(startRotation, endRotation, e);
+                float fieldOfView = Mathf.Lerp(startFieldOfView, endFieldOfView, e);
+                FlightCamera.fetch.SetFoV(fieldOfView);
+                KscArrival.TestFrame("3-down", elapsed, KscArrival.ScreenShare(planetRadius, (float)((Vector3d)view.position - body.position).magnitude, fieldOfView));
+                if (elapsed > 0f) KscArrival.FrameTime();
                 if (t >= 1f) break;
-                foreach (float at in new[] { 0.1f, 0.6f, 1.5f, 2.5f, 3.5f, 4.5f })
-                    if (elapsed >= at && elapsed - Time.unscaledDeltaTime < at)
-                        KscArrival.TestShot("2-descent-" + at.ToString("0.0", CultureInfo.InvariantCulture));
                 if (elapsed > 0.3f && (Input.anyKeyDown || Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)))
                 {
                     skipped = true;
@@ -353,10 +457,14 @@ namespace ReDefinition.Menu
                 }
                 yield return null;
             }
+            KscArrival.FrameTimes("the way down");
             view.localPosition = endLocalPosition;
             view.localRotation = endLocalRotation;
+            FlightCamera.fetch.SetFoV(endFieldOfView);
             control.enabled = true;
             overlay.Close();
+            GameEvents.onShowUI.Fire();
+            interfaceHidden = false;
             Debug.Log(Log.Tag + " Menu to the space centre: " + (skipped ? "skipped" : "down") + ".");
             if (KscArrival.Test)
             {
