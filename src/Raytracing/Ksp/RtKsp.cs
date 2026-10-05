@@ -33,6 +33,7 @@ namespace ReDefinition.Raytracing
         private RtParallaxScatter scatter;
         private ReflectionProbe probe;
         private readonly SeaFrameAnchor seaFrame = new SeaFrameAnchor();
+        private readonly EditorHallShine hall = new EditorHallShine();
         private GameScenes lookedUpIn = GameScenes.LOADING;
         private float lookedUpAt = float.NegativeInfinity;
         private string loggedProblem;
@@ -87,6 +88,7 @@ namespace ReDefinition.Raytracing
                                                   && !RtKspMods.OceanNeedsDeferredReflections(), sceneCamera);
                 Report();
                 SelfCheck(sceneCamera);
+                if (HighLogic.LoadedSceneIsEditor && scenery != null) hall.Apply(scenery.Filters);
             }
             else if (sceneCamera != failedOn && Time.realtimeSinceStartup >= retryAt) Attach(sceneCamera);
         }
@@ -236,6 +238,7 @@ namespace ReDefinition.Raytracing
         // the sources still hold their baked meshes then.
         internal void Detach(string why)
         {
+            hall.Restore();
             RtKspMods.HoldPlanetShine(false);
             RtKspMods.HoldDeferredReflections(false, null);
             if (ReferenceEquals(attached, null)) return;

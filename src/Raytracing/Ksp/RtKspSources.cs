@@ -432,6 +432,9 @@ namespace ReDefinition.Raytracing
 
         internal int Renderers { get; private set; }
 
+        // The scenery's mesh filters as last found.
+        internal IEnumerable<MeshFilter> Filters { get { return filters; } }
+
         public void Collect(List<RtItem> into)
         {
             // The scenery found anew when the scene changes, and every ten seconds, as
