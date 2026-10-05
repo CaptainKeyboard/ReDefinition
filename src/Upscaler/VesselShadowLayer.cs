@@ -101,6 +101,8 @@ namespace ReDefinition.Upscaler
         private static readonly int MipsId = Shader.PropertyToID("_VesselShadowMips");
         private static readonly int ColourId = Shader.PropertyToID("_VesselShadowColour");
 
+        private readonly List<bool> casting = new List<bool>();
+
         private struct Caster
         {
             internal Renderer Renderer;
@@ -266,11 +268,11 @@ namespace ReDefinition.Upscaler
             capture.SetGlobalMatrix(LightRasterId, lightRaster);
             capture.SetGlobalVector(LightId, lightVector);
             Vector3 anchor = vessel.transform.position;
-            foreach (Caster c in casters)
+            for (int i = 0; i < casters.Count; i++)
             {
-                if (c.Renderer == null || !c.Renderer.enabled || !c.Renderer.gameObject.activeInHierarchy
-                    || c.Renderer.shadowCastingMode == ShadowCastingMode.Off || !CasterBounds.Plausible(c.Renderer.bounds, anchor))
-                    continue;
+                // The ones CastersBounds took this frame.
+                if (!casting[i]) continue;
+                Caster c = casters[i];
                 Matrix4x4 before;
                 if (previousModel.TryGetValue(c.Renderer, out before))
                     before = Matrix4x4.Translate(-originShift) * before;
@@ -355,13 +357,18 @@ namespace ReDefinition.Upscaler
         {
             bounds = default(Bounds);
             bool any = false;
+            // Which casters cast this frame, for the drawing after it: asked of the engine
+            // once a frame rather than twice.
+            casting.Clear();
             foreach (Caster c in casters)
             {
+                casting.Add(false);
                 if (c.Renderer == null || !c.Renderer.enabled || !c.Renderer.gameObject.activeInHierarchy
                     || c.Renderer.shadowCastingMode == ShadowCastingMode.Off)
                     continue;
                 Bounds b = c.Renderer.bounds;
                 if (!CasterBounds.Plausible(b, anchor)) continue;
+                casting[casting.Count - 1] = true;
                 if (!any) bounds = b;
                 else bounds.Encapsulate(b);
                 any = true;
