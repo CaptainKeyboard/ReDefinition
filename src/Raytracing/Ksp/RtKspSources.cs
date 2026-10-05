@@ -287,6 +287,8 @@ namespace ReDefinition.Raytracing
             // are looked for again when the children change.
             public int Children;
             public MeshFilter[] Filters;
+            // Each filter's renderer, found with it.
+            public MeshRenderer[] Renderers;
             // Per filter, the mesh's shape when last handed over: Parallax refills its
             // finer copy in place as the camera moves (JobifiedSubdivision), with no
             // event to tell.
@@ -356,10 +358,13 @@ namespace ReDefinition.Raytracing
                         Edge = quad.edgeState,
                         Children = children,
                         Filters = filters,
+                        Renderers = new MeshRenderer[filters.Length],
                         Vertices = new int[filters.Length],
                         Extent = new Bounds[filters.Length],
                         Checked = new int[filters.Length],
                     };
+                    for (int i = 0; i < filters.Length; i++)
+                        if (filters[i] != null) state.Renderers[i] = filters[i].GetComponent<MeshRenderer>();
                     for (int i = 0; i < filters.Length; i++)
                         if (filters[i] != null && filters[i].sharedMesh != null)
                         {
@@ -386,7 +391,7 @@ namespace ReDefinition.Raytracing
                             scene.Invalidate(mesh);
                         }
                     }
-                    RtFilter.Add(filter.GetComponent<MeshRenderer>(), mesh, into, RtNative.InstanceTerrain);
+                    RtFilter.Add(state.Renderers[i], mesh, into, RtNative.InstanceTerrain);
                 }
                 Quads++;
             }
