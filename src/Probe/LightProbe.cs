@@ -32,6 +32,8 @@ namespace ReDefinition.Probe
         // With it, frame times by day on the pad with each of ReDefinition's costly parts
         // off in turn (PerfShots).
         internal const string PerfArgument = "-redefinitionProbePerf";
+        // With it, Firefly's effects forced on and off again on the pad (FireflyShots).
+        internal const string FireflyArgument = "-redefinitionProbeFirefly";
 
         private const float SettleSeconds = 4f;
 
@@ -106,6 +108,11 @@ namespace ReDefinition.Probe
             float heading = FlightCamera.fetch.camHdg;
             try
             {
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), FireflyArgument) >= 0)
+                {
+                    yield return FireflyShots(folder);
+                    yield break;
+                }
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), PerfArgument) >= 0)
                 {
                     yield return PerfShots(addon, original, heading);
@@ -427,6 +434,39 @@ namespace ReDefinition.Probe
                 QualitySettings.vSyncCount = sync;
                 Application.targetFrameRate = target;
             }
+        }
+
+        // Firefly's re-entry effects forced through its own override (AtmoFxModule.
+        // OverridePhysics, OverrideEffectStrength 2500, state 1, the air from below) and
+        // taken off again: whether Scenery.FireflyIdle lets them be drawn and idles them
+        // again, a shot of each.
+        private static IEnumerator FireflyShots(string folder)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            Type module = Core.TypeLookup.Find("Firefly.AtmoFxModule");
+            VesselModule fx = null;
+            if (vessel != null && module != null)
+                foreach (VesselModule m in vessel.vesselModules)
+                    if (m != null && m.GetType() == module) fx = m;
+            if (fx == null)
+            {
+                Debug.LogWarning(Log.Tag + " Probe: light: no Firefly module on the vessel.");
+                yield break;
+            }
+            const BindingFlags Public = BindingFlags.Public | BindingFlags.Instance;
+            Action<string, object> set = (name, value) => module.GetProperty(name, Public).SetValue(fx, value, null);
+            Vector3 up = ((Vector3)(vessel.CoMD - vessel.mainBody.position)).normalized;
+            yield return Shot(folder, "firefly-idle");
+            set("OverrideEntryDirection", -up);
+            set("OverrideEffectState", 1f);
+            set("OverrideEffectStrength", 2500f);
+            set("OverridePhysics", true);
+            yield return new WaitForSeconds(3f);
+            yield return Shot(folder, "firefly-on");
+            set("OverrideEffectStrength", 0f);
+            yield return new WaitForSeconds(5f);
+            yield return Shot(folder, "firefly-off");
+            set("OverridePhysics", false);
         }
 
         // The VAB's place, west of the pad: its faces and the roads before it, seen flat.
