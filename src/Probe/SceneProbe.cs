@@ -241,7 +241,25 @@ namespace ReDefinition.Probe
         {
             if (!SceneProbe.Requested || SceneProbe.ScenesLeft < 0 || HighLogic.SaveFolder != SceneProbe.SaveFolder)
                 yield break;
-            yield return new WaitForSeconds(15f);
+            yield return new WaitForSeconds(35f);
+            // The VAB's inside as the surfaces' materials mean their shine, as Deferred gives
+            // it, and the surfaces' overlay (RtCamera, SurfaceIntent).
+            string folder = Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"),
+                                         DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-vab");
+            Directory.CreateDirectory(folder);
+            foreach (string shot in new[] { "on", "deferred", "overlay" })
+            {
+                Raytracing.RtCamera.SurfacesAsDeferred = shot == "deferred";
+                Raytracing.RtCamera.SurfaceView = shot == "overlay";
+                for (int i = 0; i < 30; i++) yield return null;
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
+                yield return null;
+                yield return null;
+            }
+            Raytracing.RtCamera.SurfacesAsDeferred = false;
+            Raytracing.RtCamera.SurfaceView = false;
+            Debug.Log(Log.Tag + " Probe: the VAB's surfaces into " + folder + ".");
+            yield return new WaitForSeconds(2f);
             Debug.Log(Log.Tag + " Probe: from the VAB back to the space centre.");
             HighLogic.LoadScene(GameScenes.SPACECENTER);
         }

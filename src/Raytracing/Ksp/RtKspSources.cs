@@ -465,7 +465,15 @@ namespace ReDefinition.Raytracing
                 if (filter == null) continue;
                 MeshRenderer renderer = filter.GetComponent<MeshRenderer>();
                 if (renderer == null || (renderer.bounds.ClosestPoint(eye) - eye).sqrMagnitude > range2) continue;
-                RtFilter.Add(renderer, filter.sharedMesh, into, RtNative.InstanceScenery);
+                // The VAB's and SPH's halls stand on the scenery's layer (15), which the
+                // editor's camera does not draw itself (its mask 0, 1 and 16, measured
+                // 2026-10-05): taken as long as they are shown.
+                if (HighLogic.LoadedSceneIsEditor)
+                {
+                    if (renderer.enabled && renderer.gameObject.activeInHierarchy && filter.sharedMesh != null)
+                        RtFilter.Add(renderer, filter.sharedMesh, renderer.localToWorldMatrix, into, RtNative.InstanceScenery);
+                }
+                else RtFilter.Add(renderer, filter.sharedMesh, into, RtNative.InstanceScenery);
                 Renderers++;
             }
         }
