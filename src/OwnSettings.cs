@@ -95,6 +95,8 @@ namespace ReDefinition
         public bool WorldButtons = true;
         // Fireworks on Kerbin's night side in the main menu (Menu/MenuFireworks).
         public bool MenuFireworks = true;
+        // From the main menu to the space centre as one camera flight (Menu/KscArrival).
+        public bool MenuKscZoom = true;
         // The round gauge in place of the vertical speed's (Flight/RoundGauge).
         public bool RoundGauge = true;
         // The vertical and horizontal speed at the navball (Flight/NavballSpeeds).
@@ -250,6 +252,7 @@ namespace ReDefinition
             Bool("worldButtons", x => x.WorldButtons, (x, v) => x.WorldButtons = v, true),
             Bool("flightPanelAuto", x => x.FlightPanelAuto, (x, v) => x.FlightPanelAuto = v, true),
             Bool("menuFireworks", x => x.MenuFireworks, (x, v) => x.MenuFireworks = v, true),
+            Bool("menuKscZoom", x => x.MenuKscZoom, (x, v) => x.MenuKscZoom = v, true),
             Bool("roundGauge", x => x.RoundGauge, (x, v) => x.RoundGauge = v, true),
             Bool("navballSpeeds", x => x.NavballSpeeds, (x, v) => x.NavballSpeeds = v, true),
             Bool("navballDockingMarker", x => x.NavballDockingMarker, (x, v) => x.NavballDockingMarker = v, true),

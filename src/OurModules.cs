@@ -626,6 +626,20 @@ namespace ReDefinition
                 Tooltip = "Small fireworks on Kerbin's night side behind the main menu.",
                 Read = settings => SettingValues.Text(settings.MenuFireworks),
                 Write = (settings, value) => settings.MenuFireworks = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "menuKscZoom",
+                Title = "Zoom to the space centre",
+                Order = 221,
+                Row = SettingCategory.Interface,
+                Section = "Main menu",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "From the main menu to the space centre as one camera flight: in to Kerbin, then down to\n"
+                          + "the space centre. A click or a key ends it.",
+                Read = settings => SettingValues.Text(settings.MenuKscZoom),
+                Write = (settings, value) => settings.MenuKscZoom = bool.Parse(value),
             });
 
         public static readonly IList<IGraphicsModule> All =
