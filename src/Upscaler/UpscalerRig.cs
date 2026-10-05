@@ -777,6 +777,13 @@ namespace ReDefinition.Upscaler
         }
 
         // Every texture whose native pointer went to the proxy at setup (UpscalerTextures).
+        // Back in focus, after alt-tab or a full-screen switch: the textures' native
+        // handles are asked for once more.
+        private void OnApplicationFocus(bool focus)
+        {
+            if (focus) textures.WantNativeCheck();
+        }
+
         private bool TexturesCreated()
         {
             return textures.Created(PassThrough, dlssSharpener != null ? dlssSharpener.Input : null);

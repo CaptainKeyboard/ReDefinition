@@ -100,7 +100,16 @@ namespace ReDefinition.Upscaler
         // out of fullscreen", and they "will become "not yet created" again, you can
         // check for that with IsCreated function" (ScriptReference, RenderTexture,
         // 2019.4). The rig is rebuilt rather than handing on pointers to what is gone.
-        private int nativeChecked;
+        // The native handles asked for once after the textures are made and again when the
+        // game window has its focus back: asking synchronises with the render thread, and
+        // once a second that held a frame for up to 18.6 ms (measured 2026-10-06). Lost
+        // textures show in IsCreated each frame, as Unity documents.
+        private bool nativeWanted = true;
+
+        internal void WantNativeCheck()
+        {
+            nativeWanted = true;
+        }
 
         internal bool Created(bool passThrough, RenderTexture extra)
         {
@@ -110,13 +119,11 @@ namespace ReDefinition.Upscaler
                   && (extra == null || RenderTextures.Created(extra))))
                 return false;
 
-            // IsCreated() is true for a texture Direct3D never made or has lost
-            // (see Made). The native handle settles it, but asking for it
-            // synchronises with the render thread, so it is asked about once a
-            // second rather than in every frame: a lost texture costs that second
-            // before the rig is rebuilt, not a black screen that stays.
-            if (Time.frameCount - nativeChecked < 60) return true;
-            nativeChecked = Time.frameCount;
+            // IsCreated() is true for a texture Direct3D never made (see Made). The
+            // native handle settles it, but asking for it synchronises with the render
+            // thread: asked only when wanted (nativeWanted).
+            if (!nativeWanted) return true;
+            nativeWanted = false;
             return RenderTextures.Native(lowRes) && (passThrough || RenderTextures.Native(upscaled))
                    && RenderTextures.Native(motionVectors) && RenderTextures.Native(depthCopy)
                    && RenderTextures.Native(hudLess)

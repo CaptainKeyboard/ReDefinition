@@ -524,6 +524,37 @@ namespace ReDefinition.Upscaler
             Reassert();
         }
 
+        // The components of a type that the antialiasing passes of Scatterer and Deferred
+        // put on cameras (Scatterer.cs: AddComponent on the near, far, scaled space and
+        // internal cameras). The whole scene is searched in the first ten seconds of a
+        // scene, while they are being set up; after that the enabled cameras are asked:
+        // FindObjectsOfType walks every object, and once a second it held a frame for
+        // 3 to 7 ms (measured 2026-10-06).
+        private static GameScenes searchedScene = GameScenes.LOADING;
+        private static float sceneSeenAt;
+
+        internal static List<Component> OnCameras(Type type)
+        {
+            var found = new List<Component>();
+            if (type == null) return found;
+            if (searchedScene != HighLogic.LoadedScene)
+            {
+                searchedScene = HighLogic.LoadedScene;
+                sceneSeenAt = Time.unscaledTime;
+            }
+            if (Time.unscaledTime - sceneSeenAt < 10f)
+            {
+                foreach (UnityEngine.Object o in UnityEngine.Object.FindObjectsOfType(type))
+                    if (o is Component c) found.Add(c);
+                return found;
+            }
+            foreach (Camera camera in Camera.allCameras)
+                if (camera != null)
+                    foreach (Component c in camera.GetComponents(type))
+                        if (c != null && !found.Contains(c)) found.Add(c);
+            return found;
+        }
+
         // Scatterer rebuilds its TAA components in Init on every scene change,
         // fresh on JitterAndResolve with spread 0.8. TUFX creates new
         // PostProcessLayers. Without reasserting, the setting would be gone after a

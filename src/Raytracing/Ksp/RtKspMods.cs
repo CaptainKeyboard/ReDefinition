@@ -361,6 +361,9 @@ namespace ReDefinition.Raytracing
         // looked for at most once a second. A planet pack's sea without Scatterer's ocean
         // configuration, or Scatterer's ocean switched off, leaves KSP's sea. Where the
         // fields are not found, Scatterer's presence decides.
+        private static readonly List<UnityEngine.Object> oceanNodes = new List<UnityEngine.Object>();
+        private static float oceanSearchedAt = float.NegativeInfinity;
+
         internal static bool ScattererOcean(CelestialBody body)
         {
             Look();
@@ -368,12 +371,25 @@ namespace ReDefinition.Raytracing
             if (oceanNode == null || nodeManager == null || managerBody == null) return true;
             float now = Time.realtimeSinceStartup;
             if (body == oceanBody && now < oceanLookedAt + 1f) return oceanOnBody;
+            // The ocean nodes found are kept and asked; the scene is searched again only
+            // for another body, when one of them is gone, or every ten seconds while none
+            // is found: FindObjectsOfType walks every object, and once a second it held a
+            // frame for 3.3 ms (measured 2026-10-06).
+            bool search = body != oceanBody || oceanNodes.Count == 0 && now >= oceanSearchedAt + 10f;
+            foreach (UnityEngine.Object node in oceanNodes)
+                if (node == null) search = true;
             oceanBody = body;
             oceanLookedAt = now;
             oceanOnBody = false;
             try
             {
-                foreach (UnityEngine.Object node in UnityEngine.Object.FindObjectsOfType(oceanNode))
+                if (search)
+                {
+                    oceanSearchedAt = now;
+                    oceanNodes.Clear();
+                    oceanNodes.AddRange(UnityEngine.Object.FindObjectsOfType(oceanNode));
+                }
+                foreach (UnityEngine.Object node in oceanNodes)
                 {
                     object manager = node != null ? nodeManager.GetValue(node) : null;
                     if (manager != null && (CelestialBody)managerBody.GetValue(manager) == body)

@@ -77,8 +77,8 @@ namespace ReDefinition.Upscaler
             CameraEvent evt = SmaaEventOf(type);
             int turnedOff = 0;
             int unreadable = 0;
-            UnityEngine.Object[] all = UnityEngine.Object.FindObjectsOfType(type);
-            for (int i = 0; i < all.Length; i++)
+            List<Component> all = OnCameras(type);
+            for (int i = 0; i < all.Count; i++)
             {
                 Behaviour owner = all[i] as Behaviour;
                 if (owner == null) continue;

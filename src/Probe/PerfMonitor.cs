@@ -40,8 +40,16 @@ namespace ReDefinition.Probe
         private static readonly Dictionary<MethodBase, Cost> costs = new Dictionary<MethodBase, Cost>();
         private static readonly HashSet<MethodBase> patched = new HashSet<MethodBase>();
         private static HarmonyLib.Harmony harmony;
+        private static bool withAssembly;
         private int frames;
         private float frameSum, started;
+
+        // KSP's own phases, by its TimingManager's first and last stages: from the earliest
+        // FixedUpdate to the end of the physics step after it (WaitForFixedUpdate), summed
+        // over the frame's steps; and from the earliest Update to the latest LateUpdate.
+        private static bool phasesHooked;
+        private static long fixedStart, physicsTicks, updateStart, updateTicks;
+        private static int physicsSteps;
         private float nextCameraLook;
 
         private void Awake()
@@ -54,7 +62,34 @@ namespace ReDefinition.Probe
             DontDestroyOnLoad(this);
             harmony = new HarmonyLib.Harmony("ReDefinition.PerfMonitor");
             int count = 0;
-            foreach (Type type in typeof(PerfMonitor).Assembly.GetTypes())
+            // -redefinitionPerfMonitorAll: every loaded mod's and KSP's MonoBehaviours too,
+            // their names led by their assembly's, to see whose scripts the frame waits for.
+            var assemblies = new List<Assembly> { typeof(PerfMonitor).Assembly };
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionPerfMonitorAll") >= 0)
+                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    string name = assembly.GetName().Name;
+                    if (assembly == typeof(PerfMonitor).Assembly || name.StartsWith("UnityEngine", StringComparison.Ordinal)
+                        || name.StartsWith("Unity.", StringComparison.Ordinal) || name.StartsWith("System", StringComparison.Ordinal)
+                        || name == "mscorlib" || name == "0Harmony" || assembly.IsDynamic)
+                        continue;
+                    assemblies.Add(assembly);
+                    withAssembly = true;
+                }
+            var types = new List<Type>();
+            foreach (Assembly assembly in assemblies)
+            {
+                try
+                {
+                    types.AddRange(assembly.GetTypes());
+                }
+                catch (ReflectionTypeLoadException e)
+                {
+                    foreach (Type t in e.Types)
+                        if (t != null) types.Add(t);
+                }
+            }
+            foreach (Type type in types)
             {
                 if (!typeof(MonoBehaviour).IsAssignableFrom(type) || type.ContainsGenericParameters || type == typeof(PerfMonitor)) continue;
                 foreach (string message in Messages)
@@ -128,15 +163,56 @@ namespace ReDefinition.Probe
             long ticks = Stopwatch.GetTimestamp() - __state;
             Cost cost;
             if (!costs.TryGetValue(__originalMethod, out cost))
-                costs[__originalMethod] = cost = new Cost { Name = __originalMethod.DeclaringType?.Name + "." + __originalMethod.Name };
+                costs[__originalMethod] = cost = new Cost
+                {
+                    Name = (withAssembly && __originalMethod.DeclaringType != null ? __originalMethod.DeclaringType.Assembly.GetName().Name + ": " : "")
+                           + __originalMethod.DeclaringType?.Name + "." + __originalMethod.Name,
+                };
             cost.Ticks += ticks;
             cost.FrameTicks += ticks;
             cost.Calls++;
         }
 
         // Last in the frame's scripts as far as it goes: the frame's sums closed.
+        private System.Collections.IEnumerator AfterPhysics()
+        {
+            var wait = new WaitForFixedUpdate();
+            while (true)
+            {
+                yield return wait;
+                if (fixedStart != 0)
+                {
+                    physicsTicks += Stopwatch.GetTimestamp() - fixedStart;
+                    physicsSteps++;
+                    fixedStart = 0;
+                }
+            }
+        }
+
+        private void HookPhases()
+        {
+            if (phasesHooked) return;
+            try
+            {
+                TimingManager.FixedUpdateAdd(TimingManager.TimingStage.ObscenelyEarly, () => fixedStart = Stopwatch.GetTimestamp());
+                TimingManager.UpdateAdd(TimingManager.TimingStage.ObscenelyEarly, () => updateStart = Stopwatch.GetTimestamp());
+                TimingManager.LateUpdateAdd(TimingManager.TimingStage.BetterLateThanNever, () =>
+                {
+                    if (updateStart != 0) updateTicks += Stopwatch.GetTimestamp() - updateStart;
+                    updateStart = 0;
+                });
+                StartCoroutine(AfterPhysics());
+                phasesHooked = true;
+            }
+            catch (Exception)
+            {
+                // No TimingManager yet: tried again next frame.
+            }
+        }
+
         private void LateUpdate()
         {
+            HookPhases();
             if (Time.realtimeSinceStartup >= nextCameraLook)
             {
                 nextCameraLook = Time.realtimeSinceStartup + 5f;
@@ -157,11 +233,17 @@ namespace ReDefinition.Probe
             var text = new StringBuilder(Log.Tag + " Perf monitor: " + HighLogic.LoadedScene + ", " + frames + " frames of "
                                          + (frameSum / frames * 1000f).ToString("0.00", CultureInfo.InvariantCulture) + " ms; ReDefinition's scripts "
                                          + total.ToString("0.000", CultureInfo.InvariantCulture) + " ms a frame:");
-            foreach (Cost cost in costs.Values.Where(c => c.Calls > 0).OrderByDescending(c => c.Ticks).Take(25))
+            foreach (Cost cost in costs.Values.Where(c => c.Calls > 0).OrderByDescending(c => c.Ticks).Take(withAssembly ? 40 : 25))
                 text.Append("\n    ").Append(cost.Name).Append(' ')
                     .Append((cost.Ticks * toMs / frames).ToString("0.000", CultureInfo.InvariantCulture)).Append(" ms a frame, at most ")
                     .Append((cost.MostFrameTicks * toMs).ToString("0.00", CultureInfo.InvariantCulture)).Append(" ms, ")
                     .Append(cost.Calls).Append(" calls");
+            text.Append("\n    KSP's phases: FixedUpdate and physics ").Append((physicsTicks * toMs / frames).ToString("0.00", CultureInfo.InvariantCulture))
+                .Append(" ms a frame (").Append((physicsSteps / (float)frames).ToString("0.00", CultureInfo.InvariantCulture))
+                .Append(" steps a frame), Update to LateUpdate ").Append((updateTicks * toMs / frames).ToString("0.00", CultureInfo.InvariantCulture))
+                .Append(" ms a frame");
+            physicsTicks = updateTicks = 0;
+            physicsSteps = 0;
             Debug.Log(text.ToString());
             foreach (Cost cost in costs.Values)
             {
