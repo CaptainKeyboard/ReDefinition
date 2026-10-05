@@ -1,7 +1,6 @@
 // The proxy's present path (SwapChainProxy): Unity's frame copied into the
 // D3D12 backbuffer and presented, frame generation prepared under the same
-// lock, the fences between D3D11, D3D12 and DLSS-G's queue, and DLSS-G's
-// per-frame tokens.
+// lock, and the fences between D3D11, D3D12 and DLSS-G's queue.
 
 #include "SwapChainProxy.h"
 
@@ -12,195 +11,12 @@
 #include "Streamline.h"
 #include "SwapChainProxyState.h"
 
-#include <cmath>
 #include <string>
 
 using Microsoft::WRL::ComPtr;
 
 namespace redefinition
 {
-    // The most frames DLSS-G generates per rendered frame for this Present, 0 for
-    // no limit beyond the GPU's. Without VSync none. With it, NVIDIA's own table:
-    // "60Hz ... 4x", "75Hz ... 5x", above which "frames are generated faster than the
-    // display can present them, causing frame queue backup" and latency grows
-    // (ProgrammingGuideDLSS_G.md 22.7) -- a multiplier of a fifteenth of the rate
-    // frames are shown at: the refresh rate over the sync interval, down to the
-    // table's row, with a hundredth of a row for rates such as 59.94 Hz -- 72 Hz
-    // stays at 4x. A rate not known yet allows one generated frame, not the GPU's
-    // most.
-    uint32_t SwapChainProxy::StreamlineFrameLimit(UINT syncInterval)
-    {
-        if (syncInterval == 0)
-        {
-            PauseRefreshMonitor();
-            return 0;
-        }
-        const double refresh = MonitorRefreshRate();
-        if (refresh <= 0.0)
-            return 1;
-        const double multiplier = std::floor(refresh / static_cast<double>(syncInterval) / 15.0 + 0.01);
-        return multiplier >= 2.0 ? static_cast<uint32_t>(multiplier) - 1u : 1u;
-    }
-
-    // "Ensure the frame index provided with the common constants matches the
-    // presented frame (i.e., the frame index provided with Reflex markers
-    // ReflexMarker::ePresentStart and ReflexMarker::ePresentEnd)"
-    // (ProgrammingGuideDLSS_G.md 17.0): the game's frame from its main thread
-    // to this Present, as "Store a copy of the handle and use that in any async
-    // tasks ... asyncPresentFrame(currentFrame)" (ProgrammingGuide.md 2.10).
-    uint32_t SwapChainProxy::TakeFrameIndex(bool takeGameFrame)
-    {
-        freshGameFrame = false;
-        Streamline& streamline = Streamline::Get();
-        if (!streamline.DeviceSet())
-            return 0;
-
-        uint32_t game = 0;
-        if (takeGameFrame && streamline.TakeGameFrame(game))
-        {
-            if (game > presentedFrameIndex)
-            {
-                if (!presentingGameFrames)
-                    LogLine("Reflex: the game's frames are presented, from frame " + std::to_string(game)
-                            + " -- its main thread sleeps and marks the simulation");
-                presentingGameFrames = true;
-                streamline.NoteGameFramesPresented(true);
-                presentsWithoutGameFrame = 0;
-                nextFrameIndex = 0;
-                freshGameFrame = true;
-                presentedFrameIndex = game;
-                return game;
-            }
-            if (!loggedLateGameFrame)
-            {
-                loggedLateGameFrame = true;
-                LogLine("Reflex: the game's frame " + std::to_string(game) + " arrived after frame "
-                        + std::to_string(presentedFrameIndex) + " was presented, and goes without its Present");
-            }
-        }
-
-        if (presentingGameFrames)
-        {
-            if (!takeGameFrame || ++presentsWithoutGameFrame < kPresentsWithoutGameFrame)
-            {
-                if (!loggedPresentWithoutGameFrame)
-                {
-                    loggedPresentWithoutGameFrame = true;
-                    LogLine(std::string("Reflex: a Present ")
-                            + (takeGameFrame ? "without a frame from the game" : "that is no frame of the game's")
-                            + " after frame " + std::to_string(presentedFrameIndex)
-                            + " -- presented without DLSS frame generation and its markers");
-                }
-                // A Present that is no frame of the game's comes between two of its
-                // frames: the one in progress stays.
-                if (takeGameFrame)
-                    streamline.ClearGameFrame();
-                return 0;
-            }
-            presentingGameFrames = false;
-            streamline.ClearGameFrame();
-            streamline.NoteGameFramesPresented(false);
-            LogLine("Reflex: no frame from the game for " + std::to_string(kPresentsWithoutGameFrame)
-                    + " Presents -- the presenting thread begins the frames again");
-        }
-
-        const uint32_t index = nextFrameIndex != 0 ? nextFrameIndex : streamline.NextFrameIndex();
-        nextFrameIndex = 0;
-        presentedFrameIndex = index;
-        return index;
-    }
-
-    // Without the game's frames, the next frame's index taken where the
-    // presenting thread begins it, and Reflex's sleep under it: "Starting new
-    // frame, grab handle from SL" and then slReflexSleep(*currentFrame)
-    // (ProgrammingGuideReflex.md 5.0) -- its wait "regardless of Reflex Low
-    // Latency mode state" (8.0). The frame's constants, tags and markers go under
-    // the same index when it is presented. With them, the game's main thread
-    // sleeps instead (Streamline::BeginGameFrame).
-    void SwapChainProxy::BeginStreamlineFrame()
-    {
-        if (presentingGameFrames)
-            return;
-        Streamline& streamline = Streamline::Get();
-        if (!streamline.DeviceSet())
-            return;
-        nextFrameIndex = streamline.NextFrameIndex();
-        streamline.NoteFrameInProgress(nextFrameIndex);
-        streamline.ReflexSleep(nextFrameIndex);
-    }
-
-    // DLSS-G off before the swapchain's size or full screen state changes: "Turn
-    // DLSS-G off ... before any window manipulation (resize, maximize/minimize,
-    // full-screen transition, etc.) to avoid potential deadlocks or instability"
-    // (ProgrammingGuideDLSS_G.md 17.0) -- and options take effect "in the next
-    // Present() call that executes after it" (6.0). So the shared colour is
-    // presented once more with generation off: the last frame, or whatever Unity
-    // drew into it since, flushed first. On the presenting thread
-    // only, which then is not inside a Present. From any other thread, where the
-    // lock the Present is taken under could hold both threads up, only a request
-    // for the next Present is left, and the log says so.
-    void SwapChainProxy::PresentWithStreamlineOff(const char* reason)
-    {
-        if (!streamlineSwapChain || presentCount == 0)
-            return;
-        if (GetCurrentThreadId() != presentingThread.load())
-        {
-            if (!streamlineOffRequested.exchange(true))
-                LogLine("DLSS frame generation: " + std::string(reason)
-                        + " from a thread that does not present -- off from the next Present on");
-            return;
-        }
-        // Handled here: a request from another thread before this is answered too.
-        streamlineOffRequested.store(false);
-
-        std::lock_guard<std::mutex> fgLock(FrameGeneration::Get().ContextMutex());
-        if (!FrameGeneration::Get().StreamlineOffLocked(reason))
-            return;
-
-        // The options are sent; without the Present below they take effect at the
-        // next one, after the change, and the log says so.
-        const auto notPresented = [&](const char* step, HRESULT failure) {
-            LogLine("DLSS frame generation off before " + std::string(reason)
-                    + ", but the last frame was not presented again: " + step + " failed (" + Hr(failure) + ")");
-        };
-
-        // What Unity may have drawn since its last Present lands before the copy
-        // reads the shared colour, as in CopyAndPresent.
-        HRESULT hr = WaitForUnityWork();
-        if (FAILED(hr))
-        {
-            notPresented("the wait for D3D11", hr);
-            return;
-        }
-
-        hr = ResetCommandList();
-        if (FAILED(hr))
-        {
-            notPresented("the command list's reset", hr);
-            return;
-        }
-        hr = CopySharedColourAndExecute();
-        if (FAILED(hr))
-        {
-            notPresented("the copy into the backbuffer", hr);
-            return;
-        }
-
-        const uint32_t frameIndex = TakeFrameIndex(false);
-        if (frameIndex != 0)
-            Streamline::Get().Marker(sl::PCLMarker::ePresentStart, frameIndex);
-        // VSync: a tearing present is refused in exclusive full screen, and one
-        // refresh does not matter here.
-        hr = swapChain->Present(1, 0);
-        if (frameIndex != 0)
-            Streamline::Get().Marker(sl::PCLMarker::ePresentEnd, frameIndex);
-        LogLine("DLSS frame generation off before " + std::string(reason) + ": last frame presented again ("
-                + Hr(hr) + ")");
-
-        WaitForFrame(SignalFrameDone());
-        BeginStreamlineFrame();
-    }
-
     HRESULT SwapChainProxy::WaitForUnityWork()
     {
         // Unity's work has been recorded but not necessarily submitted. Flush
@@ -279,46 +95,6 @@ namespace redefinition
         ID3D12CommandList* lists[] = { commandList.Get() };
         queue->ExecuteCommandLists(1, lists);
         return S_OK;
-    }
-
-    void SwapChainProxy::WaitForStreamlineInputs(UINT slot)
-    {
-        constexpr ULONGLONG kInputsWaitMs = 1000;
-
-        const ComPtr<ID3D12Fence> fence = inputsFence[slot];
-        inputsFence[slot].Reset();
-        if (fence == nullptr || (inputsWaitRanOut && !inputsStatusOk[slot]))
-            return;
-
-        // Done long before, as a rule: this is two Presents after the one that read
-        // the slot. A value that does not complete -- DLSS-G skipping its work while
-        // its status fails -- costs the wait's limit once: fences stored while the
-        // status failed are not waited for again until it is fine, and it is said
-        // once, rather than holding the game. One from a Present whose status was
-        // fine is waited for, a GPU stall's worth at most.
-        const UINT64 value = inputsFenceValue[slot];
-        if (fence->GetCompletedValue() >= value)
-            return;
-        if (inputsEvent == nullptr)
-            inputsEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-
-        const ULONGLONG deadline = GetTickCount64() + kInputsWaitMs;
-        while (fence->GetCompletedValue() < value)
-        {
-            const ULONGLONG now = GetTickCount64();
-            if (now >= deadline || inputsEvent == nullptr || FAILED(fence->SetEventOnCompletion(value, inputsEvent)))
-            {
-                inputsWaitRanOut = true;
-                if (!loggedInputsWait)
-                {
-                    loggedInputsWait = true;
-                    LogLine("DLSS frame generation: its work on an input slot had not completed after "
-                            + std::to_string(kInputsWaitMs) + " ms -- written again regardless (said once)");
-                }
-                return;
-            }
-            WaitForSingleObject(inputsEvent, static_cast<DWORD>(deadline - now));
-        }
     }
 
     // ----------------------------------------------------------------- present

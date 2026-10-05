@@ -115,10 +115,12 @@ add_library(ReDefinitionProxy SHARED
     Streamline.h
     SwapChainProxy.cpp
     SwapChainProxy.h
+    SwapChainProxyBuffers.cpp
     SwapChainProxyForwarding.cpp
     SwapChainProxyPacing.cpp
     SwapChainProxyPresent.cpp
     SwapChainProxyState.h
+    SwapChainProxyStreamline.cpp
     DxgiExports.cpp
     ReDefinitionProxy.def
     "${CMAKE_CURRENT_BINARY_DIR}/ReDefinitionProxy.rc"

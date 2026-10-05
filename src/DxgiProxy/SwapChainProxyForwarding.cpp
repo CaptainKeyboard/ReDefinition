@@ -162,6 +162,30 @@ namespace redefinition
         return measureOnly ? realSwapChain.Get() : swapChain.Get();
     }
 
+    void SwapChainProxy::ResolveTargetInterfaces()
+    {
+        target2.Reset();
+        target3.Reset();
+        target4.Reset();
+
+        IDXGISwapChain1* target = Target();
+        if (target == nullptr)
+            return;
+
+        target->QueryInterface(IID_PPV_ARGS(&target2));
+        target->QueryInterface(IID_PPV_ARGS(&target3));
+        target->QueryInterface(IID_PPV_ARGS(&target4));
+
+        // Said where it changes: a resize keeps the swapchain.
+        const int found = (target2 ? 1 : 0) | (target3 ? 2 : 0) | (target4 ? 4 : 0);
+        if (found == loggedTargets)
+            return;
+        loggedTargets = found;
+        LogLine(std::string("Target interfaces: SwapChain2=") + (target2 ? "yes" : "no")
+                + " SwapChain3=" + (target3 ? "yes" : "no")
+                + " SwapChain4=" + (target4 ? "yes" : "no"));
+    }
+
     HRESULT STDMETHODCALLTYPE SwapChainProxy::SetPrivateData(REFGUID name, UINT size, const void* data)
     {
         return Target()->SetPrivateData(name, size, data);
