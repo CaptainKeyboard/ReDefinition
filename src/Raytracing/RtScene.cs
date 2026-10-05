@@ -69,6 +69,8 @@ namespace ReDefinition.Raytracing
         {
             public int Id;
             public int LastSeen;
+            // The space centre's (RtMaterialIntent).
+            public bool Scenery;
             // The texture read for it, or waiting to be: a mod may set it later --
             // Parallax's scatter gets its textures a frame or more after its materials
             // (ScatterRenderer.SetMaterialTexturesAsync) -- or change it.
@@ -207,7 +209,7 @@ namespace ReDefinition.Raytracing
                     Skipped++;
                     continue;
                 }
-                int material = MaterialId(item.Material);
+                int material = MaterialId(item.Material, (item.Flags & RtNative.InstanceScenery) != 0);
                 Matrix4x4 m = item.LocalToWorld;
                 RtNative.Instance instance;
                 instance.M00 = m.m00; instance.M01 = m.m01; instance.M02 = m.m02;
@@ -415,7 +417,8 @@ namespace ReDefinition.Raytracing
             return normals;
         }
 
-        private int MaterialId(Material material)
+        // `scenery`: the space centre's, whose untouched defaults are matt (RtMaterialIntent).
+        private int MaterialId(Material material, bool scenery = false)
         {
             if (material == null) return 0;
             MaterialEntry entry;
@@ -433,7 +436,8 @@ namespace ReDefinition.Raytracing
             }
             entry = new MaterialEntry { Id = nextMaterialId++, LastSeen = frame };
             materials[material] = entry;
-            SendMaterial(material, entry.Id, -1);
+            entry.Scenery = scenery;
+            SendMaterial(material, entry.Id, -1, scenery);
             if (MainTexture(material) != null)
             {
                 entry.Queued = true;
@@ -448,9 +452,10 @@ namespace ReDefinition.Raytracing
             return RtMaterial.MainTexture(material, out worldMapped);
         }
 
-        private void SendMaterial(Material material, int id, int layer)
+        private void SendMaterial(Material material, int id, int layer, bool scenery)
         {
             RtMaterial surface = RtMaterial.Of(material);
+            RtMaterialIntent intent = RtMaterialIntent.Of(material, scenery);
             // Parallax's terrain: its colour from the planet's vertex colours, which the
             // proxy adds and takes to linear itself where vertexFactor > 0.
             Color terrain;
@@ -477,7 +482,18 @@ namespace ReDefinition.Raytracing
                 EmissionR = surface.Emission.r, EmissionG = surface.Emission.g, EmissionB = surface.Emission.b,
                 Texture = layer,
                 VertexColour = vertexFactor,
+                Flags = intent.Mode,
+                GlossDivisor = intent.GlossDivisor,
+                GlossMean = intent.GlossMean,
             };
+            // Where the shine is meant otherwise than the G-buffer's, the hits take it as well.
+            if (intent.Mode != RtNative.SurfaceKeep)
+            {
+                desc.SpecularR = intent.Specular.r;
+                desc.SpecularG = intent.Specular.g;
+                desc.SpecularB = intent.Specular.b;
+                desc.Smoothness = intent.Smoothness;
+            }
             RtNative.KspRtSetMaterial(ref desc);
         }
 
@@ -615,7 +631,7 @@ namespace ReDefinition.Raytracing
             if (texturePixels == null) texturePixels = new byte[size * size * 4];
             Pack(raw, texturePixels, size, read.WorldMapped);
             if (RtNative.KspRtSetMaterialTexture(read.Layer, texturePixels, size) == 1)
-                SendMaterial(read.Material, entry.Id, read.Layer);
+                SendMaterial(read.Material, entry.Id, read.Layer, entry.Scenery);
         }
 
         // A small texture as the proxy takes it from Unity's pixels (RGBA, rows from the

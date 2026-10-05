@@ -465,7 +465,7 @@ namespace ReDefinition.Raytracing
                 if (filter == null) continue;
                 MeshRenderer renderer = filter.GetComponent<MeshRenderer>();
                 if (renderer == null || (renderer.bounds.ClosestPoint(eye) - eye).sqrMagnitude > range2) continue;
-                RtFilter.Add(renderer, filter.sharedMesh, into);
+                RtFilter.Add(renderer, filter.sharedMesh, into, RtNative.InstanceScenery);
                 Renderers++;
             }
         }

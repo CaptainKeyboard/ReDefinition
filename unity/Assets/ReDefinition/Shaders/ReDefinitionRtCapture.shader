@@ -299,6 +299,52 @@ Shader "Hidden/ReDefinition/RtCapture"
             return half4(all / 64.0, alpha / 64.0);
         return half4(covered > 0.0 ? kept / covered : all / 64.0, covered / 64.0);
     }
+
+    // The surfaces as their materials mean them (RtCommon.hlsli, SurfaceIntent), into the
+    // G-buffer's specular colour and smoothness (RtCamera, the surfaces written back).
+    sampler2D _ReDefinitionRtSurface;
+
+    half4 fragSurface(v2fQuad i) : SV_Target
+    {
+        return tex2D(_ReDefinitionRtSurface, i.screen.xy / i.screen.w);
+    }
+
+    // The surfaces' overlay (RtCamera.SurfaceView), over the finished picture: each surface's
+    // shine as its material means it. Dark grey matt; blue to green to yellow to red from
+    // rough to smooth, brighter the stronger it reflects; striped where the G-buffer's own
+    // shine was kept (Unity's physically based or an unknown shader); cyan KSP's sea;
+    // magenta where no material was found at the pixel; the sky as it is.
+    sampler2D _ReDefinitionRtSurfaceMode;
+
+    half4 fragSurfaceView(v2fQuad i) : SV_Target
+    {
+        float2 uv = i.screen.xy / i.screen.w;
+        float4 surface = tex2D(_ReDefinitionRtSurface, uv);
+        float4 found = tex2D(_ReDefinitionRtSurfaceMode, uv);
+        if (found.a < 0.5)
+            return half4(0.0, 0.0, 0.0, 0.0);
+        float mode = found.r * 8.0;
+        half3 colour;
+        if (mode > 5.5)
+            colour = half3(1.0, 0.0, 1.0);
+        else if (mode > 4.5)
+            colour = half3(0.0, 0.8, 1.0);
+        else if (mode > 0.5 && mode < 1.5)
+            colour = half3(0.12, 0.12, 0.14);
+        else
+        {
+            float s = saturate(surface.a);
+            colour = s < 0.33 ? lerp(half3(0.1, 0.2, 1.0), half3(0.1, 1.0, 0.2), s / 0.33)
+                   : s < 0.66 ? lerp(half3(0.1, 1.0, 0.2), half3(1.0, 1.0, 0.1), (s - 0.33) / 0.33)
+                   : lerp(half3(1.0, 1.0, 0.1), half3(1.0, 0.1, 0.05), (s - 0.66) / 0.34);
+            float strength = max(surface.r, max(surface.g, surface.b));
+            colour *= 0.3 + 0.7 * saturate(sqrt(strength * 4.0));
+            float2 pixel = uv * _ScreenParams.xy;
+            if (mode < 0.5 && frac((pixel.x + pixel.y) / 16.0) < 0.5)
+                colour *= 0.4;
+        }
+        return half4(colour, 1.0);
+    }
     ENDCG
 
     SubShader
@@ -354,6 +400,16 @@ Shader "Hidden/ReDefinition/RtCapture"
             #pragma vertex vertQuad
             #pragma fragment fragOceanDiscs
             #pragma target 3.0
+            ENDCG }
+        Pass { CGPROGRAM
+            #pragma vertex vertQuad
+            #pragma fragment fragSurface
+            ENDCG }
+        Pass {
+            Blend SrcAlpha OneMinusSrcAlpha
+            CGPROGRAM
+            #pragma vertex vertQuad
+            #pragma fragment fragSurfaceView
             ENDCG }
     }
     Fallback Off

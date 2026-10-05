@@ -37,6 +37,7 @@ namespace ReDefinition.Raytracing
         internal const uint FlagWater = 1u << 6;
         internal const uint FlagWaterNormals = 1u << 7;
         internal const uint FlagLegacySmoothness = 1u << 8;
+        internal const uint FlagSurfaceIntent = 1u << 9;
 
         internal const uint SignalSun = 1u << 0;
         internal const uint SignalOcclusion = 1u << 1;
@@ -54,6 +55,7 @@ namespace ReDefinition.Raytracing
         internal const int InputInstances = 6;
         // Instance flags (Raytracing.h, kRtInstance*).
         internal const uint InstanceTerrain = 1u << 0;
+        internal const uint InstanceScenery = 1u << 2;
         internal const int InstancesPerRow = 256;
         // Instances and groups for every frame without its own.
         internal const uint AnyFrame = 0xFFFFFFFFu;
@@ -63,6 +65,17 @@ namespace ReDefinition.Raytracing
         internal const int OutputSpecular = 2;
         internal const int OutputOcclusion = 3;
         internal const int OutputForwardLight = 4;
+        internal const int OutputSurface = 5;
+        internal const int OutputSurfaceMode = 6;
+
+        // How a material's shine is meant (RtMaterialIntent; RtContract.h, RT_SURFACE_*).
+        internal const uint SurfaceKeep = 0;
+        internal const uint SurfaceDry = 1;
+        internal const uint SurfaceLegacy = 2;
+        internal const uint SurfaceFixed = 3;
+        internal const uint SurfaceUnityLegacy = 4;
+        internal const uint SurfaceWater = 5;
+        internal const uint SurfaceMissed = 6;
 
         internal const int MaterialTextureSize = 64;
         // As Raytracing.h: a Direct3D 12 texture array's most layers.
@@ -100,7 +113,10 @@ namespace ReDefinition.Raytracing
             // Above 0: the albedo is in Unity's colour space and the vertex colour times
             // this is added to it (RtTerrainColour); the texture is not used.
             public float VertexColour;
-            public float Reserved0, Reserved1, Reserved2;
+            // How its shine is meant is Flags (Surface*); for the legacy families what the
+            // G-buffer's smoothness or specular colour is divided by for the gloss, and the gloss
+            // where no G-buffer gives it.
+            public float GlossDivisor, GlossMean, Reserved;
         }
 
         [StructLayout(LayoutKind.Sequential)]

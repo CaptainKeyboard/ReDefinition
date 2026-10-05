@@ -213,9 +213,41 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: light: done.");
         }
 
+        // The VAB's place, west of the pad: its faces and the roads before it, seen flat.
+        private const double VabLatitude = -0.0967, VabLongitude = -74.6187;
+
+        private static IEnumerator BuildingShots(ReDefinitionAddon addon, string folder, string time)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            if (vessel == null) yield break;
+            CelestialBody body = vessel.mainBody;
+            Vector3d vab = body.GetWorldSurfacePosition(VabLatitude, VabLongitude, 0.0);
+            FlightCamera.fetch.SetDistance(Mathf.Min(40f, FlightCamera.fetch.maxDistance));
+            Vector3 up = ((Vector3)(vessel.CoMD - body.position)).normalized;
+            Vector3 flat = Vector3.ProjectOnPlane((Vector3)(vab - vessel.CoMD), up).normalized;
+            Vector3 look = flat * Mathf.Cos(4f * Mathf.Deg2Rad) - up * Mathf.Sin(4f * Mathf.Deg2Rad);
+            FlightCamera.fetch.SetCamCoordsFromPosition(-look * FlightCamera.fetch.Distance);
+            for (int i = 0; i < 10; i++) yield return null;
+            RaytracingMode on = addon.Live.Raytracing == RaytracingMode.Off ? RaytracingMode.Full : addon.Live.Raytracing;
+            Set(addon, RaytracingMode.Off, 10f, 0f);
+            yield return Shot(folder, time + "-buildings-off");
+            Set(addon, on, 10f, 0f);
+            yield return Shot(folder, time + "-buildings-on");
+            // The same with the G-buffer's shine as Deferred gives it, and the surfaces' overlay.
+            RtCamera.SurfacesAsDeferred = true;
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return Shot(folder, time + "-buildings-deferred");
+            RtCamera.SurfacesAsDeferred = false;
+            RtCamera.SurfaceView = true;
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return Shot(folder, time + "-buildings-overlay");
+            RtCamera.SurfaceView = false;
+        }
+
         private static IEnumerator Shots(ReDefinitionAddon addon, string folder, string time, float heading, bool night)
         {
             RaytracingMode on = addon.Live.Raytracing == RaytracingMode.Off ? RaytracingMode.Full : addon.Live.Raytracing;
+            if (!night && Wanted(time + "-buildings")) yield return BuildingShots(addon, folder, time);
             // Moonlight and night light in percent.
             float[][] variants = night
                 ? new[] { new[] { 0f, 0f }, new[] { 10f, 0f }, new[] { 50f, 0f }, new[] { 150f, 0f } }
@@ -239,6 +271,30 @@ namespace ReDefinition.Probe
                         WritePfm(Path.Combine(folder, shot + "-gbuffer-specular.pfm"), Read(camera.SpecularSmoothnessTexture),
                                  camera.SpecularSmoothnessTexture.width, camera.SpecularSmoothnessTexture.height,
                                  c => new Color((c.r + c.g + c.b) / 3f, c.a, Mathf.Max(c.r, Mathf.Max(c.g, c.b))));
+                    // The surfaces as their materials mean them: specular colour's largest
+                    // channel, smoothness, how each was found (RtNative.Surface*).
+                    if (camera != null && camera.SurfaceTexture != null && camera.SurfaceModeTexture != null)
+                    {
+                        Color[] intended = Read(camera.SurfaceTexture);
+                        Color[] modes = Read(camera.SurfaceModeTexture);
+                        for (int i = 0; i < intended.Length && i < modes.Length; i++)
+                            intended[i] = new Color(Mathf.Max(intended[i].r, Mathf.Max(intended[i].g, intended[i].b)), intended[i].a,
+                                                    modes[i].r * 8f);
+                        WritePfm(Path.Combine(folder, shot + "-surface.pfm"), intended, camera.SurfaceTexture.width,
+                                 camera.SurfaceTexture.height, c => c);
+                    }
+                }
+                if (!night)
+                {
+                    // With the G-buffer's shine as Deferred gives it, and the surfaces' overlay.
+                    RtCamera.SurfacesAsDeferred = true;
+                    for (int i = 0; i < 30; i++) yield return null;
+                    yield return Shot(folder, time + "-" + pose.Name + "-deferred");
+                    RtCamera.SurfacesAsDeferred = false;
+                    RtCamera.SurfaceView = true;
+                    for (int i = 0; i < 30; i++) yield return null;
+                    yield return Shot(folder, time + "-" + pose.Name + "-overlay");
+                    RtCamera.SurfaceView = false;
                 }
             }
         }

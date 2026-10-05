@@ -30,6 +30,7 @@
 #define RT_FLAG_WATER 0x40u
 #define RT_FLAG_WATER_NORMALS 0x80u
 #define RT_FLAG_LEGACY_SMOOTHNESS 0x100u
+#define RT_FLAG_SURFACE_INTENT 0x200u
 
 // The signals a frame traces (Raytracing.h, kRtSignal*).
 #define RT_SIGNAL_SUN 0x1u
@@ -45,7 +46,23 @@
 #define RT_OUTPUT_SPECULAR 2
 #define RT_OUTPUT_OCCLUSION 3
 #define RT_OUTPUT_FORWARD_LIGHT 4
+// The surfaces as their materials mean them (RT_FLAG_SURFACE_INTENT): the specular colour
+// and smoothness in the G-buffer's terms, and how each pixel's were found (the mode / 8).
+#define RT_OUTPUT_SURFACE 5
+#define RT_OUTPUT_SURFACE_MODE 6
 #define RT_OUTPUT_PRIMARY_CHECK 7
+
+// How a material's shine is meant (RtMaterialDesc.flags; RtMaterialIntent.cs): the
+// G-buffer's kept, none, KSP's legacy Blinn-Phong highlight with its gloss read back from
+// Deferred's smoothness (LegacyToStandard) or from Unity's own legacy specular colour, or
+// fixed values; in the mode output also water and a pixel no material was found for.
+#define RT_SURFACE_KEEP 0
+#define RT_SURFACE_DRY 1
+#define RT_SURFACE_LEGACY 2
+#define RT_SURFACE_FIXED 3
+#define RT_SURFACE_UNITY_LEGACY 4
+#define RT_SURFACE_WATER 5
+#define RT_SURFACE_MISSED 6
 
 // The input slots (Raytracing.h, kRtInput*).
 #define RT_INPUT_DEPTH 0
@@ -60,6 +77,9 @@
 // An instance's flags (Raytracing.h, kRtInstance*).
 #define RT_INSTANCE_TERRAIN 0x1u
 #define RT_INSTANCE_CUTOUT 0x2u
+// The space centre's buildings and grounds (RtScenerySource): their materials' untouched
+// defaults are taken as matt (RtMaterialIntent).
+#define RT_INSTANCE_SCENERY 0x4u
 
 #define RT_ANY_FRAME 0xFFFFFFFFu
 #define RT_MATERIAL_TEXTURE_SIZE 64

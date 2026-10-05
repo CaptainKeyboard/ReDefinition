@@ -72,7 +72,7 @@ namespace redefinition
         uint32_t size;
         uint32_t magic;
         int32_t material;
-        uint32_t flags;   // reserved
+        uint32_t flags;   // how its shine is meant: RT_SURFACE_*
         float albedo[4];
         float specular[3];
         float smoothness;
@@ -82,7 +82,12 @@ namespace redefinition
         // colour times this is added to it at each hit, the sum taken to linear as
         // Unity's colours are (Parallax's terrain: RtTerrainColour); no texture then.
         float vertexColour;
-        float reserved[3];
+        // RT_SURFACE_LEGACY and UNITY_LEGACY: what the G-buffer's smoothness, or its
+        // specular colour, is divided by for the gloss; and the gloss where no G-buffer
+        // gives it.
+        float glossDivisor;
+        float glossMean;
+        float reserved;
     };
 
     // One instance of a mesh this frame: a 3x4 transform, rows first, from the
@@ -102,6 +107,7 @@ namespace redefinition
     constexpr uint32_t kRtInstanceTerrain = RT_INSTANCE_TERRAIN;
     // Set by the service for an instance whose material is cut out.
     constexpr uint32_t kRtInstanceCutout = RT_INSTANCE_CUTOUT;
+    constexpr uint32_t kRtInstanceScenery = RT_INSTANCE_SCENERY;
 
     // A run of instances the GPU made, in the frame's t7: mesh and material as the
     // managed side handed them over, where the run starts in t7 and how long it is, the
@@ -140,6 +146,9 @@ namespace redefinition
     // The G-buffer's smoothness is Deferred's from KSP's legacy part shaders: taken as
     // their highlight (RtCommon.hlsli, LegacySmoothness). The game's; not a test's.
     constexpr uint32_t kRtFrameLegacySmoothness = RT_FLAG_LEGACY_SMOOTHNESS;
+    // The surfaces' shine as their materials mean it, found per pixel by the sun's pass and
+    // written to u5 and u6 for the later passes and for Unity (RtCommon.hlsli, SurfaceIntent).
+    constexpr uint32_t kRtFrameSurfaceIntent = RT_FLAG_SURFACE_INTENT;
 
     // The signals a frame traces; each writes its output slot.
     constexpr uint32_t kRtSignalSunVisibility = RT_SIGNAL_SUN; // u0: visibility of the sun, 0 to 1

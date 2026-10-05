@@ -158,6 +158,9 @@ namespace redefinition
         memcpy(data.emission, desc->emission, sizeof(data.emission));
         data.texture = desc->vertexColour > 0.0f ? -1 : desc->texture;
         data.vertexColour[0] = desc->vertexColour;
+        data.vertexColour[1] = static_cast<float>(desc->flags);
+        data.vertexColour[2] = desc->glossDivisor;
+        data.vertexColour[3] = desc->glossMean;
         std::lock_guard<std::mutex> lock(mutex);
         materialData[desc->material] = data;
         return 1;

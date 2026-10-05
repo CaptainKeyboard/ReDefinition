@@ -82,7 +82,8 @@ struct MaterialData
     float3 emission;
     int texture;
     // x: where > 0, the albedo is in Unity's colour space and the vertex colour times x
-    // is added to it (Raytracing.h, RtMaterialDesc).
+    // is added to it; y: how its shine is meant (RT_SURFACE_*); z: the gloss divisor;
+    // w: the mean gloss (Raytracing.h, RtMaterialDesc).
     float4 vertexColour;
 };
 
@@ -118,6 +119,8 @@ RWTexture2D<float4> output1 : register(u1);
 RWTexture2D<float4> output2 : register(u2);
 RWTexture2D<float4> output3 : register(u3);
 RWTexture2D<float4> output4 : register(u4);
+RWTexture2D<float4> output5 : register(u5);
+RWTexture2D<float4> output6 : register(u6);
 RWTexture2D<float4> output7 : register(u7);
 
 SamplerState pointClamp : register(s0);
@@ -137,6 +140,7 @@ SamplerState linearWrap : register(s2);
 #define WATER_SURFACE ((frameFlags & RT_FLAG_WATER) != 0u)
 #define WATER_NORMALS ((frameFlags & RT_FLAG_WATER_NORMALS) != 0u)
 #define LEGACY_SMOOTHNESS ((frameFlags & RT_FLAG_LEGACY_SMOOTHNESS) != 0u)
+#define SURFACE_INTENT ((frameFlags & RT_FLAG_SURFACE_INTENT) != 0u)
 #define LIGHT_COUNT ((uint)lightParams.x)
 #define GAMMA_INPUTS (lightParams.y > 0.5f)
 #define SUN_MIRROR (lightParams.z)
@@ -407,6 +411,7 @@ struct Hit
     float2 uv;
     float3 color;
     uint material;
+    uint flags;
 };
 
 Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terrainSkip = 0.0f)
@@ -414,6 +419,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     Hit hit;
     hit.found = false;
     hit.distance = maxDistance;
+    hit.flags = 0u;
     hit.position = 0.0f;
     hit.normal = float3(0.0f, 1.0f, 0.0f);
     hit.uv = 0.0f;
@@ -457,6 +463,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.uv = a0.uv * w + a1.uv * bary.x + a2.uv * bary.y;
     hit.color = UnpackColor(a0.color) * w + UnpackColor(a1.color) * bary.x + UnpackColor(a2.color) * bary.y;
     hit.material = instance.material;
+    hit.flags = instance.flags;
     return hit;
 }
 
@@ -950,15 +957,91 @@ float LegacySmoothness(float smoothness, float3 specular)
     return 1.0f - sqrt(m);
 }
 
+// A material's shine as its shader means it, for a hit without a G-buffer: the legacy
+// families' highlight at their mean gloss (RtMaterialIntent.cs).
+float3 IntendedSpecular(MaterialData material)
+{
+    uint mode = uint(material.vertexColour.y + 0.5f);
+    if (mode == RT_SURFACE_DRY)
+        return 0.0f;
+    if (mode == RT_SURFACE_LEGACY || mode == RT_SURFACE_UNITY_LEGACY)
+        return material.specular * material.vertexColour.w;
+    return material.specular;
+}
+
+// What a pixel's surface reflects as its material means it (SURFACE_INTENT), in the
+// G-buffer's terms: the specular colour and the smoothness. Deferred's G-buffer gives every
+// KSP shader a shine by one formula (LegacyToStandard.cginc), diffuse-only shaders and the
+// space centre's ground included (shine-table, 2026-10-05: concrete at 0.16 / 0.45, the
+// ground at 0.22 / 0.55, steel at a smoothness of 1); the material found by the camera's
+// ray through the pixel says what its shader draws (RtMaterialIntent.cs): nothing for
+// the diffuse ones; for KSP's legacy Blinn-Phong highlight its exponent's roughness and a
+// specular colour as bright as the highlight, times its gloss, which Deferred's smoothness
+// (or Unity's own legacy specular colour) gives back divided by the material's divisor;
+// fixed values; or the G-buffer's own, never a perfect mirror. KSP's sea keeps the
+// G-buffer's, which the water's reflections replace. Where the ray finds no material at
+// the pixel's depth (an edge, Parallax's displaced ground), the G-buffer's, its legacy
+// smoothness as KSP's highlight (LegacySmoothness).
+static const float kMostSmoothness = 0.95f;
+
+float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode)
+{
+    float4 g1 = gbuffer1[pixel];
+    if (IsStockWater(position, normal))
+    {
+        mode = RT_SURFACE_WATER;
+        return g1;
+    }
+    float distance = length(position);
+    Hit hit = TraceClosest(float3(0.0f, 0.0f, 0.0f), position / max(distance, 1e-6f), distance * 1.05f + 2.0f);
+    // The ground the rays see is its undisplaced mesh, Parallax draws it displaced: a
+    // looser match for it.
+    float tolerance = (hit.flags & RT_INSTANCE_TERRAIN) != 0u ? distance * 0.03f + 2.0f : distance * 0.005f + 0.05f;
+    if (!(hit.found && abs(hit.distance - distance) < tolerance))
+    {
+        mode = RT_SURFACE_MISSED;
+        // Deferred's own value for every shader without a specular colour, 0.5 / pi grey
+        // (ReplacementShader.cginc): a diffuse surface, as a cut-out grate's holes let the
+        // ray past it.
+        if (all(abs(g1.rgb - 0.5f / kPi) < 0.003f))
+            return 0.0f;
+        return float4(g1.rgb, min(LegacySmoothness(g1.a, g1.rgb), kMostSmoothness));
+    }
+    MaterialData material = materialData[hit.material];
+    mode = uint(material.vertexColour.y + 0.5f);
+    if (mode == RT_SURFACE_DRY)
+        return 0.0f;
+    if (mode == RT_SURFACE_FIXED)
+        return float4(material.specular, material.smoothness);
+    if (mode == RT_SURFACE_LEGACY || mode == RT_SURFACE_UNITY_LEGACY)
+    {
+        float measured = mode == RT_SURFACE_LEGACY ? g1.a : max(g1.r, max(g1.g, g1.b));
+        float gloss = saturate(measured / max(material.vertexColour.z, 1e-4f));
+        return float4(material.specular * gloss, material.smoothness);
+    }
+    mode = RT_SURFACE_KEEP;
+    return float4(g1.rgb, min(g1.a, kMostSmoothness));
+}
+
 SurfaceData SurfaceAt(uint2 pixel, float3 position)
 {
     SurfaceData surface;
     if (HAS_GBUFFER)
     {
         surface.normal = DecodeNormal(gbuffer2[pixel]);
-        float4 g1 = gbuffer1[pixel];
-        surface.smoothness = LegacySmoothness(g1.a, g1.rgb);
-        surface.specular = g1.rgb;
+        if (SURFACE_INTENT)
+        {
+            // Found by the sun's pass, which runs first (Raytracing.hlsl, SunVisibility).
+            float4 intended = output5[pixel];
+            surface.smoothness = intended.a;
+            surface.specular = intended.rgb;
+        }
+        else
+        {
+            float4 g1 = gbuffer1[pixel];
+            surface.smoothness = LegacySmoothness(g1.a, g1.rgb);
+            surface.specular = g1.rgb;
+        }
         surface.albedo = InputColor(gbuffer0[pixel].rgb);
         return surface;
     }
@@ -969,7 +1052,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
         MaterialData material = materialData[hit.material];
         surface.normal = hit.normal;
         surface.smoothness = material.smoothness;
-        surface.specular = material.specular;
+        surface.specular = IntendedSpecular(material);
         surface.albedo = Albedo(material, hit.uv, hit.color);
         return surface;
     }

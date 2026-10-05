@@ -15,10 +15,23 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
     if (IsSky(depth))
     {
         output0[id.xy] = float4(1.0f, 0.0f, 0.0f, 0.0f);
+        if (SURFACE_INTENT)
+        {
+            output5[id.xy] = 0.0f;
+            output6[id.xy] = 0.0f;
+        }
         return;
     }
     float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
     float3 normal = SurfaceNormal(id.xy, position);
+    // The surfaces as their materials mean them, for the passes after this one and for
+    // Unity's G-buffer (RtCamera, the surfaces written back).
+    if (SURFACE_INTENT && HAS_GBUFFER)
+    {
+        uint mode;
+        output5[id.xy] = SurfaceIntent(id.xy, position, normal, mode);
+        output6[id.xy] = float4(float(mode) / 8.0f, 0.0f, 0.0f, 1.0f);
+    }
     float3 towardsSun = normalize(sunDirection.xyz);
     float visible = 0.0f;
     if (dot(normal, towardsSun) > 0.0f)

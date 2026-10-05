@@ -88,6 +88,12 @@ namespace ReDefinition.Raytracing
         // For the light probe: the G-buffer's smoothness as Deferred wrote it, without
         // LegacySmoothness, to compare.
         internal static bool DeferredSmoothness;
+        // For the light probe: the surfaces' shine as Deferred's G-buffer gives it, to compare
+        // with the shine their materials mean (SurfaceIntent).
+        internal static bool SurfacesAsDeferred;
+        // The surfaces' shine as a coloured overlay (the diagnostics window's Debug tab):
+        // ReDefinitionDeferredReflections.shader, _ReDefinitionSurfaceView.
+        internal static bool SurfaceView;
         // For the light probe: without the discs added to Scatterer's ocean, or without
         // the reflections handed to it through ssrOutput, to compare.
         internal static bool OceanDiscsHeldOff;
@@ -101,6 +107,7 @@ namespace ReDefinition.Raytracing
             WaveTimeHeld = null;
             SeaFrameLeftOut = false;
             DeferredSmoothness = false;
+            SurfacesAsDeferred = false;
             OceanDiscsHeldOff = false;
             OceanHandoffHeldOff = false;
         }
@@ -199,6 +206,9 @@ namespace ReDefinition.Raytracing
         private RtNative.FramePacket packet;
         private RenderTexture depth, gbuffer0, gbuffer1, gbuffer2, motion, environment;
         private RenderTexture sun, diffuse, specular, forward;
+        // The surfaces as their materials mean them, and how each was found (SurfaceIntent).
+        private RenderTexture surface, surfaceMode;
+        private IntPtr surfaceHandle, surfaceModeHandle;
         // Scatterer's ocean as a surface, its raytraced reflections, and those as the
         // ocean reads them.
         private RenderTexture oceanDepth, oceanSurface1, oceanSurface2, oceanTraced, oceanReflections;
@@ -262,9 +272,15 @@ namespace ReDefinition.Raytracing
         // after the transparent pass (OceanRenderingHook): between the two.
         private const CameraEvent OceanDiscsEvent = CameraEvent.BeforeForwardAlpha;
         private const int OceanDiscsPass = 11;
+        // The surfaces written back into the G-buffer (ReDefinitionRtCapture.shader, fragSurface).
+        private const int SurfacePass = 12;
+        private const int SurfaceViewPass = 13;
+        private CommandBuffer surfaceView;
+        private bool surfaceViewAttached;
+        private static readonly int SurfaceId = Shader.PropertyToID("_ReDefinitionRtSurface");
+        private static readonly int SurfaceModeId = Shader.PropertyToID("_ReDefinitionRtSurfaceMode");
         private static readonly int OceanFrameId = Shader.PropertyToID("_ReDefinitionOceanFrame");
         private static readonly int OceanScreenToWorldId = Shader.PropertyToID("_ReDefinitionOceanScreenToWorld");
-        private static readonly int LegacySmoothnessId = Shader.PropertyToID("_ReDefinitionLegacySmoothness");
         private static readonly int RtPrevViewProj = Shader.PropertyToID("_ReDefinitionRtPrevViewProj");
         private static readonly int RtTexel = Shader.PropertyToID("_ReDefinitionRtTexel");
         private static readonly int RtOffsetNear = Shader.PropertyToID("_ReDefinitionRtOffsetNear");
@@ -393,6 +409,10 @@ namespace ReDefinition.Raytracing
             command?.Release();
             oceanCommand?.Release();
             oceanCommand = null;
+            if (surfaceViewAttached && cam != null) cam.RemoveCommandBuffer(CameraEvent.AfterImageEffects, surfaceView);
+            surfaceViewAttached = false;
+            surfaceView?.Release();
+            surfaceView = null;
             oceanDiscs?.Release();
             oceanDiscs = null;
             gbufferCopy?.Release();
@@ -553,6 +573,17 @@ namespace ReDefinition.Raytracing
             FillPacket(deferredPath, false, cube != null);
             if (withGpu) packet.Inputs[RtNative.InputInstances] = gpuInstancesHandle;
             ring.Issue(command, RtNative.RenderEvent, RtNative.FrameEvent, ref packet);
+            // The surfaces as their materials mean them into the G-buffer, before the
+            // reflections and the lighting read it.
+            bool intent = (packet.Flags & RtNative.FlagSurfaceIntent) != 0;
+            if (intent)
+            {
+                command.SetGlobalTexture(SurfaceId, surface);
+                command.SetGlobalTexture(SurfaceModeId, surfaceMode);
+                command.SetRenderTarget(BuiltinRenderTextureType.GBuffer1);
+                command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfacePass);
+            }
+            ShowSurfaces(intent && SurfaceView);
             // KSP's sea only where the reflections' shader is ours, which composes it.
             bool stockSea = StockWater() && RtLighting.ReflectionsReplaced;
             TraceOcean(deferredPath && Settings.Reflections && (OceanReflections() || stockSea), stockSea, command);
@@ -648,6 +679,22 @@ namespace ReDefinition.Raytracing
             if (stockSea) return;
             oceanCommand.Blit(source, oceanReflections, capture, 10);
             oceanCommand.SetGlobalTexture(SsrOutput, OceanHandoffHeldOff ? (Texture)Texture2D.blackTexture : oceanReflections);
+        }
+
+        // The surfaces' overlay over the finished picture, after the image effects
+        // (ReDefinitionRtCapture.shader, fragSurfaceView).
+        private void ShowSurfaces(bool wanted)
+        {
+            if (wanted == surfaceViewAttached) return;
+            surfaceViewAttached = wanted;
+            if (surfaceView == null)
+            {
+                surfaceView = new CommandBuffer { name = "ReDefinition raytracing surfaces' overlay" };
+                surfaceView.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
+                surfaceView.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfaceViewPass);
+            }
+            if (wanted) cam.AddCommandBuffer(CameraEvent.AfterImageEffects, surfaceView);
+            else cam.RemoveCommandBuffer(CameraEvent.AfterImageEffects, surfaceView);
         }
 
         // Scatterer's ocean weighs the reflections it reads (ssrOutput) down from 1 km of the
@@ -1048,8 +1095,8 @@ namespace ReDefinition.Raytracing
                            | (!haveHistory || Cut() || switched ? RtNative.FlagReset : 0u)
                            | (withMotion ? RtNative.FlagMotionVectors : 0u)
                            | (reconstruct ? RtNative.FlagGuides : 0u)
-                           | (LegacySmoothness() && !DeferredSmoothness ? RtNative.FlagLegacySmoothness : 0u);
-            Shader.SetGlobalFloat(LegacySmoothnessId, LegacySmoothness() && !DeferredSmoothness ? 1f : 0f);
+                           | (LegacySmoothness() && !DeferredSmoothness ? RtNative.FlagLegacySmoothness : 0u)
+                           | (SurfaceIntent(deferred) ? RtNative.FlagSurfaceIntent : 0u);
             if (reconstruct)
             {
                 GuidesFrame = Time.frameCount;
@@ -1078,6 +1125,18 @@ namespace ReDefinition.Raytracing
                 packet.Outputs[RtNative.OutputSpecular] = specularHandle;
             if ((signals & RtNative.SignalForwardLight) != 0)
                 packet.Outputs[RtNative.OutputForwardLight] = forwardHandle;
+            if ((packet.Flags & RtNative.FlagSurfaceIntent) != 0)
+            {
+                packet.Outputs[RtNative.OutputSurface] = surfaceHandle;
+                packet.Outputs[RtNative.OutputSurfaceMode] = surfaceModeHandle;
+            }
+        }
+
+        // The surfaces as their materials mean them (RtMaterialIntent; RtCommon.hlsli,
+        // SurfaceIntent): in the game, with a G-buffer and the sun's pass, which finds them.
+        private bool SurfaceIntent(bool deferred)
+        {
+            return deferred && TraceBeforeLighting && LegacySmoothness() && Settings.Shadows && !SurfacesAsDeferred;
         }
 
         private static Matrix4x4 Translation(double x, double y, double z)
@@ -1120,6 +1179,8 @@ namespace ReDefinition.Raytracing
             diffuse = Target(RenderTextureFormat.ARGBHalf);
             specular = Target(RenderTextureFormat.ARGBHalf);
             forward = Target(RenderTextureFormat.ARGBHalf);
+            surface = Target(RenderTextureFormat.ARGBHalf);
+            surfaceMode = Target(RenderTextureFormat.ARGBHalf);
             depthHandle = depth.GetNativeTexturePtr();
             gbuffer0Handle = gbuffer0.GetNativeTexturePtr();
             gbuffer1Handle = gbuffer1.GetNativeTexturePtr();
@@ -1130,6 +1191,8 @@ namespace ReDefinition.Raytracing
             diffuseHandle = diffuse.GetNativeTexturePtr();
             specularHandle = specular.GetNativeTexturePtr();
             forwardHandle = forward.GetNativeTexturePtr();
+            surfaceHandle = surface.GetNativeTexturePtr();
+            surfaceModeHandle = surfaceMode.GetNativeTexturePtr();
             // OnPreCull bound the texture let go above for this frame's forward light,
             // which runs after this frame's trace into the new one.
             Shader.SetGlobalTexture(RtForward, forward);
@@ -1165,13 +1228,15 @@ namespace ReDefinition.Raytracing
         private void ReleaseTargets()
         {
             foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer2, motion, environment, sun, diffuse,
-                                                      specular, forward })
+                                                      specular, forward, surface, surfaceMode })
                 if (texture != null)
                 {
                     texture.Release();
                     Destroy(texture);
                 }
             depth = gbuffer0 = gbuffer1 = gbuffer2 = motion = environment = sun = diffuse = specular = forward = null;
+            surface = surfaceMode = null;
+            surfaceHandle = surfaceModeHandle = IntPtr.Zero;
             depthHandle = gbuffer0Handle = gbuffer1Handle = gbuffer2Handle = motionHandle = environmentHandle = IntPtr.Zero;
             sunHandle = diffuseHandle = specularHandle = forwardHandle = IntPtr.Zero;
         }
@@ -1183,6 +1248,9 @@ namespace ReDefinition.Raytracing
         internal RenderTexture SpecularTexture { get { return specular; } }
         internal RenderTexture NormalTexture { get { return gbuffer2; } }
         internal RenderTexture SpecularSmoothnessTexture { get { return gbuffer1; } }
+        // The surfaces as their materials mean them, and how each was found (SurfaceIntent).
+        internal RenderTexture SurfaceTexture { get { return surface; } }
+        internal RenderTexture SurfaceModeTexture { get { return surfaceMode; } }
         internal RenderTexture EnvironmentTexture { get { return environment; } }
         internal RenderTexture ForwardTexture { get { return forward; } }
         internal RenderTexture OceanReflectionsTexture { get { return oceanReflections; } }

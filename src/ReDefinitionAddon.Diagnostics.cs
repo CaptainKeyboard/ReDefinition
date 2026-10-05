@@ -267,6 +267,12 @@ namespace ReDefinition
             if (SwitchRow("Measurements into the log", OnOff(DebugMode)))
                 SetDebugMode(!DebugMode);
 
+            // Not saved: each surface's shine as its material means it, as colours over the
+            // picture (RtCamera.SurfaceView; ReDefinitionDeferredReflections.shader). Needs the
+            // raytracing with Deferred.
+            if (SwitchRow("Surface shine overlay", OnOff(ReDefinition.Raytracing.RtCamera.SurfaceView)))
+                ReDefinition.Raytracing.RtCamera.SurfaceView = !ReDefinition.Raytracing.RtCamera.SurfaceView;
+
             if (GUILayout.Button("Write diagnostics to log"))
             {
                 if (rig != null) rig.LogDiagnostics();
