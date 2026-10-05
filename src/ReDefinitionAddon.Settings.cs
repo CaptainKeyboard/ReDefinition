@@ -134,34 +134,7 @@ namespace ReDefinition
         // object the add-on reads and saves.
         private void CopyLiveSettings(OwnSettings from)
         {
-            settings.UpscalerKey = from.UpscalerKey;
-            settings.SettingsWindowKey = from.SettingsWindowKey;
-            settings.DiagnosticsKey = from.DiagnosticsKey;
-            settings.CameraListKey = from.CameraListKey;
-            settings.ScaleModWindows = from.ScaleModWindows;
-            settings.TimeWarpToolbarButton = from.TimeWarpToolbarButton;
-            settings.FlightStartsInManeuverMode = from.FlightStartsInManeuverMode;
-            settings.AutoAltimeter = from.AutoAltimeter;
-            settings.FlightPanelAuto = from.FlightPanelAuto;
-            settings.WorldButtons = from.WorldButtons;
-            settings.MenuFireworks = from.MenuFireworks;
-            settings.RoundGauge = from.RoundGauge;
-            settings.NavballSpeeds = from.NavballSpeeds;
-            settings.NavballDockingMarker = from.NavballDockingMarker;
-            settings.NavballDrag = from.NavballDrag;
-            settings.FlightPanel = from.FlightPanel;
-            settings.StageDetailColumns = from.StageDetailColumns;
-            settings.StageTwrRange = from.StageTwrRange;
-            settings.DeltaVTools = from.DeltaVTools;
-            settings.HudTooltips = from.HudTooltips;
-            settings.StagingResetAsks = from.StagingResetAsks;
-            settings.CrewSlotButtons = from.CrewSlotButtons;
-            settings.TimeWarpPanelButton = from.TimeWarpPanelButton;
-            settings.RaytracingMoonlight = from.RaytracingMoonlight;
-            settings.MoonGlow = from.MoonGlow;
-            settings.RaytracingMoonReflection = from.RaytracingMoonReflection;
-            settings.SunReflection = from.SunReflection;
-            settings.RaytracingNightAmbient = from.RaytracingNightAmbient;
+            settings.CopyLive(from);
         }
 
         // What a view changed of those (CopyLiveSettings), and nothing else: KSP's
@@ -169,38 +142,7 @@ namespace ReDefinition
         // back a value this window set meanwhile.
         private void ChangeLiveSettings(OwnSettings before, OwnSettings after)
         {
-            if (before.UpscalerKey != after.UpscalerKey) settings.UpscalerKey = after.UpscalerKey;
-            if (before.SettingsWindowKey != after.SettingsWindowKey) settings.SettingsWindowKey = after.SettingsWindowKey;
-            if (before.DiagnosticsKey != after.DiagnosticsKey) settings.DiagnosticsKey = after.DiagnosticsKey;
-            if (before.CameraListKey != after.CameraListKey) settings.CameraListKey = after.CameraListKey;
-            if (before.ScaleModWindows != after.ScaleModWindows) settings.ScaleModWindows = after.ScaleModWindows;
-            if (before.TimeWarpToolbarButton != after.TimeWarpToolbarButton)
-                settings.TimeWarpToolbarButton = after.TimeWarpToolbarButton;
-            if (before.FlightStartsInManeuverMode != after.FlightStartsInManeuverMode)
-                settings.FlightStartsInManeuverMode = after.FlightStartsInManeuverMode;
-            if (before.AutoAltimeter != after.AutoAltimeter) settings.AutoAltimeter = after.AutoAltimeter;
-            if (before.FlightPanelAuto != after.FlightPanelAuto) settings.FlightPanelAuto = after.FlightPanelAuto;
-            if (before.WorldButtons != after.WorldButtons) settings.WorldButtons = after.WorldButtons;
-            if (before.MenuFireworks != after.MenuFireworks) settings.MenuFireworks = after.MenuFireworks;
-            if (before.RoundGauge != after.RoundGauge) settings.RoundGauge = after.RoundGauge;
-            if (before.NavballSpeeds != after.NavballSpeeds) settings.NavballSpeeds = after.NavballSpeeds;
-            if (before.NavballDockingMarker != after.NavballDockingMarker) settings.NavballDockingMarker = after.NavballDockingMarker;
-            if (before.NavballDrag != after.NavballDrag) settings.NavballDrag = after.NavballDrag;
-            if (before.FlightPanel != after.FlightPanel) settings.FlightPanel = after.FlightPanel;
-            if (before.StageDetailColumns != after.StageDetailColumns) settings.StageDetailColumns = after.StageDetailColumns;
-            if (before.StageTwrRange != after.StageTwrRange) settings.StageTwrRange = after.StageTwrRange;
-            if (before.DeltaVTools != after.DeltaVTools) settings.DeltaVTools = after.DeltaVTools;
-            if (before.HudTooltips != after.HudTooltips) settings.HudTooltips = after.HudTooltips;
-            if (before.StagingResetAsks != after.StagingResetAsks) settings.StagingResetAsks = after.StagingResetAsks;
-            if (before.CrewSlotButtons != after.CrewSlotButtons) settings.CrewSlotButtons = after.CrewSlotButtons;
-            if (before.TimeWarpPanelButton != after.TimeWarpPanelButton) settings.TimeWarpPanelButton = after.TimeWarpPanelButton;
-            if (before.RaytracingMoonlight != after.RaytracingMoonlight) settings.RaytracingMoonlight = after.RaytracingMoonlight;
-            if (before.MoonGlow != after.MoonGlow) settings.MoonGlow = after.MoonGlow;
-            if (before.RaytracingMoonReflection != after.RaytracingMoonReflection)
-                settings.RaytracingMoonReflection = after.RaytracingMoonReflection;
-            if (before.SunReflection != after.SunReflection) settings.SunReflection = after.SunReflection;
-            if (before.RaytracingNightAmbient != after.RaytracingNightAmbient)
-                settings.RaytracingNightAmbient = after.RaytracingNightAmbient;
+            settings.ChangeLive(before, after);
         }
 
         // Where the navball stands; NavballDrag moves it there and writes it as

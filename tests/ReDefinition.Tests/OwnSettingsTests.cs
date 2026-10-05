@@ -1,0 +1,57 @@
+using System;
+using System.Reflection;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+namespace ReDefinition.Tests
+{
+    // OwnSettings' table of settings: every public field is in it, so it is saved,
+    // compared and, where the add-on reads it live, copied.
+    [TestClass]
+    public class OwnSettingsTests
+    {
+        private static object Other(object value)
+        {
+            if (value is bool b) return !b;
+            if (value is float f) return f + 7f;
+            if (value is int i) return i + 1;
+            if (value is string) return "Ctrl+F7";
+            Type type = value.GetType();
+            if (type.IsEnum)
+            {
+                Array values = Enum.GetValues(type);
+                foreach (object candidate in values)
+                    if (!candidate.Equals(value)) return candidate;
+            }
+            throw new InvalidOperationException("no other value for " + type.Name);
+        }
+
+        [TestMethod]
+        public void EveryFieldCountsInTheSnapshot()
+        {
+            foreach (FieldInfo field in typeof(OwnSettings).GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var settings = new OwnSettings();
+                string before = settings.Snapshot();
+                field.SetValue(settings, Other(field.GetValue(settings)));
+                Assert.AreNotEqual(before, settings.Snapshot(), field.Name + " is not in OwnSettings' table");
+            }
+        }
+
+        [TestMethod]
+        public void ChangeLiveTakesOnlyWhatChanged()
+        {
+            var live = new OwnSettings { RaytracingMoonlight = 40f, MoonGlow = true };
+            var before = new OwnSettings { RaytracingMoonlight = 10f, MoonGlow = true };
+            var after = before.Clone();
+            after.MoonGlow = false;
+            live.ChangeLive(before, after);
+            Assert.IsFalse(live.MoonGlow);
+            Assert.AreEqual(40f, live.RaytracingMoonlight);
+
+            var copy = new OwnSettings();
+            copy.CopyLive(new OwnSettings { RaytracingMoonlight = 12.5f, Enabled = true });
+            Assert.AreEqual(12.5f, copy.RaytracingMoonlight);
+            Assert.IsFalse(copy.Enabled, "Enabled is the add-on's own, not read live");
+        }
+    }
+}

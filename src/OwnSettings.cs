@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -125,6 +127,161 @@ namespace ReDefinition
             get { return PluginData.Path("settings.cfg"); }
         }
 
+        // Every setting once: its key in the file, how it is read from and written to a
+        // settings object, its text, and whether the add-on reads it live from its settings
+        // object (CopyLive, ChangeLive) rather than keeping it in a field of its own.
+        private abstract class Field
+        {
+            public string Key;
+            public bool Live;
+            public abstract string Text(OwnSettings settings);
+            // From the file's text; a text that is no such value leaves the default.
+            public abstract void Read(OwnSettings settings, string text);
+            public abstract void Copy(OwnSettings to, OwnSettings from);
+            public abstract bool Same(OwnSettings a, OwnSettings b);
+        }
+
+        private delegate bool Parser<T>(string text, out T value);
+
+        private sealed class Field<T> : Field
+        {
+            public Func<OwnSettings, T> Get;
+            public Action<OwnSettings, T> Set;
+            public Func<T, string> Format;
+            public Parser<T> Parse;
+
+            public override string Text(OwnSettings settings) { return Format(Get(settings)); }
+
+            public override void Read(OwnSettings settings, string text)
+            {
+                T value;
+                if (Parse(text, out value)) Set(settings, value);
+            }
+
+            public override void Copy(OwnSettings to, OwnSettings from) { Set(to, Get(from)); }
+
+            public override bool Same(OwnSettings a, OwnSettings b)
+            {
+                return EqualityComparer<T>.Default.Equals(Get(a), Get(b));
+            }
+        }
+
+        private static Field<bool> Bool(string key, Func<OwnSettings, bool> get, Action<OwnSettings, bool> set, bool live = false)
+        {
+            return new Field<bool> { Key = key, Get = get, Set = set, Live = live, Format = v => v.ToString(), Parse = bool.TryParse };
+        }
+
+        private static Field<float> Float(string key, string format, Func<OwnSettings, float> get, Action<OwnSettings, float> set,
+                                          bool live = false)
+        {
+            return new Field<float>
+            {
+                Key = key, Get = get, Set = set, Live = live,
+                Format = v => v.ToString(format, CultureInfo.InvariantCulture),
+                Parse = (string text, out float v) => float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out v),
+            };
+        }
+
+        private static Field<T> Enum<T>(string key, Func<OwnSettings, T> get, Action<OwnSettings, T> set) where T : struct
+        {
+            return new Field<T>
+            {
+                Key = key, Get = get, Set = set, Format = v => v.ToString(),
+                Parse = (string text, out T v) =>
+                {
+                    v = default(T);
+                    if (string.IsNullOrEmpty(text)) return false;
+                    try { v = (T)System.Enum.Parse(typeof(T), text); return true; }
+                    catch { return false; }
+                },
+            };
+        }
+
+        // A key combination the file holds; what is no binding leaves the default.
+        private static Field<string> Binding(string key, Func<OwnSettings, string> get, Action<OwnSettings, string> set)
+        {
+            return new Field<string>
+            {
+                Key = key, Get = get, Set = set, Live = true, Format = v => v,
+                Parse = (string text, out string v) =>
+                {
+                    v = text != null && KeyCombination.IsText(text) ? KeyCombination.Parse(text).ToString() : null;
+                    return v != null;
+                },
+            };
+        }
+
+        private static readonly Field[] Fields =
+        {
+            Bool("enabled", x => x.Enabled, (x, v) => x.Enabled = v),
+            Enum("quality", x => x.Quality, (x, v) => x.Quality = v),
+            Float("sharpness", "0.00", x => x.Sharpness, (x, v) => x.Sharpness = v),
+            Bool("autoExposure", x => x.AutoExposure, (x, v) => x.AutoExposure = v),
+            Bool("mipmapBias", x => x.MipmapBias, (x, v) => x.MipmapBias = v),
+            Bool("lodBias", x => x.CompensateLodBias, (x, v) => x.CompensateLodBias = v),
+            Bool("disableMsaa", x => x.DisableMsaa, (x, v) => x.DisableMsaa = v),
+            Bool("pauseWhileOpen", x => x.PauseWhileOpen, (x, v) => x.PauseWhileOpen = v),
+            Bool("debug", x => x.DebugMode, (x, v) => x.DebugMode = v),
+            Bool("replaceKspSettings", x => x.ReplaceKspSettings, (x, v) => x.ReplaceKspSettings = v),
+            Bool("forceAnisotropic", x => x.ForceAnisotropic, (x, v) => x.ForceAnisotropic = v),
+            Bool("jitter", x => x.Jitter, (x, v) => x.Jitter = v),
+            Bool("skinnedMotionVectors", x => x.SkinnedMotionVectors, (x, v) => x.SkinnedMotionVectors = v),
+            Bool("tufxAfterUpscaling", x => x.TufxAfterUpscaling, (x, v) => x.TufxAfterUpscaling = v),
+            Bool("transparencyMask", x => x.TransparencyMask, (x, v) => x.TransparencyMask = v),
+            Enum("reactiveMask", x => x.ReactiveMask, (x, v) => x.ReactiveMask = v),
+            Bool("frameGeneration", x => x.FrameGeneration, (x, v) => x.FrameGeneration = v),
+            Enum("technique", x => x.Backend, (x, v) => x.Backend = v),
+            Enum("dlssModel", x => x.DlssModel, (x, v) => x.DlssModel = v),
+            Binding("upscalerKey", x => x.UpscalerKey, (x, v) => x.UpscalerKey = v),
+            Binding("diagnosticsKey", x => x.DiagnosticsKey, (x, v) => x.DiagnosticsKey = v),
+            Binding("cameraListKey", x => x.CameraListKey, (x, v) => x.CameraListKey = v),
+            Binding("settingsWindowKey", x => x.SettingsWindowKey, (x, v) => x.SettingsWindowKey = v),
+            // The navball's place is the add-on's own (ReDefinitionAddon.NavballOffset).
+            Float("navballOffset", "0", x => x.NavballOffset, (x, v) => x.NavballOffset = v),
+            new Field<string>
+            {
+                Key = "navballScreen", Get = x => x.NavballScreen, Set = (x, v) => x.NavballScreen = v, Format = v => v,
+                Parse = (string text, out string v) => { v = text ?? ""; return true; },
+            },
+            Bool("scaleModWindows", x => x.ScaleModWindows, (x, v) => x.ScaleModWindows = v, true),
+            Bool("timeWarpToolbarButton", x => x.TimeWarpToolbarButton, (x, v) => x.TimeWarpToolbarButton = v, true),
+            Bool("flightStartsInManeuverMode", x => x.FlightStartsInManeuverMode, (x, v) => x.FlightStartsInManeuverMode = v, true),
+            Bool("autoAltimeter", x => x.AutoAltimeter, (x, v) => x.AutoAltimeter = v, true),
+            Bool("worldButtons", x => x.WorldButtons, (x, v) => x.WorldButtons = v, true),
+            Bool("flightPanelAuto", x => x.FlightPanelAuto, (x, v) => x.FlightPanelAuto = v, true),
+            Bool("menuFireworks", x => x.MenuFireworks, (x, v) => x.MenuFireworks = v, true),
+            Bool("roundGauge", x => x.RoundGauge, (x, v) => x.RoundGauge = v, true),
+            Bool("navballSpeeds", x => x.NavballSpeeds, (x, v) => x.NavballSpeeds = v, true),
+            Bool("navballDockingMarker", x => x.NavballDockingMarker, (x, v) => x.NavballDockingMarker = v, true),
+            Bool("navballDrag", x => x.NavballDrag, (x, v) => x.NavballDrag = v, true),
+            Bool("flightPanel", x => x.FlightPanel, (x, v) => x.FlightPanel = v, true),
+            Bool("stageDetailColumns", x => x.StageDetailColumns, (x, v) => x.StageDetailColumns = v, true),
+            Bool("stageTwrRange", x => x.StageTwrRange, (x, v) => x.StageTwrRange = v, true),
+            Bool("deltaVTools", x => x.DeltaVTools, (x, v) => x.DeltaVTools = v, true),
+            Bool("hudTooltips", x => x.HudTooltips, (x, v) => x.HudTooltips = v, true),
+            Bool("stagingResetAsks", x => x.StagingResetAsks, (x, v) => x.StagingResetAsks = v, true),
+            Bool("crewSlotButtons", x => x.CrewSlotButtons, (x, v) => x.CrewSlotButtons = v, true),
+            Bool("timeWarpPanelButton", x => x.TimeWarpPanelButton, (x, v) => x.TimeWarpPanelButton = v, true),
+            Enum("raytracing", x => x.Raytracing, (x, v) => x.Raytracing = v),
+            new Field<int>
+            {
+                Key = "raytracingBounces", Get = x => x.RaytracingBounces, Set = (x, v) => x.RaytracingBounces = v,
+                Format = v => v.ToString(CultureInfo.InvariantCulture),
+                Parse = (string text, out int v) =>
+                {
+                    float f;
+                    bool ok = float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out f);
+                    v = (int)f;
+                    return ok;
+                },
+            },
+            Float("raytracingMoonlight", "0", x => x.RaytracingMoonlight, (x, v) => x.RaytracingMoonlight = v, true),
+            Bool("moonGlow", x => x.MoonGlow, (x, v) => x.MoonGlow = v, true),
+            Float("raytracingMoonReflection", "0", x => x.RaytracingMoonReflection, (x, v) => x.RaytracingMoonReflection = v, true),
+            Float("sunReflection", "0", x => x.SunReflection, (x, v) => x.SunReflection = v, true),
+            Float("raytracingNightAmbient", "0", x => x.RaytracingNightAmbient, (x, v) => x.RaytracingNightAmbient = v, true),
+        };
+
         public static OwnSettings Load()
         {
             OwnSettings settings = new OwnSettings();
@@ -134,115 +291,16 @@ namespace ReDefinition
             ConfigNode node = root == null ? null : root.GetNode(RootName);
             if (node == null) return settings;
 
-            settings.Enabled = Bool(node, "enabled", settings.Enabled);
-            settings.Quality = Enum(node, "quality", settings.Quality);
-            settings.Sharpness = Float(node, "sharpness", settings.Sharpness);
-            settings.AutoExposure = Bool(node, "autoExposure", settings.AutoExposure);
-            settings.MipmapBias = Bool(node, "mipmapBias", settings.MipmapBias);
-            settings.CompensateLodBias = Bool(node, "lodBias", settings.CompensateLodBias);
-            settings.DisableMsaa = Bool(node, "disableMsaa", settings.DisableMsaa);
-            settings.PauseWhileOpen = Bool(node, "pauseWhileOpen", settings.PauseWhileOpen);
-            settings.DebugMode = Bool(node, "debug", settings.DebugMode);
-            settings.ReplaceKspSettings = Bool(node, "replaceKspSettings", settings.ReplaceKspSettings);
-            settings.ForceAnisotropic = Bool(node, "forceAnisotropic", settings.ForceAnisotropic);
-            settings.Jitter = Bool(node, "jitter", settings.Jitter);
-            settings.SkinnedMotionVectors = Bool(node, "skinnedMotionVectors", settings.SkinnedMotionVectors);
-            settings.TufxAfterUpscaling = Bool(node, "tufxAfterUpscaling", settings.TufxAfterUpscaling);
-            settings.TransparencyMask = Bool(node, "transparencyMask", settings.TransparencyMask);
-            settings.ReactiveMask = Enum(node, "reactiveMask", settings.ReactiveMask);
-            settings.FrameGeneration = Bool(node, "frameGeneration", settings.FrameGeneration);
-            settings.Raytracing = Enum(node, "raytracing", settings.Raytracing);
-            settings.RaytracingBounces = (int)Float(node, "raytracingBounces", settings.RaytracingBounces);
-            settings.RaytracingMoonlight = Float(node, "raytracingMoonlight", settings.RaytracingMoonlight);
-            settings.MoonGlow = Bool(node, "moonGlow", settings.MoonGlow);
-            settings.RaytracingMoonReflection = Float(node, "raytracingMoonReflection", settings.RaytracingMoonReflection);
-            settings.SunReflection = Float(node, "sunReflection", settings.SunReflection);
-            settings.RaytracingNightAmbient = Float(node, "raytracingNightAmbient", settings.RaytracingNightAmbient);
-            settings.Backend = Enum(node, "technique", settings.Backend);
-            settings.DlssModel = Enum(node, "dlssModel", settings.DlssModel);
-            settings.UpscalerKey = Binding(node, "upscalerKey", settings.UpscalerKey);
-            settings.DiagnosticsKey = Binding(node, "diagnosticsKey", settings.DiagnosticsKey);
-            settings.CameraListKey = Binding(node, "cameraListKey", settings.CameraListKey);
-            settings.SettingsWindowKey = Binding(node, "settingsWindowKey", settings.SettingsWindowKey);
-            settings.NavballOffset = Float(node, "navballOffset", settings.NavballOffset);
-            settings.NavballScreen = node.GetValue("navballScreen") ?? "";
-            settings.ScaleModWindows = Bool(node, "scaleModWindows", settings.ScaleModWindows);
-            settings.TimeWarpToolbarButton = Bool(node, "timeWarpToolbarButton", settings.TimeWarpToolbarButton);
-            settings.FlightStartsInManeuverMode = Bool(node, "flightStartsInManeuverMode", settings.FlightStartsInManeuverMode);
-            settings.AutoAltimeter = Bool(node, "autoAltimeter", settings.AutoAltimeter);
-            settings.WorldButtons = Bool(node, "worldButtons", settings.WorldButtons);
-            settings.FlightPanelAuto = Bool(node, "flightPanelAuto", settings.FlightPanelAuto);
-            settings.MenuFireworks = Bool(node, "menuFireworks", settings.MenuFireworks);
-            settings.RoundGauge = Bool(node, "roundGauge", settings.RoundGauge);
-            settings.NavballSpeeds = Bool(node, "navballSpeeds", settings.NavballSpeeds);
-            settings.NavballDockingMarker = Bool(node, "navballDockingMarker", settings.NavballDockingMarker);
-            settings.NavballDrag = Bool(node, "navballDrag", settings.NavballDrag);
-            settings.FlightPanel = Bool(node, "flightPanel", settings.FlightPanel);
-            settings.StageDetailColumns = Bool(node, "stageDetailColumns", settings.StageDetailColumns);
-            settings.StageTwrRange = Bool(node, "stageTwrRange", settings.StageTwrRange);
-            settings.DeltaVTools = Bool(node, "deltaVTools", settings.DeltaVTools);
-            settings.HudTooltips = Bool(node, "hudTooltips", settings.HudTooltips);
-            settings.StagingResetAsks = Bool(node, "stagingResetAsks", settings.StagingResetAsks);
-            settings.CrewSlotButtons = Bool(node, "crewSlotButtons", settings.CrewSlotButtons);
-            settings.TimeWarpPanelButton = Bool(node, "timeWarpPanelButton", settings.TimeWarpPanelButton);
+            foreach (Field field in Fields)
+                field.Read(settings, node.GetValue(field.Key));
             return settings;
         }
 
         public void Save()
         {
             ConfigNode node = new ConfigNode(RootName);
-            node.AddValue("enabled", Enabled);
-            node.AddValue("quality", Quality);
-            node.AddValue("sharpness", Sharpness.ToString("0.00",
-                System.Globalization.CultureInfo.InvariantCulture));
-            node.AddValue("autoExposure", AutoExposure);
-            node.AddValue("mipmapBias", MipmapBias);
-            node.AddValue("lodBias", CompensateLodBias);
-            node.AddValue("disableMsaa", DisableMsaa);
-            node.AddValue("pauseWhileOpen", PauseWhileOpen);
-            node.AddValue("debug", DebugMode);
-            node.AddValue("replaceKspSettings", ReplaceKspSettings);
-            node.AddValue("forceAnisotropic", ForceAnisotropic);
-            node.AddValue("jitter", Jitter);
-            node.AddValue("skinnedMotionVectors", SkinnedMotionVectors);
-            node.AddValue("tufxAfterUpscaling", TufxAfterUpscaling);
-            node.AddValue("transparencyMask", TransparencyMask);
-            node.AddValue("reactiveMask", ReactiveMask);
-            node.AddValue("frameGeneration", FrameGeneration);
-            node.AddValue("technique", Backend);
-            node.AddValue("dlssModel", DlssModel);
-            node.AddValue("upscalerKey", UpscalerKey);
-            node.AddValue("diagnosticsKey", DiagnosticsKey);
-            node.AddValue("cameraListKey", CameraListKey);
-            node.AddValue("settingsWindowKey", SettingsWindowKey);
-            node.AddValue("navballOffset", NavballOffset.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
-            node.AddValue("navballScreen", NavballScreen);
-            node.AddValue("scaleModWindows", ScaleModWindows);
-            node.AddValue("timeWarpToolbarButton", TimeWarpToolbarButton);
-            node.AddValue("flightStartsInManeuverMode", FlightStartsInManeuverMode);
-            node.AddValue("autoAltimeter", AutoAltimeter);
-            node.AddValue("worldButtons", WorldButtons);
-            node.AddValue("flightPanelAuto", FlightPanelAuto);
-            node.AddValue("menuFireworks", MenuFireworks);
-            node.AddValue("roundGauge", RoundGauge);
-            node.AddValue("navballSpeeds", NavballSpeeds);
-            node.AddValue("navballDockingMarker", NavballDockingMarker);
-            node.AddValue("navballDrag", NavballDrag);
-            node.AddValue("flightPanel", FlightPanel);
-            node.AddValue("stageDetailColumns", StageDetailColumns);
-            node.AddValue("stageTwrRange", StageTwrRange);
-            node.AddValue("deltaVTools", DeltaVTools);
-            node.AddValue("hudTooltips", HudTooltips);
-            node.AddValue("stagingResetAsks", StagingResetAsks);
-            node.AddValue("crewSlotButtons", CrewSlotButtons);
-            node.AddValue("timeWarpPanelButton", TimeWarpPanelButton);
-            node.AddValue("raytracing", Raytracing);
-            node.AddValue("raytracingBounces", RaytracingBounces);
-            node.AddValue("raytracingMoonlight", RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture));
-            node.AddValue("moonGlow", MoonGlow);
-            node.AddValue("raytracingMoonReflection", RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture));
-            node.AddValue("sunReflection", SunReflection.ToString("0", CultureInfo.InvariantCulture));
-            node.AddValue("raytracingNightAmbient", RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture));
+            foreach (Field field in Fields)
+                node.AddValue(field.Key, field.Text(this));
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -259,39 +317,26 @@ namespace ReDefinition
         public string Snapshot()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append(Enabled).Append('|').Append(Quality).Append('|')
-              .Append(Sharpness.ToString("0.00", CultureInfo.InvariantCulture)).Append('|').Append(AutoExposure).Append('|')
-              .Append(MipmapBias).Append('|').Append(CompensateLodBias).Append('|')
-              .Append(DisableMsaa).Append('|').Append(ForceAnisotropic).Append('|')
-              .Append(PauseWhileOpen).Append('|').Append(DebugMode).Append('|').Append(ReplaceKspSettings).Append('|')
-              .Append(Jitter).Append('|').Append(SkinnedMotionVectors).Append('|').Append(TufxAfterUpscaling).Append('|')
-              .Append(TransparencyMask).Append('|').Append(ReactiveMask).Append('|')
-              .Append(FrameGeneration).Append('|').Append(Backend).Append('|').Append(DlssModel).Append('|')
-              .Append(UpscalerKey).Append('|').Append(DiagnosticsKey).Append('|').Append(CameraListKey).Append('|')
-              .Append(SettingsWindowKey).Append('|')
-              .Append(NavballOffset.ToString("0", CultureInfo.InvariantCulture)).Append('|')
-              .Append(NavballScreen).Append('|').Append(ScaleModWindows)
-              .Append('|').Append(TimeWarpToolbarButton).Append('|').Append(FlightStartsInManeuverMode)
-              .Append('|').Append(AutoAltimeter).Append('|').Append(FlightPanelAuto).Append('|').Append(WorldButtons)
-              .Append('|').Append(MenuFireworks)
-              .Append('|').Append(RoundGauge)
-              .Append('|').Append(NavballSpeeds)
-              .Append('|').Append(NavballDockingMarker)
-              .Append('|').Append(NavballDrag)
-              .Append('|').Append(FlightPanel)
-              .Append('|').Append(StageDetailColumns)
-              .Append('|').Append(StageTwrRange)
-              .Append('|').Append(DeltaVTools)
-              .Append('|').Append(HudTooltips)
-              .Append('|').Append(StagingResetAsks)
-              .Append('|').Append(CrewSlotButtons)
-              .Append('|').Append(TimeWarpPanelButton)
-              .Append('|').Append(Raytracing).Append('|').Append(RaytracingBounces)
-              .Append('|').Append(RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture)).Append('|').Append(MoonGlow)
-              .Append('|').Append(RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture))
-              .Append('|').Append(SunReflection.ToString("0", CultureInfo.InvariantCulture))
-              .Append('|').Append(RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture));
+            foreach (Field field in Fields)
+                sb.Append(field.Text(this)).Append('|');
             return sb.ToString();
+        }
+
+        // The settings the add-on reads live from its settings object -- the hotkeys,
+        // the flight interface's, the raytraced moonlight and reflections -- from another.
+        public void CopyLive(OwnSettings from)
+        {
+            foreach (Field field in Fields)
+                if (field.Live) field.Copy(this, from);
+        }
+
+        // Of those, only what a view changed between `before` and `after`: KSP's settings
+        // dialog holds a copy from when it opened, and its Apply must not bring back a value
+        // another view set meanwhile.
+        public void ChangeLive(OwnSettings before, OwnSettings after)
+        {
+            foreach (Field field in Fields)
+                if (field.Live && !field.Same(before, after)) field.Copy(this, after);
         }
 
         // For KSP's settings dialog, which edits a copy and commits it only on
@@ -301,34 +346,5 @@ namespace ReDefinition
             return (OwnSettings)MemberwiseClone();
         }
 
-        private static bool Bool(ConfigNode node, string name, bool fallback)
-        {
-            bool value;
-            string text = node.GetValue(name);
-            return bool.TryParse(text, out value) ? value : fallback;
-        }
-
-        private static float Float(ConfigNode node, string name, float fallback)
-        {
-            float value;
-            string text = node.GetValue(name);
-            return float.TryParse(text, System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out value) ? value : fallback;
-        }
-
-        // A binding the file holds; what is no binding leaves the default.
-        private static string Binding(ConfigNode node, string name, string fallback)
-        {
-            string text = node.GetValue(name);
-            return text != null && KeyCombination.IsText(text) ? KeyCombination.Parse(text).ToString() : fallback;
-        }
-
-        private static T Enum<T>(ConfigNode node, string name, T fallback)
-        {
-            string text = node.GetValue(name);
-            if (string.IsNullOrEmpty(text)) return fallback;
-            try { return (T)System.Enum.Parse(typeof(T), text); }
-            catch { return fallback; }
-        }
     }
 }
