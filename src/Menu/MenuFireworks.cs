@@ -198,9 +198,7 @@ namespace ReDefinition.Menu
                 if (kerbin == null) continue;
                 int layer = 1 << kerbin.gameObject.layer;
                 // The light that shades Kerbin as the menu shows it: PlanetLight in the orbit
-                // scene, "Directional light" in the Mun's, KeyLight where FillLight and
-                // BackLight stand beside it (measured 2026-10-05, each light alone: KeyLight
-                // lights the land, the others its rim); BackLight, brighter, only rims it
+                // scene, "Directional light" in the Mun's; BackLight, brighter, only rims it
                 // from behind (measured: its night side was the lit face the camera sees).
                 foreach (Light light in area.GetComponentsInChildren<Light>())
                     if (light.type == LightType.Directional && (light.cullingMask & layer) != 0
@@ -220,7 +218,7 @@ namespace ReDefinition.Menu
 
         private static int Rank(Light light)
         {
-            return light.name == "PlanetLight" || light.name == "Directional light" || light.name == "KeyLight" ? 2
+            return light.name == "PlanetLight" || light.name == "Directional light" ? 2
                    : light.name.IndexOf("Back", StringComparison.OrdinalIgnoreCase) >= 0 ? 0 : 1;
         }
 
