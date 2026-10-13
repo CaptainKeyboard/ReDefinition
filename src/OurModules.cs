@@ -253,7 +253,7 @@ namespace ReDefinition
                 StepsPerUnit = 0.2f,
                 Label = PercentLabel,
                 Tooltip = "How strongly water mirrors the sun: the raytraced sun on the sea, or Scatterer's own\n"
-                          + "glint without raytraced reflections. 100 % is the sun's own brightness and Scatterer's.",
+                          + "glint without raytraced reflections. 100 % is three times the sun's own brightness and Scatterer's.",
                 Read = settings => settings.SunReflection.ToString("0", CultureInfo.InvariantCulture),
                 Write = (settings, value) =>
                     settings.SunReflection = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),

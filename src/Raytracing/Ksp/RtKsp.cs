@@ -195,7 +195,7 @@ namespace ReDefinition.Raytracing
             camera.SunMirror = () =>
             {
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                return (addon != null ? addon.Live.SunReflection : 100f) / 100f;
+                return (addon != null ? addon.Live.SunReflection : 100f) / 100f * OwnSettings.SunReflectionAt100;
             };
             camera.NightLight = () =>
             {

@@ -105,7 +105,7 @@ namespace ReDefinition.Raytracing
                 if (found == null) continue;
                 Material ocean = nodeMaterial.GetValue(found) as Material;
                 if (ocean == null || !ocean.HasProperty(PropertyId)) continue;
-                float wanted = (float)nodeStrength.GetValue(found) * Mathf.Max(percent, 0f) / 100f;
+                float wanted = (float)nodeStrength.GetValue(found) * Mathf.Max(percent, 0f) / 100f * OwnSettings.SunReflectionAt100;
                 if (ocean.GetFloat(PropertyId) != wanted) ocean.SetFloat(PropertyId, wanted);
             }
         }

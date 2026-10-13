@@ -45,9 +45,12 @@ namespace ReDefinition
         // How strongly water mirrors the moons, in percent of their discs as the eye sees
         // them at night (NightAdaptation).
         public float RaytracingMoonReflection = 100f;
-        // How strongly Scatterer's ocean mirrors the sun, in percent of its configuration's
-        // strength (SeaHighlights).
+        // How strongly water mirrors the sun, in percent of SunReflectionAt100 times the
+        // sun's own brightness and Scatterer's configured glint (RtKsp, SeaHighlights).
         public float SunReflection = 100f;
+        // What 100 % of SunReflection stands for: three times the sun's own brightness and
+        // Scatterer's glint, the player's choice as the standard (2026-10-13, then 300 %).
+        public const float SunReflectionAt100 = 3f;
         // How much of KSP's night light stays under raytracing, in percent: the least
         // light a point gets where neither the sun nor a moon reaches it.
         public float RaytracingNightAmbient = 0f;
