@@ -98,10 +98,13 @@ namespace ReDefinition.Scenery
         private IEnumerator Start()
         {
             bool failed = false;
-            // Parallax makes its scatters' renderers once the terrain around them is built.
-            for (int attempt = 0; attempt < 12 && kinds.Count == 0 && !failed; attempt++)
+            // Parallax makes its scatters' renderers once the terrain around them is built,
+            // some 2.7 s into the scene (measured 2026-10-13): asked four times a second for a
+            // minute, rather than after 3 s and then every 5 s, which kept the lawns bare for
+            // 9 to 12 s.
+            for (int attempt = 0; attempt < 240 && kinds.Count == 0 && !failed; attempt++)
             {
-                yield return new WaitForSeconds(attempt == 0 ? 3f : 5f);
+                yield return new WaitForSeconds(0.25f);
                 try
                 {
                     failed = !FindParallax();
@@ -139,6 +142,21 @@ namespace ReDefinition.Scenery
             if (!ready) yield break;
             Camera.onPreCull += Draw;
             current = this;
+            // Made again once the space centre stands whole: KSP switches its parts on by
+            // distance, and lawns and the colliders over them that were not on yet were
+            // missing from the first map (measured: 398 000 m2 of lawn in a flight's first
+            // map, 478 000 in the space centre's).
+            yield return new WaitForSeconds(10f);
+            try
+            {
+                // A scatter whose meshes were not loaded yet at the first look.
+                FindParallax();
+            }
+            catch (Exception)
+            {
+                // The scatters found first are kept.
+            }
+            yield return MapLawns();
         }
 
         private void OnDestroy()
@@ -308,6 +326,8 @@ namespace ReDefinition.Scenery
             }
 
             long started = watch.ElapsedMilliseconds;
+            // A map made again replaces the one before in the same frame.
+            if (lawnMap != null) Destroy(lawnMap);
             grid = new Vector4(map.X0, map.Z0, Texel, map.Y0);
             lawnMap = new Texture2D(map.Width, map.Depth, TextureFormat.RGHalf, false, true)
             {
@@ -317,7 +337,11 @@ namespace ReDefinition.Scenery
             };
             lawnMap.SetPixelData(map.Texels, 0);
             lawnMap.Apply(false, true);
-            counts = new ComputeBuffer(kinds.Count * 3, 4, ComputeBufferType.Raw);
+            if (counts == null || counts.count != kinds.Count * 3)
+            {
+                counts?.Release();
+                counts = new ComputeBuffer(kinds.Count * 3, 4, ComputeBufferType.Raw);
+            }
             mainThread += watch.ElapsedMilliseconds - started;
             ready = true;
             Debug.Log(Log.Tag + " Space centre grass: Parallax's " + string.Join(", ", kinds.ConvertAll(k => k.Name).ToArray())
