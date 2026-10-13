@@ -118,6 +118,16 @@ namespace ReDefinition.Probe
                 Application.Quit();
                 yield break;
             }
+            // -redefinitionProbeDays <n>: n of the home body's solar days later, the sun where
+            // it was and the clouds moved on.
+            string days = SceneProbe.ArgumentAfter("-redefinitionProbeDays");
+            if (days != null)
+            {
+                CelestialBody home = FlightGlobals.GetHomeBody();
+                double day = home != null && home.solarRotationPeriod ? home.solarDayLength : 21600.0;
+                game.flightState.universalTime += day * double.Parse(days, CultureInfo.InvariantCulture);
+                Debug.Log(Log.Tag + " Probe: " + days + " solar days of " + day.ToString("0.###", CultureInfo.InvariantCulture) + " s on.");
+            }
             int index = SceneProbe.VesselName != null
                 ? game.flightState.protoVessels.FindIndex(v => v.vesselName == SceneProbe.VesselName)
                 : game.flightState.protoVessels.FindIndex(v => v.situation == Vessel.Situations.PRELAUNCH);
@@ -162,7 +172,10 @@ namespace ReDefinition.Probe
             bool coast = Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.CoastArgument) >= 0;
             var places = new List<double[]>();
             if (coast)
-                places.AddRange(new[] { new[] { -1.54, -71.66 }, new[] { -1.54, -71.62 } });
+                // Eastwards from the shore until the sea is deep enough: the shore lies a
+                // little elsewhere with other terrain.
+                for (double lon = -71.70; lon <= -71.30; lon += 0.02)
+                    places.Add(new[] { -1.54, lon });
             else if (SceneProbe.BodyName == null)
                 places.AddRange(new[] { new[] { -1.0, -66.0 }, new[] { 0.0, -62.0 }, new[] { -4.0, -64.0 }, new[] { 3.0, -60.0 } });
             else
@@ -253,6 +266,7 @@ namespace ReDefinition.Probe
                 Raytracing.RtCamera.SurfaceView = shot == "overlay";
                 for (int i = 0; i < 30; i++) yield return null;
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
+                SceneProbeRunner.EnvironmentFaces(folder, shot);
                 yield return null;
                 yield return null;
             }
@@ -320,6 +334,51 @@ namespace ReDefinition.Probe
         }
         // The sweep in this many frames a step of the path (FlipProbe).
         private int sweepSubdivide = 1;
+
+        // The reflection probe the rays see the sky in (RtKsp, Environment), its six faces
+        // into ReDefinitionCaptures/<shot>-env<face>.ppm, clamped to 0..1.
+        internal static void EnvironmentFaces(string folder, string shot)
+        {
+            ReflectionProbe found = null;
+            foreach (ReflectionProbe p in UnityEngine.Object.FindObjectsOfType<ReflectionProbe>())
+                if (p.isActiveAndEnabled && p.texture != null)
+                {
+                    found = p;
+                    break;
+                }
+            var cube = found != null ? found.texture as RenderTexture : null;
+            if (cube == null)
+            {
+                Debug.Log(Log.Tag + " Probe: no reflection probe render texture to dump.");
+                return;
+            }
+            var face = new RenderTexture(cube.width, cube.height, 0, cube.format);
+            face.Create();
+            var read = new Texture2D(cube.width, cube.height, TextureFormat.RGBA32, false);
+            RenderTexture active = RenderTexture.active;
+            for (int i = 0; i < 6; i++)
+            {
+                Graphics.CopyTexture(cube, i, 0, face, 0, 0);
+                RenderTexture.active = face;
+                read.ReadPixels(new Rect(0, 0, cube.width, cube.height), 0, 0);
+                Color32[] pixels = read.GetPixels32();
+                var bytes = new List<byte>(Encoding.ASCII.GetBytes("P6\n" + cube.width + " " + cube.height + "\n255\n"));
+                for (int y = cube.height - 1; y >= 0; y--)
+                    for (int x = 0; x < cube.width; x++)
+                    {
+                        Color32 c = pixels[y * cube.width + x];
+                        bytes.Add(c.r);
+                        bytes.Add(c.g);
+                        bytes.Add(c.b);
+                    }
+                File.WriteAllBytes(Path.Combine(folder, shot + "-env" + i + ".ppm"), bytes.ToArray());
+            }
+            RenderTexture.active = active;
+            UnityEngine.Object.Destroy(read);
+            face.Release();
+            UnityEngine.Object.Destroy(face);
+            Debug.Log(Log.Tag + " Probe: reflection probe " + found.name + " (" + cube.width + ", " + cube.format + ") dumped.");
+        }
 
         // The raytraced camera's light at a few places of the pad's view, into the log: the
         // traced diffuse light (linear), the sun's visibility, the forward ratio (k, w),
@@ -526,6 +585,7 @@ namespace ReDefinition.Probe
                 string folder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
                 Directory.CreateDirectory(folder);
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
+                EnvironmentFaces(folder, shot);
                 Debug.Log(Log.Tag + " Probe: shot " + shot + ".");
                 yield return new WaitForSeconds(2f);
                 Application.Quit();

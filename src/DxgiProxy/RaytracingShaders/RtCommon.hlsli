@@ -563,12 +563,13 @@ float3 CloudTransmittance(float3 position, float3 towards)
 
 // The sky a ray that escapes the scene sees from under the layer: the cloud where it
 // covers, lit by the sun from above and by the sky, darker underneath the denser it is,
-// over the sky by its opacity (1 - its transmittance).
+// over the sky by its opacity (1 - its transmittance). The reflection probe the sky comes
+// from otherwise (HAS_ENVIRONMENT) holds EVE's clouds as EVE draws them already.
 float3 CloudOverSky(float3 origin, float3 direction, float3 sky)
 {
     float3 at;
     float fade;
-    if (!CloudExit(origin, direction, at, fade))
+    if (HAS_ENVIRONMENT || !CloudExit(origin, direction, at, fade))
         return sky;
     // From under the layer, the ray's own direction, not the light's, fades it: rays that
     // run along the horizon meet the layer far away, where EVE's layer thins out too.
