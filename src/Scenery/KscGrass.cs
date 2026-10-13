@@ -80,6 +80,7 @@ namespace ReDefinition.Scenery
         private ComputeBuffer counts;
         private readonly uint[] arguments = new uint[5];
         private bool ready;
+        private int[] capacities = new int[0];
         private int drawnFrames;
 
         private static readonly int SourceId = Shader.PropertyToID("_Source");
@@ -607,13 +608,45 @@ namespace ReDefinition.Scenery
                     lift.SetBuffer(liftKernel, LiftedId, kind.Lifted[lod]);
                     lift.SetInt(CountIndexId, slot);
                     lift.SetInt(CapacityId, source.count);
+                    if (capacities.Length < kinds.Count * 3) capacities = new int[kinds.Count * 3];
+                    capacities[slot] = source.count;
                     lift.Dispatch(liftKernel, (source.count + 63) / 64, 1, 1);
                     ComputeBuffer.CopyCount(kind.Lifted[lod], kind.Arguments[lod], 4);
                     Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, kind.Arguments[lod], 0, kind.Properties[lod],
                                                        ShadowCastingMode.On, true, layer, camera);
                 }
             }
-            if (++drawnFrames == 300 && SystemInfo.supportsAsyncGPUReadback)
+            // Every 600 frames: whether one of Parallax's own buffers is nearly full; its capacity
+            // caps what is drawn (maxRenderableObjects; an append past it is dropped, and which
+            // ones changes per frame, so the grass flickers). Logged only then.
+            if (++drawnFrames % 600 == 0 && SystemInfo.supportsAsyncGPUReadback && counts != null)
+            {
+                int[] capacity = (int[])capacities.Clone();
+                var names = kinds.ConvertAll(k => k.Name);
+                AsyncGPUReadback.Request(counts, request =>
+                {
+                    if (request.hasError) return;
+                    var data = request.GetData<uint>();
+                    bool full = false;
+                    for (int slot = 0; slot < data.Length && slot < capacity.Length; slot++)
+                        full |= capacity[slot] > 0 && data[slot] >= capacity[slot] * 0.95f;
+                    if (!full) return;
+                    var text = new System.Text.StringBuilder(Log.Tag + " Space centre grass: Parallax's buffers filled (LOD0 / LOD1 / LOD2 of their capacity):");
+                    for (int k = 0; k < names.Count; k++)
+                    {
+                        text.Append(' ').Append(names[k]);
+                        for (int lod = 0; lod < 3; lod++)
+                        {
+                            int slot = k * 3 + lod;
+                            if (slot >= data.Length || slot >= capacity.Length) continue;
+                            text.Append(lod == 0 ? " " : " / ").Append(data[slot]).Append('/').Append(capacity[slot]);
+                        }
+                        text.Append(';');
+                    }
+                    Debug.Log(text.ToString());
+                });
+            }
+            if (drawnFrames == 300 && SystemInfo.supportsAsyncGPUReadback)
                 foreach (Kind kind in kinds)
                 {
                     string name = kind.Name, cameraName = camera.name;
