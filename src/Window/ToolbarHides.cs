@@ -1,4 +1,5 @@
 using ReDefinition.Core;
+using ReDefinition.Settings;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -14,11 +15,15 @@ namespace ReDefinition.Window
     {
         // Its ToolbarControl namespace (Interface.MODID).
         private const string PersistentRotation = "PersistentRotation";
+        // The row in its registration that shows and hides the window.
+        private const string WindowRow = "persistentrotation.window";
 
         private void Awake()
         {
+            // Hidden only while the row is there to take its place: in another build of the
+            // mod whose member the row cannot reach, the button stays.
             if (TypeLookup.Find("PersistentRotation.Interface") != null)
-                ToolbarTakeover.KeepOwn(PersistentRotation, () => false);
+                ToolbarTakeover.KeepOwn(PersistentRotation, () => BundledSettings.Find(WindowRow) == null);
         }
     }
 }

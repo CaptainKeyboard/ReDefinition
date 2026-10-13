@@ -101,7 +101,7 @@ namespace ReDefinition.Settings.Behaviours
             scaled = false;
             float now;
             if (Parse(SafeRead(read), out now) && Mathf.Approximately(now, applied) && !Mathf.Approximately(now, playerValue))
-                write(Format(playerValue));
+                SafeWrite(Format(playerValue));
             factor = 1f;
         }
 
@@ -111,7 +111,7 @@ namespace ReDefinition.Settings.Behaviours
             float wantedValue = playerValue * factor;
             bool known = Parse(SafeRead(read), out now);
             applied = wantedValue;
-            if (!known || !Mathf.Approximately(now, wantedValue)) write(Format(wantedValue));
+            if (!known || !Mathf.Approximately(now, wantedValue)) SafeWrite(Format(wantedValue));
         }
 
         private static string ReadPlayer()
@@ -205,6 +205,21 @@ namespace ReDefinition.Settings.Behaviours
             catch (Exception)
             {
                 return null;
+            }
+        }
+
+        // Called from the upscaler's setup and teardown: another build of Parallax costs the
+        // scaling, never the rest of them.
+        private static void SafeWrite(string text)
+        {
+            try
+            {
+                write(text);
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("parallax-tessellation-write", "Parallax's tessellation edge length could not be"
+                                                                     + " written (" + CompatibilityLog.Reason(e) + ").");
             }
         }
 

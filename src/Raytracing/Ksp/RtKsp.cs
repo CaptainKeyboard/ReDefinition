@@ -88,7 +88,9 @@ namespace ReDefinition.Raytracing
                                                   && !RtKspMods.OceanNeedsDeferredReflections(), sceneCamera);
                 Report();
                 SelfCheck(sceneCamera);
-                if (HighLogic.LoadedSceneIsEditor && scenery != null) hall.Apply(scenery.Filters);
+                // Deferred's G-buffer only: forward shading takes KSP's own values as meant.
+                if (HighLogic.LoadedSceneIsEditor && scenery != null && sceneCamera.actualRenderingPath == RenderingPath.DeferredShading)
+                    hall.Apply(scenery.Filters);
             }
             else if (sceneCamera != failedOn && Time.realtimeSinceStartup >= retryAt) Attach(sceneCamera);
         }

@@ -270,6 +270,13 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
     }
     float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
     SurfaceData surface = SurfaceAt(id.xy, position);
+    // A surface the rays do not hold keeps Unity's shading: its colour and shine unknown,
+    // light added to it would be a guess's.
+    if (!surface.found)
+    {
+        output4[id.xy] = 0.0f;
+        return;
+    }
     // The traced diffuse light has the occlusion in it already; Unity's ambient light has
     // none. Added to a frame Unity shaded in its colour space: the linear signals taken
     // there, the surface's albedo as Unity has it.

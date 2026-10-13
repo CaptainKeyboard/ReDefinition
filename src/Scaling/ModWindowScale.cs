@@ -52,6 +52,9 @@ namespace ReDefinition.Scaling
             public int Frame;
             // The point the window is scaled about.
             public Vector2 Anchor;
+            // Drawn without a background (Kerbal Engineer's HUD read-outs): no window to
+            // click on, so not shielded.
+            public bool SeeThrough;
         }
 
         // By the assembly of a window's function: whether its windows are scaled.
@@ -70,8 +73,11 @@ namespace ReDefinition.Scaling
         {
             public bool Applied;
             public Matrix4x4 Saved;
+            public bool SeeThrough;
         }
         private static bool noted;
+        // Whether the hooks are in: without them 4kSP's window scaling stays (OtherScalers).
+        internal static bool Installed;
 
         internal static void Install()
         {
@@ -83,6 +89,7 @@ namespace ReDefinition.Scaling
                 if (method.Name == "Window" && Hookable(method))
                     hooks.Add(new HarmonyHook(method, nameof(Prefix), nameof(Postfix), nameof(Finalizer), First, Last));
             HarmonyHooks.Install(HarmonyId, typeof(ModWindowScale), hooks);
+            Installed = true;
             Debug.Log(Log.Tag + " UI scaling: other mods' windows through " + hooks.Count + " window methods.");
         }
 
@@ -94,7 +101,7 @@ namespace ReDefinition.Scaling
                    && parameters[2].ParameterType == typeof(GUI.WindowFunction);
         }
 
-        private static void Prefix(int __0, Rect __1, GUI.WindowFunction __2, out State __state)
+        private static void Prefix(int __0, Rect __1, GUI.WindowFunction __2, object[] __args, out State __state)
         {
             __state = new State();
             try
@@ -115,6 +122,7 @@ namespace ReDefinition.Scaling
                 Vector3 pivot = new Vector3(anchor.x, anchor.y, 0f);
                 __state.Saved = GUI.matrix;
                 __state.Applied = true;
+                __state.SeeThrough = SeeThrough(__args);
                 GUI.matrix = Matrix4x4.TRS(pivot + (Vector3)shift, Quaternion.identity, Vector3.one)
                              * Matrix4x4.Scale(new Vector3(scale, scale, 1f))
                              * Matrix4x4.TRS(-pivot, Quaternion.identity, Vector3.one);
@@ -140,7 +148,8 @@ namespace ReDefinition.Scaling
                 Matrix4x4 matrix = GUI.matrix;
                 Vector3 a = matrix.MultiplyPoint3x4(new Vector3(__result.xMin, __result.yMin, 0f));
                 Vector3 b = matrix.MultiplyPoint3x4(new Vector3(__result.xMax, __result.yMax, 0f));
-                Note(drawn, __0, Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y)));
+                Note(drawn, __0, Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y)),
+                     __state.SeeThrough);
             }
             finally
             {
@@ -148,7 +157,20 @@ namespace ReDefinition.Scaling
             }
         }
 
-        private static void Note(Dictionary<int, Drawn> where, int id, Rect area)
+        // A window whose style draws no background; the overloads without a style take the
+        // skin's window, which has one.
+        private static bool SeeThrough(object[] args)
+        {
+            if (args == null) return false;
+            foreach (object arg in args)
+            {
+                GUIStyle style = arg as GUIStyle;
+                if (style != null) return style.normal.background == null;
+            }
+            return false;
+        }
+
+        private static void Note(Dictionary<int, Drawn> where, int id, Rect area, bool seeThrough)
         {
             Drawn window;
             if (!where.TryGetValue(id, out window))
@@ -158,6 +180,7 @@ namespace ReDefinition.Scaling
             }
             window.Area = area;
             window.Frame = Time.frameCount;
+            window.SeeThrough = seeThrough;
         }
 
         // The point window id is scaled about: its top left corner when first drawn.
@@ -192,7 +215,7 @@ namespace ReDefinition.Scaling
             Vector2 point = new Vector2(mouse.x, Screen.height - mouse.y);
             int frame = Time.frameCount;
             foreach (Drawn window in windows.Values)
-                if (frame - window.Frame <= 2 && window.Area.width > 0f && window.Area.height > 0f && window.Area.Contains(point))
+                if (!window.SeeThrough && frame - window.Frame <= 2 && window.Area.width > 0f && window.Area.height > 0f && window.Area.Contains(point))
                     return true;
             return false;
         }

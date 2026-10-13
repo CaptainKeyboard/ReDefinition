@@ -919,6 +919,9 @@ struct SurfaceData
     float smoothness;
     float3 albedo;
     float3 specular;
+    // False where neither a G-buffer nor the scene says what the surface is (a surface
+    // the rays do not hold, KSP's sea say): the values below are a guess.
+    bool found;
 };
 
 // A surface's smoothness as KSP's legacy part shaders give its highlight. Deferred turns
@@ -1026,6 +1029,7 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode)
 SurfaceData SurfaceAt(uint2 pixel, float3 position)
 {
     SurfaceData surface;
+    surface.found = true;
     if (HAS_GBUFFER)
     {
         surface.normal = DecodeNormal(gbuffer2[pixel]);
@@ -1060,6 +1064,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
     surface.smoothness = 0.2f;
     surface.specular = 0.04f;
     surface.albedo = 0.5f;
+    surface.found = false;
     return surface;
 }
 

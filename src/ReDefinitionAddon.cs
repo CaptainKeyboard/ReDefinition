@@ -115,8 +115,9 @@ namespace ReDefinition
             // failure there costs the interface, not the rest of the add-on.
             Guarded("shared-frame", SharedFrame.Install);
             FrameGenerationBridge.RegisterMainThread();
-            ScattererCompatibility.InstallHook();
-            EveCloudMotion.InstallHook();
+            // Another build of Scatterer or EVE costs its own hook, not the rest of the add-on.
+            Guarded("scatterer-hook", ScattererCompatibility.InstallHook);
+            Guarded("eve-hook", EveCloudMotion.InstallHook);
             UnityMouseEvents.Install();
             ReflexFrames.Install();
             EscapeGuard.Install();
@@ -691,12 +692,14 @@ namespace ReDefinition
             followedAttached = attached;
             followedSize = size;
 
-            EveCompatibility.AfterRenderSizeChange(sizeChanged, followUpReason);
+            // Each mod on its own: one failing does not keep the others' resize.
+            string reason = followUpReason;
+            Guarded("eve-resize", () => EveCompatibility.AfterRenderSizeChange(sizeChanged, reason));
             // Every time, hook or not: godrays Scatterer makes between a detach
             // and the attach after it are sized by the hook against a camera
             // not redirected yet, and only this search finds them.
-            ScattererCompatibility.AfterRenderSizeChange(followUpReason);
-            DeferredCompatibility.AfterRenderSizeChange(followUpReason);
+            Guarded("scatterer-resize", () => ScattererCompatibility.AfterRenderSizeChange(reason));
+            Guarded("deferred-resize", () => DeferredCompatibility.AfterRenderSizeChange(reason));
         }
 
         // Asked every frame: the cameras into a buffer kept, as Camera.allCameras is a

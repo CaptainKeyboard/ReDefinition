@@ -361,9 +361,12 @@ namespace ReDefinition.Upscaler
                 report.Append(changed).Append(" Scatterer TAA switched off. ");
             }
 
-            report.Append(DisableSmaa()).Append(' ');
-            report.Append(DisableKfg()).Append(' ');
-            ApplyTufx(report);
+            // Each mod on its own, and Applied either way: a step that throws (another
+            // build of the mod) costs that mod's change, and Restore still hands back
+            // what the others changed.
+            Step(report, "SMAA", () => report.Append(DisableSmaa()).Append(' '));
+            Step(report, "Kerbal Frame Generator", () => report.Append(DisableKfg()).Append(' '));
+            Step(report, "TUFX", () => ApplyTufx(report));
 
             Applied = true;
             LastMessage = report.ToString();
@@ -372,14 +375,26 @@ namespace ReDefinition.Upscaler
             return LastMessage;
         }
 
+        private static void Step(StringBuilder report, string what, Action body)
+        {
+            try
+            {
+                body();
+            }
+            catch (Exception e)
+            {
+                report.Append(what).Append(" left as it is (").Append(CompatibilityLog.Reason(e)).Append("). ");
+            }
+        }
+
         public static string Restore()
         {
             StringBuilder report = new StringBuilder();
-            RestoreScattererTaa(report);
-            RestoreTufxProfiles(report);
-            ReEnableComponents(report);
-            HandBackSmaa(report);
-            report.Append(RestoreKfg());
+            Step(report, "Scatterer's TAA", () => RestoreScattererTaa(report));
+            Step(report, "TUFX", () => RestoreTufxProfiles(report));
+            Step(report, "Components", () => ReEnableComponents(report));
+            Step(report, "SMAA", () => HandBackSmaa(report));
+            Step(report, "Kerbal Frame Generator", () => report.Append(RestoreKfg()));
 
             Applied = false;
             LastMessage = report.ToString();

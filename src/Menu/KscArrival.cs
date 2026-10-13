@@ -390,8 +390,13 @@ namespace ReDefinition.Menu
                 if (light.type == LightType.Directional && light.isActiveAndEnabled)
                 {
                     lights.Add(light);
-                    // The sun as Scatterer and Parallax take it in the menu: PlanetLight.
-                    if (Sun == null || light.name.Contains("PlanetLight")) Sun = light;
+                    // The sun as Scatterer and Parallax take it in the menu: PlanetLight; in
+                    // KSP's own Mun scene "Directional light", not the brighter BackLight
+                    // that only rims Kerbin (MenuFireworks.Rank).
+                    if (Sun == null || MenuFireworks.Rank(light) > MenuFireworks.Rank(Sun)
+                        || (MenuFireworks.Rank(light) == MenuFireworks.Rank(Sun) && light.name.Contains("PlanetLight")
+                            && !Sun.name.Contains("PlanetLight")))
+                        Sun = light;
                 }
         }
 

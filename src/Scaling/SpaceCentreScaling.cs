@@ -125,10 +125,14 @@ namespace ReDefinition.Scaling
             return typeof(RDNode).GetMethod("Setup", BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null);
         }
 
+        // Whether the hook is in: without it 4kSP's R&D scaling stays (OtherScalers).
+        internal static bool Installed;
+
         internal static void Install()
         {
             HarmonyHooks.Install(HarmonyId, typeof(RnDNodeHooks),
                 new List<HarmonyHook> { new HarmonyHook(Target(), nameof(SetupPrefix), nameof(SetupPostfix), null) });
+            Installed = true;
         }
 
         // Only a tree node not yet set up; the list of what a tech requires shows

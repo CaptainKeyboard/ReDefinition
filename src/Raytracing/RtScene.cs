@@ -203,7 +203,7 @@ namespace ReDefinition.Raytracing
             Skipped = 0;
             foreach (RtItem item in items)
             {
-                int mesh = MeshId(item.Mesh, item.SubMesh);
+                int mesh = MeshId(item.Mesh, item.SubMesh, item.Material);
                 if (mesh == 0)
                 {
                     Skipped++;
@@ -246,7 +246,7 @@ namespace ReDefinition.Raytracing
             foreach (RtGpuItem item in gpuCollected)
             {
                 if (item.Transforms == null || !item.Transforms.IsValid() || item.Transforms.count == 0) continue;
-                int mesh = MeshId(item.Mesh, item.SubMesh);
+                int mesh = MeshId(item.Mesh, item.SubMesh, item.Material);
                 if (mesh == 0)
                 {
                     Skipped++;
@@ -297,7 +297,9 @@ namespace ReDefinition.Raytracing
 
         // The proxy's id of a submesh, handed over when first seen; 0 where it cannot
         // be read.
-        private int MeshId(Mesh mesh, int subMesh)
+        // `material`: the one it is drawn with, for the colours KSP's terrain shaders make
+        // of its vertex colours (RtStockTerrain).
+        private int MeshId(Mesh mesh, int subMesh, Material material)
         {
             if (mesh == null) return 0;
             long key = Key(mesh, subMesh);
@@ -309,7 +311,7 @@ namespace ReDefinition.Raytracing
                 {
                     // Built again since: handed over again under the same id.
                     entry.Dirty = false;
-                    if (!Upload(mesh, subMesh, entry.Id)) return 0;
+                    if (!Upload(mesh, subMesh, entry.Id, material)) return 0;
                 }
                 return entry.Id;
             }
@@ -327,7 +329,7 @@ namespace ReDefinition.Raytracing
                 return 0;
             }
             int id = nextMeshId++;
-            if (!Upload(mesh, subMesh, id)) return 0;
+            if (!Upload(mesh, subMesh, id, material)) return 0;
             meshes[key] = new MeshEntry { Id = id, LastSeen = frame, Mesh = mesh, SubMesh = subMesh };
             List<long> keys;
             if (!keysOf.TryGetValue(mesh, out keys)) keysOf[mesh] = keys = new List<long>();
@@ -335,7 +337,7 @@ namespace ReDefinition.Raytracing
             return id;
         }
 
-        private bool Upload(Mesh mesh, int subMesh, int id)
+        private bool Upload(Mesh mesh, int subMesh, int id, Material material)
         {
             if (subMesh < 0 || subMesh >= mesh.subMeshCount
                 || mesh.GetTopology(subMesh) != MeshTopology.Triangles)
@@ -346,8 +348,9 @@ namespace ReDefinition.Raytracing
             Vector3[] vertices = mesh.vertices;
             Vector3[] normals = mesh.normals;
             Vector2[] uvs = mesh.uv;
-            // Parallax's terrain takes the planet's colour from them (RtTerrainColour).
-            Color32[] colors = mesh.colors32;
+            // Parallax's terrain takes the planet's colour from them (RtTerrainColour); KSP's
+            // own, the colour its shader makes of them (RtStockTerrain).
+            Color32[] colors = RtStockTerrain.Colours(mesh, material) ?? mesh.colors32;
             int[] indices = mesh.GetIndices(subMesh);
             if (vertices.Length == 0 || indices.Length < 3)
             {
@@ -464,6 +467,13 @@ namespace ReDefinition.Raytracing
             if (isTerrain)
             {
                 surface.Albedo = terrain;
+                layer = -1;
+            }
+            else if (RtStockTerrain.Applies(material))
+            {
+                // KSP's own terrain: the whole colour in the vertex colours (RtStockTerrain).
+                surface.Albedo = Color.black;
+                vertexFactor = 1f;
                 layer = -1;
             }
             if (GammaSpace)

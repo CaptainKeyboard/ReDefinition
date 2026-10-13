@@ -40,6 +40,7 @@ SOURCES = [
     'src/Raytracing/RtMaterial.cs',
     'src/Raytracing/RtMaterialIntent.cs',
     'src/Raytracing/RtTerrainColour.cs',
+    'src/Raytracing/RtStockTerrain.cs',
     'src/Raytracing/RtLighting.cs',
     # RtLighting asks ForeignAssumptions before it takes Deferred's shader.
     'src/Core/ForeignCode.cs',

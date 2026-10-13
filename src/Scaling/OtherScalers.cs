@@ -22,7 +22,10 @@ namespace ReDefinition.Scaling
     //   "Force Maneuver Node Open" asks for that; its snapping, input and other
     //   windows stay.
     // Those Starts run in the main menu or later, after this is installed as the
-    // game starts. Each is patched only where its mod is installed.
+    // game starts. Each is patched only where its mod is installed, and 4kSP's R&D and
+    // window parts are skipped only where ReDefinition's own scaling of the same is in
+    // (and, for the windows, switched on as the bootstrap starts); otherwise they scale
+    // as the mod means them to.
     internal static class OtherScalers
     {
         private const string HarmonyId = "ReDefinition.UiScaling.OtherScalers";
@@ -31,10 +34,11 @@ namespace ReDefinition.Scaling
 
         internal static void Install()
         {
-            Guarded("4kSP", () => Skip("4kSP", UiScaling.FourkSpMap, "UpdateNodes", "AddToolbarButton"));
-            Guarded("4kSP's R&D part", () => Skip("4kSP's R&D part", UiScaling.FourkSpRnD, "Start"));
-            Guarded("4kSP's R&D part", () => Skip("4kSP's R&D part", FourkSpRnDScene, "Start"));
-            Guarded("4kSP's window part", () => Skip("4kSP's window part", UiScaling.FourkSpWindows, "Start"));
+            Guarded("4kSP", () => Skip("4kSP", UiScaling.FourkSpMap, () => true, "UpdateNodes", "AddToolbarButton"));
+            Guarded("4kSP's R&D part", () => Skip("4kSP's R&D part", UiScaling.FourkSpRnD, () => RnDNodeHooks.Installed, "Start"));
+            Guarded("4kSP's R&D part", () => Skip("4kSP's R&D part", FourkSpRnDScene, () => RnDNodeHooks.Installed, "Start"));
+            Guarded("4kSP's window part", () => Skip("4kSP's window part", UiScaling.FourkSpWindows,
+                                                       () => ModWindowScale.Installed && UiScaling.ModWindows, "Start"));
             Guarded("Maneuver Node Evolved", KeepManeuverGizmo);
         }
 
@@ -82,7 +86,10 @@ namespace ReDefinition.Scaling
         }
 
         // The methods named on the mod's type skipped, where the mod is installed.
-        private static void Skip(string mod, string type, params string[] names)
+        // By method skipped: whether ReDefinition's own scaling of the same runs.
+        private static readonly Dictionary<MethodBase, System.Func<bool>> skipWhen = new Dictionary<MethodBase, System.Func<bool>>();
+
+        private static void Skip(string mod, string type, System.Func<bool> oursRuns, params string[] names)
         {
             System.Type found = TypeLookup.Find(type);
             if (found == null) return;
@@ -96,6 +103,7 @@ namespace ReDefinition.Scaling
                     Missing(mod, type + "." + name);
                     continue;
                 }
+                skipWhen[method] = oursRuns;
                 hooks.Add(new HarmonyHook(method, nameof(SkipOriginal), null, null));
                 skipped.Add(name);
             }
@@ -104,9 +112,17 @@ namespace ReDefinition.Scaling
             Debug.Log(Log.Tag + " UI scaling: " + mod + "'s " + string.Join(", ", skipped.ToArray()) + " turned off; ReDefinition scales that.");
         }
 
-        private static bool SkipOriginal()
+        private static bool SkipOriginal(MethodBase __originalMethod)
         {
-            return false;
+            System.Func<bool> oursRuns;
+            try
+            {
+                return __originalMethod != null && skipWhen.TryGetValue(__originalMethod, out oursRuns) && !oursRuns();
+            }
+            catch (System.Exception)
+            {
+                return true;
+            }
         }
 
         private static int replaced;

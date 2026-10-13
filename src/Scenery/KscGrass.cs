@@ -81,6 +81,18 @@ namespace ReDefinition.Scenery
         private readonly uint[] arguments = new uint[5];
         private bool ready;
         private int[] capacities = new int[0];
+
+        // Whether Parallax is installed, looked up once: the settings window asks it as it
+        // draws the row.
+        private static bool? parallaxInstalled;
+        internal static bool ParallaxInstalled
+        {
+            get
+            {
+                if (parallaxInstalled == null) parallaxInstalled = TypeLookup.Find("Parallax.ScatterManager") != null;
+                return parallaxInstalled.Value;
+            }
+        }
         private int drawnFrames;
 
         private static readonly int SourceId = Shader.PropertyToID("_Source");

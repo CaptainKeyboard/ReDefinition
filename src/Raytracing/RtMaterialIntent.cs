@@ -99,8 +99,8 @@ namespace ReDefinition.Raytracing
                     return scenery ? Dry() : keep;
             }
             if (!material.HasProperty("_Glossiness") && !material.HasProperty("_Metallic") && Unknown.Add(shader))
-                Debug.Log("[ReDefinition] Raytracing: the shine of shader '" + shader + "' is taken from Deferred's G-buffer, at most "
-                          + "a smoothness of 0.95 (material '" + material.name + "').");
+                Debug.Log("[ReDefinition] Raytracing: the shine of shader '" + shader + "' is taken as drawn (Deferred's G-buffer, or"
+                          + " the material's own values), at most a smoothness of 0.95 (material '" + material.name + "').");
             return keep;
         }
 

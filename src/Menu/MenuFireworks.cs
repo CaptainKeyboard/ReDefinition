@@ -216,7 +216,7 @@ namespace ReDefinition.Menu
             return true;
         }
 
-        private static int Rank(Light light)
+        internal static int Rank(Light light)
         {
             return light.name == "PlanetLight" || light.name == "Directional light" ? 2
                    : light.name.IndexOf("Back", StringComparison.OrdinalIgnoreCase) >= 0 ? 0 : 1;

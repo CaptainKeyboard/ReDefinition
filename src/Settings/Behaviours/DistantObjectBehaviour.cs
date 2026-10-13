@@ -280,12 +280,21 @@ namespace ReDefinition.Settings.Behaviours
 
         // Where the sun is behind a body, the sky as Distant Object dims it without the
         // sun's term: by the bright planets in view alone.
+        // Runs inside Distant Object every frame: nothing may escape.
         private static void DarkenSkyPostfix()
         {
-            if (MapView.MapIsEnabled || GalaxyCubeControl.Instance == null || FlightCamera.fetch == null) return;
-            Camera camera = FlightCamera.fetch.mainCamera;
-            if (camera == null || !SunHidden(camera.transform.position)) return;
-            DarkenSky(camera);
+            try
+            {
+                if (MapView.MapIsEnabled || GalaxyCubeControl.Instance == null || FlightCamera.fetch == null) return;
+                Camera camera = FlightCamera.fetch.mainCamera;
+                if (camera == null || !SunHidden(camera.transform.position)) return;
+                DarkenSky(camera);
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("distantobject-sky-postfix", "Distant Object: the sky behind a body could not be"
+                                                                   + " dimmed (" + CompatibilityLog.Reason(e) + ").");
+            }
         }
 
         private static readonly object[] planetsArguments = new object[4];

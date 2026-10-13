@@ -655,6 +655,7 @@ namespace ReDefinition
                 NeedsProfile = false,
                 Tooltip = "Parallax's grass on the space centre's lawns, where Parallax itself grows it under them.\n"
                           + "Needs Parallax.",
+                Interactable = settings => ReDefinition.Scenery.KscGrass.ParallaxInstalled,
                 Read = settings => SettingValues.Text(settings.KscGrass),
                 Write = (settings, value) => settings.KscGrass = bool.Parse(value),
             });
