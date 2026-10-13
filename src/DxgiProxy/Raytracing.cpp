@@ -161,6 +161,7 @@ namespace redefinition
         data.vertexColour[1] = static_cast<float>(desc->flags);
         data.vertexColour[2] = desc->glossDivisor;
         data.vertexColour[3] = desc->glossMean;
+        data.look[0] = desc->diffuseShare != 0.0f ? desc->diffuseShare : 1.0f;
         std::lock_guard<std::mutex> lock(mutex);
         materialData[desc->material] = data;
         return 1;

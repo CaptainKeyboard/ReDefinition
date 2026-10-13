@@ -155,7 +155,8 @@ namespace ReDefinition.Raytracing
             {
                 float m = masked ? Sample(mask, Vector2.Scale(uv1[i], scale) + offset).r : 0f;
                 Color c = Color.Lerp(grass, tarmac, m);
-                result[i] = new Color32(Byte(c.r), Byte(c.g), Byte(c.b), 255);
+                // The alpha: what of the frame's colour stays diffuse as Deferred draws it.
+                result[i] = new Color32(Byte(c.r), Byte(c.g), Byte(c.b), Byte(RtDeferredLook.KscShare(material, m)));
             }
             return result;
         }
@@ -230,6 +231,12 @@ namespace ReDefinition.Raytracing
         private static float Get(Material material, string name, float otherwise)
         {
             return material.HasProperty(name) ? material.GetFloat(name) : otherwise;
+        }
+
+        // A texture's average in Unity's colour space (Layer), white for none.
+        internal static Color Average(Texture texture)
+        {
+            return Layer(texture, 0);
         }
 
         // A texture's (or an array's layer's) average in Unity's colour space, once per

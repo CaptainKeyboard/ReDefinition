@@ -85,6 +85,9 @@ struct MaterialData
     // is added to it; y: how its shine is meant (RT_SURFACE_*); z: the gloss divisor;
     // w: the mean gloss (Raytracing.h, RtMaterialDesc).
     float4 vertexColour;
+    // x: what of the frame's colour the forward light keeps as diffuse (RtMaterialDesc);
+    // below 0, the vertex colours' alpha holds it.
+    float4 look;
 };
 
 struct VertexAttributes
@@ -410,6 +413,8 @@ struct Hit
     float3 normal;
     float2 uv;
     float3 color;
+    // The vertex colours' alpha, interpolated.
+    float colorAlpha;
     uint material;
     uint flags;
 };
@@ -424,6 +429,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.normal = float3(0.0f, 1.0f, 0.0f);
     hit.uv = 0.0f;
     hit.color = 1.0f;
+    hit.colorAlpha = 1.0f;
     hit.material = 0u;
 
     RayDesc ray;
@@ -462,6 +468,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.normal = normal;
     hit.uv = a0.uv * w + a1.uv * bary.x + a2.uv * bary.y;
     hit.color = UnpackColor(a0.color) * w + UnpackColor(a1.color) * bary.x + UnpackColor(a2.color) * bary.y;
+    hit.colorAlpha = (float(a0.color >> 24) * w + float(a1.color >> 24) * bary.x + float(a2.color >> 24) * bary.y) * (1.0f / 255.0f);
     hit.material = instance.material;
     hit.flags = instance.flags;
     return hit;
@@ -922,6 +929,8 @@ struct SurfaceData
     // False where neither a G-buffer nor the scene says what the surface is (a surface
     // the rays do not hold, KSP's sea say): the values below are a guess.
     bool found;
+    // Without a G-buffer, the material's diffuse share (MaterialData.look); 1 otherwise.
+    float diffuseShare;
 };
 
 // A surface's smoothness as KSP's legacy part shaders give its highlight. Deferred turns
@@ -1030,6 +1039,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
 {
     SurfaceData surface;
     surface.found = true;
+    surface.diffuseShare = 1.0f;
     if (HAS_GBUFFER)
     {
         surface.normal = DecodeNormal(gbuffer2[pixel]);
@@ -1058,6 +1068,8 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
         surface.smoothness = material.smoothness;
         surface.specular = IntendedSpecular(material);
         surface.albedo = Albedo(material, hit.uv, hit.color);
+        // Below 0: per vertex, in the colours' alpha (the space centre's ground, RtStockTerrain).
+        surface.diffuseShare = material.look.x < 0.0f ? hit.colorAlpha : material.look.x;
         return surface;
     }
     surface.normal = DepthNormal(pixel, position);

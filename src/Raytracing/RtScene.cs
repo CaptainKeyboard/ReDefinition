@@ -495,6 +495,7 @@ namespace ReDefinition.Raytracing
                 Flags = intent.Mode,
                 GlossDivisor = intent.GlossDivisor,
                 GlossMean = intent.GlossMean,
+                DiffuseShare = RtDeferredLook.DiffuseShare(material),
             };
             // Where the shine is meant otherwise than the G-buffer's, the hits take it as well.
             if (intent.Mode != RtNative.SurfaceKeep)

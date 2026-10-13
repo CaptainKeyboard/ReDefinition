@@ -321,6 +321,56 @@ namespace ReDefinition.Probe
         // The sweep in this many frames a step of the path (FlipProbe).
         private int sweepSubdivide = 1;
 
+        // The raytraced camera's light at a few places of the pad's view, into the log: the
+        // traced diffuse light (linear), the sun's visibility, the forward ratio (k, w),
+        // Unity's ambient probe up / side / down and the sun's colour.
+        private static IEnumerator LightValues()
+        {
+            Raytracing.RtCamera rt = Raytracing.RtCamera.Current;
+            if (rt == null) yield break;
+            var places = new[] { new KeyValuePair<string, Rect>("lawn", new Rect(0.02f, 0.57f, 0.18f, 0.12f)),
+                                 new KeyValuePair<string, Rect>("pad", new Rect(0.16f, 0.80f, 0.15f, 0.07f)),
+                                 new KeyValuePair<string, Rect>("rocket", new Rect(0.485f, 0.35f, 0.022f, 0.14f)) };
+            foreach (var texture in new[] { new KeyValuePair<string, RenderTexture>("diffuse", rt.DiffuseTexture),
+                                            new KeyValuePair<string, RenderTexture>("sun", rt.SunTexture),
+                                            new KeyValuePair<string, RenderTexture>("ratio", rt.ForwardRatioTexture) })
+            {
+                if (texture.Value == null) continue;
+                AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(texture.Value, 0, TextureFormat.RGBAFloat);
+                while (!request.done) yield return null;
+                if (request.hasError) continue;
+                NativeArray<Color> data = request.GetData<Color>();
+                int w = texture.Value.width, h = texture.Value.height;
+                var line = new StringBuilder(Log.Tag + " Probe: light values, " + texture.Key + ":");
+                foreach (var place in places)
+                {
+                    Color sum = Color.clear;
+                    int n = 0;
+                    // Rows from the bottom in the texture, the places from the top.
+                    for (int y = (int)((1f - place.Value.yMax) * h); y < (int)((1f - place.Value.yMin) * h); y++)
+                        for (int x = (int)(place.Value.xMin * w); x < (int)(place.Value.xMax * w); x++)
+                        {
+                            sum += data[y * w + x];
+                            n++;
+                        }
+                    if (n > 0) sum /= n;
+                    line.Append(' ').Append(place.Key).Append(' ').Append(sum.r.ToString("0.000", CultureInfo.InvariantCulture))
+                        .Append(", ").Append(sum.g.ToString("0.000", CultureInfo.InvariantCulture)).Append(", ")
+                        .Append(sum.b.ToString("0.000", CultureInfo.InvariantCulture)).Append(", ")
+                        .Append(sum.a.ToString("0.000", CultureInfo.InvariantCulture)).Append(';');
+                }
+                Debug.Log(line.ToString());
+            }
+            var directions = new[] { Vector3.up, Vector3.right, Vector3.down };
+            var ambient = new Color[3];
+            UnityEngine.Rendering.SphericalHarmonicsL2 probe;
+            LightProbes.GetInterpolatedProbe(rt.transform.position, null, out probe);
+            probe.Evaluate(directions, ambient);
+            Debug.Log(Log.Tag + " Probe: light values, ambient up " + ambient[0] + " side " + ambient[1] + " down " + ambient[2]
+                      + ", RenderSettings.ambientLight " + RenderSettings.ambientLight + ", mode " + RenderSettings.ambientMode
+                      + ", sun " + rt.TracedSunColour + ", path " + rt.Camera.actualRenderingPath + ".");
+        }
+
         private IEnumerator Start()
         {
             if (!SceneProbe.Requested || HighLogic.SaveFolder != SceneProbe.SaveFolder) yield break;
@@ -336,6 +386,7 @@ namespace ReDefinition.Probe
                 string shot = SceneProbe.ArgumentAfter("-redefinitionProbeShot");
                 if (shot == null) yield break;
                 yield return new WaitForSeconds(30f);
+                yield return LightValues();
                 string folder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
                 Directory.CreateDirectory(folder);
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));

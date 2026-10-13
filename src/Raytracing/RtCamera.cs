@@ -1278,6 +1278,7 @@ namespace ReDefinition.Raytracing
         internal RenderTexture SurfaceModeTexture { get { return surfaceMode; } }
         internal RenderTexture EnvironmentTexture { get { return environment; } }
         internal RenderTexture ForwardTexture { get { return forward; } }
+        internal RenderTexture ForwardRatioTexture { get { return forwardRatio; } }
         internal RenderTexture OceanReflectionsTexture { get { return oceanReflections; } }
         // Whether KSP's own sea took the raytraced reflections, with the sun's disc, in the
         // last frame (TraceOcean).

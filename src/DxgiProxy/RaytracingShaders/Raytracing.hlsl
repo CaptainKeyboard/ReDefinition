@@ -306,6 +306,8 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
         float nl = saturate(dot(surface.normal, normalize(sunDirection.xyz)));
         float3 shaded = sunColor.rgb * nl * saturate(output0[id.xy].x) + ambient;
         float3 k = (diffuse - ambient) / max(shaded, 1e-3f);
+        // As Deferred shades the surface: its diffuse share of the light, sun and sky alike.
+        k = surface.diffuseShare * (1.0f + k) - 1.0f;
         output7[id.xy] = float4(k, max(shaded.r, max(shaded.g, shaded.b)));
     }
     float3 view = -normalize(position);

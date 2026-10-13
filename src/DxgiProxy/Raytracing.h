@@ -87,7 +87,10 @@ namespace redefinition
         // gives it.
         float glossDivisor;
         float glossMean;
-        float reserved;
+        // What of the frame's colour the forward light keeps as diffuse, as Deferred's
+        // shading would (RtDeferredLook); 0 for all of it, below 0 per vertex in the colours'
+        // alpha.
+        float diffuseShare;
     };
 
     // One instance of a mesh this frame: a 3x4 transform, rows first, from the
@@ -523,6 +526,8 @@ namespace redefinition
             float emission[3];
             int32_t texture;
             float vertexColour[4];
+            // x: the diffuse share (RtMaterialDesc), 1 where none was given.
+            float look[4];
         };
 
         struct InstanceData
