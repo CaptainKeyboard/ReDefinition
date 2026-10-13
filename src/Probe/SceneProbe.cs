@@ -39,7 +39,7 @@ namespace ReDefinition.Probe
         internal static readonly string BodyName = ArgumentAfter("-redefinitionProbeBody");
         internal static readonly string MoonName = ArgumentAfter("-redefinitionProbeMoon") ?? "Mun";
 
-        private static string ArgumentAfter(string name)
+        internal static string ArgumentAfter(string name)
         {
             string[] args = Environment.GetCommandLineArgs();
             int at = Array.IndexOf(args, name);
@@ -331,6 +331,17 @@ namespace ReDefinition.Probe
                 yield return new WaitForSeconds(5f);
                 LightProbe.HideClouds();
                 Debug.Log(Log.Tag + " Probe: the flight is the player's.");
+                // -redefinitionProbeShot <name>: the frame as KSP draws it, 30 s on, into
+                // ReDefinitionCaptures\<name>.png, then KSP quits.
+                string shot = SceneProbe.ArgumentAfter("-redefinitionProbeShot");
+                if (shot == null) yield break;
+                yield return new WaitForSeconds(30f);
+                string folder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
+                Directory.CreateDirectory(folder);
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
+                Debug.Log(Log.Tag + " Probe: shot " + shot + ".");
+                yield return new WaitForSeconds(2f);
+                Application.Quit();
                 yield break;
             }
             yield return new WaitForSeconds(SettleSeconds);

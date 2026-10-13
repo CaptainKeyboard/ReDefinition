@@ -2388,8 +2388,10 @@ int main()
 
     // ---------------------------------------------------------------- forward light
     {
-        // The light a forward frame gets: the albedo times the diffuse light less the flat
-        // ambient, on every drawn pixel, and nothing where nothing was drawn.
+        // The light a forward frame gets, without a G-buffer: in u7 per channel the diffuse
+        // light less the flat ambient over the light Unity shaded with (here the ambient
+        // alone, the sun black), in w the largest channel of that; nothing where nothing
+        // was drawn.
         // Unity's ambient light as a probe brighter above than below: the pass takes off
         // the quadratic in the normal's height through the three values.
         const float up = 0.3f, side = 0.2f, down = 0.05f;
@@ -2426,42 +2428,43 @@ int main()
             SendMaterial(proxy, 30, gamma != 0 ? linearAlbedo : albedoOf, none, 0.2f);
             SendFrame(proxy, camera, g, outputs, sun, 0.0f, 14000,
                       kRtSignalSunVisibility | kRtSignalDiffuse | kRtSignalAmbientOcclusion | kRtSignalForwardLight, lighting);
-            std::vector<uint16_t> forward, diffuse;
-            std::vector<uint32_t> albedo, normals;
+            std::vector<float> ratio;
+            std::vector<uint16_t> diffuse;
+            std::vector<uint32_t> normals;
             std::vector<float> depth;
-            ReadTexture(device.Get(), context.Get(), outputs.forward.Get(), 8, forward);
+            ReadTexture(device.Get(), context.Get(), outputs.primary.Get(), 16, ratio);
             ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
             ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, diffuse);
-            ReadTexture(device.Get(), context.Get(), g.gbuffer0.Get(), 4, albedo);
             ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
             size_t drawn = 0, right = 0, empty = 0, emptyRight = 0;
             for (size_t i = 0; i < depth.size(); ++i)
             {
-                const double got = HalfToFloat(forward[i * 4 + 1]);
+                const double got = ratio[i * 4 + 1];
+                const double gotW = ratio[i * 4 + 3];
                 if (depth[i] <= 0.0f)
                 {
                     ++empty;
-                    emptyRight += got == 0.0 ? 1 : 0;
+                    emptyRight += got == 0.0 && gotW == 0.0 ? 1 : 0;
                     continue;
                 }
                 ++drawn;
                 const double ny = ((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1;
+                // As the proxy has it: the packet's values, already in Unity's colour space.
                 const double ambient = side + 0.5 * (up - down) * ny + (0.5 * (up + down) - side) * ny * ny;
-                const double drawnAlbedo = ((albedo[i] >> 8) & 0xFF) / 255.0;
                 const double light = HalfToFloat(diffuse[i * 4 + 1]);
-                const double want = gamma != 0 ? toGamma(toLinear(drawnAlbedo)) * (toGamma(light) - ambient)
-                                               : drawnAlbedo * (light - ambient);
-                right += std::fabs(got - want) < 0.01 + 0.02 * std::fabs(want) ? 1 : 0;
+                const double want = ((gamma != 0 ? toGamma(light) : light) - ambient) / std::max(ambient, 1e-3);
+                right += std::fabs(got - want) < 0.01 + 0.03 * std::fabs(want) && std::fabs(gotW - ambient) < 0.01 + 0.02 * ambient
+                             ? 1 : 0;
             }
             char detail[200];
-            sprintf_s(detail, "%zu of %zu drawn pixels get the albedo times the diffuse light less the ambient, %zu of %zu empty ones nothing", right,
+            sprintf_s(detail, "%zu of %zu drawn pixels get the diffuse light less the ambient over the ambient, %zu of %zu empty ones nothing", right,
                       drawn, emptyRight, empty);
             Check(drawn > 100000 && right * 100 >= drawn * 99 && emptyRight == empty,
                   gamma != 0 ? "forward light in gamma space" : "forward light", detail);
         }
 
-        // The reflections as well, of a rough surface whose specular colour is 0.5 under a
-        // white sky: Unity's Fresnel term is then 0.5 at every angle, and its surface
+        // The reflections, alone in u4 without a G-buffer, of a rough surface whose specular
+        // colour is 0.5 under a white sky: Unity's Fresnel term is then 0.5 at every angle, and its surface
         // reduction, in gamma space, 1 - 0.28 roughness^3 = 0.72 (BRDF1_Unity_PBS), and
         // 1 / (roughness^4 + 1) = 0.5 linear.
         const float shiny[3] = { float(toLinear(0.5)), float(toLinear(0.5)), float(toLinear(0.5)) };
@@ -2479,22 +2482,19 @@ int main()
             ReadTexture(device.Get(), context.Get(), outputs.specular.Get(), 8, specular);
             ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
             const double reduction = gamma != 0 ? 0.72 : 0.5;
-            const double albedo = gamma != 0 ? 0.5 : albedoOf[1];
             size_t drawn = 0, right = 0;
             for (size_t i = 0; i < depth.size(); ++i)
             {
                 if (depth[i] <= 0.0f)
                     continue;
                 ++drawn;
-                const double light = HalfToFloat(diffuse[i * 4 + 1]);
                 const double reflected = HalfToFloat(specular[i * 4 + 1]);
-                const double want = gamma != 0 ? albedo * toGamma(light) + toGamma(reflected) * 0.5 * reduction
-                                               : albedo * light + reflected * 0.5 * reduction;
+                const double want = gamma != 0 ? toGamma(reflected) * 0.5 * reduction : reflected * 0.5 * reduction;
                 const double got = HalfToFloat(forward[i * 4 + 1]);
                 right += std::fabs(got - want) < 0.01 + 0.02 * std::fabs(want) ? 1 : 0;
             }
             char detail[200];
-            sprintf_s(detail, "%zu of %zu drawn pixels get the diffuse light and the reflections times 0.5 and %.2f", right,
+            sprintf_s(detail, "%zu of %zu drawn pixels get the reflections times 0.5 and %.2f", right,
                       drawn, reduction);
             Check(drawn > 100000 && right * 100 >= drawn * 99,
                   gamma != 0 ? "forward light's reflections in gamma space" : "forward light's reflections", detail);
@@ -3031,10 +3031,10 @@ int main()
 
     // ---------------------------------------------------------------- vertex colours
     {
-        // The ground as Parallax's terrain: a colour in Unity's colour space plus the
-        // vertex colour times a factor, taken to linear as a whole. In gamma space,
-        // without a G-buffer, under a white sky and nothing else, the forward light of
-        // the open ground is that sum.
+        // The ground as Parallax's terrain or KSP's own: a colour in Unity's colour space
+        // plus the vertex colour times a factor, taken to linear as a whole (gamma space).
+        // A white box high over it, the sun overhead, a black sky: its underside sees the
+        // sunlit ground alone, so its light has the ground's colour.
         Mesh coloured = MakePlane(50, 32);
         const uint32_t vertex = 0x00996633u;   // R 0x33, G 0x66, B 0x99
         coloured.colors.assign(coloured.positions.size() / 3, vertex);
@@ -3042,38 +3042,54 @@ int main()
         const float none[3] = { 0.0f, 0.0f, 0.0f };
         const float factor = 0.5f;
         const bool sent = SendMesh(proxy, coloured) == 1 && SendMaterial(proxy, 51, base, none, 0.0f, factor) == 1;
-        std::vector<Instance> ground = scene;
+        std::vector<Instance> ground = { scene[0], box };
         ground[0].mesh = 50;
         ground[0].material = 51;
-        SendInstances(proxy, ground, camera.position);
-        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        ground[1].position = { 0, 20, 0 };
+        ground[1].albedo[0] = ground[1].albedo[1] = ground[1].albedo[2] = 1.0f;
+        Camera under = camera;
+        under.position = { 20, 8, 20 };
+        under.target = { 0, 20, 0 };
+        under.Update();
+        SendInstances(proxy, ground, under.position);
+        // A map of its own: RenderGBuffer looks each instance's mesh up by operator[].
+        std::map<int, Mesh> groundMeshes = meshes;
+        groundMeshes[50] = coloured;
+        RenderGBuffer(context.Get(), g, under, groundMeshes, ground);
         Lighting lighting;
-        lighting.gbuffer = false;
         lighting.gamma = true;
-        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
         lighting.bounces = 0.0f;
-        lighting.flags = kRtFrameDenoise | kRtFrameReset;
-        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 16000,
-                  kRtSignalSunVisibility | kRtSignalDiffuse | kRtSignalAmbientOcclusion | kRtSignalForwardLight, lighting);
-        std::vector<uint16_t> forward;
-        ReadTexture(device.Get(), context.Get(), outputs.forward.Get(), 8, forward);
-        std::vector<double> image(static_cast<size_t>(kWidth) * kHeight * 3);
-        for (size_t i = 0; i < image.size() / 3; ++i)
-            for (int c = 0; c < 3; ++c)
-                image[i * 3 + c] = HalfToFloat(forward[i * 4 + c]);
-        int x = 0, y = 0;
-        const bool seen = Project(camera, Vec3{ 15, 0, -15 } - camera.position, x, y);
-        double got[3], want[3];
-        bool right = sent && seen;
-        for (int c = 0; c < 3; ++c)
+        lighting.sky[0] = lighting.sky[1] = lighting.sky[2] = 0.0f;
+        std::vector<double> m;
+        if (!Accumulate(proxy, device.Get(), context.Get(), under, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                        lighting, Vec3{ 0, 1, 0 }, 64, 16000, m))
+            return Fatal("reading the underside's light back", E_FAIL);
+        std::vector<uint32_t> normals;
+        std::vector<float> depth;
+        ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+        double got[3] = {};
+        size_t count = 0;
+        for (size_t i = 0; i < normals.size(); ++i)
         {
-            got[c] = seen ? MeanAround(image, x, y, c) : 0.0;
-            want[c] = base[c] + factor * double((vertex >> (8 * c)) & 0xFFu) / 255.0;
-            right = right && std::fabs(got[c] - want[c]) < 0.05 * want[c];
+            if (depth[i] <= 0.0f || ((normals[i] >> 10) & 0x3FF) / 1023.0 * 2 - 1 > -0.9)
+                continue;
+            for (int c = 0; c < 3; ++c)
+                got[c] += m[i * 3 + c];
+            ++count;
         }
-        char detail[200];
-        sprintf_s(detail, "the open ground %.3f, %.3f, %.3f, where the colour plus half the vertex colour is %.3f, %.3f, %.3f",
-                  got[0], got[1], got[2], want[0], want[1], want[2]);
+        const auto toLinear = [](double c) { return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878); };
+        double want[3];
+        for (int c = 0; c < 3; ++c)
+            want[c] = toLinear(base[c] + factor * double((vertex >> (8 * c)) & 0xFFu) / 255.0);
+        // Its colour, the light's channels to its green as the albedo's.
+        bool right = sent && count > 1000 && got[1] > 0.0;
+        for (int c = 0; c < 3 && right; c += 2)
+            right = std::fabs(got[c] / got[1] - want[c] / want[1]) < 0.05 * (want[c] / want[1]);
+        char detail[240];
+        sprintf_s(detail, "the box's underside lit by the ground in the ratio %.3f : 1 : %.3f, the ground's linear albedo "
+                          "%.3f : 1 : %.3f (%zu pixels)", got[1] > 0 ? got[0] / got[1] : 0.0, got[1] > 0 ? got[2] / got[1] : 0.0,
+                  want[0] / want[1], want[2] / want[1], count);
         Check(right, "vertex colours", detail);
         SendInstances(proxy, scene, camera.position);
         proxy.releaseMesh(50);

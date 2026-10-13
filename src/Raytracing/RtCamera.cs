@@ -205,7 +205,7 @@ namespace ReDefinition.Raytracing
         private static PacketRing ring;
         private RtNative.FramePacket packet;
         private RenderTexture depth, gbuffer0, gbuffer1, gbuffer2, motion, environment;
-        private RenderTexture sun, diffuse, specular, forward;
+        private RenderTexture sun, diffuse, specular, forward, forwardRatio;
         // The surfaces as their materials mean them, and how each was found (SurfaceIntent).
         private RenderTexture surface, surfaceMode;
         private IntPtr surfaceHandle, surfaceModeHandle;
@@ -225,7 +225,7 @@ namespace ReDefinition.Raytracing
         // The targets' native textures, taken once as they are made: GetNativeTexturePtr
         // waits for the render thread.
         private IntPtr depthHandle, gbuffer0Handle, gbuffer1Handle, gbuffer2Handle, motionHandle, environmentHandle;
-        private IntPtr sunHandle, diffuseHandle, specularHandle, forwardHandle;
+        private IntPtr sunHandle, diffuseHandle, specularHandle, forwardHandle, forwardRatioHandle;
         // The GPU's instances gathered for the proxy (ReDefinitionRtScatter.compute), and
         // the append buffers' counts.
         private ComputeShader gather;
@@ -290,6 +290,10 @@ namespace ReDefinition.Raytracing
         private static readonly int RtSpecular = Shader.PropertyToID("_ReDefinitionRtSpecular");
         private static readonly int RtCube = Shader.PropertyToID("_ReDefinitionRtCube");
         private static readonly int RtForward = Shader.PropertyToID("_ReDefinitionRtForward");
+        private static readonly int RtForwardRatio = Shader.PropertyToID("_ReDefinitionRtForwardRatio");
+        private static readonly int RtFrameCopy = Shader.PropertyToID("_ReDefinitionRtFrame");
+        // ReDefinitionRtForwardLight.shader's pass that relights the frame by its own colour.
+        private const int RelightPass = 4;
         private static readonly int RtCubeHdr = Shader.PropertyToID("_ReDefinitionRtCube_HDR");
         // The gather pass of the GPU's instances (GatherGpuInstances).
         private static readonly int GatherEye = Shader.PropertyToID("_Eye");
@@ -462,9 +466,24 @@ namespace ReDefinition.Raytracing
                 if (forwardFrame && haveHistory && !Cut() && forward != null && (Settings.Diffuse || Settings.Reflections))
                 {
                     Shader.SetGlobalTexture(RtForward, forward);
-                    int first = forwardEvent == CameraEvent.AfterLighting && !cam.allowHDR ? 2 : 0;
-                    forwardLight.DrawMesh(screenQuad, Matrix4x4.identity, forwardMaterial, 0, first);
-                    forwardLight.DrawMesh(screenQuad, Matrix4x4.identity, forwardMaterial, 0, first + 1);
+                    if (forwardEvent == CameraEvent.AfterForwardOpaque)
+                    {
+                        // Without a G-buffer: the frame relit by its own colour, which a pass
+                        // reads from a copy (Raytracing.hlsl, ForwardLight).
+                        Shader.SetGlobalTexture(RtForwardRatio, forwardRatio);
+                        forwardLight.GetTemporaryRT(RtFrameCopy, -1, -1, 0, FilterMode.Point,
+                                                    cam.allowHDR ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default);
+                        forwardLight.Blit(BuiltinRenderTextureType.CameraTarget, RtFrameCopy);
+                        forwardLight.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
+                        forwardLight.DrawMesh(screenQuad, Matrix4x4.identity, forwardMaterial, 0, RelightPass);
+                        forwardLight.ReleaseTemporaryRT(RtFrameCopy);
+                    }
+                    else
+                    {
+                        int first = forwardEvent == CameraEvent.AfterLighting && !cam.allowHDR ? 2 : 0;
+                        forwardLight.DrawMesh(screenQuad, Matrix4x4.identity, forwardMaterial, 0, first);
+                        forwardLight.DrawMesh(screenQuad, Matrix4x4.identity, forwardMaterial, 0, first + 1);
+                    }
                 }
             }
 
@@ -1124,7 +1143,10 @@ namespace ReDefinition.Raytracing
             if ((signals & RtNative.SignalSpecular) != 0)
                 packet.Outputs[RtNative.OutputSpecular] = specularHandle;
             if ((signals & RtNative.SignalForwardLight) != 0)
+            {
                 packet.Outputs[RtNative.OutputForwardLight] = forwardHandle;
+                if (!deferred) packet.Outputs[RtNative.OutputForwardRatio] = forwardRatioHandle;
+            }
             if ((packet.Flags & RtNative.FlagSurfaceIntent) != 0)
             {
                 packet.Outputs[RtNative.OutputSurface] = surfaceHandle;
@@ -1179,6 +1201,7 @@ namespace ReDefinition.Raytracing
             diffuse = Target(RenderTextureFormat.ARGBHalf);
             specular = Target(RenderTextureFormat.ARGBHalf);
             forward = Target(RenderTextureFormat.ARGBHalf);
+            forwardRatio = Target(RenderTextureFormat.ARGBHalf);
             surface = Target(RenderTextureFormat.ARGBHalf);
             surfaceMode = Target(RenderTextureFormat.ARGBHalf);
             depthHandle = depth.GetNativeTexturePtr();
@@ -1191,11 +1214,13 @@ namespace ReDefinition.Raytracing
             diffuseHandle = diffuse.GetNativeTexturePtr();
             specularHandle = specular.GetNativeTexturePtr();
             forwardHandle = forward.GetNativeTexturePtr();
+            forwardRatioHandle = forwardRatio.GetNativeTexturePtr();
             surfaceHandle = surface.GetNativeTexturePtr();
             surfaceModeHandle = surfaceMode.GetNativeTexturePtr();
             // OnPreCull bound the texture let go above for this frame's forward light,
             // which runs after this frame's trace into the new one.
             Shader.SetGlobalTexture(RtForward, forward);
+            Shader.SetGlobalTexture(RtForwardRatio, forwardRatio);
             haveHistory = false;
             gbufferReady = false;
         }
@@ -1228,17 +1253,17 @@ namespace ReDefinition.Raytracing
         private void ReleaseTargets()
         {
             foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer2, motion, environment, sun, diffuse,
-                                                      specular, forward, surface, surfaceMode })
+                                                      specular, forward, forwardRatio, surface, surfaceMode })
                 if (texture != null)
                 {
                     texture.Release();
                     Destroy(texture);
                 }
-            depth = gbuffer0 = gbuffer1 = gbuffer2 = motion = environment = sun = diffuse = specular = forward = null;
+            depth = gbuffer0 = gbuffer1 = gbuffer2 = motion = environment = sun = diffuse = specular = forward = forwardRatio = null;
             surface = surfaceMode = null;
             surfaceHandle = surfaceModeHandle = IntPtr.Zero;
             depthHandle = gbuffer0Handle = gbuffer1Handle = gbuffer2Handle = motionHandle = environmentHandle = IntPtr.Zero;
-            sunHandle = diffuseHandle = specularHandle = forwardHandle = IntPtr.Zero;
+            sunHandle = diffuseHandle = specularHandle = forwardHandle = forwardRatioHandle = IntPtr.Zero;
         }
 
         // The textures of the last frame, for the test player's and the diagnostics' look.

@@ -8,7 +8,9 @@
 // adding and one subtracting. Unity's deferred lighting without HDR keeps exp2(-light)
 // (Internal-DeferredShading.shader): there the third pass multiplies by exp2(-added)
 // where light is added, and the fourth by exp2(taken), as 1 + (exp2(taken) - 1), where
-// it is taken.
+// it is taken. Forward rendering, without a G-buffer, takes the surface's colour from
+// the frame itself: the fifth pass reads a copy of it and writes c + min(c, w) k plus the
+// reflections, k and w from the proxy's ratio (Raytracing.hlsl, ForwardLight).
 Shader "Hidden/ReDefinition/RtForwardLight"
 {
     CGINCLUDE
@@ -17,6 +19,8 @@ Shader "Hidden/ReDefinition/RtForwardLight"
 
     UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
     sampler2D _ReDefinitionRtForward;
+    sampler2D _ReDefinitionRtForwardRatio;
+    sampler2D _ReDefinitionRtFrame;
 
     struct v2f
     {
@@ -32,16 +36,18 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         return o;
     }
 
-    float3 Added(v2f i)
+    // Where the pixel was in the proxy's frame, false where it holds nothing for it.
+    bool Traced(v2f i, out float2 previous)
     {
+        previous = 0;
         float2 uv = i.screen.xy / i.screen.w;
         float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
         #if defined(UNITY_REVERSED_Z)
         if (depth <= 0.0)
-            return 0;
+            return false;
         #else
         if (depth >= 1.0)
-            return 0;
+            return false;
         #endif
         // The position as Unity's screen-space shadows find it, from the camera's own
         // matrices, which carry the upscaler's jitter (Internal-ScreenSpaceShadows.shader,
@@ -53,10 +59,27 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         camera.xyz /= camera.w;
         camera.z = -camera.z;
         float3 world = mul(unity_CameraToWorld, float4(camera.xyz, 1.0)).xyz;
+        return RtUvFilled(world, previous);
+    }
+
+    float3 Added(v2f i)
+    {
         float2 previous;
-        if (!RtUvFilled(world, previous))
+        if (!Traced(i, previous))
             return 0;
         return tex2Dlod(_ReDefinitionRtForward, float4(previous, 0.0, 0.0)).rgb;
+    }
+
+    half4 fragRelight(v2f i) : SV_Target
+    {
+        float2 uv = i.screen.xy / i.screen.w;
+        float3 c = tex2Dlod(_ReDefinitionRtFrame, float4(uv, 0.0, 0.0)).rgb;
+        float2 previous;
+        if (!Traced(i, previous))
+            return half4(c, 1.0);
+        float4 ratio = tex2Dlod(_ReDefinitionRtForwardRatio, float4(previous, 0.0, 0.0));
+        float3 reflections = tex2Dlod(_ReDefinitionRtForward, float4(previous, 0.0, 0.0)).rgb;
+        return half4(max(c + min(c, ratio.w) * ratio.rgb + max(reflections, 0.0), 0.0), 1.0);
     }
 
     half4 fragAdd(v2f i) : SV_Target
@@ -116,6 +139,14 @@ Shader "Hidden/ReDefinition/RtForwardLight"
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragEncodedTake
+            ENDCG
+        }
+        Pass
+        {
+            Blend Off
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment fragRelight
             ENDCG
         }
     }

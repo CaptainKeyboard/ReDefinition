@@ -252,11 +252,19 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
 Texture2D<float4> finishedDiffuse : register(t0, space3);
 Texture2D<float4> finishedSpecular : register(t1, space3);
 
-// u4, for forward rendering, which has no pass of Unity's to put the raytraced light in:
-// the light to add to the frame Unity drew, from the signals as the denoiser left them;
-// a signal not traced reads as none. The diffuse light and the reflections, less KSP's flat ambient light,
-// which forward shading added already. Unity's standard Fresnel term (FresnelLerp,
-// with its surface reduction) weighs the reflections.
+// u4, for rendering without a G-buffer of Unity's own lighting pass to put the raytraced
+// light in: the light to add to the frame Unity drew, from the signals as the denoiser
+// left them; a signal not traced reads as none. With a G-buffer (Unity's deferred path
+// without Deferred's reflections pass): the diffuse light less KSP's flat ambient light,
+// which Unity's shading added already, times the G-buffer's albedo, and the reflections.
+// Without one (forward), the surface's colour is taken from the frame Unity drew, not
+// guessed from its material: u7 holds per channel k = (diffuse - ambient) / (sun + ambient),
+// the light Unity shaded with (the sun as the screen-space shadows let it through, our own
+// sun visibility, and the ambient light), and in w the largest channel of sun + ambient;
+// the frame's colour c becomes c + min(c, w) k (ReDefinitionRtForwardLight.shader), its
+// colour as Unity shaded it, capped where other lights brightened it. u4 then holds the
+// reflections alone. Unity's standard Fresnel term (FresnelLerp, with its surface
+// reduction) weighs the reflections.
 [numthreads(8, 8, 1)]
 void ForwardLight(uint3 id : SV_DispatchThreadID)
 {
@@ -266,6 +274,8 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
     if (IsSky(depth))
     {
         output4[id.xy] = 0.0f;
+        if (!HAS_GBUFFER)
+            output7[id.xy] = 0.0f;
         return;
     }
     float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
@@ -275,18 +285,29 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
     if (!surface.found)
     {
         output4[id.xy] = 0.0f;
+        if (!HAS_GBUFFER)
+            output7[id.xy] = 0.0f;
         return;
     }
     // The traced diffuse light has the occlusion in it already; Unity's ambient light has
     // none. Added to a frame Unity shaded in its colour space: the linear signals taken
-    // there, the surface's albedo as Unity has it.
-    float3 albedo = OutputColor(surface.albedo);
+    // there.
     float3 ambient = UnityAmbient(surface.normal);
     float3 diffuse = OutputColor(finishedDiffuse[id.xy].rgb);
     // Never below the player's share of KSP's night light, as the deferred reflections
     // shader mixes it (ReDefinitionDeferredReflections.shader).
     diffuse = lerp(nightLight.rgb, diffuse, saturate((length(diffuse) - length(nightLight.rgb)) * 100.0f));
-    float3 light = albedo * (diffuse - ambient);
+    float3 light = 0.0f;
+    if (HAS_GBUFFER)
+        light = OutputColor(surface.albedo) * (diffuse - ambient);
+    else
+    {
+        // Unity's sun term in its colour space: the light's colour, N.L and its shadow.
+        float nl = saturate(dot(surface.normal, normalize(sunDirection.xyz)));
+        float3 shaded = sunColor.rgb * nl * saturate(output0[id.xy].x) + ambient;
+        float3 k = (diffuse - ambient) / max(shaded, 1e-3f);
+        output7[id.xy] = float4(k, max(shaded.r, max(shaded.g, shaded.b)));
+    }
     float3 view = -normalize(position);
     float nv = saturate(dot(surface.normal, view));
     float perceptual = 1.0f - surface.smoothness;

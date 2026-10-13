@@ -67,6 +67,9 @@ namespace ReDefinition.Raytracing
         internal const int OutputForwardLight = 4;
         internal const int OutputSurface = 5;
         internal const int OutputSurfaceMode = 6;
+        // Without a G-buffer: how the diffuse light changes the frame's colour (Raytracing.hlsl,
+        // ForwardLight).
+        internal const int OutputForwardRatio = 7;
 
         // How a material's shine is meant (RtMaterialIntent; RtContract.h, RT_SURFACE_*).
         internal const uint SurfaceKeep = 0;
