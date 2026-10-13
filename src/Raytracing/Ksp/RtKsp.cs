@@ -272,10 +272,11 @@ namespace ReDefinition.Raytracing
         }
 
         // The reflection probe, looked up on a scene change and every five seconds, as it
-        // may come later.
+        // may come later -- every half second while there is none: KSP makes the flight's a
+        // few seconds into the scene, and until then the rays saw a flat grey sky.
         private void LookUp()
         {
-            if (lookedUpIn == HighLogic.LoadedScene && Time.unscaledTime - lookedUpAt < 5f) return;
+            if (lookedUpIn == HighLogic.LoadedScene && Time.unscaledTime - lookedUpAt < (probe != null ? 5f : 0.5f)) return;
             lookedUpIn = HighLogic.LoadedScene;
             lookedUpAt = Time.unscaledTime;
             probe = null;

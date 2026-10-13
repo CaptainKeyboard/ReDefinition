@@ -328,6 +328,35 @@ namespace ReDefinition.Probe
         {
             Raytracing.RtCamera rt = Raytracing.RtCamera.Current;
             if (rt == null) yield break;
+            // The screen-space shadow mask Unity collected for the sun this frame, copied after
+            // it is made, into ReDefinitionCaptures/shadowmask.pgm.
+            Light masked = rt.SunLightNow;
+            if (masked != null)
+            {
+                var copy = new RenderTexture(rt.Camera.pixelWidth, rt.Camera.pixelHeight, 0, RenderTextureFormat.ARGB32);
+                var grab = new CommandBuffer { name = "ReDefinition probe shadow mask" };
+                grab.Blit(BuiltinRenderTextureType.CurrentActive, copy);
+                masked.AddCommandBuffer(LightEvent.AfterScreenspaceMask, grab);
+                yield return new WaitForEndOfFrame();
+                yield return null;
+                masked.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, grab);
+                AsyncGPUReadbackRequest maskRead = AsyncGPUReadback.Request(copy, 0, TextureFormat.RGBA32);
+                while (!maskRead.done) yield return null;
+                if (!maskRead.hasError)
+                {
+                    NativeArray<Color32> m = maskRead.GetData<Color32>();
+                    int mw = copy.width, mh = copy.height;
+                    byte[] head = Encoding.ASCII.GetBytes("P5\n" + mw + " " + mh + "\n255\n");
+                    var mb = new byte[head.Length + mw * mh];
+                    Array.Copy(head, mb, head.Length);
+                    for (int y = 0; y < mh; y++)
+                        for (int x = 0; x < mw; x++)
+                            mb[head.Length + y * mw + x] = m[(mh - 1 - y) * mw + x].r;
+                    File.WriteAllBytes(Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"), "shadowmask.pgm"), mb);
+                }
+                grab.Release();
+                copy.Release();
+            }
             var places = new[] { new KeyValuePair<string, Rect>("lawn", new Rect(0.02f, 0.57f, 0.18f, 0.12f)),
                                  new KeyValuePair<string, Rect>("pad", new Rect(0.16f, 0.80f, 0.15f, 0.07f)),
                                  new KeyValuePair<string, Rect>("rocket", new Rect(0.485f, 0.35f, 0.022f, 0.14f)),
@@ -337,7 +366,8 @@ namespace ReDefinition.Probe
                                             new KeyValuePair<string, RenderTexture>("sun", rt.SunTexture),
                                             new KeyValuePair<string, RenderTexture>("ratio", rt.ForwardRatioTexture),
                                             new KeyValuePair<string, RenderTexture>("forward", rt.ForwardTexture),
-                                            new KeyValuePair<string, RenderTexture>("specular", rt.SpecularTexture) })
+                                            new KeyValuePair<string, RenderTexture>("specular", rt.SpecularTexture),
+                                            new KeyValuePair<string, RenderTexture>("ocean", rt.OceanTracedTexture) })
             {
                 if (texture.Value == null) continue;
                 AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(texture.Value, 0, TextureFormat.RGBAFloat);
@@ -347,7 +377,7 @@ namespace ReDefinition.Probe
                 int w = texture.Value.width, h = texture.Value.height;
                 // The forward ratio's w and the sun's visibility as pictures (PGM, top row
                 // first): black where the rays held no surface, or saw no sun.
-                if (texture.Key == "ratio" || texture.Key == "sun" || texture.Key == "diffuse")
+                if (texture.Key == "ratio" || texture.Key == "sun" || texture.Key == "diffuse" || texture.Key == "ocean")
                 {
                     byte[] header = Encoding.ASCII.GetBytes("P5\n" + w + " " + h + "\n255\n");
                     var bytes = new byte[header.Length + w * h];
@@ -356,7 +386,7 @@ namespace ReDefinition.Probe
                         for (int x = 0; x < w; x++)
                         {
                             Color texel = data[(h - 1 - y) * w + x];
-                            bytes[header.Length + y * w + x] = (byte)Mathf.Clamp((texture.Key == "sun" ? texel.r : texture.Key == "diffuse" ? texel.g * 4f : texel.g * 0.5f + 0.5f) * 255f, 0f, 255f);
+                            bytes[header.Length + y * w + x] = (byte)Mathf.Clamp((texture.Key == "sun" ? texel.r : texture.Key == "diffuse" ? texel.g * 4f : texture.Key == "ocean" ? (texel.a > 0f ? 0.5f + texel.g : 0f) : texel.g * 0.5f + 0.5f) * 255f, 0f, 255f);
                         }
                     string maskFolder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
                     Directory.CreateDirectory(maskFolder);
@@ -402,6 +432,14 @@ namespace ReDefinition.Probe
                 }
                 Debug.Log(Log.Tag + " Probe: light values, cell " + cell.x + "," + cell.y + ": " + what + ".");
             }
+            foreach (Light light in UnityEngine.Object.FindObjectsOfType<Light>())
+                if (light.isActiveAndEnabled && light.intensity > 0f)
+                    Debug.Log(Log.Tag + " Probe: light values, light '" + light.name + "' " + light.type + " intensity "
+                              + light.intensity.ToString("0.00", CultureInfo.InvariantCulture) + " colour " + light.color
+                              + " shadows " + light.shadows + " strength " + light.shadowStrength.ToString("0.00", CultureInfo.InvariantCulture)
+                              + " mask " + light.cullingMask + " at " + light.transform.position + " forward " + light.transform.forward
+                              + " parent " + (light.transform.parent != null ? light.transform.parent.name : "none")
+                              + (light == rt.SunLightNow ? " (the raytracing's sun)" : "") + ".");
             var directions = new[] { Vector3.up, Vector3.right, Vector3.down };
             var ambient = new Color[3];
             UnityEngine.Rendering.SphericalHarmonicsL2 probe;

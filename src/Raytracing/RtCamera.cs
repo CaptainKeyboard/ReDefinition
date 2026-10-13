@@ -605,9 +605,11 @@ namespace ReDefinition.Raytracing
                 command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfacePass);
             }
             ShowSurfaces(intent && SurfaceView);
-            // KSP's sea only where the reflections' shader is ours, which composes it.
-            bool stockSea = StockWater() && RtLighting.ReflectionsReplaced;
-            TraceOcean(deferredPath && Settings.Reflections && (OceanReflections() || stockSea), stockSea, command);
+            // KSP's sea where the reflections' shader is ours, which composes it, or without a
+            // G-buffer, where the forward light's relight pass does
+            // (ReDefinitionRtForwardLight.shader).
+            bool stockSea = StockWater() && (RtLighting.ReflectionsReplaced || !deferredPath);
+            TraceOcean(Settings.Reflections && (deferredPath ? OceanReflections() || stockSea : stockSea), stockSea, command);
 
             // This frame's results for this frame's lighting: the same pixel. The matrix is
             // relative to the camera, the shaders' positions are Unity's world.
@@ -683,7 +685,10 @@ namespace ReDefinition.Raytracing
             oceanPacket.Signals = RtNative.SignalSpecular;
             oceanPacket.Flags = RtNative.FlagSameFrame | RtNative.FlagExtra | RtNative.FlagWater
                                 | (WaterNormalsShown ? RtNative.FlagWaterNormals : 0u);
-            oceanPacket.Params[7] = 1f;
+            // A G-buffer where there is one: Scatterer's ocean brings its surfaces as one, KSP's
+            // sea under the deferred path has Unity's; without a G-buffer the water takes its
+            // normal from the depth.
+            oceanPacket.Params[7] = scatterer || packet.Params[7] > 0.5f ? 1f : 0f;
             for (int i = 0; i < 8; i++) oceanPacket.Outputs[i] = IntPtr.Zero;
             if (scatterer)
             {
@@ -782,21 +787,45 @@ namespace ReDefinition.Raytracing
         }
 
         // The mask flag on the sun's light, moved when the sun is another light now.
+        // While the raytraced visibility makes the sun's shadows, they take all of its light,
+        // as a shadow does: the traced sky light fills them (KSP's sun keeps a quarter of its
+        // light in its shadows otherwise, shadow strength 0.75). Set back when the mask moves
+        // or the raytracing goes.
         private void MaskSun(Light light)
         {
-            if (light == maskedLight) return;
-            if (maskedLight != null)
+            if (light == maskedLight)
             {
-                maskedLight.RemoveCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
-                maskedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, maskOff);
+                if (light != null && maskedStrength >= 0f)
+                {
+                    float wanted = Settings.Shadows ? 1f : maskedStrength;
+                    if (light.shadowStrength != wanted) light.shadowStrength = wanted;
+                }
+                return;
             }
+            UnmaskSun();
             maskedLight = light;
             Shader.SetGlobalFloat(RtSunMask, 0f);
             if (light != null && maskOn != null)
             {
                 light.AddCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
                 light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, maskOff);
+                maskedStrength = light.shadowStrength;
+                if (Settings.Shadows) light.shadowStrength = 1f;
             }
+        }
+
+        private float maskedStrength = -1f;
+
+        private void UnmaskSun()
+        {
+            if (maskedLight != null)
+            {
+                maskedLight.RemoveCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
+                maskedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, maskOff);
+                if (maskedStrength >= 0f) maskedLight.shadowStrength = maskedStrength;
+            }
+            maskedLight = null;
+            maskedStrength = -1f;
         }
 
         // The trace after the frame, for the next one, through RtLateTrace's OnRenderImage:
@@ -1021,6 +1050,10 @@ namespace ReDefinition.Raytracing
             packet.SunColor[0] = sunColour.r;
             packet.SunColor[1] = sunColour.g;
             packet.SunColor[2] = sunColour.b;
+            // How much of the sun Unity's shadows take: its light's shadow strength (KSP's sun
+            // 0.75), for the forward light's estimate of what Unity shaded with.
+            Light sunLight = SunLight != null ? SunLight() : null;
+            packet.SunColor[3] = sunLight != null && sunLight.shadows != LightShadows.None ? sunLight.shadowStrength : 1f;
             Color sky = SkyColor();
             packet.SkyColor[0] = sky.r;
             packet.SkyColor[1] = sky.g;
@@ -1282,6 +1315,8 @@ namespace ReDefinition.Raytracing
         internal RenderTexture EnvironmentTexture { get { return environment; } }
         internal RenderTexture ForwardTexture { get { return forward; } }
         internal RenderTexture ForwardRatioTexture { get { return forwardRatio; } }
+        // The light whose shadows the raytraced sun visibility replaces.
+        internal Light SunLightNow { get { return maskedLight; } }
         internal RenderTexture OceanReflectionsTexture { get { return oceanReflections; } }
         // Whether KSP's own sea took the raytraced reflections, with the sun's disc, in the
         // last frame (TraceOcean).

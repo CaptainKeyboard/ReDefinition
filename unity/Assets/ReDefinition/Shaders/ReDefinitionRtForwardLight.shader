@@ -21,6 +21,11 @@ Shader "Hidden/ReDefinition/RtForwardLight"
     sampler2D _ReDefinitionRtForward;
     sampler2D _ReDefinitionRtForwardRatio;
     sampler2D _ReDefinitionRtFrame;
+    // KSP's own sea, where the raytracing traced it as water (RtCamera.TraceOcean): its
+    // reflections whole and undenoised, w the reflected rays' hit distance, 0 where not
+    // water; and the main body's centre in Unity's world and its sea level, w 0 for none.
+    sampler2D _ReDefinitionRtOcean;
+    float4 _ReDefinitionWaterSphere;
 
     struct v2f
     {
@@ -36,10 +41,12 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         return o;
     }
 
-    // Where the pixel was in the proxy's frame, false where it holds nothing for it.
-    bool Traced(v2f i, out float2 previous)
+    // Where the pixel was in the proxy's frame, false where it holds nothing for it; and
+    // its point in Unity's world.
+    bool Traced(v2f i, out float2 previous, out float3 world)
     {
         previous = 0;
+        world = 0;
         float2 uv = i.screen.xy / i.screen.w;
         float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
         #if defined(UNITY_REVERSED_Z)
@@ -58,14 +65,15 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         float4 camera = mul(unity_CameraInvProjection, float4(float3(uv, depth) * 2.0 - 1.0, 1.0));
         camera.xyz /= camera.w;
         camera.z = -camera.z;
-        float3 world = mul(unity_CameraToWorld, float4(camera.xyz, 1.0)).xyz;
+        world = mul(unity_CameraToWorld, float4(camera.xyz, 1.0)).xyz;
         return RtUvFilled(world, previous);
     }
 
     float3 Added(v2f i)
     {
         float2 previous;
-        if (!Traced(i, previous))
+        float3 world;
+        if (!Traced(i, previous, world))
             return 0;
         return tex2Dlod(_ReDefinitionRtForward, float4(previous, 0.0, 0.0)).rgb;
     }
@@ -75,8 +83,32 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         float2 uv = i.screen.xy / i.screen.w;
         float3 c = tex2Dlod(_ReDefinitionRtFrame, float4(uv, 0.0, 0.0)).rgb;
         float2 previous;
-        if (!Traced(i, previous))
+        float3 world;
+        if (!Traced(i, previous, world))
             return half4(c, 1.0);
+        // KSP's own sea traced as water: its reflection by water's Fresnel term (Schlick,
+        // 0.02 head on) about the sea's normal, at most four times white with its colour
+        // kept, as ReDefinitionDeferredReflections.shader adds it (the sea's own highlight is
+        // off meanwhile, SeaHighlights). The level test as loose as there.
+        if (_ReDefinitionWaterSphere.w > 0.0)
+        {
+            float4 sea = tex2Dlod(_ReDefinitionRtOcean, float4(previous, 0.0, 0.0));
+            float3 up = world - _ReDefinitionWaterSphere.xyz;
+            float level = length(up);
+            float cameraHeight = length(_WorldSpaceCameraPos - _ReDefinitionWaterSphere.xyz) - _ReDefinitionWaterSphere.w;
+            float band = max(max(2.0, 0.001 * length(world - _WorldSpaceCameraPos)), 0.01 * cameraHeight);
+            if (sea.w > 0.0 && abs(level - _ReDefinitionWaterSphere.w) < band)
+            {
+                float nv = saturate(dot(up / level, normalize(_WorldSpaceCameraPos - world)));
+                float fresnel = 0.02 + 0.98 * pow(1.0 - nv, 5.0);
+                float3 waterLight = max(sea.rgb, 0.0) * fresnel;
+                waterLight *= min(1.0, 4.0 / max(max(waterLight.r, max(waterLight.g, waterLight.b)), 1e-6));
+            #ifdef UNITY_COLORSPACE_GAMMA
+                waterLight = LinearToGammaSpace(waterLight);
+            #endif
+                return half4(c + waterLight, 1.0);
+            }
+        }
         float4 ratio = tex2Dlod(_ReDefinitionRtForwardRatio, float4(previous, 0.0, 0.0));
         float3 reflections = tex2Dlod(_ReDefinitionRtForward, float4(previous, 0.0, 0.0)).rgb;
         return half4(max(c + min(c, ratio.w) * ratio.rgb + max(reflections, 0.0), 0.0), 1.0);

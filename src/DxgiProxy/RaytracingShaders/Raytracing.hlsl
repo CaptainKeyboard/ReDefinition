@@ -208,7 +208,7 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
         direction -= 2.0f * dot(direction, up) * up;
     float distance;
     float3 origin = RayOrigin(position, normal);
-    float3 radiance = Radiance(origin, direction, SPECULAR_DISTANCE, BOUNCES, random, distance, kTerrainSkip);
+    float3 radiance = Radiance(origin, direction, SPECULAR_DISTANCE, BOUNCES, random, distance, kTerrainSkip, true);
     if (stockWater)
     {
         radiance += BodiesMirroredAt(position, normal, view, waterM, kTerrainSkip);
@@ -302,9 +302,12 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
         light = OutputColor(surface.albedo) * (diffuse - ambient);
     else
     {
-        // Unity's sun term in its colour space: the light's colour, N.L and its shadow.
+        // Unity's sun term in its colour space: the light's colour, N.L and its shadow, which
+        // takes the light's shadow strength (sunColor.w) of it -- KSP's sun keeps a quarter
+        // in its shadows.
         float nl = saturate(dot(surface.normal, normalize(sunDirection.xyz)));
-        float3 shaded = sunColor.rgb * nl * saturate(output0[id.xy].x) + ambient;
+        float attenuation = 1.0f - saturate(sunColor.w) * (1.0f - saturate(output0[id.xy].x));
+        float3 shaded = sunColor.rgb * nl * attenuation + ambient;
         float3 k = (diffuse - ambient) / max(shaded, 1e-3f);
         // As Deferred shades the surface: its diffuse share of the light, sun and sky alike.
         k = surface.diffuseShare * (1.0f + k) - 1.0f;

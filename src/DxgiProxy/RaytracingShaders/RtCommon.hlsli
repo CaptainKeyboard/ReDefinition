@@ -880,9 +880,10 @@ float3 ReflectedLightAt(float3 position, float3 normal, inout Random random, flo
 }
 
 // The radiance arriving along a ray, from what it hits and, bounce by bounce, what
-// lights that; the sky where it escapes.
+// lights that; the sky where it escapes: as light (SkyLight), or, for a mirror's ray
+// that sees it directly (`mirror`, its first segment), as it looks.
 float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces, inout Random random,
-                out float firstDistance, float firstTerrainSkip = 0.0f)
+                out float firstDistance, float firstTerrainSkip = 0.0f, bool mirror = false)
 {
     float3 total = 0.0f;
     float3 weight = 1.0f;
@@ -895,7 +896,8 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
         if (!hit.found)
         {
             float3 ground;
-            total += weight * (PlanetRadiance(origin, direction, ground) ? ground : SkyLight(direction));
+            total += weight * (PlanetRadiance(origin, direction, ground) ? ground
+                                                                           : mirror && bounce == 0u ? Sky(direction) : SkyLight(direction));
             break;
         }
         MaterialData material = materialData[hit.material];
