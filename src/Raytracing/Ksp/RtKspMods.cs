@@ -51,6 +51,16 @@ namespace ReDefinition.Raytracing
             return Expression.Lambda<Func<object, T>>(value, target).Compile();
         }
 
+        // Whether Scatterer is installed: its atmosphere colours the sun's light.
+        internal static bool ScattererInstalled
+        {
+            get
+            {
+                Look();
+                return scatterer;
+            }
+        }
+
         private static void Look()
         {
             if (looked) return;

@@ -88,8 +88,7 @@ namespace redefinition
         float glossDivisor;
         float glossMean;
         // What of the frame's colour the forward light keeps as diffuse, as Deferred's
-        // shading would (RtDeferredLook); 0 for all of it, below 0 per vertex in the colours'
-        // alpha.
+        // shading would (RtDeferredLook); 0 for all of it.
         float diffuseShare;
     };
 

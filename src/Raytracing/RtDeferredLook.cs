@@ -13,8 +13,7 @@ namespace ReDefinition.Raytracing
     //   Diffuse Multiply): the metallic setup at metallic 0, a dielectric's specular,
     //   unity_ColorSpaceDielectricSpec (0.2209 in gamma space, 0.04 linear); the ground's
     //   tarmac besides times _TarmacColor, at most 0.89 (DiffuseKSCGround.shader), which
-    //   KSP's own shader leaves out: per vertex by its blend mask, in the colours' alpha
-    //   (RtStockTerrain, KscShare);
+    //   KSP's own shader leaves out: per pixel by its blend mask (TarmacFactor);
     // - KSP's part and scenery shaders: the specular setup, LegacyToStandard.cginc's
     //   specular: _SpecColor / pi where the shader has KSP's highlight (SPECULAR_ON), 0.5 / pi
     //   for the diffuse ones, the specular map for the mapped ones.
@@ -63,16 +62,52 @@ namespace ReDefinition.Raytracing
                    && material.shader.name.StartsWith("KSP/Scenery/Diffuse Ground KSC", System.StringComparison.Ordinal);
         }
 
-        // The space centre's ground's share where its blend mask is `tarmac`.
-        internal static float KscShare(Material material, float tarmac)
+        // What Deferred's ground shader keeps of the space centre's tarmac: _TarmacColor, at
+        // most 0.89, as one factor (ReDefinitionRtTarmac.shader applies it per pixel).
+        internal static float TarmacFactor(Material material)
         {
-            float tarmacColour = 1f;
-            if (material.HasProperty("_TarmacColor"))
+            if (!material.HasProperty("_TarmacColor")) return 1f;
+            Color c = material.GetColor("_TarmacColor");
+            return (Mathf.Min(c.r, 0.89f) + Mathf.Min(c.g, 0.89f) + Mathf.Min(c.b, 0.89f)) / 3f;
+        }
+
+        // Whether Deferred draws the material by its terrain or ground shader, whose look the
+        // forward light takes per pixel.
+        internal static bool Ground(Material material)
+        {
+            return material != null && material.shader != null && Metallic.Contains(material.shader.name);
+        }
+
+        // KSP's terrain as Deferred's G-buffer has its shine (TerrainReplacementShader.cginc):
+        // the metallic setup's dielectric specular, and the smoothness the textures' alpha
+        // -- on the atlas the layers', otherwise the low band's times
+        // sqrt(max(|_specularColor|, 0.1)), 0.1 for the shaders without that colour --,
+        // here their averages. False for anything else.
+        internal static bool TerrainShine(Material material, out float specular, out float smoothness)
+        {
+            specular = Dielectric;
+            smoothness = 0f;
+            if (!Ground(material) || KscGround(material) || material.shader.name == "KSP/Scenery/Diffuse Multiply") return false;
+            if (material.HasProperty("_AtlasTex"))
             {
-                Color c = material.GetColor("_TarmacColor");
-                tarmacColour = (Mathf.Min(c.r, 0.89f) + Mathf.Min(c.g, 0.89f) + Mathf.Min(c.b, 0.89f)) / 3f;
+                Color[] layers = RtStockTerrain.Layers(material.GetTexture("_AtlasTex"));
+                foreach (Color layer in layers) smoothness += layer.a;
+                smoothness = layers.Length > 0 ? smoothness / layers.Length : 0f;
             }
-            return (1f - Dielectric) * Mathf.Lerp(1f, tarmacColour, tarmac);
+            else if (!material.HasProperty("_specularColor")) smoothness = 0.1f;
+            else
+            {
+                Color s = material.GetColor("_specularColor");
+                float alpha = material.HasProperty("_lowTex") ? RtStockTerrain.Average(material.GetTexture("_lowTex")).a : 1f;
+                smoothness = Mathf.Sqrt(Mathf.Max(Mathf.Clamp01(new Vector3(s.r, s.g, s.b).magnitude), 0.1f)) * alpha;
+            }
+            return true;
+        }
+
+        // What of the colour Deferred's metallic setup keeps.
+        internal static float MetallicShare
+        {
+            get { return 1f - Dielectric; }
         }
 
         private static float Dielectric
@@ -80,24 +115,14 @@ namespace ReDefinition.Raytracing
             get { return QualitySettings.activeColorSpace == ColorSpace.Gamma ? 0.220916301f : 0.04f; }
         }
 
-        // The share, 1 where Deferred would not change the shader; -1 where the vertex
-        // colours' alpha holds it (KscGround).
+        // The share, 1 where Deferred would not change the shader; the ground's tarmac
+        // besides by TarmacFactor, per pixel.
         internal static float DiffuseShare(Material material)
         {
             if (material == null || material.shader == null) return 1f;
-            if (KscGround(material)) return -1f;
             string name = material.shader.name;
-            if (Metallic.Contains(name))
-            {
-                float dielectric = Dielectric;
-                float own = 0f;
-                if (material.HasProperty("_specularColor"))
-                {
-                    Color s = material.GetColor("_specularColor");
-                    own = Mathf.Max(s.r, Mathf.Max(s.g, s.b));
-                }
-                return (1f - dielectric) / Mathf.Max(1f - own, 0.05f);
-            }
+            // The ground's look per pixel instead (TerrainLook, the KSC's in Look).
+            if (Metallic.Contains(name)) return 1f;
             if (WithHighlight.Contains(name))
             {
                 Color s = material.HasProperty("_SpecColor") ? material.GetColor("_SpecColor") : Color.grey;

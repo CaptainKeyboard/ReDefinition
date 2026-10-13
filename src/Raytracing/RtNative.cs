@@ -121,7 +121,7 @@ namespace ReDefinition.Raytracing
             // where no G-buffer gives it.
             public float GlossDivisor, GlossMean;
             // What of the frame's colour the forward light keeps as diffuse (RtDeferredLook);
-            // 0 for all of it, below 0 per vertex in the colours' alpha.
+            // 0 for all of it.
             public float DiffuseShare;
         }
 

@@ -330,10 +330,14 @@ namespace ReDefinition.Probe
             if (rt == null) yield break;
             var places = new[] { new KeyValuePair<string, Rect>("lawn", new Rect(0.02f, 0.57f, 0.18f, 0.12f)),
                                  new KeyValuePair<string, Rect>("pad", new Rect(0.16f, 0.80f, 0.15f, 0.07f)),
-                                 new KeyValuePair<string, Rect>("rocket", new Rect(0.485f, 0.35f, 0.022f, 0.14f)) };
+                                 new KeyValuePair<string, Rect>("rocket", new Rect(0.485f, 0.35f, 0.022f, 0.14f)),
+                                 new KeyValuePair<string, Rect>("far", new Rect(0.06f + 0.88f * 21f / 22f, 0.08f + 0.64f * 5f / 12f,
+                                                                                0.88f / 22f, 0.64f / 12f)) };
             foreach (var texture in new[] { new KeyValuePair<string, RenderTexture>("diffuse", rt.DiffuseTexture),
                                             new KeyValuePair<string, RenderTexture>("sun", rt.SunTexture),
-                                            new KeyValuePair<string, RenderTexture>("ratio", rt.ForwardRatioTexture) })
+                                            new KeyValuePair<string, RenderTexture>("ratio", rt.ForwardRatioTexture),
+                                            new KeyValuePair<string, RenderTexture>("forward", rt.ForwardTexture),
+                                            new KeyValuePair<string, RenderTexture>("specular", rt.SpecularTexture) })
             {
                 if (texture.Value == null) continue;
                 AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(texture.Value, 0, TextureFormat.RGBAFloat);
@@ -360,6 +364,23 @@ namespace ReDefinition.Probe
                         .Append(sum.a.ToString("0.000", CultureInfo.InvariantCulture)).Append(';');
                 }
                 Debug.Log(line.ToString());
+            }
+            // What lies at a few cells of tools' grid comparison (22 by 12 over x 6-94 %, y 8-72 %).
+            foreach (Vector2Int cell in new[] { new Vector2Int(21, 5), new Vector2Int(18, 5), new Vector2Int(2, 6),
+                                                new Vector2Int(10, 7), new Vector2Int(14, 9) })
+            {
+                float vx = 0.06f + 0.88f * (cell.x + 0.5f) / 22f, vy = 1f - (0.08f + 0.64f * (cell.y + 0.5f) / 12f);
+                Ray ray = rt.Camera.ViewportPointToRay(new Vector3(vx, vy, 0f));
+                RaycastHit hit;
+                string what = "nothing";
+                if (Physics.Raycast(ray, out hit, 1e6f, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    Renderer renderer = hit.collider.GetComponent<Renderer>() ?? hit.collider.GetComponentInParent<Renderer>();
+                    Material material = renderer != null ? renderer.sharedMaterial : null;
+                    what = hit.collider.name + " at " + hit.distance.ToString("0") + " m, "
+                           + (material != null ? material.name + " (" + material.shader.name + ")" : "no renderer");
+                }
+                Debug.Log(Log.Tag + " Probe: light values, cell " + cell.x + "," + cell.y + ": " + what + ".");
             }
             var directions = new[] { Vector3.up, Vector3.right, Vector3.down };
             var ambient = new Color[3];

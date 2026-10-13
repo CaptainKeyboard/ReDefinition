@@ -155,8 +155,7 @@ namespace ReDefinition.Raytracing
             {
                 float m = masked ? Sample(mask, Vector2.Scale(uv1[i], scale) + offset).r : 0f;
                 Color c = Color.Lerp(grass, tarmac, m);
-                // The alpha: what of the frame's colour stays diffuse as Deferred draws it.
-                result[i] = new Color32(Byte(c.r), Byte(c.g), Byte(c.b), Byte(RtDeferredLook.KscShare(material, m)));
+                result[i] = new Color32(Byte(c.r), Byte(c.g), Byte(c.b), 255);
             }
             return result;
         }
@@ -239,6 +238,14 @@ namespace ReDefinition.Raytracing
             return Layer(texture, 0);
         }
 
+        // An array's layers' averages (Layer), one for a texture, none for none.
+        internal static Color[] Layers(Texture texture)
+        {
+            if (texture == null) return new Color[0];
+            Layer(texture, 0);
+            return averages[texture];
+        }
+
         // A texture's (or an array's layer's) average in Unity's colour space, once per
         // texture: each layer rendered down to 16 by 16 into a linear target, which keeps
         // the values the shaders work with, and read.
@@ -263,15 +270,16 @@ namespace ReDefinition.Raytracing
                         RenderTexture.active = small;
                         read.ReadPixels(new Rect(0, 0, 16, 16), 0, 0, false);
                         Color[] pixels = read.GetPixels();
-                        double r = 0, g = 0, b = 0;
+                        double r = 0, g = 0, b = 0, a = 0;
                         foreach (Color p in pixels)
                         {
                             r += p.r;
                             g += p.g;
                             b += p.b;
+                            a += p.a;
                         }
                         int n = pixels.Length;
-                        layers[l] = new Color((float)(r / n), (float)(g / n), (float)(b / n), 1f);
+                        layers[l] = new Color((float)(r / n), (float)(g / n), (float)(b / n), (float)(a / n));
                     }
                 }
                 finally

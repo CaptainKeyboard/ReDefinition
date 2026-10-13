@@ -85,8 +85,7 @@ struct MaterialData
     // is added to it; y: how its shine is meant (RT_SURFACE_*); z: the gloss divisor;
     // w: the mean gloss (Raytracing.h, RtMaterialDesc).
     float4 vertexColour;
-    // x: what of the frame's colour the forward light keeps as diffuse (RtMaterialDesc);
-    // below 0, the vertex colours' alpha holds it.
+    // x: what of the frame's colour the forward light keeps as diffuse (RtMaterialDesc).
     float4 look;
 };
 
@@ -368,6 +367,16 @@ float3 Sky(float3 direction)
     return InputColor(environmentTexture.SampleLevel(linearWrap, float2(u, v), 0.0f).rgb);
 }
 
+// The sky's radiance as diffuse light: its colour taken off by skyColor.w (0 keeps it, 1
+// leaves its luminance alone). KSP's own sky is a painted blue under a white sun: as
+// light it would turn the daylight blue, where an atmosphere that tints the sun
+// (Scatterer's) balances its blue with a warm sun (RtKsp, SkyNeutral).
+float3 SkyLight(float3 direction)
+{
+    float3 c = Sky(direction);
+    return lerp(c, dot(c, float3(0.2126f, 0.7152f, 0.0722f)).xxx, saturate(skyColor.w));
+}
+
 // A direction over the hemisphere around n, by the cosine of its angle to n.
 float3 SampleCosine(float3 n, float2 u)
 {
@@ -413,8 +422,6 @@ struct Hit
     float3 normal;
     float2 uv;
     float3 color;
-    // The vertex colours' alpha, interpolated.
-    float colorAlpha;
     uint material;
     uint flags;
 };
@@ -429,7 +436,6 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.normal = float3(0.0f, 1.0f, 0.0f);
     hit.uv = 0.0f;
     hit.color = 1.0f;
-    hit.colorAlpha = 1.0f;
     hit.material = 0u;
 
     RayDesc ray;
@@ -468,7 +474,6 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.normal = normal;
     hit.uv = a0.uv * w + a1.uv * bary.x + a2.uv * bary.y;
     hit.color = UnpackColor(a0.color) * w + UnpackColor(a1.color) * bary.x + UnpackColor(a2.color) * bary.y;
-    hit.colorAlpha = (float(a0.color >> 24) * w + float(a1.color >> 24) * bary.x + float(a2.color >> 24) * bary.y) * (1.0f / 255.0f);
     hit.material = instance.material;
     hit.flags = instance.flags;
     return hit;
@@ -890,7 +895,7 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
         if (!hit.found)
         {
             float3 ground;
-            total += weight * (PlanetRadiance(origin, direction, ground) ? ground : Sky(direction));
+            total += weight * (PlanetRadiance(origin, direction, ground) ? ground : SkyLight(direction));
             break;
         }
         MaterialData material = materialData[hit.material];
@@ -1068,8 +1073,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
         surface.smoothness = material.smoothness;
         surface.specular = IntendedSpecular(material);
         surface.albedo = Albedo(material, hit.uv, hit.color);
-        // Below 0: per vertex, in the colours' alpha (the space centre's ground, RtStockTerrain).
-        surface.diffuseShare = material.look.x < 0.0f ? hit.colorAlpha : material.look.x;
+        surface.diffuseShare = material.look.x;
         return surface;
     }
     surface.normal = DepthNormal(pixel, position);
