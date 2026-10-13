@@ -51,6 +51,9 @@
 #define RT_OUTPUT_SURFACE 5
 #define RT_OUTPUT_SURFACE_MODE 6
 #define RT_OUTPUT_PRIMARY_CHECK 7
+// Without a G-buffer, the forward light's ratio (Raytracing.hlsl, ForwardLight); the
+// primary check, a test of its own, uses the same slot.
+#define RT_OUTPUT_FORWARD_RATIO 7
 
 // How a material's shine is meant (RtMaterialDesc.flags; RtMaterialIntent.cs): the
 // G-buffer's kept, none, KSP's legacy Blinn-Phong highlight with its gloss read back from
