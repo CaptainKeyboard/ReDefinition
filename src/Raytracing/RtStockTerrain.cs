@@ -238,14 +238,6 @@ namespace ReDefinition.Raytracing
             return Layer(texture, 0);
         }
 
-        // An array's layers' averages (Layer), one for a texture, none for none.
-        internal static Color[] Layers(Texture texture)
-        {
-            if (texture == null) return new Color[0];
-            Layer(texture, 0);
-            return averages[texture];
-        }
-
         // A texture's (or an array's layer's) average in Unity's colour space, once per
         // texture: each layer rendered down to 16 by 16 into a linear target, which keeps
         // the values the shaders work with, and read.

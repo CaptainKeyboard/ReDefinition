@@ -345,6 +345,23 @@ namespace ReDefinition.Probe
                 if (request.hasError) continue;
                 NativeArray<Color> data = request.GetData<Color>();
                 int w = texture.Value.width, h = texture.Value.height;
+                // The forward ratio's w and the sun's visibility as pictures (PGM, top row
+                // first): black where the rays held no surface, or saw no sun.
+                if (texture.Key == "ratio" || texture.Key == "sun" || texture.Key == "diffuse")
+                {
+                    byte[] header = Encoding.ASCII.GetBytes("P5\n" + w + " " + h + "\n255\n");
+                    var bytes = new byte[header.Length + w * h];
+                    Array.Copy(header, bytes, header.Length);
+                    for (int y = 0; y < h; y++)
+                        for (int x = 0; x < w; x++)
+                        {
+                            Color texel = data[(h - 1 - y) * w + x];
+                            bytes[header.Length + y * w + x] = (byte)Mathf.Clamp((texture.Key == "sun" ? texel.r : texture.Key == "diffuse" ? texel.g * 4f : texel.g * 0.5f + 0.5f) * 255f, 0f, 255f);
+                        }
+                    string maskFolder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
+                    Directory.CreateDirectory(maskFolder);
+                    File.WriteAllBytes(Path.Combine(maskFolder, texture.Key + ".pgm"), bytes);
+                }
                 var line = new StringBuilder(Log.Tag + " Probe: light values, " + texture.Key + ":");
                 foreach (var place in places)
                 {
@@ -366,10 +383,13 @@ namespace ReDefinition.Probe
                 Debug.Log(line.ToString());
             }
             // What lies at a few cells of tools' grid comparison (22 by 12 over x 6-94 %, y 8-72 %).
+            // And at pixels of the 2560 by 1440 shot: the lawn before the runway, the runway, the lawn beyond.
             foreach (Vector2Int cell in new[] { new Vector2Int(21, 5), new Vector2Int(18, 5), new Vector2Int(2, 6),
-                                                new Vector2Int(10, 7), new Vector2Int(14, 9) })
+                                                new Vector2Int(10, 7), new Vector2Int(14, 9), new Vector2Int(-500, 545),
+                                                new Vector2Int(-500, 528), new Vector2Int(-500, 570), new Vector2Int(-500, 600) })
             {
-                float vx = 0.06f + 0.88f * (cell.x + 0.5f) / 22f, vy = 1f - (0.08f + 0.64f * (cell.y + 0.5f) / 12f);
+                float vx = cell.x < 0 ? -cell.x / 2560f : 0.06f + 0.88f * (cell.x + 0.5f) / 22f;
+                float vy = cell.x < 0 ? 1f - cell.y / 1440f : 1f - (0.08f + 0.64f * (cell.y + 0.5f) / 12f);
                 Ray ray = rt.Camera.ViewportPointToRay(new Vector3(vx, vy, 0f));
                 RaycastHit hit;
                 string what = "nothing";

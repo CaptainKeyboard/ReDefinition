@@ -70,15 +70,6 @@ namespace ReDefinition.Raytracing
             else if (material.HasProperty("_Metallic"))
                 Metallic(ref result, material.GetFloat("_Metallic"));
 
-            // KSP's terrain with the shine Deferred gives it, so that the forward light without
-            // Deferred reflects as with it (RtDeferredLook).
-            float terrainSpecular, terrainSmoothness;
-            if (RtDeferredLook.TerrainShine(material, out terrainSpecular, out terrainSmoothness))
-            {
-                result.Specular = new Color(terrainSpecular, terrainSpecular, terrainSpecular);
-                result.Smoothness = terrainSmoothness;
-            }
-
             // Cut out: Unity's and KSP's cut-out shaders, at the alpha-test queue or with the
             // standard shaders' keyword, and Parallax's scatter, whose grass sits at the
             // opaque queue with its own keyword (InstancedSolid.shader, ALPHA_CUTOFF).

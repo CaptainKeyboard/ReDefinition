@@ -9,9 +9,8 @@
 // (Internal-DeferredShading.shader): there the third pass multiplies by exp2(-added)
 // where light is added, and the fourth by exp2(taken), as 1 + (exp2(taken) - 1), where
 // it is taken. Forward rendering, without a G-buffer, takes the surface's colour from
-// the frame itself: the fifth pass reads a copy of it and writes (c + min(c, w) k) t plus
-// the reflections, k and w from the proxy's ratio (Raytracing.hlsl, ForwardLight), t the
-// tarmac's share as Deferred colours it (ReDefinitionRtTarmac.shader).
+// the frame itself: the fifth pass reads a copy of it and writes c + min(c, w) k plus the
+// reflections, k and w from the proxy's ratio (Raytracing.hlsl, ForwardLight).
 Shader "Hidden/ReDefinition/RtForwardLight"
 {
     CGINCLUDE
@@ -22,9 +21,6 @@ Shader "Hidden/ReDefinition/RtForwardLight"
     sampler2D _ReDefinitionRtForward;
     sampler2D _ReDefinitionRtForwardRatio;
     sampler2D _ReDefinitionRtFrame;
-    // Per pixel, the space centre's ground as Deferred colours it against KSP's own shader
-    // (ReDefinitionRtTarmac.shader), 1 elsewhere.
-    sampler2D _ReDefinitionRtTarmac;
 
     struct v2f
     {
@@ -78,14 +74,12 @@ Shader "Hidden/ReDefinition/RtForwardLight"
     {
         float2 uv = i.screen.xy / i.screen.w;
         float3 c = tex2Dlod(_ReDefinitionRtFrame, float4(uv, 0.0, 0.0)).rgb;
-        // The ground's look wherever it is drawn, as Deferred colours it everywhere.
-        float3 ground = tex2Dlod(_ReDefinitionRtTarmac, float4(uv, 0.0, 0.0)).rgb;
         float2 previous;
         if (!Traced(i, previous))
-            return half4(c * ground, 1.0);
+            return half4(c, 1.0);
         float4 ratio = tex2Dlod(_ReDefinitionRtForwardRatio, float4(previous, 0.0, 0.0));
         float3 reflections = tex2Dlod(_ReDefinitionRtForward, float4(previous, 0.0, 0.0)).rgb;
-        return half4(max((c + min(c, ratio.w) * ratio.rgb) * ground + max(reflections, 0.0), 0.0), 1.0);
+        return half4(max(c + min(c, ratio.w) * ratio.rgb + max(reflections, 0.0), 0.0), 1.0);
     }
 
     half4 fragAdd(v2f i) : SV_Target

@@ -58,6 +58,12 @@ namespace ReDefinition.Raytracing
                 float intensity = material.HasProperty("_SpecularIntensity") ? material.GetFloat("_SpecularIntensity") : 0f;
                 return Legacy(intensity * Color.white, power, ParallaxGlossDivisor, RtNative.SurfaceLegacy);
             }
+            // KSP's own terrain: grass, sand and rock, matt (its Lambert shaders have no shine;
+            // the atlas shader's own reflection of the sky is in the frame already). Kept
+            // otherwise, the forward light gave it the default shine, and the grass at a
+            // glancing view mirrored the sky: 30 % brighter than the matt space centre's
+            // lawn and runway beside it (measured on the pad, 2026-10-13).
+            if (shader.StartsWith("Terrain/PQS/", StringComparison.Ordinal)) return Dry();
             if (shader.IndexOf("Diffuse Ground KSC Specular", StringComparison.Ordinal) >= 0)
             {
                 Color f0 = material.HasProperty("_SpecularColor") ? material.GetColor("_SpecularColor") : Color.black;

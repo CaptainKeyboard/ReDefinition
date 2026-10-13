@@ -212,7 +212,6 @@ namespace ReDefinition.Raytracing
             camera.Scene.AddSource(vessels);
             camera.Scene.AddSource(terrain);
             camera.Scene.AddSource(scenery);
-            camera.LookDraws = LookDraws;
             // KSP's own sky, without an atmosphere that tints the sun, as neutral light; the
             // daylight then white as in KSP's own lighting (measured on the pad, 2026-10-13:
             // the sky's light 0.065, 0.135, 0.314 linear under a white sun; with Scatterer
@@ -248,12 +247,6 @@ namespace ReDefinition.Raytracing
         internal void Detach(string why)
         {
             hall.Restore();
-            foreach (Material look in lookMaterials.Values)
-                if (look != null) Object.Destroy(look);
-            lookMaterials.Clear();
-            lookFilledAt.Clear();
-            groundDraws.Clear();
-            groundAt = -10f;
             RtKspMods.HoldPlanetShine(false);
             RtKspMods.HoldDeferredReflections(false, null);
             if (ReferenceEquals(attached, null)) return;
@@ -270,138 +263,6 @@ namespace ReDefinition.Raytracing
             if (text == loggedProblem) return;
             loggedProblem = text;
             Debug.Log(Log.Tag + " " + text);
-        }
-
-        // KSP's ground as Deferred colours it, for the forward light without Deferred
-        // (RtCamera.LookDraws): the space centre's ground among the scenery, looked through
-        // again once a second (ReDefinitionRtTarmac.shader), and the terrain's quads in view
-        // each frame (ReDefinitionRtTerrainLook.shader); a material of ours for each of
-        // theirs, its values taken again once a second.
-        private readonly List<RtLookDraw> lookDraws = new List<RtLookDraw>();
-        private readonly List<RtLookDraw> groundDraws = new List<RtLookDraw>();
-        private float groundAt = -10f;
-        private readonly List<Material> sharedMaterials = new List<Material>();
-        private readonly Dictionary<Material, Material> lookMaterials = new Dictionary<Material, Material>();
-        private readonly Dictionary<Material, float> lookFilledAt = new Dictionary<Material, float>();
-        private readonly Stack<PQ> lookQuads = new Stack<PQ>();
-        private static readonly Vector4[] layerValues = new Vector4[32];
-
-        private List<RtLookDraw> LookDraws()
-        {
-            lookDraws.Clear();
-            if (scenery != null && Time.unscaledTime - groundAt >= 1f)
-            {
-                groundAt = Time.unscaledTime;
-                groundDraws.Clear();
-                foreach (MeshFilter filter in scenery.Filters)
-                {
-                    MeshRenderer renderer = filter != null ? filter.GetComponent<MeshRenderer>() : null;
-                    if (renderer == null) continue;
-                    renderer.GetSharedMaterials(sharedMaterials);
-                    for (int i = 0; i < sharedMaterials.Count; i++)
-                        if (RtDeferredLook.KscGround(sharedMaterials[i]))
-                            groundDraws.Add(new RtLookDraw { Renderer = renderer, SubMesh = i, Material = sharedMaterials[i] });
-                }
-            }
-            foreach (RtLookDraw ground in groundDraws)
-            {
-                Material look = LookMaterial(ground.Material, true);
-                if (look != null) lookDraws.Add(new RtLookDraw { Renderer = ground.Renderer, SubMesh = ground.SubMesh, Material = look });
-            }
-
-            CelestialBody body = RtKspMods.SceneBody();
-            PQS pqs = body != null ? body.pqsController : null;
-            if (pqs == null || pqs.quads == null || !pqs.isActiveAndEnabled) return lookDraws;
-            lookQuads.Clear();
-            foreach (PQ root in pqs.quads)
-                if (root != null) lookQuads.Push(root);
-            while (lookQuads.Count > 0)
-            {
-                PQ quad = lookQuads.Pop();
-                if (quad.isSubdivided && quad.subNodes != null)
-                {
-                    foreach (PQ sub in quad.subNodes)
-                        if (sub != null) lookQuads.Push(sub);
-                    continue;
-                }
-                if (!quad.isVisible || !quad.isBuilt || quad.isForcedInvisible || quad.meshRenderer == null) continue;
-                Material material = quad.meshRenderer.sharedMaterial;
-                if (!RtDeferredLook.Ground(material) || RtDeferredLook.KscGround(material)) continue;
-                Material look = LookMaterial(material, false);
-                if (look != null) lookDraws.Add(new RtLookDraw { Renderer = quad.meshRenderer, SubMesh = 0, Material = look });
-            }
-            return lookDraws;
-        }
-
-        private Material LookMaterial(Material source, bool ksc)
-        {
-            Material look;
-            if (!lookMaterials.TryGetValue(source, out look) || look == null)
-            {
-                string error;
-                Shader shader = ShaderBundle.LoadShader(ksc ? "Hidden/ReDefinition/RtTarmac" : "Hidden/ReDefinition/RtTerrainLook", out error);
-                if (shader == null) return null;
-                look = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
-                lookMaterials[source] = look;
-            }
-            float filled;
-            if (lookFilledAt.TryGetValue(source, out filled) && Time.unscaledTime - filled < 1f) return look;
-            lookFilledAt[source] = Time.unscaledTime;
-            if (ksc) FillKsc(look, source);
-            else FillTerrain(look, source);
-            return look;
-        }
-
-        private static void FillKsc(Material look, Material source)
-        {
-            look.SetTexture("_BlendMaskTexture", source.GetTexture("_BlendMaskTexture"));
-            look.SetTextureScale("_BlendMaskTexture", source.GetTextureScale("_BlendMaskTexture"));
-            look.SetTextureOffset("_BlendMaskTexture", source.GetTextureOffset("_BlendMaskTexture"));
-            look.SetFloat("_ReDefinitionTarmac", RtDeferredLook.TarmacFactor(source));
-            look.SetColor("_ReDefinitionNearGrass", source.HasProperty("_NearGrassTexture")
-                ? RtStockTerrain.Average(source.GetTexture("_NearGrassTexture")) : Color.white);
-            look.SetColor("_ReDefinitionFarGrass", source.HasProperty("_FarGrassTexture")
-                ? RtStockTerrain.Average(source.GetTexture("_FarGrassTexture")) : Color.white);
-            look.SetFloat("_FarGrassBlendDistance", source.HasProperty("_FarGrassBlendDistance")
-                ? Mathf.Max(source.GetFloat("_FarGrassBlendDistance"), 1e-3f) : 1e6f);
-            look.SetFloat("_ReDefinitionDeferredScale", RtDeferredLook.MetallicShare);
-        }
-
-        private static void FillTerrain(Material look, Material source)
-        {
-            bool atlas = source.HasProperty("_AtlasTex");
-            foreach (string name in new[] { "_saturation", "_contrast", "_steepPower", "_lowStart", "_lowEnd", "_highStart", "_highEnd" })
-                look.SetFloat(name, source.HasProperty(name) ? source.GetFloat(name) : name == "_saturation" || name == "_contrast" ? 1f : 0f);
-            look.SetColor("_tintColor", source.HasProperty("_tintColor") ? source.GetColor("_tintColor") : Color.clear);
-            look.SetFloat("_ReDefinitionAtlas", atlas ? 1f : 0f);
-            float brightness = source.HasProperty("_albedoBrightness") ? source.GetFloat("_albedoBrightness") : 1f;
-            float specular = 0f;
-            if (source.HasProperty("_specularColor"))
-            {
-                Color s = source.GetColor("_specularColor");
-                specular = Mathf.Max(s.r, Mathf.Max(s.g, s.b));
-            }
-            // KSP's Lambert shaders (Main - Optimised, Main Shader) take no brightness; its
-            // standard-specular ones the brightness and their specular share.
-            bool lambert = !source.HasProperty("_specularColor");
-            look.SetFloat("_ReDefinitionStockScale", lambert ? 1f : brightness * (1f - specular));
-            look.SetFloat("_ReDefinitionStockLerp", atlas ? (source.HasProperty("_ColorLerpModifier") ? source.GetFloat("_ColorLerpModifier") : 1f)
-                                                 : source.HasProperty("_powerNear") ? source.GetFloat("_powerNear") : 1f);
-            look.SetFloat("_ReDefinitionDeferredScale", brightness * RtDeferredLook.MetallicShare);
-            look.SetColor("_ReDefinitionSteep", source.HasProperty("_steepTex") ? RtStockTerrain.Average(source.GetTexture("_steepTex")) : Color.white);
-            if (atlas)
-            {
-                Color[] layers = RtStockTerrain.Layers(source.GetTexture("_AtlasTex"));
-                for (int i = 0; i < layerValues.Length; i++)
-                    layerValues[i] = i < layers.Length ? (Vector4)layers[i] : Vector4.one;
-                look.SetVectorArray("_ReDefinitionLayers", layerValues);
-            }
-            else
-            {
-                look.SetColor("_ReDefinitionLow", source.HasProperty("_lowTex") ? RtStockTerrain.Average(source.GetTexture("_lowTex")) : Color.white);
-                look.SetColor("_ReDefinitionMid", source.HasProperty("_midTex") ? RtStockTerrain.Average(source.GetTexture("_midTex")) : Color.white);
-                look.SetColor("_ReDefinitionHigh", source.HasProperty("_highTex") ? RtStockTerrain.Average(source.GetTexture("_highTex")) : Color.white);
-            }
         }
 
         private ReflectionProbe Probe()

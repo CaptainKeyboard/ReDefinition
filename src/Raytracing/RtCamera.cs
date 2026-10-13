@@ -39,14 +39,6 @@ namespace ReDefinition.Raytracing
     // What depends on KSP comes in through the fields below: the sources of the scene,
     // the sun, the sky, how far the world moved between two frames, and the projection
     // the frame was rendered with.
-    // One draw of the forward light's look pass (RtCamera.DrawLook).
-    internal struct RtLookDraw
-    {
-        public Renderer Renderer;
-        public int SubMesh;
-        public Material Material;
-    }
-
     internal sealed class RtCamera : MonoBehaviour
     {
         internal readonly RtScene Scene = new RtScene();
@@ -65,8 +57,6 @@ namespace ReDefinition.Raytracing
         internal Func<Color> SkyColor = () => RenderSettings.ambientSkyColor;
         // How much of its colour the sky's light loses (RtCommon.hlsli, SkyLight): 0 keeps it.
         internal Func<float> SkyNeutral = () => 0f;
-        // Without a G-buffer: what to draw for KSP's ground as Deferred colours it (DrawLook).
-        internal Func<List<RtLookDraw>> LookDraws = () => null;
         // The sky as a cube map, or null for the sky's colour.
         internal Func<Texture> Environment = () => null;
         // Where a point of this frame's world was in the previous frame's: previous = this +
@@ -304,7 +294,6 @@ namespace ReDefinition.Raytracing
         private static readonly int RtForward = Shader.PropertyToID("_ReDefinitionRtForward");
         private static readonly int RtForwardRatio = Shader.PropertyToID("_ReDefinitionRtForwardRatio");
         private static readonly int RtFrameCopy = Shader.PropertyToID("_ReDefinitionRtFrame");
-        private static readonly int RtTarmac = Shader.PropertyToID("_ReDefinitionRtTarmac");
         // ReDefinitionRtForwardLight.shader's pass that relights the frame by its own colour.
         private const int RelightPass = 4;
         private static readonly int RtCubeHdr = Shader.PropertyToID("_ReDefinitionRtCube_HDR");
@@ -484,14 +473,12 @@ namespace ReDefinition.Raytracing
                         // Without a G-buffer: the frame relit by its own colour, which a pass
                         // reads from a copy (Raytracing.hlsl, ForwardLight).
                         Shader.SetGlobalTexture(RtForwardRatio, forwardRatio);
-                        DrawLook();
                         forwardLight.GetTemporaryRT(RtFrameCopy, -1, -1, 0, FilterMode.Point,
                                                     cam.allowHDR ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default);
                         forwardLight.Blit(BuiltinRenderTextureType.CameraTarget, RtFrameCopy);
                         forwardLight.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
                         forwardLight.DrawMesh(screenQuad, Matrix4x4.identity, forwardMaterial, 0, RelightPass);
                         forwardLight.ReleaseTemporaryRT(RtFrameCopy);
-                        forwardLight.ReleaseTemporaryRT(RtTarmac);
                     }
                     else
                     {
@@ -1239,21 +1226,6 @@ namespace ReDefinition.Raytracing
             Shader.SetGlobalTexture(RtForwardRatio, forwardRatio);
             haveHistory = false;
             gbufferReady = false;
-        }
-
-        // KSP's ground as Deferred colours it, per pixel, into _ReDefinitionRtTarmac, white
-        // elsewhere (LookDraws: ReDefinitionRtTarmac.shader, ReDefinitionRtTerrainLook.shader),
-        // for the relight pass.
-        private void DrawLook()
-        {
-            forwardLight.GetTemporaryRT(RtTarmac, -1, -1, 0, FilterMode.Point, RenderTextureFormat.ARGBHalf);
-            forwardLight.SetRenderTarget(RtTarmac);
-            forwardLight.ClearRenderTarget(false, true, Color.white);
-            List<RtLookDraw> draws = LookDraws();
-            if (draws == null) return;
-            foreach (RtLookDraw draw in draws)
-                if (draw.Renderer != null && draw.Material != null && draw.Renderer.enabled && draw.Renderer.gameObject.activeInHierarchy)
-                    forwardLight.DrawRenderer(draw.Renderer, draw.Material, draw.SubMesh, 0);
         }
 
         private RenderTexture Target(RenderTextureFormat format)
