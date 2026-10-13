@@ -61,6 +61,14 @@ cbuffer Frame : register(b0)
     float4 seaOrigin : RT_AT(RT_CB_SEA);
     float4 seaEast : RT_AT(RT_CB_SEA_EAST);
     float4 seaNorth : RT_AT(RT_CB_SEA_NORTH);
+    // The main body's cloud layer (Raytracing.h, RtFramePacket.clouds): the map's rows,
+    // the radii, the strengths and fades, the colour.
+    float4 cloudRow0 : RT_AT(RT_CB_CLOUDS);
+    float4 cloudRow1 : RT_AT(RT_CB_CLOUDS_1);
+    float4 cloudRow2 : RT_AT(RT_CB_CLOUDS_2);
+    float4 cloudRadii : RT_AT(RT_CB_CLOUDS_3);
+    float4 cloudFades : RT_AT(RT_CB_CLOUDS_4);
+    float4 cloudColor : RT_AT(RT_CB_CLOUDS_5);
 };
 
 struct InstanceData
@@ -110,6 +118,9 @@ Texture2D<float4> motionTexture : register(t5);
 // The sky's radiance by direction, as a latitude-longitude image: x the angle around
 // the vertical, y from straight up (0) to straight down (1).
 Texture2D<float4> environmentTexture : register(t6);
+// RT_INPUT_CLOUDS: the cloud layer's map, r coverage, g the density curve at the shadow's
+// height, equirectangular (x around the map's y axis from +z, y from its +y down).
+Texture2D<float4> cloudTexture : register(t8);
 Texture2DArray<float4> materialTextures : register(t11);
 StructuredBuffer<InstanceData> instanceData : register(t9);
 StructuredBuffer<MaterialData> materialData : register(t10);
@@ -490,6 +501,85 @@ float3 Albedo(MaterialData material, float2 uv, float3 color)
     return albedo;
 }
 
+// The main body's cloud layer (EVE; RtEveClouds in the game): what of a light's ray from a
+// point towards it gets through, as EVE's own screen-space cloud shadow takes it for the
+// sun (its ScreenSpaceCloudShadow shader, volumetric variant): where the ray leaves the
+// shadow's sphere (cloudRadii.x) above the point, the coverage and the density curve at
+// that height from the layer's map (cloudTexture), the transmittance 1 / (1 + 7d + 26d^2),
+// tinted by the shadow's colour at the shadow's strength, faded in as the light comes
+// from above and below the sphere. 1 without a layer.
+bool CloudExit(float3 position, float3 towards, out float3 at, out float fade)
+{
+    at = position;
+    fade = 0.0f;
+    if (cloudRadii.w < 0.5f || bodySphere.w <= 0.0f)
+        return false;
+    float radius = cloudRadii.x;
+    float3 toCentre = bodySphere.xyz - position;
+    float distance = length(toCentre);
+    if (distance > radius)
+        return false;
+    // The far root of |position + towards t - centre| = radius: EVE's dot(L, -S), S the
+    // light's travel, is the centre's distance along `towards`.
+    float along = dot(toCentre, towards);
+    float t = along + sqrt(max(radius * radius - (distance * distance - along * along), 0.0f));
+    at = position + towards * t;
+    fade = saturate(100.0f * dot(toCentre / max(distance, 1e-3f), -towards)) * saturate(0.01f * (radius - distance)) * cloudFades.z;
+    return fade > 0.0f;
+}
+
+// The probe's check (RT_FLAG_CLOUD_SHADOW with cloudColor.w 11, 12, 13): the map's u, v or
+// coverage at the exit point, in place of the transmittance.
+float CloudProbeValue(float3 at)
+{
+    float3 q = float3(dot(cloudRow0, float4(at, 1.0f)), dot(cloudRow1, float4(at, 1.0f)), dot(cloudRow2, float4(at, 1.0f)));
+    float3 n = q / max(length(q), 1e-3f);
+    float2 uv = float2(0.5f + atan2(n.x, n.z) * (0.5f / kPi), acos(clamp(n.y, -1.0f, 1.0f)) / kPi);
+    return cloudColor.w < 11.5f ? uv.x : cloudColor.w < 12.5f ? uv.y : cloudTexture.SampleLevel(linearWrap, uv, 0.0f).r;
+}
+
+// The layer's density at a point on the shadow's sphere, and its transmittance.
+float CloudTransmittanceAt(float3 at)
+{
+    float3 q = float3(dot(cloudRow0, float4(at, 1.0f)), dot(cloudRow1, float4(at, 1.0f)), dot(cloudRow2, float4(at, 1.0f)));
+    float3 n = q / max(length(q), 1e-3f);
+    float2 uv = float2(0.5f + atan2(n.x, n.z) * (0.5f / kPi), acos(clamp(n.y, -1.0f, 1.0f)) / kPi);
+    float4 map = cloudTexture.SampleLevel(linearWrap, uv, 0.0f);
+    float keep = 1.0f - saturate(cloudFades.y);
+    float coverage = (min(max(map.r, keep), 1.0f) - keep) / max(cloudFades.y, 1e-3f);
+    float density = map.g < 0.01f || coverage < 0.01f ? 0.0f : map.g * coverage * cloudFades.w;
+    return 1.0f / (1.0f + 7.0f * density + 26.0f * density * density);
+}
+
+float3 CloudTransmittance(float3 position, float3 towards)
+{
+    float3 at;
+    float fade;
+    if (!CloudExit(position, towards, at, fade))
+        return 1.0f;
+    float tr = CloudTransmittanceAt(at);
+    return 1.0f + fade * cloudFades.x * (1.0f - tr) * (saturate(tr * cloudColor.rgb) - 1.0f);
+}
+
+// The sky a ray that escapes the scene sees from under the layer: the cloud where it
+// covers, lit by the sun from above and by the sky, darker underneath the denser it is,
+// over the sky by its opacity (1 - its transmittance).
+float3 CloudOverSky(float3 origin, float3 direction, float3 sky)
+{
+    float3 at;
+    float fade;
+    if (!CloudExit(origin, direction, at, fade))
+        return sky;
+    // From under the layer, the ray's own direction, not the light's, fades it: rays that
+    // run along the horizon meet the layer far away, where EVE's layer thins out too.
+    fade = saturate(0.01f * (cloudRadii.x - length(bodySphere.xyz - origin))) * cloudFades.z;
+    float tr = CloudTransmittanceAt(at);
+    float3 up = normalize(at - bodySphere.xyz);
+    float3 lit = InputColor(sunColor.rgb) * saturate(dot(up, normalize(sunDirection.xyz))) + SkyLight(up);
+    float3 cloud = lit * cloudColor.w * lerp(1.0f, 0.5f, 1.0f - tr);
+    return lerp(sky, cloud, fade * (1.0f - tr));
+}
+
 // What a diffuse surface point sends back of the sun, in Unity's units, where a
 // light's colour times N.L is what a white surface returns: where it sees the sun.
 float3 SunAt(Hit hit, float3 albedo, inout Random random)
@@ -502,7 +592,7 @@ float3 SunAt(Hit hit, float3 albedo, inout Random random)
     float3 direction = SampleCone(towardsSun, sunDirection.w, u);
     if (!Unoccluded(RayOrigin(hit.position, hit.normal), direction, 1.0e7f))
         return 0.0f;
-    return albedo * InputColor(sunColor.rgb) * nl;
+    return albedo * InputColor(sunColor.rgb) * nl * CloudTransmittance(hit.position, towardsSun);
 }
 
 // Where a ray that missed the scene meets the main body's sphere: the light the sphere
@@ -822,7 +912,7 @@ float3 BodiesMirroredAt(float3 position, float3 normal, float3 view, float m, fl
         float sunRadius = max(sunDirection.w, 0.0047f);
         float specular = DiscSpecular(normal, view, towardsSun, sunRadius, m);
         if (specular > 0.0f && Unoccluded(RayOrigin(position, normal), towardsSun, 1.0e7f, terrainSkip))
-            total += InputColor(sunColor.rgb) * specular * SUN_MIRROR;
+            total += InputColor(sunColor.rgb) * specular * SUN_MIRROR * CloudTransmittance(position, towardsSun);
     }
     for (uint i = 0u; i < min(LIGHT_COUNT, 2u); ++i)
     {
@@ -842,7 +932,7 @@ float3 BodiesMirroredAt(float3 position, float3 normal, float3 view, float m, fl
         if (!Unoccluded(RayOrigin(position, normal), l, 1.0e7f, terrainSkip))
             continue;
         float solidAngle = kPi * sin(towards.w) * sin(towards.w);
-        total += surface * (2.0f / 3.0f) * phase * solidAngle * specular;
+        total += surface * (2.0f / 3.0f) * phase * solidAngle * specular * CloudTransmittance(position, l);
     }
     return total;
 }
@@ -876,7 +966,7 @@ float3 ReflectedLightAt(float3 position, float3 normal, inout Random random, flo
     float3 direction = SampleCone(axis, towards.w, u);
     if (!Unoccluded(RayOrigin(position, normal), direction, maxDistance, terrainSkip))
         return 0.0f;
-    return colour * nl / chance;
+    return colour * nl / chance * CloudTransmittance(position, axis);
 }
 
 // The radiance arriving along a ray, from what it hits and, bounce by bounce, what
@@ -896,8 +986,9 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
         if (!hit.found)
         {
             float3 ground;
-            total += weight * (PlanetRadiance(origin, direction, ground) ? ground
-                                                                           : mirror && bounce == 0u ? Sky(direction) : SkyLight(direction));
+            total += weight * (PlanetRadiance(origin, direction, ground)
+                                   ? ground
+                                   : CloudOverSky(origin, direction, mirror && bounce == 0u ? Sky(direction) : SkyLight(direction)));
             break;
         }
         MaterialData material = materialData[hit.material];

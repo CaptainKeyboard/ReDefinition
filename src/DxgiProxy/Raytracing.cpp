@@ -432,6 +432,7 @@ namespace redefinition
         memcpy(constants.planet, packet.planet, sizeof(constants.planet));
         memcpy(constants.lightSurface, packet.lightSurface, sizeof(constants.lightSurface));
         memcpy(constants.sea, packet.sea, sizeof(constants.sea));
+        memcpy(constants.clouds, packet.clouds, sizeof(constants.clouds));
     }
 
     void Raytracing::TransitionTexturesLocked(FrameWork& frame)

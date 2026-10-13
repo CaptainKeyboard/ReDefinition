@@ -31,6 +31,8 @@ namespace ReDefinition.Raytracing
         private RtVesselSource vessels;
         private RtTerrainSource terrain;
         private RtScenerySource scenery;
+        // EVE's cloud layer for the rays, where EVE draws one.
+        private readonly RtEveClouds clouds = new RtEveClouds();
         private RtParallaxScatter scatter;
         private ReflectionProbe probe;
         private readonly SeaFrameAnchor seaFrame = new SeaFrameAnchor();
@@ -217,6 +219,10 @@ namespace ReDefinition.Raytracing
             // the sky's light 0.065, 0.135, 0.314 linear under a white sun; with Scatterer
             // 0.043, 0.093, 0.194 under a sun of 0.73, 0.57, 0.34).
             camera.SkyNeutral = () => RtKspMods.ScattererInstalled ? 0f : 1f;
+            // -redefinitionProbeNoRtClouds: the clouds left out of the rays, for the probe's A/B.
+            bool noClouds = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoRtClouds") >= 0;
+            camera.Clouds = data => !noClouds && clouds.Fill(data, RtKspMods.SceneBody(), sceneCamera.transform.position)
+                ? clouds.Texture : RtEveClouds.None(data);
             scatter = new RtParallaxScatter();
             camera.Scene.AddGpuSource(scatter);
             camera.enabled = true;
@@ -247,6 +253,7 @@ namespace ReDefinition.Raytracing
         internal void Detach(string why)
         {
             hall.Restore();
+            clouds.Release();
             RtKspMods.HoldPlanetShine(false);
             RtKspMods.HoldDeferredReflections(false, null);
             if (ReferenceEquals(attached, null)) return;
@@ -318,7 +325,10 @@ namespace ReDefinition.Raytracing
                 else
                 {
                     check.Append(", KSP's sea ").Append(RtCamera.StockSeaTraced ? "traced" : "not traced");
-                    if (attached.Settings.Reflections && !RtLighting.ReflectionsReplaced)
+                    // Under the deferred path the sea needs the reflections' shader to be ours;
+                    // without a G-buffer the forward light composes it.
+                    if (attached.Settings.Reflections && sceneCamera.actualRenderingPath == RenderingPath.DeferredShading
+                        && !RtLighting.ReflectionsReplaced)
                         check.Append(", missing the reflections' shader (Deferred's own or none)");
                 }
             }

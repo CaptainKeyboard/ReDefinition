@@ -31,6 +31,9 @@
 #define RT_FLAG_WATER_NORMALS 0x80u
 #define RT_FLAG_LEGACY_SMOOTHNESS 0x100u
 #define RT_FLAG_SURFACE_INTENT 0x200u
+// The probe's check of the cloud layer: the sun's visibility is the clouds' transmittance
+// towards the sun alone (RtCommon.hlsli, CloudTransmittance), to lay over EVE's own shadow.
+#define RT_FLAG_CLOUD_SHADOW 0x400u
 
 // The signals a frame traces (Raytracing.h, kRtSignal*).
 #define RT_SIGNAL_SUN 0x1u
@@ -75,6 +78,9 @@
 #define RT_INPUT_MOTION 4
 #define RT_INPUT_ENVIRONMENT 5
 #define RT_INPUT_INSTANCES 6
+// The main body's cloud layer (RtCommon.hlsli, CloudTransmittance): an equirectangular map,
+// r its coverage, g the density curve at the shadow's height (ReDefinitionRtClouds.shader).
+#define RT_INPUT_CLOUDS 7
 #define RT_INSTANCES_PER_ROW 256
 
 // An instance's flags (Raytracing.h, kRtInstance*).
@@ -101,7 +107,7 @@
 #define RT_MATERIAL_DESC_SIZE 80
 #define RT_INSTANCE_SIZE 64
 #define RT_GPU_GROUP_SIZE 32
-#define RT_FRAME_PACKET_SIZE 848
+#define RT_FRAME_PACKET_SIZE 944
 #define RT_RECONSTRUCT_PACKET_SIZE 640
 
 // RtFramePacket's fields, by their offset in bytes.
@@ -133,8 +139,9 @@
 #define RT_FRAME_PACKET_PLANET 624
 #define RT_FRAME_PACKET_LIGHT_SURFACE 640
 #define RT_FRAME_PACKET_SEA 672
-#define RT_FRAME_PACKET_INPUTS 720
-#define RT_FRAME_PACKET_OUTPUTS 784
+#define RT_FRAME_PACKET_CLOUDS 720
+#define RT_FRAME_PACKET_INPUTS 816
+#define RT_FRAME_PACKET_OUTPUTS 880
 
 // RtReconstructPacket's fields, by their offset in bytes.
 #define RT_RECONSTRUCT_PACKET_SIZE_FIELD 0
@@ -202,6 +209,12 @@
 #define RT_CB_SEA 31
 #define RT_CB_SEA_EAST 32
 #define RT_CB_SEA_NORTH 33
-#define RT_CB_REGISTERS 34
+#define RT_CB_CLOUDS 34
+#define RT_CB_CLOUDS_1 35
+#define RT_CB_CLOUDS_2 36
+#define RT_CB_CLOUDS_3 37
+#define RT_CB_CLOUDS_4 38
+#define RT_CB_CLOUDS_5 39
+#define RT_CB_REGISTERS 40
 
 #endif

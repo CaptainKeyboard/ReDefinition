@@ -41,6 +41,14 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
         float3 direction = SampleCone(towardsSun, sunDirection.w, u);
         visible = Unoccluded(RayOrigin(position, normal), direction, 1.0e7f, kTerrainSkip) ? 1.0f : 0.0f;
     }
+    if ((frameFlags & RT_FLAG_CLOUD_SHADOW) != 0u)
+    {
+        float3 at;
+        float fade;
+        visible = cloudColor.w > 13.5f ? length(position)
+                  : cloudColor.w > 10.5f ? (CloudExit(position, towardsSun, at, fade) ? CloudProbeValue(at) : -1.0f)
+                                         : CloudTransmittance(position, towardsSun).r;
+    }
     output0[id.xy] = float4(visible, 0.0f, 0.0f, mul(worldToClip, float4(position, 1.0f)).w);
 }
 

@@ -286,12 +286,33 @@ namespace ReDefinition.Core
                 .Tested("fdf8ca4c28ff") // Firefly 1.0.6
                 .OnChange(WhenChanged.Fallback, "Firefly draws its effects every frame, as it does by itself");
 
+        // EVE's cloud layer in the raytracing (RtEveClouds): the loaded bodies' cloud objects,
+        // their volumetric and 2D layers, the volume's maps, radii, rotation and fades, the 2D
+        // layer's shadow material; EVE's own coverage sampler for the probe's check.
+        private const string EveVolume = "Atmosphere.CloudsRaymarchedVolume";
+        public static readonly ForeignAssumption EveRtClouds =
+            new ForeignAssumption("eve-rt-clouds", "EVE", "EVE's clouds over the rays: the moons' light, the water's discs, reflections")
+                .Type("Atmosphere.CloudsManager").Type("Atmosphere.CloudsObject").Type(EveVolume).Type("Atmosphere.Clouds2D")
+                .Type("Utils.TextureWrapper")
+                .Field("EVEManager.GenericEVEManager`1", "ObjectList")
+                .Method("Atmosphere.CloudsObject", "get_Body").Method("Atmosphere.CloudsObject", "get_Layer2D")
+                .Method("Atmosphere.CloudsObject", "get_LayerRaymarchedVolume")
+                .Method(EveVolume, "get_CloudRotationMatrix").Method(EveVolume, "get_InnerSphereRadius")
+                .Method(EveVolume, "get_OuterSphereRadius").Method(EveVolume, "get_CurrentTimeFadeCoverage")
+                .Method(EveVolume, "get_CurrentTimeFadeDensity").Method(EveVolume, "get_CoverageMap").Method(EveVolume, "get_CloudTypeMap")
+                .Field(EveVolume, "curvesTexture")
+                .Method("Atmosphere.Clouds2D", "get_ScreenSpaceShadowMaterial").Method("Atmosphere.Clouds2D", "get_Scaled")
+                .Method("Utils.TextureWrapper", "GetTexture")
+                .Field("Utils.TextureWrapper", "type").Field("Utils.TextureWrapper", "alphaMask")
+                .Tested("25f1a62fb3c7") // EVE 3.2.2.0, the volumetric build of 2026-10
+                .OnChange(WhenChanged.Keep, "the rays leave EVE's clouds out");
+
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
             ScattererGodrays, ScattererTemporalAa, ScattererSmaa, ScattererOceanMask, ScattererOceanReflections, ScattererOceanSun,
             DeferredReflections, DeferredSsr, TufxPostProcessing, ParallaxTessellation, ParallaxScatters,
-            DistantObjectSky, FourkSp, BetterTimeWarp, ManeuverNodeEvolved, KopernicusShaders, FireflyIdle,
+            DistantObjectSky, FourkSp, BetterTimeWarp, ManeuverNodeEvolved, KopernicusShaders, FireflyIdle, EveRtClouds,
         };
 
         // The installed mods' assumptions, in the catalogue's order.

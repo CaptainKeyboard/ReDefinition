@@ -38,6 +38,7 @@ namespace ReDefinition.Raytracing
         internal const uint FlagWaterNormals = 1u << 7;
         internal const uint FlagLegacySmoothness = 1u << 8;
         internal const uint FlagSurfaceIntent = 1u << 9;
+        internal const uint FlagCloudShadow = 1u << 10;
 
         internal const uint SignalSun = 1u << 0;
         internal const uint SignalOcclusion = 1u << 1;
@@ -53,6 +54,8 @@ namespace ReDefinition.Raytracing
         internal const int InputEnvironment = 5;
         // Instances the GPU made, three texels each, InstancesPerRow to a row (Raytracing.h).
         internal const int InputInstances = 6;
+        // The main body's cloud layer (RtEveClouds; RtContract.h, RT_INPUT_CLOUDS).
+        internal const int InputClouds = 7;
         // Instance flags (Raytracing.h, kRtInstance*).
         internal const uint InstanceTerrain = 1u << 0;
         internal const uint InstanceScenery = 1u << 2;
@@ -184,6 +187,8 @@ namespace ReDefinition.Raytracing
             // The sea's frame, fixed to the main body (RtCamera.Sea): a point on the sea
             // relative to the camera, its east and north, each with a w; all 0 for none.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)] public float[] Sea;
+            // The main body's cloud layer (Raytracing.h, RtFramePacket.clouds; RtEveClouds).
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 24)] public float[] Clouds;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -223,6 +228,7 @@ namespace ReDefinition.Raytracing
                 Array.Copy(Planet, target.Planet, Planet.Length);
                 Array.Copy(LightSurface, target.LightSurface, LightSurface.Length);
                 Array.Copy(Sea, target.Sea, Sea.Length);
+                Array.Copy(Clouds, target.Clouds, Clouds.Length);
                 Array.Copy(Inputs, target.Inputs, Inputs.Length);
                 Array.Copy(Outputs, target.Outputs, Outputs.Length);
             }
@@ -323,6 +329,7 @@ namespace ReDefinition.Raytracing
                 Planet = new float[4],
                 LightSurface = new float[8],
                 Sea = new float[12],
+                Clouds = new float[24],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

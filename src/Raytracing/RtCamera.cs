@@ -57,6 +57,17 @@ namespace ReDefinition.Raytracing
         internal Func<Color> SkyColor = () => RenderSettings.ambientSkyColor;
         // How much of its colour the sky's light loses (RtCommon.hlsli, SkyLight): 0 keeps it.
         internal Func<float> SkyNeutral = () => 0f;
+        // -redefinitionProbeCloudShadow: the sun's visibility is the cloud layer's transmittance
+        // alone, to compare with EVE's own cloud shadow (the probe's shadow mask dump).
+        private static readonly bool CloudShadowCheck =
+            Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeCloudShadow") >= 0;
+        // The main body's cloud layer: fills the packet's cloud constants (RtFramePacket.clouds)
+        // and gives its map's native texture (RT_INPUT_CLOUDS); zero for none.
+        internal Func<float[], IntPtr> Clouds = clouds =>
+        {
+            for (int i = 0; i < clouds.Length; i++) clouds[i] = 0f;
+            return IntPtr.Zero;
+        };
         // The sky as a cube map, or null for the sky's colour.
         internal Func<Texture> Environment = () => null;
         // Where a point of this frame's world was in the previous frame's: previous = this +
@@ -1151,7 +1162,8 @@ namespace ReDefinition.Raytracing
                            | (withMotion ? RtNative.FlagMotionVectors : 0u)
                            | (reconstruct ? RtNative.FlagGuides : 0u)
                            | (LegacySmoothness() && !DeferredSmoothness ? RtNative.FlagLegacySmoothness : 0u)
-                           | (SurfaceIntent(deferred) ? RtNative.FlagSurfaceIntent : 0u);
+                           | (SurfaceIntent(deferred) ? RtNative.FlagSurfaceIntent : 0u)
+                           | (CloudShadowCheck ? RtNative.FlagCloudShadow : 0u);
             if (reconstruct)
             {
                 GuidesFrame = Time.frameCount;
@@ -1174,6 +1186,9 @@ namespace ReDefinition.Raytracing
             }
             if (withMotion) packet.Inputs[RtNative.InputMotion] = motionHandle;
             if (withEnvironment) packet.Inputs[RtNative.InputEnvironment] = environmentHandle;
+            IntPtr clouds = Clouds(packet.Clouds);
+            if (clouds != IntPtr.Zero) packet.Inputs[RtNative.InputClouds] = clouds;
+            else for (int i = 0; i < packet.Clouds.Length; i++) packet.Clouds[i] = 0f;
             if ((signals & RtNative.SignalSun) != 0) packet.Outputs[RtNative.OutputSun] = sunHandle;
             if ((signals & RtNative.SignalDiffuse) != 0) packet.Outputs[RtNative.OutputDiffuse] = diffuseHandle;
             if ((signals & RtNative.SignalSpecular) != 0)

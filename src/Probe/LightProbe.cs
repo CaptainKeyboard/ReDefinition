@@ -682,7 +682,8 @@ namespace ReDefinition.Probe
 
         internal static void HideClouds()
         {
-            if (cloudsHidden) return;
+            // -redefinitionProbeClouds: the clouds kept, for the raytraced clouds' checks.
+            if (cloudsHidden || Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeClouds") >= 0) return;
             cloudsHidden = true;
             int behaviours = 0, renderers = 0;
             foreach (MonoBehaviour b in UnityEngine.Object.FindObjectsOfType<MonoBehaviour>())

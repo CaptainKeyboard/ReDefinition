@@ -440,6 +440,63 @@ namespace ReDefinition.Probe
                               + " mask " + light.cullingMask + " at " + light.transform.position + " forward " + light.transform.forward
                               + " parent " + (light.transform.parent != null ? light.transform.parent.name : "none")
                               + (light == rt.SunLightNow ? " (the raytracing's sun)" : "") + ".");
+            // The cloud layer's check (-redefinitionProbeCloudShadow): at a grid of pixels, the
+            // ground's point by a physics ray, EVE's own prediction of the shadow there, beside
+            // what the rays wrote (the sun's visibility is the clouds' transmittance then).
+            Raytracing.RtEveClouds eve = Raytracing.RtEveClouds.Last;
+            if (eve != null && Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeCloudShadow") >= 0 && rt.SunTexture != null)
+            {
+                AsyncGPUReadbackRequest sunRead = AsyncGPUReadback.Request(rt.SunTexture, 0, TextureFormat.RGBAFloat);
+                while (!sunRead.done) yield return null;
+                if (!sunRead.hasError)
+                {
+                    NativeArray<Color> sunData = sunRead.GetData<Color>();
+                    int sw = rt.SunTexture.width, sh = rt.SunTexture.height;
+                    Light sunLight = rt.SunLightNow;
+                    Vector3 towards = sunLight != null ? -sunLight.transform.forward : Vector3.up;
+                    var lines = new StringBuilder();
+                    var csv = new StringBuilder("vx,vy,hit,predicted,rays\n");
+                    int pairs = 0;
+                    double sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, absDiff = 0;
+                    for (int gy = 0; gy < 24; gy++)
+                        for (int gx = 0; gx < 32; gx++)
+                        {
+                            float vx = (gx + 0.5f) / 32f, vy = (gy + 0.5f) / 24f;
+                            RaycastHit hit;
+                            if (!Physics.Raycast(rt.Camera.ViewportPointToRay(new Vector3(vx, vy, 0f)), out hit, 1e5f, ~0, QueryTriggerInteraction.Ignore)) continue;
+                            float predicted = eve.EvePrediction(hit.point, towards, new Color(2f, 2f, 2f, 1f), 1f);
+                            if (predicted < 0f) continue;
+                            // Only comparable where the traced camera's pixel is the surface the physics
+                            // ray met: run once more with -redefinitionProbeCloudValue 4, which writes the
+                            // pixel's distance, and join the two cloudcheck.csv by row (at sea 34 of 390
+                            // points: in flight KSP's cameras split the view, and the near water's pixels
+                            // hold no depth in the traced one).
+                            float ours = sunData[Mathf.Clamp((int)(vy * sh), 0, sh - 1) * sw + Mathf.Clamp((int)(vx * sw), 0, sw - 1)].r;
+                            if (pairs < 6 || pairs % 60 == 0 || Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeCloudValue") >= 0 && pairs < 40)
+                                Debug.Log(Log.Tag + " Probe: cloud check at " + hit.point + " (" + hit.collider.name + ", " + hit.distance.ToString("0.0") + " m, viewport " + vx.ToString("0.00")
+                                          + "," + vy.ToString("0.00") + "): EVE " + predicted.ToString("0.00") + ", rays " + ours.ToString("0.000")
+                                          + ", " + eve.EveRaw(hit.point, towards) + ".");
+                            csv.Append(vx.ToString(CultureInfo.InvariantCulture)).Append(',').Append(vy.ToString(CultureInfo.InvariantCulture)).Append(',')
+                               .Append(hit.distance.ToString(CultureInfo.InvariantCulture)).Append(',').Append(predicted.ToString(CultureInfo.InvariantCulture))
+                               .Append(',').Append(ours.ToString(CultureInfo.InvariantCulture)).Append('\n');
+                            pairs++;
+                            sx += predicted; sy += ours; sxx += predicted * predicted; syy += ours * ours; sxy += predicted * ours;
+                            absDiff += Math.Abs(predicted - ours);
+                            if (pairs <= 12) lines.Append(' ').Append(predicted.ToString("0.00", CultureInfo.InvariantCulture)).Append('/')
+                                                  .Append(ours.ToString("0.00", CultureInfo.InvariantCulture));
+                        }
+                    double n = Math.Max(pairs, 1);
+                    double correlation = (sxy / n - sx / n * sy / n)
+                                         / Math.Sqrt(Math.Max((sxx / n - sx / n * sx / n) * (syy / n - sy / n * sy / n), 1e-12));
+                    File.WriteAllText(Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"), "cloudcheck.csv"), csv.ToString());
+                    Debug.Log(Log.Tag + " Probe: cloud " + eve.MapCheck() + ".");
+                    Debug.Log(Log.Tag + " Probe: cloud check: " + pairs + " ground points, EVE's predicted shadow against the rays' (first: "
+                              + lines + "), means " + (sx / n).ToString("0.000", CultureInfo.InvariantCulture) + " / "
+                              + (sy / n).ToString("0.000", CultureInfo.InvariantCulture) + ", correlation "
+                              + correlation.ToString("0.000", CultureInfo.InvariantCulture) + ", mean difference "
+                              + (absDiff / n).ToString("0.000", CultureInfo.InvariantCulture) + ".");
+                }
+            }
             var directions = new[] { Vector3.up, Vector3.right, Vector3.down };
             var ambient = new Color[3];
             UnityEngine.Rendering.SphericalHarmonicsL2 probe;
