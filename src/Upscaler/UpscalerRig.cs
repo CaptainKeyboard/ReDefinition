@@ -906,8 +906,17 @@ namespace ReDefinition.Upscaler
         // Frame generation's packet for this frame, into the dispatch buffer.
         private void SubmitFramePacket()
         {
+            // The camera where KSP's physics step put it, without the render
+            // interpolation's shift (RenderInterpolation.CameraShift). In orbit
+            // Krakensbane keeps the vessel at the origin and moves the world; the
+            // interpolation moves the vessel and the camera on it back and forth by
+            // up to 43 m a step. Frame generation's camera motion then disagreed with
+            // the motion vectors by 490 to 1165 px, and its frames showed the vessel
+            // three times (FlipProbe, 2026-10-17); the motion vectors hold the drawn
+            // motion either way.
+            Vector3 shift = RenderInterpolation.CameraShift(cam);
             Transform t = cam.transform;
-            Vector3 p = t.position, u = t.up, r = t.right, f = t.forward;
+            Vector3 p = t.position - shift, u = t.up, r = t.right, f = t.forward;
 
             // Streamline's matrices, for DLSS frame generation only, from the
             // projection Unity drew with and without the jitter: the camera's
@@ -919,7 +928,7 @@ namespace ReDefinition.Upscaler
             {
                 Matrix4x4 projection = CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix;
                 Matrix4x4 gpuProjection = GL.GetGPUProjectionMatrix(projection, false);
-                Matrix4x4 viewProjection = gpuProjection * cam.worldToCameraMatrix;
+                Matrix4x4 viewProjection = gpuProjection * cam.worldToCameraMatrix * Matrix4x4.Translate(shift);
                 bool previousFrame = lastViewProjectionFrame == Time.frameCount - 1 && !dispatch.Reset;
                 StreamlineCamera.Fill(gpuProjection, viewProjection,
                                       previousFrame ? AcrossOriginShift(lastViewProjection) : viewProjection,

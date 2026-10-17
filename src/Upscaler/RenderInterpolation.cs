@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using ReDefinition.Core;
@@ -23,8 +22,9 @@ namespace ReDefinition.Upscaler
     // vessel's topmost part transforms are moved by the offset from the last step's
     // position to the one interpolated for this frame, (previous - current) *
     // (1 - alpha), alpha being the part of a step since the last one, as Unity
-    // interpolates; at the end of the frame their local positions go back exactly as
-    // they were, before the next physics step. Translation only.
+    // interpolates; as the next frame begins, before its first physics step and its
+    // first Update, their local positions go back exactly as they were. Translation
+    // only.
     //
     // The camera is never moved by itself. Following the vessel, KSP hangs its pivot
     // on the vessel (FlightCamera: pivot.SetParent(target)), so it moves along with the
@@ -39,13 +39,14 @@ namespace ReDefinition.Upscaler
     // speed or 50 m, a packed vessel, IVA and map view. Only
     // while the rig hands frames to an upscaler or to frame generation (UpscalerRig.Feeding).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
+    [DefaultExecutionOrder(32000)]
     public sealed class RenderInterpolation : MonoBehaviour
     {
         private const float JumpMetres = 50f;
         private const float ReportSeconds = 10f;
 
-        // The Debug switch; on at every start.
-        internal static bool Enabled = true;
+        // The Debug switch; on at every start, off with -redefinitionProbeNoInterpolation.
+        internal static bool Enabled = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoInterpolation") < 0;
 
         private struct Moved
         {
@@ -71,16 +72,28 @@ namespace ReDefinition.Upscaler
         private float offsetMax;
         private float windowStart = -1f;
 
+        private static RenderInterpolation instance;
+        private Camera shiftCamera;
+        private bool cameraMoved;
+
         private void Start()
         {
+            instance = this;
             Camera.onPreCull += OnAnyPreCull;
-            StartCoroutine(RestoreAtEndOfFrame());
+            // ObscenelyEarly runs in Timing0, at execution order -8008, before
+            // FloatingOrigin (21) and every other script that reads the parts
+            // (globalgamemanagers.assets, MonoScript.m_ExecutionOrder).
+            TimingManager.FixedUpdateAdd(TimingManager.TimingStage.ObscenelyEarly, Restore);
+            TimingManager.UpdateAdd(TimingManager.TimingStage.ObscenelyEarly, Restore);
         }
 
         private void OnDestroy()
         {
             Camera.onPreCull -= OnAnyPreCull;
+            TimingManager.FixedUpdateRemove(TimingManager.TimingStage.ObscenelyEarly, Restore);
+            TimingManager.UpdateRemove(TimingManager.TimingStage.ObscenelyEarly, Restore);
             Restore();
+            if (instance == this) instance = null;
         }
 
         // After physics, before LateUpdate: where the last step left the vessel, and
@@ -129,7 +142,19 @@ namespace ReDefinition.Upscaler
             offsetValid = true;
         }
 
-        // As the frame's first camera culls, after every LateUpdate has placed the camera.
+        // After every other LateUpdate (the execution order above). With the parts put
+        // back at the end of the frame, Unity's previous matrices for the motion vectors
+        // were the physics step's while the frame was drawn between steps: in orbit,
+        // offsets of up to 43 m, the vessel's motion vectors hundreds of pixels off in
+        // five of seven frames, and frame generation's frames smeared
+        // (tools/analyze_fg_inputs.py). Put back as the next frame begins, the vectors
+        // fit in every frame.
+        private void LateUpdate()
+        {
+            OnAnyPreCull(null);
+        }
+
+        // As the frame's first camera culls, where the LateUpdate above did not run.
         private void OnAnyPreCull(Camera camera)
         {
             if (appliedFrame == Time.frameCount) return;
@@ -179,14 +204,25 @@ namespace ReDefinition.Upscaler
             t.position += offset;
         }
 
-        private IEnumerator RestoreAtEndOfFrame()
+        // How far the interpolation moved a camera this frame: the offset where the camera
+        // hangs below a moved part, as KSP's flight camera does, nothing otherwise.
+        internal static Vector3 CameraShift(Camera camera)
         {
-            WaitForEndOfFrame end = new WaitForEndOfFrame();
-            while (true)
+            RenderInterpolation current = instance;
+            if (current == null || camera == null || current.moved.Count == 0 || current.appliedFrame != Time.frameCount)
+                return Vector3.zero;
+            if (current.shiftCamera != camera)
             {
-                yield return end;
-                Restore();
+                current.shiftCamera = camera;
+                current.cameraMoved = false;
+                foreach (Moved m in current.moved)
+                    if (m.Transform != null && camera.transform.IsChildOf(m.Transform))
+                    {
+                        current.cameraMoved = true;
+                        break;
+                    }
             }
+            return current.cameraMoved ? current.offset : Vector3.zero;
         }
 
         // The exact local positions back, in reverse order, before the next physics step.
@@ -195,6 +231,7 @@ namespace ReDefinition.Upscaler
             for (int i = moved.Count - 1; i >= 0; i--)
                 if (moved[i].Transform != null) moved[i].Transform.localPosition = moved[i].LocalPosition;
             moved.Clear();
+            shiftCamera = null;
         }
 
         private void Report()
