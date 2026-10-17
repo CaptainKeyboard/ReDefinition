@@ -46,12 +46,15 @@ processes would share the logs.
 
 The profiler sets markers in Unity's render stream. The proxy ends a D3D11 timestamp
 query at each one (`src/DxgiProxy/GpuProfiler.h`). A segment is the GPU time from one
-marker to the next. The markers sit at every event of every camera and light, between
-the command buffers other mods hang there, around the drawing scripts of every
-assembly, at each camera's start, around the `Update` and `LateUpdate` of the graphics
-mods, and inside ReDefinition's own raytracing and upscaler work
-(`Probe.GpuProfiler.Mark`). A label such as `Camera 00: Unity until AfterGBuffer` is
-Unity's own work on that camera before that event.
+marker to the next. The markers sit around the drawing scripts of every assembly, at
+each camera's start, around the `Update` and `LateUpdate` of the graphics mods, inside
+ReDefinition's own raytracing and upscaler work (`Probe.GpuProfiler.Mark`), and in the
+proxy around its copies and waits.
+
+With `-redefinitionGpuProfileCameras` a marker also ends each event of every camera and
+light. Such a marker leaves the raytraced sun out of the frame, so the scene looks as
+if in shadow. The GPU does the same work, so the times hold, but a shot from such a run
+does not. Why the markers do this is not known.
 
 The same labels go to RenderDoc as annotation markers, so a capture shows the same
 segments.
@@ -75,7 +78,8 @@ Keep in mind:
    update phases.
 
 With `-redefinitionPerfMonitorAll` the monitor also times each step of every
-coroutine, named by its class and method. Unity sums all coroutines as one,
+coroutine, named by its class and method, every mod's camera event handlers, and KSP's
+crew portraits with what runs inside them. Unity sums all coroutines as one,
 `CoroutinesDelayedCalls`. Use `-redefinitionPerfMonitorTypes A,B` to time every method
 of ReDefinition's classes `A` and `B`.
 
@@ -176,16 +180,17 @@ Keep in mind:
    noise of the scene.
 4. Compare the shots, and look at them side by side.
 
-The variants are `cascades2`, `distanceHalf`, `shadowsMinimal`, `noDeferredAo` and
-`noTufxAo` (`src/Probe/ShotVariant.cs`). Each changes its one thing 30 s into the
-flight, and the shot follows 2 s later.
+The variants are `cascades2`, `distanceHalf`, `shadowsMinimal`, `noDeferredAo`,
+`noTufxAo`, `portraitLayers` and `portraitShadows` (`src/Probe/ShotVariant.cs`). Each
+changes its one thing 5 s into the flight, so the perf monitor's and the GPU profiler's
+reports after it measure the change as well.
 
 Keep in mind:
 
 * The grass, the clouds and the raytracing's noise change from shot to shot. Compare
   after a blur, and against the difference of the two `none` shots.
 * A shot without `-redefinitionProbeShotVariant` comes 2 s earlier, and the clouds have
-  moved by then.
+  moved by then. Compare with `none` only.
 
 ## Read the proxy's waits and slow frames
 
@@ -196,6 +201,8 @@ The proxy writes these into `ReDefinitionProxy.log` on its own, every 10 s:
   raytracing slot, and frame generation's inputs (`src/DxgiProxy/WaitStats.h`).
 * `Raytracing: a slow frame` names a raytracing frame over 15 ms of GPU time with its
   scene build in parts and each pass. It is said at most 30 times a session.
+* The raytracing's status line in `KSP.log` gives `extra build` and `extra trace`, the
+  ocean's trace timed apart from the frame's.
 * `Raytracing: <n> meshes built in one frame` names a frame that builds 50 meshes or
   more, with their triangles, vertices and largest mesh.
 

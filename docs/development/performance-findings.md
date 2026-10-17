@@ -38,9 +38,10 @@ and is no frame rate limit here. KSP's own limit is 120 fps.
 
 The render thread in turn waits 12 ms to 18 ms a frame in the proxy, for a raytracing
 slot **[meas]**, the proxy's wait report. It waits 0 ms for a frame in flight and 0 ms
-for frame generation's inputs **[meas]**. The next section explains why.
+for frame generation's inputs **[meas]**. The next section explains why that does not cost
+frames.
 
-## The raytracing slots hold the CPU back
+## The raytracing slots and the render thread's wait
 
 A raytracing slot holds what one raytracing job sends to the GPU: its command list,
 its constants, its part of the descriptor heap, its timestamps and the resources the
@@ -50,26 +51,26 @@ slot again, it waits on the CPU until the GPU finished the slot's last job
 CPU would overwrite what the GPU still reads.
 
 The proxy has three slots (`kSlots = 3`) **[src]**. A frame uses three jobs: the main
-image, the ocean, and Ray Reconstruction **[meas]**, the GPU profiler. So each job
-waits for the same job of the previous frame. The CPU cannot prepare a frame while the
-GPU renders the one before. When the CPU then hands over its frame, the GPU has run
-dry, which is the GPU's idle time of 13 % to 18 %.
+image, the ocean, and Ray Reconstruction **[meas]**. So each job waits for the same job
+of the previous frame, 12 ms to 18 ms a frame **[meas]**. Frame generation adds its own
+work to the same D3D12 queue. With it on, the wait grows from 12 ms to 16.7 ms
+**[meas]**.
 
-Frame generation adds its own work to the same D3D12 queue. With it on, the wait for a
-slot grows from 12 ms to 16.7 ms a frame **[meas]**.
-
-The usual remedy is a pool that keeps each entry with the fence value at which the GPU
-is done with it. The pool hands out the oldest entry that is done and makes a new one
-if none is. Microsoft's MiniEngine does this for its command allocators
-(`CommandAllocatorPool.cpp`, DirectX-Graphics-Samples, MIT licence) **[doc]**. The pool
-grows once to what the game needs and then stops waiting. What it gains is **[open]**
-until it runs. The descriptor heap is laid out for three slots today, so a growing pool
-needs a larger heap or a part of its own per slot.
+The wait does not cost frames. With twelve slots it fell to 0 ms, and the frame stayed
+at 24.6 ms to 24.8 ms against 24.4 ms to 25.2 ms with three **[meas]**. The GPU was busy
+while the render thread waited. The usual remedy for a real wait of this kind is a pool
+that keeps each entry with the fence value at which the GPU is done with it, as
+Microsoft's MiniEngine does for its command allocators (`CommandAllocatorPool.cpp`,
+DirectX-Graphics-Samples, MIT licence) **[doc]**. Here it would only cost video memory
+and a frame of latency, so the proxy keeps three slots.
 
 ## What the GPU's frame is made of
 
 The GPU profiler, the mod cost probe and RenderDoc each see a different part. The
-column *Measured with* names the one a row comes from.
+column *Measured with* names the one a row comes from. The GPU profiler's figures here
+were taken with its markers on the cameras and lights, which left the raytraced sun
+out of the frame (see [profiling.md](profiling.md)). The GPU did the same work, and a
+run without them gave the raytracing 6.05 ms **[meas]**.
 
 | Part | GPU ms a frame | Measured with |
 |---|---|---|
@@ -147,6 +148,9 @@ but the first seconds of the flight stayed as slow, because loading dominates th
 Whether a peak in a script is the script's own or a garbage collection that started
 inside it is **[open]**. The development player's recording shows it as `GC.Collect`.
 
+ReDefinition's three peaks and the first flight frame's builds are built away: see
+[What is built](#what-is-built).
+
 ## What frame generation costs
 
 With frame generation generating, the rendered frame takes 26.4 ms, without it 24.4 ms
@@ -206,23 +210,41 @@ These scenes are **[open]**:
   point the shadow maps cover;
 * the raytracing off, which needs the shadow maps in full.
 
-## What can be improved
+## What is built
 
-None of these is in the code. *Saving* is measured where it carries **[meas]**.
+Each was measured on its own against the build before it, at the launch pad, and its
+shots compared with shots without it.
+
+| What | Measured | Image |
+|---|---|---|
+| Two shadow cascades while the rays shade the sun (`RtCamera`, `KeepCascades`) | 23.96 ms to 22.43 ms a frame, two runs each, about 7 % more frames **[meas]** | 0.25 levels from four cascades, under the noise of 0.27 **[meas]** |
+| The ocean's raytracing takes the frame's scene instead of building it again (`Raytracing::ReuseSceneLocked`) | its scene build 0.30 ms to 0 ms at the pad, 0.11 ms to 0 ms at sea **[meas]** | at sea 0.25 levels, under the noise of 0.46 **[meas]** |
+| New meshes read and handed over at most 2 ms a frame (`RtScene`, `UploadBudgetMs`) | the flight's first seconds: `RtCamera.OnPreCull` at most 107.6 ms to 26.3 ms; the proxy's largest mesh build 190 ms to 240 ms to 42 ms **[meas]** | 0.27 levels after the scene settled, the noise **[meas]** |
+| The space centre's lawns collected a few milliseconds a frame, their masks kept (`KscGrass.CollectLawns`) | the second map in flight: 71 ms to 15 ms of the main thread, its largest step 42 ms to 7.5 ms **[meas]** | 0.22 levels, under the noise **[meas]** |
+| The round gauge's picture read back without waiting for the GPU (`TexturePixels.OfSpriteAsync`) | 621 ms in one frame at the first flight to none among the costliest methods **[meas]** | the same pixels, 138 x 138, none differing **[meas]** |
+
+## What was tried and left out
+
+| What | Why |
+|---|---|
+| Twelve raytracing slots | the render thread's wait went, the frame stayed **[meas]** |
+| KSP's crew portraits drawing only their interiors' layers, or with 10 m of shadows | a portrait render stayed at 10.7 ms to 12.2 ms **[meas]** |
+| KSP's crew portraits rendered less often | with them stopped, the frame stayed as it was **[meas]**; the render's time is most likely the main thread waiting for the render thread **[open]** |
+| At most 24 acceleration structure builds a frame in the proxy | the flight's first seconds stayed as slow **[meas]**; the mod's upload budget spreads them instead |
+| Not zeroing the mesh buffers | the build stayed at 190 ms to 240 ms **[meas]** |
+| The ocean's raytracing only with ocean in view | its own cost is 0.06 ms of rays once its scene is reused **[meas]**, and the ocean is in view at the space centre |
+| A minimal shadow map with the raytracing | it needs a short shadow distance, which stays as it is |
+| Deferred's and TUFX's ambient occlusion off while the raytracing runs | 0.1 ms to 0.3 ms, under the frame's noise, and a visible change: brighter grass and corners **[meas]** |
+
+## What is left
+
+Each of these costs image quality, so the choice is the player's:
 
 | What | Saving | Costs image quality |
 |---|---|---|
-| A growing pool of raytracing slots, so the CPU prepares the next frame while the GPU renders | the GPU's idle 13 % to 18 % **[open]** | no |
 | DLSS mode *Quality* instead of *AA only* | 21.3 ms to 16.2 ms, 31 % more fps **[meas]** | yes |
 | Parallax `densityMultiplier` and `rangeMultiplier` 1.0 instead of 1.5 and 1.25 | 2.6 ms **[meas]** | yes |
-| With the raytracing on, a minimal shadow map for the scene and a small one for the crew portraits | up to 2.8 ms **[open]** | no at the launch pad **[meas]**; other scenes **[open]** |
-| Two shadow cascades instead of four | 1.4 ms **[meas]** | no at the launch pad with the raytracing **[meas]**; without it, yes |
-| Deferred's and TUFX's ambient occlusion off while the raytracing runs | 0.1 ms to 0.3 ms **[meas]** | slightly brighter corners and grass **[meas]** |
-| The shadow distance halved, left as it is for now | 0.7 ms **[meas]** | yes |
+| The shadow distance halved | 0.7 ms **[meas]** | yes |
 | Raytracing bounces 1 instead of 2 | 0.7 ms **[meas]** | yes |
 | EVE `temporalUpscaling` x9 instead of x6 | 0.5 ms **[meas]** | yes |
-| The ocean's raytracing only with ocean in view | up to 1.1 ms **[meas]** | no |
-| KSP's crew portraits rendered less often | 5.8 ms of the main thread and its 42 ms peaks **[meas]** | no |
-| `RoundGauge.Start`, `KscGrass.MapLawns` and `RtCamera.OnPreCull` without their peaks | the stutter they cause **[meas]** | no |
-| Fewer acceleration structure builds in the first flight frame | 190 ms to 240 ms in one frame **[meas]** | no |
 | KSP's own shadow quality 3 instead of 4 | none **[meas]** | yes |

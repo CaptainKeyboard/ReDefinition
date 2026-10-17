@@ -38,7 +38,7 @@ Released: 0.1.3.
 | Frame generation | The fence's and the check's cost; pacing per profile; DLSS frame generation in flight | [development/frame-generation.md](../development/frame-generation.md), "Open" |
 | Interface for mods | The hooks and the frame's state in the game; mask contributions |
 | Raytracing | AMD FSR Ray Regeneration on a Radeon RX 9000; the game itself: one flight | [development/raytracing.md](../development/raytracing.md), "Plan" | [development/shared-foundation.md](../development/shared-foundation.md) |
-| Performance | Which of the improvements to build, and what the raytracing slots' pool gains | [development/performance-findings.md](../development/performance-findings.md), "What can be improved" |
+| Performance | The improvements that cost image quality, the player's choice; the shadow maps in other scenes than the launch pad | [development/performance-findings.md](../development/performance-findings.md), "What is left" |
 | Compatibility | Ghosting behind plumes; thin trajectory lines; Singularity in the smaller modes; Kerbal Frame Generator installed | [reference/graphics-mod-compatibility.md](../reference/graphics-mod-compatibility.md), "Open" |
 | Modders | Whether a mod's own behaviour type covers what the mods ReDefinition bundles needed | a third-party mod that brings one |
 
