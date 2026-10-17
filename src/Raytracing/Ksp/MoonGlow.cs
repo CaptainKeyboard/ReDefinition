@@ -36,11 +36,15 @@ namespace ReDefinition.Raytracing
         private Mesh screen;
         private CommandBuffer command;
         private Camera attached;
-        private readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
+        // Made in Start: Unity does not allow a MaterialPropertyBlock in a MonoBehaviour's
+        // constructor, where a field initializer runs (a development player throws, and
+        // the component's other fields stay empty).
+        private MaterialPropertyBlock properties;
         private readonly List<CelestialBody> moons = new List<CelestialBody>();
 
         private void Start()
         {
+            properties = new MaterialPropertyBlock();
             string problem;
             Shader shader = ShaderBundle.LoadShader("Hidden/ReDefinition/MoonGlow", out problem);
             if (shader == null)

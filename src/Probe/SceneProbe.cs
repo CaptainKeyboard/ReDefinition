@@ -282,6 +282,10 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class SceneProbeRunner : MonoBehaviour
     {
+        [System.Runtime.InteropServices.DllImport("dxgi.dll", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl,
+                                                   CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int KspCpuSample(int seconds, string path);
+
         // The crop around the vessel, in pixels, and the frames of a run: steady, then
         // the camera pitched up by a degree a frame, then steady again. Per frame, not
         // per second, so the path is the same at any frame rate.
@@ -583,6 +587,28 @@ namespace ReDefinition.Probe
                     yield return new WaitForSeconds(25f);
                     RenderDocCapture.Capture("the flight left to run");
                     yield return new WaitForSeconds(5f);
+                    Application.Quit();
+                    yield break;
+                }
+                // -redefinitionProbeCpuSample: the main thread sampled for 30 s from 20 s on
+                // (src/DxgiProxy/CpuSampler.h) into ReDefinitionCaptures/cpu-samples.txt,
+                // then KSP quits; tools/cpu_samples.py reads it.
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeCpuSample") >= 0)
+                {
+                    yield return new WaitForSeconds(20f);
+                    string samplesFolder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
+                    Directory.CreateDirectory(samplesFolder);
+                    int started = 0;
+                    try
+                    {
+                        started = KspCpuSample(30, Path.GetFullPath(Path.Combine(samplesFolder, "cpu-samples.txt")));
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.Log(Log.Tag + " Probe: no CPU sampler (" + e.GetType().Name + ").");
+                    }
+                    Debug.Log(Log.Tag + " Probe: CPU sampler " + (started != 0 ? "started" : "not started") + ".");
+                    yield return new WaitForSeconds(33f);
                     Application.Quit();
                     yield break;
                 }

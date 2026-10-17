@@ -14,6 +14,7 @@
 #include "D3d12Compute.h"
 #include "Dlss.h"
 #include "FrameGeneration.h"
+#include "CpuSampler.h"
 #include "GpuProfiler.h"
 #include "LoadMonitor.h"
 #include "Log.h"
@@ -346,6 +347,22 @@ extern "C"
     __declspec(dllexport) int KspProfRead(int* ids, float* ms, int capacity, int* frameNumber)
     {
         return redefinition::GpuProfiler::Get().Read(ids, ms, capacity, frameNumber);
+    }
+
+    // The CPU sampler (CpuSampler.h), from the main thread: samples it for seconds into
+    // path. 1 started, 0 not.
+    __declspec(dllexport) int KspCpuSample(int seconds, const wchar_t* path)
+    {
+        if (seconds <= 0 || path == nullptr)
+            return 0;
+        try
+        {
+            return redefinition::CpuSampler::Get().Start(seconds, path) ? 1 : 0;
+        }
+        catch (...)
+        {
+            return 0;
+        }
     }
 
     // DLSS (Dlss.h): the packet size the managed side must write, what the

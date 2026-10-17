@@ -38,6 +38,10 @@ namespace ReDefinition.Probe
         }
 
         private static readonly Dictionary<MethodBase, Cost> costs = new Dictionary<MethodBase, Cost>();
+        // Unity's samplers: each one's recorder and its sum and largest over the period, in ns.
+        private static readonly Dictionary<string, UnityEngine.Profiling.Recorder> unitySamplers =
+            new Dictionary<string, UnityEngine.Profiling.Recorder>();
+        private static readonly Dictionary<string, long[]> unitySums = new Dictionary<string, long[]>();
         private static readonly HashSet<MethodBase> patched = new HashSet<MethodBase>();
         private static HarmonyLib.Harmony harmony;
         private static bool withAssembly;
@@ -91,6 +95,17 @@ namespace ReDefinition.Probe
             }
             foreach (Type type in types)
             {
+                // A MonoBehaviour's coroutines, each step (MoveNext) of the class the compiler
+                // makes for it: Unity times them all as one, CoroutinesDelayedCalls.
+                if (withAssembly && type.DeclaringType != null && typeof(MonoBehaviour).IsAssignableFrom(type.DeclaringType)
+                    && type.Name.StartsWith("<", StringComparison.Ordinal) && typeof(System.Collections.IEnumerator).IsAssignableFrom(type)
+                    && !type.ContainsGenericParameters)
+                {
+                    MethodInfo step = type.GetMethod("MoveNext", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                                                                 | BindingFlags.DeclaredOnly, null, Type.EmptyTypes, null);
+                    if (step != null && Patch(step)) count++;
+                    continue;
+                }
                 if (!typeof(MonoBehaviour).IsAssignableFrom(type) || type.ContainsGenericParameters || type == typeof(PerfMonitor)) continue;
                 foreach (string message in Messages)
                 {
@@ -121,6 +136,37 @@ namespace ReDefinition.Probe
                 }
             started = Time.realtimeSinceStartup;
             Debug.Log(Log.Tag + " Perf monitor: " + count + " of ReDefinition's per-frame methods timed.");
+            // -redefinitionPerfMonitorUnity: Unity's own profiler samplers as well --
+            // culling, rendering, the canvases, physics, the player loop's phases --
+            // where this player's build lets them be read (Recorder.isValid).
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionPerfMonitorUnity") >= 0)
+            {
+                var names = new List<string>();
+                UnityEngine.Profiling.Sampler.GetNames(names);
+                foreach (string name in names)
+                {
+                    UnityEngine.Profiling.Recorder recorder = UnityEngine.Profiling.Recorder.Get(name);
+                    if (recorder == null || !recorder.isValid) continue;
+                    // The main thread's time alone (this is it); unfiltered a sampler sums
+                    // the worker and render threads' as well.
+                    recorder.FilterToCurrentThread();
+                    recorder.enabled = true;
+                    unitySamplers[name] = recorder;
+                }
+                Debug.Log(Log.Tag + " Perf monitor: " + unitySamplers.Count + " of Unity's " + names.Count + " samplers readable in this build.");
+            }
+            // -redefinitionUnityProfilerLog <file>: Unity's profiler records into that file
+            // (.raw), for its Profiler window in the editor (Load). A development player
+            // only (tools/unity_profile.ps1).
+            string profilerLog = SceneProbe.ArgumentAfter("-redefinitionUnityProfilerLog");
+            if (profilerLog != null && UnityEngine.Profiling.Profiler.supported)
+            {
+                UnityEngine.Profiling.Profiler.logFile = profilerLog;
+                UnityEngine.Profiling.Profiler.enableBinaryLog = true;
+                UnityEngine.Profiling.Profiler.maxUsedMemory = 256 * 1024 * 1024;
+                UnityEngine.Profiling.Profiler.enabled = true;
+                Debug.Log(Log.Tag + " Perf monitor: Unity's profiler records into " + profilerLog + ".");
+            }
         }
 
         private static bool Patch(MethodBase method)
@@ -166,6 +212,7 @@ namespace ReDefinition.Probe
                 costs[__originalMethod] = cost = new Cost
                 {
                     Name = (withAssembly && __originalMethod.DeclaringType != null ? __originalMethod.DeclaringType.Assembly.GetName().Name + ": " : "")
+                           + (__originalMethod.DeclaringType?.DeclaringType != null ? __originalMethod.DeclaringType.DeclaringType.Name + "." : "")
                            + __originalMethod.DeclaringType?.Name + "." + __originalMethod.Name,
                 };
             cost.Ticks += ticks;
@@ -221,6 +268,17 @@ namespace ReDefinition.Probe
             }
             frames++;
             frameSum += Time.unscaledDeltaTime;
+            // The frame before's time of each sampler, on the main thread.
+            foreach (KeyValuePair<string, UnityEngine.Profiling.Recorder> pair in unitySamplers)
+            {
+                long ns = pair.Value.elapsedNanoseconds;
+                if (ns <= 0) continue;
+                long[] sum;
+                if (!unitySums.TryGetValue(pair.Key, out sum)) unitySums[pair.Key] = sum = new long[3];
+                sum[0] += ns;
+                if (ns > sum[1]) sum[1] = ns;
+                sum[2] += pair.Value.sampleBlockCount;
+            }
             foreach (Cost cost in costs.Values)
             {
                 if (cost.FrameTicks > cost.MostFrameTicks) cost.MostFrameTicks = cost.FrameTicks;
@@ -242,6 +300,15 @@ namespace ReDefinition.Probe
                 .Append(" ms a frame (").Append((physicsSteps / (float)frames).ToString("0.00", CultureInfo.InvariantCulture))
                 .Append(" steps a frame), Update to LateUpdate ").Append((updateTicks * toMs / frames).ToString("0.00", CultureInfo.InvariantCulture))
                 .Append(" ms a frame");
+            if (unitySums.Count > 0)
+            {
+                text.Append("\n    Unity's samplers, per frame on average, at most, calls a frame:");
+                foreach (KeyValuePair<string, long[]> pair in unitySums.OrderByDescending(p => p.Value[0]).Take(45))
+                    text.Append("\n      ").Append((pair.Value[0] / 1e6 / frames).ToString("0.000", CultureInfo.InvariantCulture)).Append(" ms, at most ")
+                        .Append((pair.Value[1] / 1e6).ToString("0.00", CultureInfo.InvariantCulture)).Append(", ")
+                        .Append((pair.Value[2] / (float)frames).ToString("0.0", CultureInfo.InvariantCulture)).Append(": ").Append(pair.Key);
+                unitySums.Clear();
+            }
             physicsTicks = updateTicks = 0;
             physicsSteps = 0;
             Debug.Log(text.ToString());

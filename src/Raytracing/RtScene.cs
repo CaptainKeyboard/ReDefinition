@@ -163,7 +163,13 @@ namespace ReDefinition.Raytracing
         // to linear before they go over. Their small textures need nothing: the proxy's
         // array is sRGB, and its decoding of the bytes Unity renders -- gamma-space
         // values there, sRGB codes in linear space -- gives the linear value either way.
-        internal bool GammaSpace = QualitySettings.activeColorSpace == ColorSpace.Gamma;
+        // Read where it is used: RtCamera makes the scene as a field, in its constructor,
+        // where Unity does not allow QualitySettings to be read (a development player
+        // throws there, and the raytracing never starts).
+        internal bool GammaSpace
+        {
+            get { return QualitySettings.activeColorSpace == ColorSpace.Gamma; }
+        }
 
         internal void AddSource(IRtSource source)
         {

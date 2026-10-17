@@ -40,6 +40,35 @@ namespace ReDefinition.Probe
             public Func<MonoBehaviour, bool> Behaviour;
             public string[] ShaderPrefixes = new string[0];
             public string[] BufferKeywords = new string[0];
+            // Something else to switch: off returns how many it switched.
+            public Func<int> CustomOff;
+            public Action CustomOn;
+        }
+
+        // KSP's crew portraits: each IVA kerbal's kerbalAvatarUpdateCycle coroutine renders
+        // its portrait camera now and then. Off: all the kerbals' coroutines stopped;
+        // on: that one started again.
+        private static readonly List<Kerbal> stoppedKerbals = new List<Kerbal>();
+
+        private static int PortraitsOff()
+        {
+            stoppedKerbals.Clear();
+            foreach (Kerbal kerbal in FindObjectsOfType<Kerbal>())
+            {
+                kerbal.StopAllCoroutines();
+                stoppedKerbals.Add(kerbal);
+            }
+            return stoppedKerbals.Count;
+        }
+
+        private static void PortraitsOn()
+        {
+            System.Reflection.MethodInfo cycle = typeof(Kerbal).GetMethod("kerbalAvatarUpdateCycle",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            foreach (Kerbal kerbal in stoppedKerbals)
+                if (kerbal != null && cycle != null)
+                    kerbal.StartCoroutine((IEnumerator)cycle.Invoke(kerbal, cycle.GetParameters().Length == 0 ? null : new object[cycle.GetParameters().Length]));
+            stoppedKerbals.Clear();
         }
 
         private static bool InAssembly(MonoBehaviour b, params string[] names)
@@ -50,6 +79,7 @@ namespace ReDefinition.Probe
 
         private static readonly Target[] Targets =
         {
+            new Target { Name = "KSP's crew portraits", Behaviour = b => false, CustomOff = PortraitsOff, CustomOn = PortraitsOn },
             // Only the scatters: Parallax's terrain subdivision (JobifiedSubdivision) throws
             // once switched off and on.
             new Target
@@ -80,6 +110,8 @@ namespace ReDefinition.Probe
         private sealed class Off
         {
             public readonly List<Behaviour> Behaviours = new List<Behaviour>();
+            public Action Custom;
+            public int CustomCount;
             public readonly List<Renderer> Renderers = new List<Renderer>();
             public readonly List<KeyValuePair<Camera, KeyValuePair<CameraEvent, CommandBuffer>>> CameraBuffers =
                 new List<KeyValuePair<Camera, KeyValuePair<CameraEvent, CommandBuffer>>>();
@@ -97,6 +129,11 @@ namespace ReDefinition.Probe
         private static Off SwitchOff(Target target)
         {
             var off = new Off();
+            if (target.CustomOff != null)
+            {
+                off.Custom = target.CustomOn;
+                off.CustomCount = target.CustomOff();
+            }
             foreach (MonoBehaviour b in FindObjectsOfType<MonoBehaviour>())
                 if (b != null && b.enabled && !(b is ModCost) && !(b is GpuProfiler) && target.Behaviour(b))
                 {
@@ -143,6 +180,7 @@ namespace ReDefinition.Probe
 
         private static void SwitchOn(Off off)
         {
+            if (off.Custom != null) off.Custom();
             foreach (KeyValuePair<Camera, KeyValuePair<CameraEvent, CommandBuffer>> entry in off.CameraBuffers)
                 if (entry.Key != null) entry.Key.AddCommandBuffer(entry.Value.Key, entry.Value.Value);
             foreach (KeyValuePair<Light, KeyValuePair<LightEvent, CommandBuffer>> entry in off.LightBuffers)
@@ -254,7 +292,7 @@ namespace ReDefinition.Probe
                         continue;
                     }
                     Off off = SwitchOff(target);
-                    switched = off.Behaviours.Count + off.Renderers.Count + off.CameraBuffers.Count + off.LightBuffers.Count;
+                    switched = off.Behaviours.Count + off.Renderers.Count + off.CameraBuffers.Count + off.LightBuffers.Count + off.CustomCount;
                     counts = off.Behaviours.Count + " behaviours, " + off.Renderers.Count + " renderers, "
                              + (off.CameraBuffers.Count + off.LightBuffers.Count) + " command buffers";
                     if (switched == 0) break;

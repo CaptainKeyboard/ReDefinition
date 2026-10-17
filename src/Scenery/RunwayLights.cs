@@ -27,7 +27,10 @@ namespace ReDefinition.Scenery
         private static float brightness = 0.5f;
 
         private readonly List<TimeOfDayAnimation> animations = new List<TimeOfDayAnimation>();
-        private readonly MaterialPropertyBlock block = new MaterialPropertyBlock();
+        // Made in Start: Unity does not allow a MaterialPropertyBlock in a MonoBehaviour's
+        // constructor, where a field initializer runs (a development player throws, and
+        // the component's other fields stay empty).
+        private MaterialPropertyBlock block;
         private int drawnFrame = -1;
 
         // The lights' brightness, 1 as KSP draws them.
@@ -45,6 +48,7 @@ namespace ReDefinition.Scenery
 
         private IEnumerator Start()
         {
+            block = new MaterialPropertyBlock();
             Camera.onPreCull += Dim;
             while (true)
             {
