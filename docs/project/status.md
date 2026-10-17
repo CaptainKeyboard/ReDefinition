@@ -19,6 +19,7 @@ Released: 0.1.3.
 | **Raytracing, stages 1 to 7** -- the service in the proxy: meshes, materials, material textures, instances from the CPU and from the GPU, acceleration structures; sun visibility, ambient occlusion, diffuse light with bounces, reflections, emission, the sky; ReDefinition's own denoiser; DLSS Ray Reconstruction through Streamline in the upscaler; AMD FSR Ray Regeneration where AMD's DLL runs; the Unity side: scene, camera, capture, the lighting shaders; KSP's parts, terrain, KSC and Parallax's scatter in the scene, the setting and its log line; with Deferred or without it; every installed mod handled; the raytracing harness, a scene of KSP's meshes, the raytracing test player with a budget run | built; the raytracing harness and the test player pass on an RTX 4090, 2.56 ms of GPU time in the budget run; not run in the game |
 | **NVIDIA DLSS files** -- download from NVIDIA's Streamline release after licence consent, SHA-256 pinned | built, unit tests |
 | **KSP settings dialog section** | built |
+| **Profiling** -- the GPU profiler, the perf monitor for every assembly and every coroutine, the mod cost probe, RenderDoc by mod, Unity's development player, the proxy's wait report | built; run in the game, [development/performance-findings.md](../development/performance-findings.md) |
 | **Settings window and diagnostics window** -- tabs by feature, *Advanced*, toolbar takeover, close buttons on mods' windows | built |
 | **Saving in the mods, values from before ReDefinition, restore** | built, unit tests |
 | **Graphics profiles** Low to Max, **Reset**, **requirements** R1-R7 | built, checked against the installed mods |
@@ -37,6 +38,7 @@ Released: 0.1.3.
 | Frame generation | The fence's and the check's cost; pacing per profile; DLSS frame generation in flight | [development/frame-generation.md](../development/frame-generation.md), "Open" |
 | Interface for mods | The hooks and the frame's state in the game; mask contributions |
 | Raytracing | AMD FSR Ray Regeneration on a Radeon RX 9000; the game itself: one flight | [development/raytracing.md](../development/raytracing.md), "Plan" | [development/shared-foundation.md](../development/shared-foundation.md) |
+| Performance | Which of the improvements to build, and what the raytracing slots' pool gains | [development/performance-findings.md](../development/performance-findings.md), "What can be improved" |
 | Compatibility | Ghosting behind plumes; thin trajectory lines; Singularity in the smaller modes; Kerbal Frame Generator installed | [reference/graphics-mod-compatibility.md](../reference/graphics-mod-compatibility.md), "Open" |
 | Modders | Whether a mod's own behaviour type covers what the mods ReDefinition bundles needed | a third-party mod that brings one |
 

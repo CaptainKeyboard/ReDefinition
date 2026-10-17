@@ -80,3 +80,8 @@ How a value lasts is the mod's `saving`:
 | history reset | The signal that the upscaler has to forget its previous frames. A camera cut causes one, and so does a mod that asks for one. |
 | HUD-less copy | The frame without the interface, which frame generation needs so the interface is not warped into generated frames. |
 | hook | A place where a mod takes part in ReDefinition's rendering: motion vectors into the capture, drawing after upscaling, or an overlay. |
+| raytracing slot | What one raytracing job sends to the GPU, in the proxy: its command list, constants, descriptors and timestamps. The proxy reuses a slot once the GPU is done with it. |
+| the GPU profiler | ReDefinition's markers in Unity's render stream, with a D3D11 timestamp at each, which name the GPU's time by camera, pass and mod (`-redefinitionGpuProfile`). |
+| the perf monitor | ReDefinition's timing of the main thread's script methods (`-redefinitionPerfMonitor`). |
+| the mod cost probe | A probe run that switches each graphics mod off and on in turn and measures the difference (`-redefinitionProbeModCost`). |
+| the development player | Unity's `UnityPlayer.dll` with its profiler, put in place of KSP's for one run (`tools/unity_profile.ps1`). |

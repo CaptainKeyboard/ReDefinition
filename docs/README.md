@@ -60,6 +60,8 @@ beside it.
 | understand the planner's place in the editor | [development/engineer.md](development/engineer.md) |
 | understand the planner's route and fuel budget | [development/planner.md](development/planner.md) |
 | understand the scaling of what KSP leaves unscaled | [development/ui-scaling.md](development/ui-scaling.md) |
+| measure what costs the frame, in ReDefinition, KSP or another mod | [development/profiling.md](development/profiling.md) |
+| know where the frame's time goes and what can be improved | [development/performance-findings.md](development/performance-findings.md) |
 | write or change a page here | [development/writing-these-pages.md](development/writing-these-pages.md) |
 | see what is done, open or settled | [project/status.md](project/status.md), [project/reviews.md](project/reviews.md) |
 
