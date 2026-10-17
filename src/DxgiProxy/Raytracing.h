@@ -687,6 +687,8 @@ namespace redefinition
             // Whether the slot's list resolves its timestamps: not for a frame that stopped
             // early, nor for Ray Reconstruction's.
             bool timed = false;
+            // Whether its last list was an extra trace (kRtFrameExtra), timed apart.
+            bool extra = false;
             // What the slot's list uses, held until the slot comes round again.
             std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> held;
         };
@@ -711,6 +713,10 @@ namespace redefinition
             std::vector<D3D12_RESOURCE_BARRIER> back;
             uint32_t built = 0;
             UINT instanceCount = 0;
+            // The slot whose scene the passes read: the frame's own, or for a further trace
+            // of the same frame (the ocean's) the trace's before it (ReuseSceneLocked).
+            Slot* sceneSlot = nullptr;
+            UINT sceneSlotNumber = 0;
         };
 
         // OnFrame's steps, in the order it takes them (Raytracing.cpp).
@@ -723,6 +729,10 @@ namespace redefinition
         uint32_t BuildMeshesLocked(Slot& slot);
         bool UploadMaterialTexturesLocked(Slot& slot);
         bool TakeNoisyTargetsLocked(FrameWork& frame);
+        // A further trace of the frame whose scene was just built (kRtFrameExtra with
+        // kRtFrameSameFrame, no mesh built in between): its scene is that one. False if
+        // there is none to take.
+        bool ReuseSceneLocked(FrameWork& frame);
         void WriteFrameViewsLocked(FrameWork& frame);
         void WriteConstantsLocked(const FrameWork& frame);
         void TransitionTexturesLocked(FrameWork& frame);
@@ -874,6 +884,15 @@ namespace redefinition
         int bigBuildsLogged = 0;
         float buildMs = 0.0f;
         float traceMs = 0.0f;
+        // The same of the last extra trace (the ocean's), timed apart.
+        float extraBuildMs = 0.0f;
+        float extraTraceMs = 0.0f;
+        // The last scene built: its slot and frame, for a further trace of that frame.
+        // The scene's structure (tlas) is one; no other build comes between.
+        Slot* builtSceneSlot = nullptr;
+        UINT builtSceneSlotNumber = 0;
+        uint32_t builtSceneFrame = 0;
+        UINT builtSceneInstances = 0;
         float passMs[kRtPassTimings] = {};
     };
 }

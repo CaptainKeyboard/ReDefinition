@@ -157,6 +157,7 @@ namespace redefinition
         fenceValue = 0;
         copiedValue = 0;
         slotIndex = 0;
+        builtSceneSlot = nullptr;
         return true;
     }
 
@@ -404,6 +405,14 @@ namespace redefinition
             const UINT64* ticks = reinterpret_cast<const UINT64*>(static_cast<const uint8_t*>(mapped) + range.Begin);
             const double toMs = 1000.0 / static_cast<double>(timestampFrequency);
             std::lock_guard<std::mutex> status(statusLock);
+            if (slot.extra)
+            {
+                extraBuildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
+                extraTraceMs = static_cast<float>(static_cast<double>(ticks[kTimestampTraceEnd] - ticks[1]) * toMs);
+                const D3D12_RANGE untouched = { 0, 0 };
+                timestampReadback->Unmap(0, &untouched);
+                return;
+            }
             buildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
             traceMs = static_cast<float>(static_cast<double>(ticks[kTimestampTraceEnd] - ticks[1]) * toMs);
             for (UINT position = 0; position < kRtPassTimings; ++position)
@@ -466,6 +475,7 @@ namespace redefinition
         materialTextures.Reset();
         materialTextureLayers = 0;
         tlas.Reset();
+        builtSceneSlot = nullptr;
         tlasScratch.Reset();
         tlasSize = tlasScratchSize = 0;
         timestamps.Reset();

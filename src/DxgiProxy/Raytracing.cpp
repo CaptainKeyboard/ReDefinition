@@ -264,11 +264,22 @@ namespace redefinition
         // A frame that stops early is submitted all the same (SubmitLocked).
         if (!UploadMaterialTexturesLocked(slot)
             || (list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampMaterialsUploaded), false)
-            || !BuildSceneLocked(slot, frame.slotNumber, packet->frameIndex, frame.inputs[kRtInputInstances],
-                                 frame.instanceCount))
+            || (!ReuseSceneLocked(frame)
+                && !BuildSceneLocked(slot, frame.slotNumber, packet->frameIndex, frame.inputs[kRtInputInstances],
+                                     frame.instanceCount)))
         {
+            builtSceneSlot = nullptr;
             SubmitLocked(slot, frame.inputs, frame.outputs);
             return;
+        }
+        if (frame.sceneSlot == nullptr)
+        {
+            frame.sceneSlot = frame.slot;
+            frame.sceneSlotNumber = frame.slotNumber;
+            builtSceneSlot = frame.slot;
+            builtSceneSlotNumber = frame.slotNumber;
+            builtSceneFrame = packet->frameIndex;
+            builtSceneInstances = frame.instanceCount;
         }
         list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + 1);
         if (!TakeNoisyTargetsLocked(frame))
@@ -476,6 +487,23 @@ namespace redefinition
             list->ResourceBarrier(static_cast<UINT>(into.size()), into.data());
     }
 
+    bool Raytracing::ReuseSceneLocked(FrameWork& frame)
+    {
+        // The ocean's trace comes after the frame's own in the same frame, on the same
+        // queue: the scene's structure and the instances and materials it was built from
+        // are still that frame's, and the frame's slot is not taken again before the
+        // next frame. Building it again cost 0.30 ms of the GPU's time a frame (the
+        // extra trace's timestamps).
+        const RtFramePacket& packet = *frame.packet;
+        if (!frame.extra || (packet.flags & kRtFrameSameFrame) == 0 || frame.built != 0 || builtSceneSlot == nullptr
+            || builtSceneSlot == frame.slot || builtSceneFrame != packet.frameIndex)
+            return false;
+        frame.sceneSlot = builtSceneSlot;
+        frame.sceneSlotNumber = builtSceneSlotNumber;
+        frame.instanceCount = builtSceneInstances;
+        return true;
+    }
+
     void Raytracing::BindFrameLocked(const FrameWork& frame)
     {
         // The frame's bindings: set before the passes, and again after anything that sets
@@ -490,14 +518,16 @@ namespace redefinition
         D3D12_GPU_DESCRIPTOR_HANDLE outputTable = frame.frameTable;
         outputTable.ptr += static_cast<UINT64>(kRtMaxTextures) * increment;
         list->SetComputeRootDescriptorTable(3, outputTable);
-        list->SetComputeRootShaderResourceView(4, frame.slot->instanceDataAddress);
-        list->SetComputeRootShaderResourceView(5, frame.slot->materials->GetGPUVirtualAddress());
+        const Slot& scene = frame.sceneSlot != nullptr ? *frame.sceneSlot : *frame.slot;
+        const UINT sceneNumber = frame.sceneSlot != nullptr ? frame.sceneSlotNumber : frame.slotNumber;
+        list->SetComputeRootShaderResourceView(4, scene.instanceDataAddress);
+        list->SetComputeRootShaderResourceView(5, scene.materials->GetGPUVirtualAddress());
         D3D12_GPU_DESCRIPTOR_HANDLE meshTable = heapGpu;
         meshTable.ptr += static_cast<UINT64>(kSlots) * kFrameDescriptors * increment;
         list->SetComputeRootDescriptorTable(6, meshTable);
         meshTable.ptr += static_cast<UINT64>(kMaxMeshes) * increment;
         list->SetComputeRootDescriptorTable(7, meshTable);
-        meshTable.ptr += static_cast<UINT64>(kMaxMeshes + frame.slotNumber) * increment;
+        meshTable.ptr += static_cast<UINT64>(kMaxMeshes + sceneNumber) * increment;
         list->SetComputeRootDescriptorTable(8, meshTable);
     }
 
@@ -619,11 +649,14 @@ namespace redefinition
     {
         if (!frame.back.empty())
             list->ResourceBarrier(static_cast<UINT>(frame.back.size()), frame.back.data());
-        // The timings are the frame's: a further trace of it leaves them as they are.
-        if (!frame.extra)
-            list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase, kTimestampsPerSlot,
-                                   timestampReadback.Get(), static_cast<UINT64>(frame.timestampBase) * sizeof(UINT64));
-        frame.slot->timed = !frame.extra;
+        // The timings are the frame's; a further trace of it (the ocean's) is timed apart,
+        // its scene build and the rest, its end marked here as its passes do not.
+        if (frame.extra)
+            list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampTraceEnd);
+        list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase, kTimestampsPerSlot,
+                               timestampReadback.Get(), static_cast<UINT64>(frame.timestampBase) * sizeof(UINT64));
+        frame.slot->timed = true;
+        frame.slot->extra = frame.extra;
         const UINT64 finished = SubmitLocked(*frame.slot, frame.inputs, frame.outputs);
         if (finished == 0)
             return;
@@ -683,11 +716,11 @@ namespace redefinition
         if (buffer != nullptr && size > 0)
             _snprintf_s(buffer, static_cast<size_t>(size), _TRUNCATE,
                         "generation=%u frames=%llu reconstructed=%llu regenerated=%llu meshes=%u built=%u instances=%u"
-                        " build=%.3fms trace=%.3fms%s%s",
+                        " build=%.3fms trace=%.3fms extra build=%.3fms extra trace=%.3fms%s%s",
                         generation.load(), static_cast<unsigned long long>(frames),
                         static_cast<unsigned long long>(reconstructed), static_cast<unsigned long long>(regenerated), liveMeshes,
                         lastBuilt, lastInstances,
-                        buildMs, traceMs, lastProblem.empty() ? "" : " last problem: ", lastProblem.c_str());
+                        buildMs, traceMs, extraBuildMs, extraTraceMs, lastProblem.empty() ? "" : " last problem: ", lastProblem.c_str());
         return static_cast<int>(generation.load());
     }
 
