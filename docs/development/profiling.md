@@ -21,6 +21,7 @@ What the tools found is on
 | Where does Unity's own main thread time go: culling, rendering, physics, coroutines? | Unity's development player | `KSP.log` and a `.raw` file |
 | How long does Unity's render thread wait for the GPU? | the proxy's wait report | `ReDefinitionProxy.log` |
 | What does the proxy's raytracing do in a slow frame? | the proxy's slow frame lines | `ReDefinitionProxy.log` |
+| Does the image change if one thing is switched off? | a shot variant | a screenshot to compare |
 
 All of them run through the scene probe. It loads `ReDefinitionProbe`, flies its vessel
 on the launch pad and, with `-redefinitionProbeStay`, leaves the flight running. Add
@@ -159,6 +160,32 @@ Keep in mind:
   the release player lets pass. Mods that make such calls throw there and not in the
   game. HUDReplacer's GUI skins do.
 * A recording of 30 s takes about 3 GB.
+
+## Compare a shot with one thing changed
+
+1. Take the shot to compare with, with the variant `none`, which waits as long as a
+   change does:
+
+   ```
+   KSP_x64.exe -redefinitionProbe -redefinitionProbeStay -redefinitionProbeClouds -redefinitionProbeShot v-base -redefinitionProbeShotVariant none
+   ```
+
+2. Take the same shot with a variant, for example `-redefinitionProbeShot v-cascades2
+   -redefinitionProbeShotVariant cascades2`.
+3. Take a second shot with `none`. The difference between the two `none` shots is the
+   noise of the scene.
+4. Compare the shots, and look at them side by side.
+
+The variants are `cascades2`, `distanceHalf`, `shadowsMinimal`, `noDeferredAo` and
+`noTufxAo` (`src/Probe/ShotVariant.cs`). Each changes its one thing 30 s into the
+flight, and the shot follows 2 s later.
+
+Keep in mind:
+
+* The grass, the clouds and the raytracing's noise change from shot to shot. Compare
+  after a blur, and against the difference of the two `none` shots.
+* A shot without `-redefinitionProbeShotVariant` comes 2 s earlier, and the clouds have
+  moved by then.
 
 ## Read the proxy's waits and slow frames
 

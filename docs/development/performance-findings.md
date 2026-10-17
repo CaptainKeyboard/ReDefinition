@@ -153,6 +153,59 @@ With frame generation generating, the rendered frame takes 26.4 ms, without it 2
 to 25.2 ms **[meas]**. Frame generation costs about 1.3 ms to 2 ms a rendered frame,
 5 % to 8 %, and shows 70 frames a second instead of 40.
 
+## What the raytracing does a second time
+
+When the upscaler and the raytracing run, some of KSP's and the mods' work is done
+twice:
+
+| Work | Done twice | Cost | Source |
+|---|---|---|---|
+| Antialiasing | no: KSP's MSAA goes to 0 while the upscaler runs, and so does the antialiasing of Scatterer, TUFX, Deferred and Kerbal Frame Generator | none | **[src]** `src/Upscaler/QualityOverrides.cs` |
+| The sun's shadow maps | yes: Unity renders them every frame, with Scatterer's 25000 m and four cascades | 2.8 ms of the GPU | **[src]**, **[meas]** |
+| Ambient occlusion | yes: the raytracing's diffuse light shades corners already, and Deferred's and TUFX's ambient occlusion shade them again | 0.1 ms to 0.3 ms of the GPU | **[meas]** |
+| Screen-space reflections | no: Deferred's go off while the raytraced reflections run | none | **[meas]**, `KSP.log` |
+| Ambient light | no: the raytracing replaces Unity's in the reflections pass | none | **[src]** `RtLighting` |
+| The reflection probe | no: the raytracing reads its sky from the probe, and Deferred needs it as well | 0.1 ms of the GPU, 0.8 ms of the main thread | **[meas]** |
+
+With the raytracing on, the shader that writes the sun's screen-space shadow mask
+takes the visibility from the rays (`RtShadow` in
+`unity/Assets/ReDefinition/Shaders/ReDefinitionScreenSpaceShadows.shader`) **[src]**.
+It uses the shadow maps only where the raytraced frame did not see a point, such as an
+edge just uncovered. The shadow maps cannot simply go. If Unity renders no shadows, it
+skips the screen-space mask as well, and the rays' shadow enters the frame through that
+mask **[src]**. Other readers of the shadow maps are Scatterer's godrays
+(`RaymarchScatteringOcclusion`), Scatterer's caustics mask, EVE's cloud shadows and the
+vessel's shadow for frame generation **[src]**.
+
+### Compare the frame with and without
+
+Each variant was shot at the same moment as a shot without a change
+(`-redefinitionProbeShotVariant`, [profiling.md](profiling.md)) **[meas]**. The table
+gives the mean difference of the 3D scene after a blur of 6 pixels, in levels of 255.
+Two shots without a change differ by 0.27, from the grass in the wind, the clouds and
+the raytracing's noise.
+
+| Variant | Difference | What changes in the image |
+|---|---|---|
+| none, a second shot | 0.27 | nothing |
+| two shadow cascades | 0.27 | nothing |
+| a minimal shadow map: one cascade, 200 m, low resolution | 0.27 | nothing in the 3D scene; the crew portraits lose their shadows and get brighter |
+| Deferred's ambient occlusion off | 1.16 | the grass and the rocket's feet a little brighter, the grass a little flatter |
+| TUFX's ambient occlusion off | 0.6 darker in the scene's middle | hardly visible side by side |
+
+So at the launch pad by day, the 3D scene does not need KSP's shadow maps when the
+raytracing runs. Only the crew portraits do. Their cameras draw the kerbals in their
+small interior with Unity's shadows. A minimal shadow map for the scene keeps the mask
+and costs little, and a small shadow map of their own would serve the portraits. What
+the minimal one saves is **[open]**. Two cascades save 1.4 ms **[meas]**.
+
+These scenes are **[open]**:
+
+* sunset, where Scatterer's godrays read the shadow maps;
+* orbit, cloud shadows over land and terrain far away, where the rays may not see a
+  point the shadow maps cover;
+* the raytracing off, which needs the shadow maps in full.
+
 ## What can be improved
 
 None of these is in the code. *Saving* is measured where it carries **[meas]**.
@@ -162,8 +215,10 @@ None of these is in the code. *Saving* is measured where it carries **[meas]**.
 | A growing pool of raytracing slots, so the CPU prepares the next frame while the GPU renders | the GPU's idle 13 % to 18 % **[open]** | no |
 | DLSS mode *Quality* instead of *AA only* | 21.3 ms to 16.2 ms, 31 % more fps **[meas]** | yes |
 | Parallax `densityMultiplier` and `rangeMultiplier` 1.0 instead of 1.5 and 1.25 | 2.6 ms **[meas]** | yes |
-| Two shadow cascades instead of four | 1.4 ms **[meas]** | yes |
-| The shadow distance halved | 0.7 ms **[meas]** | yes |
+| With the raytracing on, a minimal shadow map for the scene and a small one for the crew portraits | up to 2.8 ms **[open]** | no at the launch pad **[meas]**; other scenes **[open]** |
+| Two shadow cascades instead of four | 1.4 ms **[meas]** | no at the launch pad with the raytracing **[meas]**; without it, yes |
+| Deferred's and TUFX's ambient occlusion off while the raytracing runs | 0.1 ms to 0.3 ms **[meas]** | slightly brighter corners and grass **[meas]** |
+| The shadow distance halved, left as it is for now | 0.7 ms **[meas]** | yes |
 | Raytracing bounces 1 instead of 2 | 0.7 ms **[meas]** | yes |
 | EVE `temporalUpscaling` x9 instead of x6 | 0.5 ms **[meas]** | yes |
 | The ocean's raytracing only with ocean in view | up to 1.1 ms **[meas]** | no |
