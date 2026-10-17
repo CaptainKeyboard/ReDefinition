@@ -852,6 +852,8 @@ namespace ReDefinition.Upscaler
                 result = textures.LowRes;
             else if (dlssSharpener != null)
                 dlssSharpener.Schedule(dispatchBuffer, Sharpness);
+            Probe.GpuProfiler.Mark(dispatchBuffer, "ReDefinition upscaler: " + (PassThrough ? "pass-through" : Backend.ToString())
+                                                   + (Reconstructing ? " with Ray Reconstruction" : ""));
 
             // The same camera state the upscaler is dispatched with, so
             // interpolation and reconstruction agree about the frame, sent through
@@ -871,14 +873,17 @@ namespace ReDefinition.Upscaler
             // and so never from a copy nobody wrote -- in the frame's own order,
             // which SetEnabled, taking effect at once, is not.
             if (FrameGeneration && hudLessBuffer != null) SubmitFramePacket();
+            Probe.GpuProfiler.Mark(dispatchBuffer, "ReDefinition upscaler: frame generation packet");
 
             Graphics.ExecuteCommandBuffer(dispatchBuffer);
             StageDump.AfterDispatch(cam, CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix,
                                     dispatch.JitterOffset, Reconstructing, textures.LowRes, result);
             RunAfterUpscalingHooks(result);
+            Probe.GpuProfiler.MarkNow("ReDefinition upscaler: after-upscaling hooks");
 
             if (!tufx.Render(result, destination, textures.DepthCopy, textures.MotionVectors))
                 Graphics.Blit(result, destination);
+            Probe.GpuProfiler.MarkNow("ReDefinition upscaler: TUFX after upscaling, or the copy out");
 
             // After the frame is out, and fenced: an instrument does not stop a
             // frame. On a failure it says so once and stops. With the diagnostic

@@ -95,6 +95,8 @@ add_library(ReDefinitionProxy SHARED
     FrameGenerationDlss.cpp
     FrameGenerationPrepare.cpp
     FrameGenerationRate.cpp
+    GpuProfiler.cpp
+    GpuProfiler.h
     LoadMonitor.cpp
     LoadMonitor.h
     ManagedBridge.cpp

@@ -1,6 +1,7 @@
 // The raytracing service: its device attached, what the managed side hands over from the
 // main thread, and a frame on the render thread, step by step (OnFrame).
 
+#include "GpuProfiler.h"
 #include "Raytracing.h"
 
 #include "D3d12Util.h"
@@ -327,9 +328,11 @@ namespace redefinition
         }
         if (usedUntil != 0)
             context11->Wait(fence11.Get(), usedUntil);
+        GpuProfiler::Get().OnMarker(kProfRtWaitShared);
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
             if (frame.inputs[i] != nullptr)
                 context11->CopyResource(frame.inputs[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(packet.inputs[i]));
+        GpuProfiler::Get().OnMarker(kProfRtInputs);
         const UINT64 inputsCopied = ++copiedValue;
         context11->Signal(copied11.Get(), inputsCopied);
         context11->Flush();
@@ -625,9 +628,11 @@ namespace redefinition
 
         // The results back into Unity's textures before the event returns.
         context11->Wait(fence11.Get(), finished);
+        GpuProfiler::Get().OnMarker(kProfRtTrace);
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
             if (frame.outputs[i] != nullptr)
                 context11->CopyResource(static_cast<ID3D11Resource*>(frame.packet->outputs[i]), frame.outputs[i]->texture.d3d11.Get());
+        GpuProfiler::Get().OnMarker(kProfRtOutputs);
 
         std::lock_guard<std::mutex> status(statusLock);
         if (frame.extra)

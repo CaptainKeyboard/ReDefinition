@@ -14,6 +14,7 @@
 #include "Raytracing.h"
 #include "FidelityFx.h"
 #include "FrameGeneration.h"
+#include "GpuProfiler.h"
 #include "Log.h"
 #include "Streamline.h"
 #include "SwapChainProxyState.h"
@@ -180,6 +181,7 @@ namespace redefinition
         AmdUpscaler::Get().Detach(this);
         D3d12Compute::Get().Detach(this);
         Raytracing::Get().Detach(this);
+        GpuProfiler::Get().Detach(this);
         FrameGeneration::Get().Detach(this, fgSwapChainContext != nullptr ? swapChain.Get() : nullptr);
 
         // The swapchain belongs to FidelityFX in that case and has to be
@@ -396,6 +398,7 @@ namespace redefinition
         AmdUpscaler::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(), queue.Get());
         D3d12Compute::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(), queue.Get());
         Raytracing::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(), queue.Get());
+        GpuProfiler::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get());
         FrameGeneration::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(),
                                       description.Width, description.Height, desc.Format);
         if (streamlineSwapChain && Streamline::Get().FrameGenerationAvailable())

@@ -14,6 +14,7 @@
 #include "D3d12Compute.h"
 #include "Dlss.h"
 #include "FrameGeneration.h"
+#include "GpuProfiler.h"
 #include "LoadMonitor.h"
 #include "Log.h"
 #include "NvidiaGpu.h"
@@ -317,6 +318,34 @@ extern "C"
     __declspec(dllexport) void* KspFgGetRenderEventFunc()
     {
         return reinterpret_cast<void*>(&OnRenderEvent);
+    }
+
+    // The GPU profiler (GpuProfiler.h): its marker callback, a UnityRenderingEvent for
+    // CommandBuffer.IssuePluginEvent and GL.IssuePluginEvent, the event id the marker's
+    // id; on or off; a marker's label for its annotation; the last complete frame.
+    static void UNITY_INTERFACE_API OnProfilerMarker(int id)
+    {
+        redefinition::GpuProfiler::Get().OnMarker(id);
+    }
+
+    __declspec(dllexport) void* KspProfGetMarkerFunc()
+    {
+        return reinterpret_cast<void*>(&OnProfilerMarker);
+    }
+
+    __declspec(dllexport) void KspProfSetEnabled(int enabled)
+    {
+        redefinition::GpuProfiler::Get().SetEnabled(enabled != 0);
+    }
+
+    __declspec(dllexport) void KspProfSetLabel(int id, const wchar_t* label)
+    {
+        redefinition::GpuProfiler::Get().SetLabel(id, label);
+    }
+
+    __declspec(dllexport) int KspProfRead(int* ids, float* ms, int capacity, int* frameNumber)
+    {
+        return redefinition::GpuProfiler::Get().Read(ids, ms, capacity, frameNumber);
     }
 
     // DLSS (Dlss.h): the packet size the managed side must write, what the

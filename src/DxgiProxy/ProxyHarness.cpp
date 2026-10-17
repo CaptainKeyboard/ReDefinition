@@ -746,11 +746,44 @@ namespace
     }
 }
 
+// A run that has not ended after kWatchdogSeconds is stuck somewhere: the proxy log's
+// last lines, which say in what, are printed and the harness ends as failed instead
+// of hanging on.
+namespace
+{
+    constexpr DWORD kWatchdogSeconds = 300;
+
+    DWORD WINAPI Watchdog(void*)
+    {
+        Sleep(kWatchdogSeconds * 1000);
+        printf("FAIL  the harness still runs after %lu s -- stuck; the proxy log's last lines:\n", kWatchdogSeconds);
+        wchar_t path[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, path, MAX_PATH);
+        std::wstring log(path);
+        log = log.substr(0, log.find_last_of(L"\\/") + 1) + L"ReDefinitionProxy.log";
+        FILE* file = nullptr;
+        if (_wfopen_s(&file, log.c_str(), L"rb") == 0 && file != nullptr)
+        {
+            fseek(file, 0, SEEK_END);
+            const long size = ftell(file);
+            const long from = size > 4000 ? size - 4000 : 0;
+            fseek(file, from, SEEK_SET);
+            std::string tail(static_cast<size_t>(size - from), '\0');
+            tail.resize(fread(&tail[0], 1, tail.size(), file));
+            fclose(file);
+            printf("%s\n", tail.c_str());
+        }
+        TerminateProcess(GetCurrentProcess(), 3);
+        return 0;
+    }
+}
+
 int main()
 {
     // Unbuffered: a process ended from elsewhere keeps every line it printed.
     setvbuf(stdout, nullptr, _IONBF, 0);
     printf("ReDefinition proxy harness\n");
+    CloseHandle(CreateThread(nullptr, 0, Watchdog, nullptr, 0, nullptr));
 
     {
         wchar_t replayFolder[MAX_PATH] = {};

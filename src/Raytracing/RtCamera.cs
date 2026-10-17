@@ -592,6 +592,7 @@ namespace ReDefinition.Raytracing
                 command.Blit(BuiltinRenderTextureType.GBuffer2, gbuffer2);
             }
             command.Blit(source, depth, capture, 0);
+            Probe.GpuProfiler.Mark(command, "ReDefinition raytracing: G-buffer and depth copies");
             // Unity draws the motion vectors after the lighting: without them here, the
             // denoiser follows the camera alone.
             Texture cube = Environment();
@@ -605,6 +606,7 @@ namespace ReDefinition.Raytracing
             FillPacket(deferredPath, false, cube != null);
             if (withGpu) packet.Inputs[RtNative.InputInstances] = gpuInstancesHandle;
             ring.Issue(command, RtNative.RenderEvent, RtNative.FrameEvent, ref packet);
+            Probe.GpuProfiler.Mark(command, "ReDefinition raytracing: trace (inputs to D3D12, results back)");
             // The surfaces as their materials mean them into the G-buffer, before the
             // reflections and the lighting read it.
             bool intent = (packet.Flags & RtNative.FlagSurfaceIntent) != 0;
@@ -614,6 +616,7 @@ namespace ReDefinition.Raytracing
                 command.SetGlobalTexture(SurfaceModeId, surfaceMode);
                 command.SetRenderTarget(BuiltinRenderTextureType.GBuffer1);
                 command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfacePass);
+                Probe.GpuProfiler.Mark(command, "ReDefinition raytracing: surface intent");
             }
             ShowSurfaces(intent && SurfaceView);
             // KSP's sea where the reflections' shader is ours, which composes it, or without a

@@ -2,6 +2,7 @@
 // D3D12 backbuffer and presented, frame generation prepared under the same
 // lock, and the fences between D3D11, D3D12 and DLSS-G's queue.
 
+#include "GpuProfiler.h"
 #include "SwapChainProxy.h"
 
 #include "Config.h"
@@ -411,6 +412,7 @@ namespace redefinition
             return measureOnly ? realSwapChain->Present(syncInterval, flags) : PresentTest(syncInterval, flags);
 
         RecordFrameTime();
+        GpuProfiler::Get().OnPresent();
 
         if (measureOnly)
         {
@@ -429,6 +431,7 @@ namespace redefinition
                                : PresentTest(syncInterval, flags);
 
         RecordFrameTime();
+        GpuProfiler::Get().OnPresent();
 
         if (measureOnly)
         {

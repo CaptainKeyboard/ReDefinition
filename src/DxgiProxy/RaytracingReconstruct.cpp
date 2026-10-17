@@ -3,6 +3,7 @@
 // through Streamline, on the proxy's Direct3D 12 device, in place of DLSS Super
 // Resolution.
 
+#include "GpuProfiler.h"
 #include "Raytracing.h"
 
 #include "D3d12Util.h"
@@ -117,9 +118,11 @@ namespace redefinition
                 usedUntil = std::max(usedUntil, texture->lastFence);
         if (usedUntil != 0)
             context11->Wait(fence11.Get(), usedUntil);
+        GpuProfiler::Get().OnMarker(kProfRrWaitShared);
         for (int i = 0; i < 7; ++i)
             if (shared[i] != nullptr)
                 context11->CopyResource(shared[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(given[i]));
+        GpuProfiler::Get().OnMarker(kProfRrInputs);
         const UINT64 inputsCopied = ++copiedValue;
         context11->Signal(copied11.Get(), inputsCopied);
         context11->Flush();
@@ -331,7 +334,9 @@ namespace redefinition
             return;
         }
         context11->Wait(fence11.Get(), finished);
+        GpuProfiler::Get().OnMarker(kProfRrEvaluate);
         context11->CopyResource(static_cast<ID3D11Resource*>(packet->output), output->texture.d3d11.Get());
+        GpuProfiler::Get().OnMarker(kProfRrOutput);
 
         std::lock_guard<std::mutex> status(statusLock);
         ++reconstructed;
