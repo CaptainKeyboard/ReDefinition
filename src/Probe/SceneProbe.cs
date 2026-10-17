@@ -617,6 +617,7 @@ namespace ReDefinition.Probe
                 string shot = SceneProbe.ArgumentAfter("-redefinitionProbeShot");
                 if (shot == null) yield break;
                 yield return new WaitForSeconds(30f);
+                yield return ShotVariant.Apply();
                 yield return LightValues();
                 string folder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
                 Directory.CreateDirectory(folder);
