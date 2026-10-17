@@ -186,6 +186,7 @@ namespace ReDefinition.Raytracing
         internal void Update(RtPosition cameraPosition, int serviceGeneration, uint frameIndex)
         {
             frame++;
+            uploadTicks = 0;
             if (serviceGeneration != generation)
             {
                 // A new device: nothing handed over before is there any more.
@@ -305,6 +306,26 @@ namespace ReDefinition.Raytracing
         // be read.
         // `material`: the one it is drawn with, for the colours KSP's terrain shaders make
         // of its vertex colours (RtStockTerrain).
+        // What reading meshes and handing them over may take of a frame: the rest waits for
+        // the next frames, their instances left out until then. Read all in one frame, a
+        // flight's first frames took up to 27 ms for one mesh and 30 ms for the scene's
+        // update (the perf monitor). The first mesh of a frame is read whatever it takes.
+        private const double UploadBudgetMs = 2.0;
+        private long uploadTicks;
+
+        private bool UploadAllowed
+        {
+            get { return uploadTicks == 0 || uploadTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency < UploadBudgetMs; }
+        }
+
+        private bool TimedUpload(Mesh mesh, int subMesh, int id, Material material)
+        {
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+            bool done = Upload(mesh, subMesh, id, material);
+            uploadTicks += Math.Max(1L, System.Diagnostics.Stopwatch.GetTimestamp() - start);
+            return done;
+        }
+
         private int MeshId(Mesh mesh, int subMesh, Material material)
         {
             if (mesh == null) return 0;
@@ -313,14 +334,15 @@ namespace ReDefinition.Raytracing
             if (meshes.TryGetValue(key, out entry))
             {
                 entry.LastSeen = frame;
-                if (entry.Dirty)
+                if (entry.Dirty && UploadAllowed)
                 {
                     // Built again since: handed over again under the same id.
                     entry.Dirty = false;
-                    if (!Upload(mesh, subMesh, entry.Id, material)) return 0;
+                    if (!TimedUpload(mesh, subMesh, entry.Id, material)) return 0;
                 }
                 return entry.Id;
             }
+            if (!UploadAllowed) return 0;
             if (unusable.Contains(key)) return 0;
             if (!mesh.isReadable)
             {
@@ -335,7 +357,7 @@ namespace ReDefinition.Raytracing
                 return 0;
             }
             int id = nextMeshId++;
-            if (!Upload(mesh, subMesh, id, material)) return 0;
+            if (!TimedUpload(mesh, subMesh, id, material)) return 0;
             meshes[key] = new MeshEntry { Id = id, LastSeen = frame, Mesh = mesh, SubMesh = subMesh };
             List<long> keys;
             if (!keysOf.TryGetValue(mesh, out keys)) keysOf[mesh] = keys = new List<long>();
