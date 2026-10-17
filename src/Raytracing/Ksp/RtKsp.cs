@@ -334,7 +334,11 @@ namespace ReDefinition.Raytracing
             }
             if (RtKspMods.SunLight() == null) check.Append("; missing the sun's light");
             if (RtKspMods.StarBody() == null) check.Append("; missing the star");
-            if (attached.Settings.Reflections && Probe() == null) check.Append("; missing the sky's probe");
+            if (attached.Settings.Reflections && Probe() == null) check.Append("; missing the sky's probe (KSP's reflection refresh "
+                             + GameSettings.REFLECTION_PROBE_REFRESH_MODE + ", its probe "
+                             + (FlightCamera.fetch == null || FlightCamera.fetch.reflectionProbe == null ? "not made"
+                                : FlightCamera.fetch.reflectionProbe.probeComponent == null ? "without its component"
+                                : FlightCamera.fetch.reflectionProbe.probeComponent.enabled ? "on" : "off") + ")");
             string line = check.ToString();
             if (line == lastCheck) return;
             lastCheck = line;
