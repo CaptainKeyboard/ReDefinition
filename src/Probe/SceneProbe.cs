@@ -624,6 +624,17 @@ namespace ReDefinition.Probe
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
                 EnvironmentFaces(folder, shot);
                 Debug.Log(Log.Tag + " Probe: shot " + shot + ".");
+                // -redefinitionProbeBurst <n>: n frames more, one after the other, as
+                // <shot>-burst<i>.png, for what changes from frame to frame (flicker,
+                // ghosting).
+                string burst = SceneProbe.ArgumentAfter("-redefinitionProbeBurst");
+                int burstFrames;
+                if (burst != null && int.TryParse(burst, out burstFrames))
+                    for (int i = 0; i < burstFrames; i++)
+                    {
+                        yield return null;
+                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-burst" + i.ToString("00") + ".png"));
+                    }
                 yield return new WaitForSeconds(2f);
                 Application.Quit();
                 yield break;

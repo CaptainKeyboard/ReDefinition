@@ -302,12 +302,11 @@ namespace ReDefinition.Probe
             if (scriptMarkers.TryGetValue(__originalMethod, out marker)) GL.IssuePluginEvent(markerFunc, marker[1]);
         }
 
-        // -redefinitionGpuProfileCameras: the cameras' and the lights' markers as well. A
-        // command buffer of the profiler's on a camera -- one marker at any event, appended
-        // or laid out between the others -- left the raytraced sun out of the frame at the
-        // launch pad (the scene in shadow, 28 against 59 of 255), for a reason not found;
-        // the markers in the render stream and in ReDefinition's own buffers do not.
-        private static readonly bool CameraMarkers = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionGpuProfileCameras") >= 0;
+        // Not on Unity's camera of a reflection probe: a command buffer of the profiler's on
+        // it left the probe out (the raytracing's self-check: "missing the sky's probe"),
+        // and the raytraced scene dark with it. -redefinitionGpuProfileNoCameras: no
+        // markers on the cameras and lights at all.
+        private static readonly bool CameraMarkers = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionGpuProfileNoCameras") < 0;
 
         private void Scan()
         {
@@ -319,7 +318,8 @@ namespace ReDefinition.Probe
             }
             foreach (Camera camera in Resources.FindObjectsOfTypeAll<Camera>())
                 if (camera != null && camera.gameObject.scene.IsValid())
-                    LayOutCamera(camera);
+                    if (camera.cameraType != CameraType.Reflection)
+                        LayOutCamera(camera);
             foreach (Light light in Resources.FindObjectsOfTypeAll<Light>())
                 if (light != null && light.gameObject.scene.IsValid() && (light.type == LightType.Directional || light.shadows != LightShadows.None))
                     LayOutLight(light);
