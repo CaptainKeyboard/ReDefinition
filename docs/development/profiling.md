@@ -51,10 +51,10 @@ each camera's start, around the `Update` and `LateUpdate` of the graphics mods, 
 ReDefinition's own raytracing and upscaler work (`Probe.GpuProfiler.Mark`), and in the
 proxy around its copies and waits.
 
-With `-redefinitionGpuProfileCameras` a marker also ends each event of every camera and
-light. Such a marker leaves the raytraced sun out of the frame, so the scene looks as
-if in shadow. The GPU does the same work, so the times hold, but a shot from such a run
-does not. Why the markers do this is not known.
+A marker also ends each event of every camera and light, except the camera Unity
+renders a reflection probe with. A command buffer on that camera leaves KSP's
+reflection probe out, and the raytraced scene goes dark without it. Use
+`-redefinitionGpuProfileNoCameras` for no markers on the cameras and lights at all.
 
 The same labels go to RenderDoc as annotation markers, so a capture shows the same
 segments.
@@ -191,6 +191,11 @@ Keep in mind:
   after a blur, and against the difference of the two `none` shots.
 * A shot without `-redefinitionProbeShotVariant` comes 2 s earlier, and the clouds have
   moved by then. Compare with `none` only.
+* `-redefinitionProbeBurst <n>` takes n frames one after the other after the shot, for
+  what changes from frame to frame.
+* `-redefinitionProbeDays <n>` starts n of Kerbin's days later. At the launch pad, 0.05
+  gives a low evening sun, 0.15 and later the night.
+* `-redefinitionProbeVessel Acapello` flies the save's vessel in orbit.
 
 ## Read the proxy's waits and slow frames
 

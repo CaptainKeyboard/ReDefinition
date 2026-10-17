@@ -68,9 +68,10 @@ and a frame of latency, so the proxy keeps three slots.
 
 The GPU profiler, the mod cost probe and RenderDoc each see a different part. The
 column *Measured with* names the one a row comes from. The GPU profiler's figures here
-were taken with its markers on the cameras and lights, which left the raytraced sun
-out of the frame (see [profiling.md](profiling.md)). The GPU did the same work, and a
-run without them gave the raytracing 6.05 ms **[meas]**.
+were taken while its markers sat on the reflection probe's camera as well, which left
+KSP's reflection probe out and the raytraced scene dark (see
+[profiling.md](profiling.md)). A run without them gave the raytracing 6.05 ms
+**[meas]**.
 
 | Part | GPU ms a frame | Measured with |
 |---|---|---|
@@ -203,12 +204,15 @@ small interior with Unity's shadows. A minimal shadow map for the scene keeps th
 and costs little, and a small shadow map of their own would serve the portraits. What
 the minimal one saves is **[open]**. Two cascades save 1.4 ms **[meas]**.
 
-These scenes are **[open]**:
+An evening sun at the pad (`-redefinitionProbeDays 0.05`) and the vessel in orbit
+show two cascades as four as well **[meas]**. Cloud shadows over land and terrain far
+away are **[open]**. With the raytracing off the shadow maps are needed in full, and
+the cascades stay as KSP sets them.
 
-* sunset, where Scatterer's godrays read the shadow maps;
-* orbit, cloud shadows over land and terrain far away, where the rays may not see a
-  point the shadow maps cover;
-* the raytracing off, which needs the shadow maps in full.
+If KSP's reflections are off (`REFLECTION_PROBE_REFRESH_MODE = 0`), the pad gets dark:
+30.6 of 255 without the raytracing and 18.9 with it, against 58.7 with the probe
+**[meas]**. Deferred takes its ambient light from the probe, and the raytracing its sky.
+Why the raytracing darkens it further is **[open]**.
 
 ## What is built
 
@@ -217,7 +221,7 @@ shots compared with shots without it.
 
 | What | Measured | Image |
 |---|---|---|
-| Two shadow cascades while the rays shade the sun (`RtCamera`, `KeepCascades`) | 23.96 ms to 22.43 ms a frame, two runs each, about 7 % more frames **[meas]** | 0.25 levels from four cascades, under the noise of 0.27 **[meas]** |
+| Two shadow cascades while the rays shade the sun (`RtCamera`, `KeepCascades`) | 23.96 ms to 22.43 ms a frame, two runs each, about 7 % more frames **[meas]** | the pad by day 0.25 levels from four cascades, noise 0.27; the evening sun 0.16, noise 0.14; the vessel in orbit 0.79, noise 0.91 **[meas]** |
 | The ocean's raytracing takes the frame's scene instead of building it again (`Raytracing::ReuseSceneLocked`) | its scene build 0.30 ms to 0 ms at the pad, 0.11 ms to 0 ms at sea **[meas]** | at sea 0.25 levels, under the noise of 0.46 **[meas]** |
 | New meshes read and handed over at most 2 ms a frame (`RtScene`, `UploadBudgetMs`) | the flight's first seconds: `RtCamera.OnPreCull` at most 107.6 ms to 26.3 ms; the proxy's largest mesh build 190 ms to 240 ms to 42 ms **[meas]** | 0.27 levels after the scene settled, the noise **[meas]** |
 | The space centre's lawns collected a few milliseconds a frame, their masks kept (`KscGrass.CollectLawns`) | the second map in flight: 71 ms to 15 ms of the main thread, its largest step 42 ms to 7.5 ms **[meas]** | 0.22 levels, under the noise **[meas]** |
