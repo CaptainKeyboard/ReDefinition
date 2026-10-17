@@ -8,13 +8,38 @@ Each action's EventGPUDuration (RenderDoc replays the frame and times every draw
 dispatch and copy), summed three ways: by the marker the action stands under (Unity's
 camera and pass markers, e.g. Camera.Render > Drawing > Render.OpaqueGeometry), by the
 pixel or compute shader it ran, and by its render target. The report lists each, most
-costly first, with its share of the frame's GPU time.
+costly first, with its share of the frame's GPU time; and by the mod a shader belongs
+to, by its name (MODS), with the draws and the time a draw.
+
+RenderDoc times each action on its own, with the GPU idle around it: many small draws
+come out dearer than they are in the game (605 depth-only draws of a vessel took 1.7 ms
+here and under 0.04 ms in the game, GpuProfiler). The share of a mod with few large
+draws is the one to go by; for many small ones, the game's own measurement.
 """
 import os
 import traceback
 from collections import defaultdict
 
 import renderdoc as rd
+
+# A shader's mod, by the start of its name; the first that fits.
+MODS = [
+    ('Parallax', ('Custom/Parallax', 'TerrainScatters', 'Parallax')),
+    ('EVE', ('Scatterer-EVE/', 'EVE/')),
+    ('Scatterer', ('Scatterer/', 'Proland/', 'Scatterer')),
+    ('Deferred', ('Deferred/',)),
+    ('ReDefinition', ('Hidden/ReDefinition', 'ReDefinition', 'ffx_')),
+    ('TUFX', ('Hidden/PostProcessing',)),
+    ('Waterfall', ('Waterfall',)),
+    ('KSP and Unity', ('KSP/', 'Legacy Shaders/', 'Standard', 'UI/', 'TextMeshPro', 'Hidden/', 'Unlit/', 'Particles/', 'GenerateHiZ')),
+]
+
+
+def mod_of(shader):
+    for mod, prefixes in MODS:
+        if shader.startswith(prefixes):
+            return mod
+    return 'other (' + shader + ')' if shader in ('copy', 'clear', '-') else 'other'
 
 CAPTURE = os.environ['RDC']
 OUT = os.environ['RDC_OUT']
@@ -57,6 +82,8 @@ try:
     by_marker = defaultdict(float)
     by_shader = defaultdict(float)
     by_target = defaultdict(float)
+    by_mod = defaultdict(float)
+    count_mod = defaultdict(int)
     count_shader = defaultdict(int)
     total = 0.0
     for action, path in leaves:
@@ -80,6 +107,8 @@ try:
             shader = 'clear'
         by_shader[shader] += t
         count_shader[shader] += 1
+        by_mod[mod_of(shader)] += t
+        count_mod[mod_of(shader)] += 1
         target = '-'
         for o in action.outputs:
             if o != rd.ResourceId.Null():
@@ -88,6 +117,10 @@ try:
         by_target[target] += t
 
     log('frame GPU time %.3f ms over %d actions' % (total * 1000.0, len(leaves)))
+    log('')
+    log('== by mod (draws, ms a draw)')
+    for key, t in sorted(by_mod.items(), key=lambda kv: -kv[1]):
+        log('%8.3f ms %5.1f %%  %s (%d, %.4f)' % (t * 1000.0, 100.0 * t / total, key, count_mod[key], t * 1000.0 / count_mod[key]))
     for title, table in (('by marker', by_marker), ('by shader', by_shader), ('by target', by_target)):
         log('')
         log('== ' + title)

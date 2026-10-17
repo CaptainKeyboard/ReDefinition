@@ -11,12 +11,17 @@
 # holds the game without it either way. Unity's own passes do not depend on it.
 #
 #   tools\renderdoc_probe.ps1 [-Ksp <KSP folder>] [-RenderDoc <renderdoccmd.exe>]
-#                             [-KeepProxy] [-TimeoutSeconds 420]
+#                             [-KeepProxy] [-Stay] [-TimeoutSeconds 420]
+#
+# -Stay: instead, the flight left to run with its clouds and one frame captured 25 s
+# on (-redefinitionProbeRenderDoc), for where the GPU's time goes inside Unity's
+# passes (tools/renderdoc_gpu_times.py).
 param(
     # By default KspRoot, as the build takes it, or the Steam location.
     [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),
     [string]$RenderDoc = 'C:\Program Files\RenderDoc\renderdoccmd.exe',
     [switch]$KeepProxy,
+    [switch]$Stay,
     [int]$TimeoutSeconds = 420
 )
 
@@ -31,8 +36,9 @@ if (-not $KeepProxy -and (Test-Path $proxy)) {
     $moved = $true
 }
 try {
-    $process = Start-Process -FilePath $RenderDoc -WorkingDirectory $Ksp -PassThru -ArgumentList @(
-        'capture', '--wait-for-exit', '--working-dir', "`"$Ksp`"", "`"$exe`"", '-redefinitionProbe')
+    $arguments = @('capture', '--wait-for-exit', '--working-dir', "`"$Ksp`"", "`"$exe`"", '-redefinitionProbe')
+    if ($Stay) { $arguments += @('-redefinitionProbeStay', '-redefinitionProbeClouds', '-redefinitionProbeRenderDoc') }
+    $process = Start-Process -FilePath $RenderDoc -WorkingDirectory $Ksp -PassThru -ArgumentList $arguments
     if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
         Get-Process KSP_x64 -ErrorAction SilentlyContinue | Stop-Process -Force
         Write-Output "KSP did not finish within $TimeoutSeconds s and was ended."

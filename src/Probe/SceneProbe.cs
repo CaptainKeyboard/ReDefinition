@@ -576,6 +576,16 @@ namespace ReDefinition.Probe
                 yield return new WaitForSeconds(5f);
                 LightProbe.HideClouds();
                 Debug.Log(Log.Tag + " Probe: the flight is the player's.");
+                // -redefinitionProbeRenderDoc, under RenderDoc (tools/renderdoc_probe.ps1
+                // -Stay): one frame captured 25 s on, then KSP quits.
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeRenderDoc") >= 0)
+                {
+                    yield return new WaitForSeconds(25f);
+                    RenderDocCapture.Capture("the flight left to run");
+                    yield return new WaitForSeconds(5f);
+                    Application.Quit();
+                    yield break;
+                }
                 // -redefinitionProbeShot <name>: the frame as KSP draws it, 30 s on, into
                 // ReDefinitionCaptures\<name>.png, then KSP quits.
                 string shot = SceneProbe.ArgumentAfter("-redefinitionProbeShot");

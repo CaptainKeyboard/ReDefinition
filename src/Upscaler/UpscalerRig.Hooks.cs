@@ -46,9 +46,13 @@ namespace ReDefinition.Upscaler
             // The vessel's own motion vectors before the hooks, so a mod's for a part
             // are drawn over them.
             vesselMotion.Begin(cam, renderSize);
+            Probe.GpuProfiler.Mark(inputs.Capture, "ReDefinition inputs: capture before the vessel's depth");
             vesselMotion.RecordDepth(inputs.Capture, textures.DepthCopy);
+            Probe.GpuProfiler.Mark(inputs.Capture, "ReDefinition inputs: the vessel's depth");
             vesselMotion.RecordRepair(inputs.Capture, textures.MotionVectors, textures.DepthCopy);
+            Probe.GpuProfiler.Mark(inputs.Capture, "ReDefinition inputs: the vessel's motion vectors");
             RecordMotionVectorHooks();
+            Probe.GpuProfiler.Mark(inputs.Capture, "ReDefinition inputs: other mods' motion vector hooks");
             // After the hooks: they read the motion vectors as the upscaler gets them.
             // Diagnostic measurements only (ReDefinitionAddon.DebugMode).
             if (ReDefinitionAddon.DebugMode)

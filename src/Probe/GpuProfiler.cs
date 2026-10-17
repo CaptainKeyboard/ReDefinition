@@ -171,6 +171,11 @@ namespace ReDefinition.Probe
             if (markerFunc != IntPtr.Zero) GL.IssuePluginEvent(markerFunc, Id(label));
         }
 
+        // The last frame read, for ModCost: its GPU time from Present to Present, and how
+        // many frames were read so far.
+        internal static double LastFrameMs;
+        internal static int FramesRead;
+
         internal static int Id(string label)
         {
             int id;
@@ -353,6 +358,8 @@ namespace ReDefinition.Probe
                 lastFrame = frame;
                 frames++;
                 double total = readMs[count - 1];
+                LastFrameMs = total;
+                FramesRead++;
                 // A spike: twice the frame's usual time and above 33 ms. Its own costliest
                 // segments into the log, a few each report, to say what made it.
                 bool spike = typical > 0.0 && total > 2.0 * typical && total > 33.0 && spikesLogged < 8;
