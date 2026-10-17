@@ -2,6 +2,7 @@
 // lists and heaps of its slots, the shared copies of Unity's textures, buffers, and the
 // submission of a slot's list.
 
+#include "WaitStats.h"
 #include "Raytracing.h"
 
 #include "D3d12Util.h"
@@ -384,7 +385,10 @@ namespace redefinition
         if (slot.done == 0 || fence12 == nullptr || fenceEvent == nullptr)
             return;
         if (fence12->GetCompletedValue() < slot.done && SUCCEEDED(fence12->SetEventOnCompletion(slot.done, fenceEvent)))
+        {
+            WaitTimer timer(WaitKind::RaytracingSlot);
             WaitForSingleObject(fenceEvent, INFINITE);
+        }
 
         // The slot's list is done: its timestamps are there to read where it resolved them.
         const bool timed = slot.timed;

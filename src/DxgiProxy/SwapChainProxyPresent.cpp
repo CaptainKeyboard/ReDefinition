@@ -2,6 +2,7 @@
 // D3D12 backbuffer and presented, frame generation prepared under the same
 // lock, and the fences between D3D11, D3D12 and DLSS-G's queue.
 
+#include "WaitStats.h"
 #include "GpuProfiler.h"
 #include "SwapChainProxy.h"
 
@@ -106,7 +107,10 @@ namespace redefinition
             return;
 
         if (SUCCEEDED(frameFence->SetEventOnCompletion(value, frameEvent)))
+        {
+            WaitTimer timer(WaitKind::PresentFrame);
             WaitForSingleObject(frameEvent, INFINITE);
+        }
     }
 
     // Said once, with the reason: every Present after a removal reaches

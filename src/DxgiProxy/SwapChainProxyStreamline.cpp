@@ -2,6 +2,7 @@
 // its swapchain made and torn down, DLSS-G's per-frame tokens and frame limit,
 // DLSS-G off before a resize, and the wait for its work on an input slot.
 
+#include "WaitStats.h"
 #include "SwapChainProxy.h"
 
 #include "FrameGeneration.h"
@@ -355,6 +356,7 @@ namespace redefinition
                 }
                 return;
             }
+            WaitTimer timer(WaitKind::FrameGenerationInputs);
             WaitForSingleObject(inputsEvent, static_cast<DWORD>(deadline - now));
         }
     }

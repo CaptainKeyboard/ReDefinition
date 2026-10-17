@@ -50,6 +50,36 @@ namespace ReDefinition.Probe
         // on: that one started again.
         private static readonly List<Kerbal> stoppedKerbals = new List<Kerbal>();
 
+        // The sun's shadows: their distance halved, or two cascades in place of four, for
+        // the off windows; set back for the on ones.
+        private static float heldDistance;
+        private static int heldCascades;
+
+        private static int ShadowDistanceHalved()
+        {
+            heldDistance = QualitySettings.shadowDistance;
+            QualitySettings.shadowDistance = heldDistance * 0.5f;
+            return 1;
+        }
+
+        private static void ShadowDistanceBack()
+        {
+            QualitySettings.shadowDistance = heldDistance;
+        }
+
+        private static int TwoCascades()
+        {
+            heldCascades = QualitySettings.shadowCascades;
+            if (heldCascades <= 2) return 0;
+            QualitySettings.shadowCascades = 2;
+            return 1;
+        }
+
+        private static void CascadesBack()
+        {
+            QualitySettings.shadowCascades = heldCascades;
+        }
+
         private static int PortraitsOff()
         {
             stoppedKerbals.Clear();
@@ -80,6 +110,8 @@ namespace ReDefinition.Probe
         private static readonly Target[] Targets =
         {
             new Target { Name = "KSP's crew portraits", Behaviour = b => false, CustomOff = PortraitsOff, CustomOn = PortraitsOn },
+            new Target { Name = "shadow distance halved", Behaviour = b => false, CustomOff = ShadowDistanceHalved, CustomOn = ShadowDistanceBack },
+            new Target { Name = "two shadow cascades", Behaviour = b => false, CustomOff = TwoCascades, CustomOn = CascadesBack },
             // Only the scatters: Parallax's terrain subdivision (JobifiedSubdivision) throws
             // once switched off and on.
             new Target
@@ -275,6 +307,8 @@ namespace ReDefinition.Probe
             var first = new Window();
             yield return MeasureInto(first);
             text.Append(Row("everything on", first, null));
+            text.Append(string.Format(CultureInfo.InvariantCulture, "\n    (shadow distance {0:0} m, {1} cascades, resolution {2})",
+                                      QualitySettings.shadowDistance, QualitySettings.shadowCascades, QualitySettings.shadowResolution));
             foreach (Target target in Targets)
             {
                 var on = new List<Window>();

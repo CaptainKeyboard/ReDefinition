@@ -2,6 +2,7 @@
 // knobs, the monitor's refresh rate from a thread of its own, the half-refresh
 // limit, and the frame time report.
 
+#include "WaitStats.h"
 #include "SwapChainProxy.h"
 
 #include "Config.h"
@@ -404,6 +405,23 @@ namespace redefinition
                   sorted.back(), ratio, displayedPerSecond, refreshHz, lastSyncInterval);
 
         LogLine(line);
+        // The render thread's waits for the GPU at the proxy, per frame (WaitStats.h).
+        if (ticksPerSecond != 0 && count != 0)
+        {
+            const char* names[] = { "for a frame in flight", "for a raytracing slot", "for frame generation's inputs" };
+            std::string waits = "  The render thread waited, per frame:";
+            for (int kind = 0; kind < static_cast<int>(WaitKind::Count); ++kind)
+            {
+                const int64_t ticks = g_waitTicks[kind].exchange(0);
+                const int64_t times = g_waitCount[kind].exchange(0);
+                char part[120] = {};
+                FormatTo(part, " %s %.2f ms (%lld times);", names[kind],
+                         1000.0 * static_cast<double>(ticks) / static_cast<double>(ticksPerSecond) / static_cast<double>(count),
+                         static_cast<long long>(times));
+                waits += part;
+            }
+            LogLine(waits);
+        }
         frameTimesMs.clear();
     }
 }
