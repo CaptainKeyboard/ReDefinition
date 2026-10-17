@@ -284,14 +284,25 @@ namespace ReDefinition.Scenery
             }
             root = ksc.transform;
             var lawns = new List<Lawn>();
-            try
+            mainThread += watch.ElapsedMilliseconds;
+            // Over as many frames as it takes, a few milliseconds each (CollectLawns).
+            IEnumerator collect = CollectLawns(ksc, root.worldToLocalMatrix, lawns);
+            while (true)
             {
-                CollectLawns(ksc, root.worldToLocalMatrix, lawns);
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " Space centre grass: none (" + e.GetType().Name + ": " + e.Message + ").");
-                yield break;
+                long step = watch.ElapsedMilliseconds;
+                bool more;
+                try
+                {
+                    more = collect.MoveNext();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning(Log.Tag + " Space centre grass: none (" + e.GetType().Name + ": " + e.Message + ").");
+                    yield break;
+                }
+                mainThread += watch.ElapsedMilliseconds - step;
+                if (!more) break;
+                yield return null;
             }
             if (lawns.Count == 0)
             {
@@ -301,7 +312,6 @@ namespace ReDefinition.Scenery
             Matrix4x4 rootToWorld = root.localToWorldMatrix;
             Vector3 down = -root.up;
             int layerMask = 1 << root.gameObject.layer;
-            mainThread += watch.ElapsedMilliseconds;
 
             var map = new LawnMap();
             NativeArray<RaycastCommand> commands = default(NativeArray<RaycastCommand>);
@@ -504,13 +514,27 @@ namespace ReDefinition.Scenery
             return room;
         }
 
-        private static void CollectLawns(PQSCity ksc, Matrix4x4 rootToLocal, List<Lawn> lawns)
+        // The lawns' masks as read back from the GPU, kept for the map made again (MapLawns
+        // runs twice a flight): the read waits for the GPU.
+        private static readonly Dictionary<Texture, Color32[]> masks = new Dictionary<Texture, Color32[]>();
+        private static readonly Dictionary<Texture, Vector2Int> maskSizes = new Dictionary<Texture, Vector2Int>();
+        private const long CollectSliceMs = 4;
+
+        // Stepped by MapLawns, a frame's share at a time: in one frame it took up to 42 ms of
+        // the main thread, the second map in flight a visible stall (the perf monitor).
+        private static IEnumerator CollectLawns(PQSCity ksc, Matrix4x4 rootToLocal, List<Lawn> lawns)
         {
             var materials = new List<Material>();
-            var masks = new Dictionary<Texture, Color32[]>();
-            var maskSizes = new Dictionary<Texture, Vector2Int>();
+            var slice = System.Diagnostics.Stopwatch.StartNew();
             foreach (MeshFilter filter in ksc.GetComponentsInChildren<MeshFilter>(false))
             {
+                if (slice.ElapsedMilliseconds >= CollectSliceMs)
+                {
+                    yield return null;
+                    slice.Reset();
+                    slice.Start();
+                }
+                if (filter == null) continue;
                 MeshRenderer renderer = filter.GetComponent<MeshRenderer>();
                 Mesh ground = filter.sharedMesh;
                 if (renderer == null || !renderer.enabled || ground == null || !ground.isReadable) continue;
