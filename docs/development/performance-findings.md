@@ -210,10 +210,15 @@ against a noise of 0.155) show two cascades as four as well **[meas]**. Terrain 
 away is **[open]**. With the raytracing off the shadow maps are needed in full, and
 the cascades stay as KSP sets them.
 
-If KSP's reflections are off (`REFLECTION_PROBE_REFRESH_MODE = 0`), the pad gets dark:
-30.6 of 255 without the raytracing and 18.9 with it, against 58.7 with the probe
-**[meas]**. Deferred takes its ambient light from the probe, and the raytracing its sky.
-Why the raytracing darkens it further is **[open]**.
+Deferred takes its ambient light from KSP's reflection probe, and the raytracing its
+sky. With KSP's reflections off in `settings.cfg` and Deferred installed, the probe
+stayed off in flight: the pad's frame 30.6 of 255 without the raytracing and 18.9 with
+it, against 58.7 with the probe **[meas]**. Deferred raises the refresh in the main
+menu and switches the probe on, and KSP's `FlightReflectionProbe.Enable(true)` leaves
+the earlier switch-off pending **[src]**, a decompile of KSP 1.12.5. ReDefinition
+clears it (`src/Scenery/ReflectionProbeFix.cs`), and the pad gets 58.7 **[meas]**.
+Without Deferred, reflections off keep the probe off, and the raytracing has no sky
+**[src]**.
 
 ## What is built
 
@@ -240,6 +245,20 @@ shots compared with shots without it.
 | The ocean's raytracing only with ocean in view | its own cost is 0.06 ms of rays once its scene is reused **[meas]**, and the ocean is in view at the space centre |
 | A minimal shadow map with the raytracing | with a short shadow distance, which stays as it is; with the distance kept, one cascade at low resolution took nothing off the frame (23.8 ms to 23.8-24.0 ms) and darkened it by 0.19 levels against a noise of 0.22 **[meas]** |
 | Deferred's and TUFX's ambient occlusion off while the raytracing runs | 0.1 ms to 0.3 ms, under the frame's noise, and a visible change: brighter grass and corners **[meas]** |
+
+## What may still make the frame faster
+
+The GPU limits the frame, so only less work on the GPU makes it faster. The
+raytracing (6.05 ms) and Ray Reconstruction (4.3 ms to 4.5 ms) are about half of it
+**[meas]**. None of these costs image quality, and none is built yet:
+
+| What | Why it may help | What stands in the way |
+|---|---|---|
+| Opacity micromaps for cut-out surfaces: grass, ferns, leaves | The rays test every candidate hit on such a surface against its texture in the shader (`CandidateCounts`, `RtCommon.hlsli`) **[src]**. Opacity micromaps let the GPU's ray tracing units decide most of those hits without the shader. All of NVIDIA's raytracing GPUs support them **[doc]** ([Microsoft](https://devblogs.microsoft.com/directx/d3d12-opacity-micromaps/)). In *Indiana Jones and the Great Circle*, the main trace went from 7.90 ms to 3.58 ms on an RTX 5080 **[doc]** ([NVIDIA](https://developer.nvidia.com/blog/path-tracing-optimizations-in-indiana-jones-opacity-micromaps-and-compaction-of-dynamic-blass/)). | How much of the 6.05 ms goes to cut-out hits is **[open]**. Inline ray queries need the Agility SDK 1.619 and Shader Model 6.9 for them **[doc]**. The proxy compiles for `cs_6_5` (`src/DxgiProxy/CMakeLists.txt`) **[src]**. KSP's executable does not export the Agility SDK's version, so the proxy would load it through `ID3D12SDKConfiguration1::CreateDeviceFactory` **[open]**. NVIDIA's Opacity Micromap SDK bakes the micromaps from the alpha textures **[doc]**. |
+| Shader execution reordering for the bounces | It sorts rays that went apart by what they hit, so that a GPU's threads run the same shading together. It is part of DirectX Raytracing 1.2 and Shader Model 6.9 **[doc]** ([Microsoft](https://devblogs.microsoft.com/directx/shader-execution-reordering/)). | The rays are inline ray queries (`Raytracing.hlsl`) **[src]**. Reordering works on hit objects, and whether one made from a ray query gains anything here is **[open]**. |
+| The raytracing beside Unity's drawing instead of after it | The GPU is 82 % to 87 % busy **[meas]**. Work that runs alongside could fill the rest. | The rays need the frame's G-buffer **[src]**. Beside the frame's drawing they could only trace the frame before, a frame of latency. The gain is at most the GPU's idle share and is **[open]**. |
+| A cheaper Ray Reconstruction model | none | Streamline 2.14.1 has only transformer models for Ray Reconstruction. Presets A to C are removed (`sl_dlss_d.h`) **[src]**. |
+| The DLSS mode *Quality* without its darker grass | The raytracing and Ray Reconstruction run at the render resolution: 31 % more frames **[meas]**, in the table below. | At a lower render resolution the grass gets darker. The cause is **[open]**. |
 
 ## What is left
 
