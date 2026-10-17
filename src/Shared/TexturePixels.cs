@@ -1,4 +1,8 @@
+using System;
+using System.Collections;
 using UnityEngine;
+using UnityEngine.Rendering;
+using Object = UnityEngine.Object;
 
 namespace ReDefinition.Shared
 {
@@ -43,6 +47,44 @@ namespace ReDefinition.Shared
                 RenderTexture.ReleaseTemporary(copy);
                 Object.Destroy(read);
             }
+        }
+
+        // The same as OfSprite, without waiting for the GPU: only the sprite's area is
+        // copied, and read back a few frames later (AsyncGPUReadback), for a coroutine to
+        // step through; done gets the pixels or null. OfSprite copies the whole texture
+        // and waits for the GPU to finish all it was given before: for the vertical speed
+        // gauge's picture at a flight's start, 621 ms of the main thread in one frame
+        // (the perf monitor).
+        internal static IEnumerator OfSpriteAsync(Sprite sprite, Action<Color32[], int, int> done)
+        {
+            if (sprite == null || sprite.texture == null || !SystemInfo.supportsAsyncGPUReadback)
+            {
+                int w, h;
+                done(OfSprite(sprite, out w, out h), w, h);
+                yield break;
+            }
+            Texture2D texture = sprite.texture;
+            Rect area = sprite.textureRect;
+            int width = Mathf.RoundToInt(area.width);
+            int height = Mathf.RoundToInt(area.height);
+            if (width <= 0 || height <= 0)
+            {
+                done(null, 0, 0);
+                yield break;
+            }
+            RenderTexture copy = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
+            // The texture's coordinates from its bottom left, where the sprite's area lies.
+            Graphics.Blit(texture, copy, new Vector2(area.width / texture.width, area.height / texture.height),
+                          new Vector2(area.x / texture.width, area.y / texture.height));
+            AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(copy, 0, TextureFormat.RGBA32);
+            while (!request.done) yield return null;
+            RenderTexture.ReleaseTemporary(copy);
+            if (request.hasError)
+            {
+                done(null, 0, 0);
+                yield break;
+            }
+            done(request.GetData<Color32>().ToArray(), width, height);
         }
 
         // A whole texture's pixels, row by row from the bottom; null for none.

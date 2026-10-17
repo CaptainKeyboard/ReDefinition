@@ -120,9 +120,20 @@ namespace ReDefinition.Flight
                 foreach (TextMeshProUGUI text in gauge.GetComponentsInChildren<TextMeshProUGUI>(true))
                     if (text.name == "Label_Vert") label = text;
             Image picture = gauge != null ? gauge.GetComponent<Image>() : null;
+            // The picture's pixels, read back without waiting for the GPU, where they are
+            // not at hand from a flight before (Blank).
+            Color32[] pictureRead = null;
+            int readWidth = 0, readHeight = 0;
+            if (picture != null && !BlankKnown(picture.sprite))
+                yield return Shared.TexturePixels.OfSpriteAsync(picture.sprite, (p, w, h) =>
+                {
+                    pictureRead = p;
+                    readWidth = w;
+                    readHeight = h;
+                });
             Vector2 centre;
             float reach;
-            if (label == null || picture == null || !Blank(picture, out centre, out reach))
+            if (label == null || picture == null || !Blank(picture, pictureRead, readWidth, readHeight, out centre, out reach))
             {
                 Debug.Log(Log.Tag + " The round gauge keeps KSP's vertical speed: its label or its picture was not found.");
                 yield break;
@@ -205,20 +216,23 @@ namespace ReDefinition.Flight
         // lies off the picture's, as a share of its size, and how far the face
         // reaches, as a share of its width; false where the picture cannot be
         // read. The dial is the picture's opaque part: its middle is that part's.
-        private static bool Blank(Image image, out Vector2 centre, out float reach)
+        private static bool BlankKnown(Sprite sprite)
+        {
+            return blankSprite != null && sprite != null && (sprite == blankFrom || sprite == blankSprite);
+        }
+
+        private static bool Blank(Image image, Color32[] pixels, int width, int height, out Vector2 centre, out float reach)
         {
             centre = Vector2.zero;
             reach = 0f;
             Sprite sprite = image.sprite;
-            if (blankSprite != null && sprite != null && (sprite == blankFrom || sprite == blankSprite))
+            if (BlankKnown(sprite))
             {
                 centre = blankCentre;
                 reach = blankReach;
                 image.sprite = blankSprite;
                 return true;
             }
-            int width, height;
-            Color32[] pixels = Shared.TexturePixels.OfSprite(sprite, out width, out height);
             if (pixels == null) return false;
             int left = width, right = -1, bottom = height, top = -1;
             for (int y = 0; y < height; y++)
