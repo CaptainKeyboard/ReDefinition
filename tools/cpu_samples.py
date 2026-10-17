@@ -18,10 +18,12 @@ import sys
 from collections import Counter
 from ctypes import wintypes
 
-DBGHELP_DIRS = [
-    r'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\IDE\Remote Debugger\x64',
-    r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\Remote Debugger\x64',
-]
+# dbghelp.dll and symsrv.dll, which it loads from its own folder: copied together into
+# the cache from where they are found (RenderDoc brings a dbghelp, Visual Studio's
+# tools a symsrv).
+DBGHELP = [r'C:\Program Files\RenderDoc\dbghelp.dll', r'C:\Windows\System32\dbghelp.dll']
+SYMSRV = [r'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\IDE\Remote Debugger\x64\symsrv.dll',
+          r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\Remote Debugger\x64\symsrv.dll']
 CACHE = os.path.join(os.environ.get('LOCALAPPDATA', '.'), 'ReDefinition', 'symbols')
 SYMBOL_PATH = ('srv*{0}*https://symbolserver.unity3d.com/;srv*{0}*https://msdl.microsoft.com/download/symbols'
                .format(CACHE))
@@ -36,12 +38,19 @@ class SYMBOL_INFOW(ctypes.Structure):
 
 
 def load_dbghelp():
-    for folder in DBGHELP_DIRS:
-        path = os.path.join(folder, 'dbghelp.dll')
-        if os.path.exists(path) and os.path.exists(os.path.join(folder, 'symsrv.dll')):
-            os.add_dll_directory(folder)
-            return ctypes.WinDLL(path)
-    raise SystemExit('no dbghelp.dll with symsrv.dll next to it in ' + ', '.join(DBGHELP_DIRS))
+    import shutil
+    dbghelp = next((p for p in DBGHELP if os.path.exists(p)), None)
+    symsrv = next((p for p in SYMSRV if os.path.exists(p)), None)
+    if dbghelp is None or symsrv is None:
+        raise SystemExit('need dbghelp.dll (%s) and symsrv.dll (%s)' % (', '.join(DBGHELP), ', '.join(SYMSRV)))
+    folder = os.path.join(CACHE, 'dbghelp')
+    os.makedirs(folder, exist_ok=True)
+    for source in (dbghelp, symsrv):
+        target = os.path.join(folder, os.path.basename(source).lower())
+        if not os.path.exists(target):
+            shutil.copyfile(source, target)
+    os.add_dll_directory(folder)
+    return ctypes.WinDLL(os.path.join(folder, 'dbghelp.dll'))
 
 
 def main():
