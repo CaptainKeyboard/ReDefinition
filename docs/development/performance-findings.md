@@ -204,9 +204,10 @@ small interior with Unity's shadows. A minimal shadow map for the scene keeps th
 and costs little, and a small shadow map of their own would serve the portraits. What
 the minimal one saves is **[open]**. Two cascades save 1.4 ms **[meas]**.
 
-An evening sun at the pad (`-redefinitionProbeDays 0.05`) and the vessel in orbit
-show two cascades as four as well **[meas]**. Cloud shadows over land and terrain far
-away are **[open]**. With the raytracing off the shadow maps are needed in full, and
+An evening sun at the pad (`-redefinitionProbeDays 0.05`), the vessel in orbit and the
+pad under a cloud's shadow a day later (`-redefinitionProbeDays 1`, 0.14 to 0.15 levels
+against a noise of 0.155) show two cascades as four as well **[meas]**. Terrain far
+away is **[open]**. With the raytracing off the shadow maps are needed in full, and
 the cascades stay as KSP sets them.
 
 If KSP's reflections are off (`REFLECTION_PROBE_REFRESH_MODE = 0`), the pad gets dark:
@@ -221,7 +222,7 @@ shots compared with shots without it.
 
 | What | Measured | Image |
 |---|---|---|
-| Two shadow cascades while the rays shade the sun (`RtCamera`, `KeepCascades`) | 23.96 ms to 22.43 ms a frame, two runs each, about 7 % more frames **[meas]** | the pad by day 0.25 levels from four cascades, noise 0.27; the evening sun 0.16, noise 0.14; the vessel in orbit 0.79, noise 0.91 **[meas]** |
+| Two shadow cascades while the rays shade the sun (`RtCamera`, `KeepCascades`) | 23.96 ms to 22.43 ms a frame, two runs each, about 7 % more frames **[meas]** | the pad by day 0.25 levels from four cascades, noise 0.27; the evening sun 0.16, noise 0.14; the vessel in orbit 0.79, noise 0.91; under a cloud's shadow 0.15, noise 0.155 **[meas]** |
 | The ocean's raytracing takes the frame's scene instead of building it again (`Raytracing::ReuseSceneLocked`) | its scene build 0.30 ms to 0 ms at the pad, 0.11 ms to 0 ms at sea **[meas]** | at sea 0.25 levels, under the noise of 0.46 **[meas]** |
 | New meshes read and handed over at most 2 ms a frame (`RtScene`, `UploadBudgetMs`) | the flight's first seconds: `RtCamera.OnPreCull` at most 107.6 ms to 26.3 ms; the proxy's largest mesh build 190 ms to 240 ms to 42 ms **[meas]** | 0.27 levels after the scene settled, the noise **[meas]** |
 | The space centre's lawns collected a few milliseconds a frame, their masks kept (`KscGrass.CollectLawns`) | the second map in flight: 71 ms to 15 ms of the main thread, its largest step 42 ms to 7.5 ms **[meas]** | 0.22 levels, under the noise **[meas]** |
