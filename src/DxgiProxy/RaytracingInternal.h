@@ -15,7 +15,12 @@ namespace redefinition
     // A shared copy of a Unity texture not used for this long is released.
     inline constexpr ULONGLONG kUnusedMs = 10000;
     // Start, after the build, after each pass.
-    inline constexpr UINT kTimestampsPerSlot = 2 + kRtPassTimings;
+    // The frame's start, the end of its scene build, each pass's end; then, past them,
+    // the build's parts: the meshes built, the material textures uploaded.
+    inline constexpr UINT kTimestampTraceEnd = 1 + kRtPassTimings;
+    inline constexpr UINT kTimestampMeshesBuilt = 2 + kRtPassTimings;
+    inline constexpr UINT kTimestampMaterialsUploaded = 3 + kRtPassTimings;
+    inline constexpr UINT kTimestampsPerSlot = 4 + kRtPassTimings;
 
     // The passes, by the signal bit that asks for them, and the entry point each is
     // compiled from (CMakeLists.txt embeds them as RT_<entry>).

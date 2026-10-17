@@ -260,8 +260,10 @@ namespace redefinition
         Slot& slot = *frame.slot;
 
         frame.built = BuildMeshesLocked(slot);
+        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampMeshesBuilt);
         // A frame that stops early is submitted all the same (SubmitLocked).
         if (!UploadMaterialTexturesLocked(slot)
+            || (list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampMaterialsUploaded), false)
             || !BuildSceneLocked(slot, frame.slotNumber, packet->frameIndex, frame.inputs[kRtInputInstances],
                                  frame.instanceCount))
         {

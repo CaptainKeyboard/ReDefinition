@@ -91,6 +91,9 @@ namespace redefinition
         // cannot be made is tried again in later frames, after the others, and
         // dropped after kMeshAttempts.
         uint32_t built = 0;
+        uint64_t builtIndices = 0;
+        uint64_t builtVertices = 0;
+        uint64_t largestIndices = 0;
         for (auto entry = pendingMeshes.begin(); entry != pendingMeshes.end();)
         {
             Mesh mesh;
@@ -122,8 +125,20 @@ namespace redefinition
             if (existing != meshes.end())
                 RetireMeshLocked(existing->second, slot);
             meshes[entry->first] = std::move(mesh);
+            builtIndices += entry->second.indices.size();
+            builtVertices += entry->second.vertexCount;
+            largestIndices = std::max<uint64_t>(largestIndices, entry->second.indices.size());
             entry = pendingMeshes.erase(entry);
             ++built;
+        }
+        // Many at once, a few times a session: what they are, for the frame's time
+        // (the slow frame's line, RaytracingDevice).
+        if (built >= 50 && bigBuildsLogged < 10)
+        {
+            ++bigBuildsLogged;
+            LogLine("Raytracing: " + std::to_string(built) + " meshes built in one frame, " + std::to_string(builtIndices / 3)
+                    + " triangles, " + std::to_string(builtVertices) + " vertices, the largest "
+                    + std::to_string(largestIndices / 3) + " triangles");
         }
         if (built > 0)
         {

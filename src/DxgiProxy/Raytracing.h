@@ -870,6 +870,8 @@ namespace redefinition
         uint32_t liveMeshes = 0;
         uint32_t lastInstances = 0;
         uint32_t lastBuilt = 0;
+        int slowFramesLogged = 0;
+        int bigBuildsLogged = 0;
         float buildMs = 0.0f;
         float traceMs = 0.0f;
         float passMs[kRtPassTimings] = {};

@@ -401,10 +401,28 @@ namespace redefinition
             const double toMs = 1000.0 / static_cast<double>(timestampFrequency);
             std::lock_guard<std::mutex> status(statusLock);
             buildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
-            traceMs = static_cast<float>(static_cast<double>(ticks[kTimestampsPerSlot - 1] - ticks[1]) * toMs);
+            traceMs = static_cast<float>(static_cast<double>(ticks[kTimestampTraceEnd] - ticks[1]) * toMs);
             for (UINT position = 0; position < kRtPassTimings; ++position)
                 passMs[kRtPassOrder[position]] =
                     static_cast<float>(static_cast<double>(ticks[2 + position] - ticks[1 + position]) * toMs);
+            // A slow frame says where its time went, a few times a session: the scene's
+            // build, then each pass in the order they ran.
+            if (buildMs + traceMs > 15.0f && slowFramesLogged < 30)
+            {
+                ++slowFramesLogged;
+                std::string line = "Raytracing: a slow frame, build " + std::to_string(buildMs) + " ms (meshes "
+                                   + std::to_string(static_cast<double>(ticks[kTimestampMeshesBuilt] - ticks[0]) * toMs)
+                                   + ", material textures "
+                                   + std::to_string(static_cast<double>(ticks[kTimestampMaterialsUploaded] - ticks[kTimestampMeshesBuilt]) * toMs)
+                                   + ", the scene " + std::to_string(static_cast<double>(ticks[1] - ticks[kTimestampMaterialsUploaded]) * toMs)
+                                   + "), then";
+                for (UINT position = 0; position < kRtPassTimings; ++position)
+                    line += " " + std::to_string(static_cast<double>(ticks[2 + position] - ticks[1 + position]) * toMs);
+                line += " ms (passes in the order they ran: sun, occlusion, diffuse, reflections, denoiser, 4, 5, 7);"
+                        " the latest frame built " + std::to_string(lastBuilt) + " meshes, "
+                        + std::to_string(lastInstances) + " instances";
+                LogLine(line);
+            }
             const D3D12_RANGE none = { 0, 0 };
             timestampReadback->Unmap(0, &none);
         }
