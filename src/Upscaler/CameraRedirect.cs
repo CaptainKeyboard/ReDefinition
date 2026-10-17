@@ -113,6 +113,7 @@ namespace ReDefinition.Upscaler
             this.target = target;
             cam.targetTexture = target;
             redirected = true;
+            if (previousTarget == null && !inScreensPlace.Contains(this)) inScreensPlace.Add(this);
         }
 
         // For UnityMouseEvents: the camera's own target back for the length of
@@ -296,7 +297,38 @@ namespace ReDefinition.Upscaler
                 redirected = false;
                 target = null;
                 screenLent = false;
+                inScreensPlace.Remove(this);
             }
+        }
+
+        // The redirects whose camera drew into the screen before.
+        private static readonly List<CameraRedirect> inScreensPlace = new List<CameraRedirect>();
+
+        // For ScreenCoordinates: render pixels per screen pixel, in x and y, where `camera`
+        // draws into the rig's texture in place of the screen; false otherwise, and while
+        // the screen is lent.
+        internal static bool RenderPerScreen(Camera camera, out float x, out float y)
+        {
+            x = y = 1f;
+            for (int i = 0; i < inScreensPlace.Count; i++)
+            {
+                CameraRedirect redirect = inScreensPlace[i];
+                if (!ReferenceEquals(redirect.cam, camera)) continue;
+                RenderTexture texture = redirect.target;
+                if (texture == null || redirect.screenLent || Screen.width <= 0 || Screen.height <= 0) return false;
+                x = texture.width / (float)Screen.width;
+                y = texture.height / (float)Screen.height;
+                return true;
+            }
+            return false;
+        }
+
+        // Whether `camera` is one of those.
+        internal static bool InScreensPlace(Camera camera)
+        {
+            for (int i = 0; i < inScreensPlace.Count; i++)
+                if (ReferenceEquals(inScreensPlace[i].cam, camera)) return true;
+            return false;
         }
 
         private void OnDisable()

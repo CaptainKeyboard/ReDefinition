@@ -1067,8 +1067,10 @@ namespace ReDefinition.Probe
         private IEnumerator Capture()
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
-            Vector3 screen = scene.WorldToScreenPoint(vessel.CoMD);
+            // In the camera's pixels: its screen points are the screen's (ScreenCoordinates).
             int width = scene.pixelWidth, height = scene.pixelHeight;
+            Vector3 viewport = scene.WorldToViewportPoint(vessel.CoMD);
+            Vector3 screen = new Vector3(viewport.x * width, viewport.y * height, viewport.z);
             int x = Mathf.Clamp(Mathf.RoundToInt(screen.x) - Crop / 2, 0, Mathf.Max(0, width - Crop));
             int y = Mathf.Clamp(Mathf.RoundToInt(screen.y) - Crop / 2, 0, Mathf.Max(0, height - Crop));
             Vector2 scale = new Vector2((float)Crop / width, (float)Crop / height);
