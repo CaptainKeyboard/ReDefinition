@@ -258,7 +258,6 @@ raytracing (6.05 ms) and Ray Reconstruction (4.3 ms to 4.5 ms) are about half of
 | Shader execution reordering for the bounces | It sorts rays that went apart by what they hit, so that a GPU's threads run the same shading together. It is part of DirectX Raytracing 1.2 and Shader Model 6.9 **[doc]** ([Microsoft](https://devblogs.microsoft.com/directx/shader-execution-reordering/)). | The rays are inline ray queries (`Raytracing.hlsl`) **[src]**. Reordering works on hit objects, and whether one made from a ray query gains anything here is **[open]**. |
 | The raytracing beside Unity's drawing instead of after it | The GPU is 82 % to 87 % busy **[meas]**. Work that runs alongside could fill the rest. | The rays need the frame's G-buffer **[src]**. Beside the frame's drawing they could only trace the frame before, a frame of latency. The gain is at most the GPU's idle share and is **[open]**. |
 | A cheaper Ray Reconstruction model | none | Streamline 2.14.1 has only transformer models for Ray Reconstruction. Presets A to C are removed (`sl_dlss_d.h`) **[src]**. |
-| The DLSS mode *Quality* without its darker grass | The raytracing and Ray Reconstruction run at the render resolution: 31 % more frames **[meas]**, in the table below. | At a lower render resolution the grass gets darker. The cause is **[open]**. |
 
 ## What is left
 
@@ -266,7 +265,7 @@ Each of these costs image quality, so the choice is the player's:
 
 | What | Saving | Costs image quality |
 |---|---|---|
-| DLSS mode *Quality* instead of *AA only* | 21.3 ms to 16.2 ms, 31 % more fps **[meas]** | yes |
+| DLSS mode *Quality* instead of *AA only* | 21.3 ms to 16.2 ms, 31 % more fps **[meas]**; the raytracing and Ray Reconstruction run at the render resolution | yes |
 | Parallax `densityMultiplier` and `rangeMultiplier` 1.0 instead of 1.5 and 1.25 | 2.6 ms **[meas]** | yes |
 | The shadow distance halved | 0.7 ms **[meas]** | yes |
 | Raytracing bounces 1 instead of 2 | 0.7 ms **[meas]** | yes |

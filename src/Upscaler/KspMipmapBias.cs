@@ -16,6 +16,16 @@ namespace ReDefinition.Upscaler
     // Texture2DArrays are included: Parallax keeps its terrain textures in them.
     // Renderers that come later -- a vessel loaded, a part added in the editors --
     // bring their textures in through Extend.
+    //
+    // Parallax draws its scatter without renderers (Graphics.DrawMeshInstancedIndirect),
+    // so its materials are taken from Parallax itself. Its grass and ferns cut their
+    // blades out by the alpha of their texture at the mip level the pixel picks
+    // (InstancedSolid.shader, ALPHA_CUTOFF), the raytracing by that alpha at full
+    // resolution (RtCommon.hlsli, CandidateCounts). Without the bias, at a lower render
+    // resolution the blades drawn and the blades the rays meet part: the rays from a
+    // drawn blade start inside the clump the rays see, and the sun's shadow and the
+    // diffuse light darkened the grass at the launch pad from 61.6 to 53.6 of 255
+    // between AA only and Ultra Quality, 85.8 to 82.4 without the raytracing.
     internal class KspMipmapBias
     {
         private readonly List<Texture> touched = new List<Texture>();
@@ -49,6 +59,20 @@ namespace ReDefinition.Upscaler
             if (Mathf.Approximately(applied, 0f)) return 0;
             int before = touched.Count;
             for (int i = 0; i < renderers.Count; i++) Add(renderers[i]);
+            return BiasAddedSince(before);
+        }
+
+        // The same for materials drawn without a renderer.
+        public int Extend(List<Material> materials)
+        {
+            if (Mathf.Approximately(applied, 0f)) return 0;
+            int before = touched.Count;
+            for (int i = 0; i < materials.Count; i++) Add(materials[i]);
+            return BiasAddedSince(before);
+        }
+
+        private int BiasAddedSince(int before)
+        {
             for (int i = before; i < touched.Count; i++) touched[i].mipMapBias += applied;
             return touched.Count - before;
         }
@@ -98,22 +122,25 @@ namespace ReDefinition.Upscaler
             if ((cullingMask & (1 << renderer.gameObject.layer)) == 0) return;
 
             foreach (Material material in renderer.sharedMaterials)
+                Add(material);
+        }
+
+        private void Add(Material material)
+        {
+            if (material == null) return;
+            if (!seenMaterials.Add(material.GetInstanceID())) return;
+
+            foreach (string property in material.GetTexturePropertyNames())
             {
-                if (material == null) continue;
-                if (!seenMaterials.Add(material.GetInstanceID())) continue;
+                Texture texture = material.GetTexture(property);
+                if (texture == null) continue;
 
-                foreach (string property in material.GetTexturePropertyNames())
-                {
-                    Texture texture = material.GetTexture(property);
-                    if (texture == null) continue;
+                // Without mipmaps there is nothing to shift. That also
+                // rules out render and lookup textures right away.
+                if (texture.mipmapCount <= 1) continue;
+                if (!seenTextures.Add(texture.GetInstanceID())) continue;
 
-                    // Without mipmaps there is nothing to shift. That also
-                    // rules out render and lookup textures right away.
-                    if (texture.mipmapCount <= 1) continue;
-                    if (!seenTextures.Add(texture.GetInstanceID())) continue;
-
-                    touched.Add(texture);
-                }
+                touched.Add(texture);
             }
         }
     }

@@ -292,6 +292,34 @@ namespace ReDefinition.Raytracing
             return buffers;
         }
 
+        // The materials Parallax draws its scatter with this scene, every active renderer's
+        // three levels of detail.
+        internal static void ParallaxScatterMaterials(List<Material> into)
+        {
+            Look();
+            if (scatterManager == null || activeScatters == null) return;
+            try
+            {
+                object manager = scatterManager(null);
+                IList renderers = manager != null ? activeScatters(manager) : null;
+                if (renderers == null) return;
+                for (int r = 0; r < renderers.Count; r++)
+                {
+                    object renderer = renderers[r];
+                    if (renderer == null) continue;
+                    for (int lod = 0; lod < 3; lod++)
+                    {
+                        Material material = scatterMaterials[lod]?.Invoke(renderer);
+                        if (material != null) into.Add(material);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Another version of Parallax: its scatter keeps its textures as they are.
+            }
+        }
+
         // PlanetShine's light off while the raytraced diffuse light brings the planet's
         // and the moons': the planet's from the reflection probe, which sees it
         // (FlightReflectionProbe's culling mask has Scaled Scenery), or as a light where

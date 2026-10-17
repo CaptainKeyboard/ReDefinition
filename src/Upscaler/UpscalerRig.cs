@@ -611,9 +611,24 @@ namespace ReDefinition.Upscaler
                 added = mipmapBias.Extend(biasRenderers);
                 biasRenderers.Clear();
             }
+            // Parallax's scatter, drawn without renderers: its renderers come some seconds
+            // into a scene and as the terrain around the vessel is built.
+            if (Time.unscaledTime >= biasScatterTime)
+            {
+                biasScatterTime = Time.unscaledTime + 2f;
+                biasMaterials.Clear();
+                Raytracing.RtKspMods.ParallaxScatterMaterials(biasMaterials);
+                int scatter = biasMaterials.Count > 0 ? mipmapBias.Extend(biasMaterials) : 0;
+                biasMaterials.Clear();
+                if (scatter > 0)
+                    Debug.Log(Log.Tag + " Mipmap bias applied to " + scatter + " textures of Parallax's scatter.");
+            }
             if (added > 0)
                 Debug.Log(Log.Tag + " Mipmap bias applied to " + added + " more textures, " + mipmapBias.TextureCount + " in all.");
         }
+
+        private readonly List<Material> biasMaterials = new List<Material>();
+        private float biasScatterTime;
 
         // Jitter and dispatch parameters once per frame, before any camera
         // renders. The cameras fetch the value themselves in their OnPreRender,
