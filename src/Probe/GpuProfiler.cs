@@ -83,7 +83,9 @@ namespace ReDefinition.Probe
         private readonly Dictionary<int, Segment> segments = new Dictionary<int, Segment>();
         private readonly int[] readIds = new int[Capacity];
         private readonly float[] readMs = new float[Capacity];
-        private int lastFrame, frames;
+        private int lastFrame, frames, spikesLogged;
+        private double typical;
+        private readonly List<KeyValuePair<double, int>> spikeParts = new List<KeyValuePair<double, int>>();
         private double frameSum, frameMost;
         private float nextScan, started;
 
@@ -108,6 +110,14 @@ namespace ReDefinition.Probe
             DontDestroyOnLoad(this);
             harmony = new HarmonyLib.Harmony("ReDefinition.GpuProfiler");
             Camera.onPreCull += MarkCulling;
+            // -redefinitionProbeNoProbeShadows: KSP's reflection probe drawn without shadows,
+            // to measure what its shadow maps cost.
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeNoProbeShadows") >= 0)
+            {
+                Camera.onPreCull += ProbeShadowsOff;
+                Camera.onPostRender += ProbeShadowsBack;
+                Debug.Log(Log.Tag + " GPU profiler: the reflection probe drawn without shadows.");
+            }
             int scripts = PatchScripts();
             started = Time.realtimeSinceStartup;
             Debug.Log(Log.Tag + " GPU profiler: on, " + scripts + " drawing script methods marked.");
@@ -117,6 +127,22 @@ namespace ReDefinition.Probe
         private static void MarkCulling(Camera camera)
         {
             if (camera != null) GL.IssuePluginEvent(markerFunc, Id("until " + camera.name + " culls"));
+        }
+
+        private static ShadowQuality? heldShadows;
+
+        private static void ProbeShadowsOff(Camera camera)
+        {
+            if (camera == null || camera.cameraType != CameraType.Reflection || heldShadows.HasValue) return;
+            heldShadows = QualitySettings.shadows;
+            QualitySettings.shadows = ShadowQuality.Disable;
+        }
+
+        private static void ProbeShadowsBack(Camera camera)
+        {
+            if (camera == null || camera.cameraType != CameraType.Reflection || !heldShadows.HasValue) return;
+            QualitySettings.shadows = heldShadows.Value;
+            heldShadows = null;
         }
 
         private void OnDestroy()
@@ -327,12 +353,19 @@ namespace ReDefinition.Probe
                 lastFrame = frame;
                 frames++;
                 double total = readMs[count - 1];
+                // A spike: twice the frame's usual time and above 33 ms. Its own costliest
+                // segments into the log, a few each report, to say what made it.
+                bool spike = typical > 0.0 && total > 2.0 * typical && total > 33.0 && spikesLogged < 8;
+                if (typical <= 0.0) typical = total;
+                else if (total < 3.0 * typical) typical += (total - typical) * 0.05;
                 frameSum += total;
                 if (total > frameMost) frameMost = total;
+                if (spike) spikeParts.Clear();
                 for (int i = 1; i < count; i++)
                 {
                     double ms = readMs[i] - readMs[i - 1];
                     if (ms < 0.0) continue;
+                    if (spike) spikeParts.Add(new KeyValuePair<double, int>(ms, i == 1 ? -1 : readIds[i]));
                     // The first segment runs from the Present before: the GPU's idle time while
                     // the CPU prepares the frame is in it.
                     int id = readIds[i] == 1 ? Id("until Present, after " + LabelOf(readIds[i - 1]))
@@ -344,10 +377,20 @@ namespace ReDefinition.Probe
                     segment.Frames++;
                     if (ms > segment.Most) segment.Most = ms;
                 }
+                if (spike)
+                {
+                    spikesLogged++;
+                    var text = new StringBuilder(Log.Tag + " GPU profiler: a spike, " + Ms(total) + " ms against " + Ms(typical) + " usually:");
+                    foreach (KeyValuePair<double, int> part in spikeParts.OrderByDescending(p => p.Key).Take(5))
+                        text.Append("\n    ").Append(Ms(part.Key)).Append(" ms: ")
+                            .Append(part.Value < 0 ? "from the Present before to the frame's first marker (GPU idle included)" : LabelOf(part.Value));
+                    Debug.Log(text.ToString());
+                }
             }
             if (Time.realtimeSinceStartup - started < Period) return;
             started = Time.realtimeSinceStartup;
             if (frames > 0) Report();
+            spikesLogged = 0;
             segments.Clear();
             frames = 0;
             frameSum = frameMost = 0.0;
@@ -365,6 +408,10 @@ namespace ReDefinition.Probe
             "proxy Ray Reconstruction: inputs copied to the shared textures",
             "proxy Ray Reconstruction: D3D12 work (guides, DLSS-RR), waited for",
             "proxy Ray Reconstruction: result copied back",
+            "proxy raytracing, ocean: waiting for D3D12 to be done with the shared textures",
+            "proxy raytracing, ocean: inputs copied to the shared textures",
+            "proxy raytracing, ocean: D3D12 work (scene build, rays), waited for",
+            "proxy raytracing, ocean: results copied back",
         };
 
         private static string LabelOf(int id)

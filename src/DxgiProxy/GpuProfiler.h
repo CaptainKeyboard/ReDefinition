@@ -33,6 +33,8 @@ namespace redefinition
     inline constexpr int kProfRrInputs = kProfNativeBase + 5;
     inline constexpr int kProfRrEvaluate = kProfNativeBase + 6;
     inline constexpr int kProfRrOutput = kProfNativeBase + 7;
+    // The raytracing's markers of an extra frame (kRtFrameExtra, the ocean's), apart.
+    inline constexpr int kProfRtExtraOffset = 8;
 
     class GpuProfiler
     {

@@ -328,11 +328,11 @@ namespace redefinition
         }
         if (usedUntil != 0)
             context11->Wait(fence11.Get(), usedUntil);
-        GpuProfiler::Get().OnMarker(kProfRtWaitShared);
+        GpuProfiler::Get().OnMarker(kProfRtWaitShared + (frame.extra ? kProfRtExtraOffset : 0));
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
             if (frame.inputs[i] != nullptr)
                 context11->CopyResource(frame.inputs[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(packet.inputs[i]));
-        GpuProfiler::Get().OnMarker(kProfRtInputs);
+        GpuProfiler::Get().OnMarker(kProfRtInputs + (frame.extra ? kProfRtExtraOffset : 0));
         const UINT64 inputsCopied = ++copiedValue;
         context11->Signal(copied11.Get(), inputsCopied);
         context11->Flush();
@@ -628,11 +628,11 @@ namespace redefinition
 
         // The results back into Unity's textures before the event returns.
         context11->Wait(fence11.Get(), finished);
-        GpuProfiler::Get().OnMarker(kProfRtTrace);
+        GpuProfiler::Get().OnMarker(kProfRtTrace + (frame.extra ? kProfRtExtraOffset : 0));
         for (uint32_t i = 0; i < kRtMaxTextures; ++i)
             if (frame.outputs[i] != nullptr)
                 context11->CopyResource(static_cast<ID3D11Resource*>(frame.packet->outputs[i]), frame.outputs[i]->texture.d3d11.Get());
-        GpuProfiler::Get().OnMarker(kProfRtOutputs);
+        GpuProfiler::Get().OnMarker(kProfRtOutputs + (frame.extra ? kProfRtExtraOffset : 0));
 
         std::lock_guard<std::mutex> status(statusLock);
         if (frame.extra)
