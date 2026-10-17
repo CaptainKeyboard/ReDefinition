@@ -135,6 +135,7 @@ namespace ReDefinition.Probe
                                     count++;
                 }
             started = Time.realtimeSinceStartup;
+            if (withAssembly) PatchPortraits();
             Debug.Log(Log.Tag + " Perf monitor: " + count + " of ReDefinition's per-frame methods timed.");
             // -redefinitionPerfMonitorUnity: Unity's own profiler samplers as well --
             // culling, rendering, the canvases, physics, the player loop's phases --
@@ -194,7 +195,7 @@ namespace ReDefinition.Probe
             foreach (Camera.CameraCallback callback in new[] { Camera.onPreCull, Camera.onPreRender, Camera.onPostRender })
                 if (callback != null)
                     foreach (Delegate handler in callback.GetInvocationList())
-                        if (handler.Method.DeclaringType != null && handler.Method.DeclaringType.Assembly == own && Patch(handler.Method))
+                        if (handler.Method.DeclaringType != null && (withAssembly || handler.Method.DeclaringType.Assembly == own) && handler.Method.DeclaringType != typeof(PerfMonitor) && Patch(handler.Method))
                             count++;
             return count;
         }
@@ -218,6 +219,66 @@ namespace ReDefinition.Probe
             cost.Ticks += ticks;
             cost.FrameTicks += ticks;
             cost.Calls++;
+            // Inside a crew portrait's render as well (InPortrait).
+            if (portraitDepth > 0 && !IsPortraitMethod(__originalMethod))
+            {
+                long sum;
+                portraitCosts.TryGetValue(cost.Name, out sum);
+                portraitCosts[cost.Name] = sum + ticks;
+            }
+        }
+
+        // KSP's crew portraits (Kerbal.kerbalAvatarUpdate, kerbalSeatCamUpdate), timed with
+        // what runs inside them: each renders a camera, and every camera's hooks of every
+        // mod run with it. With -redefinitionPerfMonitorAll.
+        private static int portraitDepth;
+        private static long portraitTicks;
+        private static int portraitRenders;
+        private static readonly Dictionary<string, long> portraitCosts = new Dictionary<string, long>();
+
+        private static bool IsPortraitMethod(MethodBase method)
+        {
+            return method.DeclaringType == typeof(Kerbal) && (method.Name == "kerbalAvatarUpdate" || method.Name == "kerbalSeatCamUpdate");
+        }
+
+        private static bool portraitLogged;
+
+        private static void PortraitBefore(Kerbal __instance, MethodBase __originalMethod, out long __state)
+        {
+            if (!portraitLogged)
+            {
+                portraitLogged = true;
+                Camera camera = __originalMethod.Name == "kerbalSeatCamUpdate"
+                    ? __instance.protoCrewMember?.seat?.portraitCamera
+                    : HarmonyLib.Traverse.Create(__instance).Field("kerbalCam").GetValue<Camera>();
+                if (camera != null)
+                    Debug.Log(Log.Tag + " Perf monitor: a crew portrait's camera " + camera.name + " (" + __originalMethod.Name + "): mask 0x"
+                              + camera.cullingMask.ToString("X8") + ", path " + camera.actualRenderingPath + ", HDR " + camera.allowHDR
+                              + ", MSAA " + camera.allowMSAA + ", depth texture " + camera.depthTextureMode + ", occlusion culling "
+                              + camera.useOcclusionCulling + ", far " + camera.farClipPlane + ", target "
+                              + (camera.targetTexture != null ? camera.targetTexture.width + "x" + camera.targetTexture.height + " " + camera.targetTexture.format
+                                                                + " AA " + camera.targetTexture.antiAliasing : "none"));
+            }
+            portraitDepth++;
+            __state = Stopwatch.GetTimestamp();
+        }
+
+        private static void PortraitAfter(long __state)
+        {
+            portraitDepth--;
+            portraitTicks += Stopwatch.GetTimestamp() - __state;
+            portraitRenders++;
+        }
+
+        private static void PatchPortraits()
+        {
+            foreach (string name in new[] { "kerbalAvatarUpdate", "kerbalSeatCamUpdate" })
+            {
+                MethodInfo method = typeof(Kerbal).GetMethod(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (method == null) continue;
+                harmony.Patch(method, new HarmonyLib.HarmonyMethod(typeof(PerfMonitor).GetMethod(nameof(PortraitBefore), BindingFlags.Static | BindingFlags.NonPublic)),
+                              new HarmonyLib.HarmonyMethod(typeof(PerfMonitor).GetMethod(nameof(PortraitAfter), BindingFlags.Static | BindingFlags.NonPublic)));
+            }
         }
 
         // Last in the frame's scripts as far as it goes: the frame's sums closed.
@@ -308,6 +369,17 @@ namespace ReDefinition.Probe
                         .Append((pair.Value[1] / 1e6).ToString("0.00", CultureInfo.InvariantCulture)).Append(", ")
                         .Append((pair.Value[2] / (float)frames).ToString("0.0", CultureInfo.InvariantCulture)).Append(": ").Append(pair.Key);
                 unitySums.Clear();
+            }
+            if (portraitRenders > 0)
+            {
+                text.Append("\n    KSP's crew portraits: ").Append(portraitRenders).Append(" renders, ")
+                    .Append((portraitTicks * toMs / portraitRenders).ToString("0.00", CultureInfo.InvariantCulture)).Append(" ms each; inside them:");
+                foreach (KeyValuePair<string, long> pair in portraitCosts.OrderByDescending(p => p.Value).Take(15))
+                    text.Append("\n      ").Append((pair.Value * toMs / portraitRenders).ToString("0.000", CultureInfo.InvariantCulture))
+                        .Append(" ms a render: ").Append(pair.Key);
+                portraitTicks = 0;
+                portraitRenders = 0;
+                portraitCosts.Clear();
             }
             physicsTicks = updateTicks = 0;
             physicsSteps = 0;

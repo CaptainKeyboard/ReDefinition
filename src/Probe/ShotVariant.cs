@@ -7,8 +7,9 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Probe
 {
-    // -redefinitionProbeShotVariant <name>, with -redefinitionProbeShot: the probe's shot
-    // taken with one thing changed, to compare with a shot without it at the same place
+    // -redefinitionProbeShotVariant <name>: the probe's flight with one thing changed,
+    // from 5 s into it, and its shot (-redefinitionProbeShot) to compare with one
+    // without the change, "none", at the same place and moment
     // (docs/development/performance-findings.md). Only for that run.
     //   cascades2      two shadow cascades instead of the quality level's
     //   distanceHalf   the shadow distance halved
@@ -16,6 +17,9 @@ namespace ReDefinition.Probe
     //                  shades the sun, and where the shadow maps still show
     //   noDeferredAo   Deferred's ambient occlusion command buffers taken off the cameras
     //   noTufxAo       TUFX's ambient occlusion switched off in its volumes' profiles
+    //   portraitLayers the crew portraits' cameras drawing only the layers their
+    //                  interiors and kerbals are on, in place of every layer
+    //   portraitShadows the shadow distance 10 m while a crew portrait renders
     internal static class ShotVariant
     {
         internal static IEnumerator Apply()
@@ -56,9 +60,63 @@ namespace ReDefinition.Probe
                     return RemoveBuffers("Ambient Occlusion") + " command buffers taken off";
                 case "noTufxAo":
                     return TufxAmbientOcclusionOff() + " profiles' ambient occlusion off";
+                case "portraitLayers":
+                    return PortraitLayers();
+                case "portraitShadows":
+                    Camera.onPreCull += ShortShadows;
+                    Camera.onPostRender += ShadowsBack;
+                    return "10 m while a portrait renders";
                 default:
                     return "unknown, nothing changed";
             }
+        }
+
+        // The layers the renderers under the vessel's internal spaces and the IVA kerbals
+        // are on, and those cameras' masks set to them.
+        private static string PortraitLayers()
+        {
+            int layers = 0;
+            foreach (InternalModel model in UnityEngine.Object.FindObjectsOfType<InternalModel>())
+                foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))
+                    layers |= 1 << r.gameObject.layer;
+            foreach (Kerbal kerbal in UnityEngine.Object.FindObjectsOfType<Kerbal>())
+                foreach (Renderer r in kerbal.GetComponentsInChildren<Renderer>(true))
+                    layers |= 1 << r.gameObject.layer;
+            // Each update copies the kerbal's own camera's mask to the seat's portrait
+            // camera (Kerbal.kerbalSeatCamUpdate, decompiled): set there.
+            int cameras = 0;
+            foreach (Kerbal kerbal in UnityEngine.Object.FindObjectsOfType<Kerbal>())
+            {
+                Camera own = HarmonyLib.Traverse.Create(kerbal).Field("kerbalCam").GetValue<Camera>();
+                if (own == null) continue;
+                own.cullingMask = layers;
+                cameras++;
+            }
+            var names = new System.Text.StringBuilder();
+            for (int i = 0; i < 32; i++)
+                if ((layers & (1 << i)) != 0) names.Append(i).Append(' ').Append(LayerMask.LayerToName(i)).Append(", ");
+            return cameras + " portrait cameras to layers 0x" + layers.ToString("X8") + " (" + names + ")";
+        }
+
+        private static float heldDistance = -1f;
+
+        private static bool IsPortrait(Camera camera)
+        {
+            return camera != null && camera.name.StartsWith("pilotCamera", StringComparison.Ordinal);
+        }
+
+        private static void ShortShadows(Camera camera)
+        {
+            if (!IsPortrait(camera) || heldDistance >= 0f) return;
+            heldDistance = QualitySettings.shadowDistance;
+            QualitySettings.shadowDistance = 10f;
+        }
+
+        private static void ShadowsBack(Camera camera)
+        {
+            if (!IsPortrait(camera) || heldDistance < 0f) return;
+            QualitySettings.shadowDistance = heldDistance;
+            heldDistance = -1f;
         }
 
         private static int RemoveBuffers(string keyword)
