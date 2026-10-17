@@ -69,8 +69,6 @@ namespace ReDefinition.Probe
         private static readonly Dictionary<string, int> ids = new Dictionary<string, int>();
         private static readonly List<string> labels = new List<string> { "frame start", "until Present" };
         private static readonly Dictionary<int, CommandBuffer> markerBuffers = new Dictionary<int, CommandBuffer>();
-        // What was last laid out at a camera's or light's event: the foreign buffers in order.
-        private static readonly Dictionary<string, CommandBuffer[]> layouts = new Dictionary<string, CommandBuffer[]>();
         private static readonly Dictionary<MethodBase, int[]> scriptMarkers = new Dictionary<MethodBase, int[]>();
         private static HarmonyLib.Harmony harmony;
 
@@ -197,53 +195,32 @@ namespace ReDefinition.Probe
             return buffer;
         }
 
-        private static string BufferName(CommandBuffer buffer)
-        {
-            return string.IsNullOrEmpty(buffer.name) ? "(unnamed command buffer)" : buffer.name;
-        }
-
-        // Each event of each camera, laid out again where its foreign buffers changed:
-        // all taken off, then a marker for Unity's work up to the event, and each foreign
-        // buffer followed by a marker of its own.
+        // Each event of each camera: a marker at its end, appended once, which ends the
+        // segment of Unity's work up to the event and the command buffers hung there. The
+        // other buffers are not touched: taking them off and adding them back between
+        // markers of their own darkened the whole frame (the raytraced sun lost, at the
+        // launch pad, whichever half of the events was laid out), for a reason not found.
+        // What each mod's work costs, the mod cost probe measures (ModCost).
         private static void LayOutCamera(Camera camera)
         {
             string name = camera.name;
             foreach (CameraEvent at in CameraEvents)
             {
-                CommandBuffer[] present = camera.GetCommandBuffers(at);
-                CommandBuffer[] foreign = present.Where(b => b.name != OwnBufferName).ToArray();
-                string key = camera.GetInstanceID() + "/" + at;
-                CommandBuffer[] last;
-                if (layouts.TryGetValue(key, out last) && last.SequenceEqual(foreign) && present.Length == 2 * foreign.Length + 1) continue;
-                layouts[key] = foreign;
-                camera.RemoveCommandBuffers(at);
-                camera.AddCommandBuffer(at, Marker(Id(name + ": Unity until " + at)));
-                foreach (CommandBuffer buffer in foreign)
-                {
-                    camera.AddCommandBuffer(at, buffer);
-                    camera.AddCommandBuffer(at, Marker(Id(name + ": " + at + " " + BufferName(buffer))));
-                }
+                CommandBuffer marker = Marker(Id(name + ": until the end of " + at));
+                if (camera.GetCommandBuffers(at).Contains(marker)) continue;
+                camera.AddCommandBuffer(at, marker);
             }
         }
 
+        // The same for the lights' shadow and mask events.
         private static void LayOutLight(Light light)
         {
             string name = "light " + light.name;
             foreach (LightEvent at in LightEvents)
             {
-                CommandBuffer[] present = light.GetCommandBuffers(at);
-                CommandBuffer[] foreign = present.Where(b => b.name != OwnBufferName).ToArray();
-                string key = light.GetInstanceID() + "/" + at;
-                CommandBuffer[] last;
-                if (layouts.TryGetValue(key, out last) && last.SequenceEqual(foreign) && present.Length == 2 * foreign.Length + 1) continue;
-                layouts[key] = foreign;
-                light.RemoveCommandBuffers(at);
-                light.AddCommandBuffer(at, Marker(Id(name + ": Unity until " + at)));
-                foreach (CommandBuffer buffer in foreign)
-                {
-                    light.AddCommandBuffer(at, buffer);
-                    light.AddCommandBuffer(at, Marker(Id(name + ": " + at + " " + BufferName(buffer))));
-                }
+                CommandBuffer marker = Marker(Id(name + ": until the end of " + at));
+                if (light.GetCommandBuffers(at).Contains(marker)) continue;
+                light.AddCommandBuffer(at, marker);
             }
         }
 
@@ -325,8 +302,21 @@ namespace ReDefinition.Probe
             if (scriptMarkers.TryGetValue(__originalMethod, out marker)) GL.IssuePluginEvent(markerFunc, marker[1]);
         }
 
+        // -redefinitionGpuProfileCameras: the cameras' and the lights' markers as well. A
+        // command buffer of the profiler's on a camera -- one marker at any event, appended
+        // or laid out between the others -- left the raytraced sun out of the frame at the
+        // launch pad (the scene in shadow, 28 against 59 of 255), for a reason not found;
+        // the markers in the render stream and in ReDefinition's own buffers do not.
+        private static readonly bool CameraMarkers = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionGpuProfileCameras") >= 0;
+
         private void Scan()
         {
+            if (!CameraMarkers)
+            {
+                int more = PatchCameraHandlers();
+                if (more > 0) Debug.Log(Log.Tag + " GPU profiler: " + more + " more camera event handlers marked.");
+                return;
+            }
             foreach (Camera camera in Resources.FindObjectsOfTypeAll<Camera>())
                 if (camera != null && camera.gameObject.scene.IsValid())
                     LayOutCamera(camera);

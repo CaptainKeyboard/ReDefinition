@@ -814,6 +814,7 @@ namespace ReDefinition.Raytracing
                     float wanted = Settings.Shadows ? 1f : maskedStrength;
                     if (light.shadowStrength != wanted) light.shadowStrength = wanted;
                 }
+                KeepCascades(light != null && Settings.Shadows);
                 return;
             }
             UnmaskSun();
@@ -830,8 +831,37 @@ namespace ReDefinition.Raytracing
 
         private float maskedStrength = -1f;
 
+        // While the rays make the sun's shadows, the shadow maps are used only where the
+        // raytraced frame did not see a point (RtShadow, ReDefinitionScreenSpaceShadows),
+        // and by Scatterer's godrays and caustics, EVE's cloud shadows and the vessel's
+        // shadow for frame generation. Two cascades in place of four took 1.4 ms of the
+        // GPU's frame off at the pad, with the 3D scene unchanged against two shots
+        // without a change (docs/development/performance-findings.md). The distance and
+        // the resolution stay Scatterer's. Set back when the rays stop, where the value is
+        // still the one set here.
+        private const int RaytracedCascades = 2;
+        private int heldCascades = -1;
+
+        private void KeepCascades(bool raytraced)
+        {
+            if (raytraced)
+            {
+                if (heldCascades < 0)
+                {
+                    if (QualitySettings.shadowCascades <= RaytracedCascades) return;
+                    heldCascades = QualitySettings.shadowCascades;
+                }
+                if (QualitySettings.shadowCascades != RaytracedCascades) QualitySettings.shadowCascades = RaytracedCascades;
+                return;
+            }
+            if (heldCascades < 0) return;
+            if (QualitySettings.shadowCascades == RaytracedCascades) QualitySettings.shadowCascades = heldCascades;
+            heldCascades = -1;
+        }
+
         private void UnmaskSun()
         {
+            KeepCascades(false);
             if (maskedLight != null)
             {
                 maskedLight.RemoveCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
