@@ -180,7 +180,7 @@ Keep in mind:
    noise of the scene.
 4. Compare the shots, and look at them side by side.
 
-The variants are `cascades2`, `distanceHalf`, `shadowsMinimal`, `noDeferredAo`,
+The variants are `cascades2`, `cascades1Low`, `distanceHalf`, `shadowsMinimal`, `noDeferredAo`,
 `noTufxAo`, `portraitLayers` and `portraitShadows` (`src/Probe/ShotVariant.cs`). Each
 changes its one thing 5 s into the flight, so the perf monitor's and the GPU profiler's
 reports after it measure the change as well.

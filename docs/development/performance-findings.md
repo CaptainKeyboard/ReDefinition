@@ -238,7 +238,7 @@ shots compared with shots without it.
 | At most 24 acceleration structure builds a frame in the proxy | the flight's first seconds stayed as slow **[meas]**; the mod's upload budget spreads them instead |
 | Not zeroing the mesh buffers | the build stayed at 190 ms to 240 ms **[meas]** |
 | The ocean's raytracing only with ocean in view | its own cost is 0.06 ms of rays once its scene is reused **[meas]**, and the ocean is in view at the space centre |
-| A minimal shadow map with the raytracing | it needs a short shadow distance, which stays as it is |
+| A minimal shadow map with the raytracing | with a short shadow distance, which stays as it is; with the distance kept, one cascade at low resolution took nothing off the frame (23.8 ms to 23.8-24.0 ms) and darkened it by 0.19 levels against a noise of 0.22 **[meas]** |
 | Deferred's and TUFX's ambient occlusion off while the raytracing runs | 0.1 ms to 0.3 ms, under the frame's noise, and a visible change: brighter grass and corners **[meas]** |
 
 ## What is left

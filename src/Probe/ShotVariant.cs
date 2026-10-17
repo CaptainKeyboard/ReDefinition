@@ -48,6 +48,12 @@ namespace ReDefinition.Probe
                 case "cascades2":
                     QualitySettings.shadowCascades = 2;
                     return "2 cascades";
+                case "cascades1Low":
+                    QualitySettings.shadowCascades = 1;
+                    QualitySettings.shadowResolution = ShadowResolution.Low;
+                    foreach (Light light in UnityEngine.Object.FindObjectsOfType<Light>())
+                        if (light.type == LightType.Directional && light.shadowCustomResolution > 0) light.shadowCustomResolution = 1024;
+                    return "1 cascade, low resolution, the distance kept";
                 case "distanceHalf":
                     QualitySettings.shadowDistance *= 0.5f;
                     return QualitySettings.shadowDistance.ToString("0") + " m";
