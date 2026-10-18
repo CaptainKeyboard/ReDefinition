@@ -40,7 +40,7 @@ namespace ReDefinition.Menu
             if (!Test) return;
             if (testFolder == null)
             {
-                testFolder = System.IO.Path.Combine(System.IO.Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"),
+                testFolder = System.IO.Path.Combine(Core.CaptureFolder.Root,
                                                     DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-ksc-arrival");
                 System.IO.Directory.CreateDirectory(testFolder);
             }

@@ -14,8 +14,8 @@ namespace ReDefinition.Probe
     // materials grouped by shader, with what each says about its shine -- specular colour,
     // shininess, smoothness, metallic, their maps, a reflection cube -- and where the
     // renderers stand (a vessel's part, the space centre's buildings, the terrain), into
-    // ReDefinitionCaptures/shader-inventory-<scene>.txt. What the shine of a surface is
-    // meant to be is read from these, per shader family.
+    // the session's capture folder, shader-inventory-<scene>.txt. What the shine of a
+    // surface is meant to be is read from these, per shader family.
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     internal sealed class ShaderInventory : MonoBehaviour
     {
@@ -206,8 +206,7 @@ namespace ReDefinition.Probe
                     }
                 }
             }
-            string folder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
-            Directory.CreateDirectory(folder);
+            string folder = CaptureFolder.Run;
             string file = Path.Combine(folder, "shader-inventory-" + scene + ".txt");
             File.WriteAllText(file, text.ToString());
             Debug.Log(Log.Tag + " Shader inventory: " + groups.Count + " shaders in " + scene + " into " + file + ".");

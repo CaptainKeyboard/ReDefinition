@@ -34,7 +34,8 @@ namespace ReDefinition.Menu
     public class MenuFireworks : MonoBehaviour
     {
         internal const string BurstArgument = "-redefinitionFireworksBurst";
-        // With it as well: a screenshot into ReDefinitionCaptures after some bursts, then quit.
+        // With it as well: a screenshot into the session's capture folder (CaptureFolder.Run)
+        // after some bursts, then quit.
         internal const string ShotArgument = "-redefinitionFireworksShot";
 
         // Below this, the sun stands under the ground's horizon.
@@ -110,8 +111,7 @@ namespace ReDefinition.Menu
             }
             if (!test || Array.IndexOf(Environment.GetCommandLineArgs(), ShotArgument) < 0) yield break;
             yield return new WaitForSeconds(6f);
-            string folder = System.IO.Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
-            System.IO.Directory.CreateDirectory(folder);
+            string folder = Core.CaptureFolder.Run;
             string file = System.IO.Path.Combine(folder, "fireworks-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".png");
             ScreenCapture.CaptureScreenshot(file);
             Debug.Log(Log.Tag + " Main menu fireworks: screenshot " + file + ".");

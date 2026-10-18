@@ -4,7 +4,7 @@
 # all. The probe's flight is left to run with its clouds; the perf monitor logs the
 # main thread's time by script and by Unity's samplers (culling, rendering, physics,
 # the canvases, the scripts, GC) into KSP.log, the GPU profiler the GPU's frame, and
-# Unity's profiler records into <KSP>\ReDefinitionCaptures\unity-profile.raw, which the
+# Unity's profiler records into <KSP>\ReDefinitionCaptures\<time>-unity-profile\unity-profile.raw, which the
 # editor's Profiler window loads. KSP's own UnityPlayer.dll is put back afterwards.
 #
 # The development player is stricter: what a mod does in a MonoBehaviour's constructor
@@ -27,7 +27,7 @@ $release = Join-Path $Ksp 'UnityPlayer.dll.release'
 $pix = Join-Path $Ksp 'WinPixEventRuntime.dll'
 $pixAdded = -not (Test-Path $pix)
 if (-not (Test-Path $release)) { Copy-Item $player $release }
-$raw = Join-Path $Ksp 'ReDefinitionCaptures\unity-profile.raw'
+$raw = Join-Path $Ksp ('ReDefinitionCaptures\' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-unity-profile\unity-profile.raw')
 New-Item -ItemType Directory -Force (Split-Path $raw) | Out-Null
 try {
     Copy-Item $development $player -Force

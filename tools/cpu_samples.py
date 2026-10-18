@@ -1,7 +1,7 @@
 """Where the game's main thread spends its time, from the CPU sampler's file
 (src/DxgiProxy/CpuSampler.h, -redefinitionProbeCpuSample):
 
-    python tools/cpu_samples.py <KSP>/ReDefinitionCaptures/cpu-samples.txt [report.txt]
+    python tools/cpu_samples.py <KSP>/ReDefinitionCaptures/<time>-run/cpu-samples.txt [report.txt]
 
 Each sample is the main thread's instruction pointer and the values on its stack that
 point into a module's code. The addresses are named with dbghelp and the symbol

@@ -56,7 +56,7 @@ namespace ReDefinition.Probe
                 Marshal.ReadIntPtr(api, TriggerMultiFrameCaptureIndex * IntPtr.Size), typeof(TriggerMulti));
             SetPathTemplate setPath = (SetPathTemplate)Marshal.GetDelegateForFunctionPointer(
                 Marshal.ReadIntPtr(api, SetCaptureFilePathTemplateIndex * IntPtr.Size), typeof(SetPathTemplate));
-            string folder = System.IO.Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
+            string folder = CaptureFolder.Run;
             setPath(System.IO.Path.Combine(folder, "renderdoc"));
             Debug.Log(Log.Tag + " Probe: RenderDoc in the process, captures into " + folder + ".");
         }

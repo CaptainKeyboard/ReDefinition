@@ -3,8 +3,9 @@
 # still and one at a step of its sweep (-redefinitionProbeCaptureStep, default 21,
 # where the turn reverses), then the same without the vessel's renderers -- the still
 # frame, and the four frames around that step, one of which shows the same pose --
-# and KSP quits. The captures (.rdc) land in <KSP>\ReDefinitionCaptures as
-# renderdoc_frame<n>.rdc, to open in qrenderdoc or read with its Python API.
+# and KSP quits. The captures (.rdc) land in the session's folder,
+# <KSP>\ReDefinitionCaptures\<time>-run, as renderdoc_frame<n>.rdc, to open in qrenderdoc
+# or read with its Python API.
 #
 # The dxgi.dll proxy is renamed for the run and put back afterwards: under RenderDoc
 # its D3D12 swapchain is refused and it falls back to the real one, so a capture
@@ -49,6 +50,6 @@ finally {
     if ($moved) { Move-Item $parked $proxy -Force }
 }
 Select-String -Path (Join-Path $Ksp 'KSP.log') -Pattern 'Probe: (RenderDoc|flight)' | ForEach-Object { $_.Line }
-Get-ChildItem (Join-Path $Ksp 'ReDefinitionCaptures') -Filter 'renderdoc*.rdc' -ErrorAction SilentlyContinue |
+Get-ChildItem (Join-Path $Ksp 'ReDefinitionCaptures') -Filter 'renderdoc*.rdc' -Recurse -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTime | Select-Object -Last 4 |
     ForEach-Object { "$($_.FullName)  $([math]::Round($_.Length / 1MB)) MB" }

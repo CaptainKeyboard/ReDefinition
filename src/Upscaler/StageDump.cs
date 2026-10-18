@@ -116,7 +116,7 @@ namespace ReDefinition.Upscaler
         {
             ReleasePrepared();
             DropClouds();
-            folder = Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"),
+            folder = Path.Combine(CaptureFolder.Root,
                                   System.DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-stages");
             taken = 0;
             waited = 0;

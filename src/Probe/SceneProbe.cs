@@ -257,7 +257,7 @@ namespace ReDefinition.Probe
             yield return new WaitForSeconds(35f);
             // The VAB's inside as the surfaces' materials mean their shine, as Deferred gives
             // it, and the surfaces' overlay (RtCamera, SurfaceIntent).
-            string folder = Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"),
+            string folder = Path.Combine(CaptureFolder.Root,
                                          DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-vab");
             Directory.CreateDirectory(folder);
             foreach (string shot in new[] { "on", "deferred", "overlay" })
@@ -340,7 +340,7 @@ namespace ReDefinition.Probe
         private int sweepSubdivide = 1;
 
         // The reflection probe the rays see the sky in (RtKsp, Environment), its six faces
-        // into ReDefinitionCaptures/<shot>-env<face>.ppm, clamped to 0..1.
+        // into `folder` as <shot>-env<face>.ppm, clamped to 0..1.
         internal static void EnvironmentFaces(string folder, string shot)
         {
             ReflectionProbe found = null;
@@ -392,7 +392,7 @@ namespace ReDefinition.Probe
             Raytracing.RtCamera rt = Raytracing.RtCamera.Current;
             if (rt == null) yield break;
             // The screen-space shadow mask Unity collected for the sun this frame, copied after
-            // it is made, into ReDefinitionCaptures/shadowmask.pgm.
+            // it is made, into the session's capture folder, shadowmask.pgm.
             Light masked = rt.SunLightNow;
             if (masked != null)
             {
@@ -415,7 +415,7 @@ namespace ReDefinition.Probe
                     for (int y = 0; y < mh; y++)
                         for (int x = 0; x < mw; x++)
                             mb[head.Length + y * mw + x] = m[(mh - 1 - y) * mw + x].r;
-                    File.WriteAllBytes(Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"), "shadowmask.pgm"), mb);
+                    File.WriteAllBytes(Path.Combine(CaptureFolder.Run, "shadowmask.pgm"), mb);
                 }
                 grab.Release();
                 copy.Release();
@@ -451,8 +451,7 @@ namespace ReDefinition.Probe
                             Color texel = data[(h - 1 - y) * w + x];
                             bytes[header.Length + y * w + x] = (byte)Mathf.Clamp((texture.Key == "sun" ? texel.r : texture.Key == "diffuse" ? texel.g * 4f : texture.Key == "ocean" ? (texel.a > 0f ? 0.5f + texel.g : 0f) : texel.g * 0.5f + 0.5f) * 255f, 0f, 255f);
                         }
-                    string maskFolder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
-                    Directory.CreateDirectory(maskFolder);
+                    string maskFolder = CaptureFolder.Run;
                     File.WriteAllBytes(Path.Combine(maskFolder, texture.Key + ".pgm"), bytes);
                 }
                 var line = new StringBuilder(Log.Tag + " Probe: light values, " + texture.Key + ":");
@@ -551,7 +550,7 @@ namespace ReDefinition.Probe
                     double n = Math.Max(pairs, 1);
                     double correlation = (sxy / n - sx / n * sy / n)
                                          / Math.Sqrt(Math.Max((sxx / n - sx / n * sx / n) * (syy / n - sy / n * sy / n), 1e-12));
-                    File.WriteAllText(Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"), "cloudcheck.csv"), csv.ToString());
+                    File.WriteAllText(Path.Combine(CaptureFolder.Run, "cloudcheck.csv"), csv.ToString());
                     Debug.Log(Log.Tag + " Probe: cloud " + eve.MapCheck() + ".");
                     Debug.Log(Log.Tag + " Probe: cloud check: " + pairs + " ground points, EVE's predicted shadow against the rays' (first: "
                               + lines + "), means " + (sx / n).ToString("0.000", CultureInfo.InvariantCulture) + " / "
@@ -592,13 +591,12 @@ namespace ReDefinition.Probe
                     yield break;
                 }
                 // -redefinitionProbeCpuSample: the main thread sampled for 30 s from 20 s on
-                // (src/DxgiProxy/CpuSampler.h) into ReDefinitionCaptures/cpu-samples.txt,
+                // (src/DxgiProxy/CpuSampler.h) into the session's capture folder, cpu-samples.txt,
                 // then KSP quits; tools/cpu_samples.py reads it.
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeCpuSample") >= 0)
                 {
                     yield return new WaitForSeconds(20f);
-                    string samplesFolder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
-                    Directory.CreateDirectory(samplesFolder);
+                    string samplesFolder = CaptureFolder.Run;
                     int started = 0;
                     try
                     {
@@ -614,13 +612,12 @@ namespace ReDefinition.Probe
                     yield break;
                 }
                 // -redefinitionProbeShot <name>: the frame as KSP draws it, 30 s on, into
-                // ReDefinitionCaptures\<name>.png, then KSP quits.
+                // the session's capture folder (CaptureFolder.Run) as <name>.png, then KSP quits.
                 string shot = SceneProbe.ArgumentAfter("-redefinitionProbeShot");
                 if (shot == null) yield break;
                 yield return new WaitForSeconds(30f);
                 yield return LightValues();
-                string folder = Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures");
-                Directory.CreateDirectory(folder);
+                string folder = CaptureFolder.Run;
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
                 EnvironmentFaces(folder, shot);
                 Debug.Log(Log.Tag + " Probe: shot " + shot + ".");
@@ -669,7 +666,7 @@ namespace ReDefinition.Probe
                 Application.Quit();
                 yield break;
             }
-            folder = Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"),
+            folder = Path.Combine(CaptureFolder.Root,
                                   DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-probe");
             Directory.CreateDirectory(folder);
             scene.depthTextureMode |= DepthTextureMode.Depth;

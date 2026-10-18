@@ -160,7 +160,7 @@ namespace ReDefinition.Upscaler
 
         internal static void DumpNextFrame()
         {
-            dumpFolder = Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "ReDefinitionCaptures"),
+            dumpFolder = Path.Combine(CaptureFolder.Root,
                                       System.DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)
                                       + "-shadow");
         }
