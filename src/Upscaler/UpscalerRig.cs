@@ -867,8 +867,9 @@ namespace ReDefinition.Upscaler
                 result = textures.LowRes;
             else if (dlssSharpener != null)
                 dlssSharpener.Schedule(dispatchBuffer, Sharpness);
-            Probe.GpuProfiler.Mark(dispatchBuffer, "ReDefinition upscaler: " + (PassThrough ? "pass-through" : Backend.ToString())
-                                                   + (Reconstructing ? " with Ray Reconstruction" : ""));
+            if (Probe.GpuProfiler.On)
+                Probe.GpuProfiler.Mark(dispatchBuffer, "ReDefinition upscaler: " + (PassThrough ? "pass-through" : Backend.ToString())
+                                                       + (Reconstructing ? " with Ray Reconstruction" : ""));
 
             // The same camera state the upscaler is dispatched with, so
             // interpolation and reconstruction agree about the frame, sent through

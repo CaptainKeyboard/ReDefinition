@@ -53,6 +53,7 @@ namespace ReDefinition.Upscaler
         internal const float ReactiveMaximum = 0.9f;
         private const int TransparentQueueFrom = 2501;
         private const float ScanInterval = 1f;
+        private const float FullScanInterval = 10f;
 
         // Transparent queues that are not something blended over the scene: what
         // composites the clouds, the sky and the atmosphere -- the transparency
@@ -120,6 +121,11 @@ namespace ReDefinition.Upscaler
         }
 
         private readonly List<Candidate> candidates = new List<Candidate>();
+        // The candidates of the last look through every renderer (Scan), effects aside.
+        private readonly List<Candidate> sceneCandidates = new List<Candidate>();
+        // The materials whose kind was checked in this scan.
+        private readonly HashSet<int> checkedMaterials = new HashSet<int>();
+        private float nextFullScan;
         private readonly List<Material> materials = new List<Material>();
         private readonly Dictionary<int, MaterialKind> kinds = new Dictionary<int, MaterialKind>();
         private readonly Dictionary<long, MaskCopy> copies = new Dictionary<long, MaskCopy>();
@@ -209,6 +215,8 @@ namespace ReDefinition.Upscaler
                 if (copy.Material != null) UnityEngine.Object.Destroy(copy.Material);
             copies.Clear();
             candidates.Clear();
+            sceneCandidates.Clear();
+            nextFullScan = 0f;
             kinds.Clear();
             if (fullscreen != null) UnityEngine.Object.Destroy(fullscreen);
             fullscreen = null;
@@ -327,55 +335,84 @@ namespace ReDefinition.Upscaler
             ocean = ForeignAssumptions.ScattererOceanMask.Holds;
         }
 
-        // Once a second: the renderers with a transparent material. Visibility is
-        // checked in every frame; what a material is, once while it is in use.
+        // The renderers with a transparent material: the effects' -- particles, trails,
+        // lines, which come and go -- once a second; every other renderer, all of the
+        // scene's asked for in one call, once in ten seconds, their materials checked
+        // again then. Visibility is checked in every frame; what a material is, once while
+        // it is in use.
         private void Scan()
         {
             nextScan = Time.unscaledTime + ScanInterval;
-            candidates.Clear();
-            seenMaterials.Clear();
-            foreach (Renderer renderer in UnityEngine.Object.FindObjectsOfType<Renderer>())
+            checkedMaterials.Clear();
+            bool full = Time.unscaledTime >= nextFullScan;
+            if (full)
             {
-                if (renderer == null) continue;
-                renderer.GetSharedMaterials(materials);
-                bool any = false;
-                foreach (Material material in materials)
-                {
-                    if (material == null) continue;
-                    // Checked once per scan, not once for every renderer that shares it.
-                    bool first = seenMaterials.Add(material.GetInstanceID());
-                    if ((KindOf(material, first) & Kind.Reactive) != 0) any = true;
-                }
-                if (!any) continue;
-
-                ParticleSystemRenderer particles = renderer as ParticleSystemRenderer;
-                ParticleSystem system = particles != null ? particles.GetComponent<ParticleSystem>() : null;
-                Mesh mesh = null;
-                int submeshes = 1;
-                if (particles == null)
-                {
-                    SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
-                    if (skinned != null) mesh = skinned.sharedMesh;
-                    else if (renderer is MeshRenderer)
-                    {
-                        MeshFilter filter = renderer.GetComponent<MeshFilter>();
-                        mesh = filter != null ? filter.sharedMesh : null;
-                    }
-                    if (mesh != null) submeshes = mesh.subMeshCount;
-                }
-                candidates.Add(new Candidate
-                {
-                    Renderer = renderer,
-                    Particles = system,
-                    // Particles, trails and lines carry their colour and fade in the
-                    // vertices.
-                    VertexColours = particles != null || renderer is TrailRenderer || renderer is LineRenderer
-                                    || (mesh != null && mesh.HasVertexAttribute(VertexAttribute.Color)),
-                    Submeshes = submeshes,
-                });
+                nextFullScan = Time.unscaledTime + FullScanInterval;
+                seenMaterials.Clear();
+                sceneCandidates.Clear();
+                foreach (Renderer renderer in UnityEngine.Object.FindObjectsOfType<Renderer>())
+                    if (!(renderer is ParticleSystemRenderer || renderer is TrailRenderer || renderer is LineRenderer))
+                        Consider(renderer, sceneCandidates);
             }
+            candidates.Clear();
+            // One by one: Mono's AddRange copies through a new array.
+            for (int i = 0; i < sceneCandidates.Count; i++) candidates.Add(sceneCandidates[i]);
+            foreach (ParticleSystemRenderer renderer in UnityEngine.Object.FindObjectsOfType<ParticleSystemRenderer>())
+                Consider(renderer, candidates);
+            foreach (TrailRenderer renderer in UnityEngine.Object.FindObjectsOfType<TrailRenderer>())
+                Consider(renderer, candidates);
+            foreach (LineRenderer renderer in UnityEngine.Object.FindObjectsOfType<LineRenderer>())
+                Consider(renderer, candidates);
+            if (full) ForgetUnused();
+        }
 
-            // What no renderer uses any more leaves the caches.
+        // A renderer with a transparent material into `into`.
+        private void Consider(Renderer renderer, List<Candidate> into)
+        {
+            if (renderer == null) return;
+            renderer.GetSharedMaterials(materials);
+            bool any = false;
+            foreach (Material material in materials)
+            {
+                if (material == null) continue;
+                int id = material.GetInstanceID();
+                seenMaterials.Add(id);
+                // Checked once per scan, not once for every renderer that shares it.
+                bool first = checkedMaterials.Add(id);
+                if ((KindOf(material, first) & Kind.Reactive) != 0) any = true;
+            }
+            if (!any) return;
+
+            ParticleSystemRenderer particles = renderer as ParticleSystemRenderer;
+            ParticleSystem system = particles != null ? particles.GetComponent<ParticleSystem>() : null;
+            Mesh mesh = null;
+            int submeshes = 1;
+            if (particles == null)
+            {
+                SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
+                if (skinned != null) mesh = skinned.sharedMesh;
+                else if (renderer is MeshRenderer)
+                {
+                    MeshFilter filter = renderer.GetComponent<MeshFilter>();
+                    mesh = filter != null ? filter.sharedMesh : null;
+                }
+                if (mesh != null) submeshes = mesh.subMeshCount;
+            }
+            into.Add(new Candidate
+            {
+                Renderer = renderer,
+                Particles = system,
+                // Particles, trails and lines carry their colour and fade in the
+                // vertices.
+                VertexColours = particles != null || renderer is TrailRenderer || renderer is LineRenderer
+                                || (mesh != null && mesh.HasVertexAttribute(VertexAttribute.Color)),
+                Submeshes = submeshes,
+            });
+        }
+
+        // What no renderer used since the last look through all of them leaves the caches.
+        private void ForgetUnused()
+        {
             goneMaterials.Clear();
             foreach (int id in kinds.Keys)
                 if (!seenMaterials.Contains(id)) goneMaterials.Add(id);

@@ -157,6 +157,13 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Whether the profiler runs: a label put together for Mark is asked for only then,
+        // not built every frame for nothing.
+        internal static bool On
+        {
+            get { return markerFunc != IntPtr.Zero; }
+        }
+
         // A marker in a command buffer of ReDefinition's own, or here in the render stream,
         // that ends the segment named label; nothing without the profiler.
         internal static void Mark(CommandBuffer buffer, string label)
