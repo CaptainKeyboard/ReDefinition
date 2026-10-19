@@ -8,8 +8,12 @@ namespace redefinition
 {
     GpuProfiler& GpuProfiler::Get()
     {
-        static GpuProfiler instance;
-        return instance;
+        // Never destroyed, as FrameGeneration::Get: it holds Direct3D 11 queries and the
+        // device, and releasing Direct3D objects while the DLL unloads at the process's
+        // end (under the loader lock) cut the process short. The process's end takes
+        // them back.
+        static GpuProfiler* instance = new GpuProfiler();
+        return *instance;
     }
 
     void GpuProfiler::Attach(const void* newOwner, ID3D11Device* newDevice, ID3D11DeviceContext* newContext)

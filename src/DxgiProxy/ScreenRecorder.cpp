@@ -55,7 +55,9 @@ namespace redefinition
         int g_backWanted = 0;
         size_t g_backRead = 0;
         std::wstring g_backFolder;
-        std::vector<BackBufferFrame> g_backFrames;
+        // Never destroyed, as FrameGeneration::Get: its staging textures would otherwise
+        // be released while the DLL unloads at the process's end, under the loader lock.
+        std::vector<BackBufferFrame>& g_backFrames = *new std::vector<BackBufferFrame>();
         DXGI_FORMAT g_backFormat = DXGI_FORMAT_UNKNOWN;
         // The backbuffer's size, and that of the cut-out taken of it.
         UINT g_backSourceWidth = 0, g_backSourceHeight = 0;
