@@ -63,6 +63,7 @@ namespace ReDefinition.Engineer
             altitudeFields.Clear();
             headerTints.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            rows.Add(StockOffRow());
 
             List<DialogGUIBase> vessel = new List<DialogGUIBase>();
             for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));
@@ -89,6 +90,19 @@ namespace ReDefinition.Engineer
             rows.AddRange(Section("Thrust", () => thrustShown, () => thrustShown = !thrustShown,
                 "The thrust-to-weight ratio of launches and landings and the duration of each burn.", ThrustSummary, ThrustRows()));
             return rows;
+        }
+
+        // Over everything, while KSP's delta-v simulation does not run: the planner
+        // takes its stages from it (EditorReadout), and without them it stays empty.
+        private DialogGUIBase StockOffRow()
+        {
+            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, 2f * RowHeight + 4f, 0f, new RectOffset(0, 0, 2, 2),
+                TextAnchor.MiddleLeft,
+                new DialogGUILabel("<color=" + Warning + ">KSP's delta-v calculations are off (DELTAV_CALCULATIONS_ENABLED in "
+                                   + "settings.cfg, or another mod): the planner has no stages to plan with.</color>",
+                    width - RowEnd, 2f * RowHeight));
+            row.OptionEnabledCondition = () => EditorReadout.StockOff;
+            return row;
         }
 
         // A part of the planner as KSP's crew and cargo panels show theirs: a lighter

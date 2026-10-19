@@ -31,6 +31,15 @@ namespace ReDefinition.Engineer
         public double ElectricCharge;
         public bool HasShip;
 
+        // KSP's delta-v simulation switched off, in settings.cfg
+        // (GameSettings.DELTAV_CALCULATIONS_ENABLED) or by a mod
+        // (DeltaVGlobals.DisableStockSimluations): it then makes no stages
+        // (VesselDeltaV.EnableStockSimluation; decompiled).
+        internal static bool StockOff
+        {
+            get { return !DeltaVGlobals.DoStockSimulations; }
+        }
+
         // Read again: the stock simulation runs by itself as the vessel changes.
         internal static EditorReadout Read()
         {
@@ -82,13 +91,22 @@ namespace ReDefinition.Engineer
             Dictionary<Part, int> index = new Dictionary<Part, int>();
             for (int i = 0; i < parts.Count; i++)
                 if (parts[i] != null) index[parts[i]] = i;
-            // The propellants any RCS thruster on the vessel burns.
-            HashSet<string> rcsPropellants = new HashSet<string>();
+            // Per propellant an RCS thruster switched on burns, the parts it draws it
+            // from, as the flight's readout takes them (ReadoutFrame.FindRcsDeltaV): a
+            // Vernor's liquid fuel and oxidizer from the tanks it reaches, monopropellant
+            // from the whole vessel.
+            Dictionary<string, HashSet<Part>> rcsReach = new Dictionary<string, HashSet<Part>>();
             foreach (Part part in parts)
                 if (part != null)
                     foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
-                        if (rcs != null && rcs.propellants != null)
-                            foreach (Propellant propellant in rcs.propellants) rcsPropellants.Add(propellant.name);
+                        if (RcsOn(rcs) && rcs.propellants != null)
+                            foreach (Propellant propellant in rcs.propellants)
+                            {
+                                if (propellant == null) continue;
+                                HashSet<Part> from;
+                                if (!rcsReach.TryGetValue(propellant.name, out from)) rcsReach[propellant.name] = from = new HashSet<Part>();
+                                AddRcsSources(part, propellant.GetFlowMode(), parts, from);
+                            }
 
             // The vessel's frame: its root part's.
             Transform frame = null;
@@ -126,6 +144,7 @@ namespace ReDefinition.Engineer
                     Wheels = part.FindModulesImplementing<ModuleWheelBase>().Exists(wheel => wheel != null && wheel.wheelType != WheelType.LEG),
                     Clamp = part.HasModuleImplementing<LaunchClamp>(),
                     Crew = part.CrewCapacity,
+                    Aboard = Aboard(part),
                     Separator = part.HasModuleImplementing<ModuleDockingNode>() ? Separation.DockingPort
                         : part.HasModuleImplementing<ModuleAnchoredDecoupler>() ? Separation.Anchored
                         : part.HasModuleImplementing<ModuleDecouple>() ? Separation.Decoupler : Separation.None,
@@ -137,7 +156,7 @@ namespace ReDefinition.Engineer
                 };
                 foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
                 {
-                    if (rcs == null || !rcs.moduleIsEnabled) continue;
+                    if (!RcsOn(rcs)) continue;
                     double isp = rcs.atmosphereCurve != null ? rcs.atmosphereCurve.Evaluate(0f) : 0.0;
                     if (isp <= 0.0) continue;
                     // As ModuleRCS applies it per nozzle (decompiled).
@@ -149,8 +168,9 @@ namespace ReDefinition.Engineer
                 for (int i = 0; i < part.Resources.Count; i++)
                 {
                     PartResource resource = part.Resources[i];
+                    HashSet<Part> reach;
                     if (resource == null || resource.info == null || !resource.flowState
-                        || !rcsPropellants.Contains(resource.resourceName)) continue;
+                        || !rcsReach.TryGetValue(resource.resourceName, out reach) || !reach.Contains(part)) continue;
                     double held;
                     fact.RcsResources.TryGetValue(resource.resourceName, out held);
                     fact.RcsResources[resource.resourceName] = held + resource.amount * resource.info.density;
@@ -165,6 +185,56 @@ namespace ReDefinition.Engineer
                 facts.Add(fact);
             }
             return facts;
+        }
+
+        // The kerbals in a part's seats in the crew manifest, which keys its parts by
+        // their craftID (VesselCrewManifest.GetPartCrewManifest; decompiled).
+        private static int Aboard(Part part)
+        {
+            VesselCrewManifest manifest = ShipConstruction.ShipManifest;
+            PartCrewManifest seats = manifest != null && part.CrewCapacity > 0 ? manifest.GetPartCrewManifest(part.craftID) : null;
+            ProtoCrewMember[] crew = seats != null ? seats.GetPartCrew() : null;
+            int count = 0;
+            if (crew != null)
+                foreach (ProtoCrewMember member in crew)
+                    if (member != null) count++;
+            return count;
+        }
+
+        // An RCS thruster that fires: its module on and its RCS switched on in the
+        // part's menu (ModuleRCS.rcsEnabled).
+        private static bool RcsOn(ModuleRCS rcs)
+        {
+            return rcs != null && rcs.moduleIsEnabled && rcs.rcsEnabled;
+        }
+
+        // The parts a thruster on `part` draws a propellant of flow mode `mode` from,
+        // as Part.GetConnectedResourceTotals takes them: its crossfeed set, which
+        // the editor builds for its simulation (ShipConstruct: PartSet.BuildPartSets
+        // with Simulate, into Part.simulationCrossfeedPartSet; decompiled), the
+        // whole vessel, or the part itself.
+        private static void AddRcsSources(Part part, ResourceFlowMode mode, List<Part> parts, HashSet<Part> into)
+        {
+            switch (mode)
+            {
+                case ResourceFlowMode.STACK_PRIORITY_SEARCH:
+                case ResourceFlowMode.STAGE_STACK_FLOW:
+                case ResourceFlowMode.STAGE_STACK_FLOW_BALANCE:
+                    PartSet set = part.simulationCrossfeedPartSet ?? part.crossfeedPartSet;
+                    if (set != null) into.UnionWith(set.GetParts());
+                    else into.Add(part);
+                    break;
+                case ResourceFlowMode.ALL_VESSEL:
+                case ResourceFlowMode.STAGE_PRIORITY_FLOW:
+                case ResourceFlowMode.ALL_VESSEL_BALANCE:
+                case ResourceFlowMode.STAGE_PRIORITY_FLOW_BALANCE:
+                    foreach (Part other in parts)
+                        if (other != null) into.Add(other);
+                    break;
+                default:
+                    into.Add(part);
+                    break;
+            }
         }
 
         // Where a part sits, how large it is, and what it turns the vessel with
@@ -207,7 +277,7 @@ namespace ReDefinition.Engineer
 
             foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
             {
-                if (rcs == null || !rcs.moduleIsEnabled || !rcs.rcsEnabled || string.IsNullOrEmpty(rcs.thrusterTransformName)) continue;
+                if (!RcsOn(rcs) || string.IsNullOrEmpty(rcs.thrusterTransformName)) continue;
                 float power = rcs.thrusterPower * rcs.thrustPercentage * 0.01f;
                 if (power <= 0f) continue;
                 foreach (Transform nozzle in part.FindModelTransforms(rcs.thrusterTransformName))

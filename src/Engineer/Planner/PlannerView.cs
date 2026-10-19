@@ -204,7 +204,10 @@ namespace ReDefinition.Engineer
             allStages = new List<StageRow>(plannedStages);
             allStages.Sort((a, b) => b.Number.CompareTo(a.Number));
             if (airRow >= 0) stageLabels[airRow] = "Air";
-            allStages = ClampedLaunch.Parallel(allStages, readout.PartFacts, stageLabels, LaunchGravity(), LaunchBody());
+            // A lift-off only where the route starts on a surface: from an orbit, a
+            // weak first stage (an ion engine before a Spark) is not held on a pad.
+            if (launch != null)
+                allStages = ClampedLaunch.Parallel(allStages, readout.PartFacts, stageLabels, LaunchGravity(), LaunchBody());
             stages = allStages.FindAll(row => row.DeltaVVacuum > 0.5);
 
             Detect(readout.PartFacts);

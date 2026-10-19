@@ -39,6 +39,8 @@ namespace ReDefinition.Engineer
         public bool Wheels;
         // Seats for crew (Part.CrewCapacity).
         public int Crew;
+        // Kerbals in those seats as the vessel starts (ShipConstruction.ShipManifest).
+        public int Aboard;
         // A launch clamp: it stays on the ground, part of nothing that flies.
         public bool Clamp;
         public Separation Separator;
@@ -50,8 +52,9 @@ namespace ReDefinition.Engineer
         // Its RCS thrusters: their thrust in vacuum in kN at their thrust limit, that
         // thrust over their vacuum Isp (so that thrusters combine), and per mix of
         // propellants they burn (its names joined), per propellant that flow's share
-        // of it by mass (StageTable.UsablePropellant); the mass of each resource any RCS
-        // thruster on the vessel burns that the part holds, in tonnes.
+        // of it by mass (StageTable.UsablePropellant); the mass of each resource that
+        // an RCS thruster switched on draws from the part, in tonnes. Thrusters
+        // switched off count for nothing.
         public double RcsThrust;
         public double RcsThrustOverIsp;
         public readonly Dictionary<string, Dictionary<string, double>> RcsMix = new Dictionary<string, Dictionary<string, double>>();
@@ -265,6 +268,11 @@ namespace ReDefinition.Engineer
         // (group i + 1 for sections[i]), each part in the smallest section holding it,
         // by the parts each stage fires, burns and drops; the groups' masses scaled to
         // KSP's own mass of the whole vessel, launch clamps left out as KSP leaves them.
+        // What KSP's mass holds over the parts' is the crew's, with what they carry
+        // (ShipConstruct.GetShipMass: the crew's count times
+        // PhysicsGlobals.KerbalCrewMass, their inventory and its resources;
+        // decompiled): it goes to the parts they sit in, by head, rather than over
+        // every group with the scale.
         internal static VesselSplit Split(IList<BudgetStage> stages, IList<PartFacts> parts, IList<PartGroupChoice> sections)
         {
             VesselSplit split = new VesselSplit(sections.Count + 1);
@@ -286,6 +294,16 @@ namespace ReDefinition.Engineer
                 total += Math.Max(0.0, parts[i].Mass);
             }
             double start = stages.Count > 0 ? stages.Max(stage => stage.StartMass) : 0.0;
+            int aboard = 0;
+            for (int i = 0; i < parts.Count; i++)
+                if (!parts[i].Clamp) aboard += Math.Max(0, parts[i].Aboard);
+            double crew = start - total;
+            if (aboard > 0 && crew > 0.0)
+            {
+                for (int i = 0; i < parts.Count; i++)
+                    if (!parts[i].Clamp && parts[i].Aboard > 0) split.Mass[group[i]] += crew * parts[i].Aboard / aboard;
+                total += crew;
+            }
             if (total > 0.0 && start > 0.0)
                 for (int g = 0; g < split.Groups; g++) split.Mass[g] *= start / total;
 

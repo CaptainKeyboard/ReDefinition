@@ -1680,5 +1680,28 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.0, split.Drop[2][1], 1e-9);
             Assert.AreEqual(0.0, split.Drop[1].Sum(), 1e-9);
         }
+
+        // KSP's 6.27 t hold three kerbals' 0.27 t over the parts' 6 t: in the pod they
+        // sit in, which comes to 1.27 t; the booster keeps its 5 t. Scaled over both,
+        // the pod came to 1.045 t and the booster to 5.225 t.
+        [TestMethod]
+        public void TheCrewsMassStaysInTheirPod()
+        {
+            PartFacts pod = Part(-1, -1, 1.0, "pod", command: true, crew: 3);
+            pod.Aboard = 3;
+            PartFacts booster = Part(0, 1, 5.0, "booster");
+            List<PartFacts> parts = new List<PartFacts> { pod, booster };
+            PartGroupChoice capsule = new PartGroupChoice { Name = "Capsule" };
+            capsule.Members.Add(0);
+            List<BudgetStage> stages = new List<BudgetStage> { new BudgetStage { Number = 1, StartMass = 6.27, EndMass = 6.27 } };
+            VesselSplit split = VesselShape.Split(stages, parts, new List<PartGroupChoice> { capsule });
+            Assert.AreEqual(1.27, split.Mass[1], 1e-9);
+            Assert.AreEqual(5.0, split.Mass[0], 1e-9);
+
+            // Without anyone aboard, the scale as before.
+            pod.Aboard = 0;
+            split = VesselShape.Split(stages, parts, new List<PartGroupChoice> { capsule });
+            Assert.AreEqual(1.045, split.Mass[1], 1e-9);
+        }
     }
 }
