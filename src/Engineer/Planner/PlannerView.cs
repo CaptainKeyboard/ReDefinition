@@ -93,6 +93,7 @@ namespace ReDefinition.Engineer
 
         internal void Tick()
         {
+            if (Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1) || Input.anyKeyDown) textVersion++;
             string name = VesselName();
             if (bodies == null)
             {
@@ -191,8 +192,36 @@ namespace ReDefinition.Engineer
             saveAt = -1f;
         }
 
+        // The rows' texts, which KSP's labels ask for in every frame they show
+        // (DialogGUILabel.Update): worked out again only where something they show may
+        // have changed -- the plan worked out anew, a change of the route or a setting,
+        // or the player's click or key in the editor, which opens and folds rows --,
+        // and the string kept until then.
+        private int textVersion;
+
+        private sealed class CachedText
+        {
+            public int Version = -1;
+            public string Text;
+        }
+
+        private Func<string> Text(Func<string> make)
+        {
+            CachedText cached = new CachedText();
+            return () =>
+            {
+                if (cached.Version != textVersion)
+                {
+                    cached.Text = make();
+                    cached.Version = textVersion;
+                }
+                return cached.Text;
+            };
+        }
+
         private void Evaluate()
         {
+            textVersion++;
             EditorReadout readout = owner.Readout ?? new EditorReadout();
             stageLabels.Clear();
             // The planner's own simulation only where the vessel or the launch changed.
@@ -287,6 +316,7 @@ namespace ReDefinition.Engineer
 
         private void Changed()
         {
+            textVersion++;
             saveAt = Time.unscaledTime + SaveDelay;
             dirty = true;
         }

@@ -112,11 +112,11 @@ namespace ReDefinition.Engineer
             float room = Mathf.Max(0f, ThrustRoom - (TurnFits ? TurnColumn + 4f : 0f));
             List<DialogGUIBase> cells = new List<DialogGUIBase>
             {
-                new DialogGUISpace(Timeline), new DialogGUILabel(() => ThrustAt(row) != null ? StepName(ThrustAt(row).Step) : "", Place),
-                new DialogGUILabel(() => ThrustAt(row) != null ? StepFlyer(ThrustAt(row).Step) : "", VehicleButton),
-                new DialogGUILabel(() => ThrustNeedsText(ThrustAt(row)), FuelNeeds), new DialogGUILabel(() => ThrustHasText(ThrustAt(row)), FuelLeft),
+                new DialogGUISpace(Timeline), new DialogGUILabel(Text(() => ThrustAt(row) != null ? StepName(ThrustAt(row).Step) : ""), Place),
+                new DialogGUILabel(Text(() => ThrustAt(row) != null ? StepFlyer(ThrustAt(row).Step) : ""), VehicleButton),
+                new DialogGUILabel(Text(() => ThrustNeedsText(ThrustAt(row))), FuelNeeds), new DialogGUILabel(Text(() => ThrustHasText(ThrustAt(row))), FuelLeft),
             };
-            if (TurnFits) cells.Add(new DialogGUILabel(() => TurnText(ThrustAt(row)), TurnColumn));
+            if (TurnFits) cells.Add(new DialogGUILabel(Text(() => TurnText(ThrustAt(row))), TurnColumn));
             cells.Add(new DialogGUISpace(room));
             cells.Add(open);
             DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
@@ -136,14 +136,14 @@ namespace ReDefinition.Engineer
                 int stage = i;
                 DialogGUIHorizontalLayout use = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
                     TextAnchor.MiddleLeft, new DialogGUISpace(Timeline + Swatch + 4f),
-                    new DialogGUILabel(() => ThrustStageName(OpenThrust(row), stage), StageName_),
-                    new DialogGUILabel(() => StageMassText(OpenThrust(row), stage), MassColumn),
-                    new DialogGUILabel(() => StageIspText(OpenThrust(row), stage), IspColumn),
-                    new DialogGUILabel(() => TwrValue(OpenThrust(row), stage, true, false), TwrColumn),
-                    new DialogGUILabel(() => TwrValue(OpenThrust(row), stage, false, false), TwrColumn),
-                    new DialogGUILabel(() => TwrValue(OpenThrust(row), stage, true, true), TwrColumn),
-                    new DialogGUILabel(() => StageThrustText(OpenThrust(row), stage), ThrustColumn),
-                    new DialogGUILabel(() => StageBurnText(OpenThrust(row), stage), BurnColumn));
+                    new DialogGUILabel(Text(() => ThrustStageName(OpenThrust(row), stage)), StageName_),
+                    new DialogGUILabel(Text(() => StageMassText(OpenThrust(row), stage)), MassColumn),
+                    new DialogGUILabel(Text(() => StageIspText(OpenThrust(row), stage)), IspColumn),
+                    new DialogGUILabel(Text(() => TwrValue(OpenThrust(row), stage, true, false)), TwrColumn),
+                    new DialogGUILabel(Text(() => TwrValue(OpenThrust(row), stage, false, false)), TwrColumn),
+                    new DialogGUILabel(Text(() => TwrValue(OpenThrust(row), stage, true, true)), TwrColumn),
+                    new DialogGUILabel(Text(() => StageThrustText(OpenThrust(row), stage)), ThrustColumn),
+                    new DialogGUILabel(Text(() => StageBurnText(OpenThrust(row), stage)), BurnColumn));
                 use.OptionEnabledCondition = () => OpenThrust(row) != null && stage < OpenThrust(row).Uses.Count;
                 yield return use;
             }
@@ -151,13 +151,13 @@ namespace ReDefinition.Engineer
             // Its RCS, as a stage of its own.
             DialogGUIHorizontalLayout rcs = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("RCS", StageName_),
-                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => EngineerFormat.Mass(info.Mass)), MassColumn),
-                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => EngineerFormat.Isp(info.Isp)), IspColumn),
-                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => RcsRatio(info.StartTwr)), TwrColumn),
-                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => RcsRatio(info.EndTwr)), TwrColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => EngineerFormat.Mass(info.Mass))), MassColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => EngineerFormat.Isp(info.Isp))), IspColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => RcsRatio(info.StartTwr))), TwrColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => RcsRatio(info.EndTwr))), TwrColumn),
                 new DialogGUISpace(TwrColumn),
-                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => EngineerFormat.Force(info.Thrust)), ThrustColumn),
-                new DialogGUILabel(() => RcsCell(OpenThrust(row), info => EngineerFormat.Time(info.Seconds)), BurnColumn));
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => EngineerFormat.Force(info.Thrust))), ThrustColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => EngineerFormat.Time(info.Seconds))), BurnColumn));
             rcs.OptionEnabledCondition = () => OpenThrust(row) != null && RcsAt(OpenThrust(row).Step) != null;
             yield return rcs;
 
@@ -165,8 +165,8 @@ namespace ReDefinition.Engineer
             {
                 int burn = i;
                 DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUISpace(Timeline + Swatch + 4f), new DialogGUILabel(() => BurnName_(OpenThrust(row), burn), BurnName),
-                    new DialogGUILabel(() => BurnText(OpenThrust(row), burn), width - Timeline - Swatch - 4f - BurnName - 4f * 2f - RowEnd));
+                    new DialogGUISpace(Timeline + Swatch + 4f), new DialogGUILabel(Text(() => BurnName_(OpenThrust(row), burn)), BurnName),
+                    new DialogGUILabel(Text(() => BurnText(OpenThrust(row), burn)), width - Timeline - Swatch - 4f - BurnName - 4f * 2f - RowEnd));
                 text.OptionEnabledCondition = () => OpenThrust(row) != null && burn < OpenThrust(row).Burns.Count;
                 yield return text;
             }
@@ -176,7 +176,7 @@ namespace ReDefinition.Engineer
                 int note = i;
                 DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUISpace(Timeline + Swatch + 4f),
-                    new DialogGUILabel(() => OpenThrust(row) != null && note < OpenThrust(row).Notes.Count ? OpenThrust(row).Notes[note] : "",
+                    new DialogGUILabel(Text(() => OpenThrust(row) != null && note < OpenThrust(row).Notes.Count ? OpenThrust(row).Notes[note] : ""),
                         width - Timeline - Swatch - 4f - 4f - RowEnd));
                 text.OptionEnabledCondition = () => OpenThrust(row) != null && note < OpenThrust(row).Notes.Count;
                 yield return text;
@@ -184,7 +184,7 @@ namespace ReDefinition.Engineer
 
             DialogGUIHorizontalLayout body = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f),
-                new DialogGUILabel(() => ThrustBodyText(OpenThrust(row)), width - Timeline - Swatch - 4f - 4f - RowEnd));
+                new DialogGUILabel(Text(() => ThrustBodyText(OpenThrust(row))), width - Timeline - Swatch - 4f - 4f - RowEnd));
             body.OptionEnabledCondition = () => OpenThrust(row) != null;
             yield return body;
         }

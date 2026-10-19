@@ -41,7 +41,7 @@ namespace ReDefinition.Engineer
                     yield return row;
             DialogGUIHorizontalLayout more = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline),
-                new DialogGUILabel(() => "<color=" + Dim + ">" + (steps.Count - MaxFuelSteps) + " more steps</color>", width - Timeline));
+                new DialogGUILabel(Text(() => "<color=" + Dim + ">" + (steps.Count - MaxFuelSteps) + " more steps</color>"), width - Timeline));
             more.OptionEnabledCondition = () => fuelShown && Worked() && steps.Count > MaxFuelSteps;
             yield return more;
         }
@@ -100,9 +100,9 @@ namespace ReDefinition.Engineer
             noOpen.OptionEnabledCondition = () => !FuelStepShown(step);
             float room = Mathf.Max(0f, width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - 4f * 6f - RowEnd);
             DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(Timeline), new DialogGUILabel(() => FuelPlace(step), Place),
-                new DialogGUILabel(() => FuelFlyer(step), VehicleButton), new DialogGUILabel(() => FuelNeedsText(step), FuelNeeds),
-                new DialogGUILabel(() => FuelLeftText(step), FuelLeft), new DialogGUISpace(room), open, noOpen);
+                new DialogGUISpace(Timeline), new DialogGUILabel(Text(() => FuelPlace(step)), Place),
+                new DialogGUILabel(Text(() => FuelFlyer(step)), VehicleButton), new DialogGUILabel(Text(() => FuelNeedsText(step)), FuelNeeds),
+                new DialogGUILabel(Text(() => FuelLeftText(step)), FuelLeft), new DialogGUISpace(room), open, noOpen);
             row.OptionEnabledCondition = () => FuelStepShown(step);
             yield return row;
 
@@ -118,12 +118,12 @@ namespace ReDefinition.Engineer
             // delta-v its propellant gives what flies it.
             DialogGUIHorizontalLayout rcs = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("RCS", StageName_), DimLabel("0", StageGives),
-                new DialogGUILabel(() => RcsAt(step) != null ? EngineerFormat.Speed(RcsAt(step).DeltaV) : "", StageKeeps));
+                new DialogGUILabel(Text(() => RcsAt(step) != null ? EngineerFormat.Speed(RcsAt(step).DeltaV) : ""), StageKeeps));
             rcs.OptionEnabledCondition = () => FuelIsOpen(step) && RcsAt(step) != null;
             yield return rcs;
             DialogGUIHorizontalLayout more = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f),
-                new DialogGUILabel(() => "<color=" + Dim + ">" + (FuelStageCount(step) - MaxStepStages) + " more stages</color>",
+                new DialogGUILabel(Text(() => "<color=" + Dim + ">" + (FuelStageCount(step) - MaxStepStages) + " more stages</color>"),
                     width - Timeline - Swatch - 4f));
             more.OptionEnabledCondition = () => FuelIsOpen(step) && FuelStageCount(step) > MaxStepStages;
             yield return more;
@@ -134,8 +134,8 @@ namespace ReDefinition.Engineer
             {
                 int line = i;
                 DialogGUIHorizontalLayout detail = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
-                    TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel(() => FuelLineName(step, line), Place + VehicleButton + 4f),
-                    new DialogGUILabel(() => FuelLineValue(step, line), FuelNeeds));
+                    TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel(Text(() => FuelLineName(step, line)), Place + VehicleButton + 4f),
+                    new DialogGUILabel(Text(() => FuelLineValue(step, line)), FuelNeeds));
                 detail.OptionEnabledCondition = () => FuelIsOpen(step) && line < FuelLines(step).Count;
                 yield return detail;
             }
@@ -144,7 +144,7 @@ namespace ReDefinition.Engineer
                 int line = i;
                 DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
                     TextAnchor.MiddleLeft, new DialogGUISpace(Timeline),
-                    new DialogGUILabel(() => "<color=" + Problem + ">" + FuelWarning(step, line) + "</color>", width - Timeline - 4f - RowEnd));
+                    new DialogGUILabel(Text(() => "<color=" + Problem + ">" + FuelWarning(step, line) + "</color>"), width - Timeline - 4f - RowEnd));
                 warning.OptionEnabledCondition = () => FuelIsOpen(step) && FuelWarning(step, line).Length > 0;
                 yield return warning;
             }
@@ -228,9 +228,9 @@ namespace ReDefinition.Engineer
             float room = Mathf.Max(0f, width - Timeline - Swatch - StageName_ - StageGives - StageKeeps - StageTwr - UseButton - DropButton
                                        - 4f * 8f - RowEnd);
             DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUISpace(Timeline), swatch.Layout, new DialogGUILabel(() => ColouredStage(number()), StageName_),
-                new DialogGUILabel(() => StageGivesText(step, row), StageGives), new DialogGUILabel(() => StageKeepsText(step, row), StageKeeps),
-                new DialogGUILabel(() => StageTwrText(step, row), StageTwr), new DialogGUISpace(room), use, drop);
+                new DialogGUISpace(Timeline), swatch.Layout, new DialogGUILabel(Text(() => ColouredStage(number())), StageName_),
+                new DialogGUILabel(Text(() => StageGivesText(step, row)), StageGives), new DialogGUILabel(Text(() => StageKeepsText(step, row)), StageKeeps),
+                new DialogGUILabel(Text(() => StageTwrText(step, row)), StageTwr), new DialogGUISpace(room), use, drop);
             line.OptionEnabledCondition = () => FuelIsOpen(step) && FuelStage(step, row) != null;
             return line;
         }
