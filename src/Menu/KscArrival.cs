@@ -481,8 +481,10 @@ namespace ReDefinition.Menu
 
         private void OnDestroy()
         {
-            // Left early, the interface comes back all the same.
+            // Left early, the interface comes back all the same, and the picture goes: it
+            // outlives the scene, and the next scene would start under it.
             if (interfaceHidden) GameEvents.onShowUI.Fire();
+            if (KscArrival.Overlay != null) KscArrival.Overlay.Close();
         }
 
         private IEnumerator Start()
