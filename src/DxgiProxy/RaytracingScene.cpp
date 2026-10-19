@@ -63,6 +63,7 @@ namespace redefinition
         slot.held.push_back(mesh.attributes);
         slot.held.push_back(mesh.indices);
         slot.held.push_back(mesh.blas);
+        slot.held.push_back(mesh.updateScratch);
         retiredSlots.emplace_back(mesh.slot, fenceValue + 1);
     }
 
@@ -96,6 +97,22 @@ namespace redefinition
         uint64_t largestIndices = 0;
         for (auto entry = pendingMeshes.begin(); entry != pendingMeshes.end();)
         {
+            // Handed over again with the same triangles (a skinned part's bake, the KSC's
+            // flags twice a second): into the buffers it has, its structure updated.
+            auto existing = meshes.find(entry->first);
+            if (existing != meshes.end() && existing->second.built
+                && existing->second.vertexCount == entry->second.vertexCount
+                && existing->second.indexCount == entry->second.indices.size()
+                && existing->second.indexHash == entry->second.indexHash
+                && RefitMeshLocked(existing->second, entry->second, slot))
+            {
+                builtIndices += entry->second.indices.size();
+                builtVertices += entry->second.vertexCount;
+                largestIndices = std::max<uint64_t>(largestIndices, entry->second.indices.size());
+                entry = pendingMeshes.erase(entry);
+                ++built;
+                continue;
+            }
             Mesh mesh;
             if (!TakeDescriptorSlotLocked(mesh.slot))
             {
@@ -121,7 +138,6 @@ namespace redefinition
                     ++entry;
                 continue;
             }
-            auto existing = meshes.find(entry->first);
             if (existing != meshes.end())
                 RetireMeshLocked(existing->second, slot);
             meshes[entry->first] = std::move(mesh);
@@ -280,6 +296,124 @@ namespace redefinition
         device->CreateShaderResourceView(mesh.attributes.Get(), &structured, attributeView);
 
         mesh.built = true;
+        mesh.vertexCount = pending.vertexCount;
+        mesh.indexCount = static_cast<uint32_t>(pending.indices.size());
+        mesh.indexHash = pending.indexHash;
+        return true;
+    }
+
+    bool Raytracing::RefitMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot)
+    {
+        // DXR's update constraints (DirectX-Specs, Raytracing, "Acceleration structure
+        // update constraints"): "The VertexBuffer and/or Transform members of
+        // D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC can change ... Essentially this means
+        // vertex positions can change. ... Nothing else can change, so note that in
+        // particular this means no changes to properties like ... VertexCount, ... geometry
+        // flags, data formats, index buffer contents and so on." BuildMeshesLocked checks the
+        // counts and the indices' hash; the geometry is the one UploadMeshLocked built.
+        const UINT64 positionsSize = pending.positions.size() * sizeof(float);
+        const UINT64 attributesSize = pending.attributes.size() * sizeof(float);
+
+        D3D12_RAYTRACING_GEOMETRY_DESC geometry = {};
+        geometry.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+        geometry.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+        geometry.Triangles.VertexBuffer.StartAddress = mesh.positions->GetGPUVirtualAddress();
+        geometry.Triangles.VertexBuffer.StrideInBytes = 3 * sizeof(float);
+        geometry.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+        geometry.Triangles.VertexCount = pending.vertexCount;
+        geometry.Triangles.IndexBuffer = mesh.indices->GetGPUVirtualAddress();
+        geometry.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+        geometry.Triangles.IndexCount = static_cast<UINT>(pending.indices.size());
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
+        inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+        inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE
+                       | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
+        inputs.NumDescs = 1;
+        inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+        inputs.pGeometryDescs = &geometry;
+
+        // Everything made before anything is recorded. The first time the structure is
+        // built once more, to be updatable; from then on it is updated in place.
+        ComPtr<ID3D12Resource> upload;
+        ComPtr<ID3D12Resource> blas, scratch, updateScratch;
+        HRESULT hr = S_OK;
+        if (!EnsureUploadBuffer(upload, positionsSize + attributesSize))
+            hr = E_OUTOFMEMORY;
+        if (SUCCEEDED(hr) && !mesh.updatable)
+        {
+            D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
+            device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
+            if (info.ResultDataMaxSizeInBytes == 0)
+                return false;
+            D3D12_HEAP_PROPERTIES defaultHeap = {};
+            defaultHeap.Type = D3D12_HEAP_TYPE_DEFAULT;
+            const D3D12_RESOURCE_DESC blasDesc =
+                RtBufferDesc(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+            const D3D12_RESOURCE_DESC scratchDesc =
+                RtBufferDesc(info.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+            const D3D12_RESOURCE_DESC updateDesc = RtBufferDesc(
+                std::max<UINT64>(info.UpdateScratchDataSizeInBytes, 256), D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+            hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &blasDesc,
+                                                 D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, nullptr,
+                                                 IID_PPV_ARGS(&blas));
+            if (SUCCEEDED(hr))
+                hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &scratchDesc,
+                                                     D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&scratch));
+            if (SUCCEEDED(hr))
+                hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &updateDesc,
+                                                     D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&updateScratch));
+        }
+        uint8_t* mapped = nullptr;
+        if (SUCCEEDED(hr))
+        {
+            const D3D12_RANGE none = { 0, 0 };
+            hr = upload->Map(0, &none, reinterpret_cast<void**>(&mapped));
+        }
+        if (FAILED(hr))
+        {
+            SetProblem("a mesh handed over again could not be updated (" + Hr(hr) + "); it is built anew");
+            return false;
+        }
+        memcpy(mapped, pending.positions.data(), static_cast<size_t>(positionsSize));
+        memcpy(mapped + positionsSize, pending.attributes.data(), static_cast<size_t>(attributesSize));
+        upload->Unmap(0, nullptr);
+
+        // Buffers decay to COMMON once an ExecuteCommandLists is done on the GPU, so the
+        // copies promote them to COPY_DEST again ("Using Resource Barriers to Synchronize
+        // Resource States in Direct3D 12", State decay to common); the lists before this
+        // one that read them are finished by then.
+        list->CopyBufferRegion(mesh.positions.Get(), 0, upload.Get(), 0, positionsSize);
+        list->CopyBufferRegion(mesh.attributes.Get(), 0, upload.Get(), positionsSize, attributesSize);
+        const D3D12_RESOURCE_BARRIER readable[2] = {
+            TransitionBarrier(mesh.positions.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+            TransitionBarrier(mesh.attributes.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+        };
+        list->ResourceBarrier(2, readable);
+        slot.held.push_back(upload);
+
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = {};
+        build.Inputs = inputs;
+        if (mesh.updatable)
+        {
+            // "source can be the same as destination address to mean an in-place update".
+            build.Inputs.Flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE;
+            build.SourceAccelerationStructureData = mesh.blas->GetGPUVirtualAddress();
+            build.DestAccelerationStructureData = mesh.blas->GetGPUVirtualAddress();
+            build.ScratchAccelerationStructureData = mesh.updateScratch->GetGPUVirtualAddress();
+        }
+        else
+        {
+            build.DestAccelerationStructureData = blas->GetGPUVirtualAddress();
+            build.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
+            slot.held.push_back(scratch);
+            slot.held.push_back(mesh.blas);
+            mesh.blas = blas;
+            mesh.updateScratch = updateScratch;
+            mesh.updatable = true;
+        }
+        list->BuildRaytracingAccelerationStructure(&build, 0, nullptr);
         return true;
     }
 

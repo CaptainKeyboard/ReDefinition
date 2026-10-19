@@ -137,12 +137,17 @@ namespace redefinition
                 memcpy(attribute + 3, desc->uvs + static_cast<size_t>(v) * 2, 2 * sizeof(float));
         }
         pending.indices.assign(desc->indices, desc->indices + desc->indexCount);
+        uint64_t hash = 14695981039346656037ull;
         for (uint32_t& index : pending.indices)
+        {
             if (index >= desc->vertexCount)
             {
                 SetProblem("mesh " + std::to_string(desc->mesh) + " rejected: an index past its vertices");
                 return 0;
             }
+            hash = (hash ^ index) * 1099511628211ull;
+        }
+        pending.indexHash = hash;
 
         std::lock_guard<std::mutex> lock(mutex);
         pendingReleases.erase(std::remove(pendingReleases.begin(), pendingReleases.end(), desc->mesh),

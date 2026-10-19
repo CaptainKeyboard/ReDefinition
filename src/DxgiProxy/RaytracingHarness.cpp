@@ -3383,6 +3383,85 @@ int main()
         SendInstances(proxy, scene, camera.position);
     }
 
+    // ---------------------------------------------------------------- a mesh handed over again
+    {
+        // A mesh handed over again with the same triangles and its vertices moved, as a
+        // skinned part's bake is: the first time its structure is built anew to be
+        // updated, from then on updated in place. Each time the shadow is the moved box's.
+        Mesh moving = MakeCube(96);
+        Instance block;
+        block.mesh = 96;
+        block.position = { 12, 3, -14 };
+        block.scale[0] = block.scale[1] = block.scale[2] = 6.0;
+        std::vector<Instance> shaded = scene;
+        shaded.push_back(block);
+        SendInstances(proxy, shaded, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        const double offsets[3] = { 0.0, 0.4, -0.4 };
+        std::vector<int> unmoved;
+        size_t moved = 0;
+        bool accepted = true;
+        for (int k = 0; k < 3; ++k)
+        {
+            Mesh sent = moving;
+            for (size_t v = 0; v < sent.positions.size(); v += 3)
+                sent.positions[v] += static_cast<float>(offsets[k]);
+            accepted = accepted && SendMesh(proxy, sent) == 1;
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19440 + k, kRtSignalSunVisibility);
+            Frame frame;
+            if (!ReadFrame(device.Get(), context.Get(), g, outputs, frame))
+                return Fatal("reading the frame back", E_FAIL);
+            Instance where = block;
+            where.position.x += offsets[k] * block.scale[0];
+            std::vector<Instance> shading = boxes;
+            shading.push_back(where);
+            const std::vector<int> expected = ExpectedVisibility(camera, frame.depth, frame.normals, shading, sun);
+            if (k == 0)
+                unmoved = expected;
+            else
+                for (size_t i = 0; i < expected.size(); ++i)
+                    moved += expected[i] != unmoved[i] ? 1 : 0;
+            const char* names[3] = { "a mesh handed over again: first", "a mesh handed over again: built to be updated",
+                                     "a mesh handed over again: updated in place" };
+            CheckVisibility(names[k], frame, expected);
+        }
+        Check(accepted && moved > 1000, "a mesh handed over again moves its shadow",
+              accepted ? (std::to_string(moved) + " pixel(s) of the shadow moved over the two").c_str() : "a mesh was not taken");
+
+        // What it saves: a larger mesh handed over every frame, once under its own id and
+        // once under a new one each time, the one before released.
+        const auto timed = [&](bool sameId)
+        {
+            Mesh cloth = MakePlane(97, 64);
+            LARGE_INTEGER start = {}, end = {}, frequency = {};
+            QueryPerformanceFrequency(&frequency);
+            QueryPerformanceCounter(&start);
+            for (int frame = 0; frame < 60; ++frame)
+            {
+                for (size_t v = 1; v < cloth.positions.size(); v += 3)
+                    cloth.positions[v] = 0.01f * static_cast<float>(frame % 7);
+                if (!sameId)
+                {
+                    proxy.releaseMesh(cloth.id);
+                    cloth.id = 2000 + frame;
+                }
+                SendMesh(proxy, cloth);
+                SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19450 + frame, kRtSignalSunVisibility);
+            }
+            Frame last;
+            ReadFrame(device.Get(), context.Get(), g, outputs, last);
+            QueryPerformanceCounter(&end);
+            proxy.releaseMesh(cloth.id);
+            return static_cast<double>(end.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart / 60.0;
+        };
+        const double inPlace = timed(true);
+        const double anew = timed(false);
+        printf("      a mesh of 16 384 vertices handed over every frame: %.3f ms a frame under its id, %.3f ms under"
+               " a new id each frame\n", inPlace, anew);
+        proxy.releaseMesh(96);
+        SendInstances(proxy, scene, camera.position);
+    }
+
     // ---------------------------------------------------------------- churn
     {
         std::vector<Instance> crowd = scene;

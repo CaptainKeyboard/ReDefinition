@@ -525,6 +525,9 @@ namespace redefinition
             std::vector<float> attributes;   // normal xyz, uv xy, the colour's four bytes: six floats a vertex
             std::vector<uint32_t> indices;
             uint32_t vertexCount = 0;
+            // The indices' FNV-1a hash, an index at a time, for whether a mesh handed over again keeps its
+            // triangles (RefitMeshLocked).
+            uint64_t indexHash = 0;
             // Frames its build failed in; at kMeshAttempts it is dropped.
             uint32_t failures = 0;
         };
@@ -536,8 +539,15 @@ namespace redefinition
             Microsoft::WRL::ComPtr<ID3D12Resource> attributes;
             Microsoft::WRL::ComPtr<ID3D12Resource> indices;
             Microsoft::WRL::ComPtr<ID3D12Resource> blas;
+            // Where the mesh was handed over again with the same triangles: its structure
+            // built to be updated, and the scratch its updates take.
+            Microsoft::WRL::ComPtr<ID3D12Resource> updateScratch;
             uint32_t slot = 0;
             bool built = false;
+            bool updatable = false;
+            uint32_t vertexCount = 0;
+            uint32_t indexCount = 0;
+            uint64_t indexHash = 0;
         };
 
         struct MaterialData
@@ -782,6 +792,10 @@ namespace redefinition
         // The scene (RaytracingScene.cpp).
         bool TakeDescriptorSlotLocked(uint32_t& slot);
         bool UploadMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot);
+        // A built mesh handed over again with the same vertex count and indices: its new
+        // vertices into its own buffers and its structure updated, not made anew. False,
+        // with nothing recorded, where a buffer could not be made.
+        bool RefitMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot);
         // A mesh's buffers held by the slot, its descriptor slot free again once the
         // slot's list is done.
         void RetireMeshLocked(Mesh& mesh, Slot& slot);
