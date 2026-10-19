@@ -450,12 +450,22 @@ namespace ReDefinition.Raytracing
             public readonly List<MeshRenderer> Renderers = new List<MeshRenderer>();
             // Per renderer, its mesh's middle relative to the root and its reach.
             public readonly List<Vector4> Spheres = new List<Vector4>();
+            // Its skinned renderers -- the space centre's waving flags --, baked into meshes
+            // of their own (Baked).
+            public readonly List<SkinnedMeshRenderer> Skinned = new List<SkinnedMeshRenderer>();
             public Vector3 LocalCentre;
             public float Radius;
         }
 
         private readonly List<Site> sites = new List<Site>();
         private readonly List<MeshFilter> found = new List<MeshFilter>();
+        private readonly List<SkinnedMeshRenderer> foundSkinned = new List<SkinnedMeshRenderer>();
+        // The skinned renderers' meshes as last baked, and when: their cloth moves every
+        // frame, the rays follow it twice a second -- each bake builds the mesh's structure
+        // for the rays anew.
+        private readonly Dictionary<SkinnedMeshRenderer, Mesh> baked = new Dictionary<SkinnedMeshRenderer, Mesh>();
+        private readonly Dictionary<SkinnedMeshRenderer, float> bakedAt = new Dictionary<SkinnedMeshRenderer, float>();
+        private const float BakeEvery = 0.5f;
         private readonly List<MeshFilter> all = new List<MeshFilter>();
         private readonly RtScene scene;
         private GameScenes sitesOf = GameScenes.LOADING;
@@ -521,6 +531,10 @@ namespace ReDefinition.Raytracing
                 if (sitesOf != HighLogic.LoadedScene)
                 {
                     sites.Clear();
+                    foreach (Mesh mesh in baked.Values)
+                        if (mesh != null) Object.Destroy(mesh);
+                    baked.Clear();
+                    bakedAt.Clear();
                     sceneAt = Time.unscaledTime;
                     laterLooks = 0;
                 }
@@ -560,6 +574,17 @@ namespace ReDefinition.Raytracing
                     else RtFilter.Add(renderer, filter.sharedMesh, into, RtNative.InstanceScenery);
                     if (into.Count > before) Renderers++;
                 }
+                foreach (SkinnedMeshRenderer skinned in site.Skinned)
+                {
+                    if (!RtFilter.Drawn(skinned)) continue;
+                    Transform t = skinned.transform;
+                    if ((t.position - eye).sqrMagnitude > range * range) continue;
+                    int before = into.Count;
+                    Mesh mesh = Baked(skinned);
+                    // BakeMesh leaves the mesh in the renderer's space, without its scale.
+                    RtFilter.Add(skinned, mesh, Matrix4x4.TRS(t.position, t.rotation, Vector3.one), into, RtNative.InstanceScenery);
+                    if (into.Count > before) Renderers++;
+                }
             }
         }
 
@@ -584,6 +609,24 @@ namespace ReDefinition.Raytracing
                 if (!sites.Exists(s => s.Root == root)) sites.Add(new Site { Root = root });
         }
 
+        private Mesh Baked(SkinnedMeshRenderer skinned)
+        {
+            Mesh mesh;
+            if (!baked.TryGetValue(skinned, out mesh) || mesh == null)
+            {
+                mesh = new Mesh { name = "ReDefinition baked " + skinned.name };
+                baked[skinned] = mesh;
+                bakedAt[skinned] = float.NegativeInfinity;
+            }
+            if (Time.unscaledTime - bakedAt[skinned] >= BakeEvery)
+            {
+                skinned.BakeMesh(mesh);
+                scene.Invalidate(mesh);
+                bakedAt[skinned] = Time.unscaledTime;
+            }
+            return mesh;
+        }
+
         // A site's filters with their renderers, and the sphere round them.
         private void Refresh(Site site)
         {
@@ -593,6 +636,7 @@ namespace ReDefinition.Raytracing
             site.Filters.Clear();
             site.Renderers.Clear();
             site.Spheres.Clear();
+            site.Skinned.Clear();
             Refreshes++;
             // Inactive ones too: KSP switches a city's parts on and off by distance without
             // changing its hierarchy; whether one is drawn is asked each frame (RtFilter).
@@ -625,6 +669,9 @@ namespace ReDefinition.Raytracing
                 else around = piece;
                 any = true;
             }
+            site.Root.GetComponentsInChildren(true, foundSkinned);
+            foreach (SkinnedMeshRenderer skinned in foundSkinned)
+                if (skinned != null && skinned.sharedMesh != null) site.Skinned.Add(skinned);
             site.LocalCentre = around.center;
             site.Radius = around.extents.magnitude;
         }
