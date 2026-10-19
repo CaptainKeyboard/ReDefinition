@@ -23,6 +23,19 @@ ReDefinition's settings window sets `UI_SCALE` as KSP's settings screen does: af
 container (`KspBehaviour.ApplyEngine`), so that the labels, part action windows and other
 mods follow a new scale at once.
 
+## ReDefinition's own dialogs at a large scale
+
+KSP builds a `PopupDialog` on its dialog canvas, whose scale factor `SetScale` sets to
+`UI_SCALE` with the others **[src]**. A dialog laid out for 100 % grows with it. Above
+KSP's own 200 %, since ReDefinition's row goes to 400 %, the settings window and its
+questions reached past the screen's edges, their buttons with them. `ScreenFit`
+(`src/Window/ScreenFit.cs`) keeps the settings window and every dialog of ReDefinition's
+within the 30-unit margin KSP keeps dialogs from the edge (`ClampToScreen`). Where one would
+not fit, it is drawn smaller about the point KSP placed it at, as large as fits. It
+compares the window's size against the canvas's, in the canvas's own units, every frame,
+since the scale and the tab's height can change while it is open. Dragging is left as KSP
+does it.
+
 ## What stays at a fixed number of pixels, and how it is scaled
 
 `UiScaling.World` is `GameSettings.UI_SCALE`.

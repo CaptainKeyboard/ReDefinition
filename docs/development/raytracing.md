@@ -3,8 +3,8 @@
 **For:** anyone building or changing ReDefinition's raytracing.
 **You need:** `src/DxgiProxy` to hand, and a GPU with DirectX Raytracing tier 1.1 for
 the tests.
-**You get:** how raytraced lighting reaches KSP's frame, what each part does, how it is
-tested without the game, and the plan it is built by.
+**You get:** how raytraced lighting reaches KSP's frame, what each part does, and how it
+is tested without the game.
 
 Every claim here carries its mark: **[src]**, **[doc]**, **[meas]** or **[open]**
 ([writing-these-pages.md](writing-these-pages.md)).
@@ -23,8 +23,10 @@ through the scene instead of from Unity's approximations:
 | Emissive surfaces | light only themselves | light what is around them |
 
 Transparent and volumetric things keep their own rendering: plumes, reentry effects,
-particles, clouds, the atmosphere and Scatterer's ocean. They take the raytraced shadows
-where they receive Unity's screen-space shadow, and are not in the scene the rays see.
+particles, clouds and the atmosphere. They take the raytraced shadows where they receive
+Unity's screen-space shadow, and are not in the scene the rays see. The sea is not in the
+scene either, but its reflections are traced (see "Water"). EVE's cloud layer darkens the
+rays' light under it (see "EVE's clouds").
 
 ## How the frame goes
 
@@ -97,6 +99,19 @@ shadows show **[meas]** (KSP, at the launch pad at night with the Mun up, moonli
 the craft at 17, 23 and 41 of 255 with 0, 30 and 100 %, 41 without raytracing; the far
 grass at 20 and 31, 29 without).
 
+Some surfaces bring KSP's flat ambient light into the frame in their own G-buffer pass:
+their albedo times `RenderSettings.ambientLight`, written into the light buffer. Unity's
+shaders do that where Deferred does not replace them **[src]**. At the space centre at
+night, its flag (a `SkinnedMeshRenderer`) and the launch pad's grate held that light,
+every other surface none **[meas]** (KSP, `-redefinitionProbeLightBuffer`). It kept the
+day's light on them at night. Where the raytraced diffuse light replaces the ambient
+light, a pass after the G-buffer therefore takes it out again (`CameraEvent.AfterGBuffer`,
+pass 14 of `ReDefinitionRtCapture.shader`, `fragUnbakeAmbient`) **[src]**. It acts only
+where the light buffer holds that light and nothing else, within a tenth, so an emissive
+surface keeps its light. It runs in HDR only: in LDR, Unity keeps the light buffer
+encoded **[src]**. The raytraced diffuse light then comes in the reflections pass, as for
+every other surface.
+
 The setting *Light colour* (`RaytracingLightColour`) sets the colour of the raytraced
 diffuse light; its strength stays the rays' own. *Raytraced* keeps the rays' colour.
 *As without raytracing* gives it the colour of Deferred's ambient light at the pixel.
@@ -108,7 +123,9 @@ raytracing at the launch pad, the vegetation's red and blue chromaticity were of
 13 and 14 thousandths by day, 14 and 19 in the evening and 25 and 21 at night; with
 *Neutral* by at most 6 **[meas]** (KSP, `-redefinitionProbeRtAmbientTint`, tiles of the
 same shot). ReDefinition's reflections shader takes the choice in the fourth component
-of `_ReDefinitionRtLight`.
+of `_ReDefinitionRtLight`. The choice acts only through that shader: without Deferred's
+reflections pass to replace, the raytraced light goes in as it is, and the settings
+window greys the row out (`OurModules.cs`) **[src]**.
 
 KSP moves its world between two frames in two ways under Krakensbane: the floating origin
 shifts what is near the vessel, and the bodies move by the frame's velocity as well
@@ -170,11 +187,27 @@ and raytracing works as follows:
   point the depth gives lands on the triangle Unity drew there: its normal, its
   material's albedo, specular colour and smoothness **[meas]** (harness: the sun's
   visibility the same on 100 % of the pixels, the diffuse light the same to 0.01 %).
-* A pass of the proxy works out the light to add: the albedo times the traced diffuse
-  light, less Unity's ambient light, which forward shading added already; and the
-  reflections, weighed by Unity's Fresnel term. The traced diffuse light has the
-  occlusion in it, and is kept above the player's share of KSP's flat ambient colour, as
-  with Deferred.
+* A pass of the proxy works out the light to add (`ForwardLight` in `Raytracing.hlsl`)
+  **[src]**. The traced diffuse light has the occlusion in it, and is kept above the
+  player's share of KSP's flat ambient colour, as with Deferred.
+* Forward rendering relights the frame by its own colour, not by a guess from the
+  material. Per channel, k = (diffuse light - ambient) / (sun + ambient), with the sun
+  as Unity shaded it: its colour times N.L, darkened by its shadow at the light's shadow
+  strength. A frame colour c becomes c + min(c, w) k, w the largest channel of
+  sun + ambient, so a pixel other lights brightened is capped
+  (`ReDefinitionRtForwardLight.shader`).
+* k takes the share of a surface's colour that Deferred would shade as diffuse
+  (`RtDeferredLook`): Deferred draws KSP's shaders with Unity's standard shading, which
+  takes the specular colour off the diffuse one **[src]** (Deferred 1.3.5's replaced
+  shaders). The terrain and the space centre's ground take a dielectric's share, KSP's
+  part and scenery shaders that of their specular colour. The terrain and the space
+  centre's ground take the same share, so that they keep the balance KSP's own shaders
+  draw them in.
+* With Unity's deferred lighting and no Deferred, the light to add is the G-buffer's
+  albedo times the diffuse light less Unity's ambient light, which its shading added
+  already.
+* Either way the reflections come on top, weighed by Unity's Fresnel term and its
+  surface reduction (`BRDF1_Unity_PBS`) **[src]**.
 * ReDefinition's shader adds that light to the frame after the opaque geometry's
   lighting: after Unity's forward opaque pass, or with Unity's deferred lighting after
   the lighting, as the forward opaque pass is left out when nothing is drawn forward
@@ -203,14 +236,16 @@ frame.
 
 | Source | Taken from | Changes |
 |---|---|---|
-| Vessel parts | `MeshFilter.sharedMesh`, readable as KSP loads them **[src]** | skinned meshes baked when their pose changes |
-| KSC buildings | the renderers under each `PQSCity` | readability checked at run time; unreadable meshes copied on the GPU **[open]** |
+| Vessel parts | `MeshFilter.sharedMesh`, readable as KSP loads them **[src]**, within 5 km | skinned meshes baked when their pose changes |
+| Scenery | the renderers under each `PQSCity` and `PQSCity2`, the space centre and the launch sites, within 8 km; in the editors the VAB's and SPH's halls (`VABscenery`, `SPHscenery`) **[src]** (`RtScenerySource`) | looked through once a scene, again 5 and 20 s into it, and a second after a building is upgraded, collapses or is repaired; skinned meshes, the space centre's flags, baked twice a second; an unreadable mesh is left out, and the log's line every 30 s counts those left out and names the last **[src]** |
 | Terrain | each visible leaf `PQ`'s mesh within 30 km, from the quad tree (`PQS.quads`, `PQ.subNodes`) **[src]** | handed over again when the quad moves or its edges change **[src]**; Parallax's finer copy near the camera in place of the quad, whose material discards it (`Custom/DiscardAll`) **[src]**; the copy, rebuilt in place, handed over again when its shape changes, at most every ten frames |
 | Parallax scatter | the append buffers Parallax fills on the GPU each frame, one per scatter and level of detail, with their meshes and materials **[src]** | gathered into a texture on Unity's side, turned into instances on the proxy's, as their count is only known on the GPU; each buffer gets the places it took lately, read back a frame or two late, and a quarter more, not its capacity **[meas]** (test player: 25 096 places for 20 000 rocks in a buffer of 100 000); where ReDefinition lifts Parallax's grass onto the space centre's lawns, the rays take the clumps no ground of the space centre covers, as the clumps under it stand on the terrain below, out of every ray's reach (`KscGrass.RaysBuffer`) **[src]** |
 | The main body | a sphere, tested by formula in the sun's rays, so that its night side and what flies over it lie in its shadow | none |
 
 Left out: anything transparent or additive (Waterfall, Firefly, particles, translucent
-parts), EVE's clouds, Scatterer's ocean and atmosphere, and the UI.
+parts), EVE's clouds as geometry, the sea's surface, KSP's and Scatterer's alike,
+Scatterer's atmosphere, and the UI. The sea and EVE's cloud layer reach the rays another
+way: see "Water" and "EVE's clouds".
 
 KSP moves the world with its floating origin and, under Krakensbane, every physics frame
 without an event **[src]**. The transforms are therefore taken every frame, relative to the
@@ -246,8 +281,8 @@ A ray that hits something shades it from what the proxy holds per mesh and per m
   standard shaders less what their specular colour takes of it, as they shade it
   (`UnityStandardUtils.cginc`) **[src]**; for Parallax's terrain, its colour as
   Parallax gives it (see below);
-* specular colour and smoothness, converted from KSP's shaders as Deferred converts them
-  **[src]**;
+* specular colour and smoothness, as the material's shader means them (its surface
+  intent, below) **[src]**;
 * emission;
 * where the material is cut out, the alpha below which it is: Unity's and KSP's cut-out
   shaders, and Parallax's scatter, whose grass sits at the opaque queue with its own
@@ -287,6 +322,46 @@ beside them). A cut-out surface whose texture is not read yet lets every ray thr
 **[meas]** (harness: 1.000 under all of the card): as an opaque card it would shade the
 ground under it as a square.
 
+A hit further along a ray is shaded as diffuse: its albedo takes the light, and its
+specular values are not read **[src]** (`Radiance` in `RtCommon.hlsli`). The specular
+values serve the surface a pixel shows.
+
+### Surface intent
+
+Deferred gives every KSP shader a shine by one formula (`LegacyToStandard.cginc`), the
+diffuse-only shaders and the space centre's ground included **[src]**. Its G-buffer
+turned matt surfaces glossy and KSP's highlights into mirrors. With a G-buffer, the
+sun's pass therefore finds each pixel's material by the camera's ray and writes the
+shine that material means into the G-buffer's specular buffer, before the reflections
+and the lighting read it (`SurfaceIntent` in `RtCommon.hlsli`, the surface pass of
+`ReDefinitionRtCapture.shader`) **[src]**. `RtMaterialIntent` sorts each material by its
+shader's family, read from KSP's compiled shaders and Deferred's replacements **[src]**:
+
+| Intent | Materials | Shine |
+|---|---|---|
+| `DRY` | KSP's and Unity's diffuse, bumped, cut-out, lightmapped, decal and flag shaders on the scenery; KSP's own terrain (`Terrain/PQS/*`); the space centre's concrete, and its buildings left at Unity's default highlight | none |
+| `LEGACY` | KSP's legacy specular shaders, the space centre's metal among them; Parallax's terrain | Blinn-Phong's highlight: the roughness from its exponent, a specular colour as bright as the highlight, times the gloss Deferred's smoothness gives back |
+| `UNITY_LEGACY` | Unity's own legacy specular shaders | as `LEGACY`, the gloss from their specular colour |
+| `FIXED` | the space centre's ground with a specular colour of its own | that colour, at a smoothness of 0.25 |
+| `GROUND` | the space centre's ground | the G-buffer's on the lawn, none on the rest (below) |
+| `WATER` | KSP's sea | the G-buffer's; the water's reflections replace it (see "Water") |
+| `KEEP` | Unity's physically based shaders, a vessel's parts without a highlight, every other shader | the G-buffer's own, at a smoothness of 0.95 at most |
+| `MISSED` | a pixel whose material the ray did not find, such as an edge or Parallax's displaced ground | the G-buffer's, its smoothness read as KSP's highlight (`LegacySmoothness`) |
+
+Without a G-buffer, a pixel's surface comes from the rays, and the material's intended
+shine with it (`IntendedSpecular`). The harness checks four intents and that the
+reflections read them.
+
+The editors draw the VAB's and SPH's halls with a camera of their own, on the scenery's
+layer, which the surface pass never reaches **[src]**. Deferred's G-buffer made the
+hall's concrete a mirror there (`_SpecColor` 1, `_Shininess` 1). While the raytracing runs
+with Deferred, `EditorHallShine` gives the halls' materials values from which Deferred's
+own conversion writes the shine their intent means: the matt ones the specular variant
+of their shader with a black specular colour, KSP's legacy highlight a specular colour and
+shininess at the gloss's mean **[src]**. The rays keep the shine the original values mean
+(`RtMaterialIntent.Hold`). Everything is put back when the raytracing stops or the scene
+goes.
+
 The space centre's ground (`Diffuse Ground KSC`) draws its tarmac, concrete and lawn
 with one material. In the drawn image the proxy keeps the G-buffer's shine on its lawn
 and takes none on the rest (`RT_SURFACE_GROUND`, `SurfaceIntent` in `RtCommon.hlsli`)
@@ -301,6 +376,13 @@ With its shine, 100 against 108 **[meas]**. Rays that hit the ground see it matt
 A ray that hits nothing takes the sky's light from a capture of the scene's reflection
 probe, Deferred's or KSP's own in flight (`FlightReflectionProbe`) **[src]**, and the sun's
 disc for sharp reflections. Without a probe it takes KSP's ambient sky colour.
+
+Without Scatterer, the sky's light is taken grey at its own luminance (`SkyNeutral`,
+`SkyLight` in `RtCommon.hlsli`) **[src]**. KSP's own sky is a painted blue under a white
+sun, and as light it turned the daylight blue. Scatterer's atmosphere tints the sun warm,
+which balances its sky's blue **[meas]** (KSP, at the launch pad: the sky's light 0.065,
+0.135, 0.314 linear under a white sun; with Scatterer 0.043, 0.093, 0.194 under a sun of
+0.73, 0.57, 0.34). With Scatterer the sky keeps its colour.
 
 ## Light sources
 
@@ -369,6 +451,17 @@ read again every ten seconds **[meas]** (KSP.log: the Mun 0.176 grey, Minmus 0.3
 or white. The scene's sunlight is no guide: Scatterer tints it by the atmosphere, and at
 night it is dark **[meas]** (moonlight orange by day, none at night, before the change).
 
+### The moons' discs in the sky
+
+The moons' discs in the flight's sky are a little brighter, with a soft glow round them,
+the more the darker the sky (`MoonGlow`, `ReDefinitionMoonGlow.shader`) **[src]**. The
+darkness is 0 by day and 1 once the sun is some degrees under the horizon
+(`NightAdaptation`). The glow is drawn on the scene camera where it sees sky, before the
+transparent pass, so clouds and the atmosphere draw over it. Where the main body, or at a
+moon its planet, is in front of a moon, or Scatterer's ocean covers the sky, the
+shader leaves those pixels out. It lights nothing, and it runs with the raytracing off as
+well. The player's *Moon glow* switches it, on unless set.
+
 ### The planet below
 
 A ray that misses the scene below the horizon meets the ground beyond it: past the 30 km
@@ -391,6 +484,71 @@ diffuse sample and per bounce hit **[meas]** (harness, 1280x720: all passes 0.14
 without and 0.162 ms with two lights, in the same run). PlanetShine's lights are off
 while the diffuse light is traced.
 
+## Water
+
+The sea is not in the rays' scene, but with *Full* its reflections are traced. A further
+trace of the same frame takes the reflections alone (`RtCamera.TraceOcean`, a frame with
+`kRtFrameExtra` and `kRtFrameWater`), in the frame's own command buffer, and uses the
+scene the frame built (`Raytracing::ReuseSceneLocked`) **[src]**. Which sea it takes
+depends on who draws it:
+
+| Sea | What the trace takes | Where its reflections go |
+|---|---|---|
+| KSP's own, where no Scatterer ocean is on the body | Unity's G-buffer; a pixel counts as sea within 2 m of the body's sea level, facing up, and on no surface of the scene, such as a vessel's deck (`IsStockWater`) | the reflections shader, with water's Fresnel term, or without a G-buffer the forward light's relight pass; undenoised, as glints are |
+| Scatterer's ocean | its surface, copied from its own G-buffer into the shape of Unity's | the texture the ocean reads Deferred's screen-space reflections from (`ssrOutput`); a ray that meets nothing has weight 0, so the ocean keeps its own reflection of Scatterer's sky |
+
+KSP's sea gets ReDefinition's waves and their roughness (`StockWaves`). Scatterer's
+ocean keeps its waves and gets ripples that carry the variance its glint spreads the sun
+over (`ScattererRipples`) **[src]**. The waves are laid out in metres from a point on the
+sea fixed to the body by latitude and longitude, so they stay on the water as the camera
+moves (`SeaFrameAnchor`, `MakeSeaFrame`). That point is set anew under the camera once it
+is 50 km away **[src]**. A reflection that points below the horizon is turned back over
+it, as water reflects nothing under its own surface **[src]**.
+
+The trace adds the sun's and the moons' discs as the water mirrors them, by its roughness
+(`BodiesMirroredAt`) **[src]**. The sun comes at the player's *Sun reflection*, where
+100 % is three times the sun's own brightness (`OwnSettings.SunReflectionAt100`). A
+moon's disc in the water is brightened by the night's darkness, up to 150 times at full
+night (`NightAdaptation.MoonBoost`), times the player's *Moon reflection*. The real moon
+outshines the night sea by orders of magnitude, so the few per cent water reflects still
+show its path. At 1000 times, the path's middle came to 3 to 17 times white, and the
+screen clipped it to a band 1.6 to 2 times as wide as the waves give it **[meas]** (KSP,
+at sea, against `tools/sea_reflection_check.py`). Under EVE's cloud layer the discs are
+darkened (see "EVE's clouds").
+
+The sea's own highlight would then shine twice. `SeaHighlights` turns KSP's sea shader's
+highlight (`_SpecColor`) off while its reflections are traced, and puts it back otherwise
+**[src]**. Scatterer's glint is set to the player's *Sun reflection* and is off while the
+ocean takes the raytraced reflections **[src]**. Scatterer's ocean weighs the reflections
+it reads down from 1 km of the camera's height and to nothing at 2 km; there the discs go
+onto the ocean after it is drawn, through its tonemapper (`fragOceanDiscs`) **[src]**.
+
+Where Scatterer's ocean code is not the one this was checked against
+(`ForeignAssumptions.ScattererOceanReflections`), its ocean keeps its own reflections,
+and Deferred's screen-space reflections stay on for it **[src]**.
+
+## EVE's clouds
+
+Where EVE draws a volumetric cloud layer over the main body, the rays take it in as a
+shell around the body (`RtEveClouds`; `CloudTransmittance`, `CloudOverSky` in
+`RtCommon.hlsli`) **[src]**. EVE's coverage, type and density maps are packed into one
+texture of ReDefinition's, 4096 by 2048, again every few seconds and when they change.
+EVE's own transform to the map and its fades come every frame. At 2048 texels across the
+layer's fine structure averaged out, and its shadow came out 0.62 where EVE's own is
+0.76 **[meas]** (KSP, at sea).
+
+Under the layer, the rays darken by its transmittance what EVE's own shadow does not
+reach: the sun's light at the rays' hits, the moons' light, and the sun's and the moons'
+discs on the water. The pixel's own sun visibility takes EVE's cloud shadow as before,
+multiplied into the mask after the rays **[src]**. A ray that escapes the scene sees the
+cloud over the sky, lit by the sun from above and by the sky, where the sky does not come
+from the reflection probe, which holds EVE's clouds as drawn already **[src]**.
+
+ReDefinition reads EVE's members by reflection, from Blackrack's builds of EVE for KSP
+1.12 with the raymarched volumetric layer. Another build turns this off with one warning
+in the log **[src]**. `-redefinitionProbeNoRtClouds` leaves the clouds out of the rays for
+a comparison.
+
 ## Denoising
 
 Each signal is traced with few rays per pixel and is noisy. A denoiser turns it into a
@@ -400,7 +558,7 @@ smooth one:
 |---|---|---|---|
 | ReDefinition's own, after SVGF: accumulation over frames, a variance estimate, an à-trous filter | every GPU with raytracing | nothing | every signal separately |
 | AMD FSR Ray Regeneration 1.2 | Radeon RX 9000 and newer, Windows 11 **[doc]** | `amd_fidelityfx_denoiser_dx12.dll`, which the package ships next to `KSP_x64.exe` | the diffuse light and the reflections; the sun's visibility stays with ReDefinition's |
-| NVIDIA DLSS Ray Reconstruction | GeForce RTX **[doc]** | the player's `sl.dlss_d.dll` and `nvngx_dlssd.dll` | the whole frame with its noise, in place of DLSS Super Resolution **[doc]** |
+| NVIDIA DLSS Ray Reconstruction | GeForce RTX **[doc]** | the player's `sl.dlss_d.dll` and `nvngx_dlssd.dll`, which *NVIDIA DLSS files* in the settings window downloads from NVIDIA's Streamline release | the whole frame with its noise, in place of DLSS Super Resolution **[doc]** |
 
 ReDefinition's denoiser keeps the sun's visibility shorter than the other signals: at most
 4 frames of history and none of the à-trous steps (`rtSunAtrousSteps`, `rtSunHistory` in
@@ -411,6 +569,23 @@ without the raytracing. Its pixel noise was 4.2 and 4.9 against 4.3 without the
 raytracing **[meas]** (KSP, RTX A4500). Either change alone kept the lawn smooth: 5.0 to
 5.2 with 0 to 5 steps at 32 frames, and with 2 to 8 frames at 5 steps **[meas]**. The
 signal before the denoiser has them in full, 10.2 **[meas]** (`rtSunUnfiltered=1`).
+
+ReDefinition's denoiser finds a pixel's history where the camera's two matrices put it.
+Under Krakensbane it tries two: first the shift of the camera and the vessels near it
+(`prevWorldToClip`), then the larger shift of the bodies and what stands on them
+(`prevWorldToClipFar`) **[src]** (`Denoise.hlsl`, `RtCamera.FillPacket`). The first whose
+history matches the pixel's depth and normal is taken. An origin shift moves the terrain
+by more than the camera, and only the second finds its surface again.
+
+The denoiser keeps textures only for the signals it filters: per signal 64 bytes a pixel
+(the noisy trace, two histories in full floats, two moments and a work texture in half
+floats), and for any 40 more (a work texture and two frames' view distances and normals)
+**[src]** (`RaytracingDenoise.cpp`). A signal no longer filtered lets its textures go. When
+the raytracing stops, `RtCamera` sends render event 33, and the proxy lets go of
+everything it makes per frame size (`Raytracing::OnRelease`): the denoiser's textures, Ray
+Reconstruction's guides, AMD's context and its guides, the shared copies of Unity's
+textures and the meshes the mod released **[src]**. The device and the meshes still held
+stay. The harness checks both.
 
 ReDefinition gives Ray Reconstruction its own Streamline viewport, apart from frame
 generation's. It runs where Streamline is set up: where DLSS frame generation runs, and,
@@ -439,8 +614,9 @@ proxy reports Ray Reconstruction ready; "DLSS-RR only support HDR inputs" **[doc
 Resolution. The first frame after switching goes through Super Resolution, as its
 raytraced frame made no guides yet, and the first frame after Ray Reconstruction gave up
 starts Super Resolution's history afresh. Where Ray Reconstruction shows no frame for a
-second, the upscaler stays with Super Resolution and writes why into the log. Whether it
-runs in the game is **[open]**.
+second, the upscaler stays with Super Resolution and writes why into the log. In the game
+it runs beside DLSS frame generation, 4.3 ms to 4.5 ms a frame on an RTX 4090 **[meas]**
+([performance-findings.md](performance-findings.md)).
 
 The proxy loads AMD's DLL from next to `KSP_x64.exe`, else from the proxy's
 `amdUpscalerDirectory`, and asks it for a context at the render size. Where it gets one,
@@ -468,91 +644,73 @@ the installed mods live.
 |---|---|---|
 | Raytracing harness | a native program that loads the proxy as Unity does, rasterises a G-buffer in Unity's layout and runs the raytracing through the proxy's own interface | the acceleration structures, every signal against a formula or a reference, the denoisers, floating-origin shifts, timings on the GPU |
 | Scenes from KSP | meshes exported from KSP's own files with UnityPy: the launch pad, the runway, the VAB, the SPH, part meshes | real geometry, real triangle counts, real scale |
-| C# unit tests | the layout of the frame packet; the moons' light (`RtReflectorLight`) | that the managed side and the proxy read the same packet; Lambert's sphere and the brightness the rays give it |
+| C# unit tests | the layout of the frame packet and the constants of `RtContract.h`; the moons' light (`RtReflectorLight`) | that the managed side and the proxy read the same packet and constants; Lambert's sphere and the brightness the rays give it |
 | Unity test player | a Unity 2019.4.18f1 player built like KSP's, with forward rendering, Unity's deferred lighting and Deferred's own shader bundle from `GameData`, and the proxy beside it (`tools/build_rt_player.py`) | the shaders in Unity's lighting, the timing of the render events, the one-frame carry-over |
 
-The harness checks:
+The harness checks, in the order it runs them (`src/DxgiProxy/RaytracingHarness.cpp`):
 
-1. **Shadows.** A box on a plane, the sun at a known angle: the shadowed pixels match the
-   shadow computed on the CPU, apart from a one-pixel edge.
-2. **White furnace.** A plane under a uniform sky of radiance L: the diffuse light
-   converges to L, within 2 %.
-3. **Occlusion.** A point in an inner corner sees less sky than one on the open plane.
-4. **Mirror.** A plane of smoothness 1 reflects a box in the box's colour.
-5. **Denoising.** A camera path: the denoised image against a reference accumulated over
-   1024 frames, by mean squared error, and its flicker between frames.
-6. **Floating origin.** The whole scene and the camera shifted by 10 km between two
-   frames: the signals do not change.
-7. **Churn.** Meshes added and removed every frame, 20 000 instances.
-8. **Timings.** Each pass, measured on the GPU, per render resolution.
-9. **The planet's shadow.** A sun under the horizon: the main body's sphere shadows a box
-   the scene alone leaves lit.
-10. **Surface from the rays.** Without a G-buffer: the sun's visibility and the diffuse
-    light as with one.
-11. **Forward light.** Without a G-buffer, under an ambient light brighter above than
-    below: every drawn pixel gets its albedo times the diffuse light less that ambient
-    light, through the denoiser.
-12. **Ray Reconstruction.** 64 frames of the noisy signals put together: the reconstructed
-    frame against a reference of 256 frames, with the G-buffer's guides and without a
-    G-buffer, with the raytraced frame's.
-13. **Instances from the GPU.** The boxes not as the CPU's instances but in a texture as
-    Parallax's scatter comes, beside an empty run: the same shadows, to the pixel.
-14. **Displaced terrain.** The rays' ground 0.3 m above the drawn one: lit as terrain,
-    shading itself as any other mesh.
-15. **Cut-out surfaces.** A card over the ground, its small texture covered, half covered
-    and cut out in thirds, the sun straight above: shadow, half shadow and sun under them,
-    among the CPU's instances and the GPU's; with its texture not read yet, sun under all
-    of it.
-16. **Forward light in gamma space.** As check 11, the colours as gamma-space values: the
-    pass takes the linear signals and the albedo back into gamma space.
-17. **Moonlight.** A body's light as the only light: the open ground gets its colour
-    times N.L, the ground in the box's shadow nothing. The main body's light reaches a
-    box's underside past its own sphere, and another body's light from below the horizon
-    does not.
-18. **The ground below.** A box high over a planet under a white sky: its underside gets
-    the planet's albedo with the sun overhead and nothing with the sun under the horizon.
-19. **Vertex colours.** A ground of a colour plus its vertex colours times a factor, as
-    Parallax's terrain: in gamma space its forward light under a white sky is that sum.
+| Area | Checks |
+|---|---|
+| The scene and its shadows | *primary rays*: each camera ray lands where the depth says, within 0.1 %; *sun shadows*: a box on a plane, the sun at a known angle, against the shadow computed on the CPU, apart from a one-pixel edge; *instances from the GPU*: the boxes in a texture as Parallax's scatter comes, beside an empty run, the same shadows; *floating origin*: the scene and the camera 14 km away, the same signals; *soft shadows*: a sun of a larger angular size gives a penumbra |
+| Light | *white furnace*: a white plane under a uniform sky of radiance L converges to L within 2 %; *ambient occlusion*: an inner corner sees less sky than the open plane; *mirror*: a smooth plane reflects a glowing tower where its reflection is, and the sky elsewhere; *environment*: a smooth plane reflects a sky that is its own direction |
+| KSP's scene | the launch pad's meshes from KSP's files: *primary rays*, and *no NaN or infinity* in any signal after 33 frames |
+| ReDefinition's denoiser | *denoised diffuse light* and *denoised sun visibility*: a camera glide against a reference of 1024 frames; *on a smooth surface*: the diffuse light keeps its history as on rough ground; *a denoised signal paused and back*: no history of an earlier light; *the sun's fine shadows kept*: thin posts' shadows keep their structure with `rtSunAtrousSteps=0` and `rtSunHistory=4`, against 5 and 32 set live through the ini; *the denoiser's textures for its signals*: video memory with three signals, with the sun's alone, and none after render event 33; *the denoiser after raytracing stopped*: its textures made anew, the sun as before |
+| Ray Reconstruction | *DLSS Ray Reconstruction*, with the G-buffer's guides and *without a G-buffer*: 64 noisy frames reconstructed against a reference of 256; only where NVIDIA's DLLs are there |
+| The main body and terrain | *the planet's shadow*: the body's sphere shades a box the scene leaves lit; *displaced terrain*: the rays' ground 0.3 m above the drawn one stays lit as terrain and shades itself as another mesh; *the ground below*: a box's underside gets the planet's albedo with the sun overhead, nothing with it under the horizon; *vertex colours*: a ground's colour plus its vertex colours, as Parallax's terrain, in its light |
+| Surfaces | *cut-out surfaces*: a card covered, half covered and cut out in thirds gives shadow, half shadow and sun, among the CPU's and the GPU's instances, and sun under all of it with its texture not read yet; *the surface from the rays*: without a G-buffer, the same sun visibility and diffuse light; *surface intent*: four intents written as their materials mean them, and *reflections read it* |
+| Forward light | *forward light* and *in gamma space*: each drawn pixel relit by its diffuse light less a gradient ambient light, through the denoiser; *forward light's reflections*, linear and in gamma space: Unity's Fresnel term and surface reduction |
+| The moons | *moonlight*: a body's light as the only light, N.L on the open ground and nothing in the box's shadow, the main body's sphere in the way from below; *a moon in the mirror*: its disc at its surface's brightness; *a moon behind the main body*: hidden |
+| Water | *the moon on water* and *the sun on water*: a disc mirrored round on calm water, a path longer than wide on rough water, none with the sun's mirroring off; *water over the horizon*: a reflection that points down meets the sky, not the ground; *KSP's own sea*: the sea gets the waves, a deck at the same level none; *the waves stay on the water*: the same waves from a camera moved sideways; *the waves on Scatterer's ocean* |
+| Further traces | *a further trace's own random numbers*; *a further trace while the next frames are recorded*: its reflections are those of its own frame's scene; *a further trace after a mesh is built*: the new mesh's shadow there, and not in the frame's own |
+| Robustness | *churn*: meshes added and removed every frame, 20 000 instances; *a frame that stops early*: the meshes it built are there for the next; *a material's texture past the array*: refused |
+| Timings | each pass on the GPU, without and with two moonlights, and *timings past further traces* |
 
-## Plan
+## Measuring keys
 
-Each stage ends with its checks passing, a review, and one commit.
+`ReDefinitionProxy.ini` has keys for measuring the raytracing. The proxy reads them again
+while the game runs (`src/DxgiProxy/Config.h`) **[src]**:
 
-| Stage | Builds | Done when |
+| Key | Default | What it does |
 |---|---|---|
-| 1 | The raytracing service in the proxy: raytracing tier check, geometry pool, acceleration structures, meshes, materials and instances through exports, the frame packet, DXIL shaders compiled at build time and embedded; the harness with its analytic scenes | checks 1, 6 and 7 pass |
-| 2 | The signals: sun visibility, occlusion, diffuse light with bounces, reflections, emission, the sky capture | checks 2, 3 and 4 pass, and the KSP scenes render without NaNs |
-| 3 | ReDefinition's denoiser; the adapters for Ray Regeneration and Ray Reconstruction | check 5 passes; Ray Reconstruction runs in the harness on NVIDIA's DLLs |
-| 4 | The Unity side free of KSP: collection, per-frame instances, G-buffer capture, the two shaders, the carry-over; the Unity test player | the test player shows raytraced shadows and light, and its checks pass |
-| 5 | KSP: parts, KSC, terrain, floating origin, the sun, cameras, settings, the diagnostics log; raytracing without Deferred | the C# tests pass, a log line says what went into the scene, and the test player's checks without Deferred pass |
-| 6 | Compatibility with every installed mod (table below), Parallax's scatter from the GPU | each row has its handling, marked **[src]** |
-| 7 | Performance, the player page, one flight's checklist | the timings fit the budget below |
+| `rtCutoutTest` | 0 | 1 decides the cut-out surfaces' hits without reading their textures, 2 takes every surface as opaque; the picture is wrong with either |
+| `rtSunUnfiltered` | 0 | 1 hands the sun's visibility on as its pass traced it, one ray a pixel, past the denoiser |
+| `rtSunAtrousSteps` | 0 | how many of the denoiser's five à-trous steps filter the sun's visibility |
+| `rtSunHistory` | 4 | the longest history of the sun's visibility, in frames, 1 to 32 |
+| `rtFoliageTransmission` | 0 | what of the sun's light a cut-out surface lets through to what lies behind it, 0 to 1; above 0 the grass loses its own shading |
 
-Budget on the RTX 4090, 2560 by 1440 with DLSS Quality: everything together within 4 ms
-of GPU time. The test player's budget run renders 1707 by 960, as DLSS Quality does at
-that size, with 400 m of ground in 131 072 triangles, 404 instances and 25 096 from the
-GPU, every signal, two bounces and the denoiser: 1.92 ms **[meas]**. The denoiser takes
-1.38 ms of it, the scene's build 0.17 ms. The run renders without the vertical sync, as
-the game keeps the GPU busy: held to the display's refresh, the GPU idles most of each
+`rtOwnQueue` puts the raytracing and Ray Reconstruction on a Direct3D 12 queue of their
+own. The proxy reads it when KSP creates its swapchain **[src]**.
+
+## The GPU budget
+
+The budget on the RTX 4090, 2560 by 1440 with DLSS Quality, is everything together within
+4 ms of GPU time. The test player's budget run renders 1707 by 960, as DLSS Quality does
+at that size, with 400 m of ground in 131 072 triangles, 404 instances and 25 096 from
+the GPU, every signal, two bounces and the denoiser: 1.92 ms **[meas]**. The denoiser
+takes 1.38 ms of it, the scene's build 0.17 ms. The run renders without the vertical sync,
+as the game keeps the GPU busy: held to the display's refresh, the GPU idles most of each
 frame, its driver lowers the clocks, and the same frame measures 4.2 to 4.3 ms
 **[meas]**. The denoiser's à-trous steps filter all signals in one pass each, the depth
 and normal of a tap weighed once for all, and the steps after the first in half floats.
 The camera takes its textures' native handles once, as they are made: Unity's
-GetNativeTexturePtr waits for the render thread. In the game the scene is larger; the
-log's line every 30 seconds gives its timings **[open]**.
+GetNativeTexturePtr waits for the render thread.
 
-In the game, one flight checks what the test player cannot: the terrain and the parts in
-the rays, Scatterer's and EVE's shadows over the raytraced ones, Parallax's scatter, a
-night side, and DLSS Ray Reconstruction where DLSS frame generation runs **[open]**.
+In the game the scene is larger. At the launch pad on the RTX 4090, at 3440 by 1440 with
+DLSS *AA only*, the raytracing takes 6.05 ms **[meas]**
+([performance-findings.md](performance-findings.md)). The log's line every 30 seconds
+gives the timings of any run.
+
+Whether Scatterer's and EVE's shadows sit over the raytraced ones in the game as they
+sit over Unity's is **[open]**.
 
 ## Installed mods
 
 | Mod | What raytracing does with it |
 |---|---|
-| Deferred | optional; provides the G-buffer; its reflections shader is replaced while diffuse light is raytraced, and set back afterwards **[src]**; its screen-space reflections are off on the scene camera while reflections are raytraced, and set back afterwards **[src]**; without it, see "Without Deferred" |
+| Deferred | optional; provides the G-buffer; its reflections shader is replaced while diffuse light is raytraced, and set back afterwards **[src]**; its screen-space reflections are off on the scene camera while reflections are raytraced, and set back afterwards, unless Scatterer's ocean is of a version not checked **[src]**; the light colour setting acts in its reflections pass; without it, see "Without Deferred" |
 | Parallax Continued | its finer terrain copy near the camera is in the scene, the quad under it left out **[src]**; its displacement is passed through for the first metre of a pixel's rays **[meas]**; its scatter comes from its GPU buffers **[src]** **[meas]** (test player: a box only in such a buffer casts its shadow) |
-| Scatterer | its ocean and atmosphere stay out of the scene; its long-distance shadows shader gives way while raytracing runs and comes back after **[src]**; its eclipse and extinction change the sun's colour only while the local cameras draw, and the rays take the colour then **[src]**; its ocean caustics multiply into the sun's mask after the raytraced visibility **[src]** |
-| EVE, Stock Volumetric Clouds | clouds stay out of the scene; cloud and eclipse shadows multiply into the sun's mask after the raytraced visibility **[src]** |
+| Scatterer | its ocean and atmosphere stay out of the scene; its ocean takes the raytraced reflections where it reads Deferred's screen-space reflections, and its glint follows *Sun reflection* (see "Water") **[src]**; with it the sky's light keeps its colour **[src]**; its long-distance shadows shader gives way while raytracing runs and comes back after **[src]**; its eclipse and extinction change the sun's colour only while the local cameras draw, and the rays take the colour then **[src]**; its ocean caustics multiply into the sun's mask after the raytraced visibility **[src]** |
+| EVE, Stock Volumetric Clouds | clouds stay out of the scene; cloud and eclipse shadows multiply into the sun's mask after the raytraced visibility **[src]**; EVE's volumetric layer darkens the rays' light under it and shows to rays that escape the scene (see "EVE's clouds") **[src]** |
 | Waterfall, Firefly | out of the scene: every material of theirs is transparent **[src]**; Firefly draws its effects after the raytraced light **[src]** |
 | TUFX | its post-processing runs on the scene camera after the lit frame **[src]** |
 | Kopernicus | the scene's star is its current star (`KopernicusStar.Current`), not `Sun.Instance`, which its star clones set **[src]**; the other stars' lights keep their shadow maps; its ShadowMan's shadows shader is handled as Scatterer's **[src]** |

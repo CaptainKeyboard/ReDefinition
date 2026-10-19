@@ -92,12 +92,16 @@ size (NVIDIA's DLSS Programming Guide 3.6.1, 3.7.3; AMD's `ffx_upscale.h`) **[do
 
 * **DLSS** (`src/DxgiProxy/Dlss.cpp`, `src/Bridges/DlssBridge.cs`) runs through NGX on
   Unity's Direct3D 11 device, with auto exposure, and the model the player chose
-  (`DlssModel`): *High* asks for preset L, *Fast* for preset M, in every mode. NVIDIA's
+  (`DlssModel`). *Default* leaves the choice per mode to the DLSS library: 310.9.1 takes
+  K for DLAA, quality and balanced, M for performance and L for ultra performance (NGX's
+  log) **[meas]**. *Preset K*, *M* and *L* ask for that preset in every mode. NVIDIA's
   guide (31 March 2026, 3.12): L "Delivers a sharper, more stable image with less ghosting
   than Preset J, K but are more expensive performance wise", M "similar image quality
   improvements as Preset L but closer in speed to Presets J, K". The proxy creates the
-  feature anew when the preset changes, so a change takes effect at once. The profile Low
-  takes *Fast*. DLSS sharpens nothing itself, so with sharpness
+  feature anew when the preset changes, so a change takes effect at once. The profiles Low
+  to High take *Default*, Ultra and Max take *Preset L*. For a probe's run,
+  `-redefinitionProbeDlssPreset J|K|L|M` sets that preset in every mode over the player's
+  choice. DLSS sharpens nothing itself, so with sharpness
   above 0 it writes into the input of FSR 3's RCAS pass (`RcasSharpener`), which writes the
   output. DLSS renders at the size it asks for, and another size makes a new rig.
 * **AMD's DLL** (`src/DxgiProxy/AmdUpscaler.cpp`, `src/Bridges/AmdUpscalerBridge.cs`) runs
@@ -125,6 +129,20 @@ The files the player needs, and where they go: [player/installing.md](../player/
   presenter camera behind it scales the result into the frame buffer before the UI cameras
   (`UpscalerPresenter`). `FXCamera` and `FXDepthCamera` are not redirected, since they are
   not part of the image.
+* **The redirected cameras keep the screen's pixels** (`ScreenCoordinates`). A camera with
+  a target texture measures its screen space in that texture's pixels, while the mouse
+  position, KSP's map and flight markers, the picking of parts and other mods' overlays mean
+  the screen's. At a render size below the screen's, a part was picked away from the cursor
+  and the markers sat away from what they mark. Harmony postfixes and prefixes on the five
+  conversions (`WorldToScreenPoint`, `ViewportToScreenPoint`, `ScreenToWorldPoint`,
+  `ScreenToViewportPoint`, `ScreenPointToRay`) scale between the two for those cameras,
+  outside their own drawing. Inside it, what is drawn into the texture means its pixels, as
+  Vectrosity's lines and the mods' GL lines need. `pixelWidth`, `pixelHeight` and
+  `pixelRect` stay the texture's, since Scatterer, EVE, TUFX and KSP's highlighting size
+  their render targets by them. Unity's mouse event pass sees the cameras with the screen
+  as their target (`src/Window/UnityMouseEvents.cs`). `-redefinitionProbeScreenCheck`
+  (`src/Probe/ScreenCheck.cs`) compares the parts' screen points, the part under the
+  cursor and the map markers against their viewport points in one flight.
 * **The jitter puts back the projection it found.** Once a script assigns a camera's
   projection matrix, Unity stops following its field of view. After each render, a
   projection Unity computed is Unity's again. A projection a script set is written back,
@@ -156,7 +174,12 @@ The files the player needs, and where they go: [player/installing.md](../player/
   the one restored when the upscaler stops. MSAA from KSP's settings screen is such a
   value.
 * **Mipmap bias** (`KspMipmapBias`) touches only textures on renderers a redirected camera
-  sees.
+  sees. Parallax draws its scatter without renderers, so the rig takes the scatter's
+  materials from Parallax every 2 seconds and gives their textures the bias as well.
+  Grass and ferns cut their blades out by their texture's alpha at the pixel's mip level,
+  the rays at full resolution. Without the bias the two part at a lower render size, and
+  the grass at the launch pad darkened from 61.6 to 53.6 of 255 between AA only and Ultra
+  Quality with raytracing on **[meas]**.
 
 ## Other mods in the image
 
@@ -341,15 +364,31 @@ frames a second one in six has no step. The screen recording on the runway measu
 ground's shift between shown frames at 4 to 7 px, then twice 0, about nine times a second.
 Frame generation's worst frames were the ones right after such a standstill.
 `RenderInterpolation` moves the active vessel's topmost part transforms by
-`(previous - current) * (1 - alpha)` as the frame's first camera culls, and puts their
-local positions back at the end of the frame, before the next physics step. The camera is
-never moved by itself: following the vessel, KSP hangs its pivot on the vessel, so it
-moves along; a camera standing free does not follow the vessel and stays. Other vessels
-are left as KSP draws them. Unity's own interpolation would leave KSP's physics reading
-positions a step old. `StepInterpolator` holds the arithmetic; its test runs 600 frames at
-59 per second over 50 Hz steps and finds every frame moved by the same distance to a
-millimetre, where the positions alone stand still in 80 to 120 of them. Left alone: a
-floating origin shift, a jump over 50 m, a packed vessel, Krakensbane, IVA and map view.
+`(previous - current) * (1 - alpha)` after every other `LateUpdate`, or as the frame's
+first camera culls where that did not run. Their local positions go back as the next frame
+begins, in KSP's `ObscenelyEarly` stage of `FixedUpdate` and `Update`, before the next
+physics step. Put back at the end of the frame instead, Unity's previous matrices for the
+motion vectors were the physics step's: in orbit the vessel's motion vectors were hundreds
+of pixels off in five of seven frames **[meas]**. The camera is never moved by itself:
+following the vessel, KSP hangs its pivot on the vessel, so it moves along; a camera
+standing free does not follow the vessel and stays. Other vessels are left as KSP draws
+them. Unity's own interpolation would leave KSP's physics reading positions a step old.
+
+The vessel's way is taken against its main body, in doubles against a reference that
+follows the vessel. So it holds where Krakensbane moves the world instead of the vessel,
+and over a floating origin shift. Left alone: a jump of more than four steps' worth of the
+vessel's speed or 50 m, a packed vessel, IVA and map view. It runs only while the rig hands
+frames to an upscaler or to frame generation, and `-redefinitionProbeNoInterpolation`
+turns it off. `StepInterpolator` holds the arithmetic; its test runs 600 frames at 59 per
+second over 50 Hz steps and finds every frame moved by the same distance to a millimetre,
+where the positions alone stand still in 80 to 120 of them.
+
+Frame generation's camera is the one KSP's physics step placed, without the
+interpolation's shift (`RenderInterpolation.CameraShift`). With the shift, its camera motion
+disagreed with the motion vectors by 490 to 1165 px in orbit, and its frames showed the
+vessel three times **[meas]**. The previous frame's view-projection that DLSS frame
+generation and Ray Reconstruction get is carried across a floating origin shift
+(`AcrossOriginShift`).
 
 ### The active vessel's shadow
 
@@ -583,4 +622,3 @@ In the diagnostics window's *Debug* tab
 | Whether the transparency and reactive masks take out ghosting on clouds, ocean, plumes and re-entry | a flight with engines burning over the ocean and under clouds, masks off and on, with the preview |
 | What a floating origin shift does to Unity's motion vectors in that frame | the camera and origin line in orbit and low and slow, next to the proxy's motion vector check |
 | Camera cuts that keep target and parent: Hullcam between two cameras on one part, CameraTools switching mode or vessel, jumps inside a CameraTools mode | the mods' own report (`Frame.RequestHistoryReset`), or their state read by reflection (Hullcam's `sCurrentCamera`, CameraTools' `toolMode` and `vessel`), and the turn and jump numbers for the jumps |
-| World-anchored UI in the smaller modes | it positions itself from `Camera.pixelWidth`, the render size then; a fix means cameras rendered by hand, as KerbalVR does |

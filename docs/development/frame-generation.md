@@ -243,6 +243,18 @@ holds frame generation off. The log says each change, and the Debug tab's status
 reads "held off below the minimum frame rate" **[meas]** (proxy harness: frames reported at
 25 a second under DLSS-G, 1.00 presents per frame and the status line; at 60 again, 2.00).
 
+Under V-Sync the shown frames are capped at the refresh rate over the sync interval. With
+frame generation, the game then renders at that cap over the frames shown per rendered
+one: two for FSR, DLSS-G's frame limit plus one. Where that rate is below nine tenths of
+the minimum, frame generation would slow the game below its own minimum, and the average
+would turn it off and on in turn. So the proxy holds it off for as long as that cap stands,
+logs "Frame generation held off: V-Sync shows at most ...", and lets it run again once the
+cap is gone (`FrameGeneration::SetPresentCapLocked`). The proxy harness checks both: with
+the minimum at three quarters of the refresh rate, held off under V-Sync and running again
+without it. DLSS-G's frame limit is capped by the minimum as well: under V-Sync it generates
+no more frames than keep the rendered rate at the minimum, and at least one
+(`SwapChainProxy::StreamlineFrameLimit`).
+
 A single frame that took more than half again the minimum's frame time, 50 ms at a
 minimum of 30, is presented without generated frames, however the average stands: the
 two seconds' average does not catch a short hitch, and interpolating across such a gap

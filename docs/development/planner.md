@@ -59,6 +59,9 @@ The planner uses no text to explain itself. From the top:
   it docks at its end, a grey line for the satellites that stay there, the further choices
   in groups of their own (*Burns*, *Way down*), and a line for each problem that blocks it
   (`PlannerView.StepWarnings`), up to three, in red, shown only while there is one.
+* Where KSP's delta-v simulation is off (`DELTAV_CALCULATIONS_ENABLED` in `settings.cfg`,
+  or another mod through `DeltaVGlobals`), KSP makes no stages. An orange line at the top
+  then says so (`PlannerView.StockOffRow`, `EditorReadout.StockOff`).
 * Each part (*Craft*, *Route*, *Fuel plan*, *Thrust*) is a header bar, lighter, rounded at
   the top (all round while folded, `ShapeHeaders`), and a box, darker, rounded at the
   bottom (`Rounded`: a 16-pixel white shape with 5-pixel corners, 9-sliced), holding its
@@ -91,10 +94,12 @@ The planner uses no text to explain itself. From the top:
   it starts and ends (`StageUse.Mass`, `EndMass`), in the air, its thrust and burn time;
   each burn in orbit; notes (`AddNotes`): the RCS of a section that docks
   (`PartFacts.RcsThrust` at the thrust limit, `RcsThrustOverIsp`, `RcsBurns`,
-  `RcsResources` from `ModuleRCS`: the resources its own thrusters burn in the parts still
-  attached, no more than the section's mass after the step holds over their dry mass); the
-  body. The Isp column is the stage's exhaust speed in the budget over g0. In the air, the
-  thrust at the body's sea level (`StageRow.ThrustAtSurface`:
+  `RcsResources` from `ModuleRCS`: the resources its own switched-on thrusters burn, in
+  the parts they draw them from as `Part.GetConnectedResourceTotals` does, the editor's
+  crossfeed set for a Vernor's liquid fuel and oxidizer and the whole vessel for
+  monopropellant, no more than the section's mass after the step holds over their dry
+  mass); the body. The Isp column is the stage's exhaust speed in the budget over g0. In
+  the air, the thrust at the body's sea level (`StageRow.ThrustAtSurface`:
   `ModuleEngines.MaxThrustOutputAtm` at each body's `atmPressureASL`,
   `atmosphereTemperatureSeaLevel` and `atmDensityASL`, as KSP's `DeltaVEngineInfo` does
   for its delta-v app's body); the warnings of a launch and a landing use the same, and
@@ -128,7 +133,7 @@ left it standing.
 
 The rows are laid out all at once, and the ones the plan does not need hide after. The scroll
 list's content is therefore held at its top edge, so that it shrinks from the bottom. The
-planner has room for 11 stops, three steps between two of them, and 30 stages. It is
+planner has room for 11 stops, four steps between two of them, and 30 stages. It is
 worked out again four times a second while it is open. The free-of-Unity parts have unit
 tests in `tests/ReDefinition.Tests/PlannerTests.cs`.
 
@@ -297,24 +302,25 @@ Ravenspear Mk3, jets only, does not.
 
 ## How the stages pay for the steps
 
-Before the budget, `ClampedLaunch.Parallel` rewrites the stages lit while launch clamps
-hold the vessel. The clamps release at their `ActivatesAt`; without clamps, a first stage
-with engines whose vacuum thrust cannot lift its start mass at the launch body's surface
-is held until the next stage with engines; every stage with delta-v and a higher number
-(the core) burns together with the releasing stage (the boosters). At the summed thrust
-and flow (flow = vacuum thrust over exhaust speed, the exhaust speed from the stage's
-delta-v and masses), both burn from the full mass until the first is empty: the lift-off
-row, numbered as the last held stage. What is left burns on alone in a second row,
-numbered as the releasing stage, so that the order by number stays the burn order: the
-core after the boosters' mass is dropped where its engines decouple later than theirs,
-else the boosters. `PlannerView.StageLabel` names them *S4+3* and *S4* or *S3*. The
-first stage's thrust against its weight is taken in the launch body's air
-(`StageRow.ThrustAtSurface`), and the *Air* row takes no part. It applies
-only where nothing is dropped on the pad from the first held stage to the release, and
-where the core's tanks are dry as KSP starts the releasing stage; stages on the pad
-between them that burn nothing go. `VesselShape.Split` still shares the rows out by KSP's
-stage numbers, which is exact while the core and the boosters belong to the same group, as
-launch stages do; a stage kept or dropped is saved by the row's number.
+Before the budget, where the route starts on a surface, `ClampedLaunch.Parallel` rewrites
+the stages lit while launch clamps hold the vessel. From an orbit nothing is held, so a weak
+first stage there, an ion engine before a Spark, burns on its own. The clamps release at
+their `ActivatesAt`; without clamps, a first stage with engines whose thrust in the launch
+body's air (`StageRow.ThrustAtSurface`, the vacuum thrust where the body has none) cannot
+lift its start mass at the surface is held until the next stage with engines; every stage
+with delta-v and a higher number (the core) burns together with the releasing stage (the
+boosters). At the summed thrust and flow (flow = vacuum thrust over exhaust speed, the
+exhaust speed from the stage's delta-v and masses), both burn from the full mass until the
+first is empty: the lift-off row, numbered as the last held stage. What is left burns on
+alone in a second row, numbered as the releasing stage, so that the order by number stays
+the burn order: the core after the boosters' mass is dropped where its engines decouple
+later than theirs, else the boosters. `PlannerView.StageLabel` names them *S4+3* and *S4* or
+*S3*. The *Air* row takes no part. It applies only where nothing is dropped on the pad from
+the first held stage to the release, and where the core's tanks are dry as KSP starts the
+releasing stage; stages on the pad between them that burn nothing go. `VesselShape.Split`
+still shares the rows out by KSP's stage numbers, which is exact while the core and the
+boosters belong to the same group, as launch stages do; a stage kept or dropped is saved by
+the row's number.
 
 `StageBudget.Allocate` takes each stage from KSP's delta-v simulation: its start mass,
 its end mass and its delta-v in vacuum (`DeltaVStageInfo.startMass`, `endMass`,
@@ -378,7 +384,10 @@ drops after it share out over the groups by the parts that burn and go there
 (`VesselShape.Split`, from `DeltaVPartInfo.stageFuelMass` and `decoupleStage`). The
 groups' masses are the parts' masses, scaled to KSP's start mass of the whole vessel,
 launch clamps left out. So a lander's stages can lie between the rest's, as they do where
-it hangs under a mothership by a docking port.
+it hangs under a mothership by a docking port. What KSP's mass holds over the parts' is the
+crew's, with their inventory (`ShipConstruct.GetShipMass` with
+`ShipConstruction.ShipManifest`) **[src]**. It goes to the parts the crew sit in, by head
+(`PartFacts.Aboard`), before the scaling.
 
 The route hands each step to the budget as a `BudgetStep`: what it needs, the groups
 that fly it (`Side`), the groups gone for good as it starts (`Gone`: left as a vessel of

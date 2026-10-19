@@ -34,6 +34,24 @@ adds what KSP does not give:
 `StageTable` and `EngineerFormat` do not depend on Unity and have unit tests
 (`tests/ReDefinition.Tests/EngineerTests.cs`).
 
+## Which parts a stage holds
+
+Stages are numbered as KSP numbers them: the highest fires first, stage 0 last. A part is
+on the vessel as a stage burns where its `DeltaVPartInfo.decoupleStage` is below the
+stage's number, or where it is never decoupled (`PartFacts.AttachedIn`). That is how KSP's
+`DeltaVStageInfo.GetStageMass` counts a stage: the parts decoupled at its number or never,
+less those it drops as it fires **[src]**. The planner's own simulation (`StageSim`), the
+turning time (`Turning`), a section's RCS (`SectionRcs`) and the fin check all follow it.
+
+RCS delta-v counts each propellant from the parts its thrusters draw it from, by the
+propellant's flow mode, as `Part.GetConnectedResourceTotals` takes them **[src]**. A
+Vernor's liquid fuel and oxidizer come from its crossfeed set, which the editor builds
+for its simulation (`Part.simulationCrossfeedPartSet`), and monopropellant from the whole
+vessel. Each part counts once, and locked tanks and switched-off thrusters not at all.
+Thrusters of several mixes, monopropellant blocks and Vernors, each burn their own mix
+(`StageTable.UsablePropellant`). The flight readout counts it the same way
+(`ReadoutFrame.FindRcsDeltaV`).
+
 ## How the planner button sits in the editor
 
 KSP's mode buttons are four `Button`s in the editor's top bar: `partPanelBtn`,

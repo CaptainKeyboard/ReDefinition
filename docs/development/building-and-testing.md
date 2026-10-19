@@ -65,6 +65,7 @@ run in Windows PowerShell 5.1 and in PowerShell 7, and take the game's path from
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_bundled_mods.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_profile_parser.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_key_bindings.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_foreign_code.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_docs.ps1
 ```
 
@@ -99,6 +100,17 @@ DLL with nodes holding one mistake of each kind, and checks what they make of it
 and KSP write, every `KEY` block of the shipped registrations with its default, and KSP's
 own bindings in `GameSettings`. It checks that they are the shape the *Controls* tab reads,
 and that every one of them has a name for its row.
+
+**`check_foreign_code.ps1`** checks the catalogue of what ReDefinition assumes about other
+mods' code (`src/Core/ForeignAssumptions.cs`) against the installed mods. Each assumption
+names types, methods, fields and string literals, and the methods it rests on with a
+fingerprint of their instructions (`src/Core/ForeignCode.cs`). It passes where all of that
+is there and the fingerprints match, or where its mod is not installed. It fails where
+something named is missing or the code changed, and prints the installed fingerprint to
+add once the new code has been read. The exit code is the number of failures. Run it after
+a bundled mod's update. In the game, an assumption marked `WhenChanged.Fallback` takes the
+way that does not rest on it where its code changed, and `ForeignAssumptionReport` writes
+what came of each into `KSP.log` at the main menu and into the Debug tab.
 
 Reflection from PowerShell into KSP's assemblies has two traps, and the scripts handle
 both. An `AssemblyResolve` handler must use only `[IO.File]` and `[IO.Path]` and guard
@@ -225,7 +237,8 @@ cmake --build build/DxgiProxy --config Release
 
 The build copies `dxgi.dll` next to `KSP_x64.exe`. Use `-DKSP_DIR=...` for another game
 folder. Do not build while KSP runs, because it holds the file. `ReDefinitionProxy.ini` is
-copied only where none is there yet.
+copied only where none is there yet. The proxy writes and completes the file itself from
+the template built into it ([packaging.md](packaging.md#the-proxys-settings-file)).
 
 Check the build's output and the DLL's time stamp, rather than searching the output for
 "error".
@@ -329,7 +342,7 @@ without raytracing the turn equals its references.
 ### The upscalers on the camera turn
 
 ```
-python toolsuild_rt_player.py --upscale
+python tools/build_rt_player.py --upscale
 ```
 
 The same turn without raytracing, rendered at two thirds and at half the display size
@@ -337,7 +350,7 @@ with the upscaler's jitter and upscaled by FSR 3 (its Unity port), DLSS and AMD'
 upscaler, as the rig sends each (`RtTurnUpscale.cs`), and once natively without jitter.
 DLSS comes from the Streamline SDK's folder (`--streamline`), AMD's upscaler from
 `--amd`, FSR 3's shaders from the game's bundle. The references are each pose rendered at
-twice the display size without jitter. `toolsnalyze_upscale_turn.py` prints, per run,
+twice the display size without jitter. `tools/analyze_upscale_turn.py` prints, per run,
 the error where something came into view, the rest, the error once still and how much a
 still frame flickers.
 

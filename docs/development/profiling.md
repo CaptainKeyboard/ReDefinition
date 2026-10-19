@@ -19,6 +19,7 @@ What the tools found is on
 | What does a whole mod cost, including its shaders inside Unity's passes? | the mod cost probe | `KSP.log` |
 | Which shader costs the GPU how much, by mod? | RenderDoc and `tools/renderdoc_gpu_times.py` | a report file |
 | Where does Unity's own main thread time go: culling, rendering, physics, coroutines? | Unity's development player | `KSP.log` and a `.raw` file |
+| Where does the main thread spend its time in native code: Unity's player, PhysX, the driver? | the CPU sampler and `tools/cpu_samples.py` | a report file |
 | How long does Unity's render thread wait for the GPU? | the proxy's wait report | `ReDefinitionProxy.log` |
 | What does the proxy's raytracing do in a slow frame? | the proxy's slow frame lines | `ReDefinitionProxy.log` |
 | Does the image change if one thing is switched off? | a shot variant | a screenshot to compare |
@@ -165,6 +166,32 @@ Keep in mind:
   game. HUDReplacer's GUI skins do.
 * A recording of 30 s takes about 3 GB.
 
+## Sample the main thread in native code
+
+1. Start KSP with the probe and `-redefinitionProbeCpuSample`:
+
+   ```
+   KSP_x64.exe -redefinitionProbe -redefinitionProbeStay -redefinitionProbeClouds -redefinitionProbeCpuSample
+   ```
+
+   From 20 s into the flight, the proxy samples the main thread for 30 s into
+   `ReDefinitionCaptures\<time>-run\cpu-samples.txt`. KSP then ends by itself.
+2. Run `python tools/cpu_samples.py <that file> [report.txt]`.
+
+The sampler is a thread of the proxy's (`src/DxgiProxy/CpuSampler.h`). About a thousand
+times a second it stops the main thread for a few microseconds and copies its
+instruction pointer and the top of its stack. The script names the addresses with the
+symbols of Unity's and Microsoft's symbol servers, cached in
+`%LOCALAPPDATA%\ReDefinition\symbols`. The report gives the time by module and by
+function where the thread was, and by function anywhere on its stack.
+
+Keep in mind:
+
+* The stack copy holds stale return addresses as well. A function's share anywhere on
+  the stack is an upper bound.
+* Code in no module is Mono's compiled C#, KSP's and the mods' scripts. The perf monitor
+  times those by method.
+
 ## Compare a shot with one thing changed
 
 1. Take the shot to compare with, with the variant `none`, which waits as long as a
@@ -180,10 +207,41 @@ Keep in mind:
    noise of the scene.
 4. Compare the shots, and look at them side by side.
 
-The variants are `cascades2`, `cascades1Low`, `distanceHalf`, `shadowsMinimal`, `noDeferredAo`,
-`noTufxAo`, `portraitLayers` and `portraitShadows` (`src/Probe/ShotVariant.cs`). Each
-changes its one thing 5 s into the flight, so the perf monitor's and the GPU profiler's
-reports after it measure the change as well.
+The variants are in `src/Probe/ShotVariant.cs`:
+
+| Variant | What it changes |
+|---|---|
+| `cascades2` | two shadow cascades instead of the quality level's |
+| `cascades1Low` | one cascade at low resolution, the distance kept |
+| `distanceHalf` | the shadow distance halved |
+| `shadowsMinimal` | one cascade, 200 m, low resolution |
+| `noDeferredAo` | Deferred's ambient occlusion command buffers taken off the cameras |
+| `noTufxAo` | TUFX's ambient occlusion off in its volumes' profiles |
+| `portraitLayers` | the crew portraits' cameras draw only their interiors' and kerbals' layers |
+| `portraitShadows` | the shadow distance 10 m while a crew portrait renders |
+| `noSun` | KSP's sun lights at intensity 0 |
+| `noLocalLights` | every point and spot light off, each logged |
+| `detailAsDiffuse` | `KSP/Scenery/Diffuse Detail` drawn with `KSP/Scenery/Diffuse` |
+| `flagProbes` | the renderers named flag set to blend the light probes |
+| `noFlags` | the renderers named flag hidden |
+
+Each changes its one thing 5 s into the flight, so the perf monitor's and the GPU
+profiler's reports after it measure the change as well.
+
+Some comparisons need no second run. Each takes the same view 10 s after its change:
+
+* `-redefinitionProbeShotRaytracing <mode,mode,...>` switches the raytracing to each mode
+  in turn, as the settings window does, and saves `<shot>-<mode>.png`.
+* `-redefinitionProbeShotIni "key=value,key=value;key=value"` writes each set of the
+  proxy's live keys into `ReDefinitionProxy.ini` in turn and saves `<shot>-ini<n>.png`.
+  The proxy reads the file again within a second. The values as they were go back at the
+  end.
+* `-redefinitionProbeStagesAt <renderer>[@<parent>]` logs the scene camera's image after
+  each of its stages at the middle of the nearest renderer so named.
+* `-redefinitionProbeLightBuffer` saves the light buffer after the G-buffer and before
+  the lights: what each surface brings into the lighting of its own.
+* `-redefinitionProbeMaterials <part of a name>` logs the renderers so named with their
+  materials' shaders, queues and keywords.
 
 Keep in mind:
 

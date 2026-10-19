@@ -134,13 +134,14 @@ In these cases there is no zip, and one left from an earlier build is removed:
 ## What is not in the zip
 
 * The player's `PluginData/settings.cfg` and `bundled.cfg`. They are the player's.
-* A `ReDefinitionProxy.ini` in the game folder. Without one the proxy runs on its
-  defaults, frame generation included. One there holds the player's settings, which an
-  update must not overwrite, and CKAN would refuse to install over it. The template in
-  `GameData/ReDefinition` says how to use it.
+* A `ReDefinitionProxy.ini` in the game folder. One there holds the player's settings,
+  which an update must not overwrite, and CKAN would refuse to install over it. The proxy
+  writes the file itself, as the [settings file](#the-proxys-settings-file) describes. The
+  copy in `GameData/ReDefinition` is the same template, for reading.
 * **NVIDIA's DLLs.** These are `nvngx_dlss.dll` for DLSS, and `sl.interposer.dll`,
   `sl.common.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll` and `nvngx_dlssg.dll`
-  for DLSS frame generation. The player downloads them from NVIDIA's release of the
+  for DLSS frame generation, and `sl.dlss_d.dll` and `nvngx_dlssd.dll` for DLSS Ray
+  Reconstruction. The player downloads them from NVIDIA's release of the
   Streamline SDK 2.14.1 on GitHub, with *NVIDIA DLSS files* in the settings window, after
   accepting NVIDIA's licences there (`NvidiaFiles`, `NvidiaDownloader`). Every file's
   SHA-256 is pinned.
@@ -157,8 +158,10 @@ In these cases there is no zip, and one left from an earlier build is removed:
 * **AMD's runtime [src]** comes from FSR SDK v2.3.0 of 2026-06-24. Its frame generation
   header says 4.0.1, the version the proxy is built against. The package takes the
   release's `signedbin` DLL, SHA-256 `02297bee...`. Only this one AMD DLL is needed for
-  FSR frame generation: the proxy harness passes with nothing else beside it. The pin, the
-  source and the signature are in `third_party/amd/README.md`.
+  FSR frame generation: the proxy harness passes with nothing else beside it. The
+  raytracing's AMD FSR Ray Regeneration is the same release's signed
+  `amd_fidelityfx_denoiser_dx12.dll`, file version 1.2.0.2740, built against its 1.2.0
+  header. The pins, the source and the signatures are in `third_party/amd/README.md`.
 * **The headers' notices [src]:** `licenses/NVIDIA-MIT.txt` holds, verbatim, the MIT
   notices of the Streamline 2.14.1 headers in `src/DxgiProxy/extern/Streamline/include`,
   the signature check in `sl_security.h` among them. It also holds the notice of the NVAPI
@@ -189,6 +192,27 @@ https://github.com/KSP-CKAN/CKAN/blob/master/Core/IO/ModuleInstaller.cs,
 https://blog.curseforge.com/app-release-notes-1-277/,
 https://support.curseforge.com/support/solutions/articles/9000197279-moderation-policies
 
+## The proxy's settings file
+
+The template is `src/DxgiProxy/ReDefinitionProxy.ini`. CMake builds it into `dxgi.dll` as a
+resource (`ReDefinitionProxy.rc.in`), and the release build copies it into
+`GameData/ReDefinition` as well. At every start the proxy completes the file next to
+`KSP_x64.exe` from its own copy (`CompleteIni` in `src/DxgiProxy/Config.cpp`):
+
+* Without a file, it writes the template as it is.
+* A file from an earlier version gets the keys added since, each with its default and
+  the comment above it in the template. Values already there stay.
+* Where another section than `[Proxy]` ends the file, or the file is UTF-16, the keys go
+  into `[Proxy]` through Windows' profile functions, without their comments.
+* A file that exists but cannot be read is left alone, and the log says so.
+
+Beside the ini the proxy keeps `ReDefinitionProxy.defaults`, whose `[Written]` section holds
+the values it wrote into the player's file itself. Where the ini still holds such a value
+and this version's template has another default, the proxy sets the new default and logs
+"Config: defaults the proxy had written raised to this version's in ReDefinitionProxy.ini".
+A value the player changed stays. A key without a record counts as the proxy's where it
+holds today's default, and as the player's otherwise.
+
 ## The CKAN metadata
 
 The file goes to https://github.com/KSP-CKAN/NetKAN as `NetKAN/ReDefinition.netkan`. The
@@ -201,9 +225,9 @@ zip.
 | `$kref` | takes the GitHub release; `asset_match` picks the player zip, not `ReDefinition_<version>_source.zip` beside it |
 | `$vref` | reads `ReDefinition.version` in the zip for the KSP versions |
 | `x_netkan_trust_version_file` | takes the mod's version from that file too, so it reads the project's version and not the tag's `v` in front of it |
-| `license` | `GPL-3.0` for ReDefinition, `unrestricted` for AMD's frame generation runtime |
+| `license` | `GPL-3.0` for ReDefinition, `unrestricted` for AMD's frame generation and denoiser runtimes |
 | `depends` | `Harmony2`, which ReDefinition requires to load |
-| `install` | `GameData/ReDefinition` into `GameData`; `dxgi.dll`, AMD's runtime and the licences into `GameRoot` |
+| `install` | `GameData/ReDefinition` into `GameData`; `dxgi.dll`, AMD's two runtimes and the licences into `GameRoot` |
 
 CKAN has no identifier for the Modding and Linking Exceptions. They are in `LICENSE` and
 `EXCEPTIONS.md` in the zip.
