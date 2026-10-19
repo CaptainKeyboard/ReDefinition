@@ -194,6 +194,10 @@ namespace ReDefinition.Window
             // Where given: the name a row shows, marked while its change waits
             // for Apply (the settings window's rows; KSP's dialog has none).
             public Func<string, bool, string> Marked;
+            // Where given: the chosen profile's value of a row, shown as such, where the
+            // row holds another; null where it holds the profile's or no profile is chosen
+            // (the settings window: a mark at the name, "Default: X" in the tooltip).
+            public Func<ModuleSetting, OwnSettings, string> Default;
 
             public float Name;
             public float Control;
@@ -265,10 +269,15 @@ namespace ReDefinition.Window
             {
                 ModuleSetting shown = setting;
                 Func<string> value = shown.Control == SettingControl.Toggle ? null : (Func<string>)(() => Shown(edit, shown));
+                Func<ModuleSetting, OwnSettings, string> defaultOf = layout.Default;
                 Func<string> name = layout.Marked == null
                     ? null
-                    : (Func<string>)(() => layout.Marked(shown.Title, shown.Read(edit.After) != shown.Read(edit.Before)));
-                rows.Add(Row(layout, shown.Title, Control(edit, shown, layout.Control), value, name));
+                    : (Func<string>)(() => SettingsWindow.ProfileMarked(
+                        layout.Marked(shown.Title, shown.Read(edit.After) != shown.Read(edit.Before)),
+                        defaultOf != null && defaultOf(shown, edit.After) != null));
+                DialogGUIBase control = Control(edit, shown, layout.Control);
+                if (defaultOf != null) SettingsWindow.DefaultTooltip(control, () => defaultOf(shown, edit.After));
+                rows.Add(Row(layout, shown.Title, control, value, name));
             }
             return rows.ToArray();
         }

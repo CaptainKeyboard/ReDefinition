@@ -444,6 +444,7 @@ namespace ReDefinition.Window
                 Source = "ReDefinition",
                 SourceWidth = SourceWidth,
                 Marked = Marked,
+                Default = OwnDefault,
             };
         }
 

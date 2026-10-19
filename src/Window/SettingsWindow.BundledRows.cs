@@ -140,6 +140,7 @@ namespace ReDefinition.Window
             // When a change arrives, where it is not at once, is said below the
             // tabs (WaitingNotice); the row's owner stands at its right.
             control.tooltipText = setting.Tooltip + Requirements.Note(setting);
+            DefaultTooltip(control, () => BundledDefault(setting));
             // The switch as it stands in the window, not as it was applied: with
             // bundling unticked the rows are left to their mods at once. A value
             // nobody could read cannot be edited sensibly.

@@ -177,7 +177,91 @@ namespace ReDefinition.Window
         // hand, by a profile or by Reset.
         private static string MarkedTitle(BundledSetting setting)
         {
-            return Marked(setting.Title, model.Changed(setting.Key));
+            return ProfileMarked(Marked(setting.Title, model.Changed(setting.Key)), BundledDefault(setting) != null);
+        }
+
+        // A row that holds another value than the chosen profile gives it: a mark of its
+        // own before the name, and its tooltip ends in "Default: X".
+        private const string ProfileMarkColor = "#e0b040";
+
+        internal static string ProfileMarked(string title, bool differs)
+        {
+            return differs ? "<color=" + ProfileMarkColor + ">" + Mark + "</color> " + title : title;
+        }
+
+        // The tooltip as the row was built with it, and "Default: X" below it where
+        // `defaultOf` gives X: kept in the element, which KSP hands to its tooltip each
+        // frame, and in the tooltip the window attached itself (DialogTooltips).
+        internal static void DefaultTooltip(DialogGUIBase control, Func<string> defaultOf)
+        {
+            string plain = control.tooltipText ?? "";
+            string shownDefault = null;
+            Callback before = control.OnUpdate;
+            control.OnUpdate = () =>
+            {
+                if (before != null) before();
+                string now = defaultOf();
+                if (now == shownDefault) return;
+                shownDefault = now;
+                control.tooltipText = now == null ? plain : plain + (plain.Length > 0 ? "\n" : "") + "Default: " + now;
+                KSP.UI.TooltipTypes.TooltipController_Text tooltip =
+                    control.uiItem != null ? control.uiItem.GetComponent<KSP.UI.TooltipTypes.TooltipController_Text>() : null;
+                if (tooltip != null) tooltip.textString = control.tooltipText;
+            };
+        }
+
+        // The chosen profile's values, by the bundled settings' keys and by ReDefinition's
+        // own rows, for the profile last asked about.
+        private static string defaultsOf;
+        private static readonly Dictionary<string, string> bundledDefaults = new Dictionary<string, string>();
+        private static readonly Dictionary<ModuleSetting, string> ownDefaults = new Dictionary<ModuleSetting, string>();
+
+        private static bool DefaultsFor(string profileName)
+        {
+            if (string.IsNullOrEmpty(profileName)) return false;
+            if (defaultsOf == profileName) return true;
+            GraphicsProfile profile = ProfileApplier.Find(profiles, profileName);
+            if (profile == null) return false;
+            bundledDefaults.Clear();
+            foreach (KeyValuePair<BundledSetting, string> pair in ProfileApplier.Values(profile, new List<string>()))
+                bundledDefaults[pair.Key.Key] = pair.Value;
+            ownDefaults.Clear();
+            foreach (KeyValuePair<ModuleSetting, string> pair in ModuleProfiles.Values(profile, null))
+                ownDefaults[pair.Key] = pair.Value;
+            defaultsOf = profileName;
+            return true;
+        }
+
+        // The profile's value of a bundled row as the row shows values, where the row holds
+        // another one; null where it holds the profile's, the profile has none, or none is
+        // chosen.
+        private static string BundledDefault(BundledSetting setting)
+        {
+            string profileValue, now;
+            if (!DefaultsFor(model.Profile) || !bundledDefaults.TryGetValue(setting.Key, out profileValue)
+                || !model.TryGetPending(setting.Key, out now) || SettingValues.Same(now, profileValue))
+                return null;
+            return ShownDefault(profileValue);
+        }
+
+        private static string OwnDefault(ModuleSetting setting, OwnSettings settings)
+        {
+            string profileValue;
+            // The upscaler's switch a profile only turns on, as ModuleProfiles.Differences
+            // leaves it to the player.
+            if (settings == null || setting.OnlyActivates || !DefaultsFor(model.Profile)
+                || !ownDefaults.TryGetValue(setting, out profileValue)
+                || SettingValues.Same(setting.Normalize(setting.Read(settings)), profileValue))
+                return null;
+            if (setting.Control == SettingControl.Toggle && setting.Label != null) return setting.Label(profileValue);
+            return ShownDefault(profileValue);
+        }
+
+        // A switch as the rows say it, anything else as it is.
+        private static string ShownDefault(string value)
+        {
+            bool on;
+            return bool.TryParse(value, out on) ? KspSettingsSection.StateText(on) : value;
         }
 
         private static string Marked(string title, bool changed)
