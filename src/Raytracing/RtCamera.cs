@@ -274,6 +274,28 @@ namespace ReDefinition.Raytracing
         private static readonly int RtOn = Shader.PropertyToID("_ReDefinitionRtOn");
         private static readonly int RtSunMask = Shader.PropertyToID("_ReDefinitionRtSunMask");
         private static readonly int RtLight = Shader.PropertyToID("_ReDefinitionRtLight");
+        // The raytraced diffuse light's colour (ReDefinitionDeferredReflections.shader): 0 its
+        // own; up to 1, that much of Deferred's limit on its ambient light's tint (its
+        // ambientTint); from 1 to 2, more and more in the colour of Deferred's own ambient
+        // light, its strength kept; from 2 to 3, more and more grey.
+        // -redefinitionProbeRtAmbientTint <value> sets it for a probe's run.
+        // The player's choice (RtKsp, RaytracingLightColour).
+        internal Func<float> AmbientColour = () => 0f;
+        private static readonly float probeAmbientTint = ProbeAmbientTint();
+
+        private float AmbientTintLimit
+        {
+            get { return probeAmbientTint >= 0f ? probeAmbientTint : Mathf.Clamp(AmbientColour(), 0f, 3f); }
+        }
+
+        private static float ProbeAmbientTint()
+        {
+            string[] args = System.Environment.GetCommandLineArgs();
+            int at = System.Array.IndexOf(args, "-redefinitionProbeRtAmbientTint");
+            float share;
+            return at >= 0 && at + 1 < args.Length && float.TryParse(args[at + 1], System.Globalization.NumberStyles.Float,
+                       System.Globalization.CultureInfo.InvariantCulture, out share) ? Mathf.Clamp(share, 0f, 3f) : -1f;
+        }
         private static readonly int RtOcean = Shader.PropertyToID("_ReDefinitionRtOcean");
         private static readonly int SsrOutput = Shader.PropertyToID("ssrOutput");
         private static readonly int WaterSphereId = Shader.PropertyToID("_ReDefinitionWaterSphere");
@@ -514,7 +536,8 @@ namespace ReDefinition.Raytracing
             // The previous frame's results, carried to this frame's world.
             bool valid = haveHistory && !Cut();
             Shader.SetGlobalVector(RtLight, new Vector4(valid && Settings.Diffuse ? 1f : 0f,
-                                                        valid && Settings.Reflections ? 1f : 0f, Mathf.Clamp01(NightLight()), 0f));
+                                                        valid && Settings.Reflections ? 1f : 0f, Mathf.Clamp01(NightLight()),
+                                                        AmbientTintLimit));
             if (valid)
             {
                 RtPosition near = WorldShift();
@@ -633,7 +656,7 @@ namespace ReDefinition.Raytracing
             Shader.SetGlobalVector(RtOffsetNear, toCamera);
             Shader.SetGlobalVector(RtOffsetFar, toCamera);
             Shader.SetGlobalVector(RtLight, new Vector4(Settings.Diffuse ? 1f : 0f, Settings.Reflections ? 1f : 0f,
-                                                        Mathf.Clamp01(NightLight()), 0f));
+                                                        Mathf.Clamp01(NightLight()), AmbientTintLimit));
             if (sun != null)
             {
                 Shader.SetGlobalTexture(RtSun, sun);
@@ -1307,6 +1330,54 @@ namespace ReDefinition.Raytracing
             Shader.SetGlobalTexture(RtForwardRatio, forwardRatio);
             haveHistory = false;
             gbufferReady = false;
+        }
+
+        // For the scene probe (-redefinitionProbeSurfaces): this frame's G-buffer copies,
+        // the surfaces as their materials mean them with their modes, and the raytraced
+        // diffuse light, each into <prefix>-<name>.bin in folder -- the width and height as
+        // two little-endian ints, then four floats a pixel, rows from the bottom. The names
+        // written.
+        internal string WriteSurfaceImages(string folder, string prefix)
+        {
+            var written = new System.Text.StringBuilder();
+            var named = new[]
+            {
+                new KeyValuePair<string, RenderTexture>("gbuffer0", gbuffer0), new KeyValuePair<string, RenderTexture>("gbuffer1", gbuffer1),
+                new KeyValuePair<string, RenderTexture>("surface", surface), new KeyValuePair<string, RenderTexture>("surfacemode", surfaceMode),
+                new KeyValuePair<string, RenderTexture>("diffuse", diffuse), new KeyValuePair<string, RenderTexture>("sun", sun),
+            };
+            RenderTexture before = RenderTexture.active;
+            foreach (KeyValuePair<string, RenderTexture> pair in named)
+            {
+                RenderTexture texture = pair.Value;
+                if (texture == null || !texture.IsCreated()) continue;
+                var read = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
+                try
+                {
+                    RenderTexture.active = texture;
+                    read.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
+                    Color[] pixels = read.GetPixels();
+                    using (var file = new System.IO.BinaryWriter(System.IO.File.Create(System.IO.Path.Combine(folder, prefix + "-" + pair.Key + ".bin"))))
+                    {
+                        file.Write(texture.width);
+                        file.Write(texture.height);
+                        foreach (Color c in pixels)
+                        {
+                            file.Write(c.r);
+                            file.Write(c.g);
+                            file.Write(c.b);
+                            file.Write(c.a);
+                        }
+                    }
+                    written.Append(pair.Key).Append(' ');
+                }
+                finally
+                {
+                    RenderTexture.active = before;
+                    Destroy(read);
+                }
+            }
+            return written.ToString().TrimEnd();
         }
 
         private RenderTexture Target(RenderTextureFormat format)

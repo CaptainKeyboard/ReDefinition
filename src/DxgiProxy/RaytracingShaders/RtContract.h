@@ -34,6 +34,15 @@
 // The probe's check of the cloud layer: the sun's visibility is the clouds' transmittance
 // towards the sun alone (RtCommon.hlsli, CloudTransmittance), to lay over EVE's own shadow.
 #define RT_FLAG_CLOUD_SHADOW 0x400u
+// For measuring what the cut-out surfaces' tests cost (the proxy's rtCutoutTest): their
+// hits decided without reading the texture, half of the triangles counting; or every
+// surface taken as opaque, as no candidate hit stops a ray.
+#define RT_FLAG_CUTOUT_PLAIN 0x800u
+#define RT_FLAG_CUTOUT_OPAQUE 0x1000u
+// What of the sun's light a cut-out surface -- a blade of grass, a fern -- lets through,
+// in 255ths, in these bits of the flags (the proxy's rtFoliageTransmission).
+#define RT_FLAG_FOLIAGE_SHIFT 16u
+#define RT_FLAG_FOLIAGE_MASK 0xFFu
 
 // The signals a frame traces (Raytracing.h, kRtSignal*).
 #define RT_SIGNAL_SUN 0x1u
@@ -69,6 +78,9 @@
 #define RT_SURFACE_UNITY_LEGACY 4
 #define RT_SURFACE_WATER 5
 #define RT_SURFACE_MISSED 6
+// The space centre's ground: the terrain's shine where the drawn colour is its lawn,
+// none on its tarmac and concrete (RtCommon.hlsli, SurfaceIntent).
+#define RT_SURFACE_GROUND 7
 
 // The input slots (Raytracing.h, kRtInput*).
 #define RT_INPUT_DEPTH 0

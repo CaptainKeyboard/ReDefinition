@@ -269,7 +269,9 @@ namespace ReDefinition.Raytracing
                     if (renderer == null) continue;
                     for (int lod = 0; lod < 3; lod++)
                     {
-                        ComputeBuffer buffer = scatterBuffers[lod](renderer);
+                        // Where the space centre's grass is lifted, its clumps under the
+                        // space centre's ground left out (Scenery.KscGrass.RaysBuffer).
+                        ComputeBuffer buffer = Scenery.KscGrass.RaysBuffer(renderer, lod, scatterBuffers[lod](renderer));
                         Mesh mesh = scatterMeshes[lod]?.Invoke(renderer);
                         if (buffer == null || !buffer.IsValid() || mesh == null) continue;
                         into.Add(new RtGpuItem

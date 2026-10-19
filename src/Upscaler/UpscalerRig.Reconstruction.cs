@@ -52,6 +52,24 @@ namespace ReDefinition.Upscaler
 
         internal bool Reconstructing { get; private set; }
 
+        // Whether the raytraced frame goes to Ray Reconstruction at all; without it the
+        // raytracing's own denoiser and DLSS Super Resolution take it.
+        // -redefinitionProbeNoRayReconstruction: without, for a probe's run.
+        // sl::DLSSDPreset: 0 eDefault; -redefinitionProbeRrPreset <4 to 6> (D to F) for a
+        // probe's run.
+        private static readonly uint ReconstructionPreset = ProbeReconstructionPreset();
+
+        private static uint ProbeReconstructionPreset()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            int at = Array.IndexOf(args, "-redefinitionProbeRrPreset");
+            uint preset;
+            return at >= 0 && at + 1 < args.Length && uint.TryParse(args[at + 1], out preset) ? preset : 0u;
+        }
+
+        internal static bool UseRayReconstruction =
+            Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeNoRayReconstruction") < 0;
+
         // DLSS's turn: Ray Reconstruction where it can take this frame, and whether the
         // proxy has shown one of its frames lately. False where DLSS Super Resolution
         // takes the frame; with its history reset where Ray Reconstruction had it.
@@ -74,7 +92,7 @@ namespace ReDefinition.Upscaler
                 Debug.Log(Log.Tag + " DLSS Ray Reconstruction takes HDR frames only; this camera renders LDR: DLSS Super"
                           + " Resolution.");
             }
-            bool wanted = raytracedHere && EffectiveHdr
+            bool wanted = raytracedHere && EffectiveHdr && UseRayReconstruction
                           && Time.unscaledTime - reconstructionGaveUpAt > ReconstructionRetrySeconds && ReconstructionReady();
             if (wanted) raytraced.ReconstructionLease = Time.frameCount;
             bool was = Reconstructing;
@@ -188,7 +206,7 @@ namespace ReDefinition.Upscaler
             p.OutputHeight = (uint)displaySize.y;
             // sl::DLSSMode counts from eOff, one above NGX's quality values.
             p.Mode = (uint)(DlssBridge.Quality(QualityMode) + 1);
-            p.Preset = 0;   // sl::DLSSDPreset::eDefault
+            p.Preset = ReconstructionPreset;
             Array.Copy(raytraced.GuidesClipToWorld, p.ClipToWorld, 16);
 
             Matrix4x4 projection = CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix;

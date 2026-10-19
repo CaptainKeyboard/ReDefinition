@@ -4,6 +4,7 @@
 #include "GpuProfiler.h"
 #include "Raytracing.h"
 
+#include "Config.h"
 #include "D3d12Util.h"
 #include "Log.h"
 #include "RaytracingInternal.h"
@@ -50,6 +51,24 @@ namespace redefinition
                               + std::to_string(tier % 10) + "; ray queries need 1.1";
             else if (!LoadShadersLocked())
                 unavailable = "this build of the proxy has no raytracing shaders";
+        }
+
+        // A queue of its own (Config.h, rtOwnQueue): the fences below order it against
+        // Direct3D 11 as they order the swapchain's.
+        if (unavailable.empty() && device != nullptr && Config().rtOwnQueue)
+        {
+            D3D12_COMMAND_QUEUE_DESC desc = {};
+            desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+            desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
+            ComPtr<ID3D12CommandQueue> own;
+            const HRESULT hr = device->CreateCommandQueue(&desc, IID_PPV_ARGS(&own));
+            if (SUCCEEDED(hr))
+            {
+                own->SetName(L"ReDefinition raytracing");
+                queue = own;
+            }
+            LogLine(SUCCEEDED(hr) ? "Raytracing: on a queue of its own"
+                                  : "Raytracing: no queue of its own (" + Hr(hr) + "), on the swapchain's");
         }
 
         attached = device11 != nullptr && context11 != nullptr && device != nullptr && queue != nullptr;
@@ -441,7 +460,10 @@ namespace redefinition
         constants.frameSize[0] = packet.width;
         constants.frameSize[1] = packet.height;
         constants.frameIndex = packet.frameIndex;
-        constants.frameFlags = packet.flags;
+        constants.frameFlags = packet.flags | (Config().rtCutoutTest == 1 ? RT_FLAG_CUTOUT_PLAIN : 0u)
+                               | (Config().rtCutoutTest == 2 ? RT_FLAG_CUTOUT_OPAQUE : 0u)
+                               | (static_cast<uint32_t>(std::clamp(Config().rtFoliageTransmission, 0.0f, 1.0f) * 255.0f + 0.5f)
+                                  << RT_FLAG_FOLIAGE_SHIFT);
         memcpy(constants.lights, packet.lights, sizeof(constants.lights));
         memcpy(constants.lightParams, packet.lightParams, sizeof(constants.lightParams));
         memcpy(constants.nightLight, packet.nightLight, sizeof(constants.nightLight));

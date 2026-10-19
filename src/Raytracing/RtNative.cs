@@ -82,6 +82,7 @@ namespace ReDefinition.Raytracing
         internal const uint SurfaceUnityLegacy = 4;
         internal const uint SurfaceWater = 5;
         internal const uint SurfaceMissed = 6;
+        internal const uint SurfaceGround = 7;
 
         internal const int MaterialTextureSize = 64;
         // As Raytracing.h: a Direct3D 12 texture array's most layers.

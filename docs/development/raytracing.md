@@ -97,6 +97,19 @@ shadows show **[meas]** (KSP, at the launch pad at night with the Mun up, moonli
 the craft at 17, 23 and 41 of 255 with 0, 30 and 100 %, 41 without raytracing; the far
 grass at 20 and 31, 29 without).
 
+The setting *Light colour* (`RaytracingLightColour`) sets the colour of the raytraced
+diffuse light; its strength stays the rays' own. *Raytraced* keeps the rays' colour.
+*As without raytracing* gives it the colour of Deferred's ambient light at the pixel.
+*Neutral*, the default, makes it grey. The rays carry the sky's full colour, while
+Deferred tints its ambient light by 0.7 (`deferredAmbientTint`, `zzz_Deferred/Deferred.cfg`)
+**[src]**. In shadow, where the sky's light is all a blade of grass gets, the rays'
+colour turned it blue by day and orange in the evening. Against the frame without
+raytracing at the launch pad, the vegetation's red and blue chromaticity were off by
+13 and 14 thousandths by day, 14 and 19 in the evening and 25 and 21 at night; with
+*Neutral* by at most 6 **[meas]** (KSP, `-redefinitionProbeRtAmbientTint`, tiles of the
+same shot). ReDefinition's reflections shader takes the choice in the fourth component
+of `_ReDefinitionRtLight`.
+
 KSP moves its world between two frames in two ways under Krakensbane: the floating origin
 shifts what is near the vessel, and the bodies move by the frame's velocity as well
 **[src]**. The lighting shaders try both shifts and take the one whose view depth matches
@@ -193,7 +206,7 @@ frame.
 | Vessel parts | `MeshFilter.sharedMesh`, readable as KSP loads them **[src]** | skinned meshes baked when their pose changes |
 | KSC buildings | the renderers under each `PQSCity` | readability checked at run time; unreadable meshes copied on the GPU **[open]** |
 | Terrain | each visible leaf `PQ`'s mesh within 30 km, from the quad tree (`PQS.quads`, `PQ.subNodes`) **[src]** | handed over again when the quad moves or its edges change **[src]**; Parallax's finer copy near the camera in place of the quad, whose material discards it (`Custom/DiscardAll`) **[src]**; the copy, rebuilt in place, handed over again when its shape changes, at most every ten frames |
-| Parallax scatter | the append buffers Parallax fills on the GPU each frame, one per scatter and level of detail, with their meshes and materials **[src]** | gathered into a texture on Unity's side, turned into instances on the proxy's, as their count is only known on the GPU; each buffer gets the places it took lately, read back a frame or two late, and a quarter more, not its capacity **[meas]** (test player: 25 096 places for 20 000 rocks in a buffer of 100 000) |
+| Parallax scatter | the append buffers Parallax fills on the GPU each frame, one per scatter and level of detail, with their meshes and materials **[src]** | gathered into a texture on Unity's side, turned into instances on the proxy's, as their count is only known on the GPU; each buffer gets the places it took lately, read back a frame or two late, and a quarter more, not its capacity **[meas]** (test player: 25 096 places for 20 000 rocks in a buffer of 100 000); where ReDefinition lifts Parallax's grass onto the space centre's lawns, the rays take the clumps no ground of the space centre covers, as the clumps under it stand on the terrain below, out of every ray's reach (`KscGrass.RaysBuffer`) **[src]** |
 | The main body | a sphere, tested by formula in the sun's rays, so that its night side and what flies over it lie in its shadow | none |
 
 Left out: anything transparent or additive (Waterfall, Firefly, particles, translucent
@@ -273,6 +286,17 @@ texels shade the ground alike, 95 % and 95 %, 95 % and 95 %, 86 % and 87 % of th
 beside them). A cut-out surface whose texture is not read yet lets every ray through
 **[meas]** (harness: 1.000 under all of the card): as an opaque card it would shade the
 ground under it as a square.
+
+The space centre's ground (`Diffuse Ground KSC`) draws its tarmac, concrete and lawn
+with one material. In the drawn image the proxy keeps the G-buffer's shine on its lawn
+and takes none on the rest (`RT_SURFACE_GROUND`, `SurfaceIntent` in `RtCommon.hlsli`)
+**[src]**. It tells them apart by the drawn colour's saturation: under 0.10 on the
+grey ground, 0.30 to 0.50 on the lawn **[meas]** (KSP, at the launch pad). Without the
+raytracing, Deferred's G-buffer gives the lawn a specular colour of 0.22 at a smoothness
+of 0.013, which lifts it at a glancing view to the brightness of Parallax's terrain
+beside it **[meas]**. Fully matt, the lawn at the horizon was a dark strip: 66 of 255
+against the terrain's 100, where the frame without the raytracing has 89 against 94.
+With its shine, 100 against 108 **[meas]**. Rays that hit the ground see it matt.
 
 A ray that hits nothing takes the sky's light from a capture of the scene's reflection
 probe, Deferred's or KSP's own in flight (`FlightReflectionProbe`) **[src]**, and the sun's

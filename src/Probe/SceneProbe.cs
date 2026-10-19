@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using ReDefinition.Bridges;
 using ReDefinition.Core;
+using ReDefinition.Settings;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -107,6 +108,27 @@ namespace ReDefinition.Probe
             if (SceneProbe.Launched || !SceneProbe.Requested) yield break;
             SceneProbe.Launched = true;
             yield return new WaitForSeconds(3f);
+            // -redefinitionProbeProfile <name>: that graphics profile applied as the main
+            // menu's question applies it, saved in the mods, and KSP quits, so that the next
+            // start runs with it all; the caller keeps copies of the files it changes.
+            string profileName = SceneProbe.ArgumentAfter("-redefinitionProbeProfile");
+            if (profileName != null)
+            {
+                List<string> problems = new List<string>();
+                List<GraphicsProfile> profiles = ProfileApplier.Ordered(problems);
+                GraphicsProfile profile = ProfileApplier.Find(profiles, profileName);
+                if (profile == null) Debug.LogWarning(Log.Tag + " Probe: no profile " + profileName + ".");
+                else
+                {
+                    BundledSettings.SetEnabled(true);
+                    ModuleProfiles.ApplyNow(profile, profiles, problems);
+                    Debug.Log(Log.Tag + " Probe: profile " + profileName + " applied.");
+                }
+                foreach (string problem in problems) Debug.LogWarning(Log.Tag + " Probe: " + problem);
+                yield return new WaitForSeconds(2f);
+                Application.Quit();
+                yield break;
+            }
             // From the template the probe never writes, where it is: KSP saves the flight it
             // leaves into "persistent", time warps and moved vessels with it.
             bool template = System.IO.File.Exists(System.IO.Path.Combine(System.IO.Path.Combine(
@@ -620,6 +642,15 @@ namespace ReDefinition.Probe
                 string folder = CaptureFolder.Run;
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
                 EnvironmentFaces(folder, shot);
+                // -redefinitionProbeSurfaces: the raytraced camera's surfaces of the frame
+                // after, as <shot>-<name>.bin (RtCamera.WriteSurfaceImages).
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeSurfaces") >= 0)
+                {
+                    yield return new WaitForEndOfFrame();
+                    Raytracing.RtCamera traced = Raytracing.RtCamera.Current;
+                    Debug.Log(Log.Tag + " Probe: surfaces " + (traced != null ? traced.WriteSurfaceImages(folder, shot) : "none, no raytraced camera")
+                              + ".");
+                }
                 Debug.Log(Log.Tag + " Probe: shot " + shot + ".");
                 // -redefinitionProbeBurst <n>: n frames more, one after the other, as
                 // <shot>-burst<i>.png, for what changes from frame to frame (flicker,

@@ -183,6 +183,23 @@ namespace redefinition
         // rendered frames.
         bool fgShowOnlyGenerated = false;
 
+        // The raytracing and Ray Reconstruction on a Direct3D 12 queue of their own
+        // instead of the swapchain's, where the present and frame generation run: their
+        // work does not wait behind frame generation's (Raytracing::Attach). Read when a
+        // swapchain is created.
+        bool rtOwnQueue = false;
+
+        // For measuring, 0 by default: what the cut-out surfaces' tests cost the rays.
+        // 1 decides their hits without reading their textures, 2 takes every surface as
+        // opaque (RtContract.h, RT_FLAG_CUTOUT_PLAIN and RT_FLAG_CUTOUT_OPAQUE). The
+        // picture is wrong with either. Read when a swapchain is created.
+        int rtCutoutTest = 0;
+
+        // What of the sun's light a cut-out surface -- grass, ferns -- lets through to
+        // what lies behind it, 0 to 1 (RtCommon.hlsli, SunUnoccluded). Read when a
+        // swapchain is created.
+        float rtFoliageTransmission = 0.0f;
+
         // Where a player's nvngx_dlss.dll lies if not next to KSP_x64.exe, which
         // NGX searches anyway (Dlss.h). Read when DLSS starts on a device, on
         // Unity's render thread, through DlssDirectory().

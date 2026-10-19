@@ -318,6 +318,12 @@ bool BodyBlocks(float3 origin, float3 direction)
 // (Raytracing.h, kRtInstanceTerrain).
 static const float kTerrainSkip = 1.0f;
 
+// The ray flags the cut-out measurement asks for (RT_FLAG_CUTOUT_OPAQUE): none otherwise.
+uint CutoutRayFlags()
+{
+    return (frameFlags & RT_FLAG_CUTOUT_OPAQUE) != 0u ? RAY_FLAG_FORCE_OPAQUE : RAY_FLAG_NONE;
+}
+
 // Whether a candidate hit of the non-opaque geometry counts: terrain only past
 // terrainSkip; a cut-out surface where its texture covers the point. The alpha of a
 // cut-out material's small texture is how much of each texel its full-size texture
@@ -333,6 +339,8 @@ bool CandidateCounts(uint instanceId, uint primitive, float2 bary, float t, floa
         return false;
     if ((instance.flags & RT_INSTANCE_CUTOUT) == 0u)
         return true;
+    if ((frameFlags & RT_FLAG_CUTOUT_PLAIN) != 0u)
+        return (primitive & 1u) == 0u;
     MaterialData material = materialData[instance.material];
     if (!MATERIAL_TEXTURES || material.texture < 0)
         return false;
@@ -359,11 +367,47 @@ bool Unoccluded(float3 origin, float3 direction, float maxDistance, float terrai
     ray.TMin = 0.0f;
     ray.TMax = maxDistance;
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
-    query.TraceRayInline(scene, RAY_FLAG_NONE, 0xFF, ray);
+    query.TraceRayInline(scene, CutoutRayFlags(), 0xFF, ray);
     while (query.Proceed())
         if (CandidateCounts(query.CandidateInstanceID(), query.CandidatePrimitiveIndex(), query.CandidateTriangleBarycentrics(),
                             query.CandidateTriangleRayT(), terrainSkip, query.WorldRayOrigin()))
             query.CommitNonOpaqueTriangleHit();
+    return query.CommittedStatus() == COMMITTED_NOTHING;
+}
+
+// The same towards the sun: a cut-out surface's hit -- grass, ferns -- lets the ray on
+// with the chance the flags give (RT_FLAG_FOLIAGE_SHIFT), as a blade of grass lets
+// through part of the light that falls on it.
+bool SunUnoccluded(float3 origin, float3 direction, float maxDistance, float terrainSkip = 0.0f)
+{
+    float through = float((frameFlags >> RT_FLAG_FOLIAGE_SHIFT) & RT_FLAG_FOLIAGE_MASK) * (1.0f / 255.0f);
+    if (through <= 0.0f)
+        return Unoccluded(origin, direction, maxDistance, terrainSkip);
+    if (maxDistance > 1.0e6f && BodyBlocks(origin, direction))
+        return false;
+    RayDesc ray;
+    ray.Origin = origin;
+    ray.Direction = direction;
+    ray.TMin = 0.0f;
+    ray.TMax = maxDistance;
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
+    query.TraceRayInline(scene, CutoutRayFlags(), 0xFF, ray);
+    while (query.Proceed())
+    {
+        uint instanceId = query.CandidateInstanceID();
+        uint primitive = query.CandidatePrimitiveIndex();
+        float t = query.CandidateTriangleRayT();
+        if (!CandidateCounts(instanceId, primitive, query.CandidateTriangleBarycentrics(), t, terrainSkip,
+                             query.WorldRayOrigin()))
+            continue;
+        if ((instanceData[instanceId].flags & RT_INSTANCE_CUTOUT) != 0u)
+        {
+            uint seed = Pcg(primitive * 7919u ^ Pcg(asuint(t) ^ Pcg(asuint(origin.y) ^ Pcg(frameIndex + 17u))));
+            if (float(seed >> 8) * (1.0f / 16777216.0f) < through)
+                continue;
+        }
+        query.CommitNonOpaqueTriangleHit();
+    }
     return query.CommittedStatus() == COMMITTED_NOTHING;
 }
 
@@ -455,7 +499,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     ray.TMin = 0.0f;
     ray.TMax = maxDistance;
     RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
-    query.TraceRayInline(scene, RAY_FLAG_NONE, 0xFF, ray);
+    query.TraceRayInline(scene, CutoutRayFlags(), 0xFF, ray);
     while (query.Proceed())
         if (CandidateCounts(query.CandidateInstanceID(), query.CandidatePrimitiveIndex(), query.CandidateTriangleBarycentrics(),
                             query.CandidateTriangleRayT(), terrainSkip, query.WorldRayOrigin()))
@@ -591,7 +635,7 @@ float3 SunAt(Hit hit, float3 albedo, inout Random random)
         return 0.0f;
     float2 u = float2(NextFloat(random), NextFloat(random));
     float3 direction = SampleCone(towardsSun, sunDirection.w, u);
-    if (!Unoccluded(RayOrigin(hit.position, hit.normal), direction, 1.0e7f))
+    if (!SunUnoccluded(RayOrigin(hit.position, hit.normal), direction, 1.0e7f))
         return 0.0f;
     return albedo * InputColor(sunColor.rgb) * nl * CloudTransmittance(hit.position, towardsSun);
 }
@@ -1077,6 +1121,10 @@ float3 IntendedSpecular(MaterialData material)
         return 0.0f;
     if (mode == RT_SURFACE_LEGACY || mode == RT_SURFACE_UNITY_LEGACY)
         return material.specular * material.vertexColour.w;
+    // The space centre's ground, where a ray hits it: matt, as its tarmac is; its lawn's
+    // shine is only told apart by the drawn colour.
+    if (mode == RT_SURFACE_GROUND)
+        return 0.0f;
     return material.specular;
 }
 
@@ -1124,6 +1172,19 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode)
         return 0.0f;
     if (mode == RT_SURFACE_FIXED)
         return float4(material.specular, material.smoothness);
+    if (mode == RT_SURFACE_GROUND)
+    {
+        // The lawn by its drawn colour: the ground's tarmac and concrete are grey (a
+        // saturation under 0.10 at the launch pad), its lawn green (0.30 to 0.50),
+        // 2026-10-19. The lawn keeps the G-buffer's shine, as it has without the rays
+        // (0.22 at a smoothness of 0.013 there, rough), which lifts it at a glancing view
+        // as far as the terrain beside it; the rest none.
+        float3 drawn = gbuffer0[pixel].rgb;
+        float most = max(drawn.r, max(drawn.g, drawn.b));
+        float saturation = (most - min(drawn.r, min(drawn.g, drawn.b))) / max(most, 1e-3f);
+        float lawn = smoothstep(0.15f, 0.30f, saturation);
+        return float4(g1.rgb * lawn, g1.a * lawn);
+    }
     if (mode == RT_SURFACE_LEGACY || mode == RT_SURFACE_UNITY_LEGACY)
     {
         float measured = mode == RT_SURFACE_LEGACY ? g1.a : max(g1.r, max(g1.g, g1.b));

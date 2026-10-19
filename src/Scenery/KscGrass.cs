@@ -51,6 +51,10 @@ namespace ReDefinition.Scenery
             public readonly Material[] Materials = new Material[3];
             public float Reach;
             public readonly ComputeBuffer[] Lifted = new ComputeBuffer[3];
+            // Parallax's clumps of this frame no ground of the space centre covers, for the
+            // rays (RaysBuffer).
+            public readonly ComputeBuffer[] Kept = new ComputeBuffer[3];
+            public readonly int[] KeptFrame = { -1, -1, -1 };
             public readonly ComputeBuffer[] Arguments = new ComputeBuffer[3];
             public readonly MaterialPropertyBlock[] Properties = new MaterialPropertyBlock[3];
         }
@@ -100,6 +104,7 @@ namespace ReDefinition.Scenery
         private static readonly int CountIndexId = Shader.PropertyToID("_CountIndex");
         private static readonly int CapacityId = Shader.PropertyToID("_Capacity");
         private static readonly int LiftedId = Shader.PropertyToID("_Lifted");
+        private static readonly int KeptId = Shader.PropertyToID("_Kept");
         private static readonly int WorldToRootId = Shader.PropertyToID("_WorldToRoot");
         private static readonly int RootToWorldId = Shader.PropertyToID("_RootToWorld");
         private static readonly int LawnsId = Shader.PropertyToID("_Lawns");
@@ -180,6 +185,7 @@ namespace ReDefinition.Scenery
                 for (int lod = 0; lod < 3; lod++)
                 {
                     kind.Lifted[lod]?.Release();
+                    kind.Kept[lod]?.Release();
                     kind.Arguments[lod]?.Release();
                 }
             counts?.Release();
@@ -210,6 +216,32 @@ namespace ReDefinition.Scenery
                     buffers++;
                 }
             return buffers;
+        }
+
+        // The buffer the rays take for a renderer's level of detail of Parallax's scatter
+        // (RtKspMods.ParallaxScatter): where its clumps are lifted this frame, the ones no
+        // ground of the space centre covers (Kept); else Parallax's own. Under the space
+        // centre's ground Parallax's clumps stand on the terrain metres below it, where no ray
+        // reaches them. At the launch pad on an RTX A4500 (measured 2026-10-19): the ones under
+        // the ground left out, the sun's, the diffuse and the reflected rays 6.66 ms to 6.1, the
+        // frame 34.85 ms to 34.3, the picture the same (every tile within 0.1 of a thousandth);
+        // all of Parallax's own left out (-redefinitionProbeNoParallaxScatterRays), 5.0 ms,
+        // their shadows on the terrain around the space centre gone with them.
+        internal static ComputeBuffer RaysBuffer(object renderer, int lod, ComputeBuffer own)
+        {
+            KscGrass grass = current;
+            if (grass == null || !grass.ready || !Enabled() || own == null) return own;
+            foreach (Kind kind in grass.kinds)
+                if (ReferenceEquals(kind.Renderer, renderer))
+                {
+                    ComputeBuffer kept = kind.Kept[lod];
+                    // Filled this frame or the last: the rays collect their buffers in the
+                    // camera's OnPreCull, which may come before this frame's Draw, and read
+                    // them as the camera renders, after Draw's dispatch.
+                    return kind.KeptFrame[lod] >= Time.frameCount - 1 && kept != null && kept.IsValid() && kept.count == own.count
+                        ? kept : own;
+                }
+            return own;
         }
 
         private static bool Enabled()
@@ -380,6 +412,8 @@ namespace ReDefinition.Scenery
             public int Width, Depth;
             private float[] height;
             private bool[] lawnAt;
+            // The texels the space centre's ground covers, lawn or not.
+            private bool[] groundAt;
             // The lawn texels, in the order of their rays.
             public readonly List<int> Lawn = new List<int>();
             public int Covered;
@@ -404,6 +438,7 @@ namespace ReDefinition.Scenery
                 int depth = Depth = (int)Math.Ceiling((z1 - z0) / Texel) + 1;
                 height = new float[width * depth];
                 lawnAt = new bool[width * depth];
+                groundAt = new bool[width * depth];
                 foreach (Lawn lawn in lawns)
                 {
                     var a = new Vector2(lawn.A.x, lawn.A.z);
@@ -420,6 +455,7 @@ namespace ReDefinition.Scenery
                             Vector2 q = new Vector2(x0 + (x + 0.5f) * Texel, z0 + (z + 0.5f) * Texel) - a;
                             float u = (q.x * ac.y - q.y * ac.x) / det, w = (ab.x * q.y - ab.y * q.x) / det;
                             if (u < 0f || w < 0f || u + w > 1f) continue;
+                            groundAt[z * width + x] = true;
                             if (lawn.Mask != null && lawn.Tarmac(lawn.UvA + u * (lawn.UvB - lawn.UvA) + w * (lawn.UvC - lawn.UvA)) >= MostTarmac)
                                 continue;
                             int i = z * width + x;
@@ -462,7 +498,8 @@ namespace ReDefinition.Scenery
                 for (int i = 0; i < lawnAt.Length; i++)
                 {
                     Texels[i * 2] = Half(lawnAt[i] ? height[i] - Y0 : 0f);
-                    Texels[i * 2 + 1] = Half(lawnAt[i] ? room[i] : 0f);
+                    // A lawn texel without room counts as ground, not as no ground.
+                    Texels[i * 2 + 1] = Half(lawnAt[i] && room[i] > 0f ? room[i] : groundAt[i] ? -1f : 0f);
                 }
             }
 
@@ -626,6 +663,8 @@ namespace ReDefinition.Scenery
                     {
                         kind.Lifted[lod]?.Release();
                         kind.Lifted[lod] = new ComputeBuffer(source.count, 64, ComputeBufferType.Append);
+                        kind.Kept[lod]?.Release();
+                        kind.Kept[lod] = new ComputeBuffer(source.count, 64, ComputeBufferType.Append);
                         if (kind.Arguments[lod] == null)
                             kind.Arguments[lod] = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
                         arguments[0] = mesh.GetIndexCount(0);
@@ -639,15 +678,18 @@ namespace ReDefinition.Scenery
                     }
                     int slot = k * 3 + lod;
                     kind.Lifted[lod].SetCounterValue(0);
+                    kind.Kept[lod].SetCounterValue(0);
                     ComputeBuffer.CopyCount(source, counts, slot * 4);
                     lift.SetBuffer(liftKernel, SourceId, source);
                     lift.SetBuffer(liftKernel, LiftedId, kind.Lifted[lod]);
+                    lift.SetBuffer(liftKernel, KeptId, kind.Kept[lod]);
                     lift.SetInt(CountIndexId, slot);
                     lift.SetInt(CapacityId, source.count);
                     if (capacities.Length < kinds.Count * 3) capacities = new int[kinds.Count * 3];
                     capacities[slot] = source.count;
                     lift.Dispatch(liftKernel, (source.count + 63) / 64, 1, 1);
                     ComputeBuffer.CopyCount(kind.Lifted[lod], kind.Arguments[lod], 4);
+                    kind.KeptFrame[lod] = Time.frameCount;
                     Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, kind.Arguments[lod], 0, kind.Properties[lod],
                                                        ShadowCastingMode.On, true, layer, camera);
                 }

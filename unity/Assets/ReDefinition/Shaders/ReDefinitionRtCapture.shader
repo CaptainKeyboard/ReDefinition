@@ -312,7 +312,8 @@ Shader "Hidden/ReDefinition/RtCapture"
     // The surfaces' overlay (RtCamera.SurfaceView), over the finished picture: each surface's
     // shine as its material means it. Dark grey matt; blue to green to yellow to red from
     // rough to smooth, brighter the stronger it reflects; striped where the G-buffer's own
-    // shine was kept (Unity's physically based or an unknown shader); cyan KSP's sea;
+    // shine was kept (Unity's physically based or an unknown shader); cyan KSP's sea; orange
+    // the space centre's ground;
     // magenta where no material was found at the pixel; the sky as it is.
     sampler2D _ReDefinitionRtSurfaceMode;
 
@@ -325,8 +326,10 @@ Shader "Hidden/ReDefinition/RtCapture"
             return half4(0.0, 0.0, 0.0, 0.0);
         float mode = found.r * 8.0;
         half3 colour;
-        if (mode > 5.5)
+        if (mode > 5.5 && mode < 6.5)
             colour = half3(1.0, 0.0, 1.0);
+        else if (mode > 6.5)
+            colour = half3(1.0, 0.5, 0.0);
         else if (mode > 4.5)
             colour = half3(0.0, 0.8, 1.0);
         else if (mode > 0.5 && mode < 1.5)

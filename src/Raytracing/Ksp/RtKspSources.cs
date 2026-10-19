@@ -420,10 +420,15 @@ namespace ReDefinition.Raytracing
     {
         internal int Buffers { get; private set; }
 
+        // -redefinitionProbeNoParallaxScatterRays: Parallax's own scatter left out of the
+        // rays, the space centre's lifted grass kept, to compare (the scene probe).
+        private static readonly bool ParallaxLeftOut =
+            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoParallaxScatterRays") >= 0;
+
         public void CollectGpu(List<RtGpuItem> into)
         {
             Buffers = HighLogic.LoadedSceneIsFlight || HighLogic.LoadedScene == GameScenes.SPACECENTER
-                ? RtKspMods.ParallaxScatter(into) + Scenery.KscGrass.CollectGpu(into)
+                ? (ParallaxLeftOut ? 0 : RtKspMods.ParallaxScatter(into)) + Scenery.KscGrass.CollectGpu(into)
                 : 0;
         }
     }

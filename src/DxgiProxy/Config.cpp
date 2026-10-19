@@ -83,6 +83,9 @@ namespace redefinition
                  + " vendorDiagnostics=" + (c.vendorDiagnostics ? "1" : "0")
                  + " streamlineImgui=" + (c.streamlineImgui ? "1" : "0")
                  + " fgShowOnlyGenerated=" + (c.fgShowOnlyGenerated ? "1" : "0")
+                 + " rtOwnQueue=" + (c.rtOwnQueue ? "1" : "0")
+                 + " rtCutoutTest=" + std::to_string(c.rtCutoutTest)
+                 + " rtFoliageTransmission=" + std::to_string(c.rtFoliageTransmission)
                  + " reportSeconds=" + std::to_string(c.reportSeconds)
                  + " logInputsSeconds=" + std::to_string(c.logInputsSeconds)
                  + " dlssDirectory=" + (c.dlssDirectory[0] == L'\0' ? "(none)" : "(set)")
@@ -139,6 +142,9 @@ namespace redefinition
             target.vendorDiagnostics = ReadFlag(L"vendorDiagnostics", file, false);
             target.streamlineImgui = ReadFlag(L"streamlineImgui", file, false);
             target.fgShowOnlyGenerated = ReadFlag(L"fgShowOnlyGenerated", file, false);
+            target.rtOwnQueue = ReadFlag(L"rtOwnQueue", file, false);
+            target.rtCutoutTest = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtCutoutTest", 0, file.c_str()));
+            target.rtFoliageTransmission = ReadFloat(L"rtFoliageTransmission", file, 0.0f);
             if (target.logInputsSeconds < 0)
                 target.logInputsSeconds = 0;
 

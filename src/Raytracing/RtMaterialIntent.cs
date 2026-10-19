@@ -22,8 +22,9 @@ namespace ReDefinition.Raytracing
     //   The space centre's buildings with Unity's untouched defaults (_Shininess 0.078,
     //   _SpecColor 0.5) as matt (the player, 2026-10-05: buildings matt rather than shiny),
     //   and its concrete by its materials' names (Concrete).
-    // * The space centre's ground (Diffuse Ground KSC Specular): Unity's specular setup with
-    //   _SpecularColor as its specular colour, black on every stock material.
+    // * The space centre's ground (Diffuse Ground KSC and its Specular variant): Unity's
+    //   specular setup with _SpecularColor as its specular colour, black on every stock
+    //   material; there its lawn keeps the G-buffer's shine, its tarmac none (Ground).
     // * Parallax's terrain: its own Blinn-Phong, _SpecularIntensity at _SpecularPower, the
     //   gloss in its colour's alpha, which its G-buffer's smoothness gives back over 0.644.
     // * Unity's physically based shaders and every other one: the G-buffer's own.
@@ -64,11 +65,12 @@ namespace ReDefinition.Raytracing
             // glancing view mirrored the sky: 30 % brighter than the matt space centre's
             // lawn and runway beside it (measured on the pad, 2026-10-13).
             if (shader.StartsWith("Terrain/PQS/", StringComparison.Ordinal)) return Dry();
-            if (shader.IndexOf("Diffuse Ground KSC Specular", StringComparison.Ordinal) >= 0)
+            if (shader.IndexOf("Diffuse Ground KSC", StringComparison.Ordinal) >= 0)
             {
                 Color f0 = material.HasProperty("_SpecularColor") ? material.GetColor("_SpecularColor") : Color.black;
-                if (Max(f0) < 0.004f) return Dry();
-                return new RtMaterialIntent { Mode = RtNative.SurfaceFixed, Specular = f0, Smoothness = 0.25f };
+                if (Max(f0) >= 0.004f)
+                    return new RtMaterialIntent { Mode = RtNative.SurfaceFixed, Specular = f0, Smoothness = 0.25f };
+                return Ground();
             }
             bool kspLegacy = shader.StartsWith("KSP/", StringComparison.Ordinal);
             bool unityLegacy = shader.StartsWith("Legacy Shaders/", StringComparison.Ordinal);
@@ -108,6 +110,17 @@ namespace ReDefinition.Raytracing
                 Debug.Log("[ReDefinition] Raytracing: the shine of shader '" + shader + "' is taken as drawn (Deferred's G-buffer, or"
                           + " the material's own values), at most a smoothness of 0.95 (material '" + material.name + "').");
             return keep;
+        }
+
+        // The space centre's ground (RT_SURFACE_GROUND): its lawn, told apart per pixel by
+        // its drawn colour, keeps the G-buffer's shine, its tarmac and concrete none.
+        // Matt as a whole (Dry), the lawn was darker than the terrain beside it at a
+        // glancing view, which the G-buffer's rough shine lifts without the rays: at the
+        // launch pad a dark strip where they meet (measured 2026-10-19: 66 against 100
+        // with the rays, 89 against 94 without; 100 against 108 with the lawn's shine).
+        private static RtMaterialIntent Ground()
+        {
+            return new RtMaterialIntent { Mode = RtNative.SurfaceGround, Specular = Color.black, Smoothness = 0f };
         }
 
         private static RtMaterialIntent Dry()

@@ -39,7 +39,7 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
         Random random = MakeRandom(id.xy, frameIndex, 0u);
         float2 u = float2(NextFloat(random), NextFloat(random));
         float3 direction = SampleCone(towardsSun, sunDirection.w, u);
-        visible = Unoccluded(RayOrigin(position, normal), direction, 1.0e7f, kTerrainSkip) ? 1.0f : 0.0f;
+        visible = SunUnoccluded(RayOrigin(position, normal), direction, 1.0e7f, kTerrainSkip) ? 1.0f : 0.0f;
     }
     if ((frameFlags & RT_FLAG_CLOUD_SHADOW) != 0u)
     {

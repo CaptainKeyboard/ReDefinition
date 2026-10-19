@@ -17,6 +17,20 @@ namespace ReDefinition.Raytracing
         Full,
     }
 
+    // The colour of the raytraced light from the sky and the surfaces around a point
+    // (ReDefinitionDeferredReflections.shader, RtCamera.AmbientColour), its strength the
+    // rays' in every case: its own; the colour of Deferred's ambient light, as without
+    // the raytracing; or grey, so that a surface in shadow keeps its own colour. Measured
+    // 2026-10-19 at the launch pad, against the frame without the raytracing, the
+    // vegetation's chromaticity off by 13 / 14 thousandths by day, 14 / 19 in the evening
+    // and 25 / 21 at night with its own, by at most 6 grey.
+    internal enum RaytracingLightColour
+    {
+        Raytraced,
+        AsWithout,
+        Neutral,
+    }
+
     // The raytracing in KSP: the scene camera's RtCamera while the setting is on, fed
     // from KSP's scene -- vessels, terrain, the space centre -- with the sun, the sky,
     // the floating origin's shifts and the upscaler's jitter. It needs no other mod:
@@ -24,6 +38,9 @@ namespace ReDefinition.Raytracing
     // them.
     internal sealed class RtKsp
     {
+        // The setting's default, while no addon holds the player's choice.
+        private static readonly RaytracingLightColour DefaultLightColour = new OwnSettings().RaytracingLightColour;
+
         private RaytracingMode mode;
         private int bounces = 2;
         private RtCamera attached;
@@ -206,6 +223,16 @@ namespace ReDefinition.Raytracing
             {
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 return (addon != null ? addon.Live.RaytracingNightAmbient : 0f) / 100f;
+            };
+            camera.AmbientColour = () =>
+            {
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+                switch (addon != null ? addon.Live.RaytracingLightColour : DefaultLightColour)
+                {
+                    case RaytracingLightColour.AsWithout: return 2f;
+                    case RaytracingLightColour.Neutral: return 3f;
+                    default: return 0f;
+                }
             };
 
             vessels = new RtVesselSource(camera.Scene);

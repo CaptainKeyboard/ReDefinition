@@ -54,6 +54,9 @@ namespace ReDefinition
         // How much of KSP's night light stays under raytracing, in percent: the least
         // light a point gets where neither the sun nor a moon reaches it.
         public float RaytracingNightAmbient = 0f;
+        // The colour of the raytraced light from the sky and the surroundings
+        // (Raytracing/Ksp/RtKsp, RaytracingLightColour).
+        public RaytracingLightColour RaytracingLightColour = RaytracingLightColour.Neutral;
 
         // Whether the settings window holds the flight while it is open.
         public bool PauseWhileOpen;
@@ -289,6 +292,7 @@ namespace ReDefinition
             Float("raytracingMoonReflection", "0", x => x.RaytracingMoonReflection, (x, v) => x.RaytracingMoonReflection = v, true),
             Float("sunReflection", "0", x => x.SunReflection, (x, v) => x.SunReflection = v, true),
             Float("raytracingNightAmbient", "0", x => x.RaytracingNightAmbient, (x, v) => x.RaytracingNightAmbient = v, true),
+            Enum("raytracingLightColour", x => x.RaytracingLightColour, (x, v) => x.RaytracingLightColour = v),
         };
 
         public static OwnSettings Load()

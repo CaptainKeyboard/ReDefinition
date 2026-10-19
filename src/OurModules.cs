@@ -276,7 +276,46 @@ namespace ReDefinition
                 Write = (settings, value) =>
                     settings.RaytracingNightAmbient = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
                 Interactable = TracesDiffuseLight,
+            },
+            new ModuleSetting
+            {
+                Key = "lightColour",
+                Title = "Light colour",
+                Kind = SettingKind.Other,
+                Order = 85,
+                Control = SettingControl.Choice,
+                Choices = new[]
+                {
+                    ReDefinition.Raytracing.RaytracingLightColour.Raytraced.ToString(),
+                    ReDefinition.Raytracing.RaytracingLightColour.AsWithout.ToString(),
+                    ReDefinition.Raytracing.RaytracingLightColour.Neutral.ToString(),
+                },
+                Label = value => LightColourLabel(value),
+                Tooltip = "The colour of the light from the sky and the surroundings; its strength is the rays' in each.\n"
+                          + "Raytraced: the sky's own, blue by day, orange at dusk, blue at night.\n"
+                          + "As without raytracing: the colour of the ambient light the game has without it.\n"
+                          + "Neutral: grey, so that grass and ground in shadow keep their own colour.",
+                Read = settings => settings.RaytracingLightColour.ToString(),
+                Write = (settings, value) =>
+                {
+                    ReDefinition.Raytracing.RaytracingLightColour colour;
+                    settings.RaytracingLightColour = System.Enum.TryParse(value, out colour)
+                        ? colour : ReDefinition.Raytracing.RaytracingLightColour.Neutral;
+                },
+                Interactable = TracesDiffuseLight,
             });
+
+        private static string LightColourLabel(string value)
+        {
+            ReDefinition.Raytracing.RaytracingLightColour colour;
+            if (!System.Enum.TryParse(value, out colour)) return value;
+            switch (colour)
+            {
+                case ReDefinition.Raytracing.RaytracingLightColour.Raytraced: return "Raytraced";
+                case ReDefinition.Raytracing.RaytracingLightColour.AsWithout: return "As without raytracing";
+                default: return "Neutral";
+            }
+        }
 
         private static string PercentLabel(string value)
         {
