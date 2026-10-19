@@ -45,6 +45,9 @@ namespace ReDefinition.Scenery
         // the component's other fields stay empty).
         private MaterialPropertyBlock block;
         private int drawnFrame = -1;
+        // When the space centre's buildings last changed -- upgraded, collapsed, rebuilt --,
+        // for a look a second later, when the new models stand; -1 for none since.
+        private float changedAt = -1f;
 
         // The lights' brightness, 1 as KSP draws them.
         internal static float Brightness
@@ -59,34 +62,74 @@ namespace ReDefinition.Scenery
             get { return lights; }
         }
 
+        // The lights looked for as the scene starts, 5 and 20 seconds into it for the models
+        // spawned after it began, and a second after the space centre's buildings changed:
+        // KSP switches a city's parts on and off by distance without changing its hierarchy,
+        // and the inactive ones are found too. Every ten seconds only while none is found, as
+        // in a flight far from the space centre, whose city is not active then; not
+        // throughout, each look going through every renderer of every city.
         private IEnumerator Start()
         {
             block = new MaterialPropertyBlock();
             Camera.onPreCull += Dim;
+            GameEvents.OnKSCFacilityUpgraded.Add(OnFacilityUpgraded);
+            GameEvents.OnKSCStructureCollapsed.Add(OnStructureChanged);
+            GameEvents.OnKSCStructureRepaired.Add(OnStructureChanged);
+            LookForLights();
+            yield return new WaitForSeconds(5f);
+            LookForLights();
+            yield return new WaitForSeconds(15f);
+            LookForLights();
+            var wait = new WaitForSeconds(1f);
+            float lookedAt = Time.unscaledTime;
             while (true)
             {
-                lights.RemoveAll(l => l == null);
-                int found = 0;
-                foreach (PQSCity city in FindObjectsOfType<PQSCity>())
-                    foreach (Renderer renderer in city.GetComponentsInChildren<Renderer>(true))
-                    {
-                        if (!RunwayLight.IsMatch(renderer.name) || lights.Contains(renderer)) continue;
-                        lights.Add(renderer);
-                        found++;
-                    }
-                animations.Clear();
-                animations.AddRange(FindObjectsOfType<TimeOfDayAnimation>());
-                Resolve();
-                if (found > 0)
-                    Debug.Log(Log.Tag + " Runway lights: " + found + " light meshes at " + (brightness * 100f).ToString("0") + " %, "
-                              + animations.Count + " time-of-day animations.");
-                yield return new WaitForSeconds(10f);
+                bool changed = changedAt >= 0f && Time.unscaledTime - changedAt > 1f;
+                if (changed || lights.Count == 0 && Time.unscaledTime - lookedAt >= 10f)
+                {
+                    changedAt = -1f;
+                    lookedAt = Time.unscaledTime;
+                    LookForLights();
+                }
+                yield return wait;
             }
         }
 
         private void OnDestroy()
         {
             Camera.onPreCull -= Dim;
+            GameEvents.OnKSCFacilityUpgraded.Remove(OnFacilityUpgraded);
+            GameEvents.OnKSCStructureCollapsed.Remove(OnStructureChanged);
+            GameEvents.OnKSCStructureRepaired.Remove(OnStructureChanged);
+        }
+
+        private void OnFacilityUpgraded(Upgradeables.UpgradeableFacility facility, int level)
+        {
+            changedAt = Time.unscaledTime;
+        }
+
+        private void OnStructureChanged(DestructibleBuilding building)
+        {
+            changedAt = Time.unscaledTime;
+        }
+
+        private void LookForLights()
+        {
+            lights.RemoveAll(l => l == null);
+            int found = 0;
+            foreach (PQSCity city in FindObjectsOfType<PQSCity>())
+                foreach (Renderer renderer in city.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (!RunwayLight.IsMatch(renderer.name) || lights.Contains(renderer)) continue;
+                    lights.Add(renderer);
+                    found++;
+                }
+            animations.Clear();
+            animations.AddRange(FindObjectsOfType<TimeOfDayAnimation>());
+            Resolve();
+            if (found > 0)
+                Debug.Log(Log.Tag + " Runway lights: " + found + " light meshes at " + (brightness * 100f).ToString("0") + " %, "
+                          + animations.Count + " time-of-day animations.");
         }
 
         private void Dim(Camera camera)

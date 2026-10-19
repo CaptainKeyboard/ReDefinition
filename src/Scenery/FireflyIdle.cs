@@ -28,6 +28,13 @@ namespace ReDefinition.Scenery
 
         private Type moduleType;
         private FieldInfo fxVesselField, isLoadedField, bufferField, cameraField, materialField;
+        // The fields read for every module each frame, through compiled getters: a
+        // FieldInfo's GetValue boxes the bool (CompiledGetter).
+        private Func<object, object> readFxVessel;
+        private Func<object, bool> readIsLoaded;
+        private Func<object, Material> readMaterial;
+        private Func<object, CommandBuffer> readBuffer;
+        private Func<object, Camera> readCamera;
         private MethodInfo populate;
         // Modules whose effects are idle now.
         private readonly HashSet<object> idle = new HashSet<object>();
@@ -49,8 +56,13 @@ namespace ReDefinition.Scenery
             bufferField = vesselType?.GetField("commandBuffer", Public);
             cameraField = vesselType?.GetField("airstreamCamera", Public);
             materialField = vesselType?.GetField("material", Public);
-            if (fxVesselField == null || isLoadedField == null || populate == null || bufferField == null || cameraField == null
-                || materialField == null)
+            readFxVessel = CompiledGetter.Of<object>(fxVesselField);
+            readIsLoaded = CompiledGetter.Of<bool>(isLoadedField);
+            readMaterial = CompiledGetter.Of<Material>(materialField);
+            readBuffer = CompiledGetter.Of<CommandBuffer>(bufferField);
+            readCamera = CompiledGetter.Of<Camera>(cameraField);
+            if (readFxVessel == null || readIsLoaded == null || populate == null || readBuffer == null || readCamera == null
+                || readMaterial == null)
                 enabled = false;
         }
 
@@ -70,15 +82,15 @@ namespace ReDefinition.Scenery
                     foreach (VesselModule module in vessel.vesselModules)
                     {
                         if (module == null || module.GetType() != moduleType) continue;
-                        object fx = fxVesselField.GetValue(module);
-                        if (fx == null || !(bool)isLoadedField.GetValue(module))
+                        object fx = readFxVessel(module);
+                        if (fx == null || !readIsLoaded(module))
                         {
                             idle.Remove(module);
                             continue;
                         }
-                        var material = materialField.GetValue(fx) as Material;
-                        var buffer = bufferField.GetValue(fx) as CommandBuffer;
-                        var airstream = cameraField.GetValue(fx) as Camera;
+                        Material material = readMaterial(fx);
+                        CommandBuffer buffer = readBuffer(fx);
+                        Camera airstream = readCamera(fx);
                         if (material == null || buffer == null) continue;
                         float strength = material.GetFloat(EntryStrength);
                         if (idle.Contains(module))
@@ -127,10 +139,10 @@ namespace ReDefinition.Scenery
             try
             {
                 if (module == null || (module as UnityEngine.Object) == null) return;
-                object fx = fxVesselField.GetValue(module);
+                object fx = readFxVessel(module);
                 if (fx == null) return;
                 populate.Invoke(module, null);
-                var airstream = cameraField.GetValue(fx) as Camera;
+                Camera airstream = readCamera(fx);
                 if (airstream != null) airstream.enabled = true;
             }
             catch (Exception e)

@@ -85,6 +85,20 @@ namespace ReDefinition.Scenery
         private readonly uint[] arguments = new uint[5];
         private bool ready;
         private int[] capacities = new int[0];
+        // The lawns' map's size for the lift, set without SetInts' params array each frame.
+        private readonly int[] mapSize = new int[2];
+        // Buffers replaced in Draw, with the frame: let go two frames later. The rays may
+        // have taken them in the same frame, before Draw (CollectGpu, RaysBuffer), and copy
+        // from them as the camera renders.
+        private readonly List<KeyValuePair<ComputeBuffer, int>> retired = new List<KeyValuePair<ComputeBuffer, int>>();
+        // The map's work in flight (MapLawns): a scene change destroys this mid-map and stops
+        // the coroutine without running its finally block, which would leave the arrays
+        // (some 40 MB) and the raycast job behind.
+        private NativeArray<RaycastCommand> mapCommands;
+        private NativeArray<RaycastHit> mapHits;
+        private JobHandle mapCast;
+        private bool mapCasting;
+        private System.Threading.Tasks.Task mapTask;
 
         // Whether Parallax is installed, looked up once: the settings window asks it as it
         // draws the row.
@@ -181,6 +195,9 @@ namespace ReDefinition.Scenery
         {
             Camera.onPreCull -= Draw;
             if (current == this) current = null;
+            EndMapping();
+            foreach (KeyValuePair<ComputeBuffer, int> entry in retired) entry.Key.Release();
+            retired.Clear();
             foreach (Kind kind in kinds)
                 for (int lod = 0; lod < 3; lod++)
                 {
@@ -346,38 +363,40 @@ namespace ReDefinition.Scenery
             int layerMask = 1 << root.gameObject.layer;
 
             var map = new LawnMap();
-            NativeArray<RaycastCommand> commands = default(NativeArray<RaycastCommand>);
-            NativeArray<RaycastHit> hits = default(NativeArray<RaycastHit>);
             try
             {
                 var raster = System.Threading.Tasks.Task.Run(() => map.Rasterise(lawns));
+                mapTask = raster;
                 while (!raster.IsCompleted) yield return null;
                 if (raster.Exception != null) throw raster.Exception.InnerException;
 
                 long before = watch.ElapsedMilliseconds;
-                commands = new NativeArray<RaycastCommand>(map.Lawn.Count, Allocator.Persistent);
-                hits = new NativeArray<RaycastHit>(map.Lawn.Count, Allocator.Persistent);
+                mapCommands = new NativeArray<RaycastCommand>(map.Lawn.Count, Allocator.Persistent);
+                mapHits = new NativeArray<RaycastHit>(map.Lawn.Count, Allocator.Persistent);
                 mainThread += watch.ElapsedMilliseconds - before;
-                NativeArray<RaycastCommand> laid = commands;
+                NativeArray<RaycastCommand> laid = mapCommands;
                 var layout = System.Threading.Tasks.Task.Run(() => map.LayRays(laid, rootToWorld, down, layerMask));
+                mapTask = layout;
                 while (!layout.IsCompleted) yield return null;
                 if (layout.Exception != null) throw layout.Exception.InnerException;
 
                 before = watch.ElapsedMilliseconds;
-                JobHandle cast = RaycastCommand.ScheduleBatch(commands, hits, 256);
+                mapCast = RaycastCommand.ScheduleBatch(mapCommands, mapHits, 256);
+                mapCasting = true;
                 mainThread += watch.ElapsedMilliseconds - before;
-                while (!cast.IsCompleted) yield return null;
-                cast.Complete();
+                while (!mapCast.IsCompleted) yield return null;
+                mapCast.Complete();
+                mapCasting = false;
 
-                NativeArray<RaycastHit> found = hits;
+                NativeArray<RaycastHit> found = mapHits;
                 var measure = System.Threading.Tasks.Task.Run(() => map.Measure(found));
+                mapTask = measure;
                 while (!measure.IsCompleted) yield return null;
                 if (measure.Exception != null) throw measure.Exception.InnerException;
             }
             finally
             {
-                if (commands.IsCreated) commands.Dispose();
-                if (hits.IsCreated) hits.Dispose();
+                EndMapping();
             }
 
             long started = watch.ElapsedMilliseconds;
@@ -403,6 +422,32 @@ namespace ReDefinition.Scenery
                       + " lifted onto " + (map.Lawn.Count - map.Covered) + " m2 of lawn (" + map.Covered + " m2 under a collider left out, map "
                       + map.Width + " x " + map.Depth + " m); " + watch.ElapsedMilliseconds + " ms, " + mainThread
                       + " ms of them on the main thread.");
+        }
+
+        // The map's work in flight finished and its arrays let go: at its end, or as this
+        // goes mid-map. A thread still on the arrays is waited for first, and the raycast
+        // job completed.
+        private void EndMapping()
+        {
+            if (mapTask != null)
+            {
+                try
+                {
+                    mapTask.Wait();
+                }
+                catch (AggregateException)
+                {
+                    // Its fault was reported where it was awaited, or does not matter now.
+                }
+                mapTask = null;
+            }
+            if (mapCasting)
+            {
+                mapCast.Complete();
+                mapCasting = false;
+            }
+            if (mapCommands.IsCreated) mapCommands.Dispose();
+            if (mapHits.IsCreated) mapHits.Dispose();
         }
 
         // The lawns' map's data, worked out off the main thread.
@@ -628,6 +673,11 @@ namespace ReDefinition.Scenery
             }
         }
 
+        private void Retire(ComputeBuffer buffer)
+        {
+            if (buffer != null) retired.Add(new KeyValuePair<ComputeBuffer, int>(buffer, Time.frameCount));
+        }
+
         private static Vector2 Scaled(Vector2 uv, Vector4 scale)
         {
             return new Vector2(uv.x * scale.x + scale.z, uv.y * scale.y + scale.w);
@@ -643,12 +693,20 @@ namespace ReDefinition.Scenery
             lift.SetMatrix(WorldToRootId, root.worldToLocalMatrix);
             lift.SetMatrix(RootToWorldId, rootToWorld);
             lift.SetVector(GridId, grid);
-            lift.SetInts(SizeId, lawnMap.width, lawnMap.height);
+            mapSize[0] = lawnMap.width;
+            mapSize[1] = lawnMap.height;
+            lift.SetInts(SizeId, mapSize);
             lift.SetTexture(liftKernel, LawnsId, lawnMap);
             lift.SetBuffer(liftKernel, CountsId, counts);
             var bounds = new Bounds(rootToWorld.MultiplyPoint3x4(new Vector3(grid.x + lawnMap.width * 0.5f, grid.w, grid.y + lawnMap.height * 0.5f)),
                                     new Vector3(lawnMap.width, 200f, lawnMap.height) * 1.5f);
             int layer = root.gameObject.layer;
+            for (int i = retired.Count - 1; i >= 0; i--)
+                if (retired[i].Value < Time.frameCount - 1)
+                {
+                    retired[i].Key.Release();
+                    retired.RemoveAt(i);
+                }
             for (int k = 0; k < kinds.Count; k++)
             {
                 Kind kind = kinds[k];
@@ -661,9 +719,9 @@ namespace ReDefinition.Scenery
                     if (source == null || !source.IsValid() || mesh == null || material == null) continue;
                     if (kind.Lifted[lod] == null || kind.Lifted[lod].count != source.count)
                     {
-                        kind.Lifted[lod]?.Release();
+                        Retire(kind.Lifted[lod]);
                         kind.Lifted[lod] = new ComputeBuffer(source.count, 64, ComputeBufferType.Append);
-                        kind.Kept[lod]?.Release();
+                        Retire(kind.Kept[lod]);
                         kind.Kept[lod] = new ComputeBuffer(source.count, 64, ComputeBufferType.Append);
                         if (kind.Arguments[lod] == null)
                             kind.Arguments[lod] = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
