@@ -36,21 +36,26 @@ namespace ReDefinition.Flight
             return looks.TryGetValue(name, out look) && look.Normal != null ? look : null;
         }
 
-        // Looked for a second into the scene and every second after until all are
-        // there, for ten seconds.
+        // Looked for a second into the scene, through every loaded sprite. In the
+        // space centre, whose scene loads them, again at growing intervals until
+        // all are there, for ten seconds (at 3, 7 and 11 s); in a flight or an editor
+        // once only: there they are what the space centre left loaded, and none
+        // comes later.
         private float next;
         private float until;
+        private float every = 2f;
 
         private void Awake()
         {
             next = Time.unscaledTime + 1f;
-            until = next + 10f;
+            until = HighLogic.LoadedScene == GameScenes.SPACECENTER ? next + 10f : next;
         }
 
         private void Update()
         {
             if (next <= 0f || Time.unscaledTime < next) return;
-            next = Time.unscaledTime + 1f;
+            next = Mathf.Min(Time.unscaledTime + every, until);
+            every *= 2f;
             int found;
             try
             {

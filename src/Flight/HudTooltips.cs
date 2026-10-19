@@ -34,28 +34,77 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class HudTooltipsFlight : HudTooltips
     {
-        private bool found;
+        // The flight's three buttons, each set as soon as it is found, looked for
+        // over the first half minute of the scene, as KSP builds its HUD: the
+        // alarm clock's through a search of every loaded object, the costly one,
+        // at growing intervals (0.5 s, doubled each time), the others at every
+        // pass. Then what was not found is written to the log, and none is looked
+        // for again.
+        private const float LookFor = 30f;
+        private bool modeSet, alarmSet, speedSet, done;
+        private float giveUpAt, alarmNext, alarmEvery = 0.5f;
+
+        protected override void Awake()
+        {
+            base.Awake();
+            giveUpAt = Time.unscaledTime + LookFor;
+        }
 
         protected override void Pass()
         {
             base.Pass();
-            if (found || !Tips) return;
-            AltitudeTumbler tumbler = AltitudeTumbler.Instance;
-            Transform mode = tumbler != null ? Named(Above(tumbler.transform, "SlideFrameParent"), "AltitudeModeButton") : null;
-            Transform alarm = null;
-            foreach (AlarmClockUINextAlarm next in Resources.FindObjectsOfTypeAll<AlarmClockUINextAlarm>())
+            if (done || !Tips) return;
+            float now = Time.unscaledTime;
+            if (!modeSet)
             {
-                if (next == null || !next.gameObject.scene.IsValid()) continue;
-                Transform frame = Above(next.transform, "TimeFrame");
-                if (frame != null) alarm = frame.Find("alarmButton");
+                AltitudeTumbler tumbler = AltitudeTumbler.Instance;
+                Transform mode = tumbler != null ? Named(Above(tumbler.transform, "SlideFrameParent"), "AltitudeModeButton") : null;
+                if (mode != null)
+                {
+                    Tip(mode.gameObject, "Toggle Altitude Mode");
+                    modeSet = true;
+                }
             }
-            SpeedDisplay speed = SpeedDisplay.Instance;
-            if (mode == null || alarm == null || speed == null || speed.button == null) return;
-            Tip(mode.gameObject, "Toggle Altitude Mode");
-            Tip(alarm.gameObject, "Alarm Clock");
-            Tip(speed.button.gameObject, "Toggle Speed Mode");
-            found = true;
-            Debug.Log(Log.Tag + " Tooltips on the alarm clock's button, the altimeter's mode switch and the navball's speed field.");
+            if (!speedSet)
+            {
+                SpeedDisplay speed = SpeedDisplay.Instance;
+                if (speed != null && speed.button != null)
+                {
+                    Tip(speed.button.gameObject, "Toggle Speed Mode");
+                    speedSet = true;
+                }
+            }
+            if (!alarmSet && now >= alarmNext)
+            {
+                alarmNext = now + alarmEvery;
+                alarmEvery *= 2f;
+                Transform alarm = null;
+                foreach (AlarmClockUINextAlarm next in Resources.FindObjectsOfTypeAll<AlarmClockUINextAlarm>())
+                {
+                    if (next == null || !next.gameObject.scene.IsValid()) continue;
+                    Transform frame = Above(next.transform, "TimeFrame");
+                    if (frame != null) alarm = frame.Find("alarmButton");
+                }
+                if (alarm != null)
+                {
+                    Tip(alarm.gameObject, "Alarm Clock");
+                    alarmSet = true;
+                }
+            }
+            if (modeSet && alarmSet && speedSet)
+            {
+                done = true;
+                Debug.Log(Log.Tag + " Tooltips on the alarm clock's button, the altimeter's mode switch and the navball's speed field.");
+            }
+            else if (now >= giveUpAt)
+            {
+                done = true;
+                System.Collections.Generic.List<string> missing = new System.Collections.Generic.List<string>();
+                if (!modeSet) missing.Add("the altimeter's mode switch");
+                if (!alarmSet) missing.Add("the alarm clock's button");
+                if (!speedSet) missing.Add("the navball's speed field");
+                Debug.Log(Log.Tag + " Not found in " + LookFor.ToString("0") + " s, so without a tooltip: " + string.Join(", ", missing.ToArray()) + ".");
+            }
         }
     }
 
