@@ -19,6 +19,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -26,6 +27,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 using Microsoft::WRL::ComPtr;
@@ -3506,6 +3508,57 @@ int main()
         Check(accepted && status.find(expectedMeshes) != std::string::npos && status.find("instances=20103") != std::string::npos
                   && status.find("last problem") == std::string::npos,
               "churn", "20 meshes added and 20 released a frame for 60 frames under 20 000 instances");
+
+        // The main thread's calls while the render thread is in its frames, building meshes
+        // and waiting for the GPU: they hand over without waiting for the frame.
+        std::atomic<bool> running{ true };
+        double worstCall = 0.0;
+        size_t calls = 0;
+        std::thread mainThread([&]()
+        {
+            LARGE_INTEGER frequency = {};
+            QueryPerformanceFrequency(&frequency);
+            while (running)
+            {
+                LARGE_INTEGER start = {}, end = {};
+                QueryPerformanceCounter(&start);
+                SendInstances(proxy, crowd, camera.position);
+                QueryPerformanceCounter(&end);
+                worstCall = std::max(worstCall, static_cast<double>(end.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart);
+                ++calls;
+            }
+        });
+        LARGE_INTEGER frequency = {}, start = {}, end = {};
+        QueryPerformanceFrequency(&frequency);
+        QueryPerformanceCounter(&start);
+        for (int frame = 0; frame < 60; ++frame)
+        {
+            for (int k = 0; k < 20; ++k)
+            {
+                Mesh m = MakeCube(nextId++);
+                SendMesh(proxy, m);
+                extra[m.id] = std::move(m);
+            }
+            while (extra.size() > 100)
+            {
+                proxy.releaseMesh(extra.begin()->first);
+                extra.erase(extra.begin());
+            }
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, 1100 + frame, kRtSignalSunVisibility);
+        }
+        Frame last;
+        ReadFrame(device.Get(), context.Get(), g, outputs, last);
+        QueryPerformanceCounter(&end);
+        running = false;
+        mainThread.join();
+        const double frameMs = static_cast<double>(end.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart / 60.0;
+        char detail[200];
+        sprintf_s(detail, "%zu calls of 20 103 instances during 60 frames of %.2f ms; the longest %.3f ms", calls, frameMs,
+                  worstCall);
+        Check(calls > 60 && worstCall < frameMs, "the main thread's calls during frames", detail);
+        for (auto& entry : extra)
+            proxy.releaseMesh(entry.first);
+        extra.clear();
     }
 
     // ---------------------------------------------------------------- a frame that stops early

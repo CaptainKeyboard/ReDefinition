@@ -461,6 +461,7 @@ namespace redefinition
         // and the meshes the mod released. The device, its lists and the meshes still
         // held stay.
         std::lock_guard<std::mutex> lock(mutex);
+        TakeHandOverLocked();
         if (list == nullptr)
             return;
         WaitForAllLocked();
@@ -503,6 +504,15 @@ namespace redefinition
         pendingReleases.clear();
         materialData.clear();
         pendingTextures.clear();
+        {
+            // The same of what the main thread handed over since; its scenes stay, as the
+            // service's own do.
+            std::lock_guard<std::mutex> handOverHeld(handOverLock);
+            handOver.meshes.clear();
+            handOver.releases.clear();
+            handOver.materials.clear();
+            handOver.textures.clear();
+        }
         meshes.clear();
         meshSlotsFull = false;
         textures.clear();

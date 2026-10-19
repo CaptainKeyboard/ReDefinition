@@ -850,7 +850,10 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D11DeviceContext4> context11;
         Microsoft::WRL::ComPtr<ID3D12Device5> device;
         Microsoft::WRL::ComPtr<ID3D12CommandQueue> queue;
-        // The debug layer's messages, where it is on (REDEFINITION_D3D12_DEBUG).
+        // The device for Status, and the debug layer's messages where it is on
+        // (REDEFINITION_D3D12_DEBUG), under statusLock: Status, from the main thread,
+        // does not wait for the mutex.
+        Microsoft::WRL::ComPtr<ID3D12Device5> statusDevice;
         Microsoft::WRL::ComPtr<ID3D12InfoQueue> debugMessages;
         int tier = 0;
         std::string unavailable;
@@ -895,7 +898,7 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D12Resource> materialTextures;
         UINT materialTextureLayers = 0;
 
-        // From the main thread, taken by the next frame.
+        // From the main thread through the hand-over below, taken by the next frame.
         std::unordered_map<int, std::vector<uint8_t>> pendingTextures;
         std::unordered_map<int32_t, PendingMesh> pendingMeshes;
         std::vector<int32_t> pendingReleases;
@@ -905,10 +908,34 @@ namespace redefinition
             uint32_t frameIndex = kRtAnyFrame;
             std::vector<RtInstance> instances;
             std::vector<RtGpuInstanceGroup> groups;
+            // In the hand-over: which of the two the main thread set, or the groups taken
+            // from a scene before it that had them set.
+            bool instancesSet = false;
+            bool groupsSet = false;
         };
         // The last few frames' scenes, newest last.
         std::deque<FrameScene> frameScenes;
-        FrameScene& FrameSceneLocked(uint32_t frameIndex);
+
+        // What the main thread hands over (SetMesh, ReleaseMesh, SetMaterial,
+        // ReleaseMaterial, SetInstances, SetGpuGroups, SetMaterialTexture), written under
+        // handOverLock alone: the main thread never waits for the service's mutex, which
+        // the render thread holds through a frame, its waits for the GPU and its builds
+        // included. The render thread swaps it for the empty one under that lock at the
+        // start of a frame and takes it into the pending state above (TakeHandOverLocked).
+        struct HandOver
+        {
+            std::unordered_map<int, std::vector<uint8_t>> textures;
+            // A mesh is in one of the two, by what was asked of it last.
+            std::unordered_map<int32_t, PendingMesh> meshes;
+            std::vector<int32_t> releases;
+            // A material's data, or false where it was released.
+            std::unordered_map<int32_t, std::pair<bool, MaterialData>> materials;
+            std::deque<FrameScene> scenes;
+        };
+        std::mutex handOverLock;
+        HandOver handOver;
+        HandOver handOverTaken;
+        void TakeHandOverLocked();
 
         std::unordered_map<int32_t, Mesh> meshes;
         std::unordered_map<void*, Shared> textures;

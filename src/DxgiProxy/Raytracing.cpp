@@ -34,7 +34,11 @@ namespace redefinition
         context11 = newContext11;
         queue = newQueue;
         device.Reset();
-        debugMessages.Reset();
+        {
+            std::lock_guard<std::mutex> status(statusLock);
+            statusDevice.Reset();
+            debugMessages.Reset();
+        }
         tier = 0;
         unavailable.clear();
 
@@ -42,7 +46,11 @@ namespace redefinition
             unavailable = "the Direct3D 12 device has no raytracing interface (ID3D12Device5)";
         else
         {
-            device.As(&debugMessages);
+            {
+                std::lock_guard<std::mutex> status(statusLock);
+                statusDevice = device;
+                device.As(&debugMessages);
+            }
             D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
             if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5))))
                 tier = static_cast<int>(options5.RaytracingTier);
@@ -85,7 +93,11 @@ namespace redefinition
             return;
         ReleaseLocked();
         queue.Reset();
-        debugMessages.Reset();
+        {
+            std::lock_guard<std::mutex> status(statusLock);
+            statusDevice.Reset();
+            debugMessages.Reset();
+        }
         device.Reset();
         context11.Reset();
         device11.Reset();
@@ -149,18 +161,18 @@ namespace redefinition
         }
         pending.indexHash = hash;
 
-        std::lock_guard<std::mutex> lock(mutex);
-        pendingReleases.erase(std::remove(pendingReleases.begin(), pendingReleases.end(), desc->mesh),
-                              pendingReleases.end());
-        pendingMeshes[desc->mesh] = std::move(pending);
+        std::lock_guard<std::mutex> lock(handOverLock);
+        handOver.releases.erase(std::remove(handOver.releases.begin(), handOver.releases.end(), desc->mesh),
+                                handOver.releases.end());
+        handOver.meshes[desc->mesh] = std::move(pending);
         return 1;
     }
 
     void Raytracing::ReleaseMesh(int32_t mesh)
     {
-        std::lock_guard<std::mutex> lock(mutex);
-        pendingMeshes.erase(mesh);
-        pendingReleases.push_back(mesh);
+        std::lock_guard<std::mutex> lock(handOverLock);
+        handOver.meshes.erase(mesh);
+        handOver.releases.push_back(mesh);
     }
 
     int Raytracing::SetMaterial(const RtMaterialDesc* desc)
@@ -187,45 +199,57 @@ namespace redefinition
         data.vertexColour[2] = desc->glossDivisor;
         data.vertexColour[3] = desc->glossMean;
         data.look[0] = desc->diffuseShare > 0.0f ? desc->diffuseShare : 1.0f;
-        std::lock_guard<std::mutex> lock(mutex);
-        materialData[desc->material] = data;
+        std::lock_guard<std::mutex> lock(handOverLock);
+        handOver.materials[desc->material] = { true, data };
         return 1;
     }
 
     void Raytracing::ReleaseMaterial(int32_t material)
     {
-        std::lock_guard<std::mutex> lock(mutex);
-        materialData.erase(material);
+        std::lock_guard<std::mutex> lock(handOverLock);
+        handOver.materials[material] = { false, MaterialData{} };
     }
 
-    Raytracing::FrameScene& Raytracing::FrameSceneLocked(uint32_t frameIndex)
+    namespace
     {
-        // A scene for every frame (kRtAnyFrame) takes the place of the frames' own.
-        if (frameIndex == kRtAnyFrame && (frameScenes.empty() || frameScenes.back().frameIndex != kRtAnyFrame))
+        // The scene for a frame among the last few, newest last, made where there is none:
+        // the service's own (frameScenes) and the hand-over's alike.
+        template <typename Scene>
+        Scene& SceneFor(std::deque<Scene>& scenes, uint32_t frameIndex)
         {
-            frameScenes.clear();
-            frameScenes.emplace_back();
-            return frameScenes.back();
+            // A scene for every frame (kRtAnyFrame) takes the place of the frames' own.
+            if (frameIndex == kRtAnyFrame && (scenes.empty() || scenes.back().frameIndex != kRtAnyFrame))
+            {
+                scenes.clear();
+                scenes.emplace_back();
+                return scenes.back();
+            }
+            for (Scene& scene : scenes)
+                if (scene.frameIndex == frameIndex)
+                    return scene;
+            // The main thread runs a frame or two ahead of the render thread.
+            while (scenes.size() >= 8)
+                scenes.pop_front();
+            scenes.emplace_back();
+            scenes.back().frameIndex = frameIndex;
+            if (scenes.size() > 1)
+            {
+                scenes.back().groups = scenes[scenes.size() - 2].groups;
+                scenes.back().groupsSet = scenes[scenes.size() - 2].groupsSet;
+            }
+            return scenes.back();
         }
-        for (FrameScene& scene : frameScenes)
-            if (scene.frameIndex == frameIndex)
-                return scene;
-        // The main thread runs a frame or two ahead of the render thread.
-        while (frameScenes.size() >= 8)
-            frameScenes.pop_front();
-        frameScenes.emplace_back();
-        frameScenes.back().frameIndex = frameIndex;
-        if (frameScenes.size() > 1)
-            frameScenes.back().groups = frameScenes[frameScenes.size() - 2].groups;
-        return frameScenes.back();
     }
 
     int Raytracing::SetInstances(const RtInstance* given, int count, uint32_t frameIndex)
     {
         if (count < 0 || (count > 0 && given == nullptr))
             return 0;
-        std::lock_guard<std::mutex> lock(mutex);
-        FrameSceneLocked(frameIndex).instances.assign(given, given + count);
+        std::vector<RtInstance> instances(given, given + count);
+        std::lock_guard<std::mutex> lock(handOverLock);
+        FrameScene& scene = SceneFor(handOver.scenes, frameIndex);
+        scene.instances = std::move(instances);
+        scene.instancesSet = true;
         return 1;
     }
 
@@ -233,8 +257,11 @@ namespace redefinition
     {
         if (count < 0 || (count > 0 && given == nullptr))
             return 0;
-        std::lock_guard<std::mutex> lock(mutex);
-        FrameSceneLocked(frameIndex).groups.assign(given, given + count);
+        std::vector<RtGpuInstanceGroup> groups(given, given + count);
+        std::lock_guard<std::mutex> lock(handOverLock);
+        FrameScene& scene = SceneFor(handOver.scenes, frameIndex);
+        scene.groups = std::move(groups);
+        scene.groupsSet = true;
         return 1;
     }
 
@@ -247,12 +274,58 @@ namespace redefinition
             return 0;
         }
         const size_t bytes = static_cast<size_t>(size) * size * 4;
-        std::lock_guard<std::mutex> lock(mutex);
-        pendingTextures[layer].assign(pixels, pixels + bytes);
+        std::vector<uint8_t> copy(pixels, pixels + bytes);
+        std::lock_guard<std::mutex> lock(handOverLock);
+        handOver.textures[layer] = std::move(copy);
         return 1;
     }
 
     // ---------------------------------------------------------------- render thread
+
+    void Raytracing::TakeHandOverLocked()
+    {
+        {
+            std::lock_guard<std::mutex> lock(handOverLock);
+            std::swap(handOver, handOverTaken);
+        }
+        // As the main thread's calls would have left the pending state, had they written
+        // it themselves: a mesh is in the hand-over's meshes or its releases, by its last
+        // call, and the scenes are taken in order, each with what was set in it.
+        HandOver& taken = handOverTaken;
+        for (int32_t id : taken.releases)
+        {
+            pendingMeshes.erase(id);
+            pendingReleases.push_back(id);
+        }
+        for (auto& entry : taken.meshes)
+        {
+            pendingReleases.erase(std::remove(pendingReleases.begin(), pendingReleases.end(), entry.first),
+                                  pendingReleases.end());
+            pendingMeshes[entry.first] = std::move(entry.second);
+        }
+        for (const auto& entry : taken.materials)
+        {
+            if (entry.second.first)
+                materialData[entry.first] = entry.second.second;
+            else
+                materialData.erase(entry.first);
+        }
+        for (auto& entry : taken.textures)
+            pendingTextures[entry.first] = std::move(entry.second);
+        for (FrameScene& scene : taken.scenes)
+        {
+            FrameScene& into = SceneFor(frameScenes, scene.frameIndex);
+            if (scene.instancesSet)
+                into.instances = std::move(scene.instances);
+            if (scene.groupsSet)
+                into.groups = std::move(scene.groups);
+        }
+        taken.releases.clear();
+        taken.meshes.clear();
+        taken.materials.clear();
+        taken.textures.clear();
+        taken.scenes.clear();
+    }
 
     void Raytracing::OnFrame(const void* data)
     {
@@ -264,6 +337,7 @@ namespace redefinition
         }
 
         std::lock_guard<std::mutex> lock(mutex);
+        TakeHandOverLocked();
         if (!attached || !unavailable.empty())
             return;
         if (packet->width == 0 || packet->height == 0 || packet->inputs[kRtInputDepth] == nullptr)
@@ -728,14 +802,22 @@ namespace redefinition
         // A device the driver has taken away runs nothing more; its reason goes first.
         HRESULT removed = S_OK;
         {
-            std::lock_guard<std::mutex> lock(mutex);
-            if (device != nullptr)
+            // Not the service's mutex: the main thread asks every 30 frames, and the
+            // render thread holds the mutex through its waits for the GPU.
+            ComPtr<ID3D12Device5> statusOf;
+            ComPtr<ID3D12InfoQueue> debugOf;
             {
-                removed = device->GetDeviceRemovedReason();
+                std::lock_guard<std::mutex> status(statusLock);
+                statusOf = statusDevice;
+                debugOf = debugMessages;
+            }
+            if (statusOf != nullptr)
+            {
+                removed = statusOf->GetDeviceRemovedReason();
                 // The debug layer's messages, where it is on, into the log once.
-                if (debugMessages != nullptr)
+                if (debugOf != nullptr)
                 {
-                    ID3D12InfoQueue* messages = debugMessages.Get();
+                    ID3D12InfoQueue* messages = debugOf.Get();
                     const UINT64 count = messages->GetNumStoredMessages();
                     for (UINT64 i = 0; i < count && i < 20; ++i)
                     {
