@@ -514,9 +514,11 @@ namespace redefinition
     {
         // The ocean's trace comes after the frame's own in the same frame, on the same
         // queue: the scene's structure and the instances and materials it was built from
-        // are still that frame's, and the frame's slot is not taken again before the
-        // next frame. Building it again cost 0.30 ms of the GPU's time a frame (the
-        // extra trace's timestamps).
+        // are still that frame's. The frame's slot is marked as read by this trace
+        // (FinishFrameLocked), so that whatever takes it next, the next frame or Ray
+        // Reconstruction, waits for this list before it writes the slot's buffers again.
+        // Building it again cost 0.30 ms of the GPU's time a frame (the extra trace's
+        // timestamps).
         const RtFramePacket& packet = *frame.packet;
         if (!frame.extra || (packet.flags & kRtFrameSameFrame) == 0 || frame.built != 0 || builtSceneSlot == nullptr
             || builtSceneSlot == frame.slot || builtSceneFrame != packet.frameIndex)
@@ -685,6 +687,8 @@ namespace redefinition
         const UINT64 finished = SubmitLocked(*frame.slot, frame.inputs, frame.outputs);
         if (finished == 0)
             return;
+        if (frame.sceneSlot != nullptr && frame.sceneSlot != frame.slot)
+            frame.sceneSlot->sceneReadUntil = finished;
 
         // The results back into Unity's textures before the event returns.
         context11->Wait(fence11.Get(), finished);

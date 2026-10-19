@@ -385,7 +385,9 @@ namespace redefinition
     {
         if (slot.done == 0 || fence12 == nullptr || fenceEvent == nullptr)
             return;
-        if (fence12->GetCompletedValue() < slot.done && SUCCEEDED(fence12->SetEventOnCompletion(slot.done, fenceEvent)))
+        // The slot's own list, and a later one that read its scene.
+        const UINT64 until = std::max(slot.done, slot.sceneReadUntil);
+        if (fence12->GetCompletedValue() < until && SUCCEEDED(fence12->SetEventOnCompletion(until, fenceEvent)))
         {
             WaitTimer timer(WaitKind::RaytracingSlot);
             WaitForSingleObject(fenceEvent, INFINITE);

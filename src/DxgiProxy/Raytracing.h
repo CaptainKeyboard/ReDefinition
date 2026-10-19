@@ -684,6 +684,10 @@ namespace redefinition
             D3D12_RESOURCE_STATES sceneStateRecorded = D3D12_RESOURCE_STATE_COMMON;
             D3D12_GPU_VIRTUAL_ADDRESS instanceDataAddress = 0;
             UINT64 done = 0;
+            // The last list of another slot that read this slot's scene (a further trace of
+            // the same frame, ReuseSceneLocked): its instances and materials are written by
+            // the CPU when the slot is taken again, so that waits for this one too.
+            UINT64 sceneReadUntil = 0;
             // Whether the slot's list resolves its timestamps: not for a frame that stopped
             // early, nor for Ray Reconstruction's.
             bool timed = false;
