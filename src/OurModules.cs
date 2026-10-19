@@ -83,8 +83,7 @@ namespace ReDefinition
                 Read = settings => settings.Quality.ToString(),
                 Write = (settings, value) => settings.Quality = Mode(value),
             },
-            // Fast on the left, High on the right. Low takes Fast: NVIDIA states it is the
-            // quicker of the two.
+            // DLSS's own choice first, then K, M and L, from the quickest to the sharpest.
             new ModuleSetting
             {
                 Key = "dlssModel",
@@ -92,11 +91,13 @@ namespace ReDefinition
                 Kind = SettingKind.Quality,
                 Order = 25,
                 Control = SettingControl.Choice,
-                Choices = new[] { DlssModel.Fast.ToString(), DlssModel.High.ToString() },
+                Choices = new[] { DlssModel.Default.ToString(), DlssModel.K.ToString(), DlssModel.M.ToString(), DlssModel.L.ToString() },
                 Label = value => DlssModels.Name(DlssModelOf(value)),
-                Tooltip = "Which of NVIDIA's DLSS models reconstructs the image, in every mode; DLSS only.\n"
-                          + "High (preset L): the sharper, more stable image with less ghosting, at more GPU time.\n"
-                          + "Fast (preset M): similar in quality, closer in speed to DLSS's standard models.",
+                Tooltip = "Which of NVIDIA's DLSS models reconstructs the image; DLSS only.\n"
+                          + "Default: the model NVIDIA's DLSS library chooses for each mode.\n"
+                          + "Preset K: the transformer model before M and L.\n"
+                          + "Preset M: close to L in quality, close to K in speed.\n"
+                          + "Preset L: the sharpest, most stable image with the least ghosting, at the most GPU time.",
                 Read = settings => settings.DlssModel.ToString(),
                 Write = (settings, value) => settings.DlssModel = DlssModelOf(value),
                 Interactable = settings => settings.Backend == UpscalerBackend.Dlss,

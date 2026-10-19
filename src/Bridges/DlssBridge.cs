@@ -19,27 +19,49 @@ namespace ReDefinition.Bridges
         M = 13,
     }
 
-    // The DLSS model the player chooses, in every mode. NVIDIA's DLSS Programming Guide
-    // (31 March 2026, 3.12): Preset L "Delivers a sharper, more stable image with less
+    // The DLSS model the player chooses, in every mode, or DLSS's own choice for each mode.
+    // NVIDIA's DLSS Programming Guide (31 March 2026, 3.12): Preset K is the transformer
+    // model before L and M; Preset L "Delivers a sharper, more stable image with less
     // ghosting than Preset J, K but are more expensive performance wise"; Preset M
     // "Delivers similar image quality improvements as Preset L but closer in speed to
-    // Presets J, K".
+    // Presets J, K". With Default, nvngx_dlss.dll 310.9.1 takes K for DLAA, quality and
+    // balanced, M for performance and L for ultra performance (NGX's log).
     internal enum DlssModel
     {
-        High,
-        Fast,
+        Default,
+        K,
+        M,
+        L,
     }
 
     internal static class DlssModels
     {
         internal static DlssPreset Preset(DlssModel model)
         {
-            return model == DlssModel.Fast ? DlssPreset.M : DlssPreset.L;
+            if (probePreset.HasValue) return probePreset.Value;
+            switch (model)
+            {
+                case DlssModel.K: return DlssPreset.K;
+                case DlssModel.M: return DlssPreset.M;
+                case DlssModel.L: return DlssPreset.L;
+                default: return DlssPreset.Default;
+            }
+        }
+
+        // -redefinitionProbeDlssPreset J|K|L|M: that preset in every mode, for a probe's run.
+        private static readonly DlssPreset? probePreset = ProbePreset();
+
+        private static DlssPreset? ProbePreset()
+        {
+            string[] args = System.Environment.GetCommandLineArgs();
+            int at = System.Array.IndexOf(args, "-redefinitionProbeDlssPreset");
+            DlssPreset preset;
+            return at >= 0 && at + 1 < args.Length && System.Enum.TryParse(args[at + 1], out preset) ? preset : (DlssPreset?)null;
         }
 
         internal static string Name(DlssModel model)
         {
-            return model == DlssModel.Fast ? "Fast (M)" : "High (L)";
+            return model == DlssModel.Default ? "Default" : "Preset " + model;
         }
     }
 

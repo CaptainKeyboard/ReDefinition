@@ -69,7 +69,7 @@ namespace ReDefinition
         // of KSP's screens (PauseMenuEntry, MainMenuEntry).
         public bool ReplaceKspSettings;
         public UpscalerBackend Backend = UpscalerBackend.Fsr3;
-        public DlssModel DlssModel = DlssModel.High;
+        public DlssModel DlssModel = DlssModel.Default;
 
         // The hotkeys, as KeyCombination writes them. Unbound until the player
         // sets one in the Keys tab: KSP's own bindings fire on their key whatever

@@ -59,7 +59,7 @@ namespace ReDefinition
         // FSR 3 or DLSS (DlssBridge).
         private UpscalerBackend backend = UpscalerBackend.Fsr3;
         // DLSS's model in every mode (DlssModel).
-        private DlssModel dlssModel = DlssModel.High;
+        private DlssModel dlssModel = DlssModel.Default;
 
         private bool skinnedMotionVectors = true;
 

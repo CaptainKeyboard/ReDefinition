@@ -12,24 +12,27 @@ namespace ReDefinition.Tests
     [TestClass]
     public class DlssModelTests
     {
+        // Default leaves the choice to NGX; each other model is its preset, in every mode.
         [TestMethod]
-        public void HighIsPresetLAndFastIsPresetM()
+        public void EachModelIsItsPreset()
         {
-            Assert.AreEqual(DlssPreset.L, DlssModels.Preset(DlssModel.High));
-            Assert.AreEqual(DlssPreset.M, DlssModels.Preset(DlssModel.Fast));
+            Assert.AreEqual(DlssPreset.Default, DlssModels.Preset(DlssModel.Default));
+            Assert.AreEqual(DlssPreset.K, DlssModels.Preset(DlssModel.K));
+            Assert.AreEqual(DlssPreset.M, DlssModels.Preset(DlssModel.M));
+            Assert.AreEqual(DlssPreset.L, DlssModels.Preset(DlssModel.L));
         }
 
         [TestMethod]
-        public void HighIsTheDefault()
+        public void NvidiasChoiceIsTheDefault()
         {
-            Assert.AreEqual(DlssModel.High, new OwnSettings().DlssModel);
+            Assert.AreEqual(DlssModel.Default, new OwnSettings().DlssModel);
         }
 
         [TestMethod]
-        public void FastStandsLeftOfHigh()
+        public void DefaultStandsFirstThenKMAndL()
         {
             ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "DLSS model");
-            CollectionAssert.AreEqual(new[] { "Fast", "High" }, row.Choices);
+            CollectionAssert.AreEqual(new[] { "Default", "K", "M", "L" }, row.Choices);
             Assert.AreEqual(SettingKind.Quality, row.Kind);
         }
 
@@ -45,19 +48,19 @@ namespace ReDefinition.Tests
         public void AProfileSetsItByName()
         {
             ConfigNode node = ConfigNode.Parse("GRAPHICS_PROFILE\n{\n name = test\n MODULE\n {\n  name = upscaler\n"
-                                               + "  dlssModel = Fast\n }\n}\n").GetNode("GRAPHICS_PROFILE");
+                                               + "  dlssModel = M\n }\n}\n").GetNode("GRAPHICS_PROFILE");
             OwnSettings settings = new OwnSettings();
             List<string> problems = new List<string>();
 
             ModuleProfiles.Apply(GraphicsProfile.FromConfigNode(node, new List<string>()), settings, problems);
 
-            Assert.AreEqual(DlssModel.Fast, settings.DlssModel);
+            Assert.AreEqual(DlssModel.M, settings.DlssModel);
             Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
         }
 
-        // Low takes the faster model; the others keep the default.
+        // Ultra and Max take the sharpest model; the others keep NVIDIA's choice.
         [TestMethod]
-        public void TheBundledProfilesChooseFastForLowOnly()
+        public void TheBundledProfilesChooseLForUltraAndMaxOnly()
         {
             string file = Path.Combine(Repository(), "GameData", "ReDefinition", "Profiles", "ReDefinition-Profiles.cfg");
             ConfigNode root = ConfigNode.Parse(File.ReadAllText(file));
@@ -68,9 +71,10 @@ namespace ReDefinition.Tests
                         chosen[profile.GetValue("name")] = module.GetValue("dlssModel");
 
             CollectionAssert.AreEquivalent(new[] { "low", "medium", "high", "ultra", "max" }, chosen.Keys.ToArray());
-            Assert.AreEqual("Fast", chosen["low"]);
-            foreach (string name in new[] { "medium", "high", "ultra", "max" })
-                Assert.AreEqual("High", chosen[name], name);
+            foreach (string name in new[] { "low", "medium", "high" })
+                Assert.AreEqual("Default", chosen[name], name);
+            foreach (string name in new[] { "ultra", "max" })
+                Assert.AreEqual("L", chosen[name], name);
         }
 
         private static string Repository()
