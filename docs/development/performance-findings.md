@@ -17,7 +17,7 @@ vessel Kerbal X, unless a row says otherwise:
 |---|---|
 | Screen | 3440 x 1440, 120 Hz, V-Sync on |
 | GPU | NVIDIA GeForce RTX 4090 |
-| Upscaler | DLSS, mode *AA only*, model `High` |
+| Upscaler | DLSS, mode *AA only*, preset L |
 | Raytracing | `Full`, 2 bounces, DLSS Ray Reconstruction |
 | Frame generation | DLSS-G, on |
 | Graphics mods | Deferred, Scatterer, EVE with volumetric clouds shown, Parallax Continued, TUFX, Waterfall, Firefly, DistantObject |
@@ -27,6 +27,29 @@ vessel Kerbal X, unless a row says otherwise:
 
 The frame takes 21 ms to 27 ms, depending on the clouds in view and on frame
 generation. The figures in one table come from one run, so compare rows within a table.
+Sections that name the RTX A4500 were measured on a second machine, below.
+
+## On an RTX A4500
+
+The RTX A4500 is an Ampere GPU of about an RTX 3070's speed. It has no DLSS frame
+generation, so the proxy runs FSR's (`ReDefinitionProxy.log`) **[meas]**. The screen is
+2560 x 1440 at 120 Hz, DLSS in mode *Quality* with the model *Default*, raytracing
+`Full` with 2 bounces, and the same mods. The frame rate is the rendered one at the
+launch pad, the proxy's report **[meas]**:
+
+| Profile | Raytracing | Rendered fps | Shown fps | Load |
+|---|---|---|---|---|
+| Medium | off | 63.5 | 127, frame generation on | main thread 84 %, GPU 65 % |
+| Medium, DLSS *AA only* | off | 56.1 | 56 | GPU 95 % |
+| Medium | `Full` | 43.1 | 43 | GPU 93 % |
+| Ultra | off | 54.3 | 54 | GPU 82 % |
+| Ultra | `Full` | 33.6 | 34 | GPU 71 % |
+
+With the raytracing at 43 fps, frame generation stays off. FSR's frame generation is made
+for 60 fps and more, so the proxy's minimum (`fgMinimumFps`) is 60 for it, and below nine
+tenths of it frame generation holds off **[meas]** (`ReDefinitionProxy.log`: "Frame
+generation held off ... minimum 60"). Medium without the raytracing waits for the main
+thread, not for the GPU.
 
 ## The GPU limits the frame
 
@@ -231,13 +254,17 @@ shots compared with shots without it.
 | The ocean's raytracing takes the frame's scene instead of building it again (`Raytracing::ReuseSceneLocked`) | its scene build 0.30 ms to 0 ms at the pad, 0.11 ms to 0 ms at sea **[meas]** | at sea 0.25 levels, under the noise of 0.46 **[meas]** |
 | New meshes read and handed over at most 2 ms a frame (`RtScene`, `UploadBudgetMs`) | the flight's first seconds: `RtCamera.OnPreCull` at most 107.6 ms to 26.3 ms; the proxy's largest mesh build 190 ms to 240 ms to 42 ms **[meas]** | 0.27 levels after the scene settled, the noise **[meas]** |
 | The space centre's lawns collected a few milliseconds a frame, their masks kept (`KscGrass.CollectLawns`) | the second map in flight: 71 ms to 15 ms of the main thread, its largest step 42 ms to 7.5 ms **[meas]** | 0.22 levels, under the noise **[meas]** |
+| DLSS's model *Default*, NVIDIA's own per mode, in place of preset L in every mode (`DlssModels`) | on the RTX A4500, Ultra at the pad: without the raytracing 23.3 ms to 18.4 ms, with it 34.9 ms to 29.8 ms **[meas]** | NGX takes preset K for *AA only*, *Quality* and *Balanced*, M for *Performance*, L for *Ultra Performance* (`ReDefinitionProxy.log`); K against L in a still shot the same **[meas]** |
+| Parallax's clumps under the space centre's ground left out of the rays (`KscGrass.RaysBuffer`) | on the RTX A4500: the rays 6.66 ms to 6.1 ms, the frame 34.85 ms to 34.3 ms **[meas]** | every tile within 0.1 of a thousandth **[meas]**; the clumps stand on the terrain under the ground, where no ray reaches them |
 | The round gauge's picture read back without waiting for the GPU (`TexturePixels.OfSpriteAsync`) | 621 ms in one frame at the first flight to none among the costliest methods **[meas]** | the same pixels, 138 x 138, none differing **[meas]** |
 
 ## What was tried and left out
 
 | What | Why |
 |---|---|
-| Twelve raytracing slots | the render thread's wait went, the frame stayed **[meas]** |
+| Twelve raytracing slots | the render thread's wait went, the frame stayed **[meas]**; on the RTX A4500 six slots took the wait from 4.31 ms to 0 ms, and the frame stayed at 29.8 ms to 29.9 ms **[meas]** |
+| The raytracing on a D3D12 queue of its own, at high priority (`rtOwnQueue`) | on the RTX A4500 with FSR's frame generation, no change; the render thread waited 0.5 ms for a slot **[meas]**. With DLSS frame generation, which shares the proxy's queue, it is **[open]** |
+| ReDefinition's own denoiser and DLSS in place of Ray Reconstruction | on the RTX A4500 as fast: 33.5 ms against 33.2 ms to 33.5 ms; Ray Reconstruction is the sharper, in the grass 10.3 against 6.9 in high frequencies **[meas]** |
 | KSP's crew portraits drawing only their interiors' layers, or with 10 m of shadows | a portrait render stayed at 10.7 ms to 12.2 ms **[meas]** |
 | KSP's crew portraits rendered less often | with them stopped, the frame stayed as it was **[meas]**; the render's time is most likely the main thread waiting for the render thread **[open]** |
 | At most 24 acceleration structure builds a frame in the proxy | the flight's first seconds stayed as slow **[meas]**; the mod's upload budget spreads them instead |
@@ -254,7 +281,7 @@ raytracing (6.05 ms) and Ray Reconstruction (4.3 ms to 4.5 ms) are about half of
 
 | What | Why it may help | What stands in the way |
 |---|---|---|
-| Opacity micromaps for cut-out surfaces: grass, ferns, leaves | The rays test every candidate hit on such a surface against its texture in the shader (`CandidateCounts`, `RtCommon.hlsli`) **[src]**. Opacity micromaps let the GPU's ray tracing units decide most of those hits without the shader. All of NVIDIA's raytracing GPUs support them **[doc]** ([Microsoft](https://devblogs.microsoft.com/directx/d3d12-opacity-micromaps/)). In *Indiana Jones and the Great Circle*, the main trace went from 7.90 ms to 3.58 ms on an RTX 5080 **[doc]** ([NVIDIA](https://developer.nvidia.com/blog/path-tracing-optimizations-in-indiana-jones-opacity-micromaps-and-compaction-of-dynamic-blass/)). | How much of the 6.05 ms goes to cut-out hits is **[open]**. Inline ray queries need the Agility SDK 1.619 and Shader Model 6.9 for them **[doc]**. The proxy compiles for `cs_6_5` (`src/DxgiProxy/CMakeLists.txt`) **[src]**. KSP's executable does not export the Agility SDK's version, so the proxy would load it through `ID3D12SDKConfiguration1::CreateDeviceFactory` **[open]**. NVIDIA's Opacity Micromap SDK bakes the micromaps from the alpha textures **[doc]**. |
+| Opacity micromaps for cut-out surfaces: grass, ferns, leaves | The rays test every candidate hit on such a surface against its texture in the shader (`CandidateCounts`, `RtCommon.hlsli`) **[src]**. Opacity micromaps let the GPU's ray tracing units decide most of those hits without the shader. All of NVIDIA's raytracing GPUs support them **[doc]** ([Microsoft](https://devblogs.microsoft.com/directx/d3d12-opacity-micromaps/)). In *Indiana Jones and the Great Circle*, the main trace went from 7.90 ms to 3.58 ms on an RTX 5080 **[doc]** ([NVIDIA](https://developer.nvidia.com/blog/path-tracing-optimizations-in-indiana-jones-opacity-micromaps-and-compaction-of-dynamic-blass/)). | On the RTX A4500, cut-out surfaces tested without their texture (`rtCutoutTest=1`) save 1.25 ms of the rays, and taken as opaque (`rtCutoutTest=2`), the most micromaps could give, 1.6 ms **[meas]**. Ampere GPUs, the RTX A4500 among them, have no micromap unit; it came with Ada, the RTX 40 series **[doc]** ([NVIDIA](https://images.nvidia.com/aem-dam/Solutions/geforce/ada/nvidia-ada-gpu-architecture.pdf)). Inline ray queries need the Agility SDK 1.619 and Shader Model 6.9 for them **[doc]**. The proxy compiles for `cs_6_5` (`src/DxgiProxy/CMakeLists.txt`) **[src]**. KSP's executable does not export the Agility SDK's version, so the proxy would load it through `ID3D12SDKConfiguration1::CreateDeviceFactory` **[open]**. NVIDIA's Opacity Micromap SDK bakes the micromaps from the alpha textures **[doc]**. |
 | Shader execution reordering for the bounces | It sorts rays that went apart by what they hit, so that a GPU's threads run the same shading together. It is part of DirectX Raytracing 1.2 and Shader Model 6.9 **[doc]** ([Microsoft](https://devblogs.microsoft.com/directx/shader-execution-reordering/)). | The rays are inline ray queries (`Raytracing.hlsl`) **[src]**. Reordering works on hit objects, and whether one made from a ray query gains anything here is **[open]**. |
 | The raytracing beside Unity's drawing instead of after it | The GPU is 82 % to 87 % busy **[meas]**. Work that runs alongside could fill the rest. | The rays need the frame's G-buffer **[src]**. Beside the frame's drawing they could only trace the frame before, a frame of latency. The gain is at most the GPU's idle share and is **[open]**. |
 | A cheaper Ray Reconstruction model | none | Streamline 2.14.1 has only transformer models for Ray Reconstruction. Presets A to C are removed (`sl_dlss_d.h`) **[src]**. |
@@ -271,3 +298,5 @@ Each of these costs image quality, so the choice is the player's:
 | Raytracing bounces 1 instead of 2 | 0.7 ms **[meas]** | yes |
 | EVE `temporalUpscaling` x9 instead of x6 | 0.5 ms **[meas]** | yes |
 | KSP's own shadow quality 3 instead of 4 | none **[meas]** | yes |
+| Frame generation below 60 rendered fps (`fgMinimumFps`), on the RTX A4500 with FSR's | Medium with `Full` raytracing shown at about twice its 43 fps **[open]** | yes: AMD makes it for 60 fps and more, its artefacts and its lag grow below |
+| The profiles' DLSS mode *Quality* instead of *AA only*, on the RTX A4500 | Medium without the raytracing 56.1 fps to 63.5 fps **[meas]** | yes |
