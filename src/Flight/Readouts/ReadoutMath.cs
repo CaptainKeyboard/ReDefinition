@@ -138,5 +138,25 @@ namespace ReDefinition.Flight.Readouts
             if (minutes > 0) return sign + minutes + "m " + secs.ToString("00", Invariant) + "s";
             return sign + secs + "s";
         }
+
+        // A docking port not docked, not attached in the editor and not disabled,
+        // by its state's name (ModuleDockingNode's KFSM states: Ready, Acquire,
+        // Acquire (dockee), Disengage are free; Docked (docker), Docked (dockee),
+        // Docked (same vessel), PreAttached, Disabled are not; decompiled).
+        internal static bool PortFree(string state)
+        {
+            if (string.IsNullOrEmpty(state)) return false;
+            return !state.StartsWith("Docked", StringComparison.Ordinal) && state != "PreAttached" && state != "Disabled";
+        }
+
+        // Two ports dock where they share a node type, as ModuleDockingNode's
+        // acquire takes them (decompiled).
+        internal static bool PortFits(System.Collections.Generic.HashSet<string> own, System.Collections.Generic.HashSet<string> other)
+        {
+            if (own == null || other == null) return false;
+            foreach (string type in own)
+                if (other.Contains(type)) return true;
+            return false;
+        }
     }
 }

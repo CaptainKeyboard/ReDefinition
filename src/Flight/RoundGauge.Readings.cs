@@ -142,13 +142,15 @@ namespace ReDefinition.Flight
         }
 
         // How fast the vessel closes on its target, its docking port where it is
-        // one, along the line between them, and how far it is.
+        // one, along the line between them, and how far it is: from the vessel's
+        // own port to a target port (ReadoutFrame.DockingFrom), else from its
+        // control point.
         private static GaugeReading ClosingReading(ReadoutFrame frame)
         {
             if (frame.Target == null) return null;
             ModuleDockingNode port = frame.TargetPort;
             Vector3d at = port != null && port.nodeTransform != null ? (Vector3d)port.nodeTransform.position : frame.TargetPosition;
-            Vector3d line = at - (Vector3d)frame.Vessel.ReferenceTransform.position;
+            Vector3d line = at - (port != null ? frame.DockingFrom : (Vector3d)frame.Vessel.ReferenceTransform.position);
             double distance = line.magnitude;
             if (distance <= 0.0) return null;
             return GaugeReadings.Closing(Vector3d.Dot(frame.RelativeVelocity, line / distance), distance);

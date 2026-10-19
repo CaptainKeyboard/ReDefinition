@@ -448,5 +448,56 @@ namespace ReDefinition.Flight.Readouts
         {
             get { return Target as ModuleDockingNode; }
         }
+
+        private bool ownPortDone;
+        private ModuleDockingNode ownPort;
+
+        // The vessel's own docking port that docks with the target port, for the
+        // distance to it and the closing speed: the port the vessel controls from
+        // ("Control from here", ModuleDockingNode.MakeReferenceTransform), where it
+        // is free and fits the target; else its free port nearest the target port
+        // that fits it, the one KSP's magnet takes first as they close; null where
+        // the target is no port or the vessel has none that fits. A port fits where
+        // the two share a node type, free where it is not docked, attached in the
+        // editor or disabled (ReadoutMath.PortFits, PortFree; ModuleDockingNode,
+        // decompiled). The nose the navball marker and PORT ALIGNMENT read stays
+        // the control point: that is what the player turns.
+        internal ModuleDockingNode OwnPort
+        {
+            get
+            {
+                if (ownPortDone) return ownPort;
+                ownPortDone = true;
+                ModuleDockingNode target = TargetPort;
+                if (target == null || target.nodeTransform == null) return null;
+                Part controlled = Vessel.GetReferenceTransformPart();
+                Vector3 to = target.nodeTransform.position;
+                float best = float.MaxValue;
+                foreach (Part part in Vessel.parts)
+                    for (int m = 0; m < part.Modules.Count; m++)
+                    {
+                        ModuleDockingNode port = part.Modules[m] as ModuleDockingNode;
+                        if (port == null || port == target || port.nodeTransform == null || !ReadoutMath.PortFree(port.state)
+                            || !ReadoutMath.PortFits(port.nodeTypes, target.nodeTypes)) continue;
+                        if (part == controlled && port.controlTransform == Vessel.ReferenceTransform) return ownPort = port;
+                        float distance = (port.nodeTransform.position - to).sqrMagnitude;
+                        if (distance >= best) continue;
+                        best = distance;
+                        ownPort = port;
+                    }
+                return ownPort;
+            }
+        }
+
+        // Where the docking readouts measure from: the own port's face (OwnPort),
+        // which meets the target port's at contact, else the control point.
+        internal Vector3d DockingFrom
+        {
+            get
+            {
+                ModuleDockingNode port = OwnPort;
+                return port != null ? (Vector3d)port.nodeTransform.position : (Vector3d)Vessel.ReferenceTransform.position;
+            }
+        }
     }
 }

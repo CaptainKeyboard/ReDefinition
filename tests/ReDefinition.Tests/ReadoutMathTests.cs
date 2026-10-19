@@ -135,5 +135,28 @@ namespace ReDefinition.Tests
                 foreach (string key in profile.Keys)
                     Assert.IsNotNull(ReadoutCatalog.Find(key), profile.Name + ": " + key);
         }
+
+        // The docking readouts measure from a port that can still dock: by its
+        // state's name, every one of ModuleDockingNode's states.
+        [TestMethod]
+        public void FreePortsByState()
+        {
+            foreach (string free in new[] { "Ready", "Acquire", "Acquire (dockee)", "Disengage" })
+                Assert.IsTrue(ReadoutMath.PortFree(free), free);
+            foreach (string taken in new[] { "Docked (docker)", "Docked (dockee)", "Docked (same vessel)", "PreAttached", "Disabled", "", null })
+                Assert.IsFalse(ReadoutMath.PortFree(taken), taken ?? "null");
+        }
+
+        // A port fits the target where they share a node type: a Clamp-O-Tron
+        // (size1) a Clamp-O-Tron, not a Junior (size0).
+        [TestMethod]
+        public void PortsFitByNodeType()
+        {
+            HashSet<string> size1 = new HashSet<string> { "size1" };
+            Assert.IsTrue(ReadoutMath.PortFits(size1, new HashSet<string> { "size1" }));
+            Assert.IsTrue(ReadoutMath.PortFits(new HashSet<string> { "size0", "size1" }, size1));
+            Assert.IsFalse(ReadoutMath.PortFits(size1, new HashSet<string> { "size0" }));
+            Assert.IsFalse(ReadoutMath.PortFits(size1, null));
+        }
     }
 }

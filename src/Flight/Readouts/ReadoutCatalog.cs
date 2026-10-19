@@ -290,7 +290,8 @@ namespace ReDefinition.Flight.Readouts
             new Readout
             {
                 Key = "portDistance", Title = "PORT DISTANCE", Group = Docking, Applies = HasPort,
-                Value = f => ReadoutMath.Distance((f.TargetPort.nodeTransform.position - f.Vessel.ReferenceTransform.position).magnitude),
+                // From the own port's face (ReadoutFrame.OwnPort): about 0 at contact.
+                Value = f => ReadoutMath.Distance(((Vector3d)f.TargetPort.nodeTransform.position - f.DockingFrom).magnitude),
             },
             new Readout
             {
