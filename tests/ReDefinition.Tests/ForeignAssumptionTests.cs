@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Reflection.Emit;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Core;
 
@@ -139,6 +140,42 @@ namespace ReDefinition.Tests
             Assert.AreNotEqual(preCull, Fingerprint("OnPostRender"));
             // Together, in their order.
             Assert.AreNotEqual(Fingerprint("OnPreCull", "OnPostRender"), Fingerprint("OnPostRender", "OnPreCull"));
+        }
+
+        // A body changed under the same type, name and signature: the case a new
+        // build of a mod brings. Two methods apart, as above, differ by name alone;
+        // here only the instructions do -- built as two builds of one mod would be.
+        [TestMethod]
+        public void AFingerprintFollowsTheBody()
+        {
+            string two = Fingerprint(Build(2, OpCodes.Add));
+            Assert.IsNotNull(two);
+            Assert.AreEqual(two, Fingerprint(Build(2, OpCodes.Add)), "the same body in another build");
+            Assert.AreNotEqual(two, Fingerprint(Build(3, OpCodes.Add)), "another operand");
+            Assert.AreNotEqual(two, Fingerprint(Build(2, OpCodes.Sub)), "another instruction");
+        }
+
+        private static string Fingerprint(MethodBase method)
+        {
+            return ForeignCode.Fingerprint(new System.Collections.Generic.List<MethodBase> { method });
+        }
+
+        // ForeignMod.Renderer.Scale(int width) { return width <op> factor; }, in an
+        // assembly of its own.
+        private static MethodBase Build(int factor, OpCode op)
+        {
+            AssemblyBuilder assembly = System.AppDomain.CurrentDomain.DefineDynamicAssembly(new AssemblyName("ForeignBuild"),
+                AssemblyBuilderAccess.Run);
+            ModuleBuilder module = assembly.DefineDynamicModule("ForeignBuild");
+            TypeBuilder type = module.DefineType("ForeignMod.Renderer", TypeAttributes.Public);
+            MethodBuilder scale = type.DefineMethod("Scale", MethodAttributes.Public | MethodAttributes.Static, typeof(int),
+                new[] { typeof(int) });
+            ILGenerator il = scale.GetILGenerator();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldc_I4, factor);
+            il.Emit(op);
+            il.Emit(OpCodes.Ret);
+            return type.CreateType().GetMethod("Scale");
         }
 
         // Every assumption in the catalogue names a mod and says what happens where it

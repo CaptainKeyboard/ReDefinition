@@ -4,10 +4,16 @@ namespace ReDefinition.Core
 {
     // Everything ReDefinition takes for granted about other mods' code, in one
     // place: each with what it names, the code it was checked against, and what
-    // happens where that changed (ForeignAssumption). The classes that rely on one
-    // ask it (Holds) before they do; ForeignAssumptionReport says what came of each
-    // in KSP.log and in the Debug tab, and tools/check_foreign_code.ps1 checks the
-    // whole catalogue against the installed mods outside the game.
+    // happens where that changed (ForeignAssumption). Every one that falls back
+    // where the code changed (WhenChanged.Fallback) is asked (Holds) by the class
+    // that relies on it before it does, and so are some kept on a change. The
+    // others -- kept on a change, and naming only what their class looks up by
+    // reflection itself -- are not asked: that class stands aside where something
+    // named is missing (a hook whose method is gone is not installed, a feature
+    // whose field is gone stays off), so Broken would change nothing there; for
+    // them the entry is what the report says. ForeignAssumptionReport says what
+    // came of each in KSP.log and in the Debug tab, and tools/check_foreign_code.ps1
+    // checks the whole catalogue against the installed mods outside the game.
     //
     // The fingerprints are those of the builds named beside each; a new build of a
     // mod whose code changed shows here as Changed until its new code has been read
