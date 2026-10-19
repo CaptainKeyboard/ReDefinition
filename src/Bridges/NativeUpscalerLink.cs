@@ -166,9 +166,10 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // Windows' refusal of the proxy first, where it refused it (ProxyLoad).
         private string NotInstalled()
         {
-            return name + " needs ReDefinition's dxgi.dll proxy next to KSP_x64.exe. The dxgi.dll the game loaded has no "
+            return ProxyLoad.Refused ?? name + " needs ReDefinition's dxgi.dll proxy next to KSP_x64.exe. The dxgi.dll the game loaded has no "
                    + name + ": the proxy is not installed, or it is older than the mod.";
         }
 

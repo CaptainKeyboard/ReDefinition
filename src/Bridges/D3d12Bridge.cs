@@ -174,9 +174,16 @@ namespace ReDefinition.Bridges
             }
         }
 
-        private const string NotInstalled =
-            "Direct3D 12 needs ReDefinition's dxgi.dll proxy next to KSP_x64.exe. The dxgi.dll the game loaded has none:"
-            + " the proxy is not installed, or it is older than ReDefinition.";
+        // Windows' refusal of the proxy first, where it refused it (ProxyLoad).
+        private static string NotInstalled
+        {
+            get
+            {
+                return ProxyLoad.Refused
+                       ?? "Direct3D 12 needs ReDefinition's dxgi.dll proxy next to KSP_x64.exe. The dxgi.dll the game loaded"
+                       + " has none: the proxy is not installed, or it is older than ReDefinition.";
+            }
+        }
 
         // Why Direct3D 12 is not available, or null.
         internal static string Problem
