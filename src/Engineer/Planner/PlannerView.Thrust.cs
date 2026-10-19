@@ -102,6 +102,7 @@ namespace ReDefinition.Engineer
             if (entry == null) return;
             int key = FuelKey(entry.Step);
             if (!thrustOpen.Remove(key)) thrustOpen.Add(key);
+            textVersion++;
         }
 
         private IEnumerable<DialogGUIBase> ThrustStepRows(int row)

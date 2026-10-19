@@ -68,7 +68,7 @@ namespace ReDefinition.Engineer
             List<DialogGUIBase> vessel = new List<DialogGUIBase>();
             for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));
             vessel.Add(AddSectionRow());
-            rows.AddRange(Section("Craft", () => vesselShown, () => vesselShown = !vesselShown,
+            rows.AddRange(Section("Craft", () => vesselShown, () => { vesselShown = !vesselShown; textVersion++; },
                 "The craft as built: its mass, the fuel in it and its delta-v in vacuum. Below, its sections.", VesselText, vessel));
 
             List<DialogGUIBase> route = new List<DialogGUIBase>();
@@ -82,12 +82,12 @@ namespace ReDefinition.Engineer
             }
             route.Add(AddRow());
             route.AddRange(SummaryRows());
-            rows.AddRange(Section("Route", () => routeShown, () => routeShown = !routeShown,
+            rows.AddRange(Section("Route", () => routeShown, () => { routeShown = !routeShown; textVersion++; },
                 "The destinations and the steps between them.", RouteSummary, route));
 
-            rows.AddRange(Section("Fuel plan", () => fuelShown, () => fuelShown = !fuelShown,
+            rows.AddRange(Section("Fuel plan", () => fuelShown, () => { fuelShown = !fuelShown; textVersion++; },
                 "The delta-v each step needs and what remains after it.", FuelSummary, FuelRows()));
-            rows.AddRange(Section("Thrust", () => thrustShown, () => thrustShown = !thrustShown,
+            rows.AddRange(Section("Thrust", () => thrustShown, () => { thrustShown = !thrustShown; textVersion++; },
                 "The thrust-to-weight ratio of launches and landings and the duration of each burn.", ThrustSummary, ThrustRows()));
             return rows;
         }
@@ -383,7 +383,7 @@ namespace ReDefinition.Engineer
             stepBars[leg, (int)role] = bar;
             DialogGUILabel speed = new DialogGUILabel(Text(() => StepSpeed(leg, role)), StepSpeed_, RowHeight);
             DialogGUIButton open = new DialogGUIButton(() => more[leg, (int)role] ? "<b><color=" + Good + ">...</color></b>" : "...",
-                () => more[leg, (int)role] = !more[leg, (int)role], Square, Square, false);
+                () => { more[leg, (int)role] = !more[leg, (int)role]; textVersion++; }, Square, Square, false);
             open.tooltipText = "More options for this step.";
             open.OptionEnabledCondition = () => HasMore(leg, role);
             DialogGUISpace noMore = new DialogGUISpace(Square);

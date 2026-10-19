@@ -140,7 +140,15 @@ namespace ReDefinition.Window
             // When a change arrives, where it is not at once, is said below the
             // tabs (WaitingNotice); the row's owner stands at its right.
             control.tooltipText = setting.Tooltip + Requirements.Note(setting);
-            DefaultTooltip(control, () => BundledDefault(setting));
+            ChoiceRow shownChoice;
+            choiceRows.TryGetValue(key, out shownChoice);
+            DefaultTooltip(control, () =>
+            {
+                string profileValue = BundledDefault(setting);
+                return profileValue == null ? null
+                    : DisplayValue(setting, shownChoice != null ? shownChoice.AllChoices : null,
+                                   shownChoice != null ? shownChoice.AllLabels : null, profileValue);
+            });
             // The switch as it stands in the window, not as it was applied: with
             // bundling unticked the rows are left to their mods at once. A value
             // nobody could read cannot be edited sensibly.
@@ -214,6 +222,18 @@ namespace ReDefinition.Window
         {
             string text;
             if (!model.TryGetPending(setting.Key, out text)) return "--";
+            return DisplayValue(setting, choices, labels, text);
+        }
+
+        // A value as the row shows it: its choice's label, a percent, a number to the
+        // row's steps, on or off.
+        private static string DisplayValue(BundledSetting setting, string[] choices, string[] labels, string text)
+        {
+            if (setting.Control == SettingControl.Toggle)
+            {
+                bool on;
+                return bool.TryParse(text, out on) ? KspSettingsSection.StateText(on) : text;
+            }
             if (choices != null)
             {
                 for (int i = 0; i < choices.Length; i++)

@@ -93,7 +93,11 @@ namespace ReDefinition.Engineer
 
         internal void Tick()
         {
-            if (Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1) || Input.anyKeyDown) textVersion++;
+            // In this frame and the next: the button a click releases may answer after the
+            // labels took their text in this one, in whichever order Unity runs the two.
+            bool input = Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1) || Input.anyKeyDown;
+            if (input || inputLastTick) textVersion++;
+            inputLastTick = input;
             string name = VesselName();
             if (bodies == null)
             {
@@ -198,6 +202,7 @@ namespace ReDefinition.Engineer
         // or the player's click or key in the editor, which opens and folds rows --,
         // and the string kept until then.
         private int textVersion;
+        private bool inputLastTick;
 
         private sealed class CachedText
         {

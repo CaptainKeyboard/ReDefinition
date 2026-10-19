@@ -177,7 +177,35 @@ namespace ReDefinition.Window
         // hand, by a profile or by Reset.
         private static string MarkedTitle(BundledSetting setting)
         {
-            return ProfileMarked(Marked(setting.Title, model.Changed(setting.Key)), BundledDefault(setting) != null);
+            return MarkedName(setting.Title, model.Changed(setting.Key), BundledDefault(setting) != null);
+        }
+
+        // A row's name with its marks, kept per name until either mark changes: KSP asks
+        // for the label's text in every frame it shows.
+        private sealed class MarkedText
+        {
+            public bool Changed, Differs, Made;
+            public string Text;
+        }
+
+        private static readonly Dictionary<string, MarkedText> markedNames = new Dictionary<string, MarkedText>();
+
+        internal static string MarkedName(string title, bool changed, bool differs)
+        {
+            MarkedText kept;
+            if (!markedNames.TryGetValue(title, out kept))
+            {
+                kept = new MarkedText();
+                markedNames[title] = kept;
+            }
+            if (!kept.Made || kept.Changed != changed || kept.Differs != differs)
+            {
+                kept.Text = ProfileMarked(Marked(title, changed), differs);
+                kept.Changed = changed;
+                kept.Differs = differs;
+                kept.Made = true;
+            }
+            return kept.Text;
         }
 
         // A row that holds another value than the chosen profile gives it: a mark of its
@@ -241,7 +269,7 @@ namespace ReDefinition.Window
             if (!DefaultsFor(model.Profile) || !bundledDefaults.TryGetValue(setting.Key, out profileValue)
                 || !model.TryGetPending(setting.Key, out now) || SettingValues.Same(now, profileValue))
                 return null;
-            return ShownDefault(profileValue);
+            return profileValue;
         }
 
         private static string OwnDefault(ModuleSetting setting, OwnSettings settings)
@@ -253,15 +281,11 @@ namespace ReDefinition.Window
                 || !ownDefaults.TryGetValue(setting, out profileValue)
                 || SettingValues.Same(setting.Normalize(setting.Read(settings)), profileValue))
                 return null;
-            if (setting.Control == SettingControl.Toggle && setting.Label != null) return setting.Label(profileValue);
-            return ShownDefault(profileValue);
-        }
-
-        // A switch as the rows say it, anything else as it is.
-        private static string ShownDefault(string value)
-        {
+            // As the row shows its value (KspSettingsSection.Shown).
+            if (setting.Label != null) return setting.Label(profileValue);
             bool on;
-            return bool.TryParse(value, out on) ? KspSettingsSection.StateText(on) : value;
+            return setting.Control == SettingControl.Toggle && bool.TryParse(profileValue, out on)
+                ? KspSettingsSection.StateText(on) : profileValue;
         }
 
         private static string Marked(string title, bool changed)

@@ -71,6 +71,7 @@ namespace ReDefinition.Engineer
             if (!FuelStepShown(step)) return;
             int key = FuelKey(step);
             if (!fuelOpen.Remove(key)) fuelOpen.Add(key);
+            textVersion++;
             UpdateSwatches();
         }
 

@@ -82,8 +82,10 @@ namespace ReDefinition.Flight
                 }
                 return high;
             }
-            clearUntil = now + end;
-            clearMiddle = now + end / 2.0;
+            // Held for half the time the search covered: the next one, closer, samples
+            // the rest more finely, as a narrow ridge on the way needs.
+            clearUntil = now + end / 2.0;
+            clearMiddle = now + end / 4.0;
             clearAtMiddle = orbit.getRelativePositionAtUT(clearMiddle);
             clearAtEnd = orbit.getRelativePositionAtUT(clearUntil);
             return double.NaN;

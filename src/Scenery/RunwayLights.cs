@@ -91,6 +91,21 @@ namespace ReDefinition.Scenery
                     lookedAt = Time.unscaledTime;
                     LookForLights();
                 }
+                // A light found while its city's parts were off -- a flight that starts far
+                // from the space centre -- has no time-of-day animation yet, whose objects are
+                // inactive then and not found: looked for again every ten seconds until they
+                // are, the animations alone.
+                else if (unanimated && Time.unscaledTime - animationsAt >= 10f)
+                {
+                    animationsAt = Time.unscaledTime;
+                    TimeOfDayAnimation[] now = FindObjectsOfType<TimeOfDayAnimation>();
+                    if (now.Length != animations.Count)
+                    {
+                        animations.Clear();
+                        animations.AddRange(now);
+                        Resolve();
+                    }
+                }
                 yield return wait;
             }
         }
@@ -166,9 +181,16 @@ namespace ReDefinition.Scenery
         }
 
         // Each light's materials with the property and the animation of each.
+        // Whether the lights were found and none of their materials has a time-of-day
+        // animation found for it: the city's parts off as they were looked for. Where some
+        // have one, the others are materials no animation colours.
+        private bool unanimated;
+        private float animationsAt;
+
         private void Resolve()
         {
             resolved.Clear();
+            bool anyAnimated = false;
             foreach (Renderer renderer in lights)
             {
                 if (renderer == null) continue;
@@ -184,9 +206,12 @@ namespace ReDefinition.Scenery
                     if (material == null) continue;
                     if (!Animated(material, out entry.Properties[i], out entry.Animations[i]))
                         entry.Properties[i] = System.Array.Find(OwnColours, material.HasProperty);
+                    else
+                        anyAnimated = true;
                 }
                 resolved.Add(entry);
             }
+            unanimated = resolved.Count > 0 && !anyAnimated;
         }
 
         // The time-of-day animation that colours the material, and its property: KSP's

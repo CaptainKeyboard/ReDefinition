@@ -12,7 +12,9 @@ namespace ReDefinition.Window
     //
     // Where the window would not fit within the margin KSP keeps dialogs from the
     // edge (PopupDialog.SpawnPopupDialog's ClampToScreen, 30), it is drawn smaller
-    // about the point KSP placed it at, as large as fits: at the UI scale as far as
+    // about its own middle -- the window, not the dialog's root, which stands at the
+    // canvas's middle, so that a window dragged aside stays where it was --, as large
+    // as fits: at the UI scale as far as
     // the screen allows. Measured in the canvas's own units, window against canvas, so that
     // the canvas's scale factor drops out. Looked at again each frame -- only
     // sizes compared -- since both can change while it is open: the UI scale
@@ -59,7 +61,7 @@ namespace ReDefinition.Window
             if (size.y > 0f) scale = Mathf.Min(scale, (room.y - 2f * Margin) / size.y);
             // A screen narrower than the margins leaves the window as it is.
             if (scale <= 0f) scale = 1f;
-            if (Mathf.Abs(transform.localScale.x - scale) > 0.001f) transform.localScale = new Vector3(scale, scale, 1f);
+            if (Mathf.Abs(window.localScale.x - scale) > 0.001f) window.localScale = new Vector3(scale, scale, 1f);
         }
     }
 }

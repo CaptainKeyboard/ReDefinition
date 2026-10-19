@@ -272,8 +272,7 @@ namespace ReDefinition.Window
                 Func<ModuleSetting, OwnSettings, string> defaultOf = layout.Default;
                 Func<string> name = layout.Marked == null
                     ? null
-                    : (Func<string>)(() => SettingsWindow.ProfileMarked(
-                        layout.Marked(shown.Title, shown.Read(edit.After) != shown.Read(edit.Before)),
+                    : (Func<string>)(() => SettingsWindow.MarkedName(shown.Title, shown.Read(edit.After) != shown.Read(edit.Before),
                         defaultOf != null && defaultOf(shown, edit.After) != null));
                 DialogGUIBase control = Control(edit, shown, layout.Control);
                 if (defaultOf != null) SettingsWindow.DefaultTooltip(control, () => defaultOf(shown, edit.After));
