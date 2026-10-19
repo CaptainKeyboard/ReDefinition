@@ -56,8 +56,8 @@ namespace ReDefinition.Window
                     + " -- as you chose for the other graphics mods. "
                     + "You can change this under \"Mods / Toolbar\" in the window.",
                     "Graphics settings in one place", HighLogic.UISkin, 420f, noteRows.ToArray());
-                UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                    note, false, HighLogic.UISkin));
+                UnityMouseEvents.Shield(ScreenFit.Add(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    note, false, HighLogic.UISkin)));
                 Debug.Log(Log.Tag + " Main menu note: " + list + " bundled too, as chosen before.");
                 yield break;
             }
@@ -86,8 +86,8 @@ namespace ReDefinition.Window
                 "ReDefinition", HighLogic.UISkin, 540f, rows.ToArray());
             // Shielded: the main menu's entries behind it take Unity's mouse
             // events, which no dialog locks.
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                dialog, false, HighLogic.UISkin));
+            UnityMouseEvents.Shield(ScreenFit.Add(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                dialog, false, HighLogic.UISkin)));
             Debug.Log(Log.Tag + " Main menu notice about ReDefinition shown for " + list + ".");
         }
 

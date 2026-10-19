@@ -145,6 +145,7 @@ namespace ReDefinition.Window
                 spawned.onDestroy.AddListener(gone);
                 spawned.OnDismiss = () => gone();
                 UnityMouseEvents.Shield(dialog);
+                ScreenFit.Add(dialog);
                 EscapeGuard.Own(dialog);
                 UiHygiene.MouseOnly(dialog.gameObject);
                 WindowPause.PlaceInTitleRow(dialog);

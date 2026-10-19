@@ -24,8 +24,8 @@ namespace ReDefinition.Window
                 + " FSR 3 upscaling runs.",
                 "ReDefinition's dxgi.dll was blocked", HighLogic.UISkin, 480f,
                 new DialogGUIButton("OK", () => { }, true));
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                dialog, false, HighLogic.UISkin));
+            UnityMouseEvents.Shield(ScreenFit.Add(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                dialog, false, HighLogic.UISkin)));
             Debug.Log(Log.Tag + " Main menu notice: the dxgi.dll proxy was blocked.");
         }
     }

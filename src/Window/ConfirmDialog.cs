@@ -14,8 +14,8 @@ namespace ReDefinition.Window
                     new DialogGUIButton(act, onAct, buttonWidth, 30f, true),
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), () => { }, buttonWidth, 30f, true)));
-            UnityMouseEvents.Shield(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), question, false,
-                HighLogic.UISkin));
+            UnityMouseEvents.Shield(ScreenFit.Add(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), question, false,
+                HighLogic.UISkin)));
         }
 
         // Over the settings window (DialogOverWindow), as its own questions stand:

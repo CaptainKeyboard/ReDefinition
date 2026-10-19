@@ -35,6 +35,7 @@ namespace ReDefinition.Window
             if (dialog == null || dialog.popupWindow == null) return dialog;
             try
             {
+                ScreenFit.Add(dialog);
                 Hold(dialog);
                 Darken(dialog);
                 WindowBackdrop.Add(dialog, true);
