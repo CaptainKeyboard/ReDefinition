@@ -192,6 +192,8 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)] public float[] Sea;
             // The main body's cloud layer (Raytracing.h, RtFramePacket.clouds; RtEveClouds).
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 24)] public float[] Clouds;
+            // PrevWorldToClip for what the bodies carry (Raytracing.h, prevWorldToClipFar).
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] PrevWorldToClipFar;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -232,6 +234,7 @@ namespace ReDefinition.Raytracing
                 Array.Copy(LightSurface, target.LightSurface, LightSurface.Length);
                 Array.Copy(Sea, target.Sea, Sea.Length);
                 Array.Copy(Clouds, target.Clouds, Clouds.Length);
+                Array.Copy(PrevWorldToClipFar, target.PrevWorldToClipFar, PrevWorldToClipFar.Length);
                 Array.Copy(Inputs, target.Inputs, Inputs.Length);
                 Array.Copy(Outputs, target.Outputs, Outputs.Length);
             }
@@ -333,6 +336,7 @@ namespace ReDefinition.Raytracing
                 LightSurface = new float[8],
                 Sea = new float[12],
                 Clouds = new float[24],
+                PrevWorldToClipFar = new float[16],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

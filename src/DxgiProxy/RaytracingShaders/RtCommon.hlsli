@@ -69,6 +69,9 @@ cbuffer Frame : register(b0)
     float4 cloudRadii : RT_AT(RT_CB_CLOUDS_3);
     float4 cloudFades : RT_AT(RT_CB_CLOUDS_4);
     float4 cloudColor : RT_AT(RT_CB_CLOUDS_5);
+    // prevWorldToClip for what the bodies carry, which Krakensbane's origin shifts move
+    // by more than the camera (Raytracing.h, RtFramePacket.prevWorldToClipFar).
+    row_major float4x4 prevWorldToClipFar : RT_AT(RT_CB_PREV_WORLD_TO_CLIP_FAR);
 };
 
 struct InstanceData

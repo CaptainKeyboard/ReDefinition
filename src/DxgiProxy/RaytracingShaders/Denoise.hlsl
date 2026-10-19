@@ -104,30 +104,47 @@ void DenoiseTemporal(uint3 id : SV_DispatchThreadID)
     float4 history = 0.0f;
     float4 moments = 0.0f;
     float weightSum = 0.0f;
-    if ((stepFlags & 1u) == 0u && all(previousUv > 0.0f) && all(previousUv < 1.0f))
+    // By the camera's matrices, first as the camera and the vessels near it moved, then
+    // as the bodies did: under Krakensbane an origin shift moves the terrain by more
+    // than the camera, and only the second finds its surface again.
+    for (int pass = 0; pass < 2 && weightSum <= 0.01f; ++pass)
     {
-        // The four texels around the previous position, each kept where its depth and
-        // normal say it is the same surface.
-        float2 texel = previousUv * size - 0.5f;
-        int2 base = int2(floor(texel));
-        float2 f = texel - float2(base);
-        [unroll]
-        for (int k = 0; k < 4; ++k)
+        if (pass == 1)
         {
-            int2 offset = int2(k & 1, k >> 1);
-            int2 p = base + offset;
-            if (any(p < 0) || any(p >= int2(frameSize)))
-                continue;
-            float w = (offset.x == 1 ? f.x : 1.0f - f.x) * (offset.y == 1 ? f.y : 1.0f - f.y);
-            float zBefore = linearDepthBefore[p];
-            float3 nBefore = normalBefore[p].xyz;
-            bool same = zBefore > 0.0f && abs(zBefore - expectedDepth) < 0.03f * expectedDepth + 0.02f
-                        && dot(nBefore, n) > 0.9f;
-            if (!same)
-                continue;
-            history += inputB[p] * w;
-            moments += inputC[p] * w;
-            weightSum += w;
+            if ((stepFlags & 2u) != 0u)
+                break;
+            previousClip = mul(prevWorldToClipFar, float4(position, 1.0f));
+            expectedDepth = previousClip.w;
+            previousUv = float2(previousClip.x / previousClip.w * 0.5f + 0.5f, 0.5f - previousClip.y / previousClip.w * 0.5f);
+            history = 0.0f;
+            moments = 0.0f;
+            weightSum = 0.0f;
+        }
+        if ((stepFlags & 1u) == 0u && all(previousUv > 0.0f) && all(previousUv < 1.0f))
+        {
+            // The four texels around the previous position, each kept where its depth and
+            // normal say it is the same surface.
+            float2 texel = previousUv * size - 0.5f;
+            int2 base = int2(floor(texel));
+            float2 f = texel - float2(base);
+            [unroll]
+            for (int k = 0; k < 4; ++k)
+            {
+                int2 offset = int2(k & 1, k >> 1);
+                int2 p = base + offset;
+                if (any(p < 0) || any(p >= int2(frameSize)))
+                    continue;
+                float w = (offset.x == 1 ? f.x : 1.0f - f.x) * (offset.y == 1 ? f.y : 1.0f - f.y);
+                float zBefore = linearDepthBefore[p];
+                float3 nBefore = normalBefore[p].xyz;
+                bool same = zBefore > 0.0f && abs(zBefore - expectedDepth) < 0.03f * expectedDepth + 0.02f
+                            && dot(nBefore, n) > 0.9f;
+                if (!same)
+                    continue;
+                history += inputB[p] * w;
+                moments += inputC[p] * w;
+                weightSum += w;
+            }
         }
     }
 

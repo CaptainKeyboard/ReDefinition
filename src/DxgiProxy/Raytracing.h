@@ -235,6 +235,7 @@ namespace redefinition
         float lightSurface[8];
         float sea[12];
         float clouds[24];
+        float prevWorldToClipFar[16];
     };
     // Each field in the register the contract gives it (RtContract.h), as cbuffer Frame
     // places it (packoffset, RtCommon.hlsli).
@@ -255,6 +256,8 @@ namespace redefinition
     static_assert(offsetof(RtFrameConstants, lightSurface) == RT_CB_LIGHT_SURFACE * 16, "cbuffer Frame: lightSurface");
     static_assert(offsetof(RtFrameConstants, sea) == RT_CB_SEA * 16, "cbuffer Frame: sea");
     static_assert(offsetof(RtFrameConstants, clouds) == RT_CB_CLOUDS * 16, "cbuffer Frame: clouds");
+    static_assert(offsetof(RtFrameConstants, prevWorldToClipFar) == RT_CB_PREV_WORLD_TO_CLIP_FAR * 16,
+                  "cbuffer Frame: prevWorldToClipFar");
     static_assert(offsetof(RtFrameConstants, frameIndex) == RT_CB_FRAME_SIZE * 16 + 8, "cbuffer Frame: frameIndex");
     static_assert(offsetof(RtFrameConstants, frameFlags) == RT_CB_FRAME_SIZE * 16 + 12, "cbuffer Frame: frameFlags");
     static_assert(sizeof(RtFrameConstants) == RT_CB_REGISTERS * 16, "cbuffer Frame: its size");
@@ -332,6 +335,11 @@ namespace redefinition
         // time fade, the fade of the whole, the density's time fade; the shadow's colour
         // (rgb) and the cloud's brightness (w). All 0 for none.
         float clouds[24];
+        // prevWorldToClip for what the bodies carry -- the terrain, the scenery, the
+        // sea --, which a floating origin shift under Krakensbane moves by more than the
+        // camera and the vessels near it (offset + nonFrame, SharedFrame.BodyShift): the
+        // denoiser's history takes whichever of the two finds the surface it had.
+        float prevWorldToClipFar[16];
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
@@ -452,6 +460,8 @@ namespace redefinition
     static_assert(offsetof(RtFramePacket, lightSurface) == RT_FRAME_PACKET_LIGHT_SURFACE, "RtFramePacket: lightSurface");
     static_assert(offsetof(RtFramePacket, sea) == RT_FRAME_PACKET_SEA, "RtFramePacket: sea");
     static_assert(offsetof(RtFramePacket, clouds) == RT_FRAME_PACKET_CLOUDS, "RtFramePacket: clouds");
+    static_assert(offsetof(RtFramePacket, prevWorldToClipFar) == RT_FRAME_PACKET_PREV_WORLD_TO_CLIP_FAR,
+                  "RtFramePacket: prevWorldToClipFar");
     static_assert(offsetof(RtFramePacket, inputs) == RT_FRAME_PACKET_INPUTS, "RtFramePacket: inputs");
     static_assert(offsetof(RtFramePacket, outputs) == RT_FRAME_PACKET_OUTPUTS, "RtFramePacket: outputs");
     static_assert(sizeof(RtFramePacket) == RT_FRAME_PACKET_SIZE, "RtFramePacket: its size");

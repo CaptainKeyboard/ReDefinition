@@ -1122,9 +1122,19 @@ namespace ReDefinition.Raytracing
                                                    position.y + shift.y - previousPosition.y,
                                                    position.z + shift.z - previousPosition.z);
                 Write(previousWorldToClip * toPrevious, packet.PrevWorldToClip);
+                // What the bodies carry moved by their shift (offset + nonFrame under
+                // Krakensbane), the camera and the vessels by the near one.
+                RtPosition far = WorldShiftFar != null ? WorldShiftFar() : shift;
+                Matrix4x4 toPreviousFar = Translation(position.x + far.x - previousPosition.x,
+                                                      position.y + far.y - previousPosition.y,
+                                                      position.z + far.z - previousPosition.z);
+                Write(previousWorldToClip * toPreviousFar, packet.PrevWorldToClipFar);
             }
             else
+            {
                 Write(worldToClip, packet.PrevWorldToClip);
+                Write(worldToClip, packet.PrevWorldToClipFar);
+            }
 
             // The camera for AMD's denoiser: its view looking down +z, as StreamlineCamera
             // has it.

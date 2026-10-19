@@ -462,6 +462,7 @@ namespace redefinition
         memcpy(constants.clipToWorld, packet.clipToWorld, sizeof(constants.clipToWorld));
         memcpy(constants.worldToClip, packet.worldToClip, sizeof(constants.worldToClip));
         memcpy(constants.prevWorldToClip, packet.prevWorldToClip, sizeof(constants.prevWorldToClip));
+        memcpy(constants.prevWorldToClipFar, packet.prevWorldToClipFar, sizeof(constants.prevWorldToClipFar));
         memcpy(constants.sunDirection, packet.sunDirection, sizeof(constants.sunDirection));
         memcpy(constants.sunColor, packet.sunColor, sizeof(constants.sunColor));
         memcpy(constants.skyColor, packet.skyColor, sizeof(constants.skyColor));

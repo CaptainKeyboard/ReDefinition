@@ -765,6 +765,7 @@ PsOut PsMain(VsOut input)
         ToFloats(camera.clipToWorld, packet.clipToWorld);
         ToFloats(camera.worldToClip, packet.worldToClip);
         ToFloats(lighting.previous != nullptr ? *lighting.previous : camera.worldToClip, packet.prevWorldToClip);
+        ToFloats(lighting.previous != nullptr ? *lighting.previous : camera.worldToClip, packet.prevWorldToClipFar);
         const Vec3 l = Normalize(towardsSun);
         packet.sunDirection[0] = float(l.x);
         packet.sunDirection[1] = float(l.y);
