@@ -23,7 +23,11 @@ set(REDEFINITION_VERSION_MAJOR ${CMAKE_MATCH_1})
 set(REDEFINITION_VERSION_MINOR ${CMAKE_MATCH_2})
 set(REDEFINITION_VERSION_PATCH ${CMAKE_MATCH_3})
 set(REDEFINITION_VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
+set(REDEFINITION_INI_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}/ReDefinitionProxy.ini")
 configure_file(ReDefinitionProxy.rc.in "${CMAKE_CURRENT_BINARY_DIR}/ReDefinitionProxy.rc" @ONLY)
+# The resource holds the template: built again when it changes.
+set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/ReDefinitionProxy.rc" APPEND PROPERTY OBJECT_DEPENDS
+             "${REDEFINITION_INI_TEMPLATE}")
 
 # The Windows SDK's dxc, for the raytracing shaders (DXIL, shader model 6.5) and the
 # harness's DXIL pass; it signs them with the dxil.dll beside it, which Direct3D 12

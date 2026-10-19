@@ -31,3 +31,7 @@ BEGIN
         VALUE "Translation", 0x0409, 1200
     END
 END
+
+// The settings file's template, ReDefinitionProxy.ini: the keys a player's file lacks are
+// added from it, each with its comment and default (Config.cpp, CompleteIni).
+REDEFINITION_INI_TEMPLATE RCDATA "@REDEFINITION_INI_TEMPLATE@"

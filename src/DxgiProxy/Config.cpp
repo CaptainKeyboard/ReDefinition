@@ -7,6 +7,7 @@
 
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace redefinition
 {
@@ -46,6 +47,165 @@ namespace redefinition
             wchar_t* end = nullptr;
             const float value = wcstof(buffer, &end);
             return end == buffer ? fallback : value;
+        }
+
+        bool ReadFileText(const std::wstring& file, std::string& text)
+        {
+            HANDLE handle = CreateFileW(file.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                                        FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (handle == INVALID_HANDLE_VALUE)
+                return false;
+            LARGE_INTEGER size = {};
+            bool ok = GetFileSizeEx(handle, &size) && size.QuadPart < (1 << 24);
+            if (ok)
+            {
+                text.resize(static_cast<size_t>(size.QuadPart));
+                DWORD read = 0;
+                ok = text.empty() || (ReadFile(handle, &text[0], static_cast<DWORD>(text.size()), &read, nullptr) && read == text.size());
+            }
+            CloseHandle(handle);
+            return ok;
+        }
+
+        bool WriteFileText(const std::wstring& file, const std::string& text)
+        {
+            HANDLE handle = CreateFileW(file.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (handle == INVALID_HANDLE_VALUE)
+                return false;
+            DWORD written = 0;
+            const bool ok = WriteFile(handle, text.data(), static_cast<DWORD>(text.size()), &written, nullptr) && written == text.size();
+            CloseHandle(handle);
+            return ok;
+        }
+
+        // Whether the player's file has the key in [Proxy], whatever its value.
+        bool HasKey(const std::wstring& file, const std::string& key)
+        {
+            wchar_t buffer[8] = {};
+            const std::wstring name(key.begin(), key.end());
+            GetPrivateProfileStringW(L"Proxy", name.c_str(), L"\x01", buffer, ARRAYSIZE(buffer), file.c_str());
+            return !(buffer[0] == L'\x01' && buffer[1] == L'\0');
+        }
+
+        // The last section header in the text, or "" where there is none.
+        std::string LastSection(const std::string& text)
+        {
+            std::string last;
+            size_t at = 0;
+            while (at < text.size())
+            {
+                size_t end = text.find('\n', at);
+                if (end == std::string::npos)
+                    end = text.size();
+                const size_t start = text.find_first_not_of(" \t", at);
+                if (start != std::string::npos && start < end && text[start] == '[')
+                {
+                    const size_t close = text.find(']', start);
+                    if (close != std::string::npos && close < end)
+                        last = text.substr(start, close - start + 1);
+                }
+                at = end + 1;
+            }
+            return last;
+        }
+
+        // Every key of the template built into the proxy (ReDefinitionProxy.rc) stands in the
+        // player's file with its default: a file from an earlier version gets the keys added
+        // since, each after the comment above it in the template; the player's own values stay.
+        // Without a file, the template is written as it is. Where another section than
+        // [Proxy] ends the file, the keys go into [Proxy] without their comments.
+        void CompleteIni(const std::wstring& file)
+        {
+            HMODULE self = nullptr;
+            if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                    reinterpret_cast<LPCWSTR>(&CompleteIni), &self))
+                return;
+            HRSRC found = FindResourceW(self, L"REDEFINITION_INI_TEMPLATE", MAKEINTRESOURCEW(10));
+            HGLOBAL loaded = found != nullptr ? LoadResource(self, found) : nullptr;
+            const char* data = loaded != nullptr ? static_cast<const char*>(LockResource(loaded)) : nullptr;
+            if (data == nullptr)
+                return;
+            const std::string templateText(data, SizeofResource(self, found));
+
+            std::string existing;
+            if (!ReadFileText(file, existing))
+            {
+                if (WriteFileText(file, templateText))
+                    LogLine("Config: ReDefinitionProxy.ini written from the template, with every default");
+                return;
+            }
+
+            // The template line by line: a comment block, the keys after it.
+            std::string appended, block, names;
+            std::vector<std::pair<std::string, std::string>> missing;
+            bool blockWritten = false, lastWasKey = false, inProxy = false;
+            size_t at = 0;
+            while (at < templateText.size())
+            {
+                size_t end = templateText.find('\n', at);
+                if (end == std::string::npos)
+                    end = templateText.size();
+                std::string line = templateText.substr(at, end - at);
+                at = end + 1;
+                if (!line.empty() && line.back() == '\r')
+                    line.pop_back();
+                if (line.empty() || line[0] == '[')
+                {
+                    if (!line.empty())
+                        inProxy = line == "[Proxy]";
+                    block.clear();
+                    blockWritten = lastWasKey = false;
+                    continue;
+                }
+                if (line[0] == ';')
+                {
+                    if (lastWasKey)
+                    {
+                        block.clear();
+                        blockWritten = lastWasKey = false;
+                    }
+                    block += line + "\r\n";
+                    continue;
+                }
+                lastWasKey = true;
+                const size_t equals = line.find('=');
+                if (!inProxy || equals == std::string::npos)
+                    continue;
+                const std::string key = line.substr(0, equals);
+                if (HasKey(file, key))
+                    continue;
+                if (!blockWritten)
+                {
+                    appended += "\r\n" + block;
+                    blockWritten = true;
+                }
+                appended += line + "\r\n";
+                missing.emplace_back(key, line.substr(equals + 1));
+                names += (names.empty() ? "" : ", ") + key;
+            }
+            if (missing.empty())
+                return;
+
+            const std::string last = LastSection(existing);
+            bool written = true;
+            if (last.empty() || last == "[Proxy]")
+            {
+                std::string text = existing;
+                if (!text.empty() && text.back() != '\n')
+                    text += "\r\n";
+                if (last.empty())
+                    text += "[Proxy]\r\n";
+                written = WriteFileText(file, text + appended);
+            }
+            else
+                for (const auto& pair : missing)
+                {
+                    const std::wstring key(pair.first.begin(), pair.first.end());
+                    const std::wstring value(pair.second.begin(), pair.second.end());
+                    written = WritePrivateProfileStringW(L"Proxy", key.c_str(), value.c_str(), file.c_str()) && written;
+                }
+            LogLine(std::string("Config: ") + (written ? "added" : "could not add") + " to ReDefinitionProxy.ini with their defaults: "
+                    + names);
         }
 
         bool WriteTimeOf(const std::wstring& file, FILETIME& out)
@@ -171,6 +331,7 @@ namespace redefinition
     void LoadConfig()
     {
         const std::wstring file = IniPath();
+        CompleteIni(file);
 
         {
             std::lock_guard<std::mutex> lock(g_writeLock);
