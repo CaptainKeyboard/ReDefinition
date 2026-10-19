@@ -45,6 +45,10 @@ first.
 A question the window asks, and NVIDIA's download, stands over the window with the
 screen behind it darkened. The window behind it takes no clicks until you answer.
 
+At a large UI scale, such as more than KSP's own 200 %, the window and its questions
+would reach past the screen's edges. They are then drawn as large as the screen allows,
+so that their buttons stay in reach. They grow back once the screen has room for them.
+
 ## The pause button
 
 In flight, map view included, in the space centre and in the tracking station, the
@@ -69,15 +73,15 @@ the flight, and in the main menu, the space centre and the editors.
 
 | Tab | Rows |
 |---|---|
-| *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Part highlighting*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed. The mods' settings that change how you play, not how it looks: Distant Object's flares and their names and Persistent Rotation under *Flight*, and there ReDefinition's own: whether a flight starts in KSP's maneuver mode, whether the flight panel follows the situation ([flight-panel.md](flight-panel.md)) and whether the altimeter switches between sea level and the ground by itself (all on at first); Parallax's scatter collisions and Scatterer's waves that move vessels under *Physics* |
+| *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Part highlighting*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed. The mods' settings that change how you play, not how it looks: Distant Object's flares and their names and Persistent Rotation under *Flight*, and there ReDefinition's own switches for the HUD, the staging and the world buttons ([below](#switch-redefinitions-flight-features)); Parallax's scatter collisions and Scatterer's waves that move vessels under *Physics* |
 | *Audio* | KSP's volumes and its sound normalizer; EVE's cloud ambience and thunder volumes |
-| *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, DLSS model, Sharpness, Frame generation, *NVIDIA DLSS files*; ambient light boosts |
+| *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, DLSS model, Sharpness, Frame generation, *NVIDIA DLSS files*; the raytracing rows ([raytracing.md](raytracing.md)); ambient light boosts |
 | *Graphics* | a status line, and one button per graphics profile with a sentence about it; its tooltip says what it sets |
-| *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*; *Effects* -- the graphics mods' features and KSP's own |
+| *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*, with *Grass on the lawns* under *Space centre*; *Effects* -- the graphics mods' features and KSP's own |
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
 | *Controls*, *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
 | *Controls*, *Devices* | KSP's mouse wheel, Track IR and 6-DOF device |
-| *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, *Restore settings from before ReDefinition*, and under *Scaling* whether other mods' windows follow the UI scale ([ui-scaling.md](ui-scaling.md)) |
+| *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, *Restore settings from before ReDefinition*, under *Scaling* whether other mods' windows follow the UI scale ([ui-scaling.md](ui-scaling.md)), and under *Main menu* the fireworks and the flight to the space centre ([below](#the-main-menu-and-the-space-centre)) |
 
 *Detail* is indented under *Graphics*, and *Axes* and *Devices* under *Controls*. They
 are shown only while their parent or one of its tabs is open. A line sets *Mods / Toolbar* and
@@ -106,6 +110,46 @@ The *Diagnostics* button below the tabs opens the diagnostics window.
 
 The upscaler and frame generation can only be changed while a graphics profile is
 chosen.
+
+## Switch ReDefinition's flight features
+
+Under *Gameplay*, *Flight*, each of ReDefinition's additions to the HUD, the staging and
+the editors has a switch of its own. All of them are on at first, and none needs a
+graphics profile.
+
+| Row | Does | Takes effect |
+|---|---|---|
+| *Altimeter switches to the ground* | the altimeter shows the height over the ground below 5 km and above sea level from 6 km ([flight-panel.md](flight-panel.md#the-rest-of-the-hud)) | at once |
+| *Flight panel follows the situation* | the flight panel switches its profile with what the vessel does ([flight-panel.md](flight-panel.md#the-profile-follows-the-situation)) | at once |
+| *Start flight in maneuver mode* | a flight starts in KSP's maneuver mode rather than its staging mode | next scene |
+| *Buttons over the buildings* | the buttons over the space centre's buildings, the launch pad and the runway ([launch-and-return.md](launch-and-return.md)) | at once |
+| *Round gauge* | the digital gauge in place of KSP's vertical speed dial ([navball.md](navball.md#the-round-gauge)). It needs *Speeds at the navball*, which shows the vertical speed in its place, and is greyed out without it | next flight |
+| *Speeds at the navball* | *V* and *H* under the navball's SAS modes | next flight |
+| *Docking marker on the navball* | the ring on the navball with a docking port as the target | at once |
+| *Navball moves by dragging* | dragging the navball's show and hide button moves it ([navball.md](navball.md)) | next flight |
+| *Flight panel profiles* | the flight panel's profiles in place of the maneuver mode's orbit tabs ([flight-panel.md](flight-panel.md)) | next flight |
+| *Stage details in two columns* | the stage details and part icons in two columns ([stage-details.md](stage-details.md)) | next scene |
+| *TWR at the stage's start and end* | the stage's TWR as it lights and as it burns out | at once |
+| *Delta-v tools in the staging stack* | the delta-v button opens every stage's details, and the editors' compact window | next scene |
+| *Tooltips on the HUD's buttons* | tooltips for the staging stack's buttons, the alarm clock's, the altimeter's mode switch and the navball's speed field, in KSP's wording | next scene |
+| *Ask before resetting the staging* | the editors' button that resets the staging asks first | next scene |
+| *Crew slot buttons in the staging look* | the crew portraits' buttons that add and remove a slot look like the staging stack's buttons | next flight |
+| *Better Time Warp in the time panel* | only with Better Time Warp installed: its button as a square button at the end of the time panel's warp row, rather than where the mod draws it | next scene |
+
+A switch that takes effect later shows the yellow note beside *Reset* until it does.
+
+## The main menu and the space centre
+
+Under *Mods / Toolbar*, *Main menu*:
+
+| Row | Does |
+|---|---|
+| *Fireworks* | small fireworks on Kerbin's night side behind the main menu |
+| *Zoom to the space centre* | from the main menu to the space centre as one camera flight: in to Kerbin, then down to the space centre, with the sun where your save has it. A click or a key on the way down ends it at KSP's own view |
+
+Under *Graphics*, *Detail*, *Planets*, *Space centre*, *Grass on the lawns* grows
+Parallax's grass on the space centre's lawns as well, where Parallax grows it under
+them. The row needs Parallax.
 
 ## Replace KSP's settings screen
 
@@ -227,15 +271,29 @@ costs frame time, and switches the upscaler on. What each profile sets:
 setting's default, the settings without a row included, and then chooses High over
 them, so that choosing High afterwards changes nothing. Those defaults are what the
 mods' releases ship. With Volumetric Clouds installed, the defaults of EVE, Scatterer
-and TUFX are the ones its author ships. All of KSP's settings go back to what KSP
-ships, as KSP's own *Reset* sets them, its keys and axes included. The screen
-resolution and full screen stay as they are: KSP's own reset would set 1280 x 720 in a
-window.
+and TUFX are the ones its author ships. KSP's settings go back to what KSP ships, as
+KSP's own *Reset* sets them, its keys and axes included, with these exceptions:
+
+* ReDefinition's own defaults for KSP: *Advanced tweakables*, *Extended burn indicator*
+  and *Always show closest approach* on, *Conic patch limit* at 6, and the UI scale for
+  your screen: 100 % below 1440 lines, 150 % from 1440, 200 % from 2160;
+* what an installed mod requires of KSP's settings;
+* the screen resolution and full screen, which stay as they are: KSP's own reset would
+  set 1280 x 720 in a window.
+
+The question *Reset* asks names each of KSP's settings it sets to something other than
+what KSP ships.
+
+ReDefinition's own settings go back to their defaults, with frame generation off. A few
+stay as they are, since they are your hardware's or your choice rather than a quality:
+the upscaling technique, the raytracing mode and its light bounces, *Replace original
+settings*, the window's pause button, the navball's place, and whether the upscaler is
+on once a profile is chosen.
 
 After a reset, High is chosen: the upscaler runs at *AA only*, frame generation is
-off, and KSP's settings are at KSP's defaults except where High and the installed mods
-ask for more: full textures, the highest terrain detail and shaders, and reflections at
-Low. Every default and its source:
+off, and KSP's settings are as above, except where High and the installed mods ask for
+more: full textures, the highest terrain detail and shaders, and reflections at Low.
+Every default and its source:
 [reference/mod-defaults.md](../reference/mod-defaults.md).
 
 ## Put the mods back as they were
@@ -327,15 +385,17 @@ chosen technique cannot run, it names the reason, and after a failure it offers
 
 | Section | Holds |
 |---|---|
-| Measure | for troubleshooting and bug reports: the frame rates with the upscaler on and off, the load of the main thread, the render thread and the GPU, *Write diagnostics to log*, *Without upscaler (bypass)*, and *Motion vector check on fast turns* with frame generation, which is not saved; *Render interpolation* and *Motion vector repair*, not saved; *Record the screen*, into `ReDefinitionCaptures` beside `KSP_x64.exe`, with the dumps for analysis or without them. The load is measured only while this tab is open |
+| Measure | for troubleshooting and bug reports: the frame rates with the upscaler on and off, the load of the main thread, the render thread and the GPU, *Measurements into the log*, which is saved, *Surface shine overlay* with raytracing and Deferred, which colours each surface by the shine its material means and is not saved, *Write diagnostics to log*, *Without upscaler (bypass)*, and *Motion vector check on fast turns* with frame generation, which is not saved; *Render interpolation* and *Motion vector repair*, not saved; *Record the screen in 5 s*, 120 frames into `ReDefinitionCaptures` beside `KSP_x64.exe`, with the dumps for analysis or without them. The load is measured only while this tab is open |
 | What the upscaler receives | switches for a bug report: Vessel shadow in frame generation, not saved; Jitter; EVE clouds: jitter and motion vectors, not saved; Mipmap bias; Vessel depth and motion vectors, not saved; Skinned motion vectors; TUFX after upscaling; Auto exposure for FSR 3 and AMD; Transparency mask and Reactive mask for FSR 3 |
 | Game settings while upscaling | LOD bias compensation, MSAA forced off, Anisotropic filtering forced |
 | Interface for mods | *Hook probe, into the log*: registers a handler on each place a mod can add to the frame and writes one line per scene into `KSP.log` for each. It draws nothing, and it is never saved |
 | FSR 3 internals | *FSR's debug view*, in development builds only |
 
-Below them are three buttons. *Show other mods' state* lists what ReDefinition sees of
+Below them are four buttons. *Show other mods' state* lists what ReDefinition sees of
 the other mods. *Show mod registrations* lists the bundled mods and the problems
-of their registrations. *Show preview* shows what the upscaler receives: motion
+of their registrations. *Show other mods' code* lists the places in other mods' code
+that ReDefinition relies on, with those that changed in the installed version first and
+coloured. *Show preview* shows what the upscaler receives: motion
 vectors, depth, the image at render resolution, the transparency and reactive masks,
 and the result. The motion vector, depth and mask previews read the image back from the
 GPU and cost frame rate while they are shown.

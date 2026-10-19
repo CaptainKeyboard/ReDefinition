@@ -37,3 +37,17 @@ stage's number, as in KSP. While the details are out, the stage's part icons are
 two columns as well, so that a stage with many parts stays short. They move into their
 places as the details slide in, and back as they slide out. They stay in two columns
 while you drag a part or a stage; a dragged part drops into the row you let go on.
+
+## Switch them off
+
+Each part has its own switch under *Gameplay*, *Flight* in the settings window
+([settings-window.md](settings-window.md#switch-redefinitions-flight-features)):
+
+| Switch | Off |
+|---|---|
+| *Delta-v tools in the staging stack* | KSP's *Δv* button and *Δv Tools* window as KSP has them, from the next scene |
+| *Stage details in two columns* | the details in one column and the part icons as KSP lays them out, from the next scene |
+| *TWR at the stage's start and end* | the TWR as the stage lights only, at once |
+
+*Ask before resetting the staging*, beside them, makes the editors' button that resets
+the staging ask first.

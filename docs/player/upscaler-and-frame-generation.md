@@ -23,7 +23,7 @@ from it. The interface is drawn on top at full resolution and stays sharp.
 | Upscaler | on or off |
 | Technique | *FSR 3*, *DLSS* or *AMD FSR (DLL)*. If the chosen one cannot run, FSR 3 runs in its place, and the diagnostics window says why |
 | Mode | *AA only*, at the right end, renders at full resolution and uses the upscaler as temporal antialiasing. This is what the profiles choose. Further left, the scene renders smaller by the factor shown and is reconstructed. DLSS renders at the size it asks for in each mode, and *1.2x*, which DLSS does not have, runs as DLSS's *Quality* |
-| DLSS model | DLSS only, in every mode. *High* is NVIDIA's model L: the sharper, more stable image with less ghosting, at more GPU time. *Fast* is model M: similar in quality, closer in speed to DLSS's standard models. The profile Low takes *Fast*, the others *High* |
+| DLSS model | DLSS only, in every mode. *Default* is the model NVIDIA's DLSS library chooses for each mode. *Preset K* is the transformer model before M and L. *Preset M* is close to L in quality and close to K in speed. *Preset L* gives the sharpest, most stable image with the least ghosting, at the most GPU time. Low, Medium and High take *Default*, Ultra and Max *Preset L* |
 | Sharpness | how hard the image is sharpened after the upscaler, for every technique, from 0 to 1.2. 0 switches it off. Above 1.0 goes past what the sharpening was made for, and AMD's DLL stops at 1.0 |
 
 The six modes, and how much smaller the scene renders in each:
@@ -94,7 +94,6 @@ The measurements behind that, for anyone who wants the numbers:
 | Case | What you see |
 |---|---|
 | Vertex-animated geometry, such as Parallax's swaying grass | it has no motion vectors and can smear |
-| Interface anchored in the world, in the smaller modes | it can sit slightly off |
 | Transparent effects: EVE's clouds, Scatterer's ocean, plumes, re-entry | they are treated as solid unless the transparency and reactive masks on the *Debug* tab are switched on |
 | Camera cuts a mod makes itself | the history resets when the camera's target, its parent or the IVA seat changes. Not detected: two cameras on one Hullcam part that have no transforms of their own, CameraTools switching its mode or vessel, and jumps inside a CameraTools mode |
 
@@ -119,8 +118,25 @@ With the upscaler off, frame generation runs on its own. The scene is still capt
 full resolution for it, without the upscaler's antialiasing.
 
 It pays where the rendered frame rate is low: large vessels, many parts, re-entry.
-Input responds at the rendered frame rate. AMD recommends at least 60 rendered frames a
-second for FSR 3 frame generation. Below that, fast camera turns show artefacts.
+Input responds at the rendered frame rate.
+
+### When frame generation holds off
+
+Generated frames need enough rendered frames to be made from. Frame generation holds
+off by itself, and presents the rendered frames alone:
+
+* while the rendered frame rate, over two seconds, is below a minimum. AMD designed FSR
+  3.1 frame generation for at least 60 rendered frames a second and FSR 4's for at least
+  30. DLSS frame generation holds off below 30. It comes back once the rate is a little
+  above the minimum again;
+* for a single frame that takes more than one and a half times the minimum's frame
+  time, such as a hitch while something loads;
+* steadily, while V-Sync caps the frames so low that the rendered rate with frame
+  generation would stay below the minimum. On a 60 Hz monitor with FSR 3 frame
+  generation, that is 30 rendered frames a second;
+* while KSP's pause menu is open.
+
+`fgMinimumFps` in the proxy's settings sets another minimum, or none.
 
 The diagnostics window's frame rate line shows the frames rendered and, in brackets,
 the frames presented with the generated ones.
@@ -135,18 +151,25 @@ G-Sync and FreeSync too, once the frame rate is above the monitor's range.
 With DLSS frame generation, V-Sync presents every refresh at most. *Every second
 refresh* is therefore not offered in ReDefinition's window while it runs, and a value
 set elsewhere is corrected. The number of generated frames is limited so the monitor
-can show them: the refresh rate divided by 15 gives the multiplier, so 60 Hz reaches 4x
-and 75 Hz reaches 5x. A DLSS frame generation build without
-V-Sync support presents without V-Sync.
+can show them, and so the game still renders at least the minimum
+([above](#when-frame-generation-holds-off)): every frame, rendered or generated, takes
+a refresh. With the minimum of 30, 60 Hz reaches 2x and 120 Hz 4x. The refresh rate
+divided by 15 limits it as well, so 60 Hz reaches 4x at most even with
+`fgMinimumFps=0`. A DLSS frame generation build without V-Sync support presents
+without V-Sync.
 
 With FSR 3 frame generation, V-Sync holds the game at half the refresh rate, and every
-rendered and generated frame is shown for one refresh.
+rendered and generated frame is shown for one refresh. On a 60 Hz monitor that is 30
+rendered frames a second. Where the minimum is 60, frame generation then stays off
+for as long as V-Sync is on; a monitor of 120 Hz or more lets it run.
 
 ## The proxy's settings
 
-Copy `GameData/ReDefinition/ReDefinitionProxy.ini` next to `KSP_x64.exe` and edit it
-there. The file says which settings are read at the start and which are read again
-within a second of it being saved.
+The proxy writes `ReDefinitionProxy.ini` next to `KSP_x64.exe` at its first start, with
+every setting at its default and a description beside each
+([installing.md](installing.md#change-the-proxys-settings)). Edit it there. The file
+says which settings are read at the start and which are read again within a second of
+it being saved.
 
 | Setting | Default | Does |
 |---|---|---|
@@ -155,6 +178,7 @@ within a second of it being saved.
 | `dlssFrameGeneration` | 1 | 0: FSR 3 frame generation even where DLSS frame generation runs. Read at the start |
 | `fgVSync` | 0 | 1: while FSR 3 frame generation is on, the game presents with V-Sync whatever KSP's setting says |
 | `fgHalfRefreshLimit` | 0 | 1: with FSR 3 frame generation and without V-Sync, the rendered frame rate is held just below half the refresh rate |
+| `fgMinimumFps` | -1 | the rendered frame rate below which frame generation holds off. -1: 60 or 30 for FSR, by its version, and 30 for DLSS; 0: never for this; any other number: that many frames a second |
 | `fgAsyncWorkloads` | 0 | 1: frame generation runs alongside the game's rendering instead of after it. Worth a try where it costs more frame rate than it gives |
 | `dlssDirectory`, `amdUpscalerDirectory` | empty | the folders of NVIDIA's and AMD's DLLs, where they are not next to `KSP_x64.exe` |
 | `streamlineDirectory` | empty | the folder of NVIDIA's Streamline DLLs. Read when KSP makes its swapchain, so a change needs a restart |

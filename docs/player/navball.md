@@ -48,6 +48,10 @@ panel picks its profile. The gauge keeps your choice.
 | *CLOSING* | how fast the vessel closes on its target, or on the target's port | 0 to 100 m/s, logarithmic | the tick: a safe speed for the distance, a hundredth of it per second, at least 0.2 m/s; amber to one and a half times it, red beyond | docking; on the way to a target without a maneuver |
 | *AOA* | angle of attack, either way | 0 to 40° | red past the angle where wings lift the most (30°), amber from four fifths of it | flying with wings |
 
+The gauge takes the place of KSP's vertical speed dial, so it needs the vertical speed
+under the navball's SAS modes: *Round gauge* under *Gameplay*, *Flight* is greyed out
+while *Speeds at the navball* is off.
+
 The burn starts half its length before the maneuver, as KSP counts it. The time to impact
 leaves drag out, so in air the vessel falls later than the gauge says.
 

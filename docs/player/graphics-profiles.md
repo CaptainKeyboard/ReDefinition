@@ -51,11 +51,13 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
 
 | Tier | What it sets |
 |---|---|
-| Low | every visual mod on, at its lowest useful level, and DLSS's faster model |
+| Low | every visual mod on, at its lowest useful level |
 | Medium | clouds, ocean and scatter a step below the mods' defaults |
 | **High** | every mod as its authors ship it |
-| Ultra | Scatterer's High preset, finer clouds, tessellation and scatter |
-| Max | Scatterer's Very High preset and the finest detail everywhere |
+| Ultra | Scatterer's High preset, finer clouds, tessellation and scatter, and DLSS's model L |
+| Max | Scatterer's Very High preset, the finest detail everywhere, and DLSS's model L |
+
+Low, Medium and High leave the DLSS model to NVIDIA's own choice for each mode.
 
 **Which tier a graphics card holds is not said here, because it has not been measured.**
 Start with High, the mods' own defaults. If the frame rate does not hold, take the tier

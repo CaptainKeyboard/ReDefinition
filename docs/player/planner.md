@@ -22,6 +22,10 @@ back, click KSP's parts button, or any other mode button.
 The plan belongs to the vessel. It is saved under the vessel's name and comes
 back when you load the vessel again.
 
+The planner takes the vessel's stages from KSP's own delta-v calculations. If those are
+switched off, in `settings.cfg` or by another mod, the planner says so in orange at the
+top and has no stages to plan with.
+
 ## Add the vessel's sections
 
 The header bar of *Craft* at the top shows the craft as built: its mass, the fuel in it
@@ -147,10 +151,13 @@ the next.
 | the colour and *S…* | the stage, in the colour it has on the step's bar |
 | *Gives* | what it gives to this step |
 | *Keeps* | what it has left after the step; *empty* where it is used up; orange *dropped*: what it held as it was dropped |
-| *TWR* | on a launch or a powered landing, its thrust against the weight it pushes at the body's surface, in the air where the body has any; red where the stage that lifts off (the first of a launch) or sets down (the last of a landing) is below 1.2 on a body with air, below 1 otherwise |
+| *TWR* | on a launch or a powered landing, its thrust against the weight it pushes at the body's surface, in the air where the body has any; red where the stage that lifts off (the first of a launch) is below 1.2 from a body with air and below 1 otherwise, or where the stage that sets down (the last of a landing) is below 1 |
 
 Under the stages, *RCS* is what flies the step has of RCS: it gives the step nothing, and
-under *Keeps* stands the delta-v its RCS propellant gives it.
+under *Keeps* stands the delta-v its RCS propellant gives it. Only RCS thrusters switched
+on in their part's menu count, each with the propellant it can reach: a Vernor's liquid
+fuel and oxidizer from the tanks its fuel flows from, monopropellant from the whole
+vessel. A tank whose flow you switched off is not counted.
 
 ## Check the thrust
 
@@ -163,9 +170,9 @@ transfer burn that takes too long can miss its target.
 
 | Column | Shows |
 |---|---|
-| *Needs* | on a launch or a landing on the engines, the TWR it needs: 1.20 to lift off from a body with air, 1.00 otherwise; *Runway* where jets with wings lift off, at any TWR. On other steps, the share of the orbit a burn may take: 17 % |
+| *Needs* | on a launch or a landing on the engines, the TWR it needs: 1.20 to lift off from a body with air, 1.00 to lift off elsewhere and to land; *Runway* where jets with wings lift off, at any TWR. On other steps, the share of the orbit a burn may take: 17 % |
 | *Has* | on a launch or a landing, the stage that decides and its TWR at the surface, in the air where the body has any: the first stage of a launch, the last of a landing; red below what it needs. On other steps, the burn that takes the largest share of its orbit, with its time and share: orange from 11 %, where it loses 2 % of its delta-v, red from 17 %, where it loses 5 % |
-| *Turns 90°* | how long what flies the step takes to turn by 90°, about the slower of pitch and yaw: orange over 10 s on a launch or a landing, over 30 s in orbit; *None* where it has nothing to turn with. Shown where the planner is wide enough; the step's note says it always |
+| *Turns 90°* | how long what flies the step takes to turn by 90°, about the slower of pitch and yaw: orange over 10 s on a launch or a landing, over 30 s in orbit; *None* where it has nothing to turn with. On a launch or a landing through air with fins on the stage, a slow time is grey, and grey *Fins* where the fins alone steer it. Shown where the planner is wide enough; the step's note says it always |
 
 *+* opens a step:
 
@@ -174,7 +181,7 @@ transfer burn that takes too long can miss its target.
 | a stage | the vessel's mass as the stage starts its part; the stage's Isp in vacuum; its TWR as it starts its part and as it ends it, in vacuum; *In air* on a launch or a landing where the body has air; its thrust in vacuum; how long it burns in this step |
 | *RCS* | the RCS of what flies the step, as the step starts, or as it docks where a section docks: the mass, the RCS thrusters' Isp in vacuum, their TWR at Kerbin's gravity full and with the RCS propellant spent, their thrust, and how long they fire at full thrust until the propellant is spent |
 | a burn in orbit | its name; how long it takes, its share of the orbit and the orbit's time, and about how much delta-v it loses; red with a *+* where the stages run out before it ends or a stage has no thrust |
-| a note | how fast what flies the step turns by 90°: on a launch or a landing on its reaction wheels, RCS and the gimbals of the stage that burns, in orbit before its burn on its reaction wheels and RCS alone; in orange where it is slow. Fins are not counted: where they fly through air, a slow turn is no warning. Where a section docks, in orange where it has no RCS or no RCS propellant; where an ion engine burns, the electric charge it takes against what the vessel holds, in orange where that is not enough without solar panels or other power |
+| a note | how fast what flies the step turns by 90°: on a launch or a landing on its reaction wheels, RCS and the gimbals of the stage that burns, in orbit before its burn on its reaction wheels and RCS alone; in orange where it is slow. Fins are not counted, as they steer only as much as the air allows: where they fly through air, the note says the vessel steers with its fins, and a slow turn is no warning. Where a section docks, in orange where it has no RCS or no RCS propellant; where an ion engine burns, the electric charge it takes against what the vessel holds, in orange where that is not enough without solar panels or other power |
 | the body | the body the TWR is against, its surface gravity and its air |
 
 A burn in red also shows as a line under its step on the route. More thrust or less mass
@@ -183,6 +190,9 @@ each at the same point of the orbit and raising the far side further; the planne
 it as one.
 
 ## How the planner shares out the stages
+
+Stages are numbered as KSP's staging stack numbers them: the highest fires first, stage 0
+last.
 
 By itself, the planner burns the stages in the order KSP fires them. A stage burns until
 it is empty, and what it has left after one step goes on into the next. The same engines
@@ -327,8 +337,9 @@ Laythe, and the capsule landing at home:
    by itself; the last step, home, is the capsule's.
 3. *Refuel* on the line *Docks with the rest* after Laythe.
 
-A section pushes only its own mass while it flies alone. When the whole vessel flies
-on, it carries the lander with the fuel the lander has left, or refilled.
+A section pushes only its own mass while it flies alone. The crew counts with the parts
+they sit in, so a capsule carries its kerbals. When the whole vessel flies on, it carries
+the lander with the fuel the lander has left, or refilled.
 
 ## What the numbers are
 

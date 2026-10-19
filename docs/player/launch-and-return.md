@@ -2,7 +2,8 @@
 
 **For:** players who go between the VAB or the SPH and the launch pad or the runway.
 **You need:** ReDefinition installed, and the space centre shown once in this game.
-**You get:** buttons in the world that launch a vessel and take it back to its building.
+**You get:** buttons in the world that launch a vessel, take it back to its building, and
+leave it for another building before the launch.
 
 The buttons look like the space centre's own buttons for the building or the launch site.
 ReDefinition takes their pictures from the space centre as you see it there, a UI theme's
@@ -33,3 +34,22 @@ click asks first:
 The editor opens with the vessel as it was launched where that is the same vessel, else
 with its craft file of the same name. Where there is neither, it opens empty. The button
 does not show in the map view, nor where neither a revert nor a recovery is possible.
+
+## Go to another building before the launch
+
+While the vessel stands on the launch pad or the runway and has not moved yet, a button
+stands on each of the space centre's other buildings within 3 km: the Tracking Station,
+Mission Control, the Astronaut Complex, Research and Development and the
+Administration. Its tooltip names the building. A click asks first, then saves the game
+and leaves the flight as KSP's pause menu does, with the vessel left where it stands.
+The Tracking Station opens as itself; for the others, the space centre opens with that
+building's window, as a click on the building there opens it.
+
+A button shows only where the game allows leaving the flight for that place. Where the
+game cannot be saved at that moment, the click shows KSP's reason at the top of the
+screen and leaves the flight as it is.
+
+## Switch the buttons off
+
+*Buttons over the buildings*, under *Gameplay*, *Flight* in the settings window, switches
+every one of these buttons off and on again.

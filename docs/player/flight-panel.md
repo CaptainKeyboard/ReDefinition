@@ -70,17 +70,24 @@ situation changes.
 | Where | Shows |
 |---|---|
 | the altimeter, top centre | the height above the ground below 5 km over it and on it, above sea level from 6 km; its switch still changes it by hand (*Altimeter switches to the ground*) |
-| the round gauge beside it | a digital gauge in place of KSP's vertical speed dial, with a lit arc: the stage's burn time, the next burn, the time to impact, the closing speed or the angle of attack, for the situation or as you click ([the navball page](navball.md#the-round-gauge)); the vertical speed stands at the navball |
+| the round gauge beside it | a digital gauge in place of KSP's vertical speed dial, with a lit arc: the stage's burn time, the next burn, the time to impact, the closing speed or the angle of attack, for the situation or as you click ([the navball page](navball.md#the-round-gauge)); the vertical speed stands at the navball, so the gauge needs *Speeds at the navball* on |
+| the time panel, top left, with Better Time Warp installed | the mod's button as a square button at the end of the warp row, in the panel's own look; it opens the mod's window |
 | on the space centre's VAB or SPH, while the vessel stands on the ground within 3 km of it | a button back to the building: revert, or recover and open the vessel there ([launch-and-return.md](launch-and-return.md)) |
 | the navball, under its SAS modes | *V* and *H*: the vertical and horizontal speed over the surface |
 | the navball's ball | with a docking port as the target, an orange ring with a cross where the nose has to point for the two ports to face each other |
+| the crew portraits | the buttons that add and remove a portrait slot, in the look of the staging stack's add and delete buttons |
+| the staging stack, the alarm clock, the altimeter's switch, the navball's speed field | tooltips in KSP's wording, where KSP gives these buttons none |
+
+Each of these has a switch under *Gameplay*, *Flight* in the settings window
+([settings-window.md](settings-window.md#switch-redefinitions-flight-features)).
 
 ## How the values are worked out
 
 * The time to impact follows the orbit against the ground's height under each point as
   the body turns. Drag is not counted, so in air the vessel falls later than it says.
 * The suicide burn is the last moment to light the engines at full thrust and stop
-  over the ground, at the speed over the surface now.
+  over the ground, falling straight down: from the vertical speed now, which gravity
+  raises until the burn. The horizontal speed is not counted.
 * The transfer angle is the phase a target must lead by for a transfer from a circular
   orbit; the window is when the phase angle reaches it. Where the target goes round
   another body than the vessel, such as a planet from Kerbin's orbit, both are taken

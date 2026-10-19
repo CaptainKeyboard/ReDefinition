@@ -37,6 +37,15 @@ example, move it away first.
 **3. Start KSP.** ReDefinition is in when the main menu has a *ReDefinition* entry
 under *Settings*.
 
+If Windows refused to load the proxy, the main menu says so once, under *ReDefinition's
+dxgi.dll was blocked*, with the reason where Windows gives one. Smart App Control blocks
+it, as it blocks every DLL without a trusted signature; it is switched off in Windows
+Security, under *App & browser control*, *Smart App Control settings*. A code integrity
+policy or a virus scanner can block it too, and Windows names a blocked DLL in its event
+log, under *Applications and Services Logs*, *Microsoft*, *Windows*, *CodeIntegrity*,
+*Operational*. Without the proxy, FSR 3 upscaling runs, and DLSS, AMD's upscaler, frame
+generation and raytracing are not there.
+
 **4. Choose a graphics profile.** Until you do, ReDefinition changes nothing: no
 upscaler, no frame generation, and every mod keeps its own settings. The main menu
 offers *Let ReDefinition take control* at the first start, which chooses High, and
@@ -83,11 +92,15 @@ GPU scheduling* switched on in Windows' graphics settings.
 
 ## Change the proxy's settings
 
-The proxy runs on its defaults without any file. To change them, copy
-`GameData/ReDefinition/ReDefinitionProxy.ini` next to `KSP_x64.exe` and edit it there.
-Each setting is described in the file, and
+At its first start, the proxy writes `ReDefinitionProxy.ini` next to `KSP_x64.exe`, with
+every setting at its default. Edit it there. Each setting is described in the file, and
 [upscaler-and-frame-generation.md](upscaler-and-frame-generation.md) lists the ones a
-player changes. An update does not overwrite that copy.
+player changes.
+
+A newer version keeps your changes. At each start the proxy adds the settings that are
+new since, with their descriptions. A value you never changed follows the new version's
+default; a value you changed stays as you set it. To tell the two apart, the proxy notes
+the values it wrote itself in `ReDefinitionProxy.defaults` beside the ini.
 
 **If the game does not start** with the proxy, set `enabled=0` in that file and start
 KSP again. The proxy
@@ -98,8 +111,12 @@ then passes everything through to Windows' own `dxgi.dll`. It writes
 
 | File | Holds |
 |---|---|
-| `GameData/ReDefinition/PluginData/settings.cfg` | the upscaler's and frame generation's settings, and the four hotkeys |
+| `GameData/ReDefinition/PluginData/settings.cfg` | ReDefinition's own settings: the upscaler, frame generation and raytracing, the four hotkeys, the flight switches, the main menu's and the space centre's rows, the window's pause, and the navball's place |
 | `GameData/ReDefinition/PluginData/bundled.cfg` | the chosen profile, the values ReDefinition keeps for the other mods, and each setting's value from before ReDefinition first changed it |
+| `GameData/ReDefinition/PluginData/bindings.cfg` | the key bindings ReDefinition keeps for mods that ask it for their keys |
+| `GameData/ReDefinition/PluginData/flightpanel.cfg` | the flight panel's profiles, for every save |
+| `GameData/ReDefinition/PluginData/gauge.cfg` | the round gauge's chosen figure |
+| `GameData/ReDefinition/PluginData/planner.cfg` | the planner's plans, by the vessel's name |
 
 An update does not touch them.
 
@@ -114,8 +131,10 @@ back as they were before:
 2. Load each save you play once. Mods that keep settings per save, TUFX and Distant
    Object, get theirs back as that save loads.
 3. Quit KSP. Remove `GameData/ReDefinition`, `dxgi.dll` with its two licence files,
-   `amd_fidelityfx_framegeneration_dx12.dll` with its licence, and
-   `ReDefinitionProxy.ini` and `ReDefinitionProxy.log` where they are.
+   `amd_fidelityfx_framegeneration_dx12.dll` and `amd_fidelityfx_denoiser_dx12.dll`
+   with their licences, and `ReDefinitionProxy.ini`, `ReDefinitionProxy.defaults` and
+   `ReDefinitionProxy.log` next to `KSP_x64.exe`. `ReDefinitionCaptures` there holds
+   what the diagnostics window recorded, where you recorded anything.
 
 NVIDIA's and AMD's DLLs can stay or go, with the licence texts beside them. Without the
 proxy, nothing loads them.
