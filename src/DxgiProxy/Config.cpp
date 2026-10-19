@@ -85,6 +85,9 @@ namespace redefinition
                  + " fgShowOnlyGenerated=" + (c.fgShowOnlyGenerated ? "1" : "0")
                  + " rtOwnQueue=" + (c.rtOwnQueue ? "1" : "0")
                  + " rtCutoutTest=" + std::to_string(c.rtCutoutTest)
+                 + " rtSunUnfiltered=" + std::string(c.rtSunUnfiltered ? "1" : "0")
+                 + " rtSunAtrousSteps=" + std::to_string(c.rtSunAtrousSteps)
+                 + " rtSunHistory=" + std::to_string(c.rtSunHistory)
                  + " rtFoliageTransmission=" + std::to_string(c.rtFoliageTransmission)
                  + " reportSeconds=" + std::to_string(c.reportSeconds)
                  + " logInputsSeconds=" + std::to_string(c.logInputsSeconds)
@@ -144,6 +147,9 @@ namespace redefinition
             target.fgShowOnlyGenerated = ReadFlag(L"fgShowOnlyGenerated", file, false);
             target.rtOwnQueue = ReadFlag(L"rtOwnQueue", file, false);
             target.rtCutoutTest = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtCutoutTest", 0, file.c_str()));
+            target.rtSunUnfiltered = GetPrivateProfileIntW(L"Proxy", L"rtSunUnfiltered", 0, file.c_str()) != 0;
+            target.rtSunAtrousSteps = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunAtrousSteps", 0, file.c_str()));
+            target.rtSunHistory = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunHistory", 4, file.c_str()));
             target.rtFoliageTransmission = ReadFloat(L"rtFoliageTransmission", file, 0.0f);
             if (target.logInputsSeconds < 0)
                 target.logInputsSeconds = 0;

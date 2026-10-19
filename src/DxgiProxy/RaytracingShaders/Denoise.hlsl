@@ -17,7 +17,9 @@ cbuffer Step : register(b1)
                         // (Raytracing.h, kRtDenoised); for the à-trous steps, which of the
                         // four signals (kAtrousSignals) are there, one bit each
     uint stepFlags;     // 1: the history is not to be used; 2: motion vectors are bound;
-                        // 4: the last à-trous step, which writes the texture Unity reads
+                        // 4: the last à-trous step, which writes the texture Unity reads;
+                        // bits 8 to 11: how many à-trous steps filter the sun's visibility;
+                        // in the temporal pass, bits 8 to 13: the sun's longest history
     uint iteration;
 };
 
@@ -140,6 +142,9 @@ void DenoiseTemporal(uint3 id : SV_DispatchThreadID)
         // view.
         float smooth = signalKind == 2u ? normalNow[id.xy].w : 0.0f;
         float maxLength = lerp(32.0f, 8.0f, saturate((smooth - 0.6f) / 0.4f));
+        uint sunHistory = (stepFlags >> 8) & 63u;
+        if (sunHistory > 0u)
+            maxLength = min(maxLength, float(sunHistory));
         length = min(length, maxLength);
         float alpha = max(1.0f / length, 0.03f);
         float4 colour = lerp(history, noisy, alpha);
@@ -290,13 +295,16 @@ void DenoiseAtrous(uint3 id : SV_DispatchThreadID)
     float4 normalSmooth = normalNow[id.xy];
     // Smooth reflections keep their detail: only the first two steps filter them.
     bool smoothStop = normalSmooth.w > 0.8f && iteration >= 2u;
+    // The sun's visibility only in the first steps: wider steps take the shadows of the
+    // blades of grass, which its rays draw, into the ground's light around them.
+    bool sunStop = iteration >= ((stepFlags >> 8) & 15u);
     bool filtered[kAtrousSignals];
     float lp[kAtrousSignals];
     float lumaRate[kAtrousSignals];
     [unroll]
     for (uint s = 0u; s < kAtrousSignals; ++s)
     {
-        filtered[s] = (signalKind & (1u << s)) != 0u && zp > 0.0f && !(s == 2u && smoothStop);
+        filtered[s] = (signalKind & (1u << s)) != 0u && zp > 0.0f && !(s == 2u && smoothStop) && !(s == 0u && sunStop);
         lp[s] = SignalLuminance(s, centre[s]);
         lumaRate[s] = 0.0f;
         if (!filtered[s])

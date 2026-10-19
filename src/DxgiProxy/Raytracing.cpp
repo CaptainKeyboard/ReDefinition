@@ -401,7 +401,8 @@ namespace redefinition
         if (!EnsureDenoiseTargetsLocked(frame.packet->width, frame.packet->height, *frame.slot))
             return false;
         for (const RtDenoisedSignal& noisy : kRtDenoised)
-            if ((frame.packet->signals & noisy.signal) != 0 && frame.outputs[noisy.output] != nullptr)
+            if ((frame.packet->signals & noisy.signal) != 0 && frame.outputs[noisy.output] != nullptr
+                && !(noisy.signal == kRtSignalSunVisibility && Config().rtSunUnfiltered))
             {
                 frame.noisyFor[noisy.output] = &denoise.noisy[noisy.index];
                 UseLocked(denoise.noisy[noisy.index], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -624,6 +625,8 @@ namespace redefinition
             BindFrameLocked(frame);
         }
         RtFramePacket rest = packet;
+        if (Config().rtSunUnfiltered)
+            rest.signals &= ~kRtSignalSunVisibility;
         if (amdDenoised)
             rest.signals &= ~(kRtSignalDiffuse | kRtSignalSpecular);
         // ReDefinition's history stood still while AMD's denoiser had the frames.

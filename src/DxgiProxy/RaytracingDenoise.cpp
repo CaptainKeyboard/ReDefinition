@@ -3,6 +3,9 @@
 
 #include "Raytracing.h"
 
+#include <algorithm>
+
+#include "Config.h"
 #include "D3d12Util.h"
 #include "Log.h"
 
@@ -222,7 +225,11 @@ namespace redefinition
                                         Of(&denoise.normal[before]), motion ? Of(motionInput) : View{} };
                 const View writes[4] = { Of(&denoise.work), Of(&moments) };
                 const bool afresh = reset || (denoise.lastPresent & (1u << s)) == 0;
-                constants(1, filtered.kind, (afresh ? 1u : 0u) | (motion ? 2u : 0u), 0);
+                // Bits 8 to 13, for the sun's visibility: its longest history (rtSunHistory).
+                const uint32_t history = filtered.signal == kRtSignalSunVisibility
+                                             ? static_cast<uint32_t>(std::clamp(Config().rtSunHistory, 1, 32)) << 8
+                                             : 0u;
+                constants(1, filtered.kind, (afresh ? 1u : 0u) | (motion ? 2u : 0u) | history, 0);
                 dispatch(temporal, TableLocked(slotNumber, used, reads, writes));
             }
 
@@ -265,7 +272,9 @@ namespace redefinition
             }
             reads[3] = Of(&denoise.linearDepth[now]);
             reads[4] = Of(&denoise.normal[now]);
-            constants(1u << step, present, last ? 4u : 0u, step);
+            // Bits 8 to 11: how many steps filter the sun's visibility (rtSunAtrousSteps).
+            const uint32_t sunSteps = static_cast<uint32_t>(std::clamp(Config().rtSunAtrousSteps, 0, 15)) << 8;
+            constants(1u << step, present, (last ? 4u : 0u) | sunSteps, step);
             dispatch(atrous, TableLocked(slotNumber, used, reads, writes));
             for (UINT s = 0; s < kRtDenoisedSignals; ++s)
                 from[s] = to[s];

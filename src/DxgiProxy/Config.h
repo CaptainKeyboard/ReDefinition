@@ -195,6 +195,21 @@ namespace redefinition
         // picture is wrong with either. Read when a swapchain is created.
         int rtCutoutTest = 0;
 
+        // For measuring, false by default: the sun's visibility as its pass traced it, one
+        // ray a pixel, past the denoiser, which then filters the other signals only. The
+        // picture is noisy with it. Read when a swapchain is created.
+        bool rtSunUnfiltered = false;
+
+        // How many of the denoiser's five à-trous steps filter the sun's visibility, and
+        // the longest history, in frames (1 to 32), its temporal pass keeps of it. The rays
+        // draw the shadows of the blades of grass, which the other signals' 5 steps and 32
+        // frames smoothed away; 0 and 4 keep them (at the launch pad, 2026-10-19: the lawn's
+        // structure against a 9x9 mean 6.3, 5.5 without the raytracing, 5.1 with 5 and 32;
+        // its pixel noise 4.9, 4.3 and 4.2; the pad's the same). Read when a swapchain is
+        // created.
+        int rtSunAtrousSteps = 0;
+        int rtSunHistory = 4;
+
         // What of the sun's light a cut-out surface -- grass, ferns -- lets through to
         // what lies behind it, 0 to 1 (RtCommon.hlsli, SunUnoccluded). Read when a
         // swapchain is created.

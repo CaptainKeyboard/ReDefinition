@@ -402,6 +402,16 @@ smooth one:
 | AMD FSR Ray Regeneration 1.2 | Radeon RX 9000 and newer, Windows 11 **[doc]** | `amd_fidelityfx_denoiser_dx12.dll`, which the package ships next to `KSP_x64.exe` | the diffuse light and the reflections; the sun's visibility stays with ReDefinition's |
 | NVIDIA DLSS Ray Reconstruction | GeForce RTX **[doc]** | the player's `sl.dlss_d.dll` and `nvngx_dlssd.dll` | the whole frame with its noise, in place of DLSS Super Resolution **[doc]** |
 
+ReDefinition's denoiser keeps the sun's visibility shorter than the other signals: at most
+4 frames of history and none of the à-trous steps (`rtSunAtrousSteps`, `rtSunHistory` in
+`ReDefinitionProxy.ini`). The rays draw the shadows the blades of grass cast. With 32
+frames and 5 steps, as for the diffuse light, the lawn at the launch pad lost them: its
+structure against a 9x9 mean was 5.1 there, 6.3 with 4 frames and no steps, and 5.5
+without the raytracing. Its pixel noise was 4.2 and 4.9 against 4.3 without the
+raytracing **[meas]** (KSP, RTX A4500). Either change alone kept the lawn smooth: 5.0 to
+5.2 with 0 to 5 steps at 32 frames, and with 2 to 8 frames at 5 steps **[meas]**. The
+signal before the denoiser has them in full, 10.2 **[meas]** (`rtSunUnfiltered=1`).
+
 ReDefinition gives Ray Reconstruction its own Streamline viewport, apart from frame
 generation's. It runs where Streamline is set up: where DLSS frame generation runs, and,
 with `frameGeneration=0` in `ReDefinitionProxy.ini`, wherever the GPU runs Ray
