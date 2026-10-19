@@ -12,7 +12,6 @@ namespace ReDefinition.Engineer
     // PlannerView.Sections.cs, the rows in PlannerView.Rows.cs.
     internal sealed partial class PlannerView
     {
-        private const float Interval = 0.25f;
         private const float SaveDelay = 1.5f;
         private const double AltitudeStep = 10000.0;
 
@@ -29,10 +28,16 @@ namespace ReDefinition.Engineer
         // one on screen; a new one without the sections taken away from the last.
         private bool reload;
         private bool fresh;
-        private float nextEvaluation;
+        // The plan worked out again only where something it rests on changed: the
+        // route or a setting in the planner (Changed), the vessel's plan loaded,
+        // or the vessel as read anew (EditorEngineer.Readout, read only where KSP
+        // changed it), told by the readout no longer being the one last worked
+        // out from.
+        private bool dirty = true;
+        private EditorReadout evaluated;
         private float saveAt = -1f;
 
-        // What the plan comes to, worked out a few times a second: the steps, and
+        // What the plan comes to, worked out where it changed (dirty): the steps, and
         // for each leg (the way from one destination to the next) and role the step
         // there, -1 where there is none.
         private List<RouteStep> steps = new List<RouteStep>();
@@ -109,7 +114,7 @@ namespace ReDefinition.Engineer
                 foundLander = null;
                 fuelOpen.Clear();
                 thrustOpen.Clear();
-                nextEvaluation = 0f;
+                dirty = true;
                 System.Array.Clear(more, 0, more.Length);
             }
             else if (name != vessel)
@@ -123,8 +128,9 @@ namespace ReDefinition.Engineer
                 state.Save(vessel, bodies);
                 saveAt = -1f;
             }
-            if (Time.unscaledTime < nextEvaluation) return;
-            nextEvaluation = Time.unscaledTime + Interval;
+            if (!dirty && owner.Readout == evaluated) return;
+            dirty = false;
+            evaluated = owner.Readout;
             Evaluate();
         }
 
@@ -282,7 +288,7 @@ namespace ReDefinition.Engineer
         private void Changed()
         {
             saveAt = Time.unscaledTime + SaveDelay;
-            nextEvaluation = 0f;
+            dirty = true;
         }
 
         // ----------------------------------------------------------------- stops
@@ -457,8 +463,9 @@ namespace ReDefinition.Engineer
         // planner marks on the vessel; null for none.
         private PartGroupChoice litGroup;
 
-        // Its parts lit, or the vessel unmarked. Worked out again with the plan, a
-        // few times a second: the group by its key, as the vessel's parts are read
+        // Its parts lit, or the vessel unmarked. Worked out again with the plan and
+        // as the pointer enters or leaves an entry (ShowGroup; a list closing
+        // leaves its entry): the group by its key, as the vessel's parts are read
         // anew each time.
         private void Mark()
         {

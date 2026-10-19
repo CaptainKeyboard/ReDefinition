@@ -31,11 +31,17 @@ namespace ReDefinition.Engineer
     public class EditorEngineer : MonoBehaviour
     {
         private const string TilePath = "ReDefinition/Icons/EngineerButton_";
-        // The vessel read again a moment after KSP changed it or finished its
-        // delta-v simulation, and at the latest every few seconds for what fires
-        // neither.
+        // The vessel read again only where it changed: KSP modified, loaded or
+        // started a new one (onEditorShipModified, which the part action window's
+        // fields and resource sliders fire too; onEditorLoad, onEditorRestart),
+        // finished its delta-v simulation (onDeltaVCalcsCompleted, which follows a
+        // crossfeed, a resource's flow or a staging change), or its delta-v app
+        // took another situation (onDeltaVAppAtmosphereChanged); and as the
+        // planner opens, for what changed while it was closed (the crew).
+        // Decompiled: UIPartActionFieldItem, UIPartActionResourceEditor,
+        // VesselDeltaV, DeltaVAppSituation. At most one read in RefreshInterval,
+        // so that a change and the simulation it starts make one or two reads.
         private const float RefreshInterval = 0.25f;
-        private const float RefreshAnyway = 2f;
 
         private EditorLogic editor;
         private Button button;
@@ -48,7 +54,6 @@ namespace ReDefinition.Engineer
         // change it causes does not close the view it is opening.
         private bool switching;
         private float nextRefresh;
-        private float refreshAnyway;
         private bool changed = true;
 
         internal EditorReadout Readout { get; private set; }
@@ -81,6 +86,9 @@ namespace ReDefinition.Engineer
             GameEvents.onLevelWasLoadedGUIReady.Add(OnGuiReady);
             GameEvents.onEditorShipModified.Add(OnShipModified);
             GameEvents.onDeltaVCalcsCompleted.Add(OnShipChanged);
+            GameEvents.onDeltaVAppAtmosphereChanged.Add(OnSituationChanged);
+            GameEvents.onEditorLoad.Add(OnShipLoaded);
+            GameEvents.onEditorRestart.Add(OnShipChanged);
             StartCoroutine(TilesAgainLater());
         }
 
@@ -90,6 +98,9 @@ namespace ReDefinition.Engineer
             GameEvents.onLevelWasLoadedGUIReady.Remove(OnGuiReady);
             GameEvents.onEditorShipModified.Remove(OnShipModified);
             GameEvents.onDeltaVCalcsCompleted.Remove(OnShipChanged);
+            GameEvents.onDeltaVAppAtmosphereChanged.Remove(OnSituationChanged);
+            GameEvents.onEditorLoad.Remove(OnShipLoaded);
+            GameEvents.onEditorRestart.Remove(OnShipChanged);
             Canvas.willRenderCanvases -= KeepButtons;
             if (editor != null && editor.partPanelBtn != null) editor.partPanelBtn.onClick.RemoveListener(OnPartsButton);
             if (panel != null) panel.Destroy();
@@ -100,10 +111,9 @@ namespace ReDefinition.Engineer
         private void Update()
         {
             if (editor == null || !open) return;
-            if (Time.unscaledTime >= nextRefresh && (changed || Time.unscaledTime >= refreshAnyway))
+            if (changed && Time.unscaledTime >= nextRefresh)
             {
                 nextRefresh = Time.unscaledTime + RefreshInterval;
-                refreshAnyway = Time.unscaledTime + RefreshAnyway;
                 changed = false;
                 try
                 {
@@ -133,6 +143,16 @@ namespace ReDefinition.Engineer
         }
 
         private void OnShipChanged()
+        {
+            changed = true;
+        }
+
+        private void OnShipLoaded(ShipConstruct ship, CraftBrowserDialog.LoadType type)
+        {
+            changed = true;
+        }
+
+        private void OnSituationChanged(DeltaVSituationOptions situation)
         {
             changed = true;
         }
