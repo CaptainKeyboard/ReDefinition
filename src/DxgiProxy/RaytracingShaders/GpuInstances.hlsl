@@ -62,11 +62,19 @@ void GpuInstances(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= gpuCount)
         return;
-    // The groups follow each other: the last whose start is not past this instance.
+    // The groups follow each other, their starts rising from 0 (AddGpuInstancesLocked
+    // leaves out the empty ones): the last whose start is not past this instance, found
+    // by halving [g, end).
     uint g = 0;
-    for (uint k = 1; k < groupCount; ++k)
-        if (groups[k].start <= id.x)
-            g = k;
+    uint end = groupCount;
+    while (end - g > 1u)
+    {
+        uint middle = (g + end) / 2u;
+        if (groups[middle].start <= id.x)
+            g = middle;
+        else
+            end = middle;
+    }
     Group group = groups[g];
     uint t = group.first + (id.x - group.start);
     uint2 at = uint2((t % kPerRow) * 3, t / kPerRow);
