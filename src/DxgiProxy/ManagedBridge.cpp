@@ -251,7 +251,8 @@ extern "C"
     // 20-23: Direct3D 12 for mods (D3d12Compute.h): a compute pass made, destroyed,
     //    dispatched, a texture's shared copy released.
     // 30: a raytracing frame (Raytracing.h); 31: a frame for DLSS Ray Reconstruction;
-    //    32: Ray Reconstruction no longer used, its resources freed.
+    //    32: Ray Reconstruction no longer used, its resources freed; 33: raytracing no
+    //    longer used, what its frames made freed.
     // 40: the game's frame index from KspReflexFrameStart, as the pointer's value,
     //    before the frame's first Direct3D call (Streamline::OnGameFrameRendered).
     static void DispatchRenderEvent(int eventId, void* data)
@@ -282,6 +283,8 @@ extern "C"
             redefinition::Raytracing::Get().OnReconstruct(data);
         else if (eventId == RT_RECONSTRUCT_RELEASE_EVENT)
             redefinition::Raytracing::Get().OnReconstructRelease();
+        else if (eventId == RT_RELEASE_EVENT)
+            redefinition::Raytracing::Get().OnRelease();
         else if (eventId == 40)
             redefinition::Streamline::Get().OnGameFrameRendered(
                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data)));

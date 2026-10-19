@@ -448,6 +448,16 @@ namespace ReDefinition.Raytracing
             Shader.SetGlobalFloat(RtSunMask, 0f);
             RtLighting.Restore();
             Scene.Clear();
+            // The proxy lets go of the denoiser's textures, the shared copies and the meshes
+            // just released on the render thread, after the last frame sent
+            // (Raytracing::OnRelease); without frames it would keep them.
+            if (RtNative.RenderEvent != IntPtr.Zero)
+            {
+                var release = new CommandBuffer { name = "ReDefinition raytracing release" };
+                release.IssuePluginEventAndData(RtNative.RenderEvent, RtNative.ReleaseEvent, IntPtr.Zero);
+                Graphics.ExecuteCommandBuffer(release);
+                release.Release();
+            }
             ReleaseTargets();
             ReleaseOceanTargets();
             ReleaseGpuInstances();

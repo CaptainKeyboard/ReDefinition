@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -686,6 +687,21 @@ PsOut PsMain(VsOut input)
         ComPtr<ID3D11Texture2D> primary;      // u7, R32G32B32A32_FLOAT
     };
 
+    HRESULT CreateOutputs(ID3D11Device* device, Outputs& outputs)
+    {
+        HRESULT hr = S_OK;
+        // ComPtr's & releases; std::addressof takes the address.
+        for (ComPtr<ID3D11Texture2D>* texture :
+             { std::addressof(outputs.visibility), std::addressof(outputs.diffuse), std::addressof(outputs.specular),
+               std::addressof(outputs.occlusion), std::addressof(outputs.forward), std::addressof(outputs.surface),
+               std::addressof(outputs.surfaceMode) })
+            if (SUCCEEDED(hr))
+                hr = CreateTarget(device, DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, *texture);
+        if (SUCCEEDED(hr))
+            hr = CreateTarget(device, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.primary);
+        return hr;
+    }
+
     // What a frame traces besides the camera, with the defaults of the shadow checks.
     struct Lighting
     {
@@ -1144,21 +1160,7 @@ int main()
     if (FAILED(hr))
         return Fatal("the G-buffer", hr);
     Outputs outputs;
-    hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.visibility);
-    if (SUCCEEDED(hr))
-        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.diffuse);
-    if (SUCCEEDED(hr))
-        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.specular);
-    if (SUCCEEDED(hr))
-        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.occlusion);
-    if (SUCCEEDED(hr))
-        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.forward);
-    if (SUCCEEDED(hr))
-        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.surface);
-    if (SUCCEEDED(hr))
-        hr = CreateTarget(device.Get(), DXGI_FORMAT_R16G16B16A16_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.surfaceMode);
-    if (SUCCEEDED(hr))
-        hr = CreateTarget(device.Get(), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D11_BIND_SHADER_RESOURCE, outputs.primary);
+    hr = CreateOutputs(device.Get(), outputs);
     if (FAILED(hr))
         return Fatal("the output textures", hr);
 
@@ -1867,6 +1869,59 @@ int main()
         error(back, true, backError, backMean, backReference);
         sprintf_s(detail, "the first frame back %.4f in the dark, before the pause %.4f", backMean, diffuseMean);
         Check(backMean < 0.01 * diffuseMean, "a denoised signal paused and back", detail);
+
+        // The denoiser's textures: per signal it filters 64 bytes a pixel (the noisy trace,
+        // two histories in full floats, two moments, a work texture in half floats), for
+        // any 40 more (the work texture, two view distances and normals). The process's
+        // video memory with the sun, the diffuse light and the reflections denoised; with
+        // the sun alone, once the slots holding the others' textures came round; and after
+        // raytracing stopped (render event 33), which lets the sun's go too. Then the sun
+        // denoised again, its textures made anew.
+        ComPtr<IDXGIAdapter3> adapter3;
+        adapter.As(&adapter3);
+        const auto videoMemory = [&]()
+        {
+            DXGI_QUERY_VIDEO_MEMORY_INFO info = {};
+            if (adapter3 == nullptr || FAILED(adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)))
+                return 0.0;
+            return static_cast<double>(info.CurrentUsage) / 1e6;
+        };
+        const uint32_t all = kRtSignalSunVisibility | kRtSignalDiffuse | kRtSignalSpecular;
+        Lighting denoised = lighting;
+        denoised.flags = kRtFrameDenoise;
+        std::vector<uint16_t> synced;
+        for (int f = 0; f < 4; ++f)
+            SendFrame(proxy, end, g, outputs, sun, sunRadius, 10500 + f, all, denoised);
+        ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, synced);
+        const double withAll = videoMemory();
+        for (int f = 0; f < 4; ++f)
+            SendFrame(proxy, end, g, outputs, sun, sunRadius, 10504 + f, kRtSignalSunVisibility, denoised);
+        ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, synced);
+        const double withSun = videoMemory();
+        proxy.event(RT_RELEASE_EVENT, nullptr);
+        const double stopped = videoMemory();
+        const double pixelsMb = static_cast<double>(kWidth) * kHeight / 1e6;
+        const double twoSignals = 2 * 64 * pixelsMb, sunAlone = (64 + 40) * pixelsMb;
+        sprintf_s(detail, "%.1f MB with three signals, %.1f with the sun alone (%.1f less, %.1f expected), %.1f once stopped"
+                          " (%.1f less, at least %.1f expected)",
+                  withAll, withSun, withAll - withSun, twoSignals, stopped, withSun - stopped, sunAlone);
+        Check(adapter3 != nullptr && withAll - withSun > 0.9 * twoSignals && withSun - stopped > 0.9 * sunAlone,
+              "the denoiser's textures for its signals", detail);
+
+        Lighting again = denoised;
+        for (int f = 0; f < 30; ++f)
+        {
+            again.flags = kRtFrameDenoise | (f == 0 ? kRtFrameReset : 0u);
+            SendFrame(proxy, end, g, outputs, sun, sunRadius, 10510 + f, kRtSignalSunVisibility, again);
+        }
+        std::vector<uint16_t> afterStop;
+        ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, afterStop);
+        double stopError, stopMean, stopReference;
+        error(afterStop, false, stopError, stopMean, stopReference);
+        sprintf_s(detail, "sun visibility off the reference by %.4f (one noisy frame %.4f), its mean %.4f against %.4f",
+                  stopError, noisySunError, stopMean, stopReference);
+        Check(stopError < 0.45 * noisySunError && std::fabs(stopMean - stopReference) < 0.03 * stopReference,
+              "the denoiser after raytracing stopped", detail);
     }
 
     // ---------------------------------------------------------------- Ray Reconstruction

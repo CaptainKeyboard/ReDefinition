@@ -56,61 +56,118 @@ namespace redefinition
         target.state = wanted;
     }
 
-    bool Raytracing::EnsureDenoiseTargetsLocked(UINT width, UINT height, Slot& slot)
+    void Raytracing::DropDenoiseTargetLocked(DenoiseTarget& target, Slot& slot)
     {
-        if (denoise.width == width && denoise.height == height && denoise.work.resource != nullptr)
-            return true;
-        // The textures of the old size may still be in use by lists in flight.
-        const auto hold = [&](DenoiseTarget& target)
-        {
-            if (target.resource != nullptr)
-                slot.held.push_back(target.resource);
-        };
+        // A texture may still be in use by lists in flight: held by the slot until it is
+        // done.
+        if (target.resource != nullptr)
+            slot.held.push_back(target.resource);
+        target = DenoiseTarget{};
+    }
+
+    void Raytracing::DropDenoiseTargetsLocked(Slot& slot)
+    {
         for (UINT s = 0; s < kRtDenoisedSignals; ++s)
         {
-            hold(denoise.noisy[s]);
-            hold(denoise.workHalf[s]);
+            DropDenoiseTargetLocked(denoise.noisy[s], slot);
+            DropDenoiseTargetLocked(denoise.workHalf[s], slot);
             for (UINT p = 0; p < 2; ++p)
             {
-                hold(denoise.history[s][p]);
-                hold(denoise.moments[s][p]);
+                DropDenoiseTargetLocked(denoise.history[s][p], slot);
+                DropDenoiseTargetLocked(denoise.moments[s][p], slot);
             }
         }
         for (UINT p = 0; p < 2; ++p)
         {
-            hold(denoise.linearDepth[p]);
-            hold(denoise.normal[p]);
+            DropDenoiseTargetLocked(denoise.linearDepth[p], slot);
+            DropDenoiseTargetLocked(denoise.normal[p], slot);
         }
-        hold(denoise.work);
+        DropDenoiseTargetLocked(denoise.work, slot);
         denoise = DenoiseTargets{};
+    }
+
+    bool Raytracing::EnsureDenoiseTargetsLocked(UINT width, UINT height, uint32_t noisy, Slot& slot)
+    {
+        // The noisy textures of the signals the passes trace for a denoiser (noisy, by
+        // their place in kRtDenoised), the ones of the signals no longer traced for one
+        // let go; the filter's own come with the run that takes them
+        // (EnsureFilterTargetsLocked). Another size lets all of them go.
+        denoise.framesWithout = 0;
+        if (denoise.width != width || denoise.height != height)
+        {
+            DropDenoiseTargetsLocked(slot);
+            denoise.width = width;
+            denoise.height = height;
+        }
+        bool ok = true;
+        for (UINT s = 0; s < kRtDenoisedSignals && ok; ++s)
+        {
+            DenoiseTarget& target = denoise.noisy[s];
+            if ((noisy & (1u << s)) == 0)
+                DropDenoiseTargetLocked(target, slot);
+            else if (target.resource == nullptr)
+                ok = target.Create(device.Get(), width, height, DXGI_FORMAT_R16G16B16A16_FLOAT);
+        }
+        if (!ok)
+        {
+            DropDenoiseTargetsLocked(slot);
+            SetProblem("the denoiser's textures could not be made");
+            return false;
+        }
+        return true;
+    }
+
+    bool Raytracing::EnsureFilterTargetsLocked(uint32_t present, Slot& slot)
+    {
+        // Per signal ReDefinition's denoiser filters (present, by its place in kRtDenoised):
+        // its history and moments for this frame and the one before, and its texture in
+        // half floats; for any of them the work texture and the view distance and normal
+        // for this frame and the one before. The ones it no longer filters go. A signal
+        // whose history is new starts afresh (lastPresent), and new view distances and
+        // normals start them all afresh (fresh).
+        //
         // The history and the filter's work up to it in full floats: a history of half
         // floats, blended with a small weight each frame, stops short of its value where the
         // step falls under half a half float's precision (1.6 % short at 1.0, measured). The
         // à-trous steps after the first, which no history takes, in half floats.
-        bool ok = true;
         const DXGI_FORMAT colour = DXGI_FORMAT_R16G16B16A16_FLOAT;
         const DXGI_FORMAT precise = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        const auto ensure = [&](DenoiseTarget& target, bool wanted, DXGI_FORMAT format, bool& made)
+        {
+            if (!wanted)
+            {
+                DropDenoiseTargetLocked(target, slot);
+                return true;
+            }
+            if (target.resource != nullptr)
+                return true;
+            made = true;
+            return target.Create(device.Get(), denoise.width, denoise.height, format);
+        };
+        bool ok = true;
         for (UINT s = 0; s < kRtDenoisedSignals && ok; ++s)
         {
-            ok = ok && denoise.noisy[s].Create(device.Get(), width, height, colour)
-                 && denoise.workHalf[s].Create(device.Get(), width, height, colour);
+            const bool wanted = (present & (1u << s)) != 0;
+            bool made = false;
+            ok = ensure(denoise.workHalf[s], wanted, colour, made);
             for (UINT p = 0; p < 2 && ok; ++p)
-                ok = ok && denoise.history[s][p].Create(device.Get(), width, height, precise)
-                     && denoise.moments[s][p].Create(device.Get(), width, height, colour);
+                ok = ensure(denoise.history[s][p], wanted, precise, made) && ensure(denoise.moments[s][p], wanted, colour, made);
+            if (made)
+                denoise.lastPresent &= ~(1u << s);
         }
-        ok = ok && denoise.work.Create(device.Get(), width, height, precise);
+        bool madeShared = false;
+        ok = ok && ensure(denoise.work, present != 0, precise, madeShared);
         for (UINT p = 0; p < 2 && ok; ++p)
-            ok = ok && denoise.linearDepth[p].Create(device.Get(), width, height, DXGI_FORMAT_R32_FLOAT)
-                 && denoise.normal[p].Create(device.Get(), width, height, colour);
+            ok = ensure(denoise.linearDepth[p], present != 0, DXGI_FORMAT_R32_FLOAT, madeShared)
+                 && ensure(denoise.normal[p], present != 0, colour, madeShared);
+        if (madeShared)
+            denoise.fresh = true;
         if (!ok)
         {
-            denoise = DenoiseTargets{};
+            DropDenoiseTargetsLocked(slot);
             SetProblem("the denoiser's textures could not be made");
             return false;
         }
-        denoise.width = width;
-        denoise.height = height;
-        denoise.fresh = true;
         return true;
     }
 
@@ -165,6 +222,19 @@ namespace redefinition
         if (prepare == nullptr || temporal == nullptr || variance == nullptr || atrous == nullptr)
             return;
 
+        // The signals it filters, each with its noisy texture from this frame's passes
+        // (TakeNoisyTargetsLocked), and their textures; none, and nothing runs.
+        uint32_t present = 0;
+        for (UINT s = 0; s < kRtDenoisedSignals; ++s)
+            if ((packet.signals & kRtDenoised[s].signal) != 0 && outputs[kRtDenoised[s].output] != nullptr
+                && denoise.noisy[s].resource != nullptr)
+                present |= 1u << s;
+        if (!EnsureFilterTargetsLocked(present, slots[slotNumber]) || present == 0)
+        {
+            denoise.lastPresent = 0;
+            return;
+        }
+
         const UINT groupsX = (packet.width + 7) / 8;
         const UINT groupsY = (packet.height + 7) / 8;
         const UINT now = denoise.parity;
@@ -202,13 +272,11 @@ namespace redefinition
         // work texture, the moments into this frame's; then into the history of the frame
         // before, which the temporal pass has read by then, as the first à-trous step's input.
         // A signal the last run did not filter starts afresh: its history is older.
-        uint32_t present = 0;
         for (UINT s = 0; s < kRtDenoisedSignals; ++s)
         {
             const RtDenoisedSignal& filtered = kRtDenoised[s];
-            if ((packet.signals & filtered.signal) == 0 || outputs[filtered.output] == nullptr)
+            if ((present & (1u << s)) == 0)
                 continue;
-            present |= 1u << s;
             DenoiseTarget& noisy = denoise.noisy[s];
             DenoiseTarget& historyBefore = denoise.history[s][before];
             DenoiseTarget& moments = denoise.moments[s][now];

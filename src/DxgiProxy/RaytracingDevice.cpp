@@ -451,6 +451,43 @@ namespace redefinition
             WaitForSingleObject(fenceEvent, INFINITE);
     }
 
+    void Raytracing::OnRelease()
+    {
+        // Raytracing turned off: frames stop coming, and with them the steps that let
+        // things go (EvictTexturesLocked, BuildMeshesLocked's releases, the denoiser's
+        // frames without it). What the next frame makes again goes now, once the queue
+        // is past every list that used it: the denoiser's textures, Ray Reconstruction's
+        // guides, AMD's context and its guides, the shared copies of Unity's textures,
+        // and the meshes the mod released. The device, its lists and the meshes still
+        // held stay.
+        std::lock_guard<std::mutex> lock(mutex);
+        if (list == nullptr)
+            return;
+        WaitForAllLocked();
+        for (Slot& slot : slots)
+            slot.held.clear();
+        denoise = DenoiseTargets{};
+        guides = GuideTargets{};
+        // Where AMD's denoiser did not run, it is not tried again until the device goes.
+        const bool unsupported = regeneration.unsupported;
+        ReleaseRegenerationLocked();
+        regeneration.unsupported = unsupported;
+        textures.clear();
+        size_t released = 0;
+        for (int32_t id : pendingReleases)
+        {
+            auto found = meshes.find(id);
+            if (found == meshes.end())
+                continue;
+            freeSlots.push_back(found->second.slot);
+            meshes.erase(found);
+            ++released;
+        }
+        pendingReleases.clear();
+        LogLine("Raytracing: no longer used; its textures and " + std::to_string(released) + " released meshes freed, "
+                + std::to_string(meshes.size()) + " meshes kept");
+    }
+
     // The device is going or changing: everything made on it goes. The meshes the
     // managed side handed over go too; it hands them over again when it sees the
     // service ready on a new device (Status).

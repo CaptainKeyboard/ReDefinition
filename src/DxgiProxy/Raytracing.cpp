@@ -396,13 +396,23 @@ namespace redefinition
     bool Raytracing::TakeNoisyTargetsLocked(FrameWork& frame)
     {
         // With the denoiser, the passes write its noisy textures, and it writes Unity's.
+        // Frames without it for a while let its textures go; the further traces (the
+        // ocean's) never take it.
         if (!frame.denoising)
+        {
+            if (!frame.extra && denoise.width != 0 && ++denoise.framesWithout >= kDenoiseUnusedFrames)
+                DropDenoiseTargetsLocked(*frame.slot);
             return true;
-        if (!EnsureDenoiseTargetsLocked(frame.packet->width, frame.packet->height, *frame.slot))
-            return false;
+        }
+        uint32_t noisySignals = 0;
         for (const RtDenoisedSignal& noisy : kRtDenoised)
             if ((frame.packet->signals & noisy.signal) != 0 && frame.outputs[noisy.output] != nullptr
                 && !(noisy.signal == kRtSignalSunVisibility && Config().rtSunUnfiltered))
+                noisySignals |= 1u << noisy.index;
+        if (!EnsureDenoiseTargetsLocked(frame.packet->width, frame.packet->height, noisySignals, *frame.slot))
+            return false;
+        for (const RtDenoisedSignal& noisy : kRtDenoised)
+            if ((noisySignals & (1u << noisy.index)) != 0)
             {
                 frame.noisyFor[noisy.output] = &denoise.noisy[noisy.index];
                 UseLocked(denoise.noisy[noisy.index], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);

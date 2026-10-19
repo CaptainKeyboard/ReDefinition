@@ -490,6 +490,9 @@ namespace redefinition
         // Ray Reconstruction no longer used by the mod: Streamline's resources for it
         // freed (OnReconstructRelease, render event 32).
         void OnReconstructRelease();
+        // Raytracing no longer used by the mod (render event 33): what is made per frame
+        // size, the shared copies of Unity's textures and the meshes it released go.
+        void OnRelease();
 
         // Whether DLSS Ray Reconstruction runs: 1 yes, 0 no, the reason in buffer.
         int ReconstructionAvailable(char* buffer, int size) const;
@@ -622,7 +625,10 @@ namespace redefinition
         // Per signal (kRtDenoised: sun, diffuse, specular, occlusion): the noisy trace, and
         // the history and its moments for this frame and the one before; a work texture,
         // and one in half floats per signal; the view distance and normal for this frame
-        // and the one before; the signals the last run filtered, by their place.
+        // and the one before; the signals the last run filtered, by their place. Each made
+        // only for the signals that take it (EnsureDenoiseTargetsLocked,
+        // EnsureFilterTargetsLocked): for all four signals they take 296 bytes a pixel,
+        // 485 MB at 1707x960.
         struct DenoiseTargets
         {
             DenoiseTarget noisy[kRtDenoisedSignals];
@@ -637,7 +643,12 @@ namespace redefinition
             UINT parity = 0;
             bool fresh = true;
             uint32_t lastPresent = 0;
+            // The frames in a row, not the further traces, that did not take the denoiser.
+            uint32_t framesWithout = 0;
         };
+        // After this many, the denoiser's textures go (TakeNoisyTargetsLocked): Ray
+        // Reconstruction, or the denoiser turned off.
+        static constexpr uint32_t kDenoiseUnusedFrames = 120;
 
         static constexpr UINT kSlots = 3;
         static constexpr UINT kMaxMeshes = 16384;
@@ -770,7 +781,13 @@ namespace redefinition
         bool EnsureUploadBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size);
         void WriteMaterialViewLocked(UINT slotNumber);
         bool EnsureMaterialTexturesLocked(UINT layers, Slot& slot);
-        bool EnsureDenoiseTargetsLocked(UINT width, UINT height, Slot& slot);
+        // The denoiser's textures (DenoiseTargets): the noisy ones of the signals by their
+        // place in kRtDenoised, then the filter's for the signals it filters; each let go
+        // into the slot's held resources where it is no longer taken.
+        bool EnsureDenoiseTargetsLocked(UINT width, UINT height, uint32_t noisy, Slot& slot);
+        bool EnsureFilterTargetsLocked(uint32_t present, Slot& slot);
+        void DropDenoiseTargetLocked(DenoiseTarget& target, Slot& slot);
+        void DropDenoiseTargetsLocked(Slot& slot);
         void UseLocked(DenoiseTarget& target, D3D12_RESOURCE_STATES wanted);
         // Views for one dispatch of the passes in space 3: eight to read, four to write.
         // Returns the table's start on the GPU; the writes follow the reads.
