@@ -62,6 +62,42 @@ namespace ReDefinition.Tests
             }
         }
 
+        // Every window method ModWindowScale hooks takes a style fifth or none at
+        // all: the prefix without one would leave a see-through window shielded.
+        [TestMethod]
+        public void EveryHookedWindowMethodTakesItsStyleFifthOrNone()
+        {
+            int hooked = 0;
+            foreach (System.Type type in new[] { typeof(UnityEngine.GUI), typeof(UnityEngine.GUILayout) })
+                foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                {
+                    if ((method.Name != "Window" && method.Name != "ModalWindow") || !ModWindowScale.Hookable(method)) continue;
+                    hooked++;
+                    ParameterInfo[] parameters = method.GetParameters();
+                    bool styled = false;
+                    for (int i = 0; i < parameters.Length; i++)
+                    {
+                        if (parameters[i].ParameterType != typeof(UnityEngine.GUIStyle)) continue;
+                        styled = true;
+                        Assert.AreEqual(4, i, type.Name + "." + method.Name + ": the style at " + i);
+                    }
+                    Assert.AreEqual(styled, ModWindowScale.StyleFifth(method), type.Name + "." + method.Name);
+                }
+            Assert.IsTrue(hooked > 0, "no window method found");
+        }
+
+        // A rect passed in where the last call returned it was dragged, if at all;
+        // one passed in elsewhere was placed by the mod's code.
+        [TestMethod]
+        public void AWindowPutElsewhereThanReturnedWasPlacedByCode()
+        {
+            UnityEngine.Vector2 returned = new UnityEngine.Vector2(100f, 50f);
+            Assert.IsFalse(ModWindowScale.PlacedByCode(returned, returned));
+            Assert.IsFalse(ModWindowScale.PlacedByCode(returned, new UnityEngine.Vector2(100.4f, 49.7f)), "rounded");
+            Assert.IsTrue(ModWindowScale.PlacedByCode(returned, new UnityEngine.Vector2(300f, 50f)), "moved across");
+            Assert.IsTrue(ModWindowScale.PlacedByCode(returned, new UnityEngine.Vector2(100f, 20f)), "moved up");
+        }
+
         // What SpaceCentreScaling and OtherScalers reach by name in KSP.
         [TestMethod]
         public void KspMembersReachedByNameExist()

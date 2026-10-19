@@ -43,6 +43,10 @@
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(KspManaged)\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
+    <!-- GUI's window methods, which ModWindowScale hooks (ScalingHookTests). -->
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(KspManaged)\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
     <!-- ZipArchive, to make an archive laid out like NVIDIA's (NvidiaFilesTests). -->
     <Reference Include="System.IO.Compression" />
   </ItemGroup>

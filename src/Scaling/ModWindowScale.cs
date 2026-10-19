@@ -17,9 +17,13 @@ namespace ReDefinition.Scaling
     // as it was first drawn, shifted back onto the screen where the grown window
     // would leave it, and a postfix puts the one before back; a finalizer does so
     // where the call throws. The point scaled about stays put while the window is
-    // shown: GUI.DragWindow moves the rect by the pointer's travel mapped back
+    // dragged: GUI.DragWindow moves the rect by the pointer's travel mapped back
     // through the matrix, 1/scale of it, and a matrix that followed the corner
     // would leave the window behind the pointer (above 1) or ahead of it (below).
+    // A dragged window comes back in the rect the last call returned; one passed in
+    // anywhere else was placed by its mod's code (centred, clamped, a saved place
+    // loaded), and is scaled about its new corner, so that it stands where it was
+    // put and does not drift by (scale - 1) times the way it was moved.
     //
     // Left as they are: a window drawn while GUI.matrix is not the identity; those
     // of Unity and KSP and ReDefinition's own; and those of mods that scale their
@@ -52,6 +56,10 @@ namespace ReDefinition.Scaling
             public int Frame;
             // The point the window is scaled about.
             public Vector2 Anchor;
+            // Where the last call returned the window, in its own coordinates; a rect
+            // passed in elsewhere was placed by code (AnchorOf).
+            public Vector2 Returned;
+            public bool HasReturned;
             // Drawn without a background (Kerbal Engineer's HUD read-outs): no window to
             // click on, so not shielded.
             public bool SeeThrough;
@@ -84,10 +92,10 @@ namespace ReDefinition.Scaling
             List<HarmonyHook> hooks = new List<HarmonyHook>();
             foreach (MethodInfo method in typeof(GUI).GetMethods(BindingFlags.Public | BindingFlags.Static))
                 if ((method.Name == "Window" || method.Name == "ModalWindow") && Hookable(method))
-                    hooks.Add(new HarmonyHook(method, nameof(Prefix), nameof(Postfix), nameof(Finalizer), First, Last));
+                    hooks.Add(Hook(method));
             foreach (MethodInfo method in typeof(GUILayout).GetMethods(BindingFlags.Public | BindingFlags.Static))
                 if (method.Name == "Window" && Hookable(method))
-                    hooks.Add(new HarmonyHook(method, nameof(Prefix), nameof(Postfix), nameof(Finalizer), First, Last));
+                    hooks.Add(Hook(method));
             HarmonyHooks.Install(HarmonyId, typeof(ModWindowScale), hooks);
             Installed = true;
             Debug.Log(Log.Tag + " UI scaling: other mods' windows through " + hooks.Count + " window methods.");
@@ -101,42 +109,70 @@ namespace ReDefinition.Scaling
                    && parameters[2].ParameterType == typeof(GUI.WindowFunction);
         }
 
-        private static void Prefix(int __0, Rect __1, GUI.WindowFunction __2, object[] __args, out State __state)
+        // The overloads with a style take it fifth, after the title; the prefix of
+        // those reads it by its place, as Harmony's __args would build an array on
+        // every call.
+        private static HarmonyHook Hook(MethodInfo method)
         {
-            __state = new State();
+            return new HarmonyHook(method, StyleFifth(method) ? nameof(PrefixStyled) : nameof(Prefix), nameof(Postfix),
+                                   nameof(Finalizer), First, Last);
+        }
+
+        internal static bool StyleFifth(MethodInfo method)
+        {
+            ParameterInfo[] parameters = method.GetParameters();
+            return parameters.Length > 4 && parameters[4].ParameterType == typeof(GUIStyle);
+        }
+
+        private static void Prefix(int __0, Rect __1, GUI.WindowFunction __2, out State __state)
+        {
+            __state = Begin(__0, __1, __2, null);
+        }
+
+        private static void PrefixStyled(int __0, Rect __1, GUI.WindowFunction __2, GUIStyle __4, out State __state)
+        {
+            __state = Begin(__0, __1, __2, __4);
+        }
+
+        // A window whose style draws no background is see-through; the overloads
+        // without a style take the skin's window, which has one.
+        private static State Begin(int id, Rect rect, GUI.WindowFunction function, GUIStyle style)
+        {
+            State state = new State();
             try
             {
-                if (__2 == null || !UiScaling.ModWindows) return;
+                if (function == null || !UiScaling.ModWindows) return state;
                 float scale = UiScaling.World;
-                if (Mathf.Abs(scale - 1f) < 0.01f || GUI.matrix != Matrix4x4.identity || !Scaled(__2)) return;
-                Vector2 anchor = AnchorOf(__0, __1);
+                if (Mathf.Abs(scale - 1f) < 0.01f || GUI.matrix != Matrix4x4.identity || !Scaled(function)) return state;
+                Vector2 anchor = AnchorOf(id, rect);
                 // Where the grown window lands, then back onto the screen where it
                 // would leave it; a GUILayout window's rect can have no size before
                 // its layout.
-                Vector2 at = anchor + scale * (__1.position - anchor);
+                Vector2 at = anchor + scale * (rect.position - anchor);
                 Vector2 shift = Vector2.zero;
-                if (__1.width > 0f) shift.x = Mathf.Min(0f, Screen.width - (at.x + __1.width * scale));
-                if (__1.height > 0f) shift.y = Mathf.Min(0f, Screen.height - (at.y + __1.height * scale));
+                if (rect.width > 0f) shift.x = Mathf.Min(0f, Screen.width - (at.x + rect.width * scale));
+                if (rect.height > 0f) shift.y = Mathf.Min(0f, Screen.height - (at.y + rect.height * scale));
                 shift.x = Mathf.Max(shift.x, -at.x);
                 shift.y = Mathf.Max(shift.y, -at.y);
                 Vector3 pivot = new Vector3(anchor.x, anchor.y, 0f);
-                __state.Saved = GUI.matrix;
-                __state.Applied = true;
-                __state.SeeThrough = SeeThrough(__args);
+                state.Saved = GUI.matrix;
+                state.Applied = true;
+                state.SeeThrough = style != null && style.normal.background == null;
                 GUI.matrix = Matrix4x4.TRS(pivot + (Vector3)shift, Quaternion.identity, Vector3.one)
                              * Matrix4x4.Scale(new Vector3(scale, scale, 1f))
                              * Matrix4x4.TRS(-pivot, Quaternion.identity, Vector3.one);
-                if (noted) return;
+                if (noted) return state;
                 noted = true;
                 Debug.Log(Log.Tag + " UI scaling: other mods' windows at " + scale.ToString("0.00") + ", first "
-                          + __2.Method.DeclaringType + ".");
+                          + function.Method.DeclaringType + ".");
             }
             catch (Exception e)
             {
-                if (__state.Applied) GUI.matrix = __state.Saved;
-                __state = new State();
+                if (state.Applied) GUI.matrix = state.Saved;
+                state = new State();
                 CompatibilityLog.Warn("mod-window-scale", "A mod's window could not be scaled (" + CompatibilityLog.Reason(e) + ").");
             }
+            return state;
         }
 
         // Where the window is drawn, noted, then the matrix before put back.
@@ -149,7 +185,7 @@ namespace ReDefinition.Scaling
                 Vector3 a = matrix.MultiplyPoint3x4(new Vector3(__result.xMin, __result.yMin, 0f));
                 Vector3 b = matrix.MultiplyPoint3x4(new Vector3(__result.xMax, __result.yMax, 0f));
                 Note(drawn, __0, Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y)),
-                     __state.SeeThrough);
+                     __result.position, __state.SeeThrough);
             }
             finally
             {
@@ -157,20 +193,7 @@ namespace ReDefinition.Scaling
             }
         }
 
-        // A window whose style draws no background; the overloads without a style take the
-        // skin's window, which has one.
-        private static bool SeeThrough(object[] args)
-        {
-            if (args == null) return false;
-            foreach (object arg in args)
-            {
-                GUIStyle style = arg as GUIStyle;
-                if (style != null) return style.normal.background == null;
-            }
-            return false;
-        }
-
-        private static void Note(Dictionary<int, Drawn> where, int id, Rect area, bool seeThrough)
+        private static void Note(Dictionary<int, Drawn> where, int id, Rect area, Vector2 returned, bool seeThrough)
         {
             Drawn window;
             if (!where.TryGetValue(id, out window))
@@ -179,19 +202,34 @@ namespace ReDefinition.Scaling
                 where[id] = window;
             }
             window.Area = area;
+            window.Returned = returned;
+            window.HasReturned = true;
             window.Frame = Time.frameCount;
             window.SeeThrough = seeThrough;
         }
 
-        // The point window id is scaled about: its top left corner when first drawn.
+        // The point window id is scaled about: its top left corner when first drawn,
+        // or when its code last put it somewhere other than where the call before
+        // returned it.
         private static Vector2 AnchorOf(int id, Rect rect)
         {
             Prune(drawn);
             Drawn window;
-            if (drawn.TryGetValue(id, out window)) return window.Anchor;
-            window = new Drawn { Anchor = rect.position, Frame = Time.frameCount };
-            drawn[id] = window;
+            if (!drawn.TryGetValue(id, out window))
+            {
+                window = new Drawn { Anchor = rect.position, Frame = Time.frameCount };
+                drawn[id] = window;
+            }
+            else if (window.HasReturned && PlacedByCode(window.Returned, rect.position))
+                window.Anchor = rect.position;
             return window.Anchor;
+        }
+
+        // Half a pixel either way: a rect the mod rounds comes back a hair off
+        // without having been moved.
+        internal static bool PlacedByCode(Vector2 returned, Vector2 passed)
+        {
+            return Mathf.Abs(passed.x - returned.x) > 0.5f || Mathf.Abs(passed.y - returned.y) > 0.5f;
         }
 
         // The matrix put back where the window's call threw, which skips the postfix.
