@@ -40,14 +40,42 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void SuicideBurnStopsInTime()
         {
-            // 100 m/s down, 15 m/s^2 of thrust against 5 of gravity: 10 net.
-            double distance, seconds, deltaV;
-            ReadoutMath.SuicideBurn(100.0, 15.0, 5.0, out distance, out seconds, out deltaV);
-            Assert.AreEqual(500.0, distance, 1e-9);
-            Assert.AreEqual(10.0, seconds, 1e-9);
+            // At the burn height already, 100 m/s down, 15 m/s^2 of thrust against 5
+            // of gravity: 10 net, 500 m to stop, lit now, 10 s of burn.
+            double height, countdown, deltaV;
+            ReadoutMath.SuicideBurn(500.0, 100.0, 15.0, 5.0, out height, out countdown, out deltaV);
+            Assert.AreEqual(500.0, height, 1e-9);
+            Assert.AreEqual(0.0, countdown, 1e-9);
             Assert.AreEqual(150.0, deltaV, 1e-9);
-            ReadoutMath.SuicideBurn(100.0, 4.0, 5.0, out distance, out seconds, out deltaV);
-            Assert.IsTrue(double.IsNaN(distance));
+            ReadoutMath.SuicideBurn(500.0, 100.0, 4.0, 5.0, out height, out countdown, out deltaV);
+            Assert.IsTrue(double.IsNaN(height));
+        }
+
+        // On the Mun, 5000 m up at 50 m/s down, 5 m/s^2 of thrust against 1.63 of
+        // gravity. Coasting, the vessel gains speed; the burn lights where
+        // 5000 - 50 t - 0.815 t^2 = (50 + 1.63 t)^2 / 6.74, after 38.4 s at
+        // (2500 + 2 * 1.63 * 5000) / 10 = 1880 m and 112.6 m/s -- not after the
+        // (5000 - 371) / 50 = 92.6 s the speed now would take.
+        [TestMethod]
+        public void SuicideBurnCountsTheCoastsGravity()
+        {
+            double height, countdown, deltaV;
+            ReadoutMath.SuicideBurn(5000.0, 50.0, 5.0, 1.63, out height, out countdown, out deltaV);
+            Assert.AreEqual(1880.0, height, 1e-9);
+            Assert.AreEqual(38.38, countdown, 0.01);
+            double speed = 50.0 + 1.63 * countdown;
+            Assert.AreEqual(speed * speed / (2.0 * 3.37), height, 0.5, "stops just over the ground");
+            Assert.AreEqual(5000.0 - 50.0 * countdown - 0.815 * countdown * countdown, height, 0.5, "where the coast ends");
+            Assert.AreEqual(5.0 * speed / 3.37, deltaV, 0.1);
+
+            // Without gravity the coast keeps its speed: (5000 - 250) / 50 = 95 s.
+            ReadoutMath.SuicideBurn(5000.0, 50.0, 5.0, 0.0, out height, out countdown, out deltaV);
+            Assert.AreEqual(250.0, height, 1e-9);
+            Assert.AreEqual(95.0, countdown, 1e-9);
+
+            // 300 m up, below the 348 m to light at, the moment has passed.
+            ReadoutMath.SuicideBurn(300.0, 50.0, 5.0, 1.63, out height, out countdown, out deltaV);
+            Assert.IsTrue(countdown < 0.0, countdown.ToString());
         }
 
         [TestMethod]

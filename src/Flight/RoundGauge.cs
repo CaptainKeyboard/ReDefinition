@@ -108,7 +108,9 @@ namespace ReDefinition.Flight
 
         private IEnumerator Start()
         {
-            if (!FlightUiSwitch.On(s => s.RoundGauge)) yield break;
+            // KSP's vertical speed gauge stays where the navball does not show the
+            // vertical speed: it would stand nowhere else.
+            if (!FlightUiSwitch.On(s => s.RoundGauge && s.NavballSpeeds)) yield break;
             float until = Time.unscaledTime + 15f;
             VerticalSpeedGauge gauge = null;
             while (Time.unscaledTime < until && (gauge = FindObjectOfType<VerticalSpeedGauge>()) == null) yield return null;

@@ -42,24 +42,32 @@ namespace ReDefinition.Flight.Readouts
             return gap / Math.Abs(closing);
         }
 
-        // The last moment to light the engines to stop over the ground: at `speed`
-        // metres a second towards it, with `acceleration` the engines give at full
-        // thrust and `gravity` pulling down, the stopping distance
-        // speed^2 / (2 (acceleration - gravity)); the burn takes
-        // speed / (acceleration - gravity) and costs acceleration times that.
-        // NaN for all three where the engines cannot beat gravity.
-        internal static void SuicideBurn(double speed, double acceleration, double gravity, out double distance, out double seconds,
-                                         out double deltaV)
+        // The last moment to light the engines to stop over the ground, falling
+        // straight down: `height` metres over it at `fall` metres a second towards
+        // it, with `acceleration` the engines give at full thrust and `gravity`
+        // pulling down all the way. Until the burn the vessel coasts and gravity
+        // speeds it up, v^2 = fall^2 + 2 gravity (height - h); the burn then stops
+        // it over h = v^2 / (2 (acceleration - gravity)). Both together light it at
+        // h = (fall^2 + 2 gravity height) / (2 acceleration), at the speed
+        // v = sqrt(2 (acceleration - gravity) h), after the coast's height over
+        // its mean speed, 2 (height - h) / (fall + v); negative where that moment
+        // has passed. The burn costs acceleration times its v / (acceleration -
+        // gravity) seconds. NaN for all three where the engines cannot beat
+        // gravity. On the Mun from 5 km at 50 m/s, with 5 m/s^2 against 1.63: light
+        // at 1880 m in 38.4 s, at 113 m/s.
+        internal static void SuicideBurn(double height, double fall, double acceleration, double gravity, out double burnHeight,
+                                         out double countdown, out double deltaV)
         {
             double net = acceleration - gravity;
-            if (net <= 0.0 || speed < 0.0)
+            if (net <= 0.0 || fall < 0.0 || height < 0.0)
             {
-                distance = seconds = deltaV = double.NaN;
+                burnHeight = countdown = deltaV = double.NaN;
                 return;
             }
-            distance = speed * speed / (2.0 * net);
-            seconds = speed / net;
-            deltaV = acceleration * seconds;
+            burnHeight = (fall * fall + 2.0 * gravity * height) / (2.0 * acceleration);
+            double speed = Math.Sqrt(2.0 * net * burnHeight);
+            countdown = fall + speed > 0.0 ? 2.0 * (height - burnHeight) / (fall + speed) : 0.0;
+            deltaV = acceleration * speed / net;
         }
 
         // "85.4 km", "1.25 Mm", "412 m": a distance to three figures, as KSP writes

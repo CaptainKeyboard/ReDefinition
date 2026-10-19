@@ -470,13 +470,17 @@ namespace ReDefinition
             {
                 Key = "roundGauge",
                 Title = "Round gauge",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 107,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
                 Control = SettingControl.Toggle,
                 NeedsProfile = false,
                 Tooltip = "KSP's vertical speed gauge shows the stage's burn time, the burn, the time to impact, the closing "
-                          + "speed or the angle of attack, picked by a click or following the situation. From the next flight.",
+                          + "speed or the angle of attack, picked by a click or following the situation. From the next flight.\n"
+                          + "Needs the speeds at the navball, which show the vertical speed in its place.",
+                // Without them, the vertical speed would stand nowhere (RoundGauge.Start).
+                Interactable = settings => settings.NavballSpeeds,
                 Read = settings => SettingValues.Text(settings.RoundGauge),
                 Write = (settings, value) => settings.RoundGauge = bool.Parse(value),
             },
@@ -484,6 +488,7 @@ namespace ReDefinition
             {
                 Key = "navballSpeeds",
                 Title = "Speeds at the navball",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 108,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
@@ -512,6 +517,7 @@ namespace ReDefinition
             {
                 Key = "navballDrag",
                 Title = "Navball moves by dragging",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 110,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
@@ -526,6 +532,7 @@ namespace ReDefinition
             {
                 Key = "flightPanel",
                 Title = "Flight panel profiles",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 111,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
@@ -540,6 +547,7 @@ namespace ReDefinition
             {
                 Key = "stageDetailColumns",
                 Title = "Stage details in two columns",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 112,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
@@ -567,6 +575,7 @@ namespace ReDefinition
             {
                 Key = "deltaVTools",
                 Title = "Delta-v tools in the staging stack",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 114,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
@@ -581,6 +590,7 @@ namespace ReDefinition
             {
                 Key = "hudTooltips",
                 Title = "Tooltips on the HUD's buttons",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 115,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
@@ -595,6 +605,7 @@ namespace ReDefinition
             {
                 Key = "stagingResetAsks",
                 Title = "Ask before resetting the staging",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 116,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
@@ -608,6 +619,7 @@ namespace ReDefinition
             {
                 Key = "crewSlotButtons",
                 Title = "Crew slot buttons in the staging look",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 117,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
@@ -622,6 +634,7 @@ namespace ReDefinition
             {
                 Key = "timeWarpPanelButton",
                 Title = "Better Time Warp in the time panel",
+                TakesEffect = ApplyWindow.NextScene,
                 Order = 118,
                 Row = SettingCategory.Gameplay,
                 Section = "Flight",
@@ -629,6 +642,8 @@ namespace ReDefinition
                 NeedsProfile = false,
                 Tooltip = "With Better Time Warp installed, its button stands at the end of the time panel's warp row instead "
                           + "of where the mod draws it. From the next scene.",
+                // Only with the mod, as its toolbar switch (SettingsWindow.ButtonRows).
+                Present = () => ReDefinition.Flight.TimeWarpButton.Installed,
                 Read = settings => SettingValues.Text(settings.TimeWarpPanelButton),
                 Write = (settings, value) => settings.TimeWarpPanelButton = bool.Parse(value),
             });
@@ -711,7 +726,8 @@ namespace ReDefinition
             return null;
         }
 
-        // Every module's settings in the order their rows stand, in that tab.
+        // Every module's settings in the order their rows stand, in that tab; those
+        // not present (ModuleSetting.Present) left out.
         public static List<ModuleSetting> Rows()
         {
             return Rows(SettingCategory.General);
@@ -722,7 +738,7 @@ namespace ReDefinition
             List<ModuleSetting> rows = new List<ModuleSetting>();
             foreach (IGraphicsModule module in All)
                 foreach (ModuleSetting setting in module.Settings)
-                    if (setting.Row == tab) rows.Add(setting);
+                    if (setting.Row == tab && (setting.Present == null || setting.Present())) rows.Add(setting);
             // Stable: equal orders keep the modules' order.
             List<ModuleSetting> sorted = new List<ModuleSetting>();
             foreach (ModuleSetting setting in rows)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Flight;
+using ReDefinition.Flight.Readouts;
 
 namespace ReDefinition.Tests
 {
@@ -111,6 +112,26 @@ namespace ReDefinition.Tests
             GaugeReading unpowered = GaugeReadings.Impact(30.0, double.NaN);
             Assert.IsTrue(double.IsNaN(unpowered.Mark));
             Assert.IsNull(unpowered.Warning);
+        }
+
+        // On the Mun from 5000 m at 50 m/s down (1.63 m/s^2, 5 of thrust): the
+        // ground in (-50 + sqrt(2500 + 2 * 1.63 * 5000)) / 1.63 = 53.4 s; the burn
+        // lights in 38.4 s, at 1880 m and 112.6 m/s, from where the fall would take
+        // 15.1 s more. The tick stands at those 15.1 s: the time to impact the
+        // gauge shows as the moment to brake comes. With the countdown at the speed
+        // now (92.6 s) it stood at zero.
+        [TestMethod]
+        public void TheImpactTickMatchesTheFallAtTheMomentToBrake()
+        {
+            double impact = (-50.0 + Math.Sqrt(2500.0 + 2.0 * 1.63 * 5000.0)) / 1.63;
+            double height, countdown, deltaV;
+            ReadoutMath.SuicideBurn(5000.0, 50.0, 5.0, 1.63, out height, out countdown, out deltaV);
+            double speed = 50.0 + 1.63 * countdown;
+            double fallAfter = (-speed + Math.Sqrt(speed * speed + 2.0 * 1.63 * height)) / 1.63;
+            Assert.AreEqual(15.06, fallAfter, 0.01);
+            GaugeReading reading = GaugeReadings.Impact(impact, countdown);
+            Assert.AreEqual(GaugeReadings.TimeScale(fallAfter), reading.Mark, 1e-3);
+            Assert.AreEqual(0, reading.Level);
         }
 
         // The same time to impact stands at the same place, whatever the limit.

@@ -82,6 +82,10 @@ namespace ReDefinition
         // Whether the row can be changed now; null is always.
         public Func<OwnSettings, bool> Interactable;
 
+        // Whether the row stands in the window at all; null is always. A row for
+        // another mod's part only where that mod is installed.
+        public Func<bool> Present;
+
         // Null where the setting can take the value; otherwise why not. A choice
         // by its name, case aside -- never a number, which Enum.Parse would
         // take.

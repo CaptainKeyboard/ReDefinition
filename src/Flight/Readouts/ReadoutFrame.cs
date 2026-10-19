@@ -115,9 +115,11 @@ namespace ReDefinition.Flight.Readouts
         private bool suicideDone;
         private double suicideDistance = double.NaN, suicideSeconds = double.NaN, suicideDeltaV = double.NaN;
 
-        // The last moment to brake to a stop over the ground, at the surface speed
-        // now and full thrust (ReadoutMath.SuicideBurn): how high over the ground to
-        // light, how long until then at the vertical speed now, and the delta-v.
+        // The last moment to brake to a stop over the ground, falling at the
+        // vertical speed now and gaining speed under gravity until then, at full
+        // thrust (ReadoutMath.SuicideBurn): how high over the ground to light, how
+        // long until then, and the delta-v. The horizontal speed is not counted:
+        // the fall alone, both in the coast and in the burn.
         internal void SuicideBurn(out double altitude, out double countdown, out double deltaV)
         {
             if (!suicideDone)
@@ -125,12 +127,8 @@ namespace ReDefinition.Flight.Readouts
                 suicideDone = true;
                 double mass = Vessel.totalMass;
                 if (Vessel.verticalSpeed < 0.0 && mass > 0.0 && !Vessel.LandedOrSplashed)
-                {
-                    double seconds;
-                    ReadoutMath.SuicideBurn(Vessel.srfSpeed, MaxThrust / mass, Gravity, out suicideDistance, out seconds, out suicideDeltaV);
-                    suicideSeconds = double.IsNaN(suicideDistance) ? double.NaN
-                        : (Vessel.radarAltitude - suicideDistance) / -Vessel.verticalSpeed;
-                }
+                    ReadoutMath.SuicideBurn(Math.Max(0.0, Vessel.radarAltitude), -Vessel.verticalSpeed, MaxThrust / mass, Gravity,
+                        out suicideDistance, out suicideSeconds, out suicideDeltaV);
             }
             altitude = suicideDistance;
             countdown = suicideSeconds;

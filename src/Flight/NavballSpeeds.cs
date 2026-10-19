@@ -184,14 +184,19 @@ namespace ReDefinition.Flight
         }
 
         // The speeds as last written, rounded as shown: the text is made anew only when
-        // one of them changes, not in every frame.
+        // one of them changes, and at most every Interval seconds. Climbing or
+        // falling at 20 m/s^2, the tenths change by 0.33 m/s from frame to frame at
+        // 60 fps, which would make it anew in every frame, faster than digits read.
+        private const float Interval = 0.1f;
         private double verticalShown = double.NaN;
         private double horizontalShown = double.NaN;
+        private float next;
 
         private void LateUpdate()
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
-            if (vessel == null) return;
+            if (vessel == null || Time.unscaledTime < next) return;
+            next = Time.unscaledTime + Interval;
             if (vertical != null) Show(vertical, vessel.verticalSpeed, ref verticalShown);
             if (horizontal != null) Show(horizontal, vessel.horizontalSrfSpeed, ref horizontalShown);
         }
