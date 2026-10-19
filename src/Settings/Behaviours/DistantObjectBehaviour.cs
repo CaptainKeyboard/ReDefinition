@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections;
+using System.Linq.Expressions;
 using System.Reflection;
 using System;
 using ReDefinition.Core;
@@ -47,6 +48,10 @@ namespace ReDefinition.Settings.Behaviours
         private static PropertyInfo settingsInstance;
         private static FieldInfo skybox;
         private static FieldInfo minimumSignificantBodySize, minimumTargetRelativeAngle, referenceBodySize, maxBrightness;
+        // The sky's brightness from the solar system and the settings' group, compiled
+        // once: by reflection each frame the four doubles read and the one returned
+        // would each be boxed.
+        private static Func<object, object, Camera, double> skyBrightness;
 
         private Type settingsType;
         private PropertyInfo instance;
@@ -272,6 +277,7 @@ namespace ReDefinition.Settings.Behaviours
                                                 + " the stars still go out towards the sun behind the planet");
                 return;
             }
+            skyBrightness = SkyBrightness(group, contract);
             HarmonyHooks.Install(HarmonyId + ".Sky", typeof(DistantObjectBehaviour), new[]
             {
                 new HarmonyHook(update, null, nameof(DarkenSkyPostfix), null),
@@ -297,7 +303,28 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
-        private static readonly object[] planetsArguments = new object[4];
+        // maxBrightness * min(1, system.CalculatePlanetsBrightness(minimumSignificantBodySize,
+        // minimumTargetRelativeAngle, referenceBodySize, camera)), as DarkenSky.Update
+        // takes the planets' term (decompiled).
+        private static Func<object, object, Camera, double> SkyBrightness(Type group, Type contract)
+        {
+            ParameterExpression system = Expression.Parameter(typeof(object), "system");
+            ParameterExpression values = Expression.Parameter(typeof(object), "values");
+            ParameterExpression camera = Expression.Parameter(typeof(Camera), "camera");
+            Expression typed = Expression.Convert(values, group);
+            Expression planets = Expression.Call(Expression.Convert(system, contract), planetsBrightness,
+                Number(typed, minimumSignificantBodySize), Number(typed, minimumTargetRelativeAngle),
+                Number(typed, referenceBodySize), camera);
+            MethodInfo min = typeof(Math).GetMethod("Min", new[] { typeof(double), typeof(double) });
+            Expression brightness = Expression.Multiply(Number(typed, maxBrightness),
+                Expression.Call(min, Expression.Constant(1.0), planets));
+            return Expression.Lambda<Func<object, object, Camera, double>>(brightness, system, values, camera).Compile();
+        }
+
+        private static Expression Number(Expression owner, FieldInfo field)
+        {
+            return Expression.Convert(Expression.Field(owner, field), typeof(double));
+        }
 
         // Without a lambda, as HarmonyHooks.Safely would take one: capturing the camera,
         // it would be allocated in every frame.
@@ -309,22 +336,13 @@ namespace ReDefinition.Settings.Behaviours
                 object values = settings != null ? skybox.GetValue(settings) : null;
                 object system = solarSystem.GetValue(null, null);
                 if (values == null || system == null) return;
-                planetsArguments[0] = minimumSignificantBodySize.GetValue(values);
-                planetsArguments[1] = minimumTargetRelativeAngle.GetValue(values);
-                planetsArguments[2] = referenceBodySize.GetValue(values);
-                planetsArguments[3] = camera;
-                double planets = (double)planetsBrightness.Invoke(system, planetsArguments);
-                float brightness = (float)((double)maxBrightness.GetValue(values) * Math.Min(1.0, planets));
+                float brightness = (float)skyBrightness(system, values, camera);
                 GalaxyCubeControl.Instance.maxGalaxyColor = new Color(brightness, brightness, brightness);
             }
             catch (Exception e)
             {
                 CompatibilityLog.Warn("doe-sky", "Distant Object's sky dimming could not be kept from the hidden sun ("
                                                  + CompatibilityLog.Reason(e) + ").");
-            }
-            finally
-            {
-                planetsArguments[3] = null;
             }
         }
 
