@@ -300,10 +300,12 @@ namespace redefinition
                 streamlineOffRequested.exchange(false) ? "a window change asked for it" : nullptr);
             // The refresh rate is asked for while DLSS-G generates with VSync, and
             // let go only after long without: frames that alternate would
-            // otherwise start a query on every other Present.
+            // otherwise start a query on every other Present. Under V-Sync it stays
+            // for frame generation's cap (SetPresentCapLocked, above), which asks for
+            // it on every Present: paused there, every Present would start a query.
             if (streamlineGenerating)
                 streamlineIdlePresents = 0;
-            else if (++streamlineIdlePresents > 120)
+            else if (++streamlineIdlePresents > 120 && streamlineSync == 0)
                 PauseRefreshMonitor();
         }
         else

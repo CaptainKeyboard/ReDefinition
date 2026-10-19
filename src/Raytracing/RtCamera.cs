@@ -494,13 +494,16 @@ namespace ReDefinition.Raytracing
             if (SunLight != null) MaskSun(SunLight());
             else Shader.SetGlobalFloat(RtSunMask, 1f);
 
-            // The service's generation, which changes with its device, now and then.
+            // The service's line now and then; its generation, which changes with its
+            // device, every frame, and handed back as the one this frame's meshes are for.
             if (generation < 0 || ++statusFrame >= 30)
             {
                 statusFrame = 0;
                 statusText.Length = 0;
-                generation = RtNative.KspRtStatus(statusText, statusText.Capacity);
+                RtNative.KspRtStatus(statusText, statusText.Capacity);
             }
+            generation = (int)RtNative.KspRtGeneration();
+            RtNative.KspRtHandOverFor((uint)generation);
             position = RtPosition.From(transform.position);
             Scene.Update(position, generation, frameIndex);
 

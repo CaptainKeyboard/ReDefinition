@@ -162,6 +162,8 @@ namespace redefinition
         pending.indexHash = hash;
 
         std::lock_guard<std::mutex> lock(handOverLock);
+        if (!HandOverCurrentLocked())
+            return 0;
         handOver.releases.erase(std::remove(handOver.releases.begin(), handOver.releases.end(), desc->mesh),
                                 handOver.releases.end());
         handOver.meshes[desc->mesh] = std::move(pending);
@@ -171,6 +173,8 @@ namespace redefinition
     void Raytracing::ReleaseMesh(int32_t mesh)
     {
         std::lock_guard<std::mutex> lock(handOverLock);
+        if (!HandOverCurrentLocked())
+            return;
         handOver.meshes.erase(mesh);
         handOver.releases.push_back(mesh);
     }
@@ -200,6 +204,8 @@ namespace redefinition
         data.vertexColour[3] = desc->glossMean;
         data.look[0] = desc->diffuseShare > 0.0f ? desc->diffuseShare : 1.0f;
         std::lock_guard<std::mutex> lock(handOverLock);
+        if (!HandOverCurrentLocked())
+            return 0;
         handOver.materials[desc->material] = { true, data };
         return 1;
     }
@@ -207,6 +213,8 @@ namespace redefinition
     void Raytracing::ReleaseMaterial(int32_t material)
     {
         std::lock_guard<std::mutex> lock(handOverLock);
+        if (!HandOverCurrentLocked())
+            return;
         handOver.materials[material] = { false, MaterialData{} };
     }
 
@@ -247,6 +255,8 @@ namespace redefinition
             return 0;
         std::vector<RtInstance> instances(given, given + count);
         std::lock_guard<std::mutex> lock(handOverLock);
+        if (!HandOverCurrentLocked())
+            return 0;
         FrameScene& scene = SceneFor(handOver.scenes, frameIndex);
         scene.instances = std::move(instances);
         scene.instancesSet = true;
@@ -259,6 +269,8 @@ namespace redefinition
             return 0;
         std::vector<RtGpuInstanceGroup> groups(given, given + count);
         std::lock_guard<std::mutex> lock(handOverLock);
+        if (!HandOverCurrentLocked())
+            return 0;
         FrameScene& scene = SceneFor(handOver.scenes, frameIndex);
         scene.groups = std::move(groups);
         scene.groupsSet = true;
@@ -276,11 +288,19 @@ namespace redefinition
         const size_t bytes = static_cast<size_t>(size) * size * 4;
         std::vector<uint8_t> copy(pixels, pixels + bytes);
         std::lock_guard<std::mutex> lock(handOverLock);
+        if (!HandOverCurrentLocked())
+            return 0;
         handOver.textures[layer] = std::move(copy);
         return 1;
     }
 
     // ---------------------------------------------------------------- render thread
+
+    void Raytracing::HandOverFor(uint32_t managedGeneration)
+    {
+        std::lock_guard<std::mutex> lock(handOverLock);
+        handOverGeneration = managedGeneration;
+    }
 
     void Raytracing::TakeHandOverLocked()
     {

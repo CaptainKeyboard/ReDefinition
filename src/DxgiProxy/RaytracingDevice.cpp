@@ -512,6 +512,10 @@ namespace redefinition
             handOver.releases.clear();
             handOver.materials.clear();
             handOver.textures.clear();
+            // The new generation under the same lock: what the main thread hands over
+            // from here on is for it, or dropped (HandOverCurrentLocked), and nothing
+            // for the old one slips in between the clearing and the count.
+            ++generation;
         }
         meshes.clear();
         meshSlotsFull = false;
@@ -545,6 +549,6 @@ namespace redefinition
         copied12.Reset();
         fenceValue = 0;
         copiedValue = 0;
-        ++generation;
+
     }
 }

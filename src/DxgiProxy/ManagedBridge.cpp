@@ -514,6 +514,18 @@ extern "C"
         return redefinition::Raytracing::Get().Status(buffer, size);
     }
 
+    // The service's generation, cheaply, and the one the managed side hands over for
+    // (Raytracing::HandOverFor).
+    __declspec(dllexport) unsigned int KspRtGeneration()
+    {
+        return redefinition::Raytracing::Get().Generation();
+    }
+
+    __declspec(dllexport) void KspRtHandOverFor(unsigned int generation)
+    {
+        redefinition::Raytracing::Get().HandOverFor(generation);
+    }
+
     // A layer of the material textures: size by size RGBA8 pixels, sRGB, rows from the top.
     __declspec(dllexport) int KspRtSetMaterialTexture(int layer, const unsigned char* pixels, int size)
     {

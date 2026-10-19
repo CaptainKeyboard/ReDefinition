@@ -372,6 +372,14 @@ namespace ReDefinition.Raytracing
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         internal static extern int KspRtStatus(StringBuilder buffer, int size);
 
+        // The service's generation, and the one this side's ids are of (Raytracing.h,
+        // HandOverFor): what is handed over for an old one is dropped.
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern uint KspRtGeneration();
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void KspRtHandOverFor(uint generation);
+
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void KspRtPassTimings([Out] float[] timings, int count);
 

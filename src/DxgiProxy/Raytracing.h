@@ -510,6 +510,14 @@ namespace redefinition
 
         int Status(char* buffer, int size) const;
 
+        // From the main thread, before it hands anything over: the generation (Status) its
+
+        // ids are of. What it hands over for another than the service's own is dropped.
+
+        void HandOverFor(uint32_t managedGeneration);
+
+        uint32_t Generation() const { return generation.load(); }
+
         // What the last frame took on the GPU, in milliseconds: building, tracing.
         void Timings(float& build, float& trace) const;
         // Each pass's time, by signal bit, the denoiser's at kRtPassDenoiser; 0 for a pass
@@ -946,6 +954,16 @@ namespace redefinition
         // Counts the devices the service has let go of: the managed side hands its
         // meshes over again when it changes.
         std::atomic<uint32_t> generation{ 0 };
+        // The generation the managed side hands over for (HandOverFor), UINT32_MAX until
+        // it says: a mesh, material, texture or scene it hands over for another than the
+        // service's own carries ids of a device let go of, which it resends under new ids
+        // once it sees the new generation -- built, they would never be released. Read
+        // and changed under handOverLock, as generation is changed.
+        uint32_t handOverGeneration = UINT32_MAX;
+        bool HandOverCurrentLocked() const
+        {
+            return handOverGeneration == UINT32_MAX || handOverGeneration == generation.load();
+        }
 
         mutable std::mutex statusLock;
         std::string lastProblem;
