@@ -380,12 +380,14 @@ namespace ReDefinition
             if (SwitchRow("Auto exposure (FSR 3, AMD)", OnOff(autoExposure)))
                 SetAutoExposure(!autoExposure);
 
-            GUI.enabled = enabled && (running == UpscalerBackend.Fsr3 || transparencyMask);
-            if (SwitchRow("Transparency mask (FSR 3)", OnOff(transparencyMask)))
+            // FSR 3 and AMD's upscaler take the masks (UpscalerRig.Native, the AMD packet).
+            bool takesMasks = running == UpscalerBackend.Fsr3 || running == UpscalerBackend.Amd;
+            GUI.enabled = enabled && (takesMasks || transparencyMask);
+            if (SwitchRow("Transparency mask (FSR 3, AMD)", OnOff(transparencyMask)))
                 SetTransparencyMask(!transparencyMask);
 
-            GUI.enabled = enabled && (running == UpscalerBackend.Fsr3 || reactiveMask != UpscalerMasks.ReactiveSource.Off);
-            if (SwitchRow("Reactive mask (FSR 3)", ReactiveLabel(reactiveMask)))
+            GUI.enabled = enabled && (takesMasks || reactiveMask != UpscalerMasks.ReactiveSource.Off);
+            if (SwitchRow("Reactive mask (FSR 3, AMD)", ReactiveLabel(reactiveMask)))
                 SetReactiveMask((UpscalerMasks.ReactiveSource)(((int)reactiveMask + 1) % 3));
             GUI.enabled = enabled;
 

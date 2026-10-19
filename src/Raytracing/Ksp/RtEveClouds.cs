@@ -24,7 +24,7 @@ namespace ReDefinition.Raytracing
     // build of it turns this off with one warning.
     internal sealed class RtEveClouds
     {
-        // 4096 by 2048, two bytes a texel (16 MB): at 2048 the layer's fine structure averaged out and the
+        // 4096 by 2048, two bytes a texel (16 MB): at 2048 by 1024 the layer's fine structure averaged out and the
         // shadow came out 0.62 where EVE's own is 0.76 (measured at sea, 2026-10-13).
         private const int Width = 4096, Height = 2048;
         private const float RepackSeconds = 5f;

@@ -19,8 +19,10 @@ namespace ReDefinition.Raytracing
     // balance KSP's own shaders draw them in (Deferred's colour formulas for them, and its
     // tarmac colour, left lawn, terrain and runway in light and dark bands). Other shaders
     // Deferred leaves as they are.
-    // Measured on the launch pad against Deferred (2026-10-13): the lawn 0.77 times as
-    // bright, the rocket 0.83.
+    // Measured on the launch pad with raytracing on, a stock copy against the same with
+    // Deferred (2026-10-13): without this share the lawn came out 1.3 times and the rocket
+    // 1.2 times as bright as with Deferred -- Deferred's 0.77 and 0.83 of them --; with it,
+    // within 4 of 255 in each channel (lawn 46,58,42 against 48,61,42).
     internal static class RtDeferredLook
     {
         private static readonly HashSet<string> Metallic = new HashSet<string>
