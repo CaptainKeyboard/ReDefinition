@@ -533,6 +533,45 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: light buffer of Camera 00 written.");
         }
 
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern bool WritePrivateProfileString(string section, string key, string value, string file);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern uint GetPrivateProfileString(string section, string key, string fallback, StringBuilder value, uint size,
+                                                           string file);
+
+        private static IEnumerator IniShots(string folder, string shot, string sets)
+        {
+            string ini = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(Application.dataPath)) ?? "", "ReDefinitionProxy.ini");
+            var before = new Dictionary<string, string>();
+            int n = 0;
+            foreach (string set in sets.Split(';'))
+            {
+                foreach (string pair in set.Split(','))
+                {
+                    int equals = pair.IndexOf('=');
+                    if (equals <= 0) continue;
+                    string key = pair.Substring(0, equals).Trim();
+                    if (!before.ContainsKey(key))
+                    {
+                        var value = new StringBuilder(260);
+                        GetPrivateProfileString("Proxy", key, "", value, (uint)value.Capacity, ini);
+                        before[key] = value.ToString();
+                    }
+                    WritePrivateProfileString("Proxy", key, pair.Substring(equals + 1).Trim(), ini);
+                }
+                Debug.Log(Log.Tag + " Probe: ReDefinitionProxy.ini set to " + set + ".");
+                yield return new WaitForSecondsRealtime(12f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-ini" + n + ".png"));
+                Debug.Log(Log.Tag + " Probe: shot " + shot + "-ini" + n + " with " + set + ".");
+                n++;
+                yield return null;
+            }
+            foreach (KeyValuePair<string, string> pair in before)
+                WritePrivateProfileString("Proxy", pair.Key, pair.Value, ini);
+            Debug.Log(Log.Tag + " Probe: ReDefinitionProxy.ini's values set back.");
+        }
+
         private static string Rgb(Color c)
         {
             return c.r.ToString("0.0000", CultureInfo.InvariantCulture) + " " + c.g.ToString("0.0000", CultureInfo.InvariantCulture) + " "
@@ -819,6 +858,13 @@ namespace ReDefinition.Probe
                 // into the lighting of its own.
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeLightBuffer") >= 0)
                     yield return LightBuffer(folder, shot);
+                // -redefinitionProbeShotIni "key=value,key=value;key=value": then each set of the
+                // proxy's live settings in turn written into ReDefinitionProxy.ini, which the proxy
+                // re-reads within a second, and the same view 10 s later as <shot>-ini<n>.png;
+                // the values as they were written back at the end.
+                string iniSets = SceneProbe.ArgumentAfter("-redefinitionProbeShotIni");
+                if (iniSets != null)
+                    yield return IniShots(folder, shot, iniSets);
                 // -redefinitionProbeShotRaytracing <mode,mode,...>: then the raytracing
                 // switched to each mode in turn, as in the settings window, and the same view
                 // 10 s later as <shot>-<mode>.png: several modes compared in one run.

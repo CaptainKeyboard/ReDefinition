@@ -192,12 +192,12 @@ namespace redefinition
         // For measuring, 0 by default: what the cut-out surfaces' tests cost the rays.
         // 1 decides their hits without reading their textures, 2 takes every surface as
         // opaque (RtContract.h, RT_FLAG_CUTOUT_PLAIN and RT_FLAG_CUTOUT_OPAQUE). The
-        // picture is wrong with either. Read when a swapchain is created.
+        // picture is wrong with either. Re-read while the game runs.
         int rtCutoutTest = 0;
 
         // For measuring, false by default: the sun's visibility as its pass traced it, one
         // ray a pixel, past the denoiser, which then filters the other signals only. The
-        // picture is noisy with it. Read when a swapchain is created.
+        // picture is noisy with it. Re-read while the game runs.
         bool rtSunUnfiltered = false;
 
         // How many of the denoiser's five à-trous steps filter the sun's visibility, and
@@ -205,14 +205,14 @@ namespace redefinition
         // draw the shadows of the blades of grass, which the other signals' 5 steps and 32
         // frames smoothed away; 0 and 4 keep them (at the launch pad, 2026-10-19: the lawn's
         // structure against a 9x9 mean 6.3, 5.5 without the raytracing, 5.1 with 5 and 32;
-        // its pixel noise 4.9, 4.3 and 4.2; the pad's the same). Read when a swapchain is
-        // created.
+        // its pixel noise 4.9, 4.3 and 4.2; the pad's the same). Re-read while the game
+        // runs.
         int rtSunAtrousSteps = 0;
         int rtSunHistory = 4;
 
         // What of the sun's light a cut-out surface -- grass, ferns -- lets through to
-        // what lies behind it, 0 to 1 (RtCommon.hlsli, SunUnoccluded). Read when a
-        // swapchain is created.
+        // what lies behind it, 0 to 1 (RtCommon.hlsli, SunUnoccluded). Re-read while
+        // the game runs.
         float rtFoliageTransmission = 0.0f;
 
         // Where a player's nvngx_dlss.dll lies if not next to KSP_x64.exe, which
