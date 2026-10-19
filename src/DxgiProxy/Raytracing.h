@@ -626,6 +626,9 @@ namespace redefinition
             bool hadFrame = false;
             bool previousWasAmd = false;
             DenoiseTarget linearDepth;
+            // The linear depth the guides pass wrote the frame before, which it reads to
+            // find where the near reprojection has no surface (Regenerate.hlsl).
+            DenoiseTarget linearDepthBefore;
             DenoiseTarget motion;
             DenoiseTarget normals;
             DenoiseTarget specularAlbedo;

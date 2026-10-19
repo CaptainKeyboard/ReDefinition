@@ -151,17 +151,21 @@ namespace redefinition
             return false;
 
         // The guides at this size.
+        bool made = false;
         if (r.linearDepth.resource == nullptr || r.width != r.linearDepth.resource->GetDesc().Width
             || r.height != r.linearDepth.resource->GetDesc().Height)
         {
-            for (DenoiseTarget* target : { &r.linearDepth, &r.motion, &r.normals, &r.specularAlbedo, &r.diffuseAlbedo })
+            for (DenoiseTarget* target : { &r.linearDepth, &r.linearDepthBefore, &r.motion, &r.normals,
+                                           &r.specularAlbedo, &r.diffuseAlbedo })
             {
                 if (target->resource != nullptr)
                     slot.held.push_back(target->resource);
                 *target = DenoiseTarget{};
             }
+            made = true;
             const DXGI_FORMAT half4 = DXGI_FORMAT_R16G16B16A16_FLOAT;
             if (!r.linearDepth.Create(device.Get(), packet.width, packet.height, DXGI_FORMAT_R32_FLOAT)
+                || !r.linearDepthBefore.Create(device.Get(), packet.width, packet.height, DXGI_FORMAT_R32_FLOAT)
                 || !r.motion.Create(device.Get(), packet.width, packet.height, half4)
                 || !r.normals.Create(device.Get(), packet.width, packet.height, half4)
                 || !r.specularAlbedo.Create(device.Get(), packet.width, packet.height, half4)
@@ -175,13 +179,16 @@ namespace redefinition
         const UINT groupsX = (packet.width + 7) / 8;
         const UINT groupsY = (packet.height + 7) / 8;
         const bool motion = motionInput != nullptr && (packet.flags & kRtFrameMotionVectors) != 0;
-        const uint32_t values[4] = { motion ? 2u : 0u, 0u, 0u, 0u };
+        // The depth before only where this pass wrote it for the frame just before.
+        const bool depthBefore = !made && !r.reset && r.hadFrame && packet.frameIndex == r.lastFrame + 1;
+        const uint32_t values[4] = { (motion ? 2u : 0u) | (depthBefore ? 4u : 0u), 0u, 0u, 0u };
         list->SetComputeRoot32BitConstants(9, 4, values, 0);
         for (DenoiseTarget* target : { &r.linearDepth, &r.motion, &r.normals, &r.specularAlbedo, &r.diffuseAlbedo })
             UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        UseLocked(r.linearDepthBefore, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         {
             UINT used = kRegenerationGuidesTable;
-            const View reads[8] = {};
+            const View reads[8] = { Of(&r.linearDepthBefore) };
             const View writes[4] = { Of(&r.linearDepth), Of(&r.motion), Of(&r.normals), Of(&r.specularAlbedo) };
             BindTablesLocked(TableLocked(slotNumber, used, reads, writes));
             list->SetPipelineState(guidePass->second.Get());
@@ -265,6 +272,8 @@ namespace redefinition
         r.reset = false;
         r.lastFrame = packet.frameIndex;
         r.hadFrame = true;
+        // This frame's depth is the next one's before; each texture keeps the state it is in.
+        std::swap(r.linearDepth, r.linearDepthBefore);
         std::lock_guard<std::mutex> status(statusLock);
         ++regenerated;
         return true;
@@ -276,7 +285,8 @@ namespace redefinition
         if (r.context != nullptr)
             r.api.DestroyContext(&r.context, nullptr);
         r.context = nullptr;
-        for (DenoiseTarget* target : { &r.linearDepth, &r.motion, &r.normals, &r.specularAlbedo, &r.diffuseAlbedo })
+        for (DenoiseTarget* target : { &r.linearDepth, &r.linearDepthBefore, &r.motion, &r.normals, &r.specularAlbedo,
+                                       &r.diffuseAlbedo })
             *target = DenoiseTarget{};
         r.width = r.height = 0;
         r.signals = 0;

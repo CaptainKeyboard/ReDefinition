@@ -11,10 +11,12 @@ RWTexture2D<float> linearDepthOut : register(u0, space3);
 RWTexture2D<float4> motionOut : register(u1, space3);
 RWTexture2D<float4> normalsOut : register(u2, space3);
 RWTexture2D<float4> specularAlbedoOut : register(u3, space3);
+// The linear depth this pass wrote the frame before.
+Texture2D<float> linearDepthBefore : register(t0, space3);
 
 cbuffer Step : register(b1)
 {
-    uint stepFlags;   // 2: motion vectors in t5
+    uint stepFlags;   // 2: motion vectors in t5; 4: linearDepthBefore is the frame before's
     uint3 stepUnused;
 };
 
@@ -30,6 +32,21 @@ float2 NormalToOctahedronUv(float3 n)
     float s = saturate(-n.z);
     n.xy = lerp(n.xy, (1.0f - abs(n.yx)) * k, s);
     return n.xy * 0.5f + 0.5f;
+}
+
+float2 PreviousUv(float4 previousClip)
+{
+    return float2(previousClip.x / previousClip.w * 0.5f + 0.5f, 0.5f - previousClip.y / previousClip.w * 0.5f);
+}
+
+// Whether the frame before had a surface at previousUv at the depth this one expects
+// there, by the tolerance ReDefinition's denoiser keeps history with (Denoise.hlsl).
+bool SurfaceBefore(float2 previousUv, float expectedDepth)
+{
+    if (any(previousUv <= 0.0f) || any(previousUv >= 1.0f))
+        return false;
+    float zBefore = linearDepthBefore[uint2(previousUv * float2(frameSize))];
+    return zBefore > 0.0f && abs(zBefore - expectedDepth) < 0.03f * expectedDepth + 0.02f;
 }
 
 [numthreads(8, 8, 1)]
@@ -54,7 +71,21 @@ void RegenerationGuides(uint3 id : SV_DispatchThreadID)
     // ReDefinition's denoiser reprojects.
     float2 previousUv = (stepFlags & 2u) != 0u
         ? uv - motionTexture[id.xy].xy
-        : float2(previousClip.x / previousClip.w * 0.5f + 0.5f, 0.5f - previousClip.y / previousClip.w * 0.5f);
+        : PreviousUv(previousClip);
+    // Without motion vectors, first as the camera and the vessels near it moved, then
+    // where that finds no surface the frame before, as the bodies did: under
+    // Krakensbane an origin shift moves the terrain by more than the camera
+    // (prevWorldToClipFar; Denoise.hlsl's temporal pass does the same).
+    if ((stepFlags & 6u) == 4u && !SurfaceBefore(previousUv, previousClip.w))
+    {
+        float4 farClip = mul(prevWorldToClipFar, float4(position, 1.0f));
+        float2 farUv = PreviousUv(farClip);
+        if (SurfaceBefore(farUv, farClip.w))
+        {
+            previousClip = farClip;
+            previousUv = farUv;
+        }
+    }
     linearDepthOut[id.xy] = linearDepth;
     motionOut[id.xy] = float4(previousUv - uv, previousClip.w - linearDepth, 0.0f);
 
