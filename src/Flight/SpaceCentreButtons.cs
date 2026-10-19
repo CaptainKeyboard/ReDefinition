@@ -19,7 +19,8 @@ namespace ReDefinition.Flight
     // damaged building's menu instead). Only where the game allows it
     // (GameParameters.Flight.CanLeaveToTrackingStation and CanLeaveToSpaceCenter,
     // SpaceCenter.CanGoInTrackingStation) and the game can be saved now
-    // (FlightGlobals.ClearToSave).
+    // (FlightGlobals.ClearToSave). In flight view only: not on the map, nor from
+    // inside the vessel (WorldButton.FromInside).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class SpaceCentreButtons : MonoBehaviour
     {
@@ -86,7 +87,7 @@ namespace ReDefinition.Flight
         {
             if (facilities.Count == 0) return;
             Vessel vessel = FlightGlobals.ActiveVessel;
-            bool before = vessel != null && vessel.situation == Vessel.Situations.PRELAUNCH && !MapView.MapIsEnabled
+            bool before = vessel != null && vessel.situation == Vessel.Situations.PRELAUNCH && !MapView.MapIsEnabled && !WorldButton.FromInside()
                           && vessel.mainBody == home && HighLogic.CurrentGame != null;
             Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             foreach (Facility facility in facilities)

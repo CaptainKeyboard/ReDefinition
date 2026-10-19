@@ -219,6 +219,19 @@ namespace ReDefinition.Flight
             return ui == null || ui.IsUIShowing;
         }
 
+        // The camera inside the vessel (CameraManager: IVA, or Internal for a
+        // part's interior): the main camera still draws the world through the
+        // windows there, following the inside camera (CameraManager.SetCameraIVA
+        // keeps FlightCamera enabled; decompiled), so a button in the world would
+        // show and take clicks. The flight's buttons stand only in flight view.
+        internal static bool FromInside()
+        {
+            CameraManager manager = CameraManager.Instance;
+            if (manager == null) return false;
+            CameraManager.CameraMode mode = manager.currentCameraMode;
+            return mode == CameraManager.CameraMode.IVA || mode == CameraManager.CameraMode.Internal;
+        }
+
         // How far along from the eye towards the button its middle and corners are
         // clear of `solid`, as a share of the way, with a margin; 1 where nothing
         // stands before them.

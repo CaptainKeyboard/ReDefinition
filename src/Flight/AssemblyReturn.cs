@@ -133,6 +133,7 @@ namespace ReDefinition.Flight
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (vessel == null) return Note("no vessel");
             if (MapView.MapIsEnabled) return Note("the map");
+            if (WorldButton.FromInside()) return Note("the view inside the vessel");
             if (vessel.mainBody != home) return Note("another body");
             if (!vessel.LandedOrSplashed && vessel.situation != Vessel.Situations.PRELAUNCH) return Note("not on the ground");
             revert = CanRevert();
