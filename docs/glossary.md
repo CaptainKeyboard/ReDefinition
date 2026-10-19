@@ -22,6 +22,7 @@
 | the settings window | ReDefinition's main window, with the tabs, *Reset*, and *Accept* and *Cancel* or *Close*. |
 | the diagnostics window | ReDefinition's second window, opened with *Diagnostics*. It holds the frame rate, what the upscaler receives, and the switches for finding out what happens. |
 | member path | Where a value lives, written as in C#: `Deferred.Deferred.settings.useScreenSpaceReflections`. |
+| foreign assumption | Something ReDefinition relies on in another mod's code, kept in one catalogue with a fingerprint of the method it reads and what ReDefinition does when the fingerprint no longer matches. `tools/check_foreign_code.ps1` checks them all. |
 | behaviour | Code that answers for settings a member path cannot reach. Either one of ReDefinition's own seven, named without a dot (`Tufx`, `Scatterer`, `Eve`, `Ksp`, `DistantObject`, `Firefly`, `ParallaxScatter`), or a type the mod itself brings, named with its namespace. |
 
 ## The editor and the flight UI
@@ -35,6 +36,8 @@
 | leg | The flight from one stop of the planner's route to the next. |
 | lander | In the planner, the stages that fly down and back up alone while the rest of the vessel waits, and are then carried on. |
 | navball position | How far the navball stands from the bottom centre of the flight screen. Dragging its show/hide button sets it; with another screen resolution it goes back to the centre. |
+| flight switch | One of ReDefinition's rows under *Gameplay*, *Flight*, that turns one of its features of the flight HUD, the staging stack or the space centre on or off. |
+| world button | A button ReDefinition puts into the world: over the launch pad or the runway in the VAB or the SPH, over the VAB or the SPH while a vessel stands near it, and over the space centre's other buildings before a launch. |
 | situation | Where KSP's delta-v numbers in the editor are for: a body, and sea level, an altitude in its atmosphere, or vacuum. KSP's delta-v app sets it, and its staging stack follows it. |
 
 ## The store
@@ -61,13 +64,15 @@ How a value lasts is the mod's `saving`:
 | graphics profile, tier | One of the five steps from Low to Max. It sets the quality settings of every bundled mod and KSP's own graphics at once. High is every mod as its authors ship it. |
 | quality setting | A setting that costs frame time. A profile sets only these. |
 | taste setting | A setting that decides how the game looks rather than what it costs. No profile changes one, except where a mod needs it changed to run with the upscaler. |
-| *Reset* | Sets every setting to the default of the installed build, every key binding to its default, KSP's bindings to KSP's own, and chooses High over them. It is not the same as *Restore settings from before ReDefinition*. |
+| *Reset* | Sets every setting to the default of the installed build, every key binding to its default, KSP's settings and bindings to KSP's own except ReDefinition's recommended values for KSP, and chooses High over them. It is not the same as *Restore settings from before ReDefinition*. |
 
 ## Rendering
 
 | Word | Means |
 |---|---|
 | the proxy | ReDefinition's `dxgi.dll`, next to `KSP_x64.exe`. It presents the game's frames through Direct3D 12, runs DLSS, AMD's upscaler DLL and frame generation, and runs the compute passes other mods ask for. |
+| `ReDefinitionProxy.ini` | The proxy's settings, next to `KSP_x64.exe`. The proxy writes it from its own template at the first start and adds the keys a newer version brings. |
+| `ReDefinitionProxy.defaults` | The proxy's record of the values it wrote into `ReDefinitionProxy.ini` itself. A value still as written follows a newer version's default; a value the player changed stays. |
 | the rig | The upscaler on one scene's camera stack: its render targets, the jitter, the captures and the dispatch. |
 | the presenter | The camera behind the 3D stack that draws the upscaled image into the frame buffer, before the interface. |
 | technique | Which upscaler runs: *FSR 3*, *DLSS* or *AMD FSR (DLL)*. |
@@ -80,6 +85,7 @@ How a value lasts is the mod's `saving`:
 | history reset | The signal that the upscaler has to forget its previous frames. A camera cut causes one, and so does a mod that asks for one. |
 | HUD-less copy | The frame without the interface, which frame generation needs so the interface is not warped into generated frames. |
 | hook | A place where a mod takes part in ReDefinition's rendering: motion vectors into the capture, drawing after upscaling, or an overlay. |
+| surface intent | How a surface is meant to shine for the rays, worked out from its material: for example dry, with KSP's legacy highlight, or water ([development/raytracing.md](development/raytracing.md)). |
 | raytracing slot | What one raytracing job sends to the GPU, in the proxy: its command list, constants, descriptors and timestamps. The proxy reuses a slot once the GPU is done with it. |
 | the GPU profiler | ReDefinition's markers in Unity's render stream, with a D3D11 timestamp at each, which name the GPU's time by camera, pass and mod (`-redefinitionGpuProfile`). |
 | the perf monitor | ReDefinition's timing of the main thread's script methods (`-redefinitionPerfMonitor`). |

@@ -3,8 +3,8 @@
 ReDefinition is an attempt to bring the mods of Kerbal Space Program 1 together in one
 concept: their settings unified in one window, profiles that set them up together, and
 rules that keep their settings compatible with each other. Furthermore, ReDefinition adds
-upscaling with FSR and DLSS, and frame generation. Both work on the whole scene, other
-mods' effects included.
+upscaling with FSR and DLSS, frame generation and raytracing. They work on the whole
+scene, other mods' effects included.
 
 Mods for KSP are installed one by one and set up one by one, each in its own window, and
 whether their settings work together is left to chance. ReDefinition starts with the major
@@ -38,6 +38,22 @@ graphics mods; any mod can join with a config file.
   does not use: a `dxgi.dll` beside the game presents its frames through a Direct3D 12
   swapchain, while the game itself goes on rendering in Direct3D 11. DLSS and AMD's
   upscaler DLL run on that device as well.
+* **Raytracing.** Shadows, ambient occlusion, light with bounces and reflections traced
+  through the scene on the proxy's Direct3D 12 device, with Deferred or without it. The
+  sun and the moons shine on the sea, and EVE's clouds shade the traced light. DLSS Ray
+  Reconstruction or, on a Radeon RX 9000, AMD FSR Ray Regeneration removes the noise.
+* **Flight HUD.** Vertical and horizontal speed beside the navball, time to impact, a
+  round gauge, flight panel profiles that follow the situation, a docking marker on the
+  navball, and a navball you can drag sideways.
+* **Staging and editor.** Stage details in two columns, the delta-v tools inside the
+  staging stack, buttons in the world that launch from the VAB or the SPH and take the
+  vessel back, buttons over the space centre's buildings, and a grip choice for landing
+  legs.
+* **Readable on large screens.** The UI scale also for what KSP leaves at a fixed size,
+  and for other mods' windows.
+* **Main menu and space centre.** Fireworks on Kerbin's night side behind the main menu,
+  one camera flight from the menu down to the space centre, and Parallax's grass on the
+  space centre's lawns.
 
 ## Supported mods
 
@@ -51,10 +67,11 @@ works with further graphics mods:
 * Kerbal Space Program 1.12 on Windows, built and tested on 1.12.5
 * HarmonyKSP (on CKAN: *Harmony2*)
 
-DLSS needs an NVIDIA RTX GPU, frame generation a GPU with Direct3D 12. ReDefinition
-downloads NVIDIA's DLSS files itself once NVIDIA's licences are accepted in its settings
-window. What each technique needs:
-[docs/player/upscaler-and-frame-generation.md](docs/player/upscaler-and-frame-generation.md).
+DLSS needs an NVIDIA RTX GPU, frame generation a GPU with Direct3D 12, raytracing a GPU
+with DirectX Raytracing 1.1. ReDefinition downloads NVIDIA's DLSS files itself once
+NVIDIA's licences are accepted in its settings window. What each technique needs:
+[docs/player/upscaler-and-frame-generation.md](docs/player/upscaler-and-frame-generation.md)
+and [docs/player/raytracing.md](docs/player/raytracing.md).
 
 ## Installation
 
@@ -68,8 +85,8 @@ such as ReShade's: move that one away from `KSP_x64.exe` first.
 
 1. Install HarmonyKSP.
 2. Extract the release zip into the KSP folder, the one with `KSP_x64.exe`.
-   `GameData/ReDefinition` goes into `GameData`; `dxgi.dll` and AMD's frame generation
-   runtime go next to `KSP_x64.exe`.
+   `GameData/ReDefinition` goes into `GameData`; `dxgi.dll`, AMD's frame generation
+   runtime and AMD's denoiser go next to `KSP_x64.exe`.
 
 Then, in the game, open ReDefinition from the toolbar and choose a profile. Details, and
 how to remove ReDefinition again: [docs/player/installing.md](docs/player/installing.md).

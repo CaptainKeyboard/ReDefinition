@@ -4,10 +4,11 @@
 **You need:** nothing. Each page says what it needs.
 **You get:** the page for what you are doing right now.
 
-ReDefinition does two things. It puts the graphics settings of many mods, the graphics
-profiles and every key binding into one window. And it adds upscaling and frame
-generation: FSR 3 inside the game, DLSS and AMD's upscaler DLL in a Direct3D 12 proxy
-beside it.
+ReDefinition puts the settings of KSP and of many mods, the graphics profiles and every
+key binding into one window. It adds upscaling, frame generation and raytracing: FSR 3
+inside the game, DLSS, AMD's upscaler DLL and the raytracing in a Direct3D 12 proxy
+beside it. And it adds to the game's interface: the flight HUD, the staging stack, the
+editors, the main menu and the space centre.
 
 ## For players
 
