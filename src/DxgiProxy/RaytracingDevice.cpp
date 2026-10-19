@@ -490,11 +490,19 @@ namespace redefinition
 
     // The device is going or changing: everything made on it goes. The meshes the
     // managed side handed over go too; it hands them over again when it sees the
-    // service ready on a new device (Status).
+    // service ready on a new device (Status). What it handed over and no frame took
+    // yet goes as well: the managed side forgets it with the generation (RtScene.Update)
+    // and gives meshes and materials new ids, so a mesh still pending would be built on
+    // the new device under an id nobody releases, a material kept under one nobody
+    // uses, and a layer's texture copied over the layer handed over anew.
     void Raytracing::ReleaseLocked()
     {
         WaitForAllLocked();
         ReleaseRegenerationLocked();
+        pendingMeshes.clear();
+        pendingReleases.clear();
+        materialData.clear();
+        pendingTextures.clear();
         meshes.clear();
         meshSlotsFull = false;
         textures.clear();
