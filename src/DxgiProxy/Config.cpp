@@ -5,6 +5,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -109,12 +110,92 @@ namespace redefinition
             return last;
         }
 
+        // The keys of the template's [Proxy] section with their defaults.
+        void CollectDefaults(const std::string& templateText, std::vector<std::pair<std::string, std::string>>& defaults)
+        {
+            bool inProxy = false;
+            size_t at = 0;
+            while (at < templateText.size())
+            {
+                size_t end = templateText.find('\n', at);
+                if (end == std::string::npos)
+                    end = templateText.size();
+                std::string line = templateText.substr(at, end - at);
+                at = end + 1;
+                if (!line.empty() && line.back() == '\r')
+                    line.pop_back();
+                if (line.empty() || line[0] == ';')
+                    continue;
+                if (line[0] == '[')
+                {
+                    inProxy = line == "[Proxy]";
+                    continue;
+                }
+                const size_t equals = line.find('=');
+                if (inProxy && equals != std::string::npos)
+                    defaults.emplace_back(line.substr(0, equals), line.substr(equals + 1));
+            }
+        }
+
+        // A key's value in a section of a file, and whether the file has the key.
+        bool ReadValue(const std::wstring& file, const wchar_t* section, const std::wstring& key, std::wstring& value)
+        {
+            wchar_t buffer[260] = {};
+            GetPrivateProfileStringW(section, key.c_str(), L"\x01", buffer, ARRAYSIZE(buffer), file.c_str());
+            if (buffer[0] == L'\x01' && buffer[1] == L'\0')
+                return false;
+            value = buffer;
+            return true;
+        }
+
+        // The values the proxy wrote into the player's file itself, as it last wrote them,
+        // in a file of its own beside it: ReDefinitionProxy.defaults. Where the player's
+        // file still holds such a value, it is a default of then, not the player's choice,
+        // and a later version's default takes its place; a value the player changed stays.
+        // A key the proxy has no record of counts as its own where it holds today's
+        // default, else as the player's.
+        void RaiseDefaults(const std::wstring& file, const std::vector<std::pair<std::string, std::string>>& defaults,
+                           const std::vector<std::string>& added, bool allWritten)
+        {
+            const std::wstring written = file.substr(0, file.find_last_of(L'.')) + L".defaults";
+            std::string raised;
+            for (const auto& pair : defaults)
+            {
+                const std::wstring key(pair.first.begin(), pair.first.end());
+                const std::wstring value(pair.second.begin(), pair.second.end());
+                if (allWritten || std::find(added.begin(), added.end(), pair.first) != added.end())
+                {
+                    WritePrivateProfileStringW(L"Written", key.c_str(), value.c_str(), written.c_str());
+                    continue;
+                }
+                std::wstring current, before;
+                if (!ReadValue(file, L"Proxy", key, current))
+                    continue;
+                if (!ReadValue(written, L"Written", key, before))
+                {
+                    if (current == value)
+                        WritePrivateProfileStringW(L"Written", key.c_str(), value.c_str(), written.c_str());
+                    continue;
+                }
+                if (current != before || before == value)
+                    continue;
+                if (!WritePrivateProfileStringW(L"Proxy", key.c_str(), value.c_str(), file.c_str()))
+                    continue;
+                WritePrivateProfileStringW(L"Written", key.c_str(), value.c_str(), written.c_str());
+                raised += (raised.empty() ? "" : ", ") + pair.first + " " + std::string(before.begin(), before.end()) + " -> "
+                          + pair.second;
+            }
+            if (!raised.empty())
+                LogLine("Config: defaults the proxy had written raised to this version's in ReDefinitionProxy.ini: " + raised);
+        }
+
         // Every key of the template built into the proxy (ReDefinitionProxy.rc) stands in the
         // player's file with its default: a file from an earlier version gets the keys added
         // since, each after the comment above it in the template; the player's own values stay.
         // Without a file, the template is written as it is. Where another section than
         // [Proxy] ends the file, or the file is UTF-16, the keys go into [Proxy] without their
-        // comments.
+        // comments. Then the defaults the proxy wrote earlier take this version's
+        // (RaiseDefaults).
         void CompleteIni(const std::wstring& file)
         {
             HMODULE self = nullptr;
@@ -130,6 +211,8 @@ namespace redefinition
                 return;
             }
             const std::string templateText(data, SizeofResource(self, found));
+            // The template's keys in [Proxy] with their defaults, for RaiseDefaults.
+            std::vector<std::pair<std::string, std::string>> defaults;
 
             std::string existing;
             if (!ReadFileText(file, existing))
@@ -143,7 +226,11 @@ namespace redefinition
                     return;
                 }
                 if (WriteFileText(file, templateText))
+                {
                     LogLine("Config: ReDefinitionProxy.ini written from the template, with every default");
+                    CollectDefaults(templateText, defaults);
+                    RaiseDefaults(file, defaults, std::vector<std::string>(), true);
+                }
                 else
                     LogLine("Config: ReDefinitionProxy.ini neither read (error " + std::to_string(readError)
                             + ") nor written from the template (error " + std::to_string(GetLastError()) + ")");
@@ -194,6 +281,7 @@ namespace redefinition
                 if (!inProxy || equals == std::string::npos)
                     continue;
                 const std::string key = line.substr(0, equals);
+                defaults.emplace_back(key, line.substr(equals + 1));
                 if (HasKey(file, key))
                     continue;
                 if (!blockWritten)
@@ -205,8 +293,14 @@ namespace redefinition
                 missing.emplace_back(key, line.substr(equals + 1));
                 names += (names.empty() ? "" : ", ") + key;
             }
+            std::vector<std::string> added;
+            for (const auto& pair : missing)
+                added.push_back(pair.first);
             if (missing.empty())
+            {
+                RaiseDefaults(file, defaults, added, false);
                 return;
+            }
 
             const std::string last = utf16 ? std::string() : LastSection(existing);
             bool written = true;
@@ -228,6 +322,7 @@ namespace redefinition
                 }
             LogLine(std::string("Config: ") + (written ? "added" : "could not add") + " to ReDefinitionProxy.ini with their defaults: "
                     + names);
+            RaiseDefaults(file, defaults, written ? added : std::vector<std::string>(), false);
         }
 
         bool WriteTimeOf(const std::wstring& file, FILETIME& out)
