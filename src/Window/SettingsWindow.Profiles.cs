@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using System;
 using ReDefinition.Core;
 using ReDefinition.Settings;
@@ -94,7 +95,7 @@ namespace ReDefinition.Window
         private static DialogGUIButton ResetButton()
         {
             DialogGUIButton reset = new DialogGUIButton("Reset", ConfirmReset, ResetWidth, 30f, false);
-            reset.tooltipText = "Every setting back to its default: KSP's as KSP's own Reset sets them, and the mods'.\n"
+            reset.tooltipText = "Every setting back to its default, KSP's and the mods'.\n"
                                 + "Then the profile High over them. Asks first, and says what it resets.";
             return reset;
         }
@@ -111,8 +112,13 @@ namespace ReDefinition.Window
                 if (mod.Saving == SettingsSaving.AtEveryStart) atEveryStart.Add(mod.ModName);
             }
 
+            List<string> ownDefaults = KspOwnDefaults();
             string message = "All of KSP's settings go back to what KSP ships, as KSP's own Reset sets them: graphics,"
                              + " gameplay, system, audio, input, and the key bindings of the keyboard layout KSP detects."
+                             + (ownDefaults.Count > 0
+                                 ? " " + string.Join(", ", ownDefaults.ToArray()) + (ownDefaults.Count == 1 ? " takes" : " take")
+                                   + " ReDefinition's default instead, or what an installed mod requires."
+                                 : "")
                              + " The screen resolution and full screen stay as they are.\n\n";
             if (names.Count > 0)
             {
@@ -140,6 +146,41 @@ namespace ReDefinition.Window
                        + " too: ReDefinition's own and the mods'.";
 
             ConfirmDialog.OverWindow("ReDefinitionReset", "Reset", message, 460f, "Reset", ChooseDefaults);
+        }
+
+        // The titles of KSP's settings the reset sets to something other than what
+        // KSP ships: those whose default ReDefinition's registration recommends
+        // (Mods/KSP.cfg; the UI scale by the screen's height) and those an
+        // installed mod requires otherwise. Only the settings that are a field of
+        // GameSettings of the same name: SetDefaultValues sets those, and the others
+        // -- Track IR's switches, what a behaviour works out -- would read as they
+        // are now rather than as KSP ships them.
+        private static List<string> KspOwnDefaults()
+        {
+            List<string> titles = new List<string>();
+            List<KeyValuePair<BundledSetting, string>> ksp = new List<KeyValuePair<BundledSetting, string>>();
+            string prefix = KspId + ".";
+            foreach (KeyValuePair<BundledSetting, string> pair in ProfileApplier.DefaultValues(new List<string>()))
+            {
+                string key = pair.Key.Key;
+                if (pair.Key.Owner == null || pair.Key.Owner.Id != KspId || !key.StartsWith(prefix, StringComparison.Ordinal))
+                    continue;
+                if (typeof(GameSettings).GetField(key.Substring(prefix.Length), BindingFlags.Public | BindingFlags.Static) != null)
+                    ksp.Add(pair);
+            }
+            string[] shipped = new string[ksp.Count];
+            Exception e = KspShipped.Read(() =>
+            {
+                for (int i = 0; i < ksp.Count; i++) shipped[i] = ksp[i].Key.Read();
+            });
+            if (e != null)
+            {
+                Debug.LogWarning(Log.Tag + " Reset: what KSP ships could not be read (" + e.Message + ").");
+                return titles;
+            }
+            for (int i = 0; i < ksp.Count; i++)
+                if (!SettingValues.Same(shipped[i], ksp[i].Value)) titles.Add(ksp[i].Key.Title);
+            return titles;
         }
 
         // Fills every setting with its mod's default (SettingsEdit.ChooseDefaults),
