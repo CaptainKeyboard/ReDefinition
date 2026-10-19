@@ -192,11 +192,12 @@ namespace ReDefinition
             };
         }
 
-        private static Field<T> Enum<T>(string key, Func<OwnSettings, T> get, Action<OwnSettings, T> set) where T : struct
+        private static Field<T> Enum<T>(string key, Func<OwnSettings, T> get, Action<OwnSettings, T> set, bool live = false)
+            where T : struct
         {
             return new Field<T>
             {
-                Key = key, Get = get, Set = set, Format = v => v.ToString(),
+                Key = key, Get = get, Set = set, Live = live, Format = v => v.ToString(),
                 Parse = (string text, out T v) =>
                 {
                     v = default(T);
@@ -292,7 +293,7 @@ namespace ReDefinition
             Float("raytracingMoonReflection", "0", x => x.RaytracingMoonReflection, (x, v) => x.RaytracingMoonReflection = v, true),
             Float("sunReflection", "0", x => x.SunReflection, (x, v) => x.SunReflection = v, true),
             Float("raytracingNightAmbient", "0", x => x.RaytracingNightAmbient, (x, v) => x.RaytracingNightAmbient = v, true),
-            Enum("raytracingLightColour", x => x.RaytracingLightColour, (x, v) => x.RaytracingLightColour = v),
+            Enum("raytracingLightColour", x => x.RaytracingLightColour, (x, v) => x.RaytracingLightColour = v, true),
         };
 
         public static OwnSettings Load()

@@ -53,5 +53,18 @@ namespace ReDefinition.Tests
             Assert.AreEqual(12.5f, copy.RaytracingMoonlight);
             Assert.IsFalse(copy.Enabled, "Enabled is the add-on's own, not read live");
         }
+
+        // The raytracing's light colour is read live (RtKsp): a view's change has to reach
+        // the live settings, which are what is saved.
+        [TestMethod]
+        public void TheLightColourIsReadLive()
+        {
+            var live = new OwnSettings();
+            var before = new OwnSettings();
+            var after = before.Clone();
+            after.RaytracingLightColour = ReDefinition.Raytracing.RaytracingLightColour.Raytraced;
+            live.ChangeLive(before, after);
+            Assert.AreEqual(ReDefinition.Raytracing.RaytracingLightColour.Raytraced, live.RaytracingLightColour);
+        }
     }
 }
