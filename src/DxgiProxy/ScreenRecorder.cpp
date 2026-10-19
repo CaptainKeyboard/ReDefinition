@@ -313,32 +313,41 @@ namespace redefinition
                 const D3D11_BOX box = { static_cast<UINT>(left), static_cast<UINT>(top), 0,
                                         static_cast<UINT>(left) + width, static_cast<UINT>(top) + height, 1 };
 
+                // The pool is first made in the mode's format, so the loop only copies: a
+                // texture made per frame costs a composed frame now and then. The frames
+                // duplication hands out may be in another of the formats DuplicateOutput1
+                // was given (the mode's format is the display's, not the copy's), so each
+                // acquired frame's own format decides: the pool is made anew where it
+                // differs, and every frame keeps the format it was copied in.
                 DXGI_OUTDUPL_DESC duplicationDesc = {};
                 duplication->GetDesc(&duplicationDesc);
-                const DXGI_FORMAT desktopFormat = duplicationDesc.ModeDesc.Format == DXGI_FORMAT_UNKNOWN
-                                                      ? DXGI_FORMAT_B8G8R8A8_UNORM : duplicationDesc.ModeDesc.Format;
+                DXGI_FORMAT poolFormat = duplicationDesc.ModeDesc.Format == DXGI_FORMAT_UNKNOWN
+                                             ? DXGI_FORMAT_B8G8R8A8_UNORM : duplicationDesc.ModeDesc.Format;
                 std::vector<uint8_t> converted;
-
-                // Made before the first frame, so the loop only copies: a texture made
-                // per frame costs a composed frame now and then.
                 std::vector<ComPtr<ID3D11Texture2D>> pool;
+                size_t poolNext = 0;
+                const auto makePool = [&](DXGI_FORMAT format, int count)
                 {
+                    pool.clear();
+                    poolNext = 0;
+                    poolFormat = format;
                     D3D11_TEXTURE2D_DESC desc = {};
                     desc.Width = width;
                     desc.Height = height;
                     desc.MipLevels = 1;
                     desc.ArraySize = 1;
-                    desc.Format = desktopFormat;
+                    desc.Format = format;
                     desc.SampleDesc.Count = 1;
                     desc.Usage = D3D11_USAGE_STAGING;
                     desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-                    for (int i = 0; i < frames; ++i)
+                    for (int i = 0; i < count; ++i)
                     {
                         ComPtr<ID3D11Texture2D> texture;
                         if (FAILED(device->CreateTexture2D(&desc, nullptr, &texture))) break;
                         pool.push_back(texture);
                     }
-                }
+                };
+                makePool(poolFormat, frames);
                 if (pool.empty())
                 {
                     failure = "no memory for the frames";
@@ -346,6 +355,7 @@ namespace redefinition
                 }
                 frames = static_cast<int>(pool.size());
                 std::vector<ComPtr<ID3D11Texture2D>> staged;
+                std::vector<DXGI_FORMAT> stagedFormats;
                 std::vector<LONGLONG> presentTimes;
                 std::vector<UINT> accumulated;
                 const ULONGLONG deadline = GetTickCount64() + 5000;
@@ -362,15 +372,30 @@ namespace redefinition
                         failure = text;
                         break;
                     }
+                    ComPtr<ID3D11Texture2D> desktop;
                     if (info.LastPresentTime.QuadPart != 0)
-                    {
-                        ComPtr<ID3D11Texture2D> desktop;
                         resource.As(&desktop);
-                        ComPtr<ID3D11Texture2D> copy = pool[staged.size()];
-                        context->CopySubresourceRegion(copy.Get(), 0, 0, 0, 0, desktop.Get(), 0, &box);
-                        staged.push_back(copy);
-                        presentTimes.push_back(info.LastPresentTime.QuadPart);
-                        accumulated.push_back(info.AccumulatedFrames);
+                    if (desktop)
+                    {
+                        D3D11_TEXTURE2D_DESC desktopDesc = {};
+                        desktop->GetDesc(&desktopDesc);
+                        if (desktopDesc.Format != poolFormat)
+                        {
+                            LogLine("Screen recording: the desktop's frames come in DXGI format "
+                                    + std::to_string(static_cast<int>(desktopDesc.Format)) + ", not the mode's "
+                                    + std::to_string(static_cast<int>(poolFormat)) + "; the staging made anew");
+                            makePool(desktopDesc.Format, frames - static_cast<int>(staged.size()));
+                            frames = static_cast<int>(staged.size() + pool.size());
+                        }
+                        if (poolNext < pool.size())
+                        {
+                            ComPtr<ID3D11Texture2D> copy = pool[poolNext++];
+                            context->CopySubresourceRegion(copy.Get(), 0, 0, 0, 0, desktop.Get(), 0, &box);
+                            staged.push_back(copy);
+                            stagedFormats.push_back(poolFormat);
+                            presentTimes.push_back(info.LastPresentTime.QuadPart);
+                            accumulated.push_back(info.AccumulatedFrames);
+                        }
                     }
                     duplication->ReleaseFrame();
                 }
@@ -403,11 +428,11 @@ namespace redefinition
                     swprintf_s(name, L"\\%03u.png", static_cast<unsigned>(i));
                     const uint8_t* pixels = static_cast<const uint8_t*>(mapped.pData);
                     UINT pitch = mapped.RowPitch;
-                    if (desktopFormat != DXGI_FORMAT_B8G8R8A8_UNORM)
+                    if (stagedFormats[i] != DXGI_FORMAT_B8G8R8A8_UNORM)
                     {
                         converted.resize(static_cast<size_t>(width) * height * 4);
                         for (UINT y = 0; y < height; ++y)
-                            ToBgra8(desktopFormat, pixels + static_cast<size_t>(y) * mapped.RowPitch,
+                            ToBgra8(stagedFormats[i], pixels + static_cast<size_t>(y) * mapped.RowPitch,
                                     converted.data() + static_cast<size_t>(y) * width * 4, width);
                         pixels = converted.data();
                         pitch = width * 4;
