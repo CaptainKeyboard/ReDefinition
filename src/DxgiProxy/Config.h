@@ -44,8 +44,8 @@ namespace redefinition
         // frameGeneration: which swapchain presents is decided once.
         bool dlssFrameGeneration = true;
 
-        // ---- live from here down, but for the folders, vendorDiagnostics and
-        // streamlineImgui, which apply when what they serve starts ----
+        // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics
+        // and streamlineImgui, which apply when what they serve starts ----
 
         // Keep the UI out of the interpolated frames by handing FSR a HUD-less
         // snapshot: the backbuffer copied after the last scene camera and before

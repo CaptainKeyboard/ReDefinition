@@ -274,6 +274,24 @@ namespace redefinition
         UINT streamlineSync = syncInterval;
         if (streamlineSwapChain && syncInterval > 0)
             streamlineSync = FrameGeneration::Get().StreamlineVsyncSupported() ? 1u : 0u;
+        // The cap V-Sync sets on the frames shown, for frame generation's minimum
+        // (SetPresentCapLocked): DLSS-G shows its limit's frames and the rendered one,
+        // FSR one generated and the rendered one.
+        {
+            const UINT capSync = streamlineSwapChain ? streamlineSync : syncInterval > 0 ? syncInterval : Config().fgVSync ? 1u : 0u;
+            const ProxyConfig& cfg = Config();
+            double capFps = 0.0;
+            if (capSync > 0)
+            {
+                const double refresh = MonitorRefreshRate();
+                if (refresh > 0.0)
+                    capFps = refresh / static_cast<double>(capSync);
+            }
+            else if (!streamlineSwapChain && !(cfg.fgHalfRefreshLimit && !cfg.fgVSync && syncInterval == 0))
+                PauseRefreshMonitor();
+            const uint32_t shown = streamlineSwapChain ? StreamlineFrameLimit(streamlineSync) + 1u : 2u;
+            FrameGeneration::Get().SetPresentCapLocked(capFps, shown);
+        }
         if (streamlineSwapChain)
         {
             frameIndex = TakeFrameIndex(true);

@@ -129,6 +129,19 @@ namespace redefinition
         // From any thread: the status line asks it.
         bool HeldOffForRate() const { return rateTooLow.load(); }
 
+        // From the present path, under the context lock, before each frame is prepared:
+        // the most frames a second the swapchain shows -- the refresh rate over the sync
+        // interval, 0 without V-Sync -- and how many it shows for each rendered frame
+        // while generating. Under V-Sync frame generation itself slows the game to the
+        // cap over that factor: where that lies below the minimum, it holds off for as
+        // long as the cap stands, instead of turning on, slowing the game below the
+        // minimum and turning off again.
+        void SetPresentCapLocked(double capFps, uint32_t shownPerRendered);
+
+        // The minimum rendered frame rate (fgMinimumFps, else the provider's), under the
+        // context lock.
+        float MinimumFpsLocked() const;
+
         // Whether the last Present was prepared for a generated frame, for the
         // proxy's frame limit, which is taken outside the context lock.
         bool GeneratedLastPresent() const;
@@ -541,7 +554,9 @@ namespace redefinition
         bool slowFrame = false;
         int slowFrames = 0;
         int designedForFps = 60;
-        float MinimumFpsLocked() const;
+        double presentCapFps = 0.0;
+        uint32_t presentCapFactor = 2;
+        bool heldByCap = false;
         void NoteFrameRateLocked(float frameTimeMs);
         uint32_t streamlineFrames = 1;
         // The frames this Present was set to generate, which its state reports on.

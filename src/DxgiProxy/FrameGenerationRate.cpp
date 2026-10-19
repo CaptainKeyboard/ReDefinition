@@ -19,10 +19,38 @@ namespace redefinition
         return streamline ? 30.0f : static_cast<float>(designedForFps);
     }
 
+    void FrameGeneration::SetPresentCapLocked(double capFps, uint32_t shownPerRendered)
+    {
+        presentCapFps = capFps;
+        presentCapFactor = shownPerRendered > 0 ? shownPerRendered : 1u;
+    }
+
     // Each rendered frame's time from its packet; every two seconds the average decides.
     void FrameGeneration::NoteFrameRateLocked(float frameTimeMs)
     {
         const float minimumFps = MinimumFpsLocked();
+        // Capped below the minimum while generating: held off as long as the cap stands.
+        const double cappedRate = presentCapFps > 0.0 ? presentCapFps / static_cast<double>(presentCapFactor) : 0.0;
+        const bool capped = minimumFps > 0.0f && cappedRate > 0.0 && cappedRate < minimumFps * 0.9;
+        if (capped != heldByCap)
+        {
+            heldByCap = capped;
+            rateWindowMs = 0.0;
+            rateWindowFrames = 0;
+            slowFrame = false;
+            rateTooLow = capped;
+            char line[220];
+            if (capped)
+                std::snprintf(line, sizeof(line), "Frame generation held off: V-Sync shows at most %.0f frames a second, and"
+                              " with frame generation the game would render %.0f, below the minimum %.0f (fgMinimumFps)",
+                              presentCapFps, cappedRate, minimumFps);
+            else
+                std::snprintf(line, sizeof(line), "Frame generation allowed again: the frame rate is no longer capped below"
+                              " its minimum");
+            LogLine(line);
+        }
+        if (capped)
+            return;
         const bool slow = minimumFps > 0.0f && frameTimeMs > 1500.0f / minimumFps;
         if (slow && !slowFrame && slowFrames++ == 0)
         {

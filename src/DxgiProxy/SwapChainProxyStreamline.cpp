@@ -10,6 +10,7 @@
 #include "Streamline.h"
 #include "SwapChainProxyState.h"
 
+#include <algorithm>
 #include <cmath>
 #include <mutex>
 #include <string>
@@ -158,7 +159,16 @@ namespace redefinition
         if (refresh <= 0.0)
             return 1;
         const double multiplier = std::floor(refresh / static_cast<double>(syncInterval) / 15.0 + 0.01);
-        return multiplier >= 2.0 ? static_cast<uint32_t>(multiplier) - 1u : 1u;
+        uint32_t frames = multiplier >= 2.0 ? static_cast<uint32_t>(multiplier) - 1u : 1u;
+        // No more than keep the game at its minimum rendered rate: each generated frame
+        // takes a refresh from the rendered ones under V-Sync.
+        const float minimum = FrameGeneration::Get().MinimumFpsLocked();
+        if (minimum > 0.0f)
+        {
+            const double most = std::floor(refresh / static_cast<double>(syncInterval) / minimum + 0.01) - 1.0;
+            frames = std::min(frames, static_cast<uint32_t>(std::max(1.0, most)));
+        }
+        return frames;
     }
 
     // "Ensure the frame index provided with the common constants matches the

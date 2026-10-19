@@ -285,7 +285,8 @@ namespace redefinition
         }
         limitTimerTried = false;
         limitTimerHighResolution = false;
-        PauseRefreshMonitor();
+        // The refresh monitor stays: the present path pauses it where neither the
+        // limit nor frame generation's cap asks for the rate (CopyAndPresent).
     }
 
     // From the present path: the thread stops asking, and nothing here waits for

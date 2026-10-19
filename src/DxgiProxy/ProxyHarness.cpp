@@ -338,14 +338,21 @@ namespace
     }
 
     // A key in the ini next to the harness, the one the proxy reads. The
-    // harness owns the keys it sets: set before the proxy loads, and gone
-    // again -- the default -- on every return from main. A run that crashes
-    // leaves its value behind, and the next run's first act sets it anew.
+    // harness owns the keys it sets: set before the proxy loads, and back to
+    // what the file held -- the template's default, which the proxy writes there
+    // -- on every return from main. A run that crashes leaves its value behind,
+    // and the next run's first act sets it anew.
     class IniKey
     {
     public:
-        explicit IniKey(const wchar_t* name) : key(name), path(PathNextToExecutable(L"ReDefinitionProxy.ini")) {}
-        ~IniKey() { Set(nullptr); }
+        explicit IniKey(const wchar_t* name) : key(name), path(PathNextToExecutable(L"ReDefinitionProxy.ini"))
+        {
+            wchar_t value[260] = {};
+            GetPrivateProfileStringW(L"Proxy", key, L"\x01", value, ARRAYSIZE(value), path.c_str());
+            held = !(value[0] == L'\x01' && value[1] == L'\0');
+            before = value;
+        }
+        ~IniKey() { Set(held ? before.c_str() : nullptr); }
 
         IniKey(const IniKey&) = delete;
         IniKey& operator=(const IniKey&) = delete;
@@ -358,6 +365,8 @@ namespace
     private:
         const wchar_t* key;
         std::wstring path;
+        std::wstring before;
+        bool held = false;
     };
 }
 
@@ -1698,6 +1707,47 @@ int main()
             return Fail("frame generation stopped after mode changes", E_FAIL);
         if (strstr(changedLine, "device=ok") == nullptr)
             return Fail("the proxy's device did not survive the mode changes", E_FAIL);
+
+        // Under V-Sync frame generation slows the game to the refresh rate over two.
+        // With a minimum above that, it holds off for as long as the sync interval
+        // stands -- not on, the game slowed below the minimum, off again and on --,
+        // and without V-Sync it comes back (FrameGeneration::SetPresentCapLocked).
+        if (refresh > 0.0f)
+        {
+            const IniKey capMinimum(L"fgMinimumFps");
+            capMinimum.Set(std::to_wstring(static_cast<int>(refresh * 0.75f)).c_str());
+            // Frames reported at 200 a second, above the minimum: only the cap holds
+            // frame generation off.
+            const float reportedFrameTime = packet.frameTimeDeltaMs;
+            packet.frameTimeDeltaMs = 5.0f;
+            // The proxy re-reads the ini at most once a second, on a Present.
+            hr = renderFor(1.5f, fpsSteady, steadyFrames);
+            if (FAILED(hr))
+                return Fail("Present before the V-Sync cap", hr);
+            syncInterval = 1;
+            float capped = 0.0f;
+            hr = renderFor(3.0f, fpsSteady, steadyFrames);
+            if (SUCCEEDED(hr))
+                hr = runPhase(kFrames, capped);
+            if (FAILED(hr))
+                return Fail("Present under V-Sync with the minimum above half the refresh rate", hr);
+            char cappedLine[256] = {};
+            status(cappedLine, sizeof(cappedLine));
+            const float cappedFps = fps;
+            syncInterval = 0;
+            float uncapped = 0.0f;
+            hr = renderFor(1.0f, fpsSteady, steadyFrames);
+            if (SUCCEEDED(hr))
+                hr = runPhase(kFrames, uncapped);
+            if (FAILED(hr))
+                return Fail("Present without V-Sync after the cap", hr);
+            packet.frameTimeDeltaMs = reportedFrameTime;
+            printf("      frame generation under V-Sync with the minimum at %.0f fps: %.2f presents per frame, %.0f rendered fps"
+                   " [%s]; without V-Sync %.2f\n", refresh * 0.75f, capped, cappedFps, cappedLine, uncapped);
+            if (capped > 1.05f || strstr(cappedLine, "held off") == nullptr || uncapped < kGeneratingAtLeast)
+                return Fail("frame generation not held off under a V-Sync cap below its minimum, or not back without it",
+                            E_FAIL);
+        }
         if (strstr(changedLine, "retired=0") == nullptr)
             return Fail("inputs replaced by the mode changes were never released", E_FAIL);
 

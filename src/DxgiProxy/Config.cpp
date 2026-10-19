@@ -113,7 +113,8 @@ namespace redefinition
         // player's file with its default: a file from an earlier version gets the keys added
         // since, each after the comment above it in the template; the player's own values stay.
         // Without a file, the template is written as it is. Where another section than
-        // [Proxy] ends the file, the keys go into [Proxy] without their comments.
+        // [Proxy] ends the file, or the file is UTF-16, the keys go into [Proxy] without their
+        // comments.
         void CompleteIni(const std::wstring& file)
         {
             HMODULE self = nullptr;
@@ -133,7 +134,14 @@ namespace redefinition
             std::string existing;
             if (!ReadFileText(file, existing))
             {
+                // Only where there is no file: one that could not be read is the player's.
                 const DWORD readError = GetLastError();
+                if (readError != ERROR_FILE_NOT_FOUND)
+                {
+                    LogLine("Config: ReDefinitionProxy.ini could not be read (error " + std::to_string(readError)
+                            + "); its keys are not completed");
+                    return;
+                }
                 if (WriteFileText(file, templateText))
                     LogLine("Config: ReDefinitionProxy.ini written from the template, with every default");
                 else
@@ -141,6 +149,13 @@ namespace redefinition
                             + ") nor written from the template (error " + std::to_string(GetLastError()) + ")");
                 return;
             }
+
+            // A file in UTF-16, as Notepad's "Unicode" and PowerShell 5.1 write it, which
+            // Windows' profile functions read: the keys go in through them, without their
+            // comments -- appended bytes in ANSI would be no keys to them.
+            const bool utf16 = existing.size() >= 2
+                               && ((static_cast<unsigned char>(existing[0]) == 0xFF && static_cast<unsigned char>(existing[1]) == 0xFE)
+                                   || (static_cast<unsigned char>(existing[0]) == 0xFE && static_cast<unsigned char>(existing[1]) == 0xFF));
 
             // The template line by line: a comment block, the keys after it.
             std::string appended, block, names;
@@ -193,9 +208,9 @@ namespace redefinition
             if (missing.empty())
                 return;
 
-            const std::string last = LastSection(existing);
+            const std::string last = utf16 ? std::string() : LastSection(existing);
             bool written = true;
-            if (last.empty() || last == "[Proxy]")
+            if (!utf16 && (last.empty() || last == "[Proxy]"))
             {
                 std::string text = existing;
                 if (!text.empty() && text.back() != '\n')
@@ -413,7 +428,7 @@ namespace redefinition
         LogLine("Config reloaded: " + Describe(g_config)
                 + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
                 + "   (enabled, allowTearing, measureOnly, frameGeneration and dlssFrameGeneration as at load;"
-                  " the folders, streamlineImgui and vendorDiagnostics apply when what they serve starts)");
+                  " the folders, rtOwnQueue, streamlineImgui and vendorDiagnostics apply when what they serve starts)");
 
         rebuild = needsRebuild;
         return true;
