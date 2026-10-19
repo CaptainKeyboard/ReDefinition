@@ -93,7 +93,9 @@ external*. While it holds text, the window shows every tab with a match, each un
 name, and only the matching rows; *x* empties it.
 
 A blue dot before a row's name marks a change that waits for *Accept*, and a blue dot
-after a tab's name a tab with such a change, there or under it.
+after a tab's name a tab with such a change, there or under it. A yellow dot before a
+row's name marks a value other than the chosen profile's; its tooltip then ends in
+*Default:* and the profile's value.
 
 In *Gameplay*, *Detail*, *Axes* and *Devices* the rows are in groups that open and fold,
 as the sections of *Controls* do. The first group of each tab is open at first.
