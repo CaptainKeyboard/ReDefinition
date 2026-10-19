@@ -1786,7 +1786,7 @@ int main()
                 Lighting moving = lighting;
                 moving.flags = kRtFrameDenoise | (f == 0 ? kRtFrameReset : 0u);
                 moving.previous = &previousClip;
-                SendInstances(proxy, scene, now.position);
+                SendInstances(proxy, drawn, now.position);
                 RenderGBuffer(context.Get(), g, now, meshes, drawn);
                 SendFrame(proxy, now, g, outputs, sun, sunRadius, firstFrame + f, signals, moving);
                 if (f == 88)
@@ -1869,6 +1869,101 @@ int main()
         error(back, true, backError, backMean, backReference);
         sprintf_s(detail, "the first frame back %.4f in the dark, before the pause %.4f", backMean, diffuseMean);
         Check(backMean < 0.01 * diffuseMean, "a denoised signal paused and back", detail);
+
+        // What the short history and no spatial steps are for (rtSunAtrousSteps 0,
+        // rtSunHistory 4): the shadows of thin posts, as of the blades of grass, keep their
+        // fine structure, the reference's detail (each pixel less its 9x9 mean) in the
+        // denoised visibility's, as a share. Against 5 steps and 32 frames, switched live
+        // through the ini beside the harness, which the proxy reads again at a Present;
+        // then back, the glide's visibility as before to the bit.
+        std::vector<Instance> posts = scene;
+        for (int i = 0; i < 12; ++i)
+            for (int j = 0; j < 12; ++j)
+            {
+                Instance post;
+                post.mesh = 1;
+                post.position = { 6.0 + i * 1.3, 0.6, -24.0 + j * 1.3 };
+                post.scale[0] = post.scale[2] = 0.12;
+                post.scale[1] = 1.2;
+                post.albedo[0] = 0.3f; post.albedo[1] = 0.6f; post.albedo[2] = 0.2f;
+                posts.push_back(post);
+            }
+        SendInstances(proxy, posts, end.position);
+        RenderGBuffer(context.Get(), g, end, meshes, posts);
+        std::vector<double> postsReference(static_cast<size_t>(kWidth) * kHeight, 0.0);
+        const int postsFrames = 512;
+        for (int f = 0; f < postsFrames; ++f)
+        {
+            SendFrame(proxy, end, g, outputs, sun, sunRadius, 11000 + f, kRtSignalSunVisibility, lighting);
+            ReadTexture(device.Get(), context.Get(), outputs.visibility.Get(), 8, read);
+            for (size_t i = 0; i < postsReference.size(); ++i)
+                postsReference[i] += HalfToFloat(read[i * 4]) / postsFrames;
+        }
+        std::vector<float> postsDepth;
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, postsDepth);
+        const auto structureKept = [&](const std::vector<uint16_t>& image)
+        {
+            const int r = 4;
+            const size_t w = kWidth + 1;
+            std::vector<double> sumImage(w * (kHeight + 1), 0.0), sumReference(sumImage.size(), 0.0),
+                surfaces(sumImage.size(), 0.0);
+            for (UINT y = 0; y < kHeight; ++y)
+                for (UINT x = 0; x < kWidth; ++x)
+                {
+                    const size_t i = static_cast<size_t>(y) * kWidth + x;
+                    const size_t at = (y + 1) * w + x + 1;
+                    const bool surface = postsDepth[i] > 0.0f;
+                    sumImage[at] = (surface ? HalfToFloat(image[i * 4]) : 0.0) + sumImage[at - 1] + sumImage[at - w]
+                                   - sumImage[at - w - 1];
+                    sumReference[at] = (surface ? postsReference[i] : 0.0) + sumReference[at - 1] + sumReference[at - w]
+                                       - sumReference[at - w - 1];
+                    surfaces[at] = (surface ? 1.0 : 0.0) + surfaces[at - 1] + surfaces[at - w] - surfaces[at - w - 1];
+                }
+            const auto box = [&](const std::vector<double>& sums, UINT x, UINT y)
+            {
+                const size_t x0 = x - r, x1 = x + r + 1, y0 = y - r, y1 = y + r + 1;
+                return sums[y1 * w + x1] - sums[y0 * w + x1] - sums[y1 * w + x0] + sums[y0 * w + x0];
+            };
+            const double area = (2.0 * r + 1) * (2.0 * r + 1);
+            double shared = 0.0, own = 0.0;
+            for (UINT y = r; y + r < kHeight; ++y)
+                for (UINT x = r; x + r < kWidth; ++x)
+                {
+                    if (box(surfaces, x, y) < area)
+                        continue;
+                    const size_t i = static_cast<size_t>(y) * kWidth + x;
+                    const double reference = postsReference[i] - box(sumReference, x, y) / area;
+                    const double got = HalfToFloat(image[i * 4]) - box(sumImage, x, y) / area;
+                    shared += got * reference;
+                    own += reference * reference;
+                }
+            return own > 0.0 ? shared / own : 0.0;
+        };
+        const std::wstring ini = NextToExecutable(L"ReDefinitionProxy.ini");
+        const int defaultSteps = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunAtrousSteps", 0, ini.c_str()));
+        const int defaultHistory = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunHistory", 4, ini.c_str()));
+        const auto setSun = [&](int steps, int history)
+        {
+            WritePrivateProfileStringW(L"Proxy", L"rtSunAtrousSteps", std::to_wstring(steps).c_str(), ini.c_str());
+            WritePrivateProfileStringW(L"Proxy", L"rtSunHistory", std::to_wstring(history).c_str(), ini.c_str());
+            // The proxy looks at the file at most once a second, from its Present.
+            Sleep(1100);
+            swapChain->Present(0, 0);
+        };
+        std::vector<uint16_t> postsDiffuse, postsSun, postsLast, wideSun, backSun;
+        glide(posts, 11600, postsDiffuse, postsSun, postsLast);
+        setSun(5, 32);
+        glide(posts, 11600, postsDiffuse, wideSun, postsLast);
+        setSun(defaultSteps, defaultHistory);
+        glide(posts, 11600, postsDiffuse, backSun, postsLast);
+        const double keptNow = structureKept(postsSun), keptWide = structureKept(wideSun);
+        sprintf_s(detail, "%.2f of the reference's fine structure kept with %d steps and %d frames, %.2f with 5 and 32;"
+                          " %s afterwards",
+                  keptNow, defaultSteps, defaultHistory, keptWide, backSun == postsSun ? "the same" : "not the same");
+        Check(defaultSteps == 0 && defaultHistory == 4 && backSun == postsSun && keptNow > 0.8 && keptNow > keptWide + 0.15,
+              "the sun's fine shadows kept", detail);
+        SendInstances(proxy, scene, end.position);
+        RenderGBuffer(context.Get(), g, end, meshes, scene);
 
         // The denoiser's textures: per signal it filters 64 bytes a pixel (the noisy trace,
         // two histories in full floats, two moments, a work texture in half floats), for
@@ -3184,6 +3279,106 @@ int main()
         sprintf_s(detail, "%zu pixels differ from the frame's trace in its further one, %zu in the next frame's", furtherDiffers,
                   nextDiffers);
         Check(nextDiffers > 10000 && furtherDiffers * 10 > nextDiffers * 8, "a further trace's own random numbers", detail);
+        SendInstances(proxy, scene, camera.position);
+    }
+
+    // ---------------------------------------------------------------- a further trace's scene
+    Outputs furtherOutputs;
+    hr = CreateOutputs(device.Get(), furtherOutputs);
+    if (FAILED(hr))
+        return Fatal("the further trace's output textures", hr);
+    {
+        // The further trace (the ocean's) takes the scene of the frame before it, from that
+        // frame's slot. The next frames are recorded at once, as the game records them,
+        // without waiting for the GPU; the second takes that slot again and writes its
+        // materials with the tower's glow put out. The further trace's reflections are
+        // the ones it gives where the GPU has finished it before the next frames.
+        const float black[3] = { 0.0f, 0.0f, 0.0f };
+        const float glow[3] = { 4.0f, 2.0f, 1.0f };
+        std::vector<Instance> mirrored = scene;
+        mirrored[0].smoothness = 1.0f;
+        mirrored[2].material = 22;
+        mirrored[2].position = { -22, 15, -12 };
+        SendInstances(proxy, mirrored, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, mirrored);
+        Lighting lighting;
+        lighting.sunColor[0] = lighting.sunColor[1] = lighting.sunColor[2] = 0.0f;
+        lighting.sky[0] = lighting.sky[1] = lighting.sky[2] = 0.2f;
+        lighting.bounces = 0.0f;
+        Lighting extra = lighting;
+        extra.flags = kRtFrameExtra;
+        const auto run = [&](bool finished, std::vector<uint16_t>& out)
+        {
+            SendMaterial(proxy, 22, black, glow, 0.2f);
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19400, kRtSignalSpecular, lighting);
+            SendFrame(proxy, camera, g, furtherOutputs, sun, 0.0f, 19400, kRtSignalSpecular, extra);
+            if (finished)
+                ReadTexture(device.Get(), context.Get(), furtherOutputs.specular.Get(), 8, out);
+            SendMaterial(proxy, 22, black, black, 0.2f);
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19401, kRtSignalSpecular, lighting);
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19402, kRtSignalSpecular, lighting);
+            if (!finished)
+                ReadTexture(device.Get(), context.Get(), furtherOutputs.specular.Get(), 8, out);
+        };
+        std::vector<uint16_t> reference, raced;
+        run(true, reference);
+        size_t glowing = 0;
+        for (size_t i = 0; i < reference.size() / 4; ++i)
+            glowing += HalfToFloat(reference[i * 4]) > 3.0f ? 1 : 0;
+        size_t worst = 0;
+        for (int attempt = 0; attempt < 16; ++attempt)
+        {
+            run(false, raced);
+            size_t differ = 0;
+            for (size_t i = 0; i < reference.size(); ++i)
+                differ += reference[i] != raced[i] ? 1 : 0;
+            worst = std::max(worst, differ);
+        }
+        char detail[200];
+        sprintf_s(detail, "%zu pixels reflect the tower's glow; at most %zu values of 16 runs differ where the next frames"
+                          " came at once",
+                  glowing, worst);
+        Check(glowing > 2000 && worst == 0, "a further trace while the next frames are recorded", detail);
+        SendMaterial(proxy, 22, black, glow, 0.2f);
+        SendInstances(proxy, scene, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+    }
+    {
+        // A mesh handed over between a frame and its further trace: the further trace builds
+        // it and the scene anew, and its shadow is there; the frame's own has none.
+        Mesh added = MakeCube(95);
+        std::vector<Instance> shaded = scene;
+        Instance block;
+        block.mesh = 95;
+        block.position = { 12, 3, -14 };
+        block.scale[0] = block.scale[1] = block.scale[2] = 6.0;
+        shaded.push_back(block);
+        std::vector<Instance> shading = boxes;
+        shading.push_back(block);
+        SendInstances(proxy, shaded, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        Lighting extra;
+        extra.flags = kRtFrameExtra;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 19420, kRtSignalSunVisibility);
+        const bool accepted = SendMesh(proxy, added) == 1;
+        SendFrame(proxy, camera, g, furtherOutputs, sun, 0.0f, 19420, kRtSignalSunVisibility, extra);
+        Frame own, after;
+        if (!ReadFrame(device.Get(), context.Get(), g, outputs, own) || !ReadFrame(device.Get(), context.Get(), g, furtherOutputs, after))
+            return Fatal("reading the frames back", E_FAIL);
+        const std::vector<int> without = ExpectedVisibility(camera, own.depth, own.normals, boxes, sun);
+        const std::vector<int> with = ExpectedVisibility(camera, after.depth, after.normals, shading, sun);
+        size_t shadowed = 0;
+        for (size_t i = 0; i < with.size(); ++i)
+            shadowed += with[i] == 0 && without[i] == 1 ? 1 : 0;
+        if (!accepted || shadowed < 1000)
+            Check(false, "a further trace after a mesh is built", accepted ? "the new box casts no shadow in view" : "the mesh was not taken");
+        else
+        {
+            printf("      the new box shadows %zu pixels\n", shadowed);
+            CheckVisibility("a further trace after a mesh is built: the frame's own", own, without);
+            CheckVisibility("a further trace after a mesh is built", after, with);
+        }
+        proxy.releaseMesh(95);
         SendInstances(proxy, scene, camera.position);
     }
 
