@@ -42,6 +42,8 @@ namespace ReDefinition.Scenery
 
         private void Start()
         {
+            GameEvents.onGameSceneLoadRequested.Add(OnLeaving);
+            Application.quitting += OnQuitting;
             if (!ForeignAssumptions.FireflyIdle.Holds)
             {
                 enabled = false;
@@ -68,8 +70,26 @@ namespace ReDefinition.Scenery
 
         private void OnDestroy()
         {
-            foreach (object module in idle) Wake(module);
+            // Not when the flight or the game ends: its vessels and Firefly's effects go with
+            // it, and waking them while Firefly tears its own down threw
+            // (TargetInvocationException from its populate call, 2026-10-19, as KSP quit).
+            if (HighLogic.LoadedSceneIsFlight && !leaving)
+                foreach (object module in idle) Wake(module);
             idle.Clear();
+            GameEvents.onGameSceneLoadRequested.Remove(OnLeaving);
+            Application.quitting -= OnQuitting;
+        }
+
+        private void OnQuitting()
+        {
+            leaving = true;
+        }
+
+        private bool leaving;
+
+        private void OnLeaving(GameScenes scene)
+        {
+            leaving = true;
         }
 
         private void LateUpdate()
