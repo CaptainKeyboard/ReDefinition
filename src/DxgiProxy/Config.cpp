@@ -124,14 +124,21 @@ namespace redefinition
             HGLOBAL loaded = found != nullptr ? LoadResource(self, found) : nullptr;
             const char* data = loaded != nullptr ? static_cast<const char*>(LockResource(loaded)) : nullptr;
             if (data == nullptr)
+            {
+                LogLine("Config: the settings template is missing from the proxy");
                 return;
+            }
             const std::string templateText(data, SizeofResource(self, found));
 
             std::string existing;
             if (!ReadFileText(file, existing))
             {
+                const DWORD readError = GetLastError();
                 if (WriteFileText(file, templateText))
                     LogLine("Config: ReDefinitionProxy.ini written from the template, with every default");
+                else
+                    LogLine("Config: ReDefinitionProxy.ini neither read (error " + std::to_string(readError)
+                            + ") nor written from the template (error " + std::to_string(GetLastError()) + ")");
                 return;
             }
 
