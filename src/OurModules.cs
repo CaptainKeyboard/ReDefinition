@@ -295,7 +295,8 @@ namespace ReDefinition
                 Tooltip = "The colour of the light from the sky and the surroundings; its strength is the rays' in each.\n"
                           + "Raytraced: the sky's own, blue by day, orange at dusk, blue at night.\n"
                           + "As without raytracing: the colour of the ambient light the game has without it.\n"
-                          + "Neutral: grey, so that grass and ground in shadow keep their own colour.",
+                          + "Neutral: grey, so that grass and ground in shadow keep their own colour.\n"
+                          + "Only with Deferred, in whose lighting the colour is set.",
                 Read = settings => settings.RaytracingLightColour.ToString(),
                 Write = (settings, value) =>
                 {
@@ -303,7 +304,9 @@ namespace ReDefinition
                     settings.RaytracingLightColour = System.Enum.TryParse(value, out colour)
                         ? colour : ReDefinition.Raytracing.RaytracingLightColour.Neutral;
                 },
-                Interactable = TracesDiffuseLight,
+                // Set in Deferred's reflections pass, through ReDefinition's copy of its shader
+                // (RtLighting); without Deferred the raytraced light goes in as it is.
+                Interactable = settings => TracesDiffuseLight(settings) && ReDefinition.Core.ForeignAssumptions.DeferredReflections.Holds,
             });
 
         private static string LightColourLabel(string value)

@@ -47,10 +47,29 @@ namespace ReDefinition.Raytracing
 
         private static readonly HashSet<string> Unknown = new HashSet<string>();
 
+        // Materials whose values were changed for Deferred's G-buffer (EditorHallShine),
+        // with the shine their own values mean: read again from the changed ones, a
+        // highlight's colour and shininess set for Deferred's conversion give another. The
+        // rays take a material's again whenever its texture arrives (RtScene.Deliver), after
+        // the hall was changed.
+        private static readonly Dictionary<Material, RtMaterialIntent> meant = new Dictionary<Material, RtMaterialIntent>();
+
+        internal static void Hold(Material material, RtMaterialIntent intent)
+        {
+            if (material != null) meant[material] = intent;
+        }
+
+        internal static void Release(Material material)
+        {
+            if (!ReferenceEquals(material, null)) meant.Remove(material);
+        }
+
         internal static RtMaterialIntent Of(Material material, bool scenery)
         {
             var keep = new RtMaterialIntent { Mode = RtNative.SurfaceKeep, Specular = Color.black, Smoothness = 0f };
             if (material == null || material.shader == null) return keep;
+            RtMaterialIntent held;
+            if (meant.TryGetValue(material, out held)) return held;
             string shader = material.shader.name;
 
             if (shader.StartsWith("Custom/Parallax", StringComparison.Ordinal) && material.HasProperty("_SpecularPower"))

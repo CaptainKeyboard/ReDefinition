@@ -25,6 +25,21 @@ namespace ReDefinition.Raytracing
         private static readonly Color Grey = new Color(0.12f, 0.12f, 0.12f);
         private static readonly Dictionary<CelestialBody, Color> colours = new Dictionary<CelestialBody, Color>();
         private static readonly Dictionary<CelestialBody, float> retryAt = new Dictionary<CelestialBody, float>();
+        // Textures read as white placeholders, with their size and update count then: not
+        // read again while those stay, as each read waits for the GPU (ReadPixels). The
+        // body's own texture, once loaded, is another texture or the same one filled.
+        private static readonly Dictionary<Texture, Vector3Int> placeholders = new Dictionary<Texture, Vector3Int>();
+
+        private static Vector3Int Shape(Texture texture)
+        {
+            return new Vector3Int(texture.width, texture.height, (int)texture.updateCount);
+        }
+
+        private static bool Placeholder(Texture texture)
+        {
+            Vector3Int shape;
+            return placeholders.TryGetValue(texture, out shape) && shape == Shape(texture);
+        }
 
         private struct Candidate
         {
@@ -53,7 +68,11 @@ namespace ReDefinition.Raytracing
                 planet = planet.referenceBody;
             if (planet == null || planet == star) return false;
             bodies.Add(planet);
-            if (planet.orbitingBodies != null) bodies.AddRange(planet.orbitingBodies);
+            // One by one: Mono's AddRange copies through a new array, every frame here
+            // (MoonGlow, Fill).
+            List<CelestialBody> moons = planet.orbitingBodies;
+            if (moons != null)
+                for (int i = 0; i < moons.Count; i++) bodies.Add(moons[i]);
             return true;
         }
 
@@ -181,10 +200,14 @@ namespace ReDefinition.Raytracing
                 foreach (string property in ColourMaps)
                 {
                     Texture texture = material != null && material.HasProperty(property) ? material.GetTexture(property) : null;
-                    if (texture == null || texture == Texture2D.whiteTexture) continue;
+                    if (texture == null || texture == Texture2D.whiteTexture || Placeholder(texture)) continue;
                     Color average = Average(texture);
                     // A placeholder: Parallax's scaled shader leaves _MainTex white.
-                    if (average.r >= 0.999f && average.g >= 0.999f && average.b >= 0.999f) continue;
+                    if (average.r >= 0.999f && average.g >= 0.999f && average.b >= 0.999f)
+                    {
+                        placeholders[texture] = Shape(texture);
+                        continue;
+                    }
                     colour = average;
                     read = true;
                     break;

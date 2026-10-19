@@ -5,9 +5,10 @@
 // Lahmar, GPL 3.0), changed for ReDefinition (docs/development/raytracing.md, "Where
 // the raytraced light enters Unity's lighting"): for the camera that is raytraced,
 // the ambient light is the raytraced diffuse light and the reflection the raytraced
-// one, both of the frame before, carried over (ReDefinitionRtReproject.cginc), in place of
-// the reflection probe (the block marked ReDefinition in frag). Everything else is
-// Deferred's. Its name is kept apart: ReDefinition/Internal-DeferredReflections.
+// one, found for each point by ReDefinitionRtReproject.cginc -- the game's own frame's,
+// traced before its lighting; the frame before's, carried over, where the trace follows
+// the frame (the test players) --, in place of the reflection probe (the block marked
+// ReDefinition in frag). Everything else is Deferred's. Its name is kept apart: ReDefinition/Internal-DeferredReflections.
 
 Shader "ReDefinition/Internal-DeferredReflections" {
 Properties {
@@ -179,7 +180,7 @@ half4 frag (unity_v2f_deferred i) : SV_Target
     ind.diffuse *= data.occlusion; // Take the occlusion into account for the one IVA where it's used and for AO
 
     // ReDefinition: the raytraced light in place of the probe's, where the raytraced
-    // frame before has this point; looked for only where either signal is used.
+    // frame has this point; looked for only where either signal is used.
     float2 rtUv = 0.0;
     bool rtFilled = false;
     [branch]

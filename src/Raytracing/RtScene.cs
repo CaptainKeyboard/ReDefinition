@@ -99,6 +99,11 @@ namespace ReDefinition.Raytracing
         // Submeshes that can never be handed over -- not readable, or not triangles -- not
         // tried again each frame.
         private readonly HashSet<long> unusable = new HashSet<long>();
+        // Submeshes the last hand-over failed for -- empty yet, or refused by the proxy --,
+        // with the frame it failed in: tried again after FailedRetryFrames, not every frame,
+        // each try reading the whole mesh into new arrays and taking the frame's upload budget.
+        private readonly Dictionary<long, int> failed = new Dictionary<long, int>();
+        private const int FailedRetryFrames = 30;
         private readonly Dictionary<Mesh, List<long>> keysOf = new Dictionary<Mesh, List<long>>();
         private readonly Dictionary<Material, MaterialEntry> materials = new Dictionary<Material, MaterialEntry>();
         private readonly List<RtItem> items = new List<RtItem>();
@@ -194,6 +199,7 @@ namespace ReDefinition.Raytracing
                 epoch++;
                 meshes.Clear();
                 keysOf.Clear();
+                failed.Clear();
                 materials.Clear();
                 texturesToRead.Clear();
                 freeLayers.Clear();
@@ -344,6 +350,8 @@ namespace ReDefinition.Raytracing
             }
             if (!UploadAllowed) return 0;
             if (unusable.Contains(key)) return 0;
+            int failedAt;
+            if (failed.TryGetValue(key, out failedAt) && frame - failedAt < FailedRetryFrames) return 0;
             if (!mesh.isReadable)
             {
                 unusable.Add(key);
@@ -357,7 +365,12 @@ namespace ReDefinition.Raytracing
                 return 0;
             }
             int id = nextMeshId++;
-            if (!TimedUpload(mesh, subMesh, id, material)) return 0;
+            if (!TimedUpload(mesh, subMesh, id, material))
+            {
+                failed[key] = frame;
+                return 0;
+            }
+            failed.Remove(key);
             meshes[key] = new MeshEntry { Id = id, LastSeen = frame, Mesh = mesh, SubMesh = subMesh };
             List<long> keys;
             if (!keysOf.TryGetValue(mesh, out keys)) keysOf[mesh] = keys = new List<long>();
@@ -778,6 +791,7 @@ namespace ReDefinition.Raytracing
                 foreach (Mesh mesh in dead) keysOf.Remove(mesh);
                 // The unusable ones of meshes long gone: asked once more if still around.
                 if (unusable.Count > 4096) unusable.Clear();
+                if (failed.Count > 4096) failed.Clear();
             }
         }
 
@@ -790,6 +804,7 @@ namespace ReDefinition.Raytracing
                 RtNative.KspRtReleaseMaterial(entry.Id);
             meshes.Clear();
             unusable.Clear();
+            failed.Clear();
             keysOf.Clear();
             materials.Clear();
             texturesToRead.Clear();

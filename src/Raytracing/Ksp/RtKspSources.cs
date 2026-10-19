@@ -104,6 +104,8 @@ namespace ReDefinition.Raytracing
         private sealed class PartRenderers
         {
             public MeshFilter[] Filters;
+            // Each filter's renderer, found with it.
+            public MeshRenderer[] Renderers;
             public SkinnedMeshRenderer[] Skinned;
             public int Frame;
         }
@@ -169,18 +171,23 @@ namespace ReDefinition.Raytracing
                     || (frame - renderers.Frame > RefreshFrames && refreshes++ < RefreshesPerFrame))
                 {
                     // Looked at again now and then: parts change their models (B9PartSwitch).
+                    MeshFilter[] filters = part.GetComponentsInChildren<MeshFilter>(false);
                     renderers = new PartRenderers
                     {
-                        Filters = part.GetComponentsInChildren<MeshFilter>(false),
+                        Filters = filters,
+                        Renderers = new MeshRenderer[filters.Length],
                         Skinned = part.GetComponentsInChildren<SkinnedMeshRenderer>(false),
                         Frame = frame,
                     };
+                    for (int i = 0; i < filters.Length; i++)
+                        if (filters[i] != null) renderers.Renderers[i] = filters[i].GetComponent<MeshRenderer>();
                     parts[part] = renderers;
                 }
-                foreach (MeshFilter filter in renderers.Filters)
+                for (int i = 0; i < renderers.Filters.Length; i++)
                 {
+                    MeshFilter filter = renderers.Filters[i];
                     if (filter == null) continue;
-                    RtFilter.Add(filter.GetComponent<MeshRenderer>(), filter.sharedMesh, into);
+                    RtFilter.Add(renderers.Renderers[i], filter.sharedMesh, into);
                 }
                 foreach (SkinnedMeshRenderer skinned in renderers.Skinned)
                 {
@@ -465,6 +472,7 @@ namespace ReDefinition.Raytracing
         // for the rays anew.
         private readonly Dictionary<SkinnedMeshRenderer, Mesh> baked = new Dictionary<SkinnedMeshRenderer, Mesh>();
         private readonly Dictionary<SkinnedMeshRenderer, float> bakedAt = new Dictionary<SkinnedMeshRenderer, float>();
+        private readonly List<SkinnedMeshRenderer> goneBakes = new List<SkinnedMeshRenderer>();
         private const float BakeEvery = 0.5f;
         private readonly List<MeshFilter> all = new List<MeshFilter>();
         private readonly RtScene scene;
@@ -531,13 +539,11 @@ namespace ReDefinition.Raytracing
                 if (sitesOf != HighLogic.LoadedScene)
                 {
                     sites.Clear();
-                    foreach (Mesh mesh in baked.Values)
-                        if (mesh != null) Object.Destroy(mesh);
-                    baked.Clear();
-                    bakedAt.Clear();
+                    ReleaseBaked();
                     sceneAt = Time.unscaledTime;
                     laterLooks = 0;
                 }
+                else ForgetGoneBakes();
                 sitesOf = HighLogic.LoadedScene;
                 FindSites();
             }
@@ -607,6 +613,39 @@ namespace ReDefinition.Raytracing
             sites.RemoveAll(s => s.Root == null || !roots.Contains(s.Root));
             foreach (Transform root in roots)
                 if (!sites.Exists(s => s.Root == root)) sites.Add(new Site { Root = root });
+        }
+
+        // The baked meshes let go: the scene's or the raytracing's end (Clear).
+        private void ReleaseBaked()
+        {
+            foreach (Mesh mesh in baked.Values)
+                if (mesh != null) Object.Destroy(mesh);
+            baked.Clear();
+            bakedAt.Clear();
+        }
+
+        // Every ten seconds, with the sites: the bakes of skinned renderers destroyed since
+        // -- a flag taken down, a building rebuilt -- let go with their meshes.
+        private void ForgetGoneBakes()
+        {
+            goneBakes.Clear();
+            foreach (KeyValuePair<SkinnedMeshRenderer, Mesh> entry in baked)
+                if (entry.Key == null) goneBakes.Add(entry.Key);
+            foreach (SkinnedMeshRenderer skinned in goneBakes)
+            {
+                if (baked[skinned] != null) Object.Destroy(baked[skinned]);
+                baked.Remove(skinned);
+                bakedAt.Remove(skinned);
+            }
+        }
+
+        // Everything let go as the raytracing stops (RtKsp.Detach): a new source is made
+        // when it starts again.
+        internal void Clear()
+        {
+            ReleaseBaked();
+            sites.Clear();
+            sitesOf = GameScenes.LOADING;
         }
 
         private Mesh Baked(SkinnedMeshRenderer skinned)

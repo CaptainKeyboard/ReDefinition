@@ -2,10 +2,11 @@
 //
 // Changed for ReDefinition (docs/development/raytracing.md, "Where the raytraced light
 // enters Unity's lighting"): for the camera that is raytraced, the mask holds the
-// raytraced sun visibility of the frame before, carried over by
-// ReDefinitionRtReproject.cginc, in place of the cascaded shadow maps (RtShadow, and its
-// two calls in frag_hard and frag_pcfSoft). Every other camera collects its shadows
-// as Unity's shader does. Unity's name is kept apart: Hidden/ReDefinition/ScreenSpaceShadows.
+// raytraced sun visibility, found for each point by ReDefinitionRtReproject.cginc --
+// the game's own frame's, traced before its lighting; the frame before's, carried over,
+// where the trace follows the frame (the test players) --, in place of the cascaded
+// shadow maps (RtShadow, and its two calls in frag_hard and frag_pcfSoft). Every other
+// camera collects its shadows as Unity's shader does. Unity's name is kept apart: Hidden/ReDefinition/ScreenSpaceShadows.
 
 // Collects cascaded shadows into screen space buffer
 Shader "Hidden/ReDefinition/ScreenSpaceShadows" {

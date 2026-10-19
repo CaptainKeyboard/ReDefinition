@@ -81,8 +81,10 @@ namespace ReDefinition.Raytracing
                 AddStockSea(pqs.surfaceMaterial);
                 AddStockSea(pqs.fallbackMaterial);
             }
-            // The quads draw with their own copies where a mod gave them one.
-            if (stockSeas.Count == 0)
+            // The quads draw with their own copies where a mod gave them one: looked for among
+            // all renderers only where the body has a sea, not every ten seconds over every
+            // body without one, in every scene.
+            if (stockSeas.Count == 0 && scannedBody != null && scannedBody.ocean)
                 foreach (MeshRenderer renderer in FindObjectsOfType<MeshRenderer>())
                     if (renderer != null && renderer.gameObject.name.Contains("Ocean"))
                         AddStockSea(renderer.sharedMaterial);

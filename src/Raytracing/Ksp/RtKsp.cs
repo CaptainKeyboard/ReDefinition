@@ -258,6 +258,7 @@ namespace ReDefinition.Raytracing
                 Problem("Raytracing does not run: " + camera.Problem);
                 vessels.Clear();
                 terrain.Clear();
+                scenery.Clear();
                 Object.Destroy(camera);
                 failedOn = sceneCamera;
                 return;
@@ -286,6 +287,7 @@ namespace ReDefinition.Raytracing
             if (ReferenceEquals(attached, null)) return;
             vessels?.Clear();
             terrain?.Clear();
+            scenery?.Clear();
             if (attached != null) Object.Destroy(attached);
             attached = null;
             attachedTo = null;

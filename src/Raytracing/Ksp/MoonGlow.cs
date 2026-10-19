@@ -102,8 +102,13 @@ namespace ReDefinition.Raytracing
             if (main == null || star == null) return;
 
             if (!RtReflectors.SystemOf(main, star, moons)) return;
-            moons.Remove(main);
-            moons.RemoveAll(body => body.referenceBody == null || body.referenceBody == star);
+            // Backwards by index: RemoveAll's predicate, capturing the star, would be a new
+            // closure every frame.
+            for (int i = moons.Count - 1; i >= 0; i--)
+            {
+                CelestialBody body = moons[i];
+                if (body == null || body == main || body.referenceBody == null || body.referenceBody == star) moons.RemoveAt(i);
+            }
 
             Vector3d eye = camera.transform.position;
             // What stands in front of a moon: the main body, and at a moon its planet;

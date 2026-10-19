@@ -463,6 +463,8 @@ namespace ReDefinition.Raytracing
             oceanDiscs?.Release();
             oceanDiscs = null;
             gbufferCopy?.Release();
+            unbakeAmbient?.Release();
+            unbakeAmbient = null;
             forwardLight?.Release();
             forwardLight = null;
             if (forwardMaterial != null) Destroy(forwardMaterial);
@@ -506,7 +508,11 @@ namespace ReDefinition.Raytracing
                 }
                 forwardLight.Clear();
                 bool forwardFrame = !RtLighting.ReflectionsReplaced;
-                if (forwardFrame && haveHistory && !Cut() && forward != null && (Settings.Diffuse || Settings.Reflections))
+                // Traced before the lighting, the light is this frame's own, a cut's too
+                // (traced afresh); traced after the frame, the frame before's, which a cut
+                // leaves behind.
+                bool traced = TraceBeforeLighting || haveHistory && !Cut();
+                if (forwardFrame && traced && forward != null && (Settings.Diffuse || Settings.Reflections))
                 {
                     Shader.SetGlobalTexture(RtForward, forward);
                     if (forwardEvent == CameraEvent.AfterForwardOpaque)
@@ -883,7 +889,10 @@ namespace ReDefinition.Raytracing
         // GPU's frame off at the pad, with the 3D scene unchanged against two shots
         // without a change (docs/development/performance-findings.md). The distance and
         // the resolution stay Scatterer's. Set back when the rays stop, where the value is
-        // still the one set here.
+        // still the one set here. A count set meanwhile -- the player's shadow quality in
+        // KSP's settings (KspBehaviour.ApplyQuality) -- is what comes back then: more
+        // than two is held again, one stays as it is (two cannot be told from the count
+        // set here).
         private const int RaytracedCascades = 2;
         private int heldCascades = -1;
 
@@ -891,12 +900,15 @@ namespace ReDefinition.Raytracing
         {
             if (raytraced)
             {
-                if (heldCascades < 0)
+                int now = QualitySettings.shadowCascades;
+                if (now == RaytracedCascades && heldCascades >= 0) return;
+                if (now <= RaytracedCascades)
                 {
-                    if (QualitySettings.shadowCascades <= RaytracedCascades) return;
-                    heldCascades = QualitySettings.shadowCascades;
+                    heldCascades = -1;
+                    return;
                 }
-                if (QualitySettings.shadowCascades != RaytracedCascades) QualitySettings.shadowCascades = RaytracedCascades;
+                heldCascades = now;
+                QualitySettings.shadowCascades = RaytracedCascades;
                 return;
             }
             if (heldCascades < 0) return;

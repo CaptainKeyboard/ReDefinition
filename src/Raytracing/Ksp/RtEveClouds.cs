@@ -49,6 +49,15 @@ namespace ReDefinition.Raytracing
         // not give them back.
         private FieldInfo curves, wrapperType, wrapperMask;
         private MethodInfo wrapperTexture;
+        // The value-typed members read every frame, through compiled getters: a
+        // PropertyInfo's GetValue boxes each (CompiledGetter).
+        private Func<object, bool> readEnabled, readScaled2D;
+        private Func<object, Matrix4x4> readRotation;
+        private Func<object, float> readInner, readOuter, readFadeCoverage, readFadeDensity, readScaledFade;
+        // The body whose name was read last, and its name: Object.name is a new string
+        // each time it is read.
+        private CelestialBody namedBody;
+        private string bodyNameOf;
         private RenderTexture packed;
         private IntPtr packedHandle;
         private Material pack;
@@ -116,8 +125,16 @@ namespace ReDefinition.Raytracing
             wrapperType = wrapper != null ? wrapper.GetField("type", BindingFlags.Instance | BindingFlags.NonPublic) : null;
             wrapperMask = wrapper != null ? wrapper.GetField("alphaMask", BindingFlags.Instance | BindingFlags.NonPublic) : null;
             scaled2D = layerType.GetProperty("Scaled");
-            if (objectList == null || bodyName == null || layer2D == null || volume == null || rotation == null || volumeMaterial == null
-                || inner == null || outer == null || shadowMaterial == null || coverageMap == null || typeMap == null || curves == null
+            readEnabled = CompiledGetter.Of<bool>(volumeEnabled);
+            readScaled2D = CompiledGetter.Of<bool>(scaled2D);
+            readRotation = CompiledGetter.Of<Matrix4x4>(rotation);
+            readInner = CompiledGetter.Of<float>(inner);
+            readOuter = CompiledGetter.Of<float>(outer);
+            readFadeCoverage = CompiledGetter.Of<float>(fadeCoverage);
+            readFadeDensity = CompiledGetter.Of<float>(fadeDensity);
+            readScaledFade = CompiledGetter.Of<float>(scaledFade);
+            if (objectList == null || bodyName == null || layer2D == null || volume == null || readRotation == null || volumeMaterial == null
+                || readInner == null || readOuter == null || shadowMaterial == null || coverageMap == null || typeMap == null || curves == null
                 || wrapperTexture == null)
             {
                 objectList = null;
@@ -133,10 +150,18 @@ namespace ReDefinition.Raytracing
             if (!Resolve()) return false;
             IList objects = objectList.GetValue(null) as IList;
             if (objects == null) return false;
-            string why = objects.Count + " cloud objects, none of " + body.name;
+            if (body != namedBody)
+            {
+                namedBody = body;
+                bodyNameOf = body.name;
+            }
+            string name = bodyNameOf;
+            // Why there is no layer, as a text only where it is logged; null for none of
+            // the body's.
+            string why = null;
             foreach (object cloudsObject in objects)
             {
-                if (cloudsObject == null || (bodyName.GetValue(cloudsObject, null) as string) != body.name) continue;
+                if (cloudsObject == null || (bodyName.GetValue(cloudsObject, null) as string) != name) continue;
                 object layer = volume.GetValue(cloudsObject, null);
                 object flat = layer2D.GetValue(cloudsObject, null);
                 if (layer == null || flat == null)
@@ -144,12 +169,12 @@ namespace ReDefinition.Raytracing
                     why = "a layer without " + (layer == null ? "a volume" : "a 2D layer");
                     continue;
                 }
-                if (volumeEnabled != null && !(bool)volumeEnabled.GetValue(layer, null))
+                if (readEnabled != null && !readEnabled(layer))
                 {
                     why = "the volume off";
                     continue;
                 }
-                if (scaled2D != null && (bool)scaled2D.GetValue(flat, null))
+                if (readScaled2D != null && readScaled2D(flat))
                 {
                     why = "the 2D layer in scaled space";
                     continue;
@@ -162,11 +187,11 @@ namespace ReDefinition.Raytracing
                     continue;
                 }
                 float radius = shadow.GetFloat("_Radius");
-                float innerRadius = (float)inner.GetValue(layer, null), outerRadius = (float)outer.GetValue(layer, null);
+                float innerRadius = readInner(layer), outerRadius = readOuter(layer);
                 if (!Pack(layer, radius, innerRadius, outerRadius)) return false;
 
                 // World to map, taken to the camera-relative world the rays work in.
-                Matrix4x4 m = (Matrix4x4)rotation.GetValue(layer, null) * Matrix4x4.Translate(camera);
+                Matrix4x4 m = readRotation(layer) * Matrix4x4.Translate(camera);
                 for (int row = 0; row < 3; row++)
                     for (int column = 0; column < 4; column++)
                         clouds[row * 4 + column] = m[row, column];
@@ -177,12 +202,12 @@ namespace ReDefinition.Raytracing
                 Color colour = shadow.HasProperty("_Color") ? shadow.GetColor("_Color") : Color.white;
                 float factor = shadow.HasProperty("_ShadowFactor") ? shadow.GetFloat("_ShadowFactor") : 0.75f;
                 clouds[16] = factor * colour.a;
-                clouds[17] = fadeCoverage != null ? (float)fadeCoverage.GetValue(layer, null) : 1f;
+                clouds[17] = readFadeCoverage != null ? readFadeCoverage(layer) : 1f;
                 float fade = (shadow.HasProperty("cloudTimeFadeDensity") ? shadow.GetFloat("cloudTimeFadeDensity") : 1f)
                              * (shadow.HasProperty("mapViewFade") ? shadow.GetFloat("mapViewFade") : 1f)
-                             * (scaledFade != null ? (float)scaledFade.GetValue(layer, null) : 1f);
+                             * (readScaledFade != null ? readScaledFade(layer) : 1f);
                 clouds[18] = fade;
-                clouds[19] = fadeDensity != null ? (float)fadeDensity.GetValue(layer, null) : 1f;
+                clouds[19] = readFadeDensity != null ? readFadeDensity(layer) : 1f;
                 clouds[20] = colour.r;
                 clouds[21] = colour.g;
                 clouds[22] = colour.b;
@@ -191,9 +216,9 @@ namespace ReDefinition.Raytracing
                 lastLayer = layer;
                 lastRadius = radius;
                 lastCentre = (Vector3)body.position;
-                if (loggedBody != body.name)
+                if (loggedBody != name)
                 {
-                    loggedBody = body.name;
+                    loggedBody = name;
                     Debug.Log(Log.Tag + " Raytracing: " + body.name + "'s clouds in the rays: shadow at " + radius.ToString("0")
                               + " m from the centre, the layer " + innerRadius.ToString("0") + " to " + outerRadius.ToString("0")
                               + " m, shadow strength " + clouds[16].ToString("0.00") + ", fades " + clouds[17].ToString("0.00") + " / "
@@ -201,15 +226,22 @@ namespace ReDefinition.Raytracing
                 }
                 return packedHandle != IntPtr.Zero;
             }
-            if (whyLogged != why)
+            int count = objects.Count;
+            if (whyLogged != why || whyCount != count || whyBody != name || !whyAny)
             {
                 whyLogged = why;
-                Debug.Log(Log.Tag + " Raytracing: no clouds in the rays over " + body.name + ": " + why + ".");
+                whyCount = count;
+                whyBody = name;
+                whyAny = true;
+                Debug.Log(Log.Tag + " Raytracing: no clouds in the rays over " + name + ": "
+                          + (why ?? count + " cloud objects, none of " + name) + ".");
             }
             return false;
         }
 
-        private string whyLogged;
+        private string whyLogged, whyBody;
+        private int whyCount;
+        private bool whyAny;
 
         // The maps packed at the shadow's height, when they or the height change and every
         // few seconds (the coverage map is loaded on demand).

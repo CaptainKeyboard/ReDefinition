@@ -47,11 +47,11 @@ namespace ReDefinition.Raytracing
                     RtMaterialIntent intent = RtMaterialIntent.Of(material, true);
                     if (intent.Mode == RtNative.SurfaceDry)
                     {
-                        if (Matt(material)) matt++;
+                        if (Matt(material, intent)) matt++;
                     }
                     else if (intent.Mode == RtNative.SurfaceLegacy && material.HasProperty("_SpecColor") && material.HasProperty("_Shininess"))
                     {
-                        Remember(material);
+                        Remember(material, intent);
                         Highlight(material, intent);
                         shiny++;
                     }
@@ -67,6 +67,7 @@ namespace ReDefinition.Raytracing
             foreach (KeyValuePair<Material, Original> entry in changed)
             {
                 Material material = entry.Key;
+                RtMaterialIntent.Release(material);
                 if (material == null) continue;
                 if (material.shader != entry.Value.Shader) material.shader = entry.Value.Shader;
                 if (entry.Value.HasSpecColor) material.SetColor("_SpecColor", entry.Value.SpecColor);
@@ -76,8 +77,11 @@ namespace ReDefinition.Raytracing
             appliedIn = GameScenes.LOADING;
         }
 
-        private void Remember(Material material)
+        // The values as they were, and the shine they mean, which the rays keep taking
+        // (RtMaterialIntent.Hold).
+        private void Remember(Material material, RtMaterialIntent intent)
         {
+            RtMaterialIntent.Hold(material, intent);
             changed[material] = new Original
             {
                 Shader = material.shader,
@@ -88,7 +92,7 @@ namespace ReDefinition.Raytracing
             };
         }
 
-        private bool Matt(Material material)
+        private bool Matt(Material material, RtMaterialIntent intent)
         {
             string name = material.shader.name;
             Shader target = material.shader;
@@ -110,7 +114,7 @@ namespace ReDefinition.Raytracing
                 }
                 if (target == null) return false;
             }
-            Remember(material);
+            Remember(material, intent);
             material.shader = target;
             if (material.HasProperty("_SpecColor")) material.SetColor("_SpecColor", Color.black);
             if (material.HasProperty("_Shininess")) material.SetFloat("_Shininess", 0.03f);
