@@ -310,6 +310,11 @@ namespace ReDefinition.Raytracing
         // The surfaces written back into the G-buffer (ReDefinitionRtCapture.shader, fragSurface).
         private const int SurfacePass = 12;
         private const int SurfaceViewPass = 13;
+        // KSP's flat ambient light taken out of the light buffer where a surface's own
+        // G-buffer pass put it (ReDefinitionRtCapture.shader, fragUnbakeAmbient).
+        private const int UnbakeAmbientPass = 14;
+        private CommandBuffer unbakeAmbient;
+        private static readonly int FlatAmbientId = Shader.PropertyToID("_ReDefinitionFlatAmbient");
         private CommandBuffer surfaceView;
         private bool surfaceViewAttached;
         private static readonly int SurfaceId = Shader.PropertyToID("_ReDefinitionRtSurface");
@@ -387,6 +392,8 @@ namespace ReDefinition.Raytracing
             // camera's own command stream, where the copy belongs to this frame.
             gbufferCopy = new CommandBuffer { name = "ReDefinition raytracing G-buffer" };
             cam.AddCommandBuffer(CameraEvent.AfterGBuffer, gbufferCopy);
+            unbakeAmbient = new CommandBuffer { name = "ReDefinition raytracing ambient taken out" };
+            cam.AddCommandBuffer(CameraEvent.AfterGBuffer, unbakeAmbient);
             // Without Deferred's reflections pass to take it, the raytraced light goes into
             // the frame after the opaque geometry's light, before the transparent and the
             // atmosphere: after the forward opaque pass, or after Unity's deferred lighting,
@@ -429,6 +436,7 @@ namespace ReDefinition.Raytracing
                 }
                 if (flagOff != null) cam.RemoveCommandBuffer(CameraEvent.AfterEverything, flagOff);
                 if (gbufferCopy != null) cam.RemoveCommandBuffer(CameraEvent.AfterGBuffer, gbufferCopy);
+                if (unbakeAmbient != null) cam.RemoveCommandBuffer(CameraEvent.AfterGBuffer, unbakeAmbient);
                 DetachTrace();
                 if (forwardLight != null) cam.RemoveCommandBuffer(forwardEvent, forwardLight);
             }
@@ -531,6 +539,20 @@ namespace ReDefinition.Raytracing
                 gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer0, gbuffer0);
                 gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer1, gbuffer1);
                 gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer2, gbuffer2);
+            }
+
+            // Where the raytraced diffuse light replaces the ambient light: the flat ambient
+            // light a surface's own G-buffer pass added taken out first, so that it does not
+            // keep KSP's light of the day at night. The light buffer holds linear values only
+            // in HDR; in LDR Unity keeps it encoded.
+            unbakeAmbient.Clear();
+            if (Settings.Diffuse && cam.allowHDR && cam.actualRenderingPath == RenderingPath.DeferredShading)
+            {
+                unbakeAmbient.GetTemporaryRT(RtFrameCopy, -1, -1, 0, FilterMode.Point, RenderTextureFormat.DefaultHDR);
+                unbakeAmbient.Blit(BuiltinRenderTextureType.CameraTarget, RtFrameCopy);
+                unbakeAmbient.SetGlobalColor(FlatAmbientId, RenderSettings.ambientLight);
+                unbakeAmbient.Blit(RtFrameCopy, BuiltinRenderTextureType.CameraTarget, capture, UnbakeAmbientPass);
+                unbakeAmbient.ReleaseTemporaryRT(RtFrameCopy);
             }
 
             // The previous frame's results, carried to this frame's world.

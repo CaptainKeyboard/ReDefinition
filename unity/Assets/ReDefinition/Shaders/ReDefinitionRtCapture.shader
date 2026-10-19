@@ -348,6 +348,25 @@ Shader "Hidden/ReDefinition/RtCapture"
         }
         return half4(colour, 1.0);
     }
+
+    // Pass 14, after the G-buffer, from a copy of the light buffer: KSP's flat ambient
+    // light taken out where a surface's own G-buffer pass put it there, its albedo times
+    // RenderSettings.ambientLight -- Unity's for the shaders Deferred does not replace;
+    // the space centre's flag (a SkinnedMeshRenderer) and the launch pad's grate at night
+    // held 0.19 there, 0.24 times their albedo, every other surface none (measured
+    // 2026-10-19). The raytraced diffuse light comes in its place in the reflections pass
+    // (ReDefinitionDeferredReflections.shader), as for every other surface. Only where the
+    // light buffer holds that and nothing else, within a tenth: an emissive surface keeps
+    // its light.
+    half4 _ReDefinitionFlatAmbient;
+
+    half4 fragUnbakeAmbient(v2f i) : SV_Target
+    {
+        half4 light = tex2D(_MainTex, i.uv);
+        half3 baked = tex2D(_CameraGBufferTexture0, i.uv).rgb * _ReDefinitionFlatAmbient.rgb;
+        bool holds = max(baked.r, max(baked.g, baked.b)) > 0.01 && all(abs(light.rgb - baked) <= baked * 0.1 + 0.002);
+        return half4(holds ? max(light.rgb - baked, 0.0) : light.rgb, light.a);
+    }
     ENDCG
 
     SubShader
@@ -413,6 +432,10 @@ Shader "Hidden/ReDefinition/RtCapture"
             CGPROGRAM
             #pragma vertex vertQuad
             #pragma fragment fragSurfaceView
+            ENDCG }
+        Pass { CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment fragUnbakeAmbient
             ENDCG }
     }
     Fallback Off

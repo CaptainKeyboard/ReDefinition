@@ -20,6 +20,11 @@ namespace ReDefinition.Probe
     //   portraitLayers the crew portraits' cameras drawing only the layers their
     //                  interiors and kerbals are on, in place of every layer
     //   portraitShadows the shadow distance 10 m while a crew portrait renders
+    //   noSun          KSP's sun lights at intensity 0
+    //   noLocalLights  every point and spot light off, each logged
+    //   detailAsDiffuse KSP/Scenery/Diffuse Detail drawn with KSP/Scenery/Diffuse
+    //   flagProbes     the renderers named flag set to blend the light probes
+    //   noFlags        the renderers named flag hidden
     internal static class ShotVariant
     {
         internal static IEnumerator Apply()
@@ -72,6 +77,24 @@ namespace ReDefinition.Probe
                     Camera.onPreCull += ShortShadows;
                     Camera.onPostRender += ShadowsBack;
                     return "10 m while a portrait renders";
+                case "noSun":
+                    Camera.onPreCull += SunOff;
+                    return "the sun's light at intensity 0 before every camera";
+                case "noLocalLights":
+                    return LocalLightsOff();
+                case "detailAsDiffuse":
+                    return DetailAsDiffuse();
+                case "flagProbes":
+                    return FlagProbes();
+                case "noFlags":
+                    int hidden = 0;
+                    foreach (Renderer renderer in UnityEngine.Object.FindObjectsOfType<Renderer>())
+                        if (renderer.name.IndexOf("flag", StringComparison.OrdinalIgnoreCase) >= 0 && renderer.enabled)
+                        {
+                            renderer.enabled = false;
+                            hidden++;
+                        }
+                    return hidden + " renderers named flag hidden";
                 default:
                     return "unknown, nothing changed";
             }
@@ -109,6 +132,80 @@ namespace ReDefinition.Probe
         private static bool IsPortrait(Camera camera)
         {
             return camera != null && camera.name.StartsWith("pilotCamera", StringComparison.Ordinal);
+        }
+
+        // KSP's sun lights (Sun.sunLight, the scaled space's and the IVA's), which KSP and
+        // Parallax set again every frame: what of a surface's light is the sun's.
+        private static void SunOff(Camera camera)
+        {
+            foreach (Light light in Light.GetLights(LightType.Directional, 0))
+                if (light.name.IndexOf("Sun", StringComparison.OrdinalIgnoreCase) >= 0)
+                    light.intensity = 0f;
+        }
+
+        // Every point and spot light switched off, each logged with its distance from the
+        // camera: what of a surface's light is theirs.
+        private static string LocalLightsOff()
+        {
+            Vector3 eye = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
+            int off = 0;
+            foreach (Light light in UnityEngine.Object.FindObjectsOfType<Light>())
+            {
+                if (light.type != LightType.Point && light.type != LightType.Spot) continue;
+                Debug.Log(Log.Tag + " Probe: local light " + light.name + " under "
+                          + (light.transform.parent != null ? light.transform.parent.name : "nothing") + ", " + light.type + ", enabled "
+                          + light.enabled + ", intensity " + light.intensity + ", range " + light.range + ", colour " + light.color
+                          + ", mask " + light.cullingMask + ", render mode " + light.renderMode + ", "
+                          + Vector3.Distance(eye, light.transform.position).ToString("0.0") + " m from the camera.");
+                if (!light.enabled) continue;
+                light.enabled = false;
+                off++;
+            }
+            return off + " point and spot lights off";
+        }
+
+        // The materials on KSP/Scenery/Diffuse Detail, each logged with its shader's passes,
+        // drawn with KSP/Scenery/Diffuse instead, their textures kept: what of their light
+        // is that shader's.
+        private static string DetailAsDiffuse()
+        {
+            Shader diffuse = Shader.Find("KSP/Scenery/Diffuse");
+            if (diffuse == null) return "no KSP/Scenery/Diffuse";
+            int swapped = 0;
+            foreach (Renderer renderer in UnityEngine.Object.FindObjectsOfType<Renderer>())
+                foreach (Material material in renderer.sharedMaterials)
+                {
+                    if (material == null || material.shader.name != "KSP/Scenery/Diffuse Detail") continue;
+                    var passes = new System.Text.StringBuilder();
+                    foreach (string pass in new[] { "FORWARD", "FORWARD_DELTA", "DEFERRED", "SHADOWCASTER", "META", "PREPASSBASE", "ALWAYS" })
+                        passes.Append(' ').Append(pass).Append('=').Append(material.FindPass(pass));
+                    Debug.Log(Log.Tag + " Probe: " + renderer.name + " under "
+                              + (renderer.transform.parent != null ? renderer.transform.parent.name : "nothing") + ", " + material.name
+                              + ": " + material.shader.passCount + " passes," + passes + ", RenderType " + material.GetTag("RenderType", false)
+                              + ", textures " + string.Join(" ", material.GetTexturePropertyNames()) + ".");
+                    material.shader = diffuse;
+                    swapped++;
+                }
+            return swapped + " materials on KSP/Scenery/Diffuse";
+        }
+
+        // The renderers named Flag, each logged with how it takes its ambient light, then
+        // set to blend the light probes as the scene around them does.
+        private static string FlagProbes()
+        {
+            int changed = 0;
+            foreach (Renderer renderer in UnityEngine.Object.FindObjectsOfType<Renderer>())
+            {
+                if (renderer.name.IndexOf("flag", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                Debug.Log(Log.Tag + " Probe: " + renderer.name + " under "
+                          + (renderer.transform.parent != null ? renderer.transform.parent.name : "nothing") + ": light probes "
+                          + renderer.lightProbeUsage + ", reflection probes " + renderer.reflectionProbeUsage + ", layer "
+                          + renderer.gameObject.layer + ".");
+                if (renderer.lightProbeUsage == LightProbeUsage.BlendProbes) continue;
+                renderer.lightProbeUsage = LightProbeUsage.BlendProbes;
+                changed++;
+            }
+            return changed + " flags set to blend the light probes";
         }
 
         private static void ShortShadows(Camera camera)

@@ -409,6 +409,136 @@ namespace ReDefinition.Probe
         // The raytraced camera's light at a few places of the pad's view, into the log: the
         // traced diffuse light (linear), the sun's visibility, the forward ratio (k, w),
         // Unity's ambient probe up / side / down and the sun's colour.
+        private static readonly CameraEvent[] StageEvents =
+        {
+            CameraEvent.AfterGBuffer, CameraEvent.BeforeLighting, CameraEvent.AfterLighting, CameraEvent.AfterForwardOpaque,
+            CameraEvent.AfterSkybox, CameraEvent.AfterForwardAlpha, CameraEvent.BeforeImageEffects, CameraEvent.AfterImageEffects,
+            CameraEvent.AfterEverything,
+        };
+
+        private static IEnumerator Stages(string rendererName)
+        {
+            Camera scene = null;
+            foreach (Camera c in Camera.allCameras)
+                if (c.name == "Camera 00") scene = c;
+            // <name>@<parent's name>: only under a parent so named.
+            string[] parts = rendererName.Split('@');
+            string name = parts[0], parentName = parts.Length > 1 ? parts[1] : null;
+            Renderer target = null;
+            float nearest = float.MaxValue;
+            if (scene != null)
+                foreach (Renderer r in FindObjectsOfType<Renderer>())
+                {
+                    if (r.name != name || (parentName != null && (r.transform.parent == null || r.transform.parent.name != parentName))
+                        || !r.isVisible)
+                        continue;
+                    float d = Vector3.Distance(scene.transform.position, r.bounds.center);
+                    if (d < nearest) { nearest = d; target = r; }
+                }
+            if (target == null)
+            {
+                Debug.Log(Log.Tag + " Probe: stages, no visible renderer " + rendererName + " or no Camera 00.");
+                yield break;
+            }
+            // In the camera's pixels: its screen points are the screen's. A window around the
+            // middle of its bounds, which may lie off the renderer's own pixels.
+            const int Window = 32;
+            Vector3 at = scene.WorldToViewportPoint(target.bounds.center);
+            int px = Mathf.Clamp(Mathf.RoundToInt(at.x * scene.pixelWidth), Window / 2, scene.pixelWidth - Window / 2);
+            int py = Mathf.Clamp(Mathf.RoundToInt(at.y * scene.pixelHeight), Window / 2, scene.pixelHeight - Window / 2);
+            Vector2 scale = new Vector2((float)Window / scene.pixelWidth, (float)Window / scene.pixelHeight);
+            Vector2 offset = new Vector2((float)(px - Window / 2) / scene.pixelWidth, (float)(py - Window / 2) / scene.pixelHeight);
+            var buffers = new List<KeyValuePair<CameraEvent, CommandBuffer>>();
+            var crops = new List<KeyValuePair<string, RenderTexture>>();
+            foreach (CameraEvent e in StageEvents)
+            {
+                var cb = new CommandBuffer { name = "ReDefinition probe stages " + e };
+                RenderTexture crop = new RenderTexture(Window, Window, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                crop.Create();
+                cb.Blit(BuiltinRenderTextureType.CameraTarget, crop, scale, offset);
+                crops.Add(new KeyValuePair<string, RenderTexture>(e.ToString(), crop));
+                scene.AddCommandBuffer(e, cb);
+                buffers.Add(new KeyValuePair<CameraEvent, CommandBuffer>(e, cb));
+            }
+            yield return new WaitForEndOfFrame();
+            foreach (KeyValuePair<CameraEvent, CommandBuffer> b in buffers)
+                scene.RemoveCommandBuffer(b.Key, b.Value);
+            var line = new StringBuilder(Log.Tag + " Probe: stages at " + rendererName + " under "
+                                         + (target.transform.parent != null ? target.transform.parent.name : "nothing") + ", "
+                                         + nearest.ToString("0.0", CultureInfo.InvariantCulture) + " m, pixel " + px + "," + py
+                                         + " of " + scene.pixelWidth + "x" + scene.pixelHeight + ", the window's brightest pixel and mean:");
+            Texture2D read = new Texture2D(Window, Window, TextureFormat.RGBAFloat, false, true);
+            RenderTexture active = RenderTexture.active;
+            foreach (KeyValuePair<string, RenderTexture> crop in crops)
+            {
+                RenderTexture.active = crop.Value;
+                read.ReadPixels(new Rect(0, 0, Window, Window), 0, 0);
+                Color sum = Color.clear, most = Color.clear;
+                foreach (Color c in read.GetPixels())
+                {
+                    sum += c;
+                    if (c.r + c.g + c.b > most.r + most.g + most.b) most = c;
+                }
+                sum /= Window * Window;
+                line.Append(System.Environment.NewLine).Append("  ").Append(crop.Key).Append(' ').Append(Rgb(most)).Append(", mean ").Append(Rgb(sum));
+                crop.Value.Release();
+            }
+            RenderTexture.active = active;
+            Destroy(read);
+            Debug.Log(line.ToString());
+        }
+
+        private static IEnumerator LightBuffer(string folder, string shot)
+        {
+            Camera scene = null;
+            foreach (Camera c in Camera.allCameras)
+                if (c.name == "Camera 00") scene = c;
+            if (scene == null) yield break;
+            var events = new[] { CameraEvent.AfterGBuffer, CameraEvent.BeforeLighting };
+            var buffers = new CommandBuffer[events.Length];
+            var targets = new RenderTexture[events.Length];
+            for (int i = 0; i < events.Length; i++)
+            {
+                targets[i] = new RenderTexture(scene.pixelWidth, scene.pixelHeight, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                targets[i].Create();
+                buffers[i] = new CommandBuffer { name = "ReDefinition probe light buffer " + events[i] };
+                buffers[i].Blit(BuiltinRenderTextureType.CameraTarget, targets[i]);
+                scene.AddCommandBuffer(events[i], buffers[i]);
+            }
+            yield return new WaitForEndOfFrame();
+            RenderTexture active = RenderTexture.active;
+            for (int i = 0; i < events.Length; i++)
+            {
+                scene.RemoveCommandBuffer(events[i], buffers[i]);
+                Texture2D read = new Texture2D(targets[i].width, targets[i].height, TextureFormat.RGBAFloat, false, true);
+                RenderTexture.active = targets[i];
+                read.ReadPixels(new Rect(0, 0, targets[i].width, targets[i].height), 0, 0, false);
+                string name = events[i] == CameraEvent.AfterGBuffer ? "afterGBuffer" : "beforeLighting";
+                using (var file = new BinaryWriter(File.Create(Path.Combine(folder, shot + "-" + name + ".bin"))))
+                {
+                    file.Write(read.width);
+                    file.Write(read.height);
+                    foreach (Color c in read.GetPixels())
+                    {
+                        file.Write(c.r);
+                        file.Write(c.g);
+                        file.Write(c.b);
+                        file.Write(c.a);
+                    }
+                }
+                Destroy(read);
+                targets[i].Release();
+            }
+            RenderTexture.active = active;
+            Debug.Log(Log.Tag + " Probe: light buffer of Camera 00 written.");
+        }
+
+        private static string Rgb(Color c)
+        {
+            return c.r.ToString("0.0000", CultureInfo.InvariantCulture) + " " + c.g.ToString("0.0000", CultureInfo.InvariantCulture) + " "
+                   + c.b.ToString("0.0000", CultureInfo.InvariantCulture);
+        }
+
         private static IEnumerator LightValues()
         {
             Raytracing.RtCamera rt = Raytracing.RtCamera.Current;
@@ -652,6 +782,63 @@ namespace ReDefinition.Probe
                               + ".");
                 }
                 Debug.Log(Log.Tag + " Probe: shot " + shot + ".");
+                // -redefinitionProbeMaterials <part of a name>: the renderers so named, with
+                // their materials' shaders, queues and keywords.
+                string materialsOf = SceneProbe.ArgumentAfter("-redefinitionProbeMaterials");
+                if (materialsOf != null)
+                    foreach (Renderer renderer in FindObjectsOfType<Renderer>())
+                    {
+                        Transform parent = renderer.transform.parent;
+                        if (renderer.name.IndexOf(materialsOf, StringComparison.OrdinalIgnoreCase) < 0
+                            && (parent == null || parent.name.IndexOf(materialsOf, StringComparison.OrdinalIgnoreCase) < 0))
+                            continue;
+                        StringBuilder line = new StringBuilder(Log.Tag + " Probe: renderer " + renderer.name + " under "
+                                                               + (renderer.transform.parent != null ? renderer.transform.parent.name : "nothing")
+                                                               + ", layer " + renderer.gameObject.layer + ", enabled " + renderer.enabled + ", "
+                                                               + renderer.GetType().Name + ", mesh filter "
+                                                               + (renderer.GetComponent<MeshFilter>() != null) + ":");
+                        foreach (Material material in renderer.sharedMaterials)
+                            if (material != null)
+                                line.Append(' ').Append(material.name).Append(" (").Append(material.shader.name).Append(", queue ")
+                                    .Append(material.renderQueue).Append(", keywords ").Append(string.Join(" ", material.shaderKeywords))
+                                    .Append(material.HasProperty("_Color") ? ", _Color " + material.GetColor("_Color") : "")
+                                    .Append(material.HasProperty("_EmissiveColor") ? ", _EmissiveColor " + material.GetColor("_EmissiveColor") : "")
+                                    .Append(material.HasProperty("_EmissionColor") ? ", _EmissionColor " + material.GetColor("_EmissionColor") : "")
+                                    .Append(')');
+                        Debug.Log(line.ToString());
+                    }
+                // -redefinitionProbeStagesAt <renderer name>[@<parent's name>]: the scene camera's image after each
+                // of its stages at the middle of the nearest renderer so named, linear, a 5 by 5
+                // pixel mean each: in which stage it takes its brightness.
+                string stagesAt = SceneProbe.ArgumentAfter("-redefinitionProbeStagesAt");
+                if (stagesAt != null)
+                    yield return Stages(stagesAt);
+                // -redefinitionProbeLightBuffer: the scene camera's light buffer, whole, after the
+                // G-buffer and before the lights, as <shot>-afterGBuffer.bin and
+                // <shot>-beforeLighting.bin (the surfaces' format): what each surface brings
+                // into the lighting of its own.
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeLightBuffer") >= 0)
+                    yield return LightBuffer(folder, shot);
+                // -redefinitionProbeShotRaytracing <mode,mode,...>: then the raytracing
+                // switched to each mode in turn, as in the settings window, and the same view
+                // 10 s later as <shot>-<mode>.png: several modes compared in one run.
+                string otherModes = SceneProbe.ArgumentAfter("-redefinitionProbeShotRaytracing");
+                if (otherModes != null && ReDefinitionAddon.Instance != null)
+                    foreach (string otherMode in otherModes.Split(','))
+                    {
+                        Raytracing.RaytracingMode mode;
+                        if (!Enum.TryParse(otherMode, true, out mode)) continue;
+                        OwnSettings before = ReDefinitionAddon.Instance.Current();
+                        OwnSettings after = before.Clone();
+                        after.Raytracing = mode;
+                        ReDefinitionAddon.Instance.Apply(before, after);
+                        Debug.Log(Log.Tag + " Probe: the raytracing switched from " + before.Raytracing + " to " + mode + ".");
+                        yield return new WaitForSeconds(10f);
+                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-" + mode + ".png"));
+                        Debug.Log(Log.Tag + " Probe: shot " + shot + "-" + mode + ".");
+                        if (stagesAt != null)
+                            yield return Stages(stagesAt);
+                    }
                 // -redefinitionProbeBurst <n>: n frames more, one after the other, as
                 // <shot>-burst<i>.png, for what changes from frame to frame (flicker,
                 // ghosting).
