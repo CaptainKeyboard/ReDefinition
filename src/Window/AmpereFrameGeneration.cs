@@ -62,6 +62,79 @@ namespace ReDefinition.Window
             return installed;
         }
 
+        // The super-resolution files of the package (AmperePackage.Part.SuperResolution),
+        // looked at as often as the package.
+        private static bool superResolutionInstalled;
+        private static float superResolutionLookedAt = float.NegativeInfinity;
+
+        public static bool SuperResolutionInstalled()
+        {
+            if (Time.realtimeSinceStartup - superResolutionLookedAt < 1f) return superResolutionInstalled;
+            superResolutionLookedAt = Time.realtimeSinceStartup;
+            try
+            {
+                superResolutionInstalled = AmperePackage.SuperResolutionInstalled(NvidiaDownloader.GameFolder);
+            }
+            catch (Exception)
+            {
+                superResolutionInstalled = false;
+            }
+            return superResolutionInstalled;
+        }
+
+        // The package's ini choices (AmpereOptions) as the file holds them, read at most once
+        // a second and again after the window writes one. The package reads its ini when KSP
+        // starts: a change made here applies after a restart.
+        private static readonly Dictionary<AmpereOptions.Option, string> optionValues =
+            new Dictionary<AmpereOptions.Option, string>();
+        private static readonly Dictionary<AmpereOptions.Option, float> optionsLookedAt =
+            new Dictionary<AmpereOptions.Option, float>();
+
+        public static bool OptionsChanged { get; private set; }
+
+        // The index of the option's value in its choices; its default's where the file holds none
+        // of them or cannot be read.
+        public static int OptionIndex(AmpereOptions.Option option)
+        {
+            float at;
+            if (!optionsLookedAt.TryGetValue(option, out at) || Time.realtimeSinceStartup - at >= 1f)
+            {
+                optionsLookedAt[option] = Time.realtimeSinceStartup;
+                string value = null;
+                try
+                {
+                    value = AmpereOptions.Read(Path.Combine(NvidiaDownloader.GameFolder, AmperePackage.Ini), option);
+                }
+                catch (Exception)
+                {
+                }
+                optionValues[option] = value;
+            }
+            return AmpereOptions.IndexOf(option, optionValues[option]);
+        }
+
+        public static string OptionLabel(AmpereOptions.Option option)
+        {
+            return option.Labels[OptionIndex(option)];
+        }
+
+        // Writes the choice into the package's ini, the rest of the file as it is.
+        public static void SetOption(AmpereOptions.Option option, int index)
+        {
+            if (index < 0 || index >= option.Values.Length || index == OptionIndex(option)) return;
+            string path = Path.Combine(NvidiaDownloader.GameFolder, AmperePackage.Ini);
+            if (!AmpereOptions.Write(path, option, option.Values[index]))
+            {
+                Debug.LogWarning(Log.Tag + " dlssg_for_sm86: " + AmperePackage.Ini + " could not be written");
+                return;
+            }
+            optionValues[option] = option.Values[index];
+            optionsLookedAt[option] = Time.realtimeSinceStartup;
+            OptionsChanged = true;
+            Debug.Log(Log.Tag + " dlssg_for_sm86: " + option.Section + " " + option.Key + " = " + option.Values[index]
+                      + ", applies after a restart of KSP");
+        }
+
         // The release zip in KSP's folder, looked for at most once a second: the row and
         // the dialog ask every frame.
         private static string zip;
@@ -112,7 +185,8 @@ namespace ReDefinition.Window
                 + "1. Open the release page and download " + AmperePackage.ZipPattern.Replace("*", "<version>") + ".\n"
                 + "2. Put the zip, as it is, into KSP's folder:\n    " + NvidiaDownloader.GameFolder + "\n"
                 + "3. Install from the zip: ReDefinition takes version.dll, dlssg_sm86.ini and the dlssg_sm86 folder"
-                + " out of it, without its super-resolution files, and places them next to KSP_x64.exe. A file already"
+                + " out of it, without its super-resolution files (the settings row adds those on request), and places"
+                + " them next to KSP_x64.exe. A file already"
                 + " there is kept, renamed to end in .old.\n\n"
                 + "DLSS frame generation runs from it after a restart of KSP. Where NVIDIA's files for it are missing,"
                 + " the \"NVIDIA DLSS files\" row offers them then. Each generated frame costs GPU time on these cards."
@@ -159,17 +233,30 @@ namespace ReDefinition.Window
 
         public static void Start()
         {
+            Start(AmperePackage.Part.Package);
+        }
+
+        // The super-resolution files alone, about 180 MB, for the ini's [SuperResolution] Mode.
+        public static void StartSuperResolution()
+        {
+            Start(AmperePackage.Part.SuperResolution);
+        }
+
+        private static void Start(AmperePackage.Part part)
+        {
             string found = Zip();
             if (Running || found == null || ReDefinitionAddon.Instance == null) return;
             Running = true;
-            ReDefinitionAddon.Instance.StartCoroutine(Run(found));
+            ReDefinitionAddon.Instance.StartCoroutine(Run(found, part));
         }
 
         // Out of the zip on a thread: about 30 MB of DLLs would otherwise hold the game
         // for a moment.
-        private static IEnumerator Run(string found)
+        private static IEnumerator Run(string found, AmperePackage.Part part)
         {
-            status = "Installing from " + Path.GetFileName(found) + " ...";
+            bool superResolution = part == AmperePackage.Part.SuperResolution;
+            status = "Installing " + (superResolution ? "the super-resolution files " : "") + "from "
+                     + Path.GetFileName(found) + " ...";
             string game = NvidiaDownloader.GameFolder;
             string error = null;
             int placed = 0;
@@ -178,7 +265,7 @@ namespace ReDefinition.Window
             {
                 try
                 {
-                    placed = AmperePackage.Install(found, game);
+                    placed = AmperePackage.Install(found, game, part);
                 }
                 catch (Exception e)
                 {
@@ -198,9 +285,12 @@ namespace ReDefinition.Window
             }
             else
             {
-                InstalledNow = true;
+                if (!superResolution) InstalledNow = true;
+                superResolutionLookedAt = float.NegativeInfinity;
                 status = "Installed, " + placed + " files from " + Path.GetFileName(found)
-                         + ". DLSS frame generation runs from it after a restart of KSP.";
+                         + (superResolution
+                             ? ". Super resolution runs from them after a restart of KSP, with the ini's Mode set to On."
+                             : ". DLSS frame generation runs from it after a restart of KSP.");
                 Debug.Log(Log.Tag + " dlssg_for_sm86: " + status);
             }
             ScreenMessages.PostScreenMessage("dlssg_for_sm86: " + status, 8f);

@@ -70,6 +70,42 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void TheSuperResolutionFilesAreTakenOnTheirOwn()
+        {
+            string zip = MakeZip("dlssg-release-0.4.0-x64.zip", Release);
+            using (FileStream stream = File.OpenRead(zip))
+            {
+                string[] targets = AmperePackage.Read(stream, AmperePackage.Part.SuperResolution)
+                    .Select(item => item.Target).OrderBy(t => t).ToArray();
+                CollectionAssert.AreEqual(new[] { "dlssg_sm86/sr/nvngx_dlss.dll", "dlssg_sm86/sr/sr_kernels.dll" }, targets);
+            }
+
+            string game = Path.Combine(folder, "KSP");
+            Directory.CreateDirectory(game);
+            Assert.IsFalse(AmperePackage.SuperResolutionInstalled(game));
+            Assert.AreEqual(2, AmperePackage.Install(zip, game, AmperePackage.Part.SuperResolution));
+            Assert.IsTrue(AmperePackage.SuperResolutionInstalled(game));
+            // Not the package itself: that is another install.
+            Assert.IsFalse(AmperePackage.Installed(game));
+            Assert.IsFalse(File.Exists(Path.Combine(game, "version.dll")));
+            Assert.AreEqual("content of dlssg_sm86/sr/sr_kernels.dll",
+                File.ReadAllText(Path.Combine(game, "dlssg_sm86", "sr", "sr_kernels.dll")));
+        }
+
+        [TestMethod]
+        public void AZipWithoutTheSuperResolutionKernelsIsRefusedForThem()
+        {
+            string zip = MakeZip("dlssg-release-0.4.0-x64.zip", "version.dll", "dlssg_sm86/sr/nvngx_dlss.dll");
+            string game = Path.Combine(folder, "KSP");
+            Directory.CreateDirectory(game);
+
+            InvalidDataException refused = Assert.ThrowsException<InvalidDataException>(
+                () => AmperePackage.Install(zip, game, AmperePackage.Part.SuperResolution));
+            StringAssert.Contains(refused.Message, "dlssg_sm86/sr/sr_kernels.dll");
+            Assert.AreEqual(0, Directory.GetFileSystemEntries(game).Length);
+        }
+
+        [TestMethod]
         public void TheInstallPlacesEveryFileAsTheZipHoldsIt()
         {
             string zip = MakeZip("dlssg-release-0.4.0-x64.zip", Release);

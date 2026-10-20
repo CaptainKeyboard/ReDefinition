@@ -405,6 +405,21 @@ namespace redefinition
             return kXessBadSkip;
         }
 
+        // dlssgMode: on or dynamic, in any case; anything else is on, and said.
+        int ReadDlssgMode(const std::wstring& file)
+        {
+            wchar_t buffer[32] = {};
+            GetPrivateProfileStringW(L"Proxy", L"dlssgMode", L"on", buffer, ARRAYSIZE(buffer), file.c_str());
+            for (int mode : { kDlssgModeOn, kDlssgModeDynamic })
+            {
+                const std::string name = DlssgModeName(mode);
+                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
+                    return mode;
+            }
+            LogLine("Config: dlssgMode=" + Narrow(buffer) + " is none of on, dynamic -- on");
+            return kDlssgModeOn;
+        }
+
         // rrPath: auto, streamline or ngx, in any case; anything else is auto, and said.
         int ReadRrPath(const std::wstring& file)
         {
@@ -438,6 +453,8 @@ namespace redefinition
                  + " fgHalfRefreshLimit=" + (c.fgHalfRefreshLimit ? "1" : "0")
                  + " fgAsyncWorkloads=" + (c.fgAsyncWorkloads ? "1" : "0")
                  + " fgObjectSeparationMetres=" + std::to_string(c.fgObjectSeparationMetres)
+                 + " dlssgMode=" + DlssgModeName(c.dlssgMode)
+                 + (c.dlssgMode == kDlssgModeDynamic ? "/" + std::to_string(static_cast<int>(c.dlssgDynamicTargetFps)) : "")
                  + " pacing=" + std::to_string(c.fgPacingSafetyMarginMs) + "/"
                  + std::to_string(c.fgPacingVarianceFactor)
                  + (c.fgPacingHybridSpin ? "/spin " + std::to_string(c.fgPacingHybridSpinTime) : "")
@@ -530,6 +547,10 @@ namespace redefinition
                 target.reportSeconds = 1;
 
             target.fgObjectSeparationMetres = ReadFloat(L"fgObjectSeparationMetres", file, 0.0f);
+            target.dlssgMode = ReadDlssgMode(file);
+            target.dlssgDynamicTargetFps = ReadFloat(L"dlssgDynamicTargetFps", file, 0.0f);
+            if (target.dlssgDynamicTargetFps < 0.0f)
+                target.dlssgDynamicTargetFps = 0.0f;
             target.fgPacingSafetyMarginMs = ReadFloat(L"fgPacingSafetyMarginMs", file, 0.1f);
             target.fgPacingVarianceFactor = ReadFloat(L"fgPacingVarianceFactor", file, 0.1f);
             target.fgPacingHybridSpin = ReadFlag(L"fgPacingHybridSpin", file, false);
@@ -689,6 +710,11 @@ namespace redefinition
         static const char* const names[kXessUiModeCount] = { "auto", "none", "backbuffer_uitexture", "hudless_uitexture",
                                                              "backbuffer_hudless", "backbuffer_hudless_uitexture" };
         return mode >= 0 && mode < kXessUiModeCount ? names[mode] : names[kXessUiModeAuto];
+    }
+
+    const char* DlssgModeName(int mode)
+    {
+        return mode == kDlssgModeDynamic ? "dynamic" : "on";
     }
 
     // As StreamlineDirectory: from the file, once per swapchain.

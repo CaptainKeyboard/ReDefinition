@@ -66,6 +66,19 @@ namespace redefinition
         return query(id);
     }
 
+    uint32_t NvidiaDriverVersion()
+    {
+        // NvAPI_SYS_GetDriverAndBranchVersion(NvU32* pDriverVersion, NvAPI_ShortString
+        // szBuildBranchString), id 0x2926aaad in nvapi_interface.h; the version is the
+        // driver's number times 100, 59716 for 597.16.
+        using GetDriverVersionFn = int (*)(uint32_t*, char*);
+        constexpr uint32_t kGetDriverAndBranchVersion = 0x2926aaad;
+        const auto function = reinterpret_cast<GetDriverVersionFn>(NvapiInterface(kGetDriverAndBranchVersion));
+        char branch[64] = {};   // NvAPI_ShortString
+        uint32_t version = 0;
+        return function != nullptr && function(&version, branch) == 0 ? version : 0u;
+    }
+
     NvidiaGpuAnswer NvidiaGpu(const LUID& adapter, NvidiaGpuInfo& result)
     {
         result = NvidiaGpuInfo();

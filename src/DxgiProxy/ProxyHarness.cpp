@@ -855,6 +855,18 @@ int main()
     const IniKey streamlineDirectoryKey(L"streamlineDirectory");
     streamlineDirectoryKey.Set(streamlineDirectory.empty() ? nullptr : streamlineDirectory.c_str());
 
+    // DLSS-G's mode from the start, when REDEFINITION_DLSSG_MODE names one (on or dynamic;
+    // dlssgMode).
+    wchar_t dlssgModeBuffer[16] = {};
+    GetEnvironmentVariableW(L"REDEFINITION_DLSSG_MODE", dlssgModeBuffer, ARRAYSIZE(dlssgModeBuffer));
+    const IniKey dlssgModeKey(L"dlssgMode");
+    dlssgModeKey.Set(dlssgModeBuffer[0] != 0 ? dlssgModeBuffer : nullptr);
+    // Dynamic Multi Frame Generation aims at an output frame rate -- the display's by default,
+    // which the harness's thousand rendered frames a second are far above, so that it
+    // generates nothing. A target above what four times those come to makes it generate the most.
+    const IniKey dlssgTargetKey(L"dlssgDynamicTargetFps");
+    dlssgTargetKey.Set(L"8000");
+
     // XeSS frame generation, when REDEFINITION_XESS_FG_DIR names a folder with Intel's
     // libxess_fg.dll and libxell.dll -- the XeSS SDK's bin -- asked for by name
     // (frameGenerationTechnique=xess), on whatever GPU the harness runs; otherwise the
@@ -1804,6 +1816,32 @@ int main()
                kResizedHeight, resized, line);
         if (resized < kGeneratingAtLeast)
             return Fail("DLSS frame generation on after a resize, but no frames were generated", E_FAIL);
+
+        // DLSS-G's mode switched while the game runs (dlssgMode): Dynamic Multi Frame
+        // Generation, whose multiplier Streamline chooses -- with frames of under a
+        // millisecond it may choose none, so the presents per frame are shown, not asserted
+        // -- and back to the fixed multiplier. The proxy's log, which the proxy holds
+        // closed to readers, says what Streamline reported and which mode was set.
+        {
+            dlssgModeKey.Set(L"dynamic");
+            float dynamic = 0.0f;
+            hr = presentsPerFrame(3.0f, dynamic);
+            if (FAILED(hr))
+                return Fail("Present with dlssgMode=dynamic", hr);
+            status(line, sizeof(line));
+            printf("      dlssgMode=dynamic: %.2f presents per frame  [%s]\n", dynamic, line);
+            if (strstr(line, "device=ok") == nullptr)
+                return Fail("the proxy's device did not survive dlssgMode=dynamic", E_FAIL);
+
+            dlssgModeKey.Set(L"on");
+            float fixedAgain = 0.0f;
+            hr = presentsPerFrame(3.0f, fixedAgain);
+            if (FAILED(hr))
+                return Fail("Present with dlssgMode=on again", hr);
+            printf("      dlssgMode=on again: %.2f presents per frame\n", fixedAgain);
+            if (fixedAgain < kGeneratingAtLeast)
+                return Fail("dlssgMode=on again generated no frames", E_FAIL);
+        }
 
         // Frames of 40 ms, 25 a second, under DLSS-G's minimum of 30 (fgMinimumFps):
         // held off once two seconds of them are averaged, on again at 60.

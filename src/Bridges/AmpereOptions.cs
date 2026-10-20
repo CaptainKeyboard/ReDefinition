@@ -1,0 +1,269 @@
+using System;
+using System.IO;
+using System.Text;
+
+namespace ReDefinition.Bridges
+{
+    // The choices of dlssg_for_sm86's dlssg_sm86.ini (AmperePackage) the settings window
+    // offers, and the editing of that file in place: its comments, which are the
+    // project's own instructions, stay as they are. The file is read by the package's
+    // version.dll when KSP starts, so a change takes effect after a restart.
+    //
+    // Everything here is free of Unity, for the tests (AmpereOptionsTests).
+    internal static class AmpereOptions
+    {
+        public sealed class Option
+        {
+            public string Section;
+            public string Key;
+            // The values the file takes, in the order the window steps through them, with the
+            // labels it shows for them.
+            public string[] Values;
+            public string[] Labels;
+            // What the package does without the key (its factory ini).
+            public string Default;
+            public string Title;
+            public string Tooltip;
+        }
+
+        // [DLSSG] Preset, [FrameGeneration] MaxGeneratedFrames, [SuperResolution] Mode and
+        // [Logging] FrameTiming of dlssg_for_sm86 0.4.0 (its INSTALL.en.md and the comments
+        // in its dlssg_sm86.ini).
+        public static readonly Option Preset = new Option
+        {
+            Section = "DLSSG", Key = "Preset",
+            Values = new[] { "Auto", "A", "B", "C" },
+            Labels = new[] { "Auto", "A", "B", "C (Lite)" },
+            Default = "Auto",
+            Title = "DLSS-G preset",
+            Tooltip = "Auto lets the game or the driver profile decide. A and B force the user interface\n"
+                      + "recomposition off and on; B only takes effect when the game hands DLSS-G both a\n"
+                      + "HUD-less image and a UI plane, which ReDefinition does not.\n"
+                      + "C is NVIDIA's lighter candidate blending (Frame Generation Performance Mode): the\n"
+                      + "project measured 32 to 54 percent less GPU time per generated frame, at a slightly\n"
+                      + "lower image quality, mostly on the HUD and at occlusion edges.\n"
+                      + "Applies after a restart of KSP.",
+        };
+
+        public static readonly Option MaxGeneratedFrames = new Option
+        {
+            Section = "FrameGeneration", Key = "MaxGeneratedFrames",
+            Values = new[] { "1", "2", "3", "4", "5" },
+            Labels = new[] { "2X", "3X", "4X", "5X", "6X" },
+            Default = "3",
+            Title = "DLSS-G multiplier",
+            Tooltip = "The most frames shown per rendered frame: 2X is one generated frame, 6X is five.\n"
+                      + "The package's factory value is 4X. ReDefinition asks for as many as this allows,\n"
+                      + "fewer under V-Sync where the refresh rate allows fewer.\n"
+                      + "Applies after a restart of KSP.",
+        };
+
+        public static readonly Option SuperResolution = new Option
+        {
+            Section = "SuperResolution", Key = "Mode",
+            Values = new[] { "Off", "On" },
+            Labels = new[] { "Off", "On" },
+            Default = "Off",
+            Title = "DLSS super resolution",
+            Tooltip = "On: where DLSS runs its preset L or M (usually Performance and Ultra Performance),\n"
+                      + "the package's INT8 kernels run it; no preset is changed. RTX 30 and RTX 20 only.\n"
+                      + "Needs the package's sr folder (about 180 MB: nvngx_dlss.dll 310.7.129, which\n"
+                      + "replaces the DLSS file in use, and sr_kernels.dll); the button next to it takes it\n"
+                      + "out of the zip. Does nothing while Ray Reconstruction runs.\n"
+                      + "Applies after a restart of KSP.",
+        };
+
+        public static readonly Option FrameTiming = new Option
+        {
+            Section = "Logging", Key = "FrameTiming",
+            Values = new[] { "0", "1" },
+            Labels = new[] { "Off", "On" },
+            Default = "0",
+            Title = "DLSS-G frame timing",
+            Tooltip = "On: the package writes the GPU time of every frame generation evaluate, per rendered\n"
+                      + "frame, to frames_<pid>.jsonl in dlssg_sm86\\logs. It changes no pixel and costs\n"
+                      + "a few microseconds per evaluate.\n"
+                      + "Applies after a restart of KSP.",
+        };
+
+        public static readonly Option[] All = { Preset, MaxGeneratedFrames, SuperResolution, FrameTiming };
+
+        // The file's value for the option, or the option's default where the file, the
+        // section or the key is not there. Null for a file that cannot be read.
+        public static string Read(string path, Option option)
+        {
+            string text = ReadText(path, out _);
+            if (text == null) return null;
+            return Find(text, option.Section, option.Key) ?? option.Default;
+        }
+
+        // The index of the option's value in Values, or of its default where the file holds
+        // none of them.
+        public static int IndexOf(Option option, string value)
+        {
+            for (int i = 0; i < option.Values.Length; i++)
+                if (string.Equals(option.Values[i], value, StringComparison.OrdinalIgnoreCase)) return i;
+            return Array.IndexOf(option.Values, option.Default);
+        }
+
+        // The option set to the value in the file, the rest of the file as it was: the
+        // key's line where there is one in its section, else a line at the section's end,
+        // else the section at the end of the file. Returns false for a file that cannot be
+        // read or written.
+        public static bool Write(string path, Option option, string value)
+        {
+            try
+            {
+                bool bom;
+                string text = ReadText(path, out bom);
+                if (text == null) return false;
+                string edited = Set(text, option.Section, option.Key, value);
+                if (edited != text)
+                    File.WriteAllText(path, edited, new UTF8Encoding(bom));
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static string ReadText(string path, out bool bom)
+        {
+            bom = false;
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+                return new UTF8Encoding(false).GetString(bytes, bom ? 3 : 0, bytes.Length - (bom ? 3 : 0));
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private struct Span
+        {
+            public int Start;
+            public int End;
+        }
+
+        // The lines of the text with their ends: each line's start and the start of the
+        // next, so that a replaced line keeps its own ending.
+        private static Span[] Lines(string text)
+        {
+            System.Collections.Generic.List<Span> lines = new System.Collections.Generic.List<Span>();
+            int start = 0;
+            while (start < text.Length)
+            {
+                int end = text.IndexOf('\n', start);
+                end = end < 0 ? text.Length : end + 1;
+                lines.Add(new Span { Start = start, End = end });
+                start = end;
+            }
+            return lines.ToArray();
+        }
+
+        private static string Content(string text, Span line)
+        {
+            return text.Substring(line.Start, line.End - line.Start).TrimEnd('\r', '\n');
+        }
+
+        private static bool IsSection(string content, out string name)
+        {
+            string trimmed = content.Trim();
+            name = null;
+            if (trimmed.Length < 2 || trimmed[0] != '[' || trimmed[trimmed.Length - 1] != ']') return false;
+            name = trimmed.Substring(1, trimmed.Length - 2).Trim();
+            return true;
+        }
+
+        // key=value of an uncommented line; the value trimmed.
+        private static bool IsKey(string content, string key, out string value)
+        {
+            value = null;
+            string trimmed = content.TrimStart();
+            if (trimmed.Length == 0 || trimmed[0] == ';' || trimmed[0] == '#') return false;
+            int equals = trimmed.IndexOf('=');
+            if (equals <= 0) return false;
+            if (!string.Equals(trimmed.Substring(0, equals).Trim(), key, StringComparison.OrdinalIgnoreCase)) return false;
+            value = trimmed.Substring(equals + 1).Trim();
+            return true;
+        }
+
+        private static string Find(string text, string section, string key)
+        {
+            bool inside = false;
+            string found = null;
+            foreach (Span line in Lines(text))
+            {
+                string content = Content(text, line);
+                string name;
+                if (IsSection(content, out name))
+                {
+                    inside = string.Equals(name, section, StringComparison.OrdinalIgnoreCase);
+                    continue;
+                }
+                string value;
+                // The last one wins, as GetPrivateProfileString reads a key written twice.
+                if (inside && IsKey(content, key, out value)) found = value;
+            }
+            return found;
+        }
+
+        internal static string Set(string text, string section, string key, string value)
+        {
+            string ending = text.Contains("\r\n") || text.Length == 0 ? "\r\n" : "\n";
+            Span[] lines = Lines(text);
+            int sectionLine = -1;
+            int lastContent = -1;
+            int keyLine = -1;
+            bool inside = false;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string content = Content(text, lines[i]);
+                string name;
+                if (IsSection(content, out name))
+                {
+                    if (inside) break;
+                    inside = string.Equals(name, section, StringComparison.OrdinalIgnoreCase);
+                    if (inside)
+                    {
+                        sectionLine = i;
+                        lastContent = i;
+                    }
+                    continue;
+                }
+                if (!inside) continue;
+                string existing;
+                if (IsKey(content, key, out existing)) keyLine = i;
+                if (content.Trim().Length > 0) lastContent = i;
+            }
+
+            if (keyLine >= 0)
+            {
+                Span line = lines[keyLine];
+                string content = Content(text, line);
+                int equals = content.IndexOf('=');
+                string tail = text.Substring(line.Start + content.Length, line.End - line.Start - content.Length);
+                return text.Substring(0, line.Start) + content.Substring(0, equals + 1) + value + tail
+                       + text.Substring(line.End);
+            }
+            string added = key + "=" + value;
+            if (sectionLine >= 0)
+            {
+                // After the section's last line of content, with that line's ending (the last
+                // line of a file may have none).
+                Span at = lines[lastContent];
+                string before = text.Substring(0, at.End);
+                if (!before.EndsWith("\n", StringComparison.Ordinal)) before += ending;
+                return before + added + ending + text.Substring(at.End);
+            }
+            string head = text;
+            if (head.Length > 0 && !head.EndsWith("\n", StringComparison.Ordinal)) head += ending;
+            if (head.Length > 0) head += ending;
+            return head + "[" + section + "]" + ending + added + ending;
+        }
+    }
+}

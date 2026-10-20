@@ -321,6 +321,12 @@ namespace redefinition
         // the status line.
         StreamlinePresent ReadStreamlineStateLocked();
 
+        // Caller must hold ContextMutex. What DLSS-G's state says of Dynamic Multi Frame
+        // Generation (DLSSGState::bIsDynamicMFGSupported), kept for the mode to set and
+        // logged once per swapchain, with the reasons Streamline's guide gives for a
+        // system that does not support it.
+        void NoteDynamicSupportLocked(bool supported, uint32_t framesMax);
+
         // Frames shown per rendered frame while DLSS-G generates: 2 for one
         // generated frame, and so on. 0 while it does not.
         int StreamlineMultiplier() const { return streamlineMultiplier.load(); }
@@ -620,6 +626,13 @@ namespace redefinition
         uint32_t streamlineStatus = 0;
         bool streamlineStatusKnown = false;
         bool streamlineVsyncKnown = false;
+        // DLSSGState::bIsDynamicMFGSupported as the first state of the swapchain said it:
+        // whether it is known, whether it is supported, and which mode the options last
+        // set (kDlssgMode*), for the log lines that say each once.
+        bool streamlineDynamicKnown = false;
+        bool streamlineDynamicSupported = false;
+        bool loggedDynamicFallback = false;
+        int streamlineModeSet = -1;
         std::atomic<bool> streamlineVsyncSupported{ true };
         // While its status reports a failure: off, and on again for another look
         // once this tick count has passed -- "If not, disable DLSS-G and fix the

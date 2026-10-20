@@ -205,7 +205,7 @@ class MatrixTest(unittest.TestCase):
 
     def test_default_matrix_on_nvidia(self):
         starts, skipped = bm.expand(self.matrix, "NVIDIA", self.ALL)
-        self.assertEqual([s["id"] for s in starts], ["fsr", "dlssg"])
+        self.assertEqual([s["id"] for s in starts], ["fsr", "dlssg", "dlssg-c"])
         # Nine renderings: FSR 3, the AMD DLL and XeSS with RT Off and Full, DLSS with RT
         # Off, Full with Ray Reconstruction and Full without; and FSR 3 at RT Full with the
         # radiance cache, then with the opacity micromaps, each without a latency model alone.
@@ -219,10 +219,33 @@ class MatrixTest(unittest.TestCase):
         self.assertEqual(fsr["proxy_load"]["frameGenerationTechnique"], "fsr")
         self.assertFalse(fsr["dlssg_package"])
         self.assertTrue(starts[1]["dlssg_package"])
+        self.assertEqual(starts[1]["dlssg_ini"], {"Logging": {"FrameTiming": "1"}})
         labels = {bm.scenario_label(p["scenario"]) for p in fsr["phases"]}
         self.assertIn("DLSS · RT Full, RR off · FG FSR · Reflex", labels)
         self.assertIn("XeSS · RT Off · FG off · none", labels)
         self.assertNotIn("FSR 3 · RT Full, RR on · FG off · none", labels)
+
+    def test_preset_c_is_a_start_of_its_own_with_the_rows_it_names(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        preset = starts[2]
+        self.assertEqual(preset["id"], "dlssg-c")
+        self.assertTrue(preset["dlssg_package"])
+        self.assertEqual(preset["dlssg_ini"], {"DLSSG": {"Preset": "C"}, "Logging": {"FrameTiming": "1"}})
+        # A kind of DLSS-G for the checks, its rows its own.
+        self.assertEqual(preset["fg_kind"], "dlssg")
+        self.assertEqual({p["scenario"]["fg_kind"] for p in preset["phases"]}, {"dlssg"})
+        self.assertEqual({p["scenario"]["fg"] for p in preset["phases"]}, {"dlssg-c"})
+        # FSR 3 at RT Off and Full, FG on, no latency model; the first after the change held twice, and
+        # neither the radiance cache's nor the micromaps' rendering.
+        self.assertEqual({p["scenario"]["technique"] for p in preset["phases"]}, {"fsr3"})
+        self.assertEqual([p["scenario"]["raytracing"] for p in preset["phases"]], ["Off", "Full", "Full"])
+        self.assertEqual({p["scenario"]["latency"] for p in preset["phases"]}, {"none"})
+        self.assertFalse(any(p["scenario"]["radiance_cache"] or p["scenario"]["opacity_micromaps"] for p in preset["phases"]))
+        self.assertEqual(bm.scenario_label(preset["phases"][0]["scenario"]), "FSR 3 · RT Off · FG DLSS-G preset C · none")
+        self.assertEqual(bm.scenario_key(preset["phases"][0]["scenario"]), "fsr3/Off/rr-na/fg-dlssg-c/lat-none")
+        # Everything else is the plain DLSS-G start's: the package, the frame generation kind.
+        self.assertEqual(preset["proxy_load"]["frameGenerationTechnique"], "dlss")
+        self.assertEqual(preset["max_generated_frames"], starts[1]["max_generated_frames"])
 
     def test_the_first_phase_after_a_change_settles_longer(self):
         starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
@@ -262,7 +285,8 @@ class MatrixTest(unittest.TestCase):
         self.matrix["separate_starts"] = ["technique"]
         starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
         self.assertEqual([s["id"] for s in starts], ["fsr3-fsr", "dlss-fsr", "amd-fsr", "xess-fsr",
-                                                     "fsr3-dlssg", "dlss-dlssg", "amd-dlssg", "xess-dlssg"])
+                                                     "fsr3-dlssg", "dlss-dlssg", "amd-dlssg", "xess-dlssg",
+                                                     "fsr3-dlssg-c"])
         self.assertEqual(starts[1]["mod_settings"]["technique"], "Dlss")
         self.assertNotIn("xessDirectory", starts[1]["proxy_load"])
 
@@ -306,13 +330,18 @@ class MatrixTest(unittest.TestCase):
         # XeSS-FG's start takes it with XeLL, the model it runs with.
         resources = dict(self.ALL, xess_fg_dll_dir="f")
         starts, _ = bm.expand(self.matrix, "NVIDIA", resources)
-        self.assertEqual({p["scenario"]["latency"] for p in starts[2]["phases"] if p["scenario"]["radiance_cache"]}, {"xell"})
+        xessfg = [s for s in starts if s["id"] == "xessfg"][0]
+        self.assertEqual({p["scenario"]["latency"] for p in xessfg["phases"] if p["scenario"]["radiance_cache"]}, {"xell"})
 
     def test_the_opacity_micromaps_are_the_last_rendering_of_the_start(self):
         starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
         for start in starts:
             phases = start["phases"]
             micromaps = [p for p in phases if p["scenario"]["opacity_micromaps"]]
+            # The preset C start names its renderings, and not these.
+            if start["id"] == "dlssg-c":
+                self.assertEqual(micromaps, [])
+                continue
             self.assertTrue(micromaps)
             # The last phases of the start, so that no row after them has the pipelines made with
             # micromap support, which stay.
@@ -336,8 +365,8 @@ class MatrixTest(unittest.TestCase):
     def test_xessfg_runs_with_xell_alone(self):
         resources = dict(self.ALL, xess_fg_dll_dir="f")
         starts, _ = bm.expand(self.matrix, "NVIDIA", resources)
-        self.assertEqual([s["id"] for s in starts], ["fsr", "dlssg", "xessfg"])
-        xessfg = starts[2]
+        self.assertEqual([s["id"] for s in starts], ["fsr", "dlssg", "dlssg-c", "xessfg"])
+        xessfg = starts[3]
         self.assertEqual(xessfg["proxy_load"]["frameGenerationTechnique"], "xess")
         self.assertEqual(xessfg["proxy_load"]["xessFgDirectory"], "f")
         self.assertEqual({p["scenario"]["latency"] for p in xessfg["phases"]}, {"xell"})
@@ -346,7 +375,7 @@ class MatrixTest(unittest.TestCase):
         # and on, the first after a change held twice.
         self.assertEqual(len(xessfg["phases"]), 11 * 2 + 10)
         self.assertIn("off-xessfg-loaded", {p["scenario"]["fg"] for p in xessfg["phases"]})
-        for other in starts[:2]:
+        for other in starts[:3]:
             self.assertNotIn("xell", {p["scenario"]["latency"] for p in other["phases"]})
 
     def test_dlssg_rows_are_their_own(self):
@@ -475,6 +504,31 @@ class InstallTest(unittest.TestCase):
         os.makedirs(raw)
         with self.assertRaises(RuntimeError):
             bm.apply_profile(self.install, "medium", "ReDefinition\n{\n}\n", raw)
+
+    def test_a_start_writes_its_values_into_the_packages_ini(self):
+        package = os.path.join(self.root, "package")
+        for sub in bm.PACKAGE_SUBDIRS:
+            os.makedirs(os.path.join(package, bm.PACKAGE_DIR, sub))
+            self.write(os.path.join(package, bm.PACKAGE_DIR, sub, "a.bin"), sub)
+        self.write(os.path.join(package, "version.dll"), "dll")
+        ini = ("[FrameGeneration]\r\n; ceiling\r\nMaxGeneratedFrames=3\r\n\r\n[DLSSG]\r\nOptimized=2\r\nPreset=Auto\r\n\r\n"
+               "[Logging]\r\nLevel=1\r\nDirectory=dlssg_sm86\\logs\r\n\r\n[SuperResolution]\r\nMode=Off\r\n")
+        with open(os.path.join(package, "dlssg_sm86.ini"), "w", encoding="utf-8", newline="") as f:
+            f.write(ini)
+        self.install.put_package(package, 1, {"DLSSG": {"Preset": "C"}, "Logging": {"FrameTiming": "1"}})
+        with open(os.path.join(self.ksp, "dlssg_sm86.ini"), encoding="utf-8", newline="") as f:
+            written = f.read()
+        self.assertEqual(written, ini.replace("MaxGeneratedFrames=3", "MaxGeneratedFrames=1").replace("Preset=Auto", "Preset=C")
+                         .replace("Directory=dlssg_sm86\\logs\r\n", "Directory=dlssg_sm86\\logs\r\nFrameTiming=1\r\n"))
+
+    def test_the_packages_ini_values(self):
+        text = "[A]\nx=1\n\n[B]\ny=2\n"
+        self.assertEqual(bm.set_package_ini_value(text, "A", "x", "9"), "[A]\nx=9\n\n[B]\ny=2\n")
+        self.assertEqual(bm.set_package_ini_value(text, "A", "z", "9"), "[A]\nx=1\nz=9\n\n[B]\ny=2\n")
+        self.assertEqual(bm.set_package_ini_value(text, "C", "z", "9"), text + "\n[C]\nz=9\n")
+        self.assertEqual(bm.set_package_ini_value("[A]\n; x=1\nx=2", "A", "x", "5"), "[A]\n; x=1\nx=5")
+        # A key of another section is not the section's.
+        self.assertEqual(bm.set_package_ini_value(text, "B", "x", "9"), "[A]\nx=1\n\n[B]\ny=2\nx=9\n")
 
     def test_package_in_and_out(self):
         package = os.path.join(self.root, "package")

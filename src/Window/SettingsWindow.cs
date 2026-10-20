@@ -507,7 +507,7 @@ namespace ReDefinition.Window
             DialogGUIBase nvidia = NvidiaRow();
             if (nvidia != null) rows.Add(Searchable(nvidia, "NVIDIA DLSS files download"));
             DialogGUIBase ampere = AmpereRow();
-            if (ampere != null) rows.Add(Searchable(ampere, "DLSS frame generation RTX 30 RTX 20 dlssg_for_sm86 download"));
+            if (ampere != null) rows.Add(Searchable(ampere, "DLSS frame generation RTX 30 RTX 20 dlssg_for_sm86 download preset multiplier super resolution frame timing"));
             foreach (BundledSetting setting in WindowLayout.In(SettingCategory.General))
             {
                 DialogGUIBase row = Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
@@ -656,10 +656,14 @@ namespace ReDefinition.Window
                                   + "DLSS frame generation runs from them after a restart of KSP.";
             install.OptionInteractableCondition = () => !AmpereFrameGeneration.Running && AmpereFrameGeneration.Zip() != null;
 
-            return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
+            List<DialogGUIBase> rows = new List<DialogGUIBase>
+            {
                 new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUILabel("DLSS-G on RTX 30/20", NameWidth), manually, install),
-                new DialogGUILabel(AmpereRowText, true));
+                new DialogGUILabel(AmpereRowText, true),
+            };
+            rows.AddRange(AmpereOptionRows());
+            return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft, rows.ToArray());
         }
 
         // The package in place, else the zip found, and the install's outcome below.

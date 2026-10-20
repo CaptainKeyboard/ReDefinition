@@ -172,7 +172,11 @@ namespace redefinition
     {
         if (message == nullptr)
             return;
-        if (type == sl::LogType::eInfo
+        // What the driver reports of flip metering (NVAPI's SetFlipConfig, which DLSS-G
+        // paces frames with), said by sl.dlss_g when it starts ("Driver reports SetFlipConfig
+        // V2 support"): kept past the caps below, which its lines come after.
+        const bool flipConfig = strstr(message, "SetFlipConfig") != nullptr;
+        if (type == sl::LogType::eInfo && !flipConfig
             && (strstr(message, "NGXLoadConfig") != nullptr || strstr(message, "mapPluginCallbacks") != nullptr
                 || strstr(message, "processPluginHooks") != nullptr || strstr(message, "isAppDenylisted") != nullptr
                 || ++g_infoLines > kInfoLines))
@@ -193,7 +197,7 @@ namespace redefinition
         }
 
         const int line = ++g_logLines;
-        if (line > kLogLines)
+        if (line > kLogLines && !flipConfig)
             return;
 
         const char* kind = type == sl::LogType::eError ? "error: " : type == sl::LogType::eWarn ? "warning: " : "";

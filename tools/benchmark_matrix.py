@@ -108,6 +108,11 @@ def expand(matrix, vendor=None, resources=None):
     are the opacity micromaps ("opacity_micromaps"), the last rendering of the start that
     has that technique and mode: the first live 1 makes the passes' pipelines with micromap
     support, which they keep, so no row after it is without.
+    A frame generation kind may name a "kind" other than its id (a variant of the same
+    technology, its rows checked against that kind), "dlssg_ini" (sections, keys and values
+    written into the DLSS-G package's ini for its start) and "only" (the renderings it is
+    measured with: "techniques", "raytracing", and "extras": false for none of the radiance
+    cache's and the micromaps').
     Returns (starts, skipped), skipped as (what, why)."""
     resources = resources or {}
     skipped = []
@@ -156,12 +161,12 @@ def expand(matrix, vendor=None, resources=None):
     starts = []
     for fg in kinds:
         groups = []
-        for r in renderings:
+        for r in [r for r in renderings if _allowed(fg, r)]:
             group = tuple(_split_value(r, d) for d in split)
             if not groups or groups[-1][0] != group:
                 groups.append((group, []))
             groups[-1][1].append(r)
-        if micromap_rendering is not None:
+        if micromap_rendering is not None and _allowed(fg, micromap_rendering):
             # The last of the group it belongs to.
             for _, members in groups:
                 if any(m["tech"]["id"] == micromap_rendering["tech"]["id"] for m in members):
@@ -176,6 +181,20 @@ def expand(matrix, vendor=None, resources=None):
             seen.add(item)
             unique.append(item)
     return starts, unique
+
+
+def _allowed(fg, rendering):
+    """Whether the frame generation kind is measured with the rendering ("only")."""
+    only = fg.get("only")
+    if not only:
+        return True
+    if "techniques" in only and rendering["tech"]["id"] not in only["techniques"]:
+        return False
+    if "raytracing" in only and rendering["raytracing"] not in only["raytracing"]:
+        return False
+    if not only.get("extras", True) and (rendering.get("radiance_cache") or rendering.get("opacity_micromaps")):
+        return False
+    return True
 
 
 def _split_value(rendering, dimension):
@@ -257,7 +276,7 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
                     "technique": tech["id"], "technique_name": tech["name"], "technique_log_name": tech.get("log_name", tech["name"]),
                     "raytracing": r["raytracing"], "ray_reconstruction": r["ray_reconstruction"],
                     "radiance_cache": r.get("radiance_cache"), "opacity_micromaps": r.get("opacity_micromaps"),
-                    "fg": fg_id, "fg_name": fg_name, "fg_requested": state == "on", "fg_kind": fg["id"],
+                    "fg": fg_id, "fg_name": fg_name, "fg_requested": state == "on", "fg_kind": fg.get("kind", fg["id"]),
                     "latency": lat["id"], "latency_name": lat["name"],
                 }
                 # The first phase of a rendering after another one waits for the upscaler's
@@ -269,11 +288,50 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
                     phases.append({"scenario": s, "keys": keys, "mod_settings": mod,
                                    "settle": settle_rebuild if rebuild else settle, "rebuild": rebuild})
     return {
-        "id": start_id, "fg_kind": fg["id"], "renderings": len(renderings),
+        "id": start_id, "fg_kind": fg.get("kind", fg["id"]), "renderings": len(renderings),
         "mod_settings": settings, "proxy_load": proxy,
         "dlssg_package": bool(fg.get("dlssg_package")), "max_generated_frames": fg.get("max_generated_frames"),
+        "dlssg_ini": fg.get("dlssg_ini"),
         "phases": phases,
     }
+
+
+def set_package_ini_value(text, section, key, value):
+    """The DLSS-G package's ini with section's key set to value: the key's line where the
+    section has one, else a line after the section's last one, else the section at the end.
+    The rest of the file, its comments and line endings stay."""
+    ending = "\r\n" if "\r\n" in text else "\n"
+    lines = text.splitlines(keepends=True)
+    inside = False
+    first = last = key_line = None
+    for n, line in enumerate(lines):
+        stripped = line.strip()
+        header = re.match(r"^\[(.+)\]$", stripped)
+        if header:
+            if inside:
+                break
+            inside = header.group(1).strip().lower() == section.lower()
+            if inside:
+                first = last = n
+            continue
+        if not inside:
+            continue
+        if stripped:
+            last = n
+        m = re.match(r"^([^;#=][^=]*)=", stripped)
+        if m and m.group(1).strip().lower() == key.lower():
+            key_line = n
+    if key_line is not None:
+        old = lines[key_line]
+        lines[key_line] = re.sub(r"^(\s*[^=]*=).*?(\r?\n?)$", lambda m: m.group(1) + value + m.group(2), old)
+        return "".join(lines)
+    if first is not None:
+        if not lines[last].endswith("\n"):
+            lines[last] += ending
+        lines.insert(last + 1, "{}={}{}".format(key, value, ending))
+        return "".join(lines)
+    head = text if not text or text.endswith("\n") else text + ending
+    return head + ("" if not head else ending) + "[{}]{}{}={}{}".format(section, ending, key, value, ending)
 
 
 def ini_sets_argument(phases):
@@ -827,7 +885,7 @@ class Install:
     def package_in_place(self):
         return [n for n in PACKAGE_FILES + (PACKAGE_DIR,) if os.path.exists(self.path(n))]
 
-    def put_package(self, package, max_generated_frames):
+    def put_package(self, package, max_generated_frames, ini_values=None):
         # A copy an earlier start left half done goes first.
         self.remove_package()
         shutil.copy2(os.path.join(package, "version.dll"), self.path("version.dll"))
@@ -835,6 +893,10 @@ class Install:
             text = f.read()
         if max_generated_frames is not None:
             text = re.sub(r"(?m)^MaxGeneratedFrames=.*$", "MaxGeneratedFrames={}".format(max_generated_frames), text)
+        # The start's own values: sections, keys and values the package's ini is read with.
+        for section, keys in (ini_values or {}).items():
+            for key, value in keys.items():
+                text = set_package_ini_value(text, section, key, value)
         with open(self.path("dlssg_sm86.ini"), "w", encoding="utf-8") as f:
             f.write(text)
         for sub in PACKAGE_SUBDIRS:
@@ -1041,7 +1103,7 @@ def run_start(install, start, raw, settings_template, ini_template, package):
     try:
         # Inside the try: a copy that fails half way is removed all the same.
         if start["dlssg_package"]:
-            install.put_package(package, start["max_generated_frames"])
+            install.put_package(package, start["max_generated_frames"], start.get("dlssg_ini"))
         timeout = int(start_seconds(start) + 2 * START_OVERHEAD_SECONDS + 60)
         outcome = install.launch(["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds",
                                   "-redefinitionProbeShot", SHOT, "-redefinitionProbeShotVariant", "none",
@@ -1100,7 +1162,8 @@ def build_record(raw):
     for start in plan["starts"]:
         base = os.path.join(raw, start["id"])
         entry = {"id": start["id"], "mod_settings_set": start["mod_settings"], "proxy_load_set": start["proxy_load"],
-                 "dlssg_package": start["dlssg_package"], "max_generated_frames": start["max_generated_frames"]}
+                 "dlssg_package": start["dlssg_package"], "max_generated_frames": start["max_generated_frames"],
+                 "dlssg_ini": start.get("dlssg_ini")}
         if not os.path.exists(base + ".proxy.log") or not os.path.exists(base + ".KSP.log"):
             entry["problems"] = ["no logs: the start did not run"]
             entry["phases"] = []

@@ -166,6 +166,18 @@ namespace redefinition
         // 1 m and the default made no measurable difference.
         float fgObjectSeparationMetres = 0.0f;
 
+        // DLSS-G's mode (kDlssgMode*, FrameGenerationDlss.cpp). on: a fixed multiplier,
+        // as many generated frames as the display and the GPU allow. dynamic: Dynamic
+        // Multi Frame Generation, DLSSGMode::eDynamic -- Streamline "automatically adjusts
+        // the number of generated frames to align the output frame rate with the display's
+        // refresh rate or a user-defined target" (ProgrammingGuideDLSS_G.md 6.3), where
+        // DLSSGState::bIsDynamicMFGSupported says it runs; the fixed multiplier where not.
+        int dlssgMode = 0;
+
+        // Dynamic Multi Frame Generation's target output frame rate, in frames a second;
+        // 0 targets the monitor's refresh rate. Streamline ignores it under V-Sync.
+        float dlssgDynamicTargetFps = 0.0f;
+
         // Frame pacing. FSR's swapchain owns the timing of generated frames, and
         // these are its documented defaults. Hybrid spin, which AMD's header calls
         // "Less precise, but power saving", is a setting.
@@ -494,6 +506,11 @@ namespace redefinition
     constexpr int kFgTechniqueFsr = 1;
     constexpr int kFgTechniqueDlss = 2;
     constexpr int kFgTechniqueXess = 3;
+
+    // ProxyConfig::dlssgMode, as the ini writes it: on, dynamic.
+    constexpr int kDlssgModeOn = 0;
+    constexpr int kDlssgModeDynamic = 1;
+    const char* DlssgModeName(int mode);
 
     // ProxyConfig::rrPath, as the ini writes it: auto, streamline, ngx.
     constexpr int kRrPathAuto = 0;

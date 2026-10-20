@@ -11,6 +11,7 @@
 
 #include "Config.h"
 #include "Log.h"
+#include "NvidiaGpu.h"
 #include "Streamline.h"
 
 #include <atomic>
@@ -106,6 +107,10 @@ namespace redefinition
         streamlineStatusKnown = false;
         streamlineVsyncKnown = false;
         streamlineVsyncSupported = true;
+        streamlineDynamicKnown = false;
+        streamlineDynamicSupported = false;
+        loggedDynamicFallback = false;
+        streamlineModeSet = -1;
         streamlineRetryAfter = 0;
         streamlineGrace = 0;
         streamlineOffStatus = 0;
@@ -263,9 +268,25 @@ namespace redefinition
         const uint32_t limit = maxFrames ? maxFrames() : 0;
         const uint32_t frames = limit != 0 && limit < streamlineFrames ? limit : streamlineFrames;
         LogStreamlineApiErrors();
+
+        // Dynamic Multi Frame Generation where dlssgMode asks for it and the state of this
+        // swapchain's first Present reported it supported (ReadStreamlineStateLocked); the
+        // fixed multiplier until that is known, and where it is not. Streamline ignores
+        // numFramesToGenerate under it, and the latency brake stays off as under any
+        // Streamline Reflex (LowLatency::Describe).
+        const bool dynamic = cfg.dlssgMode == kDlssgModeDynamic && streamlineDynamicKnown && streamlineDynamicSupported;
+        if (cfg.dlssgMode == kDlssgModeDynamic && streamlineDynamicKnown && !streamlineDynamicSupported
+            && !loggedDynamicFallback)
+        {
+            loggedDynamicFallback = true;
+            LogLine("DLSS frame generation: dlssgMode=dynamic is asked for, but Streamline does not report dynamic multi"
+                    " frame generation supported on this system -- the fixed multiplier is used");
+        }
         sl::DLSSGOptions options{};
-        options.mode = sl::DLSSGMode::eOn;
+        options.mode = dynamic ? sl::DLSSGMode::eDynamic : sl::DLSSGMode::eOn;
         options.numFramesToGenerate = frames;
+        // 0 targets the monitor's refresh rate; Streamline ignores the target under V-Sync.
+        options.dynamicTargetFrameRate = dynamic ? cfg.dlssgDynamicTargetFps : 0.0f;
         options.flags = sl::DLSSGFlags::eRetainResourcesWhenOff;
         // Only the frames DLSS-G generates on screen, to see them apart (Config.h).
         if (Config().fgShowOnlyGenerated)
@@ -288,10 +309,25 @@ namespace redefinition
             streamlineGrace = kStatusGracePresents;
             streamlineRetryAfter = 0;
         }
-        if ((!streamlineOn && !statusFailing) || frames != streamlineFramesSet)
-            LogLine("DLSS frame generation on, " + std::to_string(frames) + " generated frame(s) per rendered"
-                    + (frames < streamlineFrames ? " (the GPU offers " + std::to_string(streamlineFrames) + ")" : "")
-                    + (useHudLess ? ", with the HUD-less copy" : ", without a HUD-less copy"));
+        const int modeNow = dynamic ? kDlssgModeDynamic : kDlssgModeOn;
+        if ((!streamlineOn && !statusFailing) || frames != streamlineFramesSet
+            || (streamlineModeSet >= 0 && modeNow != streamlineModeSet))
+        {
+            if (dynamic)
+            {
+                char target[48] = "the display's refresh rate";
+                if (cfg.dlssgDynamicTargetFps > 0.0f)
+                    FormatTo(target, "%.0f fps", cfg.dlssgDynamicTargetFps);
+                LogLine(std::string("DLSS frame generation on, dynamic multi frame generation toward ") + target
+                        + ", up to " + std::to_string(streamlineFrames) + " generated frame(s) per rendered"
+                        + (useHudLess ? ", with the HUD-less copy" : ", without a HUD-less copy"));
+            }
+            else
+                LogLine("DLSS frame generation on, " + std::to_string(frames) + " generated frame(s) per rendered"
+                        + (frames < streamlineFrames ? " (the GPU offers " + std::to_string(streamlineFrames) + ")" : "")
+                        + (useHudLess ? ", with the HUD-less copy" : ", without a HUD-less copy"));
+        }
+        streamlineModeSet = modeNow;
         streamlineOn = true;
         streamlineFramesSet = frames;
         generatedLastPresent = true;
@@ -341,6 +377,33 @@ namespace redefinition
         return wasOn;
     }
 
+    void FrameGeneration::NoteDynamicSupportLocked(bool supported, uint32_t framesMax)
+    {
+        streamlineDynamicKnown = true;
+        streamlineDynamicSupported = supported;
+
+        // "The most likely reasons for lack of support are: Multi-frame generation is not
+        // supported; The NVIDIA display driver is below version 595.41; The application is
+        // using Vulkan" (ProgrammingGuideDLSS_G.md 6.3) -- the state gives no reason of
+        // its own, so what the proxy knows of each is said next to it.
+        const uint32_t driver = NvidiaDriverVersion();
+        char driverText[32] = "not known";
+        if (driver != 0)
+            FormatTo(driverText, "%u.%02u", driver / 100, driver % 100);
+        if (supported)
+        {
+            LogLine(std::string("DLSS frame generation: dynamic multi frame generation is supported (NVIDIA driver ")
+                    + driverText + ", up to " + std::to_string(framesMax) + " generated frame(s)); dlssgMode=dynamic"
+                    + (Config().dlssgMode == kDlssgModeDynamic ? " is set" : " selects it"));
+            return;
+        }
+        LogLine(std::string("DLSS frame generation: dynamic multi frame generation is not supported here"
+                            " (bIsDynamicMFGSupported is false) -- the reasons Streamline's guide gives: multi frame"
+                            " generation not supported (this GPU: up to ")
+                + std::to_string(framesMax) + " generated frame(s)), an NVIDIA driver below 595.41 (this one: "
+                + driverText + "), Vulkan (this is Direct3D 12)");
+    }
+
     FrameGeneration::StreamlinePresent FrameGeneration::ReadStreamlineStateLocked()
     {
         StreamlinePresent result;
@@ -360,6 +423,9 @@ namespace redefinition
                     + " frame(s) per rendered frame");
             streamlineFrames = frames;
         }
+
+        if (!streamlineDynamicKnown)
+            NoteDynamicSupportLocked(state.bIsDynamicMFGSupported == sl::Boolean::eTrue, state.numFramesToGenerateMax);
 
         // "Applications should check sl::DLSSGState::bIsVsyncSupportAvailable to
         // determine if VSync is supported with the current DLSS-G build"
@@ -405,8 +471,15 @@ namespace redefinition
             }
         }
 
-        // What this Present was set to, not what the next may be.
-        streamlineMultiplier = streamlineOn && status == 0 ? static_cast<int>(streamlineFramesSet) + 1 : 0;
+        // What this Present was set to, not what the next may be; under Dynamic Multi
+        // Frame Generation the frames Streamline presented since the last state, which
+        // it chose.
+        const bool dynamicSet = streamlineModeSet == kDlssgModeDynamic;
+        streamlineMultiplier = streamlineOn && status == 0
+                                   ? (dynamicSet && state.numFramesActuallyPresented >= 1
+                                          ? static_cast<int>(state.numFramesActuallyPresented)
+                                          : static_cast<int>(streamlineFramesSet) + 1)
+                                   : 0;
 
         result.presented = state.numFramesActuallyPresented;
         result.statusOk = streamlineOn && status == 0;

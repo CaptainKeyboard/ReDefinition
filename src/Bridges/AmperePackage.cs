@@ -16,9 +16,11 @@ namespace ReDefinition.Bridges
     //
     // Taken: version.dll, dlssg_sm86.ini and the dlssg_sm86 folder without its
     // super-resolution files (sr, for DLSS Super Resolution, off in its ini), the licence
-    // and notices into that folder. Its layout changes between releases, so no file is
-    // pinned: what has to be there is, and every file comes out with the size and CRC-32
-    // the zip gives it.
+    // and notices into that folder. The super-resolution files, about 180 MB, come out
+    // on their own (Part.SuperResolution) when the player asks for them
+    // (AmpereOptions.SuperResolution). Its layout changes between releases, so no file
+    // is pinned: what has to be there is, and every file comes out with the size and
+    // CRC-32 the zip gives it.
     //
     // Everything here is free of Unity, for the tests (AmperePackageTests).
     internal static class AmperePackage
@@ -34,9 +36,19 @@ namespace ReDefinition.Bridges
         private const string Backend = FolderName + "/backend/";
         private const string Kernels = FolderName + "/kernels/";
         private const string SuperResolution = FolderName + "/sr/";
+        private const string SuperResolutionRuntime = SuperResolution + "nvngx_dlss.dll";
+        private const string SuperResolutionKernels = SuperResolution + "sr_kernels.dll";
         private const string Logs = FolderName + "/logs/";
         // The licence and notices at the zip's top, into the folder.
         private static readonly string[] Notices = { "LICENSE.md", "THIRD_PARTY_NOTICES.txt" };
+
+        // What an install takes: the package without the super-resolution files, or those
+        // alone.
+        public enum Part
+        {
+            Package,
+            SuperResolution,
+        }
 
         // One file of the zip, as its central directory gives it, and where it goes,
         // relative to KSP's folder with '/' between folders.
@@ -59,6 +71,13 @@ namespace ReDefinition.Bridges
                    && File.Exists(Path.Combine(game, Runtime.Replace('/', Path.DirectorySeparatorChar)));
         }
 
+        // Whether the super-resolution files lie where the package's ini wants them.
+        public static bool SuperResolutionInstalled(string game)
+        {
+            return File.Exists(Path.Combine(game, SuperResolutionRuntime.Replace('/', Path.DirectorySeparatorChar)))
+                   && File.Exists(Path.Combine(game, SuperResolutionKernels.Replace('/', Path.DirectorySeparatorChar)));
+        }
+
         // The newest release zip in KSP's folder, or null.
         public static string FindZip(string game)
         {
@@ -75,8 +94,12 @@ namespace ReDefinition.Bridges
         }
 
         // Where a file of the zip goes, or null for one not taken.
-        public static string TargetOf(string name)
+        public static string TargetOf(string name, Part part = Part.Package)
         {
+            if (part == Part.SuperResolution)
+                return name.StartsWith(SuperResolution, StringComparison.Ordinal) && !name.EndsWith("/", StringComparison.Ordinal)
+                    ? name
+                    : null;
             if (name == Proxy || name == Ini) return name;
             if (Array.IndexOf(Notices, name) >= 0) return FolderName + "/" + name;
             if (!name.StartsWith(FolderName + "/", StringComparison.Ordinal) || name.EndsWith("/", StringComparison.Ordinal))
@@ -88,7 +111,7 @@ namespace ReDefinition.Bridges
 
         // The zip's files that are taken. Throws InvalidDataException with the reason for
         // a zip that is none, or lacks what has to be there.
-        public static List<Item> Read(Stream zip)
+        public static List<Item> Read(Stream zip, Part part = Part.Package)
         {
             // The end of the central directory: at the end, before a comment of at most
             // 64 KB.
@@ -140,7 +163,7 @@ namespace ReDefinition.Bridges
                 };
                 p += 46 + nameLength + extraLength + commentLength;
 
-                item.Target = TargetOf(name);
+                item.Target = TargetOf(name, part);
                 if (item.Target == null) continue;
                 if (name.StartsWith("/", StringComparison.Ordinal) || name.Contains("..") || name.Contains(":"))
                     throw new InvalidDataException(name + ": a path outside KSP's folder");
@@ -153,12 +176,22 @@ namespace ReDefinition.Bridges
             }
 
             List<string> missing = new List<string>();
-            foreach (string required in new[] { Proxy, Ini, Runtime })
+            if (part == Part.SuperResolution)
             {
-                if (!items.Exists(item => item.Target == required)) missing.Add(required);
+                foreach (string required in new[] { SuperResolutionRuntime, SuperResolutionKernels })
+                {
+                    if (!items.Exists(item => item.Target == required)) missing.Add(required);
+                }
             }
-            if (!items.Exists(item => item.Target.StartsWith(Backend, StringComparison.Ordinal))) missing.Add(Backend);
-            if (!items.Exists(item => item.Target.StartsWith(Kernels, StringComparison.Ordinal))) missing.Add(Kernels);
+            else
+            {
+                foreach (string required in new[] { Proxy, Ini, Runtime })
+                {
+                    if (!items.Exists(item => item.Target == required)) missing.Add(required);
+                }
+                if (!items.Exists(item => item.Target.StartsWith(Backend, StringComparison.Ordinal))) missing.Add(Backend);
+                if (!items.Exists(item => item.Target.StartsWith(Kernels, StringComparison.Ordinal))) missing.Add(Kernels);
+            }
             if (missing.Count > 0)
                 throw new InvalidDataException("it lacks " + string.Join(", ", missing.ToArray())
                                                + " -- another layout than ReDefinition knows");
@@ -207,14 +240,14 @@ namespace ReDefinition.Bridges
         // running game has loaded. Should any step fail, every file placed is taken out
         // again, every renamed one goes back, and the exception says so. Returns how many
         // files were placed.
-        public static int Install(string zipPath, string game)
+        public static int Install(string zipPath, string game, Part part = Part.Package)
         {
             List<Item> items;
             List<string> partials = new List<string>();
             List<string> targets = new List<string>();
             using (FileStream zip = File.OpenRead(zipPath))
             {
-                items = Read(zip);
+                items = Read(zip, part);
                 try
                 {
                     foreach (Item item in items)

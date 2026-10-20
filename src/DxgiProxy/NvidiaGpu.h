@@ -46,6 +46,10 @@ namespace redefinition
     // without NVIDIA's driver or where the driver lacks it.
     void* NvapiInterface(uint32_t id);
 
+    // NVIDIA's display driver version, through NVAPI, as NVIDIA numbers it: 59716 for
+    // 597.16; 0 without NVIDIA's driver or where NVAPI does not answer.
+    uint32_t NvidiaDriverVersion();
+
     // That adapter's LUID; false before a swapchain was made.
     bool SwapChainAdapter(LUID& adapter);
 }
