@@ -222,8 +222,8 @@ namespace redefinition
             if (reflex)
                 LogLine("Low latency: NVIDIA Reflex through NVAPI on the proxy's Direct3D 12 device");
 
-            // The measure, on every GPU but with DLSS frame generation.
-            if (!streamlineReflex && newDevice != nullptr && newQueue != nullptr)
+            // The measure, on every GPU and with DLSS frame generation as well.
+            if (newDevice != nullptr && newQueue != nullptr)
             {
                 if (FAILED(newDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence))))
                     fence.Reset();
@@ -269,9 +269,12 @@ namespace redefinition
         SetText(0, "no swapchain through the proxy");
     }
 
+    // The game's frames are followed, and measured, on every swapchain through the
+    // proxy, DLSS frame generation's included; what lowers the latency stays out of
+    // the way of Streamline's Reflex.
     bool LowLatency::TrackingLocked() const
     {
-        return owner != nullptr && !streamline;
+        return owner != nullptr;
     }
 
     bool LowLatency::ReflexLocked() const
@@ -288,9 +291,10 @@ namespace redefinition
     {
         std::lock_guard<std::mutex> lock(mutex);
         if (!TrackingLocked())
+            return;
+        if (streamline)
         {
-            if (owner != nullptr && streamline)
-                SetText(2, "NVIDIA Reflex, Streamline's, with DLSS frame generation");
+            SetText(2, "NVIDIA Reflex, Streamline's, with DLSS frame generation");
             return;
         }
         const int wantedMode = reflex && Config().lowLatency ? 1 : 0;
@@ -363,7 +367,7 @@ namespace redefinition
     {
         {
             std::lock_guard<std::mutex> lock(mutex);
-            if (!TrackingLocked() || AntiLagLocked())
+            if (!TrackingLocked() || streamline || AntiLagLocked())
             {
                 brakeWaitsBefore = -1;
                 return;
@@ -606,8 +610,9 @@ namespace redefinition
         {
             std::vector<double> sorted(measured);
             std::sort(sorted.begin(), sorted.end());
-            const char* running = AntiLagLocked() ? (appliedAntiLag == 12 ? "Anti-Lag 2 (Direct3D 12)"
-                                                                          : "Anti-Lag 2 (Direct3D 11)")
+            const char* running = streamline ? "Streamline's Reflex"
+                                  : AntiLagLocked() ? (appliedAntiLag == 12 ? "Anti-Lag 2 (Direct3D 12)"
+                                                                            : "Anti-Lag 2 (Direct3D 11)")
                                   : Config().latencyBrake ? (appliedMode == 1 ? "Reflex and the brake" : "the brake")
                                   : appliedMode == 1 ? "Reflex" : "nothing";
             char line[192];
@@ -699,7 +704,7 @@ namespace redefinition
         bool braking = false;
         {
             std::lock_guard<std::mutex> lock(mutex);
-            braking = TrackingLocked() && !AntiLagLocked() && Config().latencyBrake;
+            braking = TrackingLocked() && !streamline && !AntiLagLocked() && Config().latencyBrake;
         }
         std::lock_guard<std::mutex> lock(textLock);
         const std::string shown = braking ? text + "; latency brake on" : text;
