@@ -504,6 +504,8 @@ namespace ReDefinition.Window
                 rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Upscaler") + " ReDefinition"));
             DialogGUIBase nvidia = NvidiaRow();
             if (nvidia != null) rows.Add(Searchable(nvidia, "NVIDIA DLSS files download"));
+            DialogGUIBase ampere = AmpereRow();
+            if (ampere != null) rows.Add(Searchable(ampere, "DLSS frame generation RTX 30 RTX 20 dlssg_for_sm86 download"));
             foreach (BundledSetting setting in WindowLayout.In(SettingCategory.General))
             {
                 DialogGUIBase row = Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
@@ -609,6 +611,39 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUILabel("NVIDIA DLSS files", NameWidth), download, new DialogGUILabel(offer, true)),
                 new DialogGUILabel(NvidiaStatus, true));
+        }
+
+        // DLSS frame generation on RTX 30 and RTX 20 (AmpereFrameGeneration): the
+        // dialog with the steps, and the install from the zip the player put into KSP's
+        // folder, followed by the zip found and what the install came to.
+        private static DialogGUIBase AmpereRow()
+        {
+            if (!AmpereFrameGeneration.Offered()) return null;
+
+            DialogGUIButton manually = new DialogGUIButton("Download manually ...", AmpereFrameGeneration.Show,
+                ControlWidth, 24f, false);
+            manually.tooltipText = "DLSS frame generation on RTX 30 and RTX 20 through dlssg_for_sm86, a community\n"
+                                   + "project by sdli1995: where to download it, and where to put it.";
+            DialogGUIButton install = new DialogGUIButton("Install from zip", AmpereFrameGeneration.Start, 130f, 24f, false);
+            install.tooltipText = "Takes version.dll, dlssg_sm86.ini and the dlssg_sm86 folder out of the\n"
+                                  + AmperePackage.ZipPattern + " in KSP's folder and places them next to KSP_x64.exe.\n"
+                                  + "DLSS frame generation runs from them after a restart of KSP.";
+            install.OptionInteractableCondition = () => !AmpereFrameGeneration.Running && AmpereFrameGeneration.Zip() != null;
+
+            return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
+                new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                    new DialogGUILabel("DLSS-G on RTX 30/20", NameWidth), manually, install),
+                new DialogGUILabel(AmpereRowText, true));
+        }
+
+        // The package in place, else the zip found, and the install's outcome below.
+        private static string AmpereRowText()
+        {
+            string outcome = AmpereFrameGeneration.StatusText();
+            if (outcome.Length > 0) return outcome;
+            return AmpereFrameGeneration.Installed()
+                ? "<color=#9a9a9a>dlssg_for_sm86 is in place next to KSP_x64.exe.</color>"
+                : AmpereFrameGeneration.ZipText();
         }
 
         // The download's progress or outcome, grey, made anew only when it changes:

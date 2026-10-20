@@ -431,7 +431,7 @@ namespace ReDefinition.Bridges
             return text.ToString();
         }
 
-        private static int ReadFully(Stream stream, byte[] buffer)
+        internal static int ReadFully(Stream stream, byte[] buffer)
         {
             int read = 0;
             while (read < buffer.Length)
@@ -443,19 +443,19 @@ namespace ReDefinition.Bridges
             return read;
         }
 
-        private static int ReadUInt16(byte[] bytes, int at)
+        internal static int ReadUInt16(byte[] bytes, int at)
         {
             return bytes[at] | bytes[at + 1] << 8;
         }
 
-        private static uint ReadUInt32(byte[] bytes, int at)
+        internal static uint ReadUInt32(byte[] bytes, int at)
         {
             return (uint)(bytes[at] | bytes[at + 1] << 8 | bytes[at + 2] << 16 | bytes[at + 3] << 24);
         }
 
         // At most length bytes of a stream, left open: the compressed data, so that
         // inflating cannot read past it.
-        private sealed class LimitedStream : Stream
+        internal sealed class LimitedStream : Stream
         {
             private readonly Stream inner;
             private long left;
