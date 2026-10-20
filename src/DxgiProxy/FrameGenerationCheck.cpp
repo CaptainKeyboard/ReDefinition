@@ -144,11 +144,11 @@ namespace redefinition
         }
 
         // Only a frame copied for frame generation that exists -- FSR's context,
-        // or DLSS-G's swapchain -- makes a check's frame; any other ends a pair
+        // or DLSS-G's or XeSS-FG's swapchain -- makes a check's frame; any other ends a pair
         // begun, as above. Without a context no pair could be completed: while
         // one waits for its next attempt, copies are made once a second at most.
         const ProxyConfig& cfg = Config();
-        if (!copied || !(contextCreated || streamline) || !cfg.hudLessColour || !inputsCopied || !packetFresh
+        if (!copied || !(contextCreated || streamline || xess) || !cfg.hudLessColour || !inputsCopied || !packetFresh
             || (checkPresented == nullptr && !CreateCheckTexturesLocked()))
         {
             checkHavePrevious = false;

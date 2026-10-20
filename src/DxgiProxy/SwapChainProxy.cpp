@@ -316,7 +316,7 @@ namespace redefinition
         // other: each needs the presenting swapchain to be its own, Streamline's,
         // FidelityFX's or XeSS-FG's, and there is one. With frame generation on and
         // DLSS-G not running, raytracing goes without Ray Reconstruction.
-        const int technique = Config().frameGenerationTechnique;
+        const int technique = FrameGenerationTechniqueAsked();
         const bool dlssFrameGeneration = Config().frameGeneration
                                          && (technique == kFgTechniqueAuto || technique == kFgTechniqueDlss);
         xessWanted = Config().frameGeneration

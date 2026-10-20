@@ -39,8 +39,9 @@ namespace redefinition
         // package ships AMD's runtime (Config.cpp).
         bool frameGeneration = true;
 
-        // Which frame generation the swapchain is made for (kFgTechnique*), read at
-        // creation like frameGeneration: which swapchain presents is decided once.
+        // Which frame generation the swapchain is made for (kFgTechnique*), taken when
+        // the swapchain is created, like the folders: which swapchain presents is
+        // decided once per swapchain.
         // auto: DLSS-G where NVIDIA's Streamline 2.14.16 is there and the GPU runs it
         // (Streamline.h), XeSS-FG on an Intel GPU where the player's libxess_fg.dll
         // and libxell.dll are there (XessFg.h), FSR's otherwise. dlss and xess ask for
@@ -295,6 +296,8 @@ namespace redefinition
     std::wstring XessDirectory();
     std::wstring StreamlineDirectory();
     std::wstring XessFgDirectory();
+    // frameGenerationTechnique as the file has it now, read like the folders.
+    int FrameGenerationTechniqueAsked();
 
     // Re-reads the file when it has changed on disk; returns whether it did.
     // rebuild: whether a setting changed that the frame generation context has to

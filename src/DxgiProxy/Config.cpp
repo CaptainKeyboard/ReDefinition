@@ -530,6 +530,12 @@ namespace redefinition
     }
 
     // As StreamlineDirectory: from the file, once per swapchain.
+    int FrameGenerationTechniqueAsked()
+    {
+        return ReadTechnique(IniPath());
+    }
+
+    // As StreamlineDirectory: from the file, once per swapchain.
     std::wstring XessFgDirectory()
     {
         wchar_t buffer[260] = {};
@@ -564,7 +570,6 @@ namespace redefinition
         // Not live: a swapchain cannot be exchanged underneath a running game.
         fresh.enabled = g_config.enabled;
         fresh.frameGeneration = g_config.frameGeneration;
-        fresh.frameGenerationTechnique = g_config.frameGenerationTechnique;
         fresh.measureOnly = g_config.measureOnly;
         fresh.allowTearing = g_config.allowTearing;
 
@@ -578,7 +583,7 @@ namespace redefinition
         }
         LogLine("Config reloaded: " + Describe(g_config)
                 + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
-                + "   (enabled, allowTearing, measureOnly, frameGeneration and frameGenerationTechnique as at load;"
+                + "   (enabled, allowTearing, measureOnly and frameGeneration as at load; frameGenerationTechnique,"
                   " the folders, rtOwnQueue, streamlineImgui and vendorDiagnostics apply when what they serve starts)");
 
         rebuild = needsRebuild;
