@@ -432,10 +432,14 @@ def _seconds(h, m, s, ms):
     return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000.0
 
 
-def _timed_lines(text, pattern):
-    """(seconds, text) of each timestamped line, the clock carried over midnight."""
+def _timed_lines(text, pattern, keep=None):
+    """(seconds, text) of each timestamped line, the clock carried over midnight. With
+    keep, only the lines containing it count: KSP.log holds ModuleManager's log of an
+    earlier start, its times a day off, and those must not move the clock."""
     out, offset, last = [], 0.0, None
     for raw in text.splitlines():
+        if keep is not None and keep not in raw:
+            continue
         m = pattern.match(raw.rstrip("\r"))
         if not m:
             continue
@@ -525,11 +529,9 @@ def parse_ksp_log(text):
         m = re.match(r"^GPU: (.*)$", raw.strip())
         if m and k["gpu"] is None:
             k["gpu"] = m.group(1).strip()
-    for t, line in _timed_lines(text, _KSP_TIME):
+    for t, line in _timed_lines(text, _KSP_TIME, "] [ReDefinition] "):
         if k["first_time"] is None:
             k["first_time"] = t
-        if "[ReDefinition]" not in line:
-            continue
         m = _UPSCALER.search(line)
         if m:
             g = m.groups()

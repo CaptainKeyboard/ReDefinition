@@ -196,6 +196,15 @@ class ClockTest(unittest.TestCase):
         lines = bm._timed_lines("23:59:59.500  a\n00:00:00.500  b\n", bm._PROXY_TIME)
         self.assertAlmostEqual(lines[1][0] - lines[0][0], 1.0)
 
+    def test_a_stale_line_of_another_day_does_not_move_the_ksp_clock(self):
+        # KSP.log holds ModuleManager's log of an earlier start: its patch lines carry the
+        # old start's time, 23:49, and name the mod in NEEDS[ReDefinition].
+        text = ("[LOG 00:08:20.418] [ReDefinition] Upscaler ready.\n"
+                "[LOG 23:49:20.330] Applying update ReDefinition/Patches/X/@PART[*]:NEEDS[ReDefinition]\n"
+                "[LOG 00:09:56.826] [ReDefinition] Probe: ReDefinitionProxy.ini set to a=1.\n")
+        ksp = bm.parse_ksp_log(text)
+        self.assertAlmostEqual(ksp["sets"][0]["time"] - ksp["first_time"], 96.408, places=2)
+
 
 class MatrixTest(unittest.TestCase):
     ALL = {"dlssg_package": "p", "amd_dll_dir": "d", "xess_dll_dir": "x"}
