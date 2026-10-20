@@ -183,6 +183,12 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
     settle_rebuild = matrix.get("settle_after_rebuild_seconds", settle)
     repeats = max(1, int(matrix.get("phase_repeats", 1)))
     repeats_rebuild = max(1, int(matrix.get("phase_repeats_after_rebuild", repeats)))
+    # A kind that names its latency models gets those alone (XeSS-FG runs with XeLL, which
+    # it requires); a model tied to kinds runs with those only.
+    if fg.get("latencies"):
+        latencies = [l for l in latencies if l["id"] in fg["latencies"]]
+    else:
+        latencies = [l for l in latencies if not l.get("only_with_fg")]
     fg_states = [("off", matrix["fg_off"])] if fg.get("fg_off_phases", True) else []
     fg_states.append(("on", matrix["fg_on"]))
     phases = []
@@ -385,7 +391,8 @@ def parse_proxy_log(text):
         for key, prefix in (("backbuffer", "Backbuffer registered: "), ("dlssg", "DLSS frame generation"),
                             ("fsr_fg", "Frame generation context created"), ("dlss", "DLSS: nvngx_dlss.dll"),
                             ("amd_upscaler", "AMD upscaler: "), ("swapchain", "Swapchain created"),
-                            ("low_latency", "Low latency: NVIDIA Reflex"), ("anti_lag", "Low latency: AMD")):
+                            ("low_latency", "Low latency: NVIDIA Reflex"), ("anti_lag", "Low latency: AMD"),
+                            ("xell", "Low latency: Intel XeLL"), ("xess_fg", "XeSS frame generation")):
             if line.startswith(prefix):
                 notes.append((key, t, line))
                 break
@@ -502,6 +509,8 @@ def _fg_kind_ran(proxy):
     elif any(x["text"].startswith("DLSS frame generation on") or "Streamline 2.14" in x["text"] and "nvngx_dlssg" in x["text"]
              for x in dlssg) or any("Streamline (DLSS frame generation)" in x["text"] for x in proxy["lines"].get("swapchain", [])):
         kind = "DLSS-G"
+    elif any("XeSS-FG (XeSS frame generation" in x["text"] for x in proxy["lines"].get("swapchain", [])):
+        kind = "XeSS-FG"
     elif proxy["lines"].get("fsr_fg"):
         kind = "FSR"
     else:
@@ -561,6 +570,8 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
                 warnings.append("frame generation held off, presented/rendered {:.2f}".format(ratio))
         if s["fg_requested"] and s["fg_kind"] == "dlssg" and fg_kind != "DLSS-G":
             warnings.append("DLSS-G asked for, the proxy set up {}".format(fg_kind or "none"))
+        if s["fg_requested"] and s["fg_kind"] == "xessfg" and fg_kind != "XeSS-FG":
+            warnings.append("XeSS-FG asked for, the proxy set up {}".format(fg_kind or "none"))
         traced = _last_before(ksp["raytracing"], end)
         rt_now = traced["mode"] if traced else start.get("mod_settings", {}).get("raytracing")
         if rt_now is not None and rt_now.lower() != s["raytracing"].lower():
@@ -600,7 +611,8 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
         "amd_upscaler": [x["text"] for x in proxy["lines"].get("amd_upscaler", [])] or None,
         "dlssg_lines": [x["text"] for x in proxy["lines"].get("dlssg", [])][:6] or None,
         "nvidia_driver": next((x["text"] for x in proxy["lines"].get("nvidia_driver", [])), None),
-        "low_latency_lines": [x["text"] for x in proxy["lines"].get("low_latency", []) + proxy["lines"].get("anti_lag", [])] or None,
+        "low_latency_lines": [x["text"] for x in proxy["lines"].get("low_latency", []) + proxy["lines"].get("anti_lag", [])
+                                                 + proxy["lines"].get("xell", [])] or None,
         "ray_reconstruction_lines": [x["text"] for x in ksp["rr"]][:4] or None,
         "upscaler_lines": ksp["upscaler"][:4],
         "problems": problems, "phases": phases,
@@ -985,6 +997,11 @@ def resources_of(args):
         out["xess_dll_dir"] = os.path.abspath(args.xess_dll_dir)
     elif os.path.exists(os.path.join(args.ksp, "libxess.dll")):
         out["xess_dll_dir"] = os.path.abspath(args.ksp)
+    fg_files = ("libxess_fg.dll", "libxell.dll")
+    if args.xess_fg_dll_dir and all(os.path.exists(os.path.join(args.xess_fg_dll_dir, n)) for n in fg_files):
+        out["xess_fg_dll_dir"] = os.path.abspath(args.xess_fg_dll_dir)
+    elif all(os.path.exists(os.path.join(args.ksp, n)) for n in fg_files):
+        out["xess_fg_dll_dir"] = os.path.abspath(args.ksp)
     return out
 
 
@@ -1262,6 +1279,8 @@ def main(argv=None):
                        help="the folder with amd_fidelityfx_upscaler_dx12.dll, handed to the proxy as amdUpscalerDirectory")
         p.add_argument("--xess-dll-dir", default=os.environ.get("REDEFINITION_XESS_DLL_DIR", os.path.join(REPO, ".local", "xess")),
                        help="the folder with Intel's libxess.dll, handed to the proxy as xessDirectory")
+        p.add_argument("--xess-fg-dll-dir", default=os.environ.get("REDEFINITION_XESS_FG_DLL_DIR", os.path.join(REPO, ".local", "xessfg")),
+                       help="the folder with Intel's libxess_fg.dll and libxell.dll, handed to the proxy as xessFgDirectory")
         p.add_argument("--vendor", choices=["NVIDIA", "AMD", "Intel"], help="the GPU's vendor, if not the one Windows names")
         p.add_argument("--only", action="append", help="only the starts whose id contains this (repeatable)")
 

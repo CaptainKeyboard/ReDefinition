@@ -257,6 +257,21 @@ class MatrixTest(unittest.TestCase):
                         "lowLatency=", "latencyBrake="):
                 self.assertIn(key, s)
 
+    def test_xessfg_runs_with_xell_alone(self):
+        resources = dict(self.ALL, xess_fg_dll_dir="f")
+        starts, _ = bm.expand(self.matrix, "NVIDIA", resources)
+        self.assertEqual([s["id"] for s in starts], ["fsr", "dlssg", "xessfg"])
+        xessfg = starts[2]
+        self.assertEqual(xessfg["proxy_load"]["frameGenerationTechnique"], "xess")
+        self.assertEqual(xessfg["proxy_load"]["xessFgDirectory"], "f")
+        self.assertEqual({p["scenario"]["latency"] for p in xessfg["phases"]}, {"xell"})
+
+        # Nine renderings, FG off (XeSS-FG loaded) and on, the first after a change held twice.
+        self.assertEqual(len(xessfg["phases"]), 9 * 2 + 8)
+        self.assertIn("off-xessfg-loaded", {p["scenario"]["fg"] for p in xessfg["phases"]})
+        for other in starts[:2]:
+            self.assertNotIn("xell", {p["scenario"]["latency"] for p in other["phases"]})
+
     def test_dlssg_rows_are_their_own(self):
         starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
         dlssg = starts[1]

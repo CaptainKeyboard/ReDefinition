@@ -30,7 +30,8 @@
   "ray_reconstruction": [true, false],
   "frame_generation": [
     {"id": "fsr", "name": "FSR", "proxy_load": {"frameGenerationTechnique": "fsr"}, "fg_off_phases": true},
-    {"id": "dlssg", "name": "DLSS-G", "proxy_load": {"frameGenerationTechnique": "dlss"}, "dlssg_package": true, "max_generated_frames": 1, "fg_off_phases": false, "vendors": ["NVIDIA"], "requires": ["dlssg_package"]}
+    {"id": "dlssg", "name": "DLSS-G", "proxy_load": {"frameGenerationTechnique": "dlss"}, "dlssg_package": true, "max_generated_frames": 1, "fg_off_phases": false, "vendors": ["NVIDIA"], "requires": ["dlssg_package"]},
+    {"id": "xessfg", "name": "XeSS-FG", "proxy_load": {"frameGenerationTechnique": "xess", "xessFgDirectory": "{xess_fg_dll_dir}"}, "fg_off_phases": true, "latencies": ["xell"], "requires": ["xess_fg_dll_dir"]}
   ],
   "fg_on": {"fgMinimumFps": "0"},
   "fg_off": {"fgMinimumFps": "1000"},
@@ -39,6 +40,7 @@
     {"id": "reflex", "name": "Reflex", "proxy": {"lowLatency": "1", "latencyBrake": "0", "antiLag2": "0"}, "vendors": ["NVIDIA"]},
     {"id": "brake", "name": "brake 4 ms", "proxy": {"lowLatency": "0", "latencyBrake": "1", "latencyBrakeTargetMs": "4", "antiLag2": "0"}},
     {"id": "reflex+brake", "name": "Reflex + brake 4 ms", "proxy": {"lowLatency": "1", "latencyBrake": "1", "latencyBrakeTargetMs": "4", "antiLag2": "0"}, "vendors": ["NVIDIA"]},
-    {"id": "antilag2", "name": "Anti-Lag 2", "proxy": {"lowLatency": "0", "latencyBrake": "0", "antiLag2": "12"}, "vendors": ["AMD"]}
+    {"id": "antilag2", "name": "Anti-Lag 2", "proxy": {"lowLatency": "0", "latencyBrake": "0", "antiLag2": "12"}, "vendors": ["AMD"]},
+    {"id": "xell", "name": "XeLL", "proxy": {"lowLatency": "1", "latencyBrake": "0", "antiLag2": "0"}, "only_with_fg": ["xessfg"]}
   ]
 }
