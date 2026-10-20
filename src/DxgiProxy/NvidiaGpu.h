@@ -42,6 +42,10 @@ namespace redefinition
     void NoteSwapChainAdapter(const LUID& adapter);
     bool KnownNvidiaGpu(NvidiaGpuInfo& info);
 
+    // A function of NVAPI by its id (nvapi_interface.h), NVAPI initialised; null
+    // without NVIDIA's driver or where the driver lacks it.
+    void* NvapiInterface(uint32_t id);
+
     // That adapter's LUID; false before a swapchain was made.
     bool SwapChainAdapter(LUID& adapter);
 }

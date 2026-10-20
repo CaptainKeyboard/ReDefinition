@@ -16,6 +16,7 @@
 #include "FrameGeneration.h"
 #include "GpuProfiler.h"
 #include "Log.h"
+#include "LowLatency.h"
 #include "Streamline.h"
 #include "SwapChainProxyState.h"
 
@@ -178,6 +179,7 @@ namespace redefinition
         //
         // Ignored from a proxy that does not own frame generation, such as one
         // whose Initialise failed.
+        LowLatency::Get().Detach(this);
         AmdUpscaler::Get().Detach(this);
         D3d12Compute::Get().Detach(this);
         Raytracing::Get().Detach(this);
@@ -403,6 +405,9 @@ namespace redefinition
                                       description.Width, description.Height, desc.Format);
         if (streamlineSwapChain && Streamline::Get().FrameGenerationAvailable())
             FrameGeneration::Get().UseStreamline(this);
+        // Reflex where Streamline's does not run on this swapchain.
+        LowLatency::Get().Attach(this, d3d12Device.Get(), d3d12Device->GetAdapterLuid(),
+                                 streamlineSwapChain && Streamline::Get().FrameGenerationAvailable());
         g_deviceRemoved.store(S_OK);
 
         // The texture Unity believes is its backbuffer, and therefore the one

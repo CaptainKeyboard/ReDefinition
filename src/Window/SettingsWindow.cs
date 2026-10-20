@@ -502,6 +502,8 @@ namespace ReDefinition.Window
             List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows());
             for (int i = 0; i < own.Length; i++)
                 rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Upscaler") + " ReDefinition"));
+            DialogGUIBase latency = LowLatencyRow();
+            if (latency != null) rows.Add(Searchable(latency, "Low latency NVIDIA Reflex"));
             DialogGUIBase nvidia = NvidiaRow();
             if (nvidia != null) rows.Add(Searchable(nvidia, "NVIDIA DLSS files download"));
             DialogGUIBase ampere = AmpereRow();
@@ -611,6 +613,30 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUILabel("NVIDIA DLSS files", NameWidth), download, new DialogGUILabel(offer, true)),
                 new DialogGUILabel(NvidiaStatus, true));
+        }
+
+        // What lowers the latency, as the proxy says (ReflexFrames.LowLatencyText): the
+        // mod chooses it, the row only shows it. None without the proxy.
+        private static DialogGUIBase LowLatencyRow()
+        {
+            if (ReflexFrames.LowLatencyText() == null) return null;
+            DialogGUILabel name = new DialogGUILabel("Low latency", NameWidth);
+            return new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                name, new DialogGUILabel(LowLatencyRowText, true));
+        }
+
+        private static string latencyShownFor;
+        private static string latencyRowText = "";
+
+        private static string LowLatencyRowText()
+        {
+            string now = ReflexFrames.LowLatencyText();
+            if (!ReferenceEquals(now, latencyShownFor))
+            {
+                latencyShownFor = now;
+                latencyRowText = now == null ? "" : "<color=#9a9a9a>" + now + "</color>";
+            }
+            return latencyRowText;
         }
 
         // DLSS frame generation on RTX 30 and RTX 20 (AmpereFrameGeneration): the

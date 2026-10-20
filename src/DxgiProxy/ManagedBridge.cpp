@@ -22,6 +22,7 @@
 #include "Raytracing.h"
 #include "ScreenRecorder.h"
 #include "FileUtil.h"
+#include "LowLatency.h"
 #include "Streamline.h"
 #include "SwapChainProxy.h"
 
@@ -129,14 +130,28 @@ extern "C"
     // returns, 0 where Streamline has no device and nothing was called --
     // KspReflexSimulationEnd once the frame's simulation is done. The index goes
     // on to Unity's render thread as render event 40, for the frame's Present.
+    //
+    // Where Streamline's Reflex does not run, NVIDIA Reflex through NVAPI takes the
+    // same calls (LowLatency.h), under Streamline's index where it gives one.
     __declspec(dllexport) unsigned int KspReflexFrameStart()
     {
-        return redefinition::Streamline::Get().BeginGameFrame();
+        const uint32_t streamline = redefinition::Streamline::Get().BeginGameFrame();
+        const uint32_t lowLatency = redefinition::LowLatency::Get().BeginGameFrame(streamline);
+        return streamline != 0 ? streamline : lowLatency;
     }
 
     __declspec(dllexport) void KspReflexSimulationEnd(unsigned int frameIndex)
     {
         redefinition::Streamline::Get().EndGameSimulation(frameIndex);
+        redefinition::LowLatency::Get().EndGameSimulation(frameIndex);
+    }
+
+    // What lowers the latency (LowLatency::Describe): 1 NVIDIA Reflex through NVAPI,
+    // 2 Streamline's Reflex with DLSS frame generation, 0 none; the text says which
+    // or why not.
+    __declspec(dllexport) int KspLowLatency(char* buffer, int size)
+    {
+        return redefinition::LowLatency::Get().Describe(buffer, size);
     }
 
     // How the proxy's last attempt to make the frame generation context went:
@@ -286,8 +301,11 @@ extern "C"
         else if (eventId == RT_RELEASE_EVENT)
             redefinition::Raytracing::Get().OnRelease();
         else if (eventId == 40)
-            redefinition::Streamline::Get().OnGameFrameRendered(
-                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data)));
+        {
+            const uint32_t frame = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data));
+            redefinition::Streamline::Get().OnGameFrameRendered(frame);
+            redefinition::LowLatency::Get().OnGameFrameRendered(frame);
+        }
     }
 
     // No exception leaves for Unity's render thread, which would end the process:

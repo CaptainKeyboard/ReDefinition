@@ -54,6 +54,18 @@ namespace redefinition
         using GetArchInfoFn = int (*)(void* physical, ArchInfo* info);
     }
 
+    void* NvapiInterface(uint32_t id)
+    {
+        static HMODULE nvapi = LoadLibraryExW(L"nvapi64.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        if (nvapi == nullptr)
+            return nullptr;
+        const auto query = reinterpret_cast<QueryInterfaceFn>(GetProcAddress(nvapi, "nvapi_QueryInterface"));
+        const auto initialize = query != nullptr ? reinterpret_cast<InitializeFn>(query(kInitialize)) : nullptr;
+        if (initialize == nullptr || initialize() != 0)
+            return nullptr;
+        return query(id);
+    }
+
     NvidiaGpuAnswer NvidiaGpu(const LUID& adapter, NvidiaGpuInfo& result)
     {
         result = NvidiaGpuInfo();

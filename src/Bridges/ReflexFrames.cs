@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 using System;
 using ReDefinition.Core;
 using UnityEngine.LowLevel;
@@ -22,7 +23,8 @@ namespace ReDefinition.Bridges
     // simulation (KspReflexSimulationEnd); what follows is rendering.
     //
     // While Streamline has its device -- a swapchain made through it, the one DLSS
-    // frame generation presents with -- the proxy answers with an index; otherwise
+    // frame generation presents with -- or NVIDIA Reflex runs through NVAPI where it
+    // does not (the proxy's LowLatency.h), the proxy answers with an index; otherwise
     // with 0, and nothing more is sent. Without the proxy, or with one older than
     // the mod, both systems go quiet for the session.
     internal static class ReflexFrames
@@ -38,6 +40,52 @@ namespace ReDefinition.Bridges
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr KspFgGetRenderEventFunc();
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int KspLowLatency(StringBuilder buffer, int size);
+
+        private static readonly StringBuilder latencyBuffer = new StringBuilder(256);
+        private static int shownLatencyKind = -1;
+        private static string shownLatencySource;
+        private static string shownLatency;
+        private static bool latencyMissing;
+
+        // What lowers the latency, for the settings row, made anew only when the
+        // proxy's answer changes: the row asks every frame. Null without the proxy or
+        // its export.
+        internal static string LowLatencyText()
+        {
+            if (latencyMissing) return null;
+            int kind;
+            try
+            {
+                latencyBuffer.Length = 0;
+                kind = KspLowLatency(latencyBuffer, latencyBuffer.Capacity);
+            }
+            catch (Exception)
+            {
+                latencyMissing = true;
+                return null;
+            }
+            if (latencyBuffer.Length == 0) return null;
+            if (kind != shownLatencyKind || shownLatencySource == null || !Same(latencyBuffer, shownLatencySource))
+            {
+                shownLatencyKind = kind;
+                shownLatencySource = latencyBuffer.ToString();
+                shownLatency = char.ToUpperInvariant(shownLatencySource[0]) + shownLatencySource.Substring(1);
+            }
+            return shownLatency;
+        }
+
+        private static bool Same(StringBuilder text, string other)
+        {
+            if (text.Length != other.Length) return false;
+            for (int i = 0; i < other.Length; i++)
+            {
+                if (text[i] != other[i]) return false;
+            }
+            return true;
+        }
 
         // The loop tells systems apart by type; Unity's profiler shows the names.
         private struct ReDefinitionReflexFrameStart { }
@@ -161,7 +209,7 @@ namespace ReDefinition.Bridges
                 if (!logged)
                 {
                     logged = true;
-                    Debug.Log(Log.Tag + " Reflex: the game's frames go to Streamline by index, from frame "
+                    Debug.Log(Log.Tag + " Reflex: the game's frames go to the proxy by index, from frame "
                               + frame + ".");
                 }
             }

@@ -158,6 +158,14 @@ namespace redefinition
         // NVIDIA names none; 0: never off for this.
         float fgMinimumFps = -1.0f;
 
+        // NVIDIA Reflex's low latency mode where Streamline's does not run
+        // (LowLatency.h): frame generation off, FSR's, Ray Reconstruction alone. Live.
+        bool lowLatency = true;
+        // The latency brake (LowLatency::Brake), and the waits in the proxy it leaves
+        // per frame, in milliseconds. Live.
+        bool latencyBrake = true;
+        float latencyBrakeTargetMs = 4.0f;
+
         // Seconds between frame time reports in the log.
         int reportSeconds = 10;
 

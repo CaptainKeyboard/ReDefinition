@@ -105,6 +105,8 @@ add_library(ReDefinitionProxy SHARED
     GpuProfiler.h
     LoadMonitor.cpp
     LoadMonitor.h
+    LowLatency.cpp
+    LowLatency.h
     ManagedBridge.cpp
     ScreenRecorder.cpp
     ScreenRecorder.h

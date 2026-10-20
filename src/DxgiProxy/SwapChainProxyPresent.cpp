@@ -10,6 +10,7 @@
 #include "D3d12Util.h"
 #include "FrameGeneration.h"
 #include "Log.h"
+#include "LowLatency.h"
 #include "Streamline.h"
 #include "SwapChainProxyState.h"
 
@@ -370,10 +371,20 @@ namespace redefinition
             Streamline::Get().Marker(sl::PCLMarker::eRenderSubmitEnd, frameIndex);
         if (frameIndex != 0)
             Streamline::Get().Marker(sl::PCLMarker::ePresentStart, frameIndex);
+        // Reflex where Streamline's does not run (LowLatency.h), for the game's frame
+        // rendered last.
+        const uint32_t lowLatencyFrame = LowLatency::Get().TakeGameFrame();
+        LowLatency::Get().BeforePresent(lowLatencyFrame);
 
+        LARGE_INTEGER presentStart;
+        QueryPerformanceCounter(&presentStart);
         hr = swapChain->Present(effectiveSync, presentFlags);
+        LARGE_INTEGER presentEnd;
+        QueryPerformanceCounter(&presentEnd);
+        g_presentTotalTicks += presentEnd.QuadPart - presentStart.QuadPart;
         if (FAILED(hr))
             LogLine("Present failed (" + Hr(hr) + ")");
+        LowLatency::Get().AfterPresent(lowLatencyFrame);
 
         // DLSS-G's frames presented since the last Present, its status, how many
         // it may generate from the next, and the fence its work on this Present's

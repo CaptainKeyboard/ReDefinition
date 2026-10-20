@@ -1247,6 +1247,57 @@ int main()
                known ? "known" : "none", arch, implementation);
         if (dlssFrameGeneration && arch < 0x190)
             return Fail("DLSS frame generation runs, but the adapter's architecture reads below Ada's", E_FAIL);
+
+        // What lowers the latency (KspLowLatency): Streamline's Reflex with DLSS frame
+        // generation, NVIDIA Reflex through NVAPI on an NVIDIA GPU otherwise, with the
+        // game's frames as the mod sends them, and off again with lowLatency=0.
+        using LowLatencyFn = int (*)(char*, int);
+        const LowLatencyFn lowLatency = reinterpret_cast<LowLatencyFn>(GetProcAddress(dxgi, "KspLowLatency"));
+        if (lowLatency == nullptr)
+            return Fail("GetProcAddress(KspLowLatency)", E_FAIL);
+        if (shared)
+        {
+            char latencyText[256] = {};
+            const int expected = dlssFrameGeneration ? 2 : known ? 1 : 0;
+            gameFrames = true;
+            const unsigned int begunBefore = gameFramesBegun;
+            for (int i = 0; i < 60; ++i)
+            {
+                hr = renderFrame();
+                if (FAILED(hr))
+                    return Fail("Present with the game's frames for low latency", hr);
+            }
+            int latencyKind = lowLatency(latencyText, sizeof(latencyText));
+            printf("      low latency: %d, %s; %u game frames begun\n", latencyKind, latencyText,
+                   gameFramesBegun - begunBefore);
+            if (latencyKind != expected)
+                return Fail("the low latency the proxy reports is not the one this GPU and frame generation have", E_FAIL);
+            if (expected != 0 && gameFramesBegun - begunBefore < 60)
+                return Fail("low latency runs, but the game's frames were not all begun", E_FAIL);
+            if (expected == 1)
+            {
+                const IniKey lowLatencyKey(L"lowLatency");
+                lowLatencyKey.Set(L"0");
+                LARGE_INTEGER frequency = {};
+                LARGE_INTEGER start = {};
+                LARGE_INTEGER now = {};
+                QueryPerformanceFrequency(&frequency);
+                QueryPerformanceCounter(&start);
+                now = start;
+                while (now.QuadPart - start.QuadPart < frequency.QuadPart * 2)
+                {
+                    hr = renderFrame();
+                    if (FAILED(hr))
+                        return Fail("Present with low latency switched off", hr);
+                    QueryPerformanceCounter(&now);
+                }
+                latencyKind = lowLatency(latencyText, sizeof(latencyText));
+                printf("      low latency with lowLatency=0: %d, %s\n", latencyKind, latencyText);
+                if (latencyKind != 0 || strstr(latencyText, "lowLatency=0") == nullptr)
+                    return Fail("lowLatency=0 did not switch Reflex's low latency mode off while running", E_FAIL);
+            }
+            gameFrames = false;
+        }
     }
     if (shared && !streamlineDirectory.empty() && !dlssFrameGeneration)
     {

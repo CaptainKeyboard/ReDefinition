@@ -357,6 +357,8 @@ namespace redefinition
                  + (c.fgPacingHybridSpin ? "/spin " + std::to_string(c.fgPacingHybridSpinTime) : "")
                  + (c.fgPacingWaitOnFence ? "/fence" : "")
                  + " fgMinimumFps=" + std::to_string(static_cast<int>(c.fgMinimumFps))
+                 + " lowLatency=" + (c.lowLatency ? "1" : "0")
+                 + " latencyBrake=" + (c.latencyBrake ? "1" : "0") + "/" + std::to_string(c.latencyBrakeTargetMs)
                  + " vendorDiagnostics=" + (c.vendorDiagnostics ? "1" : "0")
                  + " streamlineImgui=" + (c.streamlineImgui ? "1" : "0")
                  + " fgShowOnlyGenerated=" + (c.fgShowOnlyGenerated ? "1" : "0")
@@ -416,6 +418,9 @@ namespace redefinition
                 target.fgPacingHybridSpinTime = 0;
             target.fgPacingWaitOnFence = ReadFlag(L"fgPacingWaitOnFence", file, false);
             target.fgMinimumFps = ReadFloat(L"fgMinimumFps", file, -1.0f);
+            target.lowLatency = ReadFlag(L"lowLatency", file, true);
+            target.latencyBrake = ReadFlag(L"latencyBrake", file, true);
+            target.latencyBrakeTargetMs = ReadFloat(L"latencyBrakeTargetMs", file, 4.0f);
 
             target.logInputsSeconds = static_cast<int>(
                 GetPrivateProfileIntW(L"Proxy", L"logInputsSeconds", 0, file.c_str()));

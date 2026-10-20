@@ -21,6 +21,11 @@ namespace redefinition
 
     inline std::atomic<int64_t> g_waitTicks[static_cast<int>(WaitKind::Count)];
     inline std::atomic<int64_t> g_waitCount[static_cast<int>(WaitKind::Count)];
+    // The same waits summed since the start, never reset, and how long the
+    // swapchain's Present held the presenting thread: what the latency brake takes
+    // per frame (LowLatency::Brake).
+    inline std::atomic<int64_t> g_waitTotalTicks{ 0 };
+    inline std::atomic<int64_t> g_presentTotalTicks{ 0 };
 
     // Times the scope it is made in as a wait of its kind.
     class WaitTimer
@@ -33,6 +38,7 @@ namespace redefinition
             QueryPerformanceCounter(&end);
             g_waitTicks[static_cast<int>(kind)] += end.QuadPart - start.QuadPart;
             ++g_waitCount[static_cast<int>(kind)];
+            g_waitTotalTicks += end.QuadPart - start.QuadPart;
         }
 
     private:
