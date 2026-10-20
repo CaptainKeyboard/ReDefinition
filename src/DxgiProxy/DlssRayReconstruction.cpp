@@ -49,7 +49,9 @@ namespace redefinition
         // with driver 597.16 in a program of its own (init, CreateFeature for Ray
         // Reconstruction or Super Resolution, ReleaseFeature, Shutdown1); Shutdown
         // returns success there, and an NGX instance on a Direct3D 11 device keeps
-        // running past it (its capabilities and a new feature after it). "Legacy
+        // running past it (its capabilities and a new feature after it, and Super
+        // Resolution's live feature went on evaluating: driver 597.16, RaytracingHarness,
+        // "Super Resolution running after Ray Reconstruction's NGX shut down"). "Legacy
         // Shutdown() call does not have device pointer - so it will shut down NGX on
         // ALL devices" (DLSS Programming Guide 5.7): on Direct3D 12 the only other
         // caller is Streamline's sl.common, which is not set up while this runs
@@ -181,7 +183,10 @@ namespace redefinition
         map->Set("Jitter.Offset.Y", frame.jitterY);
         map->Set("MV.Scale.X", frame.motionScaleX);
         map->Set("MV.Scale.Y", frame.motionScaleY);
-        map->Set("Reset", frame.reset ? 1 : 0);
+        // As sl.dlss_d forces it for a feature just made (dlss_dEntry.cpp sets
+        // commonConsts->reset where the viewport has no handle or the mode or size changed):
+        // its history is empty, whatever the caller says.
+        map->Set("Reset", frame.reset || resetFeature ? 1 : 0);
         map->Set("DLSS.Render.Subrect.Dimensions.Width", static_cast<unsigned int>(frame.renderWidth));
         map->Set("DLSS.Render.Subrect.Dimensions.Height", static_cast<unsigned int>(frame.renderHeight));
         map->Set("DLSS.Pre.Exposure", 1.0f);
@@ -196,7 +201,9 @@ namespace redefinition
         map->Set("ViewToClipMatrix", static_cast<void*>(viewToClip));
 
         const uint32_t result = g_ngx.evaluateFeature(list, feature, map, nullptr);
-        if (NgxFailed(result))
+        if (!NgxFailed(result))
+            resetFeature = false;
+        else
         {
             problem = "Ray Reconstruction's evaluation through NGX failed (" + NgxHex(result) + ")";
             if (!loggedEvaluateFailure)
@@ -422,6 +429,7 @@ namespace redefinition
         hasFailed = false;
         loggedEvaluateFailure = false;
         evaluated = 0;
+        resetFeature = true;
         LogLine("DLSS Ray Reconstruction: " + LoadedNgxModule(L"nvngx_dlssd.dll") + " through NGX, created for "
                 + NgxSize(optimalWidth, optimalHeight) + " to " + NgxSize(frame.outputWidth, frame.outputHeight)
                 + ", rendered at " + NgxSize(frame.renderWidth, frame.renderHeight) + ", quality "

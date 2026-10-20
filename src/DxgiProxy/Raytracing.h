@@ -1172,8 +1172,8 @@ namespace redefinition
             std::deque<int32_t> toRefine;
             // rtMegaGeometry: a frame's CLAS in one range of the structures' pool, freed once
             // none of the meshes built of them is left; whether the driver has the cluster
-            // operations (-1 not asked yet) and its functions; a cluster BLAS' size by its
-            // count of clusters.
+            // operations (-1 not asked yet) and its functions; a cluster BLAS' size and scratch
+            // by its count of clusters.
             struct ClasBatch
             {
                 RtPoolRange range;
@@ -1184,7 +1184,12 @@ namespace redefinition
             int clusterSupport = -1;
             void* getRequirements = nullptr;
             void* execute = nullptr;
-            std::unordered_map<uint32_t, UINT64> clusterBlasSizes;
+            struct ClusterBlasSize
+            {
+                UINT64 result = 0;
+                UINT64 scratch = 0;
+            };
+            std::unordered_map<uint32_t, ClusterBlasSize> clusterBlasSizes;
             uint32_t nextSerial = 1;
             bool setUp = false;
             void Reset();

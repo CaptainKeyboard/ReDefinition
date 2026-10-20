@@ -9,6 +9,7 @@
 // 0 when every check passes.
 
 #include "D3d12Util.h"
+#include "Dlss.h"
 #include "Raytracing.h"
 
 #include <windows.h>
@@ -2691,6 +2692,98 @@ int main(int argc, char** argv)
               "the denoiser after raytracing stopped", detail);
     }
 
+    // ---------------------------------------------------------------- Super Resolution beside Ray Reconstruction
+    // DLSS Super Resolution on this Direct3D 11 device (Dlss.cpp), started here, before the
+    // proxy starts NGX on its Direct3D 12 device for Ray Reconstruction, and kept running
+    // past the end of the harness' checks, where that instance is shut down.
+    using SrStatusFn = int (*)(char*, int);
+    const auto srStatus = reinterpret_cast<SrStatusFn>(GetProcAddress(proxy.module, "KspDlssStatus"));
+    char srText[512] = {};
+    constexpr UINT srRenderWidth = 320, srRenderHeight = 180;
+    ComPtr<ID3D11Texture2D> srColour, srOutput, srDepth, srMotion;
+    const uint16_t srGrey[4] = { 0x3400, 0x3800, 0x3A00, 0x3C00 };   // 0.25, 0.5, 0.75, 1
+    const uint16_t srBlack[4] = { 0, 0, 0, 0x3C00 };
+    const auto srFilled = [&](UINT width, UINT height, DXGI_FORMAT format, size_t texel, const void* value, UINT bindFlags,
+                              ComPtr<ID3D11Texture2D>& out)
+    {
+        D3D11_TEXTURE2D_DESC textureDesc = {};
+        textureDesc.Width = width;
+        textureDesc.Height = height;
+        textureDesc.MipLevels = 1;
+        textureDesc.ArraySize = 1;
+        textureDesc.Format = format;
+        textureDesc.SampleDesc.Count = 1;
+        textureDesc.BindFlags = bindFlags;
+        std::vector<uint8_t> data(static_cast<size_t>(width) * height * texel);
+        for (size_t i = 0; i < static_cast<size_t>(width) * height; ++i)
+            memcpy(&data[i * texel], value, texel);
+        D3D11_SUBRESOURCE_DATA initial = { data.data(), static_cast<UINT>(width * texel), 0 };
+        return device->CreateTexture2D(&textureDesc, &initial, &out);
+    };
+    // Frames through the render event, as the rig sends them, into a black output each
+    // time; whether its centre is then the flat image the colour was.
+    const auto superResolution = [&](UINT firstFrame, bool& flat)
+    {
+        srOutput.Reset();
+        if (FAILED(srFilled(kWidth / 2, kHeight / 2, DXGI_FORMAT_R16G16B16A16_FLOAT, 8, srBlack,
+                            D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS, srOutput)))
+            return -1;
+        int state = 0;
+        for (UINT frame = firstFrame; frame < firstFrame + 8; ++frame)
+        {
+            DlssPacket packet = {};
+            packet.size = sizeof(packet);
+            packet.magic = kDlssPacketMagic;
+            packet.colour = srColour.Get();
+            packet.output = srOutput.Get();
+            packet.depth = srDepth.Get();
+            packet.motionVectors = srMotion.Get();
+            packet.renderWidth = srRenderWidth;
+            packet.renderHeight = srRenderHeight;
+            packet.outputWidth = kWidth / 2;
+            packet.outputHeight = kHeight / 2;
+            packet.quality = 0;
+            packet.preset = 11;
+            packet.flags = kDlssHdr | kDlssDepthInverted | kDlssAutoExposure | (frame == firstFrame ? kDlssReset : 0u);
+            packet.jitterX = 0.25f * static_cast<float>(frame % 4) - 0.375f;
+            packet.jitterY = 0.25f * static_cast<float>((frame / 4) % 4) - 0.375f;
+            packet.motionVectorScaleX = static_cast<float>(srRenderWidth);
+            packet.motionVectorScaleY = static_cast<float>(srRenderHeight);
+            proxy.event(2, &packet);
+            state = srStatus(srText, sizeof(srText));
+        }
+        std::vector<uint16_t> read;
+        flat = false;
+        if (state > 0 && ReadTexture(device.Get(), context.Get(), srOutput.Get(), 8, read))
+        {
+            const size_t centre = (static_cast<size_t>(kHeight / 4) * (kWidth / 2) + kWidth / 4) * 4;
+            flat = std::fabs(HalfToFloat(read[centre]) - 0.25f) < 0.05f
+                   && std::fabs(HalfToFloat(read[centre + 1]) - 0.5f) < 0.05f
+                   && std::fabs(HalfToFloat(read[centre + 2]) - 0.75f) < 0.05f;
+        }
+        return state;
+    };
+    bool srRunning = false;
+    if (srStatus != nullptr)
+    {
+        const float srHalf = 0.5f;
+        const uint32_t srNone = 0;
+        HRESULT srMade = srFilled(srRenderWidth, srRenderHeight, DXGI_FORMAT_R16G16B16A16_FLOAT, 8, srGrey,
+                                  D3D11_BIND_SHADER_RESOURCE, srColour);
+        if (SUCCEEDED(srMade))
+            srMade = srFilled(srRenderWidth, srRenderHeight, DXGI_FORMAT_R32_FLOAT, 4, &srHalf, D3D11_BIND_SHADER_RESOURCE,
+                              srDepth);
+        if (SUCCEEDED(srMade))
+            srMade = srFilled(srRenderWidth, srRenderHeight, DXGI_FORMAT_R16G16_FLOAT, 4, &srNone,
+                              D3D11_BIND_SHADER_RESOURCE, srMotion);
+        if (FAILED(srMade))
+            return Fatal("the Super Resolution textures", srMade);
+        bool srFlat = false;
+        srRunning = superResolution(0, srFlat) > 0 && srFlat;
+        if (!srRunning)
+            printf("      Super Resolution beside Ray Reconstruction skipped: %s\n", srText);
+    }
+
     // ---------------------------------------------------------------- Ray Reconstruction
     // Through the route the proxy took for this swapchain (rrPath): Streamline's where
     // its swapchain presents, NGX's otherwise. Where it was Streamline's, a swapchain of
@@ -5197,6 +5290,132 @@ int main(int argc, char** argv)
             CloseHandle(process.hProcess);
         }
         Check(code == 0, "opacity micromaps with the driver's capability simulated as none", code == 0 ? "the same picture, none built" : "see above");
+    }
+
+    // ---------------------------------------------------------------- the pools' chunks let go of
+    {
+        // A mesh of about a million triangles has chunks of its own in the pools of the
+        // structures and the geometry (RtBufferPool, rtBlasPool): once it is let go of and
+        // the chunks have been wholly free for a few seconds of frames (kIdleMs) they are let
+        // go of too, the pools' others kept, and a mesh built after them finds its memory
+        // again, the picture the one it was.
+        const auto reservedMb = [&]()
+        {
+            const std::string text = proxy.Status();
+            const size_t at = text.find(" reserved=");
+            return at == std::string::npos ? 0.0 : atof(text.c_str() + at + 10);
+        };
+        const uint32_t signals = kRtSignalSunVisibility | kRtSignalAmbientOcclusion | kRtSignalDiffuse | kRtSignalSpecular;
+        uint32_t poolFrame = 60000;
+        const auto frames = [&](int count)
+        {
+            for (int f = 0; f < count; ++f)
+                SendFrame(proxy, camera, g, outputs, sun, 0.0047f, poolFrame++, signals);
+        };
+        const auto picture = [&](Frame& frame)
+        {
+            // The same frame number each time, whose random numbers are the same.
+            SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 39999, kRtSignalSunVisibility | kRtSignalPrimaryCheck);
+            return ReadFrame(device.Get(), context.Get(), g, outputs, frame);
+        };
+        const auto differing = [&](const Frame& a, const Frame& b)
+        {
+            size_t count = 0;
+            for (size_t i = 0; i < a.depth.size(); ++i)
+            {
+                if (a.depth[i] <= 0.0f)
+                    continue;
+                const bool lit = HalfToFloat(a.visibility[i * 4]) > 0.5f;
+                const bool litThen = HalfToFloat(b.visibility[i * 4]) > 0.5f;
+                const float hit = a.primary[i * 4], hitThen = b.primary[i * 4];
+                if (lit != litThen || std::fabs(hit - hitThen) > 1e-3f * std::max(1.0f, std::fabs(hitThen)))
+                    ++count;
+            }
+            return count;
+        };
+
+        SendInstances(proxy, scene, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        frames(8);
+        Frame reference;
+        if (!picture(reference))
+            return Fatal("reading the frame before the large mesh", E_FAIL);
+        const double base = reservedMb();
+
+        const int largeId = 90000;
+        const auto withLarge = [&]()
+        {
+            meshes[largeId] = MakeTube(largeId, 700, 700);
+            if (SendMesh(proxy, meshes[largeId]) != 1)
+                return false;
+            std::vector<Instance> list = scene;
+            Instance large;
+            large.mesh = largeId;
+            large.position = { 2000.0, 1.2, 2000.0 };
+            list.push_back(large);
+            SendInstances(proxy, list, camera.position);
+            frames(60);
+            return true;
+        };
+        const auto withoutLarge = [&](int seconds)
+        {
+            proxy.releaseMesh(largeId);
+            meshes.erase(largeId);
+            SendInstances(proxy, scene, camera.position);
+            const ULONGLONG start = GetTickCount64();
+            while (GetTickCount64() - start < static_cast<ULONGLONG>(seconds) * 1000)
+            {
+                frames(1);
+                Sleep(10);
+            }
+        };
+
+        if (!withLarge())
+            return Fatal("the large mesh", E_FAIL);
+        const double held = reservedMb();
+        withoutLarge(0);
+        frames(8);
+        const double soon = reservedMb();
+        withoutLarge(7);
+        const double gone = reservedMb();
+        Frame after;
+        if (!picture(after))
+            return Fatal("reading the frame after the large mesh", E_FAIL);
+        const size_t differentAfter = differing(after, reference);
+        if (!withLarge())
+            return Fatal("the large mesh again", E_FAIL);
+        const double again = reservedMb();
+        Frame builtAgain;
+        if (!picture(builtAgain))
+            return Fatal("reading the frame with the large mesh again", E_FAIL);
+        const size_t differentAgain = differing(builtAgain, reference);
+        withoutLarge(0);
+        char detail[300];
+        sprintf_s(detail, "reserved %.1f MB before, %.1f with the mesh, %.1f just after it went, %.1f seven seconds later,"
+                          " %.1f with it built again; pixels unlike the first picture: %zu, %zu with it again",
+                  base, held, soon, gone, again, differentAfter, differentAgain);
+        Check(held - base > 25.0 && soon - base > 25.0 && gone - base < 5.0 && again - base > 25.0 && differentAfter == 0
+                  && differentAgain == 0,
+              "the pools' chunks let go of when idle", detail);
+    }
+
+    // ---------------------------------------------------------------- Super Resolution beside Ray Reconstruction
+    if (srRunning)
+    {
+        // The proxy's device goes with the swapchain, and Ray Reconstruction's NGX instance
+        // with it (Raytracing::ReleaseLocked), under the Super Resolution feature on this
+        // device: NGX's Direct3D 12 shutdown without a device "will shut down NGX on ALL
+        // devices" (nvsdk_ngx.h), and the next Super Resolution frame has to run all the same.
+        char why[256] = {};
+        const bool reconstructing = proxy.reconstructionAvailable(why, sizeof(why)) == 1;
+        swapChain.Reset();
+        Sleep(200);
+        bool flat = false;
+        const int after = superResolution(100, flat);
+        Check(reconstructing && after > 0 && flat,
+              "Super Resolution running after Ray Reconstruction's NGX shut down on the Direct3D 12 device",
+              std::string(reconstructing ? "" : "Ray Reconstruction was not running: ") + srText);
+        proxy.event(3, nullptr);
     }
 
     printf(failures == 0 ? "all raytracing checks passed\n" : "%d raytracing check(s) failed\n", failures);

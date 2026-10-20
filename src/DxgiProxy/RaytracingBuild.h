@@ -28,7 +28,8 @@ namespace redefinition
 
     // Default-heap buffers of one kind -- their flags and the state they are made in --
     // in chunks, handed out in ranges of a fixed granularity, first fit; a range freed is
-    // free again once the queue is past the fence value it was freed with (Reclaim).
+    // free again once the queue is past the fence value it was freed with (Reclaim), and a
+    // chunk that has been wholly free for kIdleMs is let go of, but the last (Reclaim).
     class RtBufferPool
     {
     public:
@@ -38,6 +39,9 @@ namespace redefinition
         // The range free once the queue is past fenceValue; 0 frees it at once.
         void Free(RtPoolRange& range, UINT64 fenceValue);
         void Reclaim(UINT64 completed);
+        // How long a chunk stays wholly free before it goes: a few seconds of frames, so
+        // that a vessel's parts built, let go of and built again keep the memory between.
+        static constexpr ULONGLONG kIdleMs = 5000;
         // Everything let go of: the device's lists are done with it.
         void Reset();
         ID3D12Resource* Resource(const RtPoolRange& range) const { return chunks[range.chunk].resource.Get(); }
@@ -56,8 +60,13 @@ namespace redefinition
             UINT64 size = 0;
             // Free ranges by their start, coalesced.
             std::map<UINT64, UINT64> free;
+            // When it was first seen wholly free, 0 while it is not.
+            ULONGLONG idleSince = 0;
         };
         void Release(const RtPoolRange& range);
+        // The chunks wholly free for kIdleMs let go of, the last one kept. A chunk's index
+        // is in the ranges handed out, so it stays in chunks, empty, for a new one to take.
+        void ReleaseIdle(ULONGLONG now);
 
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
         D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;

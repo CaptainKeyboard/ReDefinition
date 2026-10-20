@@ -135,6 +135,8 @@ namespace redefinition
         std::string initFailedWhy;
         uint64_t evaluated = 0;
         bool loggedEvaluateFailure = false;
+        // The feature was just made, its history empty: its first evaluation resets.
+        bool resetFeature = false;
         // The matrices NGX is handed pointers to, alive past the evaluation.
         float worldToView[16] = {};
         float viewToClip[16] = {};

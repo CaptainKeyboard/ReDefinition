@@ -2,6 +2,8 @@
 
 #include "RaytracingBuild.h"
 
+#include "FileUtil.h"
+#include "Log.h"
 #include "RaytracingInternal.h"
 
 #include <algorithm>
@@ -62,10 +64,21 @@ namespace redefinition
             chunk.free[wanted] = chunk.size - wanted;
         reserved += chunk.size;
         used += wanted;
-        range.chunk = static_cast<uint32_t>(chunks.size());
         range.offset = 0;
         range.size = wanted;
-        chunks.push_back(std::move(chunk));
+        // The place of a chunk let go of, where there is one.
+        uint32_t at = static_cast<uint32_t>(chunks.size());
+        for (uint32_t c = 0; c < chunks.size(); ++c)
+            if (chunks[c].resource == nullptr)
+            {
+                at = c;
+                break;
+            }
+        range.chunk = at;
+        if (at == chunks.size())
+            chunks.push_back(std::move(chunk));
+        else
+            chunks[at] = std::move(chunk);
         return true;
     }
 
@@ -116,6 +129,48 @@ namespace redefinition
             else
                 ++it;
         }
+        ReleaseIdle(GetTickCount64());
+    }
+
+    void RtBufferPool::ReleaseIdle(ULONGLONG now)
+    {
+        // Wholly free: one free range from the start to the end. A range freed but not yet
+        // reclaimed is not in it, so no list that used the chunk is still running.
+        size_t live = 0;
+        std::vector<uint32_t> idle;
+        for (uint32_t c = 0; c < chunks.size(); ++c)
+        {
+            Chunk& chunk = chunks[c];
+            if (chunk.resource == nullptr)
+                continue;
+            ++live;
+            const bool wholly = chunk.free.size() == 1 && chunk.free.begin()->first == 0
+                                && chunk.free.begin()->second == chunk.size;
+            if (!wholly)
+                chunk.idleSince = 0;
+            else if (chunk.idleSince == 0)
+                chunk.idleSince = now;
+            else if (now - chunk.idleSince >= kIdleMs)
+                idle.push_back(c);
+        }
+        // The larger first: a chunk made for one large mesh goes before the usual ones.
+        std::sort(idle.begin(), idle.end(), [&](uint32_t a, uint32_t b) { return chunks[a].size > chunks[b].size; });
+        UINT64 freed = 0;
+        size_t count = 0;
+        for (const uint32_t c : idle)
+        {
+            if (live <= 1)
+                break;
+            freed += chunks[c].size;
+            reserved -= chunks[c].size;
+            chunks[c] = Chunk{};
+            --live;
+            ++count;
+        }
+        if (count > 0)
+            LogLine("Raytracing: " + std::to_string(count) + " idle chunk" + (count == 1 ? "" : "s") + " of "
+                    + Narrow(name) + " released, " + std::to_string(freed >> 20) + " MB; " + std::to_string(reserved >> 20)
+                    + " MB reserved in " + std::to_string(live) + " chunk" + (live == 1 ? "" : "s"));
     }
 
     void RtBufferPool::Reset()
