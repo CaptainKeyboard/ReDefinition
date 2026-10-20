@@ -358,6 +358,29 @@ namespace ReDefinition
                 if (field.Live && !field.Same(before, after)) field.Copy(this, after);
         }
 
+        // A setting by its key in the file, from its text there; false for a key there
+        // is none of, or a text that is no such value (the probe's ini shots, mod.<key>).
+        public bool SetValue(string key, string text)
+        {
+            foreach (Field field in Fields)
+            {
+                if (field.Key != key) continue;
+                string before = field.Text(this);
+                field.Read(this, text);
+                return field.Text(this) != before || string.Equals(before, text, StringComparison.OrdinalIgnoreCase);
+            }
+            return false;
+        }
+
+        public string ValueOf(string key)
+        {
+            foreach (Field field in Fields)
+            {
+                if (field.Key == key) return field.Text(this);
+            }
+            return null;
+        }
+
         // For KSP's settings dialog, which edits a copy and commits it only on
         // Apply or Accept -- Cancel has to leave the live values untouched.
         public OwnSettings Clone()

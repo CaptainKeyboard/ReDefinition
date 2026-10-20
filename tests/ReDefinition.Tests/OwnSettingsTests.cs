@@ -25,6 +25,22 @@ namespace ReDefinition.Tests
             throw new InvalidOperationException("no other value for " + type.Name);
         }
 
+        // The probe's ini shots set ReDefinition's settings by their keys (SceneProbe, mod.<key>).
+        [TestMethod]
+        public void ASettingIsSetByItsKey()
+        {
+            OwnSettings settings = new OwnSettings();
+            Assert.IsTrue(settings.SetValue("technique", "Dlss"));
+            Assert.AreEqual(Bridges.UpscalerBackend.Dlss, settings.Backend);
+            Assert.IsTrue(settings.SetValue("raytracing", "Full"));
+            Assert.AreEqual("Full", settings.ValueOf("raytracing"));
+            Assert.IsTrue(settings.SetValue("rayReconstruction", "false"));
+            Assert.IsFalse(settings.RayReconstruction);
+            Assert.IsFalse(settings.SetValue("technique", "Nonsense"));
+            Assert.IsFalse(settings.SetValue("noSuchKey", "1"));
+            Assert.IsNull(settings.ValueOf("noSuchKey"));
+        }
+
         [TestMethod]
         public void EveryFieldCountsInTheSnapshot()
         {

@@ -540,26 +540,44 @@ namespace ReDefinition.Probe
         private static extern uint GetPrivateProfileString(string section, string key, string fallback, StringBuilder value, uint size,
                                                            string file);
 
+        // A key mod.<key> is one of ReDefinition's own settings (OwnSettings, its key in
+        // settings.cfg: mod.technique=Dlss, mod.raytracing=Full, mod.rayReconstruction=False),
+        // applied as the settings window applies it; every other key the proxy's ini.
         private static IEnumerator IniShots(string folder, string shot, string sets)
         {
             string ini = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(Application.dataPath)) ?? "", "ReDefinitionProxy.ini");
             var before = new Dictionary<string, string>();
+            var modBefore = new Dictionary<string, string>();
             int n = 0;
             foreach (string set in sets.Split(';'))
             {
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+                OwnSettings current = addon != null ? addon.Current() : null;
+                OwnSettings wanted = current != null ? current.Clone() : null;
                 foreach (string pair in set.Split(','))
                 {
                     int equals = pair.IndexOf('=');
                     if (equals <= 0) continue;
                     string key = pair.Substring(0, equals).Trim();
+                    string text = pair.Substring(equals + 1).Trim();
+                    if (key.StartsWith("mod.", StringComparison.Ordinal))
+                    {
+                        string modKey = key.Substring(4);
+                        if (wanted == null) continue;
+                        if (!modBefore.ContainsKey(modKey)) modBefore[modKey] = current.ValueOf(modKey);
+                        if (!wanted.SetValue(modKey, text))
+                            Debug.LogWarning(Log.Tag + " Probe: no setting " + modKey + " takes " + text + ".");
+                        continue;
+                    }
                     if (!before.ContainsKey(key))
                     {
                         var value = new StringBuilder(260);
                         GetPrivateProfileString("Proxy", key, "", value, (uint)value.Capacity, ini);
                         before[key] = value.ToString();
                     }
-                    WritePrivateProfileString("Proxy", key, pair.Substring(equals + 1).Trim(), ini);
+                    WritePrivateProfileString("Proxy", key, text, ini);
                 }
+                if (wanted != null && modBefore.Count > 0) addon.Apply(current, wanted);
                 Debug.Log(Log.Tag + " Probe: ReDefinitionProxy.ini set to " + set + ".");
                 yield return new WaitForSecondsRealtime(12f);
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-ini" + n + ".png"));
@@ -569,6 +587,17 @@ namespace ReDefinition.Probe
             }
             foreach (KeyValuePair<string, string> pair in before)
                 WritePrivateProfileString("Proxy", pair.Key, pair.Value, ini);
+            ReDefinitionAddon restoring = ReDefinitionAddon.Instance;
+            if (restoring != null && modBefore.Count > 0)
+            {
+                OwnSettings now = restoring.Current();
+                OwnSettings back = now.Clone();
+                foreach (KeyValuePair<string, string> pair in modBefore)
+                {
+                    if (pair.Value != null) back.SetValue(pair.Key, pair.Value);
+                }
+                restoring.Apply(now, back);
+            }
             Debug.Log(Log.Tag + " Probe: ReDefinitionProxy.ini's values set back.");
         }
 
