@@ -20,6 +20,11 @@ package.
   `dxgi_LICENSE-FidelityFX.txt` next to `KSP_x64.exe`. Compiled into `dxgi.dll`.
 * NVIDIA Streamline SDK and NVAPI headers, by NVIDIA -- MIT,
   `dxgi_LICENSE-NVIDIA.txt` next to `KSP_x64.exe`. Compiled into `dxgi.dll`.
+* AMD Anti-Lag 2 SDK headers, by Advanced Micro Devices -- MIT,
+  `dxgi_LICENSE-AntiLag2.txt` next to `KSP_x64.exe`. Compiled into `dxgi.dll`.
+* Intel XeSS, XeSS frame generation and XeLL headers, by Intel Corporation -- MIT,
+  `dxgi_LICENSE-XeSS.txt` next to `KSP_x64.exe`. Compiled into `dxgi.dll`. Intel's
+  libraries themselves are not in this package.
 * AMD Capsaicin's hash-grid radiance cache, by Advanced Micro Devices, adapted in
   ReDefinition's radiance cache -- MIT, `dxgi_LICENSE-Capsaicin.txt` next to
   `KSP_x64.exe`. Compiled into `dxgi.dll`.
