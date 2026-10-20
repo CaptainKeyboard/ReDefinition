@@ -41,6 +41,7 @@
 #include <windows.h>
 
 #include <d3d11.h>
+#include <d3dcommon.h>
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
@@ -49,6 +50,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <algorithm>
 #include <vector>
@@ -867,6 +869,26 @@ int main()
         if (deviceAdapter == nullptr)
             return Fail("REDEFINITION_STREAMLINE_DIR is set, but there is no NVIDIA adapter", E_FAIL);
     }
+    // REDEFINITION_ADAPTER_VENDOR: the adapter of that PCI vendor id, in hex -- 1002
+    // AMD, 10DE NVIDIA, 8086 Intel -- for a GPU other than the default one.
+    wchar_t vendorBuffer[16] = {};
+    if (deviceAdapter == nullptr && GetEnvironmentVariableW(L"REDEFINITION_ADAPTER_VENDOR", vendorBuffer, 16) > 0)
+    {
+        const UINT vendor = static_cast<UINT>(wcstoul(vendorBuffer, nullptr, 16));
+        ComPtr<IDXGIAdapter1> candidate;
+        for (UINT i = 0; factory->EnumAdapters1(i, &candidate) != DXGI_ERROR_NOT_FOUND; ++i, candidate.Reset())
+        {
+            DXGI_ADAPTER_DESC1 desc = {};
+            if (SUCCEEDED(candidate->GetDesc1(&desc)) && desc.VendorId == vendor)
+            {
+                deviceAdapter = candidate;
+                wprintf(L"      adapter: %s\n", desc.Description);
+                break;
+            }
+        }
+        if (deviceAdapter == nullptr)
+            return Fail("REDEFINITION_ADAPTER_VENDOR names no adapter here", E_FAIL);
+    }
 
     ComPtr<ID3D11Device> device;
     ComPtr<ID3D11DeviceContext> context;
@@ -1088,6 +1110,8 @@ int main()
         return Fail("GetProcAddress(KspReflexFrameStart / KspReflexSimulationEnd)", E_FAIL);
     bool gameFrames = false;
     unsigned int gameFramesBegun = 0;
+    // GPU work of the frame, where a run sets it (the latency comparison).
+    std::function<void()> frameLoad;
     auto renderFrame = [&]() -> HRESULT
     {
         const unsigned int gameFrame = gameFrames ? reflexFrameStart() : 0u;
@@ -1111,6 +1135,8 @@ int main()
         ++frameNumber;
         const float colour[4] = { t, 0.2f, 1.0f - t, 1.0f };
         context->ClearRenderTargetView(rtv.Get(), colour);
+        if (frameLoad)
+            frameLoad();
 
         if (renderEvent != nullptr)
         {
@@ -1298,6 +1324,148 @@ int main()
             }
             gameFrames = false;
         }
+    }
+
+    // REDEFINITION_LATENCY_TEST=1: what lowers the latency the most on this GPU --
+    // nothing, the latency brake, AMD Anti-Lag 2 on either device -- measured the same
+    // way for each (KspLatencyMeasure), under a compute load on Direct3D 11 that holds
+    // the frames back, as raytracing does in KSP.
+    wchar_t latencyTest[8] = {};
+    if (shared && GetEnvironmentVariableW(L"REDEFINITION_LATENCY_TEST", latencyTest, 8) > 0)
+    {
+        using MeasureFn = int (*)(double*, double*);
+        const MeasureFn measure = reinterpret_cast<MeasureFn>(GetProcAddress(dxgi, "KspLatencyMeasure"));
+        using LowLatencyFn = int (*)(char*, int);
+        const LowLatencyFn lowLatency = reinterpret_cast<LowLatencyFn>(GetProcAddress(dxgi, "KspLowLatency"));
+        if (measure == nullptr || lowLatency == nullptr)
+            return Fail("GetProcAddress(KspLatencyMeasure / KspLowLatency)", E_FAIL);
+
+        using CompileFn = HRESULT(WINAPI*)(LPCVOID, SIZE_T, LPCSTR, const D3D_SHADER_MACRO*, ID3DInclude*, LPCSTR,
+                                           LPCSTR, UINT, UINT, ID3DBlob**, ID3DBlob**);
+        const HMODULE compiler = LoadLibraryW(L"d3dcompiler_47.dll");
+        const CompileFn compile = compiler != nullptr
+            ? reinterpret_cast<CompileFn>(GetProcAddress(compiler, "D3DCompile")) : nullptr;
+        if (compile == nullptr)
+            return Fail("d3dcompiler_47.dll's D3DCompile for the latency load", E_FAIL);
+        const char loadSource[] =
+            "RWStructuredBuffer<float> o : register(u0);\n"
+            "[numthreads(64, 1, 1)] void main(uint3 id : SV_DispatchThreadID)\n"
+            "{ float a = id.x * 0.001; [loop] for (uint i = 0; i < 4096; ++i) a = sin(a) * 1.0001 + 0.5; o[id.x] = a; }\n";
+        ComPtr<ID3DBlob> loadCode;
+        ComPtr<ID3DBlob> loadErrors;
+        hr = compile(loadSource, sizeof(loadSource) - 1, "LatencyLoad", nullptr, nullptr, "main", "cs_5_0", 0, 0,
+                     &loadCode, &loadErrors);
+        if (FAILED(hr))
+            return Fail("the latency load's shader did not compile", hr);
+        ComPtr<ID3D11ComputeShader> loadShader;
+        hr = device->CreateComputeShader(loadCode->GetBufferPointer(), loadCode->GetBufferSize(), nullptr, &loadShader);
+        if (FAILED(hr))
+            return Fail("CreateComputeShader (latency load)", hr);
+        constexpr UINT kMaxGroups = 65536;
+        D3D11_BUFFER_DESC loadDesc = {};
+        loadDesc.ByteWidth = kMaxGroups * 64 * sizeof(float);
+        loadDesc.Usage = D3D11_USAGE_DEFAULT;
+        loadDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+        loadDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+        loadDesc.StructureByteStride = sizeof(float);
+        ComPtr<ID3D11Buffer> loadBuffer;
+        hr = device->CreateBuffer(&loadDesc, nullptr, &loadBuffer);
+        ComPtr<ID3D11UnorderedAccessView> loadView;
+        if (SUCCEEDED(hr))
+            hr = device->CreateUnorderedAccessView(loadBuffer.Get(), nullptr, &loadView);
+        if (FAILED(hr))
+            return Fail("the latency load's buffer", hr);
+        UINT loadGroups = 64;
+        frameLoad = [&]()
+        {
+            context->CSSetShader(loadShader.Get(), nullptr, 0);
+            ID3D11UnorderedAccessView* views[] = { loadView.Get() };
+            context->CSSetUnorderedAccessViews(0, 1, views, nullptr);
+            context->Dispatch(loadGroups, 1, 1);
+            ID3D11UnorderedAccessView* none[] = { nullptr };
+            context->CSSetUnorderedAccessViews(0, 1, none, nullptr);
+            context->CSSetShader(nullptr, nullptr, 0);
+        };
+
+        LARGE_INTEGER frequency = {};
+        QueryPerformanceFrequency(&frequency);
+        auto renderFor = [&](double seconds, unsigned int& frames) -> HRESULT
+        {
+            frames = 0;
+            LARGE_INTEGER start = {};
+            LARGE_INTEGER now = {};
+            QueryPerformanceCounter(&start);
+            now = start;
+            while (static_cast<double>(now.QuadPart - start.QuadPart) < seconds * frequency.QuadPart)
+            {
+                const HRESULT presented = renderFrame();
+                if (FAILED(presented))
+                    return presented;
+                ++frames;
+                QueryPerformanceCounter(&now);
+            }
+            return S_OK;
+        };
+
+        const IniKey brakeKey(L"latencyBrake");
+        const IniKey antiLagKey(L"antiLag2");
+        const IniKey reflexKey(L"lowLatency");
+        brakeKey.Set(L"0");
+        antiLagKey.Set(L"0");
+        reflexKey.Set(L"0");
+        gameFrames = true;
+
+        // The load raised until the GPU holds the frames below 40 a second.
+        unsigned int frames = 0;
+        for (;;)
+        {
+            hr = renderFor(1.0, frames);
+            if (FAILED(hr))
+                return Fail("Present under the latency load", hr);
+            printf("      latency load: %u groups, %u frames a second\n", loadGroups, frames);
+            if (frames < 40 || loadGroups >= kMaxGroups)
+                break;
+            loadGroups *= 2;
+        }
+
+        struct Mode
+        {
+            const char* name;
+            const wchar_t* brake;
+            const wchar_t* antiLag;
+        };
+        const Mode modes[] = {
+            { "nothing", L"0", L"0" },
+            { "the latency brake", L"1", L"0" },
+            { "AMD Anti-Lag 2, Direct3D 12", L"0", L"12" },
+            { "AMD Anti-Lag 2, Direct3D 11", L"0", L"11" },
+            { "nothing, again", L"0", L"0" },
+        };
+        for (const Mode& mode : modes)
+        {
+            brakeKey.Set(mode.brake);
+            antiLagKey.Set(mode.antiLag);
+            hr = renderFor(4.0, frames);
+            if (SUCCEEDED(hr))
+                hr = renderFor(6.0, frames);
+            if (FAILED(hr))
+                return Fail("Present during the latency comparison", hr);
+            double median = 0.0;
+            double percentile90 = 0.0;
+            const int count = measure(&median, &percentile90);
+            char latencyText[256] = {};
+            const int latencyKind = lowLatency(latencyText, sizeof(latencyText));
+            printf("      latency with %-28s %5.1f fps, %6.1f ms median, %6.1f ms 90th percentile (%d frames) [%d, %s]\n",
+                   mode.name, frames / 6.0, median, percentile90, count, latencyKind, latencyText);
+            if (count == 0)
+                return Fail("the latency measure reported nothing", E_FAIL);
+        }
+        gameFrames = false;
+        frameLoad = nullptr;
+        // The frame rate back above frame generation's minimum before what follows.
+        // A run of its own: the phases after it are left to a run without it.
+        printf("PASS  the latency comparison ran: nothing, the latency brake and AMD Anti-Lag 2 on both devices\n");
+        return 0;
     }
     if (shared && !streamlineDirectory.empty() && !dlssFrameGeneration)
     {

@@ -318,6 +318,7 @@
     <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-SDK-license.md" DestinationFiles="$(_Stage)\amd_fidelityfx_denoiser_dx12_LICENSE.md" />
     <Copy SourceFiles="$(_RepoRoot)licenses\NVIDIA-MIT.txt" DestinationFiles="$(_Stage)\dxgi_LICENSE-NVIDIA.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-API-MIT.txt" DestinationFiles="$(_Stage)\dxgi_LICENSE-FidelityFX.txt" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\AMD-AntiLag2-MIT.txt" DestinationFiles="$(_Stage)\dxgi_LICENSE-AntiLag2.txt" />
     <Copy SourceFiles="$(_Native)\ReDefinitionProxy.ini" DestinationFolder="$(_StageMod)" />
 
     <!-- The source first: if it cannot be made, there is no player zip either. -->

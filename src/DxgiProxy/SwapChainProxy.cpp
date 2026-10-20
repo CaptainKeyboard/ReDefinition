@@ -406,7 +406,7 @@ namespace redefinition
         if (streamlineSwapChain && Streamline::Get().FrameGenerationAvailable())
             FrameGeneration::Get().UseStreamline(this);
         // Reflex where Streamline's does not run on this swapchain.
-        LowLatency::Get().Attach(this, d3d12Device.Get(), d3d12Device->GetAdapterLuid(),
+        LowLatency::Get().Attach(this, d3d11Device.Get(), d3d12Device.Get(), queue.Get(), d3d12Device->GetAdapterLuid(),
                                  streamlineSwapChain && Streamline::Get().FrameGenerationAvailable());
         g_deviceRemoved.store(S_OK);
 

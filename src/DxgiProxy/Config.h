@@ -164,6 +164,9 @@ namespace redefinition
         // The latency brake (LowLatency::Brake), and the waits in the proxy it leaves
         // per frame, in milliseconds. Live.
         bool latencyBrake = true;
+        // AMD Anti-Lag 2 (LowLatency.h): 12 on the proxy's Direct3D 12 device, 11 on
+        // Unity's Direct3D 11 device, 0 off. Live.
+        int antiLag2 = 0;
         float latencyBrakeTargetMs = 4.0f;
 
         // Seconds between frame time reports in the log.

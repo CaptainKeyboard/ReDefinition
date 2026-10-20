@@ -374,7 +374,7 @@ namespace redefinition
         // Reflex where Streamline's does not run (LowLatency.h), for the game's frame
         // rendered last.
         const uint32_t lowLatencyFrame = LowLatency::Get().TakeGameFrame();
-        LowLatency::Get().BeforePresent(lowLatencyFrame);
+        LowLatency::Get().BeforePresent(lowLatencyFrame, swapChain.Get());
 
         LARGE_INTEGER presentStart;
         QueryPerformanceCounter(&presentStart);

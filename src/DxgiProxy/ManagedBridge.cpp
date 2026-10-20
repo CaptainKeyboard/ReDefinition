@@ -154,6 +154,12 @@ extern "C"
         return redefinition::LowLatency::Get().Describe(buffer, size);
     }
 
+    // The latency measure's last report (LowLatency::Measure), for the harness.
+    __declspec(dllexport) int KspLatencyMeasure(double* median, double* percentile90)
+    {
+        return redefinition::LowLatency::Get().Measure(median, percentile90);
+    }
+
     // How the proxy's last attempt to make the frame generation context went:
     // FrameGeneration::kContextFine, kContextRetrying or kContextStands.
     __declspec(dllexport) int KspFgContextFailing()
