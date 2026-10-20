@@ -73,6 +73,30 @@ class ProxyLogTest(unittest.TestCase):
         self.assertEqual(bm._fg_kind_ran(self.log), "FSR")
 
 
+class RtBuildTest(unittest.TestCase):
+    LOG = ("19:40:24.558  Raytracing: 150 meshes built in one frame, 54272 triangles, 33774 vertices, the largest 5952"
+           " triangles, 1.151 ms of the CPU (rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2)\n"
+           "19:40:24.591  Raytracing: the 150 meshes built in one frame (54272 triangles) took 0.616000 ms of the GPU"
+           " and 0.960000 ms of the CPU\n"
+           "19:40:25.700  Raytracing: the 600 meshes built in one frame (244404 triangles) took 1.190000 ms of the GPU"
+           " and 3.587000 ms of the CPU\n")
+
+    def test_the_mesh_builds_of_a_start(self):
+        log = bm.parse_proxy_log(self.LOG)
+        self.assertEqual([b["meshes"] for b in log["rt_builds"]], [150, 600])
+        builds = bm.rt_builds_of(log["rt_builds"])
+        self.assertEqual(builds["frames"], 2)
+        self.assertEqual(builds["triangles"], 298676)
+        self.assertEqual(builds["slowest_gpu_ms"], 1.19)
+        self.assertEqual(builds["slowest_cpu_ms"], 3.587)
+        self.assertIsNone(bm.rt_builds_of([]))
+
+    def test_the_default_matrix_pins_the_build_keys(self):
+        matrix = bm.load_matrix(bm.DEFAULT_MATRIX)
+        for key in ("rtBlasBatch", "rtBlasPool", "rtBlasBudget", "rtBlasCompaction", "rtBlasRefineBudget", "rtTlasFastTrace"):
+            self.assertIn(key, matrix["proxy_load"])
+
+
 class KspLogTest(unittest.TestCase):
     def test_probe_lines(self):
         log = bm.parse_ksp_log(fixture("bench.KSP.log"))

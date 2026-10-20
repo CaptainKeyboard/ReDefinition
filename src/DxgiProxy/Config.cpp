@@ -442,6 +442,12 @@ namespace redefinition
                  + " rtRadianceCacheSamples=" + std::to_string(c.rtRadianceCacheSamples)
                  + " rtRadianceCacheMaxAge=" + std::to_string(c.rtRadianceCacheMaxAge)
                  + " rtRadianceCacheDebug=" + std::to_string(c.rtRadianceCacheDebug)
+                 + " rtBlasBatch=" + (c.rtBlasBatch ? "1" : "0")
+                 + " rtBlasPool=" + (c.rtBlasPool ? "1" : "0")
+                 + " rtBlasBudget=" + std::to_string(c.rtBlasBudget)
+                 + " rtBlasCompaction=" + std::to_string(c.rtBlasCompaction)
+                 + " rtBlasRefineBudget=" + std::to_string(c.rtBlasRefineBudget)
+                 + " rtTlasFastTrace=" + (c.rtTlasFastTrace ? "1" : "0")
                  + " reportSeconds=" + std::to_string(c.reportSeconds)
                  + " logInputsSeconds=" + std::to_string(c.logInputsSeconds)
                  + " dlssDirectory=" + (c.dlssDirectory[0] == L'\0' ? "(none)" : "(set)")
@@ -537,6 +543,14 @@ namespace redefinition
             target.rtRadianceCacheMaxAge = std::clamp(
                 static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheMaxAge", 50, file.c_str())), 1, 100000);
             target.rtRadianceCacheDebug = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheDebug", 0, file.c_str()));
+            target.rtBlasBatch = ReadFlag(L"rtBlasBatch", file, true);
+            target.rtBlasPool = ReadFlag(L"rtBlasPool", file, true);
+            target.rtBlasBudget = std::max(0, static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtBlasBudget", 0, file.c_str())));
+            target.rtBlasCompaction =
+                std::clamp(static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtBlasCompaction", 2, file.c_str())), 0, 2);
+            target.rtBlasRefineBudget =
+                std::max(1, static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtBlasRefineBudget", 65536, file.c_str())));
+            target.rtTlasFastTrace = ReadFlag(L"rtTlasFastTrace", file, false);
             if (target.logInputsSeconds < 0)
                 target.logInputsSeconds = 0;
 

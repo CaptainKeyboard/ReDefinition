@@ -332,6 +332,56 @@ namespace redefinition
         int rtRadianceCacheMaxAge = 50;
         int rtRadianceCacheDebug = 0;
 
+        // How the meshes' acceleration structures are built (RaytracingScene.cpp,
+        // BuildMeshesLocked), after NVIDIA's "Best Practices for Using NVIDIA RTX Ray
+        // Tracing (Updated)" and the DXR spec (DirectX-Specs, Raytracing.md). Each for the
+        // structures built after it changes; re-read while the game runs. The raytracing
+        // harness's vessel (RTX A4500, 2026-10-20): 150 parts of 54 272 triangles, as a
+        // flight's first frames hand them over, and 600 of 244 404 at once; the slowest
+        // frame's GPU time to its meshes built and the CPU's recording them. Mesh by mesh in
+        // buffers of their own, as before, 21.6 and 172 ms, 87 and 715 ms; the picture the
+        // same in every variant.
+        //
+        // rtBlasBatch: a frame's copies first, one barrier, then all its builds back to
+        // back, one UAV barrier before the scene's structure -- "Do not place resource
+        // barriers between consecutive calls ... All BLAS build calls need unique scratch
+        // memory to allow execution without barriers ... you can have a single global UAV
+        // barrier before TLAS build". false: copy, barrier and build mesh by mesh. Batched
+        // alone: 0.58 and 1.73 ms of the GPU, the CPU's time as before.
+        bool rtBlasBatch = true;
+        // rtBlasPool: the structures, the geometry, the scratch and the uploads in ranges
+        // of a few large buffers -- "many BLASes can be stored in a single buffer by
+        // manually suballocating sections from the buffer ... the suballocations only have
+        // to follow 256-byte alignment". false: buffers of their own per mesh. Pooled
+        // alone: 1.4 and 5.8 ms of the CPU, the GPU's time as before; with rtBlasBatch
+        // 0.55 and 1.67 ms of the GPU, 1.1 and 4.7 of the CPU, the geometry 2.0 MB for 150
+        // parts against 29.8 in buffers of their own.
+        bool rtBlasPool = true;
+        // rtBlasBudget: the triangles of new meshes built in one frame, the rest in the
+        // next ones, at least one mesh a frame -- "many rebuilds on a single frame can lead
+        // to stuttering. To avoid this, it's good practice to distribute the rebuilds over
+        // frames". A mesh not yet built is left out of the scene until it is. 0: all at
+        // once. 20 000 took the slowest frame to 0.37 ms of the GPU, the 600 parts over 13
+        // frames.
+        int rtBlasBudget = 0;
+        // rtBlasCompaction: 0 none; 1 the structures built PREFER_FAST_TRACE with
+        // ALLOW_COMPACTION and compacted once their size is read back; 2 built
+        // PREFER_FAST_BUILD first ("about 1/2 to 1/3 the build time than default at a
+        // sacrifice in tracing performance"), rebuilt PREFER_FAST_TRACE with
+        // ALLOW_COMPACTION in later frames that build no new mesh, rtBlasRefineBudget
+        // triangles a frame, and compacted then. Batched and pooled: 1 took the slowest
+        // frame to 0.69 and 2.01 ms of the GPU, 2 to 0.63 and 1.16, the 600 parts' over 8
+        // frames; both the structures to 1.62 MB from 3.88 and to 7.11 from 17.26, the
+        // trace as fast.
+        int rtBlasCompaction = 2;
+        int rtBlasRefineBudget = 65536;
+        // rtTlasFastTrace: the scene's structure PREFER_FAST_TRACE -- "For TLAS, consider
+        // the PREFER_FAST_TRACE flag and perform only rebuilds" -- instead of
+        // PREFER_FAST_BUILD. With 15 003 and 24 003 instances its build 0.265 and 0.357 ms
+        // against 0.276 and 0.360, the trace 1.230 and 1.706 against 1.231 and 1.715: no
+        // difference beyond the runs' own.
+        bool rtTlasFastTrace = false;
+
         // Where a player's nvngx_dlss.dll lies if not next to KSP_x64.exe, which
         // NGX searches anyway (Dlss.h). Read when DLSS starts on a device, on
         // Unity's render thread, through DlssDirectory().

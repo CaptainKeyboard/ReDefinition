@@ -238,6 +238,52 @@ namespace
         return m;
     }
 
+    // A tube from -0.5 to 0.5 in y, of radius 0.5, closed at both ends: a vessel's part of
+    // 2 * segments * (rings + 1) triangles.
+    Mesh MakeTube(int id, int segments, int rings)
+    {
+        Mesh m;
+        m.id = id;
+        const double pi = 3.14159265358979;
+        for (int r = 0; r <= rings; ++r)
+            for (int s = 0; s <= segments; ++s)
+            {
+                const double angle = 2.0 * pi * s / segments;
+                const double y = -0.5 + double(r) / rings;
+                m.positions.insert(m.positions.end(), { float(0.5 * std::cos(angle)), float(y), float(0.5 * std::sin(angle)) });
+                m.normals.insert(m.normals.end(), { float(std::cos(angle)), 0.0f, float(std::sin(angle)) });
+            }
+        for (int r = 0; r < rings; ++r)
+            for (int s = 0; s < segments; ++s)
+            {
+                const uint32_t a = static_cast<uint32_t>(r * (segments + 1) + s), b = a + 1;
+                const uint32_t c = a + static_cast<uint32_t>(segments + 1), d = c + 1;
+                m.indices.insert(m.indices.end(), { a, c, b, b, c, d });
+            }
+        for (int end = 0; end < 2; ++end)
+        {
+            const double y = end == 0 ? -0.5 : 0.5;
+            const uint32_t centre = static_cast<uint32_t>(m.positions.size() / 3);
+            m.positions.insert(m.positions.end(), { 0.0f, float(y), 0.0f });
+            m.normals.insert(m.normals.end(), { 0.0f, end == 0 ? -1.0f : 1.0f, 0.0f });
+            for (int s = 0; s <= segments; ++s)
+            {
+                const double angle = 2.0 * pi * s / segments;
+                m.positions.insert(m.positions.end(), { float(0.5 * std::cos(angle)), float(y), float(0.5 * std::sin(angle)) });
+                m.normals.insert(m.normals.end(), { 0.0f, end == 0 ? -1.0f : 1.0f, 0.0f });
+            }
+            for (int s = 0; s < segments; ++s)
+            {
+                const uint32_t a = centre + 1 + static_cast<uint32_t>(s);
+                if (end == 0)
+                    m.indices.insert(m.indices.end(), { centre, a, a + 1 });
+                else
+                    m.indices.insert(m.indices.end(), { centre, a + 1, a });
+            }
+        }
+        return m;
+    }
+
     // A scene file from tools/export_rt_scene.py.
     bool LoadScene(const std::wstring& path, std::map<int, Mesh>& meshes, std::vector<Instance>& instances, int firstId)
     {
@@ -633,7 +679,7 @@ PsOut PsMain(VsOut input)
 
         std::string Status()
         {
-            char text[512] = {};
+            char text[1024] = {};
             status(text, sizeof(text));
             return text;
         }
@@ -4286,6 +4332,321 @@ int main()
             Check(strstr(why, "NGX") != nullptr, "Ray Reconstruction's route with rrPath=ngx", why);
             reconstruct(" through NGX");
         }
+    }
+
+    // ---------------------------------------------------------------- a vessel's meshes at once
+    {
+        // The load spike of a flight's first frames: the proxy's log of a launch had 130 to
+        // 170 meshes built in one frame, 40 000 to 63 000 triangles, the largest 400 to 6 600,
+        // their builds 19 to 25 ms of the GPU (ReDefinitionProxy.log, "a slow frame"). Parts
+        // of a vessel as tubes of 80 to 6 600 triangles, 150 of them as such a frame hands
+        // them over and 600 at once, built under each of the ways the ini offers
+        // (Config.h, rtBlas*, rtTlasFastTrace), switched live as the sun's denoiser above:
+        // the CPU's time recording the builds, the GPU's to the meshes built, the frames it
+        // takes, the trace afterwards and the memory; each picture against the first's.
+        ComPtr<IDXGIAdapter3> adapter3;
+        adapter.As(&adapter3);
+        const auto videoMemory = [&]()
+        {
+            DXGI_QUERY_VIDEO_MEMORY_INFO info = {};
+            if (adapter3 == nullptr || FAILED(adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)))
+                return 0.0;
+            return static_cast<double>(info.CurrentUsage) / 1e6;
+        };
+        const auto statusValue = [&](const std::string& text, const char* key)
+        {
+            const size_t at = text.find(key);
+            return at == std::string::npos ? 0.0 : atof(text.c_str() + at + strlen(key));
+        };
+        struct MeshBuild
+        {
+            unsigned count = 0, timed = 0;
+            double cpu = 0, gpu = 0;
+        };
+        const auto meshBuild = [&](const std::string& text)
+        {
+            MeshBuild b;
+            const size_t at = text.find("meshBuild=");
+            if (at != std::string::npos)
+                sscanf_s(text.c_str() + at, "meshBuild=%u/%lfms/%lfms/%u", &b.count, &b.cpu, &b.gpu, &b.timed);
+            return b;
+        };
+
+        struct Variant
+        {
+            const char* name;
+            const wchar_t* keys[6][2];
+        };
+        const Variant variants[] = {
+            { "before: mesh by mesh, own buffers",
+              { { L"rtBlasBatch", L"0" }, { L"rtBlasPool", L"0" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"0" },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+            { "batched",
+              { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"0" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"0" },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+            { "pooled",
+              { { L"rtBlasBatch", L"0" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"0" },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+            { "batched, pooled",
+              { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"0" },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+            { "batched, pooled, 20 000 triangles a frame",
+              { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"20000" }, { L"rtBlasCompaction", L"0" },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+            { "batched, pooled, compacted",
+              { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"1" },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+            { "batched, pooled, fast build, rebuilt, compacted: defaults",
+              { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"2" },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+            { "the defaults, the scene structure fast trace",
+              { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"2" },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"1" } } },
+        };
+        const size_t variantCount = sizeof(variants) / sizeof(variants[0]);
+        const std::wstring ini = NextToExecutable(L"ReDefinitionProxy.ini");
+        std::wstring before[6];
+        for (int k = 0; k < 6; ++k)
+        {
+            wchar_t value[64] = {};
+            GetPrivateProfileStringW(L"Proxy", variants[0].keys[k][0], L"", value, 64, ini.c_str());
+            before[k] = value;
+        }
+        const auto apply = [&](const Variant& variant)
+        {
+            for (const auto& key : variant.keys)
+                WritePrivateProfileStringW(L"Proxy", key[0], key[1], ini.c_str());
+            // The proxy looks at the file at most once a second, from its Present.
+            Sleep(1100);
+            swapChain->Present(0, 0);
+        };
+
+        // The parts: tubes on a grid around the box, each a mesh of its own.
+        const auto partMesh = [](int id, int i)
+        {
+            const int kind = i % 40;
+            const int segments = kind < 28 ? 8 + (i % 5) * 2 : kind < 39 ? 24 : 48;
+            const int rings = kind < 28 ? 4 + (i % 7) : kind < 39 ? 6 + (i % 9) : 40 + (i % 29);
+            return MakeTube(id, segments, rings);
+        };
+        const uint32_t traced = kRtSignalSunVisibility | kRtSignalAmbientOcclusion | kRtSignalDiffuse | kRtSignalSpecular;
+        const int sizes[2] = { 150, 600 };
+        int nextId = 70000;
+        uint32_t frameIndex = 30000;
+        std::vector<int> released;
+        struct Result
+        {
+            double cpu = 1e9, peakCpu = 1e9, gpu = 1e9, peakGpu = 1e9, build = 1e9, trace = 1e9, blas = 0, geometry = 0, reserved = 0, memory = 0,
+                   forestBuild = 1e9, forestTrace = 1e9;
+            size_t forestInstances = 0;
+            int frames = 0;
+            size_t differing = 0, compared = 0;
+            uint64_t triangles = 0;
+        };
+        std::vector<Result> results(variantCount * 2);
+        std::vector<Frame> reference(2);
+        for (int round = 0; round < 3; ++round)
+            for (size_t v = 0; v < variantCount; ++v)
+                for (int s = 0; s < 2; ++s)
+                {
+                    Result& result = results[v * 2 + s];
+                    if (s == 0)
+                        apply(variants[v]);
+                    // The parts of the run before gone, and the slots past them.
+                    for (int id : released)
+                    {
+                        proxy.releaseMesh(id);
+                        meshes.erase(id);
+                    }
+                    released.clear();
+                    SendInstances(proxy, scene, camera.position);
+                    for (int f = 0; f < 4; ++f)
+                        SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, kRtSignalSunVisibility);
+
+                    std::vector<Instance> vessel = scene;
+                    uint64_t triangles = 0;
+                    for (int i = 0; i < sizes[s]; ++i)
+                    {
+                        const int id = nextId++;
+                        meshes[id] = partMesh(id, i);
+                        triangles += meshes[id].indices.size() / 3;
+                        if (FAILED(UploadMeshForRaster(device.Get(), meshes[id])) || SendMesh(proxy, meshes[id]) != 1)
+                            return Fatal("a vessel's mesh", E_FAIL);
+                        released.push_back(id);
+                        Instance part;
+                        part.mesh = id;
+                        const int side = s == 0 ? 13 : 25;
+                        part.position = { -18.0 + (i % side) * 36.0 / side, 1.2, -18.0 + (i / side) * 36.0 / side };
+                        part.scale[0] = part.scale[2] = 0.9 * 18.0 / side;
+                        part.scale[1] = 2.4;
+                        part.albedo[0] = 0.7f; part.albedo[1] = 0.7f; part.albedo[2] = 0.75f;
+                        vessel.push_back(part);
+                    }
+                    result.triangles = triangles;
+                    SendInstances(proxy, vessel, camera.position);
+                    RenderGBuffer(context.Get(), g, camera, meshes, vessel);
+
+                    // The frames until every part is built, and those its slot takes to come
+                    // round, which reads its timestamps.
+                    const MeshBuild start = meshBuild(proxy.Status());
+                    double peakGpu = 0.0, sumGpu = 0.0, cpuMs = 0.0, peakCpu = 0.0, buildMs = 0.0;
+                    unsigned timed = start.timed;
+                    int buildFrames = 0;
+                    for (int f = 0; f < 40; ++f)
+                    {
+                        SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, traced);
+                        const std::string text = proxy.Status();
+                        const MeshBuild now = meshBuild(text);
+                        if (now.timed != timed)
+                        {
+                            timed = now.timed;
+                            peakGpu = std::max(peakGpu, now.gpu);
+                            sumGpu += now.gpu;
+                            buildMs = std::max(buildMs, statusValue(text, " build="));
+                        }
+                        if (statusValue(text, " built=") > 0 && f < 30)
+                        {
+                            ++buildFrames;
+                            cpuMs += now.cpu;
+                            peakCpu = std::max(peakCpu, now.cpu);
+                        }
+                    }
+                    // The trace once the structures settled, the passes' mean over 16 frames.
+                    double traceSum = 0.0;
+                    for (int f = 0; f < 16; ++f)
+                    {
+                        SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, traced);
+                        float build = 0, trace = 0;
+                        proxy.timings(&build, &trace);
+                        traceSum += trace;
+                    }
+                    const std::string settled = proxy.Status();
+                    // The picture: the sun's visibility and the camera's rays, as the first
+                    // variant's.
+                    SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 39999, kRtSignalSunVisibility | kRtSignalPrimaryCheck);
+                    Frame frame;
+                    if (!ReadFrame(device.Get(), context.Get(), g, outputs, frame))
+                        return Fatal("reading the vessel's frame back", E_FAIL);
+                    if (v == 0 && round == 0)
+                    {
+                        reference[s] = frame;
+                        if (s == 1)
+                            SaveVisibility(L"rt_vessel_parts.bmp", frame);
+                    }
+                    size_t differing = 0, compared = 0;
+                    for (size_t i = 0; i < frame.depth.size(); ++i)
+                    {
+                        if (frame.depth[i] <= 0.0f)
+                            continue;
+                        ++compared;
+                        const bool lit = HalfToFloat(frame.visibility[i * 4]) > 0.5f;
+                        const bool litBefore = HalfToFloat(reference[s].visibility[i * 4]) > 0.5f;
+                        const float hit = frame.primary[i * 4], hitBefore = reference[s].primary[i * 4];
+                        if (lit != litBefore || std::fabs(hit - hitBefore) > 1e-3f * std::max(1.0f, std::fabs(hitBefore)))
+                            ++differing;
+                    }
+                    // The scene's structure over many instances, as Parallax's scatter makes
+                    // them: each part a hundred times (150) or forty (600) over the plane; the
+                    // scene build's and the trace's mean over 16 frames, the G-buffer the
+                    // vessel's.
+                    std::vector<Instance> forest = scene;
+                    const int copies = s == 0 ? 100 : 40;
+                    const int forestRows = copies * sizes[s] / 160 + 1;
+                    for (int c = 0; c < copies; ++c)
+                        for (int i = 0; i < sizes[s]; ++i)
+                        {
+                            Instance part = vessel[scene.size() + i];
+                            const int at = c * sizes[s] + i;
+                            part.position = { -90.0 + (at % 160) * 1.125, 1.2, -90.0 + (at / 160) * 180.0 / forestRows };
+                            part.scale[0] = part.scale[2] = 0.8;
+                            forest.push_back(part);
+                        }
+                    SendInstances(proxy, forest, camera.position);
+                    for (int f = 0; f < 3; ++f)
+                        SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, traced);
+                    double forestBuild = 0.0, forestTrace = 0.0;
+                    for (int f = 0; f < 16; ++f)
+                    {
+                        SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, traced);
+                        float build = 0, trace = 0;
+                        proxy.timings(&build, &trace);
+                        forestBuild += build / 16.0;
+                        forestTrace += trace / 16.0;
+                    }
+                    result.forestInstances = forest.size();
+                    result.forestBuild = std::min(result.forestBuild, forestBuild);
+                    result.forestTrace = std::min(result.forestTrace, forestTrace);
+
+                    // The best of the three rounds; the picture and the memory of the last.
+                    result.cpu = std::min(result.cpu, cpuMs);
+                    result.peakCpu = std::min(result.peakCpu, peakCpu);
+                    result.gpu = std::min(result.gpu, sumGpu);
+                    result.peakGpu = std::min(result.peakGpu, peakGpu);
+                    result.build = std::min(result.build, buildMs);
+                    result.trace = std::min(result.trace, traceSum / 16.0);
+                    result.frames = buildFrames;
+                    result.blas = statusValue(settled, "blas=");
+                    result.geometry = statusValue(settled, "geometry=");
+                    result.reserved = statusValue(settled, "reserved=");
+                    result.memory = videoMemory();
+                    result.differing = differing;
+                    result.compared = compared;
+                }
+        for (int k = 0; k < 6; ++k)
+            WritePrivateProfileStringW(L"Proxy", variants[0].keys[k][0], before[k].empty() ? nullptr : before[k].c_str(),
+                                       ini.c_str());
+        Sleep(1100);
+        swapChain->Present(0, 0);
+        for (int id : released)
+        {
+            proxy.releaseMesh(id);
+            meshes.erase(id);
+        }
+        SendInstances(proxy, scene, camera.position);
+        for (int f = 0; f < 4; ++f)
+            SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, kRtSignalSunVisibility);
+
+        for (int s = 0; s < 2; ++s)
+        {
+            printf("      %d parts, %llu triangles: CPU ms recording the builds (the slowest frame's), GPU ms to the"
+                   " meshes built (the slowest frame's), the scene build's slowest frame, frames with builds, the trace's"
+                   " mean; with %zu instances the scene build's and the trace's mean; the structures' and the geometry's"
+                   " MB, the pools' and build buffers' MB in all, process video memory MB; pixels unlike the first's\n",
+                   sizes[s], static_cast<unsigned long long>(results[s].triangles), results[s].forestInstances);
+            for (size_t v = 0; v < variantCount; ++v)
+            {
+                const Result& r = results[v * 2 + s];
+                printf("        %-52s cpu %7.3f (%7.3f)  gpu %7.3f (%7.3f)  build %7.3f  frames %2d  trace %6.3f"
+                       "  many: build %6.3f trace %6.3f  MB %6.2f %6.2f %6.2f %7.1f  %zu of %zu\n",
+                       variants[v].name, r.cpu, r.peakCpu, r.gpu, r.peakGpu, r.build, r.frames, r.trace, r.forestBuild,
+                       r.forestTrace, r.blas, r.geometry, r.reserved, r.memory, r.differing, r.compared);
+            }
+        }
+        // The defaults (batched, pooled, built fast, rebuilt and compacted) against mesh by
+        // mesh with buffers of their own: the slowest frame's builds faster on the GPU and
+        // the CPU, the structures smaller than uncompacted ones.
+        for (int s = 0; s < 2; ++s)
+        {
+            const Result& old = results[s];
+            const Result& plain = results[3 * 2 + s];
+            const Result& now = results[6 * 2 + s];
+            char detail[400];
+            sprintf_s(detail, "%d parts, the slowest frame: %.3f ms of the GPU and %.3f of the CPU before, %.3f and %.3f now"
+                              " (batched and pooled alone %.3f and %.3f); structures %.2f MB, %.2f uncompacted",
+                      sizes[s], old.peakGpu, old.peakCpu, now.peakGpu, now.peakCpu, plain.peakGpu, plain.peakCpu, now.blas,
+                      plain.blas);
+            Check(now.peakGpu < old.peakGpu && now.peakCpu < old.peakCpu && plain.peakGpu < old.peakGpu && now.blas < plain.blas,
+                  "a vessel's meshes built at once", detail);
+        }
+        for (size_t v = 1; v < variantCount; ++v)
+            for (int s = 0; s < 2; ++s)
+            {
+                const Result& r = results[v * 2 + s];
+                char detail[300];
+                sprintf_s(detail, "%s, %d parts: %zu of %zu pixels unlike mesh by mesh", variants[v].name, sizes[s], r.differing,
+                          r.compared);
+                Check(r.compared > 100000 && r.differing * 1000 <= r.compared, "the same picture however built", detail);
+            }
     }
 
     printf(failures == 0 ? "all raytracing checks passed\n" : "%d raytracing check(s) failed\n", failures);

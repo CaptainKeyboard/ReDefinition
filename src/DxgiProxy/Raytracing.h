@@ -7,6 +7,7 @@
 #include <wrl/client.h>
 
 #include "FrameGeneration.h"
+#include "RaytracingBuild.h"
 #include "RaytracingShaders/RtContract.h"
 
 #include <FidelityFX/api/include/ffx_api_loader.h>
@@ -573,10 +574,20 @@ namespace redefinition
 
         struct Mesh
         {
+            // Its vertices, attributes and indices in buffers of their own, or in a range
+            // of the geometry pool (Config.h, rtBlasPool); where each lies, either way.
             Microsoft::WRL::ComPtr<ID3D12Resource> positions;
             Microsoft::WRL::ComPtr<ID3D12Resource> attributes;
             Microsoft::WRL::ComPtr<ID3D12Resource> indices;
-            Microsoft::WRL::ComPtr<ID3D12Resource> blas;
+            RtPoolRange geometry;
+            ID3D12Resource* positionsBuffer = nullptr;
+            ID3D12Resource* attributesBuffer = nullptr;
+            ID3D12Resource* indicesBuffer = nullptr;
+            UINT64 positionsOffset = 0;
+            UINT64 attributesOffset = 0;
+            UINT64 indicesOffset = 0;
+            UINT64 geometryBytes = 0;
+            RtStoredBuffer blas;
             // Where the mesh was handed over again with the same triangles: its structure
             // built to be updated, and the scratch its updates take.
             Microsoft::WRL::ComPtr<ID3D12Resource> updateScratch;
@@ -586,7 +597,14 @@ namespace redefinition
             uint32_t vertexCount = 0;
             uint32_t indexCount = 0;
             uint64_t indexHash = 0;
+            // Its structure on the way to its final form (rtBlasCompaction): kRefine*; and
+            // a number for the structure it has now, new with every one.
+            uint32_t refine = 0;
+            uint32_t blasSerial = 0;
         };
+        static constexpr uint32_t kRefineNone = 0;
+        static constexpr uint32_t kRefineRebuild = 1;   // built PREFER_FAST_BUILD, to be rebuilt
+        static constexpr uint32_t kRefineCompact = 2;   // built with ALLOW_COMPACTION, its size asked for
 
         struct MaterialData
         {
@@ -880,14 +898,40 @@ namespace redefinition
         Shared* SharedForLocked(void* unityTexture, std::string& problem);
         // The scene (RaytracingScene.cpp).
         bool TakeDescriptorSlotLocked(uint32_t& slot);
-        bool UploadMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot);
+        // One frame's copies, barriers and builds of the meshes' structures
+        // (RaytracingScene.cpp).
+        struct BuildFrame;
+        // A new mesh's buffers made, its data copied in and its build queued. False,
+        // with nothing queued, where a buffer could not be made.
+        bool UploadMeshLocked(BuildFrame& frame, Mesh& mesh, const PendingMesh& pending, Slot& slot);
         // A built mesh handed over again with the same vertex count and indices: its new
         // vertices into its own buffers and its structure updated, not made anew. False,
         // with nothing recorded, where a buffer could not be made.
-        bool RefitMeshLocked(Mesh& mesh, const PendingMesh& pending, Slot& slot);
+        bool RefitMeshLocked(BuildFrame& frame, Mesh& mesh, const PendingMesh& pending, Slot& slot);
+        // The frame's barriers and queued builds into the list.
+        void FlushBuildsLocked(BuildFrame& frame);
+        // rtBlasCompaction's later steps: the structures compacted whose compacted size came
+        // back, those built fast rebuilt for tracing. How many structures changed.
+        uint32_t CompactMeshesLocked(BuildFrame& frame, Slot& slot);
+        uint32_t RefineMeshesLocked(BuildFrame& frame, Slot& slot);
+        // Into the frame's list: a geometry buffer ready to copy into, or to be read by a
+        // build.
+        void ToCopyLocked(BuildFrame& frame, ID3D12Resource* buffer);
+        void ToReadLocked(BuildFrame& frame, ID3D12Resource* buffer);
+        bool UploadSpaceLocked(BuildFrame& frame, Slot& slot, UINT64 size, ID3D12Resource*& buffer, UINT64& offset,
+                               uint8_t*& cpu);
+        bool ScratchLocked(BuildFrame& frame, Slot& slot, UINT64 size, D3D12_GPU_VIRTUAL_ADDRESS& address);
+        bool MakeBlasLocked(UINT64 size, bool pooled, RtStoredBuffer& blas);
+        // A compacted size asked of the build queued last, into the slot's buffer of them.
+        bool AskSizeLocked(BuildFrame& frame, int32_t id, uint32_t serial);
+        void RetireBlasLocked(RtStoredBuffer& blas, Slot& slot);
         // A mesh's buffers held by the slot, its descriptor slot free again once the
         // slot's list is done.
         void RetireMeshLocked(Mesh& mesh, Slot& slot);
+        // The same with the queue idle: all free at once.
+        void FreeMeshNowLocked(Mesh& mesh);
+        // From WaitForSlotLocked: the GPU's time of a slot's mesh builds.
+        void NoteMeshBuildTimeLocked(UINT slotNumber, double ms);
         // Whether a material's texture cuts its surface out.
         bool IsCutoutLocked(int32_t material) const;
         bool BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances, UINT& instanceCount);
@@ -1032,6 +1076,38 @@ namespace redefinition
         void TakeHandOverLocked();
 
         std::unordered_map<int32_t, Mesh> meshes;
+        // The memory the meshes' structures are built in (RaytracingBuild.h) and what the
+        // slots' lists did with it.
+        struct BlasMemory
+        {
+            RtBufferPool blas;
+            RtBufferPool geometry;
+            UINT64 committedBlas = 0;
+            UINT64 committedGeometry = 0;
+            struct PerSlot
+            {
+                RtLinearArena upload;
+                RtLinearArena scratch;
+                // The compacted sizes its list asked for (rtBlasCompaction), by mesh and
+                // its structure's serial, and where they come back.
+                Microsoft::WRL::ComPtr<ID3D12Resource> sizes;
+                Microsoft::WRL::ComPtr<ID3D12Resource> sizesReadback;
+                UINT sizesCapacity = 0;
+                std::vector<std::pair<int32_t, uint32_t>> asked;
+                // What its list built: structures changed (built, rebuilt, compacted),
+                // meshes, triangles, and the CPU's time recording it.
+                uint32_t changed = 0;
+                uint32_t builtMeshes = 0;
+                uint64_t builtTriangles = 0;
+                double cpuMs = 0.0;
+            };
+            PerSlot slots[kSlots];
+            std::deque<int32_t> toRefine;
+            uint32_t nextSerial = 1;
+            bool setUp = false;
+            void Reset();
+        };
+        BlasMemory blasMemory;
         std::unordered_map<void*, Shared> textures;
         // The descriptor slots ran out once on this device (logged once).
         bool meshSlotsFull = false;
@@ -1061,6 +1137,18 @@ namespace redefinition
         uint32_t lastBuilt = 0;
         int slowFramesLogged = 0;
         int bigBuildsLogged = 0;
+        int bigBuildsTimedLogged = 0;
+        // The meshes the last frame that built any built, the CPU's time the latest frame
+        // took on them, the GPU's of the last frame timed that changed structures and how
+        // many were; the memory the meshes' structures and their geometry take, and what the
+        // pools and the slots' build buffers hold in all.
+        uint32_t meshBuildCount = 0;
+        float meshBuildCpuMs = 0.0f;
+        float meshBuildGpuMs = 0.0f;
+        uint32_t meshBuildsTimed = 0;
+        uint64_t blasBytes = 0;
+        uint64_t geometryBytes = 0;
+        uint64_t buildReservedBytes = 0;
         float buildMs = 0.0f;
         float traceMs = 0.0f;
         // The same of the last extra trace (the ocean's), timed apart.

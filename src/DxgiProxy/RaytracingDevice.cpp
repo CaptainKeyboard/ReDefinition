@@ -427,6 +427,7 @@ namespace redefinition
                 return;
             }
             buildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
+            NoteMeshBuildTimeLocked(slotNumber, static_cast<double>(ticks[kTimestampMeshesBuilt] - ticks[0]) * toMs);
             traceMs = static_cast<float>(static_cast<double>(ticks[kTimestampTraceEnd] - ticks[1]) * toMs);
             for (UINT position = 0; position < kRtPassTimings; ++position)
                 passMs[kRtPassOrder[position]] =
@@ -479,6 +480,11 @@ namespace redefinition
         WaitForAllLocked();
         for (Slot& slot : slots)
             slot.held.clear();
+        for (BlasMemory::PerSlot& perSlot : blasMemory.slots)
+        {
+            perSlot.upload.Reset();
+            perSlot.scratch.Reset();
+        }
         denoise = DenoiseTargets{};
         guides = GuideTargets{};
         ReleaseRadianceCacheLocked(nullptr);
@@ -493,7 +499,7 @@ namespace redefinition
             auto found = meshes.find(id);
             if (found == meshes.end())
                 continue;
-            freeSlots.push_back(found->second.slot);
+            FreeMeshNowLocked(found->second);
             meshes.erase(found);
             ++released;
         }
@@ -536,6 +542,7 @@ namespace redefinition
             ++generation;
         }
         meshes.clear();
+        blasMemory.Reset();
         meshSlotsFull = false;
         textures.clear();
         pipelines.clear();

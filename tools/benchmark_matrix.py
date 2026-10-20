@@ -337,6 +337,10 @@ _LATENCY = re.compile(r"^Latency: from the frame's start to the GPU's end of its
                       r" frames, 90th percentile ([\d.]+)\), lowered by (.*)$")
 _PCL = re.compile(r"^Low latency: NVIDIA's report, from the simulation's start to the GPU's end of the frame ([\d.]+) ms"
                   r" \(median of (\d+) frames\), the GPU's frame ([\d.]+) ms; low latency mode (\w+)")
+# The proxy's line for a frame that built 50 meshes or more, once its GPU time is read
+# (RaytracingScene.cpp, NoteMeshBuildTimeLocked): the load spike of a flight's start.
+_RT_BUILD = re.compile(r"^Raytracing: the (\d+) meshes built in one frame \((\d+) triangles\) took ([\d.]+) ms of the GPU"
+                       r" and ([\d.]+) ms of the CPU")
 _BRAKE = re.compile(r"^Latency brake: sleeps ([\d.]+) ms before the frame, ([\d.]+) ms of waits in the proxy left a frame"
                     r" of ([\d.]+) ms work")
 _UPSCALER = re.compile(r"Upscaler running on '([^']*)': (\d+)x(\d+) -> (\d+)x(\d+) \(([^,]+), (.*)\)$")
@@ -377,7 +381,8 @@ def parse_config(text):
 
 
 def parse_proxy_log(text):
-    p = {"configs": [], "reports": [], "latency": [], "pcl": [], "brake": [], "lines": {}, "first_time": None}
+    p = {"configs": [], "reports": [], "latency": [], "pcl": [], "brake": [], "rt_builds": [], "lines": {},
+         "first_time": None}
     notes = []
     for t, line in _timed_lines(text, _PROXY_TIME):
         if p["first_time"] is None:
@@ -404,6 +409,11 @@ def parse_proxy_log(text):
         if m:
             p["pcl"].append({"time": t, "median_ms": float(m.group(1)), "frames": int(m.group(2)),
                              "gpu_frame_ms": float(m.group(3)), "mode": m.group(4)})
+            continue
+        m = _RT_BUILD.match(line)
+        if m:
+            p["rt_builds"].append({"time": t, "meshes": int(m.group(1)), "triangles": int(m.group(2)),
+                                   "gpu_ms": float(m.group(3)), "cpu_ms": float(m.group(4))})
             continue
         m = _BRAKE.match(line)
         if m:
@@ -637,8 +647,22 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
                                                  + proxy["lines"].get("xell", [])] or None,
         "ray_reconstruction_lines": [x["text"] for x in ksp["rr"]][:4] or None,
         "upscaler_lines": ksp["upscaler"][:4],
+        "rt_builds": rt_builds_of(proxy["rt_builds"]),
         "problems": problems, "phases": phases,
     }
+
+
+def rt_builds_of(builds):
+    """The frames of a start that built 50 meshes or more, as the proxy logged them, and the
+    slowest of them: the raytracing's load spike at the flight's start, which the phases'
+    steady frame rates do not show. The proxy's rtBlas* keys of the start's proxy_load
+    decide how they were built."""
+    if not builds:
+        return None
+    return {"frames": len(builds), "meshes": sum(b["meshes"] for b in builds),
+            "triangles": sum(b["triangles"] for b in builds),
+            "slowest_gpu_ms": max(b["gpu_ms"] for b in builds), "slowest_cpu_ms": max(b["cpu_ms"] for b in builds),
+            "lines": builds[:10]}
 
 
 def _same_number(a, b):
@@ -1206,6 +1230,15 @@ def run_section(record, json_name):
     for s in record["starts"]:
         lines.append("{}: {}".format(s["id"], s.get("proxy_load_config_line") or "no Config line"))
     lines.append("```")
+    built = [s for s in record["starts"] if s.get("rt_builds")]
+    if built:
+        lines.append("")
+        lines.append("The raytracing's frames that built 50 meshes or more, at the flight's start:")
+        lines.append("")
+        for s in built:
+            b = s["rt_builds"]
+            lines.append("* {}: {} frames, {} meshes, {} triangles; the slowest {} ms of the GPU, {} ms of the CPU".format(
+                s["id"], b["frames"], b["meshes"], b["triangles"], _fmt(b["slowest_gpu_ms"], 2), _fmt(b["slowest_cpu_ms"], 2)))
     lines.append("")
     lines.append("</details>")
     lines.append("")

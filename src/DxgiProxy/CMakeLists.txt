@@ -123,6 +123,8 @@ add_library(ReDefinitionProxy SHARED
     Raytracing.h
     RaytracingCache.cpp
     RaytracingDenoise.cpp
+    RaytracingBuild.cpp
+    RaytracingBuild.h
     RaytracingDevice.cpp
     RaytracingInternal.h
     RaytracingReconstruct.cpp
