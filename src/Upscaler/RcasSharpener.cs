@@ -5,11 +5,12 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Upscaler
 {
-    // FSR 3's RCAS pass on its own, after DLSS. DLSS sharpens nothing itself -- its
+    // FSR 3's RCAS pass on its own, after DLSS and XeSS. DLSS sharpens nothing itself -- its
     // guide calls the sharpening of earlier versions deprecated and points
     // developers who want a sharper picture to a filter with a slider for the
     // player (programming guide 3.11) -- while FSR 3 and AMD's DLL run RCAS after
-    // reconstruction. So the slider reaches DLSS too: the same shader, with the
+    // reconstruction. So the slider reaches DLSS too, and XeSS, which has no
+    // sharpening either (xess_d3d12_execute_params_t): the same shader, with the
     // constants FSR 3's own dispatch computes (Fsr3UpscalerContext.RcasConstantsFor).
     //
     // RCAS reads one texture and writes another. DLSS writes into Input, which this

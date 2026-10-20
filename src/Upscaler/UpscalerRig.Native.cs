@@ -5,25 +5,26 @@ using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
-    // The rig's part for the upscalers that run in the dxgi.dll proxy, DLSS and
-    // AMD's DLL: the textures handed to it, the packets, and what its state means.
+    // The rig's part for the upscalers that run in the dxgi.dll proxy, DLSS, AMD's
+    // DLL and XeSS: the textures handed to it, the packets, and what its state means.
     public partial class UpscalerRig
     {
-        // RCAS after DLSS, which sharpens nothing itself (RcasSharpener): DLSS writes
-        // into its input, RCAS from there into the output. Only with sharpening on,
-        // which the slider decides at the rig's setup.
-        private RcasSharpener dlssSharpener;
-        private IntPtr dlssSharpenInputHandle;
+        // RCAS after DLSS and XeSS, which sharpen nothing themselves (RcasSharpener):
+        // the upscaler writes into its input, RCAS from there into the output. Only
+        // with sharpening on, which the slider decides at the rig's setup.
+        private RcasSharpener nativeSharpener;
+        private IntPtr nativeSharpenInputHandle;
 
-        // DLSS (DlssBridge) and AMD's DLL (AmdUpscalerBridge): this frame's packet
-        // into the dispatch buffer, where the proxy upscales it on Unity's render
-        // thread. Shown is the proxy's output once it has reported an upscaled
-        // frame; the image without upscaling before that and after anything
-        // stopped it -- never an output nothing has written. The same jitter and
-        // motion vector scale as FSR's, in pixels at render size (NVIDIA's DLSS
-        // Programming Guide, 3.6.1 and 3.7.3; AMD's ffx_upscale.h). DLSS with auto
-        // exposure always: there is no exposure value to hand over (guide 3.9,
-        // 3.10). AMD's DLL with FSR's auto exposure as the player set it.
+        // DLSS (DlssBridge), AMD's DLL (AmdUpscalerBridge) and XeSS
+        // (XessUpscalerBridge): this frame's packet into the dispatch buffer, where
+        // the proxy upscales it on Unity's render thread. Shown is the proxy's output
+        // once it has reported an upscaled frame; the image without upscaling before
+        // that and after anything stopped it -- never an output nothing has written.
+        // The same jitter and motion vector scale as FSR's, in pixels at render size
+        // (NVIDIA's DLSS Programming Guide, 3.6.1 and 3.7.3; AMD's ffx_upscale.h;
+        // XessUpscaler.h). DLSS with auto exposure always: there is no exposure value
+        // to hand over (guide 3.9, 3.10). AMD's DLL and XeSS with FSR's auto exposure
+        // as the player set it.
         //
         // The proxy's state outlives a rig: for the first frames it can still be
         // the one of the rig before, or of its release. Packets keep going while it
@@ -77,7 +78,7 @@ namespace ReDefinition.Upscaler
                 {
                     Colour = textures.LowResHandle,
                     // With sharpening, into RCAS's input, which writes the output.
-                    Output = dlssSharpener != null ? dlssSharpenInputHandle : textures.UpscaledHandle,
+                    Output = nativeSharpener != null ? nativeSharpenInputHandle : textures.UpscaledHandle,
                     Depth = textures.DepthHandle,
                     MotionVectors = textures.MotionHandle,
                     RenderWidth = (uint)renderSize.x,
@@ -93,6 +94,32 @@ namespace ReDefinition.Upscaler
                     MotionVectorScaleY = dispatch.MotionVectorScale.y,
                 };
                 submitted = DlssBridge.Submit(dispatchBuffer, ref packet);
+            }
+            else if (Backend == UpscalerBackend.Xess)
+            {
+                // AMD's packet without what XeSS does not take: no masks, and RCAS
+                // after it as after DLSS.
+                AmdUpscalerBridge.AmdPacket packet = new AmdUpscalerBridge.AmdPacket
+                {
+                    Colour = textures.LowResHandle,
+                    Output = nativeSharpener != null ? nativeSharpenInputHandle : textures.UpscaledHandle,
+                    Depth = textures.DepthHandle,
+                    MotionVectors = textures.MotionHandle,
+                    RenderWidth = (uint)renderSize.x,
+                    RenderHeight = (uint)renderSize.y,
+                    OutputWidth = (uint)displaySize.x,
+                    OutputHeight = (uint)displaySize.y,
+                    Flags = flags,
+                    JitterX = dispatch.JitterOffset.x,
+                    JitterY = dispatch.JitterOffset.y,
+                    MotionVectorScaleX = dispatch.MotionVectorScale.x,
+                    MotionVectorScaleY = dispatch.MotionVectorScale.y,
+                    FrameTimeDeltaMs = dispatch.FrameTimeDelta * 1000f,
+                    CameraNear = dispatch.CameraNear,
+                    CameraFar = dispatch.CameraFar,
+                    VerticalFovRadians = dispatch.CameraFovAngleVertical,
+                };
+                submitted = XessUpscalerBridge.Submit(dispatchBuffer, ref packet);
             }
             else
             {

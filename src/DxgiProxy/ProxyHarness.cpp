@@ -162,6 +162,11 @@ namespace
     static_assert(offsetof(AmdPacket, reactive) == 96, "AmdPacket differs from AmdUpscaler.h's");
     constexpr uint32_t kAmdMagic = 0x4B535041u;
 
+    // XeSS, in AMD's packet with a magic of its own (XessUpscaler.h).
+    constexpr int kXessEvent = 7;
+    constexpr int kXessReleaseEvent = 8;
+    constexpr uint32_t kXessMagic = 0x4B535058u;
+
     // Direct3D 12 for mods, laid out as D3d12Compute.h declares it, with the sizes and
     // offsets it asserts.
     constexpr int kD3d12CreateEvent = 20;
@@ -830,6 +835,13 @@ int main()
     const std::wstring amdDirectory(amdDirectoryBuffer);
     const IniKey amdDirectoryKey(L"amdUpscalerDirectory");
     amdDirectoryKey.Set(amdDirectory.empty() ? nullptr : amdDirectory.c_str());
+
+    // XeSS, when REDEFINITION_XESS_DIR names a folder with Intel's libxess.dll.
+    wchar_t xessDirectoryBuffer[MAX_PATH] = {};
+    GetEnvironmentVariableW(L"REDEFINITION_XESS_DIR", xessDirectoryBuffer, MAX_PATH);
+    const std::wstring xessDirectory(xessDirectoryBuffer);
+    const IniKey xessDirectoryKey(L"xessDirectory");
+    xessDirectoryKey.Set(xessDirectory.empty() ? nullptr : xessDirectory.c_str());
 
     // DLSS frame generation, when REDEFINITION_STREAMLINE_DIR names a folder with
     // NVIDIA's Streamline 2.14.1 DLLs -- the SDK's bin\x64; without it the proxy
@@ -2504,6 +2516,123 @@ int main()
         printf("      AMD upscaler skipped: REDEFINITION_AMD_UPSCALER_DIR names no folder with the DLL\n");
     }
 
+    // XeSS on the proxy's D3D12 device, as AMD's upscaler above: packets through the
+    // render event, 320x180 to 640x360 over a flat image that has to come out flat,
+    // and the version libxess.dll reports, as the settings row shows it.
+    bool xessTested = false;
+    if (!xessDirectory.empty() && GetFileAttributesW((xessDirectory + L"\\libxess.dll").c_str()) != INVALID_FILE_ATTRIBUTES)
+    {
+        using ReadyFn = int (*)();
+        using VersionFn = int (*)(char*, int);
+        const DlssStatusFn xessStatus = reinterpret_cast<DlssStatusFn>(GetProcAddress(dxgi, "KspXessUpscalerStatus"));
+        const DlssPacketSizeFn xessPacketSize =
+            reinterpret_cast<DlssPacketSizeFn>(GetProcAddress(dxgi, "KspXessUpscalerPacketSize"));
+        const ReadyFn xessReady = reinterpret_cast<ReadyFn>(GetProcAddress(dxgi, "KspXessUpscalerReady"));
+        const VersionFn xessVersion = reinterpret_cast<VersionFn>(GetProcAddress(dxgi, "KspXessUpscalerVersion"));
+        const GetRenderEventFn xessEventFunc =
+            reinterpret_cast<GetRenderEventFn>(GetProcAddress(dxgi, "KspFgGetRenderEventFunc"));
+        if (xessStatus == nullptr || xessPacketSize == nullptr || xessReady == nullptr || xessVersion == nullptr
+            || xessEventFunc == nullptr)
+            return Fail("GetProcAddress(KspXessUpscalerStatus / PacketSize / Ready / Version)", E_FAIL);
+        if (xessPacketSize() != sizeof(AmdPacket))
+            return Fail("the XeSS packet layout differs between harness and proxy", E_FAIL);
+        if (xessReady() != 1)
+            return Fail("the proxy does not report XeSS ready on its D3D12 device", E_FAIL);
+        const RenderEventFn xessEvent = static_cast<RenderEventFn>(xessEventFunc());
+
+        constexpr UINT xessRenderWidth = 320;
+        constexpr UINT xessRenderHeight = 180;
+        const uint16_t xessGrey[4] = { 0x3400, 0x3800, 0x3A00, 0x3C00 };   // 0.25, 0.5, 0.75, 1
+        const uint16_t xessBlack[4] = { 0, 0, 0, 0x3C00 };
+        ComPtr<ID3D11Texture2D> xessColour;
+        ComPtr<ID3D11Texture2D> xessOutput;
+        Inputs xessInputs;
+        hr = CreateHalfTexture(device.Get(), xessRenderWidth, xessRenderHeight, xessGrey, D3D11_BIND_SHADER_RESOURCE,
+                               xessColour);
+        if (SUCCEEDED(hr))
+            hr = CreateHalfTexture(device.Get(), kWidth, kHeight, xessBlack,
+                                   D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS, xessOutput);
+        if (SUCCEEDED(hr))
+            hr = CreateInputs(device.Get(), xessRenderWidth, xessRenderHeight, xessInputs);
+        if (FAILED(hr))
+            return Fail("XeSS test textures", hr);
+
+        char xessText[512] = {};
+        for (UINT frame = 0; frame < 16; ++frame)
+        {
+            AmdPacket xessFrame = {};
+            xessFrame.size = sizeof(xessFrame);
+            xessFrame.magic = kXessMagic;
+            xessFrame.colour = xessColour.Get();
+            xessFrame.output = xessOutput.Get();
+            xessFrame.depth = xessInputs.depth.Get();
+            xessFrame.motionVectors = xessInputs.motion.Get();
+            xessFrame.renderWidth = xessRenderWidth;
+            xessFrame.renderHeight = xessRenderHeight;
+            xessFrame.outputWidth = kWidth;
+            xessFrame.outputHeight = kHeight;
+            xessFrame.flags = kDlssHdr | kDlssDepthInverted | kDlssAutoExposure | (frame == 0 ? kDlssReset : 0u);
+            xessFrame.jitterX = 0.25f * static_cast<float>(frame % 4) - 0.375f;
+            xessFrame.jitterY = 0.25f * static_cast<float>((frame / 4) % 4) - 0.375f;
+            xessFrame.motionVectorScaleX = -static_cast<float>(xessRenderWidth);
+            xessFrame.motionVectorScaleY = -static_cast<float>(xessRenderHeight);
+            xessFrame.frameTimeDeltaMs = 16.7f;
+            xessFrame.cameraNear = 0.1f;
+            xessFrame.cameraFar = 1000.0f;
+            xessFrame.verticalFovRadians = 1.0f;
+            xessEvent(kXessEvent, &xessFrame);
+            if (xessStatus(xessText, sizeof(xessText)) < 0)
+            {
+                printf("      XeSS: %s\n", xessText);
+                return Fail("XeSS did not run", E_FAIL);
+            }
+        }
+
+        D3D11_TEXTURE2D_DESC xessStagingDesc = {};
+        xessOutput->GetDesc(&xessStagingDesc);
+        xessStagingDesc = redefinition::StagingDesc(xessStagingDesc);
+        xessStagingDesc.Width = 1;
+        xessStagingDesc.Height = 1;
+        ComPtr<ID3D11Texture2D> xessStaging;
+        hr = device->CreateTexture2D(&xessStagingDesc, nullptr, &xessStaging);
+        if (FAILED(hr))
+            return Fail("XeSS readback texture", hr);
+        D3D11_BOX xessCentre = { kWidth / 2, kHeight / 2, 0, kWidth / 2 + 1, kHeight / 2 + 1, 1 };
+        context->CopySubresourceRegion(xessStaging.Get(), 0, 0, 0, 0, xessOutput.Get(), 0, &xessCentre);
+        D3D11_MAPPED_SUBRESOURCE xessMapped = {};
+        hr = context->Map(xessStaging.Get(), 0, D3D11_MAP_READ, 0, &xessMapped);
+        if (FAILED(hr))
+            return Fail("XeSS readback", hr);
+        const uint16_t* xessHalf = static_cast<const uint16_t*>(xessMapped.pData);
+        const float xessRed = HalfToFloat(xessHalf[0]);
+        const float xessGreen = HalfToFloat(xessHalf[1]);
+        const float xessBlue = HalfToFloat(xessHalf[2]);
+        context->Unmap(xessStaging.Get(), 0);
+        const int xessState = xessStatus(xessText, sizeof(xessText));
+        printf("      XeSS: %s; output centre %.3f %.3f %.3f\n", xessText, xessRed, xessGreen, xessBlue);
+        char xessName[64] = {};
+        const int xessNamed = xessVersion(xessName, sizeof(xessName));
+        printf("      XeSS version: %s\n", xessName);
+        if (xessState != 1 || strstr(xessText, "running") == nullptr)
+            return Fail("the XeSS status does not say it runs", E_FAIL);
+        if (xessNamed != 1 || strncmp(xessName, "XeSS ", 5) != 0)
+            return Fail("the proxy does not name the XeSS version libxess.dll reports", E_FAIL);
+        char xessCut[8] = {};
+        xessStatus(xessCut, sizeof(xessCut));
+        xessEvent(kXessReleaseEvent, nullptr);
+        if (lstrlenA(xessCut) != static_cast<int>(sizeof(xessCut)) - 1)
+            return Fail("the XeSS status is not cut to the buffer it is given", E_FAIL);
+        if (xessStatus(nullptr, 0) != 0)
+            return Fail("the XeSS status after the release is not 'no frame since'", E_FAIL);
+        if (std::fabs(xessRed - 0.25f) > 0.05f || std::fabs(xessGreen - 0.5f) > 0.05f || std::fabs(xessBlue - 0.75f) > 0.05f)
+            return Fail("the XeSS output is not the flat image it was given", E_FAIL);
+        xessTested = true;
+    }
+    else
+    {
+        printf("      XeSS skipped: REDEFINITION_XESS_DIR names no folder with libxess.dll\n");
+    }
+
     // Direct3D 12 for mods (D3d12Compute.h), the way the managed side drives it: HLSL
     // compiled by the proxy -- from source, from a file with an #include, and source with an
     // error, whose message has to come back --, a compute pass built against the fixed root
@@ -2857,6 +2986,8 @@ int main()
         printf("PASS  DLSS evaluated through NGX on D3D11\n");
     if (amdTested)
         printf("PASS  AMD's upscaler ran on the proxy's D3D12 device\n");
+    if (xessTested)
+        printf("PASS  XeSS ran on the proxy's D3D12 device\n");
     if (computeTested)
         printf("PASS  a mod's compute pass ran on the proxy's D3D12 device, its result back in the same frame and a "
                "dispatch later, compiled by the proxy from source and from a file%s%s\n", dxilTested ? ", and from DXIL" : "",

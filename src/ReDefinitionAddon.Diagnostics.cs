@@ -374,13 +374,13 @@ namespace ReDefinition
             if (SwitchRow("TUFX after upscaling", OnOff(tufxAfterUpscaling)))
                 SetTufxAfterUpscaling(!tufxAfterUpscaling);
 
-            // DLSS always measures its exposure itself; neither mask reaches DLSS
-            // or AMD's DLL (their packets have no field for one).
+            // DLSS always measures its exposure itself.
             GUI.enabled = enabled && (running != UpscalerBackend.Dlss || !autoExposure);
-            if (SwitchRow("Auto exposure (FSR 3, AMD)", OnOff(autoExposure)))
+            if (SwitchRow("Auto exposure (FSR 3, AMD, XeSS)", OnOff(autoExposure)))
                 SetAutoExposure(!autoExposure);
 
-            // FSR 3 and AMD's upscaler take the masks (UpscalerRig.Native, the AMD packet).
+            // FSR 3 and AMD's upscaler take the masks (UpscalerRig.Native, the AMD packet);
+            // DLSS and XeSS none.
             bool takesMasks = running == UpscalerBackend.Fsr3 || running == UpscalerBackend.Amd;
             GUI.enabled = enabled && (takesMasks || transparencyMask);
             if (SwitchRow("Transparency mask (FSR 3, AMD)", OnOff(transparencyMask)))

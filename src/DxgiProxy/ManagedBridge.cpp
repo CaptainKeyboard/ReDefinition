@@ -23,6 +23,7 @@
 #include "ScreenRecorder.h"
 #include "FileUtil.h"
 #include "LowLatency.h"
+#include "XessUpscaler.h"
 #include "Streamline.h"
 #include "SwapChainProxy.h"
 
@@ -269,6 +270,8 @@ extern "C"
     // 4: a frame for AMD's upscaler (AmdUpscaler::OnPacket), the same way.
     // 5: the rig is gone, and AMD's context with it.
     // 6: a question for DLSS's render sizes (Dlss::OnSizeQuery), before a rig.
+    // 7: a frame for XeSS (XessUpscaler::OnPacket), the same way.
+    // 8: the rig is gone, and XeSS's context with it.
     // 20-23: Direct3D 12 for mods (D3d12Compute.h): a compute pass made, destroyed,
     //    dispatched, a texture's shared copy released.
     // 30: a raytracing frame (Raytracing.h); 31: a frame for DLSS Ray Reconstruction;
@@ -290,6 +293,10 @@ extern "C"
             redefinition::AmdUpscaler::Get().OnRelease();
         else if (eventId == 6)
             redefinition::Dlss::Get().OnSizeQuery(data);
+        else if (eventId == 7)
+            redefinition::XessUpscaler::Get().OnPacket(data);
+        else if (eventId == 8)
+            redefinition::XessUpscaler::Get().OnRelease();
         else if (eventId == 20)
             redefinition::D3d12Compute::Get().OnCreatePass(data);
         else if (eventId == 21)
@@ -427,6 +434,28 @@ extern "C"
     __declspec(dllexport) int KspAmdUpscalerReady()
     {
         return redefinition::AmdUpscaler::Get().Attached() ? 1 : 0;
+    }
+
+    // XeSS (XessUpscaler.h): the packet size, the status as AMD's upscaler reports
+    // it, whether it has its devices, and the version libxess.dll reports.
+    __declspec(dllexport) unsigned int KspXessUpscalerPacketSize()
+    {
+        return static_cast<unsigned int>(sizeof(redefinition::XessUpscalerPacket));
+    }
+
+    __declspec(dllexport) int KspXessUpscalerStatus(char* buffer, int size)
+    {
+        return redefinition::XessUpscaler::Get().Status(buffer, size);
+    }
+
+    __declspec(dllexport) int KspXessUpscalerReady()
+    {
+        return redefinition::XessUpscaler::Get().Attached() ? 1 : 0;
+    }
+
+    __declspec(dllexport) int KspXessUpscalerVersion(char* buffer, int size)
+    {
+        return redefinition::XessUpscaler::Get().Version(buffer, size);
     }
 
     __declspec(dllexport) int KspDlssStatus(char* buffer, int size)

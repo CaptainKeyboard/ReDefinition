@@ -170,8 +170,8 @@ namespace ReDefinition.Upscaler
             if (Camera == null) return;
             if (!JitterActive)
             {
-                // A frame without jitter -- bypass, a rebuild, DLSS or AMD's DLL before
-                // their first frame shown -- on a camera whose nonJitteredProjectionMatrix
+                // A frame without jitter -- bypass, a rebuild, an upscaler in the proxy
+                // before its first frame shown -- on a camera whose nonJitteredProjectionMatrix
                 // was once assigned: Unity no longer computes it, so it is kept in step
                 // here, or the camera's motion vectors would use the last jittered
                 // frame's projection through a zoom.

@@ -92,8 +92,8 @@ namespace ReDefinition.Upscaler
         // proxy this does nothing and the upscaler is unaffected.
         public bool FrameGeneration;
 
-        // FSR 3 in Unity, or DLSS or AMD's DLL through the proxy (DlssBridge,
-        // AmdUpscalerBridge). Fixed for the life of the rig; the preset is live.
+        // FSR 3 in Unity, or DLSS, AMD's DLL or XeSS through the proxy (DlssBridge,
+        // AmdUpscalerBridge, XessUpscalerBridge). Fixed for the life of the rig; the preset is live.
         internal UpscalerBackend Backend = UpscalerBackend.Fsr3;
         internal DlssPreset DlssPreset = DlssPreset.Default;
 
@@ -222,7 +222,7 @@ namespace ReDefinition.Upscaler
 
         // What the frame's state tells other mods (SharedFrame): whether this rig
         // upscales -- not its bypass, not frame generation's capture alone, not a rig
-        // waiting to be rebuilt, not DLSS or AMD's DLL while the proxy shows none of
+        // waiting to be rebuilt, not an upscaler in the proxy while it shows none of
         // their frames --, whether frame generation receives its frames, the
         // jitter the upscaler is told of, and the camera it is built on.
         internal bool UpscalerRuns
@@ -367,30 +367,32 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
-        // The link to the upscaler in the proxy, DLSS's sharpening, and FSR 3's
-        // context.
+        // The link to the upscaler in the proxy, the sharpening after DLSS and XeSS,
+        // and FSR 3's context.
         private void StartUpscaler(Fsr3UpscalerShaders shaders)
         {
             nativeLink = Bypass || PassThrough ? null : UpscalerBackends.Link(Backend);
-            if (Backend == UpscalerBackend.Dlss && !Bypass && !PassThrough && Sharpening && shaders != null && textures.Upscaled != null)
+            if ((Backend == UpscalerBackend.Dlss || Backend == UpscalerBackend.Xess) && !Bypass && !PassThrough && Sharpening
+                && shaders != null && textures.Upscaled != null)
             {
-                dlssSharpener = new RcasSharpener(shaders.sharpenPass, textures.Upscaled);
-                if (dlssSharpener.Input.IsCreated())
+                nativeSharpener = new RcasSharpener(shaders.sharpenPass, textures.Upscaled);
+                if (nativeSharpener.Input.IsCreated())
                 {
-                    dlssSharpenInputHandle = dlssSharpener.Input.GetNativeTexturePtr();
+                    nativeSharpenInputHandle = nativeSharpener.Input.GetNativeTexturePtr();
                 }
                 else
                 {
                     // Not a rebuild the next frame would fail the same way (TexturesCreated):
-                    // DLSS goes on unsharpened.
-                    dlssSharpener.Release();
-                    dlssSharpener = null;
-                    Debug.LogWarning(Log.Tag + " DLSS runs without sharpening: the texture RCAS reads could not be created.");
+                    // the upscaler goes on unsharpened.
+                    nativeSharpener.Release();
+                    nativeSharpener = null;
+                    Debug.LogWarning(Log.Tag + " " + UpscalerBackends.Name(Backend)
+                                     + " runs without sharpening: the texture RCAS reads could not be created.");
                 }
             }
             if (!Bypass)
             {
-                // DLSS and AMD's DLL are started by the proxy on their first frame.
+                // DLSS, AMD's DLL and XeSS are started by the proxy on their first frame.
                 if (Backend == UpscalerBackend.Fsr3 && !PassThrough)
                 {
                     // HDR as the camera renders, which picked the shader set (TryAttach).
@@ -409,7 +411,7 @@ namespace ReDefinition.Upscaler
         // (OnPreCull), with the frame's state decided.
         private void RecordInputs()
         {
-            // The masks for FSR 3 and AMD's DLL, which take them; DLSS has none. FSR's
+            // The masks for FSR 3 and AMD's DLL, which take them; DLSS and XeSS have none. FSR's
             // automatic reactive mask is FSR 3's own pass.
             bool fsr = !Bypass && !PassThrough && Backend == UpscalerBackend.Fsr3;
             bool amd = !Bypass && !PassThrough && Backend == UpscalerBackend.Amd;
@@ -468,11 +470,11 @@ namespace ReDefinition.Upscaler
             // into them, and Unity reports "Releasing render texture that is set as
             // Camera.targetTexture!".
             textures.ReleaseImages();
-            // After the proxy's release of DLSS, whose output it holds.
-            if (dlssSharpener != null)
+            // After the proxy's release of DLSS or XeSS, whose output it holds.
+            if (nativeSharpener != null)
             {
-                dlssSharpener.Release();
-                dlssSharpener = null;
+                nativeSharpener.Release();
+                nativeSharpener = null;
             }
             textures.ReleaseInputs();
 
@@ -716,7 +718,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
-        // With DLSS or AMD's DLL only while the proxy's image is the one shown:
+        // With an upscaler in the proxy only while its image is the one shown:
         // before its first frame and after anything stopped it, the rendered
         // image goes out as it is, and jittered it would shake.
         private void ChooseJitter()
@@ -801,7 +803,7 @@ namespace ReDefinition.Upscaler
 
         private bool TexturesCreated()
         {
-            return textures.Created(PassThrough, dlssSharpener != null ? dlssSharpener.Input : null);
+            return textures.Created(PassThrough, nativeSharpener != null ? nativeSharpener.Input : null);
         }
 
         // The add-on builds the new rig in its next Update; until then the frame
@@ -865,8 +867,8 @@ namespace ReDefinition.Upscaler
                 context.Dispatch(dispatch, dispatchBuffer);
             else if (!SubmitNative())
                 result = textures.LowRes;
-            else if (dlssSharpener != null)
-                dlssSharpener.Schedule(dispatchBuffer, Sharpness);
+            else if (nativeSharpener != null)
+                nativeSharpener.Schedule(dispatchBuffer, Sharpness);
             if (Probe.GpuProfiler.On)
                 Probe.GpuProfiler.Mark(dispatchBuffer, "ReDefinition upscaler: " + (PassThrough ? "pass-through" : Backend.ToString())
                                                        + (Reconstructing ? " with Ray Reconstruction" : ""));

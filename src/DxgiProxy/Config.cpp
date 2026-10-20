@@ -374,6 +374,7 @@ namespace redefinition
                  + " logInputsSeconds=" + std::to_string(c.logInputsSeconds)
                  + " dlssDirectory=" + (c.dlssDirectory[0] == L'\0' ? "(none)" : "(set)")
                  + " amdUpscalerDirectory=" + (c.amdUpscalerDirectory[0] == L'\0' ? "(none)" : "(set)")
+                 + " xessDirectory=" + (c.xessDirectory[0] == L'\0' ? "(none)" : "(set)")
                  + " streamlineDirectory=" + (c.streamlineDirectory[0] == L'\0' ? "(none)" : "(set)");
         }
 
@@ -445,6 +446,8 @@ namespace redefinition
                                      ARRAYSIZE(target.dlssDirectory), file.c_str());
             GetPrivateProfileStringW(L"Proxy", L"amdUpscalerDirectory", L"", target.amdUpscalerDirectory,
                                      ARRAYSIZE(target.amdUpscalerDirectory), file.c_str());
+            GetPrivateProfileStringW(L"Proxy", L"xessDirectory", L"", target.xessDirectory,
+                                     ARRAYSIZE(target.xessDirectory), file.c_str());
             GetPrivateProfileStringW(L"Proxy", L"streamlineDirectory", L"", target.streamlineDirectory,
                                      ARRAYSIZE(target.streamlineDirectory), file.c_str());
         }
@@ -479,6 +482,12 @@ namespace redefinition
     {
         std::lock_guard<std::mutex> lock(g_writeLock);
         return std::wstring(g_config.amdUpscalerDirectory);
+    }
+
+    std::wstring XessDirectory()
+    {
+        std::lock_guard<std::mutex> lock(g_writeLock);
+        return std::wstring(g_config.xessDirectory);
     }
 
     // From the file itself: asked once per swapchain, which can be made before

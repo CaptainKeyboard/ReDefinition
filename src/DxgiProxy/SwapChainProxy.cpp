@@ -19,6 +19,7 @@
 #include "LowLatency.h"
 #include "Streamline.h"
 #include "SwapChainProxyState.h"
+#include "XessUpscaler.h"
 
 #include <FidelityFX/framegeneration/include/dx12/ffx_api_framegeneration_dx12.h>
 #include <FidelityFX/framegeneration/include/ffx_framegeneration_api_types.h>
@@ -181,6 +182,7 @@ namespace redefinition
         // whose Initialise failed.
         LowLatency::Get().Detach(this);
         AmdUpscaler::Get().Detach(this);
+        XessUpscaler::Get().Detach(this);
         D3d12Compute::Get().Detach(this);
         Raytracing::Get().Detach(this);
         GpuProfiler::Get().Detach(this);
@@ -398,6 +400,7 @@ namespace redefinition
         // The managed side registers its textures whenever it likes; this is the
         // moment both devices exist for them to be shared against.
         AmdUpscaler::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(), queue.Get());
+        XessUpscaler::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(), queue.Get());
         D3d12Compute::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(), queue.Get());
         Raytracing::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get(), d3d12Device.Get(), queue.Get());
         GpuProfiler::Get().Attach(this, d3d11Device.Get(), d3d11Context.Get());

@@ -25,8 +25,9 @@ namespace ReDefinition.Upscaler
               .Append(", now frame ").Append(Time.frameCount);
 
             AppendHandle(sb, "upscaled", textures.Upscaled, textures.UpscaledHandle);
-            if (dlssSharpener != null)
-                AppendHandle(sb, "DLSS output (RCAS input)", dlssSharpener.Input, dlssSharpenInputHandle);
+            if (nativeSharpener != null)
+                AppendHandle(sb, UpscalerBackends.Name(Backend) + " output (RCAS input)", nativeSharpener.Input,
+                    nativeSharpenInputHandle);
             AppendHandle(sb, "depthCopy", textures.DepthCopy, textures.DepthHandle);
             AppendHandle(sb, "motionVectors", textures.MotionVectors, textures.MotionHandle);
 

@@ -30,8 +30,8 @@ namespace ReDefinition.Api
         }
 
         /// <summary>
-        /// <c>"FSR 3"</c>, <c>"DLSS"</c> or <c>"AMD FSR (DLL)"</c> while the upscaler is active; null
-        /// otherwise.
+        /// <c>"FSR 3"</c>, <c>"DLSS"</c>, <c>"AMD FSR (DLL)"</c> or <c>"XeSS (DLL)"</c> while the upscaler
+        /// is active; null otherwise.
         /// </summary>
         public static string Technique
         {

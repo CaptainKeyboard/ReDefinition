@@ -51,21 +51,22 @@ namespace ReDefinition
                 Choices = new[]
                 {
                     UpscalerBackend.Fsr3.ToString(), UpscalerBackend.Dlss.ToString(), UpscalerBackend.Amd.ToString(),
+                    UpscalerBackend.Xess.ToString(),
                 },
-                // AMD's DLL by the FSR it runs, once it runs.
-                Label = value => Backend(value) == UpscalerBackend.Amd
-                    ? AmdUpscalerBridge.RunningName() ?? UpscalerBackends.Name(UpscalerBackend.Amd)
-                    : UpscalerBackends.Name(Backend(value)),
+                // AMD's DLL by the FSR it runs, XeSS by its version, once they run.
+                Label = value => TechniqueLabel(Backend(value)),
                 Tooltip = "FSR 3 runs on every GPU and comes with ReDefinition.\n"
                           + "DLSS needs an NVIDIA RTX GPU and NVIDIA's nvngx_dlss.dll, which NVIDIA DLSS files\n"
                           + "in ReDefinition's settings window downloads from NVIDIA.\n"
                           + "AMD FSR (DLL) runs AMD's amd_fidelityfx_upscaler_dx12.dll, the player's own copy next to KSP_x64.exe:\n"
                           + "FSR 4 where the DLL and the GPU have it (Radeon RX 7000 or RX 9000), otherwise the FSR 3.1\n"
                           + "the DLL carries; once it runs, this row names it, \"fallback\" for FSR 3 from FSR 4's DLL.\n"
-                          + "Both need the dxgi.dll proxy next to KSP_x64.exe. Without their DLL, FSR 3 runs.",
+                          + "XeSS (DLL) runs Intel's libxess.dll, the player's own copy next to KSP_x64.exe, on any GPU\n"
+                          + "with Shader Model 6.4 and DP4a; once it runs, this row names its version.\n"
+                          + "All three need the dxgi.dll proxy next to KSP_x64.exe. Without their DLL, FSR 3 runs.",
                 Read = settings => settings.Backend.ToString(),
                 Write = (settings, value) => settings.Backend = Backend(value),
-                Interactable = settings => DlssBridge.Offered || AmdUpscalerBridge.Offered
+                Interactable = settings => DlssBridge.Offered || AmdUpscalerBridge.Offered || XessUpscalerBridge.Offered
                                            || settings.Backend != UpscalerBackend.Fsr3,
             },
             // AA only at the right end, smaller render sizes to its left.
@@ -118,7 +119,7 @@ namespace ReDefinition
                 StepsPerUnit = 20f,
                 Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)
                     .ToString("0.00", CultureInfo.InvariantCulture),
-                Tooltip = "RCAS sharpening after the upscaler -- FSR 3, DLSS and AMD's DLL alike; 0 switches it off.\n"
+                Tooltip = "RCAS sharpening after the upscaler -- FSR 3, DLSS, AMD's DLL and XeSS alike; 0 switches it off.\n"
                           + "1.0 is FidelityFX's maximum; above it is beyond what FidelityFX intends,\n"
                           + "and AMD's DLL stops there.",
                 Read = settings => SettingValues.Text(settings.Sharpness),
@@ -792,6 +793,14 @@ namespace ReDefinition
         private static UpscalerBackend Backend(string name)
         {
             return (UpscalerBackend)System.Enum.Parse(typeof(UpscalerBackend), name, true);
+        }
+
+        private static string TechniqueLabel(UpscalerBackend backend)
+        {
+            string running = backend == UpscalerBackend.Amd ? AmdUpscalerBridge.RunningName()
+                : backend == UpscalerBackend.Xess ? XessUpscalerBridge.RunningName()
+                : null;
+            return running ?? UpscalerBackends.Name(backend);
         }
 
         private static Fsr3Upscaler.QualityMode Mode(string name)

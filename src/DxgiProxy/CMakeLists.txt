@@ -131,6 +131,8 @@ add_library(ReDefinitionProxy SHARED
     SwapChainProxyPresent.cpp
     SwapChainProxyState.h
     SwapChainProxyStreamline.cpp
+    XessUpscaler.cpp
+    XessUpscaler.h
     DxgiExports.cpp
     ReDefinitionProxy.def
     "${CMAKE_CURRENT_BINARY_DIR}/ReDefinitionProxy.rc"
@@ -138,8 +140,8 @@ add_library(ReDefinitionProxy SHARED
     ${REDEFINITION_RT_OUTPUTS}
 )
 
-# AMD's FidelityFX API headers, MIT, vendored under extern/. The runtime is a DLL
-# loaded at run time.
+# AMD's FidelityFX API headers and Intel's XeSS headers, MIT, vendored under
+# extern/ (extern/XeSS/MIT.txt). The runtimes are DLLs loaded at run time.
 target_include_directories(ReDefinitionProxy PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/extern")
 
 # NVIDIA's Streamline headers, MIT (extern/Streamline/license.txt), for DLSS frame

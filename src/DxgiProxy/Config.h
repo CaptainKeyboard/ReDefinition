@@ -239,6 +239,11 @@ namespace redefinition
         // through AmdUpscalerDirectory().
         wchar_t amdUpscalerDirectory[260] = {};
 
+        // Where a player's libxess.dll lies if not next to KSP_x64.exe
+        // (XessUpscaler.h). Read when the rig first asks for it, through
+        // XessDirectory().
+        wchar_t xessDirectory[260] = {};
+
         // Where NVIDIA's Streamline DLLs lie -- sl.interposer.dll, its plugins and
         // nvngx_dlssg.dll -- if not next to KSP_x64.exe (Streamline.h). Read from
         // the file when a swapchain is created, on Unity's render thread, through
@@ -253,6 +258,7 @@ namespace redefinition
     // the ini: copied under the lock the settings are written under.
     std::wstring DlssDirectory();
     std::wstring AmdUpscalerDirectory();
+    std::wstring XessDirectory();
     std::wstring StreamlineDirectory();
 
     // Re-reads the file when it has changed on disk; returns whether it did.

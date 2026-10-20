@@ -11,6 +11,7 @@ namespace ReDefinition.Bridges
         Fsr3,
         Dlss,
         Amd,
+        Xess,
     }
 
     internal static class UpscalerBackends
@@ -21,6 +22,7 @@ namespace ReDefinition.Bridges
             {
                 case UpscalerBackend.Dlss: return "DLSS";
                 case UpscalerBackend.Amd: return "AMD FSR (DLL)";
+                case UpscalerBackend.Xess: return "XeSS (DLL)";
                 default: return "FSR 3";
             }
         }
@@ -33,6 +35,7 @@ namespace ReDefinition.Bridges
             {
                 case UpscalerBackend.Dlss: return DlssBridge.WhyNotOffered();
                 case UpscalerBackend.Amd: return AmdUpscalerBridge.WhyNotOffered();
+                case UpscalerBackend.Xess: return XessUpscalerBridge.WhyNotOffered();
                 default: return null;
             }
         }
@@ -54,22 +57,23 @@ namespace ReDefinition.Bridges
             {
                 case UpscalerBackend.Dlss: return DlssBridge.Link;
                 case UpscalerBackend.Amd: return AmdUpscalerBridge.Link;
+                case UpscalerBackend.Xess: return XessUpscalerBridge.Link;
                 default: return null;
             }
         }
     }
 
-    // What DLSS (DlssBridge) and AMD's upscaler (AmdUpscalerBridge) share in reaching
-    // the dxgi.dll proxy: whether it has their exports in this build's form, a ring of
-    // packet slots the render thread reads, the render events that carry a frame and
-    // the release, and the status.
+    // What DLSS (DlssBridge), AMD's upscaler (AmdUpscalerBridge) and XeSS
+    // (XessUpscalerBridge) share in reaching the dxgi.dll proxy: whether it has their
+    // exports in this build's form, a ring of packet slots the render thread reads, the
+    // render events that carry a frame and the release, and the status.
     //
     // The packets travel through the rig's dispatch buffer, executed from
     // OnRenderImage -- where a render event sees the frame's drawing (measured in a
     // Unity 2019.4 player with KSP's native graphics jobs).
     internal sealed class NativeUpscalerLink
     {
-        // The flags both packets carry, as Dlss.h and AmdUpscaler.h read them.
+        // The flags the packets carry, as Dlss.h, AmdUpscaler.h and XessUpscaler.h read them.
         internal const uint FlagHdr = 1u << 0;
         internal const uint FlagDepthInverted = 1u << 1;
         internal const uint FlagAutoExposure = 1u << 2;
