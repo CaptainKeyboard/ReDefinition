@@ -299,11 +299,10 @@ namespace redefinition
         // differently.
         //
         // xessFgOwnWaitable: which frame latency waitable object KSP gets when it asks for
-        // one. -1 auto: XeSS-FG's swapchain's own, and a semaphore of the proxy's where that
-        // swapchain has none; 0 always XeSS-FG's, none of the proxy's; 1 always a semaphore
-        // of the proxy's, released after each game Present, which never holds the game back
-        // (OptiScaler's "swapchain waitable object simulation", made for Unity games that
-        // stuck while loading). Read when the swapchain is made.
+        // one. -1 auto and 1: a semaphore of the proxy's, released after each game Present, which
+        // never holds the game back (OptiScaler's "swapchain waitable object simulation",
+        // made for Unity games that stuck while loading -- KSP does with XeSS-FG's own
+        // handle); 0: XeSS-FG's swapchain's own. Read when the swapchain is made.
         int xessFgOwnWaitable = -1;
         // xessFgGraceFrames: the game's frames in a row without inputs (no packet, no
         // depth or motion vectors for the Present, constants XeSS-FG would refuse) that

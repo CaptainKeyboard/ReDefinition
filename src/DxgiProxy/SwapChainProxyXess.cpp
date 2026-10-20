@@ -108,9 +108,11 @@ namespace redefinition
         // "When you are done with the handle, use CloseHandle to close the handle"
         // (Microsoft, IDXGISwapChain2::GetFrameLatencyWaitableObject). Intel's own sample
         // waits on XeSS-FG's swapchain's handle every frame (basic_sample_frame_generation,
-        // -waitable), which is what auto hands out; xessFgOwnWaitable=1 hands out a
+        // -waitable), which is what xessFgOwnWaitable=0 hands out. auto and 1 hand out a
         // semaphore of the proxy's instead (ReleaseOwnWaitable), as OptiScaler does for
-        // Unity games with XeSS-FG, and auto does where the swapchain has no handle.
+        // Unity games with XeSS-FG: KSP with XeSS-FG's own handle stopped for good right
+        // after the first ResizeBuffers (a run of the standing comparison, killed after
+        // 699 s), with the semaphore it runs. 0 and a swapchain without a handle: see above.
         ownWaitable = nullptr;
         if (SUCCEEDED(hr) && (desc.Flags & DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT) != 0)
         {
@@ -118,7 +120,7 @@ namespace redefinition
             const HANDLE waitable = SUCCEEDED(created.As(&created2)) ? created2->GetFrameLatencyWaitableObject() : nullptr;
             if (waitable != nullptr)
                 CloseHandle(waitable);
-            if (asked.xessFgOwnWaitable == 1 || (asked.xessFgOwnWaitable < 0 && waitable == nullptr))
+            if (asked.xessFgOwnWaitable != 0 || waitable == nullptr)
             {
                 // Full, and a Present releases one more: a wait never blocks.
                 ownWaitable = CreateSemaphoreW(nullptr, 16, 16, nullptr);
