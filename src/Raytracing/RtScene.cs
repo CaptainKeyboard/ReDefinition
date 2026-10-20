@@ -538,6 +538,14 @@ namespace ReDefinition.Raytracing
                 GlossMean = intent.GlossMean,
                 DiffuseShare = RtDeferredLook.DiffuseShare(material),
             };
+            if (vertexFactor <= 0f)
+            {
+                Vector4 highlight = RtForwardHighlight.Of(material, GammaSpace);
+                desc.HighlightR = highlight.x;
+                desc.HighlightG = highlight.y;
+                desc.HighlightB = highlight.z;
+                desc.HighlightShape = highlight.w;
+            }
             // Where the shine is meant otherwise than the G-buffer's, the hits take it as well.
             if (intent.Mode != RtNative.SurfaceKeep)
             {

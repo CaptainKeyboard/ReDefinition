@@ -39,6 +39,7 @@ SOURCES = [
     'src/Raytracing/RtScene.cs',
     'src/Raytracing/RtMaterial.cs',
     'src/Raytracing/RtMaterialIntent.cs',
+    'src/Raytracing/RtForwardHighlight.cs',
     'src/Raytracing/RtTerrainColour.cs',
     'src/Raytracing/RtStockTerrain.cs',
     'src/Raytracing/RtDeferredLook.cs',

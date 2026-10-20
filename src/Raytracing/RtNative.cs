@@ -129,6 +129,8 @@ namespace ReDefinition.Raytracing
             // What of the frame's colour the forward light keeps as diffuse (RtDeferredLook);
             // 0 for all of it.
             public float DiffuseShare;
+            // The sun's highlight the material's shader draws (RtForwardHighlight).
+            public float HighlightR, HighlightG, HighlightB, HighlightShape;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -194,6 +196,9 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 24)] public float[] Clouds;
             // PrevWorldToClip for what the bodies carry (Raytracing.h, prevWorldToClipFar).
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] PrevWorldToClipFar;
+            // How Unity fades the sun's shadow out in forward rendering (Raytracing.h,
+            // RtFramePacket.shadowFade; RtCamera.ShadowFadeRead).
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public float[] ShadowFade;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -235,6 +240,7 @@ namespace ReDefinition.Raytracing
                 Array.Copy(Sea, target.Sea, Sea.Length);
                 Array.Copy(Clouds, target.Clouds, Clouds.Length);
                 Array.Copy(PrevWorldToClipFar, target.PrevWorldToClipFar, PrevWorldToClipFar.Length);
+                Array.Copy(ShadowFade, target.ShadowFade, ShadowFade.Length);
                 Array.Copy(Inputs, target.Inputs, Inputs.Length);
                 Array.Copy(Outputs, target.Outputs, Outputs.Length);
             }
@@ -337,6 +343,7 @@ namespace ReDefinition.Raytracing
                 Sea = new float[12],
                 Clouds = new float[24],
                 PrevWorldToClipFar = new float[16],
+                ShadowFade = new float[8],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

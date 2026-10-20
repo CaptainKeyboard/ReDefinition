@@ -203,6 +203,17 @@ namespace ReDefinition.Raytracing
         private CommandBuffer forwardLight;
         private CommandBuffer maskOn, maskOff;
         private Light maskedLight;
+        // How Unity fades the sun's shadow out towards its shadow distance in forward
+        // rendering, which only the GPU knows: written after the sun's screen-space shadows
+        // (ReDefinitionRtCapture.shader, fragShadowFade), read back a frame or two later,
+        // and kept in the camera's own frame, where Unity's fade does not move with it.
+        private const int ShadowFadePass = 15;
+        private CommandBuffer fadeGrab;
+        private RenderTexture fadeTexture;
+        private Action<AsyncGPUReadbackRequest> fadeDone;
+        private bool fadeGrabbed, fadeReading;
+        private Matrix4x4 fadeGrabbedView, fadeReadView;
+        private Vector4 fadeCentre, fadeScale;
         // The sun's colour while this camera draws: Scatterer changes it for the local
         // cameras only, by the eclipse and the atmosphere's extinction, and sets it back
         // after them (SunlightModulator).
@@ -415,6 +426,16 @@ namespace ReDefinition.Raytracing
             maskOn.SetGlobalFloat(RtSunMask, 1f);
             maskOff = new CommandBuffer { name = "ReDefinition raytracing sun mask off" };
             maskOff.SetGlobalFloat(RtSunMask, 0f);
+            fadeGrab = new CommandBuffer { name = "ReDefinition raytracing shadow fade" };
+            fadeTexture = new RenderTexture(2, 1, 0, RenderTextureFormat.ARGBFloat)
+            {
+                name = "ReDefinition raytracing shadow fade",
+                filterMode = FilterMode.Point,
+            };
+            fadeTexture.Create();
+            fadeDone = ShadowFadeRead;
+            fadeGrabbed = fadeReading = false;
+            fadeScale = Vector4.zero;
             cam.depthTextureMode |= DepthTextureMode.Depth;
             haveHistory = false;
             Problem = null;
@@ -425,6 +446,7 @@ namespace ReDefinition.Raytracing
         {
             if (lateTrace != null) Destroy(lateTrace);
             lateTrace = null;
+            HoldReflections(false);
             if (Current == this) Current = null;
             ReconstructionLease = -1;
             if (cam != null)
@@ -444,6 +466,14 @@ namespace ReDefinition.Raytracing
             maskOn?.Release();
             maskOff?.Release();
             maskOn = maskOff = null;
+            fadeGrab?.Release();
+            fadeGrab = null;
+            if (fadeTexture != null)
+            {
+                fadeTexture.Release();
+                Destroy(fadeTexture);
+            }
+            fadeTexture = null;
             Shader.SetGlobalFloat(RtOn, 0f);
             Shader.SetGlobalFloat(RtSunMask, 0f);
             RtLighting.Restore();
@@ -493,6 +523,8 @@ namespace ReDefinition.Raytracing
             RtLighting.Keep(Settings.Shadows ? shadows : null, Settings.Diffuse || Settings.Reflections ? reflections : null);
             if (SunLight != null) MaskSun(SunLight());
             else Shader.SetGlobalFloat(RtSunMask, 1f);
+            GrabShadowFade();
+            HoldReflections(!RtLighting.ReflectionsReplaced && Settings.Reflections);
 
             // The service's line now and then; its generation, which changes with its
             // device, every frame, and handed back as the one this frame's meshes are for.
@@ -603,6 +635,49 @@ namespace ReDefinition.Raytracing
                 // Nothing to carry: Unity's own lighting until the first raytraced frame.
                 Shader.SetGlobalMatrix(RtPrevViewProj, Matrix4x4.zero);
             }
+        }
+
+        private void OnPostRender()
+        {
+            HoldReflections(false);
+        }
+
+        // Unity's own reflections -- the reflection probes', KSP's on the vessel among them,
+        // and the sky's -- taken out while this camera draws, where the raytraced
+        // reflections come into the frame without Deferred's reflections pass (the forward
+        // light): the surfaces would shine with both. Set back after this camera, for the
+        // others. The probes looked for once a second.
+        private ReflectionProbe[] probes = new ReflectionProbe[0];
+        private float[] probeIntensities = new float[0];
+        private float probesFound = float.NegativeInfinity;
+        private float heldReflectionIntensity = -1f;
+
+        private void HoldReflections(bool hold)
+        {
+            if (hold == (heldReflectionIntensity >= 0f)) return;
+            if (hold)
+            {
+                if (Time.unscaledTime - probesFound >= 1f)
+                {
+                    probesFound = Time.unscaledTime;
+                    probes = FindObjectsOfType<ReflectionProbe>();
+                    if (probeIntensities.Length < probes.Length) probeIntensities = new float[probes.Length];
+                }
+                for (int i = 0; i < probes.Length; i++)
+                {
+                    ReflectionProbe probe = probes[i];
+                    if (probe == null) continue;
+                    probeIntensities[i] = probe.intensity;
+                    probe.intensity = 0f;
+                }
+                heldReflectionIntensity = RenderSettings.reflectionIntensity;
+                RenderSettings.reflectionIntensity = 0f;
+                return;
+            }
+            for (int i = 0; i < probes.Length; i++)
+                if (probes[i] != null && probes[i].intensity == 0f) probes[i].intensity = probeIntensities[i];
+            if (RenderSettings.reflectionIntensity == 0f) RenderSettings.reflectionIntensity = heldReflectionIntensity;
+            heldReflectionIntensity = -1f;
         }
 
         private void OnPreRender()
@@ -888,6 +963,7 @@ namespace ReDefinition.Raytracing
             {
                 light.AddCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
                 light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, maskOff);
+                if (fadeGrab != null) light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, fadeGrab);
                 maskedStrength = light.shadowStrength;
                 if (Settings.Shadows) light.shadowStrength = 1f;
             }
@@ -929,6 +1005,45 @@ namespace ReDefinition.Raytracing
             heldCascades = -1;
         }
 
+        // Unity's shadow fade of the frame before read back, from the start of this one,
+        // where the GPU has its texels after that frame; this frame's written in forward
+        // rendering, where Unity fades the screen-space shadows in the surfaces' own passes.
+        // Unity's deferred lighting fades them itself, and the forward light there takes
+        // the surface from the G-buffer.
+        private void GrabShadowFade()
+        {
+            if (fadeGrab == null) return;
+            if (fadeGrabbed && !fadeReading && SystemInfo.supportsAsyncGPUReadback)
+            {
+                fadeReading = true;
+                fadeReadView = fadeGrabbedView;
+                AsyncGPUReadback.Request(fadeTexture, 0, fadeDone);
+            }
+            fadeGrab.Clear();
+            fadeGrabbed = maskedLight != null && cam.actualRenderingPath != RenderingPath.DeferredShading;
+            if (!fadeGrabbed)
+            {
+                fadeScale = Vector4.zero;
+                return;
+            }
+            fadeGrab.Blit((Texture)null, fadeTexture, capture, ShadowFadePass);
+            fadeGrabbedView = cam.worldToCameraMatrix;
+        }
+
+        // _LightShadowData's scale and bias, and unity_ShadowFadeCenterAndType's centre in
+        // the camera's frame as it was then (UnityShadowLibrary.cginc).
+        private void ShadowFadeRead(AsyncGPUReadbackRequest request)
+        {
+            fadeReading = false;
+            if (request.hasError || fadeGrab == null) return;
+            Unity.Collections.NativeArray<Vector4> texels = request.GetData<Vector4>();
+            if (texels.Length < 2) return;
+            Vector4 data = texels[0], centre = texels[1];
+            Vector3 local = fadeReadView.MultiplyPoint3x4(new Vector3(centre.x, centre.y, centre.z));
+            fadeCentre = new Vector4(local.x, local.y, local.z, centre.w);
+            fadeScale = new Vector4(data.z, data.w, 0f, 0f);
+        }
+
         private void UnmaskSun()
         {
             KeepCascades(false);
@@ -936,6 +1051,7 @@ namespace ReDefinition.Raytracing
             {
                 maskedLight.RemoveCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
                 maskedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, maskOff);
+                if (fadeGrab != null) maskedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, fadeGrab);
                 if (maskedStrength >= 0f) maskedLight.shadowStrength = maskedStrength;
             }
             maskedLight = null;
@@ -1178,6 +1294,16 @@ namespace ReDefinition.Raytracing
             // 0.75), for the forward light's estimate of what Unity shaded with.
             Light sunLight = SunLight != null ? SunLight() : null;
             packet.SunColor[3] = sunLight != null && sunLight.shadows != LightShadows.None ? sunLight.shadowStrength : 1f;
+            // And how it fades them out towards the shadow distance, its centre turned with
+            // the camera.
+            bool fades = !deferred && fadeScale.x > 0f;
+            Vector3 fadeAt = fades ? cam.cameraToWorldMatrix.MultiplyVector(fadeCentre) : Vector3.zero;
+            packet.ShadowFade[0] = fadeAt.x;
+            packet.ShadowFade[1] = fadeAt.y;
+            packet.ShadowFade[2] = fadeAt.z;
+            packet.ShadowFade[3] = fades ? fadeCentre.w : 0f;
+            packet.ShadowFade[4] = fades ? fadeScale.x : 0f;
+            packet.ShadowFade[5] = fades ? fadeScale.y : 0f;
             Color sky = SkyColor();
             packet.SkyColor[0] = sky.r;
             packet.SkyColor[1] = sky.g;

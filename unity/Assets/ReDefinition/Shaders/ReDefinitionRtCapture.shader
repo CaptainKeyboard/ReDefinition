@@ -367,6 +367,20 @@ Shader "Hidden/ReDefinition/RtCapture"
         bool holds = max(baked.r, max(baked.g, baked.b)) > 0.01 && all(abs(light.rgb - baked) <= baked * 0.1 + 0.002);
         return half4(holds ? max(light.rgb - baked, 0.0) : light.rgb, light.a);
     }
+
+    // Pass 15, after the sun's screen-space shadows, into two texels: how Unity fades its
+    // shadow out towards the shadow distance in forward rendering, as it set it for them
+    // (UnityShadowLibrary.cginc, UnityComputeShadowFade): _LightShadowData, whose z and w
+    // are the fade's scale and bias, and unity_ShadowFadeCenterAndType. Only for the
+    // raytraced camera: the sun's other cameras leave what it wrote.
+    float _ReDefinitionRtOn;
+
+    float4 fragShadowFade(v2f i) : SV_Target
+    {
+        if (_ReDefinitionRtOn < 0.5)
+            discard;
+        return i.uv.x < 0.5 ? _LightShadowData : unity_ShadowFadeCenterAndType;
+    }
     ENDCG
 
     SubShader
@@ -436,6 +450,10 @@ Shader "Hidden/ReDefinition/RtCapture"
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragUnbakeAmbient
+            ENDCG }
+        Pass { CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment fragShadowFade
             ENDCG }
     }
     Fallback Off

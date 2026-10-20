@@ -256,6 +256,48 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     output2[id.xy] = float4(radiance, min(distance, kFp16Max));
 }
 
+// Unity's direct light from the sun on a surface, as its shader draws it, per unit of the
+// light's colour after its shadow: the diffuse term returned, without the albedo, and the
+// highlight. The standard shader (UnityStandardBRDF.cginc, BRDF1_Unity_PBS, GGX): Disney's
+// diffuse term times N.L, and V D pi -- its square root in gamma space -- times N.L and
+// Schlick's Fresnel term. Unity's legacy Blinn-Phong (Lighting.cginc,
+// UnityBlinnPhongLight): N.L, and (N.H)^exponent times the specular colour and gloss.
+float UnityDirectTerms(SurfaceData surface, float3 towards, float3 viewDirection, out float3 highlight)
+{
+    float3 normal = surface.normal;
+    float nl = saturate(dot(normal, towards));
+    float3 halfDirection = normalize(towards + viewDirection);
+    float nh = saturate(dot(normal, halfDirection));
+    highlight = 0.0f;
+    if (surface.highlight.w > 0.0f)
+    {
+        highlight = surface.highlight.rgb * pow(nh, surface.highlight.w);
+        return nl;
+    }
+    if (!any(surface.highlight.rgb > 0.0f))
+        return nl;
+    float perceptual = 1.0f - saturate(-surface.highlight.w);
+    float nv = abs(dot(normal, viewDirection));
+    float lh = saturate(dot(towards, halfDirection));
+    float fd90 = 0.5f + 2.0f * lh * lh * perceptual;
+    float lightScatter = 1.0f + (fd90 - 1.0f) * pow(1.0f - nl, 5.0f);
+    float viewScatter = 1.0f + (fd90 - 1.0f) * pow(1.0f - nv, 5.0f);
+    float roughness = max(perceptual * perceptual, 0.002f);
+    float lambdaV = nl * (nv * (1.0f - roughness) + roughness);
+    float lambdaL = nv * (nl * (1.0f - roughness) + roughness);
+    float visibility = 0.5f / (lambdaV + lambdaL + 1e-5f);
+    float a2 = roughness * roughness;
+    float d = (nh * a2 - nh) * nh + 1.0f;
+    float distribution = a2 / (3.14159265f * (d * d + 1e-7f));
+    float term = visibility * distribution * 3.14159265f;
+    if (GAMMA_INPUTS)
+        term = sqrt(max(1e-4f, term));
+    term = max(0.0f, term * nl);
+    float3 f0 = surface.highlight.rgb;
+    highlight = term * (f0 + (1.0f - f0) * pow(1.0f - lh, 5.0f));
+    return lightScatter * viewScatter * nl;
+}
+
 // The signals as the denoiser left them, for ForwardLight (Raytracing.cpp binds them).
 Texture2D<float4> finishedDiffuse : register(t0, space3);
 Texture2D<float4> finishedSpecular : register(t1, space3);
@@ -268,11 +310,14 @@ Texture2D<float4> finishedSpecular : register(t1, space3);
 // Without one (forward), the surface's colour is taken from the frame Unity drew, not
 // guessed from its material: u7 holds per channel k = (diffuse - ambient) / (sun + ambient),
 // the light Unity shaded with (the sun as the screen-space shadows let it through, our own
-// sun visibility, and the ambient light), and in w the largest channel of sun + ambient;
+// sun visibility, faded out towards the shadow distance as Unity fades it, and the ambient
+// light), and in w the largest channel of sun + ambient;
 // the frame's colour c becomes c + min(c, w) k (ReDefinitionRtForwardLight.shader), its
-// colour as Unity shaded it, capped where other lights brightened it. u4 then holds the
-// reflections alone. Unity's standard Fresnel term (FresnelLerp, with its surface
-// reduction) weighs the reflections.
+// colour as Unity shaded it, capped where other lights brightened it. Unity's sun term is
+// its shader's own: N.L, or Disney's diffuse term for its standard shader, and the sun's
+// highlight the material's shader draws (UnityDirectTerms), which u4 takes back out of
+// the relit colour, so that it stays as drawn; u4 holds it with the reflections. Unity's
+// standard Fresnel term (FresnelLerp, with its surface reduction) weighs the reflections.
 [numthreads(8, 8, 1)]
 void ForwardLight(uint3 id : SV_DispatchThreadID)
 {
@@ -313,13 +358,25 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
         // Unity's sun term in its colour space: the light's colour, N.L and its shadow, which
         // takes the light's shadow strength (sunColor.w) of it -- KSP's sun keeps a quarter
         // in its shadows.
-        float nl = saturate(dot(surface.normal, normalize(sunDirection.xyz)));
+        float3 towards = normalize(sunDirection.xyz);
+        float3 viewDirection = -normalize(position);
+        float nl = saturate(dot(surface.normal, towards));
         float attenuation = 1.0f - saturate(sunColor.w) * (1.0f - saturate(output0[id.xy].x));
-        float3 shaded = sunColor.rgb * nl * attenuation + ambient;
+        // Faded out towards the shadow distance as Unity fades it (UnityComputeForwardShadows,
+        // AutoLight.cginc): by the view depth or by the distance from the fade's centre.
+        float viewDepth = mul(worldToClip, float4(position, 1.0f)).w;
+        float fadeDistance = lerp(viewDepth, distance(position, shadowFadeCentre.xyz), shadowFadeCentre.w);
+        attenuation = lerp(attenuation, 1.0f, saturate(fadeDistance * shadowFadeScale.x + shadowFadeScale.y));
+        float3 highlight;
+        float diffuseTerm = UnityDirectTerms(surface, towards, viewDirection, highlight);
+        highlight *= sunColor.rgb * attenuation;
+        float3 shaded = sunColor.rgb * diffuseTerm * attenuation + ambient;
         float3 k = (diffuse - ambient) / max(shaded, 1e-3f);
         // As Deferred shades the surface: its diffuse share of the light, sun and sky alike.
         k = surface.diffuseShare * (1.0f + k) - 1.0f;
         output7[id.xy] = float4(k, max(shaded.r, max(shaded.g, shaded.b)));
+        // The highlight kept as Unity drew it: what u4 adds takes back its share of k.
+        light -= highlight * k;
     }
     float3 view = -normalize(position);
     float nv = saturate(dot(surface.normal, view));

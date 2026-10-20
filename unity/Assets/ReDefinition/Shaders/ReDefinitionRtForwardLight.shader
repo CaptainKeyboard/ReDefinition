@@ -80,8 +80,10 @@ Shader "Hidden/ReDefinition/RtForwardLight"
 
     half4 fragRelight(v2f i) : SV_Target
     {
-        float2 uv = i.screen.xy / i.screen.w;
-        float3 c = tex2Dlod(_ReDefinitionRtFrame, float4(uv, 0.0, 0.0)).rgb;
+        // The copy at the texel this pixel is: a copy of the screen itself, where the
+        // camera draws into the back buffer, keeps the back buffer's rows, which the
+        // screen position reads the other way round (a render texture's copy keeps its own).
+        float3 c = tex2Dlod(_ReDefinitionRtFrame, float4(i.pos.xy / _ScreenParams.xy, 0.0, 0.0)).rgb;
         float2 previous;
         float3 world;
         if (!Traced(i, previous, world))
@@ -111,7 +113,9 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         }
         float4 ratio = tex2Dlod(_ReDefinitionRtForwardRatio, float4(previous, 0.0, 0.0));
         float3 reflections = tex2Dlod(_ReDefinitionRtForward, float4(previous, 0.0, 0.0)).rgb;
-        return half4(max(c + min(c, ratio.w) * ratio.rgb + max(reflections, 0.0), 0.0), 1.0);
+        // The reflections, less the sun's highlight's share of the ratio, which stays as
+        // Unity drew it (Raytracing.hlsl, ForwardLight): it may be negative.
+        return half4(max(c + min(c, ratio.w) * ratio.rgb + reflections, 0.0), 1.0);
     }
 
     half4 fragAdd(v2f i) : SV_Target

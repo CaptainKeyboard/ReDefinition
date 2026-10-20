@@ -72,6 +72,11 @@ cbuffer Frame : register(b0)
     // prevWorldToClip for what the bodies carry, which Krakensbane's origin shifts move
     // by more than the camera (Raytracing.h, RtFramePacket.prevWorldToClipFar).
     row_major float4x4 prevWorldToClipFar : RT_AT(RT_CB_PREV_WORLD_TO_CLIP_FAR);
+    // How Unity fades the sun's shadow out towards its shadow distance (Raytracing.h,
+    // RtFramePacket.shadowFade): the fade's centre relative to the camera and its type,
+    // its scale and bias.
+    float4 shadowFadeCentre : RT_AT(RT_CB_SHADOW_FADE);
+    float4 shadowFadeScale : RT_AT(RT_CB_SHADOW_FADE1);
 };
 
 struct InstanceData
@@ -98,6 +103,10 @@ struct MaterialData
     float4 vertexColour;
     // x: what of the frame's colour the forward light keeps as diffuse (RtMaterialDesc).
     float4 look;
+    // The sun's highlight the material's shader draws (RtMaterialDesc): its specular
+    // colour in Unity's colour space; w above 0 a legacy Blinn-Phong exponent, otherwise
+    // minus the standard shader's smoothness. All 0 for none.
+    float4 highlight;
 };
 
 struct VertexAttributes
@@ -1077,6 +1086,9 @@ struct SurfaceData
     bool found;
     // Without a G-buffer, the material's diffuse share (MaterialData.look); 1 otherwise.
     float diffuseShare;
+    // Without a G-buffer, the sun's highlight its shader draws (MaterialData.highlight), a
+    // legacy one's colour times the gloss in the texture's alpha; 0 otherwise.
+    float4 highlight;
 };
 
 // A surface's smoothness as KSP's legacy part shaders give its highlight. Deferred turns
@@ -1203,6 +1215,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
     SurfaceData surface;
     surface.found = true;
     surface.diffuseShare = 1.0f;
+    surface.highlight = 0.0f;
     if (HAS_GBUFFER)
     {
         surface.normal = DecodeNormal(gbuffer2[pixel]);
@@ -1232,6 +1245,9 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
         surface.specular = IntendedSpecular(material);
         surface.albedo = Albedo(material, hit.uv, hit.color);
         surface.diffuseShare = material.look.x;
+        surface.highlight = material.highlight;
+        if (material.highlight.w > 0.0f && MATERIAL_TEXTURES && material.texture >= 0)
+            surface.highlight.rgb *= materialTextures.SampleLevel(linearWrap, float3(hit.uv, float(material.texture)), 0.0f).a;
         return surface;
     }
     surface.normal = DepthNormal(pixel, position);

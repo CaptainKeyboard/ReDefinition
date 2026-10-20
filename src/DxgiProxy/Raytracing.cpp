@@ -203,6 +203,7 @@ namespace redefinition
         data.vertexColour[2] = desc->glossDivisor;
         data.vertexColour[3] = desc->glossMean;
         data.look[0] = desc->diffuseShare > 0.0f ? desc->diffuseShare : 1.0f;
+        memcpy(data.highlight, desc->highlight, sizeof(data.highlight));
         std::lock_guard<std::mutex> lock(handOverLock);
         if (!HandOverCurrentLocked())
             return 0;
@@ -562,6 +563,7 @@ namespace redefinition
         memcpy(constants.worldToClip, packet.worldToClip, sizeof(constants.worldToClip));
         memcpy(constants.prevWorldToClip, packet.prevWorldToClip, sizeof(constants.prevWorldToClip));
         memcpy(constants.prevWorldToClipFar, packet.prevWorldToClipFar, sizeof(constants.prevWorldToClipFar));
+        memcpy(constants.shadowFade, packet.shadowFade, sizeof(constants.shadowFade));
         memcpy(constants.sunDirection, packet.sunDirection, sizeof(constants.sunDirection));
         memcpy(constants.sunColor, packet.sunColor, sizeof(constants.sunColor));
         memcpy(constants.skyColor, packet.skyColor, sizeof(constants.skyColor));

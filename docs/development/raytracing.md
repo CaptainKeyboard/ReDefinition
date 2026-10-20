@@ -192,10 +192,19 @@ and raytracing works as follows:
   player's share of KSP's flat ambient colour, as with Deferred.
 * Forward rendering relights the frame by its own colour, not by a guess from the
   material. Per channel, k = (diffuse light - ambient) / (sun + ambient), with the sun
-  as Unity shaded it: its colour times N.L, darkened by its shadow at the light's shadow
-  strength. A frame colour c becomes c + min(c, w) k, w the largest channel of
-  sun + ambient, so a pixel other lights brightened is capped
-  (`ReDefinitionRtForwardLight.shader`).
+  as Unity shaded it: its colour times N.L, or Disney's diffuse term for Unity's standard
+  shader, darkened by its shadow at the light's shadow strength and faded out towards
+  the shadow distance as Unity fades it (`UnityComputeForwardShadows`; the fade's values
+  read back from the GPU after the sun's mask) **[src]**. A frame colour c becomes
+  c + min(c, w) k, w the largest channel of sun + ambient, so a pixel other lights
+  brightened is capped (`ReDefinitionRtForwardLight.shader`). The pass reads its copy of
+  the frame at the pixel's own texel: where the camera draws straight into the back
+  buffer, the copy keeps the back buffer's rows **[meas]** (test player).
+* The sun's highlight a shader draws stays as drawn: the proxy works it out as Unity's
+  standard shader (`BRDF1_Unity_PBS`, GGX) or its legacy Blinn-Phong does
+  (`RtForwardHighlight`), and takes its share of k back out **[src]**. Shaders whose
+  highlight is not known (a smoothness or gloss map, KSP's mapped ones) keep it in the
+  relit colour.
 * k takes the share of a surface's colour that Deferred would shade as diffuse
   (`RtDeferredLook`): Deferred draws KSP's shaders with Unity's standard shading, which
   takes the specular colour off the diffuse one **[src]** (Deferred 1.3.5's replaced
@@ -221,12 +230,14 @@ gradient ambient light, which is what KSP's scenes use **[src]** (their `RenderS
 the quadratic in the normal's height through those three values is the probe itself.
 
 The test player checks it: between a dim flat and a bright gradient ambient light, the
-near box's shadow changes by 0.185 without raytracing and by 0.001 with it, with forward
-rendering and with Unity's deferred lighting **[meas]**.
+near box's shadow changes by 0.185 without raytracing, and with it by 0.002 with forward
+rendering and 0.001 with Unity's deferred lighting **[meas]**.
 
-Forward shading keeps its own reflections. KSP's part shaders have none **[src]**; Unity's
-standard shaders add their reflection probe's, and the raytraced reflections come on top
-**[open]** (whether that shows on anything in KSP's scenes).
+While the raytraced reflections come in without Deferred, Unity's own are off for the
+scene camera: its reflection probes, KSP's on the vessel among them, and the sky's
+(`RenderSettings.reflectionIntensity`), set back after the camera for the others
+**[src]**. Kept, a standard shader's surface shone with both; in the test player the
+probe added 0.098 to the near box's shadow **[meas]**.
 
 ## What the rays see
 

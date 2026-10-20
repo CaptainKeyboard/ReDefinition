@@ -90,6 +90,12 @@ namespace redefinition
         // What of the frame's colour the forward light keeps as diffuse, as Deferred's
         // shading would (RtDeferredLook); 0 for all of it.
         float diffuseShare;
+        // The sun's highlight the material's shader draws by itself, in Unity's colour
+        // space, which the forward light takes out of the frame's colour before it relights
+        // it (RtForwardHighlight): the specular colour, and the shape -- above 0 a legacy
+        // Blinn-Phong exponent, otherwise minus the standard shader's smoothness. All 0
+        // for none.
+        float highlight[4];
     };
 
     // One instance of a mesh this frame: a 3x4 transform, rows first, from the
@@ -236,6 +242,7 @@ namespace redefinition
         float sea[12];
         float clouds[24];
         float prevWorldToClipFar[16];
+        float shadowFade[8];
     };
     // Each field in the register the contract gives it (RtContract.h), as cbuffer Frame
     // places it (packoffset, RtCommon.hlsli).
@@ -258,6 +265,7 @@ namespace redefinition
     static_assert(offsetof(RtFrameConstants, clouds) == RT_CB_CLOUDS * 16, "cbuffer Frame: clouds");
     static_assert(offsetof(RtFrameConstants, prevWorldToClipFar) == RT_CB_PREV_WORLD_TO_CLIP_FAR * 16,
                   "cbuffer Frame: prevWorldToClipFar");
+    static_assert(offsetof(RtFrameConstants, shadowFade) == RT_CB_SHADOW_FADE * 16, "cbuffer Frame: shadowFade");
     static_assert(offsetof(RtFrameConstants, frameIndex) == RT_CB_FRAME_SIZE * 16 + 8, "cbuffer Frame: frameIndex");
     static_assert(offsetof(RtFrameConstants, frameFlags) == RT_CB_FRAME_SIZE * 16 + 12, "cbuffer Frame: frameFlags");
     static_assert(sizeof(RtFrameConstants) == RT_CB_REGISTERS * 16, "cbuffer Frame: its size");
@@ -340,6 +348,14 @@ namespace redefinition
         // camera and the vessels near it (offset + nonFrame, SharedFrame.BodyShift): the
         // denoiser's history takes whichever of the two finds the surface it had.
         float prevWorldToClipFar[16];
+        // How Unity fades the sun's realtime shadow out towards its shadow distance in
+        // forward rendering (AutoLight.cginc, UnityComputeForwardShadows), after the
+        // screen-space shadows the raytraced sun visibility goes into, for the forward
+        // light's estimate of what Unity shaded with: the fade's centre relative to the
+        // camera and its type (unity_ShadowFadeCenterAndType: 1 for the distance from the
+        // centre, 0 for the view depth), then its scale and bias (_LightShadowData.zw).
+        // All 0 for none.
+        float shadowFade[8];
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
@@ -462,6 +478,7 @@ namespace redefinition
     static_assert(offsetof(RtFramePacket, clouds) == RT_FRAME_PACKET_CLOUDS, "RtFramePacket: clouds");
     static_assert(offsetof(RtFramePacket, prevWorldToClipFar) == RT_FRAME_PACKET_PREV_WORLD_TO_CLIP_FAR,
                   "RtFramePacket: prevWorldToClipFar");
+    static_assert(offsetof(RtFramePacket, shadowFade) == RT_FRAME_PACKET_SHADOW_FADE, "RtFramePacket: shadowFade");
     static_assert(offsetof(RtFramePacket, inputs) == RT_FRAME_PACKET_INPUTS, "RtFramePacket: inputs");
     static_assert(offsetof(RtFramePacket, outputs) == RT_FRAME_PACKET_OUTPUTS, "RtFramePacket: outputs");
     static_assert(sizeof(RtFramePacket) == RT_FRAME_PACKET_SIZE, "RtFramePacket: its size");
@@ -568,6 +585,8 @@ namespace redefinition
             float vertexColour[4];
             // x: the diffuse share (RtMaterialDesc), 1 where none was given.
             float look[4];
+            // The highlight the material's shader draws (RtMaterialDesc).
+            float highlight[4];
         };
 
         struct InstanceData
