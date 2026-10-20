@@ -125,6 +125,9 @@ add_library(ReDefinitionProxy SHARED
     RaytracingDenoise.cpp
     RaytracingBuild.cpp
     RaytracingBuild.h
+    RaytracingBuildFrame.h
+    RaytracingMegaGeometry.cpp
+    RaytracingMegaGeometry.h
     RaytracingDevice.cpp
     RaytracingInternal.h
     RaytracingReconstruct.cpp

@@ -381,6 +381,17 @@ namespace redefinition
         // against 0.276 and 0.360, the trace 1.230 and 1.706 against 1.231 and 1.715: no
         // difference beyond the runs' own.
         bool rtTlasFastTrace = false;
+        // rtMegaGeometry: 0 the structures above; 1 RTX Mega Geometry's cluster structures
+        // for new meshes, NVIDIA's only (RaytracingMegaGeometry.cpp): each run of 256
+        // triangles of a mesh a CLAS, all of a frame's built in one call, then each mesh a
+        // cluster BLAS of its CLAS, all in a second. A mesh whose runs do not fit, a driver
+        // without the cluster operations and any other GPU build as with 0. The harness's
+        // vessel against the defaults: the slowest frame 0.32 and 0.85 ms of the GPU
+        // against 0.54 and 1.17, but the trace slower in every frame after, 0.46 and 0.53
+        // ms against 0.41 and 0.46, with 15 003 and 24 003 instances 2.54 and 3.43 against
+        // 1.24 and 1.75; the structures 3.44 and 14.83 MB against 1.62 and 7.11. Off: the
+        // build saved once costs more than a frame's trace.
+        int rtMegaGeometry = 0;
 
         // Where a player's nvngx_dlss.dll lies if not next to KSP_x64.exe, which
         // NGX searches anyway (Dlss.h). Read when DLSS starts on a device, on

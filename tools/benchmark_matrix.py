@@ -655,8 +655,8 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
 def rt_builds_of(builds):
     """The frames of a start that built 50 meshes or more, as the proxy logged them, and the
     slowest of them: the raytracing's load spike at the flight's start, which the phases'
-    steady frame rates do not show. The proxy's rtBlas* keys of the start's proxy_load
-    decide how they were built."""
+    steady frame rates do not show. The proxy's rtBlas* and rtMegaGeometry keys of the
+    start's proxy_load decide how they were built."""
     if not builds:
         return None
     return {"frames": len(builds), "meshes": sum(b["meshes"] for b in builds),

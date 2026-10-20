@@ -93,7 +93,8 @@ class RtBuildTest(unittest.TestCase):
 
     def test_the_default_matrix_pins_the_build_keys(self):
         matrix = bm.load_matrix(bm.DEFAULT_MATRIX)
-        for key in ("rtBlasBatch", "rtBlasPool", "rtBlasBudget", "rtBlasCompaction", "rtBlasRefineBudget", "rtTlasFastTrace"):
+        for key in ("rtBlasBatch", "rtBlasPool", "rtBlasBudget", "rtBlasCompaction", "rtBlasRefineBudget", "rtTlasFastTrace",
+                    "rtMegaGeometry"):
             self.assertIn(key, matrix["proxy_load"])
 
 

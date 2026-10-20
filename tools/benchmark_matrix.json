@@ -1,5 +1,5 @@
 {
-  "comment": "The standing comparison (docs/development/benchmarks.md). Only the frame generation kind is a KSP start of its own; the upscaler, raytracing and Ray Reconstruction (the probe's mod.<key> keys), frame generation on and off and the latency models (the proxy's live keys) are set in turn inside each start. The raytracing's rtBlas* and rtTlasFastTrace keys go into proxy_load: the meshes are built at the flight's start, before the first phase, so a comparison of them takes a run of its own with other values there; each start's record holds the proxy's lines of its large mesh builds (rt_builds). The radiance cache (the proxy's live rtRadianceCache) is a rendering of its own for one technique and raytracing mode, with the latency models it names; every other phase has it off.",
+  "comment": "The standing comparison (docs/development/benchmarks.md). Only the frame generation kind is a KSP start of its own; the upscaler, raytracing and Ray Reconstruction (the probe's mod.<key> keys), frame generation on and off and the latency models (the proxy's live keys) are set in turn inside each start. The raytracing's rtBlas*, rtTlasFastTrace and rtMegaGeometry keys go into proxy_load: the meshes are built at the flight's start, before the first phase, so a comparison of them takes a run of its own with other values there; each start's record holds the proxy's lines of its large mesh builds (rt_builds). The radiance cache (the proxy's live rtRadianceCache) is a rendering of its own for one technique and raytracing mode, with the latency models it names; every other phase has it off.",
   "profile": "medium",
   "settle_seconds": 2,
   "settle_after_rebuild_seconds": 8,
@@ -23,7 +23,8 @@
     "rtBlasBudget": "0",
     "rtBlasCompaction": "2",
     "rtBlasRefineBudget": "65536",
-    "rtTlasFastTrace": "0"
+    "rtTlasFastTrace": "0",
+    "rtMegaGeometry": "0"
   },
   "phase_keys": {"reportSeconds": "1"},
   "techniques": [

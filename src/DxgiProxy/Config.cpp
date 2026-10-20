@@ -448,6 +448,7 @@ namespace redefinition
                  + " rtBlasCompaction=" + std::to_string(c.rtBlasCompaction)
                  + " rtBlasRefineBudget=" + std::to_string(c.rtBlasRefineBudget)
                  + " rtTlasFastTrace=" + (c.rtTlasFastTrace ? "1" : "0")
+                 + " rtMegaGeometry=" + std::to_string(c.rtMegaGeometry)
                  + " reportSeconds=" + std::to_string(c.reportSeconds)
                  + " logInputsSeconds=" + std::to_string(c.logInputsSeconds)
                  + " dlssDirectory=" + (c.dlssDirectory[0] == L'\0' ? "(none)" : "(set)")
@@ -551,6 +552,8 @@ namespace redefinition
             target.rtBlasRefineBudget =
                 std::max(1, static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtBlasRefineBudget", 65536, file.c_str())));
             target.rtTlasFastTrace = ReadFlag(L"rtTlasFastTrace", file, false);
+            target.rtMegaGeometry =
+                std::clamp(static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtMegaGeometry", 0, file.c_str())), 0, 1);
             if (target.logInputsSeconds < 0)
                 target.logInputsSeconds = 0;
 

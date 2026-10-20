@@ -7,6 +7,7 @@
 #include "Config.h"
 #include "D3d12Util.h"
 #include "Log.h"
+#include "RaytracingBuildFrame.h"
 #include "RaytracingInternal.h"
 
 #include <algorithm>
@@ -80,6 +81,7 @@ namespace redefinition
         mesh.geometryBytes = 0;
         blasMemory.geometry.Free(mesh.geometry, fenceValue + 1);
         RetireBlasLocked(mesh.blas, slot);
+        ReleaseClustersLocked(mesh, fenceValue + 1);
         retiredSlots.emplace_back(mesh.slot, fenceValue + 1);
     }
 
@@ -92,6 +94,7 @@ namespace redefinition
             blasMemory.committedBlas -= mesh.blas.size;
         blasMemory.blas.Free(mesh.blas.range, 0);
         mesh.blas = RtStoredBuffer{};
+        ReleaseClustersLocked(mesh, 0);
         freeSlots.push_back(mesh.slot);
     }
 
@@ -103,6 +106,10 @@ namespace redefinition
         for (PerSlot& slot : slots)
             slot = PerSlot{};
         toRefine.clear();
+        clasBatches.clear();
+        clusterSupport = -1;
+        getRequirements = execute = nullptr;
+        clusterBlasSizes.clear();
         setUp = false;
     }
 
@@ -138,69 +145,6 @@ namespace redefinition
             return geometry;
         }
     }
-
-    // One frame's work on the meshes' structures. With rtBlasBatch the copies of all its
-    // meshes come first, then one barrier for all the buffers they wrote, then every build
-    // back to back, each with scratch memory of its own, and the one UAV barrier before the
-    // scene's structure (BuildMeshesLocked) -- NVIDIA, "Best Practices for Using NVIDIA RTX
-    // Ray Tracing (Updated)": "Consecutively execute ... all BLAS build calls. This allows
-    // the driver to parallelize the calls to an extent. Do not place resource barriers
-    // between consecutive calls. All BLAS build calls need unique scratch memory to allow
-    // execution without barriers. ... you can have a single global UAV barrier before TLAS
-    // build to ensure all BLAS builds are completed, regardless of the resource where they
-    // reside." Without it each mesh's copies, barrier and build go in turn.
-    struct Raytracing::BuildFrame
-    {
-        UINT slotNumber = 0;
-        bool batched = true;
-        bool pooled = true;
-        int compaction = 0;
-        // The mesh being prepared, for the compacted size its build asks for.
-        int32_t meshId = 0;
-        // The geometry buffers' states on this list. Buffers decay to COMMON once a list is
-        // done on the GPU ("Using Resource Barriers to Synchronize Resource States in
-        // Direct3D 12", State decay to common), and a copy promotes them to COPY_DEST.
-        std::unordered_map<ID3D12Resource*, D3D12_RESOURCE_STATES> states;
-        std::vector<D3D12_RESOURCE_BARRIER> barriers;
-        // The geometry buffers the queued builds read.
-        std::vector<ID3D12Resource*> reads;
-        // The copies from the uploads, one where they follow each other in both buffers.
-        struct Copy
-        {
-            ID3D12Resource* destination;
-            UINT64 destinationOffset;
-            ID3D12Resource* source;
-            UINT64 sourceOffset;
-            UINT64 size;
-        };
-        std::vector<Copy> copies;
-        void CopyInto(ID3D12Resource* destination, UINT64 destinationOffset, ID3D12Resource* source, UINT64 sourceOffset,
-                      UINT64 size)
-        {
-            if (!copies.empty())
-            {
-                Copy& last = copies.back();
-                if (last.destination == destination && last.source == source
-                    && last.destinationOffset + last.size == destinationOffset && last.sourceOffset + last.size == sourceOffset)
-                {
-                    last.size += size;
-                    return;
-                }
-            }
-            copies.push_back({ destination, destinationOffset, source, sourceOffset, size });
-        }
-        struct Build
-        {
-            D3D12_RAYTRACING_GEOMETRY_DESC geometry = {};
-            D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
-            bool askSize = false;
-            UINT sizeIndex = 0;
-        };
-        // A deque, so that a build's inputs keep pointing at its geometry.
-        std::deque<Build> builds;
-        UINT sizesAsked = 0;
-        ID3D12Resource* sizes = nullptr;
-    };
 
     void Raytracing::ToCopyLocked(BuildFrame& frame, ID3D12Resource* buffer)
     {
@@ -366,6 +310,7 @@ namespace redefinition
         frame.batched = Config().rtBlasBatch;
         frame.pooled = Config().rtBlasPool;
         frame.compaction = Config().rtBlasCompaction;
+        frame.megaGeometry = Config().rtMegaGeometry == 1 && MegaGeometryReadyLocked();
         BlasMemory::PerSlot& perSlot = blasMemory.slots[frame.slotNumber];
         // The slot's list is done: its uploads and scratch are free again.
         perSlot.upload.Rewind();
@@ -467,6 +412,7 @@ namespace redefinition
         if (uploaded == 0)
             changed += RefineMeshesLocked(frame, slot);
         FlushBuildsLocked(frame);
+        FlushClustersLocked(frame, slot);
         // The compacted sizes asked for back to the CPU, read when the slot comes round
         // again (CompactMeshesLocked).
         if (frame.sizesAsked > 0)
@@ -491,7 +437,8 @@ namespace redefinition
                     + " triangles, " + std::to_string(builtVertices) + " vertices, the largest "
                     + std::to_string(largestIndices / 3) + " triangles, " + std::to_string(cpuMs)
                     + " ms of the CPU (rtBlasBatch=" + (frame.batched ? "1" : "0") + " rtBlasPool=" + (frame.pooled ? "1" : "0")
-                    + " rtBlasBudget=" + std::to_string(budget) + " rtBlasCompaction=" + std::to_string(frame.compaction) + ")");
+                    + " rtBlasBudget=" + std::to_string(budget) + " rtBlasCompaction=" + std::to_string(frame.compaction)
+                    + " rtMegaGeometry=" + (frame.megaGeometry ? "1" : "0") + ")");
         }
         changed += built;
         perSlot.changed = changed;
@@ -594,39 +541,48 @@ namespace redefinition
             return false;
         }
 
-        BuildFrame::Build build;
-        build.geometry = GeometryOf(mesh.positionsBuffer->GetGPUVirtualAddress() + mesh.positionsOffset, pending.vertexCount,
-                                    mesh.indicesBuffer->GetGPUVirtualAddress() + mesh.indicesOffset,
-                                    static_cast<UINT>(pending.indices.size()));
-        // rtBlasCompaction 2: built fast now, for tracing later (RefineMeshesLocked); 1: for
-        // tracing, compacted once its size is back (CompactMeshesLocked).
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS& inputs = build.desc.Inputs;
-        inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-        inputs.Flags = frame.compaction == 2 ? D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD
-                                             : D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-        if (frame.compaction == 1)
-            inputs.Flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
-        inputs.NumDescs = 1;
-        inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        inputs.pGeometryDescs = &build.geometry;
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
-        device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-        if (info.ResultDataMaxSizeInBytes == 0)
-        {
-            SetProblem("a mesh's acceleration structure has no size");
-            return false;
-        }
-
-        // Everything made before anything is recorded.
+        // Everything made before anything is recorded: the upload, then the mesh's clusters
+        // (rtMegaGeometry, RaytracingMegaGeometry.cpp) where its runs of 256 triangles fit
+        // one each, else its structure as below.
         ID3D12Resource* upload = nullptr;
         UINT64 uploadOffset = 0;
         uint8_t* mapped = nullptr;
-        if (!MakeBlasLocked(info.ResultDataMaxSizeInBytes, frame.pooled, mesh.blas)
-            || !ScratchLocked(frame, slot, info.ScratchDataSizeInBytes, build.desc.ScratchAccelerationStructureData)
-            || !UploadSpaceLocked(frame, slot, frame.pooled ? mesh.geometry.size : total, upload, uploadOffset, mapped))
+        if (!UploadSpaceLocked(frame, slot, frame.pooled ? mesh.geometry.size : total, upload, uploadOffset, mapped))
         {
-            SetProblem("a mesh's acceleration structure could not be made");
+            SetProblem("a mesh's upload could not be made");
             return false;
+        }
+        const bool clustered = frame.megaGeometry && QueueClustersLocked(frame, mesh, pending, slot);
+        BuildFrame::Build build;
+        if (!clustered)
+        {
+            build.geometry = GeometryOf(mesh.positionsBuffer->GetGPUVirtualAddress() + mesh.positionsOffset,
+                                        pending.vertexCount, mesh.indicesBuffer->GetGPUVirtualAddress() + mesh.indicesOffset,
+                                        static_cast<UINT>(pending.indices.size()));
+            // rtBlasCompaction 2: built fast now, for tracing later (RefineMeshesLocked); 1:
+            // for tracing, compacted once its size is back (CompactMeshesLocked).
+            D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS& inputs = build.desc.Inputs;
+            inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+            inputs.Flags = frame.compaction == 2 ? D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD
+                                                 : D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+            if (frame.compaction == 1)
+                inputs.Flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
+            inputs.NumDescs = 1;
+            inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+            inputs.pGeometryDescs = &build.geometry;
+            D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
+            device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
+            if (info.ResultDataMaxSizeInBytes == 0)
+            {
+                SetProblem("a mesh's acceleration structure has no size");
+                return false;
+            }
+            if (!MakeBlasLocked(info.ResultDataMaxSizeInBytes, frame.pooled, mesh.blas)
+                || !ScratchLocked(frame, slot, info.ScratchDataSizeInBytes, build.desc.ScratchAccelerationStructureData))
+            {
+                SetProblem("a mesh's acceleration structure could not be made");
+                return false;
+            }
         }
         memcpy(mapped, pending.attributes.data(), static_cast<size_t>(attributesSize));
         memcpy(mapped + positionsAt, pending.positions.data(), static_cast<size_t>(positionsSize));
@@ -648,19 +604,23 @@ namespace redefinition
         for (ID3D12Resource* buffer : { mesh.positionsBuffer, mesh.attributesBuffer, mesh.indicesBuffer })
             ToReadLocked(frame, buffer);
 
-        build.desc.DestAccelerationStructureData = mesh.blas.address;
         mesh.blasSerial = blasMemory.nextSerial++;
-        mesh.refine = frame.compaction == 2 ? kRefineRebuild : kRefineNone;
-        frame.builds.push_back(build);
-        // The queued copy's geometry, where the deque holds it.
-        BuildFrame::Build& queued = frame.builds.back();
-        queued.desc.Inputs.pGeometryDescs = &queued.geometry;
-        const UINT index = frame.sizesAsked;
-        if (frame.compaction == 1 && AskSizeLocked(frame, frame.meshId, mesh.blasSerial))
+        mesh.refine = kRefineNone;
+        if (!clustered)
         {
-            queued.askSize = true;
-            queued.sizeIndex = index;
-            mesh.refine = kRefineCompact;
+            build.desc.DestAccelerationStructureData = mesh.blas.address;
+            mesh.refine = frame.compaction == 2 ? kRefineRebuild : kRefineNone;
+            frame.builds.push_back(build);
+            // The queued copy's geometry, where the deque holds it.
+            BuildFrame::Build& queued = frame.builds.back();
+            queued.desc.Inputs.pGeometryDescs = &queued.geometry;
+            const UINT index = frame.sizesAsked;
+            if (frame.compaction == 1 && AskSizeLocked(frame, frame.meshId, mesh.blasSerial))
+            {
+                queued.askSize = true;
+                queued.sizeIndex = index;
+                mesh.refine = kRefineCompact;
+            }
         }
 
         // The index and attribute views the passes read at a hit, from where the mesh's
@@ -936,6 +896,7 @@ namespace redefinition
         {
             build.desc.DestAccelerationStructureData = blas.address;
             RetireBlasLocked(mesh.blas, slot);
+            ReleaseClustersLocked(mesh, fenceValue + 1);
             mesh.blas = blas;
             mesh.blasSerial = blasMemory.nextSerial++;
             mesh.refine = kRefineNone;

@@ -353,6 +353,12 @@ uint CutoutRayFlags()
 // average the surface lets through what its cut-out does (Raytracing.h,
 // kRtInstanceCutout). A cut-out surface whose texture is not read yet lets every ray
 // through: an opaque card would shade the ground under it as a square.
+// The triangle a ray query's hit is on in its mesh's index buffer. RTX Mega Geometry's cluster
+// structures (RaytracingMegaGeometry.cpp, rtMegaGeometry) number the triangles within each
+// cluster of 256 and give the cluster's number as the geometry index; every other structure
+// has one geometry, index 0.
+#define RT_TRIANGLE(query, which) (query.which##GeometryIndex() * 256u + query.which##PrimitiveIndex())
+
 bool CandidateCounts(uint instanceId, uint primitive, float2 bary, float t, float terrainSkip, float3 origin)
 {
     InstanceData instance = instanceData[instanceId];
@@ -390,7 +396,7 @@ bool Unoccluded(float3 origin, float3 direction, float maxDistance, float terrai
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
     query.TraceRayInline(scene, CutoutRayFlags(), 0xFF, ray);
     while (query.Proceed())
-        if (CandidateCounts(query.CandidateInstanceID(), query.CandidatePrimitiveIndex(), query.CandidateTriangleBarycentrics(),
+        if (CandidateCounts(query.CandidateInstanceID(), RT_TRIANGLE(query, Candidate), query.CandidateTriangleBarycentrics(),
                             query.CandidateTriangleRayT(), terrainSkip, query.WorldRayOrigin()))
             query.CommitNonOpaqueTriangleHit();
     return query.CommittedStatus() == COMMITTED_NOTHING;
@@ -416,7 +422,7 @@ bool SunUnoccluded(float3 origin, float3 direction, float maxDistance, float ter
     while (query.Proceed())
     {
         uint instanceId = query.CandidateInstanceID();
-        uint primitive = query.CandidatePrimitiveIndex();
+        uint primitive = RT_TRIANGLE(query, Candidate);
         float t = query.CandidateTriangleRayT();
         if (!CandidateCounts(instanceId, primitive, query.CandidateTriangleBarycentrics(), t, terrainSkip,
                              query.WorldRayOrigin()))
@@ -522,7 +528,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
     query.TraceRayInline(scene, CutoutRayFlags(), 0xFF, ray);
     while (query.Proceed())
-        if (CandidateCounts(query.CandidateInstanceID(), query.CandidatePrimitiveIndex(), query.CandidateTriangleBarycentrics(),
+        if (CandidateCounts(query.CandidateInstanceID(), RT_TRIANGLE(query, Candidate), query.CandidateTriangleBarycentrics(),
                             query.CandidateTriangleRayT(), terrainSkip, query.WorldRayOrigin()))
             query.CommitNonOpaqueTriangleHit();
     if (query.CommittedStatus() != COMMITTED_TRIANGLE_HIT)
@@ -530,7 +536,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
 
     InstanceData instance = instanceData[query.CommittedInstanceID()];
     uint slot = instance.meshSlot;
-    uint3 index = meshIndices[NonUniformResourceIndex(slot)].Load3(query.CommittedPrimitiveIndex() * 12u);
+    uint3 index = meshIndices[NonUniformResourceIndex(slot)].Load3(RT_TRIANGLE(query, Committed) * 12u);
     VertexAttributes a0 = meshAttributes[NonUniformResourceIndex(slot)][index.x];
     VertexAttributes a1 = meshAttributes[NonUniformResourceIndex(slot)][index.y];
     VertexAttributes a2 = meshAttributes[NonUniformResourceIndex(slot)][index.z];

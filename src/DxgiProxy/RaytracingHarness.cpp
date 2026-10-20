@@ -4375,38 +4375,50 @@ int main()
         struct Variant
         {
             const char* name;
-            const wchar_t* keys[6][2];
+            const wchar_t* keys[7][2];
         };
         const Variant variants[] = {
             { "before: mesh by mesh, own buffers",
               { { L"rtBlasBatch", L"0" }, { L"rtBlasPool", L"0" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"0" },
-                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" },
+                { L"rtMegaGeometry", L"0" } } },
             { "batched",
               { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"0" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"0" },
-                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" },
+                { L"rtMegaGeometry", L"0" } } },
             { "pooled",
               { { L"rtBlasBatch", L"0" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"0" },
-                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" },
+                { L"rtMegaGeometry", L"0" } } },
             { "batched, pooled",
               { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"0" },
-                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" },
+                { L"rtMegaGeometry", L"0" } } },
             { "batched, pooled, 20 000 triangles a frame",
               { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"20000" }, { L"rtBlasCompaction", L"0" },
-                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" },
+                { L"rtMegaGeometry", L"0" } } },
             { "batched, pooled, compacted",
               { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"1" },
-                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" },
+                { L"rtMegaGeometry", L"0" } } },
             { "batched, pooled, fast build, rebuilt, compacted: defaults",
               { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"2" },
-                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" } } },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" },
+                { L"rtMegaGeometry", L"0" } } },
             { "the defaults, the scene structure fast trace",
               { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"2" },
-                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"1" } } },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"1" },
+                { L"rtMegaGeometry", L"0" } } },
+            // RTX Mega Geometry's clusters (RaytracingMegaGeometry.cpp) against the defaults.
+            { "the defaults, RTX Mega Geometry's clusters",
+              { { L"rtBlasBatch", L"1" }, { L"rtBlasPool", L"1" }, { L"rtBlasBudget", L"0" }, { L"rtBlasCompaction", L"2" },
+                { L"rtBlasRefineBudget", L"65536" }, { L"rtTlasFastTrace", L"0" }, { L"rtMegaGeometry", L"1" } } },
         };
         const size_t variantCount = sizeof(variants) / sizeof(variants[0]);
         const std::wstring ini = NextToExecutable(L"ReDefinitionProxy.ini");
-        std::wstring before[6];
-        for (int k = 0; k < 6; ++k)
+        std::wstring before[7];
+        for (int k = 0; k < 7; ++k)
         {
             wchar_t value[64] = {};
             GetPrivateProfileStringW(L"Proxy", variants[0].keys[k][0], L"", value, 64, ini.c_str());
@@ -4439,12 +4451,14 @@ int main()
             double cpu = 1e9, peakCpu = 1e9, gpu = 1e9, peakGpu = 1e9, build = 1e9, trace = 1e9, blas = 0, geometry = 0, reserved = 0, memory = 0,
                    forestBuild = 1e9, forestTrace = 1e9;
             size_t forestInstances = 0;
+            unsigned clustered = 0;
             int frames = 0;
             size_t differing = 0, compared = 0;
             uint64_t triangles = 0;
         };
         std::vector<Result> results(variantCount * 2);
         std::vector<Frame> reference(2);
+        std::vector<std::vector<uint16_t>> referenceDiffuse(2);
         for (int round = 0; round < 3; ++round)
             for (size_t v = 0; v < variantCount; ++v)
                 for (int s = 0; s < 2; ++s)
@@ -4521,15 +4535,23 @@ int main()
                         traceSum += trace;
                     }
                     const std::string settled = proxy.Status();
+                    result.clustered = static_cast<unsigned>(statusValue(settled, "clustered="));
                     // The picture: the sun's visibility and the camera's rays, as the first
                     // variant's.
                     SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 39999, kRtSignalSunVisibility | kRtSignalPrimaryCheck);
                     Frame frame;
                     if (!ReadFrame(device.Get(), context.Get(), g, outputs, frame))
                         return Fatal("reading the vessel's frame back", E_FAIL);
+                    // And the diffuse light, whose rays read the normals of what they meet, by
+                    // the triangle their hit is on (RtCommon.hlsli, RT_TRIANGLE).
+                    SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 39998, kRtSignalDiffuse);
+                    std::vector<uint16_t> diffuse;
+                    if (!ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, diffuse))
+                        return Fatal("reading the vessel's diffuse light back", E_FAIL);
                     if (v == 0 && round == 0)
                     {
                         reference[s] = frame;
+                        referenceDiffuse[s] = diffuse;
                         if (s == 1)
                             SaveVisibility(L"rt_vessel_parts.bmp", frame);
                     }
@@ -4542,7 +4564,14 @@ int main()
                         const bool lit = HalfToFloat(frame.visibility[i * 4]) > 0.5f;
                         const bool litBefore = HalfToFloat(reference[s].visibility[i * 4]) > 0.5f;
                         const float hit = frame.primary[i * 4], hitBefore = reference[s].primary[i * 4];
-                        if (lit != litBefore || std::fabs(hit - hitBefore) > 1e-3f * std::max(1.0f, std::fabs(hitBefore)))
+                        bool light = true;
+                        for (int c = 0; c < 3; ++c)
+                        {
+                            const float now = HalfToFloat(diffuse[i * 4 + c]);
+                            const float was = HalfToFloat(referenceDiffuse[s][i * 4 + c]);
+                            light = light && std::fabs(now - was) <= 0.02f * std::max(1.0f, std::fabs(was));
+                        }
+                        if (lit != litBefore || !light || std::fabs(hit - hitBefore) > 1e-3f * std::max(1.0f, std::fabs(hitBefore)))
                             ++differing;
                     }
                     // The scene's structure over many instances, as Parallax's scatter makes
@@ -4592,7 +4621,7 @@ int main()
                     result.differing = differing;
                     result.compared = compared;
                 }
-        for (int k = 0; k < 6; ++k)
+        for (int k = 0; k < 7; ++k)
             WritePrivateProfileStringW(L"Proxy", variants[0].keys[k][0], before[k].empty() ? nullptr : before[k].c_str(),
                                        ini.c_str());
         Sleep(1100);
@@ -4621,6 +4650,15 @@ int main()
                        variants[v].name, r.cpu, r.peakCpu, r.gpu, r.peakGpu, r.build, r.frames, r.trace, r.forestBuild,
                        r.forestTrace, r.blas, r.geometry, r.reserved, r.memory, r.differing, r.compared);
             }
+        }
+        // RTX Mega Geometry's clusters, where the driver has them: the meshes built so.
+        {
+            const Result& r = results[results.size() - 1];
+            const Result& prior = results[results.size() - 3];
+            char detail[200];
+            sprintf_s(detail, "%u meshes built from clusters by then, %u before them", r.clustered, prior.clustered);
+            Check(r.clustered > prior.clustered || adapterDesc.VendorId != 0x10DE, "RTX Mega Geometry's clusters built",
+                  detail);
         }
         // The defaults (batched, pooled, built fast, rebuilt and compacted) against mesh by
         // mesh with buffers of their own: the slowest frame's builds faster on the GPU and

@@ -601,6 +601,9 @@ namespace redefinition
             // a number for the structure it has now, new with every one.
             uint32_t refine = 0;
             uint32_t blasSerial = 0;
+            // rtMegaGeometry: the batch of CLAS its cluster BLAS is built of, 0 for none
+            // (BlasMemory::clasBatches).
+            uint32_t clasBatch = 0;
         };
         static constexpr uint32_t kRefineNone = 0;
         static constexpr uint32_t kRefineRebuild = 1;   // built PREFER_FAST_BUILD, to be rebuilt
@@ -930,6 +933,16 @@ namespace redefinition
         void RetireMeshLocked(Mesh& mesh, Slot& slot);
         // The same with the queue idle: all free at once.
         void FreeMeshNowLocked(Mesh& mesh);
+        // rtMegaGeometry (RaytracingMegaGeometry.cpp): whether the device's driver offers
+        // RTX Mega Geometry's cluster operations, asked once a device; a new mesh's clusters
+        // queued, false where its runs of 256 triangles do not each fit a cluster or the
+        // memory could not be had, nothing queued then; the frame's clusters built; a mesh's
+        // share of its batch of CLAS let go of, the batch freed past the fence value once
+        // no mesh holds it.
+        bool MegaGeometryReadyLocked();
+        bool QueueClustersLocked(BuildFrame& frame, Mesh& mesh, const PendingMesh& pending, Slot& slot);
+        void FlushClustersLocked(BuildFrame& frame, Slot& slot);
+        void ReleaseClustersLocked(Mesh& mesh, UINT64 freeAt);
         // From WaitForSlotLocked: the GPU's time of a slot's mesh builds.
         void NoteMeshBuildTimeLocked(UINT slotNumber, double ms);
         // Whether a material's texture cuts its surface out.
@@ -1097,12 +1110,31 @@ namespace redefinition
                 // What its list built: structures changed (built, rebuilt, compacted),
                 // meshes, triangles, and the CPU's time recording it.
                 uint32_t changed = 0;
+                // rtMegaGeometry: the CLAS addresses its clusters' build wrote and the
+                // cluster BLAS' destinations, side by side.
+                Microsoft::WRL::ComPtr<ID3D12Resource> clusterArrays;
+                UINT64 clusterArraysSize = 0;
                 uint32_t builtMeshes = 0;
                 uint64_t builtTriangles = 0;
                 double cpuMs = 0.0;
             };
             PerSlot slots[kSlots];
             std::deque<int32_t> toRefine;
+            // rtMegaGeometry: a frame's CLAS in one range of the structures' pool, freed once
+            // none of the meshes built of them is left; whether the driver has the cluster
+            // operations (-1 not asked yet) and its functions; a cluster BLAS' size by its
+            // count of clusters.
+            struct ClasBatch
+            {
+                RtPoolRange range;
+                uint32_t meshes = 0;
+            };
+            std::unordered_map<uint32_t, ClasBatch> clasBatches;
+            uint32_t nextClasBatch = 1;
+            int clusterSupport = -1;
+            void* getRequirements = nullptr;
+            void* execute = nullptr;
+            std::unordered_map<uint32_t, UINT64> clusterBlasSizes;
             uint32_t nextSerial = 1;
             bool setUp = false;
             void Reset();
@@ -1149,6 +1181,8 @@ namespace redefinition
         uint64_t blasBytes = 0;
         uint64_t geometryBytes = 0;
         uint64_t buildReservedBytes = 0;
+        // The meshes built from RTX Mega Geometry's clusters since the proxy loaded.
+        uint32_t clusteredMeshes = 0;
         float buildMs = 0.0f;
         float traceMs = 0.0f;
         // The same of the last extra trace (the ocean's), timed apart.
