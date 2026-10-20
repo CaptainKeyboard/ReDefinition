@@ -317,10 +317,11 @@ namespace redefinition
         // because the queue has to come from Streamline's device proxy ("Mandatory -
         // ID3D12Device* eID3D12Device_CreateCommandQueue", sl_hooks.h).
         //
-        // So Ray Reconstruction and FSR's or XeSS's frame generation exclude each
-        // other: each needs the presenting swapchain to be its own, Streamline's,
-        // FidelityFX's or XeSS-FG's, and there is one. With frame generation on and
-        // DLSS-G not running, raytracing goes without Ray Reconstruction.
+        // Streamline's Ray Reconstruction needs the presenting swapchain to be
+        // Streamline's, and FSR's or XeSS's frame generation theirs; beside those, Ray
+        // Reconstruction runs through NGX directly (DlssRayReconstruction.h), on a
+        // device Streamline is not set up on. rrPath=ngx leaves Streamline out with
+        // frame generation off too.
         const int technique = FrameGenerationTechniqueAsked();
         const bool dlssFrameGeneration = Config().frameGeneration
                                          && (technique == kFgTechniqueAuto || technique == kFgTechniqueDlss);
@@ -330,7 +331,8 @@ namespace redefinition
         g_fgTechniqueWanted.store(!Config().frameGeneration ? -1
                                   : xessWanted ? kFgTechniqueXess
                                   : dlssFrameGeneration ? kFgTechniqueDlss : kFgTechniqueFsr);
-        const bool dlss = (dlssFrameGeneration || !Config().frameGeneration)
+        const bool reconstructionAlone = !Config().frameGeneration && RayReconstructionPathAsked() != kRrPathNgx;
+        const bool dlss = (dlssFrameGeneration || reconstructionAlone)
                           && SetUpStreamline(adapter.Get(), dlssFrameGeneration);
 
         D3D12_COMMAND_QUEUE_DESC queueDesc = {};

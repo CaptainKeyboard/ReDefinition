@@ -3,130 +3,48 @@
 #include "Config.h"
 #include "FileUtil.h"
 #include "Log.h"
+#include "NgxCore.h"
 #include "ProjectIdentity.h"
 
-#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
 
 using Microsoft::WRL::ComPtr;
 
-// Only as a pointer type in NGX's parameter map.
-struct ID3D12Resource;
-
 namespace redefinition
 {
     namespace
     {
-        // ---- NVIDIA NGX as the driver's _nvngx.dll exports it ----
-        //
-        // Declared here from NVIDIA's DLSS Programming Guide (310.6.0, 31 March
-        // 2026) and the exports of the installed driver.
-
-        constexpr uint32_t kNgxFeatureNotSupported = 0xBAD00001u;
-        bool NgxFailed(uint32_t result) { return (result & 0xFFF00000u) == 0xBAD00000u; }
-
         constexpr int kNgxFeatureSuperSampling = 1;
-        constexpr int kNgxVersionApi = 0x15;
-        constexpr int kNgxEngineCustom = 0;
-        constexpr int kNgxLoggingOn = 1;
         constexpr int kNgxQualityDlaa = 5;
 
-        // NVSDK_NGX_DLSS_Feature_Flags.
-        constexpr int kFlagIsHdr = 1 << 0;
-        constexpr int kFlagMotionVectorsLowRes = 1 << 1;
-        constexpr int kFlagDepthInverted = 1 << 3;
-        constexpr int kFlagAutoExposure = 1 << 6;
-
-        // NGX's parameter map. The driver implements it; what has to agree is
-        // the order of the virtual functions, which follows NVIDIA's declaration.
-        struct NgxParameters
-        {
-            virtual void Set(const char* name, unsigned long long value) = 0;
-            virtual void Set(const char* name, float value) = 0;
-            virtual void Set(const char* name, double value) = 0;
-            virtual void Set(const char* name, unsigned int value) = 0;
-            virtual void Set(const char* name, int value) = 0;
-            virtual void Set(const char* name, ID3D11Resource* value) = 0;
-            virtual void Set(const char* name, ID3D12Resource* value) = 0;
-            virtual void Set(const char* name, void* value) = 0;
-            virtual uint32_t Get(const char* name, unsigned long long* value) const = 0;
-            virtual uint32_t Get(const char* name, float* value) const = 0;
-            virtual uint32_t Get(const char* name, double* value) const = 0;
-            virtual uint32_t Get(const char* name, unsigned int* value) const = 0;
-            virtual uint32_t Get(const char* name, int* value) const = 0;
-            virtual uint32_t Get(const char* name, ID3D11Resource** value) const = 0;
-            virtual uint32_t Get(const char* name, ID3D12Resource** value) const = 0;
-            virtual uint32_t Get(const char* name, void** value) const = 0;
-            virtual void Reset() = 0;
-        };
-
-        struct NgxPathList
-        {
-            wchar_t** path;
-            unsigned int length;
-        };
-
-        using NgxLogCallback = void (*)(const char* message, int level, int component);
-
-        struct NgxLoggingInfo
-        {
-            NgxLogCallback callback;
-            int minimumLevel;
-            bool disableOtherSinks;
-        };
-
-        struct NgxCommonInfo
-        {
-            NgxPathList pathList;
-            void* internalData;
-            NgxLoggingInfo logging;
-        };
-
-        // The driver's exports. Init_ProjectID takes the SDK version before the
-        // common info, unlike the SDK's own Init_with_ProjectID -- the order
-        // OptiScaler's NGX proxy calls the driver with.
+        // The driver's D3D11 exports (NgxCore.h for the types they share with
+        // D3D12's). Init_ProjectID takes the SDK version before the common info,
+        // unlike the SDK's own Init_with_ProjectID -- the order OptiScaler's NGX
+        // proxy calls the driver with.
         using InitProjectIdFn = uint32_t (*)(const char* projectId, int engineType, const char* engineVersion,
                                              const wchar_t* dataPath, ID3D11Device* device, int sdkVersion,
                                              const NgxCommonInfo* info);
-        using GetParametersFn = uint32_t (*)(NgxParameters** parameters);
-        using DestroyParametersFn = uint32_t (*)(NgxParameters* parameters);
         using CreateFeatureFn = uint32_t (*)(ID3D11DeviceContext* context, int feature, NgxParameters* parameters,
                                              void** handle);
         using EvaluateFeatureFn = uint32_t (*)(ID3D11DeviceContext* context, const void* handle,
                                                const NgxParameters* parameters, void* progress);
-        using ReleaseFeatureFn = uint32_t (*)(void* handle);
         using ShutdownFn = uint32_t (*)(ID3D11Device* device);
-        using OptimalSettingsFn = uint32_t (*)(NgxParameters* parameters);
 
-        struct NgxCore
+        struct NgxD3d11
         {
             InitProjectIdFn initProjectId = nullptr;
-            GetParametersFn getCapabilityParameters = nullptr;
-            GetParametersFn getParameters = nullptr;
-            DestroyParametersFn destroyParameters = nullptr;
+            NgxGetParametersFn getCapabilityParameters = nullptr;
+            NgxGetParametersFn getParameters = nullptr;
+            NgxDestroyParametersFn destroyParameters = nullptr;
             CreateFeatureFn createFeature = nullptr;
             EvaluateFeatureFn evaluateFeature = nullptr;
-            ReleaseFeatureFn releaseFeature = nullptr;
+            NgxReleaseFeatureFn releaseFeature = nullptr;
             ShutdownFn shutdown = nullptr;
         };
 
-        NgxCore g_ngx;
-
-        std::atomic<int> g_ngxLogLines{ 0 };
-
-        void NgxLog(const char* message, int, int)
-        {
-            // Everything NGX says about initialisation and features, then quiet.
-            const int line = ++g_ngxLogLines;
-            if (line > 200 || message == nullptr)
-                return;
-            std::string text(message);
-            while (!text.empty() && (text.back() == '\n' || text.back() == '\r'))
-                text.pop_back();
-            LogLine("NGX: " + text + (line == 200 ? "   (further NGX lines are not logged)" : ""));
-        }
+        NgxD3d11 g_ngx;
 
         // The GPU a device renders on, for messages.
         std::string AdapterName(ID3D11Device* device)
@@ -142,51 +60,12 @@ namespace redefinition
 
         std::string Hex(uint32_t value)
         {
-            char text[16] = {};
-            FormatTo(text, "0x%08X", value);
-            return text;
-        }
-
-        // Where the driver registers its NGX core: the folder in NGXPath
-        // (HKLM\SYSTEM\CurrentControlSet\Services\nvlddmkm\NGXCore), which holds
-        // _nvngx.dll.
-        std::wstring NgxCorePath()
-        {
-            HKEY key = nullptr;
-            if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\nvlddmkm\\NGXCore", 0,
-                              KEY_READ, &key) != ERROR_SUCCESS)
-                return std::wstring();
-
-            wchar_t buffer[MAX_PATH] = {};
-            DWORD bytes = sizeof(buffer) - sizeof(wchar_t);
-            DWORD type = 0;
-            const LSTATUS status = RegQueryValueExW(key, L"NGXPath", nullptr, &type,
-                                                    reinterpret_cast<BYTE*>(buffer), &bytes);
-            RegCloseKey(key);
-            if (status != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ) || buffer[0] == L'\0')
-                return std::wstring();
-
-            std::wstring path(buffer);
-            if (path.back() != L'\\')
-                path += L'\\';
-            return path + L"_nvngx.dll";
-        }
-
-        // The nvngx_dlss.dll the core loaded, with its version.
-        std::string LoadedDlss()
-        {
-            const HMODULE module = GetModuleHandleW(L"nvngx_dlss.dll");
-            if (module == nullptr)
-                return "nvngx_dlss.dll";
-            wchar_t buffer[MAX_PATH] = {};
-            const DWORD length = GetModuleFileNameW(module, buffer, MAX_PATH);
-            const std::wstring path(buffer, length);
-            return "nvngx_dlss.dll " + FileVersion(path) + " (" + Narrow(path) + ")";
+            return NgxHex(value);
         }
 
         std::string Size(unsigned int width, unsigned int height)
         {
-            return std::to_string(width) + "x" + std::to_string(height);
+            return NgxSize(width, height);
         }
 
         // What NGX's search for nvngx_dlss.dll comes down to: the folders it is
@@ -301,6 +180,7 @@ namespace redefinition
 
         ComPtr<ID3D11Device> textureDevice;
         static_cast<ID3D11Resource*>(packet->colour)->GetDevice(&textureDevice);
+        std::lock_guard<std::mutex> ngx(NgxMutex());
         if (!EnsureInitialised(textureDevice.Get()))
             return;
 
@@ -314,6 +194,7 @@ namespace redefinition
 
     void Dlss::OnRelease()
     {
+        std::lock_guard<std::mutex> ngx(NgxMutex());
         ReleaseFeature();
         hasFailed = false;
         // NGX's start is tried again by a new rig, except after a failure that
@@ -355,31 +236,27 @@ namespace redefinition
 
         if (core == nullptr)
         {
-            const std::wstring corePath = NgxCorePath();
-            if (corePath.empty())
-            {
-                SetStatus(-2, "no NVIDIA NGX in the driver: DLSS needs an NVIDIA RTX GPU and its driver");
-                failedStable = true;
-                return false;
-            }
-            core = LoadLibraryExW(corePath.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+            std::string error;
+            bool stable = false;
+            core = NgxCoreModule(error, stable);
             if (core == nullptr)
             {
-                SetStatus(-1, "the driver's NGX core could not be loaded (" + Narrow(corePath) + ", error "
-                                  + std::to_string(GetLastError()) + ")");
+                SetStatus(stable ? -2 : -1, error);
+                failedStable = stable;
                 return false;
             }
 
             g_ngx.initProjectId = reinterpret_cast<InitProjectIdFn>(GetProcAddress(core, "NVSDK_NGX_D3D11_Init_ProjectID"));
-            g_ngx.getCapabilityParameters = reinterpret_cast<GetParametersFn>(
+            g_ngx.getCapabilityParameters = reinterpret_cast<NgxGetParametersFn>(
                 GetProcAddress(core, "NVSDK_NGX_D3D11_GetCapabilityParameters"));
-            g_ngx.getParameters = reinterpret_cast<GetParametersFn>(GetProcAddress(core, "NVSDK_NGX_D3D11_GetParameters"));
-            g_ngx.destroyParameters = reinterpret_cast<DestroyParametersFn>(
+            g_ngx.getParameters = reinterpret_cast<NgxGetParametersFn>(GetProcAddress(core, "NVSDK_NGX_D3D11_GetParameters"));
+            g_ngx.destroyParameters = reinterpret_cast<NgxDestroyParametersFn>(
                 GetProcAddress(core, "NVSDK_NGX_D3D11_DestroyParameters"));
             g_ngx.createFeature = reinterpret_cast<CreateFeatureFn>(GetProcAddress(core, "NVSDK_NGX_D3D11_CreateFeature"));
             g_ngx.evaluateFeature = reinterpret_cast<EvaluateFeatureFn>(
                 GetProcAddress(core, "NVSDK_NGX_D3D11_EvaluateFeature"));
-            g_ngx.releaseFeature = reinterpret_cast<ReleaseFeatureFn>(GetProcAddress(core, "NVSDK_NGX_D3D11_ReleaseFeature"));
+            g_ngx.releaseFeature = reinterpret_cast<NgxReleaseFeatureFn>(
+                GetProcAddress(core, "NVSDK_NGX_D3D11_ReleaseFeature"));
             g_ngx.shutdown = reinterpret_cast<ShutdownFn>(GetProcAddress(core, "NVSDK_NGX_D3D11_Shutdown1"));
         }
 
@@ -414,7 +291,7 @@ namespace redefinition
         info.logging.disableOtherSinks = true;
 
         // NGX's lines for this start, whatever earlier ones used up.
-        g_ngxLogLines = 0;
+        ResetNgxLog();
         const std::wstring dataPath = ExecutableDirectory();
         uint32_t result = g_ngx.initProjectId(kNvidiaProjectId, kNgxEngineCustom, kEngineVersion, dataPath.c_str(),
                                               textureDevice, kNgxVersionApi, &info);
@@ -501,6 +378,7 @@ namespace redefinition
 
         ComPtr<ID3D11Device> textureDevice;
         static_cast<ID3D11Resource*>(query->texture)->GetDevice(&textureDevice);
+        std::lock_guard<std::mutex> ngx(NgxMutex());
         // A failure that need not stand is not kept for the rig's first frame to
         // meet: no release runs between a query and the rig after it.
         if (!EnsureInitialised(textureDevice.Get()))
@@ -553,7 +431,7 @@ namespace redefinition
             map->Set("Height", outputHeight);
             map->Set("PerfQualityValue", static_cast<int>(quality));
             map->Set("RTXValue", 0);
-            const uint32_t result = static_cast<OptimalSettingsFn>(callback)(map);
+            const uint32_t result = static_cast<NgxOptimalSettingsFn>(callback)(map);
             if (NgxFailed(result))
             {
                 error = "DLSS optimal settings query failed (" + Hex(result) + ")";
@@ -664,13 +542,13 @@ namespace redefinition
 
         // Motion vectors at render resolution ("MVLowRes") and without jitter:
         // the rig's are Unity's own, rendered unjittered.
-        int flags = kFlagMotionVectorsLowRes;
+        int flags = kNgxFlagMotionVectorsLowRes;
         if ((packet.flags & kDlssHdr) != 0)
-            flags |= kFlagIsHdr;
+            flags |= kNgxFlagIsHdr;
         if ((packet.flags & kDlssDepthInverted) != 0)
-            flags |= kFlagDepthInverted;
+            flags |= kNgxFlagDepthInverted;
         if ((packet.flags & kDlssAutoExposure) != 0)
-            flags |= kFlagAutoExposure;
+            flags |= kNgxFlagAutoExposure;
 
         map->Set("CreationNodeMask", 1u);
         map->Set("VisibilityNodeMask", 1u);
@@ -682,7 +560,7 @@ namespace redefinition
         map->Set("DLSS.Feature.Create.Flags", flags);
         map->Set("DLSS.Enable.Output.Subrects", 0);
 
-        g_ngxLogLines = 0;
+        ResetNgxLog();
         void* handle = nullptr;
         const uint32_t result = g_ngx.createFeature(context, kNgxFeatureSuperSampling, map, &handle);
         if (NgxFailed(result) || handle == nullptr)
@@ -700,7 +578,7 @@ namespace redefinition
         evaluated = 0;
         // The status names the new feature with its first evaluated frame.
         renderState = 0;
-        LogLine("DLSS: " + LoadedDlss() + ", created for " + Size(optimalWidth, optimalHeight) + " (range "
+        LogLine("DLSS: " + LoadedNgxModule(L"nvngx_dlss.dll") + ", created for " + Size(optimalWidth, optimalHeight) + " (range "
                 + Size(minWidth, minHeight) + " to " + Size(maxWidth, maxHeight) + ") to "
                 + Size(packet.outputWidth, packet.outputHeight) + ", rendered at "
                 + Size(packet.renderWidth, packet.renderHeight) + ", quality " + std::to_string(packet.quality)

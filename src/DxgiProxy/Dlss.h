@@ -89,8 +89,10 @@ namespace redefinition
     // has been submitted (measured in a Unity 2019.4 player with KSP's native
     // graphics jobs). "The NGX API is not thread safe", and for D3D11 "the NGX
     // API preserves the state of the immediate D3D11 context" (NVIDIA's DLSS
-    // Programming Guide, 5.2.4 and 5.2.5), so Unity's state survives the call.
-    // Only Status and RenderSizes are read from the main thread.
+    // Programming Guide, 5.2.4 and 5.2.5), so Unity's state survives the call;
+    // every call into NGX holds NgxMutex (NgxCore.h), which Ray Reconstruction's
+    // calls on the proxy's Direct3D 12 device take too. Only Status and
+    // RenderSizes are read from the main thread.
     class Dlss
     {
     public:

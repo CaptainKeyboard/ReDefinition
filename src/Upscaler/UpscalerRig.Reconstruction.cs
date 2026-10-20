@@ -14,7 +14,9 @@ namespace ReDefinition.Upscaler
     // go into the lighting undenoised, and Ray Reconstruction denoises and upscales the
     // finished frame in one step. Its guides come from the raytraced frame of the same
     // index (RtCamera.ReconstructionLease), so it needs no G-buffer. It runs in the
-    // proxy through Streamline, where DLSS frame generation has set Streamline up.
+    // proxy: through Streamline where Streamline's swapchain presents -- DLSS frame
+    // generation, or frame generation off -- and through NGX directly beside FSR's or
+    // XeSS's frame generation (rrPath in ReDefinitionProxy.ini).
     //
     // A frame without guides of this frame -- the first after switching over -- goes
     // through DLSS Super Resolution. Where Ray Reconstruction shows no new frame for a
@@ -147,7 +149,8 @@ namespace ReDefinition.Upscaler
 
         // Streamline keeps Ray Reconstruction's resources when its frames stop: "this
         // does NOT release any resources, for that please use slFreeResources"
-        // (ProgrammingGuideDLSS_RR.md 5.0). The proxy frees them on the render thread,
+        // (ProgrammingGuideDLSS_RR.md 5.0), and NGX keeps its feature until it is
+        // released. The proxy frees them on the render thread,
         // after the last frame sent (Raytracing::OnReconstructRelease): into buffer
         // behind that frame, or on its own where the rig goes.
         private void ReleaseReconstruction(CommandBuffer buffer)
@@ -184,7 +187,7 @@ namespace ReDefinition.Upscaler
                     reconstructionWhy.Append(e.GetType().Name);
                 }
                 if (was != reconstructionReady)
-                    Debug.Log(Log.Tag + " DLSS Ray Reconstruction " + (reconstructionReady ? "ready" : "not available: " + reconstructionWhy)
+                    Debug.Log(Log.Tag + " DLSS Ray Reconstruction " + (reconstructionReady ? reconstructionWhy.ToString() : "not available: " + reconstructionWhy)
                               + ".");
             }
             return reconstructionReady;

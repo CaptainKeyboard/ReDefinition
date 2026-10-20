@@ -376,6 +376,21 @@ namespace redefinition
             return kXessUiModeAuto;
         }
 
+        // rrPath: auto, streamline or ngx, in any case; anything else is auto, and said.
+        int ReadRrPath(const std::wstring& file)
+        {
+            wchar_t buffer[32] = {};
+            GetPrivateProfileStringW(L"Proxy", L"rrPath", L"auto", buffer, ARRAYSIZE(buffer), file.c_str());
+            for (int path : { kRrPathAuto, kRrPathStreamline, kRrPathNgx })
+            {
+                const std::string name = RrPathName(path);
+                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
+                    return path;
+            }
+            LogLine("Config: rrPath=" + Narrow(buffer) + " is none of auto, streamline, ngx -- auto");
+            return kRrPathAuto;
+        }
+
         std::string Describe(const ProxyConfig& c)
         {
             return std::string("enabled=") + (c.enabled ? "1" : "0")
@@ -383,6 +398,7 @@ namespace redefinition
                  + " measureOnly=" + (c.measureOnly ? "1" : "0")
                  + " frameGeneration=" + (c.frameGeneration ? "1" : "0")
                  + " frameGenerationTechnique=" + TechniqueName(c.frameGenerationTechnique)
+                 + " rrPath=" + RrPathName(c.rrPath)
                  + " hudLessColour=" + (c.hudLessColour ? "1" : "0")
                  + " fgDepthInverted=" + (c.fgDepthInverted ? "1" : "0")
                  + " fgNegateMotionScale=" + (c.fgNegateMotionScale ? "1" : "0")
@@ -439,6 +455,7 @@ namespace redefinition
             // Without the runtime the proxy presents through plain DXGI.
             target.frameGeneration = ReadFlag(L"frameGeneration", file, true);
             target.frameGenerationTechnique = ReadTechnique(file);
+            target.rrPath = ReadRrPath(file);
 
             target.hudLessColour = ReadFlag(L"hudLessColour", file, true);
             target.fgDepthInverted = ReadFlag(L"fgDepthInverted", file, true);
@@ -590,6 +607,17 @@ namespace redefinition
     }
 
     // As StreamlineDirectory: from the file, once per swapchain.
+    int RayReconstructionPathAsked()
+    {
+        return ReadRrPath(IniPath());
+    }
+
+    const char* RrPathName(int path)
+    {
+        return path == kRrPathStreamline ? "streamline" : path == kRrPathNgx ? "ngx" : "auto";
+    }
+
+    // As StreamlineDirectory: from the file, once per swapchain.
     std::wstring XessFgDirectory()
     {
         wchar_t buffer[260] = {};
@@ -639,7 +667,7 @@ namespace redefinition
                 + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
                 + "   (enabled, allowTearing, measureOnly and frameGeneration as at load; frameGenerationTechnique,"
                   " the folders, rtOwnQueue, streamlineImgui, vendorDiagnostics, xell, xellLowLatencyBoost,"
-                  " xessFgUiMode and the most xessFgFrames apply when what they serve starts)");
+                  " xessFgUiMode, rrPath and the most xessFgFrames apply when what they serve starts)");
 
         rebuild = needsRebuild;
         return true;

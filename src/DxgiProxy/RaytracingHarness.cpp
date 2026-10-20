@@ -2023,18 +2023,21 @@ int main()
     }
 
     // ---------------------------------------------------------------- Ray Reconstruction
+    // Through the route the proxy took for this swapchain (rrPath): Streamline's where
+    // its swapchain presents, NGX's otherwise. Where it was Streamline's, a swapchain of
+    // its own at the end takes NGX's (Ray Reconstruction through NGX, below).
+    const std::vector<Instance> rrScene = scene;
+    const Camera rrCamera = camera;
+    bool reconstructedThroughStreamline = false;
+    const auto reconstruct = [&](const std::string& route)
     {
-        char why[256] = {};
-        if (proxy.reconstructionAvailable == nullptr || proxy.reconstructionAvailable(why, sizeof(why)) != 1)
-            printf("      DLSS Ray Reconstruction skipped: %s\n", why);
-        else
         {
             // The noisy frame put together as Unity's lighting would with raw signals:
             // albedo times the sun and the diffuse light, plus the reflections times a
             // dielectric's Fresnel. Ray Reconstruction at the render size (DLAA) against
             // the same made of 256-frame averages.
-            SendInstances(proxy, scene, camera.position);
-            RenderGBuffer(context.Get(), g, camera, meshes, scene);
+            SendInstances(proxy, rrScene, rrCamera.position);
+            RenderGBuffer(context.Get(), g, rrCamera, meshes, rrScene);
             Lighting lighting;
             lighting.sky[0] = 0.4f;
             lighting.sky[1] = 0.5f;
@@ -2093,7 +2096,7 @@ int main()
             };
             for (int f = 0; f < 256; ++f)
             {
-                SendFrame(proxy, camera, g, outputs, sun, 0.02f, 20000 + f, signals, lighting);
+                SendFrame(proxy, rrCamera, g, outputs, sun, 0.02f, 20000 + f, signals, lighting);
                 readSignals(sunMean, diffuseMean, specularMean, 1.0 / 256.0);
             }
             std::vector<float> reference;
@@ -2118,7 +2121,11 @@ int main()
             if (SUCCEEDED(made))
                 made = device->CreateTexture2D(&colourDesc, &stillData, &motion);
             if (FAILED(made))
-                return Fatal("Ray Reconstruction's textures", made);
+            {
+                Fatal("Ray Reconstruction's textures", made);
+                ++failures;
+                return;
+            }
 
             // The matrices as Streamline takes them: for row vectors, the view looking
             // down +z.
@@ -2126,8 +2133,8 @@ int main()
             for (int d = 0; d < 4; ++d)
                 flipZ.at(d, d) = 1.0;
             flipZ.at(2, 2) = -1.0;
-            const Mat4 view = LookRotation(camera.target - camera.position, { 0, 1, 0 });
-            const Mat4 projection = Perspective(camera.fov, double(kWidth) / kHeight, camera.nearPlane, camera.farPlane);
+            const Mat4 view = LookRotation(rrCamera.target - rrCamera.position, { 0, 1, 0 });
+            const Mat4 projection = Perspective(rrCamera.fov, double(kWidth) / kHeight, rrCamera.nearPlane, rrCamera.farPlane);
             const auto transposed = [](const Mat4& m, float* out)
             {
                 for (int r = 0; r < 4; ++r)
@@ -2147,7 +2154,7 @@ int main()
             packet.renderHeight = packet.outputHeight = kHeight;
             packet.mode = 6;     // sl::DLSSMode::eDLAA
             packet.preset = 0;   // sl::DLSSDPreset::eDefault
-            ToFloats(camera.clipToWorld, packet.clipToWorld);
+            ToFloats(rrCamera.clipToWorld, packet.clipToWorld);
             transposed(projectionPlusZ, packet.viewToClip);
             transposed(Inverse(projectionPlusZ), packet.clipToView);
             transposed(identity, packet.clipToPrevClip);
@@ -2156,7 +2163,7 @@ int main()
             transposed(Inverse(viewPlusZ), packet.viewToWorld);
             packet.motionScale[0] = 1.0f / kWidth;
             packet.motionScale[1] = 1.0f / kHeight;
-            const Vec3 forward = Normalize(camera.target - camera.position);
+            const Vec3 forward = Normalize(rrCamera.target - rrCamera.position);
             const Vec3 right = Normalize(Cross(forward, { 0, 1, 0 }));
             const Vec3 up = Cross(right, forward);
             const float basis[3][3] = { { float(up.x), float(up.y), float(up.z) },
@@ -2165,9 +2172,9 @@ int main()
             memcpy(packet.up, basis[0], 12);
             memcpy(packet.right, basis[1], 12);
             memcpy(packet.forward, basis[2], 12);
-            packet.nearPlane = static_cast<float>(camera.nearPlane);
-            packet.farPlane = static_cast<float>(camera.farPlane);
-            packet.verticalFov = static_cast<float>(camera.fov);
+            packet.nearPlane = static_cast<float>(rrCamera.nearPlane);
+            packet.farPlane = static_cast<float>(rrCamera.farPlane);
+            packet.verticalFov = static_cast<float>(rrCamera.fov);
             packet.colour = colour.Get();
             packet.depth = g.depth.Get();
             packet.motion = motion.Get();
@@ -2183,7 +2190,7 @@ int main()
             double reconstructedFlicker = 0.0;
             for (int f = 0; f < 64; ++f)
             {
-                SendFrame(proxy, camera, g, outputs, sun, 0.02f, 21000 + f, signals, lighting);
+                SendFrame(proxy, rrCamera, g, outputs, sun, 0.02f, 21000 + f, signals, lighting);
                 std::vector<double> s(pixels, 0.0), d(pixels * 3, 0.0), sp(pixels * 3, 0.0);
                 readSignals(s, d, sp, 1.0);
                 compose(s, d, sp, composed);
@@ -2228,15 +2235,16 @@ int main()
                       error, noisyError, mean, meanReference, reconstructedFlicker);
             (void)noisyFlicker;
             Check(error < 0.5 * noisyError && std::fabs(mean - meanReference) < 0.05 * meanReference,
-                  "DLSS Ray Reconstruction", detail);
+                  ("DLSS Ray Reconstruction" + route).c_str(), detail);
             std::vector<double> image(pixels * 3);
             for (size_t i = 0; i < pixels * 3; ++i)
                 image[i] = previousOutput[i];
-            SaveColour(L"rt_reconstructed.bmp", image, 1.0);
+            SaveColour(route.empty() ? L"rt_reconstructed.bmp" : L"rt_reconstructed_ngx.bmp", image, 1.0);
             for (size_t i = 0; i < pixels; ++i)
                 for (int c = 0; c < 3; ++c)
                     image[i * 3 + c] = composed[i * 4 + c];
-            SaveColour(L"rt_reconstruct_noisy.bmp", image, 1.0);
+            if (route.empty())
+                SaveColour(L"rt_reconstruct_noisy.bmp", image, 1.0);
 
             // Ray Reconstruction let go as the mod does when it stops using it (event 32):
             // Streamline's resources freed, and made again by the next evaluation below.
@@ -2252,7 +2260,7 @@ int main()
             const size_t reconstructedBefore = proxy.Reconstructed();
             for (int f = 0; f < 64; ++f)
             {
-                SendFrame(proxy, camera, g, outputs, sun, 0.02f, 22000 + f, signals, unbuffered);
+                SendFrame(proxy, rrCamera, g, outputs, sun, 0.02f, 22000 + f, signals, unbuffered);
                 std::vector<double> s(pixels, 0.0), d(pixels * 3, 0.0), sp(pixels * 3, 0.0);
                 readSignals(s, d, sp, 1.0);
                 compose(s, d, sp, composed);
@@ -2279,7 +2287,18 @@ int main()
                       reconstructedForward, errorForward, meanForward, meanReference);
             Check(reconstructedForward == 64 && errorForward < 0.5 * noisyError
                       && std::fabs(meanForward - meanReference) < 0.05 * meanReference,
-                  "DLSS Ray Reconstruction without a G-buffer", detail);
+                  ("DLSS Ray Reconstruction without a G-buffer" + route).c_str(), detail);
+        }
+    };
+    {
+        char why[256] = {};
+        if (proxy.reconstructionAvailable == nullptr || proxy.reconstructionAvailable(why, sizeof(why)) != 1)
+            printf("      DLSS Ray Reconstruction skipped: %s\n", why);
+        else
+        {
+            printf("      DLSS Ray Reconstruction %s\n", why);
+            reconstructedThroughStreamline = strstr(why, "Streamline") != nullptr;
+            reconstruct(reconstructedThroughStreamline ? "" : " through NGX");
         }
     }
 
@@ -3803,6 +3822,44 @@ int main()
                   passes[1], passes[2], passes[3]);
         Check(passes[0] > 0.0f && passes[1] > 0.0f && passes[2] > 0.0f && passes[3] > 0.0f, "timings past further traces",
               detail);
+    }
+
+    // ---------------------------------------------------------------- Ray Reconstruction through NGX
+    if (reconstructedThroughStreamline)
+    {
+        // A swapchain of its own with rrPath=ngx (ReDefinitionProxy.ini), read as KSP's
+        // would be made: with frame generation off it is then not Streamline's, and Ray
+        // Reconstruction goes through NGX on its Direct3D 12 device, after Streamline
+        // shut down with the swapchain before.
+        const std::wstring ini = NextToExecutable(L"ReDefinitionProxy.ini");
+        wchar_t before[32] = {};
+        GetPrivateProfileStringW(L"Proxy", L"rrPath", L"auto", before, 32, ini.c_str());
+        WritePrivateProfileStringW(L"Proxy", L"rrPath", L"ngx", ini.c_str());
+        swapChain.Reset();
+        hr = factory->CreateSwapChainForHwnd(device.Get(), window, &desc, nullptr, nullptr, &swapChain);
+        WritePrivateProfileStringW(L"Proxy", L"rrPath", before, ini.c_str());
+        if (FAILED(hr))
+            return Fatal("CreateSwapChainForHwnd with rrPath=ngx", hr);
+        char why[256] = {};
+        if (proxy.available(why, sizeof(why)) != 1)
+            return Fatal("the proxy's raytracing on the swapchain with rrPath=ngx", E_FAIL);
+        // The meshes again: the raytracing's go with the device (Raytracing::ReleaseLocked).
+        std::vector<int> sent;
+        for (const Instance& instance : rrScene)
+            if (std::find(sent.begin(), sent.end(), instance.mesh) == sent.end())
+            {
+                sent.push_back(instance.mesh);
+                if (SendMesh(proxy, meshes[instance.mesh]) != 1)
+                    return Fatal("a mesh on the swapchain with rrPath=ngx", E_FAIL);
+            }
+        if (proxy.reconstructionAvailable(why, sizeof(why)) != 1)
+            Check(false, "DLSS Ray Reconstruction through NGX", why);
+        else
+        {
+            printf("      DLSS Ray Reconstruction %s\n", why);
+            Check(strstr(why, "NGX") != nullptr, "Ray Reconstruction's route with rrPath=ngx", why);
+            reconstruct(" through NGX");
+        }
     }
 
     printf(failures == 0 ? "all raytracing checks passed\n" : "%d raytracing check(s) failed\n", failures);

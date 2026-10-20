@@ -86,6 +86,8 @@ add_library(ReDefinitionProxy SHARED
     D3d12Util.h
     Dlss.cpp
     Dlss.h
+    DlssRayReconstruction.cpp
+    DlssRayReconstruction.h
     FileUtil.cpp
     FileUtil.h
     FidelityFx.cpp
@@ -109,6 +111,8 @@ add_library(ReDefinitionProxy SHARED
     LowLatency.cpp
     LowLatency.h
     ManagedBridge.cpp
+    NgxCore.cpp
+    NgxCore.h
     ScreenRecorder.cpp
     ScreenRecorder.h
     NvidiaGpu.cpp

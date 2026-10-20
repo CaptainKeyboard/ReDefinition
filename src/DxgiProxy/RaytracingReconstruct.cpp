@@ -1,12 +1,15 @@
 // DLSS Ray Reconstruction for the raytraced frame (docs/development/raytracing.md,
 // "Denoising"): the noisy frame and its guides into NVIDIA's denoiser and upscaler,
-// through Streamline, on the proxy's Direct3D 12 device, in place of DLSS Super
-// Resolution.
+// on the proxy's Direct3D 12 device, in place of DLSS Super Resolution -- through
+// Streamline where its swapchain presents, through NGX directly beside FSR's or
+// XeSS's frame generation (rrPath, Config.h).
 
 #include "GpuProfiler.h"
 #include "Raytracing.h"
 
+#include "Config.h"
 #include "D3d12Util.h"
+#include "DlssRayReconstruction.h"
 #include "Log.h"
 #include "Streamline.h"
 
@@ -24,12 +27,47 @@ namespace redefinition
             memcpy(&m, rows, sizeof(m));
             return m;
         }
+
+        enum class Route
+        {
+            None,
+            Streamline,
+            Ngx,
+        };
+
+        // Streamline's sl.dlss_d where Streamline has the device, which it has where its
+        // swapchain presents; NGX directly where Streamline is not set up on it -- one of
+        // the two starts NGX on a device (DlssRayReconstruction.h). rrPath narrows it to
+        // one of them.
+        Route ChooseRoute(int path, std::string& why)
+        {
+            Streamline& streamline = Streamline::Get();
+            if (streamline.DeviceSet())
+            {
+                if (path == kRrPathNgx)
+                {
+                    why = "rrPath=ngx, but Streamline runs on this device for DLSS frame generation and holds NGX on it";
+                    return Route::None;
+                }
+                if (!streamline.RayReconstructionReady(why))
+                    return Route::None;
+                why = "ready through Streamline";
+                return Route::Streamline;
+            }
+            if (path == kRrPathStreamline)
+            {
+                streamline.RayReconstructionReady(why);
+                why += " (rrPath=streamline)";
+                return Route::None;
+            }
+            return DlssRayReconstruction::Get().Ready(why) ? Route::Ngx : Route::None;
+        }
     }
 
     int Raytracing::ReconstructionAvailable(char* buffer, int size) const
     {
         std::string why;
-        const bool ready = Streamline::Get().RayReconstructionReady(why);
+        const bool ready = ChooseRoute(rrPath.load(), why) != Route::None;
         if (buffer != nullptr && size > 0)
             strncpy_s(buffer, static_cast<size_t>(size), why.c_str(), _TRUNCATE);
         return ready ? 1 : 0;
@@ -73,7 +111,8 @@ namespace redefinition
             return;
         }
         std::string why;
-        if (!Streamline::Get().RayReconstructionReady(why))
+        const Route route = ChooseRoute(rrPath.load(), why);
+        if (route == Route::None)
         {
             SetProblem("Ray Reconstruction: " + why);
             return;
@@ -219,98 +258,156 @@ namespace redefinition
             list->SetPipelineState(pipeline->second.Get());
             BindTablesLocked(guideTable);
             list->Dispatch((width + 7) / 8, (height + 7) / 8, 1);
-            // Streamline takes every resource in the state it is given and leaves it so.
+            // Streamline takes every resource in the state it is given and leaves it so;
+            // NGX takes its inputs in this one.
             for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
                 UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         }
-        if (!back.empty())
-            list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
-
-        constexpr uint32_t kCommon = static_cast<uint32_t>(D3D12_RESOURCE_STATE_COMMON);
-        constexpr uint32_t kRead = static_cast<uint32_t>(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        const auto resource = [](ID3D12Resource* native, uint32_t state, UINT w, UINT h, DXGI_FORMAT format)
-        {
-            sl::Resource r(sl::ResourceType::eTex2d, native, state);
-            r.width = w;
-            r.height = h;
-            r.nativeFormat = static_cast<uint32_t>(format);
-            return r;
-        };
-        sl::Resource colourResource = resource(colour->texture.d3d12.Get(), kCommon, colour->texture.width,
-                                               colour->texture.height, colour->texture.format);
-        sl::Resource outputResource = resource(output->texture.d3d12.Get(), kCommon, output->texture.width,
-                                               output->texture.height, output->texture.format);
-        sl::Resource depthResource = resource(depth->texture.d3d12.Get(), kCommon, depth->texture.width,
-                                              depth->texture.height, depth->texture.format);
-        sl::Resource motionResource = resource(motion->texture.d3d12.Get(), kCommon, motion->texture.width,
-                                               motion->texture.height, motion->texture.format);
-        sl::Resource albedoResource = resource(guides.albedo.resource.Get(), kRead, width, height, guides.albedo.format);
-        sl::Resource specularResource =
-            resource(guides.specularAlbedo.resource.Get(), kRead, width, height, guides.specularAlbedo.format);
-        sl::Resource normalResource =
-            resource(guides.normalRoughness.resource.Get(), kRead, width, height, guides.normalRoughness.format);
-        sl::Resource hitResource = resource(guides.hitDistance.resource.Get(), kRead, width, height, guides.hitDistance.format);
-        const sl::Extent input{ 0, 0, width, height };
-        const sl::Extent outputExtent{ 0, 0, packet->outputWidth, packet->outputHeight };
-        const sl::ResourceLifecycle now = sl::ResourceLifecycle::eOnlyValidNow;
-        const sl::ResourceTag tags[] = {
-            sl::ResourceTag(&colourResource, sl::kBufferTypeScalingInputColor, now, &input),
-            sl::ResourceTag(&outputResource, sl::kBufferTypeScalingOutputColor, now, &outputExtent),
-            sl::ResourceTag(&depthResource, sl::kBufferTypeDepth, now, &input),
-            sl::ResourceTag(&motionResource, sl::kBufferTypeMotionVectors, now, &input),
-            sl::ResourceTag(&albedoResource, sl::kBufferTypeAlbedo, now, &input),
-            sl::ResourceTag(&specularResource, sl::kBufferTypeSpecularAlbedo, now, &input),
-            sl::ResourceTag(&normalResource, sl::kBufferTypeNormalRoughness, now, &input),
-            sl::ResourceTag(&hitResource, sl::kBufferTypeSpecularHitDistance, now, &input),
-        };
-
-        sl::Constants slConstants{};
-        slConstants.cameraViewToClip = Matrix(packet->viewToClip);
-        slConstants.clipToCameraView = Matrix(packet->clipToView);
-        sl::float4x4 identity;
-        memset(&identity, 0, sizeof(identity));
-        for (int i = 0; i < 4; ++i)
-            reinterpret_cast<float*>(&identity)[i * 5] = 1.0f;
-        slConstants.clipToLensClip = identity;
-        slConstants.clipToPrevClip = Matrix(packet->clipToPrevClip);
-        slConstants.prevClipToClip = Matrix(packet->prevClipToClip);
-        slConstants.jitterOffset = sl::float2(packet->jitter[0], packet->jitter[1]);
-        slConstants.mvecScale = sl::float2(packet->motionScale[0], packet->motionScale[1]);
-        slConstants.cameraPinholeOffset = sl::float2(0.0f, 0.0f);
-        slConstants.cameraPos = sl::float3(0.0f, 0.0f, 0.0f);
-        slConstants.cameraUp = sl::float3(packet->up[0], packet->up[1], packet->up[2]);
-        slConstants.cameraRight = sl::float3(packet->right[0], packet->right[1], packet->right[2]);
-        slConstants.cameraFwd = sl::float3(packet->forward[0], packet->forward[1], packet->forward[2]);
-        slConstants.cameraNear = packet->nearPlane;
-        slConstants.cameraFar = packet->farPlane;
-        slConstants.cameraFOV = packet->verticalFov;
-        slConstants.cameraAspectRatio = height != 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
-        slConstants.depthInverted = sl::Boolean::eTrue;
-        slConstants.cameraMotionIncluded = sl::Boolean::eTrue;
-        slConstants.motionVectors3D = sl::Boolean::eFalse;
-        slConstants.motionVectorsDilated = sl::Boolean::eFalse;
-        slConstants.motionVectorsJittered = sl::Boolean::eFalse;
-        slConstants.orthographicProjection = sl::Boolean::eFalse;
-        slConstants.reset = (packet->flags & kRtFrameReset) != 0 ? sl::Boolean::eTrue : sl::Boolean::eFalse;
-
-        sl::DLSSDOptions options{};
-        options.mode = static_cast<sl::DLSSMode>(packet->mode);
-        options.outputWidth = packet->outputWidth;
-        options.outputHeight = packet->outputHeight;
-        // "DLSS-RR only support HDR inputs" (ProgrammingGuideDLSS_RR.md): the mod sends
-        // HDR frames only (UpscalerRig.SubmitReconstruction).
-        options.colorBuffersHDR = sl::Boolean::eTrue;
-        options.normalRoughnessMode = sl::DLSSDNormalRoughnessMode::ePacked;
-        options.worldToCameraView = Matrix(packet->worldToView);
-        options.cameraViewToWorld = Matrix(packet->viewToWorld);
-        const sl::DLSSDPreset preset = static_cast<sl::DLSSDPreset>(packet->preset);
-        options.dlaaPreset = options.qualityPreset = options.balancedPreset = options.performancePreset =
-            options.ultraPerformancePreset = options.ultraQualityPreset = preset;
 
         reconstructionEvaluated = true;
-        const bool evaluated = Streamline::Get().EvaluateRayReconstruction(slConstants, options, tags,
-                                                                           static_cast<uint32_t>(sizeof(tags) / sizeof(tags[0])),
-                                                                           list.Get());
+        bool evaluated = false;
+        std::string notEvaluated = "Ray Reconstruction did not evaluate (the proxy's log has Streamline's reason)";
+        if (route == Route::Ngx)
+        {
+            reconstructionThroughNgx = true;
+            // "Input buffers ... For D3D12 - the state must be
+            // D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE", "The Output buffer be in UAV
+            // state", and "After the evaluate call, DLSS ... always transitions buffers
+            // back to these known states" (DLSS Programming Guide 3.4): the shared inputs
+            // stay where the guide pass read them, the output goes to UAV and back, and
+            // all of them to COMMON after it, for Direct3D 11.
+            const D3D12_RESOURCE_BARRIER written =
+                TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
+                                  D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            list->ResourceBarrier(1, &written);
+            back.push_back(TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                             D3D12_RESOURCE_STATE_COMMON));
+
+            NgxRrFrame frame = {};
+            frame.colour = colour->texture.d3d12.Get();
+            frame.output = output->texture.d3d12.Get();
+            frame.depth = depth->texture.d3d12.Get();
+            frame.motion = motion->texture.d3d12.Get();
+            frame.albedo = guides.albedo.resource.Get();
+            frame.specularAlbedo = guides.specularAlbedo.resource.Get();
+            frame.normalRoughness = guides.normalRoughness.resource.Get();
+            frame.specularHitDistance = guides.hitDistance.resource.Get();
+            frame.renderWidth = width;
+            frame.renderHeight = height;
+            frame.outputWidth = packet->outputWidth;
+            frame.outputHeight = packet->outputHeight;
+            // "SL DLSSDContext modes start with 'off' so subtract one, the rest is mapped
+            // 1:1" (sl.dlss_d); its presets are NGX's values.
+            frame.quality = static_cast<int32_t>(packet->mode) - 1;
+            frame.preset = packet->preset;
+            frame.jitterX = packet->jitter[0];
+            frame.jitterY = packet->jitter[1];
+            // Streamline's mvecScale times the render size, as sl.dlss_d hands it to NGX.
+            frame.motionScaleX = packet->motionScale[0] * static_cast<float>(width);
+            frame.motionScaleY = packet->motionScale[1] * static_cast<float>(height);
+            frame.reset = (packet->flags & kRtFrameReset) != 0;
+            memcpy(frame.worldToView, packet->worldToView, sizeof(frame.worldToView));
+            memcpy(frame.viewToClip, packet->viewToClip, sizeof(frame.viewToClip));
+            std::string ngxProblem;
+            evaluated = DlssRayReconstruction::Get().Evaluate(device.Get(), list.Get(), frame,
+                                                              [this]() { WaitForAllLocked(); }, ngxProblem);
+            if (!evaluated)
+                notEvaluated = "Ray Reconstruction through NGX: " + ngxProblem;
+            // "NGX modifies the Vulkan and D3D12 command list states" (DLSS Programming
+            // Guide 5.4): only barriers follow, which need none of it.
+            list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
+        }
+        else
+        {
+            reconstructionThroughNgx = false;
+            if (!back.empty())
+                list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
+
+            constexpr uint32_t kCommon = static_cast<uint32_t>(D3D12_RESOURCE_STATE_COMMON);
+            constexpr uint32_t kRead = static_cast<uint32_t>(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            const auto resource = [](ID3D12Resource* native, uint32_t state, UINT w, UINT h, DXGI_FORMAT format)
+            {
+                sl::Resource r(sl::ResourceType::eTex2d, native, state);
+                r.width = w;
+                r.height = h;
+                r.nativeFormat = static_cast<uint32_t>(format);
+                return r;
+            };
+            sl::Resource colourResource = resource(colour->texture.d3d12.Get(), kCommon, colour->texture.width,
+                                                   colour->texture.height, colour->texture.format);
+            sl::Resource outputResource = resource(output->texture.d3d12.Get(), kCommon, output->texture.width,
+                                                   output->texture.height, output->texture.format);
+            sl::Resource depthResource = resource(depth->texture.d3d12.Get(), kCommon, depth->texture.width,
+                                                  depth->texture.height, depth->texture.format);
+            sl::Resource motionResource = resource(motion->texture.d3d12.Get(), kCommon, motion->texture.width,
+                                                   motion->texture.height, motion->texture.format);
+            sl::Resource albedoResource = resource(guides.albedo.resource.Get(), kRead, width, height, guides.albedo.format);
+            sl::Resource specularResource =
+                resource(guides.specularAlbedo.resource.Get(), kRead, width, height, guides.specularAlbedo.format);
+            sl::Resource normalResource =
+                resource(guides.normalRoughness.resource.Get(), kRead, width, height, guides.normalRoughness.format);
+            sl::Resource hitResource = resource(guides.hitDistance.resource.Get(), kRead, width, height, guides.hitDistance.format);
+            const sl::Extent input{ 0, 0, width, height };
+            const sl::Extent outputExtent{ 0, 0, packet->outputWidth, packet->outputHeight };
+            const sl::ResourceLifecycle now = sl::ResourceLifecycle::eOnlyValidNow;
+            const sl::ResourceTag tags[] = {
+                sl::ResourceTag(&colourResource, sl::kBufferTypeScalingInputColor, now, &input),
+                sl::ResourceTag(&outputResource, sl::kBufferTypeScalingOutputColor, now, &outputExtent),
+                sl::ResourceTag(&depthResource, sl::kBufferTypeDepth, now, &input),
+                sl::ResourceTag(&motionResource, sl::kBufferTypeMotionVectors, now, &input),
+                sl::ResourceTag(&albedoResource, sl::kBufferTypeAlbedo, now, &input),
+                sl::ResourceTag(&specularResource, sl::kBufferTypeSpecularAlbedo, now, &input),
+                sl::ResourceTag(&normalResource, sl::kBufferTypeNormalRoughness, now, &input),
+                sl::ResourceTag(&hitResource, sl::kBufferTypeSpecularHitDistance, now, &input),
+            };
+
+            sl::Constants slConstants{};
+            slConstants.cameraViewToClip = Matrix(packet->viewToClip);
+            slConstants.clipToCameraView = Matrix(packet->clipToView);
+            sl::float4x4 identity;
+            memset(&identity, 0, sizeof(identity));
+            for (int i = 0; i < 4; ++i)
+                reinterpret_cast<float*>(&identity)[i * 5] = 1.0f;
+            slConstants.clipToLensClip = identity;
+            slConstants.clipToPrevClip = Matrix(packet->clipToPrevClip);
+            slConstants.prevClipToClip = Matrix(packet->prevClipToClip);
+            slConstants.jitterOffset = sl::float2(packet->jitter[0], packet->jitter[1]);
+            slConstants.mvecScale = sl::float2(packet->motionScale[0], packet->motionScale[1]);
+            slConstants.cameraPinholeOffset = sl::float2(0.0f, 0.0f);
+            slConstants.cameraPos = sl::float3(0.0f, 0.0f, 0.0f);
+            slConstants.cameraUp = sl::float3(packet->up[0], packet->up[1], packet->up[2]);
+            slConstants.cameraRight = sl::float3(packet->right[0], packet->right[1], packet->right[2]);
+            slConstants.cameraFwd = sl::float3(packet->forward[0], packet->forward[1], packet->forward[2]);
+            slConstants.cameraNear = packet->nearPlane;
+            slConstants.cameraFar = packet->farPlane;
+            slConstants.cameraFOV = packet->verticalFov;
+            slConstants.cameraAspectRatio = height != 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
+            slConstants.depthInverted = sl::Boolean::eTrue;
+            slConstants.cameraMotionIncluded = sl::Boolean::eTrue;
+            slConstants.motionVectors3D = sl::Boolean::eFalse;
+            slConstants.motionVectorsDilated = sl::Boolean::eFalse;
+            slConstants.motionVectorsJittered = sl::Boolean::eFalse;
+            slConstants.orthographicProjection = sl::Boolean::eFalse;
+            slConstants.reset = (packet->flags & kRtFrameReset) != 0 ? sl::Boolean::eTrue : sl::Boolean::eFalse;
+
+            sl::DLSSDOptions options{};
+            options.mode = static_cast<sl::DLSSMode>(packet->mode);
+            options.outputWidth = packet->outputWidth;
+            options.outputHeight = packet->outputHeight;
+            // "DLSS-RR only support HDR inputs" (ProgrammingGuideDLSS_RR.md): the mod sends
+            // HDR frames only (UpscalerRig.SubmitReconstruction).
+            options.colorBuffersHDR = sl::Boolean::eTrue;
+            options.normalRoughnessMode = sl::DLSSDNormalRoughnessMode::ePacked;
+            options.worldToCameraView = Matrix(packet->worldToView);
+            options.cameraViewToWorld = Matrix(packet->viewToWorld);
+            const sl::DLSSDPreset preset = static_cast<sl::DLSSDPreset>(packet->preset);
+            options.dlaaPreset = options.qualityPreset = options.balancedPreset = options.performancePreset =
+                options.ultraPerformancePreset = options.ultraQualityPreset = preset;
+
+            evaluated = Streamline::Get().EvaluateRayReconstruction(slConstants, options, tags,
+                                                                    static_cast<uint32_t>(sizeof(tags) / sizeof(tags[0])),
+                                                                    list.Get());
+        }
         hr = list->Close();
         if (FAILED(hr))
         {
@@ -330,7 +427,7 @@ namespace redefinition
                 texture->lastFence = finished;
         if (!evaluated)
         {
-            SetProblem("Ray Reconstruction did not evaluate (the proxy's log has Streamline's reason)");
+            SetProblem(notEvaluated);
             return;
         }
         context11->Wait(fence11.Get(), finished);
@@ -344,8 +441,9 @@ namespace redefinition
 
     // The mod stopped sending Ray Reconstruction frames (UpscalerRig.Reconstruction):
     // the lists that evaluated it finished first, as slFreeResources asks for pending
-    // evaluations (Streamline::FreeRayReconstruction). On the render thread, after the
-    // last of its frames.
+    // evaluations (Streamline::FreeRayReconstruction) and as a handle NGX releases is
+    // gone ("after this call, it is invalid to use the provided handle", nvsdk_ngx.h,
+    // NVSDK_NGX_ReleaseFeature). On the render thread, after the last of its frames.
     void Raytracing::OnReconstructRelease()
     {
         std::lock_guard<std::mutex> lock(mutex);
@@ -355,7 +453,9 @@ namespace redefinition
         if (fence12 != nullptr && fenceEvent != nullptr && fence12->GetCompletedValue() < fenceValue
             && SUCCEEDED(fence12->SetEventOnCompletion(fenceValue, fenceEvent)))
             WaitForSingleObject(fenceEvent, INFINITE);
-        if (Streamline::Get().FreeRayReconstruction())
+        const bool freed = reconstructionThroughNgx ? DlssRayReconstruction::Get().ReleaseFeature()
+                                                    : Streamline::Get().FreeRayReconstruction();
+        if (freed)
             LogLine("DLSS Ray Reconstruction: no longer used, its resources freed");
     }
 }

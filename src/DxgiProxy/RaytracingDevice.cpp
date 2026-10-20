@@ -6,6 +6,7 @@
 #include "Raytracing.h"
 
 #include "D3d12Util.h"
+#include "DlssRayReconstruction.h"
 #include "Log.h"
 #include "RaytracingInternal.h"
 
@@ -499,6 +500,10 @@ namespace redefinition
     void Raytracing::ReleaseLocked()
     {
         WaitForAllLocked();
+        // Ray Reconstruction through NGX on the device that goes, past every list that
+        // evaluated it.
+        if (device != nullptr)
+            DlssRayReconstruction::Get().Shutdown(device.Get());
         ReleaseRegenerationLocked();
         pendingMeshes.clear();
         pendingReleases.clear();

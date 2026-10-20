@@ -54,6 +54,19 @@ namespace redefinition
         // streamlineImgui, xell, xellLowLatencyBoost, xessFgUiMode and xessFgFrames'
         // most, which apply when what they serve starts ----
 
+        // How DLSS Ray Reconstruction runs (kRrPath*), taken when the swapchain is
+        // created, like frameGenerationTechnique. auto: through Streamline where its
+        // swapchain presents -- DLSS-G, or frame generation off -- and through NGX
+        // directly on the proxy's Direct3D 12 device otherwise, beside FSR's or
+        // XeSS's frame generation (DlssRayReconstruction.h). streamline: through
+        // Streamline only, none beside FSR's or XeSS's frame generation. ngx: through
+        // NGX only; with frame generation off the swapchain is then not Streamline's,
+        // and under DLSS-G, whose Streamline holds NGX on the device, none.
+        int rrPath = 0;
+
+        // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics
+        // and streamlineImgui, which apply when what they serve starts ----
+
         // Keep the UI out of the interpolated frames by handing FSR a HUD-less
         // snapshot: the backbuffer copied after the last scene camera and before
         // the first UI camera, so it differs from the presented frame in the UI
@@ -337,12 +350,14 @@ namespace redefinition
     constexpr int kFgTechniqueDlss = 2;
     constexpr int kFgTechniqueXess = 3;
 
-    // ProxyConfig::xessFgUiMode, xefg_swapchain_ui_mode_t's values, as the ini names
-    // them: auto, none, backbuffer_uitexture, hudless_uitexture, backbuffer_hudless,
-    // backbuffer_hudless_uitexture.
-    constexpr int kXessUiModeAuto = 0;
-    constexpr int kXessUiModeCount = 6;
-    const char* XessUiModeName(int mode);
+    // ProxyConfig::rrPath, as the ini writes it: auto, streamline, ngx.
+    constexpr int kRrPathAuto = 0;
+    constexpr int kRrPathStreamline = 1;
+    constexpr int kRrPathNgx = 2;
+    const char* RrPathName(int path);
+        // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics,
+        // streamlineImgui, xell, xellLowLatencyBoost, xessFgUiMode, rrPath and xessFgFrames'
+        // most, which apply when what they serve starts ----
 
     const ProxyConfig& Config();
     void LoadConfig();
@@ -360,6 +375,8 @@ namespace redefinition
     // made (xell, xellLowLatencyBoost, xessFgUiMode, xessFgFrames, and XeLL's frame
     // limit from fgHalfRefreshLimit), read like the folders.
     ProxyConfig ConfigAsked();
+    // rrPath as the file has it now, the same way.
+    int RayReconstructionPathAsked();
 
     // Re-reads the file when it has changed on disk; returns whether it did.
     // rebuild: whether a setting changed that the frame generation context has to

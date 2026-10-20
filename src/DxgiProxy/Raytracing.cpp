@@ -34,6 +34,8 @@ namespace redefinition
         context11 = newContext11;
         queue = newQueue;
         device.Reset();
+        // Read with the swapchain's own choice of Streamline (SwapChainProxy.cpp).
+        rrPath = RayReconstructionPathAsked();
         {
             std::lock_guard<std::mutex> status(statusLock);
             statusDevice.Reset();

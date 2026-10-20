@@ -514,14 +514,15 @@ namespace redefinition
         // From the render thread.
         void OnFrame(const void* data);
         void OnReconstruct(const void* data);
-        // Ray Reconstruction no longer used by the mod: Streamline's resources for it
-        // freed (OnReconstructRelease, render event 32).
+        // Ray Reconstruction no longer used by the mod: Streamline's resources for it,
+        // or NGX's feature, freed (OnReconstructRelease, render event 32).
         void OnReconstructRelease();
         // Raytracing no longer used by the mod (render event 33): what is made per frame
         // size, the shared copies of Unity's textures and the meshes it released go.
         void OnRelease();
 
-        // Whether DLSS Ray Reconstruction runs: 1 yes, 0 no, the reason in buffer.
+        // Whether DLSS Ray Reconstruction runs: 1 yes, 0 no, the reason in buffer --
+        // through Streamline or through NGX (rrPath, RaytracingReconstruct.cpp).
         int ReconstructionAvailable(char* buffer, int size) const;
         uint64_t ReconstructedFrames();
 
@@ -907,8 +908,12 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D11Fence> fence11;
         HANDLE fenceEvent = nullptr;
         UINT64 fenceValue = 0;
-        // Whether Ray Reconstruction was evaluated since its resources were last freed.
+        // Whether Ray Reconstruction was evaluated since its resources were last freed,
+        // and through which: Streamline's sl.dlss_d or NGX (DlssRayReconstruction.h).
         bool reconstructionEvaluated = false;
+        bool reconstructionThroughNgx = false;
+        // rrPath (Config.h) as the file had it when the swapchain was made (Attach).
+        std::atomic<int> rrPath{ 0 };
         Slot slots[kSlots];
         UINT slotIndex = 0;
         Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> list;
