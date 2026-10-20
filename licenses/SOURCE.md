@@ -20,6 +20,9 @@ package.
   `dxgi_LICENSE-FidelityFX.txt` next to `KSP_x64.exe`. Compiled into `dxgi.dll`.
 * NVIDIA Streamline SDK and NVAPI headers, by NVIDIA -- MIT,
   `dxgi_LICENSE-NVIDIA.txt` next to `KSP_x64.exe`. Compiled into `dxgi.dll`.
+* AMD Capsaicin's hash-grid radiance cache, by Advanced Micro Devices, adapted in
+  ReDefinition's radiance cache -- MIT, `dxgi_LICENSE-Capsaicin.txt` next to
+  `KSP_x64.exe`. Compiled into `dxgi.dll`.
 * AMD FidelityFX frame generation runtime, `amd_fidelityfx_framegeneration_dx12.dll`,
   by Advanced Micro Devices -- AMD's licence, `amd_fidelityfx_framegeneration_dx12_LICENSE.md`
   next to it.

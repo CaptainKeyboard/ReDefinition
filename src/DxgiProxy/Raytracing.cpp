@@ -409,6 +409,7 @@ namespace redefinition
             return;
         }
 
+        PrepareRadianceCacheLocked(frame);
         WriteFrameViewsLocked(frame);
         WriteConstantsLocked(frame);
         TransitionTexturesLocked(frame);
@@ -578,7 +579,9 @@ namespace redefinition
         constants.frameFlags = packet.flags | (Config().rtCutoutTest == 1 ? RT_FLAG_CUTOUT_PLAIN : 0u)
                                | (Config().rtCutoutTest == 2 ? RT_FLAG_CUTOUT_OPAQUE : 0u)
                                | (static_cast<uint32_t>(std::clamp(Config().rtFoliageTransmission, 0.0f, 1.0f) * 255.0f + 0.5f)
-                                  << RT_FLAG_FOLIAGE_SHIFT);
+                                  << RT_FLAG_FOLIAGE_SHIFT)
+                               | (cache.active ? RT_FLAG_RADIANCE_CACHE : 0u) | (cache.update ? RT_FLAG_RADIANCE_CACHE_UPDATE : 0u);
+        WriteRadianceCacheConstantsLocked(constants);
         memcpy(constants.lights, packet.lights, sizeof(constants.lights));
         memcpy(constants.lightParams, packet.lightParams, sizeof(constants.lightParams));
         memcpy(constants.nightLight, packet.nightLight, sizeof(constants.nightLight));
@@ -668,13 +671,16 @@ namespace redefinition
         list->SetComputeRootDescriptorTable(7, meshTable);
         meshTable.ptr += static_cast<UINT64>(kMaxMeshes + sceneNumber) * increment;
         list->SetComputeRootDescriptorTable(8, meshTable);
+        BindRadianceCacheLocked();
     }
 
     void Raytracing::RunPassesLocked(FrameWork& frame)
     {
         const RtFramePacket& packet = *frame.packet;
         // Each pass's end is stamped, in kRtPassOrder; a pass that does not run stamps where
-        // the one before it ended, so it counts nothing.
+        // the one before it ended, so it counts nothing. The radiance cache cleared or its
+        // counts zeroed first, its resolve in its place among them (kRtPassCache).
+        BeginRadianceCacheLocked(frame);
         for (UINT position = 0; position < kRtPassTimings; ++position)
         {
             const UINT index = kRtPassOrder[position];
@@ -685,9 +691,11 @@ namespace redefinition
                     pass = &entry;
             auto pipeline = pass != nullptr ? pipelines.find(pass->signal) : pipelines.end();
             if ((packet.signals & signal) != 0 && pipeline != pipelines.end())
-                DispatchPassLocked(frame, signal, pipeline->second.Get());
+                DispatchPassLocked(frame, signal, CachedPipelineLocked(signal, pipeline->second.Get()));
             if (index == kRtPassDenoiser && frame.denoising)
                 RunDenoisersLocked(frame);
+            if (index == kRtPassCache)
+                ResolveRadianceCacheLocked(frame);
             list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + 2 + position);
         }
     }
@@ -864,14 +872,22 @@ namespace redefinition
             buffer += used;
             size -= static_cast<int>(used);
         }
+        // The radiance cache's counts of the latest frame read, where it runs (RaytracingCache.cpp).
+        char cacheText[160] = {};
+        if (cache.reported)
+            _snprintf_s(cacheText, sizeof(cacheText), _TRUNCATE,
+                        " cache live=%u inserted=%u full=%u evicted=%u samples=%u queries=%u warm=%u",
+                        cache.stats[4], cache.stats[0], cache.stats[1], cache.stats[5], cache.stats[6], cache.stats[2],
+                        cache.stats[3]);
         if (buffer != nullptr && size > 0)
             _snprintf_s(buffer, static_cast<size_t>(size), _TRUNCATE,
                         "generation=%u frames=%llu reconstructed=%llu regenerated=%llu meshes=%u built=%u instances=%u"
-                        " build=%.3fms trace=%.3fms extra build=%.3fms extra trace=%.3fms%s%s",
+                        " build=%.3fms trace=%.3fms extra build=%.3fms extra trace=%.3fms%s%s%s",
                         generation.load(), static_cast<unsigned long long>(frames),
                         static_cast<unsigned long long>(reconstructed), static_cast<unsigned long long>(regenerated), liveMeshes,
                         lastBuilt, lastInstances,
-                        buildMs, traceMs, extraBuildMs, extraTraceMs, lastProblem.empty() ? "" : " last problem: ", lastProblem.c_str());
+                        buildMs, traceMs, extraBuildMs, extraTraceMs, cacheText, lastProblem.empty() ? "" : " last problem: ",
+                        lastProblem.c_str());
         return static_cast<int>(generation.load());
     }
 

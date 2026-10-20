@@ -313,6 +313,25 @@ namespace redefinition
         // the game runs.
         float rtFoliageTransmission = 0.0f;
 
+        // The world-space radiance cache of the raytraced indirect light (RaytracingCache.cpp,
+        // RaytracingShaders/RadianceCache.hlsli): the diffuse light's and the reflections'
+        // paths end at a hit in the cache's value there, where it holds enough samples,
+        // instead of tracing on, and write what they trace into it. Off by default. Its table
+        // has 2^rtRadianceCacheEntries entries of 44 bytes (16 to 22); its cells are
+        // rtRadianceCacheCellPixels pixels across at their distance, never smaller than
+        // rtRadianceCacheMinCell metres (taken down to a power of two); a cell keeps at most
+        // rtRadianceCacheSamples samples' weight and goes when no ray used it for
+        // rtRadianceCacheMaxAge frames. rtRadianceCacheDebug 1 shows the cache's value where
+        // the diffuse light was, 2 its cells in colours of their own. All re-read while the
+        // game runs.
+        bool rtRadianceCache = false;
+        int rtRadianceCacheEntries = 20;
+        float rtRadianceCacheCellPixels = 8.0f;
+        float rtRadianceCacheMinCell = 0.125f;
+        int rtRadianceCacheSamples = 256;
+        int rtRadianceCacheMaxAge = 50;
+        int rtRadianceCacheDebug = 0;
+
         // Where a player's nvngx_dlss.dll lies if not next to KSP_x64.exe, which
         // NGX searches anyway (Dlss.h). Read when DLSS starts on a device, on
         // Unity's render thread, through DlssDirectory().

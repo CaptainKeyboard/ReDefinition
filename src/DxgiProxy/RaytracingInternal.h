@@ -43,11 +43,13 @@ namespace redefinition
     inline constexpr UINT kRtPassOrder[kRtPassTimings] = { 0, 1, 2, 3, kRtPassDenoiser, 4, 5, 7 };
 
     // The entry points of the passes after the trace (RaytracingShaders/Denoise.hlsl and
-    // the others beside it).
+    // the others beside it), and of the radiance cache's (RadianceCache.hlsl) and of the
+    // diffuse light's and the reflections' passes with it (Raytracing.hlsl).
     inline const wchar_t* const kRtDenoiseEntries[] = {
         L"RT_DenoisePrepare", L"RT_DenoiseTemporal", L"RT_DenoiseVariance", L"RT_DenoiseAtrous",
         L"RT_ReconstructGuides", L"RT_FrameGuides", L"RT_GpuInstances", L"RT_RegenerationGuides",
-        L"RT_RegenerationAlbedo",
+        L"RT_RegenerationAlbedo", L"RT_CacheClear", L"RT_CacheBegin", L"RT_CacheResolve",
+        L"RT_DiffuseLightCached", L"RT_SpecularLightCached",
     };
 
     // A buffer's description: at least 256 bytes, row major.

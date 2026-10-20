@@ -217,7 +217,7 @@ namespace redefinition
     // as a Direct3D 12 texture array holds (D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION).
     constexpr uint32_t kRtMaterialTextureSize = RT_MATERIAL_TEXTURE_SIZE;
     // The bytes of a slot's constant buffer (cbuffer Frame, RtCommon.hlsli).
-    constexpr uint64_t kRtConstantsSize = 768;
+    constexpr uint64_t kRtConstantsSize = 1024;
 
     // cbuffer Frame as the shaders read it (RtCommon.hlsli), field for field.
     struct RtFrameConstants
@@ -243,6 +243,12 @@ namespace redefinition
         float clouds[24];
         float prevWorldToClipFar[16];
         float shadowFade[8];
+        // The radiance cache's (RaytracingCache.cpp): the anchor's tile and the frame, the
+        // anchor within its tile and the cells' angle, its parameters, its sizes.
+        int32_t cacheTile[4];
+        float cacheOffset[4];
+        float cacheParams[4];
+        uint32_t cacheSizes[4];
     };
     // Each field in the register the contract gives it (RtContract.h), as cbuffer Frame
     // places it (packoffset, RtCommon.hlsli).
@@ -266,6 +272,10 @@ namespace redefinition
     static_assert(offsetof(RtFrameConstants, prevWorldToClipFar) == RT_CB_PREV_WORLD_TO_CLIP_FAR * 16,
                   "cbuffer Frame: prevWorldToClipFar");
     static_assert(offsetof(RtFrameConstants, shadowFade) == RT_CB_SHADOW_FADE * 16, "cbuffer Frame: shadowFade");
+    static_assert(offsetof(RtFrameConstants, cacheTile) == RT_CB_CACHE_TILE * 16, "cbuffer Frame: cacheTile");
+    static_assert(offsetof(RtFrameConstants, cacheOffset) == RT_CB_CACHE_OFFSET * 16, "cbuffer Frame: cacheOffset");
+    static_assert(offsetof(RtFrameConstants, cacheParams) == RT_CB_CACHE_PARAMS * 16, "cbuffer Frame: cacheParams");
+    static_assert(offsetof(RtFrameConstants, cacheSizes) == RT_CB_CACHE_SIZES * 16, "cbuffer Frame: cacheSizes");
     static_assert(offsetof(RtFrameConstants, frameIndex) == RT_CB_FRAME_SIZE * 16 + 8, "cbuffer Frame: frameIndex");
     static_assert(offsetof(RtFrameConstants, frameFlags) == RT_CB_FRAME_SIZE * 16 + 12, "cbuffer Frame: frameFlags");
     static_assert(sizeof(RtFrameConstants) == RT_CB_REGISTERS * 16, "cbuffer Frame: its size");
@@ -273,9 +283,11 @@ namespace redefinition
     constexpr uint32_t kRtMaxMaterialTextures = RT_MAX_MATERIAL_TEXTURES;
 
     // The number of passes whose GPU time KspRtPassTimings reports, in signal bit order;
-    // the denoiser's time in place kRtPassDenoiser, which no signal has.
+    // the denoiser's time in place kRtPassDenoiser, which no signal has, the radiance
+    // cache's resolve in place kRtPassCache, which none has either.
     constexpr uint32_t kRtPassTimings = 8;
     constexpr uint32_t kRtPassDenoiser = 6;
+    constexpr uint32_t kRtPassCache = 5;
 
     // Event 30: a frame. Matrices rows first, for column vectors: clip = worldToClip *
     // (camera-relative position, 1). Clip y is +1 at the texture's first row, as
@@ -702,6 +714,41 @@ namespace redefinition
         static constexpr uint32_t kDenoiseUnusedFrames = 120;
 
         static constexpr UINT kSlots = 3;
+
+        // The world-space hash grid of the indirect light (RaytracingCache.cpp,
+        // RaytracingShaders/RadianceCache.hlsli): per entry its fingerprint, the frame's
+        // sums, its value and the frame it was last used in, whose buffer's tail holds the
+        // counts (kCacheStats), copied per slot for the CPU to read; and the list of the
+        // entries the frame's samples went into.
+        static constexpr uint32_t kCacheStats = 8;
+        struct RadianceCache
+        {
+            Microsoft::WRL::ComPtr<ID3D12Resource> checksums;
+            Microsoft::WRL::ComPtr<ID3D12Resource> accumulation;
+            Microsoft::WRL::ComPtr<ID3D12Resource> values;
+            Microsoft::WRL::ComPtr<ID3D12Resource> meta;
+            Microsoft::WRL::ComPtr<ID3D12Resource> touched;
+            Microsoft::WRL::ComPtr<ID3D12Resource> statsReadback;
+            uint32_t log2Entries = 0;
+            // To be cleared before the frame's passes read it: made anew, or the camera's
+            // history broken (kRtFrameReset).
+            bool clear = true;
+            // Whether this frame reads it, and writes it (not a further trace).
+            bool active = false;
+            bool update = false;
+            // The camera's place in the cache's frame, summed from the frames' moves
+            // (RtFramePacket.cameraDelta), in metres; the frames it counted.
+            double anchor[3] = {};
+            uint32_t frame = 0;
+            // The cells' angle this frame, from the camera's projection.
+            float cellAngle = 0.0f;
+            // Which slots' lists copied the counts; the counts the latest of them read, and
+            // whether they stand for the cache running, under statusLock.
+            bool statsCopied[kSlots] = {};
+            uint32_t stats[kCacheStats] = {};
+            bool reported = false;
+            ULONGLONG nextLog = 0;
+        };
         static constexpr UINT kMaxMeshes = 16384;
         static constexpr UINT kFrameDescriptors = 2 * kRtMaxTextures;
         static constexpr UINT kDenoiseDescriptors = 512;
@@ -809,6 +856,20 @@ namespace redefinition
         // among the passes.
         void RunDenoisersLocked(FrameWork& frame);
         void WriteFrameGuidesLocked(FrameWork& frame);
+        // The radiance cache (RaytracingCache.cpp): made, cleared or let go as the settings
+        // say, before the frame's constants; its constants and bindings; its clearing or the
+        // frame's counts zeroed before the passes; its resolve after them; the counts read
+        // once the slot's list is done.
+        void PrepareRadianceCacheLocked(FrameWork& frame);
+        void WriteRadianceCacheConstantsLocked(RtFrameConstants& constants) const;
+        void BindRadianceCacheLocked();
+        void BeginRadianceCacheLocked(FrameWork& frame);
+        void ResolveRadianceCacheLocked(FrameWork& frame);
+        void ReadRadianceCacheStatsLocked(UINT slotNumber);
+        void ReleaseRadianceCacheLocked(Slot* holder);
+        // The pass's pipeline with the cache where this frame uses it (the diffuse light's and
+        // the reflections' own), the given one otherwise.
+        ID3D12PipelineState* CachedPipelineLocked(uint32_t signal, ID3D12PipelineState* plain);
         // The textures back, the list submitted, the results copied into Unity's textures.
         void FinishFrameLocked(FrameWork& frame);
 
@@ -894,6 +955,7 @@ namespace redefinition
         GuideTargets guides;
         Regeneration regeneration;
         std::string regenerationWhy;
+        RadianceCache cache;
 
         Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
         UINT increment = 0;

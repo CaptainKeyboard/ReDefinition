@@ -76,13 +76,19 @@ def scenario_label(s):
     rt = "RT " + s["raytracing"]
     if s.get("ray_reconstruction") is not None:
         rt += ", RR " + ("on" if s["ray_reconstruction"] else "off")
+    if s.get("radiance_cache"):
+        rt += ", radiance cache"
     return " · ".join([s["technique_name"], rt, "FG " + s["fg_name"], s["latency_name"]])
 
 
 def scenario_key(s):
+    """The rows' key: the radiance cache's rows have theirs, the others keep the key they
+    had before the cache was a row of its own, so that runs before and after compare."""
     rr = s.get("ray_reconstruction")
-    return "/".join([s["technique"], s["raytracing"], "rr-" + ("na" if rr is None else ("on" if rr else "off")),
-                     "fg-" + s["fg"], "lat-" + s["latency"]])
+    parts = [s["technique"], s["raytracing"], "rr-" + ("na" if rr is None else ("on" if rr else "off"))]
+    if s.get("radiance_cache"):
+        parts.append("rc-on")
+    return "/".join(parts + ["fg-" + s["fg"], "lat-" + s["latency"]])
 
 
 def expand(matrix, vendor=None, resources=None):
@@ -91,7 +97,9 @@ def expand(matrix, vendor=None, resources=None):
     Only what is read at load splits the starts: the frame generation kind
     (frameGenerationTechnique, and the DLSS-G package next to KSP_x64.exe), and whatever
     "separate_starts" names. The upscaler, the raytracing mode and Ray Reconstruction
-    are the mod's own settings, which the probe sets live through its mod.<key> keys.
+    are the mod's own settings, which the probe sets live through its mod.<key> keys; the
+    radiance cache ("radiance_cache") is the proxy's live key, a rendering of its own for
+    the one technique and raytracing mode it names, with the latency models it names.
     Returns (starts, skipped), skipped as (what, why)."""
     resources = resources or {}
     skipped = []
@@ -111,7 +119,11 @@ def expand(matrix, vendor=None, resources=None):
         for rt in matrix["raytracing"]:
             rr_choices = matrix.get("ray_reconstruction", [True]) if tech.get("ray_reconstruction") and rt != "Off" else [None]
             for rr in rr_choices:
-                renderings.append({"tech": tech, "raytracing": rt, "ray_reconstruction": rr})
+                renderings.append({"tech": tech, "raytracing": rt, "ray_reconstruction": rr, "radiance_cache": None})
+            cache = matrix.get("radiance_cache")
+            if cache and cache["technique"] == tech["id"] and cache["raytracing"] == rt:
+                renderings.append({"tech": tech, "raytracing": rt, "ray_reconstruction": rr_choices[0],
+                                   "radiance_cache": True, "latencies": cache.get("latencies")})
     kinds = []
     for fg in matrix["frame_generation"]:
         if not _vendor_ok(fg, vendor):
@@ -191,17 +203,26 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
         latencies = [l for l in latencies if not l.get("only_with_fg")]
     fg_states = [("off", matrix["fg_off"])] if fg.get("fg_off_phases", True) else []
     fg_states.append(("on", matrix["fg_on"]))
+    cache_key = (matrix.get("radiance_cache") or {}).get("key")
     phases = []
     for n, r in enumerate(renderings):
         tech = r["tech"]
         mod = _mod_values(r)
         first_of_rendering = True
+        # The radiance cache's rendering with the latency models it names, or where the
+        # frame generation kind names its own, with those.
+        rendering_latencies = latencies
+        if r.get("latencies"):
+            rendering_latencies = [l for l in latencies if l["id"] in r["latencies"]] or latencies
         for state, fg_keys in fg_states:
-            for lat in latencies:
+            for lat in rendering_latencies:
                 keys = dict(matrix.get("phase_keys", {}))
                 keys.update({"mod." + k: v for k, v in mod.items()})
                 keys.update(fg_keys)
                 keys.update(lat["proxy"])
+                # Every phase names the cache's key, so that none inherits it.
+                if cache_key:
+                    keys[cache_key] = "1" if r.get("radiance_cache") else "0"
                 if state == "on":
                     fg_id, fg_name = fg["id"], fg["name"]
                 elif plain_off:
@@ -211,6 +232,7 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
                 s = {
                     "technique": tech["id"], "technique_name": tech["name"], "technique_log_name": tech.get("log_name", tech["name"]),
                     "raytracing": r["raytracing"], "ray_reconstruction": r["ray_reconstruction"],
+                    "radiance_cache": r.get("radiance_cache"),
                     "fg": fg_id, "fg_name": fg_name, "fg_requested": state == "on", "fg_kind": fg["id"],
                     "latency": lat["id"], "latency_name": lat["name"],
                 }

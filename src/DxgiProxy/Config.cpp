@@ -435,6 +435,13 @@ namespace redefinition
                  + " rtSunAtrousSteps=" + std::to_string(c.rtSunAtrousSteps)
                  + " rtSunHistory=" + std::to_string(c.rtSunHistory)
                  + " rtFoliageTransmission=" + std::to_string(c.rtFoliageTransmission)
+                 + " rtRadianceCache=" + (c.rtRadianceCache ? "1" : "0")
+                 + " rtRadianceCacheEntries=" + std::to_string(c.rtRadianceCacheEntries)
+                 + " rtRadianceCacheCellPixels=" + std::to_string(c.rtRadianceCacheCellPixels)
+                 + " rtRadianceCacheMinCell=" + std::to_string(c.rtRadianceCacheMinCell)
+                 + " rtRadianceCacheSamples=" + std::to_string(c.rtRadianceCacheSamples)
+                 + " rtRadianceCacheMaxAge=" + std::to_string(c.rtRadianceCacheMaxAge)
+                 + " rtRadianceCacheDebug=" + std::to_string(c.rtRadianceCacheDebug)
                  + " reportSeconds=" + std::to_string(c.reportSeconds)
                  + " logInputsSeconds=" + std::to_string(c.logInputsSeconds)
                  + " dlssDirectory=" + (c.dlssDirectory[0] == L'\0' ? "(none)" : "(set)")
@@ -520,6 +527,16 @@ namespace redefinition
             target.rtSunAtrousSteps = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunAtrousSteps", 0, file.c_str()));
             target.rtSunHistory = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunHistory", 4, file.c_str()));
             target.rtFoliageTransmission = ReadFloat(L"rtFoliageTransmission", file, 0.0f);
+            target.rtRadianceCache = ReadFlag(L"rtRadianceCache", file, false);
+            target.rtRadianceCacheEntries = std::clamp(
+                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheEntries", 20, file.c_str())), 16, 22);
+            target.rtRadianceCacheCellPixels = std::clamp(ReadFloat(L"rtRadianceCacheCellPixels", file, 8.0f), 1.0f, 256.0f);
+            target.rtRadianceCacheMinCell = std::clamp(ReadFloat(L"rtRadianceCacheMinCell", file, 0.125f), 1.0f / 64.0f, 64.0f);
+            target.rtRadianceCacheSamples = std::clamp(
+                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheSamples", 256, file.c_str())), 1, 65536);
+            target.rtRadianceCacheMaxAge = std::clamp(
+                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheMaxAge", 50, file.c_str())), 1, 100000);
+            target.rtRadianceCacheDebug = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheDebug", 0, file.c_str()));
             if (target.logInputsSeconds < 0)
                 target.logInputsSeconds = 0;
 

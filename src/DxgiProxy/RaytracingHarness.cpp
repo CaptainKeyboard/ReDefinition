@@ -751,6 +751,8 @@ PsOut PsMain(VsOut input)
         // The sea's frame (RtFramePacket sea): a point on the sea in the world, its east
         // and north; none where sea[4..6] is zero.
         double sea[12] = {};
+        // The camera's previous position less this one (RtFramePacket.cameraDelta).
+        Vec3 cameraDelta;
     };
 
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
@@ -802,6 +804,9 @@ PsOut PsMain(VsOut input)
         if (lighting.sea[4] == 0.0 && lighting.sea[5] == 0.0 && lighting.sea[6] == 0.0)
             memset(packet.sea, 0, sizeof(packet.sea));
         memcpy(packet.lightSurface, lighting.lightSurface, sizeof(lighting.lightSurface));
+        packet.cameraDelta[0] = float(lighting.cameraDelta.x);
+        packet.cameraDelta[1] = float(lighting.cameraDelta.y);
+        packet.cameraDelta[2] = float(lighting.cameraDelta.z);
         packet.inputs[kRtInputEnvironment] = lighting.environment;
         packet.inputs[kRtInputInstances] = lighting.gpuInstances;
         packet.inputs[kRtInputDepth] = g.depth.Get();
@@ -1062,6 +1067,41 @@ PsOut PsMain(VsOut input)
             for (int dx = -2; dx <= 2; ++dx)
                 sum += image[(static_cast<size_t>(y + dy) * kWidth + (x + dx)) * 3 + channel];
         return sum / 25.0;
+    }
+
+    // Two images of light against each other where the depth has surfaces, per 16x16 block
+    // of surface pixels: the blocks' mean absolute difference of luminance over their mean
+    // luminance; the ratio of the means over all those blocks in meanRatio.
+    double BlockDifference(const std::vector<double>& got, const std::vector<double>& reference, const std::vector<float>& depth,
+                           double& meanRatio)
+    {
+        const UINT block = 16;
+        double differences = 0.0, gotSum = 0.0, referenceSum = 0.0;
+        for (UINT by = 0; by + block <= kHeight; by += block)
+            for (UINT bx = 0; bx + block <= kWidth; bx += block)
+            {
+                double a = 0.0, b = 0.0;
+                bool surface = true;
+                for (UINT y = 0; y < block && surface; ++y)
+                    for (UINT x = 0; x < block; ++x)
+                    {
+                        const size_t i = static_cast<size_t>(by + y) * kWidth + bx + x;
+                        if (depth[i] <= 0.0f)
+                        {
+                            surface = false;
+                            break;
+                        }
+                        a += 0.2126 * got[i * 3] + 0.7152 * got[i * 3 + 1] + 0.0722 * got[i * 3 + 2];
+                        b += 0.2126 * reference[i * 3] + 0.7152 * reference[i * 3 + 1] + 0.0722 * reference[i * 3 + 2];
+                    }
+                if (!surface)
+                    continue;
+                differences += std::fabs(a - b);
+                gotSum += a;
+                referenceSum += b;
+            }
+        meanRatio = referenceSum > 0.0 ? gotSum / referenceSum : 0.0;
+        return referenceSum > 0.0 ? differences / referenceSum : 1.0;
     }
 
     void SaveColour(const wchar_t* name, const std::vector<double>& image, double scale)
@@ -1668,6 +1708,101 @@ int main()
             proxy.passTimings(passes, kRtPassTimings);
             printf("      KSP scene at %ux%u: scene build %.3f ms; sun %.3f, occlusion %.3f, diffuse %.3f, specular %.3f ms\n",
                    kWidth, kHeight, build, passes[0], passes[1], passes[2], passes[3]);
+
+            // The radiance cache (rtRadianceCache) on the pad, every signal traced as at Full:
+            // the diffuse light over 128 frames against the same without it (BlockDifference),
+            // and the GPU's times, without and with it in turn, five times 24 frames each,
+            // the median frame of each: the GPU's clock wanders over a run.
+            {
+                const std::wstring ini = NextToExecutable(L"ReDefinitionProxy.ini");
+                const auto setCache = [&](const wchar_t* value)
+                {
+                    WritePrivateProfileStringW(L"Proxy", L"rtRadianceCache", value, ini.c_str());
+                    Sleep(1100);
+                    swapChain->Present(0, 0);
+                };
+                uint32_t kspFrame = 7300;
+                // A cache made anew is cleared by its first frame and warm after 60.
+                const auto warmUp = [&]()
+                {
+                    Lighting cleared = lighting;
+                    cleared.flags = kRtFrameReset;
+                    SendFrame(proxy, view, g, outputs, sun, 0.0047f, kspFrame++, all, cleared);
+                    for (int f = 1; f < 60; ++f)
+                        SendFrame(proxy, view, g, outputs, sun, 0.0047f, kspFrame++, all, lighting);
+                };
+                // Per frame: the whole trace, the sun, the occlusion, the diffuse light, the
+                // reflections, the resolve.
+                std::vector<float> times[2][6];
+                const auto measure = [&](int cached)
+                {
+                    for (int f = 0; f < 28; ++f)
+                    {
+                        SendFrame(proxy, view, g, outputs, sun, 0.0047f, kspFrame++, all, lighting);
+                        float now[kRtPassTimings] = {};
+                        float b = 0.0f, t = 0.0f;
+                        proxy.passTimings(now, kRtPassTimings);
+                        proxy.timings(&b, &t);
+                        // The timings are a frame or two behind; the first ones of a turn are
+                        // the other's.
+                        if (f < 4)
+                            continue;
+                        times[cached][0].push_back(t);
+                        for (int k = 0; k < 4; ++k)
+                            times[cached][1 + k].push_back(now[k]);
+                        times[cached][5].push_back(now[kRtPassCache]);
+                    }
+                };
+                const auto median = [](std::vector<float> values)
+                {
+                    if (values.empty())
+                        return 0.0f;
+                    std::sort(values.begin(), values.end());
+                    return values[values.size() / 2];
+                };
+                for (int round = 0; round < 5; ++round)
+                {
+                    measure(0);
+                    setCache(L"1");
+                    warmUp();
+                    measure(1);
+                    setCache(L"0");
+                }
+                std::vector<double> off, offAgain, on;
+                if (!Accumulate(proxy, device.Get(), context.Get(), view, g, outputs, outputs.diffuse.Get(), all, lighting, sun,
+                                128, kspFrame, off)
+                    || !Accumulate(proxy, device.Get(), context.Get(), view, g, outputs, outputs.diffuse.Get(), all, lighting,
+                                   sun, 128, kspFrame + 128, offAgain))
+                    return Fatal("reading the KSP scene back", E_FAIL);
+                kspFrame += 256;
+                setCache(L"1");
+                warmUp();
+                const bool ok = Accumulate(proxy, device.Get(), context.Get(), view, g, outputs, outputs.diffuse.Get(), all,
+                                           lighting, sun, 128, kspFrame, on);
+                const std::string status = proxy.Status();
+                setCache(L"0");
+                if (!ok)
+                    return Fatal("reading the KSP scene back", E_FAIL);
+                std::vector<float> kspDepth;
+                ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, kspDepth);
+                double ratio = 0.0, noiseRatio = 0.0;
+                const double difference = BlockDifference(on, off, kspDepth, ratio);
+                const double noise = BlockDifference(offAgain, off, kspDepth, noiseRatio);
+                const size_t at = status.find(" cache ");
+                printf("      KSP scene, radiance cache:%s\n", at == std::string::npos ? " not counted" : status.substr(at).c_str());
+                char detail[300];
+                sprintf_s(detail, "diffuse light per 16x16 block off by %.2f %% (mean %+.2f %%), two runs without it %.2f %%",
+                          100.0 * difference, 100.0 * (ratio - 1.0), 100.0 * noise);
+                Check(difference < noise + 0.01 && std::fabs(ratio - 1.0) < 0.01, "KSP scene: the radiance cache's light",
+                      detail);
+                printf("      KSP scene, every signal, the median of %zu frames: %.3f ms without the radiance cache (sun %.3f,"
+                       " occlusion %.3f, diffuse %.3f, specular %.3f), %.3f ms with it (sun %.3f, occlusion %.3f, diffuse %.3f,"
+                       " specular %.3f, resolve %.3f)\n",
+                       times[1][0].size(), median(times[0][0]), median(times[0][1]), median(times[0][2]), median(times[0][3]),
+                       median(times[0][4]), median(times[1][0]), median(times[1][1]), median(times[1][2]), median(times[1][3]),
+                       median(times[1][4]), median(times[1][5]));
+                SaveColour(L"rt_ksp_cache_on.bmp", on, 1.0);
+            }
             for (auto& entry : kspMeshes)
             {
                 proxy.releaseMesh(entry.first);
@@ -3781,6 +3916,297 @@ int main()
                   reflected[1][0], reflected[0][0], reflected[1][1], reflected[1][2]);
         Check(reflected[1][0] < 1e-4 && reflected[0][0] > 0.02 && reflected[1][1] > 0.02 && reflected[1][2] > 0.01,
               "surface intent: reflections read it", detail);
+        SendInstances(proxy, scene, camera.position);
+    }
+
+    // ---------------------------------------------------------------- the radiance cache
+    {
+        // The cache (rtRadianceCache) on the box and the plane, under a sky and the sun, two
+        // bounces as the game traces: it fills and resolves, a camera that moves with its
+        // move told keeps finding its cells, its cells age out once no ray meets them, and
+        // the diffuse light it gives stays near the one without it. The light compared as
+        // the mean over 256 frames, per 16x16 block of surface pixels: the blocks' mean
+        // absolute difference of luminance over their mean luminance, against the light
+        // without the cache at two bounces and at eight; the cache's light holds every
+        // bounce in time (RtCommon.hlsli, Radiance). And the white furnace at two bounces,
+        // where every bounce brings the sky's 1 again: without the cache two bounces fall
+        // short of 1 in the box's shadow, with it the light is 1 everywhere.
+        const std::wstring ini = NextToExecutable(L"ReDefinitionProxy.ini");
+        const auto setIni = [&](const wchar_t* key, const wchar_t* value)
+        {
+            WritePrivateProfileStringW(L"Proxy", key, value, ini.c_str());
+        };
+        const auto reload = [&]()
+        {
+            // The proxy looks at the file at most once a second, from its Present.
+            Sleep(1100);
+            swapChain->Present(0, 0);
+        };
+        const auto statusCount = [&](const char* name) -> double
+        {
+            const std::string text = proxy.Status();
+            const size_t at = text.find(std::string(" ") + name + "=", text.find(" cache "));
+            return text.find(" cache ") == std::string::npos || at == std::string::npos
+                       ? -1.0
+                       : std::stod(text.substr(at + strlen(name) + 2));
+        };
+        ComPtr<IDXGIAdapter3> adapter3;
+        adapter.As(&adapter3);
+        const auto videoMemory = [&]()
+        {
+            DXGI_QUERY_VIDEO_MEMORY_INFO info = {};
+            if (adapter3 == nullptr || FAILED(adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)))
+                return 0.0;
+            return static_cast<double>(info.CurrentUsage) / 1e6;
+        };
+
+        SendInstances(proxy, scene, camera.position);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+        std::vector<float> depth;
+        ReadTexture(device.Get(), context.Get(), g.depth.Get(), 4, depth);
+        Lighting lighting;
+        lighting.sky[0] = 0.4f;
+        lighting.sky[1] = 0.5f;
+        lighting.sky[2] = 0.7f;
+        lighting.bounces = 2.0f;
+        lighting.clamp = 20.0f;
+        const int frames = 256;
+        uint32_t frameIndex = 20000;
+        std::vector<double> offTwo, offEight, on;
+        Lighting eight = lighting;
+        eight.bounces = 8.0f;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                        lighting, sun, frames, frameIndex, offTwo))
+            return Fatal("reading the light without the cache back", E_FAIL);
+        frameIndex += frames;
+        float passesOff[kRtPassTimings] = {};
+        proxy.passTimings(passesOff, kRtPassTimings);
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                        eight, sun, frames, frameIndex, offEight))
+            return Fatal("reading the light without the cache back", E_FAIL);
+        frameIndex += frames;
+
+        setIni(L"rtRadianceCache", L"1");
+        reload();
+        // Its first frame clears it, as a cut does (kRtFrameReset).
+        Lighting cleared = lighting;
+        cleared.flags = kRtFrameReset;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, cleared);
+        for (int f = 0; f < 60; ++f)
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, lighting);
+        std::vector<uint16_t> synced;
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, synced);
+        printf("      %s\n", proxy.Status().c_str());
+        const double live = statusCount("live"), samples = statusCount("samples"), queries = statusCount("queries"),
+                     warm = statusCount("warm"), full = statusCount("full");
+        char detail[400];
+        sprintf_s(detail, "after 61 frames: %.0f entries live, %.0f samples written a frame, %.0f of %.0f path hits ended"
+                          " in it, %.0f not placed",
+                  live, samples, warm, queries, full);
+        Check(live > 1000 && samples > 0.15 * kWidth * kHeight && warm > 0.5 * queries && full == 0,
+              "radiance cache: fills and resolves", detail);
+
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                        lighting, sun, frames, frameIndex, on))
+            return Fatal("reading the light with the cache back", E_FAIL);
+        frameIndex += frames;
+        float passesOn[kRtPassTimings] = {};
+        proxy.passTimings(passesOn, kRtPassTimings);
+        double ratioTwo = 0.0, ratioEight = 0.0, ratioNoise = 0.0;
+        const double errorTwo = BlockDifference(on, offTwo, depth, ratioTwo);
+        const double errorEight = BlockDifference(on, offEight, depth, ratioEight);
+        // What the noise of 256 frames alone leaves between two runs without the cache.
+        const double errorNoise = BlockDifference(offEight, offTwo, depth, ratioNoise);
+        sprintf_s(detail, "light per 16x16 block off by %.2f %% from two bounces without it (mean %+.2f %%), %.2f %% from"
+                          " eight (mean %+.2f %%); eight bounces against two %.2f %% (mean %+.2f %%)",
+                  100.0 * errorTwo, 100.0 * (ratioTwo - 1.0), 100.0 * errorEight, 100.0 * (ratioEight - 1.0),
+                  100.0 * errorNoise, 100.0 * (ratioNoise - 1.0));
+        Check(errorEight < errorNoise + 0.01 && std::fabs(ratioEight - 1.0) < 0.01 && std::fabs(ratioTwo - 1.0) < 0.03,
+              "radiance cache: the light as without it", detail);
+        SaveColour(L"rt_cache_on.bmp", on, 1.0);
+        SaveColour(L"rt_cache_off.bmp", offTwo, 1.0);
+        // One frame's times, for scale; the KSP scene above compares them in turn.
+        printf("      radiance cache at %ux%u, the diffuse light alone, one frame: diffuse %.3f ms without it, %.3f ms with"
+               " it; its resolve %.3f ms\n",
+               kWidth, kHeight, passesOff[2], passesOn[2], passesOn[kRtPassCache]);
+
+        // A camera that moves, its move told (RtFramePacket.cameraDelta): its cells stay where
+        // they are in the world, and the paths keep ending in them. Told none, as if the world
+        // moved with the camera, the cells it finds are new.
+        const auto glide = [&](bool told, double& warmShare)
+        {
+            Camera moving = camera;
+            double warmSum = 0.0, querySum = 0.0;
+            for (int f = 0; f < 30; ++f)
+            {
+                const Vec3 step = { 0.37, 0.0, 0.21 };
+                Lighting run = lighting;
+                if (f > 0)
+                {
+                    moving.position = moving.position + step;
+                    moving.target = moving.target + step;
+                    moving.Update();
+                    if (told)
+                        run.cameraDelta = Vec3{ 0, 0, 0 } - step;
+                }
+                SendInstances(proxy, scene, moving.position);
+                RenderGBuffer(context.Get(), g, moving, meshes, scene);
+                SendFrame(proxy, moving, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, run);
+                if (f >= 10)
+                {
+                    warmSum += statusCount("warm");
+                    querySum += statusCount("queries");
+                }
+            }
+            warmShare = querySum > 0.0 ? warmSum / querySum : 0.0;
+            // Back, and the cache filled again where the camera was.
+            SendInstances(proxy, scene, camera.position);
+            RenderGBuffer(context.Get(), g, camera, meshes, scene);
+            Lighting reset = lighting;
+            reset.flags = kRtFrameReset;
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, reset);
+            for (int f = 0; f < 40; ++f)
+                SendFrame(proxy, camera, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, lighting);
+        };
+        double warmTold = 0.0, warmUntold = 0.0;
+        glide(true, warmTold);
+        glide(false, warmUntold);
+        sprintf_s(detail, "a camera gliding 11 m: %.1f %% of the path hits end in the cache with its move told, %.1f %%"
+                          " without (%.1f %% standing)",
+                  100.0 * warmTold, 100.0 * warmUntold, queries > 0.0 ? 100.0 * warm / queries : 0.0);
+        Check(warmTold > 0.8 * (warm / std::max(queries, 1.0)) && warmTold > warmUntold + 0.1,
+              "radiance cache: cells fixed to the world", detail);
+
+        // The debug views (rtRadianceCacheDebug): the cache's light, and its cells.
+        std::vector<uint16_t> view;
+        std::vector<double> shown(static_cast<size_t>(kWidth) * kHeight * 3, 0.0);
+        double shownSum = 0.0, diffuseSum = 0.0;
+        for (const wchar_t* mode : { L"1", L"2" })
+        {
+            setIni(L"rtRadianceCacheDebug", mode);
+            reload();
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, lighting);
+            ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, view);
+            for (size_t i = 0; i < shown.size(); ++i)
+                shown[i] = HalfToFloat(view[(i / 3) * 4 + i % 3]);
+            if (mode[0] == L'1')
+                for (size_t i = 0; i < depth.size(); ++i)
+                    if (depth[i] > 0.0f)
+                    {
+                        shownSum += shown[i * 3] + shown[i * 3 + 1] + shown[i * 3 + 2];
+                        diffuseSum += on[i * 3] + on[i * 3 + 1] + on[i * 3 + 2];
+                    }
+            SaveColour(mode[0] == L'1' ? L"rt_cache_value.bmp" : L"rt_cache_cells.bmp", shown, 1.0);
+        }
+        setIni(L"rtRadianceCacheDebug", L"0");
+        reload();
+        sprintf_s(detail, "the cache's own light %.3f of the diffuse light with it, on the surfaces",
+                  diffuseSum > 0.0 ? shownSum / diffuseSum : 0.0);
+        Check(diffuseSum > 0.0 && std::fabs(shownSum / diffuseSum - 1.0) < 0.1, "radiance cache: its debug view", detail);
+
+        // No ray meets its cells: the camera looks at the sky alone, and after
+        // rtRadianceCacheMaxAge frames they go, an eighth of the table looked at a frame.
+        Camera up = camera;
+        up.target = camera.position + Vec3{ 0.0, 100.0, 1.0 };
+        up.Update();
+        RenderGBuffer(context.Get(), g, up, meshes, scene);
+        double evicted = 0.0;
+        for (int f = 0; f < 70; ++f)
+        {
+            SendFrame(proxy, up, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, lighting);
+            evicted = std::max(evicted, statusCount("evicted"));
+        }
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, synced);
+        SendFrame(proxy, up, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, lighting);
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, synced);
+        const double liveAfter = statusCount("live");
+        sprintf_s(detail, "%.0f entries live before, %.0f after 70 frames of sky (at most %.0f evicted in a frame)", live,
+                  liveAfter, evicted);
+        Check(liveAfter >= 0.0 && liveAfter < 0.01 * live && evicted > 0.0, "radiance cache: unused cells evicted",
+              detail);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
+
+        // The white furnace at two bounces.
+        const float white[3] = { 1.0f, 1.0f, 1.0f };
+        const float none[3] = { 0.0f, 0.0f, 0.0f };
+        SendMaterial(proxy, 10, white, none, 0.2f);
+        std::vector<Instance> furnace = scene;
+        for (Instance& instance : furnace)
+            instance.material = 10;
+        SendInstances(proxy, furnace, camera.position);
+        Lighting furnaceLight;
+        furnaceLight.sunColor[0] = furnaceLight.sunColor[1] = furnaceLight.sunColor[2] = 0.0f;
+        furnaceLight.bounces = 2.0f;
+        const auto furnaceMean = [&](std::vector<double>& mean, double& lowest)
+        {
+            double total = 0.0;
+            size_t count = 0;
+            lowest = 2.0;
+            for (size_t i = 0; i < depth.size(); ++i)
+            {
+                if (depth[i] <= 0.0f)
+                    continue;
+                total += (mean[i * 3] + mean[i * 3 + 1] + mean[i * 3 + 2]) / 3.0;
+                ++count;
+            }
+            // The darkest 16x16 block, the box's foot.
+            for (UINT by = 0; by + 16 <= kHeight; by += 16)
+                for (UINT bx = 0; bx + 16 <= kWidth; bx += 16)
+                {
+                    double sum = 0.0;
+                    bool surface = true;
+                    for (UINT y = by; y < by + 16 && surface; ++y)
+                        for (UINT x = bx; x < bx + 16; ++x)
+                        {
+                            const size_t i = static_cast<size_t>(y) * kWidth + x;
+                            surface = surface && depth[i] > 0.0f;
+                            sum += (mean[i * 3] + mean[i * 3 + 1] + mean[i * 3 + 2]) / 3.0;
+                        }
+                    if (surface)
+                        lowest = std::min(lowest, sum / 256.0);
+                }
+            return count > 0 ? total / count : 0.0;
+        };
+        std::vector<double> furnaceOn, furnaceOff;
+        Lighting furnaceFirst = furnaceLight;
+        furnaceFirst.flags = kRtFrameReset;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, furnaceFirst);
+        for (int f = 0; f < 60; ++f)
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, furnaceLight);
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                        furnaceLight, sun, frames, frameIndex, furnaceOn))
+            return Fatal("reading the furnace back", E_FAIL);
+        frameIndex += frames;
+
+        // Off again: its memory goes, and the status no longer counts it. The process's video
+        // memory read with nothing else changing in between: the same signals traced, once
+        // the slots that held the cache's buffers came round.
+        for (int f = 0; f < 4; ++f)
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, furnaceLight);
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, synced);
+        const double memoryOn = videoMemory();
+        setIni(L"rtRadianceCache", L"0");
+        reload();
+        for (int f = 0; f < 8; ++f)
+            SendFrame(proxy, camera, g, outputs, sun, 0.0f, frameIndex++, kRtSignalDiffuse, furnaceLight);
+        ReadTexture(device.Get(), context.Get(), outputs.diffuse.Get(), 8, synced);
+        const double memoryOff = videoMemory();
+        const bool counted = proxy.Status().find(" cache ") != std::string::npos;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.diffuse.Get(), kRtSignalDiffuse,
+                        furnaceLight, sun, frames, frameIndex, furnaceOff))
+            return Fatal("reading the furnace back", E_FAIL);
+        frameIndex += frames;
+        double lowestOn = 0.0, lowestOff = 0.0;
+        const double meanOn = furnaceMean(furnaceOn, lowestOn), meanOff = furnaceMean(furnaceOff, lowestOff);
+        sprintf_s(detail, "white furnace at two bounces: %.4f on average with it, its darkest block %.4f; %.4f and %.4f"
+                          " without",
+                  meanOn, lowestOn, meanOff, lowestOff);
+        Check(std::fabs(meanOn - 1.0) < 0.02 && lowestOn > 0.95 && lowestOff < lowestOn - 0.02,
+              "radiance cache: the white furnace", detail);
+        const double expectedMb = (1 << 20) * 44.0 / 1e6;
+        sprintf_s(detail, "video memory %.1f MB less once off (%.1f MB its buffers), the status %s", memoryOn - memoryOff,
+                  expectedMb, counted ? "still counts it" : "without it");
+        Check(memoryOn - memoryOff > 0.9 * expectedMb && !counted, "radiance cache: let go when off", detail);
         SendInstances(proxy, scene, camera.position);
     }
 

@@ -1,5 +1,5 @@
 {
-  "comment": "The standing comparison (docs/development/benchmarks.md). Only the frame generation kind is a KSP start of its own; the upscaler, raytracing and Ray Reconstruction (the probe's mod.<key> keys), frame generation on and off and the latency models (the proxy's live keys) are set in turn inside each start.",
+  "comment": "The standing comparison (docs/development/benchmarks.md). Only the frame generation kind is a KSP start of its own; the upscaler, raytracing and Ray Reconstruction (the probe's mod.<key> keys), frame generation on and off and the latency models (the proxy's live keys) are set in turn inside each start. The radiance cache (the proxy's live rtRadianceCache) is a rendering of its own for one technique and raytracing mode, with the latency models it names; every other phase has it off.",
   "profile": "medium",
   "settle_seconds": 2,
   "settle_after_rebuild_seconds": 8,
@@ -28,6 +28,7 @@
   ],
   "raytracing": ["Off", "Full"],
   "ray_reconstruction": [true, false],
+  "radiance_cache": {"technique": "fsr3", "raytracing": "Full", "latencies": ["none"], "key": "rtRadianceCache"},
   "frame_generation": [
     {"id": "fsr", "name": "FSR", "proxy_load": {"frameGenerationTechnique": "fsr"}, "fg_off_phases": true},
     {"id": "dlssg", "name": "DLSS-G", "proxy_load": {"frameGenerationTechnique": "dlss"}, "dlssg_package": true, "max_generated_frames": 1, "fg_off_phases": false, "vendors": ["NVIDIA"], "requires": ["dlssg_package"]},

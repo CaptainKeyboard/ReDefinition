@@ -119,8 +119,9 @@ void AmbientOcclusion(uint3 id : SV_DispatchThreadID)
 // u1: the diffuse light arriving at the pixel's surface, as a radiance in Unity's
 // units: the pixel's albedo times it is its diffuse ambient light. The sun on the
 // pixel itself is left out, as Unity's lighting adds it. The first hit's distance in w.
-[numthreads(8, 8, 1)]
-void DiffuseLight(uint3 id : SV_DispatchThreadID)
+// `cached`: with the radiance cache (RadianceCache.hlsli), as DiffuseLightCached, a
+// pipeline of its own, so that the pass without it carries none of its code.
+void DiffuseLightAt(uint3 id, bool cached)
 {
     if (any(id.xy >= frameSize))
         return;
@@ -134,13 +135,48 @@ void DiffuseLight(uint3 id : SV_DispatchThreadID)
     float3 direction = SampleCosine(normal, float2(NextFloat(random), NextFloat(random)));
     float distance;
     float3 radiance = Radiance(RayOrigin(position, normal), direction, DIFFUSE_DISTANCE, BOUNCES, random, distance,
-                               kTerrainSkip);
+                               kTerrainSkip, false, cached);
+    // The pixel's ray is a sample of the light arriving at its surface, as the cache holds
+    // it (RadianceCache.hlsli): into its cell, for the paths of other pixels and of the
+    // frames after that meet this surface. Each group of 8x8 pixels writes them every
+    // kCachePrimaryFrames-th frame, the groups in turn: a cell spans many pixels and
+    // frames, and its value is their mean all the same; chosen by the group, the other
+    // groups' waves go without the cost.
+    uint2 group = id.xy / 8u;
+    if (cached && CACHE_UPDATE && (Pcg(group.x + Pcg(group.y)) + frameIndex) % kCachePrimaryFrames == 0u)
+        CacheAdd(position, normal, length(position), radiance, random);
+    // The cache's debug view (rtRadianceCacheDebug): 1 the value of the pixel's cell, not
+    // jittered, black where it has none; 2 the cells, each in a colour from its fingerprint.
+    if (cached && CACHE_ON && CACHE_DEBUG != 0u)
+    {
+        CacheKey key = CacheKeyAt(position, normal, length(position), false, random);
+        uint entry = CacheFind(key);
+        float3 shown = 0.0f;
+        if (CACHE_DEBUG == 2u)
+            shown = float3(Pcg(key.checksum) & 0xFFu, Pcg(key.checksum + 1u) & 0xFFu, Pcg(key.checksum + 2u) & 0xFFu) / 255.0f;
+        else if (entry != kCacheNone)
+            shown = cacheValues[entry].rgb;
+        output1[id.xy] = float4(shown, min(distance, kFp16Max));
+        return;
+    }
     // The bodies' light on the pixel itself: Unity's lighting has no light for them.
     radiance += ReflectedLightAt(position, normal, random, kTerrainSkip);
     // The distance of a miss is the ray's length (100000 from the mod), past a half
     // float's largest value: written as is, it reads as infinity in the half-float
     // target. Clamped to FP16_MAX, as the sky in Reconstruct.hlsl.
     output1[id.xy] = float4(radiance, min(distance, kFp16Max));
+}
+
+[numthreads(8, 8, 1)]
+void DiffuseLight(uint3 id : SV_DispatchThreadID)
+{
+    DiffuseLightAt(id, false);
+}
+
+[numthreads(8, 8, 1)]
+void DiffuseLightCached(uint3 id : SV_DispatchThreadID)
+{
+    DiffuseLightAt(id, true);
 }
 
 // u2: the light the pixel's surface reflects towards the camera from its specular
@@ -152,8 +188,8 @@ void DiffuseLight(uint3 id : SV_DispatchThreadID)
 // what the rays meet and the sky, and the sun's and the moons' discs as on Scatterer's
 // ocean (BodiesMirroredAt), undenoised, as the glints are; the reflections' shader takes
 // it there with water's Fresnel term (ReDefinitionDeferredReflections.shader).
-[numthreads(8, 8, 1)]
-void SpecularLight(uint3 id : SV_DispatchThreadID)
+// `cached`: with the radiance cache, as SpecularLightCached (DiffuseLightAt).
+void SpecularLightAt(uint3 id, bool cached)
 {
     if (any(id.xy >= frameSize))
         return;
@@ -216,7 +252,7 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
         direction -= 2.0f * dot(direction, up) * up;
     float distance;
     float3 origin = RayOrigin(position, normal);
-    float3 radiance = Radiance(origin, direction, SPECULAR_DISTANCE, BOUNCES, random, distance, kTerrainSkip, true);
+    float3 radiance = Radiance(origin, direction, SPECULAR_DISTANCE, BOUNCES, random, distance, kTerrainSkip, true, cached);
     if (stockWater)
     {
         radiance += BodiesMirroredAt(position, normal, view, waterM, kTerrainSkip);
@@ -254,6 +290,18 @@ void SpecularLight(uint3 id : SV_DispatchThreadID)
     }
     // A miss clamped to FP16_MAX, as in DiffuseLight.
     output2[id.xy] = float4(radiance, min(distance, kFp16Max));
+}
+
+[numthreads(8, 8, 1)]
+void SpecularLight(uint3 id : SV_DispatchThreadID)
+{
+    SpecularLightAt(id, false);
+}
+
+[numthreads(8, 8, 1)]
+void SpecularLightCached(uint3 id : SV_DispatchThreadID)
+{
+    SpecularLightAt(id, true);
 }
 
 // Unity's direct light from the sun on a surface, as its shader draws it, per unit of the

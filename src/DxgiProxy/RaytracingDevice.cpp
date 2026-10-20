@@ -189,7 +189,9 @@ namespace redefinition
         ranges[6].NumDescriptors = 4;
         ranges[6].RegisterSpace = 3;
 
-        D3D12_ROOT_PARAMETER parameters[12] = {};
+        // 12-16: the radiance cache's buffers, u0-u4 in space4 (RadianceCache.hlsli), bound
+        // only where it runs (BindRadianceCacheLocked).
+        D3D12_ROOT_PARAMETER parameters[17] = {};
         parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[0].Descriptor.ShaderRegister = 0;
         parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
@@ -222,6 +224,12 @@ namespace redefinition
             parameters[10 + i].DescriptorTable.NumDescriptorRanges = 1;
             parameters[10 + i].DescriptorTable.pDescriptorRanges = &ranges[5 + i];
         }
+        for (UINT i = 0; i < 5; ++i)
+        {
+            parameters[12 + i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+            parameters[12 + i].Descriptor.ShaderRegister = i;
+            parameters[12 + i].Descriptor.RegisterSpace = 4;
+        }
         for (D3D12_ROOT_PARAMETER& parameter : parameters)
             parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -237,7 +245,7 @@ namespace redefinition
         }
 
         D3D12_ROOT_SIGNATURE_DESC desc = {};
-        desc.NumParameters = 12;
+        desc.NumParameters = 17;
         desc.pParameters = parameters;
         desc.NumStaticSamplers = 3;
         desc.pStaticSamplers = samplers;
@@ -394,7 +402,9 @@ namespace redefinition
             WaitForSingleObject(fenceEvent, INFINITE);
         }
 
-        // The slot's list is done: its timestamps are there to read where it resolved them.
+        // The slot's list is done: its timestamps are there to read where it resolved them,
+        // and the radiance cache's counts where it copied them.
+        ReadRadianceCacheStatsLocked(static_cast<UINT>(&slot - slots));
         const bool timed = slot.timed;
         slot.timed = false;
         if (!timed)
@@ -434,7 +444,8 @@ namespace redefinition
                                    + "), then";
                 for (UINT position = 0; position < kRtPassTimings; ++position)
                     line += " " + std::to_string(static_cast<double>(ticks[2 + position] - ticks[1 + position]) * toMs);
-                line += " ms (passes in the order they ran: sun, occlusion, diffuse, reflections, denoiser, 4, 5, 7);"
+                line += " ms (passes in the order they ran: sun, occlusion, diffuse, reflections, denoiser, 4,"
+                        " the radiance cache's resolve, 7);"
                         " the latest frame built " + std::to_string(lastBuilt) + " meshes, "
                         + std::to_string(lastInstances) + " instances";
                 LogLine(line);
@@ -470,6 +481,7 @@ namespace redefinition
             slot.held.clear();
         denoise = DenoiseTargets{};
         guides = GuideTargets{};
+        ReleaseRadianceCacheLocked(nullptr);
         // Where AMD's denoiser did not run, it is not tried again until the device goes.
         const bool unsupported = regeneration.unsupported;
         ReleaseRegenerationLocked();
@@ -505,6 +517,7 @@ namespace redefinition
         if (device != nullptr)
             DlssRayReconstruction::Get().Shutdown(device.Get());
         ReleaseRegenerationLocked();
+        ReleaseRadianceCacheLocked(nullptr);
         pendingMeshes.clear();
         pendingReleases.clear();
         materialData.clear();

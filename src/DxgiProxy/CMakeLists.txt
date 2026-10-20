@@ -42,11 +42,12 @@ set(REDEFINITION_RT_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/RaytracingShaders")
 # Each entry as file:entry point.
 set(REDEFINITION_RT_ENTRIES
     Raytracing:SunVisibility Raytracing:AmbientOcclusion Raytracing:DiffuseLight Raytracing:SpecularLight
-    Raytracing:PrimaryCheck Raytracing:ForwardLight
+    Raytracing:PrimaryCheck Raytracing:ForwardLight Raytracing:DiffuseLightCached Raytracing:SpecularLightCached
     Denoise:DenoisePrepare Denoise:DenoiseTemporal Denoise:DenoiseVariance Denoise:DenoiseAtrous
     Reconstruct:ReconstructGuides Reconstruct:FrameGuides
     GpuInstances:GpuInstances
-    Regenerate:RegenerationGuides RegenerateAlbedo:RegenerationAlbedo)
+    Regenerate:RegenerationGuides RegenerateAlbedo:RegenerationAlbedo
+    RadianceCache:CacheClear RadianceCache:CacheBegin RadianceCache:CacheResolve)
 set(REDEFINITION_RT_OUTPUTS)
 set(REDEFINITION_RT_RC "${CMAKE_CURRENT_BINARY_DIR}/RaytracingShaders.rc")
 if(REDEFINITION_DXC)
@@ -120,6 +121,7 @@ add_library(ReDefinitionProxy SHARED
     ProjectIdentity.h
     Raytracing.cpp
     Raytracing.h
+    RaytracingCache.cpp
     RaytracingDenoise.cpp
     RaytracingDevice.cpp
     RaytracingInternal.h

@@ -77,6 +77,15 @@ cbuffer Frame : register(b0)
     // its scale and bias.
     float4 shadowFadeCentre : RT_AT(RT_CB_SHADOW_FADE);
     float4 shadowFadeScale : RT_AT(RT_CB_SHADOW_FADE1);
+    // The radiance cache (RadianceCache.hlsli; Raytracing.h, RtFrameConstants): its
+    // anchor's tile and the frame it counts, the anchor within the tile and the cells'
+    // angle; the least cell, the most samples, the samples it takes to be read, the chance a
+    // path traces on all the same; its buckets, their slots, the frames an unused cell
+    // lives, the debug view.
+    int4 cacheTile : RT_AT(RT_CB_CACHE_TILE);
+    float4 cacheOffset : RT_AT(RT_CB_CACHE_OFFSET);
+    float4 cacheParams : RT_AT(RT_CB_CACHE_PARAMS);
+    uint4 cacheSizes : RT_AT(RT_CB_CACHE_SIZES);
 };
 
 struct InstanceData
@@ -1026,15 +1035,34 @@ float3 ReflectedLightAt(float3 position, float3 normal, inout Random random, flo
     return colour * nl / chance * CloudTransmittance(position, axis);
 }
 
+#include "RadianceCache.hlsli"
+
 // The radiance arriving along a ray, from what it hits and, bounce by bounce, what
 // lights that; the sky where it escapes: as light (SkyLight), or, for a mirror's ray
 // that sees it directly (`mirror`, its first segment), as it looks.
+//
+// With the radiance cache (`cached`, the passes' own pipelines for it, and CACHE_ON), at a
+// hit the path would bounce on from, the light arriving there is the cache's where its
+// cell holds CACHE_WARM_SAMPLES samples, and the path ends: its albedo times that in place
+// of what the bounces would bring, the light that reaches the hit itself (the sun, the
+// moons) traced as before. With the chance
+// CACHE_REFRESH, and where the cell is cold, the path traces on; the light its bounces
+// bring to its first such hit -- what it gathered past the hit, divided by the weight it
+// had there -- goes into the cache's cell of the hit (CACHE_UPDATE), as Binder et al.'s
+// vertices add "their contribution" to their voxel. As GI-1.0's "temporal radiance
+// feedback" (2.2.4), the cache's value holds the light of every bounce in time, where
+// today's paths stop after `bounces`.
 float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces, inout Random random,
-                out float firstDistance, float firstTerrainSkip = 0.0f, bool mirror = false)
+                out float firstDistance, float firstTerrainSkip = 0.0f, bool mirror = false, bool cached = false)
 {
     float3 total = 0.0f;
     float3 weight = 1.0f;
     firstDistance = maxDistance;
+    // The hit whose arriving light goes into the cache: where it is, what the path had
+    // gathered there and its weight past the hit's albedo.
+    bool record = false;
+    float3 recordPosition = 0.0f, recordNormal = float3(0.0f, 1.0f, 0.0f), recordTotal = 0.0f, recordWeight = 0.0f;
+    float recordRay = 0.0f;
     for (uint bounce = 0u; bounce <= bounces; ++bounce)
     {
         Hit hit = TraceClosest(origin, direction, bounce == 0u ? maxDistance : 1.0e7f, bounce == 0u ? firstTerrainSkip : 0.0f);
@@ -1054,6 +1082,28 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
                            + material.emission);
         if (bounce == bounces)
             break;
+        if (cached && CACHE_ON)
+        {
+            float4 cell;
+            bool warm = CacheLookup(hit.position, hit.normal, hit.distance, random, cell) && cell.w >= CACHE_WARM_SAMPLES;
+            bool refresh = NextFloat(random) < CACHE_REFRESH;
+            CacheCount(RT_CACHE_STAT_QUERIES, true);
+            CacheCount(RT_CACHE_STAT_WARM, warm && !refresh);
+            if (warm && !refresh)
+            {
+                total += weight * albedo * cell.rgb;
+                break;
+            }
+            if (CACHE_UPDATE && !record)
+            {
+                record = true;
+                recordPosition = hit.position;
+                recordNormal = hit.normal;
+                recordRay = hit.distance;
+                recordTotal = total;
+                recordWeight = weight * albedo;
+            }
+        }
         weight *= albedo;
         // Past the second bounce, a path goes on by the chance its weight gives it.
         if (bounce >= 2u)
@@ -1065,6 +1115,16 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
         }
         origin = RayOrigin(hit.position, hit.normal);
         direction = SampleCosine(hit.normal, float2(NextFloat(random), NextFloat(random)));
+    }
+    // The light the bounces brought to the recorded hit, where its albedo lets it be told:
+    // a channel the albedo all but takes away says nothing of the light arriving.
+    if (record && all(recordWeight > 0.01f))
+    {
+        float3 arriving = (total - recordTotal) / recordWeight;
+        float arrivingLuminance = dot(arriving, float3(0.2126f, 0.7152f, 0.0722f));
+        if (SAMPLE_CLAMP > 0.0f && arrivingLuminance > SAMPLE_CLAMP)
+            arriving *= SAMPLE_CLAMP / arrivingLuminance;
+        CacheAdd(recordPosition, recordNormal, recordRay, max(arriving, 0.0f), random);
     }
     float luminance = dot(total, float3(0.2126f, 0.7152f, 0.0722f));
     if (SAMPLE_CLAMP > 0.0f && luminance > SAMPLE_CLAMP)

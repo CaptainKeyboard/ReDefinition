@@ -40,6 +40,11 @@
 // surface taken as opaque, as no candidate hit stops a ray.
 #define RT_FLAG_CUTOUT_PLAIN 0x800u
 #define RT_FLAG_CUTOUT_OPAQUE 0x1000u
+// The radiance cache (RadianceCache.hlsli; the proxy's rtRadianceCache), set by the proxy:
+// the paths read it at their hits, and, in a frame's own trace but not in a further one
+// (the ocean's), write their samples into it.
+#define RT_FLAG_RADIANCE_CACHE 0x2000u
+#define RT_FLAG_RADIANCE_CACHE_UPDATE 0x4000u
 // What of the sun's light a cut-out surface -- a blade of grass, a fern -- lets through,
 // in 255ths, in these bits of the flags (the proxy's rtFoliageTransmission).
 #define RT_FLAG_FOLIAGE_SHIFT 16u
@@ -233,6 +238,13 @@
 #define RT_CB_PREV_WORLD_TO_CLIP_FAR 40
 #define RT_CB_SHADOW_FADE 44
 #define RT_CB_SHADOW_FADE1 45
-#define RT_CB_REGISTERS 46
+// The radiance cache's (RadianceCache.hlsli), the proxy's own: its anchor's tile and the
+// frame it counts, the anchor within the tile and the cells' angle, its parameters, its
+// sizes.
+#define RT_CB_CACHE_TILE 46
+#define RT_CB_CACHE_OFFSET 47
+#define RT_CB_CACHE_PARAMS 48
+#define RT_CB_CACHE_SIZES 49
+#define RT_CB_REGISTERS 50
 
 #endif
