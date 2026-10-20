@@ -1159,9 +1159,483 @@ PsOut PsMain(VsOut input)
     }
 }
 
-int main()
+// RaytracingOmmHarness.cpp: opacity micromaps against the driver.
+int RunOmmDriverChecks(IDXGIAdapter1* adapter, const wchar_t* shaderPath, bool dumpTable);
+
+// A tuft of grass: six blades of three segments each, 36 triangles, the texture coordinates
+// across and along the blade, for a blade texture (OmmBladeAlpha) that cuts its shape out.
+static Mesh MakeTuft(int id)
+{
+    Mesh m;
+    m.id = id;
+    const int blades = 6, segments = 3;
+    for (int b = 0; b < blades; ++b)
+    {
+        const double angle = b * 2.0 * 3.14159265358979 / blades;
+        const Vec3 dir = { std::cos(angle), 0, std::sin(angle) };
+        const Vec3 side = { -std::sin(angle), 0, std::cos(angle) };
+        const uint32_t base = static_cast<uint32_t>(m.positions.size() / 3);
+        for (int i = 0; i <= segments; ++i)
+        {
+            const double h = double(i) / segments;
+            const Vec3 centre = dir * (0.12 + 0.3 * h * h) + Vec3{ 0, h, 0 };
+            const double half = 0.16 * (1.0 - 0.45 * h);
+            for (int s = -1; s <= 1; s += 2)
+            {
+                const Vec3 p = centre + side * (s * half);
+                m.positions.insert(m.positions.end(), { float(p.x), float(p.y), float(p.z) });
+                m.normals.insert(m.normals.end(), { float(dir.x), 0.3f, float(dir.z) });
+                m.uvs.insert(m.uvs.end(), { 0.5f + 0.5f * s, float(1.0 - h) });
+            }
+        }
+        for (int i = 0; i < segments; ++i)
+        {
+            const uint32_t a = base + 2 * i;
+            m.indices.insert(m.indices.end(), { a, a + 2, a + 1, a + 1, a + 2, a + 3 });
+        }
+    }
+    return m;
+}
+
+// The coverage of a blade: a lens with a soft edge, 255 inside, a ramp over five texels, 0 out.
+static uint8_t OmmBladeAlpha(uint32_t x, uint32_t y, double ramp = 0.15)
+{
+    const double u = (x + 0.5) / kRtMaterialTextureSize, v = (y + 0.5) / kRtMaterialTextureSize;
+    const double h = 1.0 - v;
+    const double across = std::fabs(u - 0.5) * 2.0;
+    const double edge = 0.97 * (1.0 - 0.6 * h * h) - 0.0;
+    const double tip = h > 0.9 ? (1.0 - h) / 0.1 : 1.0;
+    const double alpha = std::clamp((edge - across) / ramp, 0.0, 1.0) * std::clamp(tip * 2.0, 0.0, 1.0);
+    return static_cast<uint8_t>(std::lround(alpha * 255.0));
+}
+
+// Opacity micromaps through the proxy: a field of tufts of grass as a cut-out material's meshes,
+// the picture with them and without (the sun's visibility, the camera's rays, the diffuse
+// light) against each other, and what they cost and save.
+static int RunOmmProxyChecks(Proxy& proxy, ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain1* swapChain,
+                             IDXGIAdapter1* adapter, GBuffer& g, Outputs& outputs, std::map<int, Mesh>& meshes,
+                             const std::vector<Instance>& scene, const Camera& camera, Vec3 sun, bool expectNone)
+{
+    const int before = failures;
+    DXGI_ADAPTER_DESC1 adapterDesc = {};
+    adapter->GetDesc1(&adapterDesc);
+    ComPtr<IDXGIAdapter3> adapter3;
+    adapter->QueryInterface(IID_PPV_ARGS(&adapter3));
+    const auto videoMemory = [&]()
+    {
+        DXGI_QUERY_VIDEO_MEMORY_INFO info = {};
+        if (adapter3 == nullptr || FAILED(adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)))
+            return 0.0;
+        return static_cast<double>(info.CurrentUsage) / 1e6;
+    };
+    const std::wstring ini = NextToExecutable(L"ReDefinitionProxy.ini");
+
+    // The tuft, its material and texture.
+    Mesh tuft = MakeTuft(90);
+    meshes[90] = tuft;
+    if (FAILED(UploadMeshForRaster(device, meshes[90])) || SendMesh(proxy, meshes[90]) != 1)
+        return Fatal("the tuft of grass", E_FAIL);
+    std::vector<uint8_t> pixels(static_cast<size_t>(kRtMaterialTextureSize) * kRtMaterialTextureSize * 4, 90);
+    uint64_t opaqueTexels = 0, partialTexels = 0;
+    for (uint32_t y = 0; y < kRtMaterialTextureSize; ++y)
+        for (uint32_t x = 0; x < kRtMaterialTextureSize; ++x)
+        {
+            const uint8_t a = OmmBladeAlpha(x, y);
+            pixels[(y * kRtMaterialTextureSize + x) * 4 + 3] = a;
+            opaqueTexels += a == 255;
+            partialTexels += a != 0 && a != 255;
+        }
+    if (proxy.setMaterialTexture(6, pixels.data(), static_cast<int>(kRtMaterialTextureSize)) != 1)
+        return Fatal("the blade texture", E_FAIL);
+    RtMaterialDesc material = {};
+    material.size = sizeof(material);
+    material.magic = kRtMaterialMagic;
+    material.material = 91;
+    material.albedo[0] = 0.2f; material.albedo[1] = 0.5f; material.albedo[2] = 0.15f;
+    material.albedo[3] = 0.5f;
+    material.specular[0] = material.specular[1] = material.specular[2] = 0.04f;
+    material.smoothness = 0.2f;
+    material.texture = 6;
+    if (proxy.setMaterial(&material) != 1)
+        return Fatal("the grass material", E_FAIL);
+
+    // A field of them around the origin, turned and sized by a fixed sequence.
+    const int tufts = 700;
+    std::vector<Instance> field = scene;
+    std::vector<Instance> tuftInstances;
+    uint32_t seed = 987654321u;
+    const auto next = [&]()
+    {
+        seed = seed * 1664525u + 1013904223u;
+        return double(seed >> 8) / 16777216.0;
+    };
+    for (int i = 0; i < tufts; ++i)
+    {
+        Instance t;
+        t.mesh = 90;
+        t.material = 91;
+        const double radius = 4.0 + 26.0 * std::sqrt(next()), angle = next() * 6.2831853;
+        const double turn = next() * 6.2831853, size = 1.2 + 1.6 * next();
+        t.hasMatrix = true;
+        const double c = std::cos(turn) * size, s = std::sin(turn) * size;
+        const double m[12] = { c, 0, s, radius * std::cos(angle), 0, size * 1.4, 0, 0.0, -s, 0, c, radius * std::sin(angle) };
+        memcpy(t.matrix, m, sizeof(m));
+        t.position = { m[3], m[7], m[11] };
+        tuftInstances.push_back(t);
+    }
+    field.insert(field.end(), tuftInstances.begin(), tuftInstances.end());
+
+    // The same tufts as a GPU instance group, in t7's layout.
+    const UINT rows = (tufts + kRtInstancesPerRow - 1) / kRtInstancesPerRow;
+    std::vector<float> texels(static_cast<size_t>(kRtInstancesPerRow) * 3 * rows * 4, 0.0f);
+    for (int i = 0; i < tufts; ++i)
+        for (int r = 0; r < 3; ++r)
+        {
+            float transform[12];
+            RelativeTransform(tuftInstances[i], camera.position, transform);
+            const size_t texel = static_cast<size_t>(i / kRtInstancesPerRow) * kRtInstancesPerRow * 3
+                                 + (i % kRtInstancesPerRow) * 3 + r;
+            memcpy(&texels[texel * 4], transform + r * 4, 16);
+        }
+    D3D11_TEXTURE2D_DESC placesDesc = {};
+    placesDesc.Width = kRtInstancesPerRow * 3;
+    placesDesc.Height = rows;
+    placesDesc.MipLevels = 1;
+    placesDesc.ArraySize = 1;
+    placesDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    placesDesc.SampleDesc.Count = 1;
+    placesDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    const D3D11_SUBRESOURCE_DATA placesData = { texels.data(), placesDesc.Width * 16, 0 };
+    ComPtr<ID3D11Texture2D> places;
+    if (FAILED(device->CreateTexture2D(&placesDesc, &placesData, &places)))
+        return Fatal("the tufts' places", E_FAIL);
+    RtGpuInstanceGroup group = {};
+    group.mesh = 90;
+    group.material = 91;
+    group.first = 0;
+    group.count = tufts;
+    group.mask = 0xFF;
+
+    struct Status
+    {
+        unsigned meshes = 0, bakes = 0;
+        double ommMb = 0, bakeMs = 0, blasMb = 0;
+    };
+    const auto status = [&]()
+    {
+        Status s;
+        const std::string text = proxy.Status();
+        const size_t at = text.find("omm=");
+        if (at != std::string::npos)
+            sscanf_s(text.c_str() + at, "omm=%u/%lfMB/%u/%lfms", &s.meshes, &s.ommMb, &s.bakes, &s.bakeMs);
+        const size_t blas = text.find(" blas=");
+        if (blas != std::string::npos)
+            s.blasMb = atof(text.c_str() + blas + 6);
+        return s;
+    };
+    const auto setKeys = [&](std::initializer_list<std::pair<const wchar_t*, const wchar_t*>> keys)
+    {
+        for (const auto& key : keys)
+            WritePrivateProfileStringW(L"Proxy", key.first, key.second, ini.c_str());
+        // The proxy looks at the file at most once a second, from its Present.
+        Sleep(1100);
+        swapChain->Present(0, 0);
+    };
+
+    uint32_t frameIndex = 52000;
+    bool fromGpu = false;
+    const auto prepare = [&](bool gpu)
+    {
+        fromGpu = gpu;
+        SendInstances(proxy, gpu ? scene : field, camera.position);
+        proxy.setGpuGroups(gpu ? &group : nullptr, gpu ? 1 : 0, kRtAnyFrame);
+        std::vector<Instance> drawn = field;
+        RenderGBuffer(context, g, camera, meshes, drawn);
+    };
+    Lighting lit;
+    lit.materialTextures = true;
+    const auto lighting = [&]()
+    {
+        Lighting l = lit;
+        l.gpuInstances = fromGpu ? places.Get() : nullptr;
+        return l;
+    };
+    const uint32_t traced = kRtSignalSunVisibility | kRtSignalAmbientOcclusion | kRtSignalDiffuse | kRtSignalSpecular;
+
+    struct Measure
+    {
+        Frame frame;
+        std::vector<uint16_t> diffuse;
+        double trace = 0, sunPass = 0, blasMb = 0, ommMb = 0, memory = 0;
+        unsigned meshes = 0, bakes = 0;
+        bool ok = false;
+    };
+    const auto measure = [&]() -> Measure
+    {
+        Measure m;
+        for (int f = 0; f < 24; ++f)
+            SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, traced, lighting());
+        // The least of three batches' means: the machine's own noise is larger than the effect.
+        double trace = 1e9, sunPass = 1e9;
+        for (int batch = 0; batch < 3; ++batch)
+        {
+            double batchTrace = 0, batchSun = 0;
+            for (int f = 0; f < 16; ++f)
+            {
+                SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, traced, lighting());
+                float build = 0, t = 0, passes[8] = {};
+                proxy.timings(&build, &t);
+                proxy.passTimings(passes, 8);
+                batchTrace += t / 16.0;
+                batchSun += passes[0] / 16.0;
+            }
+            trace = std::min(trace, batchTrace);
+            sunPass = std::min(sunPass, batchSun);
+        }
+        // The picture: the same frame index every time, so that the rays' random numbers are.
+        SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 59990, kRtSignalSunVisibility | kRtSignalPrimaryCheck, lighting());
+        if (!ReadFrame(device, context, g, outputs, m.frame))
+            return m;
+        SendFrame(proxy, camera, g, outputs, sun, 0.0047f, 59991, kRtSignalDiffuse, lighting());
+        if (!ReadTexture(device, context, outputs.diffuse.Get(), 8, m.diffuse))
+            return m;
+        const Status s = status();
+        m.trace = trace;
+        m.sunPass = sunPass;
+        m.blasMb = s.blasMb;
+        m.ommMb = s.ommMb;
+        m.meshes = s.meshes;
+        m.bakes = s.bakes;
+        m.memory = videoMemory();
+        m.ok = true;
+        return m;
+    };
+    // Pixels that differ between two pictures: the sun's visibility or the diffuse light, whose
+    // rays meet the cut-out surfaces and read their normals and colours, of those that show a
+    // surface. The camera's hit distance is counted apart and left out: the primary check
+    // traces with RAY_FLAG_FORCE_OPAQUE (Raytracing.hlsl), which takes a card as it was drawn,
+    // opaque; a micromap's transparent micro-triangles stay skipped for such a ray ("there is no
+    // way to turn a transparent micro-triangle miss into a hit even by using force-opaque ray
+    // or instance flags", DirectX-Specs, Raytracing). No pass of the service traces so.
+    size_t unlikeParts[3] = {};
+    const auto compare = [&](const Measure& a, const Measure& b, size_t& compared)
+    {
+        size_t differing = 0;
+        compared = 0;
+        unlikeParts[0] = unlikeParts[1] = unlikeParts[2] = 0;
+        for (size_t i = 0; i < a.frame.depth.size(); ++i)
+        {
+            if (a.frame.depth[i] <= 0.0f)
+                continue;
+            ++compared;
+            const bool litA = HalfToFloat(a.frame.visibility[i * 4]) > 0.5f, litB = HalfToFloat(b.frame.visibility[i * 4]) > 0.5f;
+            const float hitA = a.frame.primary[i * 4], hitB = b.frame.primary[i * 4];
+            bool light = true;
+            for (int c = 0; c < 3; ++c)
+            {
+                const float x = HalfToFloat(a.diffuse[i * 4 + c]), y = HalfToFloat(b.diffuse[i * 4 + c]);
+                light = light && std::fabs(x - y) <= 0.02f * std::max(1.0f, std::fabs(y));
+            }
+            const bool hit = std::fabs(hitA - hitB) > 1e-3f * std::max(1.0f, std::fabs(hitB));
+            unlikeParts[0] += litA != litB;
+            unlikeParts[1] += hit;
+            unlikeParts[2] += !light;
+            if (litA != litB || !light)
+                ++differing;
+        }
+        return differing;
+    };
+    const auto describe = [&](const char* name, const Measure& m)
+    {
+        printf("        %-46s trace %6.3f ms  sun pass %6.3f ms  structures %7.4f MB  micromaps %u meshes %7.4f MB  video memory %7.1f MB\n",
+               name, m.trace, m.sunPass, m.blasMb, m.meshes, m.ommMb, m.memory);
+    };
+
+    // The blade texture in numbers, for the log of a run.
+    printf("      the blade texture: %llu texels fully covered, %llu partly, of %u; %d tufts of %zu triangles\n",
+           static_cast<unsigned long long>(opaqueTexels), static_cast<unsigned long long>(partialTexels),
+           kRtMaterialTextureSize * kRtMaterialTextureSize, tufts, tuft.indices.size() / 3);
+
+    setKeys({ { L"rtOpacityMicromaps", L"0" }, { L"rtFoliageTransmission", L"0" }, { L"rtCutoutTest", L"0" } });
+    prepare(false);
+    const Measure plain = measure();
+    if (!plain.ok)
+        return Fatal("reading the tufts' frame back", E_FAIL);
+    SaveVisibility(L"rt_omm_off.bmp", plain.frame);
+    describe("off", plain);
+
+    // On: the bake runs on a thread of its own, the structure is built again when it is done.
+    setKeys({ { L"rtOpacityMicromaps", L"1" } });
+    int waited = 0;
+    for (; waited < 600; ++waited)
+    {
+        SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, kRtSignalSunVisibility, lighting());
+        if (status().meshes >= 1)
+            break;
+        Sleep(10);
+    }
+    const Measure on = measure();
+    if (!on.ok)
+        return Fatal("reading the micromaps' frame back", E_FAIL);
+    SaveVisibility(L"rt_omm_on.bmp", on.frame);
+    describe("on", on);
+    {
+        char detail[300];
+        sprintf_s(detail, "%u mesh(es) with micromaps %.3f MB after %d frames, %u bake(s) of %.1f ms in all", on.meshes, on.ommMb,
+                  waited, on.bakes, status().bakeMs);
+        const bool wanted = !expectNone && adapterDesc.VendorId == 0x10DE;
+        Check(wanted ? on.meshes >= 1 : on.meshes == 0, expectNone ? "no micromaps without the driver's capability" : "micromaps built",
+              detail);
+    }
+    size_t compared = 0;
+    {
+        const size_t differing = compare(plain, on, compared);
+        // Where they differ, red over the picture with them: sun visibility without, with.
+        std::vector<float> image(static_cast<size_t>(kWidth) * kHeight * 3);
+        for (size_t i = 0; i < static_cast<size_t>(kWidth) * kHeight; ++i)
+        {
+            const float a = HalfToFloat(plain.frame.visibility[i * 4]), b = HalfToFloat(on.frame.visibility[i * 4]);
+            image[i * 3] = plain.frame.depth[i] > 0.0f ? 0.2f + 0.8f * b : 0.4f;
+            image[i * 3 + 1] = plain.frame.depth[i] > 0.0f ? 0.2f + 0.8f * b : 0.4f;
+            image[i * 3 + 2] = plain.frame.depth[i] > 0.0f ? 0.2f + 0.8f * b : 0.4f;
+            if (a != b)
+            {
+                image[i * 3] = a > b ? 1.0f : 0.0f;
+                image[i * 3 + 1] = a > b ? 0.0f : 1.0f;
+                image[i * 3 + 2] = 0.0f;
+            }
+        }
+        WriteBmp(NextToExecutable(L"rt_omm_difference.bmp"), kWidth, kHeight, image);
+        char detail[300];
+        sprintf_s(detail, "%zu of %zu pixels differ (sun visibility %zu, diffuse light %zu; camera rays of the primary check %zu apart); trace %.3f ms against %.3f,"
+                          " sun pass %.3f ms against %.3f, structures %.2f MB against %.2f",
+                  differing, compared, unlikeParts[0], unlikeParts[2], unlikeParts[1], on.trace, plain.trace, on.sunPass, plain.sunPass, on.blasMb, plain.blasMb);
+        Check(compared > 50000 && differing * 5000 <= compared, "the same picture with micromaps", detail);
+    }
+
+    // Off again, live: the structures keep their micromaps, the instances switch them off.
+    setKeys({ { L"rtOpacityMicromaps", L"0" } });
+    const Measure off = measure();
+    if (!off.ok)
+        return Fatal("reading the frame back", E_FAIL);
+    describe("off again, live", off);
+    {
+        const size_t differing = compare(plain, off, compared);
+        char detail[300];
+        sprintf_s(detail, "%zu of %zu pixels differ from before; trace %.3f ms against %.3f", differing, compared, off.trace,
+                  plain.trace);
+        Check(compared > 50000 && differing * 5000 <= compared, "micromaps switched off live", detail);
+    }
+
+    // What the cut-out surfaces' tests cost the rays at most: every surface opaque, no candidate.
+    setKeys({ { L"rtCutoutTest", L"2" } });
+    describe("rtCutoutTest=2, every surface opaque", measure());
+    setKeys({ { L"rtCutoutTest", L"0" } });
+
+    // The material's texture changes (a hard-edged blade, almost no partial texels): the
+    // micromaps are baked again for it, and the structure built again; meanwhile the instances
+    // switch them off, as the picture of the old coverage would be wrong.
+    {
+        std::vector<uint8_t> hard = pixels;
+        uint64_t partial = 0;
+        for (uint32_t y = 0; y < kRtMaterialTextureSize; ++y)
+            for (uint32_t x = 0; x < kRtMaterialTextureSize; ++x)
+            {
+                const uint8_t a = OmmBladeAlpha(x, y, 0.02);
+                hard[(y * kRtMaterialTextureSize + x) * 4 + 3] = a;
+                partial += a != 0 && a != 255;
+            }
+        setKeys({ { L"rtOpacityMicromaps", L"1" } });
+        const unsigned bakesBefore = status().bakes;
+        proxy.setMaterialTexture(6, hard.data(), static_cast<int>(kRtMaterialTextureSize));
+        const Measure during = measure();
+        int rebaked = 0;
+        for (; rebaked < 600 && !expectNone; ++rebaked)
+        {
+            SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, kRtSignalSunVisibility, lighting());
+            if (status().bakes > bakesBefore)
+                break;
+            Sleep(10);
+        }
+        const Measure hardOn = measure();
+        setKeys({ { L"rtOpacityMicromaps", L"0" } });
+        const Measure hardOff = measure();
+        char name[100];
+        sprintf_s(name, "hard blade (%llu partly covered texels), on", static_cast<unsigned long long>(partial));
+        describe(name, hardOn);
+        describe("hard blade, off", hardOff);
+        size_t n = 0, m = 0;
+        const size_t differing = compare(hardOff, hardOn, n);
+        const size_t whileDiffering = compare(hardOff, during, m);
+        char detail[300];
+        sprintf_s(detail, "a new texture for the material: %zu of %zu pixels differ once its micromaps are baked (%u bakes in all,"
+                          " after %d frames), %zu of %zu while they are not; trace %.3f ms against %.3f without, sun pass %.3f against %.3f",
+                  differing, n, status().bakes, rebaked, whileDiffering, m, hardOn.trace, hardOff.trace, hardOn.sunPass,
+                  hardOff.sunPass);
+        Check(n > 50000 && differing * 5000 <= n && whileDiffering * 5000 <= m && (expectNone || status().bakes > bakesBefore),
+              "micromaps follow a texture that changes", detail);
+        proxy.setMaterialTexture(6, pixels.data(), static_cast<int>(kRtMaterialTextureSize));
+    }
+
+    // The sun's rays let part of the light through a cut-out surface: the micromaps' opaque
+    // parts stay candidates then.
+    const auto pair = [&](const char* name, std::initializer_list<std::pair<const wchar_t*, const wchar_t*>> keys, bool gpu)
+    {
+        std::vector<std::pair<const wchar_t*, const wchar_t*>> offKeys(keys.begin(), keys.end());
+        std::vector<std::pair<const wchar_t*, const wchar_t*>> onKeys = offKeys;
+        offKeys.push_back({ L"rtOpacityMicromaps", L"0" });
+        onKeys.push_back({ L"rtOpacityMicromaps", L"1" });
+        prepare(gpu);
+        for (const auto& key : onKeys)
+            WritePrivateProfileStringW(L"Proxy", key.first, key.second, ini.c_str());
+        Sleep(1100);
+        swapChain->Present(0, 0);
+        for (int f = 0; f < 600 && !expectNone && status().meshes < 1; ++f)
+        {
+            SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, kRtSignalSunVisibility, lighting());
+            Sleep(10);
+        }
+        const Measure withOmm = measure();
+        for (const auto& key : offKeys)
+            WritePrivateProfileStringW(L"Proxy", key.first, key.second, ini.c_str());
+        Sleep(1100);
+        swapChain->Present(0, 0);
+        const Measure without = measure();
+        if (!withOmm.ok || !without.ok)
+            return;
+        size_t n = 0;
+        const size_t differing = compare(without, withOmm, n);
+        char detail[300];
+        sprintf_s(detail, "%zu of %zu pixels differ with micromaps; trace %.3f ms against %.3f", differing, n, withOmm.trace,
+                  without.trace);
+        Check(n > 50000 && differing * 5000 <= n, name, detail);
+    };
+    pair("micromaps with the sun's rays let through foliage", { { L"rtFoliageTransmission", L"0.5" } }, false);
+    pair("micromaps with the measuring test of the cut-out surfaces", { { L"rtFoliageTransmission", L"0" }, { L"rtCutoutTest", L"1" } }, false);
+    pair("micromaps on instances from the GPU", { { L"rtFoliageTransmission", L"0" }, { L"rtCutoutTest", L"0" } }, true);
+
+    setKeys({ { L"rtOpacityMicromaps", nullptr }, { L"rtFoliageTransmission", nullptr }, { L"rtCutoutTest", nullptr } });
+    proxy.setGpuGroups(nullptr, 0, kRtAnyFrame);
+    proxy.releaseMesh(90);
+    meshes.erase(90);
+    SendInstances(proxy, scene, camera.position);
+    RenderGBuffer(context, g, camera, meshes, scene);
+    return failures - before;
+}
+
+int main(int argc, char** argv)
 {
     printf("ReDefinition raytracing harness\n");
+    // --omm: only the opacity micromaps' checks against the driver; --omm-table also lists
+    // the order the driver has.
+    const bool ommOnly = argc > 1 && (strcmp(argv[1], "--omm") == 0 || strcmp(argv[1], "--omm-table") == 0);
+    const bool ommTable = argc > 1 && strcmp(argv[1], "--omm-table") == 0;
+    // --omm-scene: only the opacity micromaps through the proxy; --omm-none the same with the
+    // driver's capability simulated as none (REDEFINITION_OMM_CAPS).
+    const bool ommScene = argc > 1 && (strcmp(argv[1], "--omm-scene") == 0 || strcmp(argv[1], "--omm-none") == 0);
+    const bool ommNone = argc > 1 && strcmp(argv[1], "--omm-none") == 0;
+    if (ommNone)
+        SetEnvironmentVariableA("REDEFINITION_OMM_CAPS", "none");
 
     Proxy proxy;
     proxy.module = LoadLibraryW(L"dxgi.dll");
@@ -1204,6 +1678,12 @@ int main()
     DXGI_ADAPTER_DESC1 adapterDesc = {};
     adapter->GetDesc1(&adapterDesc);
     wprintf(L"      adapter: %s\n", adapterDesc.Description);
+    if (ommOnly)
+    {
+        const int failed = RunOmmDriverChecks(adapter.Get(), NextToExecutable(L"OmmProbe.cso").c_str(), ommTable);
+        printf(failed == 0 ? "all opacity micromap checks passed\n" : "%d opacity micromap check(s) failed\n", failed);
+        return failed == 0 ? 0 : 1;
+    }
 
     ComPtr<ID3D11Device> device;
     ComPtr<ID3D11DeviceContext> context;
@@ -1290,6 +1770,14 @@ int main()
     camera.target = { 0, 5, 0 };
     camera.Update();
     const Vec3 sun = { -0.5, 0.7, 0.4 };
+
+    if (ommScene)
+    {
+        const int failed = RunOmmProxyChecks(proxy, device.Get(), context.Get(), swapChain.Get(), adapter.Get(), g, outputs, meshes,
+                                             scene, camera, sun, ommNone);
+        printf(failed == 0 ? "all opacity micromap checks passed\n" : "%d opacity micromap check(s) failed\n", failed);
+        return failed == 0 ? 0 : 1;
+    }
 
     SendInstances(proxy, scene, camera.position);
     RenderGBuffer(context.Get(), g, camera, meshes, scene);
@@ -4685,6 +5173,30 @@ int main()
                           r.compared);
                 Check(r.compared > 100000 && r.differing * 1000 <= r.compared, "the same picture however built", detail);
             }
+    }
+
+    // ---------------------------------------------------------------- opacity micromaps
+    {
+        failures += RunOmmDriverChecks(adapter.Get(), NextToExecutable(L"OmmProbe.cso").c_str(), false);
+        failures += RunOmmProxyChecks(proxy, device.Get(), context.Get(), swapChain.Get(), adapter.Get(), g, outputs, meshes, scene,
+                                      camera, sun, false);
+        // With the driver's capability simulated as none, in a process of its own: the capability
+        // is asked once a device (REDEFINITION_OMM_CAPS).
+        wchar_t self[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, self, MAX_PATH);
+        std::wstring command = L"\"" + std::wstring(self) + L"\" --omm-none";
+        STARTUPINFOW startup = {};
+        startup.cb = sizeof(startup);
+        PROCESS_INFORMATION process = {};
+        DWORD code = 1;
+        if (CreateProcessW(self, command.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &startup, &process))
+        {
+            WaitForSingleObject(process.hProcess, 600000);
+            GetExitCodeProcess(process.hProcess, &code);
+            CloseHandle(process.hThread);
+            CloseHandle(process.hProcess);
+        }
+        Check(code == 0, "opacity micromaps with the driver's capability simulated as none", code == 0 ? "the same picture, none built" : "see above");
     }
 
     printf(failures == 0 ? "all raytracing checks passed\n" : "%d raytracing check(s) failed\n", failures);

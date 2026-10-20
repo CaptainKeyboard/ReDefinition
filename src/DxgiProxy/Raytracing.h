@@ -8,11 +8,14 @@
 
 #include "FrameGeneration.h"
 #include "RaytracingBuild.h"
+#include "RaytracingOmm.h"
+#include "RaytracingOmmBake.h"
 #include "RaytracingShaders/RtContract.h"
 
 #include <FidelityFX/api/include/ffx_api_loader.h>
 
 #include <atomic>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -20,6 +23,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace redefinition
@@ -604,6 +608,19 @@ namespace redefinition
             // rtMegaGeometry: the batch of CLAS its cluster BLAS is built of, 0 for none
             // (BlasMemory::clasBatches).
             uint32_t clasBatch = 0;
+            // The id it was handed over under.
+            int32_t id = 0;
+            // Opacity micromaps (RaytracingOmm.cpp): the set its structure is built with, 0 for
+            // none, and the texture layer and the coverage's hash it was baked for; whether its
+            // texture coordinates are kept for baking, and whether a bake is asked for.
+            uint32_t ommSet = 0;
+            int32_t ommLayer = -1;
+            uint64_t ommAlphaHash = 0;
+            bool ommSource = false;
+            bool ommAsked = false;
+            // The count of changes of any texture's coverage (OmmMemory::alphaChanges) when its
+            // set was last found to fit.
+            uint32_t ommCheckedAt = UINT32_MAX;
         };
         static constexpr uint32_t kRefineNone = 0;
         static constexpr uint32_t kRefineRebuild = 1;   // built PREFER_FAST_BUILD, to be rebuilt
@@ -922,7 +939,7 @@ namespace redefinition
         void ToCopyLocked(BuildFrame& frame, ID3D12Resource* buffer);
         void ToReadLocked(BuildFrame& frame, ID3D12Resource* buffer);
         bool UploadSpaceLocked(BuildFrame& frame, Slot& slot, UINT64 size, ID3D12Resource*& buffer, UINT64& offset,
-                               uint8_t*& cpu);
+                               uint8_t*& cpu, UINT64 alignment = 16);
         bool ScratchLocked(BuildFrame& frame, Slot& slot, UINT64 size, D3D12_GPU_VIRTUAL_ADDRESS& address);
         bool MakeBlasLocked(UINT64 size, bool pooled, RtStoredBuffer& blas);
         // A compacted size asked of the build queued last, into the slot's buffer of them.
@@ -945,6 +962,39 @@ namespace redefinition
         void ReleaseClustersLocked(Mesh& mesh, UINT64 freeAt);
         // From WaitForSlotLocked: the GPU's time of a slot's mesh builds.
         void NoteMeshBuildTimeLocked(UINT slotNumber, double ms);
+        // Opacity micromaps (RaytracingOmm.cpp, Config.h rtOpacityMicromaps). Asked once a frame
+        // before anything is recorded: whether the driver has them, the pipelines made with
+        // their support once they are wanted, and what the frame's instances do with them.
+        void PrepareOmmLocked(const RtFramePacket& packet);
+        // The texture coverage of a layer, kept for baking.
+        void OmmNoteTextureLocked(int layer, const std::vector<uint8_t>& pixels);
+        // A new mesh: its texture coordinates kept where a cut-out instance may use it.
+        void OmmNoteMeshLocked(Mesh& mesh, const PendingMesh& pending);
+        // The meshes cut-out instances of the newest scene use (or may: a material not known
+        // yet), where the driver has micromaps.
+        void OmmCollectCutoutMeshesLocked();
+        // A frame's bakes taken in, bakes asked for, structures with micromaps queued.
+        // How many structures it built again.
+        uint32_t OmmUpdateLocked(BuildFrame& frame, Slot& slot);
+        // A set let go of by one mesh, freed past freeAt once none holds it; a mesh's share of
+        // its set let go of.
+        void OmmUnrefSetLocked(uint32_t setId, UINT64 freeAt);
+        void OmmReleaseMeshLocked(Mesh& mesh, UINT64 freeAt);
+        void OmmForgetMeshLocked(int32_t id);
+        // How an instance of a mesh and a material stands with the micromaps: whether its
+        // flags drop FORCE_NON_OPAQUE (the micromap decides the opaque parts), and whether
+        // they switch the micromaps off.
+        struct OmmFlags
+        {
+            bool dropNonOpaque = false;
+            bool disable = false;
+        };
+        OmmFlags OmmInstanceLocked(const Mesh& mesh, int32_t material, bool cutout);
+        // A scene's cut-out instance of a mesh with no micromap yet: asked for.
+        void OmmWantLocked(Mesh& mesh, int32_t material);
+        bool OmmQueueBuildLocked(BuildFrame& frame, Mesh& mesh, uint32_t setId, Slot& slot);
+        void FlushOmmArraysLocked(BuildFrame& frame);
+
         // Whether a material's texture cuts its surface out.
         bool IsCutoutLocked(int32_t material) const;
         bool BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances, UINT& instanceCount);
@@ -1140,6 +1190,109 @@ namespace redefinition
             void Reset();
         };
         BlasMemory blasMemory;
+
+        // Opacity micromaps (RaytracingOmm.cpp).
+        struct OmmMemory
+        {
+            // The driver's: -1 not asked on this device, 0 none, 1 standard; the functions.
+            int caps = -1;
+            bool pipelines = false;
+            void* getCaps = nullptr;
+            void* setOptions = nullptr;
+            void* getArrayPrebuild = nullptr;
+            void* buildArray = nullptr;
+            void* getPrebuildEx = nullptr;
+            void* buildEx = nullptr;
+            // What this frame's instances do (PrepareOmmLocked).
+            bool live = false;
+            bool keepNonOpaque = false;
+            // What the log last said.
+            std::string announcedLine;
+            std::string capsWhy;
+            bool wanted = false;
+            // A texture's coverage (the alpha of its 64 x 64 pixels) and its hash, by layer.
+            struct Alpha
+            {
+                std::vector<uint8_t> bytes;
+                uint64_t hash = 0;
+            };
+            std::unordered_map<int, Alpha> alpha;
+            uint32_t alphaChanges = 0;
+            // The texture coordinates of the meshes a cut-out instance may use, by their id.
+            struct Source
+            {
+                std::vector<omm::TriangleUv> triangles;
+                uint64_t uvHash = 0;
+            };
+            std::unordered_map<int32_t, Source> sources;
+            std::unordered_set<int32_t> cutoutMeshes;
+            // A set: a baked mesh's micromaps, shared by the meshes with the same texture
+            // coordinates and texture.
+            struct Set
+            {
+                uint64_t key = 0;
+                RtStoredBuffer array;
+                std::vector<int32_t> triangleIndex;
+                std::vector<nvomm::UsageCount> usage;
+                // Until the array's build is recorded.
+                std::vector<uint8_t> data;
+                std::vector<nvomm::Desc> descs;
+                bool arrayBuilt = false;
+                uint32_t refs = 0;
+                // The update count it was last held at: a set nobody holds goes after a while, so
+                // that a mesh handed over again finds its set.
+                uint32_t idleSince = 0;
+                UINT64 arrayBytes = 0;
+            };
+            std::unordered_map<uint32_t, Set> sets;
+            std::unordered_map<uint64_t, uint32_t> byKey;
+            uint32_t nextSet = 1;
+            uint32_t updates = 0;
+            RtBufferPool arrays;
+            bool poolSetUp = false;
+            // Meshes asked for and not yet attached: the mesh and the layer, by the set's key.
+            std::unordered_map<int32_t, int> wantedMeshes;
+            std::unordered_map<uint64_t, std::vector<std::pair<int32_t, int>>> waiting;
+            std::deque<std::pair<int32_t, uint32_t>> toAttach;
+            // The baker's thread: jobs in, results out.
+            struct Job
+            {
+                uint64_t key = 0;
+                std::vector<omm::TriangleUv> triangles;
+                std::vector<uint8_t> alpha;
+                omm::Settings settings;
+                uint32_t epoch = 0;
+            };
+            struct Result
+            {
+                uint64_t key = 0;
+                omm::Baked baked;
+                uint32_t epoch = 0;
+                double ms = 0.0;
+            };
+            std::mutex jobLock;
+            std::condition_variable jobSignal;
+            std::deque<Job> jobs;
+            std::vector<Result> results;
+            bool workerStarted = false;
+            std::atomic<uint32_t> epoch{ 0 };
+            // What was done since the device came: for the status and the log.
+            uint32_t metMeshes = 0;
+            uint32_t bakes = 0;
+            double bakeMs = 0.0;
+            uint64_t microTriangles = 0;
+            uint32_t ommEntries = 0;
+            uint32_t uniformTriangles = 0;
+            uint32_t builtTriangles = 0;
+            void Reset();
+        };
+        OmmMemory omm;
+        // The status's numbers: meshes with micromaps, the arrays' bytes and the triangles in
+        // them, under statusLock.
+        uint32_t ommMeshes = 0;
+        uint64_t ommBytes = 0;
+        uint32_t ommBakes = 0;
+        float ommBakeMs = 0.0f;
         std::unordered_map<void*, Shared> textures;
         // The descriptor slots ran out once on this device (logged once).
         bool meshSlotsFull = false;

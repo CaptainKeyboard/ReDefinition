@@ -82,6 +82,7 @@ namespace redefinition
         blasMemory.geometry.Free(mesh.geometry, fenceValue + 1);
         RetireBlasLocked(mesh.blas, slot);
         ReleaseClustersLocked(mesh, fenceValue + 1);
+        OmmReleaseMeshLocked(mesh, fenceValue + 1);
         retiredSlots.emplace_back(mesh.slot, fenceValue + 1);
     }
 
@@ -95,6 +96,7 @@ namespace redefinition
         blasMemory.blas.Free(mesh.blas.range, 0);
         mesh.blas = RtStoredBuffer{};
         ReleaseClustersLocked(mesh, 0);
+        OmmReleaseMeshLocked(mesh, 0);
         freeSlots.push_back(mesh.slot);
     }
 
@@ -194,6 +196,8 @@ namespace redefinition
             list->ResourceBarrier(static_cast<UINT>(frame.barriers.size()), frame.barriers.data());
             frame.barriers.clear();
         }
+        // The micromap arrays the structures below name.
+        FlushOmmArraysLocked(frame);
         for (BuildFrame::Build& build : frame.builds)
         {
             // The compacted size as a further output of the build, "without extra barrier
@@ -205,18 +209,28 @@ namespace redefinition
                 info.DestBuffer = frame.sizes->GetGPUVirtualAddress() + static_cast<UINT64>(build.sizeIndex) * sizeof(UINT64);
                 info.InfoType = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_COMPACTED_SIZE;
             }
+            if (build.ex)
+            {
+                // Through NVAPI, with the micromaps attached.
+                const nvomm::BuildExParams params = { nvomm::Version(sizeof(nvomm::BuildExParams), 1), &build.descEx,
+                                                      build.askSize ? 1u : 0u, build.askSize ? &info : nullptr };
+                if (reinterpret_cast<nvomm::BuildStructureExFn>(omm.buildEx)(list.Get(), &params) != 0)
+                    SetProblem("the driver refused the build of a structure with micromaps");
+                continue;
+            }
             list->BuildRaytracingAccelerationStructure(&build.desc, build.askSize ? 1 : 0, build.askSize ? &info : nullptr);
         }
         frame.builds.clear();
     }
 
     bool Raytracing::UploadSpaceLocked(BuildFrame& frame, Slot& slot, UINT64 size, ID3D12Resource*& buffer, UINT64& offset,
-                                      uint8_t*& cpu)
+                                      uint8_t*& cpu, UINT64 alignment)
     {
         if (frame.pooled)
         {
             D3D12_GPU_VIRTUAL_ADDRESS unused = 0;
-            return blasMemory.slots[frame.slotNumber].upload.Allocate(device.Get(), size, 16, buffer, offset, unused, cpu);
+            return blasMemory.slots[frame.slotNumber].upload.Allocate(device.Get(), size, alignment, buffer, offset, unused,
+                                                                      cpu);
         }
         ComPtr<ID3D12Resource> upload;
         void* mapped = nullptr;
@@ -304,6 +318,15 @@ namespace redefinition
         }
         blasMemory.blas.Reclaim(completed);
         blasMemory.geometry.Reclaim(completed);
+        if (!omm.poolSetUp)
+        {
+            // The micromap arrays, which stay in RAYTRACING_ACCELERATION_STRUCTURE as the
+            // structures do, at the 256 bytes NVAPI asks.
+            omm.arrays.Setup(D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+                             nvomm::kArrayAlignment, 1ull << 20, L"ReDefinition raytracing micromaps");
+            omm.poolSetUp = true;
+        }
+        omm.arrays.Reclaim(completed);
 
         BuildFrame frame;
         frame.slotNumber = static_cast<UINT>(&slot - slots);
@@ -328,6 +351,7 @@ namespace redefinition
                 continue;
             RetireMeshLocked(found->second, slot);
             meshes.erase(found);
+            OmmForgetMeshLocked(id);
         }
         pendingReleases.clear();
         uint32_t changed = CompactMeshesLocked(frame, slot);
@@ -344,6 +368,8 @@ namespace redefinition
         uint64_t builtIndices = 0;
         uint64_t builtVertices = 0;
         uint64_t largestIndices = 0;
+        if (omm.caps == 1 && !pendingMeshes.empty())
+            OmmCollectCutoutMeshesLocked();
         for (auto entry = pendingMeshes.begin(); entry != pendingMeshes.end();)
         {
             if (budget > 0 && built > 0 && (builtIndices + entry->second.indices.size()) / 3 > budget)
@@ -407,6 +433,8 @@ namespace redefinition
             ++built;
             ++uploaded;
         }
+        // The cut-out meshes whose micromaps are baked: their structures built with them.
+        changed += OmmUpdateLocked(frame, slot);
         // The structures built fast rebuilt for tracing, in frames that build no new mesh;
         // the refits, a skinned part's every frame, do not hold them back.
         if (uploaded == 0)
@@ -648,9 +676,11 @@ namespace redefinition
         device->CreateShaderResourceView(mesh.attributesBuffer, &structured, attributeView);
 
         mesh.built = true;
+        mesh.id = frame.meshId;
         mesh.vertexCount = pending.vertexCount;
         mesh.indexCount = static_cast<uint32_t>(pending.indices.size());
         mesh.indexHash = pending.indexHash;
+        OmmNoteMeshLocked(mesh, pending);
         return true;
     }
 
@@ -820,6 +850,10 @@ namespace redefinition
         // particular this means no changes to properties like ... VertexCount, ... geometry
         // flags, data formats, index buffer contents and so on." BuildMeshesLocked checks the
         // counts and the indices' hash; the geometry is the one UploadMeshLocked built.
+        // A structure with micromaps is built again, and its micromaps with it (RaytracingOmm.cpp):
+        // its coordinates may have changed.
+        if (mesh.ommSet != 0)
+            return false;
         const UINT64 positionsSize = pending.positions.size() * sizeof(float);
         const UINT64 attributesSize = pending.attributes.size() * sizeof(float);
 
@@ -905,6 +939,10 @@ namespace redefinition
         }
         frame.builds.push_back(build);
         frame.builds.back().desc.Inputs.pGeometryDescs = &frame.builds.back().geometry;
+        // Its coordinates, if a cut-out instance may use it, as they are now.
+        mesh.id = frame.meshId;
+        if (mesh.ommSource)
+            OmmNoteMeshLocked(mesh, pending);
         return true;
     }
 
@@ -1085,9 +1123,21 @@ namespace redefinition
             desc.InstanceContributionToHitGroupIndex = 0;
             // Terrain and cut-out surfaces go through the passes' candidate test.
             const bool cutout = IsCutoutLocked(instance.material);
-            desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
-                         | ((instance.flags & kRtInstanceTerrain) != 0 || cutout ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
-                                                                               : 0);
+            UINT instanceFlags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
+                                 | ((instance.flags & kRtInstanceTerrain) != 0 || cutout
+                                        ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE : 0);
+            if (omm.caps == 1)
+            {
+                // Opacity micromaps (RaytracingOmm.cpp): asked for, and the flags they bring.
+                if (cutout)
+                    OmmWantLocked(mesh->second, instance.material);
+                const OmmFlags ommFlags = OmmInstanceLocked(mesh->second, instance.material, cutout);
+                if (ommFlags.dropNonOpaque)
+                    instanceFlags &= ~static_cast<UINT>(D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE);
+                if (ommFlags.disable)
+                    instanceFlags |= nvomm::kInstanceDisableOmms;
+            }
+            desc.Flags = instanceFlags;
             desc.AccelerationStructure = mesh->second.blas.address;
             descs.push_back(desc);
 
@@ -1257,7 +1307,18 @@ namespace redefinition
             item.first = group.first;
             item.count = group.count;
             item.start = gpuCount;
-            item.maskFlags = (group.mask & 0xFFu) | (((group.flags | (cutout ? kRtInstanceCutout : 0u)) & 0xFFFFFFu) << 8);
+            uint32_t groupFlags = group.flags | (cutout ? kRtInstanceCutout : 0u);
+            if (omm.caps == 1)
+            {
+                if (cutout)
+                    OmmWantLocked(mesh->second, group.material);
+                const OmmFlags ommFlags = OmmInstanceLocked(mesh->second, group.material, cutout);
+                if (ommFlags.dropNonOpaque)
+                    groupFlags |= RT_GROUP_NO_NON_OPAQUE;
+                if (ommFlags.disable)
+                    groupFlags |= RT_GROUP_DISABLE_OMMS;
+            }
+            item.maskFlags = (group.mask & 0xFFu) | ((groupFlags & 0xFFFFFFu) << 8);
             groups.push_back(item);
             gpuCount += group.count;
         }

@@ -108,6 +108,15 @@
 // defaults are taken as matt (RtMaterialIntent).
 #define RT_INSTANCE_SCENERY 0x4u
 
+// Set by the service in the flags of a group of GPU instances (Raytracing's AddGpuInstancesLocked),
+// high above the managed side's: the group's cut-out instances do not take FORCE_NON_OPAQUE
+// because their opacity micromaps decide the opaque parts, or switch the micromaps off
+// (RaytracingOmm.cpp). GpuInstances.hlsl turns them into the instances' flags and leaves
+// them out of what the passes read.
+#define RT_GROUP_NO_NON_OPAQUE 0x100000u
+#define RT_GROUP_DISABLE_OMMS 0x200000u
+#define RT_GROUP_SERVICE_FLAGS 0x300000u
+
 #define RT_ANY_FRAME 0xFFFFFFFFu
 #define RT_MATERIAL_TEXTURE_SIZE 64
 #define RT_MAX_MATERIAL_TEXTURES 2048

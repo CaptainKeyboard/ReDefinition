@@ -431,6 +431,8 @@ namespace redefinition
                  + " xessFgPresentFailedInterpolation=" + (c.xessFgPresentFailedInterpolation ? "1" : "0")
                  + " rtOwnQueue=" + (c.rtOwnQueue ? "1" : "0")
                  + " rtCutoutTest=" + std::to_string(c.rtCutoutTest)
+                 + " rtOpacityMicromaps=" + std::to_string(c.rtOpacityMicromaps)
+                 + " rtOmmMaxSubdivision=" + std::to_string(c.rtOmmMaxSubdivision)
                  + " rtSunUnfiltered=" + std::string(c.rtSunUnfiltered ? "1" : "0")
                  + " rtSunAtrousSteps=" + std::to_string(c.rtSunAtrousSteps)
                  + " rtSunHistory=" + std::to_string(c.rtSunHistory)
@@ -530,6 +532,10 @@ namespace redefinition
             target.xellLowLatencyBoost = ReadFlag(L"xellLowLatencyBoost", file, false);
             target.rtOwnQueue = ReadFlag(L"rtOwnQueue", file, false);
             target.rtCutoutTest = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtCutoutTest", 0, file.c_str()));
+            target.rtOpacityMicromaps =
+                std::clamp(static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtOpacityMicromaps", 0, file.c_str())), 0, 1);
+            target.rtOmmMaxSubdivision =
+                std::clamp(static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtOmmMaxSubdivision", 6, file.c_str())), 2, 8);
             target.rtSunUnfiltered = GetPrivateProfileIntW(L"Proxy", L"rtSunUnfiltered", 0, file.c_str()) != 0;
             target.rtSunAtrousSteps = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunAtrousSteps", 0, file.c_str()));
             target.rtSunHistory = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunHistory", 4, file.c_str()));

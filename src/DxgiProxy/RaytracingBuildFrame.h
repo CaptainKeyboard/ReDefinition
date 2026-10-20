@@ -68,11 +68,25 @@ namespace redefinition
             D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
             bool askSize = false;
             UINT sizeIndex = 0;
+            // A structure with opacity micromaps, built through NVAPI (RaytracingOmm.cpp): its
+            // geometry, its description and the usage counts the geometry points at.
+            bool ex = false;
+            nvomm::GeometryDescEx geometryEx = {};
+            nvomm::BuildDescEx descEx = {};
+            std::vector<nvomm::UsageCount> usage;
         };
         // A deque, so that a build's inputs keep pointing at its geometry.
         std::deque<Build> builds;
         UINT sizesAsked = 0;
         ID3D12Resource* sizes = nullptr;
+
+        // The micromap arrays to build before the structures that name them.
+        struct OmmArrayBuild
+        {
+            nvomm::ArrayBuildDesc desc = {};
+            std::vector<nvomm::UsageCount> usage;
+        };
+        std::deque<OmmArrayBuild> ommArrays;
 
         // rtMegaGeometry: the frame's clusters (RaytracingMegaGeometry.cpp), each a
         // CLAS built from triangles in the upload, and its meshes, each a cluster BLAS of

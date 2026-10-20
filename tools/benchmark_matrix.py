@@ -78,16 +78,21 @@ def scenario_label(s):
         rt += ", RR " + ("on" if s["ray_reconstruction"] else "off")
     if s.get("radiance_cache"):
         rt += ", radiance cache"
+    if s.get("opacity_micromaps"):
+        rt += ", opacity micromaps"
     return " · ".join([s["technique_name"], rt, "FG " + s["fg_name"], s["latency_name"]])
 
 
 def scenario_key(s):
-    """The rows' key: the radiance cache's rows have theirs, the others keep the key they
-    had before the cache was a row of its own, so that runs before and after compare."""
+    """The rows' key: the radiance cache's and the opacity micromaps' rows have theirs, the
+    others keep the key they had before those were rows of their own, so that runs before and
+    after compare."""
     rr = s.get("ray_reconstruction")
     parts = [s["technique"], s["raytracing"], "rr-" + ("na" if rr is None else ("on" if rr else "off"))]
     if s.get("radiance_cache"):
         parts.append("rc-on")
+    if s.get("opacity_micromaps"):
+        parts.append("omm-on")
     return "/".join(parts + ["fg-" + s["fg"], "lat-" + s["latency"]])
 
 
@@ -99,7 +104,10 @@ def expand(matrix, vendor=None, resources=None):
     "separate_starts" names. The upscaler, the raytracing mode and Ray Reconstruction
     are the mod's own settings, which the probe sets live through its mod.<key> keys; the
     radiance cache ("radiance_cache") is the proxy's live key, a rendering of its own for
-    the one technique and raytracing mode it names, with the latency models it names.
+    the one technique and raytracing mode it names, with the latency models it names; so
+    are the opacity micromaps ("opacity_micromaps"), the last rendering of the start that
+    has that technique and mode: the first live 1 makes the passes' pipelines with micromap
+    support, which they keep, so no row after it is without.
     Returns (starts, skipped), skipped as (what, why)."""
     resources = resources or {}
     skipped = []
@@ -108,6 +116,7 @@ def expand(matrix, vendor=None, resources=None):
         if not _vendor_ok(l, vendor):
             skipped.append(("latency " + l["id"], "only on " + "/".join(l["vendors"])))
     renderings = []
+    micromap_rendering = None
     for tech in matrix["techniques"]:
         if not _vendor_ok(tech, vendor):
             skipped.append(("technique " + tech["id"], "only on " + "/".join(tech["vendors"])))
@@ -119,11 +128,17 @@ def expand(matrix, vendor=None, resources=None):
         for rt in matrix["raytracing"]:
             rr_choices = matrix.get("ray_reconstruction", [True]) if tech.get("ray_reconstruction") and rt != "Off" else [None]
             for rr in rr_choices:
-                renderings.append({"tech": tech, "raytracing": rt, "ray_reconstruction": rr, "radiance_cache": None})
+                renderings.append({"tech": tech, "raytracing": rt, "ray_reconstruction": rr, "radiance_cache": None,
+                                   "opacity_micromaps": None})
             cache = matrix.get("radiance_cache")
             if cache and cache["technique"] == tech["id"] and cache["raytracing"] == rt:
                 renderings.append({"tech": tech, "raytracing": rt, "ray_reconstruction": rr_choices[0],
-                                   "radiance_cache": True, "latencies": cache.get("latencies")})
+                                   "radiance_cache": True, "opacity_micromaps": None, "latencies": cache.get("latencies")})
+            micromaps = matrix.get("opacity_micromaps")
+            if micromaps and micromaps["technique"] == tech["id"] and micromaps["raytracing"] == rt:
+                micromap_rendering = {"tech": tech, "raytracing": rt, "ray_reconstruction": rr_choices[0],
+                                      "radiance_cache": None, "opacity_micromaps": True,
+                                      "latencies": micromaps.get("latencies")}
     kinds = []
     for fg in matrix["frame_generation"]:
         if not _vendor_ok(fg, vendor):
@@ -146,6 +161,12 @@ def expand(matrix, vendor=None, resources=None):
             if not groups or groups[-1][0] != group:
                 groups.append((group, []))
             groups[-1][1].append(r)
+        if micromap_rendering is not None:
+            # The last of the group it belongs to.
+            for _, members in groups:
+                if any(m["tech"]["id"] == micromap_rendering["tech"]["id"] for m in members):
+                    members.append(micromap_rendering)
+                    break
         for group, members in groups:
             starts.append(_start(matrix, fg, members, group, latencies, resources, fg is plain_off))
     # One reason per thing skipped is enough.
@@ -204,6 +225,7 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
     fg_states = [("off", matrix["fg_off"])] if fg.get("fg_off_phases", True) else []
     fg_states.append(("on", matrix["fg_on"]))
     cache_key = (matrix.get("radiance_cache") or {}).get("key")
+    micromaps_key = (matrix.get("opacity_micromaps") or {}).get("key")
     phases = []
     for n, r in enumerate(renderings):
         tech = r["tech"]
@@ -223,6 +245,8 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
                 # Every phase names the cache's key, so that none inherits it.
                 if cache_key:
                     keys[cache_key] = "1" if r.get("radiance_cache") else "0"
+                if micromaps_key:
+                    keys[micromaps_key] = "1" if r.get("opacity_micromaps") else "0"
                 if state == "on":
                     fg_id, fg_name = fg["id"], fg["name"]
                 elif plain_off:
@@ -232,7 +256,7 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
                 s = {
                     "technique": tech["id"], "technique_name": tech["name"], "technique_log_name": tech.get("log_name", tech["name"]),
                     "raytracing": r["raytracing"], "ray_reconstruction": r["ray_reconstruction"],
-                    "radiance_cache": r.get("radiance_cache"),
+                    "radiance_cache": r.get("radiance_cache"), "opacity_micromaps": r.get("opacity_micromaps"),
                     "fg": fg_id, "fg_name": fg_name, "fg_requested": state == "on", "fg_kind": fg["id"],
                     "latency": lat["id"], "latency_name": lat["name"],
                 }

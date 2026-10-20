@@ -128,6 +128,10 @@ add_library(ReDefinitionProxy SHARED
     RaytracingBuildFrame.h
     RaytracingMegaGeometry.cpp
     RaytracingMegaGeometry.h
+    RaytracingOmm.cpp
+    RaytracingOmm.h
+    RaytracingOmmBake.cpp
+    RaytracingOmmBake.h
     RaytracingDevice.cpp
     RaytracingInternal.h
     RaytracingReconstruct.cpp
@@ -195,13 +199,22 @@ add_dependencies(ProxyHarness ReDefinitionProxy)
 
 # The raytracing harness (docs/development/raytracing.md): the proxy's raytracing
 # without KSP, against the CPU.
-add_executable(RaytracingHarness RaytracingHarness.cpp)
+add_executable(RaytracingHarness RaytracingHarness.cpp RaytracingOmmHarness.cpp RaytracingOmmBake.cpp)
 target_compile_definitions(RaytracingHarness PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(RaytracingHarness PRIVATE /W4 /permissive-)
 target_include_directories(RaytracingHarness PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/extern"
     "${CMAKE_CURRENT_SOURCE_DIR}/extern/Streamline/include")
-target_link_libraries(RaytracingHarness PRIVATE d3d11 dxgi d3dcompiler)
+target_link_libraries(RaytracingHarness PRIVATE d3d11 d3d12 dxgi d3dcompiler)
 add_dependencies(RaytracingHarness ReDefinitionProxy)
+
+# The harness's ray query for the opacity micromaps' checks against the driver
+# (RaytracingOmmHarness.cpp), DXIL as the passes are.
+if(REDEFINITION_DXC)
+    add_custom_command(TARGET RaytracingHarness POST_BUILD
+        COMMAND "${REDEFINITION_DXC}" -nologo -T cs_6_5 -E main -HV 2021
+            -Fo "$<TARGET_FILE_DIR:RaytracingHarness>/OmmProbe.cso" "${CMAKE_CURRENT_SOURCE_DIR}/OmmProbe.hlsl"
+        COMMENT "OmmProbe.cso compiled to DXIL")
+endif()
 
 # The example mod's compute shader beside the harness, which compiles it through the proxy.
 add_custom_command(TARGET ProxyHarness POST_BUILD

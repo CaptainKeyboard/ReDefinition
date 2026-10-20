@@ -208,10 +208,10 @@ class MatrixTest(unittest.TestCase):
         self.assertEqual([s["id"] for s in starts], ["fsr", "dlssg"])
         # Nine renderings: FSR 3, the AMD DLL and XeSS with RT Off and Full, DLSS with RT
         # Off, Full with Ray Reconstruction and Full without; and FSR 3 at RT Full with the
-        # radiance cache, without a latency model alone. The first phase after a change of
-        # the rendering is held twice as long.
-        self.assertEqual(len(starts[0]["phases"]), 9 * 8 + 8 + 2 + 1)
-        self.assertEqual(len(starts[1]["phases"]), 9 * 4 + 8 + 1 + 1)
+        # radiance cache, then with the opacity micromaps, each without a latency model alone.
+        # The first phase after a change of the rendering is held twice as long.
+        self.assertEqual(len(starts[0]["phases"]), 9 * 8 + 8 + 2 + 1 + 2 + 1)
+        self.assertEqual(len(starts[1]["phases"]), 9 * 4 + 8 + 1 + 1 + 1 + 1)
         self.assertIn(("latency antilag2", "only on AMD"), skipped)
         fsr = starts[0]
         self.assertEqual(fsr["proxy_load"]["amdUpscalerDirectory"], "d")
@@ -277,10 +277,11 @@ class MatrixTest(unittest.TestCase):
         sets = bm.ini_sets_argument(starts[0]["phases"]).split(";")
         self.assertEqual(len(sets), len(starts[0]["phases"]))
         self.assertEqual(sets[0], "reportSeconds=1,mod.technique=Fsr3,mod.raytracing=Off,mod.rayReconstruction=True,"
-                                  "fgMinimumFps=1000,lowLatency=0,latencyBrake=0,antiLag2=0,rtRadianceCache=0")
+                                  "fgMinimumFps=1000,lowLatency=0,latencyBrake=0,antiLag2=0,rtRadianceCache=0,"
+                                  "rtOpacityMicromaps=0")
         for s in sets:
             for key in ("reportSeconds=1", "mod.technique=", "mod.raytracing=", "mod.rayReconstruction=", "fgMinimumFps=",
-                        "lowLatency=", "latencyBrake=", "rtRadianceCache="):
+                        "lowLatency=", "latencyBrake=", "rtRadianceCache=", "rtOpacityMicromaps="):
                 self.assertIn(key, s)
 
     def test_the_radiance_cache_is_a_rendering_of_its_own(self):
@@ -307,6 +308,31 @@ class MatrixTest(unittest.TestCase):
         starts, _ = bm.expand(self.matrix, "NVIDIA", resources)
         self.assertEqual({p["scenario"]["latency"] for p in starts[2]["phases"] if p["scenario"]["radiance_cache"]}, {"xell"})
 
+    def test_the_opacity_micromaps_are_the_last_rendering_of_the_start(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        for start in starts:
+            phases = start["phases"]
+            micromaps = [p for p in phases if p["scenario"]["opacity_micromaps"]]
+            self.assertTrue(micromaps)
+            # The last phases of the start, so that no row after them has the pipelines made with
+            # micromap support, which stay.
+            self.assertEqual(phases[-len(micromaps):], micromaps)
+            self.assertEqual({p["keys"]["rtOpacityMicromaps"] for p in micromaps}, {"1"})
+            self.assertEqual({p["keys"]["rtRadianceCache"] for p in micromaps}, {"0"})
+            self.assertEqual({p["keys"]["rtOpacityMicromaps"] for p in phases if not p["scenario"]["opacity_micromaps"]}, {"0"})
+            self.assertEqual({p["keys"]["mod.technique"] for p in micromaps}, {"Fsr3"})
+            self.assertEqual({p["keys"]["mod.raytracing"] for p in micromaps}, {"Full"})
+            self.assertEqual({p["scenario"]["latency"] for p in micromaps}, {"none"})
+            self.assertTrue(micromaps[0]["rebuild"])
+        label = [p for p in starts[0]["phases"] if p["scenario"]["opacity_micromaps"]][0]["scenario"]
+        self.assertEqual(bm.scenario_label(label), "FSR 3 · RT Full, opacity micromaps · FG off · none")
+        self.assertEqual(bm.scenario_key(label), "fsr3/Full/rr-na/omm-on/fg-off/lat-none")
+        # Separate starts keep it with its technique's.
+        self.matrix["separate_starts"] = ["technique"]
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        self.assertEqual([s["id"] for s in starts if any(p["scenario"]["opacity_micromaps"] for p in s["phases"])],
+                         ["fsr3-fsr", "fsr3-dlssg"])
+
     def test_xessfg_runs_with_xell_alone(self):
         resources = dict(self.ALL, xess_fg_dll_dir="f")
         starts, _ = bm.expand(self.matrix, "NVIDIA", resources)
@@ -316,9 +342,9 @@ class MatrixTest(unittest.TestCase):
         self.assertEqual(xessfg["proxy_load"]["xessFgDirectory"], "f")
         self.assertEqual({p["scenario"]["latency"] for p in xessfg["phases"]}, {"xell"})
 
-        # Ten renderings with the radiance cache's, FG off (XeSS-FG loaded) and on, the first
-        # after a change held twice.
-        self.assertEqual(len(xessfg["phases"]), 10 * 2 + 9)
+        # Eleven renderings with the radiance cache's and the micromaps', FG off (XeSS-FG loaded)
+        # and on, the first after a change held twice.
+        self.assertEqual(len(xessfg["phases"]), 11 * 2 + 10)
         self.assertIn("off-xessfg-loaded", {p["scenario"]["fg"] for p in xessfg["phases"]})
         for other in starts[:2]:
             self.assertNotIn("xell", {p["scenario"]["latency"] for p in other["phases"]})

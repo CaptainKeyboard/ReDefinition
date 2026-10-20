@@ -293,6 +293,24 @@ namespace redefinition
         // picture is wrong with either. Re-read while the game runs.
         int rtCutoutTest = 0;
 
+        // Opacity Micromaps for the cut-out surfaces (grass, ferns), NVIDIA's only
+        // (RaytracingOmm.cpp), 0 by default. 1 bakes each cut-out mesh's triangles into micromaps
+        // from its texture coordinates and the material texture's coverage, and builds its
+        // structure with them through NVAPI: a ray skips the transparent parts of a blade and
+        // stops at the opaque ones without the passes' test, which is left to the parts that
+        // are partly covered. The picture stays the same. The Ada generation traces them in
+        // hardware; Ampere resolves them in software, "emulation may still produce a speedup"
+        // (NVIDIA). A driver without the capability and any other GPU trace as with 0, with
+        // a line in the log; the passes' pipelines are made with micromap support from the
+        // time it is on, which costs the other traces "a small penalty on traversal
+        // performance overall" (nvapi.h). Switched live without building a structure again,
+        // by the instances' flags; the first 1 of a session makes the pipelines again.
+        int rtOpacityMicromaps = 0;
+        // The finest subdivision a micromap gets, 2 to 8: a triangle gets about one
+        // micro-triangle to a texel of the 64 x 64 coverage texture, 4^level of them at most;
+        // a micromap of level 6 is 1 KB. Read when a mesh is baked.
+        int rtOmmMaxSubdivision = 6;
+
         // For measuring, false by default: the sun's visibility as its pass traced it, one
         // ray a pixel, past the denoiser, which then filters the other signals only. The
         // picture is noisy with it. Re-read while the game runs.

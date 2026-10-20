@@ -334,7 +334,10 @@ namespace redefinition
                 materialData.erase(entry.first);
         }
         for (auto& entry : taken.textures)
+        {
+            OmmNoteTextureLocked(entry.first, entry.second);
             pendingTextures[entry.first] = std::move(entry.second);
+        }
         for (FrameScene& scene : taken.scenes)
         {
             FrameScene& into = SceneFor(frameScenes, scene.frameIndex);
@@ -368,6 +371,7 @@ namespace redefinition
             SetProblem("a frame without a size or without depth");
             return;
         }
+        PrepareOmmLocked(*packet);
         if (!EnsureDeviceLocked())
             return;
         EvictTexturesLocked();
@@ -883,13 +887,14 @@ namespace redefinition
             _snprintf_s(buffer, static_cast<size_t>(size), _TRUNCATE,
                         "generation=%u frames=%llu reconstructed=%llu regenerated=%llu meshes=%u built=%u instances=%u"
                         " build=%.3fms trace=%.3fms extra build=%.3fms extra trace=%.3fms meshBuild=%u/%.3fms/%.3fms/%u"
-                        " blas=%.2fMB geometry=%.2fMB reserved=%.2fMB clustered=%u%s%s%s",
+                        " blas=%.3fMB geometry=%.2fMB reserved=%.2fMB clustered=%u omm=%u/%.4fMB/%u/%.1fms%s%s%s",
                         generation.load(), static_cast<unsigned long long>(frames),
                         static_cast<unsigned long long>(reconstructed), static_cast<unsigned long long>(regenerated), liveMeshes,
                         lastBuilt, lastInstances,
                         buildMs, traceMs, extraBuildMs, extraTraceMs, meshBuildCount, meshBuildCpuMs, meshBuildGpuMs,
                         meshBuildsTimed, static_cast<double>(blasBytes) / 1e6, static_cast<double>(geometryBytes) / 1e6,
-                        static_cast<double>(buildReservedBytes) / 1e6, clusteredMeshes, cacheText, lastProblem.empty() ? "" : " last problem: ",
+                        static_cast<double>(buildReservedBytes) / 1e6, clusteredMeshes, ommMeshes,
+                        static_cast<double>(ommBytes) / 1e6, ommBakes, ommBakeMs, cacheText, lastProblem.empty() ? "" : " last problem: ",
                         lastProblem.c_str());
         return static_cast<int>(generation.load());
     }

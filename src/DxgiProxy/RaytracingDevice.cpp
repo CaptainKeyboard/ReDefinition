@@ -11,6 +11,7 @@
 #include "RaytracingInternal.h"
 
 #include <algorithm>
+#include <functional>
 
 using Microsoft::WRL::ComPtr;
 
@@ -264,6 +265,41 @@ namespace redefinition
             return false;
         }
 
+        // Opacity micromaps (RaytracingOmm.cpp): "NvAPI_D3D12_SetCreatePipelineStateOptions ...
+        // affects all pipelines created after this call, and until this function is called
+        // again", so the passes' pipelines are made with the support where it is wanted, and the
+        // option is put back as these are done.
+        const auto setOmmOptions = [&](uint32_t flags)
+        {
+            const nvomm::PipelineOptionsParams options = { nvomm::Version(sizeof(nvomm::PipelineOptionsParams), 1), flags };
+            return reinterpret_cast<nvomm::SetCreatePipelineStateOptionsFn>(omm.setOptions)(device.Get(), &options);
+        };
+        struct OptionsReset
+        {
+            std::function<void()> put;
+            ~OptionsReset()
+            {
+                if (put)
+                    put();
+            }
+        } optionsReset;
+        omm.pipelines = false;
+        if (omm.wanted && omm.caps == 1 && omm.setOptions != nullptr)
+        {
+            const int status = setOmmOptions(nvomm::kPipelineEnableOmm);
+            if (status == 0)
+            {
+                omm.pipelines = true;
+                optionsReset.put = [&] { setOmmOptions(0); };
+            }
+            else
+            {
+                omm.wanted = false;
+                omm.caps = 0;
+                omm.capsWhy = "NvAPI_D3D12_SetCreatePipelineStateOptions returned " + std::to_string(status);
+            }
+        }
+
         for (const RtPassEntry& pass : kRtPasses)
         {
             char name[64] = {};
@@ -501,6 +537,7 @@ namespace redefinition
                 continue;
             FreeMeshNowLocked(found->second);
             meshes.erase(found);
+            OmmForgetMeshLocked(id);
             ++released;
         }
         pendingReleases.clear();
@@ -543,6 +580,12 @@ namespace redefinition
         }
         meshes.clear();
         blasMemory.Reset();
+        omm.Reset();
+        {
+            std::lock_guard<std::mutex> status(statusLock);
+            ommMeshes = 0;
+            ommBytes = 0;
+        }
         meshSlotsFull = false;
         textures.clear();
         pipelines.clear();

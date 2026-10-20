@@ -54,6 +54,7 @@ cbuffer Step : register(b1)
 static const uint kPerRow = RT_INSTANCES_PER_ROW;
 static const uint kCullDisable = 1u;   // D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
 static const uint kNonOpaque = 8u;     // D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
+static const uint kDisableOmms = 32u;  // NVAPI_D3D12_RAYTRACING_INSTANCE_FLAG_DISABLE_OMMS_EX
 static const uint kTerrain = RT_INSTANCE_TERRAIN;
 static const uint kCutout = RT_INSTANCE_CUTOUT;
 
@@ -90,7 +91,8 @@ void GpuInstances(uint3 id : SV_DispatchThreadID)
     desc.rows[2] = r2;
     desc.idMask = (index & 0xFFFFFFu) | ((live ? group.maskFlags & 0xFFu : 0u) << 24);
     uint flags = group.maskFlags >> 8;
-    desc.contributionFlags = (kCullDisable | ((flags & (kTerrain | kCutout)) != 0 ? kNonOpaque : 0u)) << 24;
+    const bool nonOpaque = (flags & (kTerrain | kCutout)) != 0 && (flags & RT_GROUP_NO_NON_OPAQUE) == 0u;
+    desc.contributionFlags = (kCullDisable | (nonOpaque ? kNonOpaque : 0u) | ((flags & RT_GROUP_DISABLE_OMMS) != 0u ? kDisableOmms : 0u)) << 24;
     desc.blas = group.blas;
     descs[index] = desc;
 
@@ -104,7 +106,7 @@ void GpuInstances(uint3 id : SV_DispatchThreadID)
     InstanceData item;
     item.meshSlot = group.meshSlot;
     item.material = group.material;
-    item.flags = group.maskFlags >> 8;
+    item.flags = (group.maskFlags >> 8) & ~RT_GROUP_SERVICE_FLAGS;
     item.pad = 0;
     item.normalRows[0] = float4(c0 * s, 0.0f);
     item.normalRows[1] = float4(c1 * s, 0.0f);

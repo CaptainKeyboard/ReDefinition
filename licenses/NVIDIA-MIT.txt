@@ -31,9 +31,10 @@ verbatim.
 ----------------------------------------------------------------------------
 2. NVIDIA's NVAPI headers, whose function ids and structures src/DxgiProxy/NvidiaGpu.cpp
    declares -- from nvapi.h and nvapi_interface.h in external/nvapi of the Streamline
-   SDK 2.14.1 -- and those src/DxgiProxy/RaytracingMegaGeometry.h declares, from nvapi.h
-   and nvapi_interface.h of github.com/NVIDIA/nvapi, whose License.txt has the same
-   terms (Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES):
+   SDK 2.14.1 -- and those src/DxgiProxy/RaytracingMegaGeometry.h and
+   src/DxgiProxy/RaytracingOmm.h declare, from nvapi.h and nvapi_interface.h of
+   github.com/NVIDIA/nvapi, whose License.txt has the same terms (Copyright (c) 2024 NVIDIA
+   CORPORATION & AFFILIATES):
 
 SPDX-FileCopyrightText: Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: MIT
