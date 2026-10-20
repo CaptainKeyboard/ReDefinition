@@ -50,10 +50,6 @@ namespace redefinition
         // FSR's where it does not; fsr asks for FSR's always.
         int frameGenerationTechnique = 0;
 
-        // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics,
-        // streamlineImgui, xell, xellLowLatencyBoost, xessFgUiMode and xessFgFrames'
-        // most, which apply when what they serve starts ----
-
         // How DLSS Ray Reconstruction runs (kRrPath*), taken when the swapchain is
         // created, like frameGenerationTechnique. auto: through Streamline where its
         // swapchain presents -- DLSS-G, or frame generation off -- and through NGX
@@ -64,8 +60,9 @@ namespace redefinition
         // and under DLSS-G, whose Streamline holds NGX on the device, none.
         int rrPath = 0;
 
-        // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics
-        // and streamlineImgui, which apply when what they serve starts ----
+        // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics,
+        // streamlineImgui, xell, xellLowLatencyBoost, xessFgUiMode, rrPath and xessFgFrames'
+        // most, which apply when what they serve starts ----
 
         // Keep the UI out of the interpolated frames by handing FSR a HUD-less
         // snapshot: the backbuffer copied after the last scene camera and before
@@ -355,9 +352,13 @@ namespace redefinition
     constexpr int kRrPathStreamline = 1;
     constexpr int kRrPathNgx = 2;
     const char* RrPathName(int path);
-        // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics,
-        // streamlineImgui, xell, xellLowLatencyBoost, xessFgUiMode, rrPath and xessFgFrames'
-        // most, which apply when what they serve starts ----
+
+    // ProxyConfig::xessFgUiMode, xefg_swapchain_ui_mode_t's values, as the ini names
+    // them: auto, none, backbuffer_uitexture, hudless_uitexture, backbuffer_hudless,
+    // backbuffer_hudless_uitexture.
+    constexpr int kXessUiModeAuto = 0;
+    constexpr int kXessUiModeCount = 6;
+    const char* XessUiModeName(int mode);
 
     const ProxyConfig& Config();
     void LoadConfig();
