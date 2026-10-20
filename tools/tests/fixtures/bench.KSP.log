@@ -1,0 +1,20 @@
+[LOG 16:38:01.607] ******* Log Initiated for Kerbal Space Program - 1.12.5.3190 (WindowsPlayer x64) en-us *******
+Kerbal Space Program - 1.12.5.3190 (WindowsPlayer x64) en-us
+
+
+OS: Windows 10  (10.0.0) 64bit
+CPU: AMD Ryzen 5 5600X 6-Core Processor  (12)
+RAM: 32687
+GPU: NVIDIA RTX A4500 (20250MB)
+SM: 50 (Direct3D 11.0 [level 11.1])
+
+[LOG 16:38:48.442] [ReDefinition] Graphics profiles: 5 found.
+[LOG 16:38:55.695] [ReDefinition] Probe: flight of Kerbal X.
+[LOG 16:39:02.604] [ReDefinition] Upscaler running on 'Camera 00': 1707x960 -> 2560x1440 (Quality, AMD FSR (DLL))
+[LOG 16:39:03.305] [Scatterer][Debug] Added reflection probe fixer to Reflection Probes Camera
+[LOG 16:39:40.000] [ReDefinition] Probe: shot bench.
+[LOG 16:39:40.100] [ReDefinition] Probe: ReDefinitionProxy.ini set to fgMinimumFps=1000,lowLatency=0,latencyBrake=0,antiLag2=0.
+[LOG 16:39:52.100] [ReDefinition] Probe: shot bench-ini0 with fgMinimumFps=1000,lowLatency=0,latencyBrake=0,antiLag2=0.
+[LOG 16:39:52.120] [ReDefinition] Probe: ReDefinitionProxy.ini set to fgMinimumFps=0,lowLatency=1,latencyBrake=1,latencyBrakeTargetMs=4,antiLag2=0.
+[LOG 16:40:04.120] [ReDefinition] Probe: shot bench-ini1 with fgMinimumFps=0,lowLatency=1,latencyBrake=1,latencyBrakeTargetMs=4,antiLag2=0.
+[LOG 16:40:04.200] [ReDefinition] Probe: ReDefinitionProxy.ini's values set back.

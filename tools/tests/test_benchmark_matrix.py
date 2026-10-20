@@ -1,0 +1,294 @@
+"""The log parser and the matrix of tools/benchmark_matrix.py, on excerpts of the logs a
+probe start writes (tools/tests/fixtures).
+
+    python -m unittest
+"""
+import copy
+import os
+import shutil
+import tempfile
+import unittest
+
+from tools import benchmark_matrix as bm
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def fixture(name):
+    with open(os.path.join(HERE, "fixtures", name), encoding="utf-8") as f:
+        return f.read()
+
+
+def scenario(fg, fg_requested, latency, log_name="AMD FSR (DLL)"):
+    return {"technique": "amd", "technique_name": "AMD DLL", "technique_log_name": log_name, "raytracing": "Off",
+            "ray_reconstruction": None, "fg": fg, "fg_name": "off" if fg == "off" else "FSR", "fg_requested": fg_requested,
+            "fg_kind": "fsr", "latency": latency, "latency_name": latency}
+
+
+def fixture_start(log_name="AMD FSR (DLL)"):
+    return {"id": "amd-rtoff-fsr", "phases": [
+        {"scenario": scenario("off", False, "none", log_name),
+         "keys": {"fgMinimumFps": "1000", "lowLatency": "0", "latencyBrake": "0", "antiLag2": "0"}},
+        {"scenario": scenario("fsr", True, "reflex+brake", log_name),
+         "keys": {"fgMinimumFps": "0", "lowLatency": "1", "latencyBrake": "1", "latencyBrakeTargetMs": "4", "antiLag2": "0"}},
+    ]}
+
+
+class ConfigLineTest(unittest.TestCase):
+    def test_values_with_a_space_stay_whole(self):
+        values = bm.parse_config("enabled=1 pacing=0.100000/0.100000/spin 2 lowLatency=0 latencyBrake=1/4.000000")
+        self.assertEqual(values["pacing"], "0.100000/0.100000/spin 2")
+        self.assertEqual(values["lowLatency"], "0")
+        self.assertEqual(values["latencyBrake"], "1/4.000000")
+
+    def test_the_reload_note_is_not_a_value(self):
+        values = bm.parse_config("reportSeconds=2 streamlineDirectory=(none)   (enabled, allowTearing, measureOnly as at load)")
+        self.assertEqual(values, {"reportSeconds": "2", "streamlineDirectory": "(none)"})
+
+
+class ProxyLogTest(unittest.TestCase):
+    def setUp(self):
+        self.log = bm.parse_proxy_log(fixture("bench.proxy.log"))
+
+    def test_load_and_reloads(self):
+        self.assertFalse(self.log["configs"][0]["reloaded"])
+        self.assertEqual(self.log["configs"][0]["values"]["dlssFrameGeneration"], "0")
+        self.assertEqual([c["reloaded"] for c in self.log["configs"]], [False, True, True, True])
+
+    def test_reports(self):
+        first = self.log["reports"][0]
+        self.assertEqual(first["frames"], 140)
+        self.assertAlmostEqual(first["mean_ms"], 14.29)
+        self.assertEqual(first["displayed_per_s"], 70)
+        self.assertEqual(first["refresh_hz"], 120)
+        self.assertEqual(len(self.log["reports"]), 13)
+
+    def test_latency_lines(self):
+        self.assertEqual(self.log["latency"][0]["lowered_by"], "nothing")
+        self.assertEqual(self.log["latency"][-1]["lowered_by"], "Reflex and the brake")
+        self.assertEqual(len(self.log["pcl"]), 3)
+        self.assertAlmostEqual(self.log["brake"][0]["wait_ms"], 4.8)
+
+    def test_frame_generation_kind(self):
+        self.assertEqual(bm._fg_kind_ran(self.log), "FSR")
+
+
+class KspLogTest(unittest.TestCase):
+    def test_probe_lines(self):
+        log = bm.parse_ksp_log(fixture("bench.KSP.log"))
+        self.assertEqual(log["gpu"], "NVIDIA RTX A4500 (20250MB)")
+        self.assertEqual(log["upscaler"][0]["technique"], "AMD FSR (DLL)")
+        self.assertEqual(log["upscaler"][0]["mode"], "Quality")
+        self.assertEqual(log["upscaler"][0]["render"], [1707, 960])
+        self.assertEqual(len(log["sets"]), 2)
+        self.assertEqual([s["index"] for s in log["shots"]], [0, 1])
+
+
+class PhaseTest(unittest.TestCase):
+    def phases(self, start):
+        return bm.phases_of_start(start, fixture("bench.KSP.log"), fixture("bench.proxy.log"), 3)
+
+    def test_each_phase_measured_inside_its_window(self):
+        result = self.phases(fixture_start())
+        off, on = result["phases"]
+        self.assertEqual(off["warnings"], [])
+        self.assertEqual(off["measured"]["reports"], 4)
+        self.assertEqual(off["measured"]["fps"], 74.0)
+        self.assertEqual(off["measured"]["latency_median_ms"], 31.0)
+        self.assertEqual(off["measured"]["latency_p90_ms"], 34.0)
+        self.assertEqual(off["measured"]["latency_lowered_by"], "nothing")
+        self.assertEqual(off["fg_kind_ran"], "none")
+        # The report at 16:39:54 lies in the settling time and is left out.
+        self.assertEqual(on["warnings"], [])
+        self.assertEqual(on["measured"]["reports"], 4)
+        self.assertEqual(on["measured"]["fps"], 63.7)
+        self.assertEqual(on["measured"]["presented_per_rendered"], 2.0)
+        self.assertEqual(on["measured"]["shown_fps"], 127.5)
+        self.assertEqual(on["measured"]["latency_median_ms"], 26.0)
+        self.assertEqual(on["measured"]["nvidia_pcl_median_ms"], 9.2)
+        self.assertEqual(on["measured"]["brake_sleep_ms"], 0.4)
+        self.assertEqual(on["fg_kind_ran"], "FSR")
+        self.assertEqual(on["proxy_config"]["fgMinimumFps"], "0")
+        self.assertEqual(result["gpu"], "NVIDIA RTX A4500 (20250MB)")
+        self.assertEqual(result["proxy_load_config"]["amdUpscalerDirectory"], "(set)")
+
+    def test_what_did_not_run_as_asked_is_named(self):
+        start = fixture_start(log_name="DLSS")
+        start["phases"][0]["keys"]["lowLatency"] = "1"
+        start["phases"][0]["scenario"]["fg_requested"] = True
+        off = self.phases(start)["phases"][0]
+        self.assertIn("asked for DLSS, ran AMD FSR (DLL)", off["warnings"])
+        self.assertIn("lowLatency=1 asked for, the proxy has 0", off["warnings"])
+        self.assertIn("frame generation asked for, presented/rendered 1.00", off["warnings"])
+
+    def test_a_missing_phase_is_a_problem(self):
+        start = fixture_start()
+        start["phases"].append(copy.deepcopy(start["phases"][1]))
+        start["phases"][2]["scenario"]["latency"] = "brake"
+        result = self.phases(start)
+        self.assertEqual(len(result["phases"]), 2)
+        self.assertEqual(result["problems"], ["the probe set 2 of 3 key sets"])
+
+    def test_repeated_phases_are_one(self):
+        merged = bm._merge_repeats([
+            {"key": "a", "window": [1, 2], "warnings": ["x"]},
+            {"key": "a", "window": [3, 4], "warnings": ["y"]},
+            {"key": "b", "window": [5, 6], "warnings": []}])
+        self.assertEqual(len(merged), 2)
+        self.assertEqual(merged[0]["window"], [1, 4])
+        self.assertEqual(merged[0]["repeats"], 2)
+        self.assertEqual(merged[0]["warnings"], ["x", "y"])
+
+
+class ClockTest(unittest.TestCase):
+    def test_midnight(self):
+        lines = bm._timed_lines("23:59:59.500  a\n00:00:00.500  b\n", bm._PROXY_TIME)
+        self.assertAlmostEqual(lines[1][0] - lines[0][0], 1.0)
+
+
+class MatrixTest(unittest.TestCase):
+    def setUp(self):
+        self.matrix = bm.load_matrix(bm.DEFAULT_MATRIX)
+
+    def test_default_matrix_on_nvidia(self):
+        starts, skipped = bm.expand(self.matrix, "NVIDIA", {"dlssg_package": "p", "amd_dll_dir": "d"})
+        self.assertEqual(len(starts), 14)
+        self.assertEqual(sum(len(s["phases"]) for s in starts), 84)
+        self.assertIn(("latency antilag2", "only on AMD"), skipped)
+        ids = [s["id"] for s in starts]
+        self.assertIn("dlss-rtfull-rr-dlssg", ids)
+        self.assertIn("dlss-rtfull-norr-fsr", ids)
+        self.assertNotIn("fsr3-rtfull-rr-fsr", ids)
+        amd = next(s for s in starts if s["id"] == "amd-rtoff-fsr")
+        self.assertEqual(amd["proxy_load"]["amdUpscalerDirectory"], "d")
+        self.assertEqual(amd["proxy_load"]["dlssFrameGeneration"], "0")
+
+    def test_without_the_files_their_starts_are_skipped(self):
+        starts, skipped = bm.expand(self.matrix, "NVIDIA", {})
+        self.assertEqual([s["id"] for s in starts],
+                         ["fsr3-rtoff-fsr", "fsr3-rtfull-fsr", "dlss-rtoff-fsr", "dlss-rtfull-rr-fsr", "dlss-rtfull-norr-fsr"])
+        self.assertIn(("technique amd", "needs amd_dll_dir"), skipped)
+
+    def test_on_amd(self):
+        starts, _ = bm.expand(self.matrix, "AMD", {"dlssg_package": "p", "amd_dll_dir": "d"})
+        self.assertEqual([s["id"] for s in starts], ["fsr3-rtoff-fsr", "fsr3-rtfull-fsr", "amd-rtoff-fsr", "amd-rtfull-fsr"])
+        self.assertEqual({p["scenario"]["latency"] for p in starts[0]["phases"]}, {"none", "brake", "antilag2"})
+
+    def test_a_technique_is_one_line(self):
+        self.matrix["techniques"].append({"id": "xess", "name": "XeSS", "settings": {"technique": "Xess"}})
+        starts, _ = bm.expand(self.matrix, "NVIDIA", {})
+        self.assertEqual([s["id"] for s in starts if s["technique"] == "xess"], ["xess-rtoff-fsr", "xess-rtfull-fsr"])
+
+    def test_every_set_names_every_key(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", {})
+        sets = bm.ini_sets_argument(starts[0]["phases"]).split(";")
+        self.assertEqual(len(sets), 8)
+        self.assertEqual(sets[0], "fgMinimumFps=1000,lowLatency=0,latencyBrake=0,antiLag2=0")
+        for s in sets:
+            self.assertIn("fgMinimumFps=", s)
+            self.assertIn("lowLatency=", s)
+            self.assertIn("latencyBrake=", s)
+
+    def test_dlssg_rows_are_their_own(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", {"dlssg_package": "p"})
+        dlssg = next(s for s in starts if s["id"] == "fsr3-rtoff-dlssg")
+        self.assertTrue(dlssg["dlssg_package"])
+        self.assertEqual({p["scenario"]["fg"] for p in dlssg["phases"]}, {"dlssg"})
+        keys = [bm.scenario_key(p["scenario"]) for s in starts for p in s["phases"]]
+        self.assertEqual(len(keys), len(set(keys)))
+
+
+class FileEditTest(unittest.TestCase):
+    def test_ini(self):
+        text = "; head\r\n[Proxy]\r\nenabled=1\r\n; reportSeconds=5\r\nreportSeconds=10\r\nreportSeconds=11\r\n[Other]\r\nx=1\r\n"
+        out = bm.set_ini_values(text, {"reportSeconds": "2", "lowLatency": "0"})
+        self.assertEqual(out, "; head\r\n[Proxy]\r\nenabled=1\r\n; reportSeconds=5\r\nreportSeconds=2\r\nreportSeconds=11\r\n"
+                              "lowLatency=0\r\n[Other]\r\nx=1\r\n")
+
+    def test_cfg(self):
+        text = "ReDefinition\n{\n\tenabled = True\n\traytracing = Full\n}\n"
+        out = bm.set_cfg_values(text, {"raytracing": "Off", "rayReconstruction": "False"})
+        self.assertEqual(out, "ReDefinition\n{\n\tenabled = True\n\traytracing = Off\n\trayReconstruction = False\n}\n")
+
+    def test_driver(self):
+        self.assertEqual(bm.nvidia_driver_from_windows("32.0.15.9716"), "597.16")
+        self.assertIsNone(bm.nvidia_driver_from_windows(None))
+
+
+class InstallTest(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.ksp = os.path.join(self.root, "ksp")
+        os.makedirs(os.path.join(self.ksp, "GameData", "ReDefinition", "PluginData"))
+        self.write(os.path.join(self.ksp, "settings.cfg"), "ksp")
+        self.write(os.path.join(self.ksp, bm.PROXY_INI), "[Proxy]\nenabled=1\n")
+        self.write(os.path.join(self.ksp, bm.SETTINGS_REL), "ReDefinition\n{\n}\n")
+        self.write(os.path.join(self.ksp, "dxgi.dll"), "not a settings file")
+        self.install = bm.Install(self.ksp)
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    @staticmethod
+    def write(path, text):
+        with open(path, "w") as f:
+            f.write(text)
+
+    def test_snapshot_and_restore(self):
+        snap = os.path.join(self.root, "snap")
+        self.assertEqual(self.install.snap(snap), 3)
+        self.write(os.path.join(self.ksp, bm.PROXY_INI), "[Proxy]\nenabled=0\n")
+        report = self.install.restore(snap)
+        self.assertEqual(report, ["restored " + bm.PROXY_INI])
+        with open(os.path.join(self.ksp, bm.PROXY_INI)) as f:
+            self.assertEqual(f.read(), "[Proxy]\nenabled=1\n")
+
+    def test_package_in_and_out(self):
+        package = os.path.join(self.root, "package")
+        for sub in bm.PACKAGE_SUBDIRS + ("sr",):
+            os.makedirs(os.path.join(package, bm.PACKAGE_DIR, sub))
+            self.write(os.path.join(package, bm.PACKAGE_DIR, sub, "a.bin"), sub)
+        self.write(os.path.join(package, "version.dll"), "dll")
+        self.write(os.path.join(package, "dlssg_sm86.ini"), "[FrameGeneration]\nMaxGeneratedFrames=3\n")
+        self.install.put_package(package, 1)
+        self.assertEqual(sorted(self.install.package_in_place()), ["dlssg_sm86", "dlssg_sm86.ini", "version.dll"])
+        with open(os.path.join(self.ksp, "dlssg_sm86.ini")) as f:
+            self.assertIn("MaxGeneratedFrames=1", f.read())
+        self.assertFalse(os.path.exists(os.path.join(self.ksp, bm.PACKAGE_DIR, "sr")))
+        self.install.remove_package()
+        self.assertEqual(self.install.package_in_place(), [])
+
+
+class DocTest(unittest.TestCase):
+    def record(self, stamp, fps_scale=1.0):
+        parsed = bm.phases_of_start(fixture_start(), fixture("bench.KSP.log"), fixture("bench.proxy.log"), 3)
+        for p in parsed["phases"]:
+            p["measured"]["fps"] = round(p["measured"]["fps"] * fps_scale, 1)
+        start = {"id": "amd-rtoff-fsr"}
+        start.update(parsed)
+        return {"stamp": stamp, "date": "2026-10-20T18:00:00", "finished": "2026-10-20T18:40:00",
+                "git": {"short": "abc1234", "branch": "feat/raytracing", "dirty": False},
+                "machine": {"adapters": [{"name": "NVIDIA RTX A4500", "driver": "32.0.15.9716", "nvidia_driver": "597.16",
+                                          "refresh_hz": 120}], "cpu": "AMD Ryzen 5 5600X", "memory_gb": 31.9},
+                "vendor": "NVIDIA", "profile": "medium", "profile_lines": ["Probe: profile medium applied."],
+                "matrix_file": "tools/benchmark_matrix.json", "settle_seconds": 3,
+                "matrix": {"baseline": {"technique": "amd", "raytracing": "Off", "ray_reconstruction": None, "fg": "off",
+                                        "latency": "none"}},
+                "starts": [start]}
+
+    def test_table_and_runs(self):
+        doc = "head\n{}\nold\n{}\nmiddle\n{}\nold\n{}\ntail\n".format(bm.TABLE_START, bm.TABLE_END, bm.RUNS_START, bm.RUNS_END)
+        out = bm.render_doc([("2026-10-19-1800.json", self.record("2026-10-19-1800", 0.5)),
+                             ("2026-10-20-1800.json", self.record("2026-10-20-1800"))], doc)
+        self.assertTrue(out.startswith("head\n" + bm.TABLE_START))
+        self.assertTrue(out.endswith(bm.RUNS_END + "\ntail\n"))
+        self.assertNotIn("old", out)
+        self.assertIn("| AMD DLL · RT Off · FG off · none | 74.0 | 74.0 | 31.0 | 34.0 | +0.0 % | +0.0 ms |", out)
+        self.assertIn("| AMD DLL · RT Off · FG FSR · reflex+brake | 63.7 | 127.5 | 26.0 | 28.0 | -13.9 % | -5.0 ms "
+                      "| -13.9 % | -5.0 ms | +99.7 % |", out)
+        self.assertIn("| Machine | NVIDIA RTX A4500, driver 597.16", out)
+        self.assertLess(out.index("### Run 2026-10-20-1800"), out.index("### Run 2026-10-19-1800"))
+
+
+if __name__ == "__main__":
+    unittest.main()

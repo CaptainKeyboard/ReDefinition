@@ -1,0 +1,39 @@
+{
+  "comment": "The standing comparison (docs/development/benchmarks.md). Each technique, raytracing mode, Ray Reconstruction choice and frame generation kind is a KSP start of its own; the latency models and frame generation on and off are the proxy's live keys, set in turn inside each start.",
+  "profile": "medium",
+  "settle_seconds": 3,
+  "phase_repeats": 1,
+  "baseline": {"technique": "fsr3", "raytracing": "Off", "ray_reconstruction": null, "fg": "off", "latency": "none"},
+  "mod_settings": {
+    "enabled": "True",
+    "frameGeneration": "True",
+    "quality": "Quality"
+  },
+  "proxy_load": {
+    "enabled": "1",
+    "measureOnly": "0",
+    "frameGeneration": "1",
+    "allowTearing": "1",
+    "reportSeconds": "2"
+  },
+  "techniques": [
+    {"id": "fsr3", "name": "FSR 3", "log_name": "FSR 3", "settings": {"technique": "Fsr3"}},
+    {"id": "dlss", "name": "DLSS", "log_name": "DLSS", "settings": {"technique": "Dlss"}, "ray_reconstruction": true, "vendors": ["NVIDIA"]},
+    {"id": "amd", "name": "AMD DLL", "log_name": "AMD FSR (DLL)", "settings": {"technique": "Amd"}, "proxy_load": {"amdUpscalerDirectory": "{amd_dll_dir}"}, "requires": ["amd_dll_dir"]}
+  ],
+  "raytracing": ["Off", "Full"],
+  "ray_reconstruction": [true, false],
+  "frame_generation": [
+    {"id": "fsr", "name": "FSR", "proxy_load": {"dlssFrameGeneration": "0"}, "fg_off_phases": true},
+    {"id": "dlssg", "name": "DLSS-G", "proxy_load": {"dlssFrameGeneration": "1"}, "dlssg_package": true, "max_generated_frames": 1, "fg_off_phases": false, "vendors": ["NVIDIA"], "requires": ["dlssg_package"]}
+  ],
+  "fg_on": {"fgMinimumFps": "0"},
+  "fg_off": {"fgMinimumFps": "1000"},
+  "latency": [
+    {"id": "none", "name": "none", "proxy": {"lowLatency": "0", "latencyBrake": "0", "antiLag2": "0"}},
+    {"id": "reflex", "name": "Reflex", "proxy": {"lowLatency": "1", "latencyBrake": "0", "antiLag2": "0"}, "vendors": ["NVIDIA"]},
+    {"id": "brake", "name": "brake 4 ms", "proxy": {"lowLatency": "0", "latencyBrake": "1", "latencyBrakeTargetMs": "4", "antiLag2": "0"}},
+    {"id": "reflex+brake", "name": "Reflex + brake 4 ms", "proxy": {"lowLatency": "1", "latencyBrake": "1", "latencyBrakeTargetMs": "4", "antiLag2": "0"}, "vendors": ["NVIDIA"]},
+    {"id": "antilag2", "name": "Anti-Lag 2", "proxy": {"lowLatency": "0", "latencyBrake": "0", "antiLag2": "12"}, "vendors": ["AMD"]}
+  ]
+}

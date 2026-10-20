@@ -1,0 +1,33 @@
+16:37:57.074  Config: added to ReDefinitionProxy.ini with their defaults: lowLatency, latencyBrake, latencyBrakeTargetMs, antiLag2
+16:37:57.093  Config: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 dlssFrameGeneration=0 hudLessColour=1 fgMinimumFps=1000 pacing=0.100000/0.100000/spin 2 lowLatency=0 latencyBrake=0/4.000000 antiLag2=0 reportSeconds=2 amdUpscalerDirectory=(set) streamlineDirectory=(none)
+16:37:59.076  Backbuffer registered: 2560x1440 format 28
+16:39:02.875  Frame generation context created for 2560x1440, depthInverted=1, asyncWorkloads=0, provider 3.1.6 (designed for 60 fps input and more)
+16:39:14.500  AMD upscaler: FSR 3.1.5 runs, not FSR 4: amd_fidelityfx_upscaler_dx12.dll 4.1.1.2740 offers this GPU 3.1.5, 2.3.4
+16:39:40.900  Config reloaded: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 dlssFrameGeneration=0 hudLessColour=1 fgMinimumFps=1000 pacing=0.100000/0.100000/spin 2 lowLatency=0 latencyBrake=0/4.000000 antiLag2=0 reportSeconds=2 amdUpscalerDirectory=(set) streamlineDirectory=(none)   (enabled, allowTearing, measureOnly, frameGeneration and dlssFrameGeneration as at load; the folders, rtOwnQueue, streamlineImgui and vendorDiagnostics apply when what they serve starts)
+16:39:42.000  D3D12 proxy: 140 frames, mean 14.29 ms (70.0 fps), p50 14.00, p95 16.00, p99 18.00, max 30.00, presented/rendered 1.00, displayed 70/s at 120 Hz, sync 0
+16:39:44.000  D3D12 proxy: 140 frames, mean 14.29 ms (70.0 fps), p50 14.00, p95 16.00, p99 18.00, max 30.00, presented/rendered 1.00, displayed 70/s at 120 Hz, sync 0
+16:39:46.000  D3D12 proxy: 148 frames, mean 13.51 ms (74.0 fps), p50 13.50, p95 15.50, p99 16.50, max 20.00, presented/rendered 1.00, displayed 74/s at 120 Hz, sync 0
+16:39:46.150  Latency: from the frame's start to the GPU's end of its Present 30.0 ms (median of 148 frames, 90th percentile 33.0), lowered by nothing
+16:39:48.000  D3D12 proxy: 148 frames, mean 13.51 ms (74.0 fps), p50 13.50, p95 15.50, p99 16.50, max 20.00, presented/rendered 1.00, displayed 74/s at 120 Hz, sync 0
+16:39:48.150  Latency: from the frame's start to the GPU's end of its Present 31.0 ms (median of 148 frames, 90th percentile 34.0), lowered by nothing
+16:39:50.000  D3D12 proxy: 150 frames, mean 13.33 ms (75.0 fps), p50 13.30, p95 15.00, p99 16.00, max 19.00, presented/rendered 1.00, displayed 75/s at 120 Hz, sync 0
+16:39:50.150  Latency: from the frame's start to the GPU's end of its Present 32.0 ms (median of 150 frames, 90th percentile 35.0), lowered by nothing
+16:39:52.000  D3D12 proxy: 146 frames, mean 13.70 ms (73.0 fps), p50 13.70, p95 15.80, p99 16.80, max 21.00, presented/rendered 1.00, displayed 73/s at 120 Hz, sync 0
+16:39:52.050  Latency: from the frame's start to the GPU's end of its Present 31.0 ms (median of 146 frames, 90th percentile 34.0), lowered by nothing
+16:39:52.800  Config reloaded: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 dlssFrameGeneration=0 hudLessColour=1 fgMinimumFps=0 pacing=0.100000/0.100000/spin 2 lowLatency=1 latencyBrake=1/4.000000 antiLag2=0 reportSeconds=2 amdUpscalerDirectory=(set) streamlineDirectory=(none)   (enabled, allowTearing, measureOnly, frameGeneration and dlssFrameGeneration as at load; the folders, rtOwnQueue, streamlineImgui and vendorDiagnostics apply when what they serve starts)
+16:39:54.000  D3D12 proxy: 120 frames, mean 16.67 ms (60.0 fps), p50 15.00, p95 25.00, p99 40.00, max 90.00, presented/rendered 1.40, displayed 84/s at 120 Hz, sync 0
+16:39:56.000  D3D12 proxy: 128 frames, mean 15.63 ms (64.0 fps), p50 15.60, p95 19.00, p99 20.00, max 39.00, presented/rendered 2.00, displayed 128/s at 120 Hz, sync 0
+16:39:58.000  D3D12 proxy: 128 frames, mean 15.63 ms (64.0 fps), p50 15.60, p95 19.00, p99 20.00, max 39.00, presented/rendered 2.00, displayed 128/s at 120 Hz, sync 0
+16:39:58.100  Latency: from the frame's start to the GPU's end of its Present 25.0 ms (median of 128 frames, 90th percentile 27.0), lowered by Reflex and the brake
+16:39:58.100  Low latency: NVIDIA's report, from the simulation's start to the GPU's end of the frame 9.0 ms (median of 63 frames), the GPU's frame 6.9 ms; low latency mode on
+16:39:58.200  Latency brake: sleeps 0.4 ms before the frame, 4.8 ms of waits in the proxy left a frame of 15.0 ms work; a frame every 12.9 ms, 15.6 ms without the brake
+16:40:00.000  D3D12 proxy: 126 frames, mean 15.87 ms (63.0 fps), p50 15.80, p95 19.20, p99 20.10, max 39.70, presented/rendered 2.00, displayed 126/s at 120 Hz, sync 0
+16:40:00.100  Latency: from the frame's start to the GPU's end of its Present 26.0 ms (median of 126 frames, 90th percentile 28.0), lowered by Reflex and the brake
+16:40:00.100  Low latency: NVIDIA's report, from the simulation's start to the GPU's end of the frame 9.2 ms (median of 63 frames), the GPU's frame 7.0 ms; low latency mode on
+16:40:02.000  D3D12 proxy: 128 frames, mean 15.63 ms (64.0 fps), p50 15.60, p95 19.00, p99 20.00, max 39.00, presented/rendered 2.00, displayed 128/s at 120 Hz, sync 0
+16:40:02.100  Latency: from the frame's start to the GPU's end of its Present 27.0 ms (median of 128 frames, 90th percentile 29.0), lowered by Reflex and the brake
+16:40:02.100  Low latency: NVIDIA's report, from the simulation's start to the GPU's end of the frame 9.4 ms (median of 63 frames), the GPU's frame 7.1 ms; low latency mode on
+16:40:04.000  D3D12 proxy: 128 frames, mean 15.63 ms (64.0 fps), p50 15.60, p95 19.00, p99 20.00, max 39.00, presented/rendered 2.00, displayed 128/s at 120 Hz, sync 0
+16:40:04.100  Latency: from the frame's start to the GPU's end of its Present 26.0 ms (median of 128 frames, 90th percentile 28.0), lowered by Reflex and the brake
+16:40:04.600  Config reloaded: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 dlssFrameGeneration=0 hudLessColour=1 fgMinimumFps=1000 pacing=0.100000/0.100000/spin 2 lowLatency=0 latencyBrake=0/4.000000 antiLag2=0 reportSeconds=2 amdUpscalerDirectory=(set) streamlineDirectory=(none)   (enabled, allowTearing, measureOnly, frameGeneration and dlssFrameGeneration as at load; the folders, rtOwnQueue, streamlineImgui and vendorDiagnostics apply when what they serve starts)
+16:40:06.000  D3D12 proxy: 148 frames, mean 13.51 ms (74.0 fps), p50 13.50, p95 15.50, p99 16.50, max 20.00, presented/rendered 1.00, displayed 74/s at 120 Hz, sync 0
