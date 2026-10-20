@@ -204,7 +204,7 @@ def main():
     parser.add_argument('--amd', default=os.path.join(os.path.dirname(MAIN_ROOT), 'References', 'KspUpscaler', 'FSR4'),
                         help='the folder with amd_fidelityfx_upscaler_dx12.dll')
     parser.add_argument('--streamline', default=os.environ.get('REDEFINITION_STREAMLINE_DIR', os.path.join(
-        os.path.dirname(MAIN_ROOT), 'References', 'KspUpscaler', 'streamline-sdk-v2.14.1', 'bin', 'x64')))
+        os.path.dirname(MAIN_ROOT), 'References', 'KspUpscaler', 'streamline-sdk-v2.14.16', 'bin', 'x64')))
     arguments = parser.parse_args()
     exe = os.path.join(OUTPUT, 'RaytracingPlayer.exe')
     if not arguments.no_build:

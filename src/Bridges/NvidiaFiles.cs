@@ -8,7 +8,7 @@ using System.Text;
 namespace ReDefinition.Bridges
 {
     // NVIDIA's DLLs DLSS and DLSS frame generation need, as they lie in NVIDIA's
-    // own release of the Streamline SDK 2.14.1 on GitHub, and what the player's
+    // own release of the Streamline SDK 2.14.16 on GitHub, and what the player's
     // GPU gets of them. The player downloads them from NVIDIA's release after
     // accepting NVIDIA's licences (NvidiaDownloader).
     //
@@ -23,17 +23,17 @@ namespace ReDefinition.Bridges
     internal static class NvidiaFiles
     {
         public const string ArchiveUrl =
-            "https://github.com/NVIDIA-RTX/Streamline/releases/download/v2.14.1/streamline-sdk-v2.14.1.zip";
+            "https://github.com/NVIDIA-RTX/Streamline/releases/download/v2.14.16/streamline-sdk-v2.14.16.zip";
 
         // The licences, in the repository at the release's tag; the same texts as
         // the notices the download puts next to the files.
         public const string RtxLicenceUrl =
-            "https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.1/external/ngx-sdk/license.txt";
+            "https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/external/ngx-sdk/license.txt";
         public const string ReflexLicenceUrl =
-            "https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.1/external/reflex-sdk-vk/reflex.license.txt";
-        public const string StreamlineLicenceUrl = "https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.1/license.txt";
+            "https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/external/reflex-sdk-vk/reflex.license.txt";
+        public const string StreamlineLicenceUrl = "https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/license.txt";
         public const string ThirdPartyLicencesUrl =
-            "https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.1/3rd-party-licenses.md";
+            "https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/3rd-party-licenses.md";
 
         // NV_GPU_ARCHITECTURE_ID and NV_GPU_ARCH_IMPLEMENTATION_ID (nvapi.h). What NGX
         // asks of the GPU, as it logged it: "minHW 0x160" for DLSS, "minHW 0x190" for
@@ -70,7 +70,7 @@ namespace ReDefinition.Bridges
             public Use Use;
             // A licence text, fetched with a DLL of a use it covers.
             public bool Notice;
-            // Only Streamline 2.14.1 runs (Streamline.h): a file of another version
+            // Only Streamline 2.14.16 runs (Streamline.h): a file of another version
             // or content counts as missing. NGX's DLLs the player brought, whatever
             // their version, stay.
             public bool ExactVersion;
@@ -85,80 +85,80 @@ namespace ReDefinition.Bridges
         {
             new Entry
             {
-                Name = "bin/x64/nvngx_dlss.dll", FileName = "nvngx_dlss.dll", Offset = 2277765, CompressedSize = 31123319,
-                Size = 58956912, Sha256 = "3975567B8943C53ACCE397F2B72380092F84F162D00B0D2C7D08A1025C563983", Use = Use.Dlss,
+                Name = "bin/x64/nvngx_dlss.dll", FileName = "nvngx_dlss.dll", Offset = 2278945, CompressedSize = 31123363,
+                Size = 58956912, Sha256 = "D00B5B0AB29C3CA101B70C3A5ECB3A01B7EF33766A3383A28A18623083E6123E", Use = Use.Dlss,
             },
             new Entry
             {
-                Name = "bin/x64/nvngx_dlss.license.txt", FileName = "nvngx_dlss.license.txt", Offset = 33401136,
+                Name = "bin/x64/nvngx_dlss.license.txt", FileName = "nvngx_dlss.license.txt", Offset = 33402360,
                 CompressedSize = 9256, Size = 26727,
                 Sha256 = "3027F23CA5A46DD9CB8183FBD522983A86F64D7DAAC5982912BF9F214671F294", Use = Use.Both, Notice = true,
             },
             new Entry
             {
-                Name = "bin/x64/sl.interposer.dll", FileName = "sl.interposer.dll", Offset = 60121610,
-                CompressedSize = 284550, Size = 652928,
-                Sha256 = "8C87C9499461DA561EDD529AA9BF7831D67D7B94EBB1C1A5ED54EF4934E1EA4C", Use = Use.Streamline,
+                Name = "bin/x64/sl.interposer.dll", FileName = "sl.interposer.dll", Offset = 60146344,
+                CompressedSize = 284521, Size = 652928,
+                Sha256 = "B1D7395AEBD7B9722841D64DCF7433680020B6A8E421F851C16D5BA0C2182EDF", Use = Use.Streamline,
                 ExactVersion = true,
             },
             new Entry
             {
-                Name = "bin/x64/sl.common.dll", FileName = "sl.common.dll", Offset = 58700957, CompressedSize = 390298,
-                Size = 843392, Sha256 = "82924A8954DD671E09351C5DE0EB87AD0EB25B944CC9F9AB955CA1D9950DE15D",
+                Name = "bin/x64/sl.common.dll", FileName = "sl.common.dll", Offset = 58724729, CompressedSize = 390611,
+                Size = 843904, Sha256 = "38EEA3B4209AFC455636EA372B5933D65FCC13BECEC6C84D101DCFC4D8648F75",
                 Use = Use.Streamline, ExactVersion = true,
             },
             new Entry
             {
-                Name = "bin/x64/sl.dlss_g.dll", FileName = "sl.dlss_g.dll", Offset = 59635666, CompressedSize = 290880,
-                Size = 636032, Sha256 = "F4A6B2B14DCC0B1485989E430D3B4E3A44AC1800B92BA1AD74F476E64FB2B09C",
+                Name = "bin/x64/sl.dlss_g.dll", FileName = "sl.dlss_g.dll", Offset = 59659866, CompressedSize = 291415,
+                Size = 637056, Sha256 = "3ED9538DF724993BEA8A050195A6A78B9C8C8A566D5B05ADE477AAB3C390E90F",
                 Use = Use.FrameGeneration, ExactVersion = true,
             },
             new Entry
             {
-                Name = "bin/x64/sl.reflex.dll", FileName = "sl.reflex.dll", Offset = 61262806, CompressedSize = 180983,
-                Size = 388736, Sha256 = "0CE9725E3E03EA9E7F81D008B57F33EE365973D2E349131C8B1C3E3378FE2DB0",
+                Name = "bin/x64/sl.reflex.dll", FileName = "sl.reflex.dll", Offset = 61287588, CompressedSize = 180986,
+                Size = 388736, Sha256 = "443577E869352436FF7EC8F4D9C90418D3E95368436CE219261E0F4F07A38122",
                 Use = Use.FrameGeneration, ExactVersion = true,
             },
             new Entry
             {
-                Name = "bin/x64/sl.pcl.dll", FileName = "sl.pcl.dll", Offset = 61095493, CompressedSize = 167265,
-                Size = 360064, Sha256 = "F13D51CFA05F4CD514DF2026049E2DB8ADF359221713170AD386FD499915B582",
+                Name = "bin/x64/sl.pcl.dll", FileName = "sl.pcl.dll", Offset = 61120267, CompressedSize = 167273,
+                Size = 360064, Sha256 = "5698C38E722318681F215C9FE68E45B9BEDD51378ACC699D8EEE26E961E57770",
                 Use = Use.Streamline, ExactVersion = true,
             },
             new Entry
             {
-                Name = "bin/x64/nvngx_dlssg.dll", FileName = "nvngx_dlssg.dll", Offset = 54975783,
-                CompressedSize = 3717448, Size = 7460976,
-                Sha256 = "FF6E90EB78B827927DFF5B4ECC6B1C870C2E9BCA29ED9F48C7D348CC9E170B82", Use = Use.FrameGeneration,
+                Name = "bin/x64/nvngx_dlssg.dll", FileName = "nvngx_dlssg.dll", Offset = 54976989,
+                CompressedSize = 3740014, Size = 7506544,
+                Sha256 = "8D59D49B36410DD6B62FEF2503A5871D347415BD85D943FA0848563A95DD50C7", Use = Use.FrameGeneration,
             },
             new Entry
             {
-                Name = "bin/x64/sl.dlss_d.dll", FileName = "sl.dlss_d.dll", Offset = 59437255, CompressedSize = 198360,
-                Size = 437376, Sha256 = "026B9F4F9EA848F2F5AA0E2024FC6B1C885F57EEA5D41078124DBA14F873B86B",
+                Name = "bin/x64/sl.dlss_d.dll", FileName = "sl.dlss_d.dll", Offset = 59461417, CompressedSize = 198398,
+                Size = 437376, Sha256 = "8DFF36FD063094EB1F659E8D4DCD52C7423859A9C4A3DF3796084C48412D60AC",
                 Use = Use.Streamline, ExactVersion = true,
             },
             new Entry
             {
-                Name = "bin/x64/nvngx_dlssd.dll", FileName = "nvngx_dlssd.dll", Offset = 33410452,
-                CompressedSize = 21565278, Size = 48343664,
-                Sha256 = "4BC7EA5FCB2F32CF86BC2CB072E8D2860914A0BE511CBDCB2FC206C1D9D83B80", Use = Use.Streamline,
+                Name = "bin/x64/nvngx_dlssd.dll", FileName = "nvngx_dlssd.dll", Offset = 33411676,
+                CompressedSize = 21565260, Size = 48343664,
+                Sha256 = "B49435AE346F227FEAFE7BBE937D88277EA0EE7323975EC06488F377FDB46CEE", Use = Use.Streamline,
             },
             new Entry
             {
-                Name = "bin/x64/reflex.license.txt", FileName = "reflex.license.txt", Offset = 58693284,
+                Name = "bin/x64/reflex.license.txt", FileName = "reflex.license.txt", Offset = 58717056,
                 CompressedSize = 7617, Size = 20504,
                 Sha256 = "EBF83C07FB3B2939908C3795D887AFDE3161C89A28BA391724EFC784CE1BDABE", Use = Use.FrameGeneration,
                 Notice = true,
             },
             new Entry
             {
-                Name = "license.txt", FileName = "sl.license.txt", Offset = 275801866, CompressedSize = 883, Size = 1591,
+                Name = "license.txt", FileName = "sl.license.txt", Offset = 275823988, CompressedSize = 883, Size = 1591,
                 Sha256 = "7B6F23E7D6F3AD6292F9308D2B42CDC3D82AE4E9B2ABB55F230279D83BEDD43D", Use = Use.Streamline,
                 Notice = true,
             },
             new Entry
             {
-                Name = "3rd-party-licenses.md", FileName = "sl.3rd-party-licenses.md", Offset = 275782640,
+                Name = "3rd-party-licenses.md", FileName = "sl.3rd-party-licenses.md", Offset = 275804762,
                 CompressedSize = 2574, Size = 14682,
                 Sha256 = "CB251639994465F31D2178C16ACEDF1FF4F9CEF1C370A09782ED36D4C86C1DCA", Use = Use.Streamline,
                 Notice = true,

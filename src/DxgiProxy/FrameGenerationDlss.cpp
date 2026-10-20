@@ -75,7 +75,7 @@ namespace redefinition
             add(sl::DLSSGStatus::eFailHDRFormatNotSupported, "the backbuffer format is not supported");
             add(sl::DLSSGStatus::eFailCommonConstantsInvalid, "some constants are invalid");
             add(sl::DLSSGStatus::eFailGetCurrentBackBufferIndexNotCalled, "GetCurrentBackBufferIndex was not called");
-            // Bits sl_dlss_g.h 2.14.1 does not name, in hex as the header writes them.
+            // Bits sl_dlss_g.h 2.14.16 does not name, in hex as the header writes them.
             const uint32_t rest = status & ~named;
             if (rest != 0)
             {

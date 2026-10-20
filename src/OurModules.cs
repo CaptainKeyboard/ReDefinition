@@ -138,7 +138,7 @@ namespace ReDefinition
                 // Which one runs, DLSS or FSR 3.
                 Label = value => FrameGenerationLabel(bool.Parse(value)),
                 Tooltip = "Generated frames between the rendered ones, from KSP's own depth and motion vectors.\n"
-                          + "DLSS frame generation where NVIDIA's Streamline 2.14.1 DLLs lie next to KSP_x64.exe\n"
+                          + "DLSS frame generation where NVIDIA's Streamline 2.14.16 DLLs lie next to KSP_x64.exe\n"
                           + "and the GPU runs it (RTX 40 and newer), as many frames as the GPU offers;\n"
                           + "FSR 3 frame generation otherwise, one frame between every two. The switch says which runs.\n"
                           + "Needs the dxgi.dll proxy next to KSP_x64.exe. With the upscaler off,\n"

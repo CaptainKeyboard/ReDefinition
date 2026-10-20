@@ -39,7 +39,7 @@ namespace redefinition
         // package ships AMD's runtime (Config.cpp).
         bool frameGeneration = true;
 
-        // DLSS frame generation where NVIDIA's Streamline 2.14.1 is there and the
+        // DLSS frame generation where NVIDIA's Streamline 2.14.16 is there and the
         // GPU runs it, FSR's otherwise (Streamline.h). Read at creation, like
         // frameGeneration: which swapchain presents is decided once.
         bool dlssFrameGeneration = true;

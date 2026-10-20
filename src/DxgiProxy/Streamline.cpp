@@ -20,7 +20,7 @@ namespace redefinition
     {
         // The version the headers in extern/Streamline declare (sl_version.h),
         // as the DLL's version resource reads.
-        constexpr const char* kFileVersionPrefix = "2.14.1.";
+        constexpr const char* kFileVersionPrefix = "2.14.16.";
 
         // Streamline's own lines, into the proxy's log up to this many per start:
         // its warnings and errors, and fewer of its information lines, which at
@@ -223,7 +223,7 @@ namespace redefinition
         if (version.rfind(kFileVersionPrefix, 0) != 0)
         {
             SetState("sl.interposer.dll is version " + (version.empty() ? std::string("unknown") : version)
-                         + ", this build runs Streamline 2.14.1 only" + Instead(),
+                         + ", this build runs Streamline 2.14.16 only" + Instead(),
                      true);
             return false;
         }

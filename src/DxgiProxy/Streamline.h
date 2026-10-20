@@ -22,7 +22,7 @@ namespace redefinition
     // KSP_x64.exe (or in streamlineDirectory), which the player downloads from
     // NVIDIA's release (NvidiaDownloader). Only what the headers in
     // extern/Streamline were taken from runs:
-    // Streamline 2.14.1, signed by NVIDIA. NVIDIA documents no compatibility
+    // Streamline 2.14.16, signed by NVIDIA. NVIDIA documents no compatibility
     // between versions, and slInit is handed the version these headers declare.
     //
     // "Manual hooking" (ProgrammingGuideManualHooking.md): nothing in the process

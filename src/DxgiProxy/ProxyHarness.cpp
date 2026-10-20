@@ -844,7 +844,7 @@ int main()
     xessDirectoryKey.Set(xessDirectory.empty() ? nullptr : xessDirectory.c_str());
 
     // DLSS frame generation, when REDEFINITION_STREAMLINE_DIR names a folder with
-    // NVIDIA's Streamline 2.14.1 DLLs -- the SDK's bin\x64; without it the proxy
+    // NVIDIA's Streamline 2.14.16 DLLs -- the SDK's bin\x64; without it the proxy
     // generates with FSR, if AMD's runtime is next to the harness.
     wchar_t streamlineDirectoryBuffer[MAX_PATH] = {};
     GetEnvironmentVariableW(L"REDEFINITION_STREAMLINE_DIR", streamlineDirectoryBuffer, MAX_PATH);

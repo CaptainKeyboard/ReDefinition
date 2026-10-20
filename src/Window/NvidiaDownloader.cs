@@ -176,7 +176,7 @@ namespace ReDefinition.Window
 
             string message =
                 "ReDefinition can fetch NVIDIA's files for " + Purpose(dlss, streamline, frameGeneration)
-                + " on this GPU from NVIDIA's own release of the Streamline SDK 2.14.1 on GitHub, and place them where"
+                + " on this GPU from NVIDIA's own release of the Streamline SDK 2.14.16 on GitHub, and place them where"
                 + " ReDefinition's dxgi.dll loads them from"
                 + (places.Count > 0 ? ": " + string.Join(" and ", places.ToArray()) : "")
                 + ".\n\n"
