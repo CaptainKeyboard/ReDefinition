@@ -54,7 +54,8 @@ namespace ReDefinition.Upscaler
 
         // Whether the raytraced frame goes to Ray Reconstruction at all; without it the
         // raytracing's own denoiser and DLSS Super Resolution take it.
-        // -redefinitionProbeNoRayReconstruction: without, for a probe's run.
+        // The player's "Ray Reconstruction" (OwnSettings.RayReconstruction) and
+        // -redefinitionProbeNoRayReconstruction, without it for a probe's run.
         // sl::DLSSDPreset: 0 eDefault; -redefinitionProbeRrPreset <4 to 6> (D to F) for a
         // probe's run.
         private static readonly uint ReconstructionPreset = ProbeReconstructionPreset();
@@ -92,7 +93,8 @@ namespace ReDefinition.Upscaler
                 Debug.Log(Log.Tag + " DLSS Ray Reconstruction takes HDR frames only; this camera renders LDR: DLSS Super"
                           + " Resolution.");
             }
-            bool wanted = raytracedHere && EffectiveHdr && UseRayReconstruction
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            bool wanted = raytracedHere && EffectiveHdr && UseRayReconstruction && (addon == null || addon.Live.RayReconstruction)
                           && Time.unscaledTime - reconstructionGaveUpAt > ReconstructionRetrySeconds && ReconstructionReady();
             if (wanted) raytraced.ReconstructionLease = Time.frameCount;
             bool was = Reconstructing;

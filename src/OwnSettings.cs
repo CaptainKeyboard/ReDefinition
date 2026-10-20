@@ -37,6 +37,10 @@ namespace ReDefinition
         // How much of the lighting is raytraced, and how often its light bounces.
         public RaytracingMode Raytracing = RaytracingMode.Off;
         public int RaytracingBounces = 2;
+        // DLSS Ray Reconstruction denoises and upscales the raytraced frame where it runs;
+        // off, the raytracing's own denoiser and DLSS Super Resolution do
+        // (Upscaler/UpscalerRig.Reconstruction).
+        public bool RayReconstruction = true;
         // How bright the moons' and planets' light is, in percent of the raytracing's
         // artistic scale (Raytracing/Ksp/RtReflectors).
         public float RaytracingMoonlight = 10f;
@@ -288,6 +292,7 @@ namespace ReDefinition
                     return ok;
                 },
             },
+            Bool("rayReconstruction", x => x.RayReconstruction, (x, v) => x.RayReconstruction = v, true),
             Float("raytracingMoonlight", "0", x => x.RaytracingMoonlight, (x, v) => x.RaytracingMoonlight = v, true),
             Bool("moonGlow", x => x.MoonGlow, (x, v) => x.MoonGlow = v, true),
             Float("raytracingMoonReflection", "0", x => x.RaytracingMoonReflection, (x, v) => x.RaytracingMoonReflection = v, true),
