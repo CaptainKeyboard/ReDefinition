@@ -50,8 +50,9 @@ namespace redefinition
         // FSR's where it does not; fsr asks for FSR's always.
         int frameGenerationTechnique = 0;
 
-        // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics
-        // and streamlineImgui, which apply when what they serve starts ----
+        // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics,
+        // streamlineImgui, xell, xellLowLatencyBoost, xessFgUiMode and xessFgFrames'
+        // most, which apply when what they serve starts ----
 
         // Keep the UI out of the interpolated frames by handing FSR a HUD-less
         // snapshot: the backbuffer copied after the last scene camera and before
@@ -125,6 +126,14 @@ namespace redefinition
         // still tear without VSync (frame-interpolation-swap-chain.md). Off by
         // default. KSP's own frame limit is Unity's software timer (33/58 ms
         // measured around a cap of 30).
+        //
+        // Under XeSS-FG the limit is XeLL's, the presented frames slightly below the
+        // refresh rate: "FPS Cap is controlled via xellSetSleepMode API when Low
+        // Latency mode is active", "XeLL will limit the frame rate to half of the
+        // target ensuring that the total count of presented frames (both generated
+        // and rendered) matches the requested FPS" (xell_developer_guide_english.md,
+        // Integration Checklist, XeSS-FG Support). Taken when the swapchain is made,
+        // with XeLL's mode.
         bool fgHalfRefreshLimit = false;
 
         // Frame generation's optical flow and interpolation on a compute queue of
@@ -174,6 +183,16 @@ namespace redefinition
         // XeSS-FG, XeLL's is always on: "XeLL must be enabled before enabling frame
         // generation".
         bool lowLatency = true;
+        // Intel XeLL on an Intel GPU where XeSS-FG does not run: made, its mode as
+        // lowLatency says, or not made at all -- "The application can disable XeLL
+        // when frame generation is disabled" (xess_fg_developer_guide_english.md,
+        // Connect with XeLL) -- so the latency brake runs as on any other GPU. XeSS-FG
+        // makes its own always: "XeSS-FG requires a working XeLL integration on all
+        // GPUs". Read when the swapchain is made.
+        bool xell = true;
+        // XeLL's bLowLatencyBoost, where it lowers the latency: "Boost is not supported
+        // as of now" (xell.h). Read when the swapchain is made, with XeLL's mode.
+        bool xellLowLatencyBoost = false;
         // The latency brake (LowLatency::Brake), and the waits in the proxy it leaves
         // per frame, in milliseconds. Live.
         bool latencyBrake = true;
@@ -219,6 +238,38 @@ namespace redefinition
         // based on the resources tagged by the application"
         // (xess_fg_developer_guide_english.md, UI Handling). Live.
         bool xessFgUiComposition = false;
+
+        // XeSS-FG's UI mode, which its composition takes: kXessUiMode*, as
+        // xefg_swapchain_ui_mode_t numbers them -- AUTO, "Determine UI composition mode
+        // automatically, based on provided inputs: hudless color and UI texture", the
+        // default. An init parameter (xefg_swapchain_d3d12_init_params_t::uiMode): read
+        // when the swapchain is made. The proxy tags no UI texture.
+        int xessFgUiMode = 0;
+
+        // Frames XeSS-FG generates per rendered frame, 1 by default: "On non-Intel GPUs
+        // the maximum number of generated frames is one" (xess_fg_developer_guide_english.md,
+        // Requirements), and on Intel's as many as the swapchain says it supports
+        // (xefgSwapChainGetProperties). The most is set when the swapchain is made --
+        // "The maximum number of generated frames is set during the proxy swap chain
+        // initialization and cannot be updated" -- and fewer live within it
+        // (xefgSwapChainSetNumInterpolatedFrames, Controlling the Number of Generated
+        // Frames).
+        int xessFgFrames = 1;
+
+        // XeSS-FG's scene change detection, 0 to 1: "A higher threshold value increases
+        // the algorithm's sensitivity, causing it to more readily identify scene changes
+        // and disable interpolation ... Default value is 0.7"
+        // (xefgSwapChainSetSceneChangeThreshold, xefg_swapchain.h). Live.
+        float xessFgSceneChangeThreshold = 0.7f;
+
+        // XeSS-FG's debug features, for development, off by default and live: "called at
+        // any time between context creation and destruction" (Debug Features).
+        // XEFG_SWAPCHAIN_DEBUG_FEATURE_TAG_INTERPOLATED_FRAMES, "show purple boxes and
+        // vertical lines on the interpolated frame", and
+        // XEFG_SWAPCHAIN_DEBUG_FEATURE_PRESENT_FAILED_INTERPOLATION, "show black frame if
+        // the interpolation failed, otherwise show the current back buffer".
+        bool xessFgTagInterpolatedFrames = false;
+        bool xessFgPresentFailedInterpolation = false;
 
         // The raytracing and Ray Reconstruction on a Direct3D 12 queue of their own
         // instead of the swapchain's, where the present and frame generation run: their
@@ -286,6 +337,13 @@ namespace redefinition
     constexpr int kFgTechniqueDlss = 2;
     constexpr int kFgTechniqueXess = 3;
 
+    // ProxyConfig::xessFgUiMode, xefg_swapchain_ui_mode_t's values, as the ini names
+    // them: auto, none, backbuffer_uitexture, hudless_uitexture, backbuffer_hudless,
+    // backbuffer_hudless_uitexture.
+    constexpr int kXessUiModeAuto = 0;
+    constexpr int kXessUiModeCount = 6;
+    const char* XessUiModeName(int mode);
+
     const ProxyConfig& Config();
     void LoadConfig();
 
@@ -298,6 +356,10 @@ namespace redefinition
     std::wstring XessFgDirectory();
     // frameGenerationTechnique as the file has it now, read like the folders.
     int FrameGenerationTechniqueAsked();
+    // Every setting as the file has it now, for what a swapchain takes when it is
+    // made (xell, xellLowLatencyBoost, xessFgUiMode, xessFgFrames, and XeLL's frame
+    // limit from fgHalfRefreshLimit), read like the folders.
+    ProxyConfig ConfigAsked();
 
     // Re-reads the file when it has changed on disk; returns whether it did.
     // rebuild: whether a setting changed that the frame generation context has to

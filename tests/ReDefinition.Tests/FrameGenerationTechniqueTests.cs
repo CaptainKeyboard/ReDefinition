@@ -25,13 +25,15 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void XessShowsTwoTimesWhileItGenerates()
+        public void XessShowsItsMultiplierWhileItGenerates()
         {
             Assert.AreEqual("XeSS", FrameGenerationBridge.TechniqueLabel(3, 0));
             Assert.AreEqual("XeSS 2x", FrameGenerationBridge.TechniqueLabel(3, 2));
-            // XeSS-FG generates one frame per rendered frame here; anything else is
-            // read as not generating.
-            Assert.AreEqual("XeSS", FrameGenerationBridge.TechniqueLabel(3, 3));
+            // More than one generated frame per rendered frame on an Intel GPU
+            // (xessFgFrames); beyond what the row names, read as not generating.
+            Assert.AreEqual("XeSS 3x", FrameGenerationBridge.TechniqueLabel(3, 3));
+            Assert.AreEqual("XeSS 4x", FrameGenerationBridge.TechniqueLabel(3, 4));
+            Assert.AreEqual("XeSS", FrameGenerationBridge.TechniqueLabel(3, 5));
         }
 
         [TestMethod]

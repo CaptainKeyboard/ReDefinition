@@ -359,6 +359,23 @@ namespace redefinition
             return kFgTechniqueAuto;
         }
 
+        // xessFgUiMode: one of XessUiModeName's names, in any case; anything else is
+        // auto, and said.
+        int ReadXessUiMode(const std::wstring& file)
+        {
+            wchar_t buffer[64] = {};
+            GetPrivateProfileStringW(L"Proxy", L"xessFgUiMode", L"auto", buffer, ARRAYSIZE(buffer), file.c_str());
+            for (int mode = 0; mode < kXessUiModeCount; ++mode)
+            {
+                const std::string name = XessUiModeName(mode);
+                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
+                    return mode;
+            }
+            LogLine("Config: xessFgUiMode=" + Narrow(buffer) + " is none of auto, none, backbuffer_uitexture,"
+                    " hudless_uitexture, backbuffer_hudless, backbuffer_hudless_uitexture -- auto");
+            return kXessUiModeAuto;
+        }
+
         std::string Describe(const ProxyConfig& c)
         {
             return std::string("enabled=") + (c.enabled ? "1" : "0")
@@ -385,10 +402,17 @@ namespace redefinition
                  + " latencyBrake=" + (c.latencyBrake ? "1" : "0") + "/" + std::to_string(c.latencyBrakeTargetMs) + "/"
                  + std::to_string(c.latencyBrakeWaits)
                  + " antiLag2=" + std::to_string(c.antiLag2)
+                 + " xell=" + (c.xell ? "1" : "0")
+                 + " xellLowLatencyBoost=" + (c.xellLowLatencyBoost ? "1" : "0")
                  + " vendorDiagnostics=" + (c.vendorDiagnostics ? "1" : "0")
                  + " streamlineImgui=" + (c.streamlineImgui ? "1" : "0")
                  + " fgShowOnlyGenerated=" + (c.fgShowOnlyGenerated ? "1" : "0")
                  + " xessFgUiComposition=" + (c.xessFgUiComposition ? "1" : "0")
+                 + " xessFgUiMode=" + XessUiModeName(c.xessFgUiMode)
+                 + " xessFgFrames=" + std::to_string(c.xessFgFrames)
+                 + " xessFgSceneChangeThreshold=" + std::to_string(c.xessFgSceneChangeThreshold)
+                 + " xessFgTagInterpolatedFrames=" + (c.xessFgTagInterpolatedFrames ? "1" : "0")
+                 + " xessFgPresentFailedInterpolation=" + (c.xessFgPresentFailedInterpolation ? "1" : "0")
                  + " rtOwnQueue=" + (c.rtOwnQueue ? "1" : "0")
                  + " rtCutoutTest=" + std::to_string(c.rtCutoutTest)
                  + " rtSunUnfiltered=" + std::string(c.rtSunUnfiltered ? "1" : "0")
@@ -460,6 +484,19 @@ namespace redefinition
             target.streamlineImgui = ReadFlag(L"streamlineImgui", file, false);
             target.fgShowOnlyGenerated = ReadFlag(L"fgShowOnlyGenerated", file, false);
             target.xessFgUiComposition = ReadFlag(L"xessFgUiComposition", file, false);
+            target.xessFgUiMode = ReadXessUiMode(file);
+            target.xessFgFrames = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"xessFgFrames", 1, file.c_str()));
+            // "The number of interpolated frames must be between 1 and the maximum"
+            // (xefgSwapChainSetNumInterpolatedFrames, xefg_swapchain.h).
+            if (target.xessFgFrames < 1)
+                target.xessFgFrames = 1;
+            target.xessFgSceneChangeThreshold = ReadFloat(L"xessFgSceneChangeThreshold", file, 0.7f);
+            // "The threshold value range is from 0 to 1".
+            target.xessFgSceneChangeThreshold = std::min(1.0f, std::max(0.0f, target.xessFgSceneChangeThreshold));
+            target.xessFgTagInterpolatedFrames = ReadFlag(L"xessFgTagInterpolatedFrames", file, false);
+            target.xessFgPresentFailedInterpolation = ReadFlag(L"xessFgPresentFailedInterpolation", file, false);
+            target.xell = ReadFlag(L"xell", file, true);
+            target.xellLowLatencyBoost = ReadFlag(L"xellLowLatencyBoost", file, false);
             target.rtOwnQueue = ReadFlag(L"rtOwnQueue", file, false);
             target.rtCutoutTest = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtCutoutTest", 0, file.c_str()));
             target.rtSunUnfiltered = GetPrivateProfileIntW(L"Proxy", L"rtSunUnfiltered", 0, file.c_str()) != 0;
@@ -535,6 +572,23 @@ namespace redefinition
         return ReadTechnique(IniPath());
     }
 
+    // As StreamlineDirectory: from the file, once per swapchain, into a copy of its
+    // own.
+    ProxyConfig ConfigAsked()
+    {
+        ProxyConfig asked;
+        ReadInto(asked, IniPath());
+        return asked;
+    }
+
+    const char* XessUiModeName(int mode)
+    {
+        // xefg_swapchain_ui_mode_t, XEFG_SWAPCHAIN_UI_MODE_ without its prefix.
+        static const char* const names[kXessUiModeCount] = { "auto", "none", "backbuffer_uitexture", "hudless_uitexture",
+                                                             "backbuffer_hudless", "backbuffer_hudless_uitexture" };
+        return mode >= 0 && mode < kXessUiModeCount ? names[mode] : names[kXessUiModeAuto];
+    }
+
     // As StreamlineDirectory: from the file, once per swapchain.
     std::wstring XessFgDirectory()
     {
@@ -584,7 +638,8 @@ namespace redefinition
         LogLine("Config reloaded: " + Describe(g_config)
                 + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
                 + "   (enabled, allowTearing, measureOnly and frameGeneration as at load; frameGenerationTechnique,"
-                  " the folders, rtOwnQueue, streamlineImgui and vendorDiagnostics apply when what they serve starts)");
+                  " the folders, rtOwnQueue, streamlineImgui, vendorDiagnostics, xell, xellLowLatencyBoost,"
+                  " xessFgUiMode and the most xessFgFrames apply when what they serve starts)");
 
         rebuild = needsRebuild;
         return true;

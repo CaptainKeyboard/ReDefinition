@@ -29,6 +29,10 @@ namespace redefinition
     inline std::atomic<int> g_streamlineSwapChains{ 0 };
     inline std::atomic<int> g_xessSwapChains{ 0 };
 
+    // The frame generation the last swapchain was made for
+    // (FrameGenerationTechniqueWanted).
+    inline std::atomic<int> g_fgTechniqueWanted{ -2 };
+
     // The window of the last swapchain made, until it goes (PresentingWindow).
     inline std::atomic<HWND> g_presentingWindow{ nullptr };
 }

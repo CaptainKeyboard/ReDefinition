@@ -41,6 +41,11 @@ namespace redefinition
         return g_generatingSwapChains.load() > 0 ? 1 : 0;
     }
 
+    int FrameGenerationTechniqueWanted()
+    {
+        return g_fgTechniqueWanted.load();
+    }
+
     bool FrameCounters(uint32_t& rendered, uint32_t& presented)
     {
         // The flag first: seeing it set means the totals written before it
@@ -321,6 +326,10 @@ namespace redefinition
                                          && (technique == kFgTechniqueAuto || technique == kFgTechniqueDlss);
         xessWanted = Config().frameGeneration
                      && (technique == kFgTechniqueXess || (technique == kFgTechniqueAuto && intelAdapter));
+        // For the status line: whose reason it gives where the wanted one does not run.
+        g_fgTechniqueWanted.store(!Config().frameGeneration ? -1
+                                  : xessWanted ? kFgTechniqueXess
+                                  : dlssFrameGeneration ? kFgTechniqueDlss : kFgTechniqueFsr);
         const bool dlss = (dlssFrameGeneration || !Config().frameGeneration)
                           && SetUpStreamline(adapter.Get(), dlssFrameGeneration);
 
@@ -433,16 +442,24 @@ namespace redefinition
         if (streamlineSwapChain && Streamline::Get().FrameGenerationAvailable())
             FrameGeneration::Get().UseStreamline(this);
         if (xessSwapChain)
-            FrameGeneration::Get().UseXess(this, xessContext);
+            FrameGeneration::Get().UseXess(this, xessContext, xessFramesMost);
         // XeLL on an Intel GPU where neither Streamline's nor FidelityFX's swapchain
-        // presents.
+        // presents, as xell asks.
+        bool xellLowLatency = xessSwapChain;
         if (xellContext == nullptr && intelAdapter && !streamlineSwapChain && fgSwapChainContext == nullptr)
-            SetUpIntelXell();
+            xellLowLatency = SetUpIntelXell();
         // Reflex where Streamline's does not run on this swapchain, or XeLL where it
         // was made.
-        LowLatency::Get().Attach(this, d3d11Device.Get(), d3d12Device.Get(), queue.Get(), d3d12Device->GetAdapterLuid(),
-                                 streamlineSwapChain && Streamline::Get().FrameGenerationAvailable(), xellContext,
-                                 xessSwapChain);
+        {
+            LowLatency::XellSetup xell;
+            xell.context = xellContext;
+            xell.frameGeneration = xessSwapChain;
+            xell.lowLatency = xellLowLatency;
+            xell.intelGpu = intelAdapter;
+            LowLatency::Get().Attach(this, d3d11Device.Get(), d3d12Device.Get(), queue.Get(),
+                                     d3d12Device->GetAdapterLuid(),
+                                     streamlineSwapChain && Streamline::Get().FrameGenerationAvailable(), xell);
+        }
         g_deviceRemoved.store(S_OK);
 
         // The texture Unity believes is its backbuffer, and therefore the one

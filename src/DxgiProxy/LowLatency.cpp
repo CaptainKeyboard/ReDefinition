@@ -168,7 +168,7 @@ namespace redefinition
         return *instance;
     }
 
-    void LowLatency::SetText(int newKind, const std::string& newText)
+    void LowLatency::SetText(int newKind, const std::string& newText, bool log)
     {
         bool changed = false;
         {
@@ -177,14 +177,15 @@ namespace redefinition
             kind = newKind;
             text = newText;
         }
-        if (changed)
+        if (changed && log)
             LogLine("Low latency: " + newText);
     }
 
     void LowLatency::Attach(const void* newOwner, ID3D11Device* newGameDevice, ID3D12Device* newDevice,
                             ID3D12CommandQueue* newQueue, const LUID& adapter, bool streamlineReflex,
-                            xell_context_handle_t newXell, bool xessFrameGeneration)
+                            const XellSetup& setup)
     {
+        const xell_context_handle_t newXell = setup.context;
         {
             std::lock_guard<std::mutex> lock(mutex);
             owner = newOwner;
@@ -207,10 +208,18 @@ namespace redefinition
                 xell = newXell;
                 xellSleeping = newXell;
             }
-            xellFrameGeneration = newXell != nullptr && xessFrameGeneration;
-            xellLowLatency = xellFrameGeneration || Config().lowLatency;
-            xellActive = newXell != nullptr;
-            const bool others = !streamlineReflex && newXell == nullptr;
+            xellFrameGeneration = newXell != nullptr && setup.frameGeneration;
+            xellLowLatency = newXell != nullptr && (xellFrameGeneration || setup.lowLatency);
+            xellIntel = setup.intelGpu;
+            xellActive = xellLowLatency;
+            xessGenerating = false;
+            handOverSeen = -1;
+            handOverLogged = -1;
+            handOversUnlogged = 0;
+            // Reflex and Anti-Lag 2 only where XeLL's low latency mode is off: with it on
+            // -- always under XeSS-FG's swapchain -- "other latency reduction solutions"
+            // are excluded (Integration Checklist).
+            const bool others = !streamlineReflex && !xellLowLatency;
 
             NvidiaGpuInfo info;
             reflex = others && NvidiaGpu(adapter, info) == NvidiaGpuAnswer::Found && SetSleepMode() != nullptr
@@ -236,7 +245,11 @@ namespace redefinition
                 LogLine("Low latency: NVIDIA Reflex through NVAPI on the proxy's Direct3D 12 device");
             if (newXell != nullptr)
                 LogLine(std::string("Low latency: Intel XeLL on the proxy's Direct3D 12 device")
-                        + (xellFrameGeneration ? ", with XeSS frame generation" : ""));
+                        + (xellFrameGeneration ? ", with XeSS frame generation" : "")
+                        + (xellFrameGeneration && !xellIntel
+                               ? " -- on this GPU it lowers the latency only while XeSS frame generation generates,"
+                                 " the latency brake while it is held off"
+                               : ""));
 
             // The measure, on every GPU and with DLSS frame generation as well.
             if (newDevice != nullptr && newQueue != nullptr)
@@ -268,7 +281,10 @@ namespace redefinition
         }
         xell = nullptr;
         xellFrameGeneration = false;
+        xellLowLatency = false;
+        xellIntel = false;
         xellActive = false;
+        xessGenerating = false;
         {
             std::lock_guard<std::mutex> antiLag(antiLagMutex);
             antiLagOn = 0;
@@ -306,6 +322,47 @@ namespace redefinition
         return TrackingLocked() && xell != nullptr;
     }
 
+    // "XeLL requires XeSS-FG to be supported on the device in order to perform latency
+    // reduction. Application must ensure that on non-Intel GPUs XeSS-FG context is
+    // created and interpolation is enabled. If the condition is not fulfilled then XeLL
+    // will not perform Latency reduction" (xell_developer_guide_english.md,
+    // Cross-vendor support).
+    bool LowLatency::XellReducingLocked() const
+    {
+        return XellLocked() && xellLowLatency && (xellIntel || !xellFrameGeneration || xessGenerating.load());
+    }
+
+    void LowLatency::NoteHandOverLocked(bool xellReduces)
+    {
+        const int state = xellReduces ? 1 : 0;
+        if (state != handOverSeen)
+        {
+            handOverSeen = state;
+            ++handOversUnlogged;
+        }
+        // Back where the last line left it, or that line too recent: counted, and the
+        // state that stands said once the interval is over.
+        if (state == handOverLogged)
+            return;
+        const ULONGLONG now = GetTickCount64();
+        if (handOverLogged != -1 && now - handOverLoggedAt < kHandOverLogMs)
+            return;
+        const std::string since = handOversUnlogged > 1
+                                      ? " (" + std::to_string(handOversUnlogged) + " changes since the last line)"
+                                      : std::string();
+        if (xellReduces)
+            LogLine("Low latency: XeSS frame generation generates -- XeLL lowers the latency, the latency brake steps"
+                    " back" + since);
+        else
+            LogLine(std::string("Low latency: XeSS frame generation is held off, and on this GPU XeLL lowers no latency"
+                                " without it -- ")
+                    + (Config().latencyBrake ? "the latency brake takes over" : "nothing instead (latencyBrake=0)")
+                    + since);
+        handOverLogged = state;
+        handOverLoggedAt = now;
+        handOversUnlogged = 0;
+    }
+
     bool LowLatency::ReflexLocked() const
     {
         return TrackingLocked() && reflex && device != nullptr;
@@ -329,7 +386,19 @@ namespace redefinition
         // Its mode as set when the swapchain was made (XessFg::XellSetSleepMode).
         if (xell != nullptr)
         {
-            if (xellFrameGeneration)
+            if (xellFrameGeneration && !xellIntel)
+            {
+                // Said in the log by the hand-over's own lines, which hold back when it
+                // goes back and forth.
+                const bool reduces = XellReducingLocked();
+                NoteHandOverLocked(reduces);
+                if (reduces)
+                    SetText(4, "Intel XeLL, with XeSS frame generation", false);
+                else
+                    SetText(0, "Intel XeLL's markers only while XeSS frame generation is held off -- on this GPU XeLL"
+                               " lowers the latency only while it generates", false);
+            }
+            else if (xellFrameGeneration)
                 SetText(4, "Intel XeLL, with XeSS frame generation");
             else if (xellLowLatency)
                 SetText(4, Config().lowLatency ? "Intel XeLL, low latency mode"
@@ -423,7 +492,14 @@ namespace redefinition
     {
         {
             std::lock_guard<std::mutex> lock(mutex);
-            if (!TrackingLocked() || streamline || AntiLagLocked() || xell != nullptr)
+            // Not beside another latency reduction: Streamline's Reflex, Anti-Lag 2 --
+            // "Any other forms of latency reduction ... should be disabled" -- or XeLL
+            // while it lowers the latency, the same: "Any other forms of latency
+            // reduction or wait inducing technologies like frame limiters should be
+            // disabled when XeLL is in use" (xell_developer_guide_english.md,
+            // Requirements). Its markers alone, or XeLL on a GPU other than Intel's
+            // while XeSS-FG is held off, lower none.
+            if (!TrackingLocked() || streamline || AntiLagLocked() || XellReducingLocked())
             {
                 brakeWaitsBefore = -1;
                 return;
@@ -683,11 +759,12 @@ namespace redefinition
             std::vector<double> sorted(measured);
             std::sort(sorted.begin(), sorted.end());
             const char* running = streamline ? "Streamline's Reflex"
-                                  : xell != nullptr ? (xellLowLatency ? "XeLL" : "nothing (XeLL's markers only)")
+                                  : XellReducingLocked() ? "XeLL"
                                   : AntiLagLocked() ? (appliedAntiLag == 12 ? "Anti-Lag 2 (Direct3D 12)"
                                                                             : "Anti-Lag 2 (Direct3D 11)")
                                   : Config().latencyBrake ? (appliedMode == 1 ? "Reflex and the brake" : "the brake")
-                                  : appliedMode == 1 ? "Reflex" : "nothing";
+                                  : appliedMode == 1 ? "Reflex"
+                                  : xell != nullptr ? "nothing (XeLL's markers only)" : "nothing";
             char line[192];
             sprintf_s(line, "Latency: from the frame's start to the GPU's end of its Present %.1f ms (median of %u"
                             " frames, 90th percentile %.1f), lowered by %s",
@@ -777,7 +854,7 @@ namespace redefinition
         bool braking = false;
         {
             std::lock_guard<std::mutex> lock(mutex);
-            braking = TrackingLocked() && !streamline && !AntiLagLocked() && xell == nullptr && Config().latencyBrake;
+            braking = TrackingLocked() && !streamline && !AntiLagLocked() && !XellReducingLocked() && Config().latencyBrake;
         }
         std::lock_guard<std::mutex> lock(textLock);
         const std::string shown = braking ? text + "; latency brake on" : text;

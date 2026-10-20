@@ -332,8 +332,9 @@ namespace redefinition
 
         // ---- XeSS frame generation (XessFg.h, FrameGenerationXess.cpp) ----
         //
-        // As UseStreamline, with the owner's XeSS-FG context.
-        void UseXess(const void* caller, xefg::Handle context);
+        // As UseStreamline, with the owner's XeSS-FG context and the generated frames
+        // per rendered its swapchain was made for, the most it can be set to.
+        void UseXess(const void* caller, xefg::Handle context, uint32_t framesMost);
 
         // Caller must hold ContextMutex. This Present's resources and constants for
         // XeSS-FG under presentId -- the frame id XeLL's markers carry, as Intel asks
@@ -352,9 +353,18 @@ namespace redefinition
         // for the log.
         uint32_t ReadXessStateLocked();
 
-        // Frames shown per rendered frame while XeSS-FG generates, 2; 0 while it
-        // does not.
+        // Frames shown per rendered frame while XeSS-FG generates, 2 for one generated
+        // frame, and so on; 0 while it does not.
         int XessMultiplier() const { return xessMultiplier.load(); }
+
+        // The frames XeSS-FG generates per rendered frame as set now (xessFgFrames),
+        // and the most its swapchain was made for; 0 without its swapchain. From any
+        // thread.
+        int XessFrames() const { return xessFramesNow.load(); }
+        int XessFramesMost() const { return xessFramesMostNow.load(); }
+
+        // Caller must hold ContextMutex. Whether XeSS-FG was last told to generate.
+        bool XessOnLocked() const { return xess && xessOn; }
 
     private:
         FrameGeneration() = default;
@@ -611,11 +621,22 @@ namespace redefinition
         // last told to generate, the UI composition and debug view last set (-1 none
         // yet), its last interpolation result, logged once per change, and when a
         // generation XeSS-FG itself switched off is asked for again.
+        // Its generated frames: the most, as set, and xessFgFrames as last seen, which
+        // a change of sets them anew; its scene change threshold and the other debug
+        // features as last set.
         bool xess = false;
         xefg::Handle xessContext = nullptr;
         bool xessOn = false;
         int xessComposition = -1;
         int xessShowOnly = -1;
+        int xessTagFrames = -1;
+        int xessPresentFailed = -1;
+        float xessThreshold = 0.7f;
+        uint32_t xessFramesMost = 1;
+        uint32_t xessFrames = 1;
+        int xessFramesSeen = 0;
+        std::atomic<int> xessFramesNow{ 0 };
+        std::atomic<int> xessFramesMostNow{ 0 };
         xefg::Result xessResult = 0;
         bool xessResultKnown = false;
         int xessResultsLogged = 0;

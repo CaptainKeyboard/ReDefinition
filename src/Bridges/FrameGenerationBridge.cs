@@ -108,6 +108,9 @@ namespace ReDefinition.Bridges
         private static extern int KspFgDlssVsync();
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int KspXellEveryRefresh();
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspNvidiaGpu(out uint architecture, out uint implementation);
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
@@ -261,11 +264,30 @@ namespace ReDefinition.Bridges
 
         private static readonly Func<int> DlssVsyncCall = KspFgDlssVsync;
 
+        // Whether the proxy presents every refresh at most because Intel's XeLL lowers
+        // the latency (KspXellEveryRefresh): with XeSS frame generation, or alone on an
+        // Intel GPU in its low latency mode -- "when VSync is enabled, sync interval for
+        // IDXGISwapChain::Present must always be 1 when Low Latency is active"
+        // (xell_developer_guide_english.md). Asked whatever the ini says about frame
+        // generation: XeLL runs without it on an Intel GPU. False without the proxy, or
+        // with one older than the mod.
+        public static bool XellEveryRefresh
+        {
+            get
+            {
+                int clamped;
+                return TryNative(XellEveryRefreshCall, out clamped) && clamped != 0;
+            }
+        }
+
+        private static readonly Func<int> XellEveryRefreshCall = KspXellEveryRefresh;
+
         private static int techniqueMultiplier;
         private static readonly Func<int> TechniqueCall = () => KspFgTechnique(out techniqueMultiplier);
         private static readonly string[] DlssNames = { "DLSS", "DLSS", "DLSS 2x", "DLSS 3x", "DLSS 4x", "DLSS 5x", "DLSS 6x" };
-        // XeSS-FG generates one frame per rendered frame here (XessFg.cpp).
-        private static readonly string[] XessNames = { "XeSS", "XeSS", "XeSS 2x" };
+        // XeSS-FG generates xessFgFrames per rendered frame here, more than one only on
+        // an Intel GPU (XessFg.cpp).
+        private static readonly string[] XessNames = { "XeSS", "XeSS", "XeSS 2x", "XeSS 3x", "XeSS 4x" };
 
         private static readonly Func<int> CanGenerateCall = KspFgCanGenerate;
         private static readonly Func<int> ContextFailingCall = KspFgContextFailing;

@@ -176,13 +176,20 @@ namespace redefinition
 
         // XeSS-FG (XessFg.h, SwapChainProxyXess.cpp): XeLL's context made first, the
         // swapchain made through libxess_fg.dll; false, with nothing left of it, where
-        // it does not run. Torn down XeSS-FG first, XeLL after.
+        // it does not run or another swapchain's XeSS-FG lives. Torn down XeSS-FG
+        // first, XeLL after.
         HRESULT CreateXessSwapChain(IDXGIFactory2* factory, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1& desc,
                                     const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc);
         void TearDownXess();
         // XeLL alone on an Intel GPU where no other frame generation's swapchain
-        // presents (LowLatency.h), its mode as lowLatency says now.
-        void SetUpIntelXell();
+        // presents (LowLatency.h), where xell asks for it, its mode as lowLatency says
+        // now; returns whether that mode is on.
+        bool SetUpIntelXell();
+
+        // The refresh rate of the window's monitor, asked now: for what is set once,
+        // when the swapchain is made (XeLL's frame limit); never on the present path,
+        // which has MonitorRefreshRate.
+        double QueryWindowRefreshRate() const;
 
         // DLSS-G off, with the last frame presented again for it to take effect,
         // before a resize or a full screen switch.
@@ -228,8 +235,11 @@ namespace redefinition
         void CountPresent(uint32_t framesPresented);
 
         // The frame presented as it stands where it could not be copied, so the
-        // picture never goes away: counted, and said now and then.
-        HRESULT PresentUncopied(UINT syncInterval, UINT flags, const char* why);
+        // picture never goes away: counted, and said now and then. lowLatencyFrame:
+        // the game's frame taken for this Present (LowLatency::TakeGameFrame), whose
+        // markers then wrap it; 0 where none was taken, and the frame stays for the
+        // next Present.
+        HRESULT PresentUncopied(UINT syncInterval, UINT flags, const char* why, uint32_t lowLatencyFrame = 0);
         unsigned long long uncopiedPresents = 0;
         // The two halves of a Present's command list, shared by CopyAndPresent and
         // PresentWithStreamlineOff: this allocator's list reset once its last frame
@@ -319,11 +329,16 @@ namespace redefinition
         // XeSS-FG: its context, the XeLL context it needs -- or the one an Intel GPU's
         // low latency runs on without it -- whether the swapchain is its, and whether
         // it was asked for at creation (Config.h, frameGenerationTechnique).
+        // The generated frames per rendered its swapchain was made for, the most it
+        // can be set to (xessFgFrames), and the presented frames a second XeLL's frame
+        // limit holds it to, 0 for none (fgHalfRefreshLimit).
         xefg::Handle xessContext = nullptr;
         xell_context_handle_t xellContext = nullptr;
         bool xessSwapChain = false;
         bool xessWanted = false;
         bool intelAdapter = false;
+        uint32_t xessFramesMost = 0;
+        double xellLimitFps = 0.0;
         bool loggedXessSyncClamp = false;
         bool loggedXessNoFrame = false;
 
@@ -424,6 +439,13 @@ namespace redefinition
     // Which frame generation the swapchains present with: 3 XeSS, 2 DLSS, 1 FSR, 0
     // none.
     int FrameGenerationTechnique();
+
+    // Which frame generation the last swapchain made was made for, as
+    // frameGenerationTechnique and the GPU decided it then: kFgTechniqueXess where
+    // XeSS-FG was wanted -- asked for, or auto on an Intel GPU -- kFgTechniqueDlss
+    // where DLSS-G was, kFgTechniqueFsr where FSR's alone was, -1 with frame
+    // generation off, -2 before the first swapchain.
+    int FrameGenerationTechniqueWanted();
 
     // The window the last swapchain made through the proxy presents to, or null.
     HWND PresentingWindow();

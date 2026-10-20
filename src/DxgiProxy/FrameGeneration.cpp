@@ -60,6 +60,8 @@ namespace redefinition
         XessOffLocked("frame generation belongs to a swapchain made after this one");
         xess = false;
         xessContext = nullptr;
+        xessFramesNow = 0;
+        xessFramesMostNow = 0;
 
         // Unity's textures, which the rig registers once, outlive a swapchain made
         // anew without a resize: shared again on the new devices. Only textures of
@@ -149,6 +151,8 @@ namespace redefinition
         xessContext = nullptr;
         xessOn = false;
         xessMultiplier = 0;
+        xessFramesNow = 0;
+        xessFramesMostNow = 0;
         loggedUnflipped = false;
         loggedFlipMissing = false;
 

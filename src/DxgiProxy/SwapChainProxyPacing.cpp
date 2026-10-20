@@ -117,6 +117,11 @@ namespace redefinition
         }
     }
 
+    double SwapChainProxy::QueryWindowRefreshRate() const
+    {
+        return QueryRefreshRate(window);
+    }
+
     // The refresh rate the window's monitor runs at, as a thread of its own last
     // found it: every two seconds and after a resize, so a window moved to another
     // monitor or a mode changed in Windows follows -- and never on the present

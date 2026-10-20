@@ -142,7 +142,7 @@ namespace redefinition
     // copied is better shown as the one before it, so the swapchain is presented
     // as it stands and Unity is told the frame went out. The context lock is the
     // copy path's, because Present is where interpolation is requested.
-    HRESULT SwapChainProxy::PresentUncopied(UINT syncInterval, UINT flags, const char* why)
+    HRESULT SwapChainProxy::PresentUncopied(UINT syncInterval, UINT flags, const char* why, uint32_t lowLatencyFrame)
     {
         ++uncopiedPresents;
         if (uncopiedPresents == 1 || uncopiedPresents % 600 == 0)
@@ -157,8 +157,18 @@ namespace redefinition
             // visible artifacts or XeSS-FG skipping interpolation"
             // (xess_fg_developer_guide_english.md, Execution).
             if (xessSwapChain)
+            {
                 FrameGeneration::Get().XessOffLocked(why);
+                LowLatency::Get().NoteXessGenerating(false);
+            }
+            // The game's frame already taken for this Present keeps its markers around
+            // it, as a copied one has them: "PRESENT_START and END should wrap the
+            // Present call" (nvapi.h); XeLL's are the same.
+            if (lowLatencyFrame != 0)
+                LowLatency::Get().BeforePresent(lowLatencyFrame, swapChain.Get());
             hr = swapChain->Present(syncInterval, flags & ~static_cast<UINT>(DXGI_PRESENT_ALLOW_TEARING));
+            if (lowLatencyFrame != 0)
+                LowLatency::Get().AfterPresent(lowLatencyFrame);
         }
         // The game's frame went out, if as the one before it.
         CountPresent(0);
@@ -282,11 +292,14 @@ namespace redefinition
         // The game's frame rendered last, for the low latency markers (LowLatency.h)
         // and as XeSS-FG's present id: "The application must use the same frame ID
         // value for XeLL markers and the XeSS-FG present ID"
-        // (xess_fg_developer_guide_english.md, Connect with XeLL).
+        // (xess_fg_developer_guide_english.md, Connect with XeLL). Taken before XeSS-FG
+        // is prepared under it; a frame that cannot be copied after this is still
+        // presented with its markers (PresentUncopied).
         const uint32_t lowLatencyFrame = LowLatency::Get().TakeGameFrame();
         // XeLL's sync interval: "when VSync is enabled, sync interval for
         // IDXGISwapChain::Present must always be 1 when Low Latency is active"
-        // (xell_developer_guide_english.md, Integration Checklist).
+        // (xell_developer_guide_english.md, Integration Checklist) -- only then: with
+        // its low latency mode off the game's interval stands.
         const bool xell = LowLatency::Get().XellActive();
         const UINT xellSync = xell && syncInterval > 1 ? 1u : syncInterval;
         // The sync interval DLSS-G presents with while it generates, and its frame
@@ -297,8 +310,7 @@ namespace redefinition
         if (streamlineSwapChain && syncInterval > 0)
             streamlineSync = FrameGeneration::Get().StreamlineVsyncSupported() ? 1u : 0u;
         // The cap V-Sync sets on the frames shown, for frame generation's minimum
-        // (SetPresentCapLocked): DLSS-G shows its limit's frames and the rendered one,
-        // FSR one generated and the rendered one.
+        // (SetPresentCapLocked).
         {
             const UINT capSync = streamlineSwapChain ? streamlineSync
                                  : xessSwapChain ? xellSync
@@ -313,7 +325,16 @@ namespace redefinition
             }
             else if (!streamlineSwapChain && (xessSwapChain || !(cfg.fgHalfRefreshLimit && !cfg.fgVSync && syncInterval == 0)))
                 PauseRefreshMonitor();
-            const uint32_t shown = streamlineSwapChain ? StreamlineFrameLimit(streamlineSync) + 1u : 2u;
+            // XeLL's frame limit caps the frames shown as V-Sync does, whichever is lower:
+            // "the total count of presented frames (both generated and rendered) matches
+            // the requested FPS" (xell_developer_guide_english.md, XeSS-FG Support).
+            if (xessSwapChain && xellLimitFps > 0.0 && (capFps <= 0.0 || xellLimitFps < capFps))
+                capFps = xellLimitFps;
+            // DLSS-G shows its limit's frames and the rendered one, XeSS-FG its own and
+            // the rendered one, FSR one generated and the rendered one.
+            const uint32_t shown = streamlineSwapChain ? StreamlineFrameLimit(streamlineSync) + 1u
+                                   : xessSwapChain ? static_cast<uint32_t>(FrameGeneration::Get().XessFrames()) + 1u
+                                                   : 2u;
             FrameGeneration::Get().SetPresentCapLocked(capFps, shown);
         }
         if (streamlineSwapChain)
@@ -358,7 +379,7 @@ namespace redefinition
             FrameGeneration::Get().CancelPreparedLocked(fgSwapChainContext != nullptr ? swapChain.Get() : nullptr,
                                                         "the frame could not be copied");
             fgLock.unlock();
-            return PresentUncopied(syncInterval, flags, "the frame could not be copied");
+            return PresentUncopied(syncInterval, flags, "the frame could not be copied", lowLatencyFrame);
         }
 
         // Unity must not draw the next frame into the shared backbuffer until
@@ -440,6 +461,10 @@ namespace redefinition
             streamlinePresent = FrameGeneration::Get().ReadStreamlineStateLocked();
         }
         const uint32_t xessPresented = xessSwapChain ? FrameGeneration::Get().ReadXessStateLocked() : 0u;
+        // Whether XeLL lowers the latency from the next frame on, or the brake does on
+        // a GPU other than Intel's (LowLatency.h).
+        if (xessSwapChain)
+            LowLatency::Get().NoteXessGenerating(FrameGeneration::Get().XessOnLocked());
 
         fgLock.unlock();
 
@@ -477,10 +502,12 @@ namespace redefinition
 
         // AMD's advice for FSR's pacing; Reflex paces DLSS-G, last, once this
         // frame's signals are out: where the next frame begins, as far as the
-        // thread that presents goes. XeLL paces XeSS-FG, and with it no frame limit:
-        // "Any other forms of latency reduction or wait inducing technologies like
-        // frame limiters should be disabled when XeLL is in use"
-        // (xell_developer_guide_english.md, Requirements).
+        // thread that presents goes. XeLL paces XeSS-FG, and while its low latency
+        // mode is on no frame limit of the proxy's runs: "Any other forms of latency
+        // reduction or wait inducing technologies like frame limiters should be
+        // disabled when XeLL is in use" (xell_developer_guide_english.md,
+        // Requirements) -- fgHalfRefreshLimit is XeLL's own limit then
+        // (CreateXessSwapChain).
         if (SUCCEEDED(hr) && !streamlineSwapChain && !xessSwapChain && !xell)
             LimitToHalfRefresh(syncInterval);
         if (streamlineSwapChain)

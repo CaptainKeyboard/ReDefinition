@@ -31,14 +31,20 @@ namespace redefinition
     //   off: "Any other forms of latency reduction ... should be disabled".
     // - Intel XeLL (xell.h, XessFg.h) on the proxy's Direct3D 12 device: always with
     //   XeSS frame generation, which requires it -- "XeSS-FG requires a working XeLL
-    //   integration on all GPUs" -- and on an Intel GPU where no other frame
-    //   generation's swapchain presents, its mode from lowLatency when the swapchain
-    //   is made. Nothing else lowers the latency with it: "Latency reduction solutions
-    //   other than XeLL are not supported and may cause unexpected behavior"
-    //   (xess_fg_developer_guide_english.md, Requirements), "application must disable
-    //   other latency reduction solutions when running XeLL on Intel or non-Intel
-    //   GPUs" (xell_developer_guide_english.md, Integration Checklist).
-    // - The latency brake (Brake), on any GPU.
+    //   integration on all GPUs" -- and, where xell asks for it, on an Intel GPU where
+    //   no other frame generation's swapchain presents, its mode from lowLatency when
+    //   the swapchain is made. Nothing else lowers the latency while its low latency
+    //   mode is on: "Latency reduction solutions other than XeLL are not supported and
+    //   may cause unexpected behavior" (xess_fg_developer_guide_english.md,
+    //   Requirements), "application must disable other latency reduction solutions
+    //   when running XeLL on Intel or non-Intel GPUs" (xell_developer_guide_english.md,
+    //   Integration Checklist). On a GPU other than Intel's it lowers the latency only
+    //   while XeSS-FG generates -- "application must ensure that XeSS-FG is enabled if
+    //   running in cross-vendor mode", "If the condition is not fulfilled then XeLL
+    //   will not perform Latency reduction" (Integration Checklist, Cross-vendor
+    //   support) -- and while XeSS-FG is held off the brake takes over; Reflex and
+    //   Anti-Lag 2 stay off under XeSS-FG's swapchain.
+    // - The latency brake (Brake), on any GPU, where nothing above lowers the latency.
     // - The measure: from the frame's start on the main thread to the GPU's end of
     //   its Present on the proxy's queue, through a fence of its own, logged every
     //   reportSeconds -- the same on every GPU, so that what lowers it can be told
@@ -58,13 +64,29 @@ namespace redefinition
     public:
         static LowLatency& Get();
 
+        // The XeLL context a swapchain proxy made -- null for none -- whether XeSS
+        // frame generation's swapchain is the proxy's, whether XeLL's low latency mode
+        // was set on (always with XeSS-FG), and whether the GPU is Intel's, where XeLL
+        // lowers the latency without XeSS-FG generating.
+        struct XellSetup
+        {
+            xell_context_handle_t context = nullptr;
+            bool frameGeneration = false;
+            bool lowLatency = false;
+            bool intelGpu = false;
+        };
+
         // The swapchain proxy's devices and queue, once its presentation path is
-        // ready, whether DLSS frame generation's Reflex runs on it, and the XeLL
-        // context it made, with XeSS frame generation or without -- null for none. The
+        // ready, whether DLSS frame generation's Reflex runs on it, and its XeLL. The
         // context stays the proxy's, which destroys it after Detach.
         void Attach(const void* owner, ID3D11Device* gameDevice, ID3D12Device* device, ID3D12CommandQueue* queue,
-                    const LUID& adapter, bool streamlineReflex, xell_context_handle_t xell, bool xessFrameGeneration);
+                    const LUID& adapter, bool streamlineReflex, const XellSetup& xell);
         void Detach(const void* owner);
+
+        // From the present path under XeSS frame generation's swapchain, after each
+        // Present: whether XeSS-FG generates, without which XeLL lowers no latency on
+        // a GPU other than Intel's and the brake takes over.
+        void NoteXessGenerating(bool generating) { xessGenerating.store(generating); }
 
         // On the game's main thread where its frame begins, before its input is read:
         // the brake or Anti-Lag 2's delay, Reflex's or XeLL's Sleep, then SIMULATION_START, under
@@ -88,8 +110,10 @@ namespace redefinition
         // XeLL, 0 none -- the text says why.
         int Describe(char* buffer, int size) const;
 
-        // Whether XeLL runs, for the present path, which presents with a sync interval
-        // of 1 at most then.
+        // Whether XeLL's low latency mode is on, for the present path, which presents
+        // with a sync interval of 1 at most then -- "when VSync is enabled, sync
+        // interval for IDXGISwapChain::Present must always be 1 when Low Latency is
+        // active" -- and for the mod's V-Sync row.
         bool XellActive() const { return xellActive.load(); }
 
         // The measure's last report: its median and 90th percentile in milliseconds;
@@ -107,13 +131,19 @@ namespace redefinition
 
         bool TrackingLocked() const;
         bool XellLocked() const;
+        // Whether XeLL lowers the latency now: its low latency mode on, and on a GPU
+        // other than Intel's XeSS-FG generating.
+        bool XellReducingLocked() const;
         bool ReflexLocked() const;
         bool AntiLagLocked() const;
         void MarkerLocked(uint32_t frameIndex, int marker);
         void ReportLocked();
         uint32_t IdLocked(uint32_t frameIndex) const;
         void Brake();
-        void SetText(int kind, const std::string& text);
+        // The hand-over between XeLL and the brake as XeSS-FG generates or is held
+        // off on a GPU other than Intel's, in the log at most every kHandOverLogMs.
+        void NoteHandOverLocked(bool xellReduces);
+        void SetText(int kind, const std::string& text, bool log = true);
         void MeterThread();
 
         mutable std::mutex mutex;
@@ -130,7 +160,16 @@ namespace redefinition
         xell_context_handle_t xell = nullptr;
         bool xellFrameGeneration = false;
         bool xellLowLatency = false;
+        bool xellIntel = false;
         std::atomic<bool> xellActive{ false };
+        std::atomic<bool> xessGenerating{ false };
+        // The hand-over last seen and last logged (-1 none yet), when, and the changes
+        // since.
+        int handOverSeen = -1;
+        int handOverLogged = -1;
+        ULONGLONG handOverLoggedAt = 0;
+        unsigned int handOversUnlogged = 0;
+        static constexpr ULONGLONG kHandOverLogMs = 10000;
         // Said once; the main thread's, under xellMutex.
         bool xellSleepFailed = false;
         const void* owner = nullptr;

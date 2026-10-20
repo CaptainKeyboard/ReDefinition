@@ -15,6 +15,7 @@
 #include "Log.h"
 #include "XessFg.h"
 
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -55,7 +56,7 @@ namespace redefinition
         }
     }
 
-    void FrameGeneration::UseXess(const void* caller, xefg::Handle newContext)
+    void FrameGeneration::UseXess(const void* caller, xefg::Handle newContext, uint32_t framesMost)
     {
         std::lock_guard<std::mutex> lock(mutex);
         if (caller != owner)
@@ -65,6 +66,17 @@ namespace redefinition
         xessOn = false;
         xessComposition = -1;
         xessShowOnly = -1;
+        xessTagFrames = -1;
+        xessPresentFailed = -1;
+        // The SDK's: "Default value is 0.7" (xefgSwapChainSetSceneChangeThreshold);
+        // and "By default, XeSS-FG will produce the maximum configured number of
+        // interpolated frames" (Controlling the Number of Generated Frames).
+        xessThreshold = 0.7f;
+        xessFramesMost = framesMost > 0 ? framesMost : 1u;
+        xessFrames = xessFramesMost;
+        xessFramesSeen = Config().xessFgFrames;
+        xessFramesNow = xess ? static_cast<int>(xessFrames) : 0;
+        xessFramesMostNow = xess ? static_cast<int>(xessFramesMost) : 0;
         xessResultKnown = false;
         xessResultsLogged = 0;
         xessRetryAfter = 0;
@@ -100,16 +112,60 @@ namespace redefinition
                         + (result < 0 ? " refused (" + ResultText(result) + ")" : ""));
             xessComposition = composition;
         }
-        const int showOnly = cfg.fgShowOnlyGenerated ? 1 : 0;
-        if (showOnly != xessShowOnly)
-        {
-            if (showOnly != 0 || xessShowOnly == 1)
+        auto debugFeature = [&](int32_t feature, bool wantedOn, int& applied, const char* name) {
+            const int on = wantedOn ? 1 : 0;
+            if (on == applied)
+                return;
+            if (on != 0 || applied == 1)
             {
-                const xefg::Result result = api.ShowOnlyInterpolated(xessContext, showOnly != 0);
-                LogLine(std::string("XeSS frame generation: only the generated frames shown ")
-                        + (showOnly != 0 ? "on" : "off") + (result < 0 ? " refused (" + ResultText(result) + ")" : ""));
+                const xefg::Result result = api.DebugFeature(xessContext, feature, on != 0);
+                LogLine(std::string("XeSS frame generation: ") + name + " " + (on != 0 ? "on" : "off")
+                        + (result < 0 ? " refused (" + ResultText(result) + ")" : ""));
             }
-            xessShowOnly = showOnly;
+            applied = on;
+        };
+        debugFeature(xefg::kDebugShowOnlyInterpolation, cfg.fgShowOnlyGenerated, xessShowOnly,
+                     "only the generated frames shown");
+        debugFeature(xefg::kDebugTagInterpolatedFrames, cfg.xessFgTagInterpolatedFrames, xessTagFrames,
+                     "generated frames tagged (xessFgTagInterpolatedFrames)");
+        debugFeature(xefg::kDebugPresentFailedInterpolation, cfg.xessFgPresentFailedInterpolation, xessPresentFailed,
+                     "failed interpolations shown black (xessFgPresentFailedInterpolation)");
+
+        // Live, within the swapchain's most: "you can ask XeSS-FG to generate any
+        // number of frames between one and the maximum set during initialization",
+        // "only as a response to a user changing the graphics settings" -- so only
+        // when xessFgFrames changes (Controlling the Number of Generated Frames).
+        if (cfg.xessFgFrames != xessFramesSeen)
+        {
+            xessFramesSeen = cfg.xessFgFrames;
+            const uint32_t asked = static_cast<uint32_t>(cfg.xessFgFrames < 1 ? 1 : cfg.xessFgFrames);
+            const uint32_t frames = asked > xessFramesMost ? xessFramesMost : asked;
+            if (asked > xessFramesMost)
+                LogLine("XeSS frame generation: xessFgFrames=" + std::to_string(asked) + ", but its swapchain was made"
+                        " for at most " + std::to_string(xessFramesMost) + " -- " + std::to_string(frames)
+                        + "; more takes effect with the next swapchain where the GPU generates more");
+            if (frames != xessFrames)
+            {
+                const xefg::Result result = api.SetFrames(xessContext, frames);
+                LogLine("XeSS frame generation: " + std::to_string(frames) + " generated frame(s) per rendered"
+                        + (result < 0 ? " refused (" + ResultText(result) + "), " + std::to_string(xessFrames)
+                                            + " as before"
+                                      : std::string()));
+                if (result >= 0)
+                    xessFrames = frames;
+                xessFramesNow = static_cast<int>(xessFrames);
+            }
+        }
+
+        // "Sets scene change detection threshold", live where the DLL has it.
+        if (cfg.xessFgSceneChangeThreshold != xessThreshold)
+        {
+            const xefg::Result result = api.SetSceneChangeThreshold(xessContext, cfg.xessFgSceneChangeThreshold);
+            char line[160];
+            std::snprintf(line, sizeof(line), "XeSS frame generation: scene change threshold %.2f%s",
+                          cfg.xessFgSceneChangeThreshold, result < 0 ? " refused" : "");
+            LogLine(std::string(line) + (result < 0 ? " (" + ResultText(result) + ")" : ""));
+            xessThreshold = cfg.xessFgSceneChangeThreshold;
         }
 
         const bool inputs = wanted && !rateTooLow && !slowFrame && thisFrame && S(depth).Valid() && S(motion).Valid();
@@ -222,7 +278,7 @@ namespace redefinition
         }
 
         if (resumed)
-            LogLine(std::string("XeSS frame generation on, 1 generated frame per rendered")
+            LogLine("XeSS frame generation on, " + std::to_string(xessFrames) + " generated frame(s) per rendered"
                     + (useHudLess ? ", with the HUD-less copy" : ", without a HUD-less copy")
                     + (composition != 0 ? ", the UI composed" : ", the UI interpolated"));
         generatedLastPresent = true;
@@ -295,7 +351,9 @@ namespace redefinition
             xessRetryAfter = GetTickCount64() + kRetryMs;
         }
 
-        xessMultiplier = xessOn && status.isFrameGenEnabled != 0 && status.frameGenResult >= 0 ? 2 : 0;
+        xessMultiplier = xessOn && status.isFrameGenEnabled != 0 && status.frameGenResult >= 0
+                             ? static_cast<int>(xessFrames) + 1
+                             : 0;
         return status.framesPresented;
     }
 }

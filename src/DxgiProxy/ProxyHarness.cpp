@@ -873,6 +873,11 @@ int main()
     xessFgDirectoryKey.Set(xessFgWanted ? xessFgDirectory.c_str() : nullptr);
     const IniKey techniqueKey(L"frameGenerationTechnique");
     techniqueKey.Set(xessFgWanted ? L"xess" : nullptr);
+    // Two generated frames asked for: on an Intel GPU as many as it generates, on any
+    // other one, "On non-Intel GPUs the maximum number of generated frames is one" --
+    // the swapchain made for one, and the status line saying so.
+    const IniKey xessFgFramesKey(L"xessFgFrames");
+    xessFgFramesKey.Set(xessFgWanted ? L"2" : nullptr);
 
     // By bare name, exactly as Unity does it, so the application directory wins.
     const HMODULE dxgi = LoadLibraryW(L"dxgi.dll");
@@ -930,6 +935,16 @@ int main()
                            nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &device, nullptr, &context);
     if (FAILED(hr))
         return Fail("D3D11CreateDevice", hr);
+    // Whether the device is on Intel's GPU, where XeSS-FG may generate more than one
+    // frame and XeLL lowers the latency without it.
+    bool intelDevice = false;
+    {
+        ComPtr<IDXGIDevice> dxgiDevice;
+        ComPtr<IDXGIAdapter> dxgiAdapter;
+        DXGI_ADAPTER_DESC adapterDesc = {};
+        intelDevice = SUCCEEDED(device.As(&dxgiDevice)) && SUCCEEDED(dxgiDevice->GetAdapter(&dxgiAdapter))
+                      && SUCCEEDED(dxgiAdapter->GetDesc(&adapterDesc)) && adapterDesc.VendorId == 0x8086;
+    }
 
     const HWND window = CreateHostWindow();
     if (window == nullptr)
@@ -1808,7 +1823,7 @@ int main()
     bool xessGenerated = false;
     if (xessFrameGeneration)
     {
-        char line[256] = {};
+        char line[512] = {};
         gameFrames = true;
         float on = 0.0f;
         hr = presentsPerFrame(2.0f, on);
@@ -1817,10 +1832,22 @@ int main()
         status(line, sizeof(line));
         technique(&multiplier);
         printf("      XeSS frame generation on: %.2f presents per frame, %dx  [%s]\n", on, multiplier, line);
-        if (on < kGeneratingAtLeast || multiplier != 2)
+        if (on < kGeneratingAtLeast || multiplier < 2)
             return Fail("XeSS frame generation on, but no frames were generated", E_FAIL);
         if (strstr(line, "technique=xess") == nullptr)
             return Fail("XeSS frame generation runs, but the status line does not say so", E_FAIL);
+        // xessFgFrames=2 (above): one generated frame on a GPU other than Intel's, and
+        // the status line says the most.
+        if (!intelDevice && (multiplier != 2 || strstr(line, "xessFgFrames=2: at most 1 here") == nullptr))
+            return Fail("xessFgFrames=2 on a GPU other than Intel's did not fall back to one generated frame", E_FAIL);
+
+        // KSP's V-Sync row holds every refresh at most while XeLL lowers the latency
+        // (KspXellEveryRefresh), as the proxy's Present does.
+        using XellEveryRefreshFn = int (*)();
+        const XellEveryRefreshFn xellEveryRefresh =
+            reinterpret_cast<XellEveryRefreshFn>(GetProcAddress(dxgi, "KspXellEveryRefresh"));
+        if (xellEveryRefresh == nullptr || xellEveryRefresh() != 1)
+            return Fail("XeSS frame generation runs, but KspXellEveryRefresh does not say XeLL's interval holds", E_FAIL);
 
         // Mode changes while it generates, as the toolbar makes them.
         const UINT sizes[2][2] = { { kWidth * 2 / 3, kHeight * 2 / 3 }, { kWidth / 2, kHeight / 2 } };
@@ -1858,6 +1885,20 @@ int main()
         printf("      XeSS frame generation off: %.2f presents per frame\n", off);
         if (off > kNotGeneratingAtMost)
             return Fail("XeSS frame generation switched off, but frames were still generated", E_FAIL);
+        // Held off, XeLL lowers no latency on a GPU other than Intel's -- "If the
+        // condition is not fulfilled then XeLL will not perform Latency reduction" --
+        // and the latency brake takes over (LowLatency.h); on Intel's XeLL goes on.
+        {
+            using LowLatencyFn = int (*)(char*, int);
+            const LowLatencyFn lowLatency = reinterpret_cast<LowLatencyFn>(GetProcAddress(dxgi, "KspLowLatency"));
+            char latencyText[256] = {};
+            const int latencyKind = lowLatency != nullptr ? lowLatency(latencyText, sizeof(latencyText)) : -1;
+            printf("      low latency with XeSS frame generation held off: %d, %s\n", latencyKind, latencyText);
+            if (intelDevice ? latencyKind != 4
+                            : latencyKind != 0 || strstr(latencyText, "latency brake on") == nullptr)
+                return Fail("XeSS frame generation held off, but the low latency is not the brake's on this GPU (or"
+                            " XeLL's on Intel's)", E_FAIL);
+        }
 
         setEnabled(1);
         float again = 0.0f;

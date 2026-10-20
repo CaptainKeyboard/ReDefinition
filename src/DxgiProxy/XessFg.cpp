@@ -185,6 +185,9 @@ namespace redefinition
         Resolve(module, "xefgSwapChainD3D12GetInitializationParameters", fgGetInitializationParameters);
         Resolve(module, "xefgSwapChainSetUiCompositionState", fgSetUiCompositionState);
         Resolve(module, "xefgSwapChainEnableDebugFeature", fgEnableDebugFeature);
+        Resolve(module, "xefgSwapChainGetProperties", fgGetProperties);
+        Resolve(module, "xefgSwapChainSetNumInterpolatedFrames", fgSetNumInterpolatedFrames);
+        Resolve(module, "xefgSwapChainSetSceneChangeThreshold", fgSetSceneChangeThreshold);
         if (!complete)
         {
             FreeLibrary(module);
@@ -244,18 +247,26 @@ namespace redefinition
     // "The function call needs to be done only once after settings change", and
     // "application must ensure any GPU activity is finished before xellSetSleepMode
     // is called" (xell_developer_guide_english.md, Enable Features, Integration
-    // Checklist). No frame limit: "Having both, application frame limiter and XeLL
-    // active at the same time is discouraged", and the proxy limits none with it.
-    bool XessFg::XellSetSleepMode(xell_context_handle_t context, bool lowLatency)
+    // Checklist). The frame limit is XeLL's where one is asked for: "FPS Cap is
+    // controlled via xellSetSleepMode API when Low Latency mode is active", and
+    // "Having both, application frame limiter and XeLL active at the same time is
+    // discouraged" -- the proxy's own then stays off (CopyAndPresent).
+    bool XessFg::XellSetSleepMode(xell_context_handle_t context, bool lowLatency, uint32_t minimumIntervalUs, bool boost)
     {
         if (context == nullptr || xellSetSleepMode == nullptr)
             return false;
         xell_sleep_params_t params = {};
         params.bLowLatencyMode = lowLatency ? 1u : 0u;
-        params.minimumIntervalUs = 0;
+        params.bLowLatencyBoost = lowLatency && boost ? 1u : 0u;
+        params.minimumIntervalUs = minimumIntervalUs;
         const xell_result_t result = xellSetSleepMode(context, &params);
         if (result != XELL_RESULT_SUCCESS)
             LogLine("XeLL: xellSetSleepMode failed (" + ResultText(static_cast<int>(result)) + ")");
+        else
+            LogLine(std::string("XeLL: low latency mode ") + (lowLatency ? "on" : "off")
+                    + (params.bLowLatencyBoost != 0 ? ", boost on" : "")
+                    + (minimumIntervalUs != 0 ? ", frames of " + std::to_string(minimumIntervalUs) + " us at least"
+                                              : std::string(", no frame limit")));
         return result == XELL_RESULT_SUCCESS;
     }
 
@@ -273,10 +284,12 @@ namespace redefinition
     HRESULT XessFg::CreateSwapChain(ID3D12Device* device, ID3D12CommandQueue* queue, IDXGIFactory2* factory,
                                     HWND window, const DXGI_SWAP_CHAIN_DESC1& desc,
                                     const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreen, xell_context_handle_t xell,
-                                    bool invertedDepth, xefg::Handle& context, ComPtr<IDXGISwapChain3>& swapChain)
+                                    const SwapChainOptions& options, xefg::Handle& context,
+                                    ComPtr<IDXGISwapChain3>& swapChain, uint32_t& framesMost)
     {
         context = nullptr;
         swapChain.Reset();
+        framesMost = 0;
         std::lock_guard<std::mutex> lock(mutex);
         if (fgCreateContext == nullptr)
             return E_FAIL;
@@ -304,16 +317,35 @@ namespace redefinition
             return E_FAIL;
         }
 
-        // One generated frame per rendered: "On non-Intel GPUs the maximum number of
-        // generated frames is one" (Requirements), and the proxy's frame rate gate
-        // and V-Sync cap count with two frames shown per rendered (FrameGeneration.h,
-        // SetPresentCapLocked). UI interpolation, the default (UI Handling); its
-        // composition, AUTO's when switched on (xessFgUiComposition).
+        // The generated frames per rendered asked for (xessFgFrames), at most what the
+        // context supports: "We recommend always querying the maximum supported number
+        // of interpolated frames to validate user input and the values from a settings
+        // file" -- "If the proxy swap chain is not initialized, xefgSwapChainGetProperties
+        // can only be used to query the maximum supported number of interpolated frames"
+        // (Controlling the Number of Generated Frames). Without the call, one on a GPU
+        // other than Intel's: "On non-Intel GPUs the maximum number of generated frames
+        // is one" (Requirements). The UI mode as asked (xessFgUiMode), which its
+        // composition takes when switched on (xessFgUiComposition).
+        uint32_t supported = options.intelGpu ? options.frames : 1u;
+        if (fgGetProperties != nullptr)
+        {
+            xefg::Properties properties = {};
+            if (fgGetProperties(created, &properties) >= 0 && properties.maxSupportedInterpolations > 0)
+                supported = properties.maxSupportedInterpolations;
+        }
+        const uint32_t frames = options.frames < 1 ? 1u : options.frames > supported ? supported : options.frames;
+        if (frames != options.frames)
+            LogLine("XeSS frame generation: xessFgFrames=" + std::to_string(options.frames) + " asks for more than this GPU"
+                    " generates, at most " + std::to_string(supported) + " per rendered frame"
+                    + (options.intelGpu ? std::string() : " (Intel: \"On non-Intel GPUs the maximum number of generated"
+                                                          " frames is one\")")
+                    + " -- " + std::to_string(frames));
+
         xefg::D3d12InitParams params = {};
         params.pApplicationSwapChain = nullptr;
-        params.initFlags = invertedDepth ? xefg::kInitInvertedDepth : 0u;
-        params.maxInterpolatedFrames = 1;
-        params.uiMode = xefg::kUiModeAuto;
+        params.initFlags = options.invertedDepth ? xefg::kInitInvertedDepth : 0u;
+        params.maxInterpolatedFrames = frames;
+        params.uiMode = options.uiMode;
         result = fgInitFromSwapChainDesc(created, window, &desc, fullscreen, queue, factory, &params);
         if (result < 0)
         {
@@ -335,17 +367,19 @@ namespace redefinition
             return E_FAIL;
         }
 
-        uint32_t frames = params.maxInterpolatedFrames;
+        uint32_t applied = params.maxInterpolatedFrames;
         if (fgGetInitializationParameters != nullptr)
         {
-            xefg::D3d12InitParams applied = {};
-            if (fgGetInitializationParameters(created, &applied) >= 0)
-                frames = applied.maxInterpolatedFrames;
+            xefg::D3d12InitParams back = {};
+            if (fgGetInitializationParameters(created, &back) >= 0 && back.maxInterpolatedFrames > 0)
+                applied = back.maxInterpolatedFrames;
         }
         why = "runs";
-        LogLine("XeSS frame generation: swapchain made, " + std::to_string(frames) + " generated frame(s) per rendered at"
-                + " most, depth " + (invertedDepth ? "inverted" : "not inverted") + " (" + versions + ")");
+        LogLine("XeSS frame generation: swapchain made, " + std::to_string(applied) + " generated frame(s) per rendered at"
+                + " most, depth " + (options.invertedDepth ? "inverted" : "not inverted") + ", UI mode "
+                + XessUiModeName(options.uiMode) + " (" + versions + ")");
         context = created;
+        framesMost = applied;
         return S_OK;
     }
 
@@ -394,14 +428,28 @@ namespace redefinition
     xefg::Result XessFg::SetUiComposition(xefg::Handle context, bool enabled)
     {
         if (fgSetUiCompositionState == nullptr)
-            return -7;   // XEFG_SWAPCHAIN_RESULT_ERROR_NOT_IMPLEMENTED
+            return xefg::kErrorNotImplemented;
         return fgSetUiCompositionState(context, enabled ? xefg::kUiCompositionEnabled : xefg::kUiCompositionDisabled);
     }
 
-    xefg::Result XessFg::ShowOnlyInterpolated(xefg::Handle context, bool enabled)
+    xefg::Result XessFg::DebugFeature(xefg::Handle context, int32_t feature, bool enabled)
     {
         if (fgEnableDebugFeature == nullptr)
-            return -7;
-        return fgEnableDebugFeature(context, xefg::kDebugShowOnlyInterpolation, enabled ? 1u : 0u, nullptr);
+            return xefg::kErrorNotImplemented;
+        return fgEnableDebugFeature(context, feature, enabled ? 1u : 0u, nullptr);
+    }
+
+    xefg::Result XessFg::SetFrames(xefg::Handle context, uint32_t frames)
+    {
+        if (fgSetNumInterpolatedFrames == nullptr)
+            return xefg::kErrorNotImplemented;
+        return fgSetNumInterpolatedFrames(context, frames);
+    }
+
+    xefg::Result XessFg::SetSceneChangeThreshold(xefg::Handle context, float threshold)
+    {
+        if (fgSetSceneChangeThreshold == nullptr)
+            return xefg::kErrorNotImplemented;
+        return fgSetSceneChangeThreshold(context, threshold);
     }
 }

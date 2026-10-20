@@ -104,6 +104,8 @@ namespace ReDefinition
             // What KSP's V-Sync row allows while DLSS frame generation runs (KSP.cfg).
             KspBehaviour.DlssFrameGenerationRuns = () => frameGeneration && FrameGenerationBridge.DlssFrameGenerationRuns;
             KspBehaviour.DlssFrameGenerationVsync = () => FrameGenerationBridge.DlssFrameGenerationVsync;
+            // And while Intel's XeLL lowers the latency, with XeSS frame generation or alone.
+            KspBehaviour.XellEveryRefresh = () => FrameGenerationBridge.XellEveryRefresh;
             KspBehaviour.SettingsApplied = SettingsWindow.FollowModSoon;
             TufxBehaviour.ProfileApplied = HostStack.ReassertNow;
 

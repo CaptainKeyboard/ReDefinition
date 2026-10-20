@@ -102,6 +102,16 @@ extern "C"
         return redefinition::FrameGeneration::Get().StreamlineVsyncSupported() ? 1 : 0;
     }
 
+    // Whether the proxy presents every refresh at most because Intel's XeLL lowers the
+    // latency -- with XeSS frame generation always, alone on an Intel GPU with
+    // lowLatency=1: "when VSync is enabled, sync interval for IDXGISwapChain::Present
+    // must always be 1 when Low Latency is active" (xell_developer_guide_english.md,
+    // Integration Checklist). 1 then, 0 otherwise. For the mod's V-Sync row.
+    __declspec(dllexport) int KspXellEveryRefresh()
+    {
+        return redefinition::LowLatency::Get().XellActive() ? 1 : 0;
+    }
+
     // The NVIDIA GPU of the adapter KSP renders on (NvidiaGpu.h): its NVAPI
     // architecture and implementation, what the mod offers NVIDIA's DLLs for
     // download by. Returns 0 where it is not NVIDIA's, where NVAPI does not answer,
@@ -680,14 +690,25 @@ extern "C"
         // does not run -- last in the line, which readers may cut.
         char technique[200] = "none";
         const int running = redefinition::FrameGenerationTechnique();
-        const int asked = redefinition::Config().frameGeneration ? redefinition::Config().frameGenerationTechnique : -1;
+        // What the last swapchain was made for -- XeSS-FG where auto took it on an Intel
+        // GPU -- or, before the first, what the ini asks.
+        const int wanted = redefinition::FrameGenerationTechniqueWanted();
+        const int asked = wanted != -2 ? wanted
+                          : redefinition::Config().frameGeneration ? redefinition::Config().frameGenerationTechnique : -1;
         if (running == 2)
             redefinition::FormatTo(technique, "dlss (%dx, reflex paced by %s)", fg.StreamlineMultiplier(),
                                    redefinition::Streamline::Get().GameFramesPresented() ? "the game's frames"
                                                                                        : "the presenting thread");
         else if (running == 3)
-            redefinition::FormatTo(technique, "xess (%dx, %s)", fg.XessMultiplier(),
-                                   redefinition::XessFg::Get().Versions().c_str());
+        {
+            // Where xessFgFrames asks for more than its swapchain generates, the most.
+            const int framesAsked = redefinition::Config().xessFgFrames;
+            char frames[64] = "";
+            if (framesAsked > fg.XessFramesMost())
+                redefinition::FormatTo(frames, "xessFgFrames=%d: at most %d here, ", framesAsked, fg.XessFramesMost());
+            _snprintf_s(technique, _TRUNCATE, "xess (%dx, %s%s)", fg.XessMultiplier(), frames,
+                        redefinition::XessFg::Get().Versions().c_str());
+        }
         else if (asked == redefinition::kFgTechniqueXess)
             _snprintf_s(technique, _TRUNCATE, "%s (xess: %s)", running == 1 ? "fsr" : "none",
                         redefinition::XessFg::Get().Why().c_str());

@@ -45,6 +45,10 @@ namespace redefinition
         constexpr int32_t kLogWarning = 2;                          // XEFG_SWAPCHAIN_LOGGING_LEVEL_WARNING
 
         constexpr int32_t kDebugShowOnlyInterpolation = 0;          // XEFG_SWAPCHAIN_DEBUG_FEATURE_SHOW_ONLY_INTERPOLATION
+        constexpr int32_t kDebugTagInterpolatedFrames = 1;          // XEFG_SWAPCHAIN_DEBUG_FEATURE_TAG_INTERPOLATED_FRAMES
+        constexpr int32_t kDebugPresentFailedInterpolation = 2;     // XEFG_SWAPCHAIN_DEBUG_FEATURE_PRESENT_FAILED_INTERPOLATION
+
+        constexpr Result kErrorNotImplemented = -7;                 // XEFG_SWAPCHAIN_RESULT_ERROR_NOT_IMPLEMENTED
 
         struct Version   // xefg_swapchain_version_t
         {
@@ -104,6 +108,16 @@ namespace redefinition
             uint32_t isFrameGenEnabled;
         };
 
+        struct Properties   // xefg_swapchain_properties_t
+        {
+            uint32_t requiredDescriptorCount;
+            uint64_t tempBufferHeapSize;
+            uint64_t tempTextureHeapSize;
+            uint64_t constantBufferSize;
+            uint32_t maxSupportedInterpolations;
+        };
+
+        static_assert(sizeof(Properties) == 40, "xefg_swapchain_properties_t");
         static_assert(sizeof(FrameConstants) == 152, "xefg_swapchain_frame_constant_data_t");
         static_assert(sizeof(D3d12InitParams) == 72, "xefg_swapchain_d3d12_init_params_t");
         static_assert(sizeof(D3d12ResourceData) == 40, "xefg_swapchain_d3d12_resource_data_t");
@@ -145,20 +159,34 @@ namespace redefinition
         // ---- XeLL (xell.h) ----
         xell_context_handle_t CreateXell(ID3D12Device* device);
         void DestroyXell(xell_context_handle_t context);
-        bool XellSetSleepMode(xell_context_handle_t context, bool lowLatency);
+        // Its mode: latency reduction, the frame limit as the shortest frame in
+        // microseconds (0 none) and the boost.
+        bool XellSetSleepMode(xell_context_handle_t context, bool lowLatency, uint32_t minimumIntervalUs, bool boost);
         xell_result_t XellSleep(xell_context_handle_t context, uint32_t frameId);
         xell_result_t XellMarker(xell_context_handle_t context, uint32_t frameId, xell_latency_marker_type_t marker);
 
         // ---- XeSS-FG ----
 
+        // What the swapchain is made with: the depth's direction, the generated frames
+        // asked for (xessFgFrames), the UI mode (xessFgUiMode), and whether the GPU is
+        // Intel's, where more than one may be generated.
+        struct SwapChainOptions
+        {
+            bool invertedDepth = true;
+            uint32_t frames = 1;
+            int32_t uiMode = 0;
+            bool intelGpu = false;
+        };
+
         // The context checked on the device and connected to XeLL, the swapchain made
         // for the window on the queue: "Initialization from a swap chain description
         // ... Creates new swap chain for the provided window" (Initialization). On
-        // failure nothing is left, and the log says why.
+        // failure nothing is left, and the log says why. framesMost: the generated
+        // frames per rendered it was made for, the most it can be set to later.
         HRESULT CreateSwapChain(ID3D12Device* device, ID3D12CommandQueue* queue, IDXGIFactory2* factory, HWND window,
                                 const DXGI_SWAP_CHAIN_DESC1& desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreen,
-                                xell_context_handle_t xell, bool invertedDepth, xefg::Handle& context,
-                                Microsoft::WRL::ComPtr<IDXGISwapChain3>& swapChain);
+                                xell_context_handle_t xell, const SwapChainOptions& options, xefg::Handle& context,
+                                Microsoft::WRL::ComPtr<IDXGISwapChain3>& swapChain, uint32_t& framesMost);
         // After every reference to its swapchain is released.
         void Destroy(xefg::Handle context);
 
@@ -168,8 +196,10 @@ namespace redefinition
         xefg::Result TagConstants(xefg::Handle context, uint32_t presentId, const xefg::FrameConstants& constants);
         xefg::Result LastPresentStatus(xefg::Handle context, xefg::PresentStatus& status);
         xefg::Result SetUiComposition(xefg::Handle context, bool enabled);
-        // Null where the DLL has no debug features.
-        xefg::Result ShowOnlyInterpolated(xefg::Handle context, bool enabled);
+        // XEFG_SWAPCHAIN_RESULT_ERROR_NOT_IMPLEMENTED where the DLL lacks the function.
+        xefg::Result DebugFeature(xefg::Handle context, int32_t feature, bool enabled);
+        xefg::Result SetFrames(xefg::Handle context, uint32_t frames);
+        xefg::Result SetSceneChangeThreshold(xefg::Handle context, float threshold);
 
     private:
         XessFg() = default;
@@ -211,5 +241,8 @@ namespace redefinition
         xefg::Result (*fgGetLastPresentStatus)(xefg::Handle, xefg::PresentStatus*) = nullptr;
         xefg::Result (*fgSetUiCompositionState)(xefg::Handle, int32_t) = nullptr;
         xefg::Result (*fgEnableDebugFeature)(xefg::Handle, int32_t, uint32_t, void*) = nullptr;
+        xefg::Result (*fgGetProperties)(xefg::Handle, xefg::Properties*) = nullptr;
+        xefg::Result (*fgSetNumInterpolatedFrames)(xefg::Handle, uint32_t) = nullptr;
+        xefg::Result (*fgSetSceneChangeThreshold)(xefg::Handle, float) = nullptr;
     };
 }

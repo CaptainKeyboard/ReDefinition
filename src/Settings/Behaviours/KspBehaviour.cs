@@ -88,6 +88,14 @@ namespace ReDefinition.Settings.Behaviours
         private const string DlssEveryRefreshCheck = "DlssFrameGenerationEveryRefresh";
         private const string DlssVsyncCheck = "DlssFrameGenerationVSync";
 
+        // KSP.cfg's REQUIRES on V-Sync while Intel's XeLL lowers the latency -- with XeSS
+        // frame generation always, alone on an Intel GPU in its low latency mode: every
+        // refresh at most, "when VSync is enabled, sync interval for
+        // IDXGISwapChain::Present must always be 1 when Low Latency is active"
+        // (xell_developer_guide_english.md, Integration Checklist). Held at run time like
+        // DLSS's; the proxy holds the same at Present.
+        private const string XellEveryRefreshCheck = "XellEveryRefresh";
+
         // KSP's settings applied, with the id of KSP's registration: the settings
         // window reads them all at its next sync (SettingsWindow.FollowModSoon).
         internal static Action<string> SettingsApplied;
@@ -97,6 +105,10 @@ namespace ReDefinition.Settings.Behaviours
         // presents with V-Sync. Unset outside the game, where every value passes.
         internal static Func<bool> DlssFrameGenerationRuns;
         internal static Func<bool> DlssFrameGenerationVsync;
+
+        // Set alike: whether XeLL's low latency mode holds the proxy's Present to every
+        // refresh at most now. Unset outside the game, where every value passes.
+        internal static Func<bool> XellEveryRefresh;
 
         // Whether Unity's V-Sync count is held apart from SYNC_VBL now.
         private static bool vSyncHeld;
@@ -309,9 +321,14 @@ namespace ReDefinition.Settings.Behaviours
 
         public override bool? Check(RegisteredMod mod, string check, string value)
         {
-            if (check != DlssEveryRefreshCheck && check != DlssVsyncCheck) return null;
+            if (check != DlssEveryRefreshCheck && check != DlssVsyncCheck && check != XellEveryRefreshCheck) return null;
             int interval;
             if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out interval)) return null;
+            if (check == XellEveryRefreshCheck)
+            {
+                Func<bool> clamps = XellEveryRefresh;
+                return clamps == null || !clamps() || interval <= 1;
+            }
             Func<bool> runs = DlssFrameGenerationRuns;
             if (runs == null || !runs()) return true;
             if (check == DlssEveryRefreshCheck) return interval <= 1;
@@ -321,12 +338,12 @@ namespace ReDefinition.Settings.Behaviours
 
         public override bool Provides(string check)
         {
-            return check == DlssEveryRefreshCheck || check == DlssVsyncCheck;
+            return check == DlssEveryRefreshCheck || check == DlssVsyncCheck || check == XellEveryRefreshCheck;
         }
 
         public override bool HeldAtRunTime(string check)
         {
-            return check == DlssEveryRefreshCheck || check == DlssVsyncCheck;
+            return check == DlssEveryRefreshCheck || check == DlssVsyncCheck || check == XellEveryRefreshCheck;
         }
 
         // V-Sync as KSP hands it to Unity (GameSettings.ApplySettings), set again
