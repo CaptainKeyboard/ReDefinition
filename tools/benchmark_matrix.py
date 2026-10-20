@@ -86,18 +86,20 @@ def scenario_key(s):
 
 
 def expand(matrix, vendor=None, resources=None):
-    """The starts the matrix asks for: one per technique, raytracing mode, Ray
-    Reconstruction choice and frame generation kind, each with its phases (the live
-    key sets) in order. Returns (starts, skipped), skipped as (what, why)."""
+    """The starts the matrix asks for, each with its phases (the key sets) in order.
+
+    Only what is read at load splits the starts: the frame generation kind
+    (dlssFrameGeneration, and the DLSS-G package next to KSP_x64.exe), and whatever
+    "separate_starts" names. The upscaler, the raytracing mode and Ray Reconstruction
+    are the mod's own settings, which the probe sets live through its mod.<key> keys.
+    Returns (starts, skipped), skipped as (what, why)."""
     resources = resources or {}
-    starts, skipped = [], []
+    skipped = []
     latencies = [l for l in matrix["latency"] if _vendor_ok(l, vendor)]
     for l in matrix["latency"]:
         if not _vendor_ok(l, vendor):
             skipped.append(("latency " + l["id"], "only on " + "/".join(l["vendors"])))
-    # The first frame generation kind with phases held off gives the plain "FG off" rows;
-    # another kind's are named after it, since its files are loaded all the same.
-    plain_off = next((fg for fg in matrix["frame_generation"] if fg.get("fg_off_phases", True)), None)
+    renderings = []
     for tech in matrix["techniques"]:
         if not _vendor_ok(tech, vendor):
             skipped.append(("technique " + tech["id"], "only on " + "/".join(tech["vendors"])))
@@ -109,15 +111,31 @@ def expand(matrix, vendor=None, resources=None):
         for rt in matrix["raytracing"]:
             rr_choices = matrix.get("ray_reconstruction", [True]) if tech.get("ray_reconstruction") and rt != "Off" else [None]
             for rr in rr_choices:
-                for fg in matrix["frame_generation"]:
-                    if not _vendor_ok(fg, vendor):
-                        skipped.append(("frame generation " + fg["id"], "only on " + "/".join(fg["vendors"])))
-                        continue
-                    missing = [r for r in fg.get("requires", []) if not resources.get(r)]
-                    if missing:
-                        skipped.append(("frame generation " + fg["id"] + " with " + tech["id"], "needs " + ", ".join(missing)))
-                        continue
-                    starts.append(_start(matrix, tech, rt, rr, fg, latencies, resources, fg is plain_off))
+                renderings.append({"tech": tech, "raytracing": rt, "ray_reconstruction": rr})
+    kinds = []
+    for fg in matrix["frame_generation"]:
+        if not _vendor_ok(fg, vendor):
+            skipped.append(("frame generation " + fg["id"], "only on " + "/".join(fg["vendors"])))
+            continue
+        missing = [r for r in fg.get("requires", []) if not resources.get(r)]
+        if missing:
+            skipped.append(("frame generation " + fg["id"], "needs " + ", ".join(missing)))
+            continue
+        kinds.append(fg)
+    # The first frame generation kind with phases held off gives the plain "FG off" rows;
+    # another kind's are named after it, since its files are loaded all the same.
+    plain_off = next((fg for fg in matrix["frame_generation"] if fg.get("fg_off_phases", True)), None)
+    split = matrix.get("separate_starts", [])
+    starts = []
+    for fg in kinds:
+        groups = []
+        for r in renderings:
+            group = tuple(_split_value(r, d) for d in split)
+            if not groups or groups[-1][0] != group:
+                groups.append((group, []))
+            groups[-1][1].append(r)
+        for group, members in groups:
+            starts.append(_start(matrix, fg, members, group, latencies, resources, fg is plain_off))
     # One reason per thing skipped is enough.
     seen, unique = set(), []
     for item in skipped:
@@ -127,44 +145,79 @@ def expand(matrix, vendor=None, resources=None):
     return starts, unique
 
 
+def _split_value(rendering, dimension):
+    if dimension == "technique":
+        return rendering["tech"]["id"]
+    if dimension == "raytracing":
+        return rendering["raytracing"].lower()
+    if dimension == "ray_reconstruction":
+        rr = rendering["ray_reconstruction"]
+        return "rrna" if rr is None else ("rr" if rr else "norr")
+    raise ValueError("separate_starts takes technique, raytracing and ray_reconstruction, not " + dimension)
+
+
 def _fill(value, resources):
     return re.sub(r"\{(\w+)\}", lambda m: resources.get(m.group(1), m.group(0)), str(value))
 
 
-def _start(matrix, tech, rt, rr, fg, latencies, resources, plain_off):
-    rr_part = "" if rr is None else ("-rr" if rr else "-norr")
-    start_id = "{}-rt{}{}-{}".format(tech["id"], rt.lower(), rr_part, fg["id"])
+def _mod_values(rendering):
+    """The mod's settings that make this rendering, by their settings.cfg keys. Every
+    phase names all of them, so that none inherits a value from the phase before."""
+    values = dict(rendering["tech"].get("settings", {}))
+    values["raytracing"] = rendering["raytracing"]
+    rr = rendering["ray_reconstruction"]
+    # Where Ray Reconstruction does not apply, it stays at the mod's default.
+    values["rayReconstruction"] = "True" if rr is None or rr else "False"
+    return values
+
+
+def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
+    start_id = "-".join(list(group) + [fg["id"]])
     settings = dict(matrix.get("mod_settings", {}))
-    settings.update(tech.get("settings", {}))
-    settings["raytracing"] = rt
-    if rr is not None:
-        settings["rayReconstruction"] = "True" if rr else "False"
+    settings.update(_mod_values(renderings[0]))
     proxy = dict(matrix.get("proxy_load", {}))
-    proxy.update({k: _fill(v, resources) for k, v in tech.get("proxy_load", {}).items()})
+    for r in renderings:
+        proxy.update({k: _fill(v, resources) for k, v in r["tech"].get("proxy_load", {}).items()})
     proxy.update({k: _fill(v, resources) for k, v in fg.get("proxy_load", {}).items()})
-    phases = []
+    settle = matrix.get("settle_seconds", 3)
+    settle_rebuild = matrix.get("settle_after_rebuild_seconds", settle)
+    repeats = max(1, int(matrix.get("phase_repeats", 1)))
+    repeats_rebuild = max(1, int(matrix.get("phase_repeats_after_rebuild", repeats)))
     fg_states = [("off", matrix["fg_off"])] if fg.get("fg_off_phases", True) else []
     fg_states.append(("on", matrix["fg_on"]))
-    for state, fg_keys in fg_states:
-        for lat in latencies:
-            keys = dict(fg_keys)
-            keys.update(lat["proxy"])
-            if state == "on":
-                fg_id, fg_name = fg["id"], fg["name"]
-            elif plain_off:
-                fg_id, fg_name = "off", "off"
-            else:
-                fg_id, fg_name = "off-" + fg["id"] + "-loaded", "off ({} loaded)".format(fg["name"])
-            s = {
-                "technique": tech["id"], "technique_name": tech["name"], "technique_log_name": tech.get("log_name", tech["name"]),
-                "raytracing": rt, "ray_reconstruction": rr,
-                "fg": fg_id, "fg_name": fg_name, "fg_requested": state == "on", "fg_kind": fg["id"],
-                "latency": lat["id"], "latency_name": lat["name"],
-            }
-            for _ in range(max(1, int(matrix.get("phase_repeats", 1)))):
-                phases.append({"scenario": s, "keys": keys})
+    phases = []
+    for n, r in enumerate(renderings):
+        tech = r["tech"]
+        mod = _mod_values(r)
+        first_of_rendering = True
+        for state, fg_keys in fg_states:
+            for lat in latencies:
+                keys = dict(matrix.get("phase_keys", {}))
+                keys.update({"mod." + k: v for k, v in mod.items()})
+                keys.update(fg_keys)
+                keys.update(lat["proxy"])
+                if state == "on":
+                    fg_id, fg_name = fg["id"], fg["name"]
+                elif plain_off:
+                    fg_id, fg_name = "off", "off"
+                else:
+                    fg_id, fg_name = "off-" + fg["id"] + "-loaded", "off ({} loaded)".format(fg["name"])
+                s = {
+                    "technique": tech["id"], "technique_name": tech["name"], "technique_log_name": tech.get("log_name", tech["name"]),
+                    "raytracing": r["raytracing"], "ray_reconstruction": r["ray_reconstruction"],
+                    "fg": fg_id, "fg_name": fg_name, "fg_requested": state == "on", "fg_kind": fg["id"],
+                    "latency": lat["id"], "latency_name": lat["name"],
+                }
+                # The first phase of a rendering after another one waits for the upscaler's
+                # rig and the raytracing's scene to be built again; the start's first has the
+                # flight's 30 s before it.
+                rebuild = first_of_rendering and n > 0
+                first_of_rendering = False
+                for _ in range(repeats_rebuild if rebuild else repeats):
+                    phases.append({"scenario": s, "keys": keys, "mod_settings": mod,
+                                   "settle": settle_rebuild if rebuild else settle, "rebuild": rebuild})
     return {
-        "id": start_id, "technique": tech["id"], "raytracing": rt, "ray_reconstruction": rr, "fg_kind": fg["id"],
+        "id": start_id, "fg_kind": fg["id"], "renderings": len(renderings),
         "mod_settings": settings, "proxy_load": proxy,
         "dlssg_package": bool(fg.get("dlssg_package")), "max_generated_frames": fg.get("max_generated_frames"),
         "phases": phases,
@@ -177,14 +230,25 @@ def ini_sets_argument(phases):
     return ";".join(",".join("{}={}".format(k, v) for k, v in p["keys"].items()) for p in phases)
 
 
+def start_seconds(start):
+    return START_OVERHEAD_SECONDS + PROBE_FLIGHT_SECONDS + PROBE_SET_SECONDS * len(start["phases"])
+
+
 def estimate_seconds(starts, with_profile=True):
-    total = PROFILE_START_SECONDS if with_profile else 0.0
-    for s in starts:
-        total += START_OVERHEAD_SECONDS + PROBE_FLIGHT_SECONDS + PROBE_SET_SECONDS * len(s["phases"])
-    return total
+    return (PROFILE_START_SECONDS if with_profile else 0.0) + sum(start_seconds(s) for s in starts)
 
 
 # ----------------------------------------------------------------------------- file edits
+
+def parse_cfg_values(text):
+    """The key = value lines of a settings.cfg, in order."""
+    values = {}
+    for line in text.splitlines():
+        m = re.match(r"^\s*(\w+)\s*=\s*(.*?)\s*$", line)
+        if m:
+            values[m.group(1)] = m.group(2)
+    return values
+
 
 def set_cfg_values(text, values):
     """settings.cfg with each key set: its line replaced where it is, added before the
@@ -363,8 +427,9 @@ def parse_ksp_log(text):
             k["profile"].append(line)
         if "DLSS Ray Reconstruction" in line:
             k["rr"].append({"time": t, "text": line.split("[ReDefinition] ", 1)[-1]})
-        if "Raytracing set to" in line:
-            k["raytracing"].append({"time": t, "text": line.split("[ReDefinition] ", 1)[-1]})
+        m = re.search(r"Raytracing set to (\w+)", line)
+        if m:
+            k["raytracing"].append({"time": t, "mode": m.group(1), "text": line.split("[ReDefinition] ", 1)[-1]})
         if "Probe:" in line:
             k["probe"].append(line.split("[ReDefinition] ", 1)[-1])
     return k
@@ -456,6 +521,7 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
     load_config = next((c for c in proxy["configs"] if not c["reloaded"]), None)
     fg_kind = _fg_kind_ran(proxy)
     problems = []
+    problems.extend(l for l in ksp["probe"] if l.startswith("Probe: no setting"))
     if len(ksp["sets"]) < len(start["phases"]):
         problems.append("the probe set {} of {} key sets".format(len(ksp["sets"]), len(start["phases"])))
     results = []
@@ -467,7 +533,8 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
         end = shot["time"] if shot else set_time + PROBE_SET_SECONDS
         reload_ = next((c for c in proxy["configs"] if c["reloaded"] and set_time - 0.5 <= c["time"] <= end), None)
         config = reload_ or _last_before(proxy["configs"], end)
-        begin = (reload_["time"] if reload_ else set_time + 1.0) + settle_seconds
+        settle = phase.get("settle", settle_seconds)
+        begin = (reload_["time"] if reload_ else set_time + 1.0) + settle
         report_seconds = float(config["values"].get("reportSeconds", 10)) if config else 10.0
         window = {k: _in_window(proxy[k], begin, end, report_seconds) for k in ("reports", "latency", "pcl", "brake")}
         measured = aggregate(window["reports"], window["latency"], window["pcl"], window["brake"])
@@ -494,7 +561,13 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
                 warnings.append("frame generation held off, presented/rendered {:.2f}".format(ratio))
         if s["fg_requested"] and s["fg_kind"] == "dlssg" and fg_kind != "DLSS-G":
             warnings.append("DLSS-G asked for, the proxy set up {}".format(fg_kind or "none"))
+        traced = _last_before(ksp["raytracing"], end)
+        rt_now = traced["mode"] if traced else start.get("mod_settings", {}).get("raytracing")
+        if rt_now is not None and rt_now.lower() != s["raytracing"].lower():
+            warnings.append("raytracing {} asked for, {} set".format(s["raytracing"], rt_now))
         for key, want in phase["keys"].items():
+            if key.startswith("mod."):
+                continue
             got = config["values"].get(key) if config else None
             if key in ("latencyBrake", "latencyBrakeTargetMs") and config:
                 brake = config["values"].get("latencyBrake", "")
@@ -503,7 +576,9 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
                 warnings.append("{}={} asked for, the proxy has {}".format(key, want, got))
         results.append({
             "index": i, "scenario": s, "key": scenario_key(s), "label": scenario_label(s), "keys": phase["keys"],
-            "window": [round(begin, 3), round(end, 3)],
+            "window": [round(begin, 3), round(end, 3)], "settle_seconds": settle, "rebuild": phase.get("rebuild", False),
+            "mod_settings_set": phase.get("mod_settings"),
+            "ray_reconstruction_lines": [e["text"] for e in ksp["rr"] if set_time <= e["time"] <= end] or None,
             "proxy_config": config["values"] if config else None,
             "proxy_config_line": config["text"] if config else None,
             "upscaler": upscaler, "fg_kind_ran": fg_kind if ratio and ratio >= 1.5 else "none",
@@ -605,6 +680,15 @@ class Install:
                 if not os.path.exists(dst) or not filecmp.cmp(src, dst, shallow=False):
                     shutil.copy2(src, dst)
                     report.append("restored " + rel)
+        # A settings file the run made where there was none: the snapshot took every
+        # file of its kind, so it did not exist before. The two seconds allow for the
+        # file system's coarser clock.
+        for rel in list(self.settings_files()):
+            p = self.path(rel)
+            if not os.path.exists(os.path.join(kept, rel)) and os.path.getmtime(p) >= since - 2.0:
+                os.remove(p)
+                report.append("removed " + rel)
+        # The rest is KSP's own (squadcorefx.ksp, Launcher_Data's backups): only named.
         for root, _dirs, names in os.walk(self.ksp):
             rel_root = os.path.relpath(root, self.ksp)
             if rel_root.split(os.sep)[0] in SNAP_SKIP:
@@ -645,6 +729,8 @@ class Install:
         return [n for n in PACKAGE_FILES + (PACKAGE_DIR,) if os.path.exists(self.path(n))]
 
     def put_package(self, package, max_generated_frames):
+        # A copy an earlier start left half done goes first.
+        self.remove_package()
         shutil.copy2(os.path.join(package, "version.dll"), self.path("version.dll"))
         with open(os.path.join(package, "dlssg_sm86.ini"), encoding="utf-8") as f:
             text = f.read()
@@ -768,7 +854,6 @@ def run(args):
 
     snapshot = os.path.join(raw, "snapshot")
     print("snapshot:", install.snap(snapshot), "files")
-    settings_path = install.path(SETTINGS_REL)
     template = args.settings_template or os.path.join(snapshot, "files", SETTINGS_REL)
     with open(template, encoding="utf-8") as f:
         settings_template = f.read()
@@ -782,19 +867,10 @@ def run(args):
     plan["started"] = datetime.datetime.now().isoformat(timespec="seconds")
     try:
         if not args.no_profile:
-            with open(settings_path, "w", encoding="utf-8") as f:
-                f.write(settings_template)
-            launched = time.time()
-            install.launch(["-redefinitionProbe", "-redefinitionProbeProfile", matrix["profile"]], 400)
-            lines = []
-            if os.path.getmtime(install.path("KSP.log")) >= launched:
-                shutil.copy2(install.path("KSP.log"), os.path.join(raw, "profile.KSP.log"))
-                with open(install.path("KSP.log"), encoding="utf-8", errors="replace") as f:
-                    lines = [l.strip() for l in f if "Probe: profile" in l or "Probe: no profile" in l]
+            lines, settings_template = apply_profile(install, matrix["profile"], settings_template, raw)
             plan["profile_lines"] = lines
+            plan["settings_template"] = settings_template
             print("\n".join(lines) or "no profile line")
-            if not any("applied" in l for l in lines):
-                raise RuntimeError("the profile {} was not applied".format(matrix["profile"]))
         _save_plan(raw, plan)
         for n, start in enumerate(starts):
             print("[{}/{}] {} ({} phases)".format(n + 1, len(starts), start["id"], len(start["phases"])))
@@ -811,11 +887,36 @@ def run(args):
         report = install.restore(snapshot)
         with open(os.path.join(raw, "restore.txt"), "w", encoding="utf-8") as f:
             f.write("\n".join(report) + "\n")
-        print("restored: {} file(s)".format(sum(1 for r in report if r.startswith("restored"))))
+        print("restored: {} file(s), removed {}".format(sum(1 for r in report if r.startswith("restored")),
+                                                         sum(1 for r in report if r.startswith("removed"))))
         plan["finished"] = datetime.datetime.now().isoformat(timespec="seconds")
         _save_plan(raw, plan)
     record = build_record(raw)
     write_results(record, args.no_doc)
+
+
+def apply_profile(install, profile, settings_template, raw):
+    """The profile applied in a KSP start of its own, from the given settings. Returns its
+    log lines and the mod's settings.cfg as the profile left it: the profile sets the
+    mod's own module too (the upscaler's quality and model), so every start begins from
+    that file rather than from the one before the profile."""
+    with open(install.path(SETTINGS_REL), "w", encoding="utf-8") as f:
+        f.write(settings_template)
+    launched = time.time()
+    install.launch(["-redefinitionProbe", "-redefinitionProbeProfile", profile], 400)
+    lines = []
+    log = install.path("KSP.log")
+    if os.path.exists(log) and os.path.getmtime(log) >= launched:
+        shutil.copy2(log, os.path.join(raw, "profile.KSP.log"))
+        with open(log, encoding="utf-8", errors="replace") as f:
+            lines = [l.strip() for l in f if "Probe: profile" in l or "Probe: no profile" in l]
+    if not any("applied" in l for l in lines):
+        raise RuntimeError("the profile {} was not applied".format(profile))
+    with open(install.path(SETTINGS_REL), encoding="utf-8") as f:
+        after = f.read()
+    with open(os.path.join(raw, "profile.settings.cfg"), "w", encoding="utf-8") as f:
+        f.write(after)
+    return lines, after
 
 
 def _save_plan(raw, plan):
@@ -837,11 +938,12 @@ def run_start(install, start, raw, settings_template, ini_template, package):
         f.write(settings)
     with open(os.path.join(raw, start["id"] + ".proxy.ini"), "w", encoding="utf-8", newline="") as f:
         f.write(ini)
-    if start["dlssg_package"]:
-        install.put_package(package, start["max_generated_frames"])
     launched = time.time()
     try:
-        timeout = int(START_OVERHEAD_SECONDS * 3 + PROBE_FLIGHT_SECONDS + PROBE_SET_SECONDS * len(start["phases"]) + 60)
+        # Inside the try: a copy that fails half way is removed all the same.
+        if start["dlssg_package"]:
+            install.put_package(package, start["max_generated_frames"])
+        timeout = int(start_seconds(start) + 2 * START_OVERHEAD_SECONDS + 60)
         outcome = install.launch(["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds",
                                   "-redefinitionProbeShot", SHOT, "-redefinitionProbeShotVariant", "none",
                                   "-redefinitionProbeShotIni", ini_sets_argument(start["phases"])], timeout)
@@ -879,6 +981,10 @@ def resources_of(args):
         out["amd_dll_dir"] = os.path.abspath(args.amd_dll_dir)
     elif os.path.exists(os.path.join(args.ksp, "amd_fidelityfx_upscaler_dx12.dll")):
         out["amd_dll_dir"] = os.path.abspath(args.ksp)
+    if args.xess_dll_dir and os.path.exists(os.path.join(args.xess_dll_dir, "libxess.dll")):
+        out["xess_dll_dir"] = os.path.abspath(args.xess_dll_dir)
+    elif os.path.exists(os.path.join(args.ksp, "libxess.dll")):
+        out["xess_dll_dir"] = os.path.abspath(args.ksp)
     return out
 
 
@@ -905,6 +1011,12 @@ def build_record(raw):
         if os.path.exists(base + ".settings.cfg"):
             with open(base + ".settings.cfg", encoding="utf-8") as f:
                 entry["mod_settings_file"] = f.read()
+            # Each phase's settings in full: the file the start began with, and what the
+            # phase's mod.<key> keys set over it.
+            for p in entry["phases"]:
+                values = parse_cfg_values(entry["mod_settings_file"])
+                values.update(p.get("mod_settings_set") or {})
+                p["mod_settings"] = values
         if os.path.exists(base + ".outcome.txt"):
             with open(base + ".outcome.txt") as f:
                 entry["outcome"] = f.read().strip()
@@ -1022,8 +1134,10 @@ def run_section(record, json_name):
                                                            for k, v in build.items()) + " |")
     lines.append("| Machine | " + _machine_line(record) + " |")
     lines.append("| Profile | `{}`: {} |".format(record.get("profile"), "; ".join(record.get("profile_lines") or ["no profile line"])))
-    lines.append("| Matrix | `{}`, {} starts, {} s settling per phase |".format(
-        (record.get("matrix_file") or "").replace(os.sep, "/"), len(record["starts"]), record.get("settle_seconds")))
+    matrix = record.get("matrix") or {}
+    lines.append("| Matrix | `{}`, {} starts, {} s settling per phase, {} s after a change of the rendering |".format(
+        (record.get("matrix_file") or "").replace(os.sep, "/"), len(record["starts"]), record.get("settle_seconds"),
+        matrix.get("settle_after_rebuild_seconds", record.get("settle_seconds"))))
     for what, why in record.get("skipped") or []:
         lines.append("| Skipped | {} ({}) |".format(what, why))
     lines.append("| Full record | [benchmarks/{0}](benchmarks/{0}) |".format(json_name))
@@ -1122,7 +1236,8 @@ def plan_command(args):
         print("    settings.cfg: " + ", ".join("{} = {}".format(k, v) for k, v in s["mod_settings"].items()))
         print("    proxy at load: " + ", ".join("{}={}".format(k, v) for k, v in s["proxy_load"].items()))
         for p in s["phases"]:
-            print("    " + scenario_label(p["scenario"]) + "   [" + ",".join("{}={}".format(k, v) for k, v in p["keys"].items()) + "]")
+            print("    " + scenario_label(p["scenario"]) + ("   (rebuilt, {} s settling)".format(p["settle"]) if p.get("rebuild") else "")
+                  + "   [" + ",".join("{}={}".format(k, v) for k, v in p["keys"].items()) + "]")
     for what, why in skipped:
         print("skipped: {} ({})".format(what, why))
     print("{} starts, {} phases, about {:.0f} minutes (vendor {})".format(
@@ -1145,6 +1260,8 @@ def main(argv=None):
                        help="the unpacked DLSS-G package for Ampere (version.dll, dlssg_sm86.ini, dlssg_sm86/)")
         p.add_argument("--amd-dll-dir", default=os.environ.get("REDEFINITION_AMD_DLL_DIR", os.path.join(REPO, ".local", "amd")),
                        help="the folder with amd_fidelityfx_upscaler_dx12.dll, handed to the proxy as amdUpscalerDirectory")
+        p.add_argument("--xess-dll-dir", default=os.environ.get("REDEFINITION_XESS_DLL_DIR", os.path.join(REPO, ".local", "xess")),
+                       help="the folder with Intel's libxess.dll, handed to the proxy as xessDirectory")
         p.add_argument("--vendor", choices=["NVIDIA", "AMD", "Intel"], help="the GPU's vendor, if not the one Windows names")
         p.add_argument("--only", action="append", help="only the starts whose id contains this (repeatable)")
 

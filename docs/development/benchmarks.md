@@ -16,13 +16,13 @@ python tools/benchmark_matrix.py run
 ```
 
 The tool reads the scenario matrix `tools/benchmark_matrix.json`. It copies the install's
-settings files, applies the graphics profile in one KSP start, and then runs one KSP start
-per group of scenarios. After the last start it puts every settings file back, also when a
-start failed. It appends the run to `docs/development/benchmarks/` as a JSON file and writes
-the table on this page again.
+settings files and applies the graphics profile in one KSP start. Then it runs one KSP
+start per frame generation kind. After the last start it puts every settings file back and
+removes the settings files the run made, also when a start failed. It appends the run to
+`docs/development/benchmarks/` as a JSON file and writes the table on this page again.
 
-The default matrix needs 14 KSP starts on an NVIDIA GPU and takes about 45 minutes. To see
-the starts and phases first, without running KSP, run this:
+The default matrix needs two KSP starts on an NVIDIA GPU, with 124 phases, and takes about
+30 minutes. To see the starts and phases first, without running KSP, run this:
 
 ```
 python tools/benchmark_matrix.py plan
@@ -33,18 +33,20 @@ These options change what the tool uses:
 | Option | Default | What it is |
 |---|---|---|
 | `--ksp` | Steam's KSP folder, or `REDEFINITION_KSP` | the KSP install |
-| `--settings-template` | the install's own `settings.cfg`, as it was before the run | the mod's settings each start begins from |
+| `--settings-template` | the install's own `settings.cfg`, as it was before the run | the mod's settings the profile start begins from |
 | `--dlssg-package` | `.local/dlssg_x`, or `REDEFINITION_DLSSG_PACKAGE` | the unpacked DLSS-G package for RTX 20 and 30 GPUs |
 | `--amd-dll-dir` | `.local/amd`, or `REDEFINITION_AMD_DLL_DIR` | the folder with `amd_fidelityfx_upscaler_dx12.dll` |
+| `--xess-dll-dir` | `.local/xess`, or `REDEFINITION_XESS_DLL_DIR` | the folder with Intel's `libxess.dll` |
 | `--raw` | `.local/benchmarks`, or `REDEFINITION_BENCH_RAW` | where each start's logs and screenshots go |
 | `--only` | every start | only the starts whose id contains this text |
 | `--no-profile` | the profile is applied | skip the start that applies the profile |
-| `--vendor` | the vendor Windows names | the GPU vendor that decides which latency models run |
+| `--vendor` | the vendor Windows names | the GPU vendor that decides which upscalers and latency models run |
 
-If the DLSS-G package or the AMD DLL is not there, the tool skips the starts that need it.
-The run's section names what it skipped. The tool copies the DLSS-G package next to
-`KSP_x64.exe` only for the starts that need it, and removes it after each one. It hands the
-AMD DLL's folder to the proxy as `amdUpscalerDirectory`, so the DLL stays where it is.
+If a DLL or the DLSS-G package is not there, the tool skips what needs it. The run's
+section names what it skipped. The tool hands the AMD DLL's folder to the proxy as
+`amdUpscalerDirectory` and XeSS's as `xessDirectory`, so the DLLs stay where they are. It
+copies the DLSS-G package next to `KSP_x64.exe` only for the start that needs it, and
+removes it after that start.
 
 To read a run's logs again, for example after a change to the parser, run this:
 
@@ -57,33 +59,40 @@ To write this page again from the JSON files, run `python tools/benchmark_matrix
 ## What a start measures
 
 Each start flies the scene probe's vessel on the launch pad
-(`-redefinitionProbeStay -redefinitionProbeClouds -redefinitionProbeShot`). After 30
-seconds in the flight, the probe writes each set of the proxy's live keys into
-`ReDefinitionProxy.ini` in turn and holds it for 12 seconds
-(`-redefinitionProbeShotIni`). The proxy re-reads the file within a second and logs
-`Config reloaded:` with every value.
+(`-redefinitionProbeStay -redefinitionProbeClouds -redefinitionProbeShot`). The mod's
+settings come from the `settings.cfg` the profile start left, with the matrix's keys set
+over it. After 30 seconds in the flight, the probe applies each set of keys in turn and
+holds it for 12 seconds (`-redefinitionProbeShotIni`):
 
-A phase is one of these sets. Its measurement window opens 3 seconds after the proxy's
-reload, so that frame generation and the latency brake settle first (`settle_seconds`).
-The window closes when the probe takes the phase's screenshot. The tool reads every report
-the proxy wrote inside the window. With `reportSeconds=2` that is three or four reports a
-phase.
+* A `mod.<key>` key is one of ReDefinition's own settings, by its `settings.cfg` key. The
+  probe applies it as the settings window does.
+* Every other key goes into `ReDefinitionProxy.ini`. The proxy re-reads the file within a
+  second and logs `Config reloaded:` with every value.
 
-What the proxy reads only at load, and what the mod reads from `settings.cfg`, needs a
-start of its own:
+A phase is one of these sets. Its measurement window opens a while after the proxy's
+reload and closes when the probe takes the phase's screenshot:
 
-| Setting | Where | Why a start of its own |
+| Phase | Settling time | Length |
 |---|---|---|
-| The upscaler (`technique`) | the mod's `settings.cfg` | each start's settings file is written before KSP starts |
-| The raytracing mode (`raytracing`) | the mod's `settings.cfg` | the same; the probe's `-redefinitionProbeShotRaytracing` switches it only after all key sets, with the start's keys |
-| Ray Reconstruction (`rayReconstruction`) | the mod's `settings.cfg` | the same |
-| DLSS-G or FSR frame generation (`dlssFrameGeneration`) | `ReDefinitionProxy.ini` | the proxy reads it at load, and DLSS-G on RTX 20 and 30 GPUs needs the package next to `KSP_x64.exe` |
+| The first with another upscaler, raytracing mode or Ray Reconstruction | 8 s (`settle_after_rebuild_seconds`) | 24 s (`phase_repeats_after_rebuild`) |
+| Every other | 2 s (`settle_seconds`) | 12 s (`phase_repeats`) |
 
-Frame generation on and off, and every latency model, are live keys. One start covers all
-of them:
+A change of the rendering builds the upscaler and the raytracing's scene again. In the
+probe's logs that took about 5 seconds, with frames of half a second in between. Every set
+holds `reportSeconds=1`, so a phase has 8 to 9 reports, and 14 to 15 after a change.
+
+Only what the proxy reads at load needs a start of its own: the choice between DLSS-G
+and FSR frame generation (`dlssFrameGeneration`). DLSS-G on RTX 20 and 30 GPUs also needs
+the package next to `KSP_x64.exe`. The upscaler's DLL folders are read again when the
+upscaler is set up, so each start sets them once.
+
+Every set names every key the matrix varies, since the probe's sets add to each other:
 
 | Phase setting | Keys the probe sets |
 |---|---|
+| The upscaler | `mod.technique`, for example `Dlss` |
+| The raytracing mode | `mod.raytracing`, `Off` or `Full` |
+| Ray Reconstruction | `mod.rayReconstruction`; `True` where it does not apply |
 | Frame generation off | `fgMinimumFps=1000`, which holds it off |
 | Frame generation on | `fgMinimumFps=0`, which never holds it off |
 | No latency model | `lowLatency=0`, `latencyBrake=0`, `antiLag2=0` |
@@ -97,25 +106,24 @@ is not the same as `frameGeneration = False` in the mod's settings.
 
 ## Add a scenario
 
-Each list in `tools/benchmark_matrix.json` multiplies the starts or the phases:
+Each list in `tools/benchmark_matrix.json` multiplies the phases:
 
 * `techniques`: one line per upscaler. `log_name` is the name the upscaler's
   `Upscaler running on` line in `KSP.log` gives, so the tool can say when another one ran.
-  A technique with `ray_reconstruction` gets a start with Ray Reconstruction on and one
-  with it off for each raytracing mode other than `Off`.
+  A technique with `ray_reconstruction` is measured with Ray Reconstruction on and off for
+  each raytracing mode other than `Off`.
 * `raytracing`: the raytracing modes.
 * `frame_generation`: one entry per frame generation kind, each a start of its own.
-* `latency`: the latency models, each a phase. `vendors` limits one to those GPUs.
+* `latency`: the latency models. `vendors` limits one to those GPUs.
 * `baseline`: the scenario every row is compared with.
+* `separate_starts`: `technique`, `raytracing` or `ray_reconstruction`, each named one
+  split into starts of its own. The list is empty by default.
 
-To add XeSS, for example, add this line to `techniques`:
+XeSS, for example, is this line in `techniques`:
 
 ```
-{"id": "xess", "name": "XeSS", "log_name": "XeSS", "settings": {"technique": "Xess"}},
+{"id": "xess", "name": "XeSS", "log_name": "XeSS (DLL)", "settings": {"technique": "Xess"}, "proxy_load": {"xessDirectory": "{xess_dll_dir}"}, "requires": ["xess_dll_dir"]}
 ```
-
-`phase_repeats` above 1 holds each set for that many times 12 seconds, with more reports
-per phase and a longer run.
 
 ## The comparison table
 
@@ -147,7 +155,7 @@ No run yet.
 Each run names its date, the commit, the build in the install, the machine and the
 profile. Its collapsed table says what ran in each phase. The JSON file next to this page
 holds the full record of every phase: the proxy's whole configuration as it logged it, the
-mod's `settings.cfg` as the start wrote it, the upscaler's line, and each measured value.
+mod's settings in effect, the upscaler's line, and each measured value.
 
 <!-- benchmark-runs:start -->
 No run yet.

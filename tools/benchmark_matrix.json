@@ -1,8 +1,11 @@
 {
-  "comment": "The standing comparison (docs/development/benchmarks.md). Each technique, raytracing mode, Ray Reconstruction choice and frame generation kind is a KSP start of its own; the latency models and frame generation on and off are the proxy's live keys, set in turn inside each start.",
+  "comment": "The standing comparison (docs/development/benchmarks.md). Only the frame generation kind is a KSP start of its own; the upscaler, raytracing and Ray Reconstruction (the probe's mod.<key> keys), frame generation on and off and the latency models (the proxy's live keys) are set in turn inside each start.",
   "profile": "medium",
-  "settle_seconds": 3,
+  "settle_seconds": 2,
+  "settle_after_rebuild_seconds": 8,
   "phase_repeats": 1,
+  "phase_repeats_after_rebuild": 2,
+  "separate_starts": [],
   "baseline": {"technique": "fsr3", "raytracing": "Off", "ray_reconstruction": null, "fg": "off", "latency": "none"},
   "mod_settings": {
     "enabled": "True",
@@ -14,12 +17,14 @@
     "measureOnly": "0",
     "frameGeneration": "1",
     "allowTearing": "1",
-    "reportSeconds": "2"
+    "reportSeconds": "1"
   },
+  "phase_keys": {"reportSeconds": "1"},
   "techniques": [
     {"id": "fsr3", "name": "FSR 3", "log_name": "FSR 3", "settings": {"technique": "Fsr3"}},
     {"id": "dlss", "name": "DLSS", "log_name": "DLSS", "settings": {"technique": "Dlss"}, "ray_reconstruction": true, "vendors": ["NVIDIA"]},
-    {"id": "amd", "name": "AMD DLL", "log_name": "AMD FSR (DLL)", "settings": {"technique": "Amd"}, "proxy_load": {"amdUpscalerDirectory": "{amd_dll_dir}"}, "requires": ["amd_dll_dir"]}
+    {"id": "amd", "name": "AMD DLL", "log_name": "AMD FSR (DLL)", "settings": {"technique": "Amd"}, "proxy_load": {"amdUpscalerDirectory": "{amd_dll_dir}"}, "requires": ["amd_dll_dir"]},
+    {"id": "xess", "name": "XeSS", "log_name": "XeSS (DLL)", "settings": {"technique": "Xess"}, "proxy_load": {"xessDirectory": "{xess_dll_dir}"}, "requires": ["xess_dll_dir"]}
   ],
   "raytracing": ["Off", "Full"],
   "ray_reconstruction": [true, false],

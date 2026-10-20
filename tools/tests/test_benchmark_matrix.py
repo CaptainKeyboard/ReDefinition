@@ -121,6 +121,32 @@ class PhaseTest(unittest.TestCase):
         self.assertIn("lowLatency=1 asked for, the proxy has 0", off["warnings"])
         self.assertIn("frame generation asked for, presented/rendered 1.00", off["warnings"])
 
+    def test_mod_keys_and_the_settling_time_of_a_phase(self):
+        start = fixture_start()
+        start["mod_settings"] = {"raytracing": "Off"}
+        start["phases"][1]["keys"]["mod.raytracing"] = "Full"
+        start["phases"][1]["scenario"]["raytracing"] = "Full"
+        start["phases"][1]["settle"] = 6
+        ksp = fixture("bench.KSP.log").replace(
+            "[LOG 16:39:52.120] [ReDefinition] Probe: ReDefinitionProxy.ini set to",
+            "[LOG 16:39:52.110] [ReDefinition] Raytracing set to Full, 2 bounce(s).\n"
+            "[LOG 16:39:52.120] [ReDefinition] Probe: ReDefinitionProxy.ini set to")
+        result = bm.phases_of_start(start, ksp, fixture("bench.proxy.log"), 3)
+        off, on = result["phases"]
+        self.assertEqual(off["warnings"], [])
+        self.assertEqual(on["warnings"], [])
+        self.assertEqual(on["settle_seconds"], 6)
+        # From 16:39:58.8 on, each report covering the two seconds before it: 16:40:02 and :04.
+        self.assertEqual(on["measured"]["reports"], 2)
+        start["phases"][1]["scenario"]["raytracing"] = "Light"
+        on = bm.phases_of_start(start, ksp, fixture("bench.proxy.log"), 3)["phases"][1]
+        self.assertIn("raytracing Light asked for, Full set", on["warnings"])
+
+    def test_a_setting_the_probe_does_not_know_is_a_problem(self):
+        ksp = fixture("bench.KSP.log") + "[WRN 16:40:05.000] [ReDefinition] Probe: no setting technik takes Dlss.\n"
+        result = bm.phases_of_start(fixture_start(), ksp, fixture("bench.proxy.log"), 3)
+        self.assertEqual(result["problems"], ["Probe: no setting technik takes Dlss."])
+
     def test_a_missing_phase_is_a_problem(self):
         start = fixture_start()
         start["phases"].append(copy.deepcopy(start["phases"][1]))
@@ -147,55 +173,103 @@ class ClockTest(unittest.TestCase):
 
 
 class MatrixTest(unittest.TestCase):
+    ALL = {"dlssg_package": "p", "amd_dll_dir": "d", "xess_dll_dir": "x"}
+
     def setUp(self):
         self.matrix = bm.load_matrix(bm.DEFAULT_MATRIX)
 
     def test_default_matrix_on_nvidia(self):
-        starts, skipped = bm.expand(self.matrix, "NVIDIA", {"dlssg_package": "p", "amd_dll_dir": "d"})
-        self.assertEqual(len(starts), 14)
-        self.assertEqual(sum(len(s["phases"]) for s in starts), 84)
+        starts, skipped = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        self.assertEqual([s["id"] for s in starts], ["fsr", "dlssg"])
+        # Nine renderings: FSR 3, the AMD DLL and XeSS with RT Off and Full, DLSS with RT
+        # Off, Full with Ray Reconstruction and Full without. The first phase after a
+        # change of the rendering is held twice as long.
+        self.assertEqual(len(starts[0]["phases"]), 9 * 8 + 8)
+        self.assertEqual(len(starts[1]["phases"]), 9 * 4 + 8)
         self.assertIn(("latency antilag2", "only on AMD"), skipped)
-        ids = [s["id"] for s in starts]
-        self.assertIn("dlss-rtfull-rr-dlssg", ids)
-        self.assertIn("dlss-rtfull-norr-fsr", ids)
-        self.assertNotIn("fsr3-rtfull-rr-fsr", ids)
-        amd = next(s for s in starts if s["id"] == "amd-rtoff-fsr")
-        self.assertEqual(amd["proxy_load"]["amdUpscalerDirectory"], "d")
-        self.assertEqual(amd["proxy_load"]["dlssFrameGeneration"], "0")
+        fsr = starts[0]
+        self.assertEqual(fsr["proxy_load"]["amdUpscalerDirectory"], "d")
+        self.assertEqual(fsr["proxy_load"]["xessDirectory"], "x")
+        self.assertEqual(fsr["proxy_load"]["dlssFrameGeneration"], "0")
+        self.assertFalse(fsr["dlssg_package"])
+        self.assertTrue(starts[1]["dlssg_package"])
+        labels = {bm.scenario_label(p["scenario"]) for p in fsr["phases"]}
+        self.assertIn("DLSS · RT Full, RR off · FG FSR · Reflex", labels)
+        self.assertIn("XeSS · RT Off · FG off · none", labels)
+        self.assertNotIn("FSR 3 · RT Full, RR on · FG off · none", labels)
+
+    def test_the_first_phase_after_a_change_settles_longer(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        phases = starts[0]["phases"]
+        self.assertFalse(phases[0]["rebuild"])
+        self.assertEqual(phases[0]["settle"], 2)
+        self.assertEqual(phases[0]["keys"]["mod.technique"], "Fsr3")
+        self.assertEqual(phases[0]["keys"]["mod.raytracing"], "Off")
+        change = phases[8]
+        self.assertTrue(change["rebuild"])
+        self.assertEqual(change["settle"], 8)
+        self.assertEqual(change["keys"]["mod.raytracing"], "Full")
+        self.assertEqual(phases[9]["keys"], change["keys"])
+        self.assertFalse(phases[10]["rebuild"])
+
+    def test_the_start_begins_with_its_first_rendering(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        self.assertEqual(starts[0]["mod_settings"]["technique"], "Fsr3")
+        self.assertEqual(starts[0]["mod_settings"]["raytracing"], "Off")
+        self.assertEqual(starts[0]["mod_settings"]["frameGeneration"], "True")
 
     def test_without_the_files_their_starts_are_skipped(self):
         starts, skipped = bm.expand(self.matrix, "NVIDIA", {})
-        self.assertEqual([s["id"] for s in starts],
-                         ["fsr3-rtoff-fsr", "fsr3-rtfull-fsr", "dlss-rtoff-fsr", "dlss-rtfull-rr-fsr", "dlss-rtfull-norr-fsr"])
+        self.assertEqual([s["id"] for s in starts], ["fsr"])
+        self.assertEqual({p["scenario"]["technique"] for p in starts[0]["phases"]}, {"fsr3", "dlss"})
         self.assertIn(("technique amd", "needs amd_dll_dir"), skipped)
+        self.assertIn(("technique xess", "needs xess_dll_dir"), skipped)
+        self.assertIn(("frame generation dlssg", "needs dlssg_package"), skipped)
 
     def test_on_amd(self):
-        starts, _ = bm.expand(self.matrix, "AMD", {"dlssg_package": "p", "amd_dll_dir": "d"})
-        self.assertEqual([s["id"] for s in starts], ["fsr3-rtoff-fsr", "fsr3-rtfull-fsr", "amd-rtoff-fsr", "amd-rtfull-fsr"])
+        starts, _ = bm.expand(self.matrix, "AMD", self.ALL)
+        self.assertEqual([s["id"] for s in starts], ["fsr"])
+        self.assertEqual({p["scenario"]["technique"] for p in starts[0]["phases"]}, {"fsr3", "amd", "xess"})
         self.assertEqual({p["scenario"]["latency"] for p in starts[0]["phases"]}, {"none", "brake", "antilag2"})
 
+    def test_separate_starts(self):
+        self.matrix["separate_starts"] = ["technique"]
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        self.assertEqual([s["id"] for s in starts], ["fsr3-fsr", "dlss-fsr", "amd-fsr", "xess-fsr",
+                                                     "fsr3-dlssg", "dlss-dlssg", "amd-dlssg", "xess-dlssg"])
+        self.assertEqual(starts[1]["mod_settings"]["technique"], "Dlss")
+        self.assertNotIn("xessDirectory", starts[1]["proxy_load"])
+
     def test_a_technique_is_one_line(self):
-        self.matrix["techniques"].append({"id": "xess", "name": "XeSS", "settings": {"technique": "Xess"}})
+        self.matrix["techniques"].append({"id": "other", "name": "Other", "settings": {"technique": "Other"}})
         starts, _ = bm.expand(self.matrix, "NVIDIA", {})
-        self.assertEqual([s["id"] for s in starts if s["technique"] == "xess"], ["xess-rtoff-fsr", "xess-rtfull-fsr"])
+        self.assertEqual({p["scenario"]["raytracing"] for p in starts[0]["phases"] if p["scenario"]["technique"] == "other"},
+                         {"Off", "Full"})
 
     def test_every_set_names_every_key(self):
         starts, _ = bm.expand(self.matrix, "NVIDIA", {})
         sets = bm.ini_sets_argument(starts[0]["phases"]).split(";")
-        self.assertEqual(len(sets), 8)
-        self.assertEqual(sets[0], "fgMinimumFps=1000,lowLatency=0,latencyBrake=0,antiLag2=0")
+        self.assertEqual(len(sets), len(starts[0]["phases"]))
+        self.assertEqual(sets[0], "reportSeconds=1,mod.technique=Fsr3,mod.raytracing=Off,mod.rayReconstruction=True,"
+                                  "fgMinimumFps=1000,lowLatency=0,latencyBrake=0,antiLag2=0")
         for s in sets:
-            self.assertIn("fgMinimumFps=", s)
-            self.assertIn("lowLatency=", s)
-            self.assertIn("latencyBrake=", s)
+            for key in ("reportSeconds=1", "mod.technique=", "mod.raytracing=", "mod.rayReconstruction=", "fgMinimumFps=",
+                        "lowLatency=", "latencyBrake="):
+                self.assertIn(key, s)
 
     def test_dlssg_rows_are_their_own(self):
-        starts, _ = bm.expand(self.matrix, "NVIDIA", {"dlssg_package": "p"})
-        dlssg = next(s for s in starts if s["id"] == "fsr3-rtoff-dlssg")
-        self.assertTrue(dlssg["dlssg_package"])
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        dlssg = starts[1]
         self.assertEqual({p["scenario"]["fg"] for p in dlssg["phases"]}, {"dlssg"})
         keys = [bm.scenario_key(p["scenario"]) for s in starts for p in s["phases"]]
-        self.assertEqual(len(keys), len(set(keys)))
+        merged = [k for i, k in enumerate(keys) if i == 0 or keys[i - 1] != k]
+        self.assertEqual(len(merged), len(set(merged)))
+
+    def test_estimate(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        minutes = bm.estimate_seconds(starts) / 60.0
+        self.assertGreater(minutes, 25)
+        self.assertLess(minutes, 35)
 
 
 class FileEditTest(unittest.TestCase):
@@ -242,6 +316,73 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(report, ["restored " + bm.PROXY_INI])
         with open(os.path.join(self.ksp, bm.PROXY_INI)) as f:
             self.assertEqual(f.read(), "[Proxy]\nenabled=1\n")
+
+    def test_restore_removes_settings_files_the_run_made(self):
+        snap = os.path.join(self.root, "snap")
+        self.install.snap(snap)
+        made = os.path.join("GameData", "ReDefinition", "PluginData", "bundled.cfg")
+        self.write(os.path.join(self.ksp, made), "new")
+        self.write(os.path.join(self.ksp, "squadcorefx.ksp"), "KSP's own")
+        report = self.install.restore(snap)
+        self.assertIn("removed " + made, report)
+        self.assertFalse(os.path.exists(os.path.join(self.ksp, made)))
+        self.assertTrue(os.path.exists(os.path.join(self.ksp, "squadcorefx.ksp")))
+        self.assertIn("written since, not kept: squadcorefx.ksp", report)
+
+    def package(self, complete=True):
+        package = os.path.join(self.root, "package")
+        for sub in bm.PACKAGE_SUBDIRS + ("sr",):
+            if sub == "runtime" and not complete:
+                continue
+            os.makedirs(os.path.join(package, bm.PACKAGE_DIR, sub), exist_ok=True)
+            self.write(os.path.join(package, bm.PACKAGE_DIR, sub, "a.bin"), sub)
+        self.write(os.path.join(package, "version.dll"), "dll")
+        self.write(os.path.join(package, "dlssg_sm86.ini"), "[FrameGeneration]\nMaxGeneratedFrames=3\n")
+        return package
+
+    def test_a_partial_package_is_removed_after_the_start(self):
+        install = self.install
+        install.launch = lambda args, timeout: self.fail("KSP started without its package")
+        start = {"id": "dlssg", "phases": [], "mod_settings": {}, "proxy_load": {}, "dlssg_package": True,
+                 "max_generated_frames": 1}
+        raw = os.path.join(self.root, "raw")
+        os.makedirs(raw)
+        with self.assertRaises(OSError):
+            bm.run_start(install, start, raw, "ReDefinition\n{\n}\n", "[Proxy]\n", self.package(complete=False))
+        self.assertEqual(install.package_in_place(), [])
+        # A copy left half done by anything else is cleared by the next one.
+        self.write(os.path.join(self.ksp, "version.dll"), "stale")
+        os.makedirs(os.path.join(self.ksp, bm.PACKAGE_DIR, "backend"))
+        shutil.rmtree(os.path.join(self.root, "package"))
+        install.put_package(self.package(), 1)
+        with open(os.path.join(self.ksp, "version.dll")) as f:
+            self.assertEqual(f.read(), "dll")
+
+    def test_the_starts_begin_from_the_settings_the_profile_left(self):
+        settings = os.path.join(self.ksp, bm.SETTINGS_REL)
+
+        def profile_start(args, timeout):
+            with open(settings) as f:
+                text = f.read()
+            self.write(settings, text.replace("dlssModel = High", "dlssModel = Default"))
+            self.write(os.path.join(self.ksp, "KSP.log"), "[LOG 10:00:00.000] [ReDefinition] Probe: profile medium applied.\n")
+            return "quit"
+        self.install.launch = profile_start
+        raw = os.path.join(self.root, "raw")
+        os.makedirs(raw)
+        lines, template = bm.apply_profile(self.install, "medium", "ReDefinition\n{\n\tdlssModel = High\n}\n", raw)
+        self.assertEqual(lines, ["[LOG 10:00:00.000] [ReDefinition] Probe: profile medium applied."])
+        self.assertIn("dlssModel = Default", template)
+        out = bm.set_cfg_values(template, {"technique": "Dlss"})
+        self.assertIn("dlssModel = Default", out)
+        self.assertIn("technique = Dlss", out)
+
+    def test_a_profile_that_did_not_apply_stops_the_run(self):
+        self.install.launch = lambda args, timeout: "quit"
+        raw = os.path.join(self.root, "raw")
+        os.makedirs(raw)
+        with self.assertRaises(RuntimeError):
+            bm.apply_profile(self.install, "medium", "ReDefinition\n{\n}\n", raw)
 
     def test_package_in_and_out(self):
         package = os.path.join(self.root, "package")
