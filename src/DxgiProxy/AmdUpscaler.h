@@ -123,6 +123,8 @@ namespace redefinition
         void WaitForListsLocked();
         void ReleaseLocked();
         void SetStatus(int state, const std::string& text);
+        // No context, so no FSR that Provider names.
+        void ClearProviderLocked();
 
         mutable std::mutex mutex;
 

@@ -424,6 +424,7 @@ namespace redefinition
         if (code != FFX_API_RETURN_OK)
         {
             context = nullptr;
+            ClearProviderLocked();
             SetStatus(-1, "AMD's upscaler context could not be created, code " + std::to_string(static_cast<int>(code)));
             created = packet;
             contextFailed = true;
@@ -433,19 +434,19 @@ namespace redefinition
         providerName = "AMD upscaler";
         ffxQueryGetProviderVersion provider = {};
         provider.header.type = FFX_API_QUERY_DESC_TYPE_GET_PROVIDER_VERSION;
-        if (api.Query(&context, &provider.header) == FFX_API_RETURN_OK && provider.versionName != nullptr)
-            providerName = provider.versionName;
+        const bool named = api.Query(&context, &provider.header) == FFX_API_RETURN_OK && provider.versionName != nullptr
+                           && std::atoi(provider.versionName) > 0;
+        if (named)
+            providerName = std::string("FSR ") + provider.versionName;
         // The version name is the upscaler's own, "4.1.1" or "3.1.5"; the DLL of FSR 4
-        // carries FSR 3.1 for GPUs without it, and runs that without a word.
-        const bool fsr4 = std::atoi(providerName.c_str()) >= 4;
-        const bool dll4 = std::atoi(dllVersion.c_str()) >= 4;
-        const int kind = fsr4 ? 1 : dll4 ? 2 : 3;
-        if (providerName.find_first_of("0123456789") == 0)
-            providerName = "FSR " + providerName;
+        // carries FSR 3.1 for GPUs without it, and runs that without a word. Unnamed,
+        // nothing is said about it.
+        const int major = named ? std::atoi(provider.versionName) : 0;
+        const int kind = !named ? 0 : major >= 4 ? 1 : std::atoi(dllVersion.c_str()) >= 4 ? 2 : 3;
         {
             std::lock_guard<std::mutex> lock(statusLock);
             providerKind = kind;
-            providerShown = providerName;
+            providerShown = named ? providerName : std::string();
         }
         if (kind == 2)
             LogLine("AMD upscaler: " + providerName + " runs, not FSR 4: amd_fidelityfx_upscaler_dx12.dll " + dllVersion
@@ -600,8 +601,16 @@ namespace redefinition
             WaitForSingleObject(fenceEvent, INFINITE);
     }
 
+    void AmdUpscaler::ClearProviderLocked()
+    {
+        std::lock_guard<std::mutex> lock(statusLock);
+        providerKind = 0;
+        providerShown.clear();
+    }
+
     void AmdUpscaler::ReleaseLocked()
     {
+        ClearProviderLocked();
         WaitForListsLocked();
         if (context != nullptr)
         {

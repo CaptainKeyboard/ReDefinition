@@ -69,6 +69,8 @@ namespace ReDefinition.Bridges
         private static int shownKind;
         private static string shownSource;
         private static string shownName;
+        // A proxy older than the export says nothing, once found out.
+        private static bool providerMissing;
 
         // Which FSR the DLL runs, for the settings row: "FSR 4.1.1", or "FSR 3.1.5
         // fallback" where the DLL is FSR 4's but offers this GPU only the FSR 3 it
@@ -76,7 +78,7 @@ namespace ReDefinition.Bridges
         // the proxy's export.
         internal static string RunningName()
         {
-            if (!link.Ready) return null;
+            if (!link.Ready || providerMissing) return null;
             int kind;
             try
             {
@@ -85,6 +87,7 @@ namespace ReDefinition.Bridges
             }
             catch (Exception)
             {
+                providerMissing = true;
                 return null;
             }
             if (kind == 0 || providerBuffer.Length == 0) return null;

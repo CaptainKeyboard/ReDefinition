@@ -43,16 +43,23 @@ namespace ReDefinition.Window
                    && NvidiaFiles.DlssRuns(architecture, implementation) && !NvidiaFiles.FrameGenerationRuns(architecture);
         }
 
+        // Looked at at most once a second, as the zip: the row asks every frame.
+        private static bool installed;
+        private static float installedLookedAt = float.NegativeInfinity;
+
         public static bool Installed()
         {
+            if (Time.realtimeSinceStartup - installedLookedAt < 1f) return installed;
+            installedLookedAt = Time.realtimeSinceStartup;
             try
             {
-                return AmperePackage.Installed(NvidiaDownloader.GameFolder);
+                installed = AmperePackage.Installed(NvidiaDownloader.GameFolder);
             }
             catch (Exception)
             {
-                return false;
+                installed = false;
             }
+            return installed;
         }
 
         // The release zip in KSP's folder, looked for at most once a second: the row and
@@ -75,13 +82,21 @@ namespace ReDefinition.Window
             return zip;
         }
 
-        // The zip as the row and the dialog name it, grey.
+        // The zip as the row and the dialog name it, grey, made anew only when it changes.
+        private static string zipShownFor = "";
+        private static string zipText;
+
         public static string ZipText()
         {
             string found = Zip();
-            return "<color=#9a9a9a>" + (found != null
-                ? "Found in KSP's folder: " + Path.GetFileName(found)
-                : "No " + AmperePackage.ZipPattern + " in KSP's folder yet") + "</color>";
+            if (zipText == null || found != zipShownFor)
+            {
+                zipShownFor = found;
+                zipText = "<color=#9a9a9a>" + (found != null
+                    ? "Found in KSP's folder: " + Path.GetFileName(found)
+                    : "No " + AmperePackage.ZipPattern + " in KSP's folder yet") + "</color>";
+            }
+            return zipText;
         }
 
         // The steps, as the player follows them: the release page, the zip into KSP's
