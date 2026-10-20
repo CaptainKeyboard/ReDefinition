@@ -1843,6 +1843,37 @@ int main()
                 return Fail("dlssgMode=on again generated no frames", E_FAIL);
         }
 
+        // REDEFINITION_HARNESS_FOCUS=1: DLSS-G generates nothing while the harness window is not in the
+        // foreground ("DLSS-G disabled: window not focused"), and the proxy's log says so. The taskbar
+        // takes the foreground for a moment, then the window gets it back.
+        if (EnvironmentSet(L"REDEFINITION_HARNESS_FOCUS"))
+        {
+            SetForegroundWindow(FindWindowW(L"Shell_TrayWnd", nullptr));
+            Sleep(300);
+            const bool away = GetForegroundWindow() != window;
+            float unfocused = 0.0f;
+            hr = presentsPerFrame(3.0f, unfocused);
+            if (FAILED(hr))
+                return Fail("Present with the window out of the foreground", hr);
+            keybd_event(VK_MENU, 0, 0, 0);
+            keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
+            SetForegroundWindow(window);
+            Sleep(300);
+            const bool back = GetForegroundWindow() == window;
+            float focused = 0.0f;
+            hr = presentsPerFrame(3.0f, focused);
+            if (FAILED(hr))
+                return Fail("Present with the window back in the foreground", hr);
+            printf("      window out of the foreground (%s): %.2f presents per frame; back in it (%s): %.2f\n",
+                   away ? "yes" : "NO", unfocused, back ? "yes" : "NO", focused);
+            if (!away || !back)
+                return Fail("the harness window could not be taken out of the foreground and back", E_FAIL);
+            if (unfocused > kNotGeneratingAtMost)
+                return Fail("DLSS-G generated frames with the window out of the foreground", E_FAIL);
+            if (focused < kGeneratingAtLeast)
+                return Fail("DLSS-G did not generate again with the window back in the foreground", E_FAIL);
+        }
+
         // Frames of 40 ms, 25 a second, under DLSS-G's minimum of 30 (fgMinimumFps):
         // held off once two seconds of them are averaged, on again at 60.
         packet.frameTimeDeltaMs = 40.0f;

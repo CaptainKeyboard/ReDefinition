@@ -206,6 +206,10 @@ namespace redefinition
         // The most frames DLSS-G may generate for a Present with this sync interval.
         uint32_t StreamlineFrameLimit(UINT syncInterval);
 
+        // Says in the log when the game's window is not in the foreground while DLSS-G is
+        // asked to generate (SwapChainProxyStreamline.cpp).
+        void NoteStreamlineFocus();
+
         // The index of the frame about to be presented, 0 for none: the game's,
         // where its main thread began one and Unity's render thread received it
         // since the last Present (Streamline::TakeGameFrame); otherwise the
@@ -333,6 +337,9 @@ namespace redefinition
         bool loggedPresentWithoutGameFrame = false;
         bool loggedLateGameFrame = false;
         uint32_t streamlineIdlePresents = 0;
+        // Whether the game's window was in the foreground at the last Present DLSS-G generated
+        // for: 1 yes, 0 no, -1 not looked at yet. For the log line that says when it is not.
+        int streamlineFocused = -1;
 
         // XeSS-FG: its context, the XeLL context it needs -- or the one an Intel GPU's
         // low latency runs on without it -- whether the swapchain is its, and whether

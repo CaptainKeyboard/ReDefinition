@@ -361,6 +361,8 @@ namespace redefinition
                 streamlineIdlePresents = 0;
             else if (++streamlineIdlePresents > 120 && streamlineSync == 0)
                 PauseRefreshMonitor();
+            if (streamlineGenerating)
+                NoteStreamlineFocus();
         }
         else if (xessSwapChain)
         {

@@ -25,6 +25,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import threading
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +44,8 @@ PROBE_FLIGHT_SECONDS = 30.0
 # Measured on the RTX A4500: from the process start to the flight, and the quit after.
 START_OVERHEAD_SECONDS = 75.0
 PROFILE_START_SECONDS = 60.0
+# How often the game's window is brought to the foreground while it runs.
+FOREGROUND_SECONDS = 2.0
 
 # What the snapshot keeps: every settings file of the install (snapshot.py).
 SNAP_EXT = (".cfg", ".xml", ".json", ".txt", ".ini", ".settings")
@@ -522,6 +525,20 @@ def parse_proxy_log(text):
     return p
 
 
+def _unfocused_at(proxy, t):
+    """Whether the proxy's last word on the game's window before t was that it is not in the
+    foreground while DLSS-G is asked to generate (SwapChainProxyStreamline.cpp)."""
+    state = False
+    for line in proxy["lines"].get("dlssg", []):
+        if line["time"] > t:
+            break
+        if "the game's window is not in the foreground" in line["text"]:
+            state = True
+        elif "the game's window is in the foreground again" in line["text"]:
+            state = False
+    return state
+
+
 def parse_ksp_log(text):
     k = {"gpu": None, "upscaler": [], "sets": [], "shots": [], "profile": [], "probe": [], "rr": [], "raytracing": [],
          "first_time": None}
@@ -681,7 +698,11 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
         ratio = measured.get("presented_per_rendered")
         if ratio is not None:
             if s["fg_requested"] and ratio < 1.5:
-                warnings.append("frame generation asked for, presented/rendered {:.2f}".format(ratio))
+                text = "frame generation asked for, presented/rendered {:.2f}".format(ratio)
+                if _unfocused_at(proxy, end):
+                    text += (" -- the game's window was not in the foreground, and DLSS-G generates nothing then"
+                             " (the proxy's log says so)")
+                warnings.append(text)
             if not s["fg_requested"] and ratio > 1.2:
                 warnings.append("frame generation held off, presented/rendered {:.2f}".format(ratio))
         if s["fg_requested"] and s["fg_kind"] == "dlssg" and fg_kind != "DLSS-G":
@@ -780,6 +801,67 @@ def _merge_repeats(results):
 
 # ----------------------------------------------------------------------------- the install
 
+def bring_to_front(pid):
+    """Makes the top-level window of the process the foreground window. NVIDIA's DLSS-G
+    generates nothing while the game's window is not (Streamline: "DLSS-G disabled: window not
+    focused"), and a KSP that this tool starts is not given the foreground when another
+    program's window is in front. False where there is no such window, or Windows did not
+    allow it. Windows only."""
+    if os.name != "nt":
+        return False
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    for name in ("IsWindowVisible", "IsIconic", "SetForegroundWindow", "GetWindowTextLengthW"):
+        getattr(user32, name).argtypes = [wintypes.HWND]
+    user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+    user32.GetWindow.restype = wintypes.HWND
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
+    kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+    found = []
+    visit_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def visit(hwnd, _):
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        # Visible, titled and not owned by another window: the game's own, not a tool window.
+        if (owner.value == pid and user32.IsWindowVisible(hwnd) and not user32.GetWindow(hwnd, 4)
+                and user32.GetWindowTextLengthW(hwnd) > 0):
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows.argtypes = [visit_type, wintypes.LPARAM]
+    user32.EnumWindows(visit_type(visit), 0)
+    if not found:
+        return False
+    hwnd = found[0]
+    if user32.GetForegroundWindow() == hwnd:
+        return True
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, 9)   # SW_RESTORE
+    # Sharing the input queue of the window in front is what lets this process take the foreground.
+    front = user32.GetForegroundWindow()
+    front_thread = user32.GetWindowThreadProcessId(front, None) if front else 0
+    mine = kernel32.GetCurrentThreadId()
+    attached = bool(front_thread) and front_thread != mine and user32.AttachThreadInput(mine, front_thread, True)
+    try:
+        user32.SetForegroundWindow(hwnd)
+    finally:
+        if attached:
+            user32.AttachThreadInput(mine, front_thread, False)
+    if user32.GetForegroundWindow() != hwnd:
+        # An Alt press, which Windows counts as input, and once more.
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.keybd_event(0x12, 0, 2, 0)
+        user32.SetForegroundWindow(hwnd)
+    return user32.GetForegroundWindow() == hwnd
+
+
 class Install:
     def __init__(self, ksp):
         self.ksp = ksp
@@ -870,6 +952,21 @@ class Install:
         """KSP_x64.exe with these arguments, from its own folder, until it quits."""
         proc = subprocess.Popen([self.path("KSP_x64.exe")] + args, cwd=self.ksp,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # The game's window stays in the foreground for as long as it runs (bring_to_front):
+        # DLSS-G generates no frame otherwise, and a start of the run that no one watched
+        # would measure the frames it renders alone. REDEFINITION_BENCH_NO_FOREGROUND leaves
+        # the window where Windows puts it, to reproduce that.
+        done = threading.Event()
+
+        def keep_in_front():
+            while not done.wait(FOREGROUND_SECONDS):
+                try:
+                    bring_to_front(proc.pid)
+                except Exception:
+                    pass
+
+        if not os.environ.get("REDEFINITION_BENCH_NO_FOREGROUND"):
+            threading.Thread(target=keep_in_front, daemon=True).start()
         try:
             proc.wait(timeout=timeout)
             return "quit"
@@ -883,6 +980,8 @@ class Install:
             proc.kill()
             proc.wait()
             raise
+        finally:
+            done.set()
 
     def package_in_place(self):
         return [n for n in PACKAGE_FILES + (PACKAGE_DIR,) if os.path.exists(self.path(n))]

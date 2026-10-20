@@ -171,6 +171,29 @@ namespace redefinition
         return frames;
     }
 
+    // DLSS-G generates nothing while the game's window is not in the foreground: Streamline
+    // says "DLSS-G disabled: window not focused" (sl.dlss_g, shouldInterpolate) and presents
+    // the rendered frames alone, with its status still fine -- a benchmark started from
+    // another program's window found its frame generation rows at 1.00 presented per
+    // rendered frame that way. Said once per change, from the Present that asked it to
+    // generate; the foreground window of this process counts as the game's.
+    void SwapChainProxy::NoteStreamlineFocus()
+    {
+        const HWND foreground = GetForegroundWindow();
+        DWORD process = 0;
+        if (foreground != nullptr)
+            GetWindowThreadProcessId(foreground, &process);
+        const int focused = foreground != nullptr && (foreground == window || process == GetCurrentProcessId()) ? 1 : 0;
+        if (focused == streamlineFocused)
+            return;
+        if (focused == 0 || streamlineFocused == 0)
+            LogLine(focused == 0
+                        ? "DLSS frame generation: the game's window is not in the foreground -- Streamline's DLSS-G generates"
+                          " no frames while it is not (\"DLSS-G disabled: window not focused\")"
+                        : "DLSS frame generation: the game's window is in the foreground again");
+        streamlineFocused = focused;
+    }
+
     // "Ensure the frame index provided with the common constants matches the
     // presented frame (i.e., the frame index provided with Reflex markers
     // ReflexMarker::ePresentStart and ReflexMarker::ePresentEnd)"

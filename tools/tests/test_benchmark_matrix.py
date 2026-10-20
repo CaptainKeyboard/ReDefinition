@@ -555,6 +555,23 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(self.install.package_in_place(), [])
 
 
+class ForegroundTest(unittest.TestCase):
+    def test_no_window_of_a_process_that_is_not_there(self):
+        self.assertFalse(bm.bring_to_front(0x7FFFFFF0))
+
+    def test_the_games_window_out_of_the_foreground_is_told_by_the_proxys_last_word(self):
+        proxy = {"lines": {"dlssg": [
+            {"time": 10.0, "text": "DLSS frame generation on, 1 generated frame(s) per rendered"},
+            {"time": 20.0, "text": "DLSS frame generation: the game's window is not in the foreground -- Streamline's DLSS-G"
+                                   " generates no frames while it is not"},
+            {"time": 40.0, "text": "DLSS frame generation: the game's window is in the foreground again"},
+        ]}}
+        self.assertFalse(bm._unfocused_at(proxy, 15.0))
+        self.assertTrue(bm._unfocused_at(proxy, 30.0))
+        self.assertFalse(bm._unfocused_at(proxy, 50.0))
+        self.assertFalse(bm._unfocused_at({"lines": {}}, 50.0))
+
+
 class DocTest(unittest.TestCase):
     def record(self, stamp, fps_scale=1.0):
         parsed = bm.phases_of_start(fixture_start(), fixture("bench.KSP.log"), fixture("bench.proxy.log"), 3)
