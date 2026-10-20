@@ -936,13 +936,15 @@ namespace ReDefinition.Upscaler
             Transform t = cam.transform;
             Vector3 p = t.position - shift, u = t.up, r = t.right, f = t.forward;
 
-            // Streamline's matrices, for DLSS frame generation only, from the
-            // projection Unity drew with and without the jitter: the camera's
-            // own while no jitter runs, since nonJitteredProjectionMatrix, once
-            // set, is never reset (CameraRedirect). Reprojected into the frame
-            // before only when that frame sent a packet and nothing cut in
-            // between; otherwise into itself, which reprojects nothing.
-            if (FrameGenerationBridge.DlssFrameGenerationRuns)
+            // Streamline's matrices, for DLSS and XeSS frame generation only --
+            // XeSS-FG takes the projection and builds its view from the camera's
+            // basis -- from the projection Unity drew with and without the jitter:
+            // the camera's own while no jitter runs, since
+            // nonJitteredProjectionMatrix, once set, is never reset
+            // (CameraRedirect). Reprojected into the frame before only when that
+            // frame sent a packet and nothing cut in between; otherwise into
+            // itself, which reprojects nothing.
+            if (FrameGenerationBridge.CameraMatricesNeeded)
             {
                 Matrix4x4 projection = CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix;
                 Matrix4x4 gpuProjection = GL.GetGPUProjectionMatrix(projection, false);

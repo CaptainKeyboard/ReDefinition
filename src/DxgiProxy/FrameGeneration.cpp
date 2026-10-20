@@ -4,7 +4,7 @@
 // each Present in FrameGenerationPrepare.cpp, the frame rate gate in
 // FrameGenerationRate.cpp, the shared inputs in FrameGenerationInputs.cpp, the
 // HUD-less and motion vector checks in FrameGenerationCheck.cpp, DLSS-G in
-// FrameGenerationDlss.cpp.
+// FrameGenerationDlss.cpp, XeSS-FG in FrameGenerationXess.cpp.
 
 #include "FrameGeneration.h"
 
@@ -56,6 +56,10 @@ namespace redefinition
         streamline = false;
         streamlineOn = false;
         streamlineMultiplier = 0;
+        // XeSS-FG's alike, on the earlier owner's context, which still lives.
+        XessOffLocked("frame generation belongs to a swapchain made after this one");
+        xess = false;
+        xessContext = nullptr;
 
         // Unity's textures, which the rig registers once, outlive a swapchain made
         // anew without a resize: shared again on the new devices. Only textures of
@@ -141,6 +145,10 @@ namespace redefinition
         streamlineGrace = 0;
         streamlineOffStatus = 0;
         streamlineMultiplier = 0;
+        xess = false;
+        xessContext = nullptr;
+        xessOn = false;
+        xessMultiplier = 0;
         loggedUnflipped = false;
         loggedFlipMissing = false;
 

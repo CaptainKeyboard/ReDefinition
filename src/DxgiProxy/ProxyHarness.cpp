@@ -26,7 +26,10 @@
 // depth and motion vectors registered and captured every frame the way the rig
 // does it, interpolation on, off, on again, and on across a resize. The
 // swapchain's own present count says whether frames were generated -- about two
-// presents per rendered frame while it is on, one while it is off.
+// presents per rendered frame while it is on, one while it is off. DLSS's frame
+// generation instead where REDEFINITION_STREAMLINE_DIR names NVIDIA's Streamline,
+// XeSS's where REDEFINITION_XESS_FG_DIR names Intel's libxess_fg.dll and
+// libxell.dll.
 //
 // Because it sits in the same directory as the proxy's dxgi.dll, the ordinary
 // search order loads the proxy rather than the system one, as in KSP.
@@ -852,6 +855,25 @@ int main()
     const IniKey streamlineDirectoryKey(L"streamlineDirectory");
     streamlineDirectoryKey.Set(streamlineDirectory.empty() ? nullptr : streamlineDirectory.c_str());
 
+    // XeSS frame generation, when REDEFINITION_XESS_FG_DIR names a folder with Intel's
+    // libxess_fg.dll and libxell.dll -- the XeSS SDK's bin -- asked for by name
+    // (frameGenerationTechnique=xess), on whatever GPU the harness runs; otherwise the
+    // ini's own choice, auto.
+    wchar_t xessFgDirectoryBuffer[MAX_PATH] = {};
+    GetEnvironmentVariableW(L"REDEFINITION_XESS_FG_DIR", xessFgDirectoryBuffer, MAX_PATH);
+    const std::wstring xessFgDirectory(xessFgDirectoryBuffer);
+    const bool xessFgWanted = !xessFgDirectory.empty()
+        && GetFileAttributesW((xessFgDirectory + L"\\libxess_fg.dll").c_str()) != INVALID_FILE_ATTRIBUTES
+        && GetFileAttributesW((xessFgDirectory + L"\\libxell.dll").c_str()) != INVALID_FILE_ATTRIBUTES;
+    if (!xessFgDirectory.empty() && !xessFgWanted)
+        return Fail("REDEFINITION_XESS_FG_DIR names no folder with libxess_fg.dll and libxell.dll", E_FAIL);
+    if (xessFgWanted && !streamlineDirectory.empty())
+        return Fail("REDEFINITION_XESS_FG_DIR and REDEFINITION_STREAMLINE_DIR: one frame generation a run", E_FAIL);
+    const IniKey xessFgDirectoryKey(L"xessFgDirectory");
+    xessFgDirectoryKey.Set(xessFgWanted ? xessFgDirectory.c_str() : nullptr);
+    const IniKey techniqueKey(L"frameGenerationTechnique");
+    techniqueKey.Set(xessFgWanted ? L"xess" : nullptr);
+
     // By bare name, exactly as Unity does it, so the application directory wins.
     const HMODULE dxgi = LoadLibraryW(L"dxgi.dll");
     if (dxgi == nullptr)
@@ -1262,7 +1284,16 @@ int main()
     if (shared && technique == nullptr)
         return Fail("GetProcAddress(KspFgTechnique)", E_FAIL);
     int multiplier = 0;
-    const bool dlssFrameGeneration = shared && technique(&multiplier) == 2;
+    const int runningTechnique = shared ? technique(&multiplier) : 0;
+    const bool dlssFrameGeneration = runningTechnique == 2;
+    const bool xessFrameGeneration = runningTechnique == 3;
+    if (shared && xessFgWanted && !xessFrameGeneration)
+    {
+        char why[256] = {};
+        status(why, sizeof(why));
+        printf("      [%s]\n", why);
+        return Fail("REDEFINITION_XESS_FG_DIR is set, but XeSS frame generation does not run", E_FAIL);
+    }
 
     // Whether DLSS-G presents with V-Sync where KSP asks for it (KspFgDlssVsync),
     // which the mod's V-Sync row follows.
@@ -1287,8 +1318,9 @@ int main()
             return Fail("DLSS frame generation runs, but the adapter's architecture reads below Ada's", E_FAIL);
 
         // What lowers the latency (KspLowLatency): Streamline's Reflex with DLSS frame
-        // generation, NVIDIA Reflex through NVAPI on an NVIDIA GPU otherwise, with the
-        // game's frames as the mod sends them, and off again with lowLatency=0.
+        // generation, Intel's XeLL with XeSS's, NVIDIA Reflex through NVAPI on an NVIDIA
+        // GPU otherwise, with the game's frames as the mod sends them, and off again
+        // with lowLatency=0.
         using LowLatencyFn = int (*)(char*, int);
         const LowLatencyFn lowLatency = reinterpret_cast<LowLatencyFn>(GetProcAddress(dxgi, "KspLowLatency"));
         if (lowLatency == nullptr)
@@ -1296,7 +1328,7 @@ int main()
         if (shared)
         {
             char latencyText[256] = {};
-            const int expected = dlssFrameGeneration ? 2 : known ? 1 : 0;
+            const int expected = dlssFrameGeneration ? 2 : xessFrameGeneration ? 4 : known ? 1 : 0;
             gameFrames = true;
             const unsigned int begunBefore = gameFramesBegun;
             for (int i = 0; i < 60; ++i)
@@ -1487,55 +1519,55 @@ int main()
         return Fail("REDEFINITION_STREAMLINE_DIR is set, but DLSS frame generation does not run", E_FAIL);
     }
 
+    // Presents per rendered frame over a stretch of rendering, the last half
+    // second of which settles DLSS-G or XeSS-FG after a change before counting
+    // starts: the proxy's own totals (KspFgCounters), which take their counts of the
+    // frames they presented.
+    const CountersFn counters = reinterpret_cast<CountersFn>(GetProcAddress(dxgi, "KspFgCounters"));
+    if (shared && counters == nullptr)
+        return Fail("GetProcAddress(KspFgCounters)", E_FAIL);
+    auto presentsPerFrame = [&](float seconds, float& ratio) -> HRESULT
+    {
+        LARGE_INTEGER frequency = {};
+        QueryPerformanceFrequency(&frequency);
+        auto renderSeconds = [&](float span) -> HRESULT
+        {
+            LARGE_INTEGER start = {};
+            QueryPerformanceCounter(&start);
+            LARGE_INTEGER now = start;
+            while (static_cast<float>(now.QuadPart - start.QuadPart) < span * static_cast<float>(frequency.QuadPart))
+            {
+                const HRESULT presented = renderFrame();
+                if (FAILED(presented))
+                    return presented;
+                QueryPerformanceCounter(&now);
+            }
+            return S_OK;
+        };
+        HRESULT result = renderSeconds(0.5f);
+        if (FAILED(result))
+            return result;
+        unsigned int renderedBefore = 0;
+        unsigned int presentedBefore = 0;
+        counters(&renderedBefore, &presentedBefore);
+        result = renderSeconds(seconds);
+        if (FAILED(result))
+            return result;
+        unsigned int renderedAfter = 0;
+        unsigned int presentedAfter = 0;
+        counters(&renderedAfter, &presentedAfter);
+        const unsigned int rendered = renderedAfter - renderedBefore;
+        ratio = rendered != 0 ? static_cast<float>(presentedAfter - presentedBefore) / static_cast<float>(rendered)
+                              : 0.0f;
+        return S_OK;
+    };
+
     // DLSS frame generation: the same phases as FSR's below, counted by the
-    // proxy's own totals (KspFgCounters), which take DLSS-G's count of the
-    // frames it presented. What is FSR's alone -- its context, VSync pacing, the
+    // proxy's own totals. What is FSR's alone -- its context, VSync pacing, the
     // half refresh limit, async workloads -- is not asked here.
     bool dlssGenerated = false;
     if (dlssFrameGeneration)
     {
-        const CountersFn counters = reinterpret_cast<CountersFn>(GetProcAddress(dxgi, "KspFgCounters"));
-        if (counters == nullptr)
-            return Fail("GetProcAddress(KspFgCounters)", E_FAIL);
-
-        // Presents per rendered frame over a stretch of rendering, the last half
-        // second of which settles DLSS-G after a change before counting starts.
-        auto presentsPerFrame = [&](float seconds, float& ratio) -> HRESULT
-        {
-            LARGE_INTEGER frequency = {};
-            QueryPerformanceFrequency(&frequency);
-            auto renderSeconds = [&](float span) -> HRESULT
-            {
-                LARGE_INTEGER start = {};
-                QueryPerformanceCounter(&start);
-                LARGE_INTEGER now = start;
-                while (static_cast<float>(now.QuadPart - start.QuadPart) < span * static_cast<float>(frequency.QuadPart))
-                {
-                    const HRESULT presented = renderFrame();
-                    if (FAILED(presented))
-                        return presented;
-                    QueryPerformanceCounter(&now);
-                }
-                return S_OK;
-            };
-            HRESULT result = renderSeconds(0.5f);
-            if (FAILED(result))
-                return result;
-            unsigned int renderedBefore = 0;
-            unsigned int presentedBefore = 0;
-            counters(&renderedBefore, &presentedBefore);
-            result = renderSeconds(seconds);
-            if (FAILED(result))
-                return result;
-            unsigned int renderedAfter = 0;
-            unsigned int presentedAfter = 0;
-            counters(&renderedAfter, &presentedAfter);
-            const unsigned int rendered = renderedAfter - renderedBefore;
-            ratio = rendered != 0 ? static_cast<float>(presentedAfter - presentedBefore) / static_cast<float>(rendered)
-                                  : 0.0f;
-            return S_OK;
-        };
-
         char line[256] = {};
         float on = 0.0f;
         hr = presentsPerFrame(2.0f, on);
@@ -1767,14 +1799,175 @@ int main()
         dlssGenerated = true;
     }
 
-    // One swapchain, one frame generation: with DLSS-G running, FSR's phases below
-    // are not reached, and a second run without REDEFINITION_STREAMLINE_DIR tests
-    // them.
-    const bool frameGeneration = shared && !dlssFrameGeneration
+    // XeSS frame generation: DLSS-G's phases, as far as they are XeSS-FG's too, with
+    // the game's frames throughout -- their ids are its present ids, the ones XeLL's
+    // markers carry, and a Present without one generates nothing
+    // (FrameGenerationXess.cpp). Interpolation on, off and on again with the mod's
+    // switch, across mode changes, V-Sync and a resize, and held off below its
+    // minimum of 40 rendered frames a second.
+    bool xessGenerated = false;
+    if (xessFrameGeneration)
+    {
+        char line[256] = {};
+        gameFrames = true;
+        float on = 0.0f;
+        hr = presentsPerFrame(2.0f, on);
+        if (FAILED(hr))
+            return Fail("Present with XeSS frame generation on", hr);
+        status(line, sizeof(line));
+        technique(&multiplier);
+        printf("      XeSS frame generation on: %.2f presents per frame, %dx  [%s]\n", on, multiplier, line);
+        if (on < kGeneratingAtLeast || multiplier != 2)
+            return Fail("XeSS frame generation on, but no frames were generated", E_FAIL);
+        if (strstr(line, "technique=xess") == nullptr)
+            return Fail("XeSS frame generation runs, but the status line does not say so", E_FAIL);
+
+        // Mode changes while it generates, as the toolbar makes them.
+        const UINT sizes[2][2] = { { kWidth * 2 / 3, kHeight * 2 / 3 }, { kWidth / 2, kHeight / 2 } };
+        for (UINT change = 0; change < 8; ++change)
+        {
+            hr = provideInputs(sizes[change % 2][0], sizes[change % 2][1], kWidth, kHeight);
+            if (FAILED(hr))
+                return Fail("creating the inputs for a mode change under XeSS frame generation", hr);
+            for (UINT frame = 0; frame < 5; ++frame)
+            {
+                hr = renderFrame();
+                if (FAILED(hr))
+                    return Fail("Present after a mode change under XeSS frame generation", hr);
+            }
+        }
+        float afterChanges = 0.0f;
+        hr = presentsPerFrame(1.0f, afterChanges);
+        if (FAILED(hr))
+            return Fail("Present after the mode changes under XeSS frame generation", hr);
+        status(line, sizeof(line));
+        printf("      XeSS frame generation after 8 mode changes: %.2f presents per frame  [%s]\n", afterChanges, line);
+        if (afterChanges < kGeneratingAtLeast)
+            return Fail("XeSS frame generation stopped after mode changes", E_FAIL);
+        if (strstr(line, "device=ok") == nullptr)
+            return Fail("the proxy's device did not survive the mode changes under XeSS frame generation", E_FAIL);
+        hr = provideInputs(kWidth, kHeight, kWidth, kHeight);
+        if (FAILED(hr))
+            return Fail("creating the inputs after the mode changes under XeSS frame generation", hr);
+
+        setEnabled(0);
+        float off = 0.0f;
+        hr = presentsPerFrame(1.0f, off);
+        if (FAILED(hr))
+            return Fail("Present with XeSS frame generation switched off", hr);
+        printf("      XeSS frame generation off: %.2f presents per frame\n", off);
+        if (off > kNotGeneratingAtMost)
+            return Fail("XeSS frame generation switched off, but frames were still generated", E_FAIL);
+
+        setEnabled(1);
+        float again = 0.0f;
+        hr = presentsPerFrame(1.0f, again);
+        if (FAILED(hr))
+            return Fail("Present with XeSS frame generation on again", hr);
+        printf("      XeSS frame generation on again: %.2f presents per frame\n", again);
+        if (again < kGeneratingAtLeast)
+            return Fail("XeSS frame generation switched back on, but no frames were generated", E_FAIL);
+
+        // Without the game's frames nothing generates: no present id for XeSS-FG.
+        gameFrames = false;
+        float withoutFrames = 0.0f;
+        hr = presentsPerFrame(1.0f, withoutFrames);
+        gameFrames = true;
+        if (FAILED(hr))
+            return Fail("Present with XeSS frame generation and no game frames", hr);
+        printf("      XeSS frame generation without the game's frames: %.2f presents per frame\n", withoutFrames);
+        if (withoutFrames > kNotGeneratingAtMost)
+            return Fail("XeSS frame generation generated without present ids", E_FAIL);
+        float back = 0.0f;
+        hr = presentsPerFrame(1.0f, back);
+        if (FAILED(hr))
+            return Fail("Present with XeSS frame generation and the game's frames again", hr);
+        if (back < kGeneratingAtLeast)
+            return Fail("XeSS frame generation did not come back with the game's frames", E_FAIL);
+
+        // KSP's "Every second refresh": XeLL allows a sync interval of 1 at most, and
+        // the proxy presents every refresh with it (SwapChainProxy::CopyAndPresent).
+        syncInterval = 2;
+        float synced = 0.0f;
+        hr = presentsPerFrame(2.0f, synced);
+        syncInterval = 0;
+        if (FAILED(hr))
+            return Fail("Present with XeSS frame generation and V-Sync", hr);
+        status(line, sizeof(line));
+        printf("      XeSS frame generation with V-Sync every second refresh: %.2f presents per frame  [%s]\n", synced,
+               line);
+        if (synced < kGeneratingAtLeast)
+            return Fail("XeSS frame generation with V-Sync generated no frames", E_FAIL);
+
+        // A resize, as a resolution change or full screen makes one.
+        rtv.Reset();
+        backBuffer.Reset();
+        context->ClearState();
+        hr = swapChain->ResizeBuffers(0, kResizedWidth, kResizedHeight, DXGI_FORMAT_UNKNOWN, desc.Flags);
+        if (FAILED(hr))
+            return Fail("ResizeBuffers under XeSS frame generation", hr);
+        hr = swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+        if (FAILED(hr))
+            return Fail("GetBuffer(0) after the resize under XeSS frame generation", hr);
+        hr = device->CreateRenderTargetView(backBuffer.Get(), nullptr, &rtv);
+        if (FAILED(hr))
+            return Fail("CreateRenderTargetView after the resize under XeSS frame generation", hr);
+        hr = provideInputs(kResizedWidth, kResizedHeight, kResizedWidth, kResizedHeight);
+        if (FAILED(hr))
+            return Fail("creating inputs after the resize under XeSS frame generation", hr);
+
+        float resized = 0.0f;
+        hr = presentsPerFrame(1.0f, resized);
+        if (FAILED(hr))
+            return Fail("Present with XeSS frame generation after the resize", hr);
+        status(line, sizeof(line));
+        printf("      XeSS frame generation after a resize to %ux%u: %.2f presents per frame  [%s]\n", kResizedWidth,
+               kResizedHeight, resized, line);
+        if (resized < kGeneratingAtLeast)
+            return Fail("XeSS frame generation on after a resize, but no frames were generated", E_FAIL);
+
+        // Frames of 40 ms, 25 a second, under XeSS-FG's minimum of 40 (fgMinimumFps):
+        // held off once two seconds of them are averaged, on again at 60.
+        packet.frameTimeDeltaMs = 40.0f;
+        float slow = 0.0f;
+        hr = presentsPerFrame(3.0f, slow);
+        if (FAILED(hr))
+            return Fail("Present at a reported 25 frames a second", hr);
+        char slowLine[256] = {};
+        status(slowLine, sizeof(slowLine));
+        packet.frameTimeDeltaMs = 16.7f;
+        float fastAgain = 0.0f;
+        hr = presentsPerFrame(3.0f, fastAgain);
+        if (FAILED(hr))
+            return Fail("Present at 60 frames a second again", hr);
+        printf("      XeSS frame generation at a reported 25 fps: %.2f presents per frame [%s]; at 60 again %.2f\n", slow,
+               slowLine, fastAgain);
+        if (slow > 1.05f || std::strstr(slowLine, "held off") == nullptr || fastAgain < kGeneratingAtLeast)
+            return Fail("frame generation not held off below its minimum frame rate, or not back above it", E_FAIL);
+
+        // XeLL, which XeSS-FG requires, ran throughout.
+        using LowLatencyFn = int (*)(char*, int);
+        const LowLatencyFn lowLatency = reinterpret_cast<LowLatencyFn>(GetProcAddress(dxgi, "KspLowLatency"));
+        char latencyText[256] = {};
+        const int latencyKind = lowLatency != nullptr ? lowLatency(latencyText, sizeof(latencyText)) : -1;
+        printf("      low latency with XeSS frame generation: %d, %s\n", latencyKind, latencyText);
+        if (latencyKind != 4)
+            return Fail("XeSS frame generation runs, but XeLL does not", E_FAIL);
+        gameFrames = false;
+        xessGenerated = true;
+    }
+
+    // One swapchain, one frame generation: with DLSS-G or XeSS-FG running, FSR's
+    // phases below are not reached, and a second run without
+    // REDEFINITION_STREAMLINE_DIR or REDEFINITION_XESS_FG_DIR tests them.
+    const bool frameGeneration = shared && !dlssFrameGeneration && !xessFrameGeneration
                                  && FileNextToExecutable(L"amd_fidelityfx_framegeneration_dx12.dll");
     if (dlssFrameGeneration)
         printf("      FSR frame generation: not tested in this run, DLSS frame generation runs -- run again"
                " without REDEFINITION_STREAMLINE_DIR for it\n");
+    else if (xessFrameGeneration)
+        printf("      FSR frame generation: not tested in this run, XeSS frame generation runs -- run again"
+               " without REDEFINITION_XESS_FG_DIR for it\n");
     else if (shared && !frameGeneration)
         printf("      frame generation: skipped, no FidelityFX runtime next to the harness\n");
 
@@ -1877,9 +2070,6 @@ int main()
         // needs. The proxy's running totals behind the mod's window
         // (KspFgCounters) have to agree with it: one rendered frame for every
         // frame presented here, and the generated ones on top.
-        const CountersFn counters = reinterpret_cast<CountersFn>(GetProcAddress(dxgi, "KspFgCounters"));
-        if (counters == nullptr)
-            return Fail("GetProcAddress(KspFgCounters)", E_FAIL);
         unsigned int renderedBefore = 0;
         unsigned int presentedBefore = 0;
         if (counters(&renderedBefore, &presentedBefore) == 0)
@@ -2923,13 +3113,14 @@ int main()
         computeEvent(kD3d12ReleaseEvent, &release);
     }
 
-    // Whether frames can be generated follows the FidelityFX swapchain: yes while
-    // it exists, no once it is released (KspFgCanGenerate).
+    // Whether frames can be generated follows the generating swapchain -- FidelityFX's,
+    // Streamline's or XeSS-FG's: yes while it exists, no once it is released
+    // (KspFgCanGenerate).
     using CanGenerateFn = int (*)();
     const CanGenerateFn canGenerate = reinterpret_cast<CanGenerateFn>(GetProcAddress(dxgi, "KspFgCanGenerate"));
     if (canGenerate == nullptr)
         return Fail("GetProcAddress(KspFgCanGenerate)", E_FAIL);
-    if ((frameGeneration || dlssGenerated) && canGenerate() != 1)
+    if ((frameGeneration || dlssGenerated || xessGenerated) && canGenerate() != 1)
         return Fail("the proxy does not report that it can generate while its generating swapchain exists", E_FAIL);
     const CanGenerateFn contextFailing = reinterpret_cast<CanGenerateFn>(GetProcAddress(dxgi, "KspFgContextFailing"));
     if (contextFailing == nullptr)
@@ -2982,6 +3173,9 @@ int main()
     if (dlssGenerated)
         printf("PASS  DLSS frame generation through Streamline: on, after mode changes, off, on again and across a "
                "resize\n");
+    if (xessGenerated)
+        printf("PASS  XeSS frame generation with XeLL: on, after mode changes, off, on again, without present ids,"
+               " with V-Sync, across a resize and held off below its minimum frame rate\n");
     if (dlssTested)
         printf("PASS  DLSS evaluated through NGX on D3D11\n");
     if (amdTested)

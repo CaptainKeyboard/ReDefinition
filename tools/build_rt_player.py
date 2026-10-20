@@ -129,7 +129,7 @@ def turn(exe, streamline, deferred):
     ini = os.path.join(OUTPUT, 'ReDefinitionProxy.ini')
     with open(ini, 'w') as file:
         file.write('[Proxy]' + chr(10) + 'enabled=1' + chr(10) + 'frameGeneration=1' + chr(10)
-                   + 'dlssFrameGeneration=1' + chr(10) + 'streamlineDirectory=' + streamline + chr(10))
+                   + 'frameGenerationTechnique=dlss' + chr(10) + 'streamlineDirectory=' + streamline + chr(10))
     # Forward without jitter; then as the game renders: the upscaler's jitter, and
     # Deferred's lighting where it is installed.
     runs = [('rr', ['-turn', 'rr']), ('denoiser', ['-turn', 'denoiser']), ('plain', ['-turn', 'plain']),
@@ -161,7 +161,7 @@ def upscale(exe, streamline, amd, ksp):
     ini = os.path.join(OUTPUT, 'ReDefinitionProxy.ini')
     with open(ini, 'w') as file:
         file.write('[Proxy]' + chr(10) + 'enabled=1' + chr(10) + 'frameGeneration=1' + chr(10)
-                   + 'dlssFrameGeneration=1' + chr(10) + 'streamlineDirectory=' + streamline + chr(10)
+                   + 'frameGenerationTechnique=dlss' + chr(10) + 'streamlineDirectory=' + streamline + chr(10)
                    + 'dlssDirectory=' + streamline + chr(10) + 'amdUpscalerDirectory=' + amd + chr(10))
     bundle = os.path.join(ksp, 'GameData', 'ReDefinition', 'Shaders', 'redefinition.shaders')
     runs = [('upscale-native', ['-upscale', 'native'])]

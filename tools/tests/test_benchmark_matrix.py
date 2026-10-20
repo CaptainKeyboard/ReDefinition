@@ -190,7 +190,7 @@ class MatrixTest(unittest.TestCase):
         fsr = starts[0]
         self.assertEqual(fsr["proxy_load"]["amdUpscalerDirectory"], "d")
         self.assertEqual(fsr["proxy_load"]["xessDirectory"], "x")
-        self.assertEqual(fsr["proxy_load"]["dlssFrameGeneration"], "0")
+        self.assertEqual(fsr["proxy_load"]["frameGenerationTechnique"], "fsr")
         self.assertFalse(fsr["dlssg_package"])
         self.assertTrue(starts[1]["dlssg_package"])
         labels = {bm.scenario_label(p["scenario"]) for p in fsr["phases"]}

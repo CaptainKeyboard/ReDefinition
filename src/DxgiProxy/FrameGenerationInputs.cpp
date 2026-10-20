@@ -580,6 +580,12 @@ namespace redefinition
             return;
 
         DestroyContextLocked(swapChain);
+        // XeSS-FG off across the resize, on again with the next frame's inputs at the
+        // new size: interpolation between the sizes is skipped anyway -- "The
+        // interpolation area (width and height) is the same between the previous and
+        // the current frames. Otherwise, XeSS-FG skips interpolation"
+        // (xess_fg_developer_guide_english.md, Letterboxing).
+        XessOffLocked("the swapchain is resized");
         // A failure that stands only for lasting may pass at the new size; one
         // that stands by its code does not.
         if (contextEscalated)

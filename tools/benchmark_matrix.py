@@ -89,7 +89,7 @@ def expand(matrix, vendor=None, resources=None):
     """The starts the matrix asks for, each with its phases (the key sets) in order.
 
     Only what is read at load splits the starts: the frame generation kind
-    (dlssFrameGeneration, and the DLSS-G package next to KSP_x64.exe), and whatever
+    (frameGenerationTechnique, and the DLSS-G package next to KSP_x64.exe), and whatever
     "separate_starts" names. The upscaler, the raytracing mode and Ray Reconstruction
     are the mod's own settings, which the probe sets live through its mod.<key> keys.
     Returns (starts, skipped), skipped as (what, why)."""

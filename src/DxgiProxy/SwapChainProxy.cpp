@@ -36,6 +36,8 @@ namespace redefinition
     {
         if (g_streamlineSwapChains.load() > 0)
             return 2;
+        if (g_xessSwapChains.load() > 0)
+            return 3;
         return g_generatingSwapChains.load() > 0 ? 1 : 0;
     }
 
@@ -179,7 +181,8 @@ namespace redefinition
         // off on the swapchain first, which is AMD's documented shutdown order.
         //
         // Ignored from a proxy that does not own frame generation, such as one
-        // whose Initialise failed.
+        // whose Initialise failed. Low latency first: its XeLL calls end there, and
+        // the context they go to only after XeSS-FG's, below.
         LowLatency::Get().Detach(this);
         AmdUpscaler::Get().Detach(this);
         XessUpscaler::Get().Detach(this);
@@ -206,6 +209,17 @@ namespace redefinition
             fgSwapChainContext = nullptr;
             g_generatingSwapChains.fetch_sub(1);
             LogLine("FidelityFX swapchain context destroyed");
+        }
+
+        // XeSS-FG's swapchain and context, then XeLL's: "XeSS-FG context depends on
+        // the XeLL context and must be destroyed first" (xess_fg_developer_guide_english.md,
+        // Shutdown). The GPU is idle since the wait above. Under the frame generation
+        // lock, as FidelityFX's: xefgSwapChainDestroy is one of the calls that are not
+        // thread-safe (Multithreading).
+        if (xessContext != nullptr || xellContext != nullptr)
+        {
+            std::lock_guard<std::mutex> fgLock(FrameGeneration::Get().ContextMutex());
+            TearDownXess();
         }
 
         // Streamline's swapchain, queue and device proxies, then Streamline
@@ -263,6 +277,12 @@ namespace redefinition
         if (FAILED(hr))
             return hr;
 
+        // Intel's: where auto asks for XeSS-FG, and XeLL runs without it.
+        {
+            DXGI_ADAPTER_DESC adapterDesc = {};
+            intelAdapter = SUCCEEDED(adapter->GetDesc(&adapterDesc)) && adapterDesc.VendorId == 0x8086;
+        }
+
         // Direct3D 12's debug layer for the harnesses, where REDEFINITION_D3D12_DEBUG is set:
         // its messages go into the log (Raytracing::Status). Never in a player's game.
         {
@@ -292,11 +312,15 @@ namespace redefinition
         // because the queue has to come from Streamline's device proxy ("Mandatory -
         // ID3D12Device* eID3D12Device_CreateCommandQueue", sl_hooks.h).
         //
-        // So Ray Reconstruction and FSR's frame generation exclude each other: both
-        // need the presenting swapchain to be their own, Streamline's or FidelityFX's,
-        // and there is one. With frame generation on and DLSS-G not running,
-        // raytracing goes without Ray Reconstruction.
-        const bool dlssFrameGeneration = Config().frameGeneration && Config().dlssFrameGeneration;
+        // So Ray Reconstruction and FSR's or XeSS's frame generation exclude each
+        // other: each needs the presenting swapchain to be its own, Streamline's,
+        // FidelityFX's or XeSS-FG's, and there is one. With frame generation on and
+        // DLSS-G not running, raytracing goes without Ray Reconstruction.
+        const int technique = Config().frameGenerationTechnique;
+        const bool dlssFrameGeneration = Config().frameGeneration
+                                         && (technique == kFgTechniqueAuto || technique == kFgTechniqueDlss);
+        xessWanted = Config().frameGeneration
+                     && (technique == kFgTechniqueXess || (technique == kFgTechniqueAuto && intelAdapter));
         const bool dlss = (dlssFrameGeneration || !Config().frameGeneration)
                           && SetUpStreamline(adapter.Get(), dlssFrameGeneration);
 
@@ -408,9 +432,17 @@ namespace redefinition
                                       description.Width, description.Height, desc.Format);
         if (streamlineSwapChain && Streamline::Get().FrameGenerationAvailable())
             FrameGeneration::Get().UseStreamline(this);
-        // Reflex where Streamline's does not run on this swapchain.
+        if (xessSwapChain)
+            FrameGeneration::Get().UseXess(this, xessContext);
+        // XeLL on an Intel GPU where neither Streamline's nor FidelityFX's swapchain
+        // presents.
+        if (xellContext == nullptr && intelAdapter && !streamlineSwapChain && fgSwapChainContext == nullptr)
+            SetUpIntelXell();
+        // Reflex where Streamline's does not run on this swapchain, or XeLL where it
+        // was made.
         LowLatency::Get().Attach(this, d3d11Device.Get(), d3d12Device.Get(), queue.Get(), d3d12Device->GetAdapterLuid(),
-                                 streamlineSwapChain && Streamline::Get().FrameGenerationAvailable());
+                                 streamlineSwapChain && Streamline::Get().FrameGenerationAvailable(), xellContext,
+                                 xessSwapChain);
         g_deviceRemoved.store(S_OK);
 
         // The texture Unity believes is its backbuffer, and therefore the one
@@ -435,6 +467,11 @@ namespace redefinition
             // behind Streamline's proxy is an ordinary queue.
             TearDownStreamline();
         }
+
+        // XeSS-FG's route, FSR's below where it does not run.
+        if (xessWanted && streamlineDevice == nullptr
+            && SUCCEEDED(CreateXessSwapChain(factory, hwnd, desc, fullscreenDesc)))
+            return S_OK;
 
         // The FidelityFX route. Its ForHwnd descriptor takes exactly the
         // arguments the proxy already holds, and hands back an ordinary IDXGISwapChain4

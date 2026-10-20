@@ -32,17 +32,22 @@ namespace redefinition
         // same timing code on both sides of the comparison.
         bool measureOnly = false;
 
-        // Frame generation: the swapchain made through Streamline (with
-        // dlssFrameGeneration) or FidelityFX instead of DXGI directly. Off, the
-        // swapchain is Streamline's only for DLSS Ray Reconstruction. Read once at
-        // creation, for the same reason as enabled. On by default: the player
+        // Frame generation: the swapchain made through Streamline, Intel's XeSS-FG
+        // or FidelityFX (frameGenerationTechnique) instead of DXGI directly. Off,
+        // the swapchain is Streamline's only for DLSS Ray Reconstruction. Read once
+        // at creation, for the same reason as enabled. On by default: the player
         // package ships AMD's runtime (Config.cpp).
         bool frameGeneration = true;
 
-        // DLSS frame generation where NVIDIA's Streamline 2.14.16 is there and the
-        // GPU runs it, FSR's otherwise (Streamline.h). Read at creation, like
-        // frameGeneration: which swapchain presents is decided once.
-        bool dlssFrameGeneration = true;
+        // Which frame generation the swapchain is made for (kFgTechnique*), read at
+        // creation like frameGeneration: which swapchain presents is decided once.
+        // auto: DLSS-G where NVIDIA's Streamline 2.14.16 is there and the GPU runs it
+        // (Streamline.h), XeSS-FG on an Intel GPU where the player's libxess_fg.dll
+        // and libxell.dll are there (XessFg.h), FSR's otherwise. dlss and xess ask for
+        // theirs on any GPU that runs it -- XeSS-FG on "any non-Intel GPU supporting
+        // Shader Model 6.4" (xess_fg_developer_guide_english.md, Requirements) -- and
+        // FSR's where it does not; fsr asks for FSR's always.
+        int frameGenerationTechnique = 0;
 
         // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics
         // and streamlineImgui, which apply when what they serve starts ----
@@ -64,7 +69,8 @@ namespace redefinition
         // 'inverted' and 'infinite' will decide what transform to use" -- so
         // the flag is the only thing that decides, and without it FSR reads the
         // nearest geometry as the farthest: the vessel smears outward into the
-        // world. Changing this rebuilds the context.
+        // world. Changing this rebuilds the context. XeSS-FG takes it as
+        // XEFG_SWAPCHAIN_INIT_FLAG_INVERTED_DEPTH when its swapchain is made.
         bool fgDepthInverted = true;
 
         // Negate the motion vector scale. Unity's vectors point opposite to
@@ -155,11 +161,17 @@ namespace redefinition
         // consistently drops below that threshold", with the hysteresis AMD describes
         // (frame-interpolation-swap-chain.md, Minimum Framerate). -1: the rate FSR's
         // provider was designed for (60 for 3.1, 30 for 4), 30 for DLSS-G, for which
-        // NVIDIA names none; 0: never off for this.
+        // NVIDIA names none, 40 for XeSS-FG, Intel's "40 FPS minimum"
+        // (xess_fg_developer_guide_english.md, Introduction); 0: never off for this.
         float fgMinimumFps = -1.0f;
 
         // NVIDIA Reflex's low latency mode where Streamline's does not run
         // (LowLatency.h): frame generation off, FSR's, Ray Reconstruction alone. Live.
+        // Intel XeLL's on an Intel GPU without XeSS-FG, set when the swapchain is made:
+        // XeLL asks that "any GPU activity is finished before xellSetSleepMode is
+        // called" (xell_developer_guide_english.md, Integration Checklist). With
+        // XeSS-FG, XeLL's is always on: "XeLL must be enabled before enabling frame
+        // generation".
         bool lowLatency = true;
         // The latency brake (LowLatency::Brake), and the waits in the proxy it leaves
         // per frame, in milliseconds. Live.
@@ -193,9 +205,19 @@ namespace redefinition
         bool streamlineImgui = false;
 
         // DLSS-G presents only the frames it generates (DLSSGFlags::
-        // eShowOnlyInterpolatedFrame): what interpolation makes, apart from the
-        // rendered frames.
+        // eShowOnlyInterpolatedFrame), XeSS-FG likewise
+        // (XEFG_SWAPCHAIN_DEBUG_FEATURE_SHOW_ONLY_INTERPOLATION, "called at any time
+        // between context creation and destruction"): what interpolation makes,
+        // apart from the rendered frames.
         bool fgShowOnlyGenerated = false;
+
+        // XeSS-FG's UI composition: off, its default, the UI is interpolated with the
+        // scene -- "Interpolation (default, recommended): rely on the frame generation
+        // model to interpolate the UI"; on, it is composed onto the generated frames
+        // from the HUD-less copy and the backbuffer, the mode chosen "automatically ...
+        // based on the resources tagged by the application"
+        // (xess_fg_developer_guide_english.md, UI Handling). Live.
+        bool xessFgUiComposition = false;
 
         // The raytracing and Ray Reconstruction on a Direct3D 12 queue of their own
         // instead of the swapchain's, where the present and frame generation run: their
@@ -249,7 +271,19 @@ namespace redefinition
         // the file when a swapchain is created, on Unity's render thread, through
         // StreamlineDirectory().
         wchar_t streamlineDirectory[260] = {};
+
+        // Where a player's libxess_fg.dll and libxell.dll lie if not next to
+        // KSP_x64.exe (XessFg.h). Read from the file when a swapchain is created,
+        // through XessFgDirectory().
+        wchar_t xessFgDirectory[260] = {};
     };
+
+    // ProxyConfig::frameGenerationTechnique, as the ini writes it: auto, fsr, dlss,
+    // xess.
+    constexpr int kFgTechniqueAuto = 0;
+    constexpr int kFgTechniqueFsr = 1;
+    constexpr int kFgTechniqueDlss = 2;
+    constexpr int kFgTechniqueXess = 3;
 
     const ProxyConfig& Config();
     void LoadConfig();
@@ -260,6 +294,7 @@ namespace redefinition
     std::wstring AmdUpscalerDirectory();
     std::wstring XessDirectory();
     std::wstring StreamlineDirectory();
+    std::wstring XessFgDirectory();
 
     // Re-reads the file when it has changed on disk; returns whether it did.
     // rebuild: whether a setting changed that the frame generation context has to

@@ -335,13 +335,37 @@ namespace redefinition
             return true;
         }
 
+        const char* TechniqueName(int technique)
+        {
+            return technique == kFgTechniqueFsr ? "fsr"
+                   : technique == kFgTechniqueDlss ? "dlss"
+                   : technique == kFgTechniqueXess ? "xess" : "auto";
+        }
+
+        // frameGenerationTechnique: auto, fsr, dlss or xess, in any case; anything else
+        // is auto, and said.
+        int ReadTechnique(const std::wstring& file)
+        {
+            wchar_t buffer[32] = {};
+            GetPrivateProfileStringW(L"Proxy", L"frameGenerationTechnique", L"auto", buffer, ARRAYSIZE(buffer),
+                                     file.c_str());
+            for (int technique : { kFgTechniqueAuto, kFgTechniqueFsr, kFgTechniqueDlss, kFgTechniqueXess })
+            {
+                const std::string name = TechniqueName(technique);
+                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
+                    return technique;
+            }
+            LogLine("Config: frameGenerationTechnique=" + Narrow(buffer) + " is none of auto, fsr, dlss, xess -- auto");
+            return kFgTechniqueAuto;
+        }
+
         std::string Describe(const ProxyConfig& c)
         {
             return std::string("enabled=") + (c.enabled ? "1" : "0")
                  + " allowTearing=" + (c.allowTearing ? "1" : "0")
                  + " measureOnly=" + (c.measureOnly ? "1" : "0")
                  + " frameGeneration=" + (c.frameGeneration ? "1" : "0")
-                 + " dlssFrameGeneration=" + (c.dlssFrameGeneration ? "1" : "0")
+                 + " frameGenerationTechnique=" + TechniqueName(c.frameGenerationTechnique)
                  + " hudLessColour=" + (c.hudLessColour ? "1" : "0")
                  + " fgDepthInverted=" + (c.fgDepthInverted ? "1" : "0")
                  + " fgNegateMotionScale=" + (c.fgNegateMotionScale ? "1" : "0")
@@ -364,6 +388,7 @@ namespace redefinition
                  + " vendorDiagnostics=" + (c.vendorDiagnostics ? "1" : "0")
                  + " streamlineImgui=" + (c.streamlineImgui ? "1" : "0")
                  + " fgShowOnlyGenerated=" + (c.fgShowOnlyGenerated ? "1" : "0")
+                 + " xessFgUiComposition=" + (c.xessFgUiComposition ? "1" : "0")
                  + " rtOwnQueue=" + (c.rtOwnQueue ? "1" : "0")
                  + " rtCutoutTest=" + std::to_string(c.rtCutoutTest)
                  + " rtSunUnfiltered=" + std::string(c.rtSunUnfiltered ? "1" : "0")
@@ -375,7 +400,8 @@ namespace redefinition
                  + " dlssDirectory=" + (c.dlssDirectory[0] == L'\0' ? "(none)" : "(set)")
                  + " amdUpscalerDirectory=" + (c.amdUpscalerDirectory[0] == L'\0' ? "(none)" : "(set)")
                  + " xessDirectory=" + (c.xessDirectory[0] == L'\0' ? "(none)" : "(set)")
-                 + " streamlineDirectory=" + (c.streamlineDirectory[0] == L'\0' ? "(none)" : "(set)");
+                 + " streamlineDirectory=" + (c.streamlineDirectory[0] == L'\0' ? "(none)" : "(set)")
+                 + " xessFgDirectory=" + (c.xessFgDirectory[0] == L'\0' ? "(none)" : "(set)");
         }
 
         void ReadInto(ProxyConfig& target, const std::wstring& file)
@@ -388,7 +414,7 @@ namespace redefinition
             // is a player's settings, and the package does not put one there.
             // Without the runtime the proxy presents through plain DXGI.
             target.frameGeneration = ReadFlag(L"frameGeneration", file, true);
-            target.dlssFrameGeneration = ReadFlag(L"dlssFrameGeneration", file, true);
+            target.frameGenerationTechnique = ReadTechnique(file);
 
             target.hudLessColour = ReadFlag(L"hudLessColour", file, true);
             target.fgDepthInverted = ReadFlag(L"fgDepthInverted", file, true);
@@ -433,6 +459,7 @@ namespace redefinition
             target.vendorDiagnostics = ReadFlag(L"vendorDiagnostics", file, false);
             target.streamlineImgui = ReadFlag(L"streamlineImgui", file, false);
             target.fgShowOnlyGenerated = ReadFlag(L"fgShowOnlyGenerated", file, false);
+            target.xessFgUiComposition = ReadFlag(L"xessFgUiComposition", file, false);
             target.rtOwnQueue = ReadFlag(L"rtOwnQueue", file, false);
             target.rtCutoutTest = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtCutoutTest", 0, file.c_str()));
             target.rtSunUnfiltered = GetPrivateProfileIntW(L"Proxy", L"rtSunUnfiltered", 0, file.c_str()) != 0;
@@ -450,6 +477,8 @@ namespace redefinition
                                      ARRAYSIZE(target.xessDirectory), file.c_str());
             GetPrivateProfileStringW(L"Proxy", L"streamlineDirectory", L"", target.streamlineDirectory,
                                      ARRAYSIZE(target.streamlineDirectory), file.c_str());
+            GetPrivateProfileStringW(L"Proxy", L"xessFgDirectory", L"", target.xessFgDirectory,
+                                     ARRAYSIZE(target.xessFgDirectory), file.c_str());
         }
     }
 
@@ -500,6 +529,14 @@ namespace redefinition
         return std::wstring(buffer);
     }
 
+    // As StreamlineDirectory: from the file, once per swapchain.
+    std::wstring XessFgDirectory()
+    {
+        wchar_t buffer[260] = {};
+        GetPrivateProfileStringW(L"Proxy", L"xessFgDirectory", L"", buffer, ARRAYSIZE(buffer), IniPath().c_str());
+        return std::wstring(buffer);
+    }
+
     bool ReloadConfigIfChanged(bool& rebuild)
     {
         rebuild = false;
@@ -527,7 +564,7 @@ namespace redefinition
         // Not live: a swapchain cannot be exchanged underneath a running game.
         fresh.enabled = g_config.enabled;
         fresh.frameGeneration = g_config.frameGeneration;
-        fresh.dlssFrameGeneration = g_config.dlssFrameGeneration;
+        fresh.frameGenerationTechnique = g_config.frameGenerationTechnique;
         fresh.measureOnly = g_config.measureOnly;
         fresh.allowTearing = g_config.allowTearing;
 
@@ -541,7 +578,7 @@ namespace redefinition
         }
         LogLine("Config reloaded: " + Describe(g_config)
                 + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
-                + "   (enabled, allowTearing, measureOnly, frameGeneration and dlssFrameGeneration as at load;"
+                + "   (enabled, allowTearing, measureOnly, frameGeneration and frameGenerationTechnique as at load;"
                   " the folders, rtOwnQueue, streamlineImgui and vendorDiagnostics apply when what they serve starts)");
 
         rebuild = needsRebuild;

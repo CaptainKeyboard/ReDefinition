@@ -171,18 +171,26 @@ namespace ReDefinition.Bridges
         }
 
         // Which frame generation the proxy's swapchain presents with, for the
-        // settings row: DLSS where NVIDIA's Streamline runs, with the frames shown
-        // per rendered frame while it generates, FSR 3 otherwise; null while none
-        // does. A proxy without the export is older than the mod.
+        // settings row: DLSS where NVIDIA's Streamline runs, XeSS where Intel's
+        // XeSS-FG does, each with the frames shown per rendered frame while it
+        // generates, FSR 3 otherwise; null while none does. A proxy without the
+        // export is older than the mod.
         public static string TechniqueName()
         {
             int technique;
             if (!Available || !TryExport(TechniqueCall, "KspFgTechnique", out technique)) return null;
+            return TechniqueLabel(technique, techniqueMultiplier);
+        }
+
+        // KspFgTechnique's answer as the row shows it: 1 FSR, 2 DLSS, 3 XeSS, with
+        // the multiplier while DLSS or XeSS generates; null for none or an answer
+        // this build does not know.
+        internal static string TechniqueLabel(int technique, int multiplier)
+        {
             if (technique == 1) return "FSR 3";
-            if (technique != 2) return null;
-            return techniqueMultiplier >= 2 && techniqueMultiplier < DlssNames.Length
-                ? DlssNames[techniqueMultiplier]
-                : DlssNames[0];
+            string[] names = technique == 2 ? DlssNames : technique == 3 ? XessNames : null;
+            if (names == null) return null;
+            return multiplier >= 2 && multiplier < names.Length ? names[multiplier] : names[0];
         }
 
         // The NVIDIA GPU of the adapter KSP renders on (KspNvidiaGpu): NVAPI's
@@ -227,6 +235,18 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // Whether the frame packet carries the camera's matrices (FramePacket,
+        // ViewToClip and the rest): DLSS-G and XeSS-FG read them, FSR does not
+        // (KspFgTechnique).
+        public static bool CameraMatricesNeeded
+        {
+            get
+            {
+                int technique;
+                return Available && TryNative(TechniqueCall, out technique) && (technique == 2 || technique == 3);
+            }
+        }
+
         // Whether DLSS frame generation presents with V-Sync where KSP asks for it
         // (KspFgDlssVsync): false only where its build said it does not support it.
         // True without the proxy, or with one older than the mod, which cannot say.
@@ -244,6 +264,8 @@ namespace ReDefinition.Bridges
         private static int techniqueMultiplier;
         private static readonly Func<int> TechniqueCall = () => KspFgTechnique(out techniqueMultiplier);
         private static readonly string[] DlssNames = { "DLSS", "DLSS", "DLSS 2x", "DLSS 3x", "DLSS 4x", "DLSS 5x", "DLSS 6x" };
+        // XeSS-FG generates one frame per rendered frame here (XessFg.cpp).
+        private static readonly string[] XessNames = { "XeSS", "XeSS", "XeSS 2x" };
 
         private static readonly Func<int> CanGenerateCall = KspFgCanGenerate;
         private static readonly Func<int> ContextFailingCall = KspFgContextFailing;

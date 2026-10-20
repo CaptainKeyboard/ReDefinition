@@ -29,8 +29,8 @@
   "raytracing": ["Off", "Full"],
   "ray_reconstruction": [true, false],
   "frame_generation": [
-    {"id": "fsr", "name": "FSR", "proxy_load": {"dlssFrameGeneration": "0"}, "fg_off_phases": true},
-    {"id": "dlssg", "name": "DLSS-G", "proxy_load": {"dlssFrameGeneration": "1"}, "dlssg_package": true, "max_generated_frames": 1, "fg_off_phases": false, "vendors": ["NVIDIA"], "requires": ["dlssg_package"]}
+    {"id": "fsr", "name": "FSR", "proxy_load": {"frameGenerationTechnique": "fsr"}, "fg_off_phases": true},
+    {"id": "dlssg", "name": "DLSS-G", "proxy_load": {"frameGenerationTechnique": "dlss"}, "dlssg_package": true, "max_generated_frames": 1, "fg_off_phases": false, "vendors": ["NVIDIA"], "requires": ["dlssg_package"]}
   ],
   "fg_on": {"fgMinimumFps": "0"},
   "fg_off": {"fgMinimumFps": "1000"},

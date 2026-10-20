@@ -60,7 +60,7 @@ try {
     $reference = Invoke-Run @('-redefinitionProbeHalfStep')
     Set-Ini @{
         'frameGeneration' = '1'
-        'dlssFrameGeneration' = $(if ($Fsr) { '0' } else { '1' })
+        'frameGenerationTechnique' = $(if ($Fsr) { 'fsr' } else { 'dlss' })
         # Frame generation also below the provider's minimum frame rate.
         'fgMinimumFps' = '0'
     }

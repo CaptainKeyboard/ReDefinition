@@ -371,7 +371,7 @@ namespace ReDefinition
             }
         }
 
-        // The technique that runs, "DLSS 2x" or "FSR 3", in place of "Enabled" --
+        // The technique that runs, "DLSS 2x", "XeSS 2x" or "FSR 3", in place of "Enabled" --
         // the ticked box says it is on, and the control is too narrow for both --
         // and the plain state while none runs.
         private static string FrameGenerationLabel(bool on)

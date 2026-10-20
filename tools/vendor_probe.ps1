@@ -46,7 +46,7 @@ try {
         'dlssDirectory' = $Development
         'vendorDiagnostics' = $(if ($NoDiagnostics) { '0' } else { '1' })
         'streamlineImgui' = $(if ($Imgui) { '1' } else { '0' })
-        'dlssFrameGeneration' = $(if ($Fsr) { '0' } else { '1' })
+        'frameGenerationTechnique' = $(if ($Fsr) { 'fsr' } else { 'dlss' })
         # Frame generation also below the provider's minimum frame rate, so that it
         # runs and the checker sees its inputs.
         'fgMinimumFps' = '0'

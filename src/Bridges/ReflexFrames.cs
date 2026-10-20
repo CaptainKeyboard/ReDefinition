@@ -23,9 +23,11 @@ namespace ReDefinition.Bridges
     // simulation (KspReflexSimulationEnd); what follows is rendering.
     //
     // While Streamline has its device -- a swapchain made through it, the one DLSS
-    // frame generation presents with -- or NVIDIA Reflex runs through NVAPI where it
-    // does not (the proxy's LowLatency.h), the proxy answers with an index; otherwise
-    // with 0, and nothing more is sent. Without the proxy, or with one older than
+    // frame generation presents with -- or the proxy follows the game's frames for its
+    // own low latency where it does not -- NVIDIA Reflex through NVAPI, AMD Anti-Lag 2,
+    // Intel XeLL, whose frame ids XeSS frame generation presents under (the proxy's
+    // LowLatency.h) -- the proxy answers with an index; otherwise with 0, and nothing
+    // more is sent. Without the proxy, or with one older than
     // the mod, both systems go quiet for the session.
     internal static class ReflexFrames
     {

@@ -14,6 +14,8 @@
 
 #include <FidelityFX/api/include/ffx_api.h>
 
+#include "XessFg.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -27,7 +29,8 @@ namespace redefinition
     // created.
     //
     // The D3D12 swapchain is Streamline's while DLSS frame generation can run,
-    // FidelityFX's while FSR's can, and a plain one otherwise. The inputs frame
+    // Intel's XeSS-FG's while XeSS's can, FidelityFX's while FSR's can, and a plain
+    // one otherwise. The inputs frame
     // generation reads are taken for it in Present too (FrameGeneration).
     //
     // Everything that is not GetBuffer or Present is forwarded to the real D3D12
@@ -151,9 +154,9 @@ namespace redefinition
 
         // Creates the presentation swapchain: through Streamline where it was set
         // up (SetUpStreamline) -- for DLSS frame generation, or for DLSS Ray
-        // Reconstruction with frame generation off -- through FidelityFX when frame
-        // generation is wanted and AMD's runtime is there, otherwise straight
-        // from DXGI.
+        // Reconstruction with frame generation off -- through XeSS-FG where it is
+        // wanted (xessWanted) and runs, through FidelityFX when frame generation is
+        // wanted and AMD's runtime is there, otherwise straight from DXGI.
         HRESULT CreatePresentationSwapChain(
             IDXGIFactory2* factory, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1& desc,
             const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc,
@@ -170,6 +173,16 @@ namespace redefinition
                                           IDXGIOutput* restrictToOutput);
         // Its proxies released and Streamline shut down, before the device goes.
         void TearDownStreamline();
+
+        // XeSS-FG (XessFg.h, SwapChainProxyXess.cpp): XeLL's context made first, the
+        // swapchain made through libxess_fg.dll; false, with nothing left of it, where
+        // it does not run. Torn down XeSS-FG first, XeLL after.
+        HRESULT CreateXessSwapChain(IDXGIFactory2* factory, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1& desc,
+                                    const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc);
+        void TearDownXess();
+        // XeLL alone on an Intel GPU where no other frame generation's swapchain
+        // presents (LowLatency.h), its mode as lowLatency says now.
+        void SetUpIntelXell();
 
         // DLSS-G off, with the last frame presented again for it to take effect,
         // before a resize or a full screen switch.
@@ -210,8 +223,9 @@ namespace redefinition
         HRESULT PresentTest(UINT syncInterval, UINT flags);
 
         // The running totals behind KspFgCounters after a Present of the game's
-        // frame: one more rendered, and as many presented as the swapchain says.
-        void CountPresent(uint32_t streamlinePresented);
+        // frame: one more rendered, and as many presented as the swapchain says --
+        // DLSS-G's or XeSS-FG's own count where it gives one.
+        void CountPresent(uint32_t framesPresented);
 
         // The frame presented as it stands where it could not be copied, so the
         // picture never goes away: counted, and said now and then.
@@ -301,6 +315,17 @@ namespace redefinition
         bool loggedPresentWithoutGameFrame = false;
         bool loggedLateGameFrame = false;
         uint32_t streamlineIdlePresents = 0;
+
+        // XeSS-FG: its context, the XeLL context it needs -- or the one an Intel GPU's
+        // low latency runs on without it -- whether the swapchain is its, and whether
+        // it was asked for at creation (Config.h, frameGenerationTechnique).
+        xefg::Handle xessContext = nullptr;
+        xell_context_handle_t xellContext = nullptr;
+        bool xessSwapChain = false;
+        bool xessWanted = false;
+        bool intelAdapter = false;
+        bool loggedXessSyncClamp = false;
+        bool loggedXessNoFrame = false;
 
         // DLSS-G's fence and value for its work on each input slot, from the
         // Present that last read the slot, and the event its wait uses.
@@ -392,11 +417,12 @@ namespace redefinition
     // Why the proxy's D3D12 device was removed, or S_OK while it was not.
     HRESULT DeviceRemovedReason();
 
-    // Whether a swapchain made through FidelityFX or Streamline exists: without
+    // Whether a swapchain made through FidelityFX, Streamline or XeSS-FG exists: without
     // one nothing generates, whatever the ini allows.
     bool FrameGenerationSwapChainPresent();
 
-    // Which frame generation the swapchains present with: 2 DLSS, 1 FSR, 0 none.
+    // Which frame generation the swapchains present with: 3 XeSS, 2 DLSS, 1 FSR, 0
+    // none.
     int FrameGenerationTechnique();
 
     // The window the last swapchain made through the proxy presents to, or null.

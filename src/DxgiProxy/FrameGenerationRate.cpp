@@ -1,5 +1,5 @@
 // Frame generation's frame rate gate (FrameGeneration): the rendered frame rate
-// against fgMinimumFps, for FSR and DLSS-G alike.
+// against fgMinimumFps, for FSR, DLSS-G and XeSS-FG alike.
 
 #include "FrameGeneration.h"
 
@@ -16,6 +16,11 @@ namespace redefinition
         const float configured = Config().fgMinimumFps;
         if (configured >= 0.0f)
             return configured;
+        // XeSS-FG: "40 FPS minimum (XeSS-SR or native input specification): This
+        // provides adequate reconstruction for fluid gameplay"
+        // (xess_fg_developer_guide_english.md, Introduction).
+        if (xess)
+            return 40.0f;
         return streamline ? 30.0f : static_cast<float>(designedForFps);
     }
 

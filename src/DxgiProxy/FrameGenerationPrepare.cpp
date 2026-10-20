@@ -81,6 +81,11 @@ namespace redefinition
                 StreamlineOffLocked(reason);
             return;
         }
+        if (xess)
+        {
+            XessOffLocked(reason);
+            return;
+        }
         if (contextCreated && configuredOn && swapChain != nullptr)
             ConfigureOffLocked(swapChain, reason);
     }

@@ -1,6 +1,6 @@
 # The proxy: a dxgi.dll that hands Unity a shared D3D11 texture as its backbuffer
-# and presents through a D3D12 swapchain, with NVIDIA's DLSS or AMD's FSR frame
-# generation, and runs DLSS and AMD's upscaler for the mod
+# and presents through a D3D12 swapchain, with NVIDIA's DLSS, Intel's XeSS or AMD's
+# FSR frame generation, and runs DLSS and AMD's upscaler for the mod
 # (docs/development/frame-generation.md).
 #
 # Build:  cmake -S src/DxgiProxy -B build/DxgiProxy -A x64
@@ -97,6 +97,7 @@ add_library(ReDefinitionProxy SHARED
     FrameGenerationDump.cpp
     FrameGenerationInputs.cpp
     FrameGenerationDlss.cpp
+    FrameGenerationXess.cpp
     FrameGenerationPrepare.cpp
     FrameGenerationRate.cpp
     CpuSampler.cpp
@@ -131,6 +132,9 @@ add_library(ReDefinitionProxy SHARED
     SwapChainProxyPresent.cpp
     SwapChainProxyState.h
     SwapChainProxyStreamline.cpp
+    SwapChainProxyXess.cpp
+    XessFg.cpp
+    XessFg.h
     XessUpscaler.cpp
     XessUpscaler.h
     DxgiExports.cpp
@@ -140,8 +144,9 @@ add_library(ReDefinitionProxy SHARED
     ${REDEFINITION_RT_OUTPUTS}
 )
 
-# AMD's FidelityFX API headers and Intel's XeSS headers, MIT, vendored under
-# extern/ (extern/XeSS/MIT.txt). The runtimes are DLLs loaded at run time.
+# AMD's FidelityFX API headers and Intel's XeSS and XeLL headers, MIT, vendored
+# under extern/ (extern/XeSS/MIT.txt). The runtimes are DLLs loaded at run time;
+# XeSS frame generation's declarations are the proxy's own (XessFg.h).
 target_include_directories(ReDefinitionProxy PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/extern")
 
 # NVIDIA's Streamline headers, MIT (extern/Streamline/license.txt), for DLSS frame

@@ -22,10 +22,12 @@ namespace redefinition
     // once a new proxy has a device of its own.
     inline std::atomic<HRESULT> g_deviceRemoved{ S_OK };
 
-    // Swapchains made through FidelityFX or Streamline, the ones that can
-    // generate frames, and of those the ones made through Streamline.
+    // Swapchains made through FidelityFX, Streamline or XeSS-FG, the ones that can
+    // generate frames, and of those the ones made through Streamline and through
+    // XeSS-FG.
     inline std::atomic<int> g_generatingSwapChains{ 0 };
     inline std::atomic<int> g_streamlineSwapChains{ 0 };
+    inline std::atomic<int> g_xessSwapChains{ 0 };
 
     // The window of the last swapchain made, until it goes (PresentingWindow).
     inline std::atomic<HWND> g_presentingWindow{ nullptr };

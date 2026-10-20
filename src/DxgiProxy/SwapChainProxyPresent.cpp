@@ -1,6 +1,7 @@
 // The proxy's present path (SwapChainProxy): Unity's frame copied into the
 // D3D12 backbuffer and presented, frame generation prepared under the same
-// lock, and the fences between D3D11, D3D12 and DLSS-G's queue.
+// lock -- FSR's, DLSS-G's or XeSS-FG's -- and the fences between D3D11, D3D12 and
+// DLSS-G's queue.
 
 #include "WaitStats.h"
 #include "GpuProfiler.h"
@@ -13,6 +14,7 @@
 #include "LowLatency.h"
 #include "Streamline.h"
 #include "SwapChainProxyState.h"
+#include "XessFg.h"
 
 #include <string>
 
@@ -150,6 +152,12 @@ namespace redefinition
         HRESULT hr = S_OK;
         {
             std::lock_guard<std::mutex> fgLock(FrameGeneration::Get().ContextMutex());
+            // XeSS-FG off for it: a Present without its present id and inputs would
+            // interpolate from none -- "Failure to make this call will result in
+            // visible artifacts or XeSS-FG skipping interpolation"
+            // (xess_fg_developer_guide_english.md, Execution).
+            if (xessSwapChain)
+                FrameGeneration::Get().XessOffLocked(why);
             hr = swapChain->Present(syncInterval, flags & ~static_cast<UINT>(DXGI_PRESENT_ALLOW_TEARING));
         }
         // The game's frame went out, if as the one before it.
@@ -171,7 +179,7 @@ namespace redefinition
     // own count, generated frames included, trailing a little as its
     // presenter thread presents them. Outside the lock, on the thread that
     // presents.
-    void SwapChainProxy::CountPresent(uint32_t streamlinePresented)
+    void SwapChainProxy::CountPresent(uint32_t framesPresented)
     {
         UINT presents = 0;
         const bool gotPresents = SUCCEEDED(swapChain->GetLastPresentCount(&presents));
@@ -179,9 +187,12 @@ namespace redefinition
                         ? presents - countedPresents
                         : 1u;
         // DLSS-G's own count: "Number of frames presented since the last
-        // 'slDLSSGGetState' call" (sl_dlss_g.h).
-        if (streamlineSwapChain)
-            step = streamlinePresented != 0 ? streamlinePresented : 1u;
+        // 'slDLSSGGetState' call" (sl_dlss_g.h); XeSS-FG's, "Number of frames sent to
+        // be presented during the last call" (xefg_swapchain.h), where its
+        // GetLastPresentCount is the native swapchain's, which presents from a thread
+        // of its own on GPUs other than Intel's.
+        if (streamlineSwapChain || xessSwapChain)
+            step = framesPresented != 0 ? framesPresented : 1u;
         countedPresents = presents;
         haveCountedPresents = gotPresents;
         // Compare and swap: one proxy presents at a time in practice, but two
@@ -268,6 +279,16 @@ namespace redefinition
         uint32_t frameIndex = 0;
         bool streamlineGenerating = false;
         presentingThread.store(GetCurrentThreadId());
+        // The game's frame rendered last, for the low latency markers (LowLatency.h)
+        // and as XeSS-FG's present id: "The application must use the same frame ID
+        // value for XeLL markers and the XeSS-FG present ID"
+        // (xess_fg_developer_guide_english.md, Connect with XeLL).
+        const uint32_t lowLatencyFrame = LowLatency::Get().TakeGameFrame();
+        // XeLL's sync interval: "when VSync is enabled, sync interval for
+        // IDXGISwapChain::Present must always be 1 when Low Latency is active"
+        // (xell_developer_guide_english.md, Integration Checklist).
+        const bool xell = LowLatency::Get().XellActive();
+        const UINT xellSync = xell && syncInterval > 1 ? 1u : syncInterval;
         // The sync interval DLSS-G presents with while it generates, and its frame
         // limit with it: every refresh at most -- "SyncInterval > 1: Not supported.
         // Will be clamped to 1 with a warning" (ProgrammingGuideDLSS_G.md 22.2) --
@@ -279,7 +300,9 @@ namespace redefinition
         // (SetPresentCapLocked): DLSS-G shows its limit's frames and the rendered one,
         // FSR one generated and the rendered one.
         {
-            const UINT capSync = streamlineSwapChain ? streamlineSync : syncInterval > 0 ? syncInterval : Config().fgVSync ? 1u : 0u;
+            const UINT capSync = streamlineSwapChain ? streamlineSync
+                                 : xessSwapChain ? xellSync
+                                 : syncInterval > 0 ? syncInterval : Config().fgVSync ? 1u : 0u;
             const ProxyConfig& cfg = Config();
             double capFps = 0.0;
             if (capSync > 0)
@@ -288,7 +311,7 @@ namespace redefinition
                 if (refresh > 0.0)
                     capFps = refresh / static_cast<double>(capSync);
             }
-            else if (!streamlineSwapChain && !(cfg.fgHalfRefreshLimit && !cfg.fgVSync && syncInterval == 0))
+            else if (!streamlineSwapChain && (xessSwapChain || !(cfg.fgHalfRefreshLimit && !cfg.fgVSync && syncInterval == 0)))
                 PauseRefreshMonitor();
             const uint32_t shown = streamlineSwapChain ? StreamlineFrameLimit(streamlineSync) + 1u : 2u;
             FrameGeneration::Get().SetPresentCapLocked(capFps, shown);
@@ -309,13 +332,25 @@ namespace redefinition
             else if (++streamlineIdlePresents > 120 && streamlineSync == 0)
                 PauseRefreshMonitor();
         }
+        else if (xessSwapChain)
+        {
+            // XeSS-FG takes its resources and constants under the game's frame; its
+            // work is submitted in the Present, on the queue it was given.
+            if (lowLatencyFrame == 0 && !loggedXessNoFrame)
+            {
+                loggedXessNoFrame = true;
+                LogLine("XeSS frame generation: a Present without a frame of the game's -- presented without"
+                        " generated frames (said once)");
+            }
+            FrameGeneration::Get().PrepareXessLocked(lowLatencyFrame, nullptr);
+        }
         else
             // FSR's own swapchain only: a plain one, made where FidelityFX could
             // not make its own, has nothing to generate with.
             FrameGeneration::Get().PrepareForPresentLocked(fgSwapChainContext != nullptr ? swapChain.Get() : nullptr,
                                                            commandList.Get());
-        const bool pacedByVSync =
-            !streamlineSwapChain && Config().fgVSync && FrameGeneration::Get().PacedByVSyncLocked();
+        const bool pacedByVSync = !streamlineSwapChain && !xessSwapChain && Config().fgVSync
+                                  && FrameGeneration::Get().PacedByVSyncLocked();
 
         hr = CopySharedColourAndExecute();
         if (FAILED(hr))
@@ -338,7 +373,13 @@ namespace redefinition
         // interval it is handed: with VSync every real and generated frame is
         // shown for one refresh. See fgVSync in Config.h, and
         // PacedByVSyncLocked for why this holds on frames without inputs too.
-        UINT effectiveSync = streamlineGenerating ? streamlineSync : syncInterval;
+        UINT effectiveSync = streamlineGenerating ? streamlineSync : xell ? xellSync : syncInterval;
+        if (xell && syncInterval > 1 && !loggedXessSyncClamp)
+        {
+            LogLine("XeLL presents every refresh: KSP's sync interval " + std::to_string(syncInterval)
+                    + " is not allowed with it");
+            loggedXessSyncClamp = true;
+        }
         if (streamlineGenerating && syncInterval > 1 && streamlineSync == 1 && !loggedStreamlineSyncClamp)
         {
             LogLine("DLSS frame generation presents every refresh while it generates: KSP's sync interval "
@@ -371,10 +412,13 @@ namespace redefinition
             Streamline::Get().Marker(sl::PCLMarker::eRenderSubmitEnd, frameIndex);
         if (frameIndex != 0)
             Streamline::Get().Marker(sl::PCLMarker::ePresentStart, frameIndex);
-        // Reflex where Streamline's does not run (LowLatency.h), for the game's frame
-        // rendered last.
-        const uint32_t lowLatencyFrame = LowLatency::Get().TakeGameFrame();
+        // Reflex where Streamline's does not run, or XeLL (LowLatency.h), for the
+        // game's frame rendered last. Then XeSS-FG's present id, between XeLL's
+        // PRESENT_START and the Present, as Intel's example has it: "Call
+        // xefgSwapChainSetPresentId before Present/Present1" (Quick Start Guide).
         LowLatency::Get().BeforePresent(lowLatencyFrame, swapChain.Get());
+        if (xessSwapChain && lowLatencyFrame != 0)
+            XessFg::Get().SetPresentId(xessContext, lowLatencyFrame);
 
         LARGE_INTEGER presentStart;
         QueryPerformanceCounter(&presentStart);
@@ -395,10 +439,11 @@ namespace redefinition
             Streamline::Get().Marker(sl::PCLMarker::ePresentEnd, frameIndex);
             streamlinePresent = FrameGeneration::Get().ReadStreamlineStateLocked();
         }
+        const uint32_t xessPresented = xessSwapChain ? FrameGeneration::Get().ReadXessStateLocked() : 0u;
 
         fgLock.unlock();
 
-        CountPresent(streamlinePresent.presented);
+        CountPresent(streamlineSwapChain ? streamlinePresent.presented : xessPresented);
 
         // The interpolation FSR recorded in Present reads this slot's depth,
         // motion vectors and HUD-less copy. D3D11 writes from another API,
@@ -432,8 +477,11 @@ namespace redefinition
 
         // AMD's advice for FSR's pacing; Reflex paces DLSS-G, last, once this
         // frame's signals are out: where the next frame begins, as far as the
-        // thread that presents goes.
-        if (SUCCEEDED(hr) && !streamlineSwapChain)
+        // thread that presents goes. XeLL paces XeSS-FG, and with it no frame limit:
+        // "Any other forms of latency reduction or wait inducing technologies like
+        // frame limiters should be disabled when XeLL is in use"
+        // (xell_developer_guide_english.md, Requirements).
+        if (SUCCEEDED(hr) && !streamlineSwapChain && !xessSwapChain && !xell)
             LimitToHalfRefresh(syncInterval);
         if (streamlineSwapChain)
             BeginStreamlineFrame();

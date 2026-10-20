@@ -9,6 +9,8 @@
 #include <FidelityFX/api/include/ffx_api.h>
 #include <FidelityFX/api/include/ffx_api_types.h>
 
+#include "XessFg.h"
+
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -100,8 +102,9 @@ namespace redefinition
     static_assert(offsetof(FramePacket, prevClipToClip) == 296, "FramePacket layout changed");
 
     // Frame generation fed with KSP's own depth and motion vectors: FSR's, through
-    // FidelityFX's swapchain and whichever provider AMD's DLL carries, or DLSS-G's,
-    // through Streamline's (FrameGenerationDlss.cpp).
+    // FidelityFX's swapchain and whichever provider AMD's DLL carries, DLSS-G's,
+    // through Streamline's (FrameGenerationDlss.cpp), or XeSS-FG's, through Intel's
+    // (FrameGenerationXess.cpp).
     class FrameGeneration
     {
     public:
@@ -326,6 +329,32 @@ namespace redefinition
         // (DLSSGState::bIsVsyncSupportAvailable), as its last state said; true
         // before the first. From any thread: the mod's settings ask it too.
         bool StreamlineVsyncSupported() const { return streamlineVsyncSupported.load(); }
+
+        // ---- XeSS frame generation (XessFg.h, FrameGenerationXess.cpp) ----
+        //
+        // As UseStreamline, with the owner's XeSS-FG context.
+        void UseXess(const void* caller, xefg::Handle context);
+
+        // Caller must hold ContextMutex. This Present's resources and constants for
+        // XeSS-FG under presentId -- the frame id XeLL's markers carry, as Intel asks
+        // -- and generation on, when this frame's own inputs and packet arrived
+        // flipped to the screen's orientation, the mod wants it and the frame rate
+        // allows; off otherwise, without an id (0), and with the reason holdOff where
+        // it is given. Returns whether this frame generates.
+        bool PrepareXessLocked(uint32_t presentId, const char* holdOff);
+
+        // Caller must hold ContextMutex. XeSS-FG off from the next Present on, with
+        // the reason in the log -- none for nullptr; returns whether it was on.
+        bool XessOffLocked(const char* reason);
+
+        // Caller must hold ContextMutex. After Present: the frames XeSS-FG sent to be
+        // presented in it, 0 where it does not say, and its interpolation's result
+        // for the log.
+        uint32_t ReadXessStateLocked();
+
+        // Frames shown per rendered frame while XeSS-FG generates, 2; 0 while it
+        // does not.
+        int XessMultiplier() const { return xessMultiplier.load(); }
 
     private:
         FrameGeneration() = default;
@@ -577,6 +606,22 @@ namespace redefinition
         bool loggedFence = false;
         bool loggedUnflipped = false;
         std::atomic<int> streamlineMultiplier{ 0 };
+
+        // XeSS-FG: whether the owner's swapchain is its, its context, whether it was
+        // last told to generate, the UI composition and debug view last set (-1 none
+        // yet), its last interpolation result, logged once per change, and when a
+        // generation XeSS-FG itself switched off is asked for again.
+        bool xess = false;
+        xefg::Handle xessContext = nullptr;
+        bool xessOn = false;
+        int xessComposition = -1;
+        int xessShowOnly = -1;
+        xefg::Result xessResult = 0;
+        bool xessResultKnown = false;
+        int xessResultsLogged = 0;
+        ULONGLONG xessRetryAfter = 0;
+        uint32_t xessTagFailures = 0;
+        std::atomic<int> xessMultiplier{ 0 };
 
         uint64_t frameId = 0;
         uint64_t capturedFrames = 0;

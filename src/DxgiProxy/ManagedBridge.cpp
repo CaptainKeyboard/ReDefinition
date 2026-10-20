@@ -23,6 +23,7 @@
 #include "ScreenRecorder.h"
 #include "FileUtil.h"
 #include "LowLatency.h"
+#include "XessFg.h"
 #include "XessUpscaler.h"
 #include "Streamline.h"
 #include "SwapChainProxy.h"
@@ -70,7 +71,7 @@ extern "C"
     }
 
     // Whether frames can be generated at all: a swapchain made through
-    // Streamline or FidelityFX exists. Not so without NVIDIA's or AMD's runtime,
+    // Streamline, XeSS-FG or FidelityFX exists. Not so without NVIDIA's, Intel's or AMD's runtime,
     // with measureOnly=1 or after a failed setup, whatever the ini allows. A frame generation context
     // that fails to be made is not counted here but in KspFgContextFailing: the
     // proxy tries again once a second while packets arrive, and not at all once
@@ -80,14 +81,16 @@ extern "C"
         return redefinition::FrameGenerationSwapChainPresent() ? 1 : 0;
     }
 
-    // Which frame generation the swapchain presents with -- 2 DLSS, 1 FSR, 0
-    // none -- and, for DLSS, frames shown per rendered frame while it generates,
-    // 0 while it does not. For the mod's settings, which show what runs.
+    // Which frame generation the swapchain presents with -- 3 XeSS, 2 DLSS, 1 FSR,
+    // 0 none -- and, for DLSS and XeSS, frames shown per rendered frame while it
+    // generates, 0 while it does not. For the mod's settings, which show what runs.
     __declspec(dllexport) int KspFgTechnique(int* multiplier)
     {
+        const int technique = redefinition::FrameGenerationTechnique();
         if (multiplier != nullptr)
-            *multiplier = redefinition::FrameGeneration::Get().StreamlineMultiplier();
-        return redefinition::FrameGenerationTechnique();
+            *multiplier = technique == 3 ? redefinition::FrameGeneration::Get().XessMultiplier()
+                                         : redefinition::FrameGeneration::Get().StreamlineMultiplier();
+        return technique;
     }
 
     // Whether DLSS frame generation presents with V-Sync where KSP asks for it: 0
@@ -148,8 +151,8 @@ extern "C"
     }
 
     // What lowers the latency (LowLatency::Describe): 1 NVIDIA Reflex through NVAPI,
-    // 2 Streamline's Reflex with DLSS frame generation, 0 none; the text says which
-    // or why not.
+    // 2 Streamline's Reflex with DLSS frame generation, 3 AMD Anti-Lag 2, 4 Intel
+    // XeLL, 0 none; the text says which or why not.
     __declspec(dllexport) int KspLowLatency(char* buffer, int size)
     {
         return redefinition::LowLatency::Get().Describe(buffer, size);
@@ -673,15 +676,22 @@ extern "C"
         if (FAILED(removed))
             redefinition::FormatTo(device, "removed (0x%08lX)", static_cast<unsigned long>(removed));
 
-        // Which frame generation, and for DLSS what it generates or why it does
-        // not run -- last in the line, which readers may cut.
+        // Which frame generation, and for DLSS and XeSS what it generates or why it
+        // does not run -- last in the line, which readers may cut.
         char technique[200] = "none";
         const int running = redefinition::FrameGenerationTechnique();
+        const int asked = redefinition::Config().frameGeneration ? redefinition::Config().frameGenerationTechnique : -1;
         if (running == 2)
             redefinition::FormatTo(technique, "dlss (%dx, reflex paced by %s)", fg.StreamlineMultiplier(),
                                    redefinition::Streamline::Get().GameFramesPresented() ? "the game's frames"
                                                                                        : "the presenting thread");
-        else if (redefinition::Config().frameGeneration && redefinition::Config().dlssFrameGeneration)
+        else if (running == 3)
+            redefinition::FormatTo(technique, "xess (%dx, %s)", fg.XessMultiplier(),
+                                   redefinition::XessFg::Get().Versions().c_str());
+        else if (asked == redefinition::kFgTechniqueXess)
+            _snprintf_s(technique, _TRUNCATE, "%s (xess: %s)", running == 1 ? "fsr" : "none",
+                        redefinition::XessFg::Get().Why().c_str());
+        else if (asked == redefinition::kFgTechniqueAuto || asked == redefinition::kFgTechniqueDlss)
             _snprintf_s(technique, _TRUNCATE, "%s (dlss: %s)", running == 1 ? "fsr" : "none",
                         redefinition::Streamline::Get().Describe().c_str());
         else if (running == 1)

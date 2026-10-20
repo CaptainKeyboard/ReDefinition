@@ -4,6 +4,7 @@
 #include "Log.h"
 #include "NvidiaGpu.h"
 #include "WaitStats.h"
+#include "XessFg.h"
 
 #include <AntiLag2/ffx_antilag2_dx11.h>
 #include <AntiLag2/ffx_antilag2_dx12.h>
@@ -181,7 +182,8 @@ namespace redefinition
     }
 
     void LowLatency::Attach(const void* newOwner, ID3D11Device* newGameDevice, ID3D12Device* newDevice,
-                            ID3D12CommandQueue* newQueue, const LUID& adapter, bool streamlineReflex)
+                            ID3D12CommandQueue* newQueue, const LUID& adapter, bool streamlineReflex,
+                            xell_context_handle_t newXell, bool xessFrameGeneration)
     {
         {
             std::lock_guard<std::mutex> lock(mutex);
@@ -199,8 +201,19 @@ namespace redefinition
             fence.Reset();
             fenceValue = 0;
 
+            // XeLL where the proxy made it, and then nothing else.
+            {
+                std::lock_guard<std::mutex> sleeping(xellMutex);
+                xell = newXell;
+                xellSleeping = newXell;
+            }
+            xellFrameGeneration = newXell != nullptr && xessFrameGeneration;
+            xellLowLatency = xellFrameGeneration || Config().lowLatency;
+            xellActive = newXell != nullptr;
+            const bool others = !streamlineReflex && newXell == nullptr;
+
             NvidiaGpuInfo info;
-            reflex = !streamlineReflex && NvidiaGpu(adapter, info) == NvidiaGpuAnswer::Found && SetSleepMode() != nullptr
+            reflex = others && NvidiaGpu(adapter, info) == NvidiaGpuAnswer::Found && SetSleepMode() != nullptr
                      && SleepCall() != nullptr && SetLatencyMarker() != nullptr;
 
             // Anti-Lag 2 where AMD's driver behind the device has it: "If this function
@@ -211,8 +224,8 @@ namespace redefinition
             AMD::AntiLag2DX11::DeInitialize(&g_antiLag11);
             g_antiLag12 = {};
             g_antiLag11 = {};
-            g_antiLag12Ready = !streamlineReflex && AMD::AntiLag2DX12::Initialize(&g_antiLag12, newDevice) == S_OK;
-            g_antiLag11Ready = !streamlineReflex && newGameDevice != nullptr
+            g_antiLag12Ready = others && AMD::AntiLag2DX12::Initialize(&g_antiLag12, newDevice) == S_OK;
+            g_antiLag11Ready = others && newGameDevice != nullptr
                                && AMD::AntiLag2DX11::Initialize(&g_antiLag11) == S_OK;
             amd = g_antiLag12Ready || g_antiLag11Ready;
             if (amd)
@@ -221,6 +234,9 @@ namespace redefinition
                            : g_antiLag12Ready ? "the proxy's Direct3D 12 device" : "the game's Direct3D 11 device"));
             if (reflex)
                 LogLine("Low latency: NVIDIA Reflex through NVAPI on the proxy's Direct3D 12 device");
+            if (newXell != nullptr)
+                LogLine(std::string("Low latency: Intel XeLL on the proxy's Direct3D 12 device")
+                        + (xellFrameGeneration ? ", with XeSS frame generation" : ""));
 
             // The measure, on every GPU and with DLSS frame generation as well.
             if (newDevice != nullptr && newQueue != nullptr)
@@ -245,6 +261,14 @@ namespace redefinition
         std::lock_guard<std::mutex> lock(mutex);
         if (caller != owner)
             return;
+        {
+            // The main thread's Sleep is done before the context goes.
+            std::lock_guard<std::mutex> sleeping(xellMutex);
+            xellSleeping = nullptr;
+        }
+        xell = nullptr;
+        xellFrameGeneration = false;
+        xellActive = false;
         {
             std::lock_guard<std::mutex> antiLag(antiLagMutex);
             antiLagOn = 0;
@@ -277,6 +301,11 @@ namespace redefinition
         return owner != nullptr;
     }
 
+    bool LowLatency::XellLocked() const
+    {
+        return TrackingLocked() && xell != nullptr;
+    }
+
     bool LowLatency::ReflexLocked() const
     {
         return TrackingLocked() && reflex && device != nullptr;
@@ -295,6 +324,21 @@ namespace redefinition
         if (streamline)
         {
             SetText(2, "NVIDIA Reflex, Streamline's, with DLSS frame generation");
+            return;
+        }
+        // Its mode as set when the swapchain was made (XessFg::XellSetSleepMode).
+        if (xell != nullptr)
+        {
+            if (xellFrameGeneration)
+                SetText(4, "Intel XeLL, with XeSS frame generation");
+            else if (xellLowLatency)
+                SetText(4, Config().lowLatency ? "Intel XeLL, low latency mode"
+                                               : "Intel XeLL, low latency mode (lowLatency=0 takes effect with the"
+                                                 " next swapchain)");
+            else
+                SetText(0, Config().lowLatency ? "off (lowLatency=0 when the swapchain was made) -- XeLL's markers only;"
+                                                 " lowLatency=1 takes effect with the next swapchain"
+                                               : "off (lowLatency=0 in ReDefinitionProxy.ini) -- XeLL's markers only");
             return;
         }
         const int wantedMode = reflex && Config().lowLatency ? 1 : 0;
@@ -342,6 +386,18 @@ namespace redefinition
 
     void LowLatency::MarkerLocked(uint32_t frameIndex, int marker)
     {
+        if (XellLocked())
+        {
+            const xell_result_t result =
+                XessFg::Get().XellMarker(xell, frameIndex, static_cast<xell_latency_marker_type_t>(marker));
+            if (result != XELL_RESULT_SUCCESS && !loggedFailure)
+            {
+                loggedFailure = true;
+                LogLine("Low latency: xellAddMarkerData failed with result " + std::to_string(static_cast<int>(result))
+                        + " (marker " + std::to_string(marker) + ", frame " + std::to_string(frameIndex) + ")");
+            }
+            return;
+        }
         if (!ReflexLocked())
             return;
         LatencyMarkerParams params = {};
@@ -367,7 +423,7 @@ namespace redefinition
     {
         {
             std::lock_guard<std::mutex> lock(mutex);
-            if (!TrackingLocked() || streamline || AntiLagLocked())
+            if (!TrackingLocked() || streamline || AntiLagLocked() || xell != nullptr)
             {
                 brakeWaitsBefore = -1;
                 return;
@@ -444,15 +500,48 @@ namespace redefinition
         ApplyConfig();
         Brake();
         Microsoft::WRL::ComPtr<ID3D12Device> held;
+        uint32_t index = 0;
         {
             std::lock_guard<std::mutex> lock(mutex);
             if (!TrackingLocked())
                 return 0;
             if (ReflexLocked())
                 held = device;
+            // "The frameID ... must strictly increment from that point forward". Where
+            // Streamline gives the frame's index, the game's other calls come under it,
+            // so the id is that index moved by an offset past every id given before.
+            // Given before the sleeps: XeLL's takes it -- "xellSleep must be the first
+            // XeLL API function called with a newly assigned frame_id value"
+            // (xell_developer_guide_english.md, Sleep).
+            if (streamlineIndex != 0)
+            {
+                if (streamlineIndex + offset <= lastBegun)
+                    offset = lastBegun + 1 - streamlineIndex;
+                index = streamlineIndex + offset;
+                mapped = true;
+            }
+            else
+            {
+                index = lastBegun + 1;
+                mapped = false;
+            }
+            lastBegun = index;
         }
         if (held != nullptr)
             SleepCall()(held.Get());
+        {
+            std::lock_guard<std::mutex> sleeping(xellMutex);
+            if (xellSleeping != nullptr)
+            {
+                const xell_result_t result = XessFg::Get().XellSleep(xellSleeping, index);
+                if (result != XELL_RESULT_SUCCESS && !xellSleepFailed)
+                {
+                    xellSleepFailed = true;
+                    LogLine("Low latency: xellSleep failed with result " + std::to_string(static_cast<int>(result))
+                            + " (frame " + std::to_string(index) + ")");
+                }
+            }
+        }
         // Every frame on each device it was set up on, enabled on the one taken: off it
         // inserts nothing. Under the contexts' lock, so that a swapchain made anew
         // meanwhile cannot let them go under the call.
@@ -468,23 +557,6 @@ namespace redefinition
         std::lock_guard<std::mutex> lock(mutex);
         if (!TrackingLocked())
             return 0;
-        // "The frameID ... must strictly increment from that point forward". Where
-        // Streamline gives the frame's index, the game's other calls come under it, so
-        // the id is that index moved by an offset past every id given before.
-        uint32_t index;
-        if (streamlineIndex != 0)
-        {
-            if (streamlineIndex + offset <= lastBegun)
-                offset = lastBegun + 1 - streamlineIndex;
-            index = streamlineIndex + offset;
-            mapped = true;
-        }
-        else
-        {
-            index = lastBegun + 1;
-            mapped = false;
-        }
-        lastBegun = index;
         starts[index % 256] = Now();
         MarkerLocked(index, kSimulationStart);
         return mapped ? streamlineIndex : index;
@@ -611,6 +683,7 @@ namespace redefinition
             std::vector<double> sorted(measured);
             std::sort(sorted.begin(), sorted.end());
             const char* running = streamline ? "Streamline's Reflex"
+                                  : xell != nullptr ? (xellLowLatency ? "XeLL" : "nothing (XeLL's markers only)")
                                   : AntiLagLocked() ? (appliedAntiLag == 12 ? "Anti-Lag 2 (Direct3D 12)"
                                                                             : "Anti-Lag 2 (Direct3D 11)")
                                   : Config().latencyBrake ? (appliedMode == 1 ? "Reflex and the brake" : "the brake")
@@ -704,7 +777,7 @@ namespace redefinition
         bool braking = false;
         {
             std::lock_guard<std::mutex> lock(mutex);
-            braking = TrackingLocked() && !streamline && !AntiLagLocked() && Config().latencyBrake;
+            braking = TrackingLocked() && !streamline && !AntiLagLocked() && xell == nullptr && Config().latencyBrake;
         }
         std::lock_guard<std::mutex> lock(textLock);
         const std::string shown = braking ? text + "; latency brake on" : text;
