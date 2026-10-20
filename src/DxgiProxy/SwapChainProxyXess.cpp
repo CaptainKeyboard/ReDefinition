@@ -53,6 +53,8 @@ namespace redefinition
         // Latency mode is active" (Integration Checklist).
         uint32_t minimumIntervalUs = 0;
         xellLimitFps = 0.0;
+        xellIntervalUs = 0;
+        xellLimitRefresh = 0.0;
         if (asked.fgHalfRefreshLimit)
         {
             const double refresh = QueryWindowRefreshRate();
@@ -60,6 +62,7 @@ namespace redefinition
             {
                 xellLimitFps = 0.98 * refresh;
                 minimumIntervalUs = static_cast<uint32_t>(1000000.0 / xellLimitFps + 0.5);
+                xellLimitRefresh = refresh;
                 char line[160];
                 std::snprintf(line, sizeof(line), "XeLL's frame limit (fgHalfRefreshLimit): %.1f frames presented a"
                               " second at %.2f Hz", xellLimitFps, refresh);
@@ -87,6 +90,8 @@ namespace redefinition
             LogLine("XeSS frame generation does not run: " + xess.Why() + " -- FSR's instead");
             return E_FAIL;
         }
+        xellIntervalUs = minimumIntervalUs;
+        xellBoost = asked.xellLowLatencyBoost;
 
         XessFg::SwapChainOptions options;
         options.invertedDepth = Config().fgDepthInverted;
@@ -101,23 +106,42 @@ namespace redefinition
         // frame; a swapchain without one would stop Unity right after creation
         // (SwapChainProxyForwarding.cpp). The handle asked for here is closed again:
         // "When you are done with the handle, use CloseHandle to close the handle"
-        // (Microsoft, IDXGISwapChain2::GetFrameLatencyWaitableObject).
+        // (Microsoft, IDXGISwapChain2::GetFrameLatencyWaitableObject). Intel's own sample
+        // waits on XeSS-FG's swapchain's handle every frame (basic_sample_frame_generation,
+        // -waitable), which is what auto hands out; xessFgOwnWaitable=1 hands out a
+        // semaphore of the proxy's instead (ReleaseOwnWaitable), as OptiScaler does for
+        // Unity games with XeSS-FG, and auto does where the swapchain has no handle.
+        ownWaitable = nullptr;
         if (SUCCEEDED(hr) && (desc.Flags & DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT) != 0)
         {
             ComPtr<IDXGISwapChain2> created2;
             const HANDLE waitable = SUCCEEDED(created.As(&created2)) ? created2->GetFrameLatencyWaitableObject() : nullptr;
-            if (waitable == nullptr)
-            {
-                xess.Note("its swapchain has no frame latency waitable object, which KSP waits on");
-                hr = E_NOINTERFACE;
-            }
-            else
+            if (waitable != nullptr)
                 CloseHandle(waitable);
+            if (asked.xessFgOwnWaitable == 1 || (asked.xessFgOwnWaitable < 0 && waitable == nullptr))
+            {
+                // Full, and a Present releases one more: a wait never blocks.
+                ownWaitable = CreateSemaphoreW(nullptr, 16, 16, nullptr);
+                if (ownWaitable == nullptr)
+                    xess.Note(waitable == nullptr ? "its swapchain has no frame latency waitable object, which KSP waits on"
+                                                  : "the proxy's frame latency waitable object could not be made");
+                else
+                    LogLine(waitable == nullptr
+                                ? "XeSS frame generation: its swapchain has no frame latency waitable object -- the proxy's"
+                                  " semaphore stands in for it"
+                                : "XeSS frame generation: the frame latency waitable object is the proxy's semaphore"
+                                  " (xessFgOwnWaitable=1)");
+            }
+            if (ownWaitable == nullptr && waitable == nullptr)
+                hr = E_NOINTERFACE;
         }
 
         if (FAILED(hr))
         {
             created.Reset();
+            if (ownWaitable != nullptr)
+                CloseHandle(ownWaitable);
+            ownWaitable = nullptr;
             xess.Destroy(xessContext);
             xessContext = nullptr;
             xessFramesMost = 0;
@@ -158,6 +182,63 @@ namespace redefinition
         xessContext = nullptr;
         xess.DestroyXell(xellContext);
         xellContext = nullptr;
+        if (ownWaitable != nullptr)
+            CloseHandle(ownWaitable);
+        ownWaitable = nullptr;
+    }
+
+    void SwapChainProxy::ReleaseOwnWaitable()
+    {
+        if (ownWaitable != nullptr)
+            ReleaseSemaphore(ownWaitable, 1, nullptr);
+    }
+
+    // XeLL's frame limit (fgHalfRefreshLimit) as the settings and the monitor's refresh
+    // rate have it, the presented frames slightly below the refresh rate, as
+    // CreateXessSwapChain made it. "The function call needs to be done only once after
+    // settings change" (xell_developer_guide_english.md, Enable Features): so only when
+    // the interval differs from the one set, and then once "any GPU activity is finished
+    // before xellSetSleepMode is called" (Integration Checklist) -- the proxy's queue,
+    // which XeSS-FG's work is on, has passed the last frame's Present. A refresh rate not
+    // yet known leaves the limit as it stands.
+    void SwapChainProxy::FollowXellLimit(double refresh)
+    {
+        if (!xessSwapChain || xellContext == nullptr || !Config().xellLimitLive)
+            return;
+        uint32_t wanted = xellIntervalUs;
+        double fps = xellLimitFps;
+        double usedRefresh = xellLimitRefresh;
+        if (!Config().fgHalfRefreshLimit)
+        {
+            wanted = 0;
+            fps = 0.0;
+            usedRefresh = 0.0;
+        }
+        else if (refresh > 0.0)
+        {
+            fps = 0.98 * refresh;
+            wanted = static_cast<uint32_t>(1000000.0 / fps + 0.5);
+            usedRefresh = refresh;
+        }
+        if (wanted == xellIntervalUs)
+        {
+            xellLimitFps = fps;
+            xellLimitRefresh = usedRefresh;
+            return;
+        }
+
+        WaitForFrame(frameFenceValue);
+        if (XessFg::Get().XellSetSleepMode(xellContext, true, wanted, xellBoost))
+        {
+            char hertz[32];
+            std::snprintf(hertz, sizeof(hertz), "%.2f Hz", usedRefresh);
+            LogLine(std::string("XeLL's frame limit follows (fgHalfRefreshLimit ")
+                    + (Config().fgHalfRefreshLimit ? std::string("on, ") + hertz : std::string("off")) + "): "
+                    + (wanted == 0 ? std::string("none") : std::to_string(wanted) + " us a frame"));
+            xellIntervalUs = wanted;
+            xellLimitFps = fps;
+            xellLimitRefresh = usedRefresh;
+        }
     }
 
     // XeLL on an Intel GPU without XeSS-FG: "Supported devices: Intel Arc A-Series or

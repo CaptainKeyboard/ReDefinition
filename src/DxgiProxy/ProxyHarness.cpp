@@ -878,6 +878,12 @@ int main()
     // the swapchain made for one, and the status line saying so.
     const IniKey xessFgFramesKey(L"xessFgFrames");
     xessFgFramesKey.Set(xessFgWanted ? L"2" : nullptr);
+    // REDEFINITION_XESS_FG_WAITABLE=auto|0|1: xessFgOwnWaitable for the run, whose waits
+    // on the frame latency waitable object are counted for it.
+    wchar_t xessWaitableBuffer[16] = {};
+    GetEnvironmentVariableW(L"REDEFINITION_XESS_FG_WAITABLE", xessWaitableBuffer, 16);
+    const IniKey xessFgOwnWaitableKey(L"xessFgOwnWaitable");
+    xessFgOwnWaitableKey.Set(xessFgWanted && xessWaitableBuffer[0] != L'\0' ? xessWaitableBuffer : nullptr);
 
     // By bare name, exactly as Unity does it, so the application directory wins.
     const HMODULE dxgi = LoadLibraryW(L"dxgi.dll");
@@ -1159,6 +1165,10 @@ int main()
         return Fail("GetProcAddress(KspReflexFrameStart / KspReflexSimulationEnd)", E_FAIL);
     bool gameFrames = false;
     unsigned int gameFramesBegun = 0;
+    // The frame's packet, which a run leaves out to test what a frame without inputs does,
+    // and the waits on the frame latency waitable object that ran into their limit.
+    bool sendPacket = true;
+    unsigned int waitTimeouts = 0;
     // GPU work of the frame, where a run sets it (the latency comparison).
     std::function<void()> frameLoad;
     auto renderFrame = [&]() -> HRESULT
@@ -1175,7 +1185,8 @@ int main()
 
         // Waiting on the object before rendering is the point of asking for it,
         // and it is what the game does too.
-        WaitForSingleObject(waitable, 1000);
+        if (WaitForSingleObject(waitable, 1000) == WAIT_TIMEOUT)
+            ++waitTimeouts;
 
         // A colour that changes every frame, so a stuck image is visible as such
         // rather than looking like success -- and so a snapshot from an earlier
@@ -1199,7 +1210,8 @@ int main()
             // on top. The proxy copies everything at Present.
             context->CopyResource(hudLessCopy.Get(), backBuffer.Get());
             packet.frameIndex = frameNumber;
-            renderEvent(kPacketEvent, &packet);
+            if (sendPacket)
+                renderEvent(kPacketEvent, &packet);
 
             const D3D11_BOX box = { 0, 0, 0, kUiWidth, kUiHeight, 1 };
             context->CopySubresourceRegion(backBuffer.Get(), 0, kUiX, kUiY, 0, ui.Get(), 0, &box);
@@ -1926,19 +1938,258 @@ int main()
         if (back < kGeneratingAtLeast)
             return Fail("XeSS frame generation did not come back with the game's frames", E_FAIL);
 
+        // How often XeSS frame generation was switched off and on, and how often its inputs
+        // were refused (KspXessCounts): 0 off, 1 on, 2 refused.
+        using XessCountsFn = int (*)(unsigned int*, unsigned int*, unsigned int*);
+        const XessCountsFn xessCounts = reinterpret_cast<XessCountsFn>(GetProcAddress(dxgi, "KspXessCounts"));
+        if (xessCounts == nullptr)
+            return Fail("GetProcAddress(KspXessCounts)", E_FAIL);
+        auto count = [&](int which) -> unsigned int
+        {
+            unsigned int counts[3] = {};
+            xessCounts(&counts[0], &counts[1], &counts[2]);
+            return counts[which];
+        };
+
+        // A packet that stays away for a few frames (xessFgGraceFrames, 3) leaves XeSS-FG
+        // switched on -- its interpolation reports "insufficient input" for those frames and
+        // presents the rendered one -- and a longer absence switches it off; it comes back
+        // with the packet.
+        {
+            const unsigned int offBefore = count(0);
+            const unsigned int onBefore = count(1);
+            sendPacket = false;
+            for (UINT frame = 0; frame < 3; ++frame)
+            {
+                hr = renderFrame();
+                if (FAILED(hr))
+                    return Fail("Present without a packet", hr);
+            }
+            sendPacket = true;
+            for (UINT frame = 0; frame < 3; ++frame)
+            {
+                hr = renderFrame();
+                if (FAILED(hr))
+                    return Fail("Present with the packet back", hr);
+            }
+            const unsigned int offShort = count(0) - offBefore;
+            const unsigned int onShort = count(1) - onBefore;
+            sendPacket = false;
+            for (UINT frame = 0; frame < 5; ++frame)
+            {
+                hr = renderFrame();
+                if (FAILED(hr))
+                    return Fail("Present without a packet for longer", hr);
+            }
+            sendPacket = true;
+            float resumed = 0.0f;
+            hr = presentsPerFrame(1.0f, resumed);
+            if (FAILED(hr))
+                return Fail("Present with the packet back after longer", hr);
+            const unsigned int offLong = count(0) - offBefore - offShort;
+            const unsigned int onLong = count(1) - onBefore - onShort;
+            printf("      XeSS frame generation without a packet: 3 frames switched it off %u and on %u times, 5 frames"
+                   " off %u and on %u times; with the packet back %.2f presents per frame\n", offShort, onShort,
+                   offLong, onLong, resumed);
+            if (offShort != 0 || onShort != 0 || offLong != 1 || onLong != 1 || resumed < kGeneratingAtLeast)
+                return Fail("XeSS frame generation did not stay on for the grace frames, go off after them, or come back",
+                            E_FAIL);
+        }
+
+        // A motion vector scale of 0: skipped for the frames it lasts (xessFgBadConstants=skip,
+        // the default) without a lock-out, so the first frame after it generates; handed over
+        // (pass), it is Intel's to refuse -- what it does is printed.
+        {
+            const float scaleX = packet.motionVectorScaleX;
+            const float scaleY = packet.motionVectorScaleY;
+            const unsigned int offBefore = count(0);
+            const unsigned int onBefore = count(1);
+            packet.motionVectorScaleX = 0.0f;
+            packet.motionVectorScaleY = 0.0f;
+            for (UINT frame = 0; frame < 2; ++frame)
+            {
+                hr = renderFrame();
+                if (FAILED(hr))
+                    return Fail("Present with a motion vector scale of 0", hr);
+            }
+            packet.motionVectorScaleX = scaleX;
+            packet.motionVectorScaleY = scaleY;
+            float afterwards = 0.0f;
+            hr = presentsPerFrame(1.0f, afterwards);
+            if (FAILED(hr))
+                return Fail("Present after a motion vector scale of 0", hr);
+            const unsigned int skippedOff = count(0) - offBefore;
+            const unsigned int skippedOn = count(1) - onBefore;
+            printf("      XeSS frame generation with a motion vector scale of 0 skipped (2 frames): switched off %u and on"
+                   " %u times, %.2f presents per frame after\n", skippedOff, skippedOn, afterwards);
+            if (skippedOff != 0 || skippedOn != 0 || afterwards < kGeneratingAtLeast)
+                return Fail("a motion vector scale of 0 switched XeSS frame generation off, or it did not come back", E_FAIL);
+
+            // Handed over, Intel's to refuse: what it does is printed, and the proxy lets
+            // it come back after two seconds.
+            const IniKey badConstantsKey(L"xessFgBadConstants");
+            badConstantsKey.Set(L"pass");
+            float read = 0.0f;
+            hr = presentsPerFrame(1.5f, read);
+            if (FAILED(hr))
+                return Fail("Present while xessFgBadConstants is read", hr);
+            const unsigned int refusedBefore = count(2);
+            packet.motionVectorScaleX = 0.0f;
+            packet.motionVectorScaleY = 0.0f;
+            for (UINT frame = 0; frame < 6; ++frame)
+            {
+                hr = renderFrame();
+                if (FAILED(hr))
+                    return Fail("Present with a motion vector scale of 0 handed over", hr);
+            }
+            printf("      XeSS frame generation with a motion vector scale of 0 handed over (pass): refused %u times\n",
+                   count(2) - refusedBefore);
+            badConstantsKey.Set(L"skip");
+            packet.motionVectorScaleX = scaleX;
+            packet.motionVectorScaleY = scaleY;
+            LARGE_INTEGER frequency = {};
+            LARGE_INTEGER start = {};
+            LARGE_INTEGER now = {};
+            QueryPerformanceFrequency(&frequency);
+            QueryPerformanceCounter(&start);
+            now = start;
+            while (now.QuadPart - start.QuadPart < frequency.QuadPart * 3)
+            {
+                hr = renderFrame();
+                if (FAILED(hr))
+                    return Fail("Present while a refusal lapses", hr);
+                QueryPerformanceCounter(&now);
+            }
+            float lapsed = 0.0f;
+            hr = presentsPerFrame(1.0f, lapsed);
+            if (FAILED(hr))
+                return Fail("Present after a refusal lapsed", hr);
+            if (lapsed < kGeneratingAtLeast)
+                return Fail("XeSS frame generation did not come back after the scale was handed over", E_FAIL);
+        }
+
+        // A HUD-less copy of another size than the display is not handed over: XeSS-FG
+        // requires HUD-less, UI and back buffer of one size, and would report a mismatch.
+        {
+            hr = provideInputs(kWidth, kHeight, kWidth / 2, kHeight / 2);
+            if (FAILED(hr))
+                return Fail("creating a HUD-less copy of another size", hr);
+            float mismatched = 0.0f;
+            hr = presentsPerFrame(1.0f, mismatched);
+            if (FAILED(hr))
+                return Fail("Present with a HUD-less copy of another size", hr);
+            status(line, sizeof(line));
+            printf("      XeSS frame generation with a HUD-less copy of half the display's size: %.2f presents per frame"
+                   "  [%s]\n", mismatched, line);
+            if (mismatched < kGeneratingAtLeast)
+                return Fail("XeSS frame generation stopped for a HUD-less copy of another size", E_FAIL);
+            hr = provideInputs(kWidth, kHeight, kWidth, kHeight);
+            if (FAILED(hr))
+                return Fail("creating the inputs again after a HUD-less copy of another size", hr);
+        }
+
         // KSP's "Every second refresh": XeLL allows a sync interval of 1 at most, and
         // the proxy presents every refresh with it (SwapChainProxy::CopyAndPresent).
+        // With xessFgResetOnChange the change switches it off for one Present and on again.
+        const IniKey resetOnChangeKey(L"xessFgResetOnChange");
+        resetOnChangeKey.Set(L"1");
+        // The ini is looked at once a second.
+        float ignored = 0.0f;
+        hr = presentsPerFrame(1.5f, ignored);
+        if (FAILED(hr))
+            return Fail("Present while xessFgResetOnChange is read", hr);
+        const unsigned int offBeforeSync = count(0);
+        const unsigned int onBeforeSync = count(1);
         syncInterval = 2;
         float synced = 0.0f;
         hr = presentsPerFrame(2.0f, synced);
         syncInterval = 0;
+        resetOnChangeKey.Set(L"0");
         if (FAILED(hr))
             return Fail("Present with XeSS frame generation and V-Sync", hr);
         status(line, sizeof(line));
-        printf("      XeSS frame generation with V-Sync every second refresh: %.2f presents per frame  [%s]\n", synced,
-               line);
+        printf("      XeSS frame generation with V-Sync every second refresh and xessFgResetOnChange=1: %.2f presents per"
+               " frame, switched off %u and on %u times by the change  [%s]\n", synced, count(0) - offBeforeSync,
+               count(1) - onBeforeSync, line);
         if (synced < kGeneratingAtLeast)
             return Fail("XeSS frame generation with V-Sync generated no frames", E_FAIL);
+        if (count(0) - offBeforeSync != 1 || count(1) - onBeforeSync != 1)
+            return Fail("xessFgResetOnChange=1 did not switch XeSS frame generation off and on once for the sync interval",
+                        E_FAIL);
+
+        // XeLL's frame limit follows fgHalfRefreshLimit while it runs (xellLimitLive): the
+        // presented frames held slightly below the refresh rate, the rendered ones at about
+        // half that, and uncapped again when it is switched off; with xellLimitLive=0 it is
+        // as the swapchain was made with.
+        {
+            auto renderedRate = [&](double seconds, double& fps) -> HRESULT
+            {
+                LARGE_INTEGER frequency = {};
+                LARGE_INTEGER begin = {};
+                LARGE_INTEGER end = {};
+                QueryPerformanceFrequency(&frequency);
+                unsigned int renderedBefore = 0, presentedBefore = 0, renderedAfter = 0, presentedAfter = 0;
+                counters(&renderedBefore, &presentedBefore);
+                QueryPerformanceCounter(&begin);
+                end = begin;
+                while (static_cast<double>(end.QuadPart - begin.QuadPart) < seconds * static_cast<double>(frequency.QuadPart))
+                {
+                    const HRESULT presented = renderFrame();
+                    if (FAILED(presented))
+                        return presented;
+                    QueryPerformanceCounter(&end);
+                }
+                counters(&renderedAfter, &presentedAfter);
+                fps = static_cast<double>(renderedAfter - renderedBefore)
+                      / (static_cast<double>(end.QuadPart - begin.QuadPart) / static_cast<double>(frequency.QuadPart));
+                return S_OK;
+            };
+            auto settle = [&](double seconds) -> HRESULT
+            {
+                double ignored = 0.0;
+                return renderedRate(seconds, ignored);
+            };
+            double uncapped = 0.0, limited = 0.0, released = 0.0, frozen = 0.0;
+            hr = renderedRate(1.0, uncapped);
+            if (SUCCEEDED(hr))
+            {
+                fgHalfRefreshLimit.Set(L"1");
+                hr = settle(3.0);
+            }
+            if (SUCCEEDED(hr))
+                hr = renderedRate(2.0, limited);
+            if (SUCCEEDED(hr))
+            {
+                fgHalfRefreshLimit.Set(L"0");
+                hr = settle(3.0);
+            }
+            if (SUCCEEDED(hr))
+                hr = renderedRate(1.0, released);
+            const IniKey xellLimitLiveKey(L"xellLimitLive");
+            if (SUCCEEDED(hr))
+            {
+                xellLimitLiveKey.Set(L"0");
+                fgHalfRefreshLimit.Set(L"1");
+                hr = settle(3.0);
+            }
+            if (SUCCEEDED(hr))
+                hr = renderedRate(1.0, frozen);
+            fgHalfRefreshLimit.Set(L"0");
+            xellLimitLiveKey.Set(L"1");
+            if (FAILED(hr))
+                return Fail("Present while XeLL's frame limit follows the settings", hr);
+            printf("      XeLL's frame limit following fgHalfRefreshLimit: %.0f rendered frames a second uncapped, %.0f with it"
+                   " on, %.0f off again, %.0f with it on and xellLimitLive=0\n", uncapped, limited, released, frozen);
+            if (!(limited < uncapped * 0.5) || !(released > limited * 1.5) || !(frozen > limited * 1.5))
+                return Fail("XeLL's frame limit did not follow fgHalfRefreshLimit (or xellLimitLive=0 did not keep it)",
+                            E_FAIL);
+            for (UINT frame = 0; frame < 30; ++frame)
+            {
+                hr = renderFrame();
+                if (FAILED(hr))
+                    return Fail("Present after XeLL's frame limit", hr);
+            }
+        }
 
         // A resize, as a resolution change or full screen makes one.
         rtv.Reset();
@@ -1985,6 +2236,10 @@ int main()
                slowLine, fastAgain);
         if (slow > 1.05f || std::strstr(slowLine, "held off") == nullptr || fastAgain < kGeneratingAtLeast)
             return Fail("frame generation not held off below its minimum frame rate, or not back above it", E_FAIL);
+
+        printf("      frame latency waitable object waits that timed out: %u\n", waitTimeouts);
+        if (xessWaitableBuffer[0] == L'1' && waitTimeouts != 0)
+            return Fail("xessFgOwnWaitable=1, but a wait on the frame latency waitable object ran into its limit", E_FAIL);
 
         // XeLL, which XeSS-FG requires, ran throughout.
         using LowLatencyFn = int (*)(char*, int);

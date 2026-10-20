@@ -61,8 +61,9 @@ namespace redefinition
         int rrPath = 0;
 
         // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics,
-        // streamlineImgui, xell, xellLowLatencyBoost, xessFgUiMode, rrPath and xessFgFrames'
-        // most, which apply when what they serve starts ----
+        // streamlineImgui, xell, xellLowLatencyBoost, xessFgUiMode, xessFgOwnWaitable,
+        // xessFgAllowOld, rrPath and xessFgFrames' most, which apply when what they serve
+        // starts ----
 
         // Keep the UI out of the interpolated frames by handing FSR a HUD-less
         // snapshot: the backbuffer copied after the last scene camera and before
@@ -281,6 +282,55 @@ namespace redefinition
         bool xessFgTagInterpolatedFrames = false;
         bool xessFgPresentFailedInterpolation = false;
 
+        // XeSS-FG's robustness switches (FrameGenerationXess.cpp, SwapChainProxyXess.cpp),
+        // each the variant of a behaviour OptiScaler's XeSS-FG integration (GPL-3.0) chose
+        // differently.
+        //
+        // xessFgOwnWaitable: which frame latency waitable object KSP gets when it asks for
+        // one. -1 auto: XeSS-FG's swapchain's own, and a semaphore of the proxy's where that
+        // swapchain has none; 0 always XeSS-FG's, none of the proxy's; 1 always a semaphore
+        // of the proxy's, released after each game Present, which never holds the game back
+        // (OptiScaler's "swapchain waitable object simulation", made for Unity games that
+        // stuck while loading). Read when the swapchain is made.
+        int xessFgOwnWaitable = -1;
+        // xessFgGraceFrames: the game's frames in a row without inputs (no packet, no
+        // depth or motion vectors for the Present, constants XeSS-FG would refuse) that
+        // XeSS-FG stays on for before it is switched off. A switch off marks the input
+        // history for cleanup, and the frames after it come with
+        // XEFG_SWAPCHAIN_RESULT_WARNING_TOO_FEW_FRAMES ("frame generation will take an
+        // extra frame to activate", xess_fg_developer_guide_english.md, Frame Constants); a
+        // frame without inputs is otherwise only presented without generated frames. 0: off
+        // at the first. Live.
+        int xessFgGraceFrames = 3;
+        // xessFgBadConstants: what a frame's constants that XeSS-FG would refuse -- a
+        // motion vector scale of 0 or not a number, a projection from a near plane, far
+        // plane or field of view that is not a positive number -- get. skip: the frame is
+        // handed no inputs and counts against xessFgGraceFrames, nothing locks XeSS-FG out;
+        // fix: a scale of 0 or not a number becomes 1 (OptiScaler's), a projection that is
+        // wrong still skips; pass: handed over as they are, XeSS-FG's refusal switches it
+        // off for two seconds. Live.
+        int xessFgBadConstants = 0;
+        // xessFgAllowOld: use a libxess_fg.dll older than 1.2.2 (XeSS SDK 2.1.1). The
+        // proxy tags resources without a command list and with the validity until the next
+        // Present, which those versions refuse (OptiScaler: "XeFG docs lie and cmd list is
+        // technically required", Intel's issues 45, 47, 48 and 50): refused with a line in
+        // the log, FSR's frame generation instead. Read when the swapchain is made.
+        bool xessFgAllowOld = false;
+        // xessFgResetOnChange: XeSS-FG off for one Present and on again when the UI
+        // composition, the generated frames or the sync interval change while it
+        // generates (OptiScaler: "To prevent XeLL issues", "Workaround for wrong frame
+        // limit"). Intel allows all three at any time. Live.
+        bool xessFgResetOnChange = false;
+        // xessFgResetDebounce: a reset (resetHistory) within this many Presents of the
+        // last one handed over is dropped (OptiScaler: 3, "suppress redundant optical flow
+        // purging"). 0: every reset is handed over. Live.
+        int xessFgResetDebounce = 0;
+        // xellLimitLive: XeLL's frame limit (fgHalfRefreshLimit) follows later changes of
+        // that setting and of the monitor's refresh rate: xellSetSleepMode again only when
+        // the mode differs, once the GPU is idle. false: set once when the swapchain is
+        // made. Live.
+        bool xellLimitLive = true;
+
         // The raytracing and Ray Reconstruction on a Direct3D 12 queue of their own
         // instead of the swapchain's, where the present and frame generation run: their
         // work does not wait behind frame generation's (Raytracing::Attach). Read when a
@@ -458,6 +508,12 @@ namespace redefinition
     constexpr int kXessUiModeCount = 6;
     const char* XessUiModeName(int mode);
 
+    // ProxyConfig::xessFgBadConstants, as the ini writes it: skip, fix, pass.
+    constexpr int kXessBadSkip = 0;
+    constexpr int kXessBadFix = 1;
+    constexpr int kXessBadPass = 2;
+    const char* XessBadConstantsName(int mode);
+
     const ProxyConfig& Config();
     void LoadConfig();
 
@@ -471,8 +527,9 @@ namespace redefinition
     // frameGenerationTechnique as the file has it now, read like the folders.
     int FrameGenerationTechniqueAsked();
     // Every setting as the file has it now, for what a swapchain takes when it is
-    // made (xell, xellLowLatencyBoost, xessFgUiMode, xessFgFrames, and XeLL's frame
-    // limit from fgHalfRefreshLimit), read like the folders.
+    // made (xell, xellLowLatencyBoost, xessFgUiMode, xessFgFrames, xessFgOwnWaitable,
+    // xessFgAllowOld, and XeLL's frame limit from fgHalfRefreshLimit), read like the
+    // folders.
     ProxyConfig ConfigAsked();
     // rrPath as the file has it now, the same way.
     int RayReconstructionPathAsked();

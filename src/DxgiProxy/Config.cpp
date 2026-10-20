@@ -376,6 +376,35 @@ namespace redefinition
             return kXessUiModeAuto;
         }
 
+        // xessFgOwnWaitable: auto, 0 or 1; anything else is auto, and said.
+        int ReadXessOwnWaitable(const std::wstring& file)
+        {
+            wchar_t buffer[32] = {};
+            GetPrivateProfileStringW(L"Proxy", L"xessFgOwnWaitable", L"auto", buffer, ARRAYSIZE(buffer), file.c_str());
+            if (_wcsicmp(buffer, L"0") == 0)
+                return 0;
+            if (_wcsicmp(buffer, L"1") == 0)
+                return 1;
+            if (_wcsicmp(buffer, L"auto") != 0)
+                LogLine("Config: xessFgOwnWaitable=" + Narrow(buffer) + " is none of auto, 0, 1 -- auto");
+            return -1;
+        }
+
+        // xessFgBadConstants: skip, fix or pass, in any case; anything else is skip, and said.
+        int ReadXessBadConstants(const std::wstring& file)
+        {
+            wchar_t buffer[32] = {};
+            GetPrivateProfileStringW(L"Proxy", L"xessFgBadConstants", L"skip", buffer, ARRAYSIZE(buffer), file.c_str());
+            for (int mode : { kXessBadSkip, kXessBadFix, kXessBadPass })
+            {
+                const std::string name = XessBadConstantsName(mode);
+                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
+                    return mode;
+            }
+            LogLine("Config: xessFgBadConstants=" + Narrow(buffer) + " is none of skip, fix, pass -- skip");
+            return kXessBadSkip;
+        }
+
         // rrPath: auto, streamline or ngx, in any case; anything else is auto, and said.
         int ReadRrPath(const std::wstring& file)
         {
@@ -429,6 +458,13 @@ namespace redefinition
                  + " xessFgSceneChangeThreshold=" + std::to_string(c.xessFgSceneChangeThreshold)
                  + " xessFgTagInterpolatedFrames=" + (c.xessFgTagInterpolatedFrames ? "1" : "0")
                  + " xessFgPresentFailedInterpolation=" + (c.xessFgPresentFailedInterpolation ? "1" : "0")
+                 + " xessFgOwnWaitable=" + (c.xessFgOwnWaitable < 0 ? "auto" : c.xessFgOwnWaitable == 0 ? "0" : "1")
+                 + " xessFgGraceFrames=" + std::to_string(c.xessFgGraceFrames)
+                 + " xessFgBadConstants=" + XessBadConstantsName(c.xessFgBadConstants)
+                 + " xessFgAllowOld=" + (c.xessFgAllowOld ? "1" : "0")
+                 + " xessFgResetOnChange=" + (c.xessFgResetOnChange ? "1" : "0")
+                 + " xessFgResetDebounce=" + std::to_string(c.xessFgResetDebounce)
+                 + " xellLimitLive=" + (c.xellLimitLive ? "1" : "0")
                  + " rtOwnQueue=" + (c.rtOwnQueue ? "1" : "0")
                  + " rtCutoutTest=" + std::to_string(c.rtCutoutTest)
                  + " rtOpacityMicromaps=" + std::to_string(c.rtOpacityMicromaps)
@@ -528,6 +564,15 @@ namespace redefinition
             target.xessFgSceneChangeThreshold = std::min(1.0f, std::max(0.0f, target.xessFgSceneChangeThreshold));
             target.xessFgTagInterpolatedFrames = ReadFlag(L"xessFgTagInterpolatedFrames", file, false);
             target.xessFgPresentFailedInterpolation = ReadFlag(L"xessFgPresentFailedInterpolation", file, false);
+            target.xessFgOwnWaitable = ReadXessOwnWaitable(file);
+            target.xessFgGraceFrames = std::clamp(
+                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"xessFgGraceFrames", 3, file.c_str())), 0, 600);
+            target.xessFgBadConstants = ReadXessBadConstants(file);
+            target.xessFgAllowOld = ReadFlag(L"xessFgAllowOld", file, false);
+            target.xessFgResetOnChange = ReadFlag(L"xessFgResetOnChange", file, false);
+            target.xessFgResetDebounce = std::clamp(
+                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"xessFgResetDebounce", 0, file.c_str())), 0, 600);
+            target.xellLimitLive = ReadFlag(L"xellLimitLive", file, true);
             target.xell = ReadFlag(L"xell", file, true);
             target.xellLowLatencyBoost = ReadFlag(L"xellLowLatencyBoost", file, false);
             target.rtOwnQueue = ReadFlag(L"rtOwnQueue", file, false);
@@ -652,6 +697,11 @@ namespace redefinition
         return ReadRrPath(IniPath());
     }
 
+    const char* XessBadConstantsName(int mode)
+    {
+        return mode == kXessBadFix ? "fix" : mode == kXessBadPass ? "pass" : "skip";
+    }
+
     const char* RrPathName(int path)
     {
         return path == kRrPathStreamline ? "streamline" : path == kRrPathNgx ? "ngx" : "auto";
@@ -707,7 +757,8 @@ namespace redefinition
                 + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
                 + "   (enabled, allowTearing, measureOnly and frameGeneration as at load; frameGenerationTechnique,"
                   " the folders, rtOwnQueue, streamlineImgui, vendorDiagnostics, xell, xellLowLatencyBoost,"
-                  " xessFgUiMode, rrPath and the most xessFgFrames apply when what they serve starts)");
+                  " xessFgUiMode, xessFgOwnWaitable, xessFgAllowOld, rrPath and the most xessFgFrames apply when"
+                  " what they serve starts)");
 
         rebuild = needsRebuild;
         return true;

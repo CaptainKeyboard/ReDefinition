@@ -172,6 +172,12 @@ namespace redefinition
         static constexpr ULONGLONG kHandOverLogMs = 10000;
         // Said once; the main thread's, under xellMutex.
         bool xellSleepFailed = false;
+        // The frame ids XeLL's sleep was called for, by id modulo 64: "xellSleep must be
+        // the first XeLL API function called with a newly assigned frame_id value", so a
+        // marker for an id without one -- the frames in flight when the context was made,
+        // or after a sleep that failed -- is not sent (MarkerLocked). Said once.
+        std::atomic<uint32_t> xellSlept[64] = {};
+        bool xellMarkerDropLogged = false;
         const void* owner = nullptr;
         Microsoft::WRL::ComPtr<ID3D12Device> device;
         Microsoft::WRL::ComPtr<ID3D11Device> gameDevice;

@@ -181,6 +181,14 @@ namespace redefinition
         HRESULT CreateXessSwapChain(IDXGIFactory2* factory, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1& desc,
                                     const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc);
         void TearDownXess();
+        // XeLL's frame limit as the settings and the monitor's refresh rate have it now
+        // (xellLimitLive): xellSetSleepMode again when it differs from the one set, once
+        // the GPU is idle. On the present path, under the context lock, before the frame's
+        // work is recorded.
+        void FollowXellLimit(double refresh);
+        // The semaphore KSP's frame latency waitable object is (xessFgOwnWaitable): one
+        // more released after each Present.
+        void ReleaseOwnWaitable();
         // XeLL alone on an Intel GPU where no other frame generation's swapchain
         // presents (LowLatency.h), where xell asks for it, its mode as lowLatency says
         // now; returns whether that mode is on.
@@ -339,6 +347,14 @@ namespace redefinition
         bool intelAdapter = false;
         uint32_t xessFramesMost = 0;
         double xellLimitFps = 0.0;
+        // XeLL's frame limit as set, in microseconds a frame, 0 for none, and the
+        // refresh rate it was made from (FollowXellLimit).
+        uint32_t xellIntervalUs = 0;
+        double xellLimitRefresh = 0.0;
+        bool xellBoost = false;
+        // The proxy's frame latency waitable object, a semaphore, where KSP is not given
+        // XeSS-FG's swapchain's (xessFgOwnWaitable); null otherwise.
+        HANDLE ownWaitable = nullptr;
         bool loggedXessSyncClamp = false;
         bool loggedXessNoFrame = false;
 

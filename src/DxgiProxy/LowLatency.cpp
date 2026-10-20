@@ -207,6 +207,9 @@ namespace redefinition
                 std::lock_guard<std::mutex> sleeping(xellMutex);
                 xell = newXell;
                 xellSleeping = newXell;
+                for (std::atomic<uint32_t>& slept : xellSlept)
+                    slept.store(0);
+                xellMarkerDropLogged = false;
             }
             xellFrameGeneration = newXell != nullptr && setup.frameGeneration;
             xellLowLatency = newXell != nullptr && (xellFrameGeneration || setup.lowLatency);
@@ -278,6 +281,8 @@ namespace redefinition
             // The main thread's Sleep is done before the context goes.
             std::lock_guard<std::mutex> sleeping(xellMutex);
             xellSleeping = nullptr;
+            for (std::atomic<uint32_t>& slept : xellSlept)
+                slept.store(0);
         }
         xell = nullptr;
         xellFrameGeneration = false;
@@ -457,6 +462,19 @@ namespace redefinition
     {
         if (XellLocked())
         {
+            // Only for an id xellSleep was called for first ("xellSleep must be the first
+            // XeLL API function called with a newly assigned frame_id value",
+            // xell_developer_guide_english.md, Sleep).
+            if (xellSlept[frameIndex % 64].load() != frameIndex)
+            {
+                if (!xellMarkerDropLogged)
+                {
+                    xellMarkerDropLogged = true;
+                    LogLine("Low latency: XeLL's markers for frames its sleep was not called for first are not sent (frame "
+                            + std::to_string(frameIndex) + "), as Intel asks");
+                }
+                return;
+            }
             const xell_result_t result =
                 XessFg::Get().XellMarker(xell, frameIndex, static_cast<xell_latency_marker_type_t>(marker));
             if (result != XELL_RESULT_SUCCESS && !loggedFailure)
@@ -610,7 +628,9 @@ namespace redefinition
             if (xellSleeping != nullptr)
             {
                 const xell_result_t result = XessFg::Get().XellSleep(xellSleeping, index);
-                if (result != XELL_RESULT_SUCCESS && !xellSleepFailed)
+                if (result == XELL_RESULT_SUCCESS)
+                    xellSlept[index % 64].store(index);
+                else if (!xellSleepFailed)
                 {
                     xellSleepFailed = true;
                     LogLine("Low latency: xellSleep failed with result " + std::to_string(static_cast<int>(result))

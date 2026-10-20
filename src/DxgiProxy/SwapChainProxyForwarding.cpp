@@ -103,9 +103,20 @@ namespace redefinition
     }
 
     // KSP creates the swapchain with FRAME_LATENCY_WAITABLE_OBJECT and waits on
-    // this handle every frame; without it Unity stops right after creation.
+    // this handle every frame; without it Unity stops right after creation. Under XeSS-FG
+    // it is the swapchain's own, or the proxy's semaphore (xessFgOwnWaitable), each
+    // call a handle of its own to close: "When you are done with the handle, use
+    // CloseHandle to close the handle" (Microsoft, GetFrameLatencyWaitableObject).
     HANDLE STDMETHODCALLTYPE SwapChainProxy::GetFrameLatencyWaitableObject()
     {
+        if (ownWaitable != nullptr)
+        {
+            HANDLE duplicate = nullptr;
+            return DuplicateHandle(GetCurrentProcess(), ownWaitable, GetCurrentProcess(), &duplicate, 0, FALSE,
+                                   DUPLICATE_SAME_ACCESS)
+                       ? duplicate
+                       : nullptr;
+        }
         return target2 ? target2->GetFrameLatencyWaitableObject() : nullptr;
     }
 

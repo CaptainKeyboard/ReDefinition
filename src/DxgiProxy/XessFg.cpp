@@ -18,6 +18,11 @@ namespace redefinition
         constexpr const wchar_t* kXellName = L"libxell.dll";
         constexpr const wchar_t* kFgName = L"libxess_fg.dll";
 
+        // The oldest libxess_fg.dll the proxy's tags suit (XeSS SDK 2.1.1).
+        constexpr uint16_t kOldestMajor = 1;
+        constexpr uint16_t kOldestMinor = 2;
+        constexpr uint16_t kOldestPatch = 2;
+
         // xessFgDirectory, or next to the executable.
         std::wstring RuntimeFolder()
         {
@@ -195,15 +200,34 @@ namespace redefinition
             NoteLocked(Narrow(path) + " is not Intel's XeSS frame generation for Direct3D 12: a function is missing");
             return false;
         }
-        fgModule = module;
-
         xefg::Version version = {};
-        const std::string name = fgGetVersion(&version) == xefg::kSuccess
+        const bool known = fgGetVersion(&version) == xefg::kSuccess;
+        const std::string name = known
                                      ? "XeSS-FG " + std::to_string(version.major) + "." + std::to_string(version.minor)
                                            + "." + std::to_string(version.patch)
                                      : std::string("XeSS-FG");
-        versions = name + (versions.empty() ? "" : ", " + versions);
         LogLine("XeSS: " + Narrow(path) + " " + FileVersion(path) + ", " + name);
+
+        // Older than 1.2.2 (XeSS SDK 2.1.1) refuses the tags the proxy makes: OptiScaler
+        // works around it below that version only -- a command list "technically required"
+        // though unused for resources valid until the next Present (Intel's issue 45), a
+        // resource in COPY_SOURCE that "seems to crash" (47), a changing HUD-less (48) and an
+        // inverted depth (50). A version that cannot be read is let through.
+        if (known && !ConfigAsked().xessFgAllowOld
+            && (version.major < kOldestMajor
+                || (version.major == kOldestMajor
+                    && (version.minor < kOldestMinor || (version.minor == kOldestMinor && version.patch < kOldestPatch)))))
+        {
+            FreeLibrary(module);
+            fgCreateContext = nullptr;
+            NoteLocked(name + " is older than " + std::to_string(kOldestMajor) + "." + std::to_string(kOldestMinor)
+                       + "." + std::to_string(kOldestPatch) + " (XeSS SDK 2.1.1), which refuses the resources the"
+                       " proxy tags -- Intel's XeSS SDK 2.1.1 or newer has a newer one (xessFgAllowOld=1 uses it"
+                       " anyway)");
+            return false;
+        }
+        fgModule = module;
+        versions = name + (versions.empty() ? "" : ", " + versions);
         return true;
     }
 

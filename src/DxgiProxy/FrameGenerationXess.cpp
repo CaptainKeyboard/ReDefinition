@@ -15,6 +15,7 @@
 #include "Log.h"
 #include "XessFg.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -32,6 +33,42 @@ namespace redefinition
         std::string ResultText(xefg::Result result)
         {
             return "result " + std::to_string(result);
+        }
+
+        bool Positive(float value)
+        {
+            return std::isfinite(value) && value > 0.0f;
+        }
+
+        bool Scale(float value)
+        {
+            return std::isfinite(value) && value != 0.0f;
+        }
+
+        // Why XeSS-FG cannot use the packet's constants, nullptr where it can. A motion
+        // vector scale of 0 gives XEFG_SWAPCHAIN_RESULT_ERROR_INVALID_ARGUMENT in
+        // OptiScaler's fork ("so 0.0f inputs safely default to 1.0f"); Intel's header names
+        // no range, and libxess_fg 1.3.1 took it in the harness -- but it turns every
+        // vector to none. A projection from no near plane, far plane or field of view is
+        // none: "View/Projection matrices required" (xess_fg_developer_guide_english.md,
+        // Inputs). The scale is left out where it is made 1 instead.
+        const char* RefusedConstants(const FramePacket& packet, bool scaleFixed)
+        {
+            if (!scaleFixed && (!Scale(packet.motionVectorScaleX) || !Scale(packet.motionVectorScaleY)))
+                return "a motion vector scale of 0 or not a number";
+            if (!Positive(packet.nearPlane) || !Positive(packet.farPlane) || !Positive(packet.verticalFovRadians)
+                || packet.verticalFovRadians >= 3.14159265f)
+                return "a near plane, far plane or field of view that is not a positive number";
+            for (float value : packet.viewToClip)
+                if (!std::isfinite(value))
+                    return "a projection that is not a number";
+            if (packet.viewToClip[0] == 0.0f || packet.viewToClip[5] == 0.0f)
+                return "a projection without a field of view or aspect ratio";
+            for (const float* vector : { packet.position, packet.up, packet.right, packet.forward })
+                for (int i = 0; i < 3; ++i)
+                    if (!std::isfinite(vector[i]))
+                        return "a camera position or basis that is not a number";
+            return nullptr;
         }
 
         // The view matrix, world to view, for row vectors and row by row, as the
@@ -82,10 +119,22 @@ namespace redefinition
         xessRetryAfter = 0;
         xessTagFailures = 0;
         xessMultiplier = 0;
+        xessMissing = 0;
+        xessSwitchedOff = 0;
+        xessSwitchedOn = 0;
+        xessRefused = 0;
+        xessSyncSeen = ~0u;
+        xessPresented = 0;
+        xessResetPresented = 0;
+        xessLoggedFullscreen = false;
+        xessLoggedHudLessSize = false;
+        xessLoggedDepthSize = false;
+        xessBadLogged = 0;
         loggedUnflipped = false;
     }
 
-    bool FrameGeneration::PrepareXessLocked(uint32_t presentId, const char* holdOff)
+    bool FrameGeneration::PrepareXessLocked(uint32_t presentId, const char* holdOff, IDXGISwapChain* chain,
+                                            UINT presentSync)
     {
         // As PrepareForPresentLocked: taken and cleared first, so neither a packet
         // nor a set of inputs carries over into a later frame.
@@ -103,6 +152,11 @@ namespace redefinition
         // The live settings: "You can enable or disable UI composition at any time";
         // debug features "can be called at any time between context creation and
         // destruction" (UI Handling, Debug Features).
+        //
+        // A change of the UI composition, the generated frames or the sync interval while
+        // it generates is one the next Present's switching off and on takes again with
+        // xessFgResetOnChange.
+        bool changed = false;
         const int composition = cfg.xessFgUiComposition ? 1 : 0;
         if (composition != xessComposition)
         {
@@ -110,7 +164,13 @@ namespace redefinition
             if (result < 0 || xessComposition != -1 || composition != 0)
                 LogLine(std::string("XeSS frame generation: UI composition ") + (composition != 0 ? "on" : "off")
                         + (result < 0 ? " refused (" + ResultText(result) + ")" : ""));
+            changed = xessComposition != -1;
             xessComposition = composition;
+        }
+        if (presentSync != xessSyncSeen)
+        {
+            changed = changed || xessSyncSeen != ~0u;
+            xessSyncSeen = presentSync;
         }
         auto debugFeature = [&](int32_t feature, bool wantedOn, int& applied, const char* name) {
             const int on = wantedOn ? 1 : 0;
@@ -152,7 +212,10 @@ namespace redefinition
                                             + " as before"
                                       : std::string()));
                 if (result >= 0)
+                {
                     xessFrames = frames;
+                    changed = true;
+                }
                 xessFramesNow = static_cast<int>(xessFrames);
             }
         }
@@ -168,7 +231,43 @@ namespace redefinition
             xessThreshold = cfg.xessFgSceneChangeThreshold;
         }
 
-        const bool inputs = wanted && !rateTooLow && !slowFrame && thisFrame && S(depth).Valid() && S(motion).Valid();
+        // A change that a switch off and on takes again (xessFgResetOnChange): this
+        // Present goes out without generated frames, the next one switches it on.
+        if (changed && cfg.xessFgResetOnChange && xessOn && holdOff == nullptr)
+        {
+            XessOffLocked("a setting changed (xessFgResetOnChange)");
+            xessRetryAfter = 0;
+            return false;
+        }
+
+        // Wanted, at a rate it runs at, and the inputs of this frame in the shared
+        // textures; and what it refuses of the constants (xessFgBadConstants).
+        const bool allowed = wanted && !rateTooLow && !slowFrame;
+        const bool haveInputs = allowed && thisFrame && S(depth).Valid() && S(motion).Valid();
+        const int badMode = cfg.xessFgBadConstants;
+        const char* refused = haveInputs && badMode != kXessBadPass ? RefusedConstants(packet, badMode == kXessBadFix)
+                                                                    : nullptr;
+        if (refused != nullptr && xessBadLogged < kResultsLogged)
+        {
+            ++xessBadLogged;
+            LogLine(std::string("XeSS frame generation: this frame's constants have ") + refused + " -- "
+                    + (badMode == kXessBadFix ? "a projection cannot be made good, no inputs for it"
+                                              : "no inputs for it, xessFgBadConstants=pass hands them over"));
+        }
+        const bool inputs = haveInputs && refused == nullptr;
+
+        // Depth and motion vectors of one size: "motion vectors and depth have the same
+        // resourceSize" (Resource Tagging); two sizes are refused with
+        // XEFG_SWAPCHAIN_RESULT_ERROR_MISMATCH_INPUT_RESOURCES.
+        const bool depthSized = !inputs || (S(depth).width == S(motion).width && S(depth).height == S(motion).height);
+        if (!depthSized && !xessLoggedDepthSize)
+        {
+            xessLoggedDepthSize = true;
+            LogLine("XeSS frame generation stays off: the depth is " + std::to_string(S(depth).width) + "x"
+                    + std::to_string(S(depth).height) + " and the motion vectors "
+                    + std::to_string(S(motion).width) + "x" + std::to_string(S(motion).height)
+                    + ", which XeSS-FG requires equal");
+        }
 
         // As for DLSS-G: depth and motion vectors upside down against the backbuffer
         // and the HUD-less colour, and against the projection, which is the screen's
@@ -181,13 +280,29 @@ namespace redefinition
                     " orientation (fgFlipInputs, or no flip for them)");
         }
 
+        // A frame without inputs keeps it on for xessFgGraceFrames in a row: switched off
+        // and on, its history is cleared and the frames after it come back with Intel's
+        // "too few frames" warning, an extra frame to activate (Frame Constants); a
+        // frame without tags is presented without generated ones (Execution). Only
+        // for what comes and goes with the game -- a packet or inputs that did not
+        // arrive, constants it would refuse -- and with a present id; the mod's switch,
+        // the frame rate and the other reasons switch it off at once.
+        const bool graceable = holdOff == nullptr && presentId != 0 && allowed && !inputs;
+        if (graceable && xessOn && xessMissing < cfg.xessFgGraceFrames)
+        {
+            ++xessMissing;
+            return false;
+        }
+
         const bool retryWaiting = !xessOn && GetTickCount64() < xessRetryAfter;
-        if (holdOff != nullptr || !inputs || unflipped || presentId == 0 || retryWaiting)
+        if (holdOff != nullptr || !inputs || !depthSized || unflipped || presentId == 0 || retryWaiting)
         {
             XessOffLocked(holdOff != nullptr ? holdOff
                           : !wanted ? "switched off in the mod"
                           : rateTooLow || slowFrame ? "the rendered frame rate is below its minimum (fgMinimumFps)"
+                          : refused != nullptr ? "the frame's constants are refused (xessFgBadConstants)"
                           : !inputs ? "no inputs this frame"
+                          : !depthSized ? "the depth and the motion vectors differ in size"
                           : unflipped ? "its inputs are not flipped"
                           : presentId == 0 ? "no frame of the game's for this Present"
                           : nullptr);
@@ -210,9 +325,12 @@ namespace redefinition
                     LogLine("XeSS frame generation could not be switched on (" + ResultText(result)
                             + ") -- tried again every " + std::to_string(kRetryMs / 1000) + " s");
                 }
+                NoteExclusiveFullScreen(chain);
                 return false;
             }
         }
+        if (resumed)
+            ++xessSwitchedOn;
         xessOn = true;
 
         // The shared textures were opened on D3D12 and sit in COMMON between uses,
@@ -236,7 +354,22 @@ namespace redefinition
             return api.TagResource(xessContext, presentId, data);
         };
 
-        const bool useHudLess = cfg.hudLessColour && S(hudLess).Valid();
+        // "HUD-less, UI, and back buffer have the same resourceSize" (Resource Tagging),
+        // "identical in color space and size to the back buffer" (HUD-less Color Texture),
+        // else the interpolation reports XEFG_SWAPCHAIN_RESULT_ERROR_MISMATCH_INPUT_RESOURCES
+        // and generates none: a HUD-less copy of another size than the display is not tagged.
+        bool useHudLess = cfg.hudLessColour && S(hudLess).Valid();
+        if (useHudLess && displayWidth != 0 && (S(hudLess).width != displayWidth || S(hudLess).height != displayHeight))
+        {
+            useHudLess = false;
+            if (!xessLoggedHudLessSize)
+            {
+                xessLoggedHudLessSize = true;
+                LogLine("XeSS frame generation: the HUD-less copy is " + std::to_string(S(hudLess).width) + "x"
+                        + std::to_string(S(hudLess).height) + " but the display is " + std::to_string(displayWidth)
+                        + "x" + std::to_string(displayHeight) + ", which XeSS-FG requires equal -- not handed over");
+            }
+        }
         xefg::Result result = tag(xefg::kResourceDepth, S(depth));
         if (result >= 0)
             result = tag(xefg::kResourceMotionVectors, S(motion));
@@ -259,17 +392,30 @@ namespace redefinition
         std::memcpy(constants.projectionMatrix, packet.viewToClip, sizeof(constants.projectionMatrix));
         constants.jitterOffsetX = packet.jitterX;
         constants.jitterOffsetY = packet.jitterY * flipY;
-        constants.motionVectorScaleX = packet.motionVectorScaleX * negate;
-        constants.motionVectorScaleY = packet.motionVectorScaleY * negate * flipY;
+        // xessFgBadConstants=fix: a scale that is 0 or not a number is 1.
+        const float scaleX = badMode == kXessBadFix && !Scale(packet.motionVectorScaleX) ? 1.0f : packet.motionVectorScaleX;
+        const float scaleY = badMode == kXessBadFix && !Scale(packet.motionVectorScaleY) ? 1.0f : packet.motionVectorScaleY;
+        constants.motionVectorScaleX = scaleX * negate;
+        constants.motionVectorScaleY = scaleY * negate * flipY;
         // "The application should set resetHistory flag during scene cuts and camera
-        // teleports" (Frame Constants).
-        constants.resetHistory = packet.reset != 0 ? 1u : 0u;
+        // teleports" (Frame Constants). xessFgResetDebounce drops one that follows the last
+        // handed over by fewer Presents: a reset skips the frame it is set for, and
+        // resets in a row would skip them all.
+        ++xessPresented;
+        bool reset = packet.reset != 0;
+        if (reset && cfg.xessFgResetDebounce > 0 && xessResetPresented != 0
+            && xessPresented - xessResetPresented < static_cast<uint64_t>(cfg.xessFgResetDebounce))
+            reset = false;
+        if (reset)
+            xessResetPresented = xessPresented;
+        constants.resetHistory = reset ? 1u : 0u;
         constants.frameRenderTime = packet.frameTimeDeltaMs;
         if (result >= 0)
             result = api.TagConstants(xessContext, presentId, constants);
 
         if (result < 0)
         {
+            ++xessRefused;
             if (xessTagFailures++ < kResultsLogged)
                 LogLine("XeSS frame generation: this frame's inputs were not accepted (" + ResultText(result) + ")");
             XessOffLocked("its inputs were not accepted");
@@ -281,6 +427,7 @@ namespace redefinition
             LogLine("XeSS frame generation on, " + std::to_string(xessFrames) + " generated frame(s) per rendered"
                     + (useHudLess ? ", with the HUD-less copy" : ", without a HUD-less copy")
                     + (composition != 0 ? ", the UI composed" : ", the UI interpolated"));
+        xessMissing = 0;
         generatedLastPresent = true;
         return true;
     }
@@ -293,19 +440,41 @@ namespace redefinition
         if (wasOn)
         {
             const xefg::Result result = XessFg::Get().SetEnabled(xessContext, false);
+            ++xessSwitchedOff;
             if (reason != nullptr)
                 LogLine(std::string("XeSS frame generation off: ") + reason
                         + (result < 0 ? " (refused, " + ResultText(result) + ")" : ""));
         }
         xessOn = false;
         xessMultiplier = 0;
+        xessMissing = 0;
+        xessResetPresented = 0;
         return wasOn;
+    }
+
+    // Said once: "Frame generation cannot be enabled while the application is in the
+    // fullscreen exclusive mode. If the application enters fullscreen exclusive mode
+    // while XeSS-FG is enabled, frame generation will be disabled and the swap chain
+    // will switch to a passthrough mode" (Enabling Frame Generation). Asked of the
+    // swapchain only where switching on failed or it switched itself off.
+    void FrameGeneration::NoteExclusiveFullScreen(IDXGISwapChain* chain)
+    {
+        if (xessLoggedFullscreen || chain == nullptr)
+            return;
+        BOOL fullscreen = FALSE;
+        if (FAILED(chain->GetFullscreenState(&fullscreen, nullptr)) || !fullscreen)
+            return;
+        xessLoggedFullscreen = true;
+        LogLine("XeSS frame generation cannot run in exclusive full screen (\"Frame generation cannot be enabled while"
+                " the application is in the fullscreen exclusive mode\", xess_fg_developer_guide_english.md): KSP's"
+                " screen mode is full screen -- use a window or borderless full screen for it; asked again every "
+                + std::to_string(kRetryMs / 1000) + " s");
     }
 
     // "It populates the provided xefg_swapchain_present_status_t structure with the
     // last interpolation result, number of frames queued for the presentation, and an
     // indicator of whether XeSS-FG was enabled" (Present Status).
-    uint32_t FrameGeneration::ReadXessStateLocked()
+    uint32_t FrameGeneration::ReadXessStateLocked(IDXGISwapChain* chain)
     {
         if (!xess)
             return 0;
@@ -349,6 +518,7 @@ namespace redefinition
             }
             xessOn = false;
             xessRetryAfter = GetTickCount64() + kRetryMs;
+            NoteExclusiveFullScreen(chain);
         }
 
         xessMultiplier = xessOn && status.isFrameGenEnabled != 0 && status.frameGenResult >= 0

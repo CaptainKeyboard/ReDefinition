@@ -93,6 +93,22 @@ extern "C"
         return technique;
     }
 
+    // For the harness: how often XeSS frame generation was switched off and on, and
+    // how often its inputs were refused, since its swapchain was made. Returns 1
+    // while XeSS runs.
+    __declspec(dllexport) int KspXessCounts(unsigned int* off, unsigned int* on, unsigned int* refused)
+    {
+        unsigned int a = 0, b = 0, c = 0;
+        redefinition::FrameGeneration::Get().XessCounts(a, b, c);
+        if (off != nullptr)
+            *off = a;
+        if (on != nullptr)
+            *on = b;
+        if (refused != nullptr)
+            *refused = c;
+        return redefinition::FrameGenerationTechnique() == 3 ? 1 : 0;
+    }
+
     // Whether DLSS frame generation presents with V-Sync where KSP asks for it: 0
     // where its build said it does not support it (DLSSGState::
     // bIsVsyncSupportAvailable), 1 otherwise, before it has said too. For the

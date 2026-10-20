@@ -341,8 +341,12 @@ namespace redefinition
         // -- and generation on, when this frame's own inputs and packet arrived
         // flipped to the screen's orientation, the mod wants it and the frame rate
         // allows; off otherwise, without an id (0), and with the reason holdOff where
-        // it is given. Returns whether this frame generates.
-        bool PrepareXessLocked(uint32_t presentId, const char* holdOff);
+        // it is given. A frame without inputs keeps it on for xessFgGraceFrames in a row.
+        // chain: XeSS-FG's swapchain, asked for exclusive full screen where switching on is
+        // refused; presentSync: the sync interval this Present goes out with, whose change
+        // xessFgResetOnChange takes. Returns whether this frame generates.
+        bool PrepareXessLocked(uint32_t presentId, const char* holdOff, IDXGISwapChain* chain = nullptr,
+                               UINT presentSync = 0);
 
         // Caller must hold ContextMutex. XeSS-FG off from the next Present on, with
         // the reason in the log -- none for nullptr; returns whether it was on.
@@ -351,7 +355,7 @@ namespace redefinition
         // Caller must hold ContextMutex. After Present: the frames XeSS-FG sent to be
         // presented in it, 0 where it does not say, and its interpolation's result
         // for the log.
-        uint32_t ReadXessStateLocked();
+        uint32_t ReadXessStateLocked(IDXGISwapChain* chain = nullptr);
 
         // Frames shown per rendered frame while XeSS-FG generates, 2 for one generated
         // frame, and so on; 0 while it does not.
@@ -366,8 +370,21 @@ namespace redefinition
         // Caller must hold ContextMutex. Whether XeSS-FG was last told to generate.
         bool XessOnLocked() const { return xess && xessOn; }
 
+        // How often XeSS-FG was switched off and on, and how often its inputs were
+        // refused, since its swapchain was made, for the harness. From any thread.
+        void XessCounts(unsigned int& off, unsigned int& on, unsigned int& refused) const
+        {
+            off = xessSwitchedOff.load();
+            on = xessSwitchedOn.load();
+            refused = xessRefused.load();
+        }
+
     private:
         FrameGeneration() = default;
+
+        // Once, where XeSS-FG would not switch on or off by itself: whether the
+        // swapchain is in exclusive full screen, which it cannot generate in.
+        void NoteExclusiveFullScreen(IDXGISwapChain* chain);
 
         bool EnsureContextLocked();
         void DestroyContextLocked(void* swapChain);
@@ -643,6 +660,20 @@ namespace redefinition
         ULONGLONG xessRetryAfter = 0;
         uint32_t xessTagFailures = 0;
         std::atomic<int> xessMultiplier{ 0 };
+        // The frames in a row without inputs XeSS-FG was kept on for (xessFgGraceFrames),
+        // the sync interval last seen (~0u none yet), the Presents it was handed inputs
+        // for, the number of the last one that carried a reset, and what was said once.
+        int xessMissing = 0;
+        std::atomic<unsigned int> xessSwitchedOff{ 0 };
+        std::atomic<unsigned int> xessSwitchedOn{ 0 };
+        std::atomic<unsigned int> xessRefused{ 0 };
+        UINT xessSyncSeen = ~0u;
+        uint64_t xessPresented = 0;
+        uint64_t xessResetPresented = 0;
+        bool xessLoggedFullscreen = false;
+        bool xessLoggedHudLessSize = false;
+        bool xessLoggedDepthSize = false;
+        int xessBadLogged = 0;
 
         uint64_t frameId = 0;
         uint64_t capturedFrames = 0;

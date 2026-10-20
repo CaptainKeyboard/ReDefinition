@@ -309,6 +309,14 @@ namespace redefinition
         UINT streamlineSync = syncInterval;
         if (streamlineSwapChain && syncInterval > 0)
             streamlineSync = FrameGeneration::Get().StreamlineVsyncSupported() ? 1u : 0u;
+        // XeLL's frame limit as the settings and the monitor's refresh rate have it now
+        // (xellLimitLive), before the cap below takes it.
+        double xellRefresh = 0.0;
+        const bool xellFollows = xessSwapChain && Config().xellLimitLive && Config().fgHalfRefreshLimit;
+        if (xellFollows)
+            xellRefresh = MonitorRefreshRate();
+        if (xessSwapChain)
+            FollowXellLimit(xellRefresh);
         // The cap V-Sync sets on the frames shown, for frame generation's minimum
         // (SetPresentCapLocked).
         {
@@ -323,7 +331,8 @@ namespace redefinition
                 if (refresh > 0.0)
                     capFps = refresh / static_cast<double>(capSync);
             }
-            else if (!streamlineSwapChain && (xessSwapChain || !(cfg.fgHalfRefreshLimit && !cfg.fgVSync && syncInterval == 0)))
+            else if (!streamlineSwapChain && ((xessSwapChain && !xellFollows)
+                                              || !(cfg.fgHalfRefreshLimit && !cfg.fgVSync && syncInterval == 0)))
                 PauseRefreshMonitor();
             // XeLL's frame limit caps the frames shown as V-Sync does, whichever is lower:
             // "the total count of presented frames (both generated and rendered) matches
@@ -363,7 +372,7 @@ namespace redefinition
                 LogLine("XeSS frame generation: a Present without a frame of the game's -- presented without"
                         " generated frames (said once)");
             }
-            FrameGeneration::Get().PrepareXessLocked(lowLatencyFrame, nullptr);
+            FrameGeneration::Get().PrepareXessLocked(lowLatencyFrame, nullptr, swapChain.Get(), xellSync);
         }
         else
             // FSR's own swapchain only: a plain one, made where FidelityFX could
@@ -460,7 +469,7 @@ namespace redefinition
             Streamline::Get().Marker(sl::PCLMarker::ePresentEnd, frameIndex);
             streamlinePresent = FrameGeneration::Get().ReadStreamlineStateLocked();
         }
-        const uint32_t xessPresented = xessSwapChain ? FrameGeneration::Get().ReadXessStateLocked() : 0u;
+        const uint32_t xessPresented = xessSwapChain ? FrameGeneration::Get().ReadXessStateLocked(swapChain.Get()) : 0u;
         // Whether XeLL lowers the latency from the next frame on, or the brake does on
         // a GPU other than Intel's (LowLatency.h).
         if (xessSwapChain)
@@ -530,7 +539,9 @@ namespace redefinition
             return realSwapChain->Present(syncInterval, flags);
         }
 
-        return CopyAndPresent(syncInterval, flags);
+        const HRESULT presented = CopyAndPresent(syncInterval, flags);
+        ReleaseOwnWaitable();
+        return presented;
     }
 
     HRESULT STDMETHODCALLTYPE SwapChainProxy::Present1(UINT syncInterval, UINT flags,
@@ -551,6 +562,8 @@ namespace redefinition
 
         // Dirty rectangles are meaningless once the frame goes through a full
         // copy, so the parameters are dropped rather than half honoured.
-        return CopyAndPresent(syncInterval, flags);
+        const HRESULT presented = CopyAndPresent(syncInterval, flags);
+        ReleaseOwnWaitable();
+        return presented;
     }
 }
