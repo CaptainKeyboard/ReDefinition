@@ -264,6 +264,8 @@ namespace redefinition
         destroyContext = reinterpret_cast<decltype(destroyContext)>(GetProcAddress(module, "xessDestroyContext"));
         setVelocityScale = reinterpret_cast<decltype(setVelocityScale)>(GetProcAddress(module, "xessSetVelocityScale"));
         getVersion = reinterpret_cast<decltype(getVersion)>(GetProcAddress(module, "xessGetVersion"));
+        getOptimalInputResolution = reinterpret_cast<decltype(getOptimalInputResolution)>(
+            GetProcAddress(module, "xessGetOptimalInputResolution"));
         forceLegacyScaleFactors = reinterpret_cast<decltype(forceLegacyScaleFactors)>(
             GetProcAddress(module, "xessForceLegacyScaleFactors"));
         if (createContext == nullptr || init == nullptr || execute == nullptr || destroyContext == nullptr
@@ -347,7 +349,7 @@ namespace redefinition
     bool XessUpscaler::EnsureContextLocked(const XessUpscalerPacket& packet)
     {
         if (SameContext(created, packet) && (context != nullptr || contextFailed))
-            return context != nullptr;
+            return context != nullptr && !contextFailed;
 
         WaitForListsLocked();
         if (context == nullptr)
@@ -364,15 +366,49 @@ namespace redefinition
             }
         }
 
-        // The scale factors Preset picks from, applied by "initialization function
-        // (xess*Init)" (xessForceLegacyScaleFactors).
+        // The scale factors Preset picks from: "In order to apply new scale factors
+        // application should call xessGetOptimalInputResolution and initialization
+        // function (xess*Init)" (xess.h, xessForceLegacyScaleFactors).
         if (forceLegacyScaleFactors != nullptr)
             forceLegacyScaleFactors(context, true);
+
+        // The nearest preset, or the next whose input range as XeSS states it holds
+        // the mod's render size: the render size is the mod's, which its own modes set.
+        xess_quality_settings_t preset = Preset(packet);
+        std::string range;
+        if (getOptimalInputResolution != nullptr)
+        {
+            const xess_2d_t outputSize = { packet.outputWidth, packet.outputHeight };
+            const xess_quality_settings_t order[] = {
+                preset, XESS_QUALITY_SETTING_AA, XESS_QUALITY_SETTING_ULTRA_QUALITY_PLUS,
+                XESS_QUALITY_SETTING_ULTRA_QUALITY, XESS_QUALITY_SETTING_QUALITY, XESS_QUALITY_SETTING_BALANCED,
+                XESS_QUALITY_SETTING_PERFORMANCE, XESS_QUALITY_SETTING_ULTRA_PERFORMANCE,
+            };
+            bool found = false;
+            for (const xess_quality_settings_t candidate : order)
+            {
+                xess_2d_t optimal = {}, minimum = {}, maximum = {};
+                if (getOptimalInputResolution(context, &outputSize, candidate, &optimal, &minimum, &maximum)
+                    != XESS_RESULT_SUCCESS)
+                    continue;
+                if (packet.renderWidth < minimum.x || packet.renderWidth > maximum.x
+                    || packet.renderHeight < minimum.y || packet.renderHeight > maximum.y)
+                    continue;
+                preset = candidate;
+                range = ", optimal " + std::to_string(optimal.x) + "x" + std::to_string(optimal.y) + ", range "
+                        + std::to_string(minimum.x) + "x" + std::to_string(minimum.y) + " to "
+                        + std::to_string(maximum.x) + "x" + std::to_string(maximum.y);
+                found = true;
+                break;
+            }
+            if (!found)
+                range = ", outside every preset's input range";
+        }
 
         const bool hdr = (packet.flags & kAmdUpscalerHdr) != 0;
         xess_d3d12_init_params_t params = {};
         params.outputResolution = { packet.outputWidth, packet.outputHeight };
-        params.qualitySetting = Preset(packet);
+        params.qualitySetting = preset;
         params.initFlags = ((packet.flags & kAmdUpscalerDepthInverted) != 0 ? XESS_INIT_FLAG_INVERTED_DEPTH : 0u)
                          | ((packet.flags & kAmdUpscalerAutoExposure) != 0 ? XESS_INIT_FLAG_ENABLE_AUTOEXPOSURE : 0u)
                          // KSP's 8-bit sRGB target in LDR: "XESS_INIT_FLAG_LDR_INPUT_COLOR" (xess.h).
@@ -395,7 +431,7 @@ namespace redefinition
         LogLine("XeSS: " + versionName + ", " + std::to_string(packet.renderWidth) + "x"
                 + std::to_string(packet.renderHeight) + " to " + std::to_string(packet.outputWidth) + "x"
                 + std::to_string(packet.outputHeight) + (hdr ? ", HDR" : ", LDR") + ", preset "
-                + std::to_string(static_cast<int>(params.qualitySetting)));
+                + std::to_string(static_cast<int>(params.qualitySetting)) + range);
         return true;
     }
 

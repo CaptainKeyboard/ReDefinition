@@ -94,6 +94,7 @@ namespace redefinition
         decltype(&xessGetVersion) getVersion = nullptr;
         // Optional: a libxess.dll before 1.3.0 has only the legacy scale factors.
         decltype(&xessForceLegacyScaleFactors) forceLegacyScaleFactors = nullptr;
+        decltype(&xessGetOptimalInputResolution) getOptimalInputResolution = nullptr;
         bool runtimeTried = false;
         std::wstring runtimeSignature;
         ULONGLONG nextRuntimeCheck = 0;
