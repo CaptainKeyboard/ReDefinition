@@ -104,6 +104,13 @@ namespace redefinition
         // were -- 0 before the first packet; the text says what and why.
         int Status(char* buffer, int size) const;
 
+        // Which FSR the context runs, as "FSR 4.1.1" or "FSR 3.1.5", into buffer:
+        // 1 FSR 4; 2 an earlier FSR although the DLL is FSR 4's -- it offers this GPU
+        // no FSR 4 ("FSR4 requires an AMD 7000 series discrete GPU or AMD 9000 series
+        // GPU or later", super-resolution-ml.md) and runs the FSR 3 it carries; 3 an
+        // earlier FSR from an earlier DLL; 0 before a context, buffer empty.
+        int Provider(char* buffer, int size) const;
+
     private:
         AmdUpscaler() = default;
 
@@ -135,6 +142,9 @@ namespace redefinition
         ULONGLONG nextRuntimeCheck = 0;
         bool loggedVersions = false;
         std::string providerName;
+        // The DLL's file version, and the upscaler versions it offers on this device.
+        std::string dllVersion;
+        std::string offeredVersions;
 
         Microsoft::WRL::ComPtr<ID3D12Fence> fence12;
         Microsoft::WRL::ComPtr<ID3D11Fence> fence11;
@@ -165,6 +175,9 @@ namespace redefinition
         mutable std::mutex statusLock;
         int state = 0;
         std::string statusText = "no frame for AMD's upscaler yet";
+        // What Provider reports, set with each context.
+        int providerKind = 0;
+        std::string providerShown;
         // The DLL's folder and file when a -2 was set (RuntimeSignature).
         std::wstring stableSignature;
     };

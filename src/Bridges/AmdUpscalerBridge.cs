@@ -60,6 +60,53 @@ namespace ReDefinition.Bridges
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspAmdUpscalerReady();
 
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int KspAmdUpscalerProvider(StringBuilder buffer, int size);
+
+        private static readonly StringBuilder providerBuffer = new StringBuilder(64);
+        // The name as last made, made anew only when the proxy's answer changes: the
+        // row asks every frame.
+        private static int shownKind;
+        private static string shownSource;
+        private static string shownName;
+
+        // Which FSR the DLL runs, for the settings row: "FSR 4.1.1", or "FSR 3.1.5
+        // fallback" where the DLL is FSR 4's but offers this GPU only the FSR 3 it
+        // carries (AmdUpscaler::Provider); null before it made a context, or without
+        // the proxy's export.
+        internal static string RunningName()
+        {
+            if (!link.Ready) return null;
+            int kind;
+            try
+            {
+                providerBuffer.Length = 0;
+                kind = KspAmdUpscalerProvider(providerBuffer, providerBuffer.Capacity);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+            if (kind == 0 || providerBuffer.Length == 0) return null;
+            if (kind != shownKind || shownSource == null || !Same(providerBuffer, shownSource))
+            {
+                shownKind = kind;
+                shownSource = providerBuffer.ToString();
+                shownName = kind == 2 ? shownSource + " fallback" : shownSource;
+            }
+            return shownName;
+        }
+
+        private static bool Same(StringBuilder text, string other)
+        {
+            if (text.Length != other.Length) return false;
+            for (int i = 0; i < other.Length; i++)
+            {
+                if (text[i] != other[i]) return false;
+            }
+            return true;
+        }
+
         private static readonly NativeUpscalerLink link = new NativeUpscalerLink("AMD's upscaler", typeof(AmdPacket),
             () => KspAmdUpscalerPacketSize(), (buffer, size) => KspAmdUpscalerStatus(buffer, size), 4, 5,
             () => KspAmdUpscalerReady());

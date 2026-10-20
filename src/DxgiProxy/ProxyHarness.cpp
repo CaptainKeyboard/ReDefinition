@@ -2259,6 +2259,18 @@ int main()
         context->Unmap(amdStaging.Get(), 0);
         amdStatus(amdText, sizeof(amdText));
         printf("      AMD upscaler: %s; output centre %.3f %.3f %.3f\n", amdText, amdRed, amdGreen, amdBlue);
+        // Which FSR runs, as the settings row names it (KspAmdUpscalerProvider):
+        // FSR 4 (1), FSR 3 from FSR 4's DLL (2), or from an earlier DLL (3).
+        using ProviderFn = int (*)(char*, int);
+        const ProviderFn amdProvider = reinterpret_cast<ProviderFn>(GetProcAddress(dxgi, "KspAmdUpscalerProvider"));
+        if (amdProvider == nullptr)
+            return Fail("GetProcAddress(KspAmdUpscalerProvider)", E_FAIL);
+        char amdName[64] = {};
+        const int amdKind = amdProvider(amdName, sizeof(amdName));
+        printf("      AMD upscaler runs %s (%s)\n", amdName,
+               amdKind == 1 ? "FSR 4" : amdKind == 2 ? "FSR 4's DLL, falling back on this GPU" : amdKind == 3 ? "an earlier DLL" : "none");
+        if (amdKind < 1 || amdKind > 3 || strncmp(amdName, "FSR ", 4) != 0)
+            return Fail("the proxy does not name the FSR AMD's upscaler runs", E_FAIL);
         char amdCut[8] = {};
         amdStatus(amdCut, sizeof(amdCut));
         amdEvent(kAmdReleaseEvent, nullptr);

@@ -392,6 +392,12 @@ extern "C"
         return redefinition::AmdUpscaler::Get().Status(buffer, size);
     }
 
+    // Which FSR AMD's upscaler runs (AmdUpscaler::Provider).
+    __declspec(dllexport) int KspAmdUpscalerProvider(char* buffer, int size)
+    {
+        return redefinition::AmdUpscaler::Get().Provider(buffer, size);
+    }
+
     // 1 while a swapchain proxy presents through D3D12 and AMD's upscaler has its
     // devices, which it cannot run without.
     __declspec(dllexport) int KspAmdUpscalerReady()

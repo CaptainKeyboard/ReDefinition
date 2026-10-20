@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -93,6 +94,14 @@ namespace redefinition
         }
         if (changed && newState < 0)
             LogLine("AMD upscaler: " + text);
+    }
+
+    int AmdUpscaler::Provider(char* buffer, int size) const
+    {
+        std::lock_guard<std::mutex> lock(statusLock);
+        if (buffer != nullptr && size > 0)
+            strncpy_s(buffer, static_cast<size_t>(size), providerShown.c_str(), _TRUNCATE);
+        return providerKind;
     }
 
     int AmdUpscaler::Status(char* buffer, int size) const
@@ -240,7 +249,8 @@ namespace redefinition
             return false;
         }
 
-        LogLine("AMD upscaler: " + Narrow(path) + " " + FileVersion(path));
+        dllVersion = FileVersion(path);
+        LogLine("AMD upscaler: " + Narrow(path) + " " + dllVersion);
         return true;
     }
 
@@ -370,6 +380,7 @@ namespace redefinition
                     std::string line;
                     for (uint64_t i = 0; i < count; ++i)
                         line += (i == 0 ? "" : ", ") + std::string(names[i] != nullptr ? names[i] : "?");
+                    offeredVersions = line;
                     LogLine("AMD upscaler: versions on this GPU: " + line);
                 }
             }
@@ -424,6 +435,22 @@ namespace redefinition
         provider.header.type = FFX_API_QUERY_DESC_TYPE_GET_PROVIDER_VERSION;
         if (api.Query(&context, &provider.header) == FFX_API_RETURN_OK && provider.versionName != nullptr)
             providerName = provider.versionName;
+        // The version name is the upscaler's own, "4.1.1" or "3.1.5"; the DLL of FSR 4
+        // carries FSR 3.1 for GPUs without it, and runs that without a word.
+        const bool fsr4 = std::atoi(providerName.c_str()) >= 4;
+        const bool dll4 = std::atoi(dllVersion.c_str()) >= 4;
+        const int kind = fsr4 ? 1 : dll4 ? 2 : 3;
+        if (providerName.find_first_of("0123456789") == 0)
+            providerName = "FSR " + providerName;
+        {
+            std::lock_guard<std::mutex> lock(statusLock);
+            providerKind = kind;
+            providerShown = providerName;
+        }
+        if (kind == 2)
+            LogLine("AMD upscaler: " + providerName + " runs, not FSR 4: amd_fidelityfx_upscaler_dx12.dll " + dllVersion
+                    + " offers this GPU " + (offeredVersions.empty() ? std::string("no version list") : offeredVersions)
+                    + " -- FSR 4 needs an AMD Radeon RX 7000 (discrete) or RX 9000 or later");
 
         created = packet;
         contextFailed = false;
