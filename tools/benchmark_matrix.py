@@ -721,8 +721,25 @@ class Install:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copy2(os.path.join(self.ksp, rel), dst)
             count += 1
-        with open(os.path.join(out, "snap.json"), "w") as f:
+        # The time is the file system's own, as a file written later gets it: time.time()
+        # runs ahead of a file's coarse clock, and a file written just after the snapshot
+        # would then look older than it. A file made once the clock has ticked is later
+        # than the marker, and every file made before it is not.
+        marker = os.path.join(out, "snap.json")
+        with open(marker, "w") as f:
             json.dump({"time": time.time()}, f)
+        taken = os.path.getmtime(marker)
+        probe = os.path.join(out, "tick")
+        for _ in range(200):
+            with open(probe, "w"):
+                pass
+            if os.path.getmtime(probe) > taken:
+                break
+            time.sleep(0.005)
+        os.remove(probe)
+        with open(marker, "w") as f:
+            json.dump({"time": taken}, f)
+        os.utime(marker, (taken, taken))
         return count
 
     def restore(self, out):
