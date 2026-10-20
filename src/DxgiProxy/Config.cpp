@@ -358,7 +358,8 @@ namespace redefinition
                  + (c.fgPacingWaitOnFence ? "/fence" : "")
                  + " fgMinimumFps=" + std::to_string(static_cast<int>(c.fgMinimumFps))
                  + " lowLatency=" + (c.lowLatency ? "1" : "0")
-                 + " latencyBrake=" + (c.latencyBrake ? "1" : "0") + "/" + std::to_string(c.latencyBrakeTargetMs)
+                 + " latencyBrake=" + (c.latencyBrake ? "1" : "0") + "/" + std::to_string(c.latencyBrakeTargetMs) + "/"
+                 + std::to_string(c.latencyBrakeWaits)
                  + " antiLag2=" + std::to_string(c.antiLag2)
                  + " vendorDiagnostics=" + (c.vendorDiagnostics ? "1" : "0")
                  + " streamlineImgui=" + (c.streamlineImgui ? "1" : "0")
@@ -423,6 +424,8 @@ namespace redefinition
             target.latencyBrake = ReadFlag(L"latencyBrake", file, true);
             target.antiLag2 = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"antiLag2", 0, file.c_str()));
             target.latencyBrakeTargetMs = ReadFloat(L"latencyBrakeTargetMs", file, 4.0f);
+            target.latencyBrakeWaits = static_cast<int>(
+                GetPrivateProfileIntW(L"Proxy", L"latencyBrakeWaits", 1, file.c_str()));
 
             target.logInputsSeconds = static_cast<int>(
                 GetPrivateProfileIntW(L"Proxy", L"logInputsSeconds", 0, file.c_str()));

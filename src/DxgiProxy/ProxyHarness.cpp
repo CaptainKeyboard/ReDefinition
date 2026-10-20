@@ -1361,7 +1361,8 @@ int main()
         hr = device->CreateComputeShader(loadCode->GetBufferPointer(), loadCode->GetBufferSize(), nullptr, &loadShader);
         if (FAILED(hr))
             return Fail("CreateComputeShader (latency load)", hr);
-        constexpr UINT kMaxGroups = 65536;
+        // Below D3D11_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION (65535).
+        constexpr UINT kMaxGroups = 32768;
         D3D11_BUFFER_DESC loadDesc = {};
         loadDesc.ByteWidth = kMaxGroups * 64 * sizeof(float);
         loadDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -1462,7 +1463,6 @@ int main()
         }
         gameFrames = false;
         frameLoad = nullptr;
-        // The frame rate back above frame generation's minimum before what follows.
         // A run of its own: the phases after it are left to a run without it.
         printf("PASS  the latency comparison ran: nothing, the latency brake and AMD Anti-Lag 2 on both devices\n");
         return 0;

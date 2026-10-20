@@ -96,6 +96,11 @@ namespace redefinition
         void MeterThread();
 
         mutable std::mutex mutex;
+        // Anti-Lag 2's contexts, under a lock of their own: their Update sleeps, which
+        // must not hold the others up; Attach and Detach take it inside `mutex`.
+        std::mutex antiLagMutex;
+        // The device Anti-Lag 2 is on, 12 or 11, 0 off, for the main thread's Update.
+        std::atomic<int> antiLagOn{ 0 };
         const void* owner = nullptr;
         Microsoft::WRL::ComPtr<ID3D12Device> device;
         Microsoft::WRL::ComPtr<ID3D11Device> gameDevice;
@@ -136,6 +141,8 @@ namespace redefinition
         double brakeSleepMs = 0.0;
         double brakeFrameMs = 0.0;
         double brakeWaitMs = 0.0;
+        // The waits it counts, as latencyBrakeWaits had them.
+        int brakeWaitsKind = 0;
         unsigned long long brakeReport = 0;
         HANDLE brakeTimer = nullptr;
         // A swapchain attached or let go: the brake starts afresh.

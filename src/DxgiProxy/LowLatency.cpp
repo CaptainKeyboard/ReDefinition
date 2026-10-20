@@ -205,6 +205,8 @@ namespace redefinition
 
             // Anti-Lag 2 where AMD's driver behind the device has it: "If this function
             // returns S_OK, then Anti-Lag 2 is present".
+            std::lock_guard<std::mutex> antiLag(antiLagMutex);
+            antiLagOn = 0;
             AMD::AntiLag2DX12::DeInitialize(&g_antiLag12);
             AMD::AntiLag2DX11::DeInitialize(&g_antiLag11);
             g_antiLag12 = {};
@@ -243,12 +245,16 @@ namespace redefinition
         std::lock_guard<std::mutex> lock(mutex);
         if (caller != owner)
             return;
-        if (g_antiLag12Ready)
-            AMD::AntiLag2DX12::DeInitialize(&g_antiLag12);
-        if (g_antiLag11Ready)
-            AMD::AntiLag2DX11::DeInitialize(&g_antiLag11);
-        g_antiLag12Ready = false;
-        g_antiLag11Ready = false;
+        {
+            std::lock_guard<std::mutex> antiLag(antiLagMutex);
+            antiLagOn = 0;
+            if (g_antiLag12Ready)
+                AMD::AntiLag2DX12::DeInitialize(&g_antiLag12);
+            if (g_antiLag11Ready)
+                AMD::AntiLag2DX11::DeInitialize(&g_antiLag11);
+            g_antiLag12Ready = false;
+            g_antiLag11Ready = false;
+        }
         owner = nullptr;
         device.Reset();
         gameDevice.Reset();
@@ -310,16 +316,10 @@ namespace redefinition
         }
         appliedMode = wantedMode;
 
-        if (wantedAntiLag != appliedAntiLag)
-        {
-            // Off on the device left, on the one taken; Update sets the state where it
-            // changed and takes the frame's delay.
-            if (g_antiLag12Ready)
-                AMD::AntiLag2DX12::Update(&g_antiLag12, wantedAntiLag == 12, 0);
-            if (g_antiLag11Ready)
-                AMD::AntiLag2DX11::Update(&g_antiLag11, wantedAntiLag == 11, 0);
-        }
+        // Set on the device taken and off on the other by the next frame's Update on the
+        // main thread, which also takes the delay: never under this lock.
         appliedAntiLag = wantedAntiLag;
+        antiLagOn = wantedAntiLag;
 
         if (appliedAntiLag != 0)
             SetText(3, std::string("AMD Anti-Lag 2 on the ")
@@ -354,10 +354,11 @@ namespace redefinition
     }
 
     // The latency brake: where the GPU holds the frames back, Unity's render thread
-    // waits in the proxy -- for a raytracing slot, a frame's allocator, the Present --
-    // after the frame's simulation has already read its input. The brake sleeps that
-    // long before the simulation instead, less latencyBrakeTargetMs: an integrating
-    // controller on the waits the last frame met, so the GPU is still fed in time.
+    // waits in the proxy -- for a raytracing slot, a frame's allocator, and with
+    // latencyBrakeWaits=1 the Present -- after the frame's simulation has already read
+    // its input. The brake sleeps that long before the simulation instead, less
+    // latencyBrakeTargetMs: an integrating controller on the waits the last frame met,
+    // so the GPU is still fed in time.
     void LowLatency::Brake()
     {
         {
@@ -371,9 +372,10 @@ namespace redefinition
         if (brakeReseed.exchange(false))
             brakeWaitsBefore = -1;
         const int64_t now = Now();
-        const int64_t waits = g_waitTotalTicks.load() + g_presentTotalTicks.load();
-        if (brakeWaitsBefore < 0 || !Config().latencyBrake)
+        const int64_t waits = g_waitTotalTicks.load() + (Config().latencyBrakeWaits == 1 ? g_presentTotalTicks.load() : 0);
+        if (brakeWaitsBefore < 0 || !Config().latencyBrake || Config().latencyBrakeWaits != brakeWaitsKind)
         {
+            brakeWaitsKind = Config().latencyBrakeWaits;
             brakeWaitsBefore = waits;
             brakeFrameStart = now;
             brakeSleepMs = 0.0;
@@ -419,9 +421,10 @@ namespace redefinition
         if (tick - brakeReport >= every)
         {
             brakeReport = tick;
-            char line[160];
-            sprintf_s(line, "Latency brake: sleeps %.1f ms before the frame, %.1f ms of waits in the proxy left a frame"
-                            " of %.1f ms work", brakeSleepMs, brakeWaitMs, brakeFrameMs);
+            char line[192];
+            sprintf_s(line, "Latency brake: sleeps %.1f ms before the frame, %.1f ms of waits in the proxy%s left a"
+                            " frame of %.1f ms work",
+                      brakeSleepMs, brakeWaitMs, brakeWaitsKind == 1 ? " with the Present" : "", brakeFrameMs);
             LogLine(line);
         }
     }
@@ -437,24 +440,26 @@ namespace redefinition
         ApplyConfig();
         Brake();
         Microsoft::WRL::ComPtr<ID3D12Device> held;
-        bool antiLag12 = false;
-        bool antiLag11 = false;
         {
             std::lock_guard<std::mutex> lock(mutex);
             if (!TrackingLocked())
                 return 0;
             if (ReflexLocked())
                 held = device;
-            antiLag12 = g_antiLag12Ready;
-            antiLag11 = g_antiLag11Ready;
         }
         if (held != nullptr)
             SleepCall()(held.Get());
-        // Every frame on each device it was set up on: off it inserts nothing.
-        if (antiLag12)
-            AMD::AntiLag2DX12::Update(&g_antiLag12, g_antiLag12.m_enabled, 0);
-        if (antiLag11)
-            AMD::AntiLag2DX11::Update(&g_antiLag11, g_antiLag11.m_enabled, 0);
+        // Every frame on each device it was set up on, enabled on the one taken: off it
+        // inserts nothing. Under the contexts' lock, so that a swapchain made anew
+        // meanwhile cannot let them go under the call.
+        {
+            std::lock_guard<std::mutex> antiLag(antiLagMutex);
+            const int on = antiLagOn.load();
+            if (g_antiLag12Ready)
+                AMD::AntiLag2DX12::Update(&g_antiLag12, on == 12, 0);
+            if (g_antiLag11Ready)
+                AMD::AntiLag2DX11::Update(&g_antiLag11, on == 11, 0);
+        }
 
         std::lock_guard<std::mutex> lock(mutex);
         if (!TrackingLocked())
@@ -524,6 +529,7 @@ namespace redefinition
         std::lock_guard<std::mutex> lock(mutex);
         if (!TrackingLocked())
             return;
+        std::lock_guard<std::mutex> antiLag(antiLagMutex);
         if (g_antiLag12Ready)
         {
             if (frameIndex != 0 && appliedAntiLag == 12)
@@ -571,8 +577,11 @@ namespace redefinition
                 && SUCCEEDED(watched->SetEventOnCompletion(next.fenceValue, meterEvent)))
                 WaitForSingleObject(meterEvent, 1000);
             const int64_t done = Now();
+            // A wait that timed out leaves the frame waiting, and the event set later
+            // ends the next wait early: a frame counts only once the GPU is past it.
+            const bool reached = watched->GetCompletedValue() >= next.fenceValue;
             lock.lock();
-            if (!pending.empty() && pending.front().fenceValue == next.fenceValue && fence == watched)
+            if (reached && !pending.empty() && pending.front().fenceValue == next.fenceValue && fence == watched)
             {
                 pending.pop_front();
                 if (next.start != 0 && done > next.start && measured.size() < 1024)

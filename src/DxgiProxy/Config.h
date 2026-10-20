@@ -168,6 +168,9 @@ namespace redefinition
         // Unity's Direct3D 11 device, 0 off. Live.
         int antiLag2 = 0;
         float latencyBrakeTargetMs = 4.0f;
+        // Which waits the brake counts: 1 the proxy's and the Present, 2 the proxy's
+        // alone (a raytracing slot, a frame's allocator). Live.
+        int latencyBrakeWaits = 1;
 
         // Seconds between frame time reports in the log.
         int reportSeconds = 10;
