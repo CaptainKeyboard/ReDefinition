@@ -72,6 +72,8 @@ namespace redefinition
         bool ActiveLocked() const;
         void MarkerLocked(uint32_t frameIndex, int marker);
         void ReportLocked();
+        // The id Reflex was given for an index the game's calls carry.
+        uint32_t IdLocked(uint32_t frameIndex) const;
         void SetText(int kind, const std::string& text);
 
         mutable std::mutex mutex;
@@ -80,8 +82,11 @@ namespace redefinition
         bool streamline = false;
         bool loggedFailure = false;
         int appliedMode = -1;
-        uint32_t counter = 0;
         uint32_t lastBegun = 0;
+        // Streamline's index to Reflex's id, and whether the frame begun last came
+        // with one.
+        uint32_t offset = 0;
+        bool mapped = false;
         std::atomic<uint32_t> rendered{ 0 };
         uint32_t presented = 0;
         unsigned long long lastReport = 0;
@@ -94,6 +99,8 @@ namespace redefinition
         double brakeWaitMs = 0.0;
         unsigned long long brakeReport = 0;
         HANDLE brakeTimer = nullptr;
+        // A swapchain attached or let go: the brake starts afresh.
+        std::atomic<bool> brakeReseed{ true };
 
         mutable std::mutex textLock;
         int kind = 0;

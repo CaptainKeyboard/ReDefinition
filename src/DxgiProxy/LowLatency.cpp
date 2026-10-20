@@ -150,6 +150,7 @@ namespace redefinition
         std::lock_guard<std::mutex> lock(mutex);
         owner = newOwner;
         device.Reset();
+        brakeReseed = true;
         streamline = streamlineReflex;
         appliedMode = -1;
         loggedFailure = false;
@@ -170,6 +171,7 @@ namespace redefinition
             return false;
         }
         device = newDevice;
+        brakeReseed = true;
         LogLine("Low latency: NVIDIA Reflex through NVAPI on the proxy's Direct3D 12 device");
         return true;
     }
@@ -240,8 +242,13 @@ namespace redefinition
         {
             std::lock_guard<std::mutex> lock(mutex);
             if (owner == nullptr || streamline)
+            {
+                brakeWaitsBefore = -1;
                 return;
+            }
         }
+        if (brakeReseed.exchange(false))
+            brakeWaitsBefore = -1;
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);
         static LARGE_INTEGER frequency = []() { LARGE_INTEGER f; QueryPerformanceFrequency(&f); return f; }();
@@ -257,14 +264,19 @@ namespace redefinition
         const double frameMs = static_cast<double>(now.QuadPart - brakeFrameStart) * 1000.0 / frequency.QuadPart;
         brakeWaitsBefore = waits;
         brakeFrameStart = now.QuadPart;
-        brakeFrameMs = brakeFrameMs == 0.0 ? frameMs : brakeFrameMs * 0.9 + frameMs * 0.1;
+        // The frame's own work, without the brake's sleep, which the clamp below must
+        // not grow with.
+        const double workMs = frameMs > brakeSleepMs ? frameMs - brakeSleepMs : frameMs;
+        brakeFrameMs = brakeFrameMs == 0.0 ? workMs : brakeFrameMs * 0.9 + workMs * 0.1;
         brakeWaitMs = brakeWaitMs * 0.9 + waitMs * 0.1;
 
-        // Towards a millisecond of waiting left, a fifth of the difference a frame; at
-        // most half a frame, so a sudden change cannot stall the game.
-        const double kTargetMs = Config().latencyBrakeTargetMs;
+        // Towards the target's waiting left, a fifth of the difference a frame. A
+        // hitch -- one long wait -- counts as a frame's worth at most, and the sleep is
+        // at most half a frame's work, so it cannot hold the game back after it.
+        const double target = Config().latencyBrakeTargetMs > 0.5f ? Config().latencyBrakeTargetMs : 0.5;
         constexpr double kGain = 0.2;
-        brakeSleepMs += kGain * (waitMs - kTargetMs);
+        const double counted = waitMs < brakeFrameMs ? waitMs : brakeFrameMs;
+        brakeSleepMs += kGain * (counted - target);
         if (brakeSleepMs < 0.0)
             brakeSleepMs = 0.0;
         if (brakeSleepMs > brakeFrameMs * 0.5)
@@ -290,7 +302,7 @@ namespace redefinition
             brakeReport = tick;
             char line[160];
             sprintf_s(line, "Latency brake: sleeps %.1f ms before the frame, %.1f ms of waits in the proxy left a frame"
-                            " of %.1f ms", brakeSleepMs, brakeWaitMs, brakeFrameMs);
+                            " of %.1f ms work", brakeSleepMs, brakeWaitMs, brakeFrameMs);
             LogLine(line);
         }
     }
@@ -311,21 +323,37 @@ namespace redefinition
         std::lock_guard<std::mutex> lock(mutex);
         if (!ActiveLocked())
             return 0;
-        // "The frameID ... must strictly increment from that point forward".
-        uint32_t index = streamlineIndex != 0 ? streamlineIndex : ++counter;
-        if (index <= lastBegun)
+        // "The frameID ... must strictly increment from that point forward". Where
+        // Streamline gives the frame's index, the game's other calls come under it, so
+        // Reflex takes it moved by an offset past every id it was given before.
+        uint32_t index;
+        if (streamlineIndex != 0)
+        {
+            if (streamlineIndex + offset <= lastBegun)
+                offset = lastBegun + 1 - streamlineIndex;
+            index = streamlineIndex + offset;
+            mapped = true;
+        }
+        else
+        {
             index = lastBegun + 1;
-        counter = index;
+            mapped = false;
+        }
         lastBegun = index;
         MarkerLocked(index, kSimulationStart);
-        return index;
+        return mapped ? streamlineIndex : index;
+    }
+
+    uint32_t LowLatency::IdLocked(uint32_t frameIndex) const
+    {
+        return frameIndex != 0 && mapped ? frameIndex + offset : frameIndex;
     }
 
     void LowLatency::EndGameSimulation(uint32_t frameIndex)
     {
         std::lock_guard<std::mutex> lock(mutex);
         if (frameIndex != 0 && ActiveLocked())
-            MarkerLocked(frameIndex, kSimulationEnd);
+            MarkerLocked(IdLocked(frameIndex), kSimulationEnd);
     }
 
     // "RENDERSUBMIT_START should come before any Direct3D calls are made for the
@@ -335,8 +363,9 @@ namespace redefinition
         std::lock_guard<std::mutex> lock(mutex);
         if (frameIndex == 0 || !ActiveLocked())
             return;
-        MarkerLocked(frameIndex, kRenderSubmitStart);
-        rendered = frameIndex;
+        const uint32_t id = IdLocked(frameIndex);
+        MarkerLocked(id, kRenderSubmitStart);
+        rendered = id;
     }
 
     uint32_t LowLatency::TakeGameFrame()
