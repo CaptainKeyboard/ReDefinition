@@ -404,6 +404,36 @@ Run `2026-10-21-0241`. Its machine and options are under [the runs](#the-runs).
 | FSR 3 · RT Full, opacity micromaps · FG off (XeSS-FG loaded) · XeLL | 41.9 | 41.8 | 65.0 | 66.7 | -42.1 % | +43.2 ms | +3.5 % | +0.0 ms | +1.9 % |  |
 | FSR 3 · RT Full, opacity micromaps · FG XeSS-FG · XeLL | 35.9 | 71.6 | 61.8 | 64.3 | -50.4 % | +40.0 ms | -11.4 % | -3.2 ms | +5.3 % |  |
 
+### Frame generation steps (`frame-steps`)
+
+DLSS-G at 2x, 3x, 4x, 5x, 6x and Dynamic with the package's MaxGeneratedFrames raised to
+5, set live through the mod's frameGenerationMultiplier, for FSR 3 at raytracing Off and
+Full; FSR's frame generation and no frame generation as the references. The
+shown/rendered column is what the GPU and the driver delivered.
+
+Run `2026-10-21-0942`. Its machine and options are under [the runs](#the-runs).
+
+Run it with `python tools/benchmark_matrix.py run --group frame-steps`.
+
+| Scenario | fps | Shown fps | Shown per rendered | Delivered | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline | fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FSR 3 · RT Off · FG off · none | 73.5 | 73.4 | – | – | 21.7 | 22.9 | +0.0 % | +0.0 ms | – | – | – | baseline |
+| FSR 3 · RT Off · FG FSR 2x · none | 66.3 | 132.6 | 2.00 | yes | 29.1 | 32.3 | -9.8 % | +7.4 ms | -9.8 % | +7.4 ms | – |  |
+| FSR 3 · RT Full · FG off · none | 45.8 | 45.9 | – | – | 56.9 | 58.2 | -37.7 % | +35.2 ms | – | – | – |  |
+| FSR 3 · RT Full · FG FSR 2x · none | 40.1 | 80.3 | 2.00 | yes | 59.3 | 61.0 | -45.4 % | +37.6 ms | -12.4 % | +2.4 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G 2x · none | 68.3 | 136.9 | 2.00 | yes | 42.0 | 44.7 | -7.1 % | +20.3 ms | -7.1 % | +20.3 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G 3x · none | 61.6 | 184.6 | 3.00 | yes | 51.1 | 52.6 | -16.2 % | +29.4 ms | -16.2 % | +29.4 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G 4x · none | 56.2 | 224.8 | 4.00 | yes | 58.9 | 60.3 | -23.5 % | +37.2 ms | -23.5 % | +37.2 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G 5x · none | 51.6 | 258.3 | 5.00 | yes | 65.1 | 67.1 | -29.8 % | +43.4 ms | -29.8 % | +43.4 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G 6x · none | 47.3 | 284.5 | 6.00 | yes | 68.1 | 72.5 | -35.6 % | +46.4 ms | -35.6 % | +46.4 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G Dynamic · none | 68.0 | 136.3 | 2.00 | n/a | 42.2 | 45.0 | -7.5 % | +20.5 ms | -7.5 % | +20.5 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G 2x · none | 40.4 | 80.8 | 2.00 | yes | 70.9 | 72.6 | -45.0 % | +49.2 ms | -11.8 % | +14.0 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G 3x · none | 37.8 | 113.4 | 3.00 | yes | 78.3 | 80.0 | -48.6 % | +56.6 ms | -17.5 % | +21.4 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G 4x · none | 35.9 | 143.7 | 4.00 | yes | 83.6 | 85.5 | -51.2 % | +61.9 ms | -21.6 % | +26.7 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G 5x · none | 34.2 | 171.3 | 5.00 | yes | 88.2 | 90.8 | -53.5 % | +66.5 ms | -25.3 % | +31.3 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G 6x · none | 32.7 | 195.7 | 6.00 | yes | 93.8 | 96.0 | -55.5 % | +72.1 ms | -28.6 % | +36.9 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G Dynamic · none | 37.7 | 114.4 | 3.04 | n/a | 78.5 | 80.5 | -48.7 % | +56.8 ms | -17.7 % | +21.6 ms | – |  |
+
 ### Grass and terrain (`grass`)
 
 The launch pad and a field of Parallax's grass 5 km away (-redefinitionProbeGrass), FSR
@@ -489,6 +519,62 @@ with it (preset, `MaxGeneratedFrames`), the proxy's ini at the start, the frame 
 lines of the phase, the upscaler's line, and each measured value.
 
 <!-- benchmark-runs:start -->
+### Run 2026-10-21-0942
+
+| What | Value |
+|---|---|
+| Date | 2026-10-21T09:42:43 to 2026-10-21T09:51:13 |
+| Commit | `03d705e` on `worktree-agent-a3c8b23ed6951386f` |
+| Build in the install | `dxgi.dll` ec66cbc3a2508f0c (2026-10-21T09:05:20), `GameData/ReDefinition/Plugins/ReDefinition.dll` f61fcfbde9484e82 (2026-10-21T09:16:32) |
+| Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
+| Profile | `medium`: [LOG 09:43:44.280] [ReDefinition] Probe: profile medium applied. |
+| Groups | `frame-steps` |
+| Matrix | `tools/benchmark_matrix.json`, 2 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Full record | [benchmarks/2026-10-21-0942.json](benchmarks/2026-10-21-0942.json) |
+
+<details><summary>What ran in each phase</summary>
+
+| Start | Scenario | Upscaler that ran | Frame generation that ran | presented/rendered | Lowered by | Reports | fps range | Notes |
+|---|---|---|---|---|---|---|---|---|
+| frame-steps-fsr | FSR 3 · RT Off · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 7 | 73.1–73.9 |  |
+| frame-steps-fsr | FSR 3 · RT Off · FG FSR 2x · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 7 | 62.6–67.3 |  |
+| frame-steps-fsr | FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 44.0–46.1 |  |
+| frame-steps-fsr | FSR 3 · RT Full · FG FSR 2x · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 7 | 39.9–40.3 |  |
+| frame-steps-dlssg | FSR 3 · RT Off · FG DLSS-G 2x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 7 | 68.1–68.6 |  |
+| frame-steps-dlssg | FSR 3 · RT Off · FG DLSS-G 3x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 3.00 | Streamline's Reflex | 7 | 61.4–61.8 |  |
+| frame-steps-dlssg | FSR 3 · RT Off · FG DLSS-G 4x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 4.00 | Streamline's Reflex | 6 | 56.0–56.4 |  |
+| frame-steps-dlssg | FSR 3 · RT Off · FG DLSS-G 5x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 5.00 | Streamline's Reflex | 6 | 51.2–51.8 |  |
+| frame-steps-dlssg | FSR 3 · RT Off · FG DLSS-G 6x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 6.00 | Streamline's Reflex | 6 | 46.6–47.9 |  |
+| frame-steps-dlssg | FSR 3 · RT Off · FG DLSS-G Dynamic · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 6 | 67.2–68.4 |  |
+| frame-steps-dlssg | FSR 3 · RT Full · FG DLSS-G 2x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 38.8–40.6 |  |
+| frame-steps-dlssg | FSR 3 · RT Full · FG DLSS-G 3x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 3.00 | Streamline's Reflex | 7 | 37.8–37.9 |  |
+| frame-steps-dlssg | FSR 3 · RT Full · FG DLSS-G 4x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 4.00 | Streamline's Reflex | 7 | 35.8–35.9 |  |
+| frame-steps-dlssg | FSR 3 · RT Full · FG DLSS-G 5x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 5.00 | Streamline's Reflex | 7 | 34.2–34.3 |  |
+| frame-steps-dlssg | FSR 3 · RT Full · FG DLSS-G 6x · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 6.00 | Streamline's Reflex | 7 | 32.7–32.7 |  |
+| frame-steps-dlssg | FSR 3 · RT Full · FG DLSS-G Dynamic · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 3.04 | Streamline's Reflex | 7 | 37.6–37.8 |  |
+
+The proxy's configuration in each start, as the proxy logged it at load:
+
+```
+frame-steps-fsr: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+frame-steps-dlssg: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=dlss rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=0 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+```
+
+The DLSS-G package's ini in each start that had it, with the values it was read with:
+
+```
+frame-steps-dlssg: [FrameGeneration] Engine=DLSS MaxGeneratedFrames=5 [DLSSG] Optimized=2 Preset=Auto [XeSSFG] FlowResolution=Middle UseHudless=1 [Logging] Level=1 FrameTiming=1 [Runtime] Mode=Bundled [SuperResolution] Mode=Off
+```
+
+The raytracing's frames that built 50 meshes or more, at the flight's start:
+
+* frame-steps-fsr: 4 frames, 572 meshes, 203354 triangles; the slowest 0.60 ms of the GPU,
+  7.53 ms of the CPU
+* frame-steps-dlssg: 5 frames, 632 meshes, 269642 triangles; the slowest 0.64 ms of the GPU,
+  6.14 ms of the CPU
+
+</details>
+
 ### Run 2026-10-21-0927
 
 | What | Value |
