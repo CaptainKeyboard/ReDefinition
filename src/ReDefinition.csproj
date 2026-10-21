@@ -227,7 +227,7 @@
        one left from an earlier build is removed so it cannot pass for this
        one. Next to GameData go the files for the game folder: the proxy,
        refused when missing or older than a native source, with the MIT notices
-       of NVIDIA's and AMD's headers compiled into it, and AMD's runtime,
+       of NVIDIA's, AMD's and Intel's headers compiled into it, and AMD's runtime,
        fetched by tools/fetch_amd_runtime.py and refused unless it matches the
        pinned SHA-256, with AMD's licence beside it. The
        proxy's ini goes into GameData as a template only: without it the
@@ -251,10 +251,10 @@
       <_FfxDenoiserPin>$(_RepoRoot)third_party\amd\amd_fidelityfx_denoiser_dx12.dll.sha256</_FfxDenoiserPin>
     </PropertyGroup>
     <ItemGroup>
-      <_ShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.compute;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.h;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.hlsl;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Editor\**\*.cs" />
+      <_ShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.compute;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.h;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.hlsl;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.shader;$(_RepoRoot)unity\Assets\ReDefinition\Include\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Editor\**\*.cs" />
       <_StaticGameDataZip Include="$(_RepoRoot)GameData\**\*.*" />
-      <_NativeSource Include="$(_Native)\*.cpp;$(_Native)\*.h;$(_Native)\*.def;$(_Native)\*.rc.in;$(_Native)\CMakeLists.txt;$(_Native)\extern\**\*.h"
-                     Exclude="$(_Native)\ProxyHarness.cpp" />
+      <_NativeSource Include="$(_Native)\*.cpp;$(_Native)\*.h;$(_Native)\*.def;$(_Native)\*.rc.in;$(_Native)\*.ini;$(_Native)\CMakeLists.txt;$(_Native)\extern\**\*.h;$(_Native)\RaytracingShaders\*.hlsl;$(_Native)\RaytracingShaders\*.hlsli;$(_Native)\RaytracingShaders\*.h"
+                     Exclude="$(_Native)\ProxyHarness.cpp;$(_Native)\RaytracingHarness.cpp;$(_Native)\RaytracingOmmHarness.cpp" />
     </ItemGroup>
 
     <Delete Files="$(_ReleaseZip);$(_SourceZip)" />

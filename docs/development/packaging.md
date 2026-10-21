@@ -85,6 +85,8 @@ GameData/ReDefinition/
     Shaders/redefinition.shaders
     Profiles/ReDefinition-Profiles.cfg
     Mods/*.cfg                the registrations of the bundled mods
+    Patches/*.cfg             ModuleManager patches: grip for landing legs, room for Parallax's grass
+    Icons/*.png               the toolbar button, the HUD's and the planner's pictures
     ReDefinition.version
     LICENSE, EXCEPTIONS.md    this project's licence
     CHANGELOG.md              what each release changed
@@ -293,6 +295,12 @@ install:
   - file: dxgi_LICENSE-NVIDIA.txt
     install_to: GameRoot
   - file: dxgi_LICENSE-FidelityFX.txt
+    install_to: GameRoot
+  - file: dxgi_LICENSE-AntiLag2.txt
+    install_to: GameRoot
+  - file: dxgi_LICENSE-Capsaicin.txt
+    install_to: GameRoot
+  - file: dxgi_LICENSE-XeSS.txt
     install_to: GameRoot
   - file: amd_fidelityfx_framegeneration_dx12.dll
     install_to: GameRoot
