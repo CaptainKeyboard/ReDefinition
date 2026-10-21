@@ -93,6 +93,9 @@ namespace redefinition
         // the given index -- Streamline's where it gives one -- or one of its own.
         // Returns the index the game's other calls take, 0 where nothing is tracked.
         uint32_t BeginGameFrame(uint32_t streamlineIndex);
+        // Before Streamline's Reflex sleep and everything else of the frame's start: the
+        // brake's sleep, so that Reflex sleeps, and sends its markers, after it.
+        void BrakeBeforeFrame();
         void EndGameSimulation(uint32_t frameIndex);
         // On Unity's render thread before the frame's first Direct3D call.
         void OnGameFrameRendered(uint32_t frameIndex);
@@ -123,10 +126,23 @@ namespace redefinition
     private:
         LowLatency() = default;
 
+        // A game frame's times on the CPU, in performance counter ticks: its start on the
+        // main thread, its simulation's end, the render thread's first call, the
+        // Present's start and end.
+        struct Stamps
+        {
+            int64_t start = 0;
+            int64_t simulationEnd = 0;
+            int64_t rendered = 0;
+            int64_t presentStart = 0;
+            int64_t presentEnd = 0;
+        };
+
         struct Pending
         {
             uint64_t fenceValue;
             int64_t start;
+            Stamps stamps;
         };
 
         bool TrackingLocked() const;
@@ -197,7 +213,12 @@ namespace redefinition
         uint32_t presented = 0;
         unsigned long long lastReport = 0;
         // Each frame's start, by id, for the measure.
-        int64_t starts[256] = {};
+        Stamps stamps[256] = {};
+        // The measure's stages of the frames it took, in milliseconds, since the last
+        // report: the simulation, from its end to the render thread's first call, the
+        // render thread to the Present, the Present, the Present's end to the GPU's.
+        static constexpr int kLatencyStages = 5;
+        std::vector<double> cpuStages[kLatencyStages];
 
         // The measure's fence, its waiting thread, and what it measured.
         Microsoft::WRL::ComPtr<ID3D12Fence> fence;

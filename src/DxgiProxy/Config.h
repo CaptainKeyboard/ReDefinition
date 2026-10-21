@@ -226,7 +226,9 @@ namespace redefinition
         // Which waits the brake counts: 1 the proxy's and the Present, 2 the proxy's
         // alone (a raytracing slot, a frame's allocator). Live.
         int latencyBrakeWaits = 1;
-
+        // The brake under DLSS frame generation as well, before Streamline's Reflex sleep.
+        // Live.
+        bool latencyBrakeWithDlssg = true;
         // Seconds between frame time reports in the log.
         int reportSeconds = 10;
 

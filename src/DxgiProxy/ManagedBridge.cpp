@@ -165,6 +165,7 @@ extern "C"
     // same calls (LowLatency.h), under Streamline's index where it gives one.
     __declspec(dllexport) unsigned int KspReflexFrameStart()
     {
+        redefinition::LowLatency::Get().BrakeBeforeFrame();
         const uint32_t streamline = redefinition::Streamline::Get().BeginGameFrame();
         const uint32_t lowLatency = redefinition::LowLatency::Get().BeginGameFrame(streamline);
         return streamline != 0 ? streamline : lowLatency;

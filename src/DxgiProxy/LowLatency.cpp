@@ -199,6 +199,8 @@ namespace redefinition
             loggedFailure = false;
             pending.clear();
             measured.clear();
+            for (std::vector<double>& stage : cpuStages)
+                stage.clear();
             fence.Reset();
             fenceValue = 0;
 
@@ -510,14 +512,18 @@ namespace redefinition
     {
         {
             std::lock_guard<std::mutex> lock(mutex);
-            // Not beside another latency reduction: Streamline's Reflex, Anti-Lag 2 --
-            // "Any other forms of latency reduction ... should be disabled" -- or XeLL
-            // while it lowers the latency, the same: "Any other forms of latency
-            // reduction or wait inducing technologies like frame limiters should be
-            // disabled when XeLL is in use" (xell_developer_guide_english.md,
-            // Requirements). Its markers alone, or XeLL on a GPU other than Intel's
-            // while XeSS-FG is held off, lower none.
-            if (!TrackingLocked() || streamline || AntiLagLocked() || XellReducingLocked())
+            // Not beside another latency reduction: Anti-Lag 2 -- "Any other forms of
+            // latency reduction ... should be disabled" -- or XeLL while it lowers the
+            // latency, the same: "Any other forms of latency reduction or wait inducing
+            // technologies like frame limiters should be disabled when XeLL is in use"
+            // (xell_developer_guide_english.md, Requirements). Its markers alone, or
+            // XeLL on a GPU other than Intel's while XeSS-FG is held off, lower none.
+            // Streamline's Reflex runs beside it: the brake sleeps before slReflexSleep
+            // (KspReflexFrameStart), where the waits of the frame before have been
+            // spent, as a frame limiter does, and Reflex's sleep follows with its
+            // markers unchanged; latencyBrakeWithDlssg=0 leaves it to Reflex alone.
+            if (!TrackingLocked() || (streamline && !Config().latencyBrakeWithDlssg) || AntiLagLocked()
+                || XellReducingLocked())
             {
                 brakeWaitsBefore = -1;
                 return;
@@ -589,10 +595,15 @@ namespace redefinition
     // previous frame's Sleep call" (nvapi.h); Anti-Lag 2's Update "just before the
     // game polls for input" (its README). The sleeps are taken outside the lock, on
     // references of their own.
-    uint32_t LowLatency::BeginGameFrame(uint32_t streamlineIndex)
+    void LowLatency::BrakeBeforeFrame()
     {
         ApplyConfig();
         Brake();
+    }
+
+    uint32_t LowLatency::BeginGameFrame(uint32_t streamlineIndex)
+    {
+        ApplyConfig();
         Microsoft::WRL::ComPtr<ID3D12Device> held;
         uint32_t index = 0;
         {
@@ -653,7 +664,8 @@ namespace redefinition
         std::lock_guard<std::mutex> lock(mutex);
         if (!TrackingLocked())
             return 0;
-        starts[index % 256] = Now();
+        stamps[index % 256] = Stamps();
+        stamps[index % 256].start = Now();
         MarkerLocked(index, kSimulationStart);
         return mapped ? streamlineIndex : index;
     }
@@ -666,8 +678,11 @@ namespace redefinition
     void LowLatency::EndGameSimulation(uint32_t frameIndex)
     {
         std::lock_guard<std::mutex> lock(mutex);
-        if (frameIndex != 0 && TrackingLocked())
-            MarkerLocked(IdLocked(frameIndex), kSimulationEnd);
+        if (frameIndex == 0 || !TrackingLocked())
+            return;
+        const uint32_t id = IdLocked(frameIndex);
+        stamps[id % 256].simulationEnd = Now();
+        MarkerLocked(id, kSimulationEnd);
     }
 
     // "RENDERSUBMIT_START should come before any Direct3D calls are made for the
@@ -678,6 +693,7 @@ namespace redefinition
         if (frameIndex == 0 || !TrackingLocked())
             return;
         const uint32_t id = IdLocked(frameIndex);
+        stamps[id % 256].rendered = Now();
         MarkerLocked(id, kRenderSubmitStart);
         rendered = id;
     }
@@ -714,6 +730,7 @@ namespace redefinition
         }
         if (frameIndex == 0)
             return;
+        stamps[frameIndex % 256].presentStart = Now();
         MarkerLocked(frameIndex, kRenderSubmitEnd);
         MarkerLocked(frameIndex, kPresentStart);
     }
@@ -723,6 +740,7 @@ namespace redefinition
         std::lock_guard<std::mutex> lock(mutex);
         if (frameIndex == 0 || !TrackingLocked())
             return;
+        stamps[frameIndex % 256].presentEnd = Now();
         MarkerLocked(frameIndex, kPresentEnd);
         // The measure: the GPU's end of this Present's work on the queue, waited for
         // by the meter's thread.
@@ -730,7 +748,7 @@ namespace redefinition
         {
             ++fenceValue;
             if (pending.size() < 64)
-                pending.push_back({ fenceValue, starts[frameIndex % 256] });
+                pending.push_back({ fenceValue, stamps[frameIndex % 256].start, stamps[frameIndex % 256] });
             wake.notify_one();
         }
         ReportLocked();
@@ -757,7 +775,23 @@ namespace redefinition
             {
                 pending.pop_front();
                 if (next.start != 0 && done > next.start && measured.size() < 1024)
-                    measured.push_back(static_cast<double>(done - next.start) * 1000.0 / Frequency());
+                {
+                    const double toMs = 1000.0 / Frequency();
+                    measured.push_back(static_cast<double>(done - next.start) * toMs);
+                    // The stages, where each of the frame's times was taken: a frame
+                    // whose simulation or render thread came without a mark -- the
+                    // first after a swapchain -- counts none.
+                    const Stamps& s = next.stamps;
+                    if (s.simulationEnd >= s.start && s.rendered != 0 && s.presentStart >= s.rendered
+                        && s.presentEnd >= s.presentStart && done >= s.presentEnd)
+                    {
+                        cpuStages[0].push_back(static_cast<double>(s.simulationEnd - s.start) * toMs);
+                        cpuStages[1].push_back(static_cast<double>(s.presentStart - s.simulationEnd) * toMs);
+                        cpuStages[4].push_back(static_cast<double>(s.presentStart - s.rendered) * toMs);
+                        cpuStages[2].push_back(static_cast<double>(s.presentEnd - s.presentStart) * toMs);
+                        cpuStages[3].push_back(static_cast<double>(done - s.presentEnd) * toMs);
+                    }
+                }
             }
         }
     }
@@ -778,7 +812,8 @@ namespace redefinition
         {
             std::vector<double> sorted(measured);
             std::sort(sorted.begin(), sorted.end());
-            const char* running = streamline ? "Streamline's Reflex"
+            const char* running = streamline ? (Config().latencyBrake && Config().latencyBrakeWithDlssg
+                                                    ? "Streamline's Reflex and the brake" : "Streamline's Reflex")
                                   : XellReducingLocked() ? "XeLL"
                                   : AntiLagLocked() ? (appliedAntiLag == 12 ? "Anti-Lag 2 (Direct3D 12)"
                                                                             : "Anti-Lag 2 (Direct3D 11)")
@@ -794,8 +829,32 @@ namespace redefinition
             lastMedian = sorted[sorted.size() / 2];
             lastPercentile90 = sorted[sorted.size() * 9 / 10];
             lastCount = static_cast<int>(sorted.size());
+
+            // Where the time went, each stage's median: the main thread's simulation, from
+            // its end to the Present's start -- the main thread's rendering, the render
+            // thread's work and its waits in the proxy -- the Present, and from its end to
+            // the GPU's, where the frame's work still queued runs; last the render
+            // thread's own share of the second, from its first call.
+            static const char* const names[kLatencyStages] = { "simulation", "simulation's end to the Present",
+                                                               "Present", "to the GPU's end",
+                                                               "of the second, the render thread's" };
+            if (cpuStages[0].size() >= 16)
+            {
+                std::string breakdown = "Latency: the frame's stages, medians in ms --";
+                for (int s = 0; s < kLatencyStages; ++s)
+                {
+                    std::sort(cpuStages[s].begin(), cpuStages[s].end());
+                    char part[64];
+                    sprintf_s(part, " %s %.1f%s", names[s], cpuStages[s][cpuStages[s].size() / 2],
+                              s + 1 < kLatencyStages ? "," : "");
+                    breakdown += part;
+                }
+                LogLine(breakdown);
+            }
         }
         measured.clear();
+        for (std::vector<double>& stage : cpuStages)
+            stage.clear();
 
         if (!ReflexLocked() || GetLatency() == nullptr)
             return;
@@ -874,7 +933,8 @@ namespace redefinition
         bool braking = false;
         {
             std::lock_guard<std::mutex> lock(mutex);
-            braking = TrackingLocked() && !streamline && !AntiLagLocked() && !XellReducingLocked() && Config().latencyBrake;
+            braking = TrackingLocked() && (!streamline || Config().latencyBrakeWithDlssg) && !AntiLagLocked()
+                      && !XellReducingLocked() && Config().latencyBrake;
         }
         std::lock_guard<std::mutex> lock(textLock);
         const std::string shown = braking ? text + "; latency brake on" : text;
