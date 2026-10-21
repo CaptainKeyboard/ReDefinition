@@ -552,6 +552,37 @@ Run it with `python tools/benchmark_matrix.py run --group latency-brake`.
 | FSR 3 · RT Full · FG DLSS-G · brake 2 ms | 40.3 | 80.9 | 55.3 | 62.3 | -43.9 % | +33.4 ms | -10.4 % | -2.3 ms | – |  |
 | FSR 3 · RT Full · FG DLSS-G · brake 1 ms | 40.2 | 80.2 | 52.0 | 59.6 | -44.0 % | +30.1 ms | -10.7 % | -5.6 ms | – |  |
 
+### Acceleration structure builds (`blas`)
+
+How the meshes' acceleration structures are built, one KSP start per variant (they are
+built at the flight's start): the start's slowest build frame and the frame rate of its
+first phases, FSR 3 at raytracing Full.
+
+Run `2026-10-21-1031`. Its machine and options are under [the runs](#the-runs).
+
+Run it with `python tools/benchmark_matrix.py run --group blas`.
+
+| Scenario | fps | Shown fps | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline | fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Slowest build GPU ms | Slowest build CPU ms | Meshes | Triangles | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| defaults · FSR 3 · RT Full · FG off · none | 46.2 | 46.0 | 56.1 | 57.7 | +0.0 % | +0.0 ms | – | – | – | 0.62 | 3.04 | 668 | 263530 | baseline |
+| defaults · FSR 3 · RT Full · FG FSR · none | 40.2 | 80.5 | 59.0 | 60.7 | -13.0 % | +2.9 ms | -13.0 % | +2.9 ms | – | 0.62 | 3.04 | 668 | 263530 |  |
+| legacy build · FSR 3 · RT Full · FG off · none | 45.9 | 46.0 | 56.8 | 58.4 | -0.6 % | +0.7 ms | – | – | – | 43.20 | 193.64 | 695 | 273527 |  |
+| legacy build · FSR 3 · RT Full · FG FSR · none | 40.0 | 79.9 | 59.6 | 61.2 | -13.4 % | +3.5 ms | -12.9 % | +2.8 ms | – | 43.20 | 193.64 | 695 | 273527 |  |
+| no batching · FSR 3 · RT Full · FG off · none | 46.1 | 46.0 | 56.6 | 58.0 | -0.2 % | +0.5 ms | – | – | – | 26.30 | 5.18 | 710 | 301167 |  |
+| no batching · FSR 3 · RT Full · FG FSR · none | 40.1 | 80.3 | 59.2 | 61.1 | -13.2 % | +3.1 ms | -13.0 % | +2.6 ms | – | 26.30 | 5.18 | 710 | 301167 |  |
+| no pooling · FSR 3 · RT Full · FG off · none | 45.8 | 46.0 | 56.8 | 58.2 | -0.9 % | +0.7 ms | – | – | – | 1.60 | 197.72 | 696 | 267461 |  |
+| no pooling · FSR 3 · RT Full · FG FSR · none | 40.0 | 79.8 | 59.5 | 61.2 | -13.4 % | +3.4 ms | -12.7 % | +2.7 ms | – | 1.60 | 197.72 | 696 | 267461 |  |
+| compaction 0 · FSR 3 · RT Full · FG off · none | 45.9 | 46.0 | 56.7 | 58.1 | -0.6 % | +0.6 ms | – | – | – | 1.66 | 4.34 | 651 | 255120 |  |
+| compaction 0 · FSR 3 · RT Full · FG FSR · none | 40.0 | 80.0 | 59.3 | 61.2 | -13.4 % | +3.2 ms | -12.9 % | +2.6 ms | – | 1.66 | 4.34 | 651 | 255120 |  |
+| compaction 1 · FSR 3 · RT Full · FG off · none | 46.1 | 46.0 | 56.5 | 57.9 | -0.2 % | +0.4 ms | – | – | – | 1.79 | 6.27 | 665 | 281588 |  |
+| compaction 1 · FSR 3 · RT Full · FG FSR · none | 40.1 | 80.4 | 59.3 | 61.3 | -13.2 % | +3.2 ms | -13.0 % | +2.8 ms | – | 1.79 | 6.27 | 665 | 281588 |  |
+| budget 20000 triangles · FSR 3 · RT Full · FG off · none | 46.0 | 46.0 | 56.9 | 58.1 | -0.4 % | +0.8 ms | – | – | – | 0.29 | 0.61 | 195 | 53876 |  |
+| budget 20000 triangles · FSR 3 · RT Full · FG FSR · none | 40.0 | 80.0 | 59.3 | 61.1 | -13.4 % | +3.2 ms | -13.0 % | +2.4 ms | – | 0.29 | 0.61 | 195 | 53876 |  |
+| TLAS fast trace · FSR 3 · RT Full · FG off · none | 46.2 | 46.0 | 56.3 | 57.9 | +0.0 % | +0.2 ms | – | – | – | 1.54 | 12.98 | 713 | 302241 |  |
+| TLAS fast trace · FSR 3 · RT Full · FG FSR · none | 40.2 | 80.5 | 59.2 | 60.8 | -13.0 % | +3.1 ms | -13.0 % | +2.9 ms | – | 1.54 | 12.98 | 713 | 302241 |  |
+| Mega Geometry · FSR 3 · RT Full · FG off · none | 36.9 | 37.0 | 72.3 | 73.9 | -20.1 % | +16.2 ms | – | – | – | 1.76 | 7.73 | 701 | 295585 |  |
+| Mega Geometry · FSR 3 · RT Full · FG FSR · none | 32.7 | 65.1 | 75.6 | 77.8 | -29.2 % | +19.5 ms | -11.4 % | +3.3 ms | – | 1.76 | 7.73 | 701 | 295585 |  |
+
 ### Grass and terrain (`grass`)
 
 The launch pad and a field of Parallax's grass 5 km away (-redefinitionProbeGrass), FSR
@@ -637,6 +668,79 @@ with it (preset, `MaxGeneratedFrames`), the proxy's ini at the start, the frame 
 lines of the phase, the upscaler's line, and each measured value.
 
 <!-- benchmark-runs:start -->
+### Run 2026-10-21-1031
+
+| What | Value |
+|---|---|
+| Date | 2026-10-21T10:31:42 to 2026-10-21T10:53:44 |
+| Commit | `3d04156` on `worktree-agent-a3c8b23ed6951386f` |
+| Build in the install | `dxgi.dll` ec66cbc3a2508f0c (2026-10-21T09:05:20), `GameData/ReDefinition/Plugins/ReDefinition.dll` f61fcfbde9484e82 (2026-10-21T09:16:32) |
+| Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
+| Profile | `medium`: [LOG 10:32:43.448] [ReDefinition] Probe: profile medium applied. |
+| Groups | `blas` |
+| Matrix | `tools/benchmark_matrix.json`, 9 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Full record | [benchmarks/2026-10-21-1031.json](benchmarks/2026-10-21-1031.json) |
+
+<details><summary>What ran in each phase</summary>
+
+| Start | Scenario | Upscaler that ran | Frame generation that ran | presented/rendered | Lowered by | Reports | fps range | Notes |
+|---|---|---|---|---|---|---|---|---|
+| blas-fsr-defaults | defaults · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 8 | 46.2–46.3 |  |
+| blas-fsr-defaults | defaults · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 40.0–40.4 |  |
+| blas-fsr-legacy | legacy build · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 9 | 45.8–46.1 |  |
+| blas-fsr-legacy | legacy build · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 39.8–40.1 |  |
+| blas-fsr-no-batch | no batching · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 9 | 45.8–46.3 |  |
+| blas-fsr-no-batch | no batching · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 39.9–40.2 |  |
+| blas-fsr-no-pool | no pooling · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 8 | 45.5–46.1 |  |
+| blas-fsr-no-pool | no pooling · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.7–40.1 |  |
+| blas-fsr-compaction-0 | compaction 0 · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 8 | 45.7–46.1 |  |
+| blas-fsr-compaction-0 | compaction 0 · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.8–40.2 |  |
+| blas-fsr-compaction-1 | compaction 1 · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 8 | 46.0–46.2 |  |
+| blas-fsr-compaction-1 | compaction 1 · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 40.0–40.2 |  |
+| blas-fsr-budget-20000 | budget 20000 triangles · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 8 | 45.9–46.1 |  |
+| blas-fsr-budget-20000 | budget 20000 triangles · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.9–40.1 |  |
+| blas-fsr-tlas-fast-trace | TLAS fast trace · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 8 | 46.1–46.3 |  |
+| blas-fsr-tlas-fast-trace | TLAS fast trace · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 40.1–40.3 |  |
+| blas-fsr-mega-geometry | Mega Geometry · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 8 | 36.5–37.1 |  |
+| blas-fsr-mega-geometry | Mega Geometry · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 32.7–32.8 |  |
+
+The proxy's configuration in each start, as the proxy logged it at load:
+
+```
+blas-fsr-defaults: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+blas-fsr-legacy: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=0 rtBlasPool=0 rtBlasBudget=0 rtBlasCompaction=0 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+blas-fsr-no-batch: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=0 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+blas-fsr-no-pool: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=0 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+blas-fsr-compaction-0: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=0 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+blas-fsr-compaction-1: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=1 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+blas-fsr-budget-20000: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=20000 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+blas-fsr-tlas-fast-trace: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=1 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+blas-fsr-mega-geometry: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=1 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+```
+
+The raytracing's frames that built 50 meshes or more, at the flight's start:
+
+* blas-fsr-defaults: 5 frames, 668 meshes, 263530 triangles; the slowest 0.62 ms of the GPU,
+  3.04 ms of the CPU
+* blas-fsr-legacy: 6 frames, 695 meshes, 273527 triangles; the slowest 43.20 ms of the GPU,
+  193.64 ms of the CPU
+* blas-fsr-no-batch: 6 frames, 710 meshes, 301167 triangles; the slowest 26.30 ms of the GPU,
+  5.18 ms of the CPU
+* blas-fsr-no-pool: 6 frames, 696 meshes, 267461 triangles; the slowest 1.60 ms of the GPU,
+  197.72 ms of the CPU
+* blas-fsr-compaction-0: 5 frames, 651 meshes, 255120 triangles; the slowest 1.66 ms of the GPU,
+  4.34 ms of the CPU
+* blas-fsr-compaction-1: 5 frames, 665 meshes, 281588 triangles; the slowest 1.79 ms of the GPU,
+  6.27 ms of the CPU
+* blas-fsr-budget-20000: 3 frames, 195 meshes, 53876 triangles; the slowest 0.29 ms of the GPU,
+  0.61 ms of the CPU
+* blas-fsr-tlas-fast-trace: 6 frames, 713 meshes, 302241 triangles; the slowest 1.54 ms of the GPU,
+  12.98 ms of the CPU
+* blas-fsr-mega-geometry: 6 frames, 701 meshes, 295585 triangles; the slowest 1.76 ms of the GPU,
+  7.73 ms of the CPU
+
+</details>
+
 ### Run 2026-10-21-1012
 
 | What | Value |
