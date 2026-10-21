@@ -1277,5 +1277,36 @@ class GroupDocTest(DocTest):
         self.assertEqual(key, "scene-grass/amd/Off/rr-na/fg-off/lat-none")
 
 
+class PageClaimsTest(unittest.TestCase):
+    """What docs/development/benchmarks.md says about the plan is what plan prints."""
+    ALL = {"dlssg_package": "p", "amd_dll_dir": "d", "xess_dll_dir": "x", "xess_fg_dll_dir": "f", "parallax": "g"}
+
+    def setUp(self):
+        self.matrix = bm.load_matrix(bm.DEFAULT_MATRIX)
+        self.page = read_source("docs", "development", "benchmarks.md")
+
+    def test_the_group_table_has_the_starts_phases_and_minutes_of_the_plan(self):
+        table = self.page[self.page.index("## The groups"):self.page.index("## What a start measures")]
+        rows = re.findall(r"(?m)^\| `([\w-]+)` \| .* \| (\d+) \| (\d+) \| (\d+) \|$", table)
+        self.assertEqual([r[0] for r in rows], [g["id"] for g in bm.group_list(self.matrix)])
+        for group, starts_said, phases_said, minutes_said in rows:
+            starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL, [group])
+            got = (len(starts), sum(len(s["phases"]) for s in starts), "{:.0f}".format(bm.estimate_seconds(starts, False) / 60.0))
+            self.assertEqual(got, (int(starts_said), int(phases_said), minutes_said), group)
+
+    def test_the_text_on_the_default_run_is_the_plans(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        said = re.search(r"plans\s+(\d+)\s+phases\s+and\s+about\s+(\d+)\s+minutes", self.page)
+        self.assertEqual((int(said.group(1)), int(said.group(2))),
+                         (sum(len(s["phases"]) for s in starts), round(bm.estimate_seconds(starts) / 60.0)))
+        # With none of the optional files: one start.
+        starts, _ = bm.expand(self.matrix, "NVIDIA", {})
+        said = re.search(r"one\s+start\s+with\s+(\d+)\s+phases\s+\((\d+)\s+scenarios,\s+(\d+)\s+of\s+them\s+run\s+twice\)\s+and\s+about\s+(\d+)\s+minutes", self.page)
+        phases = [p for s in starts for p in s["phases"]]
+        scenarios = len({bm.scenario_key(p["scenario"]) for p in phases})
+        self.assertEqual(tuple(int(g) for g in said.groups()),
+                         (len(phases), scenarios, len(phases) - scenarios, round(bm.estimate_seconds(starts) / 60.0)))
+
+
 if __name__ == "__main__":
     unittest.main()
