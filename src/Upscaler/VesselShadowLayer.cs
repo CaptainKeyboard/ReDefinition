@@ -154,7 +154,7 @@ namespace ReDefinition.Upscaler
         private bool sampleRequested;
         private string sampleLine = "not read yet";
 
-        // The Debug tab's screen recording: the next frame's inputs and results of the
+        // The diagnostics window's screen recording: the next frame's inputs and results of the
         // layer written beside it, to follow each step away from the game.
         private static string dumpFolder;
 

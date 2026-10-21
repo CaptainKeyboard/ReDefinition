@@ -104,7 +104,7 @@ namespace ReDefinition.Raytracing
         // For the light probe: the surfaces' shine as Deferred's G-buffer gives it, to compare
         // with the shine their materials mean (SurfaceIntent).
         internal static bool SurfacesAsDeferred;
-        // The surfaces' shine as a coloured overlay (the diagnostics window's Debug tab):
+        // The surfaces' shine as a coloured overlay (the diagnostics window, Capture & log):
         // ReDefinitionDeferredReflections.shader, _ReDefinitionSurfaceView.
         internal static bool SurfaceView;
         // For the light probe: without the discs added to Scatterer's ocean, or without

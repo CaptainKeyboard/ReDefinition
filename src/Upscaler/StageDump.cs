@@ -11,7 +11,7 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Upscaler
 {
-    // The Debug tab's screen recording also writes the frame's stages, for following a
+    // The diagnostics window's screen recording also writes the frame's stages, for following a
     // fault through the pipeline away from the game: for a few consecutive frames from
     // the first one in which the camera turns by more than a degree, the image the
     // upscaler or Ray Reconstruction takes, the image it gives, and the raytracing's

@@ -7,7 +7,7 @@ namespace ReDefinition
 {
     // What came of the assumptions about other mods' code (ForeignAssumptions):
     // once in KSP.log as the main menu first opens -- every assembly is loaded by
-    // then --, and as lines for the Debug tab.
+    // then --, and as lines in the diagnostics window (Other mods).
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
     internal sealed class ForeignAssumptionReport : MonoBehaviour
     {

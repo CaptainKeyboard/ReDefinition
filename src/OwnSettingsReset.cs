@@ -4,7 +4,7 @@ namespace ReDefinition
     // back to its default, frame generation off, but for what is the player's
     // hardware or menu and no quality -- the upscaling technique, the raytracing and
     // its Ray Reconstruction, "Replace original settings", the window's pause, the
-    // navball's place -- and,
+    // navball's place, the diagnostics window's pins -- and,
     // once a profile is chosen, whether the upscaler is on
     // (ModuleSetting.OnlyActivates).
     internal static class OwnSettingsReset
@@ -21,6 +21,7 @@ namespace ReDefinition
             reset.PauseWhileOpen = now.PauseWhileOpen;
             reset.NavballOffset = now.NavballOffset;
             reset.NavballScreen = now.NavballScreen;
+            reset.DiagnosticsPins = now.DiagnosticsPins;
             if (active) reset.Enabled = now.Enabled;
             return reset;
         }

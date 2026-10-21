@@ -540,6 +540,27 @@ namespace ReDefinition.Probe
         private static extern uint GetPrivateProfileString(string section, string key, string fallback, StringBuilder value, uint size,
                                                            string file);
 
+        // The diagnostics window, step by step: each step's commands applied, 2 s for the window and
+        // its strip to settle, then the frame as the screen shows it, window included. 20 s in
+        // first, for the upscaler and the frame generation to be set up.
+        private static IEnumerator DiagnosticsShots(string steps)
+        {
+            yield return new WaitForSeconds(20f);
+            string folder = CaptureFolder.Run;
+            foreach (string step in steps.Split('|'))
+            {
+                string[] parts = step.Split(new[] { '@' }, 2);
+                string name = parts[0].Trim();
+                if (ReDefinitionAddon.Instance == null) yield break;
+                string done = ReDefinitionAddon.Instance.ProbeDiagnostics("show" + (parts.Length > 1 && parts[1].Length > 0 ? "," + parts[1] : ""));
+                yield return new WaitForSeconds(2f);
+                yield return new WaitForEndOfFrame();
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "diagnostics-" + name + ".png"));
+                Debug.Log(Log.Tag + " Probe: diagnostics shot " + name + " (" + done.Trim() + ").");
+                yield return new WaitForSeconds(1f);
+            }
+        }
+
         // A key mod.<key> is one of ReDefinition's own settings (OwnSettings, its key in
         // settings.cfg: mod.technique=Dlss, mod.raytracing=Full, mod.rayReconstruction=False),
         // applied as the settings window applies it; every other key the proxy's ini.
@@ -800,6 +821,16 @@ namespace ReDefinition.Probe
                 LightProbe.HideClouds();
                 Debug.Log(Log.Tag + " Probe: the flight is the player's.");
                 yield return ShotVariant.Apply();
+                // -redefinitionProbeDiagnostics "<name>@<commands>|<name>@<commands>": the diagnostics
+                // window opened and set by each step's commands (ReDefinitionAddon.ProbeDiagnostics),
+                // a shot of the whole frame after each as diagnostics-<name>.png, then KSP quits.
+                string diagnosticsSteps = SceneProbe.ArgumentAfter("-redefinitionProbeDiagnostics");
+                if (diagnosticsSteps != null)
+                {
+                    yield return DiagnosticsShots(diagnosticsSteps);
+                    Application.Quit();
+                    yield break;
+                }
                 // -redefinitionProbeRenderDoc, under RenderDoc (tools/renderdoc_probe.ps1
                 // -Stay): one frame captured 25 s on, then KSP quits.
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeRenderDoc") >= 0)

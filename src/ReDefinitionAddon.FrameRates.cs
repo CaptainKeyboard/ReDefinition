@@ -12,8 +12,14 @@ namespace ReDefinition
         private readonly FrameRateMeter meterOn = new FrameRateMeter();
         private readonly FrameRateMeter meterOff = new FrameRateMeter();
 
-        // The window's frame rate line, built once a second (UpdateFrameRates).
-        private string frameRateText = "-- fps";
+        // The frame rates the window's strip shows, measured once a second
+        // (UpdateFrameRates): the frames the game renders, and the frames the swapchain
+        // presents, which are more while frame generation generates; negative until the
+        // first second is out.
+        private float renderedFps = -1f;
+        private float shownFps = -1f;
+        // Presented per rendered frame over the last second, 0 while the proxy counts none.
+        private float presentedPerRendered;
         private int fpsFrames;
         private float fpsWindowStart = -1f;
         private uint countedRendered;
@@ -21,14 +27,15 @@ namespace ReDefinition
         private bool counted;
         private string loadText = "Load: --";
 
-        // The window's frame rate line: the frames the game renders, counted
-        // here, and -- while frame generation generates -- in brackets the
-        // frames the swapchain presented, generated ones included, from the
-        // proxy's running totals (KspFgCounters) read at the start and the end
-        // of the same second. Built once a second, so the number can be read
-        // and OnGUI does not rebuild the string on every event.
+        // The window's frame rates: the frames the game renders, counted
+        // here, and -- while frame generation generates -- the frames the
+        // swapchain presented, generated ones included, from the proxy's running
+        // totals (KspFgCounters) read at the start and the end of the same second.
+        // Taken once a second, so the number can be read; and every frame's time
+        // for the strip's graph.
         private void UpdateFrameRates()
         {
+            frameTimes.Add(Time.unscaledDeltaTime * 1000f);
             float now = Time.unscaledTime;
             if (fpsWindowStart < 0f)
             {
@@ -42,7 +49,9 @@ namespace ReDefinition
             float elapsed = now - fpsWindowStart;
             if (elapsed < 1f) return;
 
-            string text = (fpsFrames / elapsed).ToString("0") + " fps";
+            renderedFps = fpsFrames / elapsed;
+            shownFps = renderedFps;
+            presentedPerRendered = 0f;
             fpsWindowStart = now;
             fpsFrames = 0;
 
@@ -53,22 +62,24 @@ namespace ReDefinition
             {
                 uint renderedDelta = unchecked(rendered - countedRendered);
                 uint presentedDelta = unchecked(presented - countedPresented);
-                if (renderedDelta > 0 && presentedDelta >= 1.5f * renderedDelta)
-                    text += "  (" + (presentedDelta / elapsed).ToString("0") + " with frame generation)";
+                if (renderedDelta > 0)
+                {
+                    presentedPerRendered = (float)presentedDelta / renderedDelta;
+                    if (presentedDelta >= 1.5f * renderedDelta) shownFps = presentedDelta / elapsed;
+                }
             }
 
             counted = countedNow;
             countedRendered = rendered;
             countedPresented = presented;
-            frameRateText = text;
 
             // Where the frame's time goes, from the proxy (LoadMonitor): whether
             // a smaller render size can buy anything at all. Asked only while
-            // the Debug tab shows it: being read makes the proxy collect
+            // the window shows it: being read makes the proxy collect
             // Windows' GPU counters every second.
-            // Outside the tab the line starts over, so figures from an earlier
+            // While it is closed the line starts over, so figures from an earlier
             // visit cannot pass for current ones.
-            loadText = windowVisible && tab == Tab.Debug ? DescribeLoad() : "Load: measuring ...";
+            loadText = windowVisible ? DescribeLoad() : "Load: measuring ...";
         }
 
         private static string DescribeLoad()
@@ -80,14 +91,14 @@ namespace ReDefinition
             switch (FrameGenerationBridge.ReadLoad(out mainThread, out renderThread, out gpu, out gpuThisProcess))
             {
                 case FrameGenerationBridge.LoadState.Measured:
-                    return "Load: main thread " + Percent(mainThread) + ", render thread " + Percent(renderThread)
+                    return "Load: main " + Percent(mainThread) + ", render " + Percent(renderThread)
                            + ", GPU " + Percent(gpu);
                 case FrameGenerationBridge.LoadState.NotYet:
                     return "Load: measuring ...";
                 case FrameGenerationBridge.LoadState.SwitchedOff:
-                    return "Load: not measured -- the proxy is switched off in its ini";
+                    return "Load: not measured, the proxy is off in its ini";
                 default:
-                    return "Load: not measured -- needs the dxgi.dll proxy";
+                    return "Load: not measured, needs the dxgi.dll proxy";
             }
         }
 

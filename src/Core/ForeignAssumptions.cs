@@ -12,7 +12,7 @@ namespace ReDefinition.Core
     // named is missing (a hook whose method is gone is not installed, a feature
     // whose field is gone stays off), so Broken would change nothing there; for
     // them the entry is what the report says. ForeignAssumptionReport says what
-    // came of each in KSP.log and in the Debug tab, and tools/check_foreign_code.ps1
+    // came of each in KSP.log and in the diagnostics window, and tools/check_foreign_code.ps1
     // checks the whole catalogue against the installed mods outside the game.
     //
     // The fingerprints are those of the builds named beside each; a new build of a

@@ -795,7 +795,7 @@ namespace ReDefinition
             return (UpscalerBackend)System.Enum.Parse(typeof(UpscalerBackend), name, true);
         }
 
-        private static string TechniqueLabel(UpscalerBackend backend)
+        internal static string TechniqueLabel(UpscalerBackend backend)
         {
             string running = backend == UpscalerBackend.Amd ? AmdUpscalerBridge.RunningName()
                 : backend == UpscalerBackend.Xess ? XessUpscalerBridge.RunningName()

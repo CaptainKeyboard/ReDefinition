@@ -148,7 +148,7 @@ namespace ReDefinition
             }
         }
 
-        // When the Debug tab's screen recording starts; 0 when none is waiting. With
+        // When the diagnostics window's screen recording starts; 0 when none is waiting. With
         // dumps, the stages', frame generation's inputs' and the vessel shadow's dumps of
         // the same turn beside it; without, a recording nothing else slows.
         private float recordingAt;
@@ -200,6 +200,7 @@ namespace ReDefinition
             if (rig == null || !rig.PassThrough)
                 (active ? meterOn : meterOff).Sample(Time.unscaledDeltaTime);
             UpdateFrameRates();
+            if (windowVisible) RefreshLiveStrip();
 
             RebuildOnCameraModeChange();
 
@@ -323,7 +324,7 @@ namespace ReDefinition
             AxisCapture.Poll();
             // Nor while a text field has the keyboard, KSP's or a mod's: a key
             // typed there is text.
-            if (KeyCapture.Busy || UiHygiene.Typing) return;
+            if (KeyCapture.Busy || UiHygiene.Typing || DiagnosticsTyping) return;
 
             if (Hotkey(settings.UpscalerKey).Pressed()) SetEnabled(!wantEnabled);
             if (Hotkey(settings.SettingsWindowKey).Pressed()) SettingsWindow.Toggle();

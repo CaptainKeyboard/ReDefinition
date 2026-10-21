@@ -204,7 +204,7 @@ namespace ReDefinition.Upscaler
         private string Why(Camera camera)
         {
             if (!EveCloudMotion.Present) return "EVE's volumetric clouds are not installed";
-            if (!EveCloudMotion.Enabled) return "switched off in the Debug tab";
+            if (!EveCloudMotion.Enabled) return "switched off in the diagnostics window";
             if (camera == null) return "no scene camera";
             Shader reconstruction = EveCloudMotion.ReconstructionShader();
             if (reconstruction == null) return "EVE has not rendered clouds yet";
@@ -216,7 +216,7 @@ namespace ReDefinition.Upscaler
                     ? "EVE reconstructs its clouds with " + reconstruction.name + ", which leaves no motion vectors"
                       + " this build reads (it reads " + EveCloudMotion.KnownReconstruction + "'s, Scatterer's)"
                     // The same name over other code: what it writes is not known to be
-                    // what is read (ForeignAssumptions; the Debug tab says what changed).
+                    // what is read (ForeignAssumptions; the diagnostics window says what changed).
                     : !ForeignAssumptions.EveCloudMotion.Holds || !ForeignAssumptions.ScattererCloudReconstruction.Holds
                         ? "the clouds' reconstruction is not the code this build reads"
                         : null;

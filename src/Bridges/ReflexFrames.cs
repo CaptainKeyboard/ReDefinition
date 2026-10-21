@@ -79,6 +79,46 @@ namespace ReDefinition.Bridges
             return shownLatency;
         }
 
+        // What lowers the latency in a word for the diagnostics window's strip: "Reflex",
+        // "Anti-Lag 2" or "XeLL" (KspLowLatency's kind); null where nothing does or without the
+        // proxy.
+        internal static string LowLatencyName()
+        {
+            if (LowLatencyText() == null) return null;
+            switch (shownLatencyKind)
+            {
+                case 1:
+                case 2: return "Reflex";
+                case 3: return "Anti-Lag 2";
+                case 4: return "XeLL";
+                default: return null;
+            }
+        }
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int KspLatencyMeasure(out double median, out double percentile90);
+
+        private static bool measureMissing;
+
+        // The proxy's last latency report (LowLatency::Measure), from the frame's start to the
+        // GPU's end of its Present, in milliseconds; how many frames it rests on, 0 before the
+        // first report, or without the proxy or its export.
+        internal static int LatencyMeasure(out double median, out double percentile90)
+        {
+            median = 0.0;
+            percentile90 = 0.0;
+            if (measureMissing) return 0;
+            try
+            {
+                return KspLatencyMeasure(out median, out percentile90);
+            }
+            catch (Exception e) when (e is DllNotFoundException || e is EntryPointNotFoundException || e is BadImageFormatException)
+            {
+                measureMissing = true;
+                return 0;
+            }
+        }
+
         private static bool Same(StringBuilder text, string other)
         {
             if (text.Length != other.Length) return false;

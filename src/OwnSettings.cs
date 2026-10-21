@@ -66,7 +66,7 @@ namespace ReDefinition
         public bool PauseWhileOpen;
 
         // The diagnostic measurements -- audits, read-backs and per-frame checks of the
-        // upscaler's inputs, with their log lines -- run only with this on (the Debug tab).
+        // upscaler's inputs, with their log lines -- run only with this on (the diagnostics window, Capture & log).
         public bool DebugMode;
 
         // Whether KSP's own Settings buttons open ReDefinition's window instead
@@ -89,6 +89,9 @@ namespace ReDefinition
         // height, it was put there on. On another screen it stands in the centre.
         public float NavballOffset;
         public string NavballScreen = "";
+        // The options pinned to the strip at the diagnostics window's foot, their ids
+        // separated by commas (DebugPins).
+        public string DiagnosticsPins = "";
         // Other mods' IMGUI windows at KSP's UI scale (Scaling/ModWindowScale).
         public bool ScaleModWindows = true;
         // Better Time Warp Continued's own toolbar button: hidden while off, since
@@ -257,6 +260,11 @@ namespace ReDefinition
             {
                 Key = "navballScreen", Get = x => x.NavballScreen, Set = (x, v) => x.NavballScreen = v, Format = v => v,
                 Parse = (string text, out string v) => { v = text ?? ""; return true; },
+            },
+            new Field<string>
+            {
+                Key = "diagnosticsPins", Get = x => x.DiagnosticsPins, Set = (x, v) => x.DiagnosticsPins = v, Live = true,
+                Format = v => v, Parse = (string text, out string v) => { v = text ?? ""; return true; },
             },
             Bool("scaleModWindows", x => x.ScaleModWindows, (x, v) => x.ScaleModWindows = v, true),
             Bool("timeWarpToolbarButton", x => x.TimeWarpToolbarButton, (x, v) => x.TimeWarpToolbarButton = v, true),

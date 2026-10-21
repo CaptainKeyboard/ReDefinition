@@ -13,7 +13,7 @@ namespace ReDefinition
     // upscaled image or puts an overlay on top (docs/modders/shared-foundation.md).
     // Nothing in ReDefinition uses them -- its own work reaches the rig directly --
     // so without this the path is only exercised by the example mod, outside a
-    // normal game. Switched on in the diagnostics window under Debug, it says in
+    // normal game. Switched on in the diagnostics window under Capture & log, it says in
     // KSP.log whether each hook fires, at which size and on which camera, which is
     // what a mod author's handler would see.
     //
