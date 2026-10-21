@@ -726,7 +726,7 @@ def read_source(*parts):
 
 
 class GroupTest(unittest.TestCase):
-    ALL = {"dlssg_package": "p", "amd_dll_dir": "d", "xess_dll_dir": "x", "xess_fg_dll_dir": "f"}
+    ALL = {"dlssg_package": "p", "amd_dll_dir": "d", "xess_dll_dir": "x", "xess_fg_dll_dir": "f", "parallax": "g"}
 
     def setUp(self):
         self.matrix = bm.load_matrix(bm.DEFAULT_MATRIX)
@@ -919,6 +919,75 @@ class GroupTest(unittest.TestCase):
             self.assertEqual({p["keys"]["rtRadianceCache"] for p in phases if p["scenario"]["radiance_cache"]}, {"1"})
             self.assertEqual({p["keys"]["rtRadianceCache"] for p in phases if not p["scenario"]["radiance_cache"]}, {"0"})
         self.assertEqual({p["scenario"]["raytracing"] for p in pad["phases"]}, {"Off", "Shadows", "Light", "Full"})
+
+    def test_the_grass_scene_needs_parallax(self):
+        resources = dict(self.ALL)
+        del resources["parallax"]
+        starts, skipped = bm.expand(self.matrix, "NVIDIA", resources, ["grass"])
+        self.assertEqual([s["id"] for s in starts], ["grass-fsr-pad"])
+        self.assertIn(("scene grass", "needs parallax"), skipped)
+        # Every other group is the same with or without it.
+        self.assertEqual(len(bm.expand(self.matrix, "NVIDIA", resources, ["rt-modes"])[0]), 1)
+
+    def test_a_start_carries_the_line_its_scene_must_leave_in_the_log(self):
+        pad, grass = self.starts("grass")
+        self.assertIsNone(pad["scene_ready"])
+        line = ("[LOG 09:36:33.409] [ReDefinition] Probe: grass scene, ReDefinition grass probe LANDED, 0.4 m over the ground, "
+                "121.5 m above the sea, biome Grasslands.")
+        self.assertIsNone(bm.scene_unavailable(grass, line + "\n"))
+        self.assertIsNone(bm.scene_unavailable(grass, line + "\r\n"))
+        # The pad's scene, a pod that is not on the ground, a field that is not grassland: not the scene.
+        self.assertIn("unavailable", bm.scene_unavailable(grass, "[LOG 09:36:33.409] [ReDefinition] Probe: the flight is the player's.\n"))
+        self.assertIn("unavailable", bm.scene_unavailable(grass, line.replace("LANDED", "FLYING")))
+        self.assertIn("unavailable", bm.scene_unavailable(grass, line.replace("Grasslands", "Highlands")))
+        reason = bm.scene_unavailable(grass, "[ERR 09:36:21.548] [ReDefinition] Probe: grass scene unavailable: Parallax is not installed.\r\n")
+        self.assertEqual(reason, "scene grass unavailable: Parallax is not installed.")
+        # The probe prints what the matrix looks for.
+        source = read_source("src", "Probe", "SceneProbe.cs")
+        self.assertIn('" Probe: grass scene, "', source)
+        self.assertGreaterEqual(source.count("Probe: grass scene unavailable: "), 4)
+
+    def test_a_scene_that_was_not_made_has_no_rows(self):
+        start = fixture_start()
+        start.update(scene="grass", scene_ready=self.matrix["scenes"]["grass"]["ready"])
+        result = bm.phases_of_start(start, fixture("bench.KSP.log"), fixture("bench.proxy.log"), 3)
+        self.assertEqual(result["phases"], [])
+        self.assertEqual(result["problems"], ["scene grass unavailable: the probe's line that says it stands there is not in KSP.log"])
+        # The probe says why when it can.
+        ksp = fixture("bench.KSP.log") + "[ERR 16:38:56.000] [ReDefinition] Probe: grass scene unavailable: no field of grassland found around the pad.\n"
+        result = bm.phases_of_start(start, ksp, fixture("bench.proxy.log"), 3)
+        self.assertEqual(result["problems"], ["scene grass unavailable: no field of grassland found around the pad."])
+        # With its line, the start is measured as before.
+        ksp = fixture("bench.KSP.log") + ("[LOG 16:39:30.000] [ReDefinition] Probe: grass scene, ReDefinition grass probe LANDED, 0.4 m over "
+                                          "the ground, 121.5 m above the sea, biome Grasslands.\n")
+        result = bm.phases_of_start(start, ksp, fixture("bench.proxy.log"), 3)
+        self.assertEqual(len(result["phases"]), 2)
+        self.assertEqual(result["problems"], [])
+
+    def test_a_start_without_rows_is_said_in_its_groups_table(self):
+        record = GroupDocTest().group_record("2026-10-20-1900", "steps")
+        record["starts"].append({"id": "steps-grass", "group": "steps", "phases": [],
+                                 "problems": ["scene grass unavailable: Parallax is not installed."]})
+        out = bm.render_doc([("2026-10-20-1900.json", record)], "{}\n{}\n{}\n{}\n".format(
+            bm.TABLE_START, bm.TABLE_END, bm.RUNS_START, bm.RUNS_END))
+        self.assertIn("Not measured, start `steps-grass`: scene grass unavailable: Parallax is not installed.", out)
+
+    def test_parallax_is_found_by_its_plugin(self):
+        root = tempfile.mkdtemp()
+        try:
+            self.assertIsNone(bm.parallax_folder(root))
+            # The texture packs are not the plugin.
+            os.makedirs(os.path.join(root, "GameData", "Parallax_StockScatterTextures", "Plugins"))
+            with open(os.path.join(root, "GameData", "Parallax_StockScatterTextures", "Plugins", "Parallax.dll"), "w"):
+                pass
+            self.assertIsNone(bm.parallax_folder(root))
+            os.makedirs(os.path.join(root, "GameData", "ParallaxContinued", "Plugins"))
+            self.assertIsNone(bm.parallax_folder(root))
+            with open(os.path.join(root, "GameData", "ParallaxContinued", "Plugins", "ParallaxContinued.dll"), "w"):
+                pass
+            self.assertEqual(bm.parallax_folder(root), os.path.join(root, "GameData", "ParallaxContinued"))
+        finally:
+            shutil.rmtree(root)
 
     def test_a_scene_the_matrix_does_not_define_is_refused(self):
         self.matrix["groups"][-1]["scenes"] = ["moon"]

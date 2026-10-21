@@ -131,6 +131,16 @@ all Grasslands biome, above 80 m and level. Parallax's Kerbin grass grows in tha
 25 m of altitude on. On this save that place is 5 km from the pad, 121 m above the sea. The
 probe logs where it put the pod and that the pod stands on the ground.
 
+The pod is made in memory in the probe's own save, `ReDefinitionProbe`; the save's template
+`probe.sfs` and the player's saves stay as they are. Where the probe cannot make the scene
+it logs `Probe: grass scene unavailable:` and the reason, and quits: Parallax is not
+installed, the home body has no terrain, or there is no such place within 30 km. The tool
+leaves the grass scene out of the plan where `GameData` has no Parallax plugin ("needs
+parallax" in the skipped list). A start whose `KSP.log` lacks the probe's line that the pod
+stands on grassland has no rows. Its problems say `scene grass unavailable` with the
+probe's reason, and the group's table names the start as not measured. The tool never
+measures the pad as grass.
+
 ## What a start measures
 
 Each start flies the scene probe's vessel on the launch pad
@@ -216,7 +226,9 @@ Each list in `tools/benchmark_matrix.json` multiplies the phases:
   refused. A group is `"default": true` to run without `--group`; only the main matrix is.
 * A group's `scenes` and `variants`: the probe's scenes (`scenes` at the top of the file,
   each with its probe arguments) and values for the proxy at load (`proxy_load`), each
-  combination a start of its own.
+  combination a start of its own. A scene may name `requires`, resources as a technique
+  does, and `ready`, a regular expression that `KSP.log` must match for the scene to have
+  been the one measured.
 * A group's `tweaks`: renderings of their own with live proxy keys, like the radiance cache.
   `tweak_defaults` is what every other phase has, and `"last": true` puts a tweak at the end
   of the start.

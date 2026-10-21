@@ -55,6 +55,9 @@ namespace ReDefinition.Probe
         // -redefinitionProbeGrass: a capsule on a field of Parallax's grass, kilometres from the
         // space centre, instead of the launch pad (the benchmark's grass scene).
         internal const string GrassArgument = "-redefinitionProbeGrass";
+        // The grass scene's vessel; one left in a save the probe loaded from "persistent" is taken out
+        // before the next is made, so that two capsules never stand on the same spot.
+        internal const string GrassVesselName = "ReDefinition grass probe";
         // -redefinitionProbeStay: the flight left to the player, the clouds hidden, no
         // measurement, KSP left running (with -redefinitionProbeSea: a capsule at sea to
         // look at the water's reflections oneself).
@@ -179,8 +182,9 @@ namespace ReDefinition.Probe
                 int capsule = GrassCapsule(game);
                 if (capsule < 0)
                 {
-                    // On the pad, every measurement would be of the wrong scene.
-                    Debug.LogError(Log.Tag + " Probe: the capsule could not be put on a field of grass; quitting.");
+                    // On the pad, every measurement would be of the wrong scene. The benchmark reads this line
+                    // (tools/benchmark_matrix.py, "ready" of the grass scene) and says the scene is unavailable.
+                    Debug.LogError(Log.Tag + " Probe: grass scene unavailable: no capsule could be put on a field of grass; quitting.");
                     Application.Quit();
                     yield break;
                 }
@@ -199,8 +203,18 @@ namespace ReDefinition.Probe
         // at least. Made as KSP makes a vessel and set on the ground by KSP.
         private static int GrassCapsule(Game game)
         {
+            // Without Parallax the biome is bare: a field the shot would call grass.
+            if (!ReDefinition.Scenery.KscGrass.ParallaxInstalled)
+            {
+                Debug.LogError(Log.Tag + " Probe: grass scene unavailable: Parallax is not installed.");
+                return -1;
+            }
             CelestialBody home = FlightGlobals.GetHomeBody();
-            if (home == null || home.pqsController == null || home.BiomeMap == null) return -1;
+            if (home == null || home.pqsController == null || home.BiomeMap == null)
+            {
+                Debug.LogError(Log.Tag + " Probe: grass scene unavailable: the home body has no terrain or no biome map.");
+                return -1;
+            }
             const double padLatitude = -0.0972, padLongitude = -74.5577;
             double radius = home.Radius;
             Func<double, double, double> ground = (lat, lon) =>
@@ -226,9 +240,10 @@ namespace ReDefinition.Probe
                                     && Math.Abs(ground(sampleLat, sampleLon) - here) < 40.0 * 3.0 * Math.Tan(8.0 * Math.PI / 180.0);
                         }
                     if (!field) continue;
+                    game.flightState.protoVessels.RemoveAll(v => v.vesselName == SceneProbe.GrassVesselName);
                     ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
                     var orbit = new Orbit(0.0, 0.0, radius + 100000.0, 0.0, 0.0, 0.0, Planetarium.GetUniversalTime(), home);
-                    ConfigNode node = ProtoVessel.CreateVesselNode("ReDefinition grass probe", VesselType.Ship, orbit, 0, new[] { part });
+                    ConfigNode node = ProtoVessel.CreateVesselNode(SceneProbe.GrassVesselName, VesselType.Ship, orbit, 0, new[] { part });
                     node.SetValue("sit", Vessel.Situations.LANDED.ToString());
                     node.SetValue("landed", "True");
                     node.SetValue("splashed", "False");
@@ -245,7 +260,7 @@ namespace ReDefinition.Probe
                               + " m above the sea.");
                     return game.flightState.protoVessels.Count - 1;
                 }
-            Debug.LogWarning(Log.Tag + " Probe: no field of grassland found around the pad.");
+            Debug.LogError(Log.Tag + " Probe: grass scene unavailable: no field of grassland found around the pad.");
             return -1;
         }
 

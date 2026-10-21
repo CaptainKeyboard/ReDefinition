@@ -221,7 +221,10 @@ def expand(matrix, vendor=None, resources=None, groups=None):
     matrix's own lists. A group's "scenes" (the probe's scenes, matrix["scenes"]) and
     "variants" (values for the proxy at load, "proxy_load", each a start of its own) multiply
     its starts: the id of a start of another group than the main begins with the group's and
-    ends with its variant's and scene's."""
+    ends with its variant's and scene's. A scene may name "requires" (resources, as the
+    techniques do: a scene whose resource is missing is skipped) and "ready", a regular
+    expression the probe's line in KSP.log must match for the scene to have been the one
+    measured (scene_unavailable)."""
     starts, skipped = [], []
     for group in select_groups(matrix, groups):
         sub = resolve_group(matrix, group)
@@ -230,6 +233,11 @@ def expand(matrix, vendor=None, resources=None, groups=None):
         for scene in scenes:
             if scene not in matrix.get("scenes", {DEFAULT_SCENE: {}}):
                 raise ValueError("group {} names the scene {}, which the matrix does not define".format(group["id"], scene))
+            scene_definition = matrix.get("scenes", {}).get(scene, {})
+            missing = [r for r in scene_definition.get("requires", []) if not (resources or {}).get(r)]
+            if missing:
+                skipped.append(("scene " + scene, "needs " + ", ".join(missing)))
+                continue
             for variant in variants:
                 cell = copy.deepcopy(sub)
                 cell["_group"], cell["_scene"], cell["_variant"] = group["id"], scene, variant
@@ -240,7 +248,8 @@ def expand(matrix, vendor=None, resources=None, groups=None):
                     start["group"] = group["id"]
                     start["scene"] = scene
                     start["variant"] = variant["id"] if variant else None
-                    start["probe_args"] = list(matrix.get("scenes", {}).get(scene, {}).get("args", []))
+                    start["probe_args"] = list(scene_definition.get("args", []))
+                    start["scene_ready"] = scene_definition.get("ready")
                     if group["id"] != MAIN_GROUP:
                         parts = [group["id"], start["id"]]
                         if variant:
@@ -759,6 +768,21 @@ def parse_proxy_log(text):
     return p
 
 
+_SCENE_REASON = re.compile(r"Probe: \w+ scene unavailable: (.*?)\r?$", re.M)
+
+
+def scene_unavailable(start, ksp_text):
+    """Why the start's scene was not the one measured, or None: the scene names a line of the probe
+    ("ready", a regular expression) that KSP.log must hold, and the probe says why in a line of its
+    own when it could not make the scene (it quits then). A start without a "ready" is not checked."""
+    ready = start.get("scene_ready")
+    if not ready or re.search(ready, ksp_text, re.M):
+        return None
+    reason = _SCENE_REASON.search(ksp_text)
+    return "scene {} unavailable: {}".format(start.get("scene") or "?", reason.group(1) if reason
+                                             else "the probe's line that says it stands there is not in KSP.log")
+
+
 def _unfocused_at(proxy, t):
     """Whether the proxy's last word on the game's window before t was that it is not in the
     foreground while DLSS-G is asked to generate (SwapChainProxyStreamline.cpp)."""
@@ -905,11 +929,15 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
     fg_kind = _fg_kind_ran(proxy)
     problems = []
     problems.extend(l for l in ksp["probe"] if l.startswith("Probe: no setting"))
-    if len(ksp["sets"]) < len(start["phases"]):
+    # A scene that was not the one asked for measures the wrong place: no phase of it counts.
+    unavailable = scene_unavailable(start, ksp_text)
+    if unavailable:
+        problems.insert(0, unavailable)
+    elif len(ksp["sets"]) < len(start["phases"]):
         problems.append("the probe set {} of {} key sets".format(len(ksp["sets"]), len(start["phases"])))
     results = []
     for i, phase in enumerate(start["phases"]):
-        if i >= len(ksp["sets"]):
+        if i >= len(ksp["sets"]) or unavailable:
             break
         set_time = ksp["sets"][i]["time"]
         shot = next((s for s in ksp["shots"] if s["index"] == i), None)
@@ -1509,6 +1537,9 @@ def run(args):
         plan["finished"] = datetime.datetime.now().isoformat(timespec="seconds")
         _save_plan(raw, plan)
     record = build_record(raw)
+    for s in record["starts"]:
+        for problem in s.get("problems") or []:
+            print("{}: {}".format(s["id"], problem))
     write_results(record, args.no_doc)
 
 
@@ -1602,12 +1633,36 @@ def resources_of(args):
         out["xess_dll_dir"] = os.path.abspath(args.xess_dll_dir)
     elif os.path.exists(os.path.join(args.ksp, "libxess.dll")):
         out["xess_dll_dir"] = os.path.abspath(args.ksp)
+    parallax = parallax_folder(args.ksp)
+    if parallax:
+        out["parallax"] = parallax
     fg_files = ("libxess_fg.dll", "libxell.dll")
     if args.xess_fg_dll_dir and all(os.path.exists(os.path.join(args.xess_fg_dll_dir, n)) for n in fg_files):
         out["xess_fg_dll_dir"] = os.path.abspath(args.xess_fg_dll_dir)
     elif all(os.path.exists(os.path.join(args.ksp, n)) for n in fg_files):
         out["xess_fg_dll_dir"] = os.path.abspath(args.ksp)
     return out
+
+
+def parallax_folder(ksp):
+    """The folder of Parallax's plugin in the install's GameData (ParallaxContinued, or Parallax in
+    older versions; the texture packs, Parallax_*, are not it), or None."""
+    root = os.path.join(ksp, "GameData")
+    try:
+        names = sorted(os.listdir(root))
+    except OSError:
+        return None
+    for name in names:
+        lower = name.lower()
+        if not lower.startswith("parallax") or lower.startswith("parallax_"):
+            continue
+        try:
+            plugins = os.listdir(os.path.join(root, name, "Plugins"))
+        except OSError:
+            continue
+        if any(n.lower().startswith("parallax") and n.lower().endswith(".dll") for n in plugins):
+            return os.path.join(root, name)
+    return None
 
 
 def parse_ini_sections(text):
@@ -1927,6 +1982,9 @@ def tables_of(records):
         if definition.get("description") or latest.get("note"):
             text += [_wrapped(definition.get("description") or latest["note"]), ""]
         text += [_wrapped("Run `{}`. Its machine and options are under [the runs](#the-runs).".format(latest["stamp"])), ""]
+        for s in latest["starts"]:
+            if (s.get("group") or record_groups(latest)[0]) == group and not s.get("phases") and s.get("problems"):
+                text += [_wrapped("Not measured, start `{}`: {}.".format(s["id"], "; ".join(s["problems"]).rstrip("."))), ""]
         if group != MAIN_GROUP and any(g["id"] == group for g in (latest.get("matrix") or {}).get("groups", [])):
             text += [_wrapped("Run it with `python tools/benchmark_matrix.py run --group {}`.".format(group)), ""]
         if definition.get("scenes"):

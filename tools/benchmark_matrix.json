@@ -58,7 +58,7 @@
   "main_description": "Every upscaler with raytracing off and full, every frame generation kind, every latency model, plus the radiance cache and the opacity micromaps on FSR 3 at raytracing Full. The default run.",
   "scenes": {
     "pad": {"name": "the launch pad", "args": []},
-    "grass": {"name": "a field of Parallax's grass 5 km from the pad", "args": ["-redefinitionProbeGrass"]}
+    "grass": {"name": "a field of Parallax's grass 5 km from the pad", "args": ["-redefinitionProbeGrass"], "requires": ["parallax"], "ready": "Probe: grass scene, .* LANDED, .* biome Grasslands\\.\\r?$"}
   },
   "groups": [
     {
