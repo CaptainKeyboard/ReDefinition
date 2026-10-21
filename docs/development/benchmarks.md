@@ -404,6 +404,54 @@ Run `2026-10-21-0241`. Its machine and options are under [the runs](#the-runs).
 | FSR 3 · RT Full, opacity micromaps · FG off (XeSS-FG loaded) · XeLL | 41.9 | 41.8 | 65.0 | 66.7 | -42.1 % | +43.2 ms | +3.5 % | +0.0 ms | +1.9 % |  |
 | FSR 3 · RT Full, opacity micromaps · FG XeSS-FG · XeLL | 35.9 | 71.6 | 61.8 | 64.3 | -50.4 % | +40.0 ms | -11.4 % | -3.2 ms | +5.3 % |  |
 
+### Grass and terrain (`grass`)
+
+The launch pad and a field of Parallax's grass 5 km away (-redefinitionProbeGrass), FSR
+3 at every raytracing mode, then at Full the radiance cache, the cut-out tests
+(rtCutoutTest 1 and 2, the ceiling of what the alpha tests cost) and, last, the opacity
+micromaps; frame generation off and FSR's.
+
+Run `2026-10-21-0927`. Its machine and options are under [the runs](#the-runs).
+
+Run it with `python tools/benchmark_matrix.py run --group grass`.
+
+Scenes: pad (the launch pad), grass (a field of Parallax's grass 5 km from the pad).
+
+| Scenario | fps | Shown fps | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline | fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| FSR 3 · RT Off · FG off · none | 73.0 | 73.0 | 21.8 | 22.9 | +0.0 % | +0.0 ms | – | – | – | baseline |
+| FSR 3 · RT Off · FG FSR · none | 67.1 | 134.2 | 28.7 | 31.8 | -8.1 % | +6.9 ms | -8.1 % | +6.9 ms | – |  |
+| FSR 3 · RT Shadows · FG off · none | 57.7 | 57.9 | 28.5 | 29.9 | -21.0 % | +6.7 ms | – | – | – |  |
+| FSR 3 · RT Shadows · FG FSR · none | 54.6 | 109.2 | 37.1 | 39.8 | -25.2 % | +15.3 ms | -5.4 % | +8.6 ms | – |  |
+| FSR 3 · RT Light · FG off · none | 52.3 | 52.4 | 47.8 | 49.7 | -28.4 % | +26.0 ms | – | – | – |  |
+| FSR 3 · RT Light · FG FSR · none | 44.9 | 89.8 | 51.1 | 52.8 | -38.5 % | +29.3 ms | -14.1 % | +3.3 ms | – |  |
+| FSR 3 · RT Full · FG off · none | 45.0 | 44.8 | 57.8 | 59.1 | -38.4 % | +36.0 ms | – | – | – |  |
+| FSR 3 · RT Full · FG FSR · none | 39.6 | 79.0 | 60.7 | 61.8 | -45.8 % | +38.9 ms | -12.0 % | +2.9 ms | – |  |
+| FSR 3 · RT Full, radiance cache · FG off · none | 45.3 | 45.5 | 57.3 | 58.6 | -37.9 % | +35.5 ms | – | – | – |  |
+| FSR 3 · RT Full, radiance cache · FG FSR · none | 39.9 | 79.8 | 59.5 | 61.0 | -45.3 % | +37.7 ms | -11.9 % | +2.2 ms | – |  |
+| FSR 3 · RT Full, cut-out test 1 · FG off · none | 46.1 | 46.0 | 56.2 | 57.6 | -36.8 % | +34.4 ms | – | – | – |  |
+| FSR 3 · RT Full, cut-out test 1 · FG FSR · none | 40.5 | 81.0 | 58.4 | 60.1 | -44.5 % | +36.6 ms | -12.1 % | +2.2 ms | – |  |
+| FSR 3 · RT Full, cut-out test 2 · FG off · none | 47.4 | 47.7 | 54.1 | 55.8 | -35.1 % | +32.3 ms | – | – | – |  |
+| FSR 3 · RT Full, cut-out test 2 · FG FSR · none | 41.5 | 83.0 | 56.6 | 58.3 | -43.2 % | +34.8 ms | -12.4 % | +2.5 ms | – |  |
+| FSR 3 · RT Full, opacity micromaps · FG off · none | 42.3 | 42.3 | 61.9 | 63.5 | -42.1 % | +40.1 ms | – | – | – |  |
+| FSR 3 · RT Full, opacity micromaps · FG FSR · none | 37.1 | 74.1 | 64.8 | 66.9 | -49.2 % | +43.0 ms | -12.3 % | +2.9 ms | – |  |
+| grass · FSR 3 · RT Off · FG off · none | 80.7 | 80.4 | 34.0 | 35.0 | +0.0 % | +0.0 ms | – | – | – | baseline |
+| grass · FSR 3 · RT Off · FG FSR · none | 64.7 | 129.4 | 35.5 | 36.5 | -19.8 % | +1.5 ms | -19.8 % | +1.5 ms | – |  |
+| grass · FSR 3 · RT Shadows · FG off · none | 59.7 | 59.8 | 44.6 | 45.6 | -26.0 % | +10.6 ms | – | – | – |  |
+| grass · FSR 3 · RT Shadows · FG FSR · none | 50.5 | 100.8 | 47.0 | 48.6 | -37.4 % | +13.0 ms | -15.4 % | +2.4 ms | – |  |
+| grass · FSR 3 · RT Light · FG off · none | 46.1 | 45.9 | 59.4 | 60.5 | -42.9 % | +25.4 ms | – | – | – |  |
+| grass · FSR 3 · RT Light · FG FSR · none | 40.3 | 80.8 | 62.9 | 64.1 | -50.1 % | +28.9 ms | -12.6 % | +3.5 ms | – |  |
+| grass · FSR 3 · RT Full · FG off · none | 39.5 | 39.6 | 70.1 | 71.2 | -51.1 % | +36.1 ms | – | – | – |  |
+| grass · FSR 3 · RT Full · FG FSR · none | 35.3 | 70.5 | 73.5 | 74.6 | -56.3 % | +39.5 ms | -10.6 % | +3.4 ms | – |  |
+| grass · FSR 3 · RT Full, radiance cache · FG off · none | 39.7 | 39.8 | 69.6 | 70.8 | -50.8 % | +35.6 ms | – | – | – |  |
+| grass · FSR 3 · RT Full, radiance cache · FG FSR · none | 35.6 | 71.0 | 72.7 | 73.8 | -55.9 % | +38.7 ms | -10.3 % | +3.1 ms | – |  |
+| grass · FSR 3 · RT Full, cut-out test 1 · FG off · none | 40.5 | 40.7 | 68.2 | 69.4 | -49.8 % | +34.2 ms | – | – | – |  |
+| grass · FSR 3 · RT Full, cut-out test 1 · FG FSR · none | 36.1 | 72.0 | 71.4 | 72.6 | -55.3 % | +37.4 ms | -10.9 % | +3.2 ms | – |  |
+| grass · FSR 3 · RT Full, cut-out test 2 · FG off · none | 41.4 | 41.6 | 66.6 | 67.6 | -48.7 % | +32.6 ms | – | – | – |  |
+| grass · FSR 3 · RT Full, cut-out test 2 · FG FSR · none | 36.9 | 73.7 | 69.7 | 70.9 | -54.3 % | +35.7 ms | -10.9 % | +3.1 ms | – |  |
+| grass · FSR 3 · RT Full, opacity micromaps · FG off · none | 37.2 | 36.9 | 74.7 | 76.0 | -53.9 % | +40.7 ms | – | – | – |  |
+| grass · FSR 3 · RT Full, opacity micromaps · FG FSR · none | 33.4 | 66.6 | 78.2 | 79.6 | -58.6 % | +44.2 ms | -10.2 % | +3.5 ms | – |  |
+
 ### cutout-oneoff (`cutout-oneoff`)
 
 A one-off run from before the groups, with a matrix of its own: FSR 3 at raytracing Full
@@ -441,6 +489,74 @@ with it (preset, `MaxGeneratedFrames`), the proxy's ini at the start, the frame 
 lines of the phase, the upscaler's line, and each measured value.
 
 <!-- benchmark-runs:start -->
+### Run 2026-10-21-0927
+
+| What | Value |
+|---|---|
+| Date | 2026-10-21T09:27:51 to 2026-10-21T09:41:59 |
+| Commit | `34f09f6` on `worktree-agent-a3c8b23ed6951386f` |
+| Build in the install | `dxgi.dll` ec66cbc3a2508f0c (2026-10-21T09:05:20), `GameData/ReDefinition/Plugins/ReDefinition.dll` f61fcfbde9484e82 (2026-10-21T09:16:32) |
+| Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
+| Profile | `medium`: [LOG 09:28:52.580] [ReDefinition] Probe: profile medium applied. |
+| Groups | `grass` |
+| Matrix | `tools/benchmark_matrix.json`, 2 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Full record | [benchmarks/2026-10-21-0927.json](benchmarks/2026-10-21-0927.json) |
+
+<details><summary>What ran in each phase</summary>
+
+| Start | Scenario | Upscaler that ran | Frame generation that ran | presented/rendered | Lowered by | Reports | fps range | Notes |
+|---|---|---|---|---|---|---|---|---|
+| grass-fsr-pad | FSR 3 · RT Off · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 9 | 72.0–73.7 |  |
+| grass-fsr-pad | FSR 3 · RT Off · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 66.1–67.5 |  |
+| grass-fsr-pad | FSR 3 · RT Shadows · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 54.0–58.8 |  |
+| grass-fsr-pad | FSR 3 · RT Shadows · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 54.2–54.9 |  |
+| grass-fsr-pad | FSR 3 · RT Light · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 48.6–52.9 |  |
+| grass-fsr-pad | FSR 3 · RT Light · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 44.7–45.1 |  |
+| grass-fsr-pad | FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 42.2–45.3 |  |
+| grass-fsr-pad | FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.4–39.7 |  |
+| grass-fsr-pad | FSR 3 · RT Full, radiance cache · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 42.6–45.7 |  |
+| grass-fsr-pad | FSR 3 · RT Full, radiance cache · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.8–40.0 |  |
+| grass-fsr-pad | FSR 3 · RT Full, cut-out test 1 · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 43.5–46.4 |  |
+| grass-fsr-pad | FSR 3 · RT Full, cut-out test 1 · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 40.2–40.7 |  |
+| grass-fsr-pad | FSR 3 · RT Full, cut-out test 2 · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 43.8–48.1 |  |
+| grass-fsr-pad | FSR 3 · RT Full, cut-out test 2 · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 41.1–41.6 |  |
+| grass-fsr-pad | FSR 3 · RT Full, opacity micromaps · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 39.6–42.5 |  |
+| grass-fsr-pad | FSR 3 · RT Full, opacity micromaps · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 37.0–37.2 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Off · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 9 | 80.2–80.9 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Off · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 64.6–64.8 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Shadows · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 56.5–60.1 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Shadows · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 50.4–50.6 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Light · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 44.5–46.3 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Light · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 40.1–40.4 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 37.5–39.7 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 35.2–35.3 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full, radiance cache · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 37.5–40.0 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full, radiance cache · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 35.5–35.7 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full, cut-out test 1 · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 37.9–41.0 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full, cut-out test 1 · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 36.0–36.2 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full, cut-out test 2 · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 39.3–41.7 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full, cut-out test 2 · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 36.8–36.9 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full, opacity micromaps · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 34.9–37.4 |  |
+| grass-fsr-grass | grass · FSR 3 · RT Full, opacity micromaps · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 33.3–33.4 |  |
+
+The proxy's configuration in each start, as the proxy logged it at load:
+
+```
+grass-fsr-pad: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+grass-fsr-grass: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+```
+
+The probe's scene arguments: grass-fsr-grass: `-redefinitionProbeGrass`.
+
+The raytracing's frames that built 50 meshes or more, at the flight's start:
+
+* grass-fsr-pad: 5 frames, 641 meshes, 273432 triangles; the slowest 0.58 ms of the GPU,
+  8.09 ms of the CPU
+* grass-fsr-grass: 4 frames, 409 meshes, 204060 triangles; the slowest 0.64 ms of the GPU,
+  3.85 ms of the CPU
+
+</details>
+
 ### Run 2026-10-21-0834
 
 | What | Value |
