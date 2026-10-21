@@ -29,6 +29,9 @@ namespace ReDefinition
             if (debugOptions != null) return;
             debugOptions = BuildDebugOptions();
             pins.Load(settings.DiagnosticsPins, debugOptions);
+            category = settings.DiagnosticsPage;
+            window.x = settings.DiagnosticsX;
+            window.y = settings.DiagnosticsY;
         }
 
         // At the start of each layout pass.

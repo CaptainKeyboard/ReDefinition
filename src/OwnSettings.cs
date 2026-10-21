@@ -96,6 +96,10 @@ namespace ReDefinition
         // The options pinned to the strip at the diagnostics window's foot, their ids
         // separated by commas (DebugPins).
         public string DiagnosticsPins = "";
+        // The diagnostics window's last page and where it stands.
+        public ReDefinition.Window.DebugCategory DiagnosticsPage = ReDefinition.Window.DebugCategory.Overview;
+        public float DiagnosticsX = 60f;
+        public float DiagnosticsY = 60f;
         // Other mods' IMGUI windows at KSP's UI scale (Scaling/ModWindowScale).
         public bool ScaleModWindows = true;
         // Better Time Warp Continued's own toolbar button: hidden while off, since
@@ -280,6 +284,9 @@ namespace ReDefinition
                 Key = "diagnosticsPins", Get = x => x.DiagnosticsPins, Set = (x, v) => x.DiagnosticsPins = v, Live = true,
                 Format = v => v, Parse = (string text, out string v) => { v = text ?? ""; return true; },
             },
+            Enum("diagnosticsPage", x => x.DiagnosticsPage, (x, v) => x.DiagnosticsPage = v, true),
+            Float("diagnosticsX", "0", x => x.DiagnosticsX, (x, v) => x.DiagnosticsX = v, true),
+            Float("diagnosticsY", "0", x => x.DiagnosticsY, (x, v) => x.DiagnosticsY = v, true),
             Bool("scaleModWindows", x => x.ScaleModWindows, (x, v) => x.ScaleModWindows = v, true),
             Bool("timeWarpToolbarButton", x => x.TimeWarpToolbarButton, (x, v) => x.TimeWarpToolbarButton = v, true),
             Bool("flightStartsInManeuverMode", x => x.FlightStartsInManeuverMode, (x, v) => x.FlightStartsInManeuverMode = v, true),

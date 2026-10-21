@@ -102,13 +102,20 @@ namespace ReDefinition
                 pendingPin = option.Id;
         }
 
+        // A segment as wide as its text and not under the minimum: fixed, so that the group is as
+        // wide as its segments and no gap opens after it.
+        private float SegmentWidth(string label)
+        {
+            return Mathf.Max(SegmentMinimum, styles.Segment.CalcSize(new GUIContent(label)).x);
+        }
+
         // A row of segments, the selected one pressed; the index clicked, or the selected one.
         private int Segments(string[] labels, int selected)
         {
             int result = selected;
             GUILayout.BeginHorizontal(GUILayout.ExpandWidth(false));
             for (int i = 0; i < labels.Length; i++)
-                if (GUILayout.Toggle(selected == i, labels[i], styles.Segment, GUILayout.MinWidth(SegmentMinimum)) && selected != i)
+                if (GUILayout.Toggle(selected == i, labels[i], styles.Segment, GUILayout.Width(SegmentWidth(labels[i]))) && selected != i)
                     result = i;
             GUILayout.EndHorizontal();
             return result;
@@ -163,8 +170,14 @@ namespace ReDefinition
                 case DebugKind.Choice:
                     GUILayout.Label(label, styles.Small, GUILayout.ExpandWidth(false));
                     GUILayout.Space(4f);
+                    // Its segments in the chip's own row, not in a group of their own: a nested
+                    // group left a gap behind it.
                     int value = option.Get();
-                    int picked = Segments(option.Choices, value);
+                    int picked = value;
+                    for (int i = 0; i < option.Choices.Length; i++)
+                        if (GUILayout.Toggle(value == i, option.Choices[i], styles.Segment,
+                                             GUILayout.Width(SegmentWidth(option.Choices[i]))) && value != i)
+                            picked = i;
                     if (picked != value) option.Set(picked);
                     break;
                 default:

@@ -22,6 +22,9 @@ namespace ReDefinition
             reset.NavballOffset = now.NavballOffset;
             reset.NavballScreen = now.NavballScreen;
             reset.DiagnosticsPins = now.DiagnosticsPins;
+            reset.DiagnosticsPage = now.DiagnosticsPage;
+            reset.DiagnosticsX = now.DiagnosticsX;
+            reset.DiagnosticsY = now.DiagnosticsY;
             if (active) reset.Enabled = now.Enabled;
             return reset;
         }

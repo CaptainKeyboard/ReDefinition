@@ -29,8 +29,14 @@ namespace ReDefinition
         }
 
         private const float WindowWidth = 720f;
-        private const float WindowHeight = 500f;
+        private const float WindowHeight = 600f;
         private const float CategoryWidth = 150f;
+
+        // As tall as it is made, but within the screen (at 1080p 600 fits).
+        private static float ShownHeight
+        {
+            get { return Mathf.Max(360f, Mathf.Min(WindowHeight, Screen.height - 40f)); }
+        }
         private const string SearchControl = "ReDefinitionDiagnosticsSearch";
         private const string TypingLock = "ReDefinitionDiagnosticsSearch";
 
@@ -102,14 +108,19 @@ namespace ReDefinition
             EnsureOptions();
 
             window.width = WindowWidth;
-            window.height = WindowHeight;
+            float height = ShownHeight;
+            window.height = height;
             window = GUILayout.Window(windowId, window, DrawWindow, "ReDefinition",
-                                      GUILayout.Width(WindowWidth), GUILayout.Height(WindowHeight));
+                                      GUILayout.Width(WindowWidth), GUILayout.Height(height));
             // A part of it stays on the screen to be taken hold of; a window taller
             // than the screen can still be dragged up to its lower end.
             const float grip = 40f;
             window.x = Mathf.Clamp(window.x, grip - window.width, Screen.width - grip);
             window.y = Mathf.Clamp(window.y, grip - window.height, Screen.height - grip);
+            // Kept for the next session; saved with the other settings.
+            settings.DiagnosticsX = window.x;
+            settings.DiagnosticsY = window.y;
+            settings.DiagnosticsPage = category;
             // Not click-through: what lies behind it is kept from the click
             // (UnityMouseEvents), as behind the settings window.
             UnityMouseEvents.ImguiWindow = window;
@@ -260,7 +271,7 @@ namespace ReDefinition
             Vector2 mouse = Event.current.mousePosition;
             Rect area = new Rect(mouse.x + 14f, mouse.y + 18f, size.x, size.y + 2f);
             area.x = Mathf.Clamp(area.x, 2f, Mathf.Max(2f, WindowWidth - area.width - 2f));
-            if (area.yMax > WindowHeight - 2f) area.y = mouse.y - area.height - 4f;
+            if (area.yMax > window.height - 2f) area.y = mouse.y - area.height - 4f;
             GUI.Box(area, tooltipNow, styles.Tip);
         }
 
