@@ -1019,8 +1019,19 @@ namespace ReDefinition.Probe
             FlightCamera.fetch.sharpness = 1e4f;
             FlightCamera.fetch.orientationSharpness = 1e4f;
             LogMotionModes(FlightGlobals.ActiveVessel);
-            // The finished frame without KSP's interface over it.
-            GameEvents.onHideUI.Fire();
+            // The finished frame without KSP's interface over it; -redefinitionProbeShowHud keeps
+            // the interface, for what frame generation does to it (tools/hud_probe.py).
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeShowHud") < 0)
+                GameEvents.onHideUI.Fire();
+            // -redefinitionProbeFpsCap <n>: n rendered frames a second at most, so that frame
+            // generation's frames all fit the display's refresh rate and the desktop recording sees them.
+            int fpsCap = IntArgument("-redefinitionProbeFpsCap");
+            if (fpsCap > 0)
+            {
+                QualitySettings.vSyncCount = 0;
+                Application.targetFrameRate = fpsCap;
+                Debug.Log(Log.Tag + " Probe: rendered frames capped at " + fpsCap + " a second.");
+            }
 
             if (RenderDocCapture.Available)
             {

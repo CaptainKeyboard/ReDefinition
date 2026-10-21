@@ -178,6 +178,20 @@ namespace redefinition
         // 0 targets the monitor's refresh rate. Streamline ignores it under V-Sync.
         float dlssgDynamicTargetFps = 0.0f;
 
+        // DLSS-G's UI plane (FrameGenerationUi.cpp). KSP draws its HUD straight onto the
+        // backbuffer, so there is a HUD-less colour and no UI plane of the game's own. 1 = the
+        // proxy makes the plane from the HUD-less copy and the presented frame -- the pixels
+        // that differ are the UI -- tags it as UI colour and alpha, and turns user interface
+        // recomposition on (DLSSGOptions::enableUserInterfaceRecomposition), so that the scene
+        // is interpolated and the UI laid over it after. 0 = the HUD-less colour alone.
+        bool dlssgUiRecomposition = false;
+        // How the plane's alpha is found where the two differ: kDlssgUiAlphaBinary, 1 and the
+        // presented colour; kDlssgUiAlphaMinimal, the least alpha that reproduces the
+        // presented frame over the HUD-less one.
+        int dlssgUiAlpha = 0;
+        // The greatest difference, in levels of 255, that is still no UI.
+        float dlssgUiThreshold = 2.0f;
+
         // Frame pacing. FSR's swapchain owns the timing of generated frames, and
         // these are its documented defaults. Hybrid spin, which AMD's header calls
         // "Less precise, but power saving", is a setting.
@@ -512,6 +526,11 @@ namespace redefinition
     constexpr int kDlssgModeOn = 0;
     constexpr int kDlssgModeDynamic = 1;
     const char* DlssgModeName(int mode);
+
+    // ProxyConfig::dlssgUiAlpha, as the ini writes it: binary, minimal.
+    constexpr int kDlssgUiAlphaBinary = 0;
+    constexpr int kDlssgUiAlphaMinimal = 1;
+    const char* DlssgUiAlphaName(int alpha);
 
     // ProxyConfig::rrPath, as the ini writes it: auto, streamline, ngx.
     constexpr int kRrPathAuto = 0;

@@ -420,6 +420,21 @@ namespace redefinition
             return kDlssgModeOn;
         }
 
+        // dlssgUiAlpha: binary or minimal, in any case; anything else is binary, and said.
+        int ReadDlssgUiAlpha(const std::wstring& file)
+        {
+            wchar_t buffer[32] = {};
+            GetPrivateProfileStringW(L"Proxy", L"dlssgUiAlpha", L"binary", buffer, ARRAYSIZE(buffer), file.c_str());
+            for (int alpha : { kDlssgUiAlphaBinary, kDlssgUiAlphaMinimal })
+            {
+                const std::string name = DlssgUiAlphaName(alpha);
+                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
+                    return alpha;
+            }
+            LogLine("Config: dlssgUiAlpha=" + Narrow(buffer) + " is none of binary, minimal -- binary");
+            return kDlssgUiAlphaBinary;
+        }
+
         // rrPath: auto, streamline or ngx, in any case; anything else is auto, and said.
         int ReadRrPath(const std::wstring& file)
         {
@@ -455,6 +470,10 @@ namespace redefinition
                  + " fgObjectSeparationMetres=" + std::to_string(c.fgObjectSeparationMetres)
                  + " dlssgMode=" + DlssgModeName(c.dlssgMode)
                  + (c.dlssgMode == kDlssgModeDynamic ? "/" + std::to_string(static_cast<int>(c.dlssgDynamicTargetFps)) : "")
+                 + " dlssgUi=" + (c.dlssgUiRecomposition
+                                      ? std::string(DlssgUiAlphaName(c.dlssgUiAlpha)) + "/"
+                                            + std::to_string(static_cast<int>(c.dlssgUiThreshold))
+                                      : std::string("off"))
                  + " pacing=" + std::to_string(c.fgPacingSafetyMarginMs) + "/"
                  + std::to_string(c.fgPacingVarianceFactor)
                  + (c.fgPacingHybridSpin ? "/spin " + std::to_string(c.fgPacingHybridSpinTime) : "")
@@ -550,6 +569,11 @@ namespace redefinition
             target.dlssgDynamicTargetFps = ReadFloat(L"dlssgDynamicTargetFps", file, 0.0f);
             if (target.dlssgDynamicTargetFps < 0.0f)
                 target.dlssgDynamicTargetFps = 0.0f;
+            target.dlssgUiRecomposition = ReadFlag(L"dlssgUiRecomposition", file, false);
+            target.dlssgUiAlpha = ReadDlssgUiAlpha(file);
+            target.dlssgUiThreshold = ReadFloat(L"dlssgUiThreshold", file, 2.0f);
+            if (target.dlssgUiThreshold < 0.0f)
+                target.dlssgUiThreshold = 0.0f;
             target.fgPacingSafetyMarginMs = ReadFloat(L"fgPacingSafetyMarginMs", file, 0.1f);
             target.fgPacingVarianceFactor = ReadFloat(L"fgPacingVarianceFactor", file, 0.1f);
             target.fgPacingHybridSpin = ReadFlag(L"fgPacingHybridSpin", file, false);
@@ -714,6 +738,11 @@ namespace redefinition
     const char* DlssgModeName(int mode)
     {
         return mode == kDlssgModeDynamic ? "dynamic" : "on";
+    }
+
+    const char* DlssgUiAlphaName(int alpha)
+    {
+        return alpha == kDlssgUiAlphaMinimal ? "minimal" : "binary";
     }
 
     // As StreamlineDirectory: from the file, once per swapchain.

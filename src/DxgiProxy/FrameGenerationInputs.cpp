@@ -517,6 +517,13 @@ namespace redefinition
             CopyInputLocked(motion, canFlip);
             CopyInputLocked(hudLess, flipHudLess);
 
+            // DLSS-G's UI plane, from the presented frame and the HUD-less copy just taken.
+            uiPlaneFresh = false;
+            if (streamline && Config().dlssgUiRecomposition)
+                uiPlaneFresh = SplitUiLocked();
+            else if (uiPlane[0].d3d11 || uiPlane[1].d3d11)
+                ReleaseUiPlaneLocked();
+
             if (flip && !canFlip && !loggedFlipMissing)
             {
                 loggedFlipMissing = true;

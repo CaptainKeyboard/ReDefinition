@@ -864,6 +864,7 @@ int main()
     // Dynamic Multi Frame Generation aims at an output frame rate -- the display's by default,
     // which the harness's thousand rendered frames a second are far above, so that it
     // generates nothing. A target above what four times those come to makes it generate the most.
+    const IniKey dlssgUiKey(L"dlssgUiRecomposition");
     const IniKey dlssgTargetKey(L"dlssgDynamicTargetFps");
     dlssgTargetKey.Set(L"8000");
 
@@ -1841,6 +1842,32 @@ int main()
             printf("      dlssgMode=on again: %.2f presents per frame\n", fixedAgain);
             if (fixedAgain < kGeneratingAtLeast)
                 return Fail("dlssgMode=on again generated no frames", E_FAIL);
+        }
+
+        // DLSS-G's UI plane, made from the HUD-less copy and the presented frame, with user
+        // interface recomposition on (dlssgUiRecomposition), and off again: the proxy's device
+        // must survive both and frames must be generated throughout.
+        {
+            dlssgUiKey.Set(L"1");
+            float withUi = 0.0f;
+            hr = presentsPerFrame(3.0f, withUi);
+            if (FAILED(hr))
+                return Fail("Present with dlssgUiRecomposition=1", hr);
+            status(line, sizeof(line));
+            printf("      dlssgUiRecomposition=1: %.2f presents per frame  [%s]\n", withUi, line);
+            if (strstr(line, "device=ok") == nullptr)
+                return Fail("the proxy's device did not survive dlssgUiRecomposition=1", E_FAIL);
+            if (withUi < kGeneratingAtLeast)
+                return Fail("dlssgUiRecomposition=1 generated no frames", E_FAIL);
+
+            dlssgUiKey.Set(L"0");
+            float withoutUi = 0.0f;
+            hr = presentsPerFrame(3.0f, withoutUi);
+            if (FAILED(hr))
+                return Fail("Present with dlssgUiRecomposition=0 again", hr);
+            printf("      dlssgUiRecomposition=0 again: %.2f presents per frame\n", withoutUi);
+            if (withoutUi < kGeneratingAtLeast)
+                return Fail("dlssgUiRecomposition=0 again generated no frames", E_FAIL);
         }
 
         // REDEFINITION_HARNESS_FOCUS=1: DLSS-G generates nothing while the harness window is not in the

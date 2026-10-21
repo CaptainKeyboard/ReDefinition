@@ -99,6 +99,7 @@ add_library(ReDefinitionProxy SHARED
     FrameGenerationContext.cpp
     FrameGenerationDump.cpp
     FrameGenerationInputs.cpp
+    FrameGenerationUi.cpp
     FrameGenerationDlss.cpp
     FrameGenerationXess.cpp
     FrameGenerationPrepare.cpp

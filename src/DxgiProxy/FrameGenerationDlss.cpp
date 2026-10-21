@@ -116,6 +116,7 @@ namespace redefinition
         streamlineOffStatus = 0;
         streamlineMultiplier = 0;
         loggedUnflipped = false;
+        streamlineUiSet = false;
     }
 
     bool FrameGeneration::PrepareStreamlineLocked(uint32_t frameIndex, const std::function<uint32_t()>& maxFrames,
@@ -192,6 +193,15 @@ namespace redefinition
         hudLessResource.nativeFormat = static_cast<uint32_t>(TypedFormat(S(hudLess).format));
         const sl::Extent hudLessExtent{ 0, 0, S(hudLess).width, S(hudLess).height };
 
+        // The UI plane, where the proxy made one for this frame and the options ask for recomposition
+        // (FrameGenerationUi.cpp); otherwise its tag let go. "Needs the same dimensions as the colour backbuffer".
+        const bool useUi = cfg.dlssgUiRecomposition && useHudLess && uiPlaneFresh && uiPlane[slot].Valid();
+        sl::Resource uiResource(sl::ResourceType::eTex2d, useUi ? uiPlane[slot].d3d12.Get() : nullptr, kCommon);
+        uiResource.width = uiPlane[slot].width;
+        uiResource.height = uiPlane[slot].height;
+        uiResource.nativeFormat = static_cast<uint32_t>(DXGI_FORMAT_R8G8B8A8_UNORM);
+        const sl::Extent uiExtent{ 0, 0, uiPlane[slot].width, uiPlane[slot].height };
+
         sl::ResourceTag tags[] = {
             sl::ResourceTag(&depthResource, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent, &depthExtent),
             sl::ResourceTag(&motionResource, sl::kBufferTypeMotionVectors, sl::ResourceLifecycle::eValidUntilPresent,
@@ -199,6 +209,9 @@ namespace redefinition
             useHudLess ? sl::ResourceTag(&hudLessResource, sl::kBufferTypeHUDLessColor,
                                          sl::ResourceLifecycle::eValidUntilPresent, &hudLessExtent)
                        : sl::ResourceTag(nullptr, sl::kBufferTypeHUDLessColor, sl::ResourceLifecycle::eValidUntilPresent),
+            useUi ? sl::ResourceTag(&uiResource, sl::kBufferTypeUIColorAndAlpha,
+                                    sl::ResourceLifecycle::eValidUntilPresent, &uiExtent)
+                  : sl::ResourceTag(nullptr, sl::kBufferTypeUIColorAndAlpha, sl::ResourceLifecycle::eValidUntilPresent),
         };
 
         // The upscaler's conventions carry over, as for FSR (PrepareForPresentLocked):
@@ -254,7 +267,7 @@ namespace redefinition
         constants.reset = packet.reset != 0 || resumed ? sl::Boolean::eTrue : sl::Boolean::eFalse;
 
         streamlineTagged = true;
-        if (!streamlineApi.SetConstants(constants, frameIndex) || !streamlineApi.SetTags(frameIndex, tags, 3))
+        if (!streamlineApi.SetConstants(constants, frameIndex) || !streamlineApi.SetTags(frameIndex, tags, 4))
         {
             StreamlineOffLocked("its inputs were not accepted");
             return false;
@@ -288,6 +301,19 @@ namespace redefinition
         // 0 targets the monitor's refresh rate; Streamline ignores the target under V-Sync.
         options.dynamicTargetFrameRate = dynamic ? cfg.dlssgDynamicTargetFps : 0.0f;
         options.flags = sl::DLSSGFlags::eRetainResourcesWhenOff;
+        // "When both Hudless and a UI buffer are tagged, User Interface Recomposition can be enabled"
+        // (ProgrammingGuideDLSS_G.md 6.6): the scene interpolated without the UI, which is laid over it after.
+        options.enableUserInterfaceRecomposition = useUi ? sl::Boolean::eTrue : sl::Boolean::eFalse;
+        options.uiBufferFormat = useUi ? static_cast<uint32_t>(DXGI_FORMAT_R8G8B8A8_UNORM) : 0;
+        if (useUi != streamlineUiSet)
+        {
+            streamlineUiSet = useUi;
+            LogLine(useUi ? std::string("DLSS frame generation: user interface recomposition on, with a UI plane made from the"
+                                        " HUD-less copy and the presented frame (dlssgUiAlpha=")
+                                + DlssgUiAlphaName(cfg.dlssgUiAlpha) + ", dlssgUiThreshold="
+                                + std::to_string(static_cast<int>(cfg.dlssgUiThreshold)) + ")"
+                          : std::string("DLSS frame generation: user interface recomposition off"));
+        }
         // Only the frames DLSS-G generates on screen, to see them apart (Config.h).
         if (Config().fgShowOnlyGenerated)
             options.flags |= sl::DLSSGFlags::eShowOnlyInterpolatedFrame;
@@ -369,8 +395,9 @@ namespace redefinition
                     sl::ResourceTag(nullptr, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent),
                     sl::ResourceTag(nullptr, sl::kBufferTypeMotionVectors, sl::ResourceLifecycle::eValidUntilPresent),
                     sl::ResourceTag(nullptr, sl::kBufferTypeHUDLessColor, sl::ResourceLifecycle::eValidUntilPresent),
+                    sl::ResourceTag(nullptr, sl::kBufferTypeUIColorAndAlpha, sl::ResourceLifecycle::eValidUntilPresent),
                 };
-                if (streamlineApi.SetTags(streamlineApi.FrameInProgressIndex(), none, 3))
+                if (streamlineApi.SetTags(streamlineApi.FrameInProgressIndex(), none, 4))
                     streamlineTagged = false;
             }
         }

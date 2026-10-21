@@ -469,6 +469,28 @@ namespace redefinition
         void CheckHudLessLocked(bool copied);
         void DumpInputsLocked(bool copied);
 
+        // DLSS-G's UI plane (FrameGenerationUi.cpp, dlssgUiRecomposition): UI colour and alpha
+        // made at Present from the presented frame and the HUD-less copy, into two shared
+        // textures used alternately like the inputs. uiPlaneFresh: this Present's was made.
+        bool SplitUiLocked();
+        bool EnsureUiPlaneLocked();
+        bool EnsureUiShaderLocked(bool minimal, float thresholdLevels);
+        void ReleaseUiPlaneLocked();
+        SharedTexture uiPlane[2];
+        Microsoft::WRL::ComPtr<ID3D11Texture2D> uiFrameCopy;
+        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> uiFrameView;
+        DXGI_FORMAT uiFrameFormat = DXGI_FORMAT_UNKNOWN;
+        // A view on each slot's HUD-less texture, and the texture it was made for.
+        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> uiHudLessView[2];
+        ID3D11Texture2D* uiHudLessTexture[2] = {};
+        Microsoft::WRL::ComPtr<ID3D11ComputeShader> uiShader;
+        bool uiShaderMinimal = false;
+        float uiShaderThreshold = -1.0f;
+        bool uiUnavailable = false;
+        bool uiPlaneFresh = false;
+        // Whether the options last set asked for recomposition, for the log line that says each change once.
+        bool streamlineUiSet = false;
+
         // The input dump: staging copies of the HUD-less colour, depth, motion vectors
         // and the frame as presented, with their packet, taken on consecutive frames,
         // written once all are taken.
