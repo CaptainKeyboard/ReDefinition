@@ -24,6 +24,7 @@ import datetime
 import filecmp
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -47,8 +48,8 @@ SHOT = "bench"
 # (SceneProbe.IniShots), and waits this long in the flight before the first.
 PROBE_SET_SECONDS = 12.0
 PROBE_FLIGHT_SECONDS = 30.0
-# How far under the multiplier asked for the frames presented per rendered frame may lie
-# before the step counts as not delivered.
+# How far from the multiplier asked for the frames presented per rendered frame may lie, under
+# or over, before the step counts as not delivered.
 STEP_TOLERANCE = 0.25
 # Longest command line the tool launches KSP with; CreateProcess takes 32767 characters.
 MAX_COMMAND_CHARS = 30000
@@ -936,19 +937,8 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
         elif upscaler["technique"] != s["technique_log_name"]:
             warnings.append("asked for {}, ran {}".format(s["technique_log_name"], upscaler["technique"]))
         ratio = measured.get("presented_per_rendered")
-        if ratio is not None:
-            if s["fg_requested"] and ratio < 1.5:
-                text = "frame generation asked for, presented/rendered {:.2f}".format(ratio)
-                if _unfocused_at(proxy, end):
-                    text += (" -- the game's window was not in the foreground, and DLSS-G generates nothing then"
-                             " (the proxy's log says so)")
-                warnings.append(text)
-            if not s["fg_requested"] and ratio > 1.2:
-                warnings.append("frame generation held off, presented/rendered {:.2f}".format(ratio))
-        step_check = _step_check(s, ratio)
-        if step_check and step_check["delivered"] is False:
-            warnings.append("{} asked for, presented/rendered {:.2f}: the GPU or the driver delivered {}x".format(
-                step_check["asked"], ratio, step_check["shown_as"]))
+        ratio_warnings, step_check = _ratio_findings(proxy, s, ratio, end)
+        warnings.extend(ratio_warnings)
         if s["fg_requested"] and s["fg_kind"] == "dlssg" and fg_kind != "DLSS-G":
             warnings.append("DLSS-G asked for, the proxy set up {}".format(fg_kind or "none"))
         if s["fg_requested"] and s["fg_kind"] == "xessfg" and fg_kind != "XeSS-FG":
@@ -974,7 +964,7 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
             "proxy_config": config["values"] if config else None,
             "proxy_config_line": config["text"] if config else None,
             "upscaler": upscaler, "fg_kind_ran": fg_kind if ratio and ratio >= 1.5 else "none",
-            "fg_step": step_check,
+            "fg_step": step_check, "_ratio_warnings": ratio_warnings,
             "fg_lines": [x["text"] for key in ("dlssg", "fg_multiplier", "xess_fg") for x in proxy["lines"].get(key, [])
                          if set_time - 0.5 <= x["time"] <= end] + [
                              "mod: frame generation multiplier " + m["choice"] for m in ksp["multiplier"]
@@ -983,10 +973,17 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
         })
     phases = _merge_repeats(results)
     for r in phases:
+        earlier = r.pop("_ratio_warnings", [])
         if r.get("repeats"):
             rs = float((r["proxy_config"] or {}).get("reportSeconds", 10))
             r["measured"] = aggregate(*[_in_window(proxy[k], r["window"][0], r["window"][1], rs)
                                         for k in ("reports", "latency", "pcl", "brake", "stages")])
+            # What the frames per rendered frame say is of the merged window, not of its first pass:
+            # the step check, the notes on them and the frame generation that ran.
+            ratio = r["measured"].get("presented_per_rendered")
+            ratio_warnings, r["fg_step"] = _ratio_findings(proxy, r["scenario"], ratio, r["window"][1])
+            r["warnings"] = sorted((set(r["warnings"]) - set(earlier)) | set(ratio_warnings))
+            r["fg_kind_ran"] = fg_kind if ratio and ratio >= 1.5 else "none"
     return {
         "gpu": ksp["gpu"], "profile_lines": ksp["profile"],
         "proxy_load_config": load_config["values"] if load_config else None,
@@ -1019,19 +1016,40 @@ def rt_builds_of(builds):
             "lines": builds[:10]}
 
 
+def _ratio_findings(proxy, s, ratio, end):
+    """The notes the frames presented per rendered frame give a phase of scenario s, and its
+    step check: frame generation asked for and not there, held off and there, a step not delivered."""
+    warnings = []
+    if ratio is not None:
+        if s["fg_requested"] and ratio < 1.5:
+            text = "frame generation asked for, presented/rendered {:.2f}".format(ratio)
+            if _unfocused_at(proxy, end):
+                text += (" -- the game's window was not in the foreground, and DLSS-G generates nothing then"
+                         " (the proxy's log says so)")
+            warnings.append(text)
+        if not s["fg_requested"] and ratio > 1.2:
+            warnings.append("frame generation held off, presented/rendered {:.2f}".format(ratio))
+    step_check = _step_check(s, ratio)
+    if step_check and step_check["delivered"] is False:
+        warnings.append("{} asked for, presented/rendered {:.2f}: the GPU or the driver delivered {}x".format(
+            step_check["asked"], ratio, step_check["shown_as"]))
+    return warnings, step_check
+
+
 def _step_check(scenario, ratio):
     """What a frame generation step asked for and what the frames per rendered frame show:
     asked "3x" and 2.0 presented per rendered frame is a step the GPU or the driver did not
-    deliver (shown_as the whole number nearest). Dynamic has no number to be held to."""
+    deliver (shown_as the whole number nearest), and so is 2x asked for with 3.0 shown: a
+    multiplier that did not reach the proxy. Dynamic has no number to be held to."""
     step = scenario.get("step")
     if not step or not scenario.get("fg_requested") or ratio is None:
         return None
-    shown_as = int(round(ratio))
+    shown_as = int(math.floor(ratio + 0.5))
     if step == "Dynamic":
         return {"asked": step, "expected": None, "shown": ratio, "shown_as": shown_as, "delivered": None}
     expected = int(step.rstrip("x"))
     return {"asked": step, "expected": expected, "shown": ratio, "shown_as": shown_as,
-            "delivered": ratio >= expected - STEP_TOLERANCE}
+            "delivered": abs(ratio - expected) <= STEP_TOLERANCE}
 
 
 def _same_number(a, b):
@@ -1059,6 +1077,8 @@ def _merge_repeats(results):
             m["window"] = [parts[0]["window"][0], parts[-1]["window"][1]]
             m["repeats"] = len(parts)
             m["warnings"] = sorted({w for p in parts for w in p["warnings"]})
+            if any("_ratio_warnings" in p for p in parts):
+                m["_ratio_warnings"] = sorted({w for p in parts for w in p.get("_ratio_warnings", [])})
         out.append(m)
     return out
 

@@ -995,6 +995,56 @@ class StepCheckTest(unittest.TestCase):
         self.assertTrue(on["fg_step"]["delivered"])
         self.assertEqual(on["warnings"], [])
 
+    def test_a_step_that_is_over_delivered_is_named_as_well(self):
+        # 2x asked for and 3x shown: the multiplier did not reach the proxy (a stale Dynamic, a step of the row before).
+        check = bm._step_check({"step": "2x", "fg_requested": True}, 3.0)
+        self.assertFalse(check["delivered"])
+        self.assertEqual(check["shown_as"], 3)
+        self.assertTrue(bm._step_check({"step": "2x", "fg_requested": True}, 2.2)["delivered"])
+        self.assertFalse(bm._step_check({"step": "2x", "fg_requested": True}, 2.3)["delivered"])
+        # The whole number nearest is rounded half up, not to the even one.
+        self.assertEqual(bm._step_check({"step": "6x", "fg_requested": True}, 2.5)["shown_as"], 3)
+        self.assertEqual(bm._step_check({"step": "6x", "fg_requested": True}, 4.5)["shown_as"], 5)
+
+    def test_a_repeated_phase_is_judged_on_the_merged_window(self):
+        """The first pass of a rendering's first phase has the frame generation coming up (1.7 shown per rendered frame);
+        the phase is both passes, 1.85, and its step check, its notes and the frame generation that ran are of that."""
+        ksp = "".join("[LOG {}] [ReDefinition] {}\n".format(t, text) for t, text in (
+            ("12:00:00.000", "Upscaler running on 'Camera 00': 1707x960 -> 2560x1440 (Quality, AMD FSR (DLL))"),
+            ("12:00:10.000", "Probe: ReDefinitionProxy.ini set to fgMinimumFps=0."),
+            ("12:00:22.000", "Probe: shot bench-ini0 with fgMinimumFps=0."),
+            ("12:00:22.100", "Probe: ReDefinitionProxy.ini set to fgMinimumFps=0."),
+            ("12:00:34.000", "Probe: shot bench-ini1 with fgMinimumFps=0.")))
+        lines = ["11:59:59.000  Config: enabled=1 reportSeconds=1 fgMinimumFps=0",
+                 "11:59:59.500  Frame generation context created for 2560x1440, depthInverted=1",
+                 "12:00:10.500  Config reloaded: enabled=1 reportSeconds=1 fgMinimumFps=0",
+                 "12:00:22.600  Config reloaded: enabled=1 reportSeconds=1 fgMinimumFps=0"]
+        for second in list(range(13, 23)) + list(range(25, 35)):
+            ratio = "1.00" if second < 16 else "2.00"
+            lines.append("12:00:{:02d}.000  D3D12 proxy: 100 frames, mean 10.00 ms (100.0 fps), p50 10.00, p95 12.00, p99 14.00,"
+                         " max 20.00, presented/rendered {}, displayed 100/s at 120 Hz, sync 0".format(second, ratio))
+        scenario_on = dict(scenario("fsr", True, "none"), step="2x")
+        phase = {"scenario": scenario_on, "keys": {"fgMinimumFps": "0"}, "settle": 1}
+        start = {"id": "s", "phases": [dict(phase), dict(phase)]}
+        # The window's first pass alone: 1.7, a step not delivered.
+        alone = bm.phases_of_start({"id": "s", "phases": [dict(phase)]}, ksp, "\n".join(lines) + "\n", 3)["phases"][0]
+        self.assertFalse(alone["fg_step"]["delivered"])
+        self.assertAlmostEqual(alone["measured"]["presented_per_rendered"], 1.7)
+        merged = bm.phases_of_start(start, ksp, "\n".join(lines) + "\n", 3)["phases"]
+        self.assertEqual(len(merged), 1)
+        phase = merged[0]
+        self.assertEqual(phase["repeats"], 2)
+        self.assertAlmostEqual(phase["measured"]["presented_per_rendered"], 1.85)
+        self.assertEqual(phase["fg_step"]["shown"], phase["measured"]["presented_per_rendered"])
+        self.assertTrue(phase["fg_step"]["delivered"])
+        self.assertEqual(phase["warnings"], [])
+        self.assertEqual(phase["fg_kind_ran"], "FSR")
+        self.assertNotIn("_ratio_warnings", phase)
+        # The same phase asked for 3x: the merged ratio decides the note, once.
+        start["phases"][0]["scenario"] = start["phases"][1]["scenario"] = dict(scenario_on, step="3x")
+        phase = bm.phases_of_start(start, ksp, "\n".join(lines) + "\n", 3)["phases"][0]
+        self.assertEqual(phase["warnings"], ["3x asked for, presented/rendered 1.85: the GPU or the driver delivered 2x"])
+
     def test_the_multiplier_lines_of_the_phase_are_kept(self):
         proxy = fixture("bench.proxy.log")
         ksp = fixture("bench.KSP.log")
