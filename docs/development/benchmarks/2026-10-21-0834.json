@@ -2,6 +2,10 @@
  "date": "2026-10-21T08:34:06",
  "stamp": "2026-10-21-0834",
  "finished": "2026-10-21T08:43:01",
+ "groups": [
+  "cutout-oneoff"
+ ],
+ "note": "A one-off run from before the groups, with a matrix of its own: FSR 3 at raytracing Full on the launch pad, the cut-out tests (rtCutoutTest 1 and 2) and the opacity micromaps in turn, plain and micromaps again to see the run's own spread.",
  "git": {
   "commit": "cdb7d7587e138433d9de54288f2f461b6aa847c1",
   "short": "cdb7d75",

@@ -1,5 +1,5 @@
 {
-  "comment": "The standing comparison (docs/development/benchmarks.md). Only the frame generation kind is a KSP start of its own; the upscaler, raytracing and Ray Reconstruction (the probe's mod.<key> keys), frame generation on and off and the latency models (the proxy's live keys) are set in turn inside each start. The raytracing's rtBlas*, rtTlasFastTrace and rtMegaGeometry keys go into proxy_load: the meshes are built at the flight's start, before the first phase, so a comparison of them takes a run of its own with other values there; each start's record holds the proxy's lines of its large mesh builds (rt_builds). The radiance cache (the proxy's live rtRadianceCache) is a rendering of its own for one technique and raytracing mode, with the latency models it names; every other phase has it off. So are the opacity micromaps (the proxy's live rtOpacityMicromaps), the last rendering of the start: the first 1 makes the raytracing's pipelines with micromap support, which they keep, and the meshes' structures are rebuilt with them once their micromaps are baked, in the rendering's first seconds; every other phase has it 0. A frame generation kind may write values into the DLSS-G package's ini for its start (dlssg_ini, section by section) and name the renderings it is measured with (only): dlssg-c is the package's preset C ([DLSSG] Preset), with FSR 3 at RT Off and Full and no latency model, as a kind of dlssg for the checks; both DLSS-G starts set [Logging] FrameTiming=1, which writes the GPU time of the frame generation evaluates per frame to the dlssg-logs copied beside the raw logs.",
+  "comment": "The standing comparison (docs/development/benchmarks.md). Only the frame generation kind is a KSP start of its own; the upscaler, raytracing and Ray Reconstruction (the probe's mod.<key> keys), frame generation on and off and the latency models (the proxy's live keys) are set in turn inside each start. The raytracing's rtBlas*, rtTlasFastTrace and rtMegaGeometry keys go into proxy_load: the meshes are built at the flight's start, before the first phase, so a comparison of them takes a run of its own with other values there; each start's record holds the proxy's lines of its large mesh builds (rt_builds). The radiance cache (the proxy's live rtRadianceCache) is a rendering of its own for one technique and raytracing mode, with the latency models it names; every other phase has it off. So are the opacity micromaps (the proxy's live rtOpacityMicromaps), the last rendering of the start: the first 1 makes the raytracing's pipelines with micromap support, which they keep, and the meshes' structures are rebuilt with them once their micromaps are baked, in the rendering's first seconds; every other phase has it 0. A frame generation kind may write values into the DLSS-G package's ini for its start (dlssg_ini, section by section) and name the renderings it is measured with (only): dlssg-c is the package's preset C ([DLSSG] Preset), with FSR 3 at RT Off and Full and no latency model, as a kind of dlssg for the checks; both DLSS-G starts set [Logging] FrameTiming=1, which writes the GPU time of the frame generation evaluates per frame to the dlssg-logs copied beside the raw logs. Groups: the matrix's own lists are the main group, the default run. Every entry of \"groups\" is the matrix with its own values over it (lists of ids or of {\"extends\": id, ...} for techniques, frame_generation and latency; the other keys replace, proxy_load and mod_settings merge), run by `run --group <id>`; \"scenes\" and \"variants\" multiply its starts (a variant's proxy_load goes into the proxy at load, a start of its own), and \"tweaks\" are renderings of their own (live proxy keys, \"tweak_defaults\" the values every other phase has). A frame generation kind with \"steps\" is measured at each multiplier (the mod's frameGenerationMultiplier through the probe's mod.<key>).",
   "profile": "medium",
   "settle_seconds": 2,
   "settle_after_rebuild_seconds": 8,
@@ -52,5 +52,84 @@
     {"id": "reflex+brake", "name": "Reflex + brake 4 ms", "proxy": {"lowLatency": "1", "latencyBrake": "1", "latencyBrakeTargetMs": "4", "antiLag2": "0"}, "vendors": ["NVIDIA"]},
     {"id": "antilag2", "name": "Anti-Lag 2", "proxy": {"lowLatency": "0", "latencyBrake": "0", "antiLag2": "12"}, "vendors": ["AMD"]},
     {"id": "xell", "name": "XeLL", "proxy": {"lowLatency": "1", "latencyBrake": "0", "antiLag2": "0"}, "only_with_fg": ["xessfg"]}
+  ],
+  "main_name": "Main matrix",
+  "main_description": "Every upscaler with raytracing off and full, every frame generation kind, every latency model, plus the radiance cache and the opacity micromaps on FSR 3 at raytracing Full. The default run.",
+  "scenes": {
+    "pad": {"name": "the launch pad", "args": []},
+    "grass": {"name": "a field of Parallax's grass 5 km from the pad", "args": ["-redefinitionProbeGrass"]}
+  },
+  "groups": [
+    {
+      "id": "rt-modes",
+      "name": "Raytracing modes",
+      "description": "Raytracing Off, Shadows, Light and Full for FSR 3 and DLSS (Ray Reconstruction on and off), frame generation off and FSR's.",
+      "techniques": ["fsr3", "dlss"],
+      "raytracing": ["Off", "Shadows", "Light", "Full"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr"],
+      "latency": ["none"]
+    },
+    {
+      "id": "frame-steps",
+      "name": "Frame generation steps",
+      "description": "DLSS-G at 2x, 3x, 4x, 5x, 6x and Dynamic with the package's MaxGeneratedFrames raised to 5, set live through the mod's frameGenerationMultiplier, for FSR 3 at raytracing Off and Full; FSR's frame generation and no frame generation as the references. The shown/rendered column is what the GPU and the driver delivered.",
+      "techniques": ["fsr3"],
+      "raytracing": ["Off", "Full"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "settle_seconds": 4,
+      "show": ["ratio"],
+      "frame_generation": [{"extends": "fsr", "steps": ["2x"]}, {"extends": "dlssg", "max_generated_frames": 5, "steps": ["2x", "3x", "4x", "5x", "6x", "Dynamic"]}],
+      "latency": ["none"]
+    },
+    {
+      "id": "dlssg-presets",
+      "name": "DLSS-G presets",
+      "description": "The package's preset Auto and preset C with every upscaler at raytracing Off and Full, no latency model; FSR's frame generation and no frame generation as the references.",
+      "raytracing": ["Off", "Full"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "latency": ["none"],
+      "frame_generation": ["fsr", {"extends": "dlssg", "id": "dlssg-auto", "kind": "dlssg", "name": "DLSS-G preset Auto", "dlssg_ini": {"DLSSG": {"Preset": "Auto"}, "Logging": {"FrameTiming": "1"}}}, {"extends": "dlssg-c", "only": null}]
+    },
+    {
+      "id": "latency-brake",
+      "name": "Latency brake targets",
+      "description": "The latency brake at 4 ms (the default), 2 ms and 1 ms for FSR 3 at raytracing Off and Full, with no frame generation, FSR's and DLSS-G; no brake as the reference.",
+      "techniques": ["fsr3"],
+      "raytracing": ["Off", "Full"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr", "dlssg"],
+      "latency": ["none", "brake", {"id": "brake2", "name": "brake 2 ms", "proxy": {"lowLatency": "0", "latencyBrake": "1", "latencyBrakeTargetMs": "2", "antiLag2": "0"}}, {"id": "brake1", "name": "brake 1 ms", "proxy": {"lowLatency": "0", "latencyBrake": "1", "latencyBrakeTargetMs": "1", "antiLag2": "0"}}]
+    },
+    {
+      "id": "blas",
+      "name": "Acceleration structure builds",
+      "description": "How the meshes' acceleration structures are built, one KSP start per variant (they are built at the flight's start): the start's slowest build frame and the frame rate of its first phases, FSR 3 at raytracing Full.",
+      "techniques": ["fsr3"],
+      "raytracing": ["Full"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr"],
+      "latency": ["none"],
+      "show": ["rt_builds"],
+      "baseline": {"technique": "fsr3", "raytracing": "Full", "ray_reconstruction": null, "fg": "off", "latency": "none", "variant": "defaults"},
+      "variants": [{"id": "defaults", "name": "defaults", "proxy_load": {}}, {"id": "legacy", "name": "legacy build", "proxy_load": {"rtBlasBatch": "0", "rtBlasPool": "0", "rtBlasCompaction": "0"}}, {"id": "no-batch", "name": "no batching", "proxy_load": {"rtBlasBatch": "0"}}, {"id": "no-pool", "name": "no pooling", "proxy_load": {"rtBlasPool": "0"}}, {"id": "compaction-0", "name": "compaction 0", "proxy_load": {"rtBlasCompaction": "0"}}, {"id": "compaction-1", "name": "compaction 1", "proxy_load": {"rtBlasCompaction": "1"}}, {"id": "budget-20000", "name": "budget 20000 triangles", "proxy_load": {"rtBlasBudget": "20000"}}, {"id": "tlas-fast-trace", "name": "TLAS fast trace", "proxy_load": {"rtTlasFastTrace": "1"}}, {"id": "mega-geometry", "name": "Mega Geometry", "proxy_load": {"rtMegaGeometry": "1"}}]
+    },
+    {
+      "id": "grass",
+      "name": "Grass and terrain",
+      "description": "The launch pad and a field of Parallax's grass 5 km away (-redefinitionProbeGrass), FSR 3 at every raytracing mode, then at Full the radiance cache, the cut-out tests (rtCutoutTest 1 and 2, the ceiling of what the alpha tests cost) and, last, the opacity micromaps; frame generation off and FSR's.",
+      "scenes": ["pad", "grass"],
+      "techniques": ["fsr3"],
+      "raytracing": ["Off", "Shadows", "Light", "Full"],
+      "frame_generation": ["fsr"],
+      "latency": ["none"],
+      "tweak_defaults": {"rtCutoutTest": "0"},
+      "tweaks": [{"id": "cutout1", "name": "cut-out test 1", "technique": "fsr3", "raytracing": "Full", "latencies": ["none"], "keys": {"rtCutoutTest": "1"}}, {"id": "cutout2", "name": "cut-out test 2", "technique": "fsr3", "raytracing": "Full", "latencies": ["none"], "keys": {"rtCutoutTest": "2"}}]
+    }
   ]
 }

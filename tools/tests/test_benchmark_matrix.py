@@ -717,5 +717,387 @@ class DocTest(unittest.TestCase):
         self.assertLess(out.index("### Run 2026-10-20-1800"), out.index("### Run 2026-10-19-1800"))
 
 
+REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
+
+
+def read_source(*parts):
+    with open(os.path.join(REPO_ROOT, *parts), encoding="utf-8") as f:
+        return f.read()
+
+
+class GroupTest(unittest.TestCase):
+    ALL = {"dlssg_package": "p", "amd_dll_dir": "d", "xess_dll_dir": "x", "xess_fg_dll_dir": "f"}
+
+    def setUp(self):
+        self.matrix = bm.load_matrix(bm.DEFAULT_MATRIX)
+
+    def starts(self, group):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL, [group])
+        return starts
+
+    def test_the_default_run_is_the_main_matrix(self):
+        self.assertEqual([g["id"] for g in bm.select_groups(self.matrix)], ["main"])
+        self.assertEqual({s["group"] for s in bm.expand(self.matrix, "NVIDIA", self.ALL)[0]}, {"main"})
+        ids = [g["id"] for g in bm.group_list(self.matrix)]
+        self.assertEqual(ids, ["main", "rt-modes", "frame-steps", "dlssg-presets", "latency-brake", "blas", "grass"])
+        self.assertEqual([g["id"] for g in bm.select_groups(self.matrix, ["all"])], ids)
+        self.assertEqual([g["id"] for g in bm.select_groups(self.matrix, ["blas", "main"])], ["main", "blas"])
+        with self.assertRaises(ValueError):
+            bm.select_groups(self.matrix, ["nothing"])
+        # The big additions are not part of the default run.
+        self.assertFalse(any(g.get("default") for g in self.matrix["groups"]))
+
+    def test_every_group_expands_with_unique_rows_and_starts(self):
+        for group in bm.group_list(self.matrix):
+            starts = self.starts(group["id"])
+            self.assertTrue(starts, group["id"])
+            ids = [s["id"] for s in starts]
+            self.assertEqual(len(ids), len(set(ids)), group["id"])
+            self.assertEqual({s["group"] for s in starts}, {group["id"]})
+            keys = [bm.scenario_key(p["scenario"]) for s in starts for p in s["phases"]]
+            merged = [k for i, k in enumerate(keys) if i == 0 or keys[i - 1] != k]
+            self.assertEqual(len(merged), len(set(merged)), group["id"])
+            for s in starts:
+                sets = bm.ini_sets_argument(s["phases"]).split(";")
+                self.assertEqual(len(sets), len(s["phases"]))
+
+    def test_raytracing_modes(self):
+        starts = self.starts("rt-modes")
+        self.assertEqual([s["id"] for s in starts], ["rt-modes-fsr"])
+        phases = starts[0]["phases"]
+        self.assertEqual({p["scenario"]["technique"] for p in phases}, {"fsr3", "dlss"})
+        self.assertEqual({p["keys"]["mod.raytracing"] for p in phases}, {"Off", "Shadows", "Light", "Full"})
+        # Ray Reconstruction on and off for DLSS wherever the raytracing is on; FG off and FSR's, no latency model.
+        dlss = [p["scenario"] for p in phases if p["scenario"]["technique"] == "dlss"]
+        self.assertEqual({(s["raytracing"], s["ray_reconstruction"]) for s in dlss},
+                         {("Off", None)} | {(m, rr) for m in ("Shadows", "Light", "Full") for rr in (True, False)})
+        self.assertEqual({p["scenario"]["fg"] for p in phases}, {"off", "fsr"})
+        self.assertEqual({p["scenario"]["latency"] for p in phases}, {"none"})
+        self.assertNotIn("rtRadianceCache", phases[0]["keys"])
+        self.assertIn("FSR 3 · RT Shadows · FG FSR · none", {bm.scenario_label(p["scenario"]) for p in phases})
+
+    def test_frame_generation_steps(self):
+        starts = self.starts("frame-steps")
+        self.assertEqual([s["id"] for s in starts], ["frame-steps-fsr", "frame-steps-dlssg"])
+        fsr, dlssg = starts
+        # The package's ceiling raised for the start that sets the multipliers live, to 6x.
+        self.assertEqual(dlssg["max_generated_frames"], 5)
+        self.assertTrue(dlssg["dlssg_package"])
+        self.assertEqual(dlssg["dlssg_ini"], {"Logging": {"FrameTiming": "1"}})
+        self.assertEqual(dlssg["mod_settings"]["frameGenerationMultiplier"], "2x")
+        steps = [(p["scenario"]["raytracing"], p["scenario"].get("step")) for p in dlssg["phases"]]
+        self.assertEqual(sorted(set(steps), key=steps.index),
+                         [("Off", s) for s in ("2x", "3x", "4x", "5x", "6x", "Dynamic")]
+                         + [("Full", s) for s in ("2x", "3x", "4x", "5x", "6x", "Dynamic")])
+        for p in dlssg["phases"]:
+            self.assertEqual(p["keys"]["mod.frameGenerationMultiplier"], p["scenario"]["step"])
+            self.assertEqual(p["mod_settings"]["frameGenerationMultiplier"], p["scenario"]["step"])
+            self.assertEqual(p["keys"]["fgMinimumFps"], "0")
+            self.assertEqual(p["settle"], 8 if p["rebuild"] else 4)
+        # FSR's start has the rows without frame generation, each phase naming the multiplier as well.
+        self.assertEqual([p["scenario"]["fg"] for p in fsr["phases"]][:2], ["off", "fsr"])
+        self.assertEqual({p["keys"]["mod.frameGenerationMultiplier"] for p in fsr["phases"]}, {"2x"})
+        label = bm.scenario_label(dlssg["phases"][1]["scenario"])
+        self.assertEqual(label, "FSR 3 · RT Off · FG DLSS-G 3x · none")
+        self.assertEqual(bm.scenario_key(dlssg["phases"][1]["scenario"]), "fsr3/Off/rr-na/fg-dlssg/x-3x/lat-none")
+        # The step is not part of the row it is compared with: the same rendering without frame generation.
+        self.assertEqual(bm._reference_key(dlssg["phases"][1]["scenario"]), "fsr3/Off/rr-na/fg-off/lat-none")
+
+    def test_the_main_matrix_has_no_steps(self):
+        for s in bm.expand(self.matrix, "NVIDIA", self.ALL)[0]:
+            for p in s["phases"]:
+                self.assertNotIn("mod.frameGenerationMultiplier", p["keys"])
+
+    def test_presets_across_the_four_upscalers(self):
+        starts = self.starts("dlssg-presets")
+        self.assertEqual([s["id"] for s in starts], ["dlssg-presets-fsr", "dlssg-presets-dlssg-auto", "dlssg-presets-dlssg-c"])
+        auto, preset_c = starts[1], starts[2]
+        self.assertEqual(auto["dlssg_ini"]["DLSSG"], {"Preset": "Auto"})
+        self.assertEqual(preset_c["dlssg_ini"]["DLSSG"], {"Preset": "C"})
+        for start in (auto, preset_c):
+            self.assertTrue(start["dlssg_package"])
+            self.assertEqual({p["scenario"]["fg_kind"] for p in start["phases"]}, {"dlssg"})
+            self.assertEqual({p["scenario"]["technique"] for p in start["phases"]}, {"fsr3", "dlss", "amd", "xess"})
+            self.assertEqual({p["scenario"]["raytracing"] for p in start["phases"]}, {"Off", "Full"})
+            self.assertEqual({p["scenario"]["latency"] for p in start["phases"]}, {"none"})
+            self.assertFalse(any(p["scenario"]["radiance_cache"] or p["scenario"]["opacity_micromaps"] for p in start["phases"]))
+        self.assertEqual({p["scenario"]["fg"] for p in auto["phases"]}, {"dlssg-auto"})
+        self.assertEqual({p["scenario"]["fg"] for p in preset_c["phases"]}, {"dlssg-c"})
+        self.assertEqual(bm.scenario_label(preset_c["phases"][0]["scenario"]), "FSR 3 · RT Off · FG DLSS-G preset C · none")
+        # The references without frame generation are FSR's start's rows.
+        self.assertIn("off", {p["scenario"]["fg"] for p in starts[0]["phases"]})
+
+    def test_latency_brake_targets(self):
+        starts = self.starts("latency-brake")
+        self.assertEqual([s["id"] for s in starts], ["latency-brake-fsr", "latency-brake-dlssg"])
+        for start in starts:
+            targets = {p["scenario"]["latency"]: p["keys"].get("latencyBrakeTargetMs") for p in start["phases"]}
+            self.assertEqual(targets, {"none": None, "brake": "4", "brake2": "2", "brake1": "1"})
+            self.assertEqual({p["keys"]["latencyBrake"] for p in start["phases"] if p["scenario"]["latency"] != "none"}, {"1"})
+        self.assertEqual({p["scenario"]["fg"] for p in starts[0]["phases"]}, {"off", "fsr"})
+        self.assertEqual({p["scenario"]["fg"] for p in starts[1]["phases"]}, {"dlssg"})
+        self.assertEqual({p["scenario"]["raytracing"] for p in starts[1]["phases"]}, {"Off", "Full"})
+        self.assertIn("FSR 3 · RT Full · FG DLSS-G · brake 2 ms", {bm.scenario_label(p["scenario"]) for p in starts[1]["phases"]})
+
+    def test_build_variants_are_starts_of_their_own(self):
+        starts = self.starts("blas")
+        self.assertEqual([s["id"] for s in starts], ["blas-fsr-" + v for v in (
+            "defaults", "legacy", "no-batch", "no-pool", "compaction-0", "compaction-1", "budget-20000", "tlas-fast-trace",
+            "mega-geometry")])
+        defaults = {"rtBlasBatch": "1", "rtBlasPool": "1", "rtBlasBudget": "0", "rtBlasCompaction": "2", "rtTlasFastTrace": "0",
+                    "rtMegaGeometry": "0"}
+        by_id = {s["variant"]: s for s in starts}
+        for variant, changed in (("defaults", {}), ("legacy", {"rtBlasBatch": "0", "rtBlasPool": "0", "rtBlasCompaction": "0"}),
+                                 ("compaction-1", {"rtBlasCompaction": "1"}), ("budget-20000", {"rtBlasBudget": "20000"}),
+                                 ("tlas-fast-trace", {"rtTlasFastTrace": "1"}), ("mega-geometry", {"rtMegaGeometry": "1"})):
+            expected = dict(defaults, **changed)
+            self.assertEqual({k: by_id[variant]["proxy_load"][k] for k in defaults}, expected, variant)
+        # One rendering, two phases: no frame generation, then FSR's.
+        for start in starts:
+            self.assertEqual([p["scenario"]["fg"] for p in start["phases"]], ["off", "fsr"])
+            self.assertEqual({p["scenario"]["raytracing"] for p in start["phases"]}, {"Full"})
+            self.assertFalse(any(p["rebuild"] for p in start["phases"]))
+        self.assertEqual(bm.scenario_key(by_id["legacy"]["phases"][0]["scenario"]), "var-legacy/fsr3/Full/rr-na/fg-off/lat-none")
+        self.assertEqual(bm.scenario_label(by_id["mega-geometry"]["phases"][1]["scenario"]),
+                         "Mega Geometry · FSR 3 · RT Full · FG FSR · none")
+        self.assertLess(sum(bm.start_seconds(s) for s in starts) / 60.0, 25)
+
+    def test_the_grass_scene_is_a_dimension(self):
+        starts = self.starts("grass")
+        self.assertEqual([s["id"] for s in starts], ["grass-fsr-pad", "grass-fsr-grass"])
+        pad, grass = starts
+        self.assertEqual(pad["scene"], "pad")
+        self.assertEqual(pad["probe_args"], [])
+        self.assertEqual(grass["scene"], "grass")
+        self.assertEqual(grass["probe_args"], ["-redefinitionProbeGrass"])
+        self.assertIn("-redefinitionProbeGrass", read_source("src", "Probe", "SceneProbe.cs"))
+        self.assertEqual([bm.scenario_key(p["scenario"]) for p in pad["phases"]][:1], ["fsr3/Off/rr-na/fg-off/lat-none"])
+        self.assertTrue(bm.scenario_key(grass["phases"][0]["scenario"]).startswith("scene-grass/"))
+        self.assertTrue(bm.scenario_label(grass["phases"][0]["scenario"]).startswith("grass · "))
+        # The radiance cache, the cut-out tests and the micromaps at raytracing Full on both scenes; the micromaps last.
+        for start in starts:
+            labels = [bm.scenario_label(p["scenario"]) for p in start["phases"]]
+            for part in ("RT Full, radiance cache", "RT Full, cut-out test 1", "RT Full, cut-out test 2", "RT Full, opacity micromaps"):
+                self.assertTrue(any(part in l for l in labels), part)
+            phases = start["phases"]
+            micromaps = [p for p in phases if p["scenario"]["opacity_micromaps"]]
+            self.assertEqual(phases[-len(micromaps):], micromaps)
+            # Every phase names the cut-out test, and the others' have it at 0.
+            self.assertEqual({p["keys"]["rtCutoutTest"] for p in phases if not p["scenario"].get("tweak")}, {"0"})
+            self.assertEqual({p["keys"]["rtCutoutTest"] for p in phases if p["scenario"].get("tweak") == "cutout2"}, {"2"})
+            self.assertEqual({p["keys"]["rtRadianceCache"] for p in phases if p["scenario"]["radiance_cache"]}, {"1"})
+            self.assertEqual({p["keys"]["rtRadianceCache"] for p in phases if not p["scenario"]["radiance_cache"]}, {"0"})
+        self.assertEqual({p["scenario"]["raytracing"] for p in pad["phases"]}, {"Off", "Shadows", "Light", "Full"})
+
+    def test_a_scene_the_matrix_does_not_define_is_refused(self):
+        self.matrix["groups"][-1]["scenes"] = ["moon"]
+        with self.assertRaises(ValueError):
+            bm.expand(self.matrix, "NVIDIA", self.ALL, ["grass"])
+
+    def test_a_group_may_extend_and_name_entries(self):
+        self.matrix["groups"].append({"id": "mine", "techniques": ["fsr3"], "raytracing": ["Off"], "frame_generation": [
+            {"extends": "fsr", "name": "FSR (mine)"}], "latency": ["none", {"extends": "brake", "id": "b9", "name": "brake 9 ms"}],
+            "radiance_cache": None, "opacity_micromaps": None})
+        starts = self.starts("mine")
+        self.assertEqual([s["id"] for s in starts], ["mine-fsr"])
+        self.assertEqual({p["scenario"]["fg_name"] for p in starts[0]["phases"]}, {"off", "FSR (mine)"})
+        self.assertEqual({p["scenario"]["latency"] for p in starts[0]["phases"]}, {"none", "b9"})
+        self.matrix["groups"].append({"id": "bad", "techniques": ["nothing"]})
+        with self.assertRaises(ValueError):
+            bm.expand(self.matrix, "NVIDIA", self.ALL, ["bad"])
+
+    def test_the_plan_names_each_groups_phases_and_minutes(self):
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            bm.main(["plan", "--group", "all", "--vendor", "NVIDIA", "--dlssg-package", self.ALL["dlssg_package"],
+                     "--amd-dll-dir", "none", "--xess-dll-dir", "none", "--xess-fg-dll-dir", "none"])
+        text = out.getvalue()
+        self.assertRegex(text, r"(?m)^group +starts +phases +minutes")
+        for group in bm.group_list(self.matrix):
+            self.assertRegex(text, r"(?m)^{} +\d+ +\d+ +\d+ ".format(re.escape(group["id"])))
+        # The groups left out of a plan are named.
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            bm.main(["plan", "--group", "blas", "--vendor", "NVIDIA"])
+        self.assertIn("the other groups: main, rt-modes", out.getvalue())
+
+    def test_the_help_names_the_groups(self):
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
+            bm.main(["run", "--help"])
+        self.assertIn("--group", out.getvalue())
+        self.assertIn("run --group", bm.__doc__)
+
+    def test_the_estimate_of_the_default_run_stays(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL)
+        self.assertLess(bm.estimate_seconds(starts) / 60.0, 60)
+
+
+class StepCheckTest(unittest.TestCase):
+    def test_a_step_the_gpu_did_not_deliver_is_named(self):
+        scenario = {"step": "3x", "fg_requested": True}
+        self.assertTrue(bm._step_check(scenario, 3.0)["delivered"])
+        self.assertTrue(bm._step_check(scenario, 2.9)["delivered"])
+        check = bm._step_check(scenario, 2.0)
+        self.assertFalse(check["delivered"])
+        self.assertEqual(check["shown_as"], 2)
+        self.assertEqual(check["expected"], 3)
+        # Dynamic has no number to be held to; a phase without a step, or without frame generation, none.
+        self.assertIsNone(bm._step_check({"step": "Dynamic", "fg_requested": True}, 3.2)["delivered"])
+        self.assertIsNone(bm._step_check({"fg_requested": True}, 2.0))
+        self.assertIsNone(bm._step_check({"step": "2x", "fg_requested": False}, 1.0))
+
+    def test_the_phase_carries_the_check_and_the_warning(self):
+        start = fixture_start()
+        start["phases"][1]["scenario"]["step"] = "3x"
+        result = bm.phases_of_start(start, fixture("bench.KSP.log"), fixture("bench.proxy.log"), 3)
+        on = result["phases"][1]
+        self.assertEqual(on["fg_step"]["asked"], "3x")
+        self.assertFalse(on["fg_step"]["delivered"])
+        self.assertIn("3x asked for, presented/rendered 2.00: the GPU or the driver delivered 2x", on["warnings"])
+        start["phases"][1]["scenario"]["step"] = "2x"
+        on = bm.phases_of_start(start, fixture("bench.KSP.log"), fixture("bench.proxy.log"), 3)["phases"][1]
+        self.assertTrue(on["fg_step"]["delivered"])
+        self.assertEqual(on["warnings"], [])
+
+    def test_the_multiplier_lines_of_the_phase_are_kept(self):
+        proxy = fixture("bench.proxy.log")
+        ksp = fixture("bench.KSP.log")
+        log = bm.parse_proxy_log("12:00:00.000  Frame generation multiplier requested: 3x\n")
+        self.assertEqual(log["lines"]["fg_multiplier"][0]["text"], "Frame generation multiplier requested: 3x")
+        self.assertEqual(bm.parse_ksp_log("[LOG 12:00:00.000] [ReDefinition] Frame generation multiplier 3x\n")["multiplier"][0]["choice"], "3x")
+        on = bm.phases_of_start(fixture_start(), ksp, proxy, 3)["phases"][1]
+        self.assertIn("fg_lines", on)
+
+
+class OptionsRecordTest(unittest.TestCase):
+    def test_composite_values_have_their_parts(self):
+        values = bm.parse_config("latencyBrake=1/4.000000/1/dlssg dlssgMode=on/3f lowLatency=0")
+        self.assertEqual(values["latencyBrake"], "1/4.000000/1/dlssg")
+        self.assertEqual(values["latencyBrakeTargetMs"], "4.000000")
+        self.assertEqual(values["latencyBrakeWaits"], "1")
+        self.assertEqual(values["latencyBrakeWithDlssg"], "1")
+        self.assertEqual(values["dlssgFrames"], "3")
+        values = bm.parse_config("latencyBrake=0/2.000000/1 dlssgMode=dynamic")
+        self.assertEqual(values["latencyBrakeWithDlssg"], "0")
+        self.assertEqual(values["dlssgFrames"], "0")
+
+    def test_the_proxys_config_line_holds_every_key_it_reads(self):
+        """Every ini key Config.cpp reads is in the line the record keeps: the options of a phase are the line's."""
+        source = read_source("src", "DxgiProxy", "Config.cpp")
+        read = set(re.findall(r'(?:ReadFlag|ReadFloat|GetPrivateProfileIntW|GetPrivateProfileStringW)\(\s*(?:L"Proxy",\s*)?L"(\w+)"', source))
+        described = source[source.index("std::string Describe"):source.index("void ReadInto")]
+        named = set(re.findall(r"(\w+)=", described))
+        # The keys the line writes together with another's value: dlssgFrames with dlssgMode, the brake's parts with
+        # latencyBrake, the pacing's with pacing (parse_config reads them back as keys of their own or as the value).
+        together = {"dlssgFrames", "latencyBrakeTargetMs", "latencyBrakeWaits", "latencyBrakeWithDlssg", "fgPacingSafetyMarginMs",
+                    "fgPacingVarianceFactor", "fgPacingHybridSpin", "fgPacingHybridSpinTime", "fgPacingWaitOnFence"}
+        self.assertEqual(sorted(read - named - together - {"Proxy"}), [])
+        for key in ("rtRadianceCache", "rtRadianceCacheEntries", "rtOpacityMicromaps", "rtCutoutTest", "rtBlasBatch", "rtBlasPool",
+                    "rtBlasBudget", "rtBlasCompaction", "rtTlasFastTrace", "rtMegaGeometry", "xessFgFrames", "xell", "dlssgMode",
+                    "latencyBrake", "frameGenerationTechnique"):
+            self.assertIn(key, named)
+        # The together-keys are read back from the line's values.
+        values = bm.parse_config("latencyBrake=1/4.000000/1/dlssg dlssgMode=on/2f")
+        for key in ("latencyBrakeTargetMs", "latencyBrakeWaits", "latencyBrakeWithDlssg", "dlssgFrames"):
+            self.assertIn(key, values)
+
+    def test_the_mods_multiplier_is_a_setting_the_probe_sets_by_key(self):
+        settings = read_source("src", "OwnSettings.cs")
+        self.assertIn('Key = "frameGenerationMultiplier"', settings)
+        probe = read_source("src", "Probe", "SceneProbe.cs")
+        self.assertIn('key.StartsWith("mod."', probe)
+        self.assertIn("wanted.SetValue(modKey, text)", probe)
+
+    def test_the_package_ini_is_read_by_section(self):
+        text = "[FrameGeneration]\r\n; comment\r\nMaxGeneratedFrames=5\r\n\r\n[DLSSG]\r\nPreset = C\r\nOptimized=2\r\n"
+        self.assertEqual(bm.parse_ini_sections(text), {"FrameGeneration": {"MaxGeneratedFrames": "5"},
+                                                       "DLSSG": {"Preset": "C", "Optimized": "2"}})
+
+    def test_a_record_names_the_package_ini_and_the_scene_of_each_start(self):
+        raw = tempfile.mkdtemp()
+        try:
+            matrix = bm.load_matrix(bm.DEFAULT_MATRIX)
+            starts, _ = bm.expand(matrix, "NVIDIA", {"dlssg_package": "p"}, ["frame-steps"])
+            start = [s for s in starts if s["dlssg_package"]][0]
+            plan = {"matrix": matrix, "matrix_file": "m.json", "groups": ["frame-steps"], "starts": [start], "stamp": "s",
+                    "settle_seconds": 2}
+            with open(os.path.join(raw, "plan.json"), "w", encoding="utf-8") as f:
+                import json
+                json.dump(plan, f)
+            base = os.path.join(raw, start["id"])
+            for name, text in ((".proxy.log", fixture("bench.proxy.log")), (".KSP.log", fixture("bench.KSP.log")),
+                               (".settings.cfg", "ReDefinition\n{\n\tfoo = 1\n}\n"), (".proxy.ini", "[Proxy]\nenabled=1\n"),
+                               (".dlssg_sm86.ini", "[FrameGeneration]\nMaxGeneratedFrames=5\n[DLSSG]\nPreset=Auto\n")):
+                with open(base + name, "w", encoding="utf-8") as f:
+                    f.write(text)
+            record = bm.build_record(raw)
+            self.assertEqual(record["groups"], ["frame-steps"])
+            entry = record["starts"][0]
+            self.assertEqual(entry["group"], "frame-steps")
+            self.assertEqual(entry["scene"], "pad")
+            self.assertEqual(entry["package_ini"]["FrameGeneration"]["MaxGeneratedFrames"], "5")
+            self.assertEqual(entry["proxy_ini_at_start"], {"enabled": "1"})
+            for p in entry["phases"]:
+                self.assertEqual(p["package_ini"]["DLSSG"]["Preset"], "Auto")
+                self.assertEqual(p["mod_settings"]["foo"], "1")
+                self.assertIn("frameGenerationMultiplier", p["mod_settings"])
+        finally:
+            shutil.rmtree(raw)
+
+
+class GroupDocTest(DocTest):
+    def group_record(self, stamp, group, fps_scale=1.0):
+        record = self.record(stamp, fps_scale)
+        record["groups"] = [group]
+        record["matrix"]["groups"] = [{"id": group, "name": "Steps", "description": "The steps, one after the other.",
+                                       "show": ["ratio"], "scenes": ["pad"]}]
+        record["matrix"]["scenes"] = {"pad": {"name": "the pad"}}
+        for p in record["starts"][0]["phases"]:
+            p["scenario"] = dict(p["scenario"], group=group)
+        step = {"asked": "3x", "expected": 3, "shown": 2.0, "shown_as": 2, "delivered": False}
+        record["starts"][0]["phases"][1]["fg_step"] = step
+        return record
+
+    def test_one_table_a_group_with_its_own_latest_run(self):
+        doc = "head\n{}\nold\n{}\nmiddle\n{}\nold\n{}\ntail\n".format(bm.TABLE_START, bm.TABLE_END, bm.RUNS_START, bm.RUNS_END)
+        out = bm.render_doc([("2026-10-19-1800.json", self.group_record("2026-10-19-1800", "steps", 0.5)),
+                             ("2026-10-20-1800.json", self.record("2026-10-20-1800")),
+                             ("2026-10-20-1900.json", self.group_record("2026-10-20-1900", "steps"))], doc)
+        main, steps = out.index("### Main matrix (`main`)"), out.index("### Steps (`steps`)")
+        self.assertLess(main, steps)
+        # The main table is the main run's, the group's the later one's; each says which run it is.
+        self.assertEqual(out[main:steps].count("Run `2026-10-20-1800`."), 1)
+        self.assertEqual(out[steps:out.index(bm.TABLE_END)].count("Run `2026-10-20-1900`."), 1)
+        self.assertIn("The steps, one after the other.", out)
+        self.assertIn("python tools/benchmark_matrix.py run --group steps", out)
+        # The shown-per-rendered and the delivered columns for a group that asks for them; the previous run of the group
+        # is the one before it in the group, not the main run between them.
+        self.assertIn("| Scenario | fps | Shown fps | Shown per rendered | Delivered |", out)
+        self.assertIn("not delivered", out)
+        self.assertIn("+100.0 %", out[steps:])
+        self.assertIn("| Groups | `steps` |", out)
+
+    def test_the_rt_build_columns(self):
+        record = self.group_record("2026-10-20-1900", "steps")
+        record["matrix"]["groups"][0]["show"] = ["rt_builds"]
+        record["starts"][0]["rt_builds"] = {"frames": 3, "meshes": 668, "triangles": 236309, "slowest_gpu_ms": 1.25952,
+                                            "slowest_cpu_ms": 5.318}
+        table = bm.summary_table(record, None, "steps")
+        self.assertIn("| Slowest build GPU ms | Slowest build CPU ms | Meshes | Triangles |", table)
+        self.assertIn("| 1.26 | 5.32 | 668 | 236309 |", table)
+
+    def test_a_scene_compares_with_its_own_baseline(self):
+        record = self.group_record("s", "steps")
+        record["starts"][0]["phases"][1]["scenario"]["scene"] = "grass"
+        record["starts"][0]["phases"][1]["key"] = "scene-grass/amd/Off/rr-na/fg-fsr/lat-reflex+brake"
+        key = bm._baseline_key(record, "steps", record["starts"][0]["phases"][1]["scenario"])
+        self.assertEqual(key, "scene-grass/amd/Off/rr-na/fg-off/lat-none")
+
+
 if __name__ == "__main__":
     unittest.main()

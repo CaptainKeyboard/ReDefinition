@@ -5,8 +5,8 @@ latency code and wants to know what the change did to the frame rate and the lat
 **You need:** KSP with ReDefinition and the proxy installed, the save the scene probe flies
 (`ReDefinitionProbe`), Python 3, the repository open, and a machine that nobody uses
 while the tool runs.
-**You get:** the comparison table of the latest run, how to run it again with one command,
-and what each column and each run's record means.
+**You get:** the comparison tables of the latest runs, how to run the comparison or one of
+its groups with one command, and what each column and each run's record means.
 
 ## Run the comparison
 
@@ -20,7 +20,14 @@ The tool reads the scenario matrix `tools/benchmark_matrix.json`. It copies the 
 settings files and applies the graphics profile in one KSP start. Then it runs one KSP
 start per frame generation kind. After the last start it puts every settings file back and
 removes the settings files the run made, also when a start failed. It appends the run to
-`docs/development/benchmarks/` as a JSON file and writes the table on this page again.
+`docs/development/benchmarks/` as a JSON file and writes the tables on this page again.
+
+Without options the tool runs the main matrix. The other groups, listed under
+[the groups](#the-groups), run on their own:
+
+```
+python tools/benchmark_matrix.py run --group frame-steps
+```
 
 **Do not use the machine during a run.** DLSS frame generation generates nothing while
 KSP's window is not in the foreground, and a KSP that the tool starts is not given the
@@ -32,14 +39,15 @@ presented per rendered frame says in its notes that the window was not in front.
 `REDEFINITION_BENCH_NO_FOREGROUND` set to any value leaves the window where Windows puts
 it, to reproduce that.
 
-With every DLL and package in place, the matrix has four KSP starts after the profile
+With every DLL and package in place, the main matrix has four KSP starts after the profile
 start. It holds 138 scenarios, and the first scenario after each change of the rendering
 runs twice, so the tool plans 169 phases and about 42 minutes. The run `2026-10-21-0241`
 recorded 138 phases, the two passes of a scenario merged into one. A start whose DLLs or
 package are missing, or whose GPU vendor does not fit, is skipped, and the run's section
 names it. On an NVIDIA GPU with none of the optional files that is one start with 50
-phases (44 scenarios, 6 of them run twice) and about 13 minutes. To see the starts and
-phases first, without running KSP, run this:
+phases (44 scenarios, 6 of them run twice) and about 13 minutes. To see the starts, the
+phases and, per group, the number of starts, phases and minutes without running KSP, run
+this. Add `--group all` or `--group NAME` to see other groups:
 
 ```
 python tools/benchmark_matrix.py plan
@@ -57,6 +65,7 @@ These options change what the tool uses:
 | `--xess-dll-dir` | `.local/xess`, or `REDEFINITION_XESS_DLL_DIR` | the folder with Intel's `libxess.dll` |
 | `--xess-fg-dll-dir` | `.local/xessfg`, or `REDEFINITION_XESS_FG_DLL_DIR` | the folder with Intel's `libxess_fg.dll` and `libxell.dll` |
 | `--raw` | `.local/benchmarks`, or `REDEFINITION_BENCH_RAW` | where each start's logs and screenshots go |
+| `--group` | the main matrix | a group to run, repeatable, or `all` |
 | `--only` | every start | only the starts whose id contains this text |
 | `--no-profile` | the profile is applied | skip the start that applies the profile |
 | `--no-doc` | the page is written again | write the JSON only |
@@ -75,6 +84,52 @@ python tools/benchmark_matrix.py parse .local/benchmarks/<run>
 ```
 
 To write this page again from the JSON files, run `python tools/benchmark_matrix.py render`.
+
+## The groups
+
+The main matrix is the default run: the upscalers, the frame generation kinds and the latency
+models against each other. Every other group answers one question the main matrix leaves
+open, and runs on its own with `run --group NAME`. A group is the matrix with its own values
+over it. The numbers are for the RTX A4500 at the Medium profile.
+
+| Group | What it answers | Starts | Phases | Minutes |
+|---|---|---|---|---|
+| `main` | every upscaler, frame generation kind and latency model at raytracing Off and Full | 4 | 169 | 41 |
+| `rt-modes` | what raytracing Shadows and Light cost against Off and Full, for FSR 3 and DLSS | 1 | 32 | 8 |
+| `frame-steps` | what DLSS-G's 2x to 6x and Dynamic cost and which of them the GPU delivers | 2 | 18 | 7 |
+| `dlssg-presets` | DLSS-G's preset Auto against preset C with all four upscalers | 3 | 60 | 17 |
+| `latency-brake` | the latency brake's target of 4, 2 and 1 ms with no, FSR and DLSS-G frame generation | 2 | 26 | 9 |
+| `blas` | how the acceleration structure build variants change the flight's first seconds | 9 | 18 | 19 |
+| `grass` | the radiance cache, the cut-out tests, the opacity micromaps and the raytracing modes over grass | 2 | 46 | 13 |
+
+The minutes are `plan`'s, with the profile start not counted. The groups that use DLSS-G need
+the package, the presets group also needs the AMD and XeSS DLLs, and a group whose files are
+missing says so in the run's section, as the main matrix does.
+
+* `rt-modes` sets the raytracing to Off, Shadows, Light and Full in turn. DLSS runs with Ray
+  Reconstruction on and off wherever the raytracing is on.
+* `frame-steps` writes `MaxGeneratedFrames=5` into the DLSS-G package's ini for its start, so
+  that the package allows 6x, and sets the mod's `frameGenerationMultiplier` to each step
+  while the game runs. Each row says in "Shown per rendered" how many frames the monitor got
+  per rendered frame and in "Delivered" whether that is the step asked for. A step the GPU
+  or the driver did not deliver says so in its notes. Dynamic has no number to be held to.
+* `dlssg-presets` runs the package's `[DLSSG] Preset` as `Auto` and as `C`. FSR's frame
+  generation and no frame generation are the references in the same table.
+* `latency-brake` runs `latencyBrakeTargetMs` at 4 (the default), 2 and 1. The brake also
+  runs under DLSS-G (`latencyBrakeWithDlssg`).
+* `blas` runs one KSP start per variant of `rtBlasBatch`, `rtBlasPool`, `rtBlasCompaction`,
+  `rtBlasBudget`, `rtTlasFastTrace` and `rtMegaGeometry`, since the meshes are built at the
+  flight's start. Each start has one rendering and two phases. The table adds the slowest
+  frame of the start's mesh builds, on the GPU and on the CPU, and the meshes and triangles
+  built.
+* `grass` runs on two scenes, the launch pad and a field of grass.
+
+The grass scene is `-redefinitionProbeGrass` (`src/Probe/SceneProbe.cs`). The probe does
+not start the flight on the pad. It puts a command pod on the ground at the first place,
+by distance from the pad, from 3 km out, where a 7 by 7 grid of samples 40 m apart is
+all Grasslands biome, above 80 m and level. Parallax's Kerbin grass grows in that biome from
+25 m of altitude on. On this save that place is 5 km from the pad, 121 m above the sea. The
+probe logs where it put the pod and that the pod stands on the ground.
 
 ## What a start measures
 
@@ -103,11 +158,13 @@ holds `reportSeconds=1`, so a phase has 8 to 9 reports, and 14 to 15 after a cha
 
 Only what the proxy reads at load needs a start of its own: the frame generation kind
 (`frameGenerationTechnique`: `fsr`, `dlss` or `xess`). DLSS-G on RTX 20 and 30 GPUs also needs
-the package next to `KSP_x64.exe`. The upscaler's DLL folders are read again when the upscaler
-is set up, so each start sets them once. The starts are `fsr`, `dlssg` and `xessfg`, and
-`dlssg-c`, which is DLSS-G with the package's preset C for FSR 3 at both raytracing modes. Both
-DLSS-G starts set the package's `[Logging] FrameTiming`, so that its logs hold the GPU time of
-the frame generation.
+the package next to `KSP_x64.exe`, with the ini values the start writes into it. The
+upscaler's DLL folders are read again when the upscaler is set up, so each start sets them
+once. The main matrix's starts are `fsr`, `dlssg` and `xessfg`, and `dlssg-c`, which is
+DLSS-G with the package's preset C for FSR 3 at both raytracing modes. Both DLSS-G starts set
+the package's `[Logging] FrameTiming`, so that its logs hold the GPU time of the frame
+generation. The starts of another group begin with the group's id, for example
+`frame-steps-dlssg`, and end with the variant and the scene where the group has several.
 
 Every set names every key the matrix varies, since the probe's sets add to each other:
 
@@ -126,6 +183,9 @@ Every set names every key the matrix varies, since the probe's sets add to each 
 | XeLL | `lowLatency=1`, `latencyBrake=0`, in the XeSS-FG start only |
 | The radiance cache | `rtRadianceCache=1`, for FSR 3 at raytracing *Full*, with no latency model (XeLL in the XeSS-FG start) |
 | Opacity micromaps | `rtOpacityMicromaps=1`, the last rendering of the start |
+| A frame generation step | `mod.frameGenerationMultiplier`: `2x` to `6x` or `Dynamic` |
+| A latency brake target | `latencyBrakeTargetMs=4`, `2` or `1` with `latencyBrake=1` |
+| A cut-out test | `rtCutoutTest=1` or `2`; every other phase has `0` |
 
 "Frame generation off" holds frame generation off while its inputs are still captured. It
 is not the same as `frameGeneration = False` in the mod's settings.
@@ -148,7 +208,22 @@ Each list in `tools/benchmark_matrix.json` multiplies the phases:
   raytracing mode, with the latency models it names. Every other phase has the key at 0.
 * `proxy_load`: keys the proxy reads at load. The raytracing's `rtBlas...`,
   `rtTlasFastTrace` and `rtMegaGeometry` are pinned there, since the meshes are built before
-  the first phase. Comparing them takes a run of its own with other values.
+  the first phase. Comparing them takes a start of its own per value, as the `blas` group does.
+* `groups`: each entry is the matrix with its own values over it. `techniques`,
+  `frame_generation` and `latency` name entries of the matrix by id, or extend one with
+  `{"extends": "dlssg", "id": "...", ...}`. `proxy_load` and `mod_settings` merge into the
+  matrix's, every other key replaces it. A group is `"default": true` to run without
+  `--group`; only the main matrix is.
+* A group's `scenes` and `variants`: the probe's scenes (`scenes` at the top of the file,
+  each with its probe arguments) and values for the proxy at load (`proxy_load`), each
+  combination a start of its own.
+* A group's `tweaks`: renderings of their own with live proxy keys, like the radiance cache.
+  `tweak_defaults` is what every other phase has, and `"last": true` puts a tweak at the end
+  of the start.
+* A frame generation entry's `steps`: the multipliers it is measured at, set through the
+  probe's `mod.frameGenerationMultiplier`.
+* A group's `show`: `ratio` adds the columns of the frames shown per rendered frame, and
+  `rt_builds` adds those of the mesh builds.
 
 XeSS, for example, is this line in `techniques`:
 
@@ -158,8 +233,11 @@ XeSS, for example, is this line in `techniques`:
 
 ## The comparison table
 
-Each row is one scenario of the latest run: the upscaler, the raytracing mode with Ray
-Reconstruction where it applies, the frame generation and the latency model.
+There is one table per group, from the latest run that covers the group. Each row is one
+scenario of that run: the scene where it is not the pad, the upscaler, the raytracing mode
+with Ray Reconstruction where it applies, the frame generation with its step and the latency
+model. The baseline, the reference without frame generation and the previous run are those of
+the group, and of the row's scene.
 
 | Column | What it is |
 |---|---|
@@ -172,12 +250,17 @@ Reconstruction where it applies, the frame generation and the latency model.
 | fps vs FG off, no model | the fps against the same rendering with frame generation off and no latency model |
 | Latency vs FG off, no model | the latency median against that row, in ms |
 | fps vs previous run | the fps against the same scenario in the run before |
+| Shown per rendered | frames shown per rendered frame (groups with steps) |
+| Delivered | whether that is the step asked for: `yes`, `not delivered`, `n/a` for Dynamic |
+| Slowest build GPU ms, CPU ms, Meshes, Triangles | the start's mesh builds (the `blas` group) |
 | Notes | what did not run as asked: another upscaler, no generated frames, a key the proxy does not have |
 
 The latency is the proxy's own measure, the same on every GPU. The proxy logs it as
 `Latency:` every `reportSeconds`. It does not include the time from the GPU to the screen.
 
 <!-- benchmark-table:start -->
+### Main matrix (`main`)
+
 Run `2026-10-21-0241`. Its machine and options are under [the runs](#the-runs).
 
 | Scenario | fps | Shown fps | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline | fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Notes |
@@ -320,16 +403,89 @@ Run `2026-10-21-0241`. Its machine and options are under [the runs](#the-runs).
 | XeSS · RT Full · FG XeSS-FG · XeLL | 36.7 | 73.3 | 60.2 | 62.5 | -49.3 % | +38.4 ms | -12.2 % | -2.6 ms | +5.8 % |  |
 | FSR 3 · RT Full, opacity micromaps · FG off (XeSS-FG loaded) · XeLL | 41.9 | 41.8 | 65.0 | 66.7 | -42.1 % | +43.2 ms | +3.5 % | +0.0 ms | +1.9 % |  |
 | FSR 3 · RT Full, opacity micromaps · FG XeSS-FG · XeLL | 35.9 | 71.6 | 61.8 | 64.3 | -50.4 % | +40.0 ms | -11.4 % | -3.2 ms | +5.3 % |  |
+
+### cutout-oneoff (`cutout-oneoff`)
+
+A one-off run from before the groups, with a matrix of its own: FSR 3 at raytracing Full
+on the launch pad, the cut-out tests (rtCutoutTest 1 and 2) and the opacity micromaps in
+turn, plain and micromaps again to see the run's own spread.
+
+Run `2026-10-21-0834`. Its machine and options are under [the runs](#the-runs).
+
+| Scenario | fps | Shown fps | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline | fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| FSR 3 · RT Full · FG off · plain | 45.2 | 45.2 | 51.3 | 55.2 | – | – | – | – | – |  |
+| FSR 3 · RT Full · FG off · cutout1 | 47.1 | 47.1 | 54.4 | 56.0 | – | – | – | – | – |  |
+| FSR 3 · RT Full · FG off · cutout2 | 48.2 | 48.4 | 52.6 | 54.4 | – | – | – | – | – |  |
+| FSR 3 · RT Full · FG off · omm | 43.1 | 42.9 | 60.6 | 62.1 | – | – | – | – | – |  |
+| FSR 3 · RT Full · FG off · plain-again | 44.7 | 44.9 | 57.9 | 59.8 | – | – | – | – | – |  |
+| FSR 3 · RT Full · FG off · omm-again | 42.3 | 42.4 | 61.5 | 63.2 | – | – | – | – | – |  |
+| FSR 3 · RT Full · FG off · plain-last | 44.4 | 44.6 | 58.0 | 59.6 | – | – | – | – | – |  |
+| FSR 3 · RT Full · FG FSR · plain | 44.3 | 44.5 | 57.3 | 59.2 | – | – | – | – | – | frame generation asked for, presented/rendered 1.00 |
+| FSR 3 · RT Full · FG FSR · cutout1 | 45.4 | 45.4 | 54.9 | 56.9 | – | – | – | – | – | frame generation asked for, presented/rendered 1.00 |
+| FSR 3 · RT Full · FG FSR · cutout2 | 46.4 | 46.5 | 55.5 | 57.1 | – | – | – | – | – | frame generation asked for, presented/rendered 1.00 |
+| FSR 3 · RT Full · FG FSR · omm | 42.3 | 42.3 | 61.5 | 63.2 | – | – | – | – | – | frame generation asked for, presented/rendered 1.00 |
+| FSR 3 · RT Full · FG FSR · plain-again | 44.5 | 44.9 | 58.1 | 59.8 | – | – | – | – | – | frame generation asked for, presented/rendered 1.00 |
+| FSR 3 · RT Full · FG FSR · omm-again | 42.2 | 42.2 | 61.8 | 63.4 | – | – | – | – | – | frame generation asked for, presented/rendered 1.00 |
+| FSR 3 · RT Full · FG FSR · plain-last | 44.5 | 44.9 | 58.3 | 59.8 | – | – | – | – | – | frame generation asked for, presented/rendered 1.00 |
 <!-- benchmark-table:end -->
 
 ## The runs
 
 Each run names its date, the commit, the build in the install, the machine and the
 profile. Its collapsed table says what ran in each phase. The JSON file next to this page
-holds the full record of every phase: the proxy's whole configuration as it logged it, the
-mod's settings in effect, the upscaler's line, and each measured value.
+holds the full record of every phase: the proxy's whole configuration as it logged it, with
+the brake's parts and the DLSS-G frame count as keys of their own, the mod's settings in
+effect including the frame generation multiplier, the DLSS-G package's ini as the start ran
+with it (preset, `MaxGeneratedFrames`), the proxy's ini at the start, the frame generation
+lines of the phase, the upscaler's line, and each measured value.
 
 <!-- benchmark-runs:start -->
+### Run 2026-10-21-0834
+
+| What | Value |
+|---|---|
+| Date | 2026-10-21T08:34:06 to 2026-10-21T08:43:01 |
+| Commit | `cdb7d75` on `feat/raytracing` |
+| Build in the install | `dxgi.dll` 831698e6db4269cf (2026-10-21T08:05:34), `GameData/ReDefinition/Plugins/ReDefinition.dll` 0a27712edbcc37a4 (2026-10-21T08:05:21) |
+| Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
+| Profile | `medium`: [LOG 08:35:12.239] [ReDefinition] Probe: profile medium applied. |
+| Groups | `cutout-oneoff` |
+| Matrix | `../../AppData/Local/Temp/claude/C--Users-franz-IdeaProjects-ReDefinition/830891e0-1c5a-4643-8173-8b16e3f60297/scratchpad/omm_matrix.json`, 1 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Full record | [benchmarks/2026-10-21-0834.json](benchmarks/2026-10-21-0834.json) |
+
+<details><summary>What ran in each phase</summary>
+
+| Start | Scenario | Upscaler that ran | Frame generation that ran | presented/rendered | Lowered by | Reports | fps range | Notes |
+|---|---|---|---|---|---|---|---|---|
+| fsr | FSR 3 · RT Full · FG off · plain | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 21 | 40.7–46.9 |  |
+| fsr | FSR 3 · RT Full · FG off · cutout1 | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 21 | 43.6–47.9 |  |
+| fsr | FSR 3 · RT Full · FG off · cutout2 | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 21 | 44.9–48.6 |  |
+| fsr | FSR 3 · RT Full · FG off · omm | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 19 | 40.7–43.3 |  |
+| fsr | FSR 3 · RT Full · FG off · plain-again | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 20 | 41.7–45.5 |  |
+| fsr | FSR 3 · RT Full · FG off · omm-again | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 20 | 39.8–42.6 |  |
+| fsr | FSR 3 · RT Full · FG off · plain-last | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 20 | 42.0–44.7 |  |
+| fsr | FSR 3 · RT Full · FG FSR · plain | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 20 | 41.6–45.0 | frame generation asked for, presented/rendered 1.00 |
+| fsr | FSR 3 · RT Full · FG FSR · cutout1 | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 20 | 41.0–46.2 | frame generation asked for, presented/rendered 1.00 |
+| fsr | FSR 3 · RT Full · FG FSR · cutout2 | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 20 | 43.9–47.0 | frame generation asked for, presented/rendered 1.00 |
+| fsr | FSR 3 · RT Full · FG FSR · omm | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 20 | 38.7–42.8 | frame generation asked for, presented/rendered 1.00 |
+| fsr | FSR 3 · RT Full · FG FSR · plain-again | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 21 | 41.7–44.9 | frame generation asked for, presented/rendered 1.00 |
+| fsr | FSR 3 · RT Full · FG FSR · omm-again | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 21 | 39.5–43.0 | frame generation asked for, presented/rendered 1.00 |
+| fsr | FSR 3 · RT Full · FG FSR · plain-last | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 20 | 42.1–44.8 | frame generation asked for, presented/rendered 1.00 |
+
+The proxy's configuration in each start, as the proxy logged it at load:
+
+```
+fsr: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgUi=off pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+```
+
+The raytracing's frames that built 50 meshes or more, at the flight's start:
+
+* fsr: 6 frames, 668 meshes, 236309 triangles; the slowest 1.26 ms of the GPU,
+  5.32 ms of the CPU
+
+</details>
+
 ### Run 2026-10-21-0241
 
 | What | Value |
@@ -339,6 +495,7 @@ mod's settings in effect, the upscaler's line, and each measured value.
 | Build in the install | `dxgi.dll` 4a3e00cc68de1b75 (2026-10-21T02:35:51), `GameData/ReDefinition/Plugins/ReDefinition.dll` 5632fd4d2e8bb25c (2026-10-21T02:35:57) |
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 02:42:15.998] [ReDefinition] Probe: profile medium applied. |
+| Groups | `main` |
 | Matrix | `tools/benchmark_matrix.json`, 4 starts, 2 s settling per phase, 8 s after a change of the rendering |
 | Skipped | latency antilag2 (only on AMD) |
 | Full record | [benchmarks/2026-10-21-0241.json](benchmarks/2026-10-21-0241.json) |
@@ -517,6 +674,7 @@ The raytracing's frames that built 50 meshes or more, at the flight's start:
 | Build in the install | `dxgi.dll` 57fa8380b776e4a5 (2026-10-20T23:45:44), `GameData/ReDefinition/Plugins/ReDefinition.dll` e9d02b228931a8bb (2026-10-20T22:46:54) |
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 23:48:52.605] [ReDefinition] Probe: profile medium applied. |
+| Groups | `main` |
 | Matrix | `tools/benchmark_matrix.json`, 4 starts, 2 s settling per phase, 8 s after a change of the rendering |
 | Skipped | latency antilag2 (only on AMD) |
 | Full record | [benchmarks/2026-10-20-2347.json](benchmarks/2026-10-20-2347.json) |
@@ -695,6 +853,7 @@ The raytracing's frames that built 50 meshes or more, at the flight's start:
 | Build in the install | `dxgi.dll` 0dc39d0d30890ddc (2026-10-20T22:39:26), `GameData/ReDefinition/Plugins/ReDefinition.dll` e9d02b228931a8bb (2026-10-20T22:46:54) |
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 23:35:52.187] [ReDefinition] Probe: profile medium applied. |
+| Groups | `main` |
 | Matrix | `tools/benchmark_matrix.json`, 1 starts, 2 s settling per phase, 8 s after a change of the rendering |
 | Skipped | latency antilag2 (only on AMD) |
 | Full record | [benchmarks/2026-10-20-2334.json](benchmarks/2026-10-20-2334.json) |
@@ -748,6 +907,7 @@ The raytracing's frames that built 50 meshes or more, at the flight's start:
 | Build in the install | `dxgi.dll` 0dc39d0d30890ddc (2026-10-20T22:39:26), `GameData/ReDefinition/Plugins/ReDefinition.dll` e9d02b228931a8bb (2026-10-20T22:46:54) |
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 22:48:43.839] [ReDefinition] Probe: profile medium applied. |
+| Groups | `main` |
 | Matrix | `tools/benchmark_matrix.json`, 4 starts, 2 s settling per phase, 8 s after a change of the rendering |
 | Skipped | latency antilag2 (only on AMD) |
 | Full record | [benchmarks/2026-10-20-2247.json](benchmarks/2026-10-20-2247.json) |
@@ -903,6 +1063,7 @@ The raytracing's frames that built 50 meshes or more, at the flight's start:
 | Build in the install | `dxgi.dll` 66f2b347196d25b8 (2026-10-20T17:46:58), `GameData/ReDefinition/Plugins/ReDefinition.dll` 0af52ec7ce941ba0 (2026-10-20T17:47:03) |
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 17:51:05.741] [ReDefinition] Probe: profile medium applied. |
+| Groups | `main` |
 | Matrix | `tools/benchmark_matrix.json`, 2 starts, 2 s settling per phase, 8 s after a change of the rendering |
 | Skipped | latency antilag2 (only on AMD) |
 | Full record | [benchmarks/2026-10-20-1750.json](benchmarks/2026-10-20-1750.json) |
@@ -1038,6 +1199,7 @@ dlssg: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 dlssFrameGenerat
 | Build in the install | `dxgi.dll` dc00eff8e8fba5ff (2026-10-20T17:12:03), `GameData/ReDefinition/Plugins/ReDefinition.dll` 16f0b4d6956433d3 (2026-10-20T17:05:44) |
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 17:16:12.040] [ReDefinition] Probe: profile medium applied. |
+| Groups | `main` |
 | Matrix | `tools/benchmark_matrix.json`, 2 starts, 2 s settling per phase, 8 s after a change of the rendering |
 | Skipped | latency antilag2 (only on AMD) |
 | Full record | [benchmarks/2026-10-20-1715.json](benchmarks/2026-10-20-1715.json) |

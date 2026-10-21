@@ -1,12 +1,16 @@
 """The standing comparison of upscalers, frame generation, raytracing and latency models.
 
-Runs the scene probe's flight on the launch pad once per KSP start of a scenario matrix
-(tools/benchmark_matrix.json), sets the proxy's live keys in turn inside each start,
-reads the frame rate and the latency of each phase from the logs, and writes the run to
-docs/development/benchmarks/<date>.json and the table in docs/development/benchmarks.md.
+Runs the scene probe's flight (the launch pad, or a field of grass) once per KSP start of a
+scenario matrix (tools/benchmark_matrix.json), sets the proxy's live keys in turn inside
+each start, reads the frame rate and the latency of each phase from the logs, and writes the
+run to docs/development/benchmarks/<date>.json and the tables in docs/development/benchmarks.md.
+The matrix is split into groups: the main matrix runs by default, the others (raytracing
+modes, frame generation steps, DLSS-G presets, latency brake targets, build variants, a
+grass scene) each by --group NAME.
 
-    python tools/benchmark_matrix.py run                 the whole matrix
-    python tools/benchmark_matrix.py plan                the starts and phases, nothing run
+    python tools/benchmark_matrix.py run                 the default groups (the main matrix)
+    python tools/benchmark_matrix.py run --group NAME    one named group, or --group all
+    python tools/benchmark_matrix.py plan                the groups, starts and phases, with minutes, nothing run
     python tools/benchmark_matrix.py parse <raw folder>  a run's logs read again
     python tools/benchmark_matrix.py render              benchmarks.md from the JSON files
 
@@ -15,6 +19,7 @@ when a start fails (snapshot and restore, as the probe scripts do). Python's sta
 library only.
 """
 import argparse
+import copy
 import datetime
 import filecmp
 import hashlib
@@ -25,6 +30,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import textwrap
 import threading
 import time
 
@@ -41,6 +47,9 @@ SHOT = "bench"
 # (SceneProbe.IniShots), and waits this long in the flight before the first.
 PROBE_SET_SECONDS = 12.0
 PROBE_FLIGHT_SECONDS = 30.0
+# How far under the multiplier asked for the frames presented per rendered frame may lie
+# before the step counts as not delivered.
+STEP_TOLERANCE = 0.25
 # Measured on the RTX A4500: from the process start to the flight, and the quit after.
 START_OVERHEAD_SECONDS = 75.0
 PROFILE_START_SECONDS = 60.0
@@ -58,6 +67,9 @@ SNAP_SKIP = ("Logs", "saves", "ReDefinitionCaptures", "Screenshots")
 PACKAGE_FILES = ("version.dll", "dlssg_sm86.ini")
 PACKAGE_DIR = "dlssg_sm86"
 PACKAGE_SUBDIRS = ("backend", "kernels", "runtime")
+
+# The package ini's keys the runs' sections name.
+PACKAGE_KEYS_SHOWN = ("Engine", "MaxGeneratedFrames", "Preset", "Optimized", "FlowResolution", "UseHudless", "Mode", "FrameTiming", "Level")
 
 TABLE_START = "<!-- benchmark-table:start -->"
 TABLE_END = "<!-- benchmark-table:end -->"
@@ -85,24 +97,151 @@ def scenario_label(s):
         rt += ", radiance cache"
     if s.get("opacity_micromaps"):
         rt += ", opacity micromaps"
-    return " · ".join([s["technique_name"], rt, "FG " + s["fg_name"], s["latency_name"]])
+    if s.get("tweak"):
+        rt += ", " + (s.get("tweak_name") or s["tweak"])
+    fg = "FG " + s["fg_name"] + (" " + s["step"] if s.get("step") else "")
+    prefix = []
+    if s.get("variant_name"):
+        prefix.append(s["variant_name"])
+    if s.get("scene") and s["scene"] != DEFAULT_SCENE:
+        prefix.append(s["scene"])
+    return " · ".join(prefix + [s["technique_name"], rt, fg, s["latency_name"]])
 
 
 def scenario_key(s):
-    """The rows' key: the radiance cache's and the opacity micromaps' rows have theirs, the
-    others keep the key they had before those were rows of their own, so that runs before and
-    after compare."""
+    """The rows' key: the radiance cache's, the opacity micromaps', a tweak's, a frame
+    generation step's, a scene's and a variant's rows have theirs, the others keep the key
+    they had before those were rows of their own, so that runs before and after compare."""
     rr = s.get("ray_reconstruction")
-    parts = [s["technique"], s["raytracing"], "rr-" + ("na" if rr is None else ("on" if rr else "off"))]
+    parts = []
+    if s.get("variant"):
+        parts.append("var-" + s["variant"])
+    if s.get("scene") and s["scene"] != DEFAULT_SCENE:
+        parts.append("scene-" + s["scene"])
+    parts += [s["technique"], s["raytracing"], "rr-" + ("na" if rr is None else ("on" if rr else "off"))]
     if s.get("radiance_cache"):
         parts.append("rc-on")
     if s.get("opacity_micromaps"):
         parts.append("omm-on")
-    return "/".join(parts + ["fg-" + s["fg"], "lat-" + s["latency"]])
+    if s.get("tweak"):
+        parts.append("tw-" + s["tweak"])
+    parts.append("fg-" + s["fg"])
+    if s.get("step"):
+        parts.append("x-" + s["step"])
+    return "/".join(parts + ["lat-" + s["latency"]])
 
 
-def expand(matrix, vendor=None, resources=None):
-    """The starts the matrix asks for, each with its phases (the key sets) in order.
+# ----------------------------------------------------------------------------- the groups
+
+# What a group names that is not a part of the matrix it overrides.
+GROUP_META = ("id", "name", "description", "default", "scenes", "variants", "show")
+# A group's values of these merge into the matrix's; every other key it names replaces the matrix's.
+GROUP_MERGED = ("proxy_load", "mod_settings")
+# The lists a group may name entries of by id, or extend ({"extends": id, ...}).
+GROUP_LISTS = ("techniques", "frame_generation", "latency")
+MAIN_GROUP = "main"
+DEFAULT_SCENE = "pad"
+
+
+def group_list(matrix):
+    """Every group, the main matrix (the matrix's own top-level lists) first."""
+    main = {"id": MAIN_GROUP, "name": matrix.get("main_name", "Main matrix"),
+            "description": matrix.get("main_description", ""), "default": True}
+    return [main] + [dict(g) for g in matrix.get("groups", [])]
+
+
+def select_groups(matrix, names=None):
+    """The groups a run or plan covers: the default ones, or those named ("all" is every one)."""
+    groups = group_list(matrix)
+    if not names:
+        return [g for g in groups if g.get("default", False)]
+    if "all" in names:
+        return groups
+    known = [g["id"] for g in groups]
+    unknown = [n for n in names if n not in known]
+    if unknown:
+        raise ValueError("no group {}; the groups are {}".format(", ".join(unknown), ", ".join(known)))
+    return [g for g in groups if g["id"] in names]
+
+
+def _entry(item, library, what):
+    """A list entry of a group: an id of the matrix's own list, or a dict that may extend one."""
+    def find(entry_id):
+        for entry in library:
+            if entry["id"] == entry_id:
+                return copy.deepcopy(entry)
+        raise ValueError("no {} {} to take or extend".format(what, entry_id))
+    if isinstance(item, str):
+        return find(item)
+    if "extends" in item:
+        entry = find(item["extends"])
+        entry.update({k: v for k, v in item.items() if k != "extends"})
+        return entry
+    return copy.deepcopy(item)
+
+
+def resolve_group(matrix, group):
+    """The matrix a group runs: the matrix's own values with the group's over them."""
+    sub = {k: copy.deepcopy(v) for k, v in matrix.items() if k != "groups"}
+    for key, value in group.items():
+        if key in GROUP_META:
+            continue
+        if key in GROUP_LISTS:
+            sub[key] = [_entry(item, matrix[key], key) for item in value]
+        elif key in GROUP_MERGED:
+            sub[key] = dict(sub.get(key, {}), **value)
+        else:
+            sub[key] = copy.deepcopy(value)
+    return sub
+
+
+def expand(matrix, vendor=None, resources=None, groups=None):
+    """The starts of the groups (the default ones, or those named by id), each with its
+    phases (the key sets) in order, as (starts, skipped); skipped as (what, why).
+
+    A group is the matrix with its own values over it (resolve_group); the main matrix is the
+    matrix's own lists. A group's "scenes" (the probe's scenes, matrix["scenes"]) and
+    "variants" (values for the proxy at load, "proxy_load", each a start of its own) multiply
+    its starts: the id of a start of another group than the main begins with the group's and
+    ends with its variant's and scene's."""
+    starts, skipped = [], []
+    for group in select_groups(matrix, groups):
+        sub = resolve_group(matrix, group)
+        scenes = group.get("scenes") or [DEFAULT_SCENE]
+        variants = group.get("variants") or [None]
+        for scene in scenes:
+            if scene not in matrix.get("scenes", {DEFAULT_SCENE: {}}):
+                raise ValueError("group {} names the scene {}, which the matrix does not define".format(group["id"], scene))
+            for variant in variants:
+                cell = copy.deepcopy(sub)
+                cell["_group"], cell["_scene"], cell["_variant"] = group["id"], scene, variant
+                if variant:
+                    cell["proxy_load"] = dict(cell.get("proxy_load", {}), **variant.get("proxy_load", {}))
+                found, why = _expand_cell(cell, vendor, resources)
+                for start in found:
+                    start["group"] = group["id"]
+                    start["scene"] = scene
+                    start["variant"] = variant["id"] if variant else None
+                    start["probe_args"] = list(matrix.get("scenes", {}).get(scene, {}).get("args", []))
+                    if group["id"] != MAIN_GROUP:
+                        parts = [group["id"], start["id"]]
+                        if variant:
+                            parts.append(variant["id"])
+                        if len(scenes) > 1 or scene != DEFAULT_SCENE:
+                            parts.append(scene)
+                        start["id"] = "-".join(parts)
+                starts.extend(found)
+                skipped.extend(why)
+    seen, unique = set(), []
+    for item in skipped:
+        if item not in seen:
+            seen.add(item)
+            unique.append(item)
+    return starts, unique
+
+
+def _expand_cell(matrix, vendor=None, resources=None):
+    """The starts one group, scene and variant ask for, each with its phases (the key sets) in order.
 
     Only what is read at load splits the starts: the frame generation kind
     (frameGenerationTechnique, and the DLSS-G package next to KSP_x64.exe), and whatever
@@ -126,7 +265,9 @@ def expand(matrix, vendor=None, resources=None):
         if not _vendor_ok(l, vendor):
             skipped.append(("latency " + l["id"], "only on " + "/".join(l["vendors"])))
     renderings = []
-    micromap_rendering = None
+    # The renderings that end a start: a tweak that is "last", and the opacity micromaps, whose
+    # first live 1 makes pipelines that stay.
+    tail = []
     for tech in matrix["techniques"]:
         if not _vendor_ok(tech, vendor):
             skipped.append(("technique " + tech["id"], "only on " + "/".join(tech["vendors"])))
@@ -144,11 +285,16 @@ def expand(matrix, vendor=None, resources=None):
             if cache and cache["technique"] == tech["id"] and cache["raytracing"] == rt:
                 renderings.append({"tech": tech, "raytracing": rt, "ray_reconstruction": rr_choices[0],
                                    "radiance_cache": True, "opacity_micromaps": None, "latencies": cache.get("latencies")})
+            for tweak in matrix.get("tweaks", []):
+                if tweak["technique"] == tech["id"] and rt in _as_list(tweak["raytracing"]):
+                    found = {"tech": tech, "raytracing": rt, "ray_reconstruction": rr_choices[0], "radiance_cache": None,
+                             "opacity_micromaps": None, "latencies": tweak.get("latencies"), "tweak": tweak}
+                    (tail if tweak.get("last") else renderings).append(found)
             micromaps = matrix.get("opacity_micromaps")
             if micromaps and micromaps["technique"] == tech["id"] and micromaps["raytracing"] == rt:
-                micromap_rendering = {"tech": tech, "raytracing": rt, "ray_reconstruction": rr_choices[0],
-                                      "radiance_cache": None, "opacity_micromaps": True,
-                                      "latencies": micromaps.get("latencies")}
+                tail.append({"tech": tech, "raytracing": rt, "ray_reconstruction": rr_choices[0],
+                             "radiance_cache": None, "opacity_micromaps": True,
+                             "latencies": micromaps.get("latencies")})
     kinds = []
     for fg in matrix["frame_generation"]:
         if not _vendor_ok(fg, vendor):
@@ -171,11 +317,11 @@ def expand(matrix, vendor=None, resources=None):
             if not groups or groups[-1][0] != group:
                 groups.append((group, []))
             groups[-1][1].append(r)
-        if micromap_rendering is not None and _allowed(fg, micromap_rendering):
+        for last in [r for r in tail if _allowed(fg, r)]:
             # The last of the group it belongs to.
             for _, members in groups:
-                if any(m["tech"]["id"] == micromap_rendering["tech"]["id"] for m in members):
-                    members.append(micromap_rendering)
+                if any(m["tech"]["id"] == last["tech"]["id"] for m in members):
+                    members.append(last)
                     break
         for group, members in groups:
             starts.append(_start(matrix, fg, members, group, latencies, resources, fg is plain_off))
@@ -197,9 +343,14 @@ def _allowed(fg, rendering):
         return False
     if "raytracing" in only and rendering["raytracing"] not in only["raytracing"]:
         return False
-    if not only.get("extras", True) and (rendering.get("radiance_cache") or rendering.get("opacity_micromaps")):
+    if not only.get("extras", True) and (rendering.get("radiance_cache") or rendering.get("opacity_micromaps")
+                                         or rendering.get("tweak")):
         return False
     return True
+
+
+def _as_list(value):
+    return value if isinstance(value, list) else [value]
 
 
 def _split_value(rendering, dimension):
@@ -246,8 +397,14 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
         latencies = [l for l in latencies if l["id"] in fg["latencies"]]
     else:
         latencies = [l for l in latencies if not l.get("only_with_fg")]
-    fg_states = [("off", matrix["fg_off"])] if fg.get("fg_off_phases", True) else []
-    fg_states.append(("on", matrix["fg_on"]))
+    # A kind with "steps" is measured at each multiplier (the mod's frameGenerationMultiplier,
+    # set live through the probe's mod.<key>), each phase naming it.
+    steps = fg.get("steps")
+    if steps:
+        settings["frameGenerationMultiplier"] = steps[0]
+    fg_states = [("off", matrix["fg_off"], None)] if fg.get("fg_off_phases", True) else []
+    fg_states.extend(("on", matrix["fg_on"], step) for step in (steps or [None]))
+    tweak_defaults = matrix.get("tweak_defaults", {})
     cache_key = (matrix.get("radiance_cache") or {}).get("key")
     micromaps_key = (matrix.get("opacity_micromaps") or {}).get("key")
     phases = []
@@ -260,10 +417,13 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
         rendering_latencies = latencies
         if r.get("latencies"):
             rendering_latencies = [l for l in latencies if l["id"] in r["latencies"]] or latencies
-        for state, fg_keys in fg_states:
+        for state, fg_keys, step in fg_states:
+            phase_mod = dict(mod)
+            if steps:
+                phase_mod["frameGenerationMultiplier"] = step or steps[0]
             for lat in rendering_latencies:
                 keys = dict(matrix.get("phase_keys", {}))
-                keys.update({"mod." + k: v for k, v in mod.items()})
+                keys.update({"mod." + k: v for k, v in phase_mod.items()})
                 keys.update(fg_keys)
                 keys.update(lat["proxy"])
                 # Every phase names the cache's key, so that none inherits it.
@@ -271,6 +431,10 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
                     keys[cache_key] = "1" if r.get("radiance_cache") else "0"
                 if micromaps_key:
                     keys[micromaps_key] = "1" if r.get("opacity_micromaps") else "0"
+                # Every phase names the tweaks' keys at their defaults, so that none inherits one.
+                keys.update(tweak_defaults)
+                if r.get("tweak"):
+                    keys.update(r["tweak"]["keys"])
                 if state == "on":
                     fg_id, fg_name = fg["id"], fg["name"]
                 elif plain_off:
@@ -284,13 +448,23 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
                     "fg": fg_id, "fg_name": fg_name, "fg_requested": state == "on", "fg_kind": fg.get("kind", fg["id"]),
                     "latency": lat["id"], "latency_name": lat["name"],
                 }
+                if step:
+                    s["step"] = step
+                if r.get("tweak"):
+                    s["tweak"], s["tweak_name"] = r["tweak"]["id"], r["tweak"].get("name", r["tweak"]["id"])
+                if matrix.get("_group") and matrix["_group"] != MAIN_GROUP:
+                    s["group"] = matrix["_group"]
+                if matrix.get("_scene") and matrix["_scene"] != DEFAULT_SCENE:
+                    s["scene"] = matrix["_scene"]
+                if matrix.get("_variant"):
+                    s["variant"], s["variant_name"] = matrix["_variant"]["id"], matrix["_variant"].get("name", matrix["_variant"]["id"])
                 # The first phase of a rendering after another one waits for the upscaler's
                 # rig and the raytracing's scene to be built again; the start's first has the
                 # flight's 30 s before it.
                 rebuild = first_of_rendering and n > 0
                 first_of_rendering = False
                 for _ in range(repeats_rebuild if rebuild else repeats):
-                    phases.append({"scenario": s, "keys": keys, "mod_settings": mod,
+                    phases.append({"scenario": s, "keys": keys, "mod_settings": phase_mod,
                                    "settle": settle_rebuild if rebuild else settle, "rebuild": rebuild})
     return {
         "id": start_id, "fg_kind": fg.get("kind", fg["id"]), "renderings": len(renderings),
@@ -470,6 +644,23 @@ def parse_config(text):
             last = k
         elif last is not None and token:
             values[last] += " " + token
+    return _with_parts(values)
+
+
+def _with_parts(values):
+    """The parts of the values the proxy writes as one ("latencyBrake=1/4.000000/1/dlssg"; "dlssgMode=on/3f")
+    as keys of their own, so that every option of the record can be read by its name. The
+    composite value stays as written."""
+    brake = values.get("latencyBrake")
+    if brake and "/" in brake:
+        parts = brake.split("/")
+        values["latencyBrakeTargetMs"] = parts[1]
+        if len(parts) > 2:
+            values["latencyBrakeWaits"] = parts[2]
+        values["latencyBrakeWithDlssg"] = "1" if "dlssg" in parts[3:] else "0"
+    mode = values.get("dlssgMode")
+    if mode is not None:
+        values["dlssgFrames"] = mode.split("/")[1].rstrip("f") if "/" in mode else "0"
     return values
 
 
@@ -523,7 +714,8 @@ def parse_proxy_log(text):
                             ("fsr_fg", "Frame generation context created"), ("dlss", "DLSS: nvngx_dlss.dll"),
                             ("amd_upscaler", "AMD upscaler: "), ("swapchain", "Swapchain created"),
                             ("low_latency", "Low latency: NVIDIA Reflex"), ("anti_lag", "Low latency: AMD"),
-                            ("xell", "Low latency: Intel XeLL"), ("xess_fg", "XeSS frame generation")):
+                            ("xell", "Low latency: Intel XeLL"), ("xess_fg", "XeSS frame generation"),
+                            ("fg_multiplier", "Frame generation multiplier requested")):
             if line.startswith(prefix):
                 notes.append((key, t, line))
                 break
@@ -551,7 +743,7 @@ def _unfocused_at(proxy, t):
 
 def parse_ksp_log(text):
     k = {"gpu": None, "upscaler": [], "sets": [], "shots": [], "profile": [], "probe": [], "rr": [], "raytracing": [],
-         "first_time": None}
+         "multiplier": [], "first_time": None}
     for raw in text.splitlines()[:40]:
         m = re.match(r"^GPU: (.*)$", raw.strip())
         if m and k["gpu"] is None:
@@ -577,6 +769,9 @@ def parse_ksp_log(text):
             k["profile"].append(line)
         if "DLSS Ray Reconstruction" in line:
             k["rr"].append({"time": t, "text": line.split("[ReDefinition] ", 1)[-1]})
+        m = re.search(r"Frame generation multiplier (\S+)$", line)
+        if m:
+            k["multiplier"].append({"time": t, "choice": m.group(1)})
         m = re.search(r"Raytracing set to (\w+)", line)
         if m:
             k["raytracing"].append({"time": t, "mode": m.group(1), "text": line.split("[ReDefinition] ", 1)[-1]})
@@ -671,7 +866,7 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
     ksp = parse_ksp_log(ksp_text)
     proxy = parse_proxy_log(proxy_text)
     shift = _align(ksp, proxy)
-    for group in ("upscaler", "sets", "shots", "rr", "raytracing"):
+    for group in ("upscaler", "sets", "shots", "rr", "raytracing", "multiplier"):
         for e in ksp[group]:
             e["time"] += shift
     load_config = next((c for c in proxy["configs"] if not c["reloaded"]), None)
@@ -719,6 +914,10 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
                 warnings.append(text)
             if not s["fg_requested"] and ratio > 1.2:
                 warnings.append("frame generation held off, presented/rendered {:.2f}".format(ratio))
+        step_check = _step_check(s, ratio)
+        if step_check and step_check["delivered"] is False:
+            warnings.append("{} asked for, presented/rendered {:.2f}: the GPU or the driver delivered {}x".format(
+                step_check["asked"], ratio, step_check["shown_as"]))
         if s["fg_requested"] and s["fg_kind"] == "dlssg" and fg_kind != "DLSS-G":
             warnings.append("DLSS-G asked for, the proxy set up {}".format(fg_kind or "none"))
         if s["fg_requested"] and s["fg_kind"] == "xessfg" and fg_kind != "XeSS-FG":
@@ -744,6 +943,11 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
             "proxy_config": config["values"] if config else None,
             "proxy_config_line": config["text"] if config else None,
             "upscaler": upscaler, "fg_kind_ran": fg_kind if ratio and ratio >= 1.5 else "none",
+            "fg_step": step_check,
+            "fg_lines": [x["text"] for key in ("dlssg", "fg_multiplier", "xess_fg") for x in proxy["lines"].get(key, [])
+                         if set_time - 0.5 <= x["time"] <= end] + [
+                             "mod: frame generation multiplier " + m["choice"] for m in ksp["multiplier"]
+                             if set_time - 0.5 <= m["time"] <= end] or None,
             "measured": measured, "warnings": warnings,
         })
     phases = _merge_repeats(results)
@@ -782,6 +986,21 @@ def rt_builds_of(builds):
             "triangles": sum(b["triangles"] for b in builds),
             "slowest_gpu_ms": max(b["gpu_ms"] for b in builds), "slowest_cpu_ms": max(b["cpu_ms"] for b in builds),
             "lines": builds[:10]}
+
+
+def _step_check(scenario, ratio):
+    """What a frame generation step asked for and what the frames per rendered frame show:
+    asked "3x" and 2.0 presented per rendered frame is a step the GPU or the driver did not
+    deliver (shown_as the whole number nearest). Dynamic has no number to be held to."""
+    step = scenario.get("step")
+    if not step or not scenario.get("fg_requested") or ratio is None:
+        return None
+    shown_as = int(round(ratio))
+    if step == "Dynamic":
+        return {"asked": step, "expected": None, "shown": ratio, "shown_as": shown_as, "delivered": None}
+    expected = int(step.rstrip("x"))
+    return {"asked": step, "expected": expected, "shown": ratio, "shown_as": shown_as,
+            "delivered": ratio >= expected - STEP_TOLERANCE}
 
 
 def _same_number(a, b):
@@ -1172,9 +1391,15 @@ def run(args):
     resources = resources_of(args)
     machine = machine_record()
     vendor = args.vendor or vendor_of(machine)
-    starts, skipped = expand(matrix, vendor, resources)
+    try:
+        groups = [g["id"] for g in select_groups(matrix, args.group)]
+        starts, skipped = expand(matrix, vendor, resources, groups)
+    except ValueError as e:
+        sys.exit(str(e))
     if args.only:
         starts = [s for s in starts if any(o in s["id"] for o in args.only)]
+    if not starts:
+        sys.exit("No start to run.")
     if any(s["dlssg_package"] for s in starts):
         found = install.package_in_place()
         if found:
@@ -1182,10 +1407,10 @@ def run(args):
     stamp = datetime.datetime.now().strftime("%Y-%m-%d-%H%M")
     raw = os.path.join(args.raw, stamp)
     os.makedirs(raw, exist_ok=True)
-    plan = {"matrix": matrix, "matrix_file": os.path.relpath(args.matrix, REPO), "starts": starts, "skipped": skipped,
+    plan = {"matrix": matrix, "matrix_file": os.path.relpath(args.matrix, REPO), "groups": groups, "starts": starts, "skipped": skipped,
             "vendor": vendor, "resources": resources, "stamp": stamp, "settle_seconds": matrix.get("settle_seconds", 3)}
-    print("{} starts, about {:.0f} minutes; raw logs in {}".format(
-        len(starts), estimate_seconds(starts, not args.no_profile) / 60.0, raw))
+    print("groups {}: {} starts, about {:.0f} minutes; raw logs in {}".format(
+        ", ".join(groups), len(starts), estimate_seconds(starts, not args.no_profile) / 60.0, raw))
     for what, why in skipped:
         print("skipped: {} ({})".format(what, why))
 
@@ -1280,10 +1505,13 @@ def run_start(install, start, raw, settings_template, ini_template, package):
         # Inside the try: a copy that fails half way is removed all the same.
         if start["dlssg_package"]:
             install.put_package(package, start["max_generated_frames"], start.get("dlssg_ini"))
+            # The package's ini as this start ran with it: the preset, the multiplier ceiling.
+            shutil.copy2(install.path("dlssg_sm86.ini"), os.path.join(raw, start["id"] + ".dlssg_sm86.ini"))
         timeout = int(start_seconds(start) + 2 * START_OVERHEAD_SECONDS + 60)
-        outcome = install.launch(["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds",
-                                  "-redefinitionProbeShot", SHOT, "-redefinitionProbeShotVariant", "none",
-                                  "-redefinitionProbeShotIni", ini_sets_argument(start["phases"])], timeout)
+        outcome = install.launch(["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"]
+                                 + list(start.get("probe_args") or [])
+                                 + ["-redefinitionProbeShot", SHOT, "-redefinitionProbeShotVariant", "none",
+                                    "-redefinitionProbeShotIni", ini_sets_argument(start["phases"])], timeout)
     finally:
         if start["dlssg_package"]:
             logs = install.path(PACKAGE_DIR, "logs")
@@ -1330,6 +1558,20 @@ def resources_of(args):
     return out
 
 
+def parse_ini_sections(text):
+    """An ini file's values by section, comments left out: {"DLSSG": {"Preset": "C"}, ...}."""
+    sections, current = {}, None
+    for line in text.splitlines():
+        stripped = line.strip()
+        header = re.match(r"^\[(.+)\]$", stripped)
+        if header:
+            current = sections.setdefault(header.group(1).strip(), {})
+        elif current is not None and stripped and not stripped.startswith((";", "#")) and "=" in stripped:
+            key, value = stripped.split("=", 1)
+            current[key.strip()] = value.strip()
+    return sections
+
+
 def build_record(raw):
     with open(os.path.join(raw, "plan.json"), encoding="utf-8") as f:
         plan = json.load(f)
@@ -1337,7 +1579,9 @@ def build_record(raw):
     starts = []
     for start in plan["starts"]:
         base = os.path.join(raw, start["id"])
-        entry = {"id": start["id"], "mod_settings_set": start["mod_settings"], "proxy_load_set": start["proxy_load"],
+        entry = {"id": start["id"], "group": start.get("group", MAIN_GROUP), "scene": start.get("scene", DEFAULT_SCENE),
+                 "variant": start.get("variant"), "probe_args": start.get("probe_args") or [],
+                 "mod_settings_set": start["mod_settings"], "proxy_load_set": start["proxy_load"],
                  "dlssg_package": start["dlssg_package"], "max_generated_frames": start["max_generated_frames"],
                  "dlssg_ini": start.get("dlssg_ini")}
         if not os.path.exists(base + ".proxy.log") or not os.path.exists(base + ".KSP.log"):
@@ -1360,6 +1604,14 @@ def build_record(raw):
                 values = parse_cfg_values(entry["mod_settings_file"])
                 values.update(p.get("mod_settings_set") or {})
                 p["mod_settings"] = values
+        if os.path.exists(base + ".dlssg_sm86.ini"):
+            with open(base + ".dlssg_sm86.ini", encoding="utf-8", errors="replace") as f:
+                entry["package_ini"] = parse_ini_sections(f.read())
+            for p in entry["phases"]:
+                p["package_ini"] = entry["package_ini"]
+        if os.path.exists(base + ".proxy.ini"):
+            with open(base + ".proxy.ini", encoding="utf-8", errors="replace") as f:
+                entry["proxy_ini_at_start"] = parse_ini_sections(f.read()).get("Proxy", {})
         if os.path.exists(base + ".outcome.txt"):
             with open(base + ".outcome.txt") as f:
                 entry["outcome"] = f.read().strip()
@@ -1367,6 +1619,7 @@ def build_record(raw):
     return {
         "date": (plan.get("started") or plan["stamp"]), "stamp": plan["stamp"], "finished": plan.get("finished"),
         "git": plan.get("git"), "machine": plan.get("machine"), "build": plan.get("build"), "vendor": plan.get("vendor"),
+        "groups": plan.get("groups") or [MAIN_GROUP],
         "profile": plan["matrix"].get("profile"), "profile_lines": plan.get("profile_lines"),
         "matrix_file": plan.get("matrix_file"), "matrix": plan["matrix"], "skipped": plan.get("skipped"),
         "settle_seconds": settle, "resources": plan.get("resources"),
@@ -1376,21 +1629,45 @@ def build_record(raw):
 
 # ----------------------------------------------------------------------------- the results
 
-def rows_of(record):
+def record_groups(record):
+    """The groups a record covers: those it names, the main matrix for a record from before there were groups."""
+    return record.get("groups") or [MAIN_GROUP]
+
+
+def rows_of(record, group=None):
+    """The phases of a record as rows; of one group only where it is given."""
     rows = []
     for start in record["starts"]:
         for p in start.get("phases", []):
-            rows.append({"key": p["key"], "label": p["label"], "scenario": p["scenario"], "start": start["id"],
+            row_group = p["scenario"].get("group") or start.get("group") or record_groups(record)[0]
+            if group is not None and row_group != group:
+                continue
+            rows.append({"key": p["key"], "label": p["label"], "scenario": p["scenario"], "start": start["id"], "group": row_group,
                          "measured": p["measured"], "warnings": p["warnings"], "upscaler": p.get("upscaler"),
-                         "fg_kind_ran": p.get("fg_kind_ran")})
+                         "fg_kind_ran": p.get("fg_kind_ran"), "rt_builds": start.get("rt_builds"), "fg_step": p.get("fg_step")})
     return rows
 
 
-def _baseline_key(record):
-    b = record["matrix"]["baseline"]
-    rr = b.get("ray_reconstruction")
-    return "/".join([b["technique"], b["raytracing"], "rr-" + ("na" if rr is None else ("on" if rr else "off")),
-                     "fg-" + b["fg"], "lat-" + b["latency"]])
+def group_definition(record, group):
+    """The group's entry of the record's matrix (the main group is the matrix itself)."""
+    matrix = record.get("matrix") or {}
+    if group == MAIN_GROUP:
+        return dict(matrix, id=MAIN_GROUP, name=matrix.get("main_name", "Main matrix"),
+                    description=matrix.get("main_description", ""))
+    for g in matrix.get("groups", []):
+        if g["id"] == group:
+            return g
+    return {"id": group, "name": group, "description": ""}
+
+
+def _baseline_key(record, group=None, scenario=None):
+    """The key of the row every row of the group is compared with: the group's baseline, or the
+    matrix's, in the scene (and the variant) of the row it is compared with."""
+    base = (group_definition(record, group or MAIN_GROUP).get("baseline")) or record["matrix"]["baseline"]
+    return scenario_key({"technique": base["technique"], "raytracing": base["raytracing"],
+                         "ray_reconstruction": base.get("ray_reconstruction"), "fg": base["fg"], "latency": base["latency"],
+                         "variant": base.get("variant") or (scenario or {}).get("variant"),
+                         "scene": (scenario or {}).get("scene")})
 
 
 def _reference_key(s):
@@ -1398,6 +1675,7 @@ def _reference_key(s):
     ref = dict(s)
     ref["fg"] = "off"
     ref["latency"] = "none"
+    ref.pop("step", None)
     return scenario_key(ref)
 
 
@@ -1414,32 +1692,48 @@ def _fmt(v, digits=1, signed=False, unit=""):
     return text + unit
 
 
-def summary_table(record, previous=None):
-    rows = rows_of(record)
+def summary_table(record, previous=None, group=MAIN_GROUP):
+    rows = rows_of(record, group)
     by_key = {r["key"]: r for r in rows}
-    base = by_key.get(_baseline_key(record))
-    prev = {r["key"]: r for r in rows_of(previous)} if previous else {}
-    head = ("| Scenario | fps | Shown fps | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline "
-            "| fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Notes |")
-    lines = [head, "|" + "---|" * 11]
+    prev = {r["key"]: r for r in rows_of(previous, group)} if previous else {}
+    show = group_definition(record, group).get("show") or []
+    head = ["Scenario", "fps", "Shown fps"]
+    if "ratio" in show:
+        head += ["Shown per rendered", "Delivered"]
+    head += ["Latency median ms", "Latency p90 ms", "fps vs baseline", "Latency vs baseline",
+             "fps vs FG off, no model", "Latency vs FG off, no model", "fps vs previous run"]
+    if "rt_builds" in show:
+        head += ["Slowest build GPU ms", "Slowest build CPU ms", "Meshes", "Triangles"]
+    head += ["Notes"]
+    lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for r in rows:
         m = r["measured"]
+        base_row = by_key.get(_baseline_key(record, group, r["scenario"]))
         ref = by_key.get(_reference_key(r["scenario"]))
-        b = base["measured"] if base else {}
+        b = base_row["measured"] if base_row else {}
         rf = ref["measured"] if ref and ref is not r else {}
         pv = prev.get(r["key"], {}).get("measured", {})
         lat = m.get("latency_median_ms")
         notes = "; ".join(r["warnings"])
-        if r["key"] == (base or {}).get("key"):
+        if base_row is r:
             notes = ("baseline; " + notes) if notes else "baseline"
-        lines.append("| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
-            r["label"], _fmt(m.get("fps")), _fmt(m.get("shown_fps")), _fmt(lat), _fmt(m.get("latency_p90_ms")),
-            _fmt(_pct(m.get("fps"), b.get("fps")), signed=True, unit=" %"),
-            _fmt(None if lat is None or b.get("latency_median_ms") is None else lat - b["latency_median_ms"], signed=True, unit=" ms"),
-            _fmt(_pct(m.get("fps"), rf.get("fps")), signed=True, unit=" %"),
-            _fmt(None if lat is None or rf.get("latency_median_ms") is None else lat - rf["latency_median_ms"], signed=True, unit=" ms"),
-            _fmt(_pct(m.get("fps"), pv.get("fps")), signed=True, unit=" %"),
-            notes.replace("|", "/") or ""))
+        cells = [r["label"], _fmt(m.get("fps")), _fmt(m.get("shown_fps"))]
+        if "ratio" in show:
+            step = r.get("fg_step")
+            delivered = "–" if not step else ("not delivered" if step["delivered"] is False else ("yes" if step["delivered"] else "n/a"))
+            cells += [_fmt(m.get("presented_per_rendered"), 2) if r["scenario"].get("fg_requested") else "–", delivered]
+        cells += [_fmt(lat), _fmt(m.get("latency_p90_ms")),
+                  _fmt(_pct(m.get("fps"), b.get("fps")), signed=True, unit=" %"),
+                  _fmt(None if lat is None or b.get("latency_median_ms") is None else lat - b["latency_median_ms"], signed=True, unit=" ms"),
+                  _fmt(_pct(m.get("fps"), rf.get("fps")), signed=True, unit=" %"),
+                  _fmt(None if lat is None or rf.get("latency_median_ms") is None else lat - rf["latency_median_ms"], signed=True, unit=" ms"),
+                  _fmt(_pct(m.get("fps"), pv.get("fps")), signed=True, unit=" %")]
+        if "rt_builds" in show:
+            built = r.get("rt_builds") or {}
+            cells += [_fmt(built.get("slowest_gpu_ms"), 2), _fmt(built.get("slowest_cpu_ms"), 2),
+                      str(built["meshes"]) if built else "–", str(built["triangles"]) if built else "–"]
+        cells += [notes.replace("|", "/") or ""]
+        lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
 
@@ -1478,6 +1772,7 @@ def run_section(record, json_name):
     lines.append("| Machine | " + _machine_line(record) + " |")
     lines.append("| Profile | `{}`: {} |".format(record.get("profile"), "; ".join(record.get("profile_lines") or ["no profile line"])))
     matrix = record.get("matrix") or {}
+    lines.append("| Groups | {} |".format(", ".join("`{}`".format(g) for g in record_groups(record))))
     lines.append("| Matrix | `{}`, {} starts, {} s settling per phase, {} s after a change of the rendering |".format(
         (record.get("matrix_file") or "").replace(os.sep, "/"), len(record["starts"]), record.get("settle_seconds"),
         matrix.get("settle_after_rebuild_seconds", record.get("settle_seconds"))))
@@ -1510,6 +1805,22 @@ def run_section(record, json_name):
     for s in record["starts"]:
         lines.append("{}: {}".format(s["id"], s.get("proxy_load_config_line") or "no Config line"))
     lines.append("```")
+    packaged = [s for s in record["starts"] if s.get("package_ini")]
+    if packaged:
+        lines.append("")
+        lines.append("The DLSS-G package's ini in each start that had it, with the values it was read with:")
+        lines.append("")
+        lines.append("```")
+        for s in packaged:
+            shown = {sec: {k: v for k, v in keys.items() if k in PACKAGE_KEYS_SHOWN}
+                     for sec, keys in s["package_ini"].items()}
+            lines.append("{}: {}".format(s["id"], " ".join("[{}] {}".format(sec, " ".join("{}={}".format(k, v) for k, v in keys.items()))
+                                                           for sec, keys in shown.items() if keys)))
+        lines.append("```")
+    scened = [s for s in record["starts"] if s.get("probe_args")]
+    if scened:
+        lines.append("")
+        lines.append("The probe's scene arguments: " + "; ".join("{}: `{}`".format(s["id"], " ".join(s["probe_args"])) for s in scened) + ".")
     built = [s for s in record["starts"] if s.get("rt_builds")]
     if built:
         lines.append("")
@@ -1537,16 +1848,50 @@ def load_records(folder=RESULTS):
     return records
 
 
+def _wrapped(text, width=88):
+    return "\n".join(textwrap.wrap(text, width)) if text else ""
+
+
+def tables_of(records):
+    """The comparison tables, one section per group: the group's latest record, its rows
+    against the group's baseline and, for the fps, against the record of the group before."""
+    holders = {}
+    for name, record in records:
+        for group in record_groups(record):
+            holders.setdefault(group, []).append(record)
+    order = [MAIN_GROUP] + [g for g in (group_ids_of(records[-1][1]) if records else []) if g in holders and g != MAIN_GROUP]
+    order += sorted(g for g in holders if g not in order)
+    sections = []
+    for group in order:
+        have = holders.get(group)
+        if not have:
+            continue
+        latest = have[-1]
+        previous = have[-2] if len(have) > 1 else None
+        definition = group_definition(latest, group)
+        scene_names = (latest.get("matrix") or {}).get("scenes", {})
+        text = [("### " + definition.get("name", group)) + " (`{}`)".format(group), ""]
+        if definition.get("description") or latest.get("note"):
+            text += [_wrapped(definition.get("description") or latest["note"]), ""]
+        text += [_wrapped("Run `{}`. Its machine and options are under [the runs](#the-runs).".format(latest["stamp"])), ""]
+        if group != MAIN_GROUP and any(g["id"] == group for g in (latest.get("matrix") or {}).get("groups", [])):
+            text += [_wrapped("Run it with `python tools/benchmark_matrix.py run --group {}`.".format(group)), ""]
+        if definition.get("scenes"):
+            text += [_wrapped("Scenes: " + ", ".join("{} ({})".format(s, scene_names.get(s, {}).get("name", s))
+                                                    for s in definition["scenes"]) + "."), ""]
+        text.append(summary_table(latest, previous, group))
+        sections.append("\n".join(text))
+    return "\n\n".join(sections)
+
+
+def group_ids_of(record):
+    return [g["id"] for g in group_list(record.get("matrix") or {})]
+
+
 def render_doc(records, doc_text):
-    """benchmarks.md with the table of the latest run and every run's section, newest
+    """benchmarks.md with the table of each group's latest run and every run's section, newest
     first, between the markers; the text around the markers stays as written."""
-    if records:
-        name, latest = records[-1]
-        previous = records[-2][1] if len(records) > 1 else None
-        table = "Run `{}`. Its machine and options are under [the runs](#the-runs).\n\n{}".format(
-            latest["stamp"], summary_table(latest, previous))
-    else:
-        table = "No run yet."
+    table = tables_of(records) if records else "No run yet."
     runs = "\n".join(run_section(r, n) for n, r in reversed(records)) if records else "No run yet.\n"
     doc_text = _replace_between(doc_text, TABLE_START, TABLE_END, "\n" + table + "\n")
     return _replace_between(doc_text, RUNS_START, RUNS_END, "\n" + runs)
@@ -1581,20 +1926,34 @@ def plan_command(args):
     matrix = load_matrix(args.matrix)
     resources = resources_of(args)
     vendor = args.vendor or vendor_of(machine_record())
-    starts, skipped = expand(matrix, vendor, resources)
+    try:
+        groups = select_groups(matrix, args.group)
+        starts, skipped = expand(matrix, vendor, resources, [g["id"] for g in groups])
+    except ValueError as e:
+        sys.exit(str(e))
     if args.only:
         starts = [s for s in starts if any(o in s["id"] for o in args.only)]
     for s in starts:
-        print("{}  ({} phases{})".format(s["id"], len(s["phases"]), ", DLSS-G package" if s["dlssg_package"] else ""))
+        print("{}  ({} phases{}{})".format(s["id"], len(s["phases"]), ", DLSS-G package" if s["dlssg_package"] else "",
+                                          ", scene " + s["scene"] if s.get("scene") not in (None, DEFAULT_SCENE) else ""))
         print("    settings.cfg: " + ", ".join("{} = {}".format(k, v) for k, v in s["mod_settings"].items()))
         print("    proxy at load: " + ", ".join("{}={}".format(k, v) for k, v in s["proxy_load"].items()))
+        if s.get("dlssg_package"):
+            print("    package ini: MaxGeneratedFrames={} {}".format(s["max_generated_frames"], json.dumps(s.get("dlssg_ini") or {})))
         for p in s["phases"]:
             print("    " + scenario_label(p["scenario"]) + ("   (rebuilt, {} s settling)".format(p["settle"]) if p.get("rebuild") else "")
                   + "   [" + ",".join("{}={}".format(k, v) for k, v in p["keys"].items()) + "]")
     for what, why in skipped:
         print("skipped: {} ({})".format(what, why))
-    print("{} starts, {} phases, about {:.0f} minutes (vendor {})".format(
-        len(starts), sum(len(s["phases"]) for s in starts), estimate_seconds(starts) / 60.0, vendor or "unknown"))
+    print("")
+    print("{:<16} {:>7} {:>7} {:>9}".format("group", "starts", "phases", "minutes"))
+    for g in groups:
+        mine = [s for s in starts if s.get("group") == g["id"]]
+        print("{:<16} {:>7} {:>7} {:>9.0f}   {}".format(g["id"], len(mine), sum(len(s["phases"]) for s in mine),
+                                                       estimate_seconds(mine, False) / 60.0, g.get("name", "")))
+    print("{} starts, {} phases, about {:.0f} minutes with the profile start (vendor {}); the other groups: {}".format(
+        len(starts), sum(len(s["phases"]) for s in starts), estimate_seconds(starts) / 60.0, vendor or "unknown",
+        ", ".join(g["id"] for g in group_list(matrix) if g["id"] not in [x["id"] for x in groups]) or "none"))
 
 
 def parse_command(args):
@@ -1625,8 +1984,11 @@ def main(argv=None):
                        help="the folder with Intel's libxess_fg.dll and libxell.dll, handed to the proxy as xessFgDirectory")
         p.add_argument("--vendor", choices=["NVIDIA", "AMD", "Intel"], help="the GPU's vendor, if not the one Windows names")
         p.add_argument("--only", action="append", help="only the starts whose id contains this (repeatable)")
+        p.add_argument("--group", action="append",
+                       help="a group of the matrix to cover, repeatable, or all (default: the main matrix; the groups are"
+                            " listed by plan, each with its starts, phases and minutes)")
 
-    p = sub.add_parser("run", help="run the matrix in KSP and write the results")
+    p = sub.add_parser("run", help="run the default group, or the --group ones, in KSP and write the results")
     common(p)
     p.add_argument("--settings-template", help="the mod's settings.cfg to start from (default: the install's, as it was)")
     p.add_argument("--raw", default=os.environ.get("REDEFINITION_BENCH_RAW", os.path.join(REPO, ".local", "benchmarks")),
@@ -1634,7 +1996,7 @@ def main(argv=None):
     p.add_argument("--no-profile", action="store_true", help="skip the start that applies the profile")
     p.add_argument("--no-doc", action="store_true", help="write the JSON only, not benchmarks.md")
     p.set_defaults(func=run)
-    p = sub.add_parser("plan", help="print the starts and phases without running anything")
+    p = sub.add_parser("plan", help="print the starts, the phases and per group the minutes, without running anything")
     common(p)
     p.set_defaults(func=plan_command)
     p = sub.add_parser("parse", help="read a run's raw folder again and write its results")
