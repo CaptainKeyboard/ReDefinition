@@ -105,7 +105,7 @@ RTX A4500 at the Medium profile with raytracing on *Full* and FSR 3, from the be
 
 | Setting | Does | Measured |
 |---|---|---|
-| `rtOpacityMicromaps=1` | lets the GPU decide most hits on grass and ferns without testing their textures. In hardware on RTX 40 and newer; an RTX 30 emulates it | 10 % fewer frames a second on the RTX A4500, an Ampere GPU that emulates them: 40.5 against 45.0. The gain on an RTX 40 is open |
+| `rtOpacityMicromaps=1` | lets the GPU decide most hits on grass and ferns without testing their textures. In hardware on RTX 40 and newer; an RTX 30 emulates it | 4 to 10 % fewer frames a second on the RTX A4500, an Ampere GPU that emulates them: 40.5 against 45.0 in the standing comparison, 43.1 and 42.3 against 44.8 in a run of its own. Taking every cut-out test away gives 7.6 % more frames a second there, 48.2 against 44.8, which is the most micromaps could save. The gain on an RTX 40 is open |
 | `rtRadianceCache=1` | keeps the indirect light in a grid over the world, so that fewer rays are traced a frame. The light follows a change some frames late | 45.4 against 45.0 frames a second, 1 % more |
 | `rtMegaGeometry=1` | builds new meshes' structures from RTX Mega Geometry's clusters of up to 256 triangles. Works on every RTX GPU | not in the benchmark. In the raytracing harness the trace took 2.54 ms against 1.24 ms with 15 003 instances, and a vessel's meshes took no less to build |
 

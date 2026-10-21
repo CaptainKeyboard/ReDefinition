@@ -171,7 +171,9 @@ ReDefinition's, and ReDefinition neither ships nor downloads it.
 2. Put the zip, as it is, into KSP's folder.
 3. *Install from zip* takes `version.dll`, `dlssg_sm86.ini` and the `dlssg_sm86` folder
    out of it and places them next to `KSP_x64.exe`. A file already there is kept,
-   renamed to end in `.old`.
+   renamed to end in `.old`. A first install raises the package's multiplier from
+   its factory 4X to 6X and sets preset *C*. A reinstall puts your choices from the
+   old file back.
 4. Restart KSP. If NVIDIA's files for frame generation are missing, *NVIDIA DLSS
    files* offers them.
 

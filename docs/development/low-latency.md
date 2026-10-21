@@ -91,8 +91,9 @@ on *Full* the median was 57.8 against 56.4 ms, and 48.6 against 47.4 ms with the
 
 A second `Latency:` line splits the median into stages, from timestamps the proxy takes. They
 are the simulation, the way from its end to the Present, the Present, the way from its end to
-the GPU's end, and the render thread's share of the second. At raytracing *Full* with FSR 3 and
-the brake at 4 ms, the stages were 7.6, 14.3, 2.4 and 23.3 ms **[meas]**. With Reflex the log
+the GPU's end, and the render thread's first call to the Present. At raytracing *Full* with
+FSR 3 and the brake at 4 ms, the stages were 7.6, 14.3, 2.4 and 23.3 ms **[meas]**. With
+Reflex the log
 adds NVIDIA's report as `Low latency:` lines, with its stages.
 
 The diagnostics window's strip shows the last median and 90th percentile

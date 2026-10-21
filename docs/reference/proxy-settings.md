@@ -95,7 +95,7 @@ The raytracing's own pages: [player/raytracing.md](../player/raytracing.md) and
 
 | Setting | Default | Read | Does |
 |---|---|---|---|
-| `rtOpacityMicromaps` | 0 | live | NVIDIA GPUs only. 1 bakes the cut-out meshes' triangles (grass, ferns) into opacity micromaps, which let a ray skip the transparent parts of a blade without the shader's test. The picture stays the same. A driver without them and other GPUs trace as with 0, and the log says so |
+| `rtOpacityMicromaps` | 0 | live | NVIDIA GPUs only. 1 bakes the cut-out meshes' triangles (grass, ferns) into opacity micromaps, which let a ray skip the transparent parts of a blade without the shader's test. The picture stays the same. A driver without them and other GPUs trace as with 0, and the log says so. The first switch to 1 makes the passes' pipelines again once. With 0 on a driver that has them, the cut-out meshes' texture coordinates (24 bytes a triangle) and the materials' alpha planes (4 KB a texture) are kept for a later switch to 1; switching back to 0 rebuilds the meshes without micromaps after about 300 frames and frees them, the kept data stays until KSP restarts |
 | `rtOmmMaxSubdivision` | 6 | live | 2 to 8. The finest subdivision of a micromap, about one micro-triangle to a texel. Read when a mesh is baked |
 | `rtRadianceCache` | 0 | live | 1 keeps the indirect light the rays find in a hash grid over the world. A ray's path ends where it meets a cell the grid already knows. Fewer rays a frame, and the light follows a change some frames late |
 | `rtRadianceCacheEntries` | 20 | live | 16 to 22. The grid holds 2 to this power cells of 44 bytes; 20 is 46 MB of video memory |

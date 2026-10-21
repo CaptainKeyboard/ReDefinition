@@ -43,7 +43,7 @@ percentile. *Frame generation & latency* repeats what lowers it under *Running n
 `ReDefinitionProxy.log` has the same measure every `reportSeconds`, 10 by default. The
 line starts with `Latency:` and ends with what lowered it. A second `Latency:` line
 gives the frame's stages. They are the simulation, the way from its end to the Present,
-the Present, the way to the GPU's end, and the render thread's share of the second.
+the Present, the way to the GPU's end, and the render thread's first call to the Present.
 
 ## The latency brake
 
