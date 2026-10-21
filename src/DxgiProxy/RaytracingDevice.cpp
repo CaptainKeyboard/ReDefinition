@@ -454,6 +454,26 @@ namespace redefinition
             const UINT64* ticks = reinterpret_cast<const UINT64*>(static_cast<const uint8_t*>(mapped) + range.Begin);
             const double toMs = 1000.0 / static_cast<double>(timestampFrequency);
             std::lock_guard<std::mutex> status(statusLock);
+            if (slot.reconstruction)
+            {
+                // Ray Reconstruction's list: its guide pass and its evaluation, said every
+                // 120 frames.
+                slot.reconstruction = false;
+                reconstructGuidesMs += static_cast<double>(ticks[kTimestampRrGuides] - ticks[kTimestampRrStart]) * toMs;
+                reconstructEvaluateMs += static_cast<double>(ticks[kTimestampRrEnd] - ticks[kTimestampRrGuides]) * toMs;
+                if (++reconstructTimed >= 120)
+                {
+                    LogLine("Raytracing: Ray Reconstruction on the GPU, over " + std::to_string(reconstructTimed) + " frames: guides "
+                            + std::to_string(reconstructGuidesMs / reconstructTimed) + " ms, evaluation "
+                            + std::to_string(reconstructEvaluateMs / reconstructTimed) + " ms ("
+                            + (reconstructionThroughNgx ? "NGX" : "Streamline") + ")");
+                    reconstructGuidesMs = reconstructEvaluateMs = 0.0;
+                    reconstructTimed = 0;
+                }
+                const D3D12_RANGE untouched = { 0, 0 };
+                timestampReadback->Unmap(0, &untouched);
+                return;
+            }
             if (slot.extra)
             {
                 extraBuildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
@@ -465,6 +485,17 @@ namespace redefinition
             buildMs = static_cast<float>(static_cast<double>(ticks[1] - ticks[0]) * toMs);
             NoteMeshBuildTimeLocked(slotNumber, static_cast<double>(ticks[kTimestampMeshesBuilt] - ticks[0]) * toMs);
             traceMs = static_cast<float>(static_cast<double>(ticks[kTimestampTraceEnd] - ticks[1]) * toMs);
+            if (slot.guided)
+            {
+                frameGuidesMs += static_cast<double>(ticks[kTimestampGuidesEnd] - ticks[kTimestampTraceEnd]) * toMs;
+                if (++frameGuidesTimed >= 120)
+                {
+                    LogLine("Raytracing: the frame's guides for Ray Reconstruction on the GPU, over " + std::to_string(frameGuidesTimed)
+                            + " frames: " + std::to_string(frameGuidesMs / frameGuidesTimed) + " ms");
+                    frameGuidesMs = 0.0;
+                    frameGuidesTimed = 0;
+                }
+            }
             for (UINT position = 0; position < kRtPassTimings; ++position)
                 passMs[kRtPassOrder[position]] =
                     static_cast<float>(static_cast<double>(ticks[2 + position] - ticks[1 + position]) * toMs);

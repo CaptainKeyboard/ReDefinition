@@ -20,7 +20,13 @@ namespace redefinition
     inline constexpr UINT kTimestampTraceEnd = 1 + kRtPassTimings;
     inline constexpr UINT kTimestampMeshesBuilt = 2 + kRtPassTimings;
     inline constexpr UINT kTimestampMaterialsUploaded = 3 + kRtPassTimings;
-    inline constexpr UINT kTimestampsPerSlot = 4 + kRtPassTimings;
+    // Ray Reconstruction's list: its start, the end of its guide pass, its end.
+    inline constexpr UINT kTimestampRrStart = 4 + kRtPassTimings;
+    inline constexpr UINT kTimestampRrGuides = 5 + kRtPassTimings;
+    inline constexpr UINT kTimestampRrEnd = 6 + kRtPassTimings;
+    // The end of the frame's guide pass for Ray Reconstruction, which follows the last pass.
+    inline constexpr UINT kTimestampGuidesEnd = 7 + kRtPassTimings;
+    inline constexpr UINT kTimestampsPerSlot = 8 + kRtPassTimings;
 
     // The passes, by the signal bit that asks for them, and the entry point each is
     // compiled from (CMakeLists.txt embeds them as RT_<entry>).

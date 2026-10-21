@@ -6,6 +6,7 @@
 
 #include "GpuProfiler.h"
 #include "Raytracing.h"
+#include "RaytracingInternal.h"
 
 #include "Config.h"
 #include "D3d12Util.h"
@@ -181,6 +182,9 @@ namespace redefinition
             return;
         }
 
+        const UINT timestampBase = slotNumber * kTimestampsPerSlot;
+        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrStart);
+
         // The guides, at the render size.
         if (!prepared && !EnsureGuidesLocked(slot.held, width, height))
         {
@@ -264,6 +268,7 @@ namespace redefinition
                 UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         }
 
+        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrGuides);
         reconstructionEvaluated = true;
         bool evaluated = false;
         std::string notEvaluated = "Ray Reconstruction did not evaluate (the proxy's log has Streamline's reason)";
@@ -408,6 +413,14 @@ namespace redefinition
                                                                     static_cast<uint32_t>(sizeof(tags) / sizeof(tags[0])),
                                                                     list.Get());
         }
+        // Timed where it evaluated; WaitForSlotLocked reads the three stamps once the slot's
+        // list is done.
+        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrEnd);
+        list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase, kTimestampsPerSlot,
+                               timestampReadback.Get(), static_cast<UINT64>(timestampBase) * sizeof(UINT64));
+        slot.timed = evaluated;
+        slot.extra = false;
+        slot.reconstruction = evaluated;
         hr = list->Close();
         if (FAILED(hr))
         {

@@ -772,6 +772,7 @@ namespace redefinition
         // denoiser's steps have overwritten by then, and Ray Reconstruction takes the
         // noisy signals.
         const RtFramePacket& packet = *frame.packet;
+        frame.slot->guided = false;
         if (frame.extra)
             return;
         guides.fromFrame = false;
@@ -796,6 +797,8 @@ namespace redefinition
             UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         guides.fromFrame = true;
         guides.frame = packet.frameIndex;
+        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampGuidesEnd);
+        frame.slot->guided = true;
     }
 
     void Raytracing::FinishFrameLocked(FrameWork& frame)
@@ -810,6 +813,7 @@ namespace redefinition
                                timestampReadback.Get(), static_cast<UINT64>(frame.timestampBase) * sizeof(UINT64));
         frame.slot->timed = true;
         frame.slot->extra = frame.extra;
+        frame.slot->reconstruction = false;
         const UINT64 finished = SubmitLocked(*frame.slot, frame.inputs, frame.outputs);
         if (finished == 0)
             return;

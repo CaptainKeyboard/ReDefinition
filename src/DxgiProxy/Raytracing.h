@@ -836,10 +836,15 @@ namespace redefinition
             // the CPU when the slot is taken again, so that waits for this one too.
             UINT64 sceneReadUntil = 0;
             // Whether the slot's list resolves its timestamps: not for a frame that stopped
-            // early, nor for Ray Reconstruction's.
+            // early.
             bool timed = false;
             // Whether its last list was an extra trace (kRtFrameExtra), timed apart.
             bool extra = false;
+            // Whether its last list was Ray Reconstruction's, which stamps its own entries.
+            bool reconstruction = false;
+            // Whether its last list wrote the frame's guides for Ray Reconstruction, and
+            // stamped the end of that pass.
+            bool guided = false;
             // What the slot's list uses, held until the slot comes round again.
             std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> held;
         };
@@ -1331,6 +1336,14 @@ namespace redefinition
         std::string lastProblem;
         uint64_t frames = 0;
         uint64_t reconstructed = 0;
+        // Ray Reconstruction's GPU time (RaytracingReconstruct.cpp): its guide pass and its
+        // evaluation, summed over the frames since the last line said so.
+        double reconstructGuidesMs = 0.0;
+        double reconstructEvaluateMs = 0.0;
+        uint32_t reconstructTimed = 0;
+        // The same for the guide pass inside the raytraced frame (WriteFrameGuidesLocked).
+        double frameGuidesMs = 0.0;
+        uint32_t frameGuidesTimed = 0;
         uint64_t regenerated = 0;
         uint32_t liveMeshes = 0;
         uint32_t lastInstances = 0;
