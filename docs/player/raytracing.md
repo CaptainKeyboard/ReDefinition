@@ -20,6 +20,7 @@ The rows are under *Display* in the settings window, below the upscaler's.
 | Raytracing | *Off*; *Shadows*: the sun's shadows from rays, as far as the scene reaches; *Shadows and light*: also the light bouncing off surfaces and the sky, which darkens corners and colours what stands beside something bright; *Full*: also reflections |
 | Light bounces | how often the traced light bounces between surfaces, from 1 to 4. More bounces light shadowed sides and rooms more fully, at more GPU time. Only with *Shadows and light* or *Full* |
 | Ray Reconstruction | on at first. With DLSS as the upscaler, NVIDIA's DLSS Ray Reconstruction removes the noise of the traced light and upscales in one step ([below](#with-dlss)). Off, ReDefinition's own denoiser and DLSS Super Resolution do it. Only with DLSS and raytracing on |
+| Ray Reconstruction from | the least raytracing mode that uses it: *Shadows*, *Light* or *Full*. *Shadows* is the factory value, Ray Reconstruction in every mode. Below the chosen mode ReDefinition's own denoiser and DLSS Super Resolution do the work. On an RTX A4500 at DLSS *Quality* Ray Reconstruction takes 8.7 to 9.0 ms of the GPU in every mode; with *Full* in this setting the frames a second were 58.5 against 42.0 in *Shadows* and 48.9 against 38.5 in *Light*, with a different look |
 | Moonlight | how brightly the moons light the scene, from 0 to 300 %, in a cool colour, as the eye sees moonlight at night. Their light falls only where the moon is in the sky, with shadows. Only with *Shadows and light* or *Full* |
 | Moon reflection | how strongly water mirrors the moons, from 0 to 500 %. 100 % is the moon as bright in the water as the eye sees it at night. It lights nothing. Only with *Full* |
 | Moon glow | the moons' discs a little brighter in the night sky, with a soft glow round them, the more the darker the sky. It lights nothing, and works without raytracing too |
@@ -76,6 +77,8 @@ generation off, it runs through NVIDIA Streamline. Beside FSR 3's or XeSS's fram
 generation it runs through NVIDIA's NGX directly. `rrPath` in `ReDefinitionProxy.ini`
 next to `KSP_x64.exe` chooses the way
 ([reference/proxy-settings.md](../reference/proxy-settings.md#loading-and-the-techniques)).
+
+*Ray Reconstruction from* sets the lowest raytracing mode that uses it.
 
 The download beside *NVIDIA DLSS files* brings its files
 ([installing.md](installing.md)). Without them, ReDefinition's own denoiser removes the

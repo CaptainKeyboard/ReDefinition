@@ -105,7 +105,7 @@ KSP's reflection probe out and the raytraced scene dark (see
 |---|---|---|
 | ReDefinition's raytracing, main image | 5.2 to 5.6 | the GPU profiler **[meas]** |
 | ReDefinition's raytracing, ocean | 0.8 to 1.1 | the GPU profiler **[meas]** |
-| DLSS Ray Reconstruction at full resolution | 4.3 to 4.5 | the GPU profiler **[meas]** |
+| DLSS Ray Reconstruction at full resolution | 4.3 to 4.5 on the RTX 4090; 8.7 to 9.0 on the RTX A4500 at 1707x960 to 2560x1440 | the GPU profiler, the proxy's timestamps **[meas]** |
 | EVE's volumetric clouds and their shadows | 5.5 | the mod cost probe **[meas]** |
 | Parallax's scatters | 3.8 to 5.1 | the mod cost probe **[meas]** |
 | The sun's shadow maps for the main camera | 2.8 | the GPU profiler **[meas]** |
