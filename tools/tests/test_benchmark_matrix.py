@@ -312,10 +312,10 @@ class MatrixTest(unittest.TestCase):
         self.assertEqual(len(sets), len(starts[0]["phases"]))
         self.assertEqual(sets[0], "reportSeconds=1,mod.technique=Fsr3,mod.raytracing=Off,mod.rayReconstruction=True,"
                                   "fgMinimumFps=1000,lowLatency=0,latencyBrake=0,antiLag2=0,rtRadianceCache=0,"
-                                  "rtOpacityMicromaps=0")
+                                  "rtOpacityMicromaps=0,rtCutoutTest=0")
         for s in sets:
             for key in ("reportSeconds=1", "mod.technique=", "mod.raytracing=", "mod.rayReconstruction=", "fgMinimumFps=",
-                        "lowLatency=", "latencyBrake=", "rtRadianceCache=", "rtOpacityMicromaps="):
+                        "lowLatency=", "latencyBrake=", "rtRadianceCache=", "rtOpacityMicromaps=", "rtCutoutTest="):
                 self.assertIn(key, s)
 
     def test_the_radiance_cache_is_a_rendering_of_its_own(self):
@@ -761,6 +761,38 @@ class GroupTest(unittest.TestCase):
                 sets = bm.ini_sets_argument(s["phases"]).split(";")
                 self.assertEqual(len(sets), len(s["phases"]))
 
+    def test_every_phase_of_every_group_names_the_live_rendering_keys(self):
+        """A group without the radiance cache, the micromaps or the cut-out tests still sets their keys to 0 in every
+        phase: left out, the install's ini would decide, and a player with rtOpacityMicromaps=1 in it would
+        measure every group with micromaps."""
+        for group in bm.group_list(self.matrix):
+            for start in self.starts(group["id"]):
+                for p in start["phases"]:
+                    s = p["scenario"]
+                    expected = {"rtRadianceCache": "1" if s["radiance_cache"] else "0",
+                                "rtOpacityMicromaps": "1" if s["opacity_micromaps"] else "0"}
+                    if not s.get("tweak"):
+                        expected["rtCutoutTest"] = "0"
+                    for key, want in expected.items():
+                        self.assertEqual(p["keys"].get(key), want, "{} {} {}".format(start["id"], bm.scenario_label(s), key))
+
+    def test_a_key_no_group_has_is_refused(self):
+        self.matrix["groups"].append({"id": "typo", "tecniques": ["fsr3"]})
+        with self.assertRaises(ValueError) as caught:
+            bm.expand(self.matrix, "NVIDIA", self.ALL, ["typo"])
+        self.assertIn("tecniques", str(caught.exception))
+        # The keys a group has of its own are not unknown.
+        self.matrix["groups"][-1] = {"id": "fine", "techniques": ["fsr3"], "tweak_defaults": {"rtCutoutTest": "0"}, "tweaks": [],
+                                     "scenes": ["pad"], "variants": [{"id": "v", "proxy_load": {}}], "show": ["ratio"]}
+        self.assertTrue(bm.expand(self.matrix, "NVIDIA", self.ALL, ["fine"])[0])
+
+    def test_no_start_has_a_command_line_past_what_windows_takes(self):
+        starts, _ = bm.expand(self.matrix, "NVIDIA", self.ALL, ["all"])
+        for s in starts:
+            self.assertLess(bm.command_length(s), bm.MAX_COMMAND_CHARS, s["id"])
+            self.assertEqual(bm.probe_arguments(s)[-1], bm.ini_sets_argument(s["phases"]))
+            self.assertEqual(bm.probe_arguments(s)[:3], ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"])
+
     def test_raytracing_modes(self):
         starts = self.starts("rt-modes")
         self.assertEqual([s["id"] for s in starts], ["rt-modes-fsr"])
@@ -773,7 +805,6 @@ class GroupTest(unittest.TestCase):
                          {("Off", None)} | {(m, rr) for m in ("Shadows", "Light", "Full") for rr in (True, False)})
         self.assertEqual({p["scenario"]["fg"] for p in phases}, {"off", "fsr"})
         self.assertEqual({p["scenario"]["latency"] for p in phases}, {"none"})
-        self.assertNotIn("rtRadianceCache", phases[0]["keys"])
         self.assertIn("FSR 3 · RT Shadows · FG FSR · none", {bm.scenario_label(p["scenario"]) for p in phases})
 
     def test_frame_generation_steps(self):

@@ -43,6 +43,7 @@
     {"id": "dlssg-c", "kind": "dlssg", "name": "DLSS-G preset C", "proxy_load": {"frameGenerationTechnique": "dlss"}, "dlssg_package": true, "max_generated_frames": 1, "dlssg_ini": {"DLSSG": {"Preset": "C"}, "Logging": {"FrameTiming": "1"}}, "fg_off_phases": false, "vendors": ["NVIDIA"], "requires": ["dlssg_package"], "only": {"techniques": ["fsr3"], "raytracing": ["Off", "Full"], "extras": false}, "latencies": ["none"]},
     {"id": "xessfg", "name": "XeSS-FG", "proxy_load": {"frameGenerationTechnique": "xess", "xessFgDirectory": "{xess_fg_dll_dir}"}, "fg_off_phases": true, "latencies": ["xell"], "requires": ["xess_fg_dll_dir"]}
   ],
+  "tweak_defaults": {"rtCutoutTest": "0"},
   "fg_on": {"fgMinimumFps": "0"},
   "fg_off": {"fgMinimumFps": "1000"},
   "latency": [
@@ -128,7 +129,6 @@
       "raytracing": ["Off", "Shadows", "Light", "Full"],
       "frame_generation": ["fsr"],
       "latency": ["none"],
-      "tweak_defaults": {"rtCutoutTest": "0"},
       "tweaks": [{"id": "cutout1", "name": "cut-out test 1", "technique": "fsr3", "raytracing": "Full", "latencies": ["none"], "keys": {"rtCutoutTest": "1"}}, {"id": "cutout2", "name": "cut-out test 2", "technique": "fsr3", "raytracing": "Full", "latencies": ["none"], "keys": {"rtCutoutTest": "2"}}]
     }
   ]

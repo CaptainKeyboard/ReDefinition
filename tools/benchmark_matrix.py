@@ -50,8 +50,11 @@ PROBE_FLIGHT_SECONDS = 30.0
 # How far under the multiplier asked for the frames presented per rendered frame may lie
 # before the step counts as not delivered.
 STEP_TOLERANCE = 0.25
-# Measured on the RTX A4500: from the process start to the flight, and the quit after.
-START_OVERHEAD_SECONDS = 75.0
+# Longest command line the tool launches KSP with; CreateProcess takes 32767 characters.
+MAX_COMMAND_CHARS = 30000
+# Measured on the RTX A4500: from the process start to the flight, and the quit after. The six
+# runs of 2026-10-21 (1 to 9 starts, 18 to 60 phases) fit 86 s a start and 62 s for the profile start.
+START_OVERHEAD_SECONDS = 86.0
 PROFILE_START_SECONDS = 60.0
 # How often the game's window is looked at while it runs, and how long it is left alone after
 # Windows refused to bring it forward.
@@ -137,6 +140,8 @@ def scenario_key(s):
 GROUP_META = ("id", "name", "description", "default", "scenes", "variants", "show")
 # A group's values of these merge into the matrix's; every other key it names replaces the matrix's.
 GROUP_MERGED = ("proxy_load", "mod_settings")
+# What only a group has: its renderings of live proxy keys and the values every other phase has.
+GROUP_EXTRA = ("tweaks", "tweak_defaults")
 # The lists a group may name entries of by id, or extend ({"extends": id, ...}).
 GROUP_LISTS = ("techniques", "frame_generation", "latency")
 MAIN_GROUP = "main"
@@ -181,8 +186,20 @@ def _entry(item, library, what):
 
 
 def resolve_group(matrix, group):
-    """The matrix a group runs: the matrix's own values with the group's over them."""
+    """The matrix a group runs: the matrix's own values with the group's over them.
+
+    A key the group names that neither the matrix nor a group knows is refused: a misspelt
+    "techniques" would leave the matrix's own list in place and run something else."""
+    known = set(matrix) | set(GROUP_META) | set(GROUP_EXTRA)
+    unknown = sorted(k for k in group if k not in known)
+    if unknown:
+        raise ValueError("group {} names {}, which neither the matrix nor a group has".format(group.get("id"), ", ".join(unknown)))
     sub = {k: copy.deepcopy(v) for k, v in matrix.items() if k != "groups"}
+    # The live keys of the radiance cache and the micromaps, which a group without those renderings
+    # leaves out of its own lists: every phase still names them at 0 (_start), so that none has
+    # the value the install's ini holds.
+    sub["_pinned_keys"] = {entry["key"]: "0" for entry in (matrix.get("radiance_cache"), matrix.get("opacity_micromaps"))
+                           if entry and entry.get("key")}
     for key, value in group.items():
         if key in GROUP_META:
             continue
@@ -426,7 +443,9 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
                 keys.update({"mod." + k: v for k, v in phase_mod.items()})
                 keys.update(fg_keys)
                 keys.update(lat["proxy"])
-                # Every phase names the cache's key, so that none inherits it.
+                # Every phase names the cache's and the micromaps' keys, so that none inherits them, also
+                # in a group that has neither rendering.
+                keys.update(matrix.get("_pinned_keys", {}))
                 if cache_key:
                     keys[cache_key] = "1" if r.get("radiance_cache") else "0"
                 if micromaps_key:
@@ -517,6 +536,18 @@ def ini_sets_argument(phases):
     """-redefinitionProbeShotIni's value: the sets in order, each with every key the
     matrix varies, so that no set inherits a value from the one before it."""
     return ";".join(",".join("{}={}".format(k, v) for k, v in p["keys"].items()) for p in phases)
+
+
+def probe_arguments(start):
+    """KSP_x64.exe's arguments for one start: the probe, the scene's, and every set of keys."""
+    return (["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"] + list(start.get("probe_args") or [])
+            + ["-redefinitionProbeShot", SHOT, "-redefinitionProbeShotVariant", "none",
+               "-redefinitionProbeShotIni", ini_sets_argument(start["phases"])])
+
+
+def command_length(start):
+    """The characters of the command line a start launches KSP with (Windows takes 32767)."""
+    return len(" ".join(["KSP_x64.exe"] + probe_arguments(start)))
 
 
 def start_seconds(start):
@@ -1400,6 +1431,10 @@ def run(args):
         starts = [s for s in starts if any(o in s["id"] for o in args.only)]
     if not starts:
         sys.exit("No start to run.")
+    for s in starts:
+        if command_length(s) > MAX_COMMAND_CHARS:
+            sys.exit("The command line of {} is {} characters, past the {} that Windows takes: fewer phases in that start."
+                     .format(s["id"], command_length(s), MAX_COMMAND_CHARS))
     if any(s["dlssg_package"] for s in starts):
         found = install.package_in_place()
         if found:
@@ -1508,10 +1543,7 @@ def run_start(install, start, raw, settings_template, ini_template, package):
             # The package's ini as this start ran with it: the preset, the multiplier ceiling.
             shutil.copy2(install.path("dlssg_sm86.ini"), os.path.join(raw, start["id"] + ".dlssg_sm86.ini"))
         timeout = int(start_seconds(start) + 2 * START_OVERHEAD_SECONDS + 60)
-        outcome = install.launch(["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"]
-                                 + list(start.get("probe_args") or [])
-                                 + ["-redefinitionProbeShot", SHOT, "-redefinitionProbeShotVariant", "none",
-                                    "-redefinitionProbeShotIni", ini_sets_argument(start["phases"])], timeout)
+        outcome = install.launch(probe_arguments(start), timeout)
     finally:
         if start["dlssg_package"]:
             logs = install.path(PACKAGE_DIR, "logs")

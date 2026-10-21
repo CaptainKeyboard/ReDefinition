@@ -41,7 +41,7 @@ it, to reproduce that.
 
 With every DLL and package in place, the main matrix has four KSP starts after the profile
 start. It holds 138 scenarios, and the first scenario after each change of the rendering
-runs twice, so the tool plans 169 phases and about 42 minutes. The run `2026-10-21-0241`
+runs twice, so the tool plans 169 phases and about 43 minutes. The run `2026-10-21-0241`
 recorded 138 phases, the two passes of a scenario merged into one. A start whose DLLs or
 package are missing, or whose GPU vendor does not fit, is skipped, and the run's section
 names it. On an NVIDIA GPU with none of the optional files that is one start with 50
@@ -94,12 +94,12 @@ over it. The numbers are for the RTX A4500 at the Medium profile.
 
 | Group | What it answers | Starts | Phases | Minutes |
 |---|---|---|---|---|
-| `main` | every upscaler, frame generation kind and latency model at raytracing Off and Full | 4 | 169 | 41 |
+| `main` | every upscaler, frame generation kind and latency model at raytracing Off and Full | 4 | 169 | 42 |
 | `rt-modes` | what raytracing Shadows and Light cost against Off and Full, for FSR 3 and DLSS | 1 | 32 | 8 |
 | `frame-steps` | what DLSS-G's 2x to 6x and Dynamic cost and which of them the GPU delivers | 2 | 18 | 7 |
-| `dlssg-presets` | DLSS-G's preset Auto against preset C with all four upscalers | 3 | 60 | 17 |
+| `dlssg-presets` | DLSS-G's preset Auto against preset C with all four upscalers | 3 | 60 | 18 |
 | `latency-brake` | the latency brake's target of 4, 2 and 1 ms with no, FSR and DLSS-G frame generation | 2 | 26 | 9 |
-| `blas` | how the acceleration structure build variants change the flight's first seconds | 9 | 18 | 19 |
+| `blas` | how the acceleration structure build variants change the flight's first seconds | 9 | 18 | 21 |
 | `grass` | the radiance cache, the cut-out tests, the opacity micromaps and the raytracing modes over grass | 2 | 46 | 13 |
 
 The minutes are `plan`'s, with the profile start not counted. The groups that use DLSS-G need
@@ -212,8 +212,8 @@ Each list in `tools/benchmark_matrix.json` multiplies the phases:
 * `groups`: each entry is the matrix with its own values over it. `techniques`,
   `frame_generation` and `latency` name entries of the matrix by id, or extend one with
   `{"extends": "dlssg", "id": "...", ...}`. `proxy_load` and `mod_settings` merge into the
-  matrix's, every other key replaces it. A group is `"default": true` to run without
-  `--group`; only the main matrix is.
+  matrix's, every other key replaces it. A key that neither the matrix nor a group has is
+  refused. A group is `"default": true` to run without `--group`; only the main matrix is.
 * A group's `scenes` and `variants`: the probe's scenes (`scenes` at the top of the file,
   each with its probe arguments) and values for the proxy at load (`proxy_load`), each
   combination a start of its own.
