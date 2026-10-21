@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Bridges;
@@ -123,6 +124,98 @@ namespace ReDefinition.Tests
         {
             Assert.IsFalse(AmpereOptions.Write(Path.Combine(folder, "none.ini"), AmpereOptions.Preset, "C"));
             Assert.IsFalse(File.Exists(Path.Combine(folder, "none.ini")));
+        }
+
+        // A game folder with the release zip's files as the package ships them (Package as its
+        // ini), installed over whatever the folder holds.
+        private string Reinstall(string game, out System.Collections.Generic.Dictionary<AmpereOptions.Option, string> before)
+        {
+            string zip = Path.Combine(folder, "dlssg-release-0.4.0-x64.zip");
+            if (!File.Exists(zip))
+            {
+                using (ZipArchive archive = ZipFile.Open(zip, ZipArchiveMode.Create))
+                {
+                    foreach (string entry in new[] { "version.dll", "dlssg_sm86/backend/b.dll", "dlssg_sm86/kernels/k.dll",
+                                                     "dlssg_sm86/runtime/nvngx_dlssg.dll" })
+                    {
+                        using (StreamWriter writer = new StreamWriter(archive.CreateEntry(entry).Open()))
+                            writer.Write(entry);
+                    }
+                    using (StreamWriter writer = new StreamWriter(archive.CreateEntry("dlssg_sm86.ini").Open(), new UTF8Encoding(false)))
+                        writer.Write(Package);
+                }
+            }
+            string path = Path.Combine(game, AmperePackage.Ini);
+            before = AmpereOptions.Snapshot(path);
+            AmperePackage.Install(zip, game);
+            AmpereOptions.AfterInstall(path, before);
+            return path;
+        }
+
+        [TestMethod]
+        public void AFirstInstallRaisesTheFactoryCeilingAndPreset()
+        {
+            string game = Path.Combine(folder, "KSP");
+            Directory.CreateDirectory(game);
+            System.Collections.Generic.Dictionary<AmpereOptions.Option, string> before;
+            string path = Reinstall(game, out before);
+
+            Assert.IsNull(before);
+            Assert.AreEqual(AmpereOptions.InstalledCeiling, AmpereOptions.Read(path, AmpereOptions.MaxGeneratedFrames));
+            Assert.AreEqual(AmpereOptions.InstalledPreset, AmpereOptions.Read(path, AmpereOptions.Preset));
+        }
+
+        [TestMethod]
+        public void AReinstallKeepsThePlayersChoices()
+        {
+            string game = Path.Combine(folder, "KSP");
+            Directory.CreateDirectory(game);
+            string path = Reinstall(game, out _);
+            Assert.IsTrue(AmpereOptions.Write(path, AmpereOptions.Preset, "A"));
+            Assert.IsTrue(AmpereOptions.Write(path, AmpereOptions.MaxGeneratedFrames, "2"));
+            Assert.IsTrue(AmpereOptions.Write(path, AmpereOptions.SuperResolution, "On"));
+            Assert.IsTrue(AmpereOptions.Write(path, AmpereOptions.FrameTiming, "1"));
+
+            System.Collections.Generic.Dictionary<AmpereOptions.Option, string> before;
+            Reinstall(game, out before);
+
+            Assert.IsNotNull(before);
+            Assert.AreEqual("A", AmpereOptions.Read(path, AmpereOptions.Preset));
+            Assert.AreEqual("2", AmpereOptions.Read(path, AmpereOptions.MaxGeneratedFrames));
+            Assert.AreEqual("On", AmpereOptions.Read(path, AmpereOptions.SuperResolution));
+            Assert.AreEqual("1", AmpereOptions.Read(path, AmpereOptions.FrameTiming));
+            StringAssert.Contains(File.ReadAllText(path + ".old"), "Preset=A");
+        }
+
+        [TestMethod]
+        public void AReinstallKeepsAChoiceThatEqualsTheFactoryValue()
+        {
+            // Auto and 4X (the factory's) chosen on purpose: a reinstall neither raises nor
+            // sets C over them.
+            string game = Path.Combine(folder, "KSP");
+            Directory.CreateDirectory(game);
+            string path = Reinstall(game, out _);
+            Assert.IsTrue(AmpereOptions.Write(path, AmpereOptions.Preset, "Auto"));
+            Assert.IsTrue(AmpereOptions.Write(path, AmpereOptions.MaxGeneratedFrames, "3"));
+
+            Reinstall(game, out _);
+
+            Assert.AreEqual("Auto", AmpereOptions.Read(path, AmpereOptions.Preset));
+            Assert.AreEqual("3", AmpereOptions.Read(path, AmpereOptions.MaxGeneratedFrames));
+        }
+
+        [TestMethod]
+        public void AKeyTheOldIniLackedStaysTheFactorys()
+        {
+            string game = Path.Combine(folder, "KSP");
+            Directory.CreateDirectory(game);
+            File.WriteAllText(Path.Combine(game, AmperePackage.Ini), "[DLSSG]\r\nPreset=B\r\n");
+            System.Collections.Generic.Dictionary<AmpereOptions.Option, string> before;
+            string path = Reinstall(game, out before);
+
+            Assert.AreEqual(1, before.Count);
+            Assert.AreEqual("B", AmpereOptions.Read(path, AmpereOptions.Preset));
+            Assert.AreEqual("3", AmpereOptions.Read(path, AmpereOptions.MaxGeneratedFrames));
         }
 
         [TestMethod]

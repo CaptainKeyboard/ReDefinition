@@ -135,25 +135,19 @@ namespace ReDefinition.Window
                       + ", applies after a restart of KSP");
         }
 
-        // The ceiling of generated frames the package's ini holds, the factory's 4X, raised to the most the
-        // runtime supports: the Frame generation row chooses within it, live; and the factory's preset Auto
-        // set to C. A value the player set is left.
-        private static void RaiseCeiling()
+        // What the install leaves in the package's ini (AmpereOptions.AfterInstall): on a first
+        // install the factory's ceiling raised to the most the runtime supports (the Frame
+        // generation row chooses within it, live) and the factory's preset Auto set to C; on a
+        // reinstall the player's values from before.
+        private static void SettleIni(Dictionary<AmpereOptions.Option, string> before)
         {
             try
             {
-                string path = Path.Combine(NvidiaDownloader.GameFolder, AmperePackage.Ini);
-                AmpereOptions.Option option = AmpereOptions.MaxGeneratedFrames;
-                if (AmpereOptions.Read(path, option) == AmpereOptions.FactoryCeiling)
-                    AmpereOptions.Write(path, option, AmpereOptions.InstalledCeiling);
-                // The preset the same way: a value the player set stays.
-                option = AmpereOptions.Preset;
-                if (AmpereOptions.Read(path, option) == AmpereOptions.FactoryPreset)
-                    AmpereOptions.Write(path, option, AmpereOptions.InstalledPreset);
+                AmpereOptions.AfterInstall(Path.Combine(NvidiaDownloader.GameFolder, AmperePackage.Ini), before);
             }
             catch (Exception e)
             {
-                Debug.LogWarning(Log.Tag + " dlssg_for_sm86: the ceiling of generated frames was not raised: " + e.Message);
+                Debug.LogWarning(Log.Tag + " dlssg_for_sm86: the ini's choices were not settled: " + e.Message);
             }
         }
 
@@ -209,7 +203,8 @@ namespace ReDefinition.Window
                 + "3. Install from the zip: ReDefinition takes version.dll, dlssg_sm86.ini and the dlssg_sm86 folder"
                 + " out of it, without its super-resolution files (the settings row adds those on request), and places"
                 + " them next to KSP_x64.exe. A file already"
-                + " there is kept, renamed to end in .old.\n\n"
+                + " there is kept, renamed to end in .old; the choices it held (preset, multiplier ceiling, super"
+                + " resolution, frame timing) are carried into the new ini.\n\n"
                 + "DLSS frame generation runs from it after a restart of KSP. Where NVIDIA's files for it are missing,"
                 + " the \"NVIDIA DLSS files\" row offers them then. Each generated frame costs GPU time on these cards."
                 + " To remove it, delete version.dll, dlssg_sm86.ini and the dlssg_sm86 folder while KSP is closed.";
@@ -283,10 +278,14 @@ namespace ReDefinition.Window
             string error = null;
             int placed = 0;
             bool done = false;
+            // The ini the package comes with replaces the player's: what the player chose in
+            // it is taken first.
+            Dictionary<AmpereOptions.Option, string> before = null;
             Thread worker = new Thread(() =>
             {
                 try
                 {
+                    if (!superResolution) before = AmpereOptions.Snapshot(Path.Combine(game, AmperePackage.Ini));
                     placed = AmperePackage.Install(found, game, part);
                 }
                 catch (Exception e)
@@ -310,7 +309,7 @@ namespace ReDefinition.Window
                 if (!superResolution)
                 {
                     InstalledNow = true;
-                    RaiseCeiling();
+                    SettleIni(before);
                 }
                 superResolutionLookedAt = float.NegativeInfinity;
                 status = "Installed, " + placed + " files from " + Path.GetFileName(found)

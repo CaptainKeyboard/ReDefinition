@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
@@ -107,6 +108,39 @@ namespace ReDefinition.Bridges
             string text = ReadText(path, out _);
             if (text == null) return null;
             return Find(text, option.Section, option.Key) ?? option.Default;
+        }
+
+        // The values the file at path sets explicitly for the options the window manages, taken
+        // before an install replaces the file. Null where there is no file: a first install.
+        public static Dictionary<Option, string> Snapshot(string path)
+        {
+            if (!File.Exists(path)) return null;
+            Dictionary<Option, string> values = new Dictionary<Option, string>();
+            string text = ReadText(path, out _);
+            if (text == null) return values;
+            foreach (Option option in All)
+            {
+                string value = Find(text, option.Section, option.Key);
+                if (value != null) values[option] = value;
+            }
+            return values;
+        }
+
+        // The ini after an install placed the package's factory file. A first install (no
+        // snapshot) raises the factory's ceiling and preset to the install defaults; a value the
+        // player set stays. A reinstall puts the player's values from before back, so that
+        // neither a chosen preset nor a lowered ceiling is lost to the factory file, nor
+        // mistaken for it.
+        public static void AfterInstall(string path, Dictionary<Option, string> previous)
+        {
+            if (previous == null)
+            {
+                if (Read(path, MaxGeneratedFrames) == FactoryCeiling) Write(path, MaxGeneratedFrames, InstalledCeiling);
+                if (Read(path, Preset) == FactoryPreset) Write(path, Preset, InstalledPreset);
+                return;
+            }
+            foreach (KeyValuePair<Option, string> pair in previous)
+                Write(path, pair.Key, pair.Value);
         }
 
         // The index of the option's value in Values, or of its default where the file holds
