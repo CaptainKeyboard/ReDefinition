@@ -200,7 +200,12 @@ namespace ReDefinition
             // another try, a standing failure included. What it requires of KSP's
             // V-Sync is held at the end of the frame, and let go once it is off
             // (Requirements.Hold).
-            if (frameGeneration) FrameGenerationBridge.RetryContext();
+            if (frameGeneration)
+            {
+                FrameGenerationBridge.RetryContext();
+                // Again with each switch on: where the proxy was not there yet when the settings loaded.
+                FrameGenerationBridge.SetMultiplier(frameGenerationMultiplier);
+            }
             string switched = frameGeneration ? "frame generation switched on" : "frame generation switched off";
             BundledSettingsAddon.AtEndOfFrame("frame-generation-requirements", () => Requirements.Enforce(switched));
             if (rig != null) rig.FrameGeneration = frameGeneration;
@@ -210,6 +215,17 @@ namespace ReDefinition
             // teardown only switches the proxy off when frame generation is on.
             if (!frameGeneration) FrameGenerationBridge.SetEnabled(false);
             Debug.Log(Log.Tag + " Frame generation " + (frameGeneration ? "on" : "off"));
+        }
+
+        // Live: the proxy takes the multiplier -- 2x to 6x, or Dynamic where DLSS-G chooses -- at the
+        // next Present, within what the technique that runs allows (FrameGenerationBridge.Limits);
+        // a step above it is the most it allows.
+        private void SetFrameGenerationMultiplier(string choice)
+        {
+            if (!FrameGenerationChoice.Valid(choice) || choice == frameGenerationMultiplier) return;
+            frameGenerationMultiplier = choice;
+            FrameGenerationBridge.SetMultiplier(choice);
+            Debug.Log(Log.Tag + " Frame generation multiplier " + choice);
         }
 
         private static Fsr3Upscaler.QualityMode Step(Fsr3Upscaler.QualityMode mode, int direction)

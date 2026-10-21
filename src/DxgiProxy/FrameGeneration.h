@@ -122,6 +122,16 @@ namespace redefinition
                             ID3D11Resource* hudLess);
         void SetEnabled(bool enabled);
 
+        // The multiplier the mod asks for, live, as the switch is: the frames shown per rendered
+        // frame, 2 and up, or 0 for none -- dlssgFrames and xessFgFrames in the ini and the most the
+        // GPU allows decide then -- and whether DLSS-G's Dynamic Multi Frame Generation is asked
+        // for, which takes the place of the multiplier where Streamline says it is supported.
+        // Never more than the technique that runs allows (StreamlineMultiplierMost,
+        // XessFramesMost); fewer where the display cannot show so many.
+        void SetMultiplier(int multiplier, bool dynamic);
+        int AskedMultiplier() const { return askedMultiplier.load(); }
+        bool AskedDynamic() const { return askedDynamic.load(); }
+
         // From the render thread, with the packet the managed side sent for
         // this frame.
         void OnFramePacket(const void* data);
@@ -330,6 +340,18 @@ namespace redefinition
         // Frames shown per rendered frame while DLSS-G generates: 2 for one
         // generated frame, and so on. 0 while it does not.
         int StreamlineMultiplier() const { return streamlineMultiplier.load(); }
+
+        // The most frames shown per rendered frame DLSS-G allows here -- what its state says the GPU
+        // and the package offer, a generated frame more -- 0 until the first state; whether it
+        // supports Dynamic Multi Frame Generation (-1 not known yet, 0 no, 1 yes); and whether
+        // it generates in that mode now. From any thread: the mod's row asks.
+        int StreamlineMultiplierMost() const
+        {
+            const int frames = streamlineFramesNow.load();
+            return frames > 0 ? frames + 1 : 0;
+        }
+        int StreamlineDynamicSupport() const { return streamlineDynamicNow.load(); }
+        bool StreamlineDynamicActive() const { return streamlineDynamicActive.load(); }
 
         // Whether this build of DLSS-G presents with V-Sync while it generates
         // (DLSSGState::bIsVsyncSupportAvailable), as its last state said; true
@@ -668,6 +690,12 @@ namespace redefinition
         bool loggedFence = false;
         bool loggedUnflipped = false;
         std::atomic<int> streamlineMultiplier{ 0 };
+        std::atomic<int> streamlineFramesNow{ 0 };
+        std::atomic<int> streamlineDynamicNow{ -1 };
+        std::atomic<bool> streamlineDynamicActive{ false };
+        std::atomic<int> askedMultiplier{ 0 };
+        std::atomic<bool> askedDynamic{ false };
+        bool loggedDynamicAsked = false;
 
         // XeSS-FG: whether the owner's swapchain is its, its context, whether it was
         // last told to generate, the UI composition and debug view last set (-1 none

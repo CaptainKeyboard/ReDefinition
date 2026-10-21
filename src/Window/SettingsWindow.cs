@@ -86,6 +86,15 @@ namespace ReDefinition.Window
             else Open();
         }
 
+        // The window open on a tab, built anew where it is open already: for the probe's shots
+        // (-redefinitionProbeSettingsWindow), which show a setting after the probe changed it.
+        internal static void OpenOn(SettingCategory category)
+        {
+            if (Visible) Close();
+            current = category;
+            Open();
+        }
+
         public static void Close()
         {
             // The flight goes on as it was before this window held it.
@@ -501,7 +510,13 @@ namespace ReDefinition.Window
             // One row per module setting, in the same order (KspSettingsSection.Rows).
             List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows());
             for (int i = 0; i < own.Length; i++)
+            {
                 rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Upscaler") + " ReDefinition"));
+                // Under the frame generation choice: what runs, and why a step is not offered.
+                if (i < titles.Count && titles[i].Key == "mode" && titles[i].Title == "Frame generation")
+                    rows.Add(Searchable(new DialogGUILabel(FrameGenerationNote, true),
+                                        "frame generation multiplier 2x 3x 4x dynamic DLSS XeSS FSR"));
+            }
             DialogGUIBase latency = LowLatencyRow();
             if (latency != null) rows.Add(Searchable(latency, "Low latency NVIDIA Reflex"));
             DialogGUIBase nvidia = NvidiaRow();
@@ -637,6 +652,28 @@ namespace ReDefinition.Window
                 latencyRowText = now == null ? "" : "<color=#9a9a9a>" + now + "</color>";
             }
             return latencyRowText;
+        }
+
+        // Under the frame generation row, grey: what generates and how many frames, and the steps the
+        // technique does not offer with the reason (FrameGenerationChoice.Note). Made anew only when
+        // the text changes.
+        private static string frameGenerationNoteFor = "";
+        private static string frameGenerationNote = "";
+
+        private static string FrameGenerationNote()
+        {
+            string running = edit != null && edit.After != null && edit.After.FrameGeneration
+                ? FrameGenerationBridge.TechniqueName() : null;
+            string head = edit == null || edit.After == null || !edit.After.FrameGeneration ? ""
+                : running != null ? "Running: " + running + ". " : "Not generating now. ";
+            string reasons = FrameGenerationChoice.Note(FrameGenerationBridge.Limits(), AmpereFrameGeneration.Installed());
+            string text = head + (reasons ?? "");
+            if (text != frameGenerationNoteFor)
+            {
+                frameGenerationNoteFor = text;
+                frameGenerationNote = text.Length == 0 ? " " : "<color=#9a9a9a>" + text + "</color>";
+            }
+            return frameGenerationNote;
         }
 
         // DLSS frame generation on RTX 30 and RTX 20 (AmpereFrameGeneration): the

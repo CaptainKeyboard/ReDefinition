@@ -1342,6 +1342,17 @@ int main()
     if (dlssVsync == nullptr)
         return Fail("GetProcAddress(KspFgDlssVsync)", E_FAIL);
 
+    // The multiplier the mod's row chooses live (KspFgSetMultiplier), what the technique allows
+    // (KspFgLimits) and whether DLSS-G generates dynamically (KspFgDynamic).
+    using SetMultiplierFn = void (*)(int, int);
+    using LimitsFn = int (*)(int*, int*);
+    using DynamicFn = int (*)();
+    const SetMultiplierFn setMultiplier = reinterpret_cast<SetMultiplierFn>(GetProcAddress(dxgi, "KspFgSetMultiplier"));
+    const LimitsFn fgLimits = reinterpret_cast<LimitsFn>(GetProcAddress(dxgi, "KspFgLimits"));
+    const DynamicFn fgDynamic = reinterpret_cast<DynamicFn>(GetProcAddress(dxgi, "KspFgDynamic"));
+    if (setMultiplier == nullptr || fgLimits == nullptr || fgDynamic == nullptr)
+        return Fail("GetProcAddress(KspFgSetMultiplier, KspFgLimits, KspFgDynamic)", E_FAIL);
+
     // The GPU the mod offers NVIDIA's DLLs by (KspNvidiaGpu): with DLSS frame
     // generation running, at least Ada's architecture.
     using NvidiaGpuFn = int (*)(unsigned int*, unsigned int*);
@@ -1842,6 +1853,51 @@ int main()
             printf("      dlssgMode=on again: %.2f presents per frame\n", fixedAgain);
             if (fixedAgain < kGeneratingAtLeast)
                 return Fail("dlssgMode=on again generated no frames", E_FAIL);
+        }
+
+        // The multiplier chosen while the game runs: each step from 2x up to what the state reports
+        // for this GPU and package shows that many frames per rendered frame, then dynamic where
+        // it is supported, then none asked for again (the most the GPU offers).
+        {
+            int most = 0;
+            int dynamicSupport = 0;
+            const int runs = fgLimits(&most, &dynamicSupport);
+            printf("      multiplier limits: technique %d, up to %dx, dynamic support %d\n", runs, most, dynamicSupport);
+            if (runs != 2 || most < 2)
+                return Fail("KspFgLimits did not report DLSS-G's multiplier", E_FAIL);
+            for (int step = 2; step <= most; ++step)
+            {
+                setMultiplier(step, 0);
+                float shown = 0.0f;
+                hr = presentsPerFrame(3.0f, shown);
+                if (FAILED(hr))
+                    return Fail("Present with a multiplier chosen", hr);
+                status(line, sizeof(line));
+                printf("      multiplier %dx chosen: %.2f presents per frame  [%s]\n", step, shown, line);
+                if (shown < step - 0.25f || shown > step + 0.25f)
+                    return Fail("the multiplier chosen is not the presents per frame shown", E_FAIL);
+                if (strstr(line, "device=ok") == nullptr)
+                    return Fail("the proxy's device did not survive a multiplier change", E_FAIL);
+            }
+            if (dynamicSupport == 1)
+            {
+                setMultiplier(0, 1);
+                float dynamicShown = 0.0f;
+                hr = presentsPerFrame(3.0f, dynamicShown);
+                if (FAILED(hr))
+                    return Fail("Present with dynamic chosen", hr);
+                printf("      dynamic chosen: %.2f presents per frame, generating dynamically %d\n", dynamicShown, fgDynamic());
+                if (fgDynamic() != 1)
+                    return Fail("dynamic was chosen, but DLSS-G does not generate dynamically", E_FAIL);
+            }
+            setMultiplier(0, 0);
+            float asMany = 0.0f;
+            hr = presentsPerFrame(3.0f, asMany);
+            if (FAILED(hr))
+                return Fail("Present with no multiplier asked for", hr);
+            printf("      no multiplier asked for: %.2f presents per frame\n", asMany);
+            if (asMany < most - 0.25f)
+                return Fail("with no multiplier asked for DLSS-G did not generate as many frames as it offers", E_FAIL);
         }
 
         // DLSS-G's UI plane, made from the HUD-less copy and the presented frame, with user

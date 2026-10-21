@@ -56,6 +56,8 @@ namespace ReDefinition
         // (UpscalerRig.RecordFastTurns).
         private bool recordFastTurns;
         private bool frameGeneration;
+        // 2x to 6x or Dynamic (FrameGenerationChoice): the proxy is told it live (SetFrameGenerationMultiplier).
+        private string frameGenerationMultiplier = FrameGenerationChoice.Default;
         // FSR 3 or DLSS (DlssBridge).
         private UpscalerBackend backend = UpscalerBackend.Fsr3;
         // DLSS's model in every mode (DlssModel).
@@ -101,6 +103,8 @@ namespace ReDefinition
             jitter = loaded.Jitter;
             skinnedMotionVectors = loaded.SkinnedMotionVectors;
             frameGeneration = loaded.FrameGeneration;
+            frameGenerationMultiplier = loaded.FrameGenerationMultiplier;
+            FrameGenerationBridge.SetMultiplier(frameGenerationMultiplier);
             raytracing.Apply(loaded.Raytracing, loaded.RaytracingBounces);
             raytracingBounces = loaded.RaytracingBounces;
             backend = loaded.Backend;
@@ -213,6 +217,7 @@ namespace ReDefinition
             settings.Jitter = jitter;
             settings.SkinnedMotionVectors = skinnedMotionVectors;
             settings.FrameGeneration = frameGeneration;
+            settings.FrameGenerationMultiplier = frameGenerationMultiplier;
             settings.Raytracing = raytracing.Mode;
             settings.RaytracingBounces = raytracingBounces;
             settings.Backend = backend;
@@ -326,6 +331,8 @@ namespace ReDefinition
             if (before.DlssModel != after.DlssModel) SetDlssModel(after.DlssModel);
             if (before.AutoExposure != after.AutoExposure) SetAutoExposure(after.AutoExposure);
             if (before.FrameGeneration != after.FrameGeneration) SetFrameGeneration(after.FrameGeneration);
+            if (before.FrameGenerationMultiplier != after.FrameGenerationMultiplier)
+                SetFrameGenerationMultiplier(after.FrameGenerationMultiplier);
             if (before.Raytracing != after.Raytracing || before.RaytracingBounces != after.RaytracingBounces)
             {
                 raytracingBounces = after.RaytracingBounces;

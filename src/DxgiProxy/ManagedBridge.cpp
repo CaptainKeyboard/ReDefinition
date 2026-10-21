@@ -62,6 +62,46 @@ extern "C"
         redefinition::FrameGeneration::Get().SetEnabled(enabled != 0);
     }
 
+    // The multiplier asked for in the mod's settings, live: the frames shown per rendered
+    // frame (2 and up, 0 none asked), and whether DLSS-G's Dynamic Multi Frame Generation is
+    // asked for (FrameGeneration::SetMultiplier).
+    __declspec(dllexport) void KspFgSetMultiplier(int multiplier, int dynamic)
+    {
+        redefinition::FrameGeneration::Get().SetMultiplier(multiplier, dynamic != 0);
+    }
+
+    // What the technique that runs allows, for the settings row: the most frames shown per
+    // rendered frame (0 where it does not say yet), and for DLSS-G whether Dynamic Multi Frame
+    // Generation is supported (-1 not known yet, 0 no, 1 yes). Returns the technique as
+    // KspFgTechnique does: 3 XeSS, 2 DLSS, 1 FSR, 0 none.
+    __declspec(dllexport) int KspFgLimits(int* mostMultiplier, int* dynamicSupport)
+    {
+        const int technique = redefinition::FrameGenerationTechnique();
+        const redefinition::FrameGeneration& fg = redefinition::FrameGeneration::Get();
+        int most = 0;
+        int dynamic = 0;
+        if (technique == 1)
+            most = 2;
+        else if (technique == 2)
+        {
+            most = fg.StreamlineMultiplierMost();
+            dynamic = fg.StreamlineDynamicSupport();
+        }
+        else if (technique == 3)
+            most = fg.XessFramesMost() > 0 ? fg.XessFramesMost() + 1 : 0;
+        if (mostMultiplier != nullptr)
+            *mostMultiplier = most;
+        if (dynamicSupport != nullptr)
+            *dynamicSupport = dynamic;
+        return technique;
+    }
+
+    // Whether DLSS-G generates in its dynamic mode now, for the status line.
+    __declspec(dllexport) int KspFgDynamic()
+    {
+        return redefinition::FrameGeneration::Get().StreamlineDynamicActive() ? 1 : 0;
+    }
+
     // Whether frame generation is switched on in this proxy's ini. With
     // frameGeneration=0 every export is still here and generates nothing, so
     // the managed side asks before it offers the switch.

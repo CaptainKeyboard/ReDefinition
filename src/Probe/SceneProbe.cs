@@ -601,6 +601,16 @@ namespace ReDefinition.Probe
                 if (wanted != null && modBefore.Count > 0) addon.Apply(current, wanted);
                 Debug.Log(Log.Tag + " Probe: ReDefinitionProxy.ini set to " + set + ".");
                 yield return new WaitForSecondsRealtime(12f);
+                // -redefinitionProbeSettingsWindow <tab>: the settings window on that tab in the shot,
+                // built anew after the set so that it shows it.
+                SettingCategory windowTab;
+                string windowArgument = SceneProbe.ArgumentAfter("-redefinitionProbeSettingsWindow");
+                if (windowArgument != null && Enum.TryParse(windowArgument, true, out windowTab))
+                {
+                    ReDefinition.Window.SettingsWindow.OpenOn(windowTab);
+                    yield return new WaitForSecondsRealtime(2f);
+                    yield return new WaitForEndOfFrame();
+                }
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-ini" + n + ".png"));
                 Debug.Log(Log.Tag + " Probe: shot " + shot + "-ini" + n + " with " + set + ".");
                 n++;

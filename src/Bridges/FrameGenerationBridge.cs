@@ -105,6 +105,15 @@ namespace ReDefinition.Bridges
         private static extern int KspFgTechnique(out int multiplier);
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        private static extern void KspFgSetMultiplier(int multiplier, int dynamic);
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int KspFgLimits(out int mostMultiplier, out int dynamicSupport);
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int KspFgDynamic();
+
+        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgDlssVsync();
 
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
@@ -182,17 +191,57 @@ namespace ReDefinition.Bridges
         {
             int technique;
             if (!Available || !TryExport(TechniqueCall, "KspFgTechnique", out technique)) return null;
-            return TechniqueLabel(technique, techniqueMultiplier);
+            return TechniqueLabel(technique, techniqueMultiplier, technique == 2 && Dynamic());
+        }
+
+        // Whether DLSS-G generates in its dynamic mode now. A proxy without the export is older
+        // than the mod: no.
+        private static bool Dynamic()
+        {
+            int dynamic;
+            return TryNative(DynamicCall, out dynamic) && dynamic != 0;
+        }
+
+        private static readonly Func<int> DynamicCall = KspFgDynamic;
+
+        // The multiplier the settings row chose, live: Off is the switch's, so this takes
+        // 2x to 6x or Dynamic (FrameGenerationChoice) and nothing for Off. A proxy without
+        // the export is older than the mod and keeps asking for as many frames as the GPU
+        // allows.
+        public static void SetMultiplier(string choice)
+        {
+            if (!Available) return;
+            bool dynamic = FrameGenerationChoice.IsDynamic(choice);
+            int multiplier = FrameGenerationChoice.Multiplier(choice);
+            TryNative(() => KspFgSetMultiplier(multiplier, dynamic ? 1 : 0));
+        }
+
+        // What the technique that runs allows (KspFgLimits). Technique 0 and most 0 until the
+        // proxy has a swapchain that says.
+        public static FrameGenerationChoice.Limits Limits()
+        {
+            FrameGenerationChoice.Limits limits = new FrameGenerationChoice.Limits { Dynamic = -1 };
+            if (!Available) return limits;
+            int most = 0;
+            int dynamic = 0;
+            int technique = 0;
+            if (!TryNative(() => technique = KspFgLimits(out most, out dynamic))) return limits;
+            limits.Technique = technique;
+            limits.Most = most;
+            limits.Dynamic = dynamic;
+            return limits;
         }
 
         // KspFgTechnique's answer as the row shows it: 1 FSR, 2 DLSS, 3 XeSS, with
         // the multiplier while DLSS or XeSS generates; null for none or an answer
         // this build does not know.
-        internal static string TechniqueLabel(int technique, int multiplier)
+        // DLSS-G in its dynamic mode, where Streamline chooses the frames: "DLSS dynamic".
+        internal static string TechniqueLabel(int technique, int multiplier, bool dynamic = false)
         {
             if (technique == 1) return "FSR 3";
             string[] names = technique == 2 ? DlssNames : technique == 3 ? XessNames : null;
             if (names == null) return null;
+            if (technique == 2 && dynamic) return "DLSS dynamic";
             return multiplier >= 2 && multiplier < names.Length ? names[multiplier] : names[0];
         }
 

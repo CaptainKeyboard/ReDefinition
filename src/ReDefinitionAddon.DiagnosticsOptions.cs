@@ -122,6 +122,27 @@ namespace ReDefinition
             generation.Blocked = () => !frameGeneration && !ProfileChosen() ? NeedsProfileText : null;
             set.Add(generation);
 
+            // The multiplier, as the settings window's Frame generation row sets it: 2x to 6x, or
+            // Dynamic where DLSS-G chooses; what the technique does not allow is the most it allows.
+            string[] multipliers = new string[FrameGenerationChoice.Steps.Length + 1];
+            FrameGenerationChoice.Steps.CopyTo(multipliers, 0);
+            multipliers[multipliers.Length - 1] = FrameGenerationChoice.Dynamic;
+            DebugOption multiplier = Choice("frameGenerationMultiplier", DebugCategory.FrameGeneration, "",
+                "Multiplier", Saved, multipliers, 0,
+                () => Math.Max(0, Array.IndexOf(multipliers, frameGenerationMultiplier)),
+                index => SetFrameGenerationMultiplier(multipliers[index]));
+            multiplier.Resettable = false;
+            multiplier.Tooltip = "Frames Shown Per Rendered Frame";
+            multiplier.Keywords = new[] { "2x", "3x", "4x", "dynamic", "mfg", "dlss", "frames" };
+            // Where the technique does not allow the step: what runs instead.
+            multiplier.DynamicLabel = () =>
+            {
+                FrameGenerationChoice.Limits limits = FrameGenerationBridge.Limits();
+                return FrameGenerationChoice.Offered(frameGenerationMultiplier, limits) ? "Multiplier"
+                    : "Multiplier (" + FrameGenerationChoice.Effective(frameGenerationMultiplier, limits) + " here)";
+            };
+            set.Add(multiplier);
+
             // Upscaler inputs.
             const string motion = "Motion and depth";
             DebugOption jitterOption = Switch("jitter", DebugCategory.UpscalerInputs, motion, "Jitter", Saved, saved.Jitter,

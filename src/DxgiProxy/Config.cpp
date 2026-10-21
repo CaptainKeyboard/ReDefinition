@@ -469,6 +469,7 @@ namespace redefinition
                  + " fgAsyncWorkloads=" + (c.fgAsyncWorkloads ? "1" : "0")
                  + " fgObjectSeparationMetres=" + std::to_string(c.fgObjectSeparationMetres)
                  + " dlssgMode=" + DlssgModeName(c.dlssgMode)
+                 + (c.dlssgFrames > 0 ? "/" + std::to_string(c.dlssgFrames) + "f" : "")
                  + (c.dlssgMode == kDlssgModeDynamic ? "/" + std::to_string(static_cast<int>(c.dlssgDynamicTargetFps)) : "")
                  + " dlssgUi=" + (c.dlssgUiRecomposition
                                       ? std::string(DlssgUiAlphaName(c.dlssgUiAlpha)) + "/"
@@ -566,6 +567,9 @@ namespace redefinition
 
             target.fgObjectSeparationMetres = ReadFloat(L"fgObjectSeparationMetres", file, 0.0f);
             target.dlssgMode = ReadDlssgMode(file);
+            target.dlssgFrames = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"dlssgFrames", 0, file.c_str()));
+            if (target.dlssgFrames < 0)
+                target.dlssgFrames = 0;
             target.dlssgDynamicTargetFps = ReadFloat(L"dlssgDynamicTargetFps", file, 0.0f);
             if (target.dlssgDynamicTargetFps < 0.0f)
                 target.dlssgDynamicTargetFps = 0.0f;

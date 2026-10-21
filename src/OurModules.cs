@@ -130,23 +130,47 @@ namespace ReDefinition
         public static readonly IGraphicsModule FrameGeneration = new GraphicsModule("frameGeneration", "Frame generation",
             new ModuleSetting
             {
+                // The switch a profile sets (MODULE frameGeneration, enabled = True); the player's row
+                // is "mode" below, which holds this and the multiplier.
                 Key = "enabled",
-                Title = "Frame generation",
+                Title = "Frame generation switch",
                 Kind = SettingKind.Other,
                 Order = 40,
                 Control = SettingControl.Toggle,
-                // Which one runs, DLSS or FSR 3.
-                Label = value => FrameGenerationLabel(bool.Parse(value)),
+                Tooltip = "Generated frames between the rendered ones. The row \"Frame generation\" sets this with the multiplier.",
+                Read = settings => SettingValues.Text(settings.FrameGeneration),
+                Write = (settings, value) => settings.FrameGeneration = bool.Parse(value),
+                Interactable = settings => FrameGenerationBridge.CanGenerate || settings.FrameGeneration,
+                Present = () => false,
+            },
+            new ModuleSetting
+            {
+                Key = "mode",
+                Title = "Frame generation",
+                Kind = SettingKind.Other,
+                Order = 40,
+                Control = SettingControl.Choice,
+                Choices = FrameGenerationChoice.All,
+                // The step as it runs: a multiplier above what the technique allows is the most it
+                // allows.
+                Label = value => FrameGenerationLabel(value),
                 Tooltip = "Generated frames between the rendered ones, from KSP's own depth and motion vectors.\n"
+                          + "Off, 2x to 6x frames shown per rendered frame, or Dynamic, where DLSS frame generation\n"
+                          + "chooses the multiplier to reach the display's refresh rate. Changes apply at once; what the\n"
+                          + "technique does not allow is said under the row.\n"
                           + "DLSS frame generation where NVIDIA's Streamline 2.14.16 DLLs lie next to KSP_x64.exe\n"
-                          + "and the GPU runs it (RTX 40 and newer), as many frames as the GPU offers;\n"
-                          + "FSR 3 frame generation otherwise, one frame between every two. The switch says which runs.\n"
+                          + "and the GPU runs it (RTX 40 and newer, RTX 30 and 20 with the dlssg_for_sm86 package);\n"
+                          + "FSR 3 frame generation otherwise, one frame between every two (2x).\n"
                           + "Needs the dxgi.dll proxy next to KSP_x64.exe. With the upscaler off,\n"
                           + "the scene is still captured for it, at full resolution.\n"
                           + "With FSR 3, turn V-Sync on in KSP's settings for even frames, with G-Sync or FreeSync too:\n"
                           + "in full screen, frames can tear without it even on a variable refresh rate (AMD).",
-                Read = settings => SettingValues.Text(settings.FrameGeneration),
-                Write = (settings, value) => settings.FrameGeneration = bool.Parse(value),
+                Read = settings => settings.FrameGeneration ? settings.FrameGenerationMultiplier : FrameGenerationChoice.Off,
+                Write = (settings, value) =>
+                {
+                    settings.FrameGeneration = value != FrameGenerationChoice.Off;
+                    if (FrameGenerationChoice.Valid(value)) settings.FrameGenerationMultiplier = value;
+                },
                 // Offered where the proxy can generate, and always while it is on,
                 // so that a setting saved with the proxy installed can still be
                 // switched off after it has gone.
@@ -374,10 +398,10 @@ namespace ReDefinition
         // The technique that runs, "DLSS 2x", "XeSS 2x" or "FSR 3", in place of "Enabled" --
         // the ticked box says it is on, and the control is too narrow for both --
         // and the plain state while none runs.
-        private static string FrameGenerationLabel(bool on)
+        private static string FrameGenerationLabel(string value)
         {
-            string technique = on ? FrameGenerationBridge.TechniqueName() : null;
-            return technique ?? KspSettingsSection.StateText(on);
+            if (value == FrameGenerationChoice.Off) return FrameGenerationChoice.Off;
+            return FrameGenerationChoice.Effective(value, FrameGenerationBridge.Limits());
         }
 
         // ReDefinition's own hotkeys, in the Keys tab beside the mods' and KSP's.

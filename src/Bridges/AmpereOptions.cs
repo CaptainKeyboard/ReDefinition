@@ -52,11 +52,18 @@ namespace ReDefinition.Bridges
             Labels = new[] { "2X", "3X", "4X", "5X", "6X" },
             Default = "3",
             Title = "DLSS-G multiplier",
-            Tooltip = "The most frames shown per rendered frame: 2X is one generated frame, 6X is five.\n"
-                      + "The package's factory value is 4X. ReDefinition asks for as many as this allows,\n"
-                      + "fewer under V-Sync where the refresh rate allows fewer.\n"
-                      + "Applies after a restart of KSP.",
+            Tooltip = "The most frames shown per rendered frame the package allows: 2X is one generated frame,\n"
+                      + "6X is five. The package's factory value is 4X; installing it from the zip here sets 6X.\n"
+                      + "The Frame generation row chooses how many are shown, up to this, at once; only a higher\n"
+                      + "ceiling needs a restart of KSP. A generated frame costs GPU time only while it is shown.\n"
+                      + "Fewer are shown under V-Sync where the refresh rate allows fewer.",
         };
+
+        // What an install sets the ceiling to: the most the package's runtime supports (6X, five
+        // generated frames), so that the row's choice has room; the cost is in the frames shown.
+        public const string InstalledCeiling = "5";
+        // The ceiling the package's own ini has.
+        public const string FactoryCeiling = "3";
 
         public static readonly Option SuperResolution = new Option
         {

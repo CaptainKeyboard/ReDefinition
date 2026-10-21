@@ -174,6 +174,12 @@ namespace redefinition
         // DLSSGState::bIsDynamicMFGSupported says it runs; the fixed multiplier where not.
         int dlssgMode = 0;
 
+        // The generated frames DLSS-G is asked for per rendered frame, 1 for 2x and so on, where
+        // the mod has not asked for a multiplier itself (KspFgSetMultiplier); 0 = as many as
+        // the GPU, the package's MaxGeneratedFrames and the display allow. At most what
+        // DLSSGState::numFramesToGenerateMax says.
+        int dlssgFrames = 0;
+
         // Dynamic Multi Frame Generation's target output frame rate, in frames a second;
         // 0 targets the monitor's refresh rate. Streamline ignores it under V-Sync.
         float dlssgDynamicTargetFps = 0.0f;

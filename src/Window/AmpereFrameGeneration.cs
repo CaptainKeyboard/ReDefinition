@@ -135,6 +135,23 @@ namespace ReDefinition.Window
                       + ", applies after a restart of KSP");
         }
 
+        // The ceiling of generated frames the package's ini holds, the factory's 4X, raised to the most the
+        // runtime supports: the Frame generation row chooses within it, live. A value the player set is left.
+        private static void RaiseCeiling()
+        {
+            try
+            {
+                string path = Path.Combine(NvidiaDownloader.GameFolder, AmperePackage.Ini);
+                AmpereOptions.Option option = AmpereOptions.MaxGeneratedFrames;
+                if (AmpereOptions.Read(path, option) == AmpereOptions.FactoryCeiling)
+                    AmpereOptions.Write(path, option, AmpereOptions.InstalledCeiling);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " dlssg_for_sm86: the ceiling of generated frames was not raised: " + e.Message);
+            }
+        }
+
         // The release zip in KSP's folder, looked for at most once a second: the row and
         // the dialog ask every frame.
         private static string zip;
@@ -285,7 +302,11 @@ namespace ReDefinition.Window
             }
             else
             {
-                if (!superResolution) InstalledNow = true;
+                if (!superResolution)
+                {
+                    InstalledNow = true;
+                    RaiseCeiling();
+                }
                 superResolutionLookedAt = float.NegativeInfinity;
                 status = "Installed, " + placed + " files from " + Path.GetFileName(found)
                          + (superResolution

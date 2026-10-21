@@ -174,6 +174,19 @@ namespace redefinition
         LogLine(std::string("Frame generation requested: ") + (enabled ? "on" : "off"));
     }
 
+    void FrameGeneration::SetMultiplier(int multiplier, bool dynamic)
+    {
+        if (multiplier < 0)
+            multiplier = 0;
+        if (askedMultiplier.load() == multiplier && askedDynamic.load() == dynamic)
+            return;
+        askedMultiplier = multiplier;
+        askedDynamic = dynamic;
+        loggedDynamicAsked = false;
+        std::string text = dynamic ? "dynamic" : multiplier >= 2 ? std::to_string(multiplier) + "x" : "none asked for";
+        LogLine("Frame generation multiplier requested: " + text);
+    }
+
     bool FrameGeneration::GeneratedLastPresent() const
     {
         std::lock_guard<std::mutex> lock(mutex);

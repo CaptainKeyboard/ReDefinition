@@ -34,6 +34,10 @@ namespace ReDefinition
         public bool TransparencyMask;
         public UpscalerMasks.ReactiveSource ReactiveMask = UpscalerMasks.ReactiveSource.Off;
         public bool FrameGeneration;
+        // How many frames frame generation shows per rendered frame, 2x to 6x, or Dynamic where
+        // DLSS-G chooses (FrameGenerationChoice). Held while frame generation is off; never more
+        // than the technique that runs allows.
+        public string FrameGenerationMultiplier = FrameGenerationChoice.Default;
         // How much of the lighting is raytraced, and how often its light bounces.
         public RaytracingMode Raytracing = RaytracingMode.Off;
         public int RaytracingBounces = 2;
@@ -248,6 +252,16 @@ namespace ReDefinition
             Bool("transparencyMask", x => x.TransparencyMask, (x, v) => x.TransparencyMask = v),
             Enum("reactiveMask", x => x.ReactiveMask, (x, v) => x.ReactiveMask = v),
             Bool("frameGeneration", x => x.FrameGeneration, (x, v) => x.FrameGeneration = v),
+            new Field<string>
+            {
+                Key = "frameGenerationMultiplier", Get = x => x.FrameGenerationMultiplier,
+                Set = (x, v) => x.FrameGenerationMultiplier = v, Format = v => v,
+                Parse = (string text, out string v) =>
+                {
+                    v = FrameGenerationChoice.Valid(text) ? text : null;
+                    return v != null;
+                },
+            },
             Enum("technique", x => x.Backend, (x, v) => x.Backend = v),
             Enum("dlssModel", x => x.DlssModel, (x, v) => x.DlssModel = v),
             Binding("upscalerKey", x => x.UpscalerKey, (x, v) => x.UpscalerKey = v),

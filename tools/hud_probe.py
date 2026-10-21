@@ -38,12 +38,13 @@ ROOT_SETTINGS = "settings.cfg"
 LOG2 = {"Logging": {"Level": "2", "FrameTiming": "1"}}
 
 
-def case(preset, proxy=None, ini=None, arguments=None):
+def case(preset, proxy=None, ini=None, arguments=None, launch=None):
     ini_values = {"DLSSG": {"Preset": preset}}
     ini_values.update(LOG2)
     for section, keys in (ini or {}).items():
         ini_values.setdefault(section, {}).update(keys)
-    return {"dlssg_ini": ini_values, "proxy": dict(proxy or {}), "arguments": list(arguments or [])}
+    return {"dlssg_ini": ini_values, "proxy": dict(proxy or {}), "arguments": list(arguments or []),
+            "launch": launch}
 
 
 CASES = {
@@ -59,6 +60,23 @@ CASES = {
     # stands at every pose a generated frame stands at.
     "ref": case("Auto", {"frameGeneration": "0"}, arguments=["-redefinitionProbeHalfStep"]),
     "ref2": case("Auto", {"frameGeneration": "0"}, arguments=["-redefinitionProbeHalfStep"]),
+    # The multiplier chosen while the game runs (OwnSettings.FrameGenerationMultiplier, as the settings window sets
+    # it), each for 12 s with the settings window open on Display in the shot (-redefinitionProbeSettingsWindow).
+    "choice": case("Auto", launch=["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeShot", "choice",
+                                   "-redefinitionProbeShotVariant", "none", "-redefinitionProbeSettingsWindow", "Display",
+                                   "-redefinitionProbeShotIni",
+                                   ";".join("mod.frameGenerationMultiplier=" + m for m in ("2x", "3x", "4x", "6x", "Dynamic"))
+                                   + ";mod.frameGeneration=False"]),
+    # The same with a package that allows 2x only (--max-generated-frames 1): what is not offered, and why.
+    "choice-limited": case("Auto", launch=["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeShot", "choice",
+                                           "-redefinitionProbeShotVariant", "none", "-redefinitionProbeSettingsWindow",
+                                           "Display", "-redefinitionProbeShotIni",
+                                           "mod.frameGenerationMultiplier=4x;mod.frameGenerationMultiplier=Dynamic"]),
+    # The diagnostics window's Overview and Frame generation pages, the multiplier set to 3x between them.
+    "diagnostics": case("Auto", launch=["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeShot", "choice",
+                                        "-redefinitionProbeShotVariant", "none", "-redefinitionProbeDiagnostics",
+                                        "overview@category=Overview|fg@category=FrameGeneration,set=frameGenerationMultiplier:1"
+                                        "|fg3@category=FrameGeneration"]),
     # Frame generation's inputs dumped (HUD-less image and backbuffer), for which pixels the HUD covers.
     "dump": case("Auto", arguments=["-redefinitionProbeDumps"]),
 }
@@ -132,9 +150,12 @@ def run(args):
             launched = time.time()
             try:
                 install.put_package(args.package, args.max_generated_frames, spec["dlssg_ini"])
-                outcome = install.launch(["-redefinitionProbe", "-redefinitionProbeFlip", "-redefinitionProbeShowHud",
-                                          "-redefinitionProbeFpsCap", str(args.fps_cap), "-popupwindow"]
-                                         + spec["arguments"] + args.arg, 420)
+                if spec["launch"]:
+                    outcome = install.launch(spec["launch"] + ["-popupwindow"] + args.arg, 420)
+                else:
+                    outcome = install.launch(["-redefinitionProbe", "-redefinitionProbeFlip", "-redefinitionProbeShowHud",
+                                              "-redefinitionProbeFpsCap", str(args.fps_cap), "-popupwindow"]
+                                             + spec["arguments"] + args.arg, 420)
             finally:
                 logs = install.path(bm.PACKAGE_DIR, "logs")
                 out_case = os.path.join(args.out, case)
@@ -147,6 +168,10 @@ def run(args):
                 if fresh(install.path(name)):
                     shutil.copy2(install.path(name), os.path.join(out_case, name))
             runs = install.path("ReDefinitionCaptures")
+            shots = [os.path.join(runs, d) for d in os.listdir(runs)
+                     if d.endswith("-run") and os.path.getmtime(os.path.join(runs, d)) >= launched]
+            if shots:
+                shutil.copytree(max(shots, key=os.path.getmtime), os.path.join(out_case, "shots"), dirs_exist_ok=True)
             recordings = [os.path.join(runs, d) for d in os.listdir(runs)
                           if re.fullmatch(r"\d{8}-\d{6}", d) and os.path.getmtime(os.path.join(runs, d)) >= launched]
             if recordings:

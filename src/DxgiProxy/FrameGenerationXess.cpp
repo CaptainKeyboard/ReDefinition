@@ -111,7 +111,8 @@ namespace redefinition
         xessThreshold = 0.7f;
         xessFramesMost = framesMost > 0 ? framesMost : 1u;
         xessFrames = xessFramesMost;
-        xessFramesSeen = Config().xessFgFrames;
+        // None seen yet: the first Present sets the frames asked for, the mod's or the ini's.
+        xessFramesSeen = -1;
         xessFramesNow = xess ? static_cast<int>(xessFrames) : 0;
         xessFramesMostNow = xess ? static_cast<int>(xessFramesMost) : 0;
         xessResultKnown = false;
@@ -195,13 +196,15 @@ namespace redefinition
         // number of frames between one and the maximum set during initialization",
         // "only as a response to a user changing the graphics settings" -- so only
         // when xessFgFrames changes (Controlling the Number of Generated Frames).
-        if (cfg.xessFgFrames != xessFramesSeen)
+        // The mod's multiplier (SetMultiplier) where it has asked for one, else xessFgFrames.
+        const int askedNow = askedMultiplier.load() >= 2 ? askedMultiplier.load() - 1 : cfg.xessFgFrames;
+        if (askedNow != xessFramesSeen)
         {
-            xessFramesSeen = cfg.xessFgFrames;
-            const uint32_t asked = static_cast<uint32_t>(cfg.xessFgFrames < 1 ? 1 : cfg.xessFgFrames);
+            xessFramesSeen = askedNow;
+            const uint32_t asked = static_cast<uint32_t>(askedNow < 1 ? 1 : askedNow);
             const uint32_t frames = asked > xessFramesMost ? xessFramesMost : asked;
             if (asked > xessFramesMost)
-                LogLine("XeSS frame generation: xessFgFrames=" + std::to_string(asked) + ", but its swapchain was made"
+                LogLine("XeSS frame generation: " + std::to_string(asked) + " generated frames asked for, but its swapchain was made"
                         " for at most " + std::to_string(xessFramesMost) + " -- " + std::to_string(frames)
                         + "; more takes effect with the next swapchain where the GPU generates more");
             if (frames != xessFrames)
