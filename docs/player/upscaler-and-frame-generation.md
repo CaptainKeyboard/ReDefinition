@@ -49,7 +49,7 @@ of the diagnostics window.
 | FSR 3 | every GPU | nothing: it is part of ReDefinition |
 | DLSS | NVIDIA RTX 20 and newer | the proxy, and `nvngx_dlss.dll` |
 | AMD FSR (DLL) | GPUs with Direct3D 12. FSR 4 on a Radeon RX 7000 or RX 9000 where the DLL has it, otherwise the FSR 3.1 in the DLL | the proxy, and `amd_fidelityfx_upscaler_dx12.dll` from a game that ships it |
-| XeSS (DLL) | Intel Arc, and any other GPU with Shader Model 6.4 and DP4a | the proxy, and `libxess.dll` from Intel's XeSS SDK |
+| XeSS (DLL) | Intel Arc, and any other GPU with Shader Model 6.4 and DP4a | the proxy, and `libxess.dll` from Intel's XeSS SDK, which *Intel XeSS files* downloads |
 
 DLSS, AMD's DLL and XeSS run inside the proxy.
 
@@ -199,8 +199,11 @@ rendered frames'. Along the HUD's edges *C* scored 1 to 3 dB below *Auto*
 
 XeSS frame generation needs two DLLs from Intel's XeSS SDK, 2.1 or newer:
 `libxess_fg.dll` and `libxell.dll`. They go next to `KSP_x64.exe`, or into the folder
-named by `xessFgDirectory`. A `libxess_fg.dll` older than 1.2.2 is refused and FSR 3 runs
-instead, unless `xessFgAllowOld` is 1.
+named by `xessFgDirectory`. *Download ...* beside *Intel XeSS files* fetches both from
+Intel's XeSS SDK 3.0.2
+([installing.md](installing.md#get-the-files-for-dlss-xess-and-amds-upscaler)). A
+`libxess_fg.dll` older than 1.2.2 is refused and FSR 3 runs instead, unless
+`xessFgAllowOld` is 1.
 
 XeSS frame generation brings Intel's XeLL, which lowers the latency
 ([low-latency.md](low-latency.md)). On a GPU other than Intel's, XeSS frame generation

@@ -521,6 +521,8 @@ namespace ReDefinition.Window
             if (latency != null) rows.Add(Searchable(latency, "Low latency NVIDIA Reflex"));
             DialogGUIBase nvidia = NvidiaRow();
             if (nvidia != null) rows.Add(Searchable(nvidia, "NVIDIA DLSS files download"));
+            DialogGUIBase intel = IntelRow();
+            if (intel != null) rows.Add(Searchable(intel, "Intel XeSS files download libxess libxess_fg libxell"));
             DialogGUIBase ampere = AmpereRow();
             if (ampere != null) rows.Add(Searchable(ampere, "DLSS frame generation RTX 30 RTX 20 dlssg_for_sm86 download preset multiplier super resolution frame timing"));
             foreach (BundledSetting setting in WindowLayout.In(SettingCategory.General))
@@ -628,6 +630,57 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUILabel("NVIDIA DLSS files", NameWidth), download, new DialogGUILabel(offer, true)),
                 new DialogGUILabel(NvidiaStatus, true));
+        }
+
+        // Intel's DLLs for XeSS super resolution and XeSS frame generation, which the
+        // player fetches from Intel's release (IntelDownloader): offered where the proxy
+        // has XeSS and they are missing, with what is in place and its versions below,
+        // else what the download came to.
+        private static DialogGUIBase IntelRow()
+        {
+            if (!XessUpscalerBridge.Offered) return null;
+            IntelDownloader.Refresh();
+            List<IntelFiles.Item> needed = IntelDownloader.Needed();
+            if (needed.Count == 0 && IntelDownloader.Status == null) return null;
+
+            string offer = needed.Count == 0
+                ? ""
+                : "<color=#9a9a9a>" + NvidiaDownloader.Megabytes(IntelFiles.DownloadSize(needed)) + " MB from Intel</color>";
+
+            bool superResolution;
+            bool frameGeneration;
+            IntelFiles.Uses(needed, out superResolution, out frameGeneration);
+            DialogGUIButton download = new DialogGUIButton("Download ...", () => IntelDownloader.Confirm(needed),
+                ControlWidth, 24f, false);
+            download.tooltipText = needed.Count == 0
+                ? "Nothing to download from Intel now."
+                : "Intel's DLLs for " + IntelDownloader.Purpose(superResolution, frameGeneration)
+                  + ".\n"
+                  + "This fetches them from Intel's release of the XeSS SDK on GitHub, once Intel's\n"
+                  + "licence is accepted, and places them where ReDefinition's dxgi.dll loads them from:\n"
+                  + "next to KSP_x64.exe, unless its ini names other folders.\n"
+                  + IntelDownloader.WhenUsed(superResolution, frameGeneration);
+            download.OptionInteractableCondition = () => needed.Count > 0 && !IntelDownloader.Running
+                                                         && !IntelDownloader.Installed;
+
+            return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
+                new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                    new DialogGUILabel("Intel XeSS files", NameWidth), download, new DialogGUILabel(offer, true)),
+                new DialogGUILabel(IntelStatus, true));
+        }
+
+        private static string intelStatus;
+        private static string intelStatusText = "";
+
+        private static string IntelStatus()
+        {
+            string now = IntelDownloader.Status;
+            if (now != intelStatus)
+            {
+                intelStatus = now;
+                intelStatusText = now == null ? "" : "<color=#9a9a9a>" + now + "</color>";
+            }
+            return intelStatusText;
         }
 
         // What lowers the latency, as the proxy says (ReflexFrames.LowLatencyText): the

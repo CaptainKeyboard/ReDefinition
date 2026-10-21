@@ -150,14 +150,23 @@ namespace ReDefinition
         internal void NvidiaFilesPlaced()
         {
             ForgetNativeFailures(false);
-            RetryDlssIfFallenBack();
+            RetryIfFallenBack(UpscalerBackend.Dlss);
         }
 
-        // DLSS chosen, FSR 3 running in its place, and no failure left against DLSS:
-        // the rig is built again for it.
-        private void RetryDlssIfFallenBack()
+        // Intel's download placed libxess.dll: as with nvngx_dlss.dll, XeSS is tried at
+        // once where it is chosen (XessUpscaler loads it from the folder once it
+        // is there).
+        internal void IntelFilesPlaced()
         {
-            if (backend == UpscalerBackend.Dlss && wantEnabled && rig != null && rig.Backend != backend
+            ForgetNativeFailures(false);
+            RetryIfFallenBack(UpscalerBackend.Xess);
+        }
+
+        // The upscaler chosen is this one, FSR 3 running in its place, and no failure
+        // left against it: the rig is built again for it.
+        private void RetryIfFallenBack(UpscalerBackend wanted)
+        {
+            if (backend == wanted && wantEnabled && rig != null && rig.Backend != backend
                 && !nativeFailures.ContainsKey(backend))
                 Reattach();
         }

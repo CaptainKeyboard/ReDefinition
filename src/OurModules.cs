@@ -61,8 +61,9 @@ namespace ReDefinition
                           + "AMD FSR (DLL) runs AMD's amd_fidelityfx_upscaler_dx12.dll, the player's own copy next to KSP_x64.exe:\n"
                           + "FSR 4 where the DLL and the GPU have it (Radeon RX 7000 or RX 9000), otherwise the FSR 3.1\n"
                           + "the DLL carries; once it runs, this row names it, \"fallback\" for FSR 3 from FSR 4's DLL.\n"
-                          + "XeSS (DLL) runs Intel's libxess.dll, the player's own copy next to KSP_x64.exe, on any GPU\n"
-                          + "with Shader Model 6.4 and DP4a; once it runs, this row names its version.\n"
+                          + "XeSS (DLL) runs Intel's libxess.dll, which Intel XeSS files in ReDefinition's settings\n"
+                          + "window downloads from Intel, on any GPU with Shader Model 6.4 and DP4a; once it runs,\n"
+                          + "this row names its version.\n"
                           + "All three need the dxgi.dll proxy next to KSP_x64.exe. Without their DLL, FSR 3 runs.",
                 Read = settings => settings.Backend.ToString(),
                 Write = (settings, value) => settings.Backend = Backend(value),

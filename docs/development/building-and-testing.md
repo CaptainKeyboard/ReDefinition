@@ -268,6 +268,11 @@ to it. Environment variables add what the player brings:
 | `REDEFINITION_AMD_UPSCALER_DIR` | `amd_fidelityfx_upscaler_dx12.dll` | AMD's upscaler |
 | `REDEFINITION_XESS_DIR` | `libxess.dll` | the XeSS upscaler |
 
+The XeSS folders can be the ones *Intel XeSS files* fills (`xessDirectory` and
+`xessFgDirectory` of an install's ini, or its game folder), and `REDEFINITION_XESS_DIR` and
+`REDEFINITION_XESS_FG_DIR` can name a copy from the same release. The benchmark runner's
+`--xess-dll-dir` and `--xess-fg-dll-dir` take them too ([benchmarks.md](benchmarks.md)).
+
 One swapchain has one frame generation, so a run with `REDEFINITION_STREAMLINE_DIR`, one
 with `REDEFINITION_XESS_FG_DIR` and one with neither cover all three. Setting both names
 is refused.

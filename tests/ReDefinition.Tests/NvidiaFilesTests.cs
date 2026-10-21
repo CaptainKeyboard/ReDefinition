@@ -158,7 +158,7 @@ namespace ReDefinition.Tests
         // An archive entry as NVIDIA's are: deflated, no data descriptor, no extra
         // field. .NET's ZipArchive writes it; the local header is made the way
         // NVIDIA's are around its data.
-        private static NvidiaFiles.Entry Archived(string name, byte[] content, out byte[] range)
+        internal static NvidiaFiles.Entry Archived(string name, byte[] content, out byte[] range, bool dataDescriptor = false)
         {
             byte[] archive;
             using (MemoryStream stream = new MemoryStream())
@@ -184,6 +184,13 @@ namespace ReDefinition.Tests
             range[7] = 0;
             System.BitConverter.GetBytes(compressedSize).CopyTo(range, 18);
             System.BitConverter.GetBytes((uint)content.Length).CopyTo(range, 22);
+            // Intel's are streamed: flags 8, and no checksum or sizes in the local header,
+            // which a data descriptor after the data -- not in the range -- carries.
+            if (dataDescriptor)
+            {
+                range[6] = 8;
+                for (int i = 14; i < 26; i++) range[i] = 0;
+            }
             range[28] = 0;
             range[29] = 0;
             System.Array.Copy(archive, 30, range, 30, nameLength);
@@ -209,7 +216,7 @@ namespace ReDefinition.Tests
             return -1;
         }
 
-        private static byte[] Content(string what = "a file NVIDIA would ship")
+        internal static byte[] Content(string what = "a file NVIDIA would ship")
         {
             StringBuilder text = new StringBuilder();
             for (int i = 0; i < 5000; i++) text.Append("line ").Append(i).Append(" of ").Append(what).Append('\n');

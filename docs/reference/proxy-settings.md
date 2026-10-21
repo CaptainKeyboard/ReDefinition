@@ -128,3 +128,6 @@ Each setting names a folder. Empty means next to `KSP_x64.exe`.
 | `xessDirectory` | when the upscaler is set up | `libxess.dll` |
 | `streamlineDirectory` | start | `sl.interposer.dll` with its `sl.*.dll` plugins, `nvngx_dlssg.dll` and `nvngx_dlssd.dll`. Only Streamline 2.14.16, signed by NVIDIA, is loaded |
 | `xessFgDirectory` | start | `libxess_fg.dll` and `libxell.dll` |
+
+The downloads *NVIDIA DLSS files* and *Intel XeSS files* in the settings window place their
+files in these folders, and next to `KSP_x64.exe` where a setting is empty.

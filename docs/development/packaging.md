@@ -154,8 +154,11 @@ In these cases there is no zip, and one left from an earlier build is removed:
 * **AMD's upscaler DLL**, `amd_fidelityfx_upscaler_dx12.dll`. The player brings their own
   copy.
 * **Intel's DLLs**, `libxess.dll` for XeSS, and `libxess_fg.dll` and `libxell.dll` for
-  XeSS frame generation. The player brings them from Intel's XeSS SDK. Only the MIT headers
-  of the SDK are compiled into the proxy.
+  XeSS frame generation. The player downloads them from Intel's release of the XeSS SDK
+  3.0.2 on GitHub, with *Intel XeSS files* in the settings window, after accepting Intel's
+  licence there (`IntelFiles`, `IntelDownloader`). Every file's SHA-256 is pinned. The
+  checking and placing are `NvidiaFiles`'. Only the MIT headers of the SDK are compiled
+  into the proxy.
 * **dlssg_for_sm86**, which runs DLSS frame generation on RTX 30 and RTX 20. The player
   downloads its release zip, and the settings window installs it from there.
 

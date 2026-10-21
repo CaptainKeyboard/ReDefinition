@@ -67,7 +67,7 @@ Released: 0.1.3.
 | Mods register through config nodes in their own folders; a setting no member path reaches goes through a behaviour, one ReDefinition brings or one the mod itself brings | [modders/registering-a-mod.md](../modders/registering-a-mod.md) |
 | Frame generation's V-Sync follows KSP's own setting; with DLSS frame generation only the intervals NVIDIA supports, and while XeLL lowers the latency every refresh at most | [development/frame-generation.md](../development/frame-generation.md) |
 | The player package holds the proxy and AMD's frame generation runtime; the player downloads NVIDIA's DLLs from NVIDIA's release after accepting NVIDIA's licences | [development/packaging.md](../development/packaging.md) |
-| Intel's XeSS DLLs, AMD's upscaler DLL and dlssg_for_sm86 are the player's own: the package holds none of them and ReDefinition downloads none of them | [development/packaging.md](../development/packaging.md) |
+| The package holds none of Intel's XeSS DLLs, AMD's upscaler DLL and dlssg_for_sm86. The player downloads Intel's from Intel's release after accepting Intel's licence, and brings the other two | [development/packaging.md](../development/packaging.md) |
 | The latency brake is on at 4 ms. The radiance cache, opacity micromaps and RTX Mega Geometry are off | [reference/proxy-settings.md](../reference/proxy-settings.md) |
 | Harmony is required | `src/KspAssemblyInfo.cs` |
 | Licence GPL-3.0-or-later with the Modding and Linking Exceptions | `LICENSE`, `EXCEPTIONS.md` |

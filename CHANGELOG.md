@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Intel XeSS files.** A *Download ...* button under *Display* fetches Intel's
+  `libxess.dll`, `libxess_fg.dll` and `libxell.dll` from Intel's release of the XeSS SDK
+  3.0.2 on GitHub, after you accept Intel's licence. Every file is checked against the
+  release before it is placed, and the row names the files in place with their versions.
 - **Docking alignment on the navball.** With a docking port as the target, an orange ring
   on the navball shows where to point the nose so that the two ports face each other.
 - **The flight panel.** KSP's maneuver panel shows profiles in place of its orbit tabs:

@@ -298,7 +298,7 @@ namespace ReDefinition.Window
                 RangeHandler handler;
                 try
                 {
-                    handler = new RangeHandler(rangeFiles[i], entry.RangeLength);
+                    handler = new RangeHandler(rangeFiles[i], entry.RangeLength, n => Interlocked.Add(ref received, n));
                 }
                 catch (Exception e)
                 {
@@ -432,15 +432,18 @@ namespace ReDefinition.Window
 
         // The part of the archive for one file, into a temporary file: a server that
         // sends more than asked for -- the whole archive, having ignored the range --
-        // is stopped at once.
-        private sealed class RangeHandler : DownloadHandlerScript
+        // is stopped at once. IntelDownloader fetches the same way.
+        internal sealed class RangeHandler : DownloadHandlerScript
         {
             private readonly long expected;
+            private readonly Action<int> onData;
             private FileStream file;
 
-            public RangeHandler(string path, long expected) : base(new byte[64 * 1024])
+            // onData is told how many bytes each piece held, for the download's progress.
+            public RangeHandler(string path, long expected, Action<int> onData) : base(new byte[64 * 1024])
             {
                 this.expected = expected;
+                this.onData = onData;
                 file = File.Create(path);
             }
 
@@ -473,7 +476,7 @@ namespace ReDefinition.Window
                     return false;
                 }
                 Length += dataLength;
-                Interlocked.Add(ref received, dataLength);
+                onData(dataLength);
                 return true;
             }
         }

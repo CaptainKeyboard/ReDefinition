@@ -74,6 +74,9 @@ namespace ReDefinition.Bridges
             // or content counts as missing. NGX's DLLs the player brought, whatever
             // their version, stay.
             public bool ExactVersion;
+            // Whose release it comes from, for the messages: Extract and PlaceAll
+            // serve Intel's XeSS files as well (IntelFiles).
+            public string Release = "NVIDIA's release";
 
             // The bytes of the archive that hold it: local header, name, data.
             public long RangeStart { get { return Offset; } }
@@ -301,9 +304,13 @@ namespace ReDefinition.Bridges
             uint size = ReadUInt32(header, 22);
             int nameLength = ReadUInt16(header, 26);
             int extraLength = ReadUInt16(header, 28);
-            if (flags != 0 || method != 8 || compressedSize != entry.CompressedSize || size != entry.Size
-                || nameLength != name.Length || extraLength != 0)
-                throw new InvalidDataException(entry.FileName + ": the archive's header differs from the release's");
+            // Flags 0: the sizes stand in the local header. Flags 8 (a data descriptor
+            // after the data, which the range leaves out -- the central directory has
+            // the sizes): the local header's sizes are 0, or already the right ones.
+            bool sizesInHeader = flags == 0 || compressedSize != 0 || size != 0;
+            if (flags != 0 && flags != 8 || method != 8 || nameLength != name.Length || extraLength != 0
+                || sizesInHeader && (compressedSize != entry.CompressedSize || size != entry.Size))
+                throw new InvalidDataException(entry.FileName + ": the archive's header differs from " + entry.Release);
             for (int i = 0; i < name.Length; i++)
             {
                 if (header[30 + i] != name[i])
@@ -330,7 +337,7 @@ namespace ReDefinition.Bridges
                     throw new InvalidDataException(entry.FileName + ": " + written + " bytes inflated, " + entry.Size
                                                    + " expected");
                 if (Hex(sha.Hash) != entry.Sha256)
-                    throw new InvalidDataException(entry.FileName + ": its checksum is not that of NVIDIA's release");
+                    throw new InvalidDataException(entry.FileName + ": its checksum is not that of " + entry.Release);
             }
         }
 

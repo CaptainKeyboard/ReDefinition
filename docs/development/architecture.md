@@ -291,6 +291,7 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | `ModWindowsAddon.cs` | when: the close buttons installed, the toolbar looked at, the open settings window following a change made in another window |
 | `UnityMouseEvents.cs` | Unity's mouse events on redirected cameras, and clicks on ReDefinition's windows kept from the scene |
 | `NvidiaDownloader.cs` | the download of NVIDIA's DLLs from NVIDIA's Streamline release after licence consent |
+| `IntelDownloader.cs` | the same for Intel's XeSS DLLs, from Intel's XeSS SDK release (`IntelFiles` in `src/Bridges` holds the table) |
 | `AmpereFrameGeneration.cs`, `SettingsWindow.Ampere.cs` | the *DLSS-G on RTX 30/20* row: the dialog with the steps, the install from the zip, and the package's choices |
 | `DebugOptions.cs` | the diagnostics window's options, their search, *Changed* and reset, the pins, and the ring of frame times; free of Unity |
 | `DiagnosticsStyles.cs` | the diagnostics window's styles, copied from KSP's skin |
