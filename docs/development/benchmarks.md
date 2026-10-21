@@ -147,148 +147,148 @@ The latency is the proxy's own measure, the same on every GPU. The proxy logs it
 `Latency:` every `reportSeconds`. It does not include the time from the GPU to the screen.
 
 <!-- benchmark-table:start -->
-Run `2026-10-20-2347`. Its machine and options are under [the runs](#the-runs).
+Run `2026-10-21-0241`. Its machine and options are under [the runs](#the-runs).
 
 | Scenario | fps | Shown fps | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline | fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
-| FSR 3 · RT Off · FG off · none | 70.3 | 70.1 | 22.6 | 23.6 | +0.0 % | +0.0 ms | – | – | – | baseline |
-| FSR 3 · RT Off · FG off · Reflex | 70.3 | 70.1 | 22.6 | 24.1 | +0.0 % | +0.0 ms | +0.0 % | +0.0 ms | – |  |
-| FSR 3 · RT Off · FG off · brake 4 ms | 70.1 | 69.8 | 22.5 | 23.9 | -0.3 % | -0.1 ms | -0.3 % | -0.1 ms | – |  |
-| FSR 3 · RT Off · FG off · Reflex + brake 4 ms | 70.5 | 70.5 | 22.5 | 23.8 | +0.3 % | -0.1 ms | +0.3 % | -0.1 ms | – |  |
-| FSR 3 · RT Off · FG FSR · none | 61.6 | 123.1 | 36.7 | 39.0 | -12.4 % | +14.1 ms | -12.4 % | +14.1 ms | – |  |
-| FSR 3 · RT Off · FG FSR · Reflex | 61.4 | 122.8 | 36.7 | 39.1 | -12.7 % | +14.1 ms | -12.7 % | +14.1 ms | – |  |
-| FSR 3 · RT Off · FG FSR · brake 4 ms | 61.6 | 123.2 | 33.8 | 37.2 | -12.4 % | +11.2 ms | -12.4 % | +11.2 ms | – |  |
-| FSR 3 · RT Off · FG FSR · Reflex + brake 4 ms | 61.3 | 122.6 | 34.3 | 37.6 | -12.8 % | +11.7 ms | -12.8 % | +11.7 ms | – |  |
-| FSR 3 · RT Full · FG off · none | 43.9 | 43.8 | 58.3 | 59.9 | -37.6 % | +35.7 ms | – | – | – |  |
-| FSR 3 · RT Full · FG off · Reflex | 44.1 | 44.0 | 58.6 | 60.0 | -37.3 % | +36.0 ms | +0.5 % | +0.3 ms | – |  |
-| FSR 3 · RT Full · FG off · brake 4 ms | 43.9 | 44.0 | 50.5 | 55.7 | -37.6 % | +27.9 ms | +0.0 % | -7.8 ms | – |  |
-| FSR 3 · RT Full · FG off · Reflex + brake 4 ms | 44.0 | 44.0 | 50.5 | 55.0 | -37.4 % | +27.9 ms | +0.2 % | -7.8 ms | – |  |
-| FSR 3 · RT Full · FG FSR · none | 37.2 | 74.2 | 65.9 | 68.3 | -47.1 % | +43.3 ms | -15.3 % | +7.6 ms | – |  |
-| FSR 3 · RT Full · FG FSR · Reflex | 37.2 | 74.4 | 66.5 | 68.6 | -47.1 % | +43.9 ms | -15.3 % | +8.2 ms | – |  |
-| FSR 3 · RT Full · FG FSR · brake 4 ms | 37.1 | 74.0 | 50.6 | 58.5 | -47.2 % | +28.0 ms | -15.5 % | -7.7 ms | – |  |
-| FSR 3 · RT Full · FG FSR · Reflex + brake 4 ms | 37.2 | 74.4 | 50.3 | 57.2 | -47.1 % | +27.7 ms | -15.3 % | -8.0 ms | – |  |
-| FSR 3 · RT Full, radiance cache · FG off · none | 44.4 | 44.6 | 57.8 | 59.3 | -36.8 % | +35.2 ms | – | – | – |  |
-| FSR 3 · RT Full, radiance cache · FG FSR · none | 37.5 | 75.0 | 66.2 | 67.8 | -46.7 % | +43.6 ms | -15.5 % | +8.4 ms | – |  |
-| DLSS · RT Off · FG off · none | 68.2 | 67.9 | 24.2 | 25.7 | -3.0 % | +1.6 ms | – | – | – |  |
-| DLSS · RT Off · FG off · Reflex | 68.1 | 68.0 | 24.2 | 26.0 | -3.1 % | +1.6 ms | -0.1 % | +0.0 ms | – |  |
-| DLSS · RT Off · FG off · brake 4 ms | 70.1 | 70.0 | 24.2 | 25.6 | -0.3 % | +1.6 ms | +2.8 % | +0.0 ms | – |  |
-| DLSS · RT Off · FG off · Reflex + brake 4 ms | 69.6 | 69.3 | 24.2 | 25.8 | -1.0 % | +1.6 ms | +2.1 % | +0.0 ms | – |  |
-| DLSS · RT Off · FG FSR · none | 57.2 | 114.4 | 41.0 | 42.7 | -18.6 % | +18.4 ms | -16.1 % | +16.8 ms | – |  |
-| DLSS · RT Off · FG FSR · Reflex | 57.3 | 114.6 | 40.9 | 42.7 | -18.5 % | +18.3 ms | -16.0 % | +16.7 ms | – |  |
-| DLSS · RT Off · FG FSR · brake 4 ms | 57.3 | 114.4 | 35.8 | 40.4 | -18.5 % | +13.2 ms | -16.0 % | +11.6 ms | – |  |
-| DLSS · RT Off · FG FSR · Reflex + brake 4 ms | 57.0 | 114.0 | 35.5 | 39.0 | -18.9 % | +12.9 ms | -16.4 % | +11.3 ms | – |  |
-| DLSS · RT Full, RR on · FG off · none | 35.2 | 34.9 | 75.5 | 77.2 | -49.9 % | +52.9 ms | – | – | – |  |
-| DLSS · RT Full, RR on · FG off · Reflex | 35.3 | 35.0 | 75.5 | 77.1 | -49.8 % | +52.9 ms | +0.3 % | +0.0 ms | – |  |
-| DLSS · RT Full, RR on · FG off · brake 4 ms | 35.3 | 35.0 | 63.7 | 66.7 | -49.8 % | +41.1 ms | +0.3 % | -11.8 ms | – |  |
-| DLSS · RT Full, RR on · FG off · Reflex + brake 4 ms | 35.3 | 35.0 | 64.0 | 66.7 | -49.8 % | +41.4 ms | +0.3 % | -11.5 ms | – |  |
-| DLSS · RT Full, RR on · FG FSR · none | 30.6 | 61.0 | 83.8 | 86.2 | -56.5 % | +61.2 ms | -13.1 % | +8.3 ms | – |  |
-| DLSS · RT Full, RR on · FG FSR · Reflex | 30.6 | 61.0 | 84.0 | 86.1 | -56.5 % | +61.4 ms | -13.1 % | +8.5 ms | – |  |
-| DLSS · RT Full, RR on · FG FSR · brake 4 ms | 30.6 | 61.0 | 72.8 | 75.1 | -56.5 % | +50.2 ms | -13.1 % | -2.7 ms | – |  |
-| DLSS · RT Full, RR on · FG FSR · Reflex + brake 4 ms | 30.5 | 61.0 | 73.0 | 75.0 | -56.6 % | +50.4 ms | -13.4 % | -2.5 ms | – |  |
-| DLSS · RT Full, RR off · FG off · none | 42.3 | 42.5 | 61.2 | 62.6 | -39.8 % | +38.6 ms | – | – | – |  |
-| DLSS · RT Full, RR off · FG off · Reflex | 42.5 | 42.6 | 61.2 | 62.6 | -39.5 % | +38.6 ms | +0.5 % | +0.0 ms | – |  |
-| DLSS · RT Full, RR off · FG off · brake 4 ms | 42.5 | 42.4 | 49.2 | 56.4 | -39.5 % | +26.6 ms | +0.5 % | -12.0 ms | – |  |
-| DLSS · RT Full, RR off · FG off · Reflex + brake 4 ms | 42.3 | 42.4 | 48.4 | 56.7 | -39.8 % | +25.8 ms | +0.0 % | -12.8 ms | – |  |
-| DLSS · RT Full, RR off · FG FSR · none | 36.0 | 72.0 | 69.5 | 71.5 | -48.8 % | +46.9 ms | -14.9 % | +8.3 ms | – |  |
-| DLSS · RT Full, RR off · FG FSR · Reflex | 36.0 | 71.9 | 69.5 | 71.6 | -48.8 % | +46.9 ms | -14.9 % | +8.3 ms | – |  |
-| DLSS · RT Full, RR off · FG FSR · brake 4 ms | 36.0 | 72.0 | 56.0 | 58.2 | -48.8 % | +33.4 ms | -14.9 % | -5.2 ms | – |  |
-| DLSS · RT Full, RR off · FG FSR · Reflex + brake 4 ms | 36.0 | 72.0 | 56.8 | 58.9 | -48.8 % | +34.2 ms | -14.9 % | -4.4 ms | – |  |
-| AMD DLL · RT Off · FG off · none | 69.5 | 69.4 | 23.8 | 25.3 | -1.1 % | +1.2 ms | – | – | – |  |
-| AMD DLL · RT Off · FG off · Reflex | 69.9 | 69.8 | 23.8 | 25.4 | -0.6 % | +1.2 ms | +0.6 % | +0.0 ms | – |  |
-| AMD DLL · RT Off · FG off · brake 4 ms | 69.3 | 69.1 | 24.0 | 25.4 | -1.4 % | +1.4 ms | -0.3 % | +0.2 ms | – |  |
-| AMD DLL · RT Off · FG off · Reflex + brake 4 ms | 69.9 | 69.8 | 23.8 | 25.2 | -0.6 % | +1.2 ms | +0.6 % | +0.0 ms | – |  |
-| AMD DLL · RT Off · FG FSR · none | 58.1 | 116.1 | 40.0 | 42.1 | -17.4 % | +17.4 ms | -16.4 % | +16.2 ms | – |  |
-| AMD DLL · RT Off · FG FSR · Reflex | 58.1 | 116.0 | 40.1 | 42.1 | -17.4 % | +17.5 ms | -16.4 % | +16.3 ms | – |  |
-| AMD DLL · RT Off · FG FSR · brake 4 ms | 58.2 | 116.2 | 36.6 | 40.2 | -17.2 % | +14.0 ms | -16.3 % | +12.8 ms | – |  |
-| AMD DLL · RT Off · FG FSR · Reflex + brake 4 ms | 57.8 | 115.5 | 35.7 | 39.8 | -17.8 % | +13.1 ms | -16.8 % | +11.9 ms | – |  |
-| AMD DLL · RT Full · FG off · none | 42.3 | 42.3 | 61.2 | 62.5 | -39.8 % | +38.6 ms | – | – | – |  |
-| AMD DLL · RT Full · FG off · Reflex | 42.5 | 42.4 | 61.2 | 62.7 | -39.5 % | +38.6 ms | +0.5 % | +0.0 ms | – |  |
-| AMD DLL · RT Full · FG off · brake 4 ms | 42.4 | 42.4 | 50.1 | 56.3 | -39.7 % | +27.5 ms | +0.2 % | -11.1 ms | – |  |
-| AMD DLL · RT Full · FG off · Reflex + brake 4 ms | 42.5 | 42.5 | 49.7 | 56.2 | -39.5 % | +27.1 ms | +0.5 % | -11.5 ms | – |  |
-| AMD DLL · RT Full · FG FSR · none | 36.0 | 72.0 | 69.5 | 71.3 | -48.8 % | +46.9 ms | -14.9 % | +8.3 ms | – |  |
-| AMD DLL · RT Full · FG FSR · Reflex | 36.0 | 71.9 | 69.6 | 71.4 | -48.8 % | +47.0 ms | -14.9 % | +8.4 ms | – |  |
-| AMD DLL · RT Full · FG FSR · brake 4 ms | 36.0 | 72.0 | 56.8 | 59.0 | -48.8 % | +34.2 ms | -14.9 % | -4.4 ms | – |  |
-| AMD DLL · RT Full · FG FSR · Reflex + brake 4 ms | 36.0 | 72.0 | 56.4 | 58.8 | -48.8 % | +33.8 ms | -14.9 % | -4.8 ms | – |  |
-| XeSS · RT Off · FG off · none | 68.2 | 68.0 | 24.9 | 26.6 | -3.0 % | +2.3 ms | – | – | – |  |
-| XeSS · RT Off · FG off · Reflex | 68.6 | 68.2 | 24.8 | 26.5 | -2.4 % | +2.2 ms | +0.6 % | -0.1 ms | – |  |
-| XeSS · RT Off · FG off · brake 4 ms | 68.3 | 68.1 | 24.8 | 26.3 | -2.8 % | +2.2 ms | +0.1 % | -0.1 ms | – |  |
-| XeSS · RT Off · FG off · Reflex + brake 4 ms | 68.8 | 68.5 | 24.8 | 26.4 | -2.1 % | +2.2 ms | +0.9 % | -0.1 ms | – |  |
-| XeSS · RT Off · FG FSR · none | 56.2 | 112.2 | 41.9 | 43.8 | -20.1 % | +19.3 ms | -17.6 % | +17.0 ms | – |  |
-| XeSS · RT Off · FG FSR · Reflex | 56.2 | 112.2 | 42.0 | 43.4 | -20.1 % | +19.4 ms | -17.6 % | +17.1 ms | – |  |
-| XeSS · RT Off · FG FSR · brake 4 ms | 56.1 | 112.0 | 37.6 | 41.3 | -20.2 % | +15.0 ms | -17.7 % | +12.7 ms | – |  |
-| XeSS · RT Off · FG FSR · Reflex + brake 4 ms | 56.1 | 112.1 | 37.4 | 41.5 | -20.2 % | +14.8 ms | -17.7 % | +12.5 ms | – |  |
-| XeSS · RT Full · FG off · none | 40.9 | 40.9 | 63.6 | 65.2 | -41.8 % | +41.0 ms | – | – | – |  |
-| XeSS · RT Full · FG off · Reflex | 41.0 | 41.0 | 63.5 | 65.1 | -41.7 % | +40.9 ms | +0.2 % | -0.1 ms | – |  |
-| XeSS · RT Full · FG off · brake 4 ms | 41.0 | 41.0 | 51.1 | 58.1 | -41.7 % | +28.5 ms | +0.2 % | -12.5 ms | – |  |
-| XeSS · RT Full · FG off · Reflex + brake 4 ms | 41.0 | 41.0 | 50.7 | 57.8 | -41.7 % | +28.1 ms | +0.2 % | -12.9 ms | – |  |
-| XeSS · RT Full · FG FSR · none | 35.0 | 70.0 | 71.7 | 74.0 | -50.2 % | +49.1 ms | -14.4 % | +8.1 ms | – |  |
-| XeSS · RT Full · FG FSR · Reflex | 34.9 | 69.9 | 72.3 | 74.1 | -50.4 % | +49.7 ms | -14.7 % | +8.7 ms | – |  |
-| XeSS · RT Full · FG FSR · brake 4 ms | 35.0 | 70.0 | 60.1 | 62.8 | -50.2 % | +37.5 ms | -14.4 % | -3.5 ms | – |  |
-| XeSS · RT Full · FG FSR · Reflex + brake 4 ms | 34.9 | 69.9 | 60.2 | 63.2 | -50.4 % | +37.6 ms | -14.7 % | -3.4 ms | – |  |
-| FSR 3 · RT Full, opacity micromaps · FG off · none | 39.6 | 39.9 | 65.8 | 67.4 | -43.7 % | +43.2 ms | – | – | – |  |
-| FSR 3 · RT Full, opacity micromaps · FG FSR · none | 34.0 | 68.0 | 74.3 | 76.2 | -51.6 % | +51.7 ms | -14.1 % | +8.5 ms | – |  |
-| FSR 3 · RT Off · FG DLSS-G · none | 66.0 | 132.0 | 47.0 | 49.5 | -6.1 % | +24.4 ms | -6.1 % | +24.4 ms | – |  |
-| FSR 3 · RT Off · FG DLSS-G · Reflex | 65.9 | 131.9 | 47.0 | 49.6 | -6.3 % | +24.4 ms | -6.3 % | +24.4 ms | – |  |
-| FSR 3 · RT Off · FG DLSS-G · brake 4 ms | 66.1 | 132.2 | 47.6 | 49.7 | -6.0 % | +25.0 ms | -6.0 % | +25.0 ms | – |  |
-| FSR 3 · RT Off · FG DLSS-G · Reflex + brake 4 ms | 65.8 | 131.9 | 47.4 | 49.7 | -6.4 % | +24.8 ms | -6.4 % | +24.8 ms | – |  |
-| FSR 3 · RT Full · FG DLSS-G · none | 40.1 | 80.5 | 72.5 | 74.1 | -43.0 % | +49.9 ms | -8.7 % | +14.2 ms | – |  |
-| FSR 3 · RT Full · FG DLSS-G · Reflex | 40.1 | 80.2 | 72.5 | 74.4 | -43.0 % | +49.9 ms | -8.7 % | +14.2 ms | – |  |
-| FSR 3 · RT Full · FG DLSS-G · brake 4 ms | 40.3 | 80.8 | 72.8 | 74.2 | -42.7 % | +50.2 ms | -8.2 % | +14.5 ms | – |  |
-| FSR 3 · RT Full · FG DLSS-G · Reflex + brake 4 ms | 40.1 | 80.4 | 73.3 | 74.9 | -43.0 % | +50.7 ms | -8.7 % | +15.0 ms | – |  |
-| FSR 3 · RT Full, radiance cache · FG DLSS-G · none | 39.7 | 79.4 | 73.1 | 74.9 | -43.5 % | +50.5 ms | -10.6 % | +15.3 ms | – |  |
-| DLSS · RT Off · FG DLSS-G · none | 60.9 | 121.7 | 52.1 | 53.7 | -13.4 % | +29.5 ms | -10.7 % | +27.9 ms | – |  |
-| DLSS · RT Off · FG DLSS-G · Reflex | 61.0 | 121.9 | 52.0 | 54.0 | -13.2 % | +29.4 ms | -10.6 % | +27.8 ms | – |  |
-| DLSS · RT Off · FG DLSS-G · brake 4 ms | 60.9 | 121.9 | 52.1 | 53.9 | -13.4 % | +29.5 ms | -10.7 % | +27.9 ms | – |  |
-| DLSS · RT Off · FG DLSS-G · Reflex + brake 4 ms | 61.0 | 122.0 | 52.2 | 53.9 | -13.2 % | +29.6 ms | -10.6 % | +28.0 ms | – |  |
-| DLSS · RT Full, RR on · FG DLSS-G · none | 31.9 | 63.7 | 91.5 | 93.3 | -54.6 % | +68.9 ms | -9.4 % | +16.0 ms | – |  |
-| DLSS · RT Full, RR on · FG DLSS-G · Reflex | 32.1 | 64.0 | 91.7 | 93.1 | -54.3 % | +69.1 ms | -8.8 % | +16.2 ms | – |  |
-| DLSS · RT Full, RR on · FG DLSS-G · brake 4 ms | 32.1 | 64.0 | 91.7 | 93.3 | -54.3 % | +69.1 ms | -8.8 % | +16.2 ms | – |  |
-| DLSS · RT Full, RR on · FG DLSS-G · Reflex + brake 4 ms | 32.1 | 64.0 | 91.9 | 93.3 | -54.3 % | +69.3 ms | -8.8 % | +16.4 ms | – |  |
-| DLSS · RT Full, RR off · FG DLSS-G · none | 38.2 | 76.6 | 76.1 | 77.9 | -45.7 % | +53.5 ms | -9.7 % | +14.9 ms | – |  |
-| DLSS · RT Full, RR off · FG DLSS-G · Reflex | 38.4 | 77.0 | 76.6 | 78.0 | -45.4 % | +54.0 ms | -9.2 % | +15.4 ms | – |  |
-| DLSS · RT Full, RR off · FG DLSS-G · brake 4 ms | 38.4 | 77.0 | 76.1 | 77.8 | -45.4 % | +53.5 ms | -9.2 % | +14.9 ms | – |  |
-| DLSS · RT Full, RR off · FG DLSS-G · Reflex + brake 4 ms | 38.4 | 77.0 | 76.1 | 78.0 | -45.4 % | +53.5 ms | -9.2 % | +14.9 ms | – |  |
-| AMD DLL · RT Off · FG DLSS-G · none | 61.9 | 123.8 | 51.0 | 52.9 | -11.9 % | +28.4 ms | -10.9 % | +27.2 ms | – |  |
-| AMD DLL · RT Off · FG DLSS-G · Reflex | 62.3 | 124.7 | 51.1 | 52.9 | -11.4 % | +28.5 ms | -10.4 % | +27.3 ms | – |  |
-| AMD DLL · RT Off · FG DLSS-G · brake 4 ms | 62.1 | 124.2 | 50.9 | 52.8 | -11.7 % | +28.3 ms | -10.6 % | +27.1 ms | – |  |
-| AMD DLL · RT Off · FG DLSS-G · Reflex + brake 4 ms | 62.2 | 124.6 | 51.2 | 52.9 | -11.5 % | +28.6 ms | -10.5 % | +27.4 ms | – |  |
-| AMD DLL · RT Full · FG DLSS-G · none | 38.6 | 76.9 | 75.3 | 77.2 | -45.1 % | +52.7 ms | -8.7 % | +14.1 ms | – |  |
-| AMD DLL · RT Full · FG DLSS-G · Reflex | 38.8 | 77.4 | 75.4 | 77.2 | -44.8 % | +52.8 ms | -8.3 % | +14.2 ms | – |  |
-| AMD DLL · RT Full · FG DLSS-G · brake 4 ms | 38.8 | 77.2 | 75.4 | 77.2 | -44.8 % | +52.8 ms | -8.3 % | +14.2 ms | – |  |
-| AMD DLL · RT Full · FG DLSS-G · Reflex + brake 4 ms | 38.8 | 77.2 | 75.4 | 77.1 | -44.8 % | +52.8 ms | -8.3 % | +14.2 ms | – |  |
-| XeSS · RT Off · FG DLSS-G · none | 59.8 | 119.6 | 52.9 | 54.7 | -14.9 % | +30.3 ms | -12.3 % | +28.0 ms | – |  |
-| XeSS · RT Off · FG DLSS-G · Reflex | 60.2 | 120.4 | 53.1 | 54.7 | -14.4 % | +30.5 ms | -11.7 % | +28.2 ms | – |  |
-| XeSS · RT Off · FG DLSS-G · brake 4 ms | 60.1 | 120.1 | 52.9 | 54.6 | -14.5 % | +30.3 ms | -11.9 % | +28.0 ms | – |  |
-| XeSS · RT Off · FG DLSS-G · Reflex + brake 4 ms | 60.2 | 120.3 | 52.9 | 54.5 | -14.4 % | +30.3 ms | -11.7 % | +28.0 ms | – |  |
-| XeSS · RT Full · FG DLSS-G · none | 37.7 | 75.2 | 77.3 | 79.0 | -46.4 % | +54.7 ms | -7.8 % | +13.7 ms | – |  |
-| XeSS · RT Full · FG DLSS-G · Reflex | 37.8 | 75.5 | 77.3 | 79.1 | -46.2 % | +54.7 ms | -7.6 % | +13.7 ms | – |  |
-| XeSS · RT Full · FG DLSS-G · brake 4 ms | 37.9 | 75.5 | 77.4 | 79.1 | -46.1 % | +54.8 ms | -7.3 % | +13.8 ms | – |  |
-| XeSS · RT Full · FG DLSS-G · Reflex + brake 4 ms | 37.8 | 75.5 | 77.3 | 78.9 | -46.2 % | +54.7 ms | -7.6 % | +13.7 ms | – |  |
-| FSR 3 · RT Full, opacity micromaps · FG DLSS-G · none | 37.0 | 73.9 | 78.7 | 80.5 | -47.4 % | +56.1 ms | -6.6 % | +12.9 ms | – |  |
-| FSR 3 · RT Off · FG DLSS-G preset C · none | 71.6 | 71.7 | 22.4 | 23.4 | +1.8 % | -0.2 ms | +1.8 % | -0.2 ms | – | frame generation asked for, presented/rendered 1.00 |
-| FSR 3 · RT Full · FG DLSS-G preset C · none | 44.9 | 44.8 | 55.8 | 57.3 | -36.1 % | +33.2 ms | +2.3 % | -2.5 ms | – | frame generation asked for, presented/rendered 1.00 |
-| FSR 3 · RT Off · FG off (XeSS-FG loaded) · XeLL | 72.0 | 71.8 | 22.3 | 23.6 | +2.4 % | -0.3 ms | +2.4 % | -0.3 ms | +0.1 % |  |
-| FSR 3 · RT Off · FG XeSS-FG · XeLL | 59.4 | 118.8 | 34.3 | 39.3 | -15.5 % | +11.7 ms | -15.5 % | +11.7 ms | -1.0 % |  |
-| FSR 3 · RT Full · FG off (XeSS-FG loaded) · XeLL | 44.9 | 44.8 | 59.2 | 60.7 | -36.1 % | +36.6 ms | +2.3 % | +0.9 ms | -0.2 % |  |
-| FSR 3 · RT Full · FG XeSS-FG · XeLL | 36.7 | 73.6 | 59.6 | 62.8 | -47.8 % | +37.0 ms | -16.4 % | +1.3 ms | +0.0 % |  |
-| FSR 3 · RT Full, radiance cache · FG off (XeSS-FG loaded) · XeLL | 45.2 | 45.2 | 58.6 | 60.1 | -35.7 % | +36.0 ms | +1.8 % | +0.8 ms | +0.0 % |  |
-| FSR 3 · RT Full, radiance cache · FG XeSS-FG · XeLL | 37.0 | 74.1 | 59.2 | 62.0 | -47.4 % | +36.6 ms | -16.7 % | +1.4 ms | +0.3 % |  |
-| DLSS · RT Off · FG off (XeSS-FG loaded) · XeLL | 69.2 | 69.1 | 24.2 | 25.8 | -1.6 % | +1.6 ms | +1.5 % | +0.0 ms | -0.1 % |  |
-| DLSS · RT Off · FG XeSS-FG · XeLL | 54.9 | 109.6 | 38.9 | 42.4 | -21.9 % | +16.3 ms | -19.5 % | +14.7 ms | -0.4 % |  |
-| DLSS · RT Full, RR on · FG off (XeSS-FG loaded) · XeLL | 35.2 | 34.9 | 76.1 | 77.8 | -49.9 % | +53.5 ms | +0.0 % | +0.6 ms | -0.3 % |  |
-| DLSS · RT Full, RR on · FG XeSS-FG · XeLL | 29.8 | 59.8 | 74.1 | 76.4 | -57.6 % | +51.5 ms | -15.3 % | -1.4 ms | +0.3 % |  |
-| DLSS · RT Full, RR off · FG off (XeSS-FG loaded) · XeLL | 42.5 | 42.8 | 63.3 | 65.0 | -39.5 % | +40.7 ms | +0.5 % | +2.1 ms | +0.2 % |  |
-| DLSS · RT Full, RR off · FG XeSS-FG · XeLL | 35.0 | 69.9 | 62.3 | 65.7 | -50.2 % | +39.7 ms | -17.3 % | +1.1 ms | +0.3 % |  |
-| AMD DLL · RT Off · FG off (XeSS-FG loaded) · XeLL | 70.3 | 70.1 | 23.8 | 25.4 | +0.0 % | +1.2 ms | +1.2 % | +0.0 ms | +0.3 % |  |
-| AMD DLL · RT Off · FG XeSS-FG · XeLL | 56.1 | 112.0 | 38.1 | 41.3 | -20.2 % | +15.5 ms | -19.3 % | +14.3 ms | +0.5 % |  |
-| AMD DLL · RT Full · FG off (XeSS-FG loaded) · XeLL | 42.9 | 42.9 | 62.1 | 63.7 | -39.0 % | +39.5 ms | +1.4 % | +0.9 ms | +0.2 % |  |
-| AMD DLL · RT Full · FG XeSS-FG · XeLL | 35.4 | 70.9 | 61.9 | 64.5 | -49.6 % | +39.3 ms | -16.3 % | +0.7 ms | +0.3 % |  |
-| XeSS · RT Off · FG off (XeSS-FG loaded) · XeLL | 70.6 | 70.6 | 24.9 | 26.9 | +0.4 % | +2.3 ms | +3.5 % | +0.0 ms | +1.1 % |  |
-| XeSS · RT Off · FG XeSS-FG · XeLL | 53.5 | 107.0 | 39.7 | 42.7 | -23.9 % | +17.1 ms | -21.6 % | +14.8 ms | -0.4 % |  |
-| XeSS · RT Full · FG off (XeSS-FG loaded) · XeLL | 42.0 | 41.8 | 64.3 | 66.1 | -40.3 % | +41.7 ms | +2.7 % | +0.7 ms | +0.5 % |  |
-| XeSS · RT Full · FG XeSS-FG · XeLL | 34.7 | 69.2 | 63.0 | 65.7 | -50.6 % | +40.4 ms | -15.2 % | -0.6 ms | +0.3 % |  |
-| FSR 3 · RT Full, opacity micromaps · FG off (XeSS-FG loaded) · XeLL | 41.1 | 40.9 | 65.1 | 67.0 | -41.5 % | +42.5 ms | +3.8 % | -0.7 ms | +0.2 % |  |
-| FSR 3 · RT Full, opacity micromaps · FG XeSS-FG · XeLL | 34.1 | 68.0 | 64.4 | 66.3 | -51.5 % | +41.8 ms | -13.9 % | -1.4 ms | +0.6 % |  |
+| FSR 3 · RT Off · FG off · none | 72.4 | 72.2 | 21.8 | 23.0 | +0.0 % | +0.0 ms | – | – | +3.0 % | baseline |
+| FSR 3 · RT Off · FG off · Reflex | 72.2 | 71.9 | 22.0 | 23.1 | -0.3 % | +0.2 ms | -0.3 % | +0.2 ms | +2.7 % |  |
+| FSR 3 · RT Off · FG off · brake 4 ms | 72.5 | 72.2 | 21.9 | 23.4 | +0.1 % | +0.1 ms | +0.1 % | +0.1 ms | +3.4 % |  |
+| FSR 3 · RT Off · FG off · Reflex + brake 4 ms | 72.8 | 72.8 | 22.0 | 23.1 | +0.6 % | +0.2 ms | +0.6 % | +0.2 ms | +3.3 % |  |
+| FSR 3 · RT Off · FG FSR · none | 66.7 | 133.4 | 29.6 | 32.8 | -7.9 % | +7.8 ms | -7.9 % | +7.8 ms | +8.3 % |  |
+| FSR 3 · RT Off · FG FSR · Reflex | 66.0 | 132.2 | 29.1 | 32.5 | -8.8 % | +7.3 ms | -8.8 % | +7.3 ms | +7.5 % |  |
+| FSR 3 · RT Off · FG FSR · brake 4 ms | 65.9 | 131.8 | 28.7 | 31.3 | -9.0 % | +6.9 ms | -9.0 % | +6.9 ms | +7.0 % |  |
+| FSR 3 · RT Off · FG FSR · Reflex + brake 4 ms | 65.8 | 131.9 | 28.8 | 31.7 | -9.1 % | +7.0 ms | -9.1 % | +7.0 ms | +7.3 % |  |
+| FSR 3 · RT Full · FG off · none | 45.0 | 44.9 | 57.8 | 59.1 | -37.8 % | +36.0 ms | – | – | +2.5 % |  |
+| FSR 3 · RT Full · FG off · Reflex | 45.2 | 45.1 | 57.8 | 59.0 | -37.6 % | +36.0 ms | +0.4 % | +0.0 ms | +2.5 % |  |
+| FSR 3 · RT Full · FG off · brake 4 ms | 45.2 | 45.0 | 48.6 | 54.8 | -37.6 % | +26.8 ms | +0.4 % | -9.2 ms | +3.0 % |  |
+| FSR 3 · RT Full · FG off · Reflex + brake 4 ms | 45.1 | 45.0 | 49.2 | 54.2 | -37.7 % | +27.4 ms | +0.2 % | -8.6 ms | +2.5 % |  |
+| FSR 3 · RT Full · FG FSR · none | 39.6 | 79.0 | 60.2 | 61.8 | -45.3 % | +38.4 ms | -12.0 % | +2.4 ms | +6.5 % |  |
+| FSR 3 · RT Full · FG FSR · Reflex | 39.6 | 79.0 | 60.1 | 61.8 | -45.3 % | +38.3 ms | -12.0 % | +2.3 ms | +6.5 % |  |
+| FSR 3 · RT Full · FG FSR · brake 4 ms | 39.4 | 78.9 | 45.7 | 51.7 | -45.6 % | +23.9 ms | -12.4 % | -12.1 ms | +6.2 % |  |
+| FSR 3 · RT Full · FG FSR · Reflex + brake 4 ms | 39.3 | 78.8 | 45.6 | 51.8 | -45.7 % | +23.8 ms | -12.7 % | -12.2 ms | +5.6 % |  |
+| FSR 3 · RT Full, radiance cache · FG off · none | 45.4 | 45.8 | 57.1 | 58.5 | -37.3 % | +35.3 ms | – | – | +2.3 % |  |
+| FSR 3 · RT Full, radiance cache · FG FSR · none | 40.0 | 80.0 | 59.4 | 61.1 | -44.8 % | +37.6 ms | -11.9 % | +2.3 ms | +6.7 % |  |
+| DLSS · RT Off · FG off · none | 69.7 | 69.4 | 23.5 | 25.3 | -3.7 % | +1.7 ms | – | – | +2.2 % |  |
+| DLSS · RT Off · FG off · Reflex | 71.8 | 71.6 | 23.3 | 25.8 | -0.8 % | +1.5 ms | +3.0 % | -0.2 ms | +5.4 % |  |
+| DLSS · RT Off · FG off · brake 4 ms | 70.4 | 70.4 | 23.5 | 25.5 | -2.8 % | +1.7 ms | +1.0 % | +0.0 ms | +0.4 % |  |
+| DLSS · RT Off · FG off · Reflex + brake 4 ms | 70.9 | 70.6 | 23.5 | 25.6 | -2.1 % | +1.7 ms | +1.7 % | +0.0 ms | +1.9 % |  |
+| DLSS · RT Off · FG FSR · none | 62.1 | 124.3 | 33.1 | 35.6 | -14.2 % | +11.3 ms | -10.9 % | +9.6 ms | +8.6 % |  |
+| DLSS · RT Off · FG FSR · Reflex | 62.3 | 124.7 | 33.4 | 35.6 | -14.0 % | +11.6 ms | -10.6 % | +9.9 ms | +8.7 % |  |
+| DLSS · RT Off · FG FSR · brake 4 ms | 61.8 | 123.6 | 31.0 | 34.0 | -14.6 % | +9.2 ms | -11.3 % | +7.5 ms | +7.9 % |  |
+| DLSS · RT Off · FG FSR · Reflex + brake 4 ms | 62.0 | 124.0 | 31.3 | 33.9 | -14.4 % | +9.5 ms | -11.0 % | +7.8 ms | +8.8 % |  |
+| DLSS · RT Full, RR on · FG off · none | 35.9 | 35.9 | 74.6 | 76.1 | -50.4 % | +52.8 ms | – | – | +2.0 % |  |
+| DLSS · RT Full, RR on · FG off · Reflex | 36.1 | 36.0 | 75.0 | 76.1 | -50.1 % | +53.2 ms | +0.6 % | +0.4 ms | +2.3 % |  |
+| DLSS · RT Full, RR on · FG off · brake 4 ms | 36.0 | 36.0 | 63.2 | 66.1 | -50.3 % | +41.4 ms | +0.3 % | -11.4 ms | +2.0 % |  |
+| DLSS · RT Full, RR on · FG off · Reflex + brake 4 ms | 36.0 | 36.0 | 63.0 | 66.3 | -50.3 % | +41.2 ms | +0.3 % | -11.6 ms | +2.0 % |  |
+| DLSS · RT Full, RR on · FG FSR · none | 32.2 | 64.0 | 77.5 | 79.0 | -55.5 % | +55.7 ms | -10.3 % | +2.9 ms | +5.2 % |  |
+| DLSS · RT Full, RR on · FG FSR · Reflex | 32.2 | 64.0 | 77.3 | 79.0 | -55.5 % | +55.5 ms | -10.3 % | +2.7 ms | +5.2 % |  |
+| DLSS · RT Full, RR on · FG FSR · brake 4 ms | 32.2 | 64.1 | 66.3 | 68.5 | -55.5 % | +44.5 ms | -10.3 % | -8.3 ms | +5.2 % |  |
+| DLSS · RT Full, RR on · FG FSR · Reflex + brake 4 ms | 32.2 | 64.0 | 66.4 | 68.4 | -55.5 % | +44.6 ms | -10.3 % | -8.2 ms | +5.6 % |  |
+| DLSS · RT Full, RR off · FG off · none | 43.4 | 43.5 | 60.3 | 61.8 | -40.1 % | +38.5 ms | – | – | +2.6 % |  |
+| DLSS · RT Full, RR off · FG off · Reflex | 43.5 | 43.7 | 60.5 | 61.8 | -39.9 % | +38.7 ms | +0.2 % | +0.2 ms | +2.4 % |  |
+| DLSS · RT Full, RR off · FG off · brake 4 ms | 43.4 | 43.4 | 49.6 | 57.0 | -40.1 % | +27.8 ms | +0.0 % | -10.7 ms | +2.1 % |  |
+| DLSS · RT Full, RR off · FG off · Reflex + brake 4 ms | 43.5 | 43.6 | 49.0 | 55.6 | -39.9 % | +27.2 ms | +0.2 % | -11.3 ms | +2.8 % |  |
+| DLSS · RT Full, RR off · FG FSR · none | 38.2 | 76.7 | 62.7 | 64.4 | -47.2 % | +40.9 ms | -12.0 % | +2.4 ms | +6.1 % |  |
+| DLSS · RT Full, RR off · FG FSR · Reflex | 38.3 | 76.8 | 62.6 | 64.4 | -47.1 % | +40.8 ms | -11.8 % | +2.3 ms | +6.4 % |  |
+| DLSS · RT Full, RR off · FG FSR · brake 4 ms | 38.1 | 76.2 | 47.6 | 50.9 | -47.4 % | +25.8 ms | -12.2 % | -12.7 ms | +5.8 % |  |
+| DLSS · RT Full, RR off · FG FSR · Reflex + brake 4 ms | 38.2 | 76.6 | 47.3 | 53.3 | -47.2 % | +25.5 ms | -12.0 % | -13.0 ms | +6.1 % |  |
+| AMD DLL · RT Off · FG off · none | 69.8 | 69.7 | 23.1 | 24.9 | -3.6 % | +1.3 ms | – | – | +0.4 % |  |
+| AMD DLL · RT Off · FG off · Reflex | 71.4 | 71.4 | 23.1 | 24.8 | -1.4 % | +1.3 ms | +2.3 % | +0.0 ms | +2.1 % |  |
+| AMD DLL · RT Off · FG off · brake 4 ms | 70.6 | 70.6 | 23.1 | 24.9 | -2.5 % | +1.3 ms | +1.1 % | +0.0 ms | +1.9 % |  |
+| AMD DLL · RT Off · FG off · Reflex + brake 4 ms | 70.6 | 70.2 | 23.0 | 24.7 | -2.5 % | +1.2 ms | +1.1 % | -0.1 ms | +1.0 % |  |
+| AMD DLL · RT Off · FG FSR · none | 63.1 | 126.4 | 32.3 | 34.9 | -12.8 % | +10.5 ms | -9.6 % | +9.2 ms | +8.6 % |  |
+| AMD DLL · RT Off · FG FSR · Reflex | 62.9 | 125.9 | 32.2 | 34.7 | -13.1 % | +10.4 ms | -9.9 % | +9.1 ms | +8.3 % |  |
+| AMD DLL · RT Off · FG FSR · brake 4 ms | 62.8 | 125.8 | 30.8 | 33.6 | -13.3 % | +9.0 ms | -10.0 % | +7.7 ms | +7.9 % |  |
+| AMD DLL · RT Off · FG FSR · Reflex + brake 4 ms | 62.9 | 125.6 | 30.7 | 33.7 | -13.1 % | +8.9 ms | -9.9 % | +7.6 ms | +8.8 % |  |
+| AMD DLL · RT Full · FG off · none | 43.3 | 43.3 | 60.6 | 61.9 | -40.2 % | +38.8 ms | – | – | +2.4 % |  |
+| AMD DLL · RT Full · FG off · Reflex | 43.4 | 43.4 | 60.7 | 61.8 | -40.1 % | +38.9 ms | +0.2 % | +0.1 ms | +2.1 % |  |
+| AMD DLL · RT Full · FG off · brake 4 ms | 43.4 | 43.4 | 49.7 | 56.3 | -40.1 % | +27.9 ms | +0.2 % | -10.9 ms | +2.4 % |  |
+| AMD DLL · RT Full · FG off · Reflex + brake 4 ms | 43.3 | 43.4 | 49.8 | 56.5 | -40.2 % | +28.0 ms | +0.0 % | -10.8 ms | +1.9 % |  |
+| AMD DLL · RT Full · FG FSR · none | 38.2 | 76.6 | 62.9 | 64.6 | -47.2 % | +41.1 ms | -11.8 % | +2.3 ms | +6.1 % |  |
+| AMD DLL · RT Full · FG FSR · Reflex | 38.2 | 76.4 | 63.0 | 64.6 | -47.2 % | +41.2 ms | -11.8 % | +2.4 ms | +6.1 % |  |
+| AMD DLL · RT Full · FG FSR · brake 4 ms | 38.1 | 76.2 | 47.6 | 51.8 | -47.4 % | +25.8 ms | -12.0 % | -13.0 ms | +5.8 % |  |
+| AMD DLL · RT Full · FG FSR · Reflex + brake 4 ms | 38.1 | 76.2 | 47.7 | 52.7 | -47.4 % | +25.9 ms | -12.0 % | -12.9 ms | +5.8 % |  |
+| XeSS · RT Off · FG off · none | 70.2 | 70.0 | 24.1 | 26.2 | -3.0 % | +2.3 ms | – | – | +2.9 % |  |
+| XeSS · RT Off · FG off · Reflex | 70.0 | 69.8 | 24.3 | 26.4 | -3.3 % | +2.5 ms | -0.3 % | +0.2 ms | +2.0 % |  |
+| XeSS · RT Off · FG off · brake 4 ms | 71.0 | 71.0 | 24.2 | 26.2 | -1.9 % | +2.4 ms | +1.1 % | +0.1 ms | +4.0 % |  |
+| XeSS · RT Off · FG off · Reflex + brake 4 ms | 71.1 | 70.8 | 24.2 | 26.2 | -1.8 % | +2.4 ms | +1.3 % | +0.1 ms | +3.3 % |  |
+| XeSS · RT Off · FG FSR · none | 60.9 | 121.9 | 34.2 | 36.5 | -15.9 % | +12.4 ms | -13.2 % | +10.1 ms | +8.4 % |  |
+| XeSS · RT Off · FG FSR · Reflex | 61.2 | 122.4 | 34.6 | 36.5 | -15.5 % | +12.8 ms | -12.8 % | +10.5 ms | +8.9 % |  |
+| XeSS · RT Off · FG FSR · brake 4 ms | 61.0 | 122.0 | 32.5 | 35.4 | -15.7 % | +10.7 ms | -13.1 % | +8.4 ms | +8.7 % |  |
+| XeSS · RT Off · FG FSR · Reflex + brake 4 ms | 60.8 | 121.7 | 32.2 | 35.3 | -16.0 % | +10.4 ms | -13.4 % | +8.1 ms | +8.4 % |  |
+| XeSS · RT Full · FG off · none | 41.8 | 41.8 | 62.8 | 64.3 | -42.3 % | +41.0 ms | – | – | +2.2 % |  |
+| XeSS · RT Full · FG off · Reflex | 41.9 | 42.0 | 63.0 | 64.2 | -42.1 % | +41.2 ms | +0.2 % | +0.2 ms | +2.2 % |  |
+| XeSS · RT Full · FG off · brake 4 ms | 41.8 | 42.0 | 50.8 | 57.5 | -42.3 % | +29.0 ms | +0.0 % | -12.0 ms | +2.0 % |  |
+| XeSS · RT Full · FG off · Reflex + brake 4 ms | 41.6 | 41.8 | 51.5 | 57.8 | -42.5 % | +29.7 ms | -0.5 % | -11.3 ms | +1.5 % |  |
+| XeSS · RT Full · FG FSR · none | 37.0 | 74.0 | 65.4 | 66.9 | -48.9 % | +43.6 ms | -11.5 % | +2.6 ms | +5.7 % |  |
+| XeSS · RT Full · FG FSR · Reflex | 37.0 | 74.0 | 65.6 | 67.2 | -48.9 % | +43.8 ms | -11.5 % | +2.8 ms | +6.0 % |  |
+| XeSS · RT Full · FG FSR · brake 4 ms | 36.6 | 73.1 | 51.8 | 54.2 | -49.4 % | +30.0 ms | -12.4 % | -11.0 ms | +4.6 % |  |
+| XeSS · RT Full · FG FSR · Reflex + brake 4 ms | 36.9 | 73.6 | 52.3 | 54.7 | -49.0 % | +30.5 ms | -11.7 % | -10.5 ms | +5.7 % |  |
+| FSR 3 · RT Full, opacity micromaps · FG off · none | 40.5 | 40.7 | 65.0 | 66.4 | -44.1 % | +43.2 ms | – | – | +2.3 % |  |
+| FSR 3 · RT Full, opacity micromaps · FG FSR · none | 35.6 | 71.1 | 68.3 | 70.0 | -50.8 % | +46.5 ms | -12.1 % | +3.3 ms | +4.7 % |  |
+| FSR 3 · RT Off · FG DLSS-G · none | 66.1 | 132.2 | 46.6 | 49.2 | -8.7 % | +24.8 ms | -8.7 % | +24.8 ms | +0.2 % |  |
+| FSR 3 · RT Off · FG DLSS-G · Reflex | 66.1 | 132.2 | 46.8 | 49.6 | -8.7 % | +25.0 ms | -8.7 % | +25.0 ms | +0.3 % |  |
+| FSR 3 · RT Off · FG DLSS-G · brake 4 ms | 66.0 | 131.9 | 45.7 | 48.3 | -8.8 % | +23.9 ms | -8.8 % | +23.9 ms | -0.2 % |  |
+| FSR 3 · RT Off · FG DLSS-G · Reflex + brake 4 ms | 66.0 | 132.2 | 45.7 | 48.3 | -8.8 % | +23.9 ms | -8.8 % | +23.9 ms | +0.3 % |  |
+| FSR 3 · RT Full · FG DLSS-G · none | 40.2 | 80.6 | 72.1 | 73.9 | -44.5 % | +50.3 ms | -10.7 % | +14.3 ms | +0.2 % |  |
+| FSR 3 · RT Full · FG DLSS-G · Reflex | 40.4 | 81.0 | 72.3 | 74.1 | -44.2 % | +50.5 ms | -10.2 % | +14.5 ms | +0.7 % |  |
+| FSR 3 · RT Full · FG DLSS-G · brake 4 ms | 40.2 | 80.6 | 57.8 | 66.2 | -44.5 % | +36.0 ms | -10.7 % | +0.0 ms | -0.2 % |  |
+| FSR 3 · RT Full · FG DLSS-G · Reflex + brake 4 ms | 40.2 | 80.4 | 58.0 | 65.6 | -44.5 % | +36.2 ms | -10.7 % | +0.2 ms | +0.2 % |  |
+| FSR 3 · RT Full, radiance cache · FG DLSS-G · none | 39.9 | 79.8 | 72.9 | 74.7 | -44.9 % | +51.1 ms | -12.1 % | +15.8 ms | +0.5 % |  |
+| DLSS · RT Off · FG DLSS-G · none | 61.1 | 122.2 | 51.6 | 53.4 | -15.6 % | +29.8 ms | -12.3 % | +28.1 ms | +0.3 % |  |
+| DLSS · RT Off · FG DLSS-G · Reflex | 61.3 | 122.7 | 51.5 | 53.4 | -15.3 % | +29.7 ms | -12.1 % | +28.0 ms | +0.5 % |  |
+| DLSS · RT Off · FG DLSS-G · brake 4 ms | 61.4 | 123.0 | 48.3 | 51.4 | -15.2 % | +26.5 ms | -11.9 % | +24.8 ms | +0.8 % |  |
+| DLSS · RT Off · FG DLSS-G · Reflex + brake 4 ms | 61.4 | 122.9 | 48.2 | 51.3 | -15.2 % | +26.4 ms | -11.9 % | +24.7 ms | +0.7 % |  |
+| DLSS · RT Full, RR on · FG DLSS-G · none | 32.1 | 63.8 | 91.0 | 93.0 | -55.7 % | +69.2 ms | -10.6 % | +16.4 ms | +0.6 % |  |
+| DLSS · RT Full, RR on · FG DLSS-G · Reflex | 32.2 | 64.1 | 90.9 | 92.9 | -55.5 % | +69.1 ms | -10.3 % | +16.3 ms | +0.3 % |  |
+| DLSS · RT Full, RR on · FG DLSS-G · brake 4 ms | 32.2 | 64.1 | 79.8 | 82.8 | -55.5 % | +58.0 ms | -10.3 % | +5.2 ms | +0.3 % |  |
+| DLSS · RT Full, RR on · FG DLSS-G · Reflex + brake 4 ms | 32.2 | 64.2 | 80.5 | 82.7 | -55.5 % | +58.7 ms | -10.3 % | +5.9 ms | +0.3 % |  |
+| DLSS · RT Full, RR off · FG DLSS-G · none | 38.4 | 76.7 | 75.7 | 77.6 | -47.0 % | +53.9 ms | -11.5 % | +15.4 ms | +0.5 % |  |
+| DLSS · RT Full, RR off · FG DLSS-G · Reflex | 38.6 | 77.0 | 75.7 | 77.6 | -46.7 % | +53.9 ms | -11.1 % | +15.4 ms | +0.5 % |  |
+| DLSS · RT Full, RR off · FG DLSS-G · brake 4 ms | 38.5 | 77.0 | 60.3 | 66.0 | -46.8 % | +38.5 ms | -11.3 % | +0.0 ms | +0.3 % |  |
+| DLSS · RT Full, RR off · FG DLSS-G · Reflex + brake 4 ms | 38.5 | 77.0 | 59.9 | 66.7 | -46.8 % | +38.1 ms | -11.3 % | -0.4 ms | +0.3 % |  |
+| AMD DLL · RT Off · FG DLSS-G · none | 62.4 | 124.8 | 49.8 | 52.3 | -13.8 % | +28.0 ms | -10.6 % | +26.7 ms | +0.8 % |  |
+| AMD DLL · RT Off · FG DLSS-G · Reflex | 62.8 | 125.5 | 50.1 | 52.2 | -13.3 % | +28.3 ms | -10.0 % | +27.0 ms | +0.8 % |  |
+| AMD DLL · RT Off · FG DLSS-G · brake 4 ms | 62.7 | 125.5 | 48.2 | 51.1 | -13.4 % | +26.4 ms | -10.2 % | +25.1 ms | +1.0 % |  |
+| AMD DLL · RT Off · FG DLSS-G · Reflex + brake 4 ms | 62.7 | 125.2 | 48.0 | 51.2 | -13.4 % | +26.2 ms | -10.2 % | +24.9 ms | +0.8 % |  |
+| AMD DLL · RT Full · FG DLSS-G · none | 38.7 | 77.3 | 74.8 | 76.9 | -46.5 % | +53.0 ms | -10.6 % | +14.2 ms | +0.3 % |  |
+| AMD DLL · RT Full · FG DLSS-G · Reflex | 38.9 | 77.6 | 74.9 | 76.7 | -46.3 % | +53.1 ms | -10.2 % | +14.3 ms | +0.3 % |  |
+| AMD DLL · RT Full · FG DLSS-G · brake 4 ms | 38.9 | 77.8 | 59.8 | 66.9 | -46.3 % | +38.0 ms | -10.2 % | -0.8 ms | +0.3 % |  |
+| AMD DLL · RT Full · FG DLSS-G · Reflex + brake 4 ms | 38.9 | 77.6 | 60.6 | 65.3 | -46.3 % | +38.8 ms | -10.2 % | +0.0 ms | +0.3 % |  |
+| XeSS · RT Off · FG DLSS-G · none | 60.3 | 120.6 | 51.8 | 53.8 | -16.7 % | +30.0 ms | -14.1 % | +27.7 ms | +0.8 % |  |
+| XeSS · RT Off · FG DLSS-G · Reflex | 60.6 | 121.1 | 52.0 | 54.0 | -16.3 % | +30.2 ms | -13.7 % | +27.9 ms | +0.7 % |  |
+| XeSS · RT Off · FG DLSS-G · brake 4 ms | 60.5 | 121.2 | 49.2 | 52.3 | -16.4 % | +27.4 ms | -13.8 % | +25.1 ms | +0.7 % |  |
+| XeSS · RT Off · FG DLSS-G · Reflex + brake 4 ms | 60.6 | 121.1 | 49.2 | 52.2 | -16.3 % | +27.4 ms | -13.7 % | +25.1 ms | +0.7 % |  |
+| XeSS · RT Full · FG DLSS-G · none | 37.8 | 75.6 | 76.7 | 78.6 | -47.8 % | +54.9 ms | -9.6 % | +13.9 ms | +0.3 % |  |
+| XeSS · RT Full · FG DLSS-G · Reflex | 38.0 | 75.9 | 76.8 | 78.7 | -47.5 % | +55.0 ms | -9.1 % | +14.0 ms | +0.5 % |  |
+| XeSS · RT Full · FG DLSS-G · brake 4 ms | 38.0 | 75.9 | 61.7 | 66.1 | -47.5 % | +39.9 ms | -9.1 % | -1.1 ms | +0.3 % |  |
+| XeSS · RT Full · FG DLSS-G · Reflex + brake 4 ms | 38.0 | 75.9 | 61.7 | 65.6 | -47.5 % | +39.9 ms | -9.1 % | -1.1 ms | +0.5 % |  |
+| FSR 3 · RT Full, opacity micromaps · FG DLSS-G · none | 37.1 | 74.3 | 78.3 | 80.0 | -48.8 % | +56.5 ms | -8.4 % | +13.3 ms | +0.3 % |  |
+| FSR 3 · RT Off · FG DLSS-G preset C · none | 71.1 | 142.6 | 38.4 | 41.0 | -1.8 % | +16.6 ms | -1.8 % | +16.6 ms | -0.7 % |  |
+| FSR 3 · RT Full · FG DLSS-G preset C · none | 41.8 | 83.9 | 68.2 | 70.0 | -42.3 % | +46.4 ms | -7.1 % | +10.4 ms | -6.9 % |  |
+| FSR 3 · RT Off · FG off (XeSS-FG loaded) · XeLL | 72.3 | 72.0 | 21.9 | 23.1 | -0.1 % | +0.1 ms | -0.1 % | +0.1 ms | +0.4 % |  |
+| FSR 3 · RT Off · FG XeSS-FG · XeLL | 63.0 | 126.1 | 32.9 | 37.4 | -13.0 % | +11.1 ms | -13.0 % | +11.1 ms | +6.1 % |  |
+| FSR 3 · RT Full · FG off (XeSS-FG loaded) · XeLL | 45.8 | 45.9 | 59.1 | 60.6 | -36.7 % | +37.3 ms | +1.8 % | +1.3 ms | +2.0 % |  |
+| FSR 3 · RT Full · FG XeSS-FG · XeLL | 39.0 | 77.9 | 56.4 | 60.8 | -46.1 % | +34.6 ms | -13.3 % | -1.4 ms | +6.3 % |  |
+| FSR 3 · RT Full, radiance cache · FG off (XeSS-FG loaded) · XeLL | 46.1 | 46.1 | 58.5 | 60.2 | -36.3 % | +36.7 ms | +1.5 % | +1.4 ms | +2.0 % |  |
+| FSR 3 · RT Full, radiance cache · FG XeSS-FG · XeLL | 39.3 | 78.6 | 56.0 | 60.0 | -45.7 % | +34.2 ms | -13.4 % | -1.1 ms | +6.2 % |  |
+| DLSS · RT Off · FG off (XeSS-FG loaded) · XeLL | 69.4 | 69.2 | 23.8 | 25.9 | -4.1 % | +2.0 ms | -0.4 % | +0.3 ms | +0.3 % |  |
+| DLSS · RT Off · FG XeSS-FG · XeLL | 58.0 | 115.9 | 38.0 | 41.8 | -19.9 % | +16.2 ms | -16.8 % | +14.5 ms | +5.6 % |  |
+| DLSS · RT Full, RR on · FG off (XeSS-FG loaded) · XeLL | 35.8 | 35.9 | 76.1 | 77.7 | -50.6 % | +54.3 ms | -0.3 % | +1.5 ms | +1.7 % |  |
+| DLSS · RT Full, RR on · FG XeSS-FG · XeLL | 31.3 | 62.5 | 72.6 | 74.8 | -56.8 % | +50.8 ms | -12.8 % | -2.0 ms | +5.0 % |  |
+| DLSS · RT Full, RR off · FG off (XeSS-FG loaded) · XeLL | 43.3 | 43.3 | 63.5 | 65.0 | -40.2 % | +41.7 ms | -0.2 % | +3.2 ms | +1.9 % |  |
+| DLSS · RT Full, RR off · FG XeSS-FG · XeLL | 37.0 | 74.0 | 59.9 | 62.9 | -48.9 % | +38.1 ms | -14.7 % | -0.4 ms | +5.7 % |  |
+| AMD DLL · RT Off · FG off (XeSS-FG loaded) · XeLL | 71.9 | 71.8 | 23.2 | 25.2 | -0.7 % | +1.4 ms | +3.0 % | +0.1 ms | +2.3 % |  |
+| AMD DLL · RT Off · FG XeSS-FG · XeLL | 59.6 | 119.2 | 36.8 | 40.2 | -17.7 % | +15.0 ms | -14.6 % | +13.7 ms | +6.2 % |  |
+| AMD DLL · RT Full · FG off (XeSS-FG loaded) · XeLL | 43.8 | 43.8 | 62.4 | 64.0 | -39.5 % | +40.6 ms | +1.2 % | +1.8 ms | +2.1 % |  |
+| AMD DLL · RT Full · FG XeSS-FG · XeLL | 37.5 | 75.1 | 59.0 | 61.8 | -48.2 % | +37.2 ms | -13.4 % | -1.6 ms | +5.9 % |  |
+| XeSS · RT Off · FG off (XeSS-FG loaded) · XeLL | 71.7 | 71.6 | 24.7 | 26.9 | -1.0 % | +2.9 ms | +2.1 % | +0.6 ms | +1.6 % |  |
+| XeSS · RT Off · FG XeSS-FG · XeLL | 57.3 | 114.6 | 38.6 | 42.2 | -20.9 % | +16.8 ms | -18.4 % | +14.5 ms | +7.1 % |  |
+| XeSS · RT Full · FG off (XeSS-FG loaded) · XeLL | 42.8 | 42.9 | 64.4 | 66.0 | -40.9 % | +42.6 ms | +2.4 % | +1.6 ms | +1.9 % |  |
+| XeSS · RT Full · FG XeSS-FG · XeLL | 36.7 | 73.3 | 60.2 | 62.5 | -49.3 % | +38.4 ms | -12.2 % | -2.6 ms | +5.8 % |  |
+| FSR 3 · RT Full, opacity micromaps · FG off (XeSS-FG loaded) · XeLL | 41.9 | 41.8 | 65.0 | 66.7 | -42.1 % | +43.2 ms | +3.5 % | +0.0 ms | +1.9 % |  |
+| FSR 3 · RT Full, opacity micromaps · FG XeSS-FG · XeLL | 35.9 | 71.6 | 61.8 | 64.3 | -50.4 % | +40.0 ms | -11.4 % | -3.2 ms | +5.3 % |  |
 <!-- benchmark-table:end -->
 
 ## The runs
@@ -299,6 +299,180 @@ holds the full record of every phase: the proxy's whole configuration as it logg
 mod's settings in effect, the upscaler's line, and each measured value.
 
 <!-- benchmark-runs:start -->
+### Run 2026-10-21-0241
+
+| What | Value |
+|---|---|
+| Date | 2026-10-21T02:41:14 to 2026-10-21T03:23:57 |
+| Commit | `dc88141` on `feat/raytracing` |
+| Build in the install | `dxgi.dll` 4a3e00cc68de1b75 (2026-10-21T02:35:51), `GameData/ReDefinition/Plugins/ReDefinition.dll` 5632fd4d2e8bb25c (2026-10-21T02:35:57) |
+| Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
+| Profile | `medium`: [LOG 02:42:15.998] [ReDefinition] Probe: profile medium applied. |
+| Matrix | `tools/benchmark_matrix.json`, 4 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Skipped | latency antilag2 (only on AMD) |
+| Full record | [benchmarks/2026-10-21-0241.json](benchmarks/2026-10-21-0241.json) |
+
+<details><summary>What ran in each phase</summary>
+
+| Start | Scenario | Upscaler that ran | Frame generation that ran | presented/rendered | Lowered by | Reports | fps range | Notes |
+|---|---|---|---|---|---|---|---|---|
+| fsr | FSR 3 · RT Off · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 9 | 69.8–73.7 |  |
+| fsr | FSR 3 · RT Off · FG off · Reflex | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex | 9 | 69.2–73.3 |  |
+| fsr | FSR 3 · RT Off · FG off · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 9 | 68.5–73.6 |  |
+| fsr | FSR 3 · RT Off · FG off · Reflex + brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex and the brake | 8 | 71.7–73.7 |  |
+| fsr | FSR 3 · RT Off · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 66.3–66.9 |  |
+| fsr | FSR 3 · RT Off · FG FSR · Reflex | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex | 8 | 63.9–67.0 |  |
+| fsr | FSR 3 · RT Off · FG FSR · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 62.3–66.8 |  |
+| fsr | FSR 3 · RT Off · FG FSR · Reflex + brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex and the brake | 8 | 65.0–66.6 |  |
+| fsr | FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 42.6–45.5 |  |
+| fsr | FSR 3 · RT Full · FG off · Reflex | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex | 8 | 45.2–45.3 |  |
+| fsr | FSR 3 · RT Full · FG off · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 8 | 44.8–45.4 |  |
+| fsr | FSR 3 · RT Full · FG off · Reflex + brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex and the brake | 8 | 44.7–45.3 |  |
+| fsr | FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.5–39.7 |  |
+| fsr | FSR 3 · RT Full · FG FSR · Reflex | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex | 8 | 39.5–39.7 |  |
+| fsr | FSR 3 · RT Full · FG FSR · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 38.7–39.7 |  |
+| fsr | FSR 3 · RT Full · FG FSR · Reflex + brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex and the brake | 8 | 38.5–39.9 |  |
+| fsr | FSR 3 · RT Full, radiance cache · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 43.0–45.7 |  |
+| fsr | FSR 3 · RT Full, radiance cache · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.9–40.2 |  |
+| fsr | DLSS · RT Off · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 55.9–72.3 |  |
+| fsr | DLSS · RT Off · FG off · Reflex | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex | 9 | 71.2–72.6 |  |
+| fsr | DLSS · RT Off · FG off · brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 9 | 66.6–72.0 |  |
+| fsr | DLSS · RT Off · FG off · Reflex + brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex and the brake | 9 | 68.4–71.6 |  |
+| fsr | DLSS · RT Off · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 60.8–62.4 |  |
+| fsr | DLSS · RT Off · FG FSR · Reflex | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex | 9 | 61.9–62.5 |  |
+| fsr | DLSS · RT Off · FG FSR · brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 9 | 59.7–62.6 |  |
+| fsr | DLSS · RT Off · FG FSR · Reflex + brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex and the brake | 9 | 60.7–62.6 |  |
+| fsr | DLSS · RT Full, RR on · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 33.8–36.1 |  |
+| fsr | DLSS · RT Full, RR on · FG off · Reflex | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex | 8 | 36.0–36.1 |  |
+| fsr | DLSS · RT Full, RR on · FG off · brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 8 | 35.9–36.1 |  |
+| fsr | DLSS · RT Full, RR on · FG off · Reflex + brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex and the brake | 8 | 36.0–36.1 |  |
+| fsr | DLSS · RT Full, RR on · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 32.1–32.2 |  |
+| fsr | DLSS · RT Full, RR on · FG FSR · Reflex | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex | 8 | 32.2–32.3 |  |
+| fsr | DLSS · RT Full, RR on · FG FSR · brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 32.1–32.2 |  |
+| fsr | DLSS · RT Full, RR on · FG FSR · Reflex + brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex and the brake | 8 | 32.1–32.2 |  |
+| fsr | DLSS · RT Full, RR off · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 41.0–43.6 |  |
+| fsr | DLSS · RT Full, RR off · FG off · Reflex | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex | 9 | 43.4–43.6 |  |
+| fsr | DLSS · RT Full, RR off · FG off · brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 9 | 42.9–43.7 |  |
+| fsr | DLSS · RT Full, RR off · FG off · Reflex + brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex and the brake | 9 | 43.4–43.8 |  |
+| fsr | DLSS · RT Full, RR off · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 37.9–38.4 |  |
+| fsr | DLSS · RT Full, RR off · FG FSR · Reflex | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex | 9 | 38.2–38.4 |  |
+| fsr | DLSS · RT Full, RR off · FG FSR · brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 9 | 37.5–38.6 |  |
+| fsr | DLSS · RT Full, RR off · FG FSR · Reflex + brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex and the brake | 9 | 37.8–38.6 |  |
+| fsr | AMD DLL · RT Off · FG off · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 63.3–71.8 |  |
+| fsr | AMD DLL · RT Off · FG off · Reflex | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex | 8 | 70.7–71.8 |  |
+| fsr | AMD DLL · RT Off · FG off · brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 8 | 66.7–72.1 |  |
+| fsr | AMD DLL · RT Off · FG off · Reflex + brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex and the brake | 8 | 67.7–71.7 |  |
+| fsr | AMD DLL · RT Off · FG FSR · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 62.8–63.3 |  |
+| fsr | AMD DLL · RT Off · FG FSR · Reflex | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex | 9 | 59.8–63.7 |  |
+| fsr | AMD DLL · RT Off · FG FSR · brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 9 | 60.9–63.4 |  |
+| fsr | AMD DLL · RT Off · FG FSR · Reflex + brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex and the brake | 9 | 61.1–63.4 |  |
+| fsr | AMD DLL · RT Full · FG off · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 41.1–43.5 |  |
+| fsr | AMD DLL · RT Full · FG off · Reflex | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex | 8 | 43.4–43.5 |  |
+| fsr | AMD DLL · RT Full · FG off · brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 8 | 43.1–43.5 |  |
+| fsr | AMD DLL · RT Full · FG off · Reflex + brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex and the brake | 8 | 42.4–43.9 |  |
+| fsr | AMD DLL · RT Full · FG FSR · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 38.2–38.3 |  |
+| fsr | AMD DLL · RT Full · FG FSR · Reflex | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex | 8 | 37.9–38.3 |  |
+| fsr | AMD DLL · RT Full · FG FSR · brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 9 | 37.8–38.6 |  |
+| fsr | AMD DLL · RT Full · FG FSR · Reflex + brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex and the brake | 9 | 37.7–38.3 |  |
+| fsr | XeSS · RT Off · FG off · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 66.1–71.7 |  |
+| fsr | XeSS · RT Off · FG off · Reflex | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex | 9 | 66.6–71.2 |  |
+| fsr | XeSS · RT Off · FG off · brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 8 | 70.3–71.7 |  |
+| fsr | XeSS · RT Off · FG off · Reflex + brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex and the brake | 8 | 70.2–71.6 |  |
+| fsr | XeSS · RT Off · FG FSR · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 59.9–61.3 |  |
+| fsr | XeSS · RT Off · FG FSR · Reflex | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex | 8 | 61.0–61.4 |  |
+| fsr | XeSS · RT Off · FG FSR · brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 60.6–61.3 |  |
+| fsr | XeSS · RT Off · FG FSR · Reflex + brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex and the brake | 9 | 59.7–61.2 |  |
+| fsr | XeSS · RT Full · FG off · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 39.3–42.0 |  |
+| fsr | XeSS · RT Full · FG off · Reflex | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex | 9 | 41.6–42.0 |  |
+| fsr | XeSS · RT Full · FG off · brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 9 | 41.6–42.0 |  |
+| fsr | XeSS · RT Full · FG off · Reflex + brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | Reflex and the brake | 9 | 40.2–42.3 |  |
+| fsr | XeSS · RT Full · FG FSR · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 36.9–37.1 |  |
+| fsr | XeSS · RT Full · FG FSR · Reflex | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex | 9 | 36.9–37.0 |  |
+| fsr | XeSS · RT Full · FG FSR · brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 34.5–37.0 |  |
+| fsr | XeSS · RT Full · FG FSR · Reflex + brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | Reflex and the brake | 8 | 36.7–37.1 |  |
+| fsr | FSR 3 · RT Full, opacity micromaps · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 38.4–40.7 |  |
+| fsr | FSR 3 · RT Full, opacity micromaps · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 35.6–35.7 |  |
+| dlssg | FSR 3 · RT Off · FG DLSS-G · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 8 | 64.8–66.7 |  |
+| dlssg | FSR 3 · RT Off · FG DLSS-G · Reflex | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 8 | 65.7–66.2 |  |
+| dlssg | FSR 3 · RT Off · FG DLSS-G · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 64.4–66.6 |  |
+| dlssg | FSR 3 · RT Off · FG DLSS-G · Reflex + brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 65.7–66.5 |  |
+| dlssg | FSR 3 · RT Full · FG DLSS-G · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 37.5–40.5 |  |
+| dlssg | FSR 3 · RT Full · FG DLSS-G · Reflex | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 9 | 40.3–40.4 |  |
+| dlssg | FSR 3 · RT Full · FG DLSS-G · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 39.8–40.4 |  |
+| dlssg | FSR 3 · RT Full · FG DLSS-G · Reflex + brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 39.7–40.4 |  |
+| dlssg | FSR 3 · RT Full, radiance cache · FG DLSS-G · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 37.2–40.1 |  |
+| dlssg | DLSS · RT Off · FG DLSS-G · none | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 55.7–61.8 |  |
+| dlssg | DLSS · RT Off · FG DLSS-G · Reflex | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 9 | 59.6–62.0 |  |
+| dlssg | DLSS · RT Off · FG DLSS-G · brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 61.1–61.6 |  |
+| dlssg | DLSS · RT Off · FG DLSS-G · Reflex + brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 60.8–61.6 |  |
+| dlssg | DLSS · RT Full, RR on · FG DLSS-G · none | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 30.1–32.3 |  |
+| dlssg | DLSS · RT Full, RR on · FG DLSS-G · Reflex | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 8 | 32.2–32.3 |  |
+| dlssg | DLSS · RT Full, RR on · FG DLSS-G · brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 9 | 32.2–32.3 |  |
+| dlssg | DLSS · RT Full, RR on · FG DLSS-G · Reflex + brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 9 | 32.2–32.3 |  |
+| dlssg | DLSS · RT Full, RR off · FG DLSS-G · none | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 36.1–38.6 |  |
+| dlssg | DLSS · RT Full, RR off · FG DLSS-G · Reflex | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 9 | 38.5–38.6 |  |
+| dlssg | DLSS · RT Full, RR off · FG DLSS-G · brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 9 | 38.3–38.7 |  |
+| dlssg | DLSS · RT Full, RR off · FG DLSS-G · Reflex + brake 4 ms | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 9 | 38.2–38.7 |  |
+| dlssg | AMD DLL · RT Off · FG DLSS-G · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 58.3–62.8 |  |
+| dlssg | AMD DLL · RT Off · FG DLSS-G · Reflex | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 8 | 62.6–63.0 |  |
+| dlssg | AMD DLL · RT Off · FG DLSS-G · brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 62.3–62.9 |  |
+| dlssg | AMD DLL · RT Off · FG DLSS-G · Reflex + brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 62.6–63.0 |  |
+| dlssg | AMD DLL · RT Full · FG DLSS-G · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 35.9–39.0 |  |
+| dlssg | AMD DLL · RT Full · FG DLSS-G · Reflex | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 8 | 38.8–39.0 |  |
+| dlssg | AMD DLL · RT Full · FG DLSS-G · brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 38.6–39.2 |  |
+| dlssg | AMD DLL · RT Full · FG DLSS-G · Reflex + brake 4 ms | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 38.8–39.0 |  |
+| dlssg | XeSS · RT Off · FG DLSS-G · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 55.8–61.4 |  |
+| dlssg | XeSS · RT Off · FG DLSS-G · Reflex | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 9 | 60.2–61.0 |  |
+| dlssg | XeSS · RT Off · FG DLSS-G · brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 9 | 60.1–61.1 |  |
+| dlssg | XeSS · RT Off · FG DLSS-G · Reflex + brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 9 | 60.4–60.8 |  |
+| dlssg | XeSS · RT Full · FG DLSS-G · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 35.5–38.1 |  |
+| dlssg | XeSS · RT Full · FG DLSS-G · Reflex | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 8 | 38.0–38.0 |  |
+| dlssg | XeSS · RT Full · FG DLSS-G · brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 37.9–38.0 |  |
+| dlssg | XeSS · RT Full · FG DLSS-G · Reflex + brake 4 ms | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 37.9–38.0 |  |
+| dlssg | FSR 3 · RT Full, opacity micromaps · FG DLSS-G · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 34.7–37.3 |  |
+| dlssg-c | FSR 3 · RT Off · FG DLSS-G preset C · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 9 | 70.5–71.5 |  |
+| dlssg-c | FSR 3 · RT Full · FG DLSS-G preset C · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 13 | 39.1–42.2 |  |
+| xessfg | FSR 3 · RT Off · FG off (XeSS-FG loaded) · XeLL | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 9 | 68.4–73.6 |  |
+| xessfg | FSR 3 · RT Off · FG XeSS-FG · XeLL | FSR 3 Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 9 | 62.6–63.8 |  |
+| xessfg | FSR 3 · RT Full · FG off (XeSS-FG loaded) · XeLL | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 15 | 43.4–46.1 |  |
+| xessfg | FSR 3 · RT Full · FG XeSS-FG · XeLL | FSR 3 Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 9 | 38.7–39.2 |  |
+| xessfg | FSR 3 · RT Full, radiance cache · FG off (XeSS-FG loaded) · XeLL | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 15 | 43.6–46.4 |  |
+| xessfg | FSR 3 · RT Full, radiance cache · FG XeSS-FG · XeLL | FSR 3 Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 8 | 38.9–39.6 |  |
+| xessfg | DLSS · RT Off · FG off (XeSS-FG loaded) · XeLL | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 14 | 64.7–71.9 |  |
+| xessfg | DLSS · RT Off · FG XeSS-FG · XeLL | DLSS Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 9 | 57.5–58.3 |  |
+| xessfg | DLSS · RT Full, RR on · FG off (XeSS-FG loaded) · XeLL | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 14 | 33.6–36.3 |  |
+| xessfg | DLSS · RT Full, RR on · FG XeSS-FG · XeLL | DLSS Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 8 | 31.0–31.6 |  |
+| xessfg | DLSS · RT Full, RR off · FG off (XeSS-FG loaded) · XeLL | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 15 | 40.5–43.6 |  |
+| xessfg | DLSS · RT Full, RR off · FG XeSS-FG · XeLL | DLSS Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 9 | 36.8–37.3 |  |
+| xessfg | AMD DLL · RT Off · FG off (XeSS-FG loaded) · XeLL | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 14 | 68.3–73.1 |  |
+| xessfg | AMD DLL · RT Off · FG XeSS-FG · XeLL | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 8 | 59.3–60.0 |  |
+| xessfg | AMD DLL · RT Full · FG off (XeSS-FG loaded) · XeLL | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 14 | 41.4–44.1 |  |
+| xessfg | AMD DLL · RT Full · FG XeSS-FG · XeLL | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 8 | 37.2–37.7 |  |
+| xessfg | XeSS · RT Off · FG off (XeSS-FG loaded) · XeLL | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 14 | 68.2–73.0 |  |
+| xessfg | XeSS · RT Off · FG XeSS-FG · XeLL | XeSS (DLL) Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 8 | 56.9–57.5 |  |
+| xessfg | XeSS · RT Full · FG off (XeSS-FG loaded) · XeLL | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 14 | 40.5–43.0 |  |
+| xessfg | XeSS · RT Full · FG XeSS-FG · XeLL | XeSS (DLL) Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 9 | 36.4–36.9 |  |
+| xessfg | FSR 3 · RT Full, opacity micromaps · FG off (XeSS-FG loaded) · XeLL | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing (XeLL's markers only) | 15 | 39.2–42.2 |  |
+| xessfg | FSR 3 · RT Full, opacity micromaps · FG XeSS-FG · XeLL | FSR 3 Quality, 1707x960 to 2560x1440 | XeSS-FG | 2.00 | XeLL | 8 | 35.7–36.0 |  |
+
+The proxy's configuration in each start, as the proxy logged it at load:
+
+```
+fsr: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(set) xessDirectory=(set) streamlineDirectory=(none) xessFgDirectory=(none)
+dlssg: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=dlss rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on pacing=0.100000/0.100000 fgMinimumFps=0 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(set) xessDirectory=(set) streamlineDirectory=(none) xessFgDirectory=(none)
+dlssg-c: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=dlss rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on pacing=0.100000/0.100000 fgMinimumFps=0 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+xessfg: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=xess rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=1 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(set) xessDirectory=(set) streamlineDirectory=(none) xessFgDirectory=(set)
+```
+
+The raytracing's frames that built 50 meshes or more, at the flight's start:
+
+* fsr: 10 frames, 1306 meshes, 550680 triangles; the slowest 0.67 ms of the GPU, 3.03 ms of the CPU
+* dlssg: 10 frames, 1236 meshes, 472995 triangles; the slowest 0.67 ms of the GPU, 3.47 ms of the CPU
+* dlssg-c: 5 frames, 612 meshes, 262395 triangles; the slowest 0.63 ms of the GPU, 5.19 ms of the CPU
+* xessfg: 10 frames, 1318 meshes, 554512 triangles; the slowest 0.63 ms of the GPU, 3.14 ms of the CPU
+
+</details>
+
 ### Run 2026-10-20-2347
 
 | What | Value |
