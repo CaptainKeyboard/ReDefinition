@@ -1083,8 +1083,11 @@ int main()
         renderEvent = reinterpret_cast<RenderEventFn>(getRenderEvent());
 
         // The snapshot is only taken while frame generation is wanted, exactly
-        // as in the game.
-        setEnabled(1);
+        // as in the game. REDEFINITION_HARNESS_FG_OFF_FIRST=1: the first frames run with it
+        // off, as a game does that starts with the switch off, and it is switched on after
+        // them (the check below the first frames).
+        if (!EnvironmentSet(L"REDEFINITION_HARNESS_FG_OFF_FIRST"))
+            setEnabled(1);
 
         hr = CreateFilledTexture(device.Get(), kUiWidth, kUiHeight, DXGI_FORMAT_R8G8B8A8_UNORM,
                                  0xFFFFFFFFu, ui);
@@ -1241,6 +1244,30 @@ int main()
     }
 
     printf("      %u frames presented\n", kFrames);
+
+    // Started with frame generation off: the state DLSS-G reports before it was ever switched on
+    // must not be taken for a verdict that Dynamic is unsupported (the proxy asks again once it
+    // has been on). Unknown (-1) or supported (1) is right here, not 0.
+    int dynamicBeforeOn = -2;
+    if (EnvironmentSet(L"REDEFINITION_HARNESS_FG_OFF_FIRST"))
+    {
+        using OffFirstLimitsFn = int (*)(int*, int*);
+        const OffFirstLimitsFn limitsOff = reinterpret_cast<OffFirstLimitsFn>(GetProcAddress(dxgi, "KspFgLimits"));
+        if (limitsOff == nullptr)
+            return Fail("GetProcAddress(KspFgLimits)", E_FAIL);
+        for (UINT frame = 0; frame < 120; ++frame)
+        {
+            hr = renderFrame();
+            if (FAILED(hr))
+                return Fail("Present with frame generation off", hr);
+        }
+        int mostOff = 0;
+        limitsOff(&mostOff, &dynamicBeforeOn);
+        printf("      frame generation never on: dynamic support reported %d\n", dynamicBeforeOn);
+        if (dynamicBeforeOn == 0)
+            return Fail("Dynamic is reported unsupported before DLSS-G was ever switched on", E_FAIL);
+        setEnabled(1);
+    }
 
     if (lastCheck != nullptr)
     {
@@ -1863,6 +1890,8 @@ int main()
             int dynamicSupport = 0;
             const int runs = fgLimits(&most, &dynamicSupport);
             printf("      multiplier limits: technique %d, up to %dx, dynamic support %d\n", runs, most, dynamicSupport);
+            if (dynamicBeforeOn == -1 && dynamicSupport == -1)
+                return Fail("DLSS-G has been on, but Dynamic support is still not known", E_FAIL);
             if (runs != 2 || most < 2)
                 return Fail("KspFgLimits did not report DLSS-G's multiplier", E_FAIL);
             for (int step = 2; step <= most; ++step)

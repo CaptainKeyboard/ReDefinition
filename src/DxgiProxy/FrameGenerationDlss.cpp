@@ -108,6 +108,7 @@ namespace redefinition
         streamlineVsyncKnown = false;
         streamlineVsyncSupported = true;
         streamlineDynamicKnown = false;
+        streamlineEverOn = false;
         streamlineDynamicSupported = false;
         loggedDynamicFallback = false;
         streamlineModeSet = -1;
@@ -284,11 +285,13 @@ namespace redefinition
         const uint32_t limit = maxFrames ? maxFrames() : 0;
         // The multiplier the mod asked for (SetMultiplier), else dlssgFrames, else as many as the
         // GPU and the package offer; never more than they offer.
-        const int multiplierAsked = askedMultiplier.load();
+        const uint32_t askedNow = askedPacked.load();
+        const int multiplierAsked = static_cast<int>(askedNow & 0xFFFFu);
+        const bool dynamicByMod = (askedNow >> 16) != 0;
         const uint32_t askedFrames = multiplierAsked >= 2 ? static_cast<uint32_t>(multiplierAsked - 1)
                                      // Dynamic asked for by the mod: the fixed multiplier it falls back to where
                                      // Streamline does not support it is 2x, not as many as the GPU offers.
-                                     : multiplierAsked == 0 && askedDynamic.load() ? 1u
+                                     : multiplierAsked == 0 && dynamicByMod ? 1u
                                      : multiplierAsked == 0 && cfg.dlssgFrames > 0 ? static_cast<uint32_t>(cfg.dlssgFrames)
                                                                                     : streamlineFrames;
         const uint32_t wantedFrames = askedFrames < streamlineFrames ? askedFrames : streamlineFrames;
@@ -301,8 +304,8 @@ namespace redefinition
         // numFramesToGenerate under it, and the latency brake runs as under any
         // Streamline Reflex (LowLatency::Describe).
         // Asked for by the mod, or by dlssgMode where the mod has asked for nothing.
-        const bool dynamicAsked = multiplierAsked != 0 || askedDynamic.load() ? askedDynamic.load()
-                                                                                : cfg.dlssgMode == kDlssgModeDynamic;
+        const bool dynamicAsked = multiplierAsked != 0 || dynamicByMod ? dynamicByMod
+                                                                          : cfg.dlssgMode == kDlssgModeDynamic;
         const bool dynamic = dynamicAsked && streamlineDynamicKnown && streamlineDynamicSupported;
         // Under it the frames are the most Streamline may choose from, not the fixed fallback.
         if (dynamic)
@@ -311,7 +314,7 @@ namespace redefinition
         {
             loggedDynamicFallback = true;
             LogLine(std::string("DLSS frame generation: dynamic multi frame generation is asked for (")
-                    + (askedDynamic.load() ? "in the mod" : "dlssgMode=dynamic")
+                    + (dynamicByMod ? "in the mod" : "dlssgMode=dynamic")
                     + "), but Streamline does not report it supported on this system -- the fixed multiplier is used");
         }
         sl::DLSSGOptions options{};
@@ -377,6 +380,7 @@ namespace redefinition
         streamlineModeSet = modeNow;
         streamlineDynamicActive = dynamic;
         streamlineOn = true;
+        streamlineEverOn = true;
         streamlineFramesSet = frames;
         generatedLastPresent = true;
         return true;
@@ -476,8 +480,15 @@ namespace redefinition
         }
         streamlineFramesNow = static_cast<int>(frames);
 
+        // Read again on every Present until a verdict is taken: a "not supported" from before the
+        // first options is not one, and the session would be told Dynamic is unsupported although
+        // it works once DLSS-G is on.
         if (!streamlineDynamicKnown)
-            NoteDynamicSupportLocked(state.bIsDynamicMFGSupported == sl::Boolean::eTrue, state.numFramesToGenerateMax);
+        {
+            const bool dynamicSupported = state.bIsDynamicMFGSupported == sl::Boolean::eTrue;
+            if (dynamicSupported || streamlineEverOn)
+                NoteDynamicSupportLocked(dynamicSupported, state.numFramesToGenerateMax);
+        }
 
         // "Applications should check sl::DLSSGState::bIsVsyncSupportAvailable to
         // determine if VSync is supported with the current DLSS-G build"

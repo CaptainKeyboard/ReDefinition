@@ -197,7 +197,8 @@ namespace redefinition
         // "only as a response to a user changing the graphics settings" -- so only
         // when xessFgFrames changes (Controlling the Number of Generated Frames).
         // The mod's multiplier (SetMultiplier) where it has asked for one, else xessFgFrames.
-        const int askedNow = askedMultiplier.load() >= 2 ? askedMultiplier.load() - 1 : cfg.xessFgFrames;
+        const int multiplierAsked = AskedMultiplier();
+        const int askedNow = multiplierAsked >= 2 ? multiplierAsked - 1 : cfg.xessFgFrames;
         if (askedNow != xessFramesSeen)
         {
             xessFramesSeen = askedNow;

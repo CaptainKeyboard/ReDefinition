@@ -129,8 +129,8 @@ namespace redefinition
         // Never more than the technique that runs allows (StreamlineMultiplierMost,
         // XessFramesMost); fewer where the display cannot show so many.
         void SetMultiplier(int multiplier, bool dynamic);
-        int AskedMultiplier() const { return askedMultiplier.load(); }
-        bool AskedDynamic() const { return askedDynamic.load(); }
+        int AskedMultiplier() const { return static_cast<int>(askedPacked.load() & 0xFFFFu); }
+        bool AskedDynamic() const { return (askedPacked.load() >> 16) != 0; }
 
         // From the render thread, with the packet the managed side sent for
         // this frame.
@@ -498,6 +498,9 @@ namespace redefinition
         bool EnsureUiPlaneLocked();
         bool EnsureUiShaderLocked(bool minimal, float thresholdLevels);
         void ReleaseUiPlaneLocked();
+        // Everything of the plane and its shader, for a device or swapchain made anew: the
+        // objects belong to the devices they were made on.
+        void ResetUiLocked();
         SharedTexture uiPlane[2];
         Microsoft::WRL::ComPtr<ID3D11Texture2D> uiFrameCopy;
         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> uiFrameView;
@@ -510,6 +513,12 @@ namespace redefinition
         float uiShaderThreshold = -1.0f;
         bool uiUnavailable = false;
         bool uiPlaneFresh = false;
+        // The size and format a plane could not be made for: not tried (and not logged) again
+        // until the backbuffer changes.
+        bool uiPlaneFailed = false;
+        UINT uiPlaneFailedWidth = 0;
+        UINT uiPlaneFailedHeight = 0;
+        DXGI_FORMAT uiPlaneFailedFormat = DXGI_FORMAT_UNKNOWN;
         // Whether the options last set asked for recomposition, for the log line that says each change once.
         bool streamlineUiSet = false;
 
@@ -670,10 +679,13 @@ namespace redefinition
         uint32_t streamlineStatus = 0;
         bool streamlineStatusKnown = false;
         bool streamlineVsyncKnown = false;
-        // DLSSGState::bIsDynamicMFGSupported as the first state of the swapchain said it:
-        // whether it is known, whether it is supported, and which mode the options last
-        // set (kDlssgMode*), for the log lines that say each once.
+        // DLSSGState::bIsDynamicMFGSupported as the state of the swapchain said it: whether it is
+        // known, whether it is supported, and which mode the options last set (kDlssgMode*), for
+        // the log lines that say each once. A "supported" is taken as soon as it is read; a "not
+        // supported" only once DLSS-G has been switched on on the swapchain
+        // (streamlineEverOn), as the state may not report it before the first options.
         bool streamlineDynamicKnown = false;
+        bool streamlineEverOn = false;
         bool streamlineDynamicSupported = false;
         bool loggedDynamicFallback = false;
         int streamlineModeSet = -1;
@@ -693,8 +705,9 @@ namespace redefinition
         std::atomic<int> streamlineFramesNow{ 0 };
         std::atomic<int> streamlineDynamicNow{ -1 };
         std::atomic<bool> streamlineDynamicActive{ false };
-        std::atomic<int> askedMultiplier{ 0 };
-        std::atomic<bool> askedDynamic{ false };
+        // The multiplier asked for (low 16 bits) and whether Dynamic is (bit 16) as one value: a
+        // Present reads the pair, never half of a change in progress.
+        std::atomic<uint32_t> askedPacked{ 0 };
         bool loggedDynamicAsked = false;
 
         // XeSS-FG: whether the owner's swapchain is its, its context, whether it was

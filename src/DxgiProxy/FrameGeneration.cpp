@@ -39,6 +39,9 @@ namespace redefinition
         if (contextCreated && owner != nullptr && owner != newOwner)
             DestroyContextLocked(contextSwapChain);
 
+        // The UI plane and its shader were made on the devices of the earlier owner.
+        ResetUiLocked();
+
         owner = newOwner;
         device11 = newDevice11;
         context11 = newContext11;
@@ -125,6 +128,9 @@ namespace redefinition
             input->unityView.Reset();
         }
 
+        // The UI plane and its shader belong to the devices that go.
+        ResetUiLocked();
+
         // The proxy's destructor waited for the GPU before this, so nothing
         // reads them any more.
         retired.clear();
@@ -178,10 +184,11 @@ namespace redefinition
     {
         if (multiplier < 0)
             multiplier = 0;
-        if (askedMultiplier.load() == multiplier && askedDynamic.load() == dynamic)
+        if (multiplier > 0xFFFF)
+            multiplier = 0xFFFF;
+        const uint32_t packed = static_cast<uint32_t>(multiplier) | (dynamic ? 0x10000u : 0u);
+        if (askedPacked.exchange(packed) == packed)
             return;
-        askedMultiplier = multiplier;
-        askedDynamic = dynamic;
         loggedDynamicAsked = false;
         std::string text = dynamic ? "dynamic" : multiplier >= 2 ? std::to_string(multiplier) + "x" : "none asked for";
         LogLine("Frame generation multiplier requested: " + text);

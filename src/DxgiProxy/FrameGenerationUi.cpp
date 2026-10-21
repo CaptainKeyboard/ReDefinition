@@ -142,13 +142,21 @@ namespace redefinition
                           && uiFrameFormat == desc.Format;
         if (made)
             return true;
+        if (uiPlaneFailed && uiPlaneFailedWidth == desc.Width && uiPlaneFailedHeight == desc.Height
+            && uiPlaneFailedFormat == desc.Format)
+            return false;
 
         ReleaseUiPlaneLocked();
+        uiPlaneFailed = true;
+        uiPlaneFailedWidth = desc.Width;
+        uiPlaneFailedHeight = desc.Height;
+        uiPlaneFailedFormat = desc.Format;
         for (SharedTexture& plane : uiPlane)
             if (!plane.Create(device11.Get(), device12.Get(), desc.Width, desc.Height, DXGI_FORMAT_R8G8B8A8_UNORM)
                 || !plane.uav)
             {
-                LogLine("DLSS frame generation: the UI plane's textures could not be made -- no UI plane");
+                LogLine("DLSS frame generation: the UI plane's textures could not be made -- no UI plane until the "
+                        "backbuffer changes");
                 ReleaseUiPlaneLocked();
                 return false;
             }
@@ -174,10 +182,11 @@ namespace redefinition
         if (FAILED(hr))
         {
             LogLine("DLSS frame generation: the copy of the presented frame for the UI plane could not be made ("
-                    + Hr(hr) + ") -- no UI plane");
+                    + Hr(hr) + ") -- no UI plane until the backbuffer changes");
             ReleaseUiPlaneLocked();
             return false;
         }
+        uiPlaneFailed = false;
         uiFrameFormat = desc.Format;
         LogLine("DLSS frame generation: UI plane " + std::to_string(desc.Width) + "x" + std::to_string(desc.Height)
                 + " made, format 28");
@@ -197,6 +206,17 @@ namespace redefinition
         uiFrameView.Reset();
         uiFrameCopy.Reset();
         uiFrameFormat = DXGI_FORMAT_UNKNOWN;
+    }
+
+    void FrameGeneration::ResetUiLocked()
+    {
+        ReleaseUiPlaneLocked();
+        uiShader.Reset();
+        uiShaderMinimal = false;
+        uiShaderThreshold = -1.0f;
+        uiUnavailable = false;
+        uiPlaneFresh = false;
+        uiPlaneFailed = false;
     }
 
     bool FrameGeneration::SplitUiLocked()
