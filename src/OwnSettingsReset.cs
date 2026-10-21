@@ -17,6 +17,7 @@ namespace ReDefinition
             reset.Raytracing = now.Raytracing;
             reset.RaytracingBounces = now.RaytracingBounces;
             reset.RayReconstruction = now.RayReconstruction;
+            reset.RayReconstructionFrom = now.RayReconstructionFrom;
             reset.ReplaceKspSettings = now.ReplaceKspSettings;
             reset.PauseWhileOpen = now.PauseWhileOpen;
             reset.NavballOffset = now.NavballOffset;

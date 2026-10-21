@@ -96,7 +96,9 @@ namespace ReDefinition.Upscaler
                           + " Resolution.");
             }
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            bool wanted = raytracedHere && EffectiveHdr && UseRayReconstruction && (addon == null || addon.Live.RayReconstruction)
+            // rayReconstructionFrom: in the least raytracing mode the player chose and above.
+            bool wanted = raytracedHere && EffectiveHdr && UseRayReconstruction
+                          && (addon == null || (addon.Live.RayReconstruction && addon.Live.Raytracing >= addon.Live.RayReconstructionFrom))
                           && Time.unscaledTime - reconstructionGaveUpAt > ReconstructionRetrySeconds && ReconstructionReady();
             if (wanted) raytraced.ReconstructionLease = Time.frameCount;
             bool was = Reconstructing;

@@ -36,6 +36,9 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Full", settings.ValueOf("raytracing"));
             Assert.IsTrue(settings.SetValue("rayReconstruction", "false"));
             Assert.IsFalse(settings.RayReconstruction);
+            Assert.AreEqual("Shadows", settings.ValueOf("rayReconstructionFrom"));
+            Assert.IsTrue(settings.SetValue("rayReconstructionFrom", "Full"));
+            Assert.AreEqual("Full", settings.ValueOf("rayReconstructionFrom"));
             Assert.IsFalse(settings.SetValue("technique", "Nonsense"));
             Assert.IsFalse(settings.SetValue("noSuchKey", "1"));
             Assert.IsNull(settings.ValueOf("noSuchKey"));

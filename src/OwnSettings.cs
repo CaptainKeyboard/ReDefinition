@@ -45,6 +45,11 @@ namespace ReDefinition
         // off, the raytracing's own denoiser and DLSS Super Resolution do
         // (Upscaler/UpscalerRig.Reconstruction).
         public bool RayReconstruction = true;
+        // The least raytracing mode it runs in: below it the raytracing's own denoiser and DLSS
+        // Super Resolution take the frame. Ray Reconstruction takes about 9 ms of GPU time on an
+        // RTX A4500 in every mode, against the own denoiser's 0.7 ms (Shadows), 2.7 (Light) and
+        // 3.7 (Full) plus Super Resolution's 1.5. Shadows: every mode, as before.
+        public RaytracingMode RayReconstructionFrom = RaytracingMode.Shadows;
         // How bright the moons' and planets' light is, in percent of the raytracing's
         // artistic scale (Raytracing/Ksp/RtReflectors).
         public float RaytracingMoonlight = 10f;
@@ -340,6 +345,7 @@ namespace ReDefinition
                 },
             },
             Bool("rayReconstruction", x => x.RayReconstruction, (x, v) => x.RayReconstruction = v, true),
+            Enum("rayReconstructionFrom", x => x.RayReconstructionFrom, (x, v) => x.RayReconstructionFrom = v, true),
             Float("raytracingMoonlight", "0", x => x.RaytracingMoonlight, (x, v) => x.RaytracingMoonlight = v, true),
             Bool("moonGlow", x => x.MoonGlow, (x, v) => x.MoonGlow = v, true),
             Float("raytracingMoonReflection", "0", x => x.RaytracingMoonReflection, (x, v) => x.RaytracingMoonReflection = v, true),

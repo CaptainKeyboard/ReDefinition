@@ -241,6 +241,28 @@ namespace ReDefinition
             },
             new ModuleSetting
             {
+                Key = "rayReconstructionFrom",
+                Title = "Ray Reconstruction from",
+                Kind = SettingKind.Other,
+                Order = 66,
+                Control = SettingControl.Choice,
+                Choices = new[]
+                {
+                    ReDefinition.Raytracing.RaytracingMode.Shadows.ToString(), ReDefinition.Raytracing.RaytracingMode.Light.ToString(),
+                    ReDefinition.Raytracing.RaytracingMode.Full.ToString(),
+                },
+                Label = value => RaytracingLabel(value),
+                Tooltip = "The least raytracing that Ray Reconstruction takes the frame in. Below it ReDefinition's own\n"
+                          + "denoiser and DLSS Super Resolution do. Ray Reconstruction costs about 9 ms of GPU time on an\n"
+                          + "RTX A4500 in every mode; the own denoiser and Super Resolution together 2.2 ms with Shadows,\n"
+                          + "4.2 ms with shadows and light and 5.2 ms with Full. Shadows: Ray Reconstruction in all of them.",
+                Read = settings => settings.RayReconstructionFrom.ToString(),
+                Write = (settings, value) => settings.RayReconstructionFrom = RaytracingModeOf(value),
+                Interactable = settings => settings.RayReconstruction && settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off
+                                           && settings.Backend == UpscalerBackend.Dlss,
+            },
+            new ModuleSetting
+            {
                 Key = "moonlight",
                 Title = "Moonlight",
                 Kind = SettingKind.Other,
