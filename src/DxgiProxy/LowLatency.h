@@ -7,6 +7,8 @@
 
 #include <XeSS/xell.h>
 
+#include "BrakeController.h"
+
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -236,9 +238,7 @@ namespace redefinition
         // The brake's state, on the main thread.
         int64_t brakeWaitsBefore = -1;
         int64_t brakeFrameStart = 0;
-        double brakeSleepMs = 0.0;
-        double brakeFrameMs = 0.0;
-        double brakeWaitMs = 0.0;
+        BrakeController brake;
         // The waits it counts, as latencyBrakeWaits had them.
         int brakeWaitsKind = 0;
         unsigned long long brakeReport = 0;

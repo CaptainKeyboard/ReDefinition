@@ -538,42 +538,30 @@ namespace redefinition
             brakeWaitsKind = Config().latencyBrakeWaits;
             brakeWaitsBefore = waits;
             brakeFrameStart = now;
-            brakeSleepMs = 0.0;
+            brake.sleepMs = 0.0;
             return;
         }
         const double waitMs = static_cast<double>(waits - brakeWaitsBefore) * 1000.0 / Frequency();
         const double frameMs = static_cast<double>(now - brakeFrameStart) * 1000.0 / Frequency();
         brakeWaitsBefore = waits;
         brakeFrameStart = now;
-        // The frame's own work, without the brake's sleep, which the clamp below must
-        // not grow with.
-        const double workMs = frameMs > brakeSleepMs ? frameMs - brakeSleepMs : frameMs;
-        brakeFrameMs = brakeFrameMs == 0.0 ? workMs : brakeFrameMs * 0.9 + workMs * 0.1;
-        brakeWaitMs = brakeWaitMs * 0.9 + waitMs * 0.1;
+        // Towards the target's waiting left, a fifth of the difference a frame. A hitch --
+        // one long wait or frame -- counts as a frame's worth at most, measured against the
+        // frame time from before it, and the sleep is at most half a frame's work, so it
+        // cannot hold the game back after it (BrakeController.h).
+        const double sleepMs = brake.Update(frameMs, waitMs, Config().latencyBrakeTargetMs);
 
-        // Towards the target's waiting left, a fifth of the difference a frame. A
-        // hitch -- one long wait -- counts as a frame's worth at most, and the sleep is
-        // at most half a frame's work, so it cannot hold the game back after it.
-        const double target = Config().latencyBrakeTargetMs > 0.5f ? Config().latencyBrakeTargetMs : 0.5;
-        constexpr double kGain = 0.2;
-        const double counted = waitMs < brakeFrameMs ? waitMs : brakeFrameMs;
-        brakeSleepMs += kGain * (counted - target);
-        if (brakeSleepMs < 0.0)
-            brakeSleepMs = 0.0;
-        if (brakeSleepMs > brakeFrameMs * 0.5)
-            brakeSleepMs = brakeFrameMs * 0.5;
-
-        if (brakeSleepMs >= 0.1)
+        if (sleepMs >= 0.1)
         {
             if (brakeTimer == nullptr)
                 brakeTimer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
                                                     TIMER_ALL_ACCESS);
             LARGE_INTEGER due;
-            due.QuadPart = -static_cast<LONGLONG>(brakeSleepMs * 10000.0);
+            due.QuadPart = -static_cast<LONGLONG>(sleepMs * 10000.0);
             if (brakeTimer != nullptr && SetWaitableTimer(brakeTimer, &due, 0, nullptr, nullptr, FALSE))
                 WaitForSingleObject(brakeTimer, 100);
             else
-                Sleep(static_cast<DWORD>(brakeSleepMs));
+                Sleep(static_cast<DWORD>(sleepMs));
         }
 
         const ULONGLONG tick = GetTickCount64();
@@ -584,7 +572,7 @@ namespace redefinition
             char line[192];
             sprintf_s(line, "Latency brake: sleeps %.1f ms before the frame, %.1f ms of waits in the proxy%s left a"
                             " frame of %.1f ms work",
-                      brakeSleepMs, brakeWaitMs, brakeWaitsKind == 1 ? " with the Present" : "", brakeFrameMs);
+                      brake.sleepMs, brake.waitMs, brakeWaitsKind == 1 ? " with the Present" : "", brake.frameMs);
             LogLine(line);
         }
     }

@@ -37,6 +37,7 @@
 // A failing proxy shows here as an HRESULT and a log line, without a game
 // launch.
 
+#include "BrakeController.h"
 #include "D3d12Util.h"
 #include "Dlss.h"
 #include "FileUtil.h"
@@ -797,12 +798,140 @@ namespace
     }
 }
 
+namespace
+{
+    // The latency brake's controller (BrakeController.h) against a frame loop in which the
+    // sleep takes the waits away: the GPU is 10 ms behind the CPU, so a frame meets
+    // 10 ms less the sleep in waits. Without a GPU. The controller as it was before the hitch
+    // bound moved off the smoothed frame time is run beside it, for the numbers.
+    struct OldBrake
+    {
+        double sleepMs = 0.0, frameMs = 0.0;
+        void Update(double wallMs, double waitedMs, double targetMs)
+        {
+            const double work = wallMs > sleepMs ? wallMs - sleepMs : wallMs;
+            frameMs = frameMs == 0.0 ? work : frameMs * 0.9 + work * 0.1;
+            const double target = targetMs > 0.5 ? targetMs : 0.5;
+            const double counted = waitedMs < frameMs ? waitedMs : frameMs;
+            sleepMs += 0.2 * (counted - target);
+            if (sleepMs < 0.0)
+                sleepMs = 0.0;
+            if (sleepMs > frameMs * 0.5)
+                sleepMs = frameMs * 0.5;
+        }
+    };
+
+    template <typename Controller>
+    struct BrakeRun
+    {
+        double settledSleep = 0.0;
+        double settledFrame = 0.0;
+        double sleepAfterHitch = 0.0;
+        double frameAfterHitch = 0.0;
+        double peakSleep = 0.0;
+        int framesBack = 0;
+    };
+
+    template <typename Controller>
+    BrakeRun<Controller> RunBrake(double behindMs, double workMs, double targetMs, double hitchMs, double* stepFrameMs)
+    {
+        Controller controller;
+        BrakeRun<Controller> run;
+        // The frame's wall time is its work and the sleep; the waits are what the GPU is behind
+        // by, less the sleep.
+        auto frame = [&](double work, double extraWait)
+        {
+            const double wall = work + controller.sleepMs;
+            controller.Update(wall, std::max(0.0, behindMs - controller.sleepMs) + extraWait, targetMs);
+        };
+        for (int i = 0; i < 400; ++i)
+            frame(workMs, 0.0);
+        run.settledSleep = controller.sleepMs;
+        run.settledFrame = controller.frameMs;
+        if (hitchMs > 0.0)
+        {
+            frame(workMs + hitchMs, hitchMs);
+            run.sleepAfterHitch = controller.sleepMs;
+            run.frameAfterHitch = controller.frameMs;
+            run.peakSleep = controller.sleepMs;
+            run.framesBack = 400;
+            for (int i = 0; i < 400; ++i)
+            {
+                frame(workMs, 0.0);
+                run.peakSleep = std::max(run.peakSleep, controller.sleepMs);
+                if (run.framesBack == 400 && std::fabs(controller.sleepMs - run.settledSleep) < 0.5)
+                    run.framesBack = i + 1;
+            }
+        }
+        if (stepFrameMs != nullptr)
+        {
+            // The game slows from the work it had to twice that: the average has to follow.
+            for (int i = 0; i < 60; ++i)
+                frame(workMs * 2.0, 0.0);
+            *stepFrameMs = controller.frameMs;
+        }
+        return run;
+    }
+
+    int RunBrakeControllerChecks()
+    {
+        const double work = 16.0;
+        const double target = 4.0;
+        double newStep = 0.0;
+        double oldStep = 0.0;
+        const BrakeRun<redefinition::BrakeController> now =
+            RunBrake<redefinition::BrakeController>(10.0, work, target, 500.0, &newStep);
+        const BrakeRun<OldBrake> before = RunBrake<OldBrake>(10.0, work, target, 500.0, &oldStep);
+        printf("      brake controller, steady: sleep %.2f ms (before %.2f), frame %.2f ms (before %.2f)\n", now.settledSleep,
+               before.settledSleep, now.settledFrame, before.settledFrame);
+        printf("      brake controller, a 500 ms hitch: frame time %.1f ms (before %.1f), sleep %.2f ms (before %.2f), peak"
+               " %.2f ms (before %.2f), settled again after %d frames (before %d)\n",
+               now.frameAfterHitch, before.frameAfterHitch, now.sleepAfterHitch, before.sleepAfterHitch, now.peakSleep,
+               before.peakSleep, now.framesBack, before.framesBack);
+        printf("      brake controller, work doubling from %.0f ms: average %.1f ms after 60 frames (before %.1f)\n", work, newStep,
+               oldStep);
+        // The key behaviour is kept: the sleep settles where the waits left equal the target.
+        if (std::fabs(now.settledSleep - (10.0 - target)) > 0.2 || std::fabs(now.settledSleep - before.settledSleep) > 0.05)
+        {
+            printf("FAIL  the brake no longer settles where the waits left equal the target\n");
+            return 1;
+        }
+        // A hitch is a frame's worth at most: the average stays near the frame time, and the sleep
+        // grows by no more than the gain times the frame time less the target, once.
+        if (now.frameAfterHitch > work * 1.3)
+        {
+            printf("FAIL  a 500 ms hitch lifted the brake's frame time to %.1f ms\n", now.frameAfterHitch);
+            return 1;
+        }
+        if (now.peakSleep - now.settledSleep > 0.2 * (work - target) + 0.1)
+        {
+            printf("FAIL  a 500 ms hitch added %.2f ms to the brake's sleep\n", now.peakSleep - now.settledSleep);
+            return 1;
+        }
+        // A real slowdown is followed, as before.
+        if (newStep < work * 2.0 * 0.95)
+        {
+            printf("FAIL  the brake's frame time did not follow the work doubling (%.1f ms)\n", newStep);
+            return 1;
+        }
+        printf("PASS  the brake controller: settles as before, a 500 ms hitch counts as a frame's worth\n");
+        return 0;
+    }
+}
+
 int main()
 {
     // Unbuffered: a process ended from elsewhere keeps every line it printed.
     setvbuf(stdout, nullptr, _IONBF, 0);
     printf("ReDefinition proxy harness\n");
     CloseHandle(CreateThread(nullptr, 0, Watchdog, nullptr, 0, nullptr));
+
+    // Without a GPU: the latency brake's controller.
+    if (RunBrakeControllerChecks() != 0)
+        return 1;
+    // REDEFINITION_HARNESS_BRAKE_ONLY=1: nothing else, for a machine whose GPU is busy.
+    if (EnvironmentSet(L"REDEFINITION_HARNESS_BRAKE_ONLY"))
+        return 0;
 
     {
         wchar_t replayFolder[MAX_PATH] = {};
