@@ -231,7 +231,8 @@ namespace ReDefinition
                 Tooltip = "NVIDIA's DLSS Ray Reconstruction cleans up and upscales the raytraced image in one step:\n"
                           + "sharper reflections, less flicker and smearing, at more GPU time. Off, ReDefinition's own\n"
                           + "denoiser and DLSS Super Resolution do it.\n"
-                          + "Needs DLSS as the upscaler, and DLSS frame generation or frame generation off.",
+                          + "Needs DLSS as the upscaler. Runs beside every frame generation: through Streamline with DLSS\n"
+                          + "frame generation or none, directly through NGX with FSR or XeSS frame generation.",
                 Read = settings => SettingValues.Text(settings.RayReconstruction),
                 Write = (settings, value) => settings.RayReconstruction = bool.Parse(value),
                 Interactable = settings => settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off

@@ -494,10 +494,14 @@ xessfg: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGeneration
 
 The raytracing's frames that built 50 meshes or more, at the flight's start:
 
-* fsr: 10 frames, 1306 meshes, 550680 triangles; the slowest 0.67 ms of the GPU, 3.03 ms of the CPU
-* dlssg: 10 frames, 1236 meshes, 472995 triangles; the slowest 0.67 ms of the GPU, 3.47 ms of the CPU
-* dlssg-c: 5 frames, 612 meshes, 262395 triangles; the slowest 0.63 ms of the GPU, 5.19 ms of the CPU
-* xessfg: 10 frames, 1318 meshes, 554512 triangles; the slowest 0.63 ms of the GPU, 3.14 ms of the CPU
+* fsr: 10 frames, 1306 meshes, 550680 triangles; the slowest 0.67 ms of the GPU,
+  3.03 ms of the CPU
+* dlssg: 10 frames, 1236 meshes, 472995 triangles; the slowest 0.67 ms of the GPU,
+  3.47 ms of the CPU
+* dlssg-c: 5 frames, 612 meshes, 262395 triangles; the slowest 0.63 ms of the GPU,
+  5.19 ms of the CPU
+* xessfg: 10 frames, 1318 meshes, 554512 triangles; the slowest 0.63 ms of the GPU,
+  3.14 ms of the CPU
 
 </details>
 
@@ -668,10 +672,14 @@ xessfg: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGeneration
 
 The raytracing's frames that built 50 meshes or more, at the flight's start:
 
-* fsr: 10 frames, 1309 meshes, 514301 triangles; the slowest 0.62 ms of the GPU, 6.35 ms of the CPU
-* dlssg: 10 frames, 1321 meshes, 556686 triangles; the slowest 0.64 ms of the GPU, 2.89 ms of the CPU
-* dlssg-c: 5 frames, 623 meshes, 266707 triangles; the slowest 0.61 ms of the GPU, 5.36 ms of the CPU
-* xessfg: 10 frames, 1245 meshes, 496559 triangles; the slowest 0.64 ms of the GPU, 3.66 ms of the CPU
+* fsr: 10 frames, 1309 meshes, 514301 triangles; the slowest 0.62 ms of the GPU,
+  6.35 ms of the CPU
+* dlssg: 10 frames, 1321 meshes, 556686 triangles; the slowest 0.64 ms of the GPU,
+  2.89 ms of the CPU
+* dlssg-c: 5 frames, 623 meshes, 266707 triangles; the slowest 0.61 ms of the GPU,
+  5.36 ms of the CPU
+* xessfg: 10 frames, 1245 meshes, 496559 triangles; the slowest 0.64 ms of the GPU,
+  3.66 ms of the CPU
 
 </details>
 
@@ -723,7 +731,8 @@ xessfg: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGeneration
 
 The raytracing's frames that built 50 meshes or more, at the flight's start:
 
-* xessfg: 10 frames, 1308 meshes, 552862 triangles; the slowest 2.98 ms of the GPU, 7.30 ms of the CPU
+* xessfg: 10 frames, 1308 meshes, 552862 triangles; the slowest 2.98 ms of the GPU,
+  7.30 ms of the CPU
 
 </details>
 
@@ -873,9 +882,12 @@ xessfg: no Config line
 
 The raytracing's frames that built 50 meshes or more, at the flight's start:
 
-* fsr: 10 frames, 1430 meshes, 516162 triangles; the slowest 3.09 ms of the GPU, 8.65 ms of the CPU
-* dlssg: 10 frames, 1326 meshes, 528768 triangles; the slowest 3.09 ms of the GPU, 4.41 ms of the CPU
-* dlssg-c: 5 frames, 642 meshes, 274748 triangles; the slowest 0.61 ms of the GPU, 2.70 ms of the CPU
+* fsr: 10 frames, 1430 meshes, 516162 triangles; the slowest 3.09 ms of the GPU,
+  8.65 ms of the CPU
+* dlssg: 10 frames, 1326 meshes, 528768 triangles; the slowest 3.09 ms of the GPU,
+  4.41 ms of the CPU
+* dlssg-c: 5 frames, 642 meshes, 274748 triangles; the slowest 0.61 ms of the GPU,
+  2.70 ms of the CPU
 
 </details>
 

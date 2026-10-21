@@ -1454,8 +1454,9 @@ def run_section(record, json_name):
         lines.append("")
         for s in built:
             b = s["rt_builds"]
-            lines.append("* {}: {} frames, {} meshes, {} triangles; the slowest {} ms of the GPU, {} ms of the CPU".format(
-                s["id"], b["frames"], b["meshes"], b["triangles"], _fmt(b["slowest_gpu_ms"], 2), _fmt(b["slowest_cpu_ms"], 2)))
+            lines.append("* {}: {} frames, {} meshes, {} triangles; the slowest {} ms of the GPU,".format(
+                s["id"], b["frames"], b["meshes"], b["triangles"], _fmt(b["slowest_gpu_ms"], 2)))
+            lines.append("  {} ms of the CPU".format(_fmt(b["slowest_cpu_ms"], 2)))
     lines.append("")
     lines.append("</details>")
     lines.append("")
