@@ -196,10 +196,21 @@ namespace ReDefinition.Probe
         {
             CommandBuffer buffer;
             if (markerBuffers.TryGetValue(id, out buffer)) return buffer;
-            buffer = new CommandBuffer { name = OwnBufferName };
+            buffer = new CommandBuffer { name = OwnBufferName + " #" + id.ToString(CultureInfo.InvariantCulture) };
             buffer.IssuePluginEvent(markerFunc, id);
             markerBuffers[id] = buffer;
             return buffer;
+        }
+
+        // Whether the marker is on the event already. GetCommandBuffers hands out new wrapper
+        // objects every call, so the buffers are told apart by their names (one a marker),
+        // not by reference: a reference check never found it, and every scan, once a second,
+        // added another marker to every event of every camera until the frame held thousands.
+        private static bool Has(CommandBuffer[] buffers, CommandBuffer marker)
+        {
+            foreach (CommandBuffer buffer in buffers)
+                if (buffer.name == marker.name) return true;
+            return false;
         }
 
         // Each event of each camera: a marker at its end, appended once, which ends the
@@ -214,7 +225,7 @@ namespace ReDefinition.Probe
             foreach (CameraEvent at in CameraEvents)
             {
                 CommandBuffer marker = Marker(Id(name + ": until the end of " + at));
-                if (camera.GetCommandBuffers(at).Contains(marker)) continue;
+                if (Has(camera.GetCommandBuffers(at), marker)) continue;
                 camera.AddCommandBuffer(at, marker);
             }
         }
@@ -226,7 +237,7 @@ namespace ReDefinition.Probe
             foreach (LightEvent at in LightEvents)
             {
                 CommandBuffer marker = Marker(Id(name + ": until the end of " + at));
-                if (light.GetCommandBuffers(at).Contains(marker)) continue;
+                if (Has(light.GetCommandBuffers(at), marker)) continue;
                 light.AddCommandBuffer(at, marker);
             }
         }
