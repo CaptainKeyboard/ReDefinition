@@ -98,6 +98,77 @@
   SAS switches, the autopilot modes and the gauges move with it, and it stays on the
   screen. A click still shows and hides it. The position is kept; with another screen resolution the
   navball goes back to the centre.
+- **Raytracing.** A new group of rows under *Display*: *Raytracing* as *Off*, *Shadows*,
+  *Shadows and light* or *Full*, with *Light bounces*, *Moonlight*, *Moon reflection*,
+  *Moon glow*, *Sun reflection*, *Night light* and *Light colour*. Rays trace the sun's
+  shadows as far as the scene reaches, the light bouncing off surfaces and the sky, the
+  moons' light and shadows at night, and with *Full* reflections, the sea mirroring the
+  sun and the moons. The rays see vessels, the ground within 30 km, the space centre with
+  its flags and Parallax's rocks, trees and grass, and EVE's clouds. It works with
+  Deferred and without it, needs a GPU with DirectX Raytracing 1.1 and is off in every
+  profile.
+- **Ray Reconstruction.** With DLSS as the upscaler, NVIDIA's Ray Reconstruction removes
+  the noise of the traced light and upscales in one step, as a setting, on at first. It
+  runs beside DLSS frame generation and, through NVIDIA's NGX (`rrPath`), beside FSR 3's
+  and XeSS's frame generation. On a Radeon RX 9000, AMD FSR Ray Regeneration does the
+  denoising; it is untested on that GPU. Elsewhere ReDefinition's own denoiser does.
+- **Raytracing, off at first: radiance cache, opacity micromaps, RTX Mega Geometry.**
+  `rtRadianceCache` keeps the indirect light in a hash grid over the world, so that fewer
+  rays are traced; `rtOpacityMicromaps` lets the GPU decide most hits on grass and ferns;
+  `rtMegaGeometry` builds new meshes' structures from RTX Mega Geometry's clusters. The
+  last two are for NVIDIA GPUs. On an RTX A4500 micromaps cost 4 to 10 % of the frame
+  rate and the cache gained 1 %.
+- **A vessel's meshes appear in the rays at once.** Their structures are built in
+  batches, from pooled buffers, and compacted in later frames (`rtBlasBatch`,
+  `rtBlasPool`, `rtBlasBudget`, `rtBlasCompaction`). The frame that builds a vessel of 150
+  parts took 0.63 ms of GPU time where building mesh by mesh took 21.6 ms (the raytracing
+  harness, RTX A4500).
+- **FSR 4 or FSR 3 named.** For AMD's DLL the *Technique* row names the FSR it runs, such
+  as *FSR 4.1.1*, or *FSR 3.1.5 fallback* on a GPU without FSR 4; the log gives the
+  reason.
+- **XeSS super resolution.** *XeSS (DLL)* as a technique, from Intel's `libxess.dll`, on
+  Intel Arc and on any GPU with Shader Model 6.4 and DP4a. The row names its version.
+- **XeSS frame generation, with XeLL.** From `libxess_fg.dll` and `libxell.dll` of Intel's
+  XeSS SDK 2.1 or newer, 2x on any GPU with Shader Model 6.4, more on an Intel GPU
+  (`xessFgFrames`, untested on an Intel Arc). `frameGenerationTechnique` in
+  `ReDefinitionProxy.ini` chooses between DLSS, XeSS and FSR 3; `auto` takes DLSS where it
+  runs, XeSS on an Intel GPU, FSR 3 otherwise.
+- **Low latency.** NVIDIA Reflex now runs without DLSS frame generation. A latency
+  brake, on with a target of 4 ms (`latencyBrakeTargetMs`), waits at the start of a frame
+  for as long as frames queued in the proxy, on any GPU and under DLSS frame generation
+  too. On an RTX A4500 with raytracing on *Full* it took 9 to 14.5 ms off a latency of 58
+  to 72 ms at the same frame rate. Intel's XeLL runs on an Intel GPU and with XeSS frame
+  generation. AMD Anti-Lag 2 (`antiLag2`, off at first) is for a Radeon RX 5000 or newer
+  and untested on a Radeon. The *Low latency* row under *Display* says what runs, and the
+  log measures the latency on every GPU, split into stages.
+- **NVIDIA Streamline 2.14.16.** *NVIDIA DLSS files* downloads the files of this release,
+  and the proxy loads no other version of Streamline.
+- **DLSS frame generation on RTX 30 and RTX 20.** The *DLSS-G on RTX 30/20* row installs
+  the community package dlssg_for_sm86 from the zip the player downloaded: *Install from
+  zip* places its files beside `KSP_x64.exe`, keeping what was there as `.old`. Rows set
+  its preset, its multiplier, DLSS super resolution through its INT8 kernels and its frame
+  timing log. A first install sets the multiplier to 6X and the preset to C, which gave 4
+  to 8 % more rendered frames a second than Auto on an RTX A4500; a reinstall keeps your
+  choices.
+- **How many frames to generate.** The *Frame generation* row is *Off*, *2x* to *6x* or
+  *Dynamic*, and a change applies at once. *Dynamic* lets DLSS frame generation reach the
+  display's refresh rate (NVIDIA driver 595.41 or newer, a GPU with multi frame
+  generation) and is the default where it is supported, otherwise the default is *2x*. A
+  note under the row says what runs and why a step is not offered.
+- **The diagnostics window as pages.** A list of pages on the left, a strip on top with
+  what runs, the rendered and shown frame rate, a frame time graph, the latency and the
+  load of the main thread, the render thread and the GPU. A search field finds options on
+  every page, *Changed* lists those away from their default, *Reset debug switches* puts
+  them back, and a star pins an option to the foot of the window. The window is taller and
+  keeps its last page and place.
+- **The main menu and the space centre.** Fireworks behind the main menu, on Kerbin's night
+  side too; a camera flight from the main menu down to the space centre, under the sun of
+  the save; Parallax's grass on the lawns, where it is installed; the runway lights dimmed.
+- **Tools for measuring.** `tools/benchmark_matrix.py` runs a standing comparison of
+  upscalers, frame generation, raytracing and latency models and writes the results into
+  `docs/development/benchmarks.md`. The scene probe's `-redefinitionGpuProfile` names what
+  each camera and pass costs on the GPU, and `-redefinitionProbeGrass` flies over a field of
+  Parallax's grass.
 
 ### Fixed
 
@@ -143,6 +214,41 @@
   and nothing hid it again: the buttons of the bundled mods came back in the main menu,
   the space centre and in flight until *Hide all from toolbar* was switched off and on.
   ReDefinition now switches such a button off again as soon as the launcher is ready.
+- **DLSS frame generation generates nothing while KSP's window is not in front.** The
+  rendered frames are shown alone and the log says that the window is not in the
+  foreground. Keep the window in front when testing or recording.
+- **No more hitch once a second.** Work that waited for the render thread, or searched the
+  whole scene, once a second is gone from the upscaler's per-frame code, and the round gauge
+  reads its picture without waiting for the GPU.
+- **KSP's reflection probe stays on with Deferred.** With the reflection refresh set to
+  Off in KSP's settings, the probe stayed off in flight after Deferred raised the refresh.
+- **Parallax's scatter textures get the upscaler's mipmap bias.**
+- **The settings window and its questions stay within the screen** at any UI scale, and
+  mod windows placed by code stand where they were placed.
+- **The tooltip of the physics delta-time limit** said the opposite of what it does.
+
+### Changed
+
+- **The DLSS model is chosen by NVIDIA per mode by default.** *Default* in the *DLSS
+  model* row. Low, Medium and High take it, Ultra and Max take *Preset L*.
+- **Frame generation holds off** while KSP's pause menu is open, while the rendered frame
+  rate is below the technique's minimum (60 or 30 for FSR 3 by its version, 30 for DLSS,
+  40 for XeSS; `fgMinimumFps`), for a single slow frame, and steadily where V-Sync caps
+  the rendered rate below the minimum.
+- **`ReDefinitionProxy.ini` holds every key.** The proxy completes the file at every start
+  with the keys added since, each with its comment. A default the proxy had written
+  follows a newer version's; a value you changed stays. When Windows refuses to load the
+  proxy as `dxgi.dll`, the game says so.
+- **Every other mod is optional.** ReDefinition's own features work whole without Deferred,
+  Scatterer, Parallax and the rest. The *Other mods* page of the diagnostics window lists
+  the places in other mods' code that ReDefinition relies on, those that changed in the
+  installed version first.
+
+### For mod authors
+
+- `Frame.Technique` can read `"XeSS (DLL)"`. A key read through `Keys` while its setting is
+  gone reads as unbound instead of throwing, and hotkeys do not fire while the diagnostics
+  window's search field has the keyboard.
 
 ## 0.1.3 -- 2026-09-26
 
