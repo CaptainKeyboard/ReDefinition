@@ -75,7 +75,7 @@ It runs beside every frame generation. With DLSS frame generation, or with frame
 generation off, it runs through NVIDIA Streamline. Beside FSR 3's or XeSS's frame
 generation it runs through NVIDIA's NGX directly. `rrPath` in `ReDefinitionProxy.ini`
 next to `KSP_x64.exe` chooses the way
-([reference/proxy-settings.md](../reference/proxy-settings.md#ray-reconstruction)).
+([reference/proxy-settings.md](../reference/proxy-settings.md#loading-and-the-techniques)).
 
 The download beside *NVIDIA DLSS files* brings its files
 ([installing.md](installing.md)). Without them, ReDefinition's own denoiser removes the

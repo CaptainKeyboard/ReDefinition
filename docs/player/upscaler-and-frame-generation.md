@@ -136,7 +136,7 @@ once.
 
 * *Dynamic* is for DLSS. It lets DLSS frame generation choose the multiplier that
   brings the output to the display's refresh rate. It needs an NVIDIA driver 595.41 or
-  newer and a GPU that does multi frame generation. Where either is missing, the fixed
+  newer and a GPU that does multi frame generation. If either is missing, the fixed
   multiplier stays and the log says so. `dlssgDynamicTargetFps` sets another target,
   and V-Sync overrides it.
 * The default is *Dynamic* where the technique and the driver support it, otherwise
@@ -237,9 +237,9 @@ G-Sync and FreeSync too, once the frame rate is above the monitor's range.
 With DLSS frame generation, V-Sync presents every refresh at most. *Every second
 refresh* is therefore not offered in ReDefinition's window while it runs, and a value
 set elsewhere is corrected. The same holds while Intel's XeLL lowers the latency, which
-is always so with XeSS frame generation. The number of generated frames is limited so
-the monitor can show them, and so the game still renders at least the minimum
-([above](#when-frame-generation-holds-off)): every frame, rendered or generated, takes
+is always so with XeSS frame generation. The number of generated frames is limited. The
+monitor must be able to show them, and the game must still render at least the minimum
+([above](#when-frame-generation-holds-off)). Every frame, rendered or generated, takes
 a refresh. With the minimum of 30, 60 Hz reaches 2x and 120 Hz 4x. The refresh rate
 divided by 15 limits it as well, so 60 Hz reaches 4x at most even with
 `fgMinimumFps=0`. A DLSS frame generation build without V-Sync support presents
@@ -247,7 +247,7 @@ without V-Sync.
 
 With FSR 3 frame generation, V-Sync holds the game at half the refresh rate, and every
 rendered and generated frame is shown for one refresh. On a 60 Hz monitor that is 30
-rendered frames a second. Where the minimum is 60, frame generation then stays off
+rendered frames a second. If the minimum is 60, frame generation then stays off
 for as long as V-Sync is on; a monitor of 120 Hz or more lets it run.
 
 ## What your GPU needs

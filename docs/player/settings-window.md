@@ -35,14 +35,14 @@ behind it.
 
 *Reset* is at the bottom left, on every tab.
 
-Where a change takes effect only at a start, a button beside *Reset* sets it and
-starts KSP again, after asking. In the main menu it is *Apply and restart*. Where a game
+If a change takes effect only at a start, a button beside *Reset* sets it and
+starts KSP again, after asking. In the main menu it is *Apply and restart*. When a game
 is loaded it is *Save and restart*, and it saves the game first, as KSP saves it. In
-flight that works only where KSP allows saving at that moment; otherwise it says why and
+flight that works only when KSP allows saving at that moment; otherwise it says why and
 does nothing. In the editors the vessel you are building goes into KSP's *Auto-Saved Ship*
 first.
 
-A question the window asks, and NVIDIA's download, stands over the window with the
+A question the window asks, and NVIDIA's download, appear over the window with the
 screen behind it darkened. The window behind it takes no clicks until you answer.
 
 At a large UI scale, such as more than KSP's own 200 %, the window and its questions
@@ -158,7 +158,7 @@ them. The row needs Parallax.
 *Replace original settings*, at the top of *Mods / Toolbar*, sends every *Settings* button of
 KSP to this window: the main menu's and those of the pause menus in flight and in the
 space centre. ReDefinition then adds no entry of its own there. With it off, KSP's
-buttons open KSP's screens, and the *ReDefinition* entry stands under them. It takes
+buttons open KSP's screens, and the *ReDefinition* entry is below them. It takes
 effect the next time a menu is built.
 
 ## Bind an axis
@@ -374,8 +374,11 @@ the same settings file. The main menu's settings screen has no ReDefinition sect
 
 ## The diagnostics window
 
-Open it with *Diagnostics* in the settings window, or with the hotkey you set for it. It
-is for finding out what ReDefinition does, and for bug reports.
+Open it with *Diagnostics* in the settings window, or with the hotkey you set for it. The
+button opens it on *Upscaler inputs*. The hotkey opens it on the page it was left on, and
+a new start of KSP opens it on *Overview* if that was *Previews*, which costs frame rate
+while it is shown. The window is for finding out what ReDefinition does, and for bug
+reports.
 
 At the top, a strip shows what runs, for example *FSR 3 + XeSS-FG 2x + XeLL*: the
 upscaler, the frame generation and what lowers the latency. Beside it are the rendered
@@ -430,7 +433,7 @@ what is missing, per mod:
 * a new version ReDefinition cannot bundle at all. Its settings then stay with the mod,
   and its toolbar button stays.
 
-Each of them is still in that mod's own window. Where ReDefinition can open that window,
+Each of them is still in that mod's own window. If ReDefinition can open that window,
 a button beside the line does so; a build it cannot bundle at all keeps its own toolbar
 button instead.
 A version that changes nothing of this is not mentioned.

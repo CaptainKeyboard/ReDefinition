@@ -66,7 +66,7 @@ CKAN does not replace a `dxgi.dll` it did not install, so move another one away 
 
 DLSS, XeSS, frame generation other than FSR 3 and AMD's newer upscaler run from DLLs by
 NVIDIA, Intel and AMD. They go next to `KSP_x64.exe`, or into the folders the proxy's ini
-names ([reference/proxy-settings.md](../reference/proxy-settings.md#where-the-dlls-lie)).
+names ([reference/proxy-settings.md](../reference/proxy-settings.md#dll-folders)).
 
 | For | Files | Where from |
 |---|---|---|

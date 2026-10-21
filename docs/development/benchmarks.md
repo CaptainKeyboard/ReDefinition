@@ -32,11 +32,14 @@ presented per rendered frame says in its notes that the window was not in front.
 `REDEFINITION_BENCH_NO_FOREGROUND` set to any value leaves the window where Windows puts
 it, to reproduce that.
 
-With every DLL and package in place, the matrix has four KSP starts and 138 phases, and a
-run takes about 45 minutes. A start whose DLLs or package are missing, or whose GPU
-vendor does not fit, is skipped, and the run's section names it. On an NVIDIA GPU with
-none of the optional files that is one start with 50 phases and about 13 minutes. To see
-the starts and phases first, without running KSP, run this:
+With every DLL and package in place, the matrix has four KSP starts after the profile
+start. It holds 138 scenarios, and the first scenario after each change of the rendering
+runs twice, so the tool plans 169 phases and about 42 minutes. The run `2026-10-21-0241`
+recorded 138 phases, the two passes of a scenario merged into one. A start whose DLLs or
+package are missing, or whose GPU vendor does not fit, is skipped, and the run's section
+names it. On an NVIDIA GPU with none of the optional files that is one start with 50
+phases (44 scenarios, 6 of them run twice) and about 13 minutes. To see the starts and
+phases first, without running KSP, run this:
 
 ```
 python tools/benchmark_matrix.py plan

@@ -29,25 +29,28 @@ swapchain proxy. Sleep and the markers go on every frame whether low latency mod
 not, as NVIDIA and Intel ask **[doc]**. XeLL's markers are Reflex's, at the same points and
 with the same values.
 
-**One at a time.** Intel: "Latency reduction solutions other than XeLL are not supported
-and may cause unexpected behavior" (XeSS-FG developer guide, Requirements). AMD asks the
-same of Anti-Lag 2: "Any other forms of latency reduction ... should be disabled"
-**[doc]**. While XeLL's low latency mode is on, Reflex, Anti-Lag 2 and the brake are off.
-With Anti-Lag 2 on, the brake is off.
+**XeLL and Anti-Lag 2 run alone.** Intel: "Latency reduction solutions other than XeLL
+are not supported and may cause unexpected behavior" (XeSS-FG developer guide,
+Requirements). AMD asks the same of Anti-Lag 2: "Any other forms of latency reduction ...
+should be disabled" **[doc]**. While XeLL lowers the latency, Reflex, Anti-Lag 2 and the
+brake are off (`LowLatency::XellReducingLocked`). With Anti-Lag 2 on, the brake is off.
+XeLL's markers alone lower nothing, and the brake runs then. Reflex and the brake run
+together: the brake sleeps before Reflex's sleep.
 
 **XeLL on a GPU other than Intel's** lowers the latency only while XeSS frame generation
 generates: "If the condition is not fulfilled then XeLL will not perform Latency reduction"
-**[doc]**. While XeSS frame generation is held off, the brake takes over. It is held off for
-its minimum frame rate, by the mod's switch or for a missing present id. The brake steps back
-when it generates again. The log says each hand-over, at most every 10 seconds, with the
-changes counted. Reflex and Anti-Lag 2 stay off under XeSS frame generation's swapchain.
+**[doc]**. While XeSS frame generation is held off, XeLL reduces nothing and the brake takes
+over. It is held off for its minimum frame rate, by the mod's switch or for a missing
+present id. The brake steps back when it generates again. The log says each hand-over, at
+most every 10 seconds, with the changes counted. Reflex and Anti-Lag 2 stay off under XeSS
+frame generation's swapchain.
 
 **V-Sync.** XeLL's low latency mode needs a sync interval of 1: "when VSync is enabled,
 sync interval for IDXGISwapChain::Present must always be 1 when Low Latency is active"
 **[doc]**. The present path clamps it, and KSP's registration holds the setting the same
 way (R8 in [reference/requirements.md](../reference/requirements.md)).
 
-## Why the brake works
+## The latency brake
 
 **[meas]** Reflex lowers nothing in this pipeline. Unity renders on Direct3D 11 and the
 proxy presents on Direct3D 12. The frames queue up in the proxy's own waits, not in the
@@ -75,20 +78,21 @@ generation to Reflex alone.
 Every `reportSeconds` the log says `Latency brake: sleeps ... ms before the frame ... ms of
 waits in the proxy ... left a frame of ... ms work`.
 
-## How the latency is measured
+## The latency measure
 
 The measure is the same on every GPU, so that what lowers it can be told apart where a
 vendor's own report is missing **[src]**. A frame's start on the main thread is stamped.
 The GPU's end of its Present is found through a fence of the proxy's own on the
 presenting queue, and a thread that waits on it. The proxy logs the median and the 90th
 percentile of the frames since the last report as `Latency:`, with what lowered it. It
-reads about 1.3 ms above NVIDIA's own report **[meas]** (RTX A4500: 59.1 against 57.7 ms
-with raytracing on *Full*).
+reads 1.2 to 1.4 ms above NVIDIA's own report **[meas]**. On the RTX A4500 with raytracing
+on *Full* the median was 57.8 against 56.4 ms, and 48.6 against 47.4 ms with the brake at
+4 ms.
 
 A second `Latency:` line splits the median into stages, from timestamps the proxy takes. They
 are the simulation, the way from its end to the Present, the Present, the way from its end to
 the GPU's end, and the render thread's share of the second. At raytracing *Full* with FSR 3 and
-the brake at 4 ms, the stages were 7.6, 15.0, 2.4 and 23.5 ms **[meas]**. With Reflex the log
+the brake at 4 ms, the stages were 7.6, 14.3, 2.4 and 23.3 ms **[meas]**. With Reflex the log
 adds NVIDIA's report as `Low latency:` lines, with its stages.
 
 The diagnostics window's strip shows the last median and 90th percentile
@@ -113,10 +117,11 @@ frames a second:
 * Reflex changes the latency by no more than half a millisecond in any row.
 * The brake takes 9 to 14.5 ms off at raytracing *Full* and under 1 ms off without
   raytracing, at the same frame rate within 1 %.
-* A lower target lowers it further **[meas]**. With FSR 3 and DLSS-G, raytracing *Full*,
-  at 4, 2 and 1 ms, the latency was 59.0, 53.3 and 49.3 ms against 71.8 ms with no
-  brake. The frame rate went from 40.2 to 40.2, 40.1 and 40.0. The 95th percentile of the
-  frame time went from 25.5 to 27.3 ms at 4 ms.
+* A lower target lowers it further, at some cost in frame rate where the CPU, not the
+  GPU, limits it **[meas]**. The matrix measures the target of 4 ms only.
+* With FSR 3 and DLSS-G at raytracing *Full*, the brake raised the 95th percentile of the
+  frame time from 25.5 to 27.2 ms, at 40.2 rendered frames a second with and without it
+  **[meas]**.
 
 **XeSS frame generation with XeLL** on the same machine, the cross-vendor way **[meas]**:
 

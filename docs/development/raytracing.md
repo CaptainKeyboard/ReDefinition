@@ -435,7 +435,7 @@ without).
 The moons of the planet the camera is at light the scene as the sun does; on a moon, the
 planet it orbits does too. Each is a disc of its angular size, and its light reaches only
 where the disc is in view with nothing between. The Mun lights the launch pad only while
-it stands over it. Bodies of other planets are left out: their light is far below what
+it is above it. Bodies of other planets are left out: their light is far below what
 the screen shows.
 
 Physically, a sphere that scatters by Lambert's law sends, at phase angle a,
@@ -468,7 +468,7 @@ The moons' discs in the flight's sky are a little brighter, with a soft glow rou
 the more the darker the sky (`MoonGlow`, `ReDefinitionMoonGlow.shader`) **[src]**. The
 darkness is 0 by day and 1 once the sun is some degrees under the horizon
 (`NightAdaptation`). The glow is drawn on the scene camera where it sees sky, before the
-transparent pass, so clouds and the atmosphere draw over it. Where the main body, or at a
+transparent pass, so clouds and the atmosphere draw over it. If the main body, or at a
 moon its planet, is in front of a moon, or Scatterer's ocean covers the sky, the
 shader leaves those pixels out. It lights nothing, and it runs with the raytracing off as
 well. The player's *Moon glow* switches it, on unless set.
@@ -534,13 +534,13 @@ ocean takes the raytraced reflections **[src]**. Scatterer's ocean weighs the re
 it reads down from 1 km of the camera's height and to nothing at 2 km; there the discs go
 onto the ocean after it is drawn, through its tonemapper (`fragOceanDiscs`) **[src]**.
 
-Where Scatterer's ocean code is not the one this was checked against
+If Scatterer's ocean code is not the one this was checked against
 (`ForeignAssumptions.ScattererOceanReflections`), its ocean keeps its own reflections,
 and Deferred's screen-space reflections stay on for it **[src]**.
 
 ## EVE's clouds
 
-Where EVE draws a volumetric cloud layer over the main body, the rays take it in as a
+If EVE draws a volumetric cloud layer over the main body, the rays take it in as a
 shell around the body (`RtEveClouds`; `CloudTransmittance`, `CloudOverSky` in
 `RtCommon.hlsli`) **[src]**. EVE's coverage, type and density maps are packed into one
 texture of ReDefinition's, 4096 by 2048, again every few seconds and when they change.
@@ -647,17 +647,17 @@ support HDR inputs" **[doc]** (ProgrammingGuideDLSS_RR.md), so an LDR camera, as
 editors, keeps Super Resolution. The first frame after switching goes through Super
 Resolution, as its raytraced frame made no guides yet, and the first frame after Ray
 Reconstruction gave up
-starts Super Resolution's history afresh. Where Ray Reconstruction shows no frame for a
+starts Super Resolution's history afresh. If Ray Reconstruction shows no frame for a
 second, the upscaler stays with Super Resolution and writes why into the log. In the game
 it runs beside DLSS frame generation, 4.3 ms to 4.5 ms a frame on an RTX 4090 **[meas]**
 ([performance-findings.md](performance-findings.md)).
 
 The proxy loads AMD's DLL from next to `KSP_x64.exe`, else from the proxy's
-`amdUpscalerDirectory`, and asks it for a context at the render size. Where it gets one,
+`amdUpscalerDirectory`, and asks it for a context at the render size. If it gets one,
 AMD's denoiser takes the diffuse light and the reflections, with guides the proxy makes
 from the frame's surfaces as AMD's documentation asks for them. The sun's visibility
 stays with ReDefinition's denoiser: its output keeps the view depth the next frame finds
-its pixels by. Where AMD's DLL gives no
+its pixels by. If AMD's DLL gives no
 context, or no DLL is there, ReDefinition's denoiser takes everything, and the log says
 why once **[meas]** (RTX 4090: the DLL, 1.2.0.2740, loads and gives no context, code 4;
 every harness check passes, with the DLL and without). A switch between the two denoisers
@@ -735,7 +735,7 @@ without the shader. It is off by default and works on NVIDIA GPUs only.
   micromap). Uniform triangles take the special indices, and triangles with the same
   coordinates share a micromap.
 * **The instances.** A cut-out instance whose mesh has a micromap for its texture drops
-  `FORCE_NON_OPAQUE`, except while `rtFoliageTransmission` is above 0. Where micromaps do
+  `FORCE_NON_OPAQUE`, except while `rtFoliageTransmission` is above 0. If micromaps do
   not apply (the switch at 0, `rtCutoutTest`, textures not read, a texture changed since
   the bake) the instance sets `DISABLE_OMMS_EX`, so the switch needs no structure built
   again. Parallax's instances from the GPU take the same through two bits above the
@@ -809,6 +809,11 @@ the installed mods live.
 | Scenes from KSP | meshes exported from KSP's own files with UnityPy: the launch pad, the runway, the VAB, the SPH, part meshes | real geometry, real triangle counts, real scale |
 | C# unit tests | the layout of the frame packet and the constants of `RtContract.h`; the moons' light (`RtReflectorLight`) | that the managed side and the proxy read the same packet and constants; Lambert's sphere and the brightness the rays give it |
 | Unity test player | a Unity 2019.4.18f1 player built like KSP's, with forward rendering, Unity's deferred lighting and Deferred's own shader bundle from `GameData`, and the proxy beside it (`tools/build_rt_player.py`) | the shaders in Unity's lighting, the timing of the render events, the one-frame carry-over |
+
+The figures marked *harness* on this page are what `RaytracingHarness.exe` printed when
+each feature was built, between 2026-09-30 and 2026-10-20. A line names the GPU where it
+matters. The repository stores no harness output. To read a figure again, build the harness
+([building-and-testing.md](building-and-testing.md)) and run it.
 
 `RaytracingHarness.exe` takes one argument that narrows the run. `--omm` runs only the
 opacity micromaps' checks against the driver, and `--omm-table` also lists the order the

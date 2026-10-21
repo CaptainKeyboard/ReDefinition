@@ -20,24 +20,11 @@ saved. *start* means when KSP creates its swapchain, which is at the start of th
 |---|---|---|---|
 | `enabled` | 1 | start | 0 passes everything through to Windows' own `dxgi.dll`. Set it if the game does not start with the proxy |
 | `measureOnly` | 0 | start | 1 substitutes nothing and times the Present, for a comparison with the proxy |
-| `frameGeneration` | 1 | start | 0: no frame generation. The proxy presents only, through NVIDIA's Streamline where it lies there and the GPU runs DLSS Ray Reconstruction |
+| `frameGeneration` | 1 | start | 0: no frame generation. The proxy presents only. If NVIDIA's Streamline is there and the GPU runs DLSS Ray Reconstruction, it presents through Streamline |
 | `frameGenerationTechnique` | auto | start | which frame generation the swapchain is made for: `auto`, `dlss`, `xess` or `fsr`. `auto` takes DLSS where it runs, XeSS on an Intel GPU where its DLLs are there, and FSR otherwise. FSR takes over where the one asked for does not run |
-| `rrPath` | auto | start | how DLSS Ray Reconstruction runs: `streamline`, `ngx` or `auto`. See [Ray Reconstruction](#ray-reconstruction) |
+| `rrPath` | auto | start | how DLSS Ray Reconstruction runs. `streamline` runs it through Streamline's swapchain, `ngx` through NVIDIA's NGX directly, and `auto` takes Streamline's where its swapchain presents and NGX's otherwise. It needs `nvngx_dlssd.dll` next to the Streamline DLLs and an NVIDIA RTX GPU. The routes: [development/raytracing.md](../development/raytracing.md#denoising) |
 | `allowTearing` | 1 | start | 1 lets the swapchain tear as KSP asks, so that without V-Sync a frame is shown at once |
 | `reportSeconds` | 10 | live | how often frame times, the latency and the brake go into `ReDefinitionProxy.log` |
-
-### Ray Reconstruction
-
-* `streamline` runs it through Streamline, whose swapchain then presents: with DLSS
-  frame generation, or with `frameGeneration=0`. Beside FSR's or XeSS's frame generation
-  there is no Ray Reconstruction then.
-* `ngx` runs it through NVIDIA's NGX directly, beside any frame generation but DLSS's,
-  whose Streamline holds NGX on the device. With `frameGeneration=0` the swapchain is
-  then not Streamline's.
-* `auto` takes Streamline's where its swapchain presents, and NGX's otherwise.
-
-It needs `nvngx_dlssd.dll` next to the Streamline DLLs, which *NVIDIA DLSS files*
-downloads, and an NVIDIA RTX GPU.
 
 ## Frame generation, all techniques
 
@@ -46,6 +33,7 @@ downloads, and an NVIDIA RTX GPU.
 | `hudLessColour` | 1 | live | 1 keeps the UI out of the interpolated frames, by comparing the presented frame with a copy that has none. 0 interpolates the UI along with the scene, and it smears |
 | `fgDepthInverted` | 1 | live | 1 tells frame generation that KSP's depth runs from 1 to 0. XeSS frame generation takes it when the swapchain is made |
 | `fgMinimumFps` | -1 | live | the rendered frame rate below which frame generation holds off. -1 takes the technique's own: 60 or 30 for FSR by its version, 30 for DLSS, 40 for XeSS. 0 never holds off; another number is that many frames a second |
+| `fgCameraBasis` | 1 | live | FSR only. 1 hands frame generation the camera's position and orientation, which its API requires. 0 leaves them zero, and everything with parallax smears. DLSS and XeSS frame generation always get them |
 | `fgVSync` | 0 | live | FSR only. 1 presents with V-Sync for as long as frame generation is on, whatever KSP's setting says |
 | `fgHalfRefreshLimit` | 0 | live | 1 holds the rendered frame rate just below half the refresh rate. Under XeSS frame generation it is XeLL's frame limit |
 | `fgAsyncWorkloads` | 0 | live | FSR only. 1 runs the optical flow and interpolation on a compute queue, overlapping the next frame. Worth a try where frame generation costs more than it gives |
@@ -92,7 +80,7 @@ What each lowers, and where: [player/low-latency.md](../player/low-latency.md).
 |---|---|---|---|
 | `lowLatency` | 1 | live | NVIDIA Reflex's low latency mode where DLSS frame generation's own Reflex does not run. 0 leaves the mode off. On an Intel GPU it is XeLL's mode, read at the start |
 | `latencyBrake` | 1 | live | the latency brake, on any GPU, not while XeLL lowers the latency. 0 switches it off |
-| `latencyBrakeTargetMs` | 4 | live | the waiting left in each frame, in milliseconds. 2 and 1 lower the latency further, at up to a few percent of the frame rate where the CPU limits it |
+| `latencyBrakeTargetMs` | 4 | live | the waiting left in each frame, in milliseconds. A lower number lowers the latency further, at some cost in frame rate where the CPU limits it |
 | `latencyBrakeWaits` | 1 | live | which waits the brake counts: 1 the proxy's and the Present's, 2 the proxy's alone |
 | `latencyBrakeWithDlssg` | 1 | live | 1 runs the brake under DLSS frame generation too, before Streamline's Reflex sleep. 0 leaves it to Reflex |
 | `antiLag2` | 0 | live | AMD Anti-Lag 2 on a Radeon RX 5000 or newer: 12 on the proxy's Direct3D 12 device, 11 on the game's Direct3D 11 device, 0 off. On, it takes the brake's place |
@@ -129,7 +117,7 @@ The keys for measuring the raytracing, `rtCutoutTest`, `rtSunUnfiltered`,
 `rtSunAtrousSteps`, `rtSunHistory` and `rtFoliageTransmission`, are in
 [development/raytracing.md](../development/raytracing.md#measuring-keys).
 
-## Where the DLLs lie
+## DLL folders
 
 Each setting names a folder. Empty means next to `KSP_x64.exe`.
 

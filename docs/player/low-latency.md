@@ -26,8 +26,9 @@ Reflex needs a GeForce GTX 900 or newer. Anti-Lag 2 needs a Radeon RX 5000 or ne
 XeLL needs `libxell.dll` from Intel's XeSS SDK next to `KSP_x64.exe`
 ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md#xess-frame-generation)).
 
-Only one of them lowers the latency at a time. Intel asks that nothing else does while
-XeLL's low latency mode is on, and AMD asks the same of Anti-Lag 2.
+XeLL and Anti-Lag 2 run alone. Intel asks that nothing else lowers the latency while
+XeLL's low latency mode is on, and AMD asks the same of Anti-Lag 2. Reflex and the brake
+run together.
 
 ## See what runs
 
@@ -58,13 +59,12 @@ raytracing it takes under 1 ms off, because little queues
 ([development/low-latency.md](../development/low-latency.md#measured)).
 
 The brake is on, with a target of 4 ms of waiting left in each frame. A lower target
-lowers the latency further, and costs up to a few percent of the frame rate where the
-CPU, not the GPU, limits it.
+lowers the latency further, and costs some frame rate where the CPU, not the GPU, limits it.
 
 | Setting in `ReDefinitionProxy.ini` | Default | Does |
 |---|---|---|
 | `latencyBrake` | 1 | 0 switches the brake off |
-| `latencyBrakeTargetMs` | 4 | the waiting left in each frame, in milliseconds. 2 and 1 lower the latency further |
+| `latencyBrakeTargetMs` | 4 | the waiting left in each frame, in milliseconds. A lower number lowers the latency further |
 | `latencyBrakeWaits` | 1 | which waits the brake counts: 1 the proxy's and the Present, 2 the proxy's alone |
 | `latencyBrakeWithDlssg` | 1 | 1 lets the brake run under DLSS frame generation too, before Streamline's Reflex. 0 leaves DLSS frame generation to its Reflex alone |
 | `lowLatency` | 1 | 0 leaves NVIDIA's Reflex mode off where it runs without DLSS frame generation. On an Intel GPU it sets XeLL's mode |
@@ -74,7 +74,7 @@ CPU, not the GPU, limits it.
 The proxy re-reads these within a second of the file being saved. `xell`, and
 `lowLatency` on an Intel GPU, it reads when KSP starts.
 
-## What is tested where
+## Tested hardware
 
 | Lowers the latency | Tested on |
 |---|---|
