@@ -52,6 +52,9 @@ namespace ReDefinition.Probe
         internal const string SeaArgument = "-redefinitionProbeSea";
         // -redefinitionProbeCoast, with it: the capsule off the island airfield's shore.
         internal const string CoastArgument = "-redefinitionProbeCoast";
+        // -redefinitionProbeGrass: a capsule on a field of Parallax's grass, kilometres from the
+        // space centre, instead of the launch pad (the benchmark's grass scene).
+        internal const string GrassArgument = "-redefinitionProbeGrass";
         // -redefinitionProbeStay: the flight left to the player, the clouds hidden, no
         // measurement, KSP left running (with -redefinitionProbeSea: a capsule at sea to
         // look at the water's reflections oneself).
@@ -171,10 +174,79 @@ namespace ReDefinition.Probe
                 }
                 index = capsule;
             }
+            if (SceneProbe.VesselName == null && Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.GrassArgument) >= 0)
+            {
+                int capsule = GrassCapsule(game);
+                if (capsule < 0)
+                {
+                    // On the pad, every measurement would be of the wrong scene.
+                    Debug.LogError(Log.Tag + " Probe: the capsule could not be put on a field of grass; quitting.");
+                    Application.Quit();
+                    yield break;
+                }
+                index = capsule;
+            }
             HighLogic.SaveFolder = SceneProbe.SaveFolder;
             HighLogic.CurrentGame = game;
             Debug.Log(Log.Tag + " Probe: flight of " + game.flightState.protoVessels[index].vesselName + ".");
             FlightDriver.StartAndFocusVessel(game, index);
+        }
+
+        // A Mk1 command pod on the ground where Parallax's Kerbin grass grows thick: the first
+        // place, by distance from the launch pad, in the Grasslands biome (Kerbin.cfg's grass
+        // scatters grow from 25 m of altitude and are blacklisted from water, deserts and
+        // ice), on level ground that is grassland and above 80 m all round, 3 km from the pad
+        // at least. Made as KSP makes a vessel and set on the ground by KSP.
+        private static int GrassCapsule(Game game)
+        {
+            CelestialBody home = FlightGlobals.GetHomeBody();
+            if (home == null || home.pqsController == null || home.BiomeMap == null) return -1;
+            const double padLatitude = -0.0972, padLongitude = -74.5577;
+            double radius = home.Radius;
+            Func<double, double, double> ground = (lat, lon) =>
+                home.pqsController.GetSurfaceHeight(home.GetRelSurfaceNVector(lat, lon)) - radius;
+            Func<double, double, string> biome = (lat, lon) =>
+                home.BiomeMap.GetAtt(lat * Math.PI / 180.0, lon * Math.PI / 180.0).name;
+            for (double distance = 3000.0; distance <= 30000.0; distance += 500.0)
+                for (int degrees = 0; degrees < 360; degrees += 10)
+                {
+                    double bearing = degrees * Math.PI / 180.0;
+                    double lat = padLatitude + distance * Math.Cos(bearing) / radius * 180.0 / Math.PI;
+                    double lon = padLongitude + distance * Math.Sin(bearing) / (radius * Math.Cos(lat * Math.PI / 180.0)) * 180.0 / Math.PI;
+                    double here = ground(lat, lon);
+                    if (here < 80.0 || here > 600.0) continue;
+                    // 7 x 7 samples 40 m apart: grassland, above 80 m, and a slope of less than 8 degrees.
+                    bool field = true;
+                    double step = 40.0 / radius * 180.0 / Math.PI;
+                    for (int i = -3; i <= 3 && field; i++)
+                        for (int j = -3; j <= 3 && field; j++)
+                        {
+                            double sampleLat = lat + i * step, sampleLon = lon + j * step / Math.Cos(lat * Math.PI / 180.0);
+                            field = biome(sampleLat, sampleLon) == "Grasslands" && ground(sampleLat, sampleLon) > 80.0
+                                    && Math.Abs(ground(sampleLat, sampleLon) - here) < 40.0 * 3.0 * Math.Tan(8.0 * Math.PI / 180.0);
+                        }
+                    if (!field) continue;
+                    ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
+                    var orbit = new Orbit(0.0, 0.0, radius + 100000.0, 0.0, 0.0, 0.0, Planetarium.GetUniversalTime(), home);
+                    ConfigNode node = ProtoVessel.CreateVesselNode("ReDefinition grass probe", VesselType.Ship, orbit, 0, new[] { part });
+                    node.SetValue("sit", Vessel.Situations.LANDED.ToString());
+                    node.SetValue("landed", "True");
+                    node.SetValue("splashed", "False");
+                    node.SetValue("skipGroundPositioning", "False");
+                    node.SetValue("lat", lat.ToString(CultureInfo.InvariantCulture));
+                    node.SetValue("lon", lon.ToString(CultureInfo.InvariantCulture));
+                    node.SetValue("alt", (here + 1.0).ToString(CultureInfo.InvariantCulture));
+                    Quaternion upright = Quaternion.FromToRotation(Vector3.up, (Vector3)home.GetRelSurfaceNVector(lat, lon));
+                    node.SetValue("rot", KSPUtil.WriteQuaternion(upright));
+                    game.flightState.protoVessels.Add(new ProtoVessel(node, game));
+                    Debug.Log(Log.Tag + " Probe: a capsule on grassland " + distance.ToString("0") + " m from the pad (bearing " + degrees
+                              + "), latitude " + lat.ToString(CultureInfo.InvariantCulture) + ", longitude "
+                              + lon.ToString(CultureInfo.InvariantCulture) + ", the ground " + here.ToString("0", CultureInfo.InvariantCulture)
+                              + " m above the sea.");
+                    return game.flightState.protoVessels.Count - 1;
+                }
+            Debug.LogWarning(Log.Tag + " Probe: no field of grassland found around the pad.");
+            return -1;
         }
 
         // A Mk1 command pod afloat out at sea east of the space centre, no land within
@@ -830,6 +902,16 @@ namespace ReDefinition.Probe
                 yield return new WaitForSeconds(5f);
                 LightProbe.HideClouds();
                 Debug.Log(Log.Tag + " Probe: the flight is the player's.");
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.GrassArgument) >= 0)
+                {
+                    // Where the grass scene ended up: the situation, the height above the ground
+                    // and the biome, to read against the grass the shot shows.
+                    Vessel vessel = FlightGlobals.ActiveVessel;
+                    Debug.Log(Log.Tag + " Probe: grass scene, " + vessel.vesselName + " " + vessel.situation + ", "
+                              + vessel.heightFromTerrain.ToString("0.0", CultureInfo.InvariantCulture) + " m over the ground, "
+                              + vessel.altitude.ToString("0.0", CultureInfo.InvariantCulture) + " m above the sea, biome "
+                              + ScienceUtil.GetExperimentBiome(vessel.mainBody, vessel.latitude, vessel.longitude) + ".");
+                }
                 yield return ShotVariant.Apply();
                 // -redefinitionProbeDiagnostics "<name>@<commands>|<name>@<commands>": the diagnostics
                 // window opened and set by each step's commands (ReDefinitionAddon.ProbeDiagnostics),
