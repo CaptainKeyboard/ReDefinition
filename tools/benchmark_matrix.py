@@ -426,8 +426,10 @@ _PCL = re.compile(r"^Low latency: NVIDIA's report, from the simulation's start t
 # (RaytracingScene.cpp, NoteMeshBuildTimeLocked): the load spike of a flight's start.
 _RT_BUILD = re.compile(r"^Raytracing: the (\d+) meshes built in one frame \((\d+) triangles\) took ([\d.]+) ms of the GPU"
                        r" and ([\d.]+) ms of the CPU")
-_BRAKE = re.compile(r"^Latency brake: sleeps ([\d.]+) ms before the frame, ([\d.]+) ms of waits in the proxy left a frame"
+_BRAKE = re.compile(r"^Latency brake: sleeps ([\d.]+) ms before the frame, ([\d.]+) ms of waits in the proxy(?: with the Present)? left a frame"
                     r" of ([\d.]+) ms work")
+_STAGES = re.compile(r"^Latency: the frame's stages, medians in ms -- simulation ([\d.-]+), simulation's end to the Present"
+                      r" ([\d.-]+), Present ([\d.-]+), to the GPU's end ([\d.-]+), of the second, the render thread's ([\d.-]+)$")
 _UPSCALER = re.compile(r"Upscaler running on '([^']*)': (\d+)x(\d+) -> (\d+)x(\d+) \(([^,]+), (.*)\)$")
 
 
@@ -470,7 +472,7 @@ def parse_config(text):
 
 
 def parse_proxy_log(text):
-    p = {"configs": [], "reports": [], "latency": [], "pcl": [], "brake": [], "rt_builds": [], "lines": {},
+    p = {"configs": [], "reports": [], "latency": [], "pcl": [], "brake": [], "stages": [], "rt_builds": [], "lines": {},
          "first_time": None}
     notes = []
     for t, line in _timed_lines(text, _PROXY_TIME):
@@ -493,6 +495,12 @@ def parse_proxy_log(text):
         if m:
             p["latency"].append({"time": t, "median_ms": float(m.group(1)), "frames": int(m.group(2)),
                                  "p90_ms": float(m.group(3)), "lowered_by": m.group(4).strip()})
+            continue
+        m = _STAGES.match(line)
+        if m:
+            p["stages"].append({"time": t, "simulation": float(m.group(1)), "to_present": float(m.group(2)),
+                                "present": float(m.group(3)), "gpu_tail": float(m.group(4)),
+                                "render_thread": float(m.group(5))})
             continue
         m = _PCL.match(line)
         if m:
@@ -593,7 +601,7 @@ def _in_window(entries, start, end, report_seconds):
     return [e for e in entries if e["time"] - report_seconds >= start and e["time"] <= end]
 
 
-def aggregate(reports, latency, pcl, brake):
+def aggregate(reports, latency, pcl, brake, stages=()):
     out = {"reports": len(reports)}
     if reports:
         frames = sum(r["frames"] for r in reports)
@@ -617,6 +625,10 @@ def aggregate(reports, latency, pcl, brake):
         out["latency_reports"] = len(latency)
         lowered = sorted({l["lowered_by"] for l in latency})
         out["latency_lowered_by"] = lowered[0] if len(lowered) == 1 else " / ".join(lowered)
+    if stages:
+        # Where the latency went, each stage's median over the reports (LowLatency::ReportLocked).
+        out["latency_stages_ms"] = {k: round(statistics.median(s[k] for s in stages), 1)
+                                    for k in ("simulation", "to_present", "present", "gpu_tail", "render_thread")}
     if pcl:
         out["nvidia_pcl_median_ms"] = round(statistics.median(x["median_ms"] for x in pcl), 1)
         out["nvidia_gpu_frame_ms"] = round(statistics.median(x["gpu_frame_ms"] for x in pcl), 1)
@@ -678,8 +690,8 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
         settle = phase.get("settle", settle_seconds)
         begin = (reload_["time"] if reload_ else set_time + 1.0) + settle
         report_seconds = float(config["values"].get("reportSeconds", 10)) if config else 10.0
-        window = {k: _in_window(proxy[k], begin, end, report_seconds) for k in ("reports", "latency", "pcl", "brake")}
-        measured = aggregate(window["reports"], window["latency"], window["pcl"], window["brake"])
+        window = {k: _in_window(proxy[k], begin, end, report_seconds) for k in ("reports", "latency", "pcl", "brake", "stages")}
+        measured = aggregate(window["reports"], window["latency"], window["pcl"], window["brake"], window["stages"])
         upscaler = _last_before(ksp["upscaler"], end)
         warnings = []
         if reload_ is None:
@@ -737,7 +749,7 @@ def phases_of_start(start, ksp_text, proxy_text, settle_seconds):
         if r.get("repeats"):
             rs = float((r["proxy_config"] or {}).get("reportSeconds", 10))
             r["measured"] = aggregate(*[_in_window(proxy[k], r["window"][0], r["window"][1], rs)
-                                        for k in ("reports", "latency", "pcl", "brake")])
+                                        for k in ("reports", "latency", "pcl", "brake", "stages")])
     return {
         "gpu": ksp["gpu"], "profile_lines": ksp["profile"],
         "proxy_load_config": load_config["values"] if load_config else None,
