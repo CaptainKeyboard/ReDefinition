@@ -468,6 +468,42 @@ Run it with `python tools/benchmark_matrix.py run --group frame-steps`.
 | FSR 3 · RT Full · FG DLSS-G 6x · none | 32.7 | 195.7 | 6.00 | yes | 93.8 | 96.0 | -55.5 % | +72.1 ms | -28.6 % | +36.9 ms | – |  |
 | FSR 3 · RT Full · FG DLSS-G Dynamic · none | 37.7 | 114.4 | 3.04 | n/a | 78.5 | 80.5 | -48.7 % | +56.8 ms | -17.7 % | +21.6 ms | – |  |
 
+### Latency brake targets (`latency-brake`)
+
+The latency brake at 4 ms (the default), 2 ms and 1 ms for FSR 3 at raytracing Off and
+Full, with no frame generation, FSR's and DLSS-G; no brake as the reference.
+
+Run `2026-10-21-1001`. Its machine and options are under [the runs](#the-runs).
+
+Run it with `python tools/benchmark_matrix.py run --group latency-brake`.
+
+| Scenario | fps | Shown fps | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline | fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| FSR 3 · RT Off · FG off · none | 71.8 | 71.8 | 21.9 | 23.0 | +0.0 % | +0.0 ms | – | – | – | baseline |
+| FSR 3 · RT Off · FG off · brake 4 ms | 71.3 | 71.1 | 21.9 | 23.1 | -0.7 % | +0.0 ms | -0.7 % | +0.0 ms | – |  |
+| FSR 3 · RT Off · FG off · brake 2 ms | 71.7 | 71.4 | 21.9 | 23.4 | -0.1 % | +0.0 ms | -0.1 % | +0.0 ms | – |  |
+| FSR 3 · RT Off · FG off · brake 1 ms | 71.9 | 71.7 | 22.0 | 23.3 | +0.1 % | +0.1 ms | +0.1 % | +0.1 ms | – |  |
+| FSR 3 · RT Off · FG FSR · none | 66.5 | 132.9 | 29.4 | 32.2 | -7.4 % | +7.5 ms | -7.4 % | +7.5 ms | – |  |
+| FSR 3 · RT Off · FG FSR · brake 4 ms | 65.1 | 130.6 | 27.9 | 31.0 | -9.3 % | +6.0 ms | -9.3 % | +6.0 ms | – |  |
+| FSR 3 · RT Off · FG FSR · brake 2 ms | 64.2 | 128.6 | 26.4 | 29.1 | -10.6 % | +4.5 ms | -10.6 % | +4.5 ms | – |  |
+| FSR 3 · RT Off · FG FSR · brake 1 ms | 61.9 | 123.8 | 25.5 | 27.9 | -13.8 % | +3.6 ms | -13.8 % | +3.6 ms | – |  |
+| FSR 3 · RT Full · FG off · none | 45.0 | 44.9 | 57.6 | 59.2 | -37.3 % | +35.7 ms | – | – | – |  |
+| FSR 3 · RT Full · FG off · brake 4 ms | 44.9 | 44.9 | 49.0 | 54.5 | -37.5 % | +27.1 ms | -0.2 % | -8.6 ms | – |  |
+| FSR 3 · RT Full · FG off · brake 2 ms | 44.4 | 44.5 | 43.0 | 51.8 | -38.2 % | +21.1 ms | -1.3 % | -14.6 ms | – |  |
+| FSR 3 · RT Full · FG off · brake 1 ms | 43.8 | 44.0 | 39.8 | 47.6 | -39.0 % | +17.9 ms | -2.7 % | -17.8 ms | – |  |
+| FSR 3 · RT Full · FG FSR · none | 39.5 | 79.0 | 59.9 | 61.7 | -45.0 % | +38.0 ms | -12.2 % | +2.3 ms | – |  |
+| FSR 3 · RT Full · FG FSR · brake 4 ms | 39.4 | 78.8 | 46.8 | 51.4 | -45.1 % | +24.9 ms | -12.4 % | -10.8 ms | – |  |
+| FSR 3 · RT Full · FG FSR · brake 2 ms | 39.2 | 78.2 | 41.6 | 48.1 | -45.4 % | +19.7 ms | -12.9 % | -16.0 ms | – |  |
+| FSR 3 · RT Full · FG FSR · brake 1 ms | 38.9 | 77.9 | 39.5 | 44.8 | -45.8 % | +17.6 ms | -13.6 % | -18.1 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G · none | 66.2 | 132.7 | 47.3 | 49.5 | -7.8 % | +25.4 ms | -7.8 % | +25.4 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G · brake 4 ms | 65.6 | 131.4 | 45.3 | 48.4 | -8.6 % | +23.4 ms | -8.6 % | +23.4 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G · brake 2 ms | 66.1 | 132.2 | 42.3 | 45.9 | -7.9 % | +20.4 ms | -7.9 % | +20.4 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G · brake 1 ms | 65.2 | 130.5 | 38.5 | 44.6 | -9.2 % | +16.6 ms | -9.2 % | +16.6 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G · none | 40.2 | 80.6 | 72.3 | 73.9 | -44.0 % | +50.4 ms | -10.7 % | +14.7 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G · brake 4 ms | 40.4 | 81.0 | 58.0 | 66.0 | -43.7 % | +36.1 ms | -10.2 % | +0.4 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G · brake 2 ms | 40.3 | 80.9 | 55.3 | 62.3 | -43.9 % | +33.4 ms | -10.4 % | -2.3 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G · brake 1 ms | 40.2 | 80.2 | 52.0 | 59.6 | -44.0 % | +30.1 ms | -10.7 % | -5.6 ms | – |  |
+
 ### Grass and terrain (`grass`)
 
 The launch pad and a field of Parallax's grass 5 km away (-redefinitionProbeGrass), FSR
@@ -553,6 +589,70 @@ with it (preset, `MaxGeneratedFrames`), the proxy's ini at the start, the frame 
 lines of the phase, the upscaler's line, and each measured value.
 
 <!-- benchmark-runs:start -->
+### Run 2026-10-21-1001
+
+| What | Value |
+|---|---|
+| Date | 2026-10-21T10:01:53 to 2026-10-21T10:12:02 |
+| Commit | `fa8b00a` on `worktree-agent-a3c8b23ed6951386f` |
+| Build in the install | `dxgi.dll` ec66cbc3a2508f0c (2026-10-21T09:05:20), `GameData/ReDefinition/Plugins/ReDefinition.dll` f61fcfbde9484e82 (2026-10-21T09:16:32) |
+| Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
+| Profile | `medium`: [LOG 10:02:54.083] [ReDefinition] Probe: profile medium applied. |
+| Groups | `latency-brake` |
+| Matrix | `tools/benchmark_matrix.json`, 2 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Full record | [benchmarks/2026-10-21-1001.json](benchmarks/2026-10-21-1001.json) |
+
+<details><summary>What ran in each phase</summary>
+
+| Start | Scenario | Upscaler that ran | Frame generation that ran | presented/rendered | Lowered by | Reports | fps range | Notes |
+|---|---|---|---|---|---|---|---|---|
+| latency-brake-fsr | FSR 3 · RT Off · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 9 | 70.5–72.3 |  |
+| latency-brake-fsr | FSR 3 · RT Off · FG off · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 9 | 67.5–72.3 |  |
+| latency-brake-fsr | FSR 3 · RT Off · FG off · brake 2 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 9 | 70.5–72.5 |  |
+| latency-brake-fsr | FSR 3 · RT Off · FG off · brake 1 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 9 | 70.8–72.6 |  |
+| latency-brake-fsr | FSR 3 · RT Off · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 66.2–66.7 |  |
+| latency-brake-fsr | FSR 3 · RT Off · FG FSR · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 62.6–66.3 |  |
+| latency-brake-fsr | FSR 3 · RT Off · FG FSR · brake 2 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 63.2–65.3 |  |
+| latency-brake-fsr | FSR 3 · RT Off · FG FSR · brake 1 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 60.0–63.0 |  |
+| latency-brake-fsr | FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 42.9–45.4 |  |
+| latency-brake-fsr | FSR 3 · RT Full · FG off · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 8 | 44.5–45.3 |  |
+| latency-brake-fsr | FSR 3 · RT Full · FG off · brake 2 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 8 | 43.8–44.9 |  |
+| latency-brake-fsr | FSR 3 · RT Full · FG off · brake 1 ms | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | the brake | 8 | 41.8–45.3 |  |
+| latency-brake-fsr | FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.4–39.6 |  |
+| latency-brake-fsr | FSR 3 · RT Full · FG FSR · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 38.9–39.7 |  |
+| latency-brake-fsr | FSR 3 · RT Full · FG FSR · brake 2 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 38.9–39.5 |  |
+| latency-brake-fsr | FSR 3 · RT Full · FG FSR · brake 1 ms | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | the brake | 8 | 38.2–39.3 |  |
+| latency-brake-dlssg | FSR 3 · RT Off · FG DLSS-G · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 9 | 65.8–66.6 |  |
+| latency-brake-dlssg | FSR 3 · RT Off · FG DLSS-G · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 64.0–66.6 |  |
+| latency-brake-dlssg | FSR 3 · RT Off · FG DLSS-G · brake 2 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 65.5–66.8 |  |
+| latency-brake-dlssg | FSR 3 · RT Off · FG DLSS-G · brake 1 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 63.9–66.7 |  |
+| latency-brake-dlssg | FSR 3 · RT Full · FG DLSS-G · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 38.2–40.5 |  |
+| latency-brake-dlssg | FSR 3 · RT Full · FG DLSS-G · brake 4 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 40.2–40.5 |  |
+| latency-brake-dlssg | FSR 3 · RT Full · FG DLSS-G · brake 2 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 39.9–40.8 |  |
+| latency-brake-dlssg | FSR 3 · RT Full · FG DLSS-G · brake 1 ms | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex and the brake | 8 | 39.5–40.8 |  |
+
+The proxy's configuration in each start, as the proxy logged it at load:
+
+```
+latency-brake-fsr: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+latency-brake-dlssg: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=dlss rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=0 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+```
+
+The DLSS-G package's ini in each start that had it, with the values it was read with:
+
+```
+latency-brake-dlssg: [FrameGeneration] Engine=DLSS MaxGeneratedFrames=1 [DLSSG] Optimized=2 Preset=Auto [XeSSFG] FlowResolution=Middle UseHudless=1 [Logging] Level=1 FrameTiming=1 [Runtime] Mode=Bundled [SuperResolution] Mode=Off
+```
+
+The raytracing's frames that built 50 meshes or more, at the flight's start:
+
+* latency-brake-fsr: 5 frames, 591 meshes, 254539 triangles; the slowest 0.64 ms of the GPU,
+  5.12 ms of the CPU
+* latency-brake-dlssg: 5 frames, 637 meshes, 294448 triangles; the slowest 0.76 ms of the GPU,
+  6.13 ms of the CPU
+
+</details>
+
 ### Run 2026-10-21-0951
 
 | What | Value |
