@@ -195,7 +195,7 @@ target_link_libraries(ReDefinitionProxy PRIVATE d3d11 d3d12 winmm version window
 add_executable(ProxyHarness ProxyHarness.cpp FileUtil.cpp FileUtil.h)
 target_compile_definitions(ProxyHarness PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(ProxyHarness PRIVATE /W4 /permissive-)
-target_link_libraries(ProxyHarness PRIVATE d3d11 dxgi version)
+target_link_libraries(ProxyHarness PRIVATE d3d11 dxgi version dbghelp)
 add_dependencies(ProxyHarness ReDefinitionProxy)
 
 # The raytracing harness (docs/development/raytracing.md): the proxy's raytracing

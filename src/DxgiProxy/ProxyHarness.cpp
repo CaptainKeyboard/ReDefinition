@@ -43,6 +43,9 @@
 #include "FileUtil.h"
 
 #include <windows.h>
+#include <dbghelp.h>
+#include <tlhelp32.h>
+#include <share.h>
 
 #include <d3d11.h>
 #include <d3dcommon.h>
@@ -55,6 +58,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <mutex>
 #include <string>
 #include <algorithm>
 #include <vector>
@@ -351,8 +355,9 @@ namespace
     // A key in the ini next to the harness, the one the proxy reads. The
     // harness owns the keys it sets: set before the proxy loads, and back to
     // what the file held -- the template's default, which the proxy writes there
-    // -- on every return from main. A run that crashes leaves its value behind,
-    // and the next run's first act sets it anew.
+    // -- on every return from main, and when the watchdog ends a stuck run
+    // (RestoreIniKeys). A run that crashes leaves its value behind, and the next
+    // run takes it for what the file held.
     class IniKey
     {
     public:
@@ -362,8 +367,16 @@ namespace
             GetPrivateProfileStringW(L"Proxy", key, L"\x01", value, ARRAYSIZE(value), path.c_str());
             held = !(value[0] == L'\x01' && value[1] == L'\0');
             before = value;
+            std::lock_guard<std::mutex> lock(Registry().mutex);
+            Registry().keys.push_back(this);
         }
-        ~IniKey() { Set(held ? before.c_str() : nullptr); }
+        ~IniKey()
+        {
+            Restore();
+            std::lock_guard<std::mutex> lock(Registry().mutex);
+            std::vector<const IniKey*>& keys = Registry().keys;
+            keys.erase(std::remove(keys.begin(), keys.end(), this), keys.end());
+        }
 
         IniKey(const IniKey&) = delete;
         IniKey& operator=(const IniKey&) = delete;
@@ -373,7 +386,31 @@ namespace
             WritePrivateProfileStringW(L"Proxy", key, value, path.c_str());
         }
 
+        // The value the file held when this key was made.
+        void Restore() const { Set(held ? before.c_str() : nullptr); }
+
+        // Every key still alive, newest first -- the order the destructors would run in.
+        static void RestoreAll()
+        {
+            std::lock_guard<std::mutex> lock(Registry().mutex);
+            const std::vector<const IniKey*>& keys = Registry().keys;
+            for (auto key = keys.rbegin(); key != keys.rend(); ++key)
+                (*key)->Restore();
+        }
+
     private:
+        struct KeyRegistry
+        {
+            std::mutex mutex;
+            std::vector<const IniKey*> keys;
+        };
+
+        static KeyRegistry& Registry()
+        {
+            static KeyRegistry registry;
+            return registry;
+        }
+
         const wchar_t* key;
         std::wstring path;
         std::wstring before;
@@ -766,23 +803,103 @@ namespace
     }
 }
 
-// A run that has not ended after kWatchdogSeconds is stuck somewhere: the proxy log's
-// last lines, which say in what, are printed and the harness ends as failed instead
+// A run that has not ended after kWatchdogSeconds is stuck somewhere: the stacks of the
+// threads that matter and the proxy log's last lines, which say in what, are printed and the harness ends as failed instead
 // of hanging on.
 namespace
 {
     constexpr DWORD kWatchdogSeconds = 300;
 
+    // The stacks of the threads that are in the proxy, the harness or AMD's frame
+    // generation, with symbols where a PDB lies next to the exe: what a hung Present
+    // waits in is not in the proxy's log. A thread that waits in the driver only is
+    // left out.
+    void DumpThreads()
+    {
+        const HANDLE process = GetCurrentProcess();
+        SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+        wchar_t exe[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, exe, MAX_PATH);
+        std::wstring dir(exe);
+        dir = dir.substr(0, dir.find_last_of(L"\\/"));
+        SymInitializeW(process, dir.c_str(), TRUE);
+        const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+        if (snapshot == INVALID_HANDLE_VALUE)
+            return;
+        THREADENTRY32 entry = {};
+        entry.dwSize = sizeof(entry);
+        for (BOOL more = Thread32First(snapshot, &entry); more; more = Thread32Next(snapshot, &entry))
+        {
+            if (entry.th32OwnerProcessID != GetCurrentProcessId() || entry.th32ThreadID == GetCurrentThreadId())
+                continue;
+            const HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION,
+                                             FALSE, entry.th32ThreadID);
+            if (thread == nullptr)
+                continue;
+            SuspendThread(thread);
+            CONTEXT context = {};
+            context.ContextFlags = CONTEXT_FULL;
+            std::string stack;
+            bool ours = false;
+            if (GetThreadContext(thread, &context))
+            {
+                STACKFRAME64 frame = {};
+                frame.AddrPC.Offset = context.Rip;
+                frame.AddrFrame.Offset = context.Rbp;
+                frame.AddrStack.Offset = context.Rsp;
+                frame.AddrPC.Mode = frame.AddrFrame.Mode = frame.AddrStack.Mode = AddrModeFlat;
+                for (int depth = 0; depth < 16; ++depth)
+                {
+                    if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64, process, thread, &frame, &context, nullptr,
+                                     SymFunctionTableAccess64, SymGetModuleBase64, nullptr))
+                        break;
+                    HMODULE module = nullptr;
+                    wchar_t moduleName[MAX_PATH] = {};
+                    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                           reinterpret_cast<LPCWSTR>(frame.AddrPC.Offset), &module))
+                        GetModuleFileNameW(module, moduleName, MAX_PATH);
+                    const wchar_t* shortName = wcsrchr(moduleName, L'\\');
+                    shortName = shortName != nullptr ? shortName + 1 : moduleName;
+                    ours = ours || _wcsicmp(shortName, L"dxgi.dll") == 0 || _wcsicmp(shortName, L"ProxyHarness.exe") == 0
+                           || wcsstr(shortName, L"amd_fidelityfx") != nullptr;
+
+                    alignas(SYMBOL_INFO) char buffer[sizeof(SYMBOL_INFO) + 256] = {};
+                    SYMBOL_INFO* symbol = reinterpret_cast<SYMBOL_INFO*>(buffer);
+                    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+                    symbol->MaxNameLen = 255;
+                    DWORD64 displacement = 0;
+                    const bool haveSymbol = SymFromAddr(process, frame.AddrPC.Offset, &displacement, symbol) != FALSE;
+                    IMAGEHLP_LINE64 line = {};
+                    line.SizeOfStruct = sizeof(line);
+                    DWORD lineDisplacement = 0;
+                    const bool haveLine = SymGetLineFromAddr64(process, frame.AddrPC.Offset, &lineDisplacement, &line) != FALSE;
+                    char text[512] = {};
+                    snprintf(text, sizeof(text), "  %ls+0x%llx %s%s%s%s:%lu\n", shortName,
+                             static_cast<unsigned long long>(frame.AddrPC.Offset - reinterpret_cast<uintptr_t>(module)),
+                             haveSymbol ? symbol->Name : "", haveSymbol ? " " : "",
+                             haveLine ? "at " : "", haveLine ? line.FileName : "", haveLine ? line.LineNumber : 0ul);
+                    stack += text;
+                }
+            }
+            if (ours)
+                printf("thread %lu:\n%s", entry.th32ThreadID, stack.c_str());
+        }
+    }
+
     DWORD WINAPI Watchdog(void*)
     {
         Sleep(kWatchdogSeconds * 1000);
-        printf("FAIL  the harness still runs after %lu s -- stuck; the proxy log's last lines:\n", kWatchdogSeconds);
+        printf("FAIL  the harness still runs after %lu s -- stuck; the threads in the proxy and in FSR frame generation,"
+               " then the proxy log's last lines:\n", kWatchdogSeconds);
+        DumpThreads();
         wchar_t path[MAX_PATH] = {};
         GetModuleFileNameW(nullptr, path, MAX_PATH);
         std::wstring log(path);
         log = log.substr(0, log.find_last_of(L"\\/") + 1) + L"ReDefinitionProxy.log";
-        FILE* file = nullptr;
-        if (_wfopen_s(&file, log.c_str(), L"rb") == 0 && file != nullptr)
+        // _SH_DENYNO: fopen's own sharing denies writers, and the proxy still holds the
+        // log open for writing -- the open would fail and the tail never appear.
+        FILE* file = _wfsopen(log.c_str(), L"rb", _SH_DENYNO);
+        if (file != nullptr)
         {
             fseek(file, 0, SEEK_END);
             const long size = ftell(file);
@@ -793,6 +910,9 @@ namespace
             fclose(file);
             printf("%s\n", tail.c_str());
         }
+        // The destructors do not run: the keys the harness set would stay in the ini, and
+        // the next run would take them for what the file held.
+        IniKey::RestoreAll();
         TerminateProcess(GetCurrentProcess(), 3);
         return 0;
     }
@@ -2768,7 +2888,27 @@ int main()
                 hr = runPhase(kFrames, uncapped);
             if (FAILED(hr))
                 return Fail("Present without V-Sync after the cap", hr);
+
+            // The minimum back where it was, and the reported frame time with it. The
+            // proxy has the old minimum until it has read the ini again -- once a
+            // second, on a Present -- and above it the reported frame would be a slow
+            // one, presented without generated frames: the phases that follow would
+            // find frame generation gone. Render until it generates, a few seconds at
+            // most.
+            capMinimum.Restore();
             packet.frameTimeDeltaMs = reportedFrameTime;
+            float restored = 0.0f;
+            for (UINT attempt = 0; attempt < 8 && restored < kGeneratingAtLeast; ++attempt)
+            {
+                hr = runPhase(kFrames, restored);
+                if (SUCCEEDED(hr) && restored < kGeneratingAtLeast)
+                    hr = renderFor(0.25f, fpsSteady, steadyFrames);
+                if (FAILED(hr))
+                    return Fail("Present after the minimum was restored", hr);
+            }
+            if (restored < kGeneratingAtLeast)
+                return Fail("frame generation did not come back within seconds of the minimum frame rate"
+                            " being restored in the ini", E_FAIL);
             printf("      frame generation under V-Sync with the minimum at %.0f fps: %.2f presents per frame, %.0f rendered fps"
                    " [%s]; without V-Sync %.2f\n", refresh * 0.75f, capped, cappedFps, cappedLine, uncapped);
             if (capped > 1.05f || strstr(cappedLine, "held off") == nullptr || uncapped < kGeneratingAtLeast)
