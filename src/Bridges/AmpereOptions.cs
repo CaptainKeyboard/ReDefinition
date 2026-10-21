@@ -40,8 +40,8 @@ namespace ReDefinition.Bridges
                       + "recomposition off and on; B only takes effect when the game hands DLSS-G both a\n"
                       + "HUD-less image and a UI plane, which ReDefinition does not.\n"
                       + "C is NVIDIA's lighter candidate blending (Frame Generation Performance Mode): the\n"
-                      + "project measured 32 to 54 percent less GPU time per generated frame, at a slightly\n"
-                      + "lower image quality, mostly on the HUD and at occlusion edges.\n"
+                      + "project measured 32 to 54 percent less GPU time per generated frame; in KSP the HUD\n"
+                      + "and the scene come out the same as with Auto. Installing the package here sets C.\n"
                       + "Applies after a restart of KSP.",
         };
 
@@ -64,6 +64,11 @@ namespace ReDefinition.Bridges
         public const string InstalledCeiling = "5";
         // The ceiling the package's own ini has.
         public const string FactoryCeiling = "3";
+        // The preset an install sets where the package's ini has its own, Auto: C, which measured
+        // +4 to 8 percent frame rate and less latency with the HUD and the scene unchanged
+        // (docs/development/benchmarks.md, tools/hud_probe.py).
+        public const string FactoryPreset = "Auto";
+        public const string InstalledPreset = "C";
 
         public static readonly Option SuperResolution = new Option
         {

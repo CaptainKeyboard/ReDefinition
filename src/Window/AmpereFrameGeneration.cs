@@ -136,7 +136,8 @@ namespace ReDefinition.Window
         }
 
         // The ceiling of generated frames the package's ini holds, the factory's 4X, raised to the most the
-        // runtime supports: the Frame generation row chooses within it, live. A value the player set is left.
+        // runtime supports: the Frame generation row chooses within it, live; and the factory's preset Auto
+        // set to C. A value the player set is left.
         private static void RaiseCeiling()
         {
             try
@@ -145,6 +146,10 @@ namespace ReDefinition.Window
                 AmpereOptions.Option option = AmpereOptions.MaxGeneratedFrames;
                 if (AmpereOptions.Read(path, option) == AmpereOptions.FactoryCeiling)
                     AmpereOptions.Write(path, option, AmpereOptions.InstalledCeiling);
+                // The preset the same way: a value the player set stays.
+                option = AmpereOptions.Preset;
+                if (AmpereOptions.Read(path, option) == AmpereOptions.FactoryPreset)
+                    AmpereOptions.Write(path, option, AmpereOptions.InstalledPreset);
             }
             catch (Exception e)
             {

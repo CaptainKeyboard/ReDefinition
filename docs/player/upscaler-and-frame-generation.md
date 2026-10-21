@@ -182,8 +182,8 @@ says so.
 
 | Row | Choices | Does |
 |---|---|---|
-| *DLSS-G preset* | *Auto*, *A*, *B*, *C (Lite)* | *C* is NVIDIA's lighter frame blending. It costs less GPU time at a slightly lower image quality, mostly at the HUD's edges and at occlusion edges. *A* and *B* force the package's interface recomposition off and on |
-| *DLSS-G multiplier* | *2X* to *6X* | the most frames shown per rendered frame that the package allows. The *Frame generation* row chooses within it, at once; only a higher ceiling needs a restart |
+| *DLSS-G preset* | *Auto*, *A*, *B*, *C (Lite)* | *C* is NVIDIA's lighter frame blending. It costs less GPU time, and in KSP the HUD and the scene come out the same as with *Auto*. Installing the package from the settings window sets *C* where the package's file still has *Auto*. *A* and *B* force the package's interface recomposition off and on |
+| *DLSS-G multiplier* | *2X* to *6X* | the most frames shown per rendered frame that the package allows. Installing the package from the settings window sets *6X*. The *Frame generation* row chooses within it, at once; only a higher ceiling needs a restart |
 | *DLSS super resolution* | *Off*, *On* | runs DLSS's presets L and M with the package's INT8 kernels on RTX 30 and RTX 20. It needs files of about 180 MB, which *Install SR files* takes out of the zip. It does nothing while Ray Reconstruction runs |
 | *DLSS-G frame timing* | *Off*, *On* | the package writes the GPU time of each frame generation to `frames_<pid>.jsonl` in `dlssg_sm86\logs` |
 
