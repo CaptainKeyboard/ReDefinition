@@ -404,6 +404,40 @@ Run `2026-10-21-0241`. Its machine and options are under [the runs](#the-runs).
 | FSR 3 · RT Full, opacity micromaps · FG off (XeSS-FG loaded) · XeLL | 41.9 | 41.8 | 65.0 | 66.7 | -42.1 % | +43.2 ms | +3.5 % | +0.0 ms | +1.9 % |  |
 | FSR 3 · RT Full, opacity micromaps · FG XeSS-FG · XeLL | 35.9 | 71.6 | 61.8 | 64.3 | -50.4 % | +40.0 ms | -11.4 % | -3.2 ms | +5.3 % |  |
 
+### Raytracing modes (`rt-modes`)
+
+Raytracing Off, Shadows, Light and Full for FSR 3 and DLSS (Ray Reconstruction on and
+off), frame generation off and FSR's.
+
+Run `2026-10-21-0951`. Its machine and options are under [the runs](#the-runs).
+
+Run it with `python tools/benchmark_matrix.py run --group rt-modes`.
+
+| Scenario | fps | Shown fps | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline | fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| FSR 3 · RT Off · FG off · none | 72.2 | 72.0 | 21.8 | 23.3 | +0.0 % | +0.0 ms | – | – | – | baseline |
+| FSR 3 · RT Off · FG FSR · none | 66.8 | 133.8 | 29.5 | 32.5 | -7.5 % | +7.7 ms | -7.5 % | +7.7 ms | – |  |
+| FSR 3 · RT Shadows · FG off · none | 58.2 | 58.4 | 28.5 | 30.1 | -19.4 % | +6.7 ms | – | – | – |  |
+| FSR 3 · RT Shadows · FG FSR · none | 54.5 | 109.0 | 37.8 | 40.5 | -24.5 % | +16.0 ms | -6.4 % | +9.3 ms | – |  |
+| FSR 3 · RT Light · FG off · none | 52.3 | 52.5 | 47.7 | 49.9 | -27.6 % | +25.9 ms | – | – | – |  |
+| FSR 3 · RT Light · FG FSR · none | 44.7 | 89.4 | 51.4 | 53.1 | -38.1 % | +29.6 ms | -14.5 % | +3.7 ms | – |  |
+| FSR 3 · RT Full · FG off · none | 44.9 | 44.9 | 57.7 | 59.4 | -37.8 % | +35.9 ms | – | – | – |  |
+| FSR 3 · RT Full · FG FSR · none | 39.5 | 79.0 | 60.2 | 62.0 | -45.3 % | +38.4 ms | -12.0 % | +2.5 ms | – |  |
+| DLSS · RT Off · FG off · none | 67.9 | 67.8 | 23.6 | 25.9 | -6.0 % | +1.8 ms | – | – | – |  |
+| DLSS · RT Off · FG FSR · none | 61.7 | 123.4 | 33.6 | 35.9 | -14.5 % | +11.8 ms | -9.1 % | +10.0 ms | – |  |
+| DLSS · RT Shadows, RR on · FG off · none | 41.0 | 40.9 | 64.2 | 65.6 | -43.2 % | +42.4 ms | – | – | – |  |
+| DLSS · RT Shadows, RR on · FG FSR · none | 36.2 | 72.4 | 67.3 | 68.8 | -49.9 % | +45.5 ms | -11.7 % | +3.1 ms | – |  |
+| DLSS · RT Shadows, RR off · FG off · none | 56.7 | 57.0 | 30.2 | 32.3 | -21.5 % | +8.4 ms | – | – | – |  |
+| DLSS · RT Shadows, RR off · FG FSR · none | 50.9 | 101.6 | 41.5 | 43.8 | -29.5 % | +19.7 ms | -10.2 % | +11.3 ms | – |  |
+| DLSS · RT Light, RR on · FG off · none | 38.2 | 37.9 | 69.4 | 71.0 | -47.1 % | +47.6 ms | – | – | – |  |
+| DLSS · RT Light, RR on · FG FSR · none | 34.0 | 67.9 | 72.5 | 74.0 | -52.9 % | +50.7 ms | -11.0 % | +3.1 ms | – |  |
+| DLSS · RT Light, RR off · FG off · none | 49.0 | 49.1 | 51.8 | 53.5 | -32.1 % | +30.0 ms | – | – | – |  |
+| DLSS · RT Light, RR off · FG FSR · none | 42.6 | 85.0 | 54.7 | 56.2 | -41.0 % | +32.9 ms | -13.1 % | +2.9 ms | – |  |
+| DLSS · RT Full, RR on · FG off · none | 35.8 | 35.9 | 75.3 | 76.6 | -50.4 % | +53.5 ms | – | – | – |  |
+| DLSS · RT Full, RR on · FG FSR · none | 32.1 | 64.0 | 77.5 | 79.1 | -55.5 % | +55.7 ms | -10.3 % | +2.2 ms | – |  |
+| DLSS · RT Full, RR off · FG off · none | 43.3 | 43.4 | 60.3 | 61.8 | -40.0 % | +38.5 ms | – | – | – |  |
+| DLSS · RT Full, RR off · FG FSR · none | 38.3 | 76.6 | 62.7 | 64.3 | -47.0 % | +40.9 ms | -11.5 % | +2.4 ms | – |  |
+
 ### Frame generation steps (`frame-steps`)
 
 DLSS-G at 2x, 3x, 4x, 5x, 6x and Dynamic with the package's MaxGeneratedFrames raised to
@@ -519,6 +553,59 @@ with it (preset, `MaxGeneratedFrames`), the proxy's ini at the start, the frame 
 lines of the phase, the upscaler's line, and each measured value.
 
 <!-- benchmark-runs:start -->
+### Run 2026-10-21-0951
+
+| What | Value |
+|---|---|
+| Date | 2026-10-21T09:51:49 to 2026-10-21T10:01:17 |
+| Commit | `c771a09` on `worktree-agent-a3c8b23ed6951386f` |
+| Build in the install | `dxgi.dll` ec66cbc3a2508f0c (2026-10-21T09:05:20), `GameData/ReDefinition/Plugins/ReDefinition.dll` f61fcfbde9484e82 (2026-10-21T09:16:32) |
+| Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
+| Profile | `medium`: [LOG 09:52:50.135] [ReDefinition] Probe: profile medium applied. |
+| Groups | `rt-modes` |
+| Matrix | `tools/benchmark_matrix.json`, 1 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Full record | [benchmarks/2026-10-21-0951.json](benchmarks/2026-10-21-0951.json) |
+
+<details><summary>What ran in each phase</summary>
+
+| Start | Scenario | Upscaler that ran | Frame generation that ran | presented/rendered | Lowered by | Reports | fps range | Notes |
+|---|---|---|---|---|---|---|---|---|
+| rt-modes-fsr | FSR 3 · RT Off · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 9 | 68.6–73.3 |  |
+| rt-modes-fsr | FSR 3 · RT Off · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 66.2–67.4 |  |
+| rt-modes-fsr | FSR 3 · RT Shadows · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 54.0–59.5 |  |
+| rt-modes-fsr | FSR 3 · RT Shadows · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 54.3–54.7 |  |
+| rt-modes-fsr | FSR 3 · RT Light · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 49.7–52.7 |  |
+| rt-modes-fsr | FSR 3 · RT Light · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 44.2–44.9 |  |
+| rt-modes-fsr | FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 42.5–45.6 |  |
+| rt-modes-fsr | FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.3–39.6 |  |
+| rt-modes-fsr | DLSS · RT Off · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 53.9–71.3 |  |
+| rt-modes-fsr | DLSS · RT Off · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 60.8–62.1 |  |
+| rt-modes-fsr | DLSS · RT Shadows, RR on · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 38.9–41.3 |  |
+| rt-modes-fsr | DLSS · RT Shadows, RR on · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 36.1–36.3 |  |
+| rt-modes-fsr | DLSS · RT Shadows, RR off · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 53.9–57.7 |  |
+| rt-modes-fsr | DLSS · RT Shadows, RR off · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 49.3–51.4 |  |
+| rt-modes-fsr | DLSS · RT Light, RR on · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 36.4–38.5 |  |
+| rt-modes-fsr | DLSS · RT Light, RR on · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 33.9–34.1 |  |
+| rt-modes-fsr | DLSS · RT Light, RR off · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 45.7–49.5 |  |
+| rt-modes-fsr | DLSS · RT Light, RR off · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 42.4–42.8 |  |
+| rt-modes-fsr | DLSS · RT Full, RR on · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 34.7–35.9 |  |
+| rt-modes-fsr | DLSS · RT Full, RR on · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 32.1–32.1 |  |
+| rt-modes-fsr | DLSS · RT Full, RR off · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 40.8–43.7 |  |
+| rt-modes-fsr | DLSS · RT Full, RR off · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 38.1–38.4 |  |
+
+The proxy's configuration in each start, as the proxy logged it at load:
+
+```
+rt-modes-fsr: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(none) xessDirectory=(none) streamlineDirectory=(none) xessFgDirectory=(none)
+```
+
+The raytracing's frames that built 50 meshes or more, at the flight's start:
+
+* rt-modes-fsr: 10 frames, 1313 meshes, 518318 triangles; the slowest 0.61 ms of the GPU,
+  7.04 ms of the CPU
+
+</details>
+
 ### Run 2026-10-21-0942
 
 | What | Value |
