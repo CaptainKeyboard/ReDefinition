@@ -99,6 +99,12 @@ dxgi_LICENSE-NVIDIA.txt       the MIT notices of NVIDIA's Streamline and NVAPI
                               headers compiled into dxgi.dll
 dxgi_LICENSE-FidelityFX.txt   the MIT notice of AMD's FidelityFX API headers
                               compiled into dxgi.dll
+dxgi_LICENSE-AntiLag2.txt     the MIT notice of AMD's Anti-Lag 2 headers
+                              compiled into dxgi.dll
+dxgi_LICENSE-Capsaicin.txt    the MIT notice of AMD's Capsaicin code, adapted in the
+                              radiance cache and compiled into dxgi.dll
+dxgi_LICENSE-XeSS.txt         the MIT notice of Intel's XeSS and XeLL headers
+                              compiled into dxgi.dll
 amd_fidelityfx_framegeneration_dx12.dll
                               AMD's frame generation runtime, 4.0.1 from FSR SDK v2.3.0
 amd_fidelityfx_framegeneration_dx12_LICENSE.md
@@ -142,11 +148,16 @@ In these cases there is no zip, and one left from an earlier build is removed:
   `sl.common.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll` and `nvngx_dlssg.dll`
   for DLSS frame generation, and `sl.dlss_d.dll` and `nvngx_dlssd.dll` for DLSS Ray
   Reconstruction. The player downloads them from NVIDIA's release of the
-  Streamline SDK 2.14.1 on GitHub, with *NVIDIA DLSS files* in the settings window, after
+  Streamline SDK 2.14.16 on GitHub, with *NVIDIA DLSS files* in the settings window, after
   accepting NVIDIA's licences there (`NvidiaFiles`, `NvidiaDownloader`). Every file's
   SHA-256 is pinned.
 * **AMD's upscaler DLL**, `amd_fidelityfx_upscaler_dx12.dll`. The player brings their own
   copy.
+* **Intel's DLLs**, `libxess.dll` for XeSS, and `libxess_fg.dll` and `libxell.dll` for
+  XeSS frame generation. The player brings them from Intel's XeSS SDK. Only the MIT headers
+  of the SDK are compiled into the proxy.
+* **dlssg_for_sm86**, which runs DLSS frame generation on RTX 30 and RTX 20. The player
+  downloads its release zip, and the settings window installs it from there.
 
 ## The files for the game folder
 
@@ -163,12 +174,15 @@ In these cases there is no zip, and one left from an earlier build is removed:
   `amd_fidelityfx_denoiser_dx12.dll`, file version 1.2.0.2740, built against its 1.2.0
   header. The pins, the source and the signatures are in `third_party/amd/README.md`.
 * **The headers' notices [src]:** `licenses/NVIDIA-MIT.txt` holds, verbatim, the MIT
-  notices of the Streamline 2.14.1 headers in `src/DxgiProxy/extern/Streamline/include`,
+  notices of the Streamline 2.14.16 headers in `src/DxgiProxy/extern/Streamline/include`,
   the signature check in `sl_security.h` among them. It also holds the notice of the NVAPI
   headers whose function ids and structures `NvidiaGpu.cpp` declares.
   `licenses/AMD-FidelityFX-API-MIT.txt` holds the MIT notice of AMD's FidelityFX API
   headers in `src/DxgiProxy/extern/FidelityFX`, the loader `ffx_api_loader.h` among them.
-  The package puts both next to `dxgi.dll`.
+  `licenses/AMD-AntiLag2-MIT.txt` holds that of AMD's Anti-Lag 2 headers in
+  `src/DxgiProxy/extern/AntiLag2`, `licenses/Intel-XeSS-MIT.txt` that of Intel's headers in
+  `src/DxgiProxy/extern/XeSS`, and `licenses/AMD-Capsaicin-MIT.txt` that of the code
+  adapted in `RadianceCache.hlsli`. The package puts them all next to `dxgi.dll`.
 * **CKAN [src]:** its spec allows `install_to: GameRoot` for KSP 1, which it says "should
   be used sparingly, if at all". Advanced Fly-By-Wire's NetKAN installs `SDL2.dll` and
   `XInputInterface.dll` with their licences there. CKAN never overwrites a file it did not

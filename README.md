@@ -32,16 +32,15 @@ graphics mods; any mod can join with a config file.
 
 ### Added to the game
 
-* **Upscaling and antialiasing** with AMD FSR 3, NVIDIA DLSS and AMD's FSR DLL, fed with
-  the game's own depth and motion vectors.
-* **Frame generation** with AMD FSR 3.1 or NVIDIA DLSS. Both need Direct3D 12, which KSP
-  does not use: a `dxgi.dll` beside the game presents its frames through a Direct3D 12
-  swapchain, while the game itself goes on rendering in Direct3D 11. DLSS and AMD's
-  upscaler DLL run on that device as well.
+* **Upscaling and antialiasing** with AMD FSR 3, NVIDIA DLSS, AMD's FSR DLL and Intel
+  XeSS, fed with the game's own depth and motion vectors.
+* **Frame generation** with AMD FSR 3.1, NVIDIA DLSS (on RTX 30 and RTX 20 too) or Intel
+  XeSS. You choose *Off*, *2x* to *6x* or *Dynamic* in the game.
+* **Low latency.** NVIDIA Reflex, Intel XeLL, AMD Anti-Lag 2, and a brake that cuts the
+  latency of raytraced frames on any GPU.
 * **Raytracing.** Shadows, ambient occlusion, light with bounces and reflections traced
-  through the scene on the proxy's Direct3D 12 device, with Deferred or without it. The
-  sun and the moons shine on the sea, and EVE's clouds shade the traced light. DLSS Ray
-  Reconstruction or, on a Radeon RX 9000, AMD FSR Ray Regeneration removes the noise.
+  through the scene, with Deferred or without it. DLSS Ray Reconstruction or, on a Radeon
+  RX 9000, AMD FSR Ray Regeneration removes the noise.
 * **Flight HUD.** Vertical and horizontal speed beside the navball, time to impact, a
   round gauge, flight panel profiles that follow the situation, a docking marker on the
   navball, and a navball you can drag sideways.
@@ -69,9 +68,12 @@ works with further graphics mods:
 
 DLSS needs an NVIDIA RTX GPU, frame generation a GPU with Direct3D 12, raytracing a GPU
 with DirectX Raytracing 1.1. ReDefinition downloads NVIDIA's DLSS files itself once
-NVIDIA's licences are accepted in its settings window. What each technique needs:
-[docs/player/upscaler-and-frame-generation.md](docs/player/upscaler-and-frame-generation.md)
-and [docs/player/raytracing.md](docs/player/raytracing.md).
+NVIDIA's licences are accepted in its settings window. Intel's XeSS files, AMD's upscaler
+DLL and the package for DLSS frame generation on RTX 30 and RTX 20 you bring yourself.
+What each technique needs, by GPU:
+[docs/player/upscaler-and-frame-generation.md](docs/player/upscaler-and-frame-generation.md),
+[docs/player/low-latency.md](docs/player/low-latency.md) and
+[docs/player/raytracing.md](docs/player/raytracing.md).
 
 ## Installation
 

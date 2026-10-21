@@ -26,11 +26,13 @@ it ([modders/registering-a-mod.md](../modders/registering-a-mod.md)). Its keys:
 | R5 | Volumetric Clouds and TUFX are loaded | TUFX's flight profile | one with ambient occlusion. The author's *Blackrack_TUFX* where the chosen one has none | Volumetric Clouds' Readme: "Use my TUFX profile or your profile of choice with ambient occlusion enabled" |
 | R6 | DLSS frame generation runs | KSP V-Sync | off, or every refresh | NVIDIA's DLSS-G programming guide, 22.2: a sync interval above 1 is not supported |
 | R7 | DLSS frame generation runs in a build without V-Sync support | KSP V-Sync | off | the guide, 22.1: V-Sync only where `bIsVsyncSupportAvailable` is set |
+| R8 | Intel's XeLL lowers the latency, with XeSS frame generation or alone on an Intel GPU | KSP V-Sync | off, or every refresh | Intel's XeLL developer guide, Integration Checklist: "when VSync is enabled, sync interval for IDXGISwapChain::Present must always be 1 when Low Latency is active" |
 
-R6 and R7 are in KSP's registration, `GameData/ReDefinition/Mods/KSP.cfg`, as the
-checks `DlssFrameGenerationEveryRefresh` and `DlssFrameGenerationVSync`
-([modders/registration-reference.md](../modders/registration-reference.md)). While
-ReDefinition's frame generation is off, or while FSR 3 presents it, every value passes.
+R6 to R8 are in KSP's registration, `GameData/ReDefinition/Mods/KSP.cfg`, as the
+checks `DlssFrameGenerationEveryRefresh`, `DlssFrameGenerationVSync` and
+`XellEveryRefresh` ([modders/registration-reference.md](../modders/registration-reference.md)).
+While ReDefinition's frame generation is off, or while FSR 3 presents it, R6 and R7 pass
+every value. R8 passes every value while XeLL's low latency mode is off.
 
 ## How a requirement is kept
 

@@ -219,7 +219,7 @@ over ReDefinition's, and the log names the file that won.
 
 ## Find out why something is missing
 
-Open the settings window, *Diagnostics*, *Debug*, *Show mod registrations*. It lists
+Open the settings window, *Diagnostics*, *Other mods*, *Registrations*. It lists
 every bundled mod with how many settings it has, every loaded mod that is not bundled
 with the reason, and every problem the registrations had. `KSP.log` holds the same
 lines behind `[ReDefinition]`, and the reasons for single settings as well.

@@ -82,9 +82,9 @@ there.
 and RCAS after it. At 0 the accumulate pass writes straight into the output. Moving the
 slider between 0 and a value above rebuilds the rig.
 
-## DLSS and AMD's upscaler DLL
+## DLSS, AMD's upscaler DLL and XeSS
 
-Both run in the `dxgi.dll` proxy, on the same inputs as FSR 3. The rig writes a packet per
+All three run in the `dxgi.dll` proxy, on the same inputs as FSR 3. The rig writes a packet per
 frame into its dispatch buffer, executed from `OnRenderImage`. A render event hands the
 packet to the proxy on Unity's render thread (`src/Bridges/NativeUpscalerLink.cs`,
 `src/Bridges/PacketRing.cs`). Jitter and motion vector scale are FSR's, in pixels at render
@@ -108,7 +108,25 @@ size (NVIDIA's DLSS Programming Guide 3.6.1, 3.7.3; AMD's `ffx_upscale.h`) **[do
   on the proxy's Direct3D 12 device. Colour, depth and motion vectors are copied into
   textures both devices share, AMD's upscaler runs on the Direct3D 12 queue, and the result
   is copied back into Unity's output, with a shared fence between the two. The DLL decides
-  which upscaler runs: FSR 4 where the DLL and the GPU have it, otherwise FSR 3.1.
+  which upscaler runs: FSR 4 where the DLL and the GPU have it, otherwise FSR 3.1. A DLL of
+  FSR 4 runs the FSR 3.1 it carries on a GPU without FSR 4, without a word. The proxy reads
+  the provider's version against the DLL's own (`AmdUpscaler::Provider`), so the
+  *Technique* row names the FSR that runs, `FSR 4.1.1` or `FSR 3.1.5 fallback`, and the
+  log gives the reason with the versions the DLL offers the GPU **[meas]** (the RTX
+  A4500 with AMD's FSR SDK 2.3.0 DLL, 4.1.1.2740: it offers 3.1.5 and 2.3.4 and runs
+  3.1.5, in the proxy harness and in KSP). FSR 4 needs a Radeon RX 7000 (discrete) or RX
+  9000 or newer.
+* **XeSS** (`src/DxgiProxy/XessUpscaler.cpp`, `src/Bridges/XessUpscalerBridge.cs`) runs
+  Intel's `libxess.dll` from next to `KSP_x64.exe` or `xessDirectory`, on the proxy's
+  Direct3D 12 device and in the same way as AMD's DLL: the packet is AMD's, with its own
+  magic, and the render events are 7 and 8. On Direct3D 12 it takes "Other vendor GPU
+  supporting SM 6.4 and with hardware acceleration for DP4a", with XMX on Intel Arc; on
+  Direct3D 11 it would be limited to Intel Arc **[doc]** (XeSS SR developer guide,
+  Requirements). The context is set to XeSS's legacy scale factors, which are FSR's modes,
+  so that the preset picked for the rig's render size is the one XeSS applies. XeSS
+  sharpens nothing, so RCAS runs after it as after DLSS. It takes no masks, and auto
+  exposure as the player set it. The *Technique* row names the version `libxess.dll`
+  reports, such as `XeSS 2.0.2`.
 * **The proxy's state** is 0 before the first frame, 1 while it upscales, -1 once something
   stopped it, and -2 when that holds until the GPU, driver or DLL changes. The proxy's
   output is shown only once it has reported an upscaled frame; before that the image
@@ -318,7 +336,8 @@ and so does the active vessel in frames its repair leaves out. Every 30 frames a
 the middle of the copy is read back, and while pixels with that value turn up, a line every
 ten seconds gives in how many of the checked frames and what share of their pixels. In the
 flight after the first version of this, 97 to 100% of the pixels were unwritten from the
-start. The Debug tab switches it off for a comparison (*Motion vector repair*, not saved):
+start. The diagnostics window switches it off for a comparison (*Motion vector repair* on the
+*Upscaler inputs* page, not saved):
 the clear stops at once and the repair runs one frame longer to take the last one out,
 and the matrices stay for pass 2. With the shader bundle missing or too old it stays off
 for the scene.
@@ -354,7 +373,7 @@ the other mods' hooks, so a mod's own motion vectors for a part stay on top. Ski
 renderers and materials above queue 2500 are left out, and so are frames after an origin
 shift or a reset. NVIDIA's guide suggests drawing the motion vectors of problem objects
 separately (3.6.4).
-The Debug tab's *Vessel depth and motion vectors* switches both back to Unity's.
+The diagnostics window's *Vessel depth and motion vectors* switches both back to Unity's.
 
 ### Between the physics steps
 
@@ -432,7 +451,8 @@ the vessel and the camera by minus `SharedFrame.OriginShift`, the ground by minu
 matrices are carried across by the first, and the surface the shadow fell on lay off by
 the difference. Left alone: a frame with a history reset, and whatever is drawn over the
 shadow, such as engine plumes or dust, which leaves the HUD-less image with it. The
-Debug switch **Vessel shadow in frame generation**, not saved, turns it off.
+switch **Vessel shadow in frame generation** on the *Upscaler inputs* page, not saved,
+turns it off.
 
 The light map covers the bounds of the vessel's renderers. Renderers whose bounds are not
 finite, longer than 250 m on a side or farther than 500 m from the vessel neither size it
@@ -471,7 +491,7 @@ clouds write no depth and no motion vectors into the camera's buffers.
   Scatterer's TAA blends them. They count where the clouds cover the pixel, over the sky
   by their transmittance, and over geometry once less than a tenth of it is left. The
   jitter applies wherever EVE's renderer and its `GetNonJitteredProjectionMatrixForCamera`
-  are found. The Debug switch *EVE clouds: jitter and motion vectors* is on at every start.
+  are found. The switch *EVE clouds: jitter and motion vectors* is on at every start.
 
 ### TUFX's post-processing
 
@@ -488,8 +508,8 @@ from the same volumes. Which layer draws what is decided right after PostProcess
 a layer's settings, in a Harmony postfix on `UpdateSettings`. This happens only while the
 image the upscaler receives is HDR, because an 8-bit target clamps the highlights that
 bloom and tonemapping need. Depth of field and motion blur after the upscaler get the rig's
-copies of depth and motion vectors. Dithering happens once, on the final image. The Debug
-switch *TUFX after upscaling* is on by default.
+copies of depth and motion vectors. Dithering happens once, on the final image. The switch
+*TUFX after upscaling* is on by default.
 
 ### The masks for FSR 3 and AMD's upscaler
 
@@ -560,7 +580,7 @@ is logged with its reason. Mod by mod:
 
 ## Instruments
 
-In the diagnostics window's *Debug* tab
+In the diagnostics window, on its *Capture & log* and *Frame generation & latency* pages
 ([player/settings-window.md](../player/settings-window.md)):
 
 * **Camera and origin**, about every ten seconds: frames with an origin shift, the largest
@@ -603,8 +623,9 @@ In the diagnostics window's *Debug* tab
   (`DXGI_ERROR_UNSUPPORTED`, as with KSP in exclusive fullscreen at another size than the
   desktop's), the proxy records the game's own frames at its Presents instead, whole, read
   back one a frame and written in a thread of their own; frame generation's frames are
-  then not among them, and the Debug tab says so. The harness records 40 frames while DLSS
-  frame generation runs, and with `REDEFINITION_RECORD_GAME_FRAMES` set the game's frames.
+  then not among them, and the window's *Last recording* line says so. The harness records
+  40 frames while DLSS frame generation runs, and with `REDEFINITION_RECORD_GAME_FRAMES`
+  set the game's frames.
 * **Motion vector check on fast turns**, with frame generation: a fast turn asks the proxy
   for its motion vector check at once, and a line says what the camera did.
 * **Write diagnostics to log**: what the cameras, the inputs, the masks, the proxy's

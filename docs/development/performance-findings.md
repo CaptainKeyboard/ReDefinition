@@ -32,7 +32,8 @@ Sections that name the RTX A4500 were measured on a second machine, below.
 ## On an RTX A4500
 
 The RTX A4500 is an Ampere GPU of about an RTX 3070's speed. It has no DLSS frame
-generation, so the proxy runs FSR's (`ReDefinitionProxy.log`) **[meas]**. The screen is
+generation of its own, so without dlssg_for_sm86 the proxy runs FSR's
+(`ReDefinitionProxy.log`) **[meas]**. The screen is
 2560 x 1440 at 120 Hz, DLSS in mode *Quality* with the model *Default*, raytracing
 `Full` with 2 bounces, and the same mods. The frame rate is the rendered one at the
 launch pad, the proxy's report **[meas]**:
@@ -285,10 +286,19 @@ raytracing (6.05 ms) and Ray Reconstruction (4.3 ms to 4.5 ms) are about half of
 
 | What | Why it may help | What stands in the way |
 |---|---|---|
-| Opacity micromaps for cut-out surfaces: grass, ferns, leaves | The rays test every candidate hit on such a surface against its texture in the shader (`CandidateCounts`, `RtCommon.hlsli`) **[src]**. Opacity micromaps let the GPU's ray tracing units decide most of those hits without the shader. All of NVIDIA's raytracing GPUs support them **[doc]** ([Microsoft](https://devblogs.microsoft.com/directx/d3d12-opacity-micromaps/)). In *Indiana Jones and the Great Circle*, the main trace went from 7.90 ms to 3.58 ms on an RTX 5080 **[doc]** ([NVIDIA](https://developer.nvidia.com/blog/path-tracing-optimizations-in-indiana-jones-opacity-micromaps-and-compaction-of-dynamic-blass/)). | On the RTX A4500, cut-out surfaces tested without their texture (`rtCutoutTest=1`) save 1.25 ms of the rays, and taken as opaque (`rtCutoutTest=2`), the most micromaps could give, 1.6 ms **[meas]**. Ampere GPUs, the RTX A4500 among them, have no micromap unit; it came with Ada, the RTX 40 series **[doc]** ([NVIDIA](https://images.nvidia.com/aem-dam/Solutions/geforce/ada/nvidia-ada-gpu-architecture.pdf)). Inline ray queries need the Agility SDK 1.619 and Shader Model 6.9 for them **[doc]**. The proxy compiles for `cs_6_5` (`src/DxgiProxy/CMakeLists.txt`) **[src]**. KSP's executable does not export the Agility SDK's version, so the proxy would load it through `ID3D12SDKConfiguration1::CreateDeviceFactory` **[open]**. NVIDIA's Opacity Micromap SDK bakes the micromaps from the alpha textures **[doc]**. |
 | Shader execution reordering for the bounces | It sorts rays that went apart by what they hit, so that a GPU's threads run the same shading together. It is part of DirectX Raytracing 1.2 and Shader Model 6.9 **[doc]** ([Microsoft](https://devblogs.microsoft.com/directx/shader-execution-reordering/)). | The rays are inline ray queries (`Raytracing.hlsl`) **[src]**. Reordering works on hit objects, and whether one made from a ray query gains anything here is **[open]**. |
 | The raytracing beside Unity's drawing instead of after it | The GPU is 82 % to 87 % busy by Windows' 3D engine counter, 95 % to 98 % by `nvidia-smi` **[meas]**. Work that runs alongside could fill the rest. | The rays need the frame's G-buffer **[src]**. Beside the frame's drawing they could only trace the frame before, a frame of latency. The gain is at most the GPU's idle share and is **[open]**. |
-| A cheaper Ray Reconstruction model | none | Streamline 2.14.1 has only transformer models for Ray Reconstruction. Presets A to C are removed (`sl_dlss_d.h`) **[src]**. |
+| A cheaper Ray Reconstruction model | none | Streamline 2.14.16 has only transformer models for Ray Reconstruction. Presets A to C are removed (`sl_dlss_d.h`) **[src]**. |
+
+Opacity micromaps for cut-out surfaces (grass, ferns, leaves) are built and off by
+default (`rtOpacityMicromaps`,
+[raytracing.md](raytracing.md#cut-out-surfaces-and-opacity-micromaps)):
+
+| Question | Answer |
+|---|---|
+| What could they give | The rays test every candidate hit on such a surface against its texture in the shader. Micromaps let the GPU's ray tracing units decide most of those hits without it. In *Indiana Jones and the Great Circle*, the main trace went from 7.90 ms to 3.58 ms on an RTX 5080 **[doc]** ([NVIDIA](https://developer.nvidia.com/blog/path-tracing-optimizations-in-indiana-jones-opacity-micromaps-and-compaction-of-dynamic-blass/)). On the RTX A4500, cut-out surfaces tested without their texture (`rtCutoutTest=1`) save 1.25 ms of the rays, and taken as opaque (`rtCutoutTest=2`), the most micromaps could give, 1.6 ms **[meas]** |
+| What they gave on Ampere | Ampere GPUs have no micromap unit, which came with Ada, the RTX 40 series **[doc]** ([NVIDIA](https://images.nvidia.com/aem-dam/Solutions/geforce/ada/nvidia-ada-gpu-architecture.pdf)). The RTX A4500 rendered 10 % fewer frames a second with them **[meas]** ([benchmarks.md](benchmarks.md)) |
+| What they give on Ada | **[open]** until an RTX 40 flies them |
 
 ## What is left
 

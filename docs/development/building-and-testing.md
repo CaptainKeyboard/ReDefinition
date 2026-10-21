@@ -110,7 +110,8 @@ something named is missing or the code changed, and prints the installed fingerp
 add once the new code has been read. The exit code is the number of failures. Run it after
 a bundled mod's update. In the game, an assumption marked `WhenChanged.Fallback` takes the
 way that does not rest on it where its code changed, and `ForeignAssumptionReport` writes
-what came of each into `KSP.log` at the main menu and into the Debug tab.
+what came of each into `KSP.log` at the main menu and into the diagnostics window's *Other
+mods* page, under *Their code*.
 
 Reflection from PowerShell into KSP's assemblies has two traps, and the scripts handle
 both. An `AssemblyResolve` handler must use only `[IO.File]` and `[IO.Path]` and guard
@@ -261,13 +262,26 @@ to it. Environment variables add what the player brings:
 
 | Variable | A folder with | Runs |
 |---|---|---|
-| `REDEFINITION_STREAMLINE_DIR` | Streamline 2.14.1's DLLs, the SDK's `bin\x64` | DLSS frame generation's phases, V-Sync every second refresh among them, in place of FSR's; on an NVIDIA adapter only |
+| `REDEFINITION_STREAMLINE_DIR` | Streamline 2.14.16's DLLs, the SDK's `bin\x64` | DLSS frame generation's phases, V-Sync every second refresh among them, in place of FSR's; on an NVIDIA adapter only |
+| `REDEFINITION_XESS_FG_DIR` | `libxess_fg.dll` and `libxell.dll` | XeSS frame generation's phases, in place of FSR's |
 | `REDEFINITION_DLSS_DIR` | `nvngx_dlss.dll` | the DLSS upscaler |
 | `REDEFINITION_AMD_UPSCALER_DIR` | `amd_fidelityfx_upscaler_dx12.dll` | AMD's upscaler |
+| `REDEFINITION_XESS_DIR` | `libxess.dll` | the XeSS upscaler |
 
-One swapchain has one frame generation, so a run with `REDEFINITION_STREAMLINE_DIR` and
-one without cover both. DLSS frame generation generates only while the harness window has
-the focus.
+One swapchain has one frame generation, so a run with `REDEFINITION_STREAMLINE_DIR`, one
+with `REDEFINITION_XESS_FG_DIR` and one with neither cover all three. Setting both names
+is refused.
+
+These variables change a run without naming a folder:
+
+| Variable | Value | Does |
+|---|---|---|
+| `REDEFINITION_DLSSG_MODE` | `on` or `dynamic` | starts DLSS frame generation in that mode (`dlssgMode`). The harness asks Dynamic for a target of 8000 frames a second, since its own thousand frames a second are far above the display's |
+| `REDEFINITION_XESS_FG_WAITABLE` | `auto`, `0` or `1` | `xessFgOwnWaitable` for the run; the waits on the frame latency waitable object are counted |
+| `REDEFINITION_HARNESS_FOCUS` | any | DLSS frame generation generates nothing while the harness window is out of the foreground. The taskbar takes the foreground for a moment and the window gets it back: 1.00 presents per frame out of it, and more in it |
+| `REDEFINITION_LATENCY_TEST` | `1` | compares what lowers the latency most on this GPU: nothing, the brake, and AMD Anti-Lag 2 on either device, measured alike under a Direct3D 11 compute load that holds the frames back ([low-latency.md](low-latency.md)) |
+| `REDEFINITION_ADAPTER_VENDOR` | a PCI vendor id in hex: `1002` AMD, `10DE` NVIDIA, `8086` Intel | runs on the adapter of that vendor rather than the default one |
+| `REDEFINITION_HARNESS_CHECKER` | any | AMD's upscaler gets a frame time in seconds rather than milliseconds, so that its debug checker (`vendorDiagnostics=1`) reports it into the log |
 
 Run the harness after every change to the proxy. It prints a `PASS` line for each part
 that ran, or one `FAIL` line.
@@ -286,9 +300,21 @@ build\DxgiProxy\Release\RaytracingHarness.exe
 It prints a `PASS` or `FAIL` line per check and the GPU time of each pass. It writes an
 image per check next to itself, `rt_*.bmp`, to look at.
 
-Where DLSS frame generation runs and NVIDIA's `sl.dlss_d.dll` and `nvngx_dlssd.dll` lie
-next to the other Streamline DLLs, it also checks DLSS Ray Reconstruction. Both come with
-the Streamline SDK 2.14.1, in `bin\x64`.
+Where NVIDIA's `sl.dlss_d.dll` and `nvngx_dlssd.dll` lie next to the other Streamline
+DLLs, it also checks DLSS Ray Reconstruction, through Streamline and through NGX. Both come
+with the Streamline SDK 2.14.16, in `bin\x64`.
+
+One argument narrows the run to the opacity micromaps:
+
+| Argument | Runs |
+|---|---|
+| `--omm` | only the checks against the driver: the micro-triangles' order and packing, the baker |
+| `--omm-table` | the same, and lists the order the driver has |
+| `--omm-scene` | only the micromaps through the proxy |
+| `--omm-none` | the same, with the driver's capability simulated as none (`REDEFINITION_OMM_CAPS=none`) |
+
+The full run has both, and a run of its own with the capability simulated as none.
+[raytracing.md](raytracing.md#testing-without-the-game) lists what each phase checks.
 
 ## Run the raytracing test player
 
@@ -382,7 +408,8 @@ build\DxgiProxy\Release\RaytracingHarness.exe
 
 ## Replay the game's frames through frame generation
 
-**Record the screen** in the Debug tab also writes eight consecutive frames of what frame
+*Record the screen in 5 s (120 frames)* on the diagnostics window's *Capture & log* page
+also writes eight consecutive frames of what frame
 generation receives into a folder ending in `-inputs`: the HUD-less colour, depth, motion
 vectors, the frame as presented and each frame's packet (`FrameGenerationDump.cpp`). The
 frames are taken from the first frame the camera turns by more than a degree, or after 600

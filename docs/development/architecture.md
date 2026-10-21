@@ -14,14 +14,15 @@ ReDefinition is six things in one repository.
    `src/Settings`, `src/Window` and `GameData/ReDefinition`.
 2. **The upscaler.** FSR 3 in Unity, on KSP's camera stack, in C# (`src/Upscaler`,
    `src/Fsr3`). Its compute shaders come as an AssetBundle that the Unity project in
-   `unity/` builds. DLSS and AMD's upscaler DLL run in the proxy on the same inputs
+   `unity/` builds. DLSS, AMD's upscaler DLL and XeSS run in the proxy on the same inputs
    (`src/Bridges`).
 3. **The raytracing.** Sun shadows, diffuse light and reflections traced on the proxy's
    Direct3D 12 device, fed from KSP's scene and written back into Unity's lighting
    (`src/Raytracing`, the proxy's `Raytracing*.cpp`).
 4. **The proxy.** A native `dxgi.dll` that presents KSP's frames through Direct3D 12
-   (`src/DxgiProxy`). It runs frame generation with FSR 3 or with DLSS through Streamline,
-   the DLSS and AMD upscalers, the raytracing, and the compute passes other mods ask for.
+   (`src/DxgiProxy`). It runs frame generation with FSR 3, with DLSS through Streamline or
+   with XeSS, the DLSS, AMD and XeSS upscalers, the latency brake and Reflex, XeLL and
+   Anti-Lag 2, the raytracing, and the compute passes other mods ask for.
 5. **The interface for mods.** The frame's state, history resets, hooks, key bindings, the
    chosen profile and Direct3D 12 compute passes (`src/Api`, `src/Shared`). Why it exists:
    [shared-foundation.md](shared-foundation.md).
@@ -37,9 +38,10 @@ Harmony is a requirement (`src/KspAssemblyInfo.cs`).
 
 Each folder is one namespace, but for `src/Fsr3`, which keeps FSR3Unity's two, and the
 subfolders of `src/Flight` and `src/Raytracing`. A folder uses its own layer and the
-layers below it. The upscaler alone reaches up: it reads the add-on's Debug switch
-(`ReDefinitionAddon.DebugMode`), and takes Parallax's scatter materials for the mipmap bias
-from `RtKspMods` and the vessel's parts from `RtFilter`, both in `src/Raytracing/Ksp`.
+layers below it. The upscaler alone reaches up: it reads the add-on's debug mode
+(`ReDefinitionAddon.DebugMode`, *Measurements into the log*), and takes Parallax's
+scatter materials for the mipmap bias from `RtKspMods` and the vessel's parts from
+`RtFilter`, both in `src/Raytracing/Ksp`.
 
 | Layer | Folder | Namespace | What |
 |---|---|---|---|
@@ -79,7 +81,12 @@ one.
 |---|---|
 | `ReDefinitionAddon.cs` | the add-on's lifecycle: builds and tears down the rig per scene and camera mode, the hotkeys, HostStack while the upscaler runs, the hooks of the lower layers |
 | `ReDefinitionAddon.Settings.cs` | the settings: what each change does, loading, saving, applying from a settings view |
-| `ReDefinitionAddon.Diagnostics.cs` | the diagnostics window, *General* and *Debug* |
+| `ReDefinitionAddon.Diagnostics.cs` | the diagnostics window's shell: the window, the list of pages, the changes that wait for the layout pass, the pins at its foot, the scene probe's commands |
+| `ReDefinitionAddon.DiagnosticsLiveStrip.cs` | the live strip: what runs, the frame rates, the frame time graph, the latency and the load; the search, *Changed* and *Reset debug switches* |
+| `ReDefinitionAddon.DiagnosticsPages.cs` | the pages: *Overview*, the pages of options with the facts beside them, *Previews*, and the list of search results |
+| `ReDefinitionAddon.DiagnosticsOptions.cs` | the window's options as data: label, page, group, default, whether it is saved, why it does not apply, and the setter each one calls |
+| `ReDefinitionAddon.DiagnosticsRows.cs` | how an option is drawn by its kind, with its star and marker, and the pinned options at the foot |
+| `ReDefinitionAddon.DiagnosticsMods.cs` | *Other mods*: three lists of lines, their state, the registrations and their code |
 | `ReDefinitionAddon.FrameRates.cs` | frame rates with and without the upscaler, rendered and presented, with the load behind them |
 | `OwnSettings.cs` | the player's choices in `PluginData/settings.cfg` |
 | `GraphicsModule.cs`, `OurModules.cs` | `IGraphicsModule`, `ModuleSetting`: the upscaler and frame generation as modules, in the same model as a mod's settings |
@@ -101,7 +108,8 @@ one.
 | `CaptureFolder.cs` | `ReDefinitionCaptures` beside `KSP_x64.exe`, where the probes, tests and dumps write |
 
 `src/ForeignAssumptionReport.cs` writes what came of each assumption into `KSP.log` and
-the Debug tab; `tools/check_foreign_code.ps1` checks the catalogue outside the game
+the diagnostics window's *Other mods* page; `tools/check_foreign_code.ps1` checks the
+catalogue outside the game
 ([building-and-testing.md](building-and-testing.md#run-the-check-scripts)).
 
 ## The settings framework, `src/Settings`
@@ -190,7 +198,7 @@ The rules the store follows: [settings-store.md](settings-store.md).
 | `UpscalerTextures.cs`, `RenderTextures.cs` | the rig's textures and the native handles the proxy is given; render textures made, checked and released |
 | `RenderInterpolation.cs`, `StepInterpolator.cs` | the active vessel drawn between its last two physics steps; the arithmetic of it, free of KSP, tested |
 | `VesselShadowLayer.cs` | the active vessel's shadow kept out of frame generation's motion |
-| `StageDump.cs` | the frame's stages written with the Debug tab's screen recording |
+| `StageDump.cs` | the frame's stages written with the diagnostics window's screen recording |
 | `FrameRateMeter.cs` | frame times with and without the upscaler |
 
 ### Inputs and the game's state
@@ -226,15 +234,17 @@ How a frame goes through all of it: [upscaler.md](upscaler.md).
 
 | File | Role |
 |---|---|
-| `NativeUpscalerLink.cs`, `DlssBridge.cs`, `AmdUpscalerBridge.cs` | the managed side of the upscalers in the proxy |
+| `NativeUpscalerLink.cs`, `DlssBridge.cs`, `AmdUpscalerBridge.cs`, `XessUpscalerBridge.cs` | the managed side of the upscalers in the proxy |
 | `FrameGenerationBridge.cs` | the managed side of frame generation: inputs registered, a frame packet per frame, state and counters |
 | `D3d12Bridge.cs` | the managed side of Direct3D 12 for mods: packets, render events, status |
 | `PacketRing.cs` | the packet slots render events read on Unity's render thread |
 | `StreamlineCamera.cs` | the camera matrices DLSS frame generation takes, in Streamline's form |
-| `ReflexFrames.cs` | Reflex's sleep and simulation markers on the main thread, and the frame index to the render thread |
+| `ReflexFrames.cs` | the frame's start and simulation markers on the main thread, and the frame index to the render thread; what lowers the latency, and the latency measure ([low-latency.md](low-latency.md)) |
+| `FrameGenerationChoice.cs` | the *Frame generation* row's choices, *Off*, 2x to 6x and *Dynamic*, and which of them the technique that runs allows |
+| `AmperePackage.cs`, `AmpereOptions.cs` | dlssg_for_sm86: the release zip, what is taken out of it, and the four choices written into its ini |
 | `NvidiaFiles.cs` | which of NVIDIA's DLLs the GPU can use, and where they come from |
 | `ProxyLoad.cs` | whether the `dxgi.dll` next to `KSP_x64.exe` is the one the game loaded, or Windows refused it |
-| `ScreenRecordingBridge.cs` | the proxy's screen recording for the Debug tab |
+| `ScreenRecordingBridge.cs` | the proxy's screen recording for the diagnostics window |
 
 ## The interface for mods, `src/Api` and `src/Shared`
 
@@ -281,6 +291,9 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | `ModWindowsAddon.cs` | when: the close buttons installed, the toolbar looked at, the open settings window following a change made in another window |
 | `UnityMouseEvents.cs` | Unity's mouse events on redirected cameras, and clicks on ReDefinition's windows kept from the scene |
 | `NvidiaDownloader.cs` | the download of NVIDIA's DLLs from NVIDIA's Streamline release after licence consent |
+| `AmpereFrameGeneration.cs`, `SettingsWindow.Ampere.cs` | the *DLSS-G on RTX 30/20* row: the dialog with the steps, the install from the zip, and the package's choices |
+| `DebugOptions.cs` | the diagnostics window's options, their search, *Changed* and reset, the pins, and the ring of frame times; free of Unity |
+| `DiagnosticsStyles.cs` | the diagnostics window's styles, copied from KSP's skin |
 
 ### The model the settings window follows
 
@@ -379,7 +392,12 @@ button.
 | `FrameGenerationInputs.cpp` | the textures shared between Unity's Direct3D 11 and the proxy's Direct3D 12 device, copied at present and flipped where Unity renders upside down |
 | `FrameGenerationCheck.cpp` | the HUD-less and motion vector checks, read back and logged |
 | `FrameGenerationDlss.cpp` | the same inputs handed to DLSS frame generation through Streamline |
-| `Streamline.h`, `Streamline.cpp` | Streamline 2.14.1, loaded from the player's files, with NVIDIA's signature check |
+| `Streamline.h`, `Streamline.cpp` | Streamline 2.14.16, loaded from the player's files, with NVIDIA's signature check |
+| `FrameGenerationUi.cpp` | the UI plane for DLSS-G, worked out from the presented frame and the HUD-less copy (`dlssgUiRecomposition`) |
+| `XessFg.h`, `XessFg.cpp`, `FrameGenerationXess.cpp`, `SwapChainProxyXess.cpp` | Intel's XeSS frame generation and XeLL: the two DLLs, the swapchain, the inputs, the contexts' order |
+| `XessUpscaler.h`, `XessUpscaler.cpp` | Intel's XeSS on the proxy's Direct3D 12 device |
+| `LowLatency.h`, `LowLatency.cpp` | Reflex, Anti-Lag 2, XeLL and the latency brake, and the latency measure ([low-latency.md](low-latency.md)) |
+| `NgxCore.h`, `NgxCore.cpp` | NVIDIA's NGX as the driver exports it, for DLSS on Direct3D 11 and Ray Reconstruction on Direct3D 12 |
 | `Dlss.h`, `Dlss.cpp` | DLSS through NGX on Unity's Direct3D 11 device |
 | `AmdUpscaler.h`, `AmdUpscaler.cpp` | AMD's upscaler DLL on the proxy's Direct3D 12 device |
 | `D3d12Compute.h`, `D3d12Compute.cpp` | Direct3D 12 for mods: capabilities, HLSL compiled with Windows' `d3dcompiler_47.dll`, compute passes against one root signature, textures shared with Direct3D 11 |
@@ -389,6 +407,11 @@ button.
 | `RaytracingInternal.h` | what the raytracing's sources share: the passes, the timestamps, a mesh's layout |
 | `RaytracingDenoise.cpp` | ReDefinition's own denoiser: its textures and the passes of a frame |
 | `RaytracingReconstruct.cpp` | DLSS Ray Reconstruction through Streamline: its guides from the raytraced frame or the G-buffer, its tags and constants, the evaluation |
+| `DlssRayReconstruction.h`, `DlssRayReconstruction.cpp` | DLSS Ray Reconstruction through NGX, beside FSR's and XeSS's frame generation |
+| `RaytracingBuild.h`, `RaytracingBuild.cpp`, `RaytracingBuildFrame.h` | how the meshes' structures are built: batched, pooled, budgeted and compacted |
+| `RaytracingCache.cpp` | the radiance cache: its buffers, anchor, constants and passes |
+| `RaytracingOmm.h`, `RaytracingOmm.cpp`, `RaytracingOmmBake.h`, `RaytracingOmmBake.cpp` | opacity micromaps through NVAPI, and the baker that makes them from the textures |
+| `RaytracingMegaGeometry.h`, `RaytracingMegaGeometry.cpp` | RTX Mega Geometry's cluster structures through NVAPI |
 | `RaytracingRegenerate.cpp` | AMD FSR Ray Regeneration where its DLL runs |
 | `RaytracingShaders/` | the raytracing and denoising passes in HLSL, compiled to DXIL at build time and embedded in `dxgi.dll` |
 | `FidelityFx.h`, `FidelityFx.cpp` | AMD's frame generation runtime, loaded at run time through a function table |
@@ -402,9 +425,9 @@ button.
 | `GpuProfiler.h`, `GpuProfiler.cpp`, `CpuSampler.h`, `CpuSampler.cpp` | the GPU's time inside Unity's frame by the mod's markers; where the main thread spends its time in native code ([profiling.md](profiling.md)) |
 | `FileUtil.h`, `FileUtil.cpp`, `D3d12Util.h` | paths next to the executable, file facts; Direct3D 12 resource transitions |
 | `ProxyHarness.cpp`, `HarnessPass.hlsl` | a test driver that does what Unity does, without KSP; its compute pass for Direct3D 12 for mods |
-| `RaytracingHarness.cpp` | the raytracing's test driver: a G-buffer rasterised in Unity's layout, the passes checked against the CPU |
+| `RaytracingHarness.cpp`, `RaytracingOmmHarness.cpp`, `OmmProbe.hlsl` | the raytracing's test driver: a G-buffer rasterised in Unity's layout, the passes checked against the CPU; the opacity micromaps checked against the driver |
 | `ReDefinitionProxy.def`, `ReDefinitionProxy.rc.in` | the exported names; the version resource, filled from the project's version |
-| `extern/` | AMD's FidelityFX headers and NVIDIA's Streamline headers (MIT) |
+| `extern/` | AMD's FidelityFX and Anti-Lag 2 headers, NVIDIA's Streamline headers and Intel's XeSS and XeLL headers (MIT) |
 
 The proxy's own files are C++17 in the namespace `redefinition`, but for the three that
 only export: `DxgiExports.cpp`, `ManagedBridge.cpp` and the harness. CMake builds them into

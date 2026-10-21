@@ -5,16 +5,16 @@
 **You get:** how generated frames are made in a game that renders in Direct3D 11, what
 each runtime asks for, and what it costs.
 
-KSP renders in Direct3D 11, so frame generation runs in a `dxgi.dll` proxy. Two runtimes
-are offered there: AMD's FSR 3.1 frame generation, and NVIDIA's DLSS frame generation
-through Streamline 2.14.1.
+KSP renders in Direct3D 11, so frame generation runs in a `dxgi.dll` proxy. Three runtimes
+are offered there: AMD's FSR 3.1 frame generation, NVIDIA's DLSS frame generation through
+Streamline 2.14.16, and Intel's XeSS frame generation with XeLL.
 
 Every claim here carries its mark: **[src]**, **[doc]**, **[meas]** or **[open]**
 ([writing-these-pages.md](writing-these-pages.md)).
 
 ## The idea
 
-**[doc]** Both runtimes need Direct3D 12. The proxy follows the approach of
+**[doc]** Every runtime needs Direct3D 12. The proxy follows the approach of
 DynamicShaderFrameGen (jatelop8, GPL-3.0, Skyrim SE), which builds on Community Shaders'
 swapchain proxy and ENBFrameGeneration: hand the game a **shared Direct3D 11 texture as
 its backbuffer**, and present through a **Direct3D 12 swapchain**. The game keeps
@@ -25,7 +25,7 @@ rendering in Direct3D 11.
 | KSP / Unity | renders unchanged in Direct3D 11 |
 | Backbuffer | a shared Direct3D 11 texture from the proxy, carrying the whole frame including UI |
 | HUD-less colour | a copy of the backbuffer, taken between the last scene camera and the first UI camera |
-| Proxy | the Direct3D 12 device, and FSR's frame interpolation swapchain or Streamline's |
+| Proxy | the Direct3D 12 device, and FSR's frame interpolation swapchain, Streamline's or Intel's |
 | Interop | shared NT handles; shared fences order the devices |
 | Presentation | through the runtime's swapchain, which paces generated and real frames |
 
@@ -35,20 +35,30 @@ forwards every other export to Windows' own.
 
 ## Which runtime runs
 
-With `dlssFrameGeneration=1` in `ReDefinitionProxy.ini` the proxy makes the swapchain
-through Streamline where DLSS frame generation runs. It runs where Streamline 2.14.1
-signed by NVIDIA lies in the player's files, on an NVIDIA GPU that supports it, under
-Windows 10 20H1 or newer, with hardware-accelerated GPU scheduling on. Streamline itself
-decides the support: `slIsFeatureSupported` for DLSS-G, and the same for Reflex, which
-DLSS-G requires **[doc]**. NVAPI reports the GPU's architecture
-(`src/DxgiProxy/NvidiaGpu.cpp`), and the mod offers NVIDIA's frame generation files from
-Ada on, Streamline's core and Ray Reconstruction's from Turing on
-(`src/Bridges/NvidiaFiles.cs`).
+`frameGenerationTechnique` in `ReDefinitionProxy.ini` (`auto`, `dlss`, `xess` or `fsr`)
+says which swapchain the proxy makes. It is read once, when KSP creates its swapchain
+**[src]**. `auto` makes Streamline's where DLSS frame generation runs, XeSS frame
+generation's on an Intel GPU, and FidelityFX's otherwise. The log's "DLSS frame
+generation" and "XeSS frame generation" lines say which runs and why.
 
-Otherwise the swapchain is made through FidelityFX, where
+**DLSS.** The proxy makes the swapchain through Streamline where DLSS frame generation
+runs. It runs where Streamline 2.14.16 signed by NVIDIA lies in the player's files, on an
+NVIDIA GPU that supports it, under Windows 10 20H1 or newer, with hardware-accelerated GPU
+scheduling on. Streamline itself decides the support: `slIsFeatureSupported` for DLSS-G,
+and the same for Reflex, which DLSS-G requires **[doc]**. NVAPI reports the GPU's
+architecture (`src/DxgiProxy/NvidiaGpu.cpp`), and the mod offers NVIDIA's frame generation
+files from Ada on, Streamline's core and Ray Reconstruction's from Turing on
+(`src/Bridges/NvidiaFiles.cs`). The proxy loads Streamline 2.14.16 only; a file of
+another version counts as missing there.
+
+**XeSS.** The proxy makes Intel's swapchain on an Intel adapter with `auto`, and for any
+GPU where `xess` is asked. It needs `libxess_fg.dll` and `libxell.dll` of XeSS SDK 2.1 or
+newer ([XeSS frame generation](#xess-frame-generation)).
+
+**FSR.** Otherwise the swapchain is made through FidelityFX, where
 `amd_fidelityfx_framegeneration_dx12.dll` lies next to the executable. Where neither is
 there, the proxy makes a plain Direct3D 12 swapchain that presents without frame
-generation. The log's "DLSS frame generation" lines say which runs and why.
+generation.
 
 Streamline runs in manual hooking mode: its command queue comes from its device proxy, the
 swapchain is made through its factory proxy, and every other call goes to the native
@@ -178,8 +188,9 @@ From NVIDIA's ProgrammingGuideDLSS_G.md and the Streamline headers:
   `fgObjectSeparationMetres` in the proxy's ini sets it in metres, divided by each frame's
   near plane; 0, the default, keeps Streamline's. On the runway, 1 m and the default made
   no measurable difference.
-* **Options.** On with as many generated frames as the GPU reports it can make, and no more
-  than the display allows (below); off when the mod has it off or no inputs arrived.
+* **Options.** On with the generated frames the mod asks for
+  ([the multiplier](#the-multiplier)), and no more than the GPU reports it can make and
+  the display allows (below); off when the mod has it off or no inputs arrived.
   Resources are kept while off. Options take effect "in the next Present() call that
   executes after it".
 * **Status.** A failing status keeps DLSS-G off until a retry. The first generating presents
@@ -194,6 +205,177 @@ From NVIDIA's ProgrammingGuideDLSS_G.md and the Streamline headers:
 * **Window changes.** DLSS-G is switched off, and the shared colour presented once more,
   before the swapchain's size or full screen state changes ("Turn DLSS-G off ... before any
   window manipulation").
+
+## The multiplier
+
+The settings window's *Frame generation* row sends its choice, 2x to 6x or *Dynamic*, to
+the proxy live (`KspFgSetMultiplier`, `FrameGenerationBridge.SetMultiplier`) **[src]**.
+The proxy says what the technique that runs allows (`KspFgLimits`): the technique, the
+most frames shown per rendered frame, and whether Dynamic is supported. The row and the
+note under it follow that answer (`FrameGenerationChoice`). A step above the most runs as
+the most.
+
+* **FSR** generates one frame, 2x.
+* **XeSS** generates what its swapchain was made for (`xessFgFrames`), and one frame on a
+  GPU other than Intel's.
+* **DLSS-G** changes `numFramesToGenerate` between Presents, within the
+  `numFramesToGenerateMax` of Streamline's state **[doc]**. That is the GPU's and the
+  driver's most, and with the RTX 30/20 package also its `MaxGeneratedFrames`, which is read
+  when KSP starts.
+* **Dynamic** sets `DLSSGMode::eDynamic` where the first Present's state reports
+  `bIsDynamicMFGSupported`, and ignores the multiplier. The guide names three reasons for a
+  system without it: no multi frame generation, an NVIDIA driver below 595.41, and Vulkan
+  **[doc]** (ProgrammingGuideDLSS_G.md, 6.3). The log says once per swapchain what
+  Streamline reports, with the driver's version. Where Dynamic was asked for and is not
+  supported, it says that the fixed multiplier is used. `dlssgDynamicTargetFps` is the
+  output rate Dynamic aims at, 0 for the monitor's refresh rate. NVIDIA: Dynamic "is
+  designed to work with the Reflex frame rate limiter". ReDefinition sets none.
+
+`dlssgMode` and `dlssgFrames` in the ini are the proxy's defaults where the mod asks for
+nothing. The mod asks at every start.
+
+## DLSS frame generation on RTX 30 and RTX 20
+
+DLSS frame generation runs on Ada and newer. dlssg_for_sm86, a community project by
+sdli1995, runs it on RTX 30 and RTX 20 as well. Its `version.dll` next to `KSP_x64.exe`
+answers Streamline's queries with a newer GPU and has NVIDIA's runtime run on kernels
+rebuilt for these GPUs **[src]** (`src/Bridges/AmperePackage.cs`). Streamline is
+unchanged: the proxy sees DLSS-G, and makes Streamline's swapchain. ReDefinition neither
+ships nor downloads the package.
+
+`AmpereFrameGeneration` (`src/Window/`) offers the *DLSS-G on RTX 30/20* row on an RTX
+GPU without DLSS frame generation of its own, or with the package in place. *Install from
+zip* takes `version.dll`, `dlssg_sm86.ini` and the `dlssg_sm86` folder out of the
+release zip in KSP's folder. Each file is checked by its size and CRC-32 as the zip gives
+them, and all are placed or none. A file already there is kept as `.old`. The package's
+layout changes between releases, so no file is pinned.
+
+The install raises `[FrameGeneration] MaxGeneratedFrames` from the package's factory 4X
+to 6X, the most its runtime supports, so that the *Frame generation* row has room. A
+generated frame costs GPU time only while it is shown. Four choices of the window are
+written into the ini in place, its comments and line endings untouched
+(`AmpereOptions.cs`): `[DLSSG] Preset`, `[FrameGeneration] MaxGeneratedFrames`,
+`[SuperResolution] Mode` and `[Logging] FrameTiming`. The package reads its ini when KSP
+starts. `[SuperResolution]` needs the package's `sr` folder, about 180 MB, which a button
+takes out of the zip on its own.
+
+Preset C is NVIDIA's lighter candidate blending (Frame Generation Performance Mode). The
+package's runtime pins user interface recomposition off with it, whatever the game asks:
+its log says `preset_pinned`.
+
+**[meas]** The proxy harness runs DLSS-G 4x through the package on an RTX A4500. KSP
+generated 2x, 3x, 4x and 6x there, with 2.00, 3.00, 4.00 and 6.00 frames presented per
+rendered frame in the proxy's log, and Dynamic about 3 towards 120 Hz. The benchmark's
+rows with the package, FSR 3 and raytracing off, rendered 66.1 frames a second with
+*Auto* and 71.1 with *C*. With raytracing on *Full* they rendered 40.2 and 41.8
+([benchmarks.md](benchmarks.md)). The package's own frame timing gave a median of 1.32 ms
+of GPU time for the evaluates of a rendered frame with *C* and one generated frame at
+2560 by 1440.
+
+## DLSS frame generation and the window's focus
+
+**[src]** DLSS-G generates nothing while the game's window is not in the foreground.
+Streamline says "DLSS-G disabled: window not focused" (`sl.dlss_g`, `shouldInterpolate`)
+and presents the rendered frames alone, with its status still fine. The proxy logs it from
+a Present it asked to generate, once per change:
+
+* `DLSS frame generation: the game's window is not in the foreground`, then that
+  Streamline generates no frames while it is not;
+* `DLSS frame generation: the game's window is in the foreground again`.
+
+The foreground window of KSP's own process counts as the game's
+(`SwapChainProxy::NoteStreamlineFocus`). **[meas]** A benchmark started from another
+program's window found its DLSS-G rows at 1.00 presented per rendered frame that way, and
+the tool now keeps the game's window in front ([benchmarks.md](benchmarks.md)). In the
+proxy harness, `REDEFINITION_HARNESS_FOCUS=1` lets the taskbar take the foreground for a
+moment: 1.00 presents per frame outside it, 4.00 back in it, with both log lines.
+
+## DLSS frame generation and KSP's HUD
+
+KSP draws its HUD onto the back buffer, so the game has no UI plane to give. Only the
+HUD-less copy is tagged. With no UI buffer, user interface recomposition is off, and the
+*Auto* preset of the package runs without it, as preset C does.
+
+**[meas]** `tools/hud_probe.py` flies the launch pad with the HUD showing and the camera
+sweeping, once per case, records the monitor's frames with the generated ones, and
+compares the HUD's regions with the rendered frames either side (RTX A4500, Medium, 1600 by
+900, 55 rendered frames a second):
+
+* HUD pixels that never move came out equal in the generated and the rendered frames, with
+  *Auto* and with *C*: PSNR 65 to 108 dB, edge sharpness 1.000, and under 0.01 % of the
+  pixels off by more than 12 levels.
+* Pixels the HUD touches, against a reference without frame generation: generated and
+  rendered frames of a run score the same (*Auto* 41.9 and 41.7 dB, *C* 50.7 and 48.8 dB).
+  In a ring along the HUD's edges, *C* is 1 to 3 dB below *Auto*. The glyphs are intact.
+* `hudLessColour=0` does not smear the still HUD either: DLSS-G falls back to no motion.
+* The alpha of a UI plane cannot be found from the presented frame and the HUD-less copy:
+  one equation, two unknowns. `dlssgUiRecomposition=1` builds the plane from the
+  difference, with `dlssgUiAlpha` and `dlssgUiThreshold`. It makes the HUD a little worse:
+  the navball's glyphs at 36 dB, the UI pixels at 37.9 dB against 41.9 dB with the
+  HUD-less copy alone, and 39.2 dB with the minimal alpha, with ghosts. With preset C the
+  runtime pins recomposition off whatever is asked. So `dlssgUiRecomposition` is 0.
+
+## XeSS frame generation
+
+**[src]** XeSS frame generation (`XessFg.h`, `FrameGenerationXess.cpp`,
+`SwapChainProxyXess.cpp`) brings a swapchain of its own: "XeSS-FG provides a proxy swap
+chain to simplify integration" **[doc]**. The proxy presents through it as through
+FidelityFX's or Streamline's.
+
+It reads the inputs that FSR and DLSS-G get. The depth, the motion vectors and the
+HUD-less copy are tagged valid until the next Present, in `COMMON` state. The frame's
+constants hold the view and projection from the camera's basis, FSR's pixel-space motion
+scale and the jitter with the flip.
+
+The HUD-less copy must be the back buffer's size. Intel asks that HUD-less, UI and back
+buffer have the same size, and a copy of half the display made XeSS-FG report an error and
+stop (1.00 presents per frame). The copy is not tagged then, and the log says so once. The
+depth and the motion vectors must be of one size too.
+
+* **XeLL** is required on every GPU: "XeSS-FG requires a working XeLL integration on all
+  GPUs" **[doc]**. `libxell.dll` is loaded first. XeLL's markers carry the present id of
+  XeSS-FG's frame. XeSS-FG's context is destroyed before XeLL's
+  ([low-latency.md](low-latency.md)).
+* **One at a time.** "Currently XeSS-FG does not support multiple proxy swap chains
+  operating at the same time" **[doc]**. A swapchain made while an earlier one's XeSS-FG
+  lives presents with FSR, and the log says so.
+* **Generated frames.** `xessFgFrames` is the most, set when the swapchain is made
+  (`maxInterpolatedFrames`) and checked against the properties it reports. "On non-Intel
+  GPUs the maximum number of generated frames is one" **[doc]**. The mod chooses fewer live.
+* **Minimum frame rate.** XeSS-FG holds off below 40 rendered frames a second, Intel's
+  "40 FPS minimum" **[doc]** (`fgMinimumFps=-1`).
+* **Frames without inputs.** A Present with a present id and no tags is presented without
+  generated frames. Frames without a packet, depth or motion vectors, or with constants it
+  refuses, keep it on for `xessFgGraceFrames` in a row, 3 by default. Switched off,
+  its input history is cleared, and the frames after the switch-on come with Intel's "too
+  few frames" warning, an extra frame to activate. The mod's switch, the minimum frame rate
+  and the explicit hold-offs switch it off at once.
+* **Constants.** A motion vector scale of 0 or not a number is refused, and so is a near
+  plane, far plane or field of view that is not a positive number.
+  `xessFgBadConstants=skip` gives the frame no inputs and counts it against the grace
+  frames. `fix` makes a scale of 0 into 1. `pass` hands the constants over, and the
+  refusal switches XeSS-FG off for two seconds.
+* **Version floor.** A `libxess_fg.dll` older than 1.2.2 (XeSS SDK 2.1.1) is refused, and
+  FSR takes over. The proxy tags resources without a command list, which those versions
+  refuse (Intel's issues 45, 47, 48 and 50). `xessFgAllowOld=1` uses it anyway.
+* **Live changes.** Intel allows changing the UI composition at any time and the number
+  of generated frames live **[doc]**, and the proxy does. `xessFgResetOnChange=1` switches
+  it off for a Present and on again instead. XeLL's frame limit follows later changes of
+  `fgHalfRefreshLimit` and of the refresh rate (`xellLimitLive`), set again once the
+  proxy's queue is idle, as Intel asks.
+* **The frame latency waitable object.** `xessFgOwnWaitable` decides which one KSP gets.
+  **[meas]** With XeSS-FG's own, KSP stopped after the first `ResizeBuffers` and was
+  killed after 699 seconds. With the proxy's semaphore, released after each game Present
+  and never holding the game back, the same start ran through all 32 phases. `auto`, the
+  default, is the semaphore.
+
+**[meas]** On an RTX A4500, a GPU other than Intel's, at the Medium profile with FSR 3:
+XeSS-FG presented 2.00 frames per rendered frame in every row. Without raytracing the game
+rendered 72.4 frames a second without frame generation and 63.0 with it, 126.1 shown. With
+raytracing on *Full* it rendered 45.0 and 39.0, 77.9 shown ([benchmarks.md](benchmarks.md)).
+The latency is in [low-latency.md](low-latency.md#measured). The proxy harness runs XeSS-FG
+where `REDEFINITION_XESS_FG_DIR` names the two DLLs. XeSS-FG on an Intel GPU, and with more
+than one generated frame, is **[open]** until an Intel Arc flies it.
 
 ## Pacing and V-Sync
 
@@ -239,9 +421,10 @@ nine tenths of the minimum, frame generation is held off; above nineteen twentie
 runs again, so that a game held at 60 by V-Sync, which averages a little under it, does
 not flip. The minimum is `fgMinimumFps` in `ReDefinitionProxy.ini`: -1, the default, takes
 the rate FSR's provider was designed for and 30 for DLSS-G, AMD's lower figure; 0 never
-holds frame generation off. The log says each change, and the Debug tab's status line
-reads "held off below the minimum frame rate" **[meas]** (proxy harness: frames reported at
-25 a second under DLSS-G, 1.00 presents per frame and the status line; at 60 again, 2.00).
+holds frame generation off. The log says each change, and the status line that *Write
+diagnostics to log* writes reads "held off below the minimum frame rate" **[meas]** (proxy
+harness: frames reported at 25 a second under DLSS-G, 1.00 presents per frame and the
+status line; at 60 again, 2.00).
 
 Under V-Sync the shown frames are capped at the refresh rate over the sync interval. With
 frame generation, the game then renders at that cap over the frames shown per rendered
@@ -328,6 +511,13 @@ many parts and re-entry. It does not pay on the pad at 80-90 fps.
   `KspReflexSimulationEnd`, render event 40): 2.00 presents per frame, Reflex paced by the
   game's frames, and by the presenting thread again once they stop.
   DLSS-G generates nothing while the harness window does not have the focus.
+* **XeSS-FG:** where `REDEFINITION_XESS_FG_DIR` names the two DLLs, the same phases with
+  `xessFgFrames=2` asked, which stays 2x on a GPU other than Intel's with the status line
+  saying "at most 1 here"; the frames without inputs (3 in a row switch nothing, 5 switch it
+  off and on once); a motion vector scale of 0 skipped and handed over; a HUD-less copy of half
+  the size; the reset on a change; XeLL's limit following `fgHalfRefreshLimit` set live;
+  and the three modes of `xessFgOwnWaitable`, with no wait that timed out. With frame
+  generation off, the low latency row reports the brake on a GPU other than Intel's.
 
 ## Open
 
@@ -338,3 +528,5 @@ many parts and re-entry. It does not pay on the pad at 80-90 fps.
 | Frame pacing per profile | measured once the tiers are on real GPUs |
 | Whether the object separation takes out the flicker of the aircraft's shadows on the runway with presets L and M | a fast run on the runway with frame generation, the value at 1 m and at 0 |
 | DLSS-G in flight: status, generated frames per rendered frame, latency | the proxy's "DLSS frame generation" and frame time lines from a flight |
+| XeSS-FG on an Intel GPU, and with more than one generated frame | a flight on an Intel Arc |
+| XeSS-FG in exclusive full screen | a run in full screen: where switching on fails, the swapchain is asked once and the log says that KSP's full screen mode cannot run it |

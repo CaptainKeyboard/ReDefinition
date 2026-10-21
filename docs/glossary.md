@@ -20,7 +20,10 @@
 | *Custom* | The status on the *Graphics* tab once a row was changed after a profile was applied. |
 | *Advanced* | The row at the end of the *Planets* and *Effects* tabs, with a button for each bundled mod whose own settings window ReDefinition can open. |
 | the settings window | ReDefinition's main window, with the tabs, *Reset*, and *Accept* and *Cancel* or *Close*. |
-| the diagnostics window | ReDefinition's second window, opened with *Diagnostics*. It holds the frame rate, what the upscaler receives, and the switches for finding out what happens. |
+| the diagnostics window | ReDefinition's second window, opened with *Diagnostics*. A strip on top shows what runs, the frame rates, the latency and the load; below are its pages: *Overview*, *Upscaler inputs*, *Frame generation & latency*, *Game settings*, *Capture & log*, *Previews* and *Other mods*. |
+| the strip | The top of the diagnostics window: what runs, the rendered and the shown frame rate, a graph of the last frame times, the latency and the load, the search, *Changed* and *Reset debug switches*. |
+| debug switch | An option of the diagnostics window for finding out what happens, most of them not saved. *Reset debug switches* puts the ones away from their default back. |
+| pinned option | An option of the diagnostics window that the star on its row keeps at the window's foot. |
 | member path | Where a value lives, written as in C#: `Deferred.Deferred.settings.useScreenSpaceReflections`. |
 | foreign assumption | Something ReDefinition relies on in another mod's code, kept in one catalogue with a fingerprint of the method it reads and what ReDefinition does when the fingerprint no longer matches. `tools/check_foreign_code.ps1` checks them all. |
 | behaviour | Code that answers for settings a member path cannot reach. Either one of ReDefinition's own seven, named without a dot (`Tufx`, `Scatterer`, `Eve`, `Ksp`, `DistantObject`, `Firefly`, `ParallaxScatter`), or a type the mod itself brings, named with its namespace. |
@@ -70,16 +73,26 @@ How a value lasts is the mod's `saving`:
 
 | Word | Means |
 |---|---|
-| the proxy | ReDefinition's `dxgi.dll`, next to `KSP_x64.exe`. It presents the game's frames through Direct3D 12, runs DLSS, AMD's upscaler DLL and frame generation, and runs the compute passes other mods ask for. |
+| the proxy | ReDefinition's `dxgi.dll`, next to `KSP_x64.exe`. It presents the game's frames through Direct3D 12, runs DLSS, AMD's upscaler DLL, XeSS and frame generation, and runs the compute passes other mods ask for. |
 | `ReDefinitionProxy.ini` | The proxy's settings, next to `KSP_x64.exe`. The proxy writes it from its own template at the first start and adds the keys a newer version brings. |
 | `ReDefinitionProxy.defaults` | The proxy's record of the values it wrote into `ReDefinitionProxy.ini` itself. A value still as written follows a newer version's default; a value the player changed stays. |
 | the rig | The upscaler on one scene's camera stack: its render targets, the jitter, the captures and the dispatch. |
 | the presenter | The camera behind the 3D stack that draws the upscaled image into the frame buffer, before the interface. |
-| technique | Which upscaler runs: *FSR 3*, *DLSS* or *AMD FSR (DLL)*. |
+| technique | Which upscaler runs: *FSR 3*, *DLSS*, *AMD FSR (DLL)* or *XeSS (DLL)*. |
 | mode | How much smaller the scene renders, from *AA only* at full resolution to the smallest factor. |
 | upscaling | Rendering at a lower resolution and reconstructing the full-resolution image from the game's depth and motion vectors. |
 | *AA only* | Rendering at the full resolution and using the upscaler as antialiasing alone. |
-| frame generation | Putting generated frames between the rendered ones, in the proxy. |
+| frame generation | Putting generated frames between the rendered ones, in the proxy. FSR 3, DLSS (DLSS-G) and XeSS (XeSS-FG) do it. |
+| multiplier | The frames shown for each rendered frame: *2x* to *6x*, or *Dynamic*, where DLSS frame generation chooses it to reach the display's refresh rate. |
+| DLSS-G | NVIDIA's DLSS frame generation, through Streamline. dlssg_for_sm86 runs it on RTX 30 and RTX 20. |
+| Streamline | NVIDIA's SDK that hosts DLSS frame generation, Reflex and, beside it, DLSS Ray Reconstruction. The proxy loads version 2.14.16 only. |
+| XeSS-FG | Intel's XeSS frame generation. It brings its own swapchain and requires XeLL. |
+| low latency | What shortens the time from an input to the screen: NVIDIA Reflex, Intel XeLL, AMD Anti-Lag 2 or the latency brake. Only one of them works at a time. |
+| the latency brake | The proxy's wait at the start of a frame, in place of the waits that otherwise queue frames in the proxy. It works on any GPU. |
+| Ray Reconstruction | NVIDIA's DLSS Ray Reconstruction: the denoiser and upscaler for raytraced frames, in place of DLSS Super Resolution. It runs through Streamline or through NGX. |
+| radiance cache | A hash grid over the world that holds the indirect light the rays found, so that a ray's path can end in it (`rtRadianceCache`). |
+| opacity micromap | A per-triangle map of the transparent and opaque parts of a cut-out surface, which lets the GPU decide a ray's hit on grass without the shader (`rtOpacityMicromaps`). |
+| RTX Mega Geometry | NVIDIA's cluster acceleration structures, which build many small meshes' structures at once (`rtMegaGeometry`). |
 | jitter | The sub-pixel shift of the camera each frame that the upscaler needs. |
 | motion vectors | How far each pixel moved since the last frame. The upscaler needs them for everything that moves. |
 | history reset | The signal that the upscaler has to forget its previous frames. A camera cut causes one, and so does a mod that asks for one. |

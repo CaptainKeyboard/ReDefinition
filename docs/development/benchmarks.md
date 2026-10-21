@@ -3,7 +3,8 @@
 **For:** anyone who changes the upscaler, frame generation, the raytracing or the proxy's
 latency code and wants to know what the change did to the frame rate and the latency.
 **You need:** KSP with ReDefinition and the proxy installed, the save the scene probe flies
-(`ReDefinitionProbe`), Python 3, and the repository open.
+(`ReDefinitionProbe`), Python 3, the repository open, and a machine that nobody uses
+while the tool runs.
 **You get:** the comparison table of the latest run, how to run it again with one command,
 and what each column and each run's record means.
 
@@ -21,8 +22,21 @@ start per frame generation kind. After the last start it puts every settings fil
 removes the settings files the run made, also when a start failed. It appends the run to
 `docs/development/benchmarks/` as a JSON file and writes the table on this page again.
 
-The default matrix needs two KSP starts on an NVIDIA GPU, with 124 phases, and takes about
-30 minutes. To see the starts and phases first, without running KSP, run this:
+**Do not use the machine during a run.** DLSS frame generation generates nothing while
+KSP's window is not in the foreground, and a KSP that the tool starts is not given the
+foreground when another program's window is in front. The tool brings the game's window to
+the front every two seconds while it runs. Clicking into another window, or starting a
+program, takes the foreground away, and the phases in that time measure the rendered
+frames alone. A phase that asked for frame generation and shows fewer than 1.5 frames
+presented per rendered frame says in its notes that the window was not in front.
+`REDEFINITION_BENCH_NO_FOREGROUND` set to any value leaves the window where Windows puts
+it, to reproduce that.
+
+With every DLL and package in place, the matrix has four KSP starts and 138 phases, and a
+run takes about 45 minutes. A start whose DLLs or package are missing, or whose GPU
+vendor does not fit, is skipped, and the run's section names it. On an NVIDIA GPU with
+none of the optional files that is one start with 50 phases and about 13 minutes. To see
+the starts and phases first, without running KSP, run this:
 
 ```
 python tools/benchmark_matrix.py plan
@@ -34,19 +48,22 @@ These options change what the tool uses:
 |---|---|---|
 | `--ksp` | Steam's KSP folder, or `REDEFINITION_KSP` | the KSP install |
 | `--settings-template` | the install's own `settings.cfg`, as it was before the run | the mod's settings the profile start begins from |
+| `--matrix` | `tools/benchmark_matrix.json` | the scenario matrix |
 | `--dlssg-package` | `.local/dlssg_x`, or `REDEFINITION_DLSSG_PACKAGE` | the unpacked DLSS-G package for RTX 20 and 30 GPUs |
 | `--amd-dll-dir` | `.local/amd`, or `REDEFINITION_AMD_DLL_DIR` | the folder with `amd_fidelityfx_upscaler_dx12.dll` |
 | `--xess-dll-dir` | `.local/xess`, or `REDEFINITION_XESS_DLL_DIR` | the folder with Intel's `libxess.dll` |
+| `--xess-fg-dll-dir` | `.local/xessfg`, or `REDEFINITION_XESS_FG_DLL_DIR` | the folder with Intel's `libxess_fg.dll` and `libxell.dll` |
 | `--raw` | `.local/benchmarks`, or `REDEFINITION_BENCH_RAW` | where each start's logs and screenshots go |
 | `--only` | every start | only the starts whose id contains this text |
 | `--no-profile` | the profile is applied | skip the start that applies the profile |
+| `--no-doc` | the page is written again | write the JSON only |
 | `--vendor` | the vendor Windows names | the GPU vendor that decides which upscalers and latency models run |
 
-If a DLL or the DLSS-G package is not there, the tool skips what needs it. The run's
-section names what it skipped. The tool hands the AMD DLL's folder to the proxy as
-`amdUpscalerDirectory` and XeSS's as `xessDirectory`, so the DLLs stay where they are. It
-copies the DLSS-G package next to `KSP_x64.exe` only for the start that needs it, and
-removes it after that start.
+If a DLL or the DLSS-G package is not there, the tool skips what needs it. The run's section
+names what it skipped. The tool hands the AMD DLL's folder to the proxy as
+`amdUpscalerDirectory`, XeSS's as `xessDirectory` and XeSS frame generation's as
+`xessFgDirectory`, so the DLLs stay where they are. It copies the DLSS-G package next to
+`KSP_x64.exe` only for the start that needs it, and removes it after that start.
 
 To read a run's logs again, for example after a change to the parser, run this:
 
@@ -81,10 +98,13 @@ A change of the rendering builds the upscaler and the raytracing's scene again. 
 probe's logs that took about 5 seconds, with frames of half a second in between. Every set
 holds `reportSeconds=1`, so a phase has 8 to 9 reports, and 14 to 15 after a change.
 
-Only what the proxy reads at load needs a start of its own: the choice between DLSS-G
-and FSR frame generation (`dlssFrameGeneration`). DLSS-G on RTX 20 and 30 GPUs also needs
-the package next to `KSP_x64.exe`. The upscaler's DLL folders are read again when the
-upscaler is set up, so each start sets them once.
+Only what the proxy reads at load needs a start of its own: the frame generation kind
+(`frameGenerationTechnique`: `fsr`, `dlss` or `xess`). DLSS-G on RTX 20 and 30 GPUs also needs
+the package next to `KSP_x64.exe`. The upscaler's DLL folders are read again when the upscaler
+is set up, so each start sets them once. The starts are `fsr`, `dlssg` and `xessfg`, and
+`dlssg-c`, which is DLSS-G with the package's preset C for FSR 3 at both raytracing modes. Both
+DLSS-G starts set the package's `[Logging] FrameTiming`, so that its logs hold the GPU time of
+the frame generation.
 
 Every set names every key the matrix varies, since the probe's sets add to each other:
 
@@ -100,6 +120,9 @@ Every set names every key the matrix varies, since the probe's sets add to each 
 | Brake 4 ms | `lowLatency=0`, `latencyBrake=1`, `latencyBrakeTargetMs=4` |
 | Reflex and brake 4 ms | `lowLatency=1`, `latencyBrake=1`, `latencyBrakeTargetMs=4` |
 | Anti-Lag 2 | `antiLag2=12`, on an AMD GPU only |
+| XeLL | `lowLatency=1`, `latencyBrake=0`, in the XeSS-FG start only |
+| The radiance cache | `rtRadianceCache=1`, for FSR 3 at raytracing *Full*, with no latency model (XeLL in the XeSS-FG start) |
+| Opacity micromaps | `rtOpacityMicromaps=1`, the last rendering of the start |
 
 "Frame generation off" holds frame generation off while its inputs are still captured. It
 is not the same as `frameGeneration = False` in the mod's settings.
@@ -118,6 +141,11 @@ Each list in `tools/benchmark_matrix.json` multiplies the phases:
 * `baseline`: the scenario every row is compared with.
 * `separate_starts`: `technique`, `raytracing` or `ray_reconstruction`, each named one
   split into starts of its own. The list is empty by default.
+* `radiance_cache` and `opacity_micromaps`: a rendering of its own for one technique and
+  raytracing mode, with the latency models it names. Every other phase has the key at 0.
+* `proxy_load`: keys the proxy reads at load. The raytracing's `rtBlas...`,
+  `rtTlasFastTrace` and `rtMegaGeometry` are pinned there, since the meshes are built before
+  the first phase. Comparing them takes a run of its own with other values.
 
 XeSS, for example, is this line in `techniques`:
 

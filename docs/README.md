@@ -6,7 +6,7 @@
 
 ReDefinition puts the settings of KSP and of many mods, the graphics profiles and every
 key binding into one window. It adds upscaling, frame generation and raytracing: FSR 3
-inside the game, DLSS, AMD's upscaler DLL and the raytracing in a Direct3D 12 proxy
+inside the game, DLSS, AMD's upscaler DLL, XeSS and the raytracing in a Direct3D 12 proxy
 beside it. And it adds to the game's interface: the flight HUD, the staging stack, the
 editors, the main menu and the space centre.
 
@@ -18,6 +18,7 @@ editors, the main menu and the space centre.
 | use the settings window, its tabs, *Accept* and *Reset* | [player/settings-window.md](player/settings-window.md) |
 | choose a graphics profile and see what it sets | [player/graphics-profiles.md](player/graphics-profiles.md) |
 | set up upscaling or frame generation, and know what they cost | [player/upscaler-and-frame-generation.md](player/upscaler-and-frame-generation.md) |
+| lower the latency, and see what lowers it on your GPU | [player/low-latency.md](player/low-latency.md) |
 | switch on raytraced shadows and light, and know what they need | [player/raytracing.md](player/raytracing.md) |
 | plan a mission and check the vessel carries enough fuel | [player/planner.md](player/planner.md) |
 | move the navball to the left or right | [player/navball.md](player/navball.md) |
@@ -43,6 +44,7 @@ editors, the main menu and the space centre.
 | the default of a bundled mod's setting, with its source | [reference/mod-defaults.md](reference/mod-defaults.md) |
 | what an installed mod requires of other settings | [reference/requirements.md](reference/requirements.md) |
 | where each bundled mod keeps its settings | [reference/how-each-mod-keeps-its-settings.md](reference/how-each-mod-keeps-its-settings.md) |
+| a setting of the proxy's ini, with its default | [reference/proxy-settings.md](reference/proxy-settings.md) |
 | what a graphics mod does to the frame, and how it meets the upscaler | [reference/graphics-mod-compatibility.md](reference/graphics-mod-compatibility.md) |
 | a word this documentation uses | [glossary.md](glossary.md) |
 
@@ -55,6 +57,7 @@ editors, the main menu and the space centre.
 | build the release package | [development/packaging.md](development/packaging.md) |
 | understand the upscaler | [development/upscaler.md](development/upscaler.md) |
 | understand frame generation | [development/frame-generation.md](development/frame-generation.md) |
+| understand what lowers the latency, and how it is measured | [development/low-latency.md](development/low-latency.md) |
 | understand the settings store | [development/settings-store.md](development/settings-store.md) |
 | understand the interface for mods | [development/shared-foundation.md](development/shared-foundation.md) |
 | understand or build the raytracing | [development/raytracing.md](development/raytracing.md) |

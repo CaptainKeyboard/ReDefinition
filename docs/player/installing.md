@@ -19,9 +19,12 @@ does not load ReDefinition without it.
 
 ```
 GameData/ReDefinition/                          merges into your GameData
-dxgi.dll                                        the proxy: DLSS, AMD's upscaler DLL, frame generation
+dxgi.dll                                        the proxy: DLSS, AMD's upscaler DLL, XeSS, frame generation
 dxgi_LICENSE-NVIDIA.txt                         licences of the NVIDIA headers the proxy is built with
 dxgi_LICENSE-FidelityFX.txt                     licence of the AMD headers the proxy is built with
+dxgi_LICENSE-AntiLag2.txt                       licence of AMD's Anti-Lag 2 headers
+dxgi_LICENSE-Capsaicin.txt                      licence of AMD's radiance cache code
+dxgi_LICENSE-XeSS.txt                           licence of Intel's XeSS and XeLL headers
 amd_fidelityfx_framegeneration_dx12.dll         AMD's frame generation runtime
 amd_fidelityfx_framegeneration_dx12_LICENSE.md  AMD's licence for it
 amd_fidelityfx_denoiser_dx12.dll                AMD's denoiser for raytracing, Radeon RX 9000 and newer
@@ -43,7 +46,7 @@ it, as it blocks every DLL without a trusted signature; it is switched off in Wi
 Security, under *App & browser control*, *Smart App Control settings*. A code integrity
 policy or a virus scanner can block it too, and Windows names a blocked DLL in its event
 log, under *Applications and Services Logs*, *Microsoft*, *Windows*, *CodeIntegrity*,
-*Operational*. Without the proxy, FSR 3 upscaling runs, and DLSS, AMD's upscaler, frame
+*Operational*. Without the proxy, FSR 3 upscaling runs, and DLSS, AMD's upscaler, XeSS, frame
 generation and raytracing are not there.
 
 **4. Choose a graphics profile.** Until you do, ReDefinition changes nothing: no
@@ -59,17 +62,21 @@ there is not accepted yet, and the release zip above is the way in. CKAN
 installs Harmony with it, and puts `dxgi.dll` and AMD's runtime next to `KSP_x64.exe`.
 CKAN does not replace a `dxgi.dll` it did not install, so move another one away first.
 
-## Get the files for DLSS and AMD's upscaler
+## Get the files for DLSS, XeSS and AMD's upscaler
 
-DLSS, DLSS frame generation and AMD's newer upscaler run from DLLs by NVIDIA and AMD.
-They go next to `KSP_x64.exe`, or into the folders the proxy's ini names.
+DLSS, XeSS, frame generation other than FSR 3 and AMD's newer upscaler run from DLLs by
+NVIDIA, Intel and AMD. They go next to `KSP_x64.exe`, or into the folders the proxy's ini
+names ([reference/proxy-settings.md](../reference/proxy-settings.md#where-the-dlls-lie)).
 
 | For | Files | Where from |
 |---|---|---|
 | DLSS | `nvngx_dlss.dll` | *Download ...* beside *NVIDIA DLSS files*, under *Display* |
-| DLSS Ray Reconstruction, with raytracing | `sl.interposer.dll`, `sl.common.dll`, `sl.pcl.dll`, `sl.dlss_d.dll`, `nvngx_dlssd.dll`, from NVIDIA Streamline 2.14.1 | *Download ...* beside *NVIDIA DLSS files*, under *Display* |
+| DLSS Ray Reconstruction, with raytracing | `sl.interposer.dll`, `sl.common.dll`, `sl.pcl.dll`, `sl.dlss_d.dll`, `nvngx_dlssd.dll`, from NVIDIA Streamline 2.14.16 | *Download ...* beside *NVIDIA DLSS files*, under *Display* |
 | DLSS frame generation | the files above, and `sl.dlss_g.dll`, `sl.reflex.dll`, `nvngx_dlssg.dll` | the same download, on RTX 40 and newer |
+| DLSS frame generation on RTX 30 and RTX 20 | the Streamline files above, and `version.dll`, `dlssg_sm86.ini` and the `dlssg_sm86` folder of dlssg_for_sm86 | the same download, and *Download manually ...* beside *DLSS-G on RTX 30/20*; the steps are in [upscaler-and-frame-generation.md](upscaler-and-frame-generation.md#dlss-frame-generation-on-rtx-30-and-rtx-20) |
 | AMD FSR as a DLL, FSR 4 where the GPU has it | `amd_fidelityfx_upscaler_dx12.dll` | a game that ships it |
+| XeSS | `libxess.dll` | Intel's XeSS SDK, from its release on GitHub |
+| XeSS frame generation | `libxess_fg.dll` and `libxell.dll`, from XeSS SDK 2.1 or newer | the same; what it needs is in [upscaler-and-frame-generation.md](upscaler-and-frame-generation.md#xess-frame-generation) |
 
 *NVIDIA DLSS files* is under *Display* in the settings window. It is shown on an
 NVIDIA GPU that can use DLSS, which is RTX 20 and newer, or DLSS frame generation,
@@ -77,15 +84,18 @@ which is RTX 40 and newer. It is there while those files are missing, and until 
 have read how the download went.
 
 The row names the files, their size and NVIDIA's licences. Its *Download ...* button
-fetches them from NVIDIA's release of the Streamline SDK 2.14.1 on GitHub, once you
+fetches them from NVIDIA's release of the Streamline SDK 2.14.16 on GitHub, once you
 accept the licences. NVIDIA's licence texts are placed beside the DLLs.
 
 Every file is checked against that release before any is placed, and either all are
 placed or none. A different file already there is renamed to end in `.old`. DLSS uses
 `nvngx_dlss.dll` at once. DLSS frame generation starts with the next start of KSP.
 
+The proxy loads Streamline 2.14.16 only. Streamline files of another version count as
+missing, and the row offers the download again.
+
 You can also copy the same files by hand: `nvngx_dlss.dll` from a game that has it, and
-the Streamline DLLs from `bin\x64` of NVIDIA's Streamline SDK 2.14.1.
+the Streamline DLLs from `bin\x64` of NVIDIA's Streamline SDK 2.14.16.
 
 DLSS frame generation also needs Windows 10 20H1 or newer, with *Hardware-accelerated
 GPU scheduling* switched on in Windows' graphics settings.
@@ -94,8 +104,8 @@ GPU scheduling* switched on in Windows' graphics settings.
 
 At its first start, the proxy writes `ReDefinitionProxy.ini` next to `KSP_x64.exe`, with
 every setting at its default. Edit it there. Each setting is described in the file, and
-[upscaler-and-frame-generation.md](upscaler-and-frame-generation.md) lists the ones a
-player changes.
+[reference/proxy-settings.md](../reference/proxy-settings.md) lists the ones a player or
+a developer changes.
 
 A newer version keeps your changes. At each start the proxy adds the settings that are
 new since, with their descriptions. A value you never changed follows the new version's
@@ -130,14 +140,16 @@ back as they were before:
    before ReDefinition*.
 2. Load each save you play once. Mods that keep settings per save, TUFX and Distant
    Object, get theirs back as that save loads.
-3. Quit KSP. Remove `GameData/ReDefinition`, `dxgi.dll` with its two licence files,
+3. Quit KSP. Remove `GameData/ReDefinition`, `dxgi.dll` with its five licence files,
    `amd_fidelityfx_framegeneration_dx12.dll` and `amd_fidelityfx_denoiser_dx12.dll`
    with their licences, and `ReDefinitionProxy.ini`, `ReDefinitionProxy.defaults` and
    `ReDefinitionProxy.log` next to `KSP_x64.exe`. `ReDefinitionCaptures` there holds
    what the diagnostics window recorded, where you recorded anything.
 
-NVIDIA's and AMD's DLLs can stay or go, with the licence texts beside them. Without the
-proxy, nothing loads them.
+NVIDIA's, Intel's and AMD's DLLs can stay or go, with the licence texts beside them.
+Without the proxy, nothing loads them. If you installed dlssg_for_sm86, delete its
+`version.dll`, `dlssg_sm86.ini` and `dlssg_sm86` folder next to `KSP_x64.exe` while KSP is
+closed.
 
 Deferred's and Waterfall's settings are set by ReDefinition at every start. Their own
 configs apply again once ReDefinition is gone.

@@ -599,14 +599,36 @@ textures and the meshes the mod released **[src]**. The device and the meshes st
 stay. The harness checks both.
 
 ReDefinition gives Ray Reconstruction its own Streamline viewport, apart from frame
-generation's. It runs where Streamline is set up: where DLSS frame generation runs, and,
-with `frameGeneration=0` in `ReDefinitionProxy.ini`, wherever the GPU runs Ray
-Reconstruction, on a GeForce RTX 20 or 30 among them. Streamline needs its swapchain for
-that too, "you must ensure the common plugin's presentCommon() function is called every
-frame" **[doc]** (ProgrammingGuideManualHooking.md 2.0), and FSR's frame generation needs
-its own, so with frame generation on and no DLSS frame generation FSR's swapchain is made
-**[src]**. The raytracing harness passes both Ray Reconstruction checks that way
-**[meas]** (Streamline without frame generation, RTX 4090).
+generation's. Two routes lead to it, and `rrPath` in `ReDefinitionProxy.ini` chooses
+between them for each swapchain **[src]**:
+
+* **Through Streamline** (`RaytracingReconstruct.cpp`), where Streamline's swapchain
+  presents: with DLSS frame generation, or with `frameGeneration=0`, on a GeForce RTX 20
+  or 30 among others. Streamline needs its swapchain for that, "you must ensure the
+  common plugin's presentCommon() function is called every frame" **[doc]**
+  (ProgrammingGuideManualHooking.md 2.0).
+* **Through NGX** (`DlssRayReconstruction.cpp`, `NgxCore.cpp`), where the presenting
+  swapchain is FSR's or XeSS's, which need their own, or where Streamline is not set up.
+  It runs on the proxy's Direct3D 12 device, beside any frame generation but DLSS's,
+  whose Streamline holds NGX on the device. With `frameGeneration=0`, `rrPath=ngx` leaves
+  Streamline out.
+
+`auto`, the default, takes Streamline's route where its swapchain presents and NGX's
+otherwise. The NGX route sets NGX's parameters as Streamline 2.14.16's `sl.dlss_d` sets
+them for the same inputs, with barriers of its own: the inputs in
+`NON_PIXEL_SHADER_RESOURCE`, the output in `UNORDERED_ACCESS`, back to `COMMON` after
+**[src]**. The first frame of every new feature gets the reset flag. The feature is
+released on render event 32, once the lists have finished. The proxy shuts NGX down with
+`NVSDK_NGX_D3D12_Shutdown`, since `Shutdown1` after a Ray Reconstruction or Super
+Resolution feature crashed inside `_nvngx.dll` in a program of its own **[meas]**
+(driver 597.16). `NgxCore.cpp` holds the loader, the parameter map and one lock for every
+NGX call, which DLSS Super Resolution on Unity's Direct3D 11 device shares.
+
+The raytracing harness passes both routes **[meas]**. Streamline's, without frame
+generation: RTX 4090. NGX's, through FidelityFX's swapchain: RTX A4500, 64 noisy frames
+reconstructed off the 256-frame reference by 0.0057 where the noisy frame is off by
+0.0217, and 64 of 64 without a G-buffer. A second swapchain with `rrPath=ngx` passes the
+route check (*Ray Reconstruction's route with rrPath=ngx*).
 
 With DLSS Ray Reconstruction the signals go into the lighting undenoised. Ray
 Reconstruction then denoises and upscales the finished frame in one step, where DLSS Super
@@ -619,11 +641,12 @@ needs no G-buffer **[meas]** (harness: 64 of 64 frames reconstructed without one
 reference by 0.0059 against 0.0053 with it). The sky's guides are NVIDIA's defaults:
 albedo 0.5, specular albedo, normal and roughness 0, hit distance 65 504 **[doc]** (DLSS-RR
 Integration Guide 3.4.1 to 3.4.4, 3.4.9). The upscaler sends a frame to Ray
-Reconstruction when DLSS is chosen, the scene camera is raytraced and renders HDR, and the
-proxy reports Ray Reconstruction ready; "DLSS-RR only support HDR inputs" **[doc]**
-(ProgrammingGuideDLSS_RR.md), so an LDR camera, as in KSP's editors, keeps Super
-Resolution. The first frame after switching goes through Super Resolution, as its
-raytraced frame made no guides yet, and the first frame after Ray Reconstruction gave up
+Reconstruction when DLSS is chosen, *Ray Reconstruction* is on, the scene camera is
+raytraced and renders HDR, and the proxy reports Ray Reconstruction ready. "DLSS-RR only
+support HDR inputs" **[doc]** (ProgrammingGuideDLSS_RR.md), so an LDR camera, as in KSP's
+editors, keeps Super Resolution. The first frame after switching goes through Super
+Resolution, as its raytraced frame made no guides yet, and the first frame after Ray
+Reconstruction gave up
 starts Super Resolution's history afresh. Where Ray Reconstruction shows no frame for a
 second, the upscaler stays with Super Resolution and writes why into the log. In the game
 it runs beside DLSS frame generation, 4.3 ms to 4.5 ms a frame on an RTX 4090 **[meas]**
@@ -646,6 +669,135 @@ moves by itself, a vessel in flight, it is off by its motion. On a Radeon RX 900
 NVIDIA's NRD denoisers are left out: their licence forbids use that makes them subject to
 an open-source licence **[doc]**.
 
+## The radiance cache
+
+`rtRadianceCache=1` keeps the indirect light in a hash grid over the world. A ray's path
+ends where it meets a cell the grid already knows, instead of bouncing on. Fewer rays are
+traced a frame, and the light comes from many frames' rays, so it follows a change some
+frames late. It is off by default.
+
+The method is Binder, Fricke and Keller's path space filtering (2019) and AMD's GI-1.0
+(2023) **[doc]**. The cell size, the descriptor hashes, the insertion and the lookup are
+adapted from AMD Capsaicin's hash grid cache **[src]** (`RadianceCache.hlsli`, where the
+changes are marked; [credits-and-licences.md](../credits-and-licences.md)).
+
+* **Keys.** A cell is `rtRadianceCacheCellPixels` pixels across at its distance from the
+  camera, never smaller than `rtRadianceCacheMinCell` metres, and a power of two of a
+  metre. The key holds the position jittered in the tangent plane and the normal in five
+  steps an axis. A bit for a ray shorter than the cell keeps light from leaking through
+  thin walls. Positions are camera-relative, plus an anchor that the proxy sums from the
+  camera's moves, with KSP's floating origin shifts taken out, in tiles of 4096 m. A point
+  keeps its cell however far the camera has moved.
+* **Table.** `2^rtRadianceCacheEntries` entries of 44 bytes, in buckets of 8 searched by
+  linear probing: 46 MB at the default 20, released when the cache is off.
+* **Update.** Each group of 8 by 8 pixels writes its pixels' diffuse ray into their cells
+  every fourth frame. A path that traces on past a hit writes the light its bounces bring
+  to that hit. The resolve pass blends the frame's sums into the cells, which keep at
+  most `rtRadianceCacheSamples` rays' light, and evicts a cell no ray met for
+  `rtRadianceCacheMaxAge` frames.
+* **Query.** At a hit the path would bounce from, a cell that holds an eighth of the most
+  samples ends the path in the surface's albedo times its value. With a chance of an
+  eighth the path traces on anyway and refreshes the cell. The sun and the moons at the
+  hit are traced as without the cache.
+
+The diffuse and reflection passes with the cache are pipelines of their own. The plain
+ones carry none of its code. `rtRadianceCacheDebug` shows the cache's light in place of
+the diffuse light (1) or each cell in a colour of its own (2).
+
+**Cost [meas].** In the harness' scene of KSP's launch pad, with every signal, a frame took
+0.474 ms of GPU time without the cache and 0.610 ms with it. Only about 7 % of the diffuse
+rays hit geometry there, so the cache costs more than the bounces it saves. In the game,
+on the RTX A4500 at the Medium profile with FSR 3 and raytracing *Full*, it gave 45.4
+rendered frames a second against 45.0, and a latency of 57.1 ms against 57.8
+([benchmarks.md](benchmarks.md)). The light matched the light without the cache to
+0.05 % per block in the harness.
+
+## Cut-out surfaces and opacity micromaps
+
+The passes trace with ray queries in shader model 6.5 and have no any-hit shaders. A
+cut-out surface, such as a blade of grass or a fern, is therefore tested against its
+texture in the shader at every candidate hit. `rtOpacityMicromaps=1` bakes the cut-out
+meshes' triangles into opacity micromaps, so that the GPU decides most of those hits
+without the shader. It is off by default and works on NVIDIA GPUs only.
+
+* **The route.** DXR 1.2's route needs shader model 6.9 for a ray query to meet micromaps,
+  and its pipeline flag for earlier models is not shipped **[doc]**. The proxy takes
+  NVIDIA's route through NVAPI **[src]**: `NvAPI_D3D12_GetRaytracingCaps` must report
+  `CAP_STANDARD`, and `NvAPI_D3D12_SetCreatePipelineStateOptions` turns micromap support
+  on around the creation of the passes' pipelines. They are made again, once, the first
+  time the switch goes to 1. A pipeline made with that support costs every trace "a small
+  penalty on traversal performance overall" **[doc]** (NVIDIA).
+* **The baker** (`RaytracingOmmBake.cpp`) runs on a thread of its own and has no
+  Direct3D in it. A micro-triangle whose bilinear footprint in the 64 by 64 material
+  texture's alpha is all 0 is transparent, all 255 opaque, and anything else unknown,
+  which leaves the shader its test. The picture does not change. There is about one
+  micro-triangle to a texel, up to `rtOmmMaxSubdivision` levels (6 by default, 1 KB a
+  micromap). Uniform triangles take the special indices, and triangles with the same
+  coordinates share a micromap.
+* **The instances.** A cut-out instance whose mesh has a micromap for its texture drops
+  `FORCE_NON_OPAQUE`, except while `rtFoliageTransmission` is above 0. Where micromaps do
+  not apply (the switch at 0, `rtCutoutTest`, textures not read, a texture changed since
+  the bake) the instance sets `DISABLE_OMMS_EX`, so the switch needs no structure built
+  again. Parallax's instances from the GPU take the same through two bits above the
+  managed side's flags (`GpuInstances.hlsl`).
+* **Support.** Ada (RTX 40) traces micromaps in hardware. Ampere (RTX 30) emulates them,
+  and traces slower with them **[meas]**. A driver without them, and other GPUs, trace as
+  with 0, and the log says so in one line, "opacity micromaps on/off" with the reason.
+
+**Cost [meas].** On the RTX A4500, an Ampere GPU, they lowered the rendered frame rate by
+10 %: 40.5 frames a second against 45.0, at the Medium profile with FSR 3 and raytracing
+*Full* ([benchmarks.md](benchmarks.md)). In the harness the trace took 1.111 ms against
+0.974 ms. The picture is the same: 0 of 635 672 pixels differ. The gain on Ada's hardware
+engine is **[open]** until an RTX 40 flies it.
+
+## Building the acceleration structures
+
+A vessel's meshes appear in a few frames, and every mesh needs a structure. The first
+flight frames built 130 to 170 meshes a frame at 19 to 25 ms of GPU time **[meas]**. Five
+settings change how they are built, each for the meshes built after a change:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `rtBlasBatch` | 1 | copies a frame's meshes first, then builds them back to back with no barriers between them |
+| `rtBlasPool` | 1 | takes the structures, the geometry, the scratch memory and the uploads from a few large buffers; adjacent copies merge |
+| `rtBlasBudget` | 0 | the triangles of new meshes built in one frame, the rest later. 0 builds all at once |
+| `rtBlasCompaction` | 2 | 2 builds fast, rebuilds for fast rays and compacts in later frames that build no new mesh, `rtBlasRefineBudget` triangles a frame. 1 compacts the first build |
+| `rtTlasFastTrace` | 0 | builds the scene's structure for faster rays, not for a faster build |
+
+**[meas]** The harness' phase *a vessel's meshes at once* builds 150 tubes of 54 272
+triangles, and 600 of 244 404, switching each variant live. The slowest frame's GPU time
+and CPU time to build the meshes, on the RTX A4500, in ms:
+
+| Variant | 150 parts | 600 parts |
+|---|---|---|
+| mesh by mesh | 21.6 / 172 | 87.4 / 715 |
+| batched | 0.58 / 174 | 1.73 / 725 |
+| pooled | 21.8 / 1.4 | 90.4 / 5.8 |
+| batched and pooled | 0.55 / 1.1 | 1.67 / 4.7 |
+| the defaults, compaction 2 | 0.63 / 0.85 | 1.16 / 3.0 |
+
+Pooling and batching together are what help: pooled alone is as slow as mesh by mesh,
+because each mesh's barrier on the shared buffer flushes the builds. Compaction took the
+structures from 3.88 to 1.62 MB and from 17.26 to 7.11 MB. The trace over 15 003 and
+24 003 instances was the same in every pooled variant. The TLAS flag changed neither build
+nor trace beyond the runs' noise, so it stays off. A pool chunk that is wholly free
+for 5 seconds is released, the last one kept. Every variant draws the same picture.
+
+**RTX Mega Geometry.** `rtMegaGeometry=1` builds new meshes' structures from cluster
+acceleration structures through NVAPI **[src]** (`RaytracingMegaGeometry.cpp`). Each run
+of 256 triangles of a mesh is one cluster, and each mesh is a cluster structure at an
+address of its own. A hit's triangle is the geometry index times 256 plus the primitive
+index (`RT_TRIANGLE`, `RtCommon.hlsli`). A mesh with a run of more than 256 vertices, a
+driver without the capability, and other GPUs build as with 0. A failed build lets the
+mesh go and builds it the usual way. It is off by default.
+
+**[meas]** One call for all of a frame's meshes needed up to 40 times the memory its
+destinations were sized for. Each mesh therefore gets a call of its own, sized for its
+destination. For 600 parts the frame then costs 1.4 ms of GPU time and 5.3 ms of CPU,
+against 1.17 and 2.9 with the defaults. The trace afterwards is slower: 2.54 ms with
+15 003 instances against 1.24 ms. The structures are 3.44 and 14.83 MB, against 1.62 and
+7.11 compacted. The picture is the same, 0 of 635 672 pixels differ.
+
 ## Testing without the game
 
 Most of it is tested without starting KSP. What is left for the game is how it plays with
@@ -658,6 +810,12 @@ the installed mods live.
 | C# unit tests | the layout of the frame packet and the constants of `RtContract.h`; the moons' light (`RtReflectorLight`) | that the managed side and the proxy read the same packet and constants; Lambert's sphere and the brightness the rays give it |
 | Unity test player | a Unity 2019.4.18f1 player built like KSP's, with forward rendering, Unity's deferred lighting and Deferred's own shader bundle from `GameData`, and the proxy beside it (`tools/build_rt_player.py`) | the shaders in Unity's lighting, the timing of the render events, the one-frame carry-over |
 
+`RaytracingHarness.exe` takes one argument that narrows the run. `--omm` runs only the
+opacity micromaps' checks against the driver, and `--omm-table` also lists the order the
+driver has. `--omm-scene` runs only the micromaps through the proxy, and `--omm-none` the
+same with the driver's capability simulated as none (`REDEFINITION_OMM_CAPS=none`). The
+full run has both and a child run with the capability simulated as none.
+
 The harness checks, in the order it runs them (`src/DxgiProxy/RaytracingHarness.cpp`):
 
 | Area | Checks |
@@ -667,6 +825,10 @@ The harness checks, in the order it runs them (`src/DxgiProxy/RaytracingHarness.
 | KSP's scene | the launch pad's meshes from KSP's files: *primary rays*, and *no NaN or infinity* in any signal after 33 frames |
 | ReDefinition's denoiser | *denoised diffuse light* and *denoised sun visibility*: a camera glide against a reference of 1024 frames; *on a smooth surface*: the diffuse light keeps its history as on rough ground; *a denoised signal paused and back*: no history of an earlier light; *the sun's fine shadows kept*: thin posts' shadows keep their structure with `rtSunAtrousSteps=0` and `rtSunHistory=4`, against 5 and 32 set live through the ini; *the denoiser's textures for its signals*: video memory with three signals, with the sun's alone, and none after render event 33; *the denoiser after raytracing stopped*: its textures made anew, the sun as before |
 | Ray Reconstruction | *DLSS Ray Reconstruction*, with the G-buffer's guides and *without a G-buffer*: 64 noisy frames reconstructed against a reference of 256; only where NVIDIA's DLLs are there |
+| Ray Reconstruction through NGX | *DLSS Ray Reconstruction through NGX*, the same 64 noisy frames, with and without a G-buffer, through FidelityFX's swapchain; *Ray Reconstruction's route with rrPath=ngx*: a second swapchain takes NGX's route; only where NVIDIA's DLLs are there |
+| The radiance cache | *the cache fills* and ends paths in it; *its light* against no cache, in a box scene at 2 and 8 bounces and in the launch pad's scene; *white furnace* with and without; *a camera that glides*, with its move told and not; *its debug view*; *unused cells evicted*; *let go when off*, the video memory returned |
+| Building the structures | *a vessel's meshes at once*: 150 and 600 parts, each variant of `rtBlas...` switched live, and *the same picture however built*; *a mesh handed over again moves its shadow*; *the main thread's calls during frames*; *RTX Mega Geometry's clusters built* |
+| Opacity micromaps | *the micro-triangles' curve* and *order*, up to level 6, against the driver; *the baker*, against sampled coverage; 700 tufts through the proxy *the same picture with micromaps*, *switched off live*, rebaked after a texture change, with the sun's rays let through foliage and with the measuring test; *with the driver's capability simulated as none* |
 | The main body and terrain | *the planet's shadow*: the body's sphere shades a box the scene leaves lit; *displaced terrain*: the rays' ground 0.3 m above the drawn one stays lit as terrain and shades itself as another mesh; *the ground below*: a box's underside gets the planet's albedo with the sun overhead, nothing with it under the horizon; *vertex colours*: a ground's colour plus its vertex colours, as Parallax's terrain, in its light |
 | Surfaces | *cut-out surfaces*: a card covered, half covered and cut out in thirds gives shadow, half shadow and sun, among the CPU's and the GPU's instances, and sun under all of it with its texture not read yet; *the surface from the rays*: without a G-buffer, the same sun visibility and diffuse light; *surface intent*: four intents written as their materials mean them, and *reflections read it* |
 | Forward light | *forward light* and *in gamma space*: each drawn pixel relit by its diffuse light less a gradient ambient light, through the denoiser; *forward light's reflections*, linear and in gamma space: Unity's Fresnel term and surface reduction |
@@ -691,6 +853,9 @@ while the game runs (`src/DxgiProxy/Config.h`) **[src]**:
 
 `rtOwnQueue` puts the raytracing and Ray Reconstruction on a Direct3D 12 queue of their
 own. The proxy reads it when KSP creates its swapchain **[src]**.
+
+The keys of the radiance cache, the opacity micromaps, the structure builds and Mega
+Geometry are in [reference/proxy-settings.md](../reference/proxy-settings.md#raytracing).
 
 ## The GPU budget
 

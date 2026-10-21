@@ -232,10 +232,19 @@ Some comparisons need no second run. Each takes the same view 10 s after its cha
 
 * `-redefinitionProbeShotRaytracing <mode,mode,...>` switches the raytracing to each mode
   in turn, as the settings window does, and saves `<shot>-<mode>.png`.
-* `-redefinitionProbeShotIni "key=value,key=value;key=value"` writes each set of the
-  proxy's live keys into `ReDefinitionProxy.ini` in turn and saves `<shot>-ini<n>.png`.
-  The proxy reads the file again within a second. The values as they were go back at the
-  end.
+* `-redefinitionProbeShotIni "key=value,key=value;key=value"` applies each set in turn
+  and saves `<shot>-ini<n>.png` 12 s later. A key is one of the proxy's live keys, which
+  the probe writes into `ReDefinitionProxy.ini`; the proxy reads the file again within a
+  second. A key `mod.<key>` is one of ReDefinition's own settings, by its `settings.cfg`
+  key, such as `mod.technique=Dlss` or `mod.raytracing=Full`, applied as the settings
+  window applies it. The values as they were go back at the end.
+* `-redefinitionProbeSettingsWindow <tab>` opens the settings window on that tab before
+  each of those shots, built anew so that it shows the set.
+* `-redefinitionProbeDiagnostics "<name>@<commands>|<name>@<commands>"` opens the
+  diagnostics window and shoots it after each step as `diagnostics-<name>.png`, then ends
+  KSP. The commands are separated by commas: `show`, `hide`, `category=<page>`,
+  `list=<state|registrations|code>`, `search=<text>`, `changed=<1|0>`, `pin=<id>`,
+  `set=<id>:<value>`, `technique=<name>`, `scroll=<pixels>` and `reset`.
 * `-redefinitionProbeStagesAt <renderer>[@<parent>]` logs the scene camera's image after
   each of its stages at the middle of the nearest renderer so named.
 * `-redefinitionProbeLightBuffer` saves the light buffer after the G-buffer and before
@@ -271,6 +280,34 @@ The proxy writes these into `ReDefinitionProxy.log` on its own, every 10 s:
 
 ## Measure frame generation
 
-Frame generation only generates frames while the KSP window has the focus. If the line
-`D3D12 proxy:` says `presented/rendered 1.00`, the run measured nothing of it. Start
-the run and leave the computer alone until KSP ends.
+DLSS frame generation only generates frames while the KSP window is in the foreground. If
+the line `D3D12 proxy:` says `presented/rendered 1.00`, the run measured nothing of it.
+The proxy's log then says that the game's window is not in the foreground. Start the run
+and leave the computer alone until KSP ends. `tools/benchmark_matrix.py` keeps the window
+in front for you, and the machine must still not be used while it runs
+([benchmarks.md](benchmarks.md)).
+
+Two probe arguments serve such runs:
+
+* `-redefinitionProbeFpsCap <n>` caps the rendered frames at n a second and turns V-Sync
+  off, so that all of frame generation's frames fit the display's refresh rate and the
+  desktop recording sees them.
+* `-redefinitionProbeShowHud` keeps KSP's interface in the frames, which the probe hides
+  otherwise.
+
+**What frame generation does to the HUD.** `tools/hud_probe.py` starts KSP once per case
+of a DLSS-G configuration, the package's preset and the proxy's keys. It flies the launch
+pad with the HUD showing and the camera sweeping (`-redefinitionProbeShowHud`,
+`-redefinitionProbeFpsCap`), and records the monitor's frames, the generated ones
+included. Python 3 with numpy and Pillow runs it:
+
+```
+python tools/hud_probe.py run <out folder> [--cases auto,c,...]
+python tools/hud_probe.py analyze <case folder>... [--regions ...]
+python tools/hud_probe.py crops <case folder> <out folder>
+```
+
+`run` copies the install's settings files before it and puts them back after it, as the
+benchmark does. `analyze` compares the HUD's regions of each generated frame with the
+rendered frames either side of it, and `crops` writes side-by-side crops of the HUD. The
+results are in [frame-generation.md](frame-generation.md#dlss-frame-generation-and-ksps-hud).

@@ -75,7 +75,7 @@ the flight, and in the main menu, the space centre and the editors.
 |---|---|
 | *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Part highlighting*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed. The mods' settings that change how you play, not how it looks: Distant Object's flares and their names and Persistent Rotation under *Flight*, and there ReDefinition's own switches for the HUD, the staging and the world buttons ([below](#switch-redefinitions-flight-features)); Parallax's scatter collisions and Scatterer's waves that move vessels under *Physics* |
 | *Audio* | KSP's volumes and its sound normalizer; EVE's cloud ambience and thunder volumes |
-| *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, DLSS model, Sharpness, Frame generation, *NVIDIA DLSS files*; the raytracing rows ([raytracing.md](raytracing.md)); ambient light boosts |
+| *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, DLSS model, Sharpness, Frame generation; the raytracing rows ([raytracing.md](raytracing.md)); *Low latency*, *NVIDIA DLSS files* and *DLSS-G on RTX 30/20* where the GPU can use them ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)); ambient light boosts |
 | *Graphics* | a status line, and one button per graphics profile with a sentence about it; its tooltip says what it sets |
 | *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*, with *Grass on the lawns* under *Space centre*; *Effects* -- the graphics mods' features and KSP's own |
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
@@ -240,8 +240,8 @@ Three things leave a mod out of the window:
 * *Bundle other mods here*, under *Mods / Toolbar*, is switched off. Then only
   ReDefinition's own rows and KSP's are in the window.
 
-Which of the three it is, the game says: *Diagnostics*, *Debug*, *Show mod
-registrations*. It lists every mod that is loaded and not bundled, with the reason.
+Which of the three it is, the game says: *Diagnostics*, *Other mods*, *Registrations*.
+It lists every mod that is loaded and not bundled, with the reason.
 
 ## Where your change goes
 
@@ -288,9 +288,9 @@ what KSP ships.
 
 ReDefinition's own settings go back to their defaults, with frame generation off. A few
 stay as they are, since they are your hardware's or your choice rather than a quality:
-the upscaling technique, the raytracing mode and its light bounces, *Replace original
-settings*, the window's pause button, the navball's place, and whether the upscaler is
-on once a profile is chosen.
+the upscaling technique, the raytracing mode, its light bounces and Ray Reconstruction,
+*Replace original settings*, the window's pause button, the navball's place, the
+diagnostics window's pins, and whether the upscaler is on once a profile is chosen.
 
 After a reset, High is chosen: the upscaler runs at *AA only*, frame generation is
 off, and KSP's settings are as above, except where High and the installed mods ask for
@@ -374,33 +374,47 @@ the same settings file. The main menu's settings screen has no ReDefinition sect
 
 ## The diagnostics window
 
-Open it with *Diagnostics* in the settings window, or with the hotkey you set for it.
-At the top are the status, the frame rate, with the presented rate in brackets while
-frame generation runs, and the on/off button. Below them are two tabs.
+Open it with *Diagnostics* in the settings window, or with the hotkey you set for it. It
+is for finding out what ReDefinition does, and for bug reports.
 
-*General* holds Technique, Mode, Sharpness, the frame generation switch,
-and whether other visual mods run anything that conflicts with the upscaler. If the
-chosen technique cannot run, it names the reason, and after a failure it offers
-*Try ... again*.
+At the top, a strip shows what runs, for example *FSR 3 + XeSS-FG 2x + XeLL*: the
+upscaler, the frame generation and what lowers the latency. Beside it are the rendered
+frame rate, with the shown rate after an arrow while frame generation generates, and a
+graph of the last 240 frames. Frames well over the usual time are drawn in the warning
+colour. Under the strip are the median frame time with its 95th percentile and the worst
+frame, the latency, and the load of the main thread, the render thread and the GPU. The
+load is measured only while the window is open.
 
-*Debug* is for finding out what happens:
+The window's pages are in a list on the left:
 
-| Section | Holds |
+| Page | Holds |
 |---|---|
-| Measure | for troubleshooting and bug reports: the frame rates with the upscaler on and off, the load of the main thread, the render thread and the GPU, *Measurements into the log*, which is saved, *Surface shine overlay* with raytracing and Deferred, which colours each surface by the shine its material means and is not saved, *Write diagnostics to log*, *Without upscaler (bypass)*, and *Motion vector check on fast turns* with frame generation, which is not saved; *Render interpolation* and *Motion vector repair*, not saved; *Record the screen in 5 s*, 120 frames into `ReDefinitionCaptures` beside `KSP_x64.exe`, with the dumps for analysis or without them. The load is measured only while this tab is open |
-| What the upscaler receives | switches for a bug report: Vessel shadow in frame generation, not saved; Jitter; EVE clouds: jitter and motion vectors, not saved; Mipmap bias; Vessel depth and motion vectors, not saved; Skinned motion vectors; TUFX after upscaling; Auto exposure for FSR 3 and AMD; Transparency mask and Reactive mask for FSR 3 |
-| Game settings while upscaling | LOD bias compensation, MSAA forced off, Anisotropic filtering forced |
-| Interface for mods | *Hook probe, into the log*: registers a handler on each place a mod can add to the frame and writes one line per scene into `KSP.log` for each. It draws nothing, and it is never saved |
-| FSR 3 internals | *FSR's debug view*, in development builds only |
+| *Overview* | the status line; *Upscaler* and *Frame generation*; *Technique*, *Mode* and *Sharpness*, with the reason and *Try ... again* when the chosen technique cannot run; whether other visual mods run anything that conflicts with the upscaler; the frame rate with the upscaler on against off |
+| *Upscaler inputs* | switches for a bug report: *Jitter*, *Vessel depth and motion vectors*, *Vessel shadow in frame generation*, *Skinned motion vectors*, *Motion vector repair*, *Render interpolation*, *EVE clouds: jitter and motion vectors*, *Mipmap bias*, *TUFX after upscaling*, *Auto exposure*, *Transparency mask* and *Reactive mask* |
+| *Frame generation & latency* | *Frame generation* and *Multiplier*, *Motion vector check on fast turns*, and under *Running now* the frame generation that runs, what lowers the latency, and the presented frames per rendered frame |
+| *Game settings* | *LOD bias compensation*, *MSAA forced off*, *Anisotropic filtering forced* |
+| *Capture & log* | *Measurements into the log*, *Write diagnostics to log*, *Hook probe, into the log*, *Surface shine overlay*, *Without upscaler (bypass)*, *FSR's debug view* in development builds only, and *Record the screen in 5 s*, 120 frames into `ReDefinitionCaptures` beside `KSP_x64.exe`, with the dumps for analysis or without them |
+| *Previews* | what the upscaler receives and returns: motion vectors, depth, the image at render resolution, the transparency and reactive masks, and the result |
+| *Other mods* | three lists of lines: *Their state*, what ReDefinition sees of the other mods; *Registrations*, the bundled mods and the problems of their registrations; *Their code*, the places in other mods' code that ReDefinition relies on, with those that changed in the installed version first and coloured |
 
-Below them are four buttons. *Show other mods' state* lists what ReDefinition sees of
-the other mods. *Show mod registrations* lists the bundled mods and the problems
-of their registrations. *Show other mods' code* lists the places in other mods' code
-that ReDefinition relies on, with those that changed in the installed version first and
-coloured. *Show preview* shows what the upscaler receives: motion
-vectors, depth, the image at render resolution, the transparency and reactive masks,
-and the result. The motion vector, depth and mask previews read the image back from the
-GPU and cost frame rate while they are shown.
+The motion vector, depth and mask previews read the image back from the GPU and cost
+frame rate, so they are read only while *Previews* is open. *Hook probe, into the log*
+registers a handler on each place a mod can add to the frame and writes one line per
+scene into `KSP.log` for each. It draws nothing.
+
+Each option ends in a marker. *saved* means it is kept for the next start, and *session*
+that it goes back when KSP ends. A row that does not apply here is greyed out and says
+why. A row away from its default stays usable, so that you can put it back.
+
+The search field in the strip finds options on every page by their name, group,
+tooltip, page title and choices. While it holds text, the window lists the matching
+options from all pages under their page names, and each page in the list shows how many
+match. On *Other mods* it filters the lines. *Changed* limits the options to those away
+from their default, and *Reset debug switches* puts them back. *Upscaler*, *Frame
+generation* and *Multiplier* are your settings, not debug switches, and stay as they are.
+
+A star at the end of a row pins the option to the foot of the window, where it stays one
+click away on every page. The pins are saved.
 
 Everything ReDefinition reports goes into `KSP.log` behind `[ReDefinition]`. The proxy
 writes `ReDefinitionProxy.log` next to `KSP_x64.exe`.

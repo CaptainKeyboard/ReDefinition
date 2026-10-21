@@ -206,6 +206,7 @@ The checks ReDefinition answers:
 | `TufxAmbientOcclusion` | a TUFX scene profile | a profile TUFX renders with ambient occlusion |
 | `DlssFrameGenerationEveryRefresh` | `ksp.SYNC_VBL` | V-Sync off or every refresh, while DLSS frame generation runs |
 | `DlssFrameGenerationVSync` | `ksp.SYNC_VBL` | V-Sync off, while DLSS frame generation runs in a build without V-Sync support |
+| `XellEveryRefresh` | `ksp.SYNC_VBL` | V-Sync off or every refresh, while Intel's XeLL lowers the latency |
 
 A check no behaviour answers is reported once, and then passes every value. Where
 several mods require the same setting, a value passes only what all of them allow.
@@ -297,8 +298,8 @@ setting names it.
 ## What is reported
 
 Every problem goes into `KSP.log` with the prefix `[ReDefinition]`, naming your mod and
-the setting. The same list is in the game, in the diagnostics window under *Debug*,
-*Show mod registrations*.
+the setting. The same list is in the game, in the diagnostics window under *Other mods*,
+*Registrations*.
 
 A value ReDefinition cannot read is ignored, and that key's default stands.
 

@@ -19,6 +19,7 @@ The rows are under *Display* in the settings window, below the upscaler's.
 |---|---|
 | Raytracing | *Off*; *Shadows*: the sun's shadows from rays, as far as the scene reaches; *Shadows and light*: also the light bouncing off surfaces and the sky, which darkens corners and colours what stands beside something bright; *Full*: also reflections |
 | Light bounces | how often the traced light bounces between surfaces, from 1 to 4. More bounces light shadowed sides and rooms more fully, at more GPU time. Only with *Shadows and light* or *Full* |
+| Ray Reconstruction | on at first. With DLSS as the upscaler, NVIDIA's DLSS Ray Reconstruction removes the noise of the traced light and upscales in one step ([below](#with-dlss)). Off, ReDefinition's own denoiser and DLSS Super Resolution do it. Only with DLSS and raytracing on |
 | Moonlight | how brightly the moons light the scene, from 0 to 300 %, in a cool colour, as the eye sees moonlight at night. Their light falls only where the moon is in the sky, with shadows. Only with *Shadows and light* or *Full* |
 | Moon reflection | how strongly water mirrors the moons, from 0 to 500 %. 100 % is the moon as bright in the water as the eye sees it at night. It lights nothing. Only with *Full* |
 | Moon glow | the moons' discs a little brighter in the night sky, with a soft glow round them, the more the darker the sky. It lights nothing, and works without raytracing too |
@@ -65,14 +66,20 @@ where they receive them.
 
 ## With DLSS
 
-When DLSS is the upscaler, DLSS Ray Reconstruction takes DLSS's place. It removes the
-noise of the traced light and upscales in one step. It takes only a scene rendered in
-HDR: KSP's editors render without it, and there DLSS upscales as usual and
-ReDefinition's own denoiser removes the noise. It runs through NVIDIA Streamline: on
-RTX 40 and newer with DLSS frame generation, and on RTX 20 and 30 with
-`frameGeneration=0` in `ReDefinitionProxy.ini` next to `KSP_x64.exe`. The download
-beside *NVIDIA DLSS files* brings its files ([installing.md](installing.md)). Without
-them, ReDefinition's own denoiser removes the noise, and DLSS upscales as usual.
+When DLSS is the upscaler and *Ray Reconstruction* is on, DLSS Ray Reconstruction takes
+DLSS's place. It removes the noise of the traced light and upscales in one step. It takes
+only a scene rendered in HDR: KSP's editors render without it, and there DLSS upscales as
+usual and ReDefinition's own denoiser removes the noise.
+
+It runs beside every frame generation. With DLSS frame generation, or with frame
+generation off, it runs through NVIDIA Streamline. Beside FSR 3's or XeSS's frame
+generation it runs through NVIDIA's NGX directly. `rrPath` in `ReDefinitionProxy.ini`
+next to `KSP_x64.exe` chooses the way
+([reference/proxy-settings.md](../reference/proxy-settings.md#ray-reconstruction)).
+
+The download beside *NVIDIA DLSS files* brings its files
+([installing.md](installing.md)). Without them, ReDefinition's own denoiser removes the
+noise, and DLSS upscales as usual.
 
 ## With a Radeon RX 9000
 
@@ -88,3 +95,21 @@ problem. Add that line to a bug report.
 
 If raytracing does not start, the log says why once: no proxy, a GPU without raytracing,
 or a shader bundle older than the mod.
+
+## Faster and finer, on NVIDIA GPUs
+
+These settings of `ReDefinitionProxy.ini` are off at first, and each is described in
+[reference/proxy-settings.md](../reference/proxy-settings.md#raytracing). Measured on an
+RTX A4500 at the Medium profile with raytracing on *Full* and FSR 3, from the benchmark in
+[development/benchmarks.md](../development/benchmarks.md):
+
+| Setting | Does | Measured |
+|---|---|---|
+| `rtOpacityMicromaps=1` | lets the GPU decide most hits on grass and ferns without testing their textures. In hardware on RTX 40 and newer; an RTX 30 emulates it | 10 % fewer frames a second on the RTX A4500, an Ampere GPU that emulates them: 40.5 against 45.0. The gain on an RTX 40 is open |
+| `rtRadianceCache=1` | keeps the indirect light in a grid over the world, so that fewer rays are traced a frame. The light follows a change some frames late | 45.4 against 45.0 frames a second, 1 % more |
+| `rtMegaGeometry=1` | builds new meshes' structures from RTX Mega Geometry's clusters of up to 256 triangles. Works on every RTX GPU | not in the benchmark. In the raytracing harness the trace took 2.54 ms against 1.24 ms with 15 003 instances, and a vessel's meshes took no less to build |
+
+`rtBlasBatch`, `rtBlasPool`, `rtBlasBudget` and `rtBlasCompaction` set how the meshes of
+a vessel are built when they appear. With the defaults, the frame that builds the meshes
+of a vessel of 150 parts took 0.63 ms of GPU time, where building mesh by mesh took 21.6
+ms (the raytracing harness on the RTX A4500).
