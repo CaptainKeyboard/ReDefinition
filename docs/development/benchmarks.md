@@ -103,16 +103,18 @@ over it. The numbers are for the RTX A4500 at the Medium profile.
 | `grass` | the radiance cache, the cut-out tests, the opacity micromaps and the raytracing modes over grass | 2 | 46 | 13 |
 
 The minutes are `plan`'s, with the profile start not counted. The groups that use DLSS-G need
-the package, the presets group also needs the AMD and XeSS DLLs, and a group whose files are
-missing says so in the run's section, as the main matrix does.
+the package, the presets group measures the AMD DLL and XeSS only where their DLLs are in
+place, the grass scene needs Parallax, and what is left out says so in the run's section, as
+in the main matrix.
 
 * `rt-modes` sets the raytracing to Off, Shadows, Light and Full in turn. DLSS runs with Ray
   Reconstruction on and off wherever the raytracing is on.
 * `frame-steps` writes `MaxGeneratedFrames=5` into the DLSS-G package's ini for its start, so
   that the package allows 6x, and sets the mod's `frameGenerationMultiplier` to each step
-  while the game runs. Each row says in "Shown per rendered" how many frames the monitor got
-  per rendered frame and in "Delivered" whether that is the step asked for. A step the GPU
-  or the driver did not deliver says so in its notes. Dynamic has no number to be held to.
+  while the game runs. Each row says in "Shown per rendered" how many frames the proxy
+  presented per rendered frame and in "Delivered" whether that is the step asked for, within
+  a quarter of a frame either way. A step the GPU or the driver did not deliver says so in
+  its notes. Dynamic has no number to be held to.
 * `dlssg-presets` runs the package's `[DLSSG] Preset` as `Auto` and as `C`. FSR's frame
   generation and no frame generation are the references in the same table.
 * `latency-brake` runs `latencyBrakeTargetMs` at 4 (the default), 2 and 1. The brake also
@@ -121,7 +123,8 @@ missing says so in the run's section, as the main matrix does.
   `rtBlasBudget`, `rtTlasFastTrace` and `rtMegaGeometry`, since the meshes are built at the
   flight's start. Each start has one rendering and two phases. The table adds the slowest
   frame of the start's mesh builds, on the GPU and on the CPU, and the meshes and triangles
-  built.
+  of the frames that built 50 meshes or more. A variant that spreads the builds over more
+  frames, like `rtBlasBudget`, shows fewer of them.
 * `grass` runs on two scenes, the launch pad and a field of grass.
 
 The grass scene is `-redefinitionProbeGrass` (`src/Probe/SceneProbe.cs`). The probe does
@@ -181,7 +184,7 @@ Every set names every key the matrix varies, since the probe's sets add to each 
 | Phase setting | Keys the probe sets |
 |---|---|
 | The upscaler | `mod.technique`, for example `Dlss` |
-| The raytracing mode | `mod.raytracing`, `Off` or `Full` |
+| The raytracing mode | `mod.raytracing`, `Off`, `Shadows`, `Light` or `Full` |
 | Ray Reconstruction | `mod.rayReconstruction`; `True` where it does not apply |
 | Frame generation off | `fgMinimumFps=1000`, which holds it off |
 | Frame generation on | `fgMinimumFps=0`, which never holds it off |
@@ -262,9 +265,9 @@ the group, and of the row's scene.
 | fps vs FG off, no model | the fps against the same rendering with frame generation off and no latency model |
 | Latency vs FG off, no model | the latency median against that row, in ms |
 | fps vs previous run | the fps against the same scenario in the run before |
-| Shown per rendered | frames shown per rendered frame (groups with steps) |
+| Shown per rendered | frames presented per rendered frame, the proxy's presented/rendered (groups with steps) |
 | Delivered | whether that is the step asked for: `yes`, `not delivered`, `n/a` for Dynamic |
-| Slowest build GPU ms, CPU ms, Meshes, Triangles | the start's mesh builds (the `blas` group) |
+| Slowest build GPU ms, CPU ms, Meshes, Triangles | the slowest mesh-build frame of the start, and the meshes and triangles of its frames that built 50 meshes or more (the `blas` group) |
 | Notes | what did not run as asked: another upscaler, no generated frames, a key the proxy does not have |
 
 The latency is the proxy's own measure, the same on every GPU. The proxy logs it as
@@ -647,7 +650,9 @@ Scenes: pad (the launch pad), grass (a field of Parallax's grass 5 km from the p
 
 A one-off run from before the groups, with a matrix of its own: FSR 3 at raytracing Full
 on the launch pad, the cut-out tests (rtCutoutTest 1 and 2) and the opacity micromaps in
-turn, plain and micromaps again to see the run's own spread.
+turn, plain and micromaps again to see the run's own spread. The matrix holds frame
+generation off in its FSR rows too (fg_on is fgMinimumFps 1000), so those rows repeat
+the ones without it and carry the note that no frame was generated.
 
 Run `2026-10-21-0834`. Its machine and options are under [the runs](#the-runs).
 
