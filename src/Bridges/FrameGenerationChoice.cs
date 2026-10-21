@@ -18,9 +18,13 @@ namespace ReDefinition.Bridges
         // The row's values in the order it shows them.
         public static readonly string[] All = { Off, "2x", "3x", "4x", "5x", "6x", Dynamic };
 
-        // The multiplier a fresh settings file holds: one generated frame, which every
+        // The multiplier a fresh settings file holds: Dynamic, which DLSS-G does where it supports
+        // multi frame generation; everywhere else it runs as 2x (Effective), the one step every
         // technique does.
-        public const string Default = "2x";
+        public const string Default = Dynamic;
+
+        // What Dynamic runs as where the technique does not do it.
+        public const string DynamicFallback = "2x";
 
         // A value the setting can hold while frame generation is on (the multiplier's own
         // field: Off is the switch's).
@@ -72,17 +76,18 @@ namespace ReDefinition.Bridges
         }
 
         // The choice as it runs: a multiplier above the most is that most, Dynamic where it is not
-        // supported the most; the choice itself where it is offered.
+        // supported 2x; the choice itself where it is offered.
         public static string Effective(string choice, Limits limits)
         {
             if (Offered(choice, limits)) return choice;
-            if (choice == Dynamic || Multiplier(choice) > limits.Most) return limits.Most + "x";
+            if (choice == Dynamic) return DynamicFallback;
+            if (Multiplier(choice) > limits.Most) return limits.Most + "x";
             return choice;
         }
 
         // Why each step that is not offered is not, in a few lines, or null where all are.
         // amperePackage: the RTX 30/20 package is installed, whose MaxGeneratedFrames sets the most.
-        public static string Note(Limits limits, bool amperePackage)
+        public static string Note(Limits limits, bool amperePackage, string choice = null)
         {
             if (!limits.Known) return null;
             List<string> missing = new List<string>();
@@ -102,15 +107,17 @@ namespace ReDefinition.Bridges
                 else
                     note.Append("this GPU allows up to ").Append(limits.Most).Append("x.");
             }
+            string runs = choice == Dynamic ? " " + DynamicFallback + " runs instead." : "";
             if (limits.Technique == 2 && limits.Dynamic == 0)
             {
                 if (note.Length > 0) note.Append(' ');
-                note.Append("Dynamic: not supported here (needs multi frame generation and NVIDIA driver 595.41 or newer).");
+                note.Append("Dynamic: not supported here (needs multi frame generation and NVIDIA driver 595.41 or newer).")
+                    .Append(runs);
             }
             else if (limits.Technique != 2)
             {
                 if (note.Length > 0) note.Append(' ');
-                note.Append("Dynamic: DLSS frame generation only.");
+                note.Append("Dynamic: DLSS frame generation only.").Append(runs);
             }
             return note.Length == 0 ? null : note.ToString();
         }

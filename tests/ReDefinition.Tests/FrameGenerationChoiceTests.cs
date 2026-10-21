@@ -50,7 +50,7 @@ namespace ReDefinition.Tests
         public void DynamicNeedsTheSupportTheStateReports()
         {
             Assert.IsFalse(FrameGenerationChoice.Offered("Dynamic", Dlss(4, 0)));
-            Assert.AreEqual("4x", FrameGenerationChoice.Effective("Dynamic", Dlss(4, 0)));
+            Assert.AreEqual("2x", FrameGenerationChoice.Effective("Dynamic", Dlss(4, 0)), "the fallback is 2x, not the most");
             Assert.IsTrue(FrameGenerationChoice.Offered("Dynamic", Dlss(4, -1)), "not known yet: not held against it");
         }
 
@@ -108,7 +108,32 @@ namespace ReDefinition.Tests
             Assert.AreEqual("3x", settings.ValueOf("frameGenerationMultiplier"));
             settings.SetValue("frameGenerationMultiplier", "9x");
             Assert.AreEqual("3x", settings.FrameGenerationMultiplier);
-            Assert.AreEqual("2x", new OwnSettings().FrameGenerationMultiplier);
+            Assert.AreEqual("Dynamic", new OwnSettings().FrameGenerationMultiplier);
+        }
+
+        // The default is Dynamic, which runs as 2x wherever it is not supported.
+        [TestMethod]
+        public void TheDefaultIsDynamicAndRunsAsTwoTimesWhereItIsNotSupported()
+        {
+            Assert.AreEqual("Dynamic", FrameGenerationChoice.Default);
+            Assert.AreEqual("Dynamic", OwnSettingsReset.From(new OwnSettings { FrameGenerationMultiplier = "4x" }, true)
+                .FrameGenerationMultiplier, "Reset goes back to it");
+            string d = FrameGenerationChoice.Default;
+            Assert.AreEqual("Dynamic", FrameGenerationChoice.Effective(d, Dlss(4, 1)));
+            Assert.AreEqual("2x", FrameGenerationChoice.Effective(d, Dlss(4, 0)), "Streamline without multi frame generation");
+            Assert.AreEqual("2x", FrameGenerationChoice.Effective(d, new FrameGenerationChoice.Limits { Technique = 1, Most = 2 }));
+            Assert.AreEqual("2x", FrameGenerationChoice.Effective(d, new FrameGenerationChoice.Limits { Technique = 3, Most = 2 }));
+            Assert.AreEqual("Dynamic", FrameGenerationChoice.Effective(d, new FrameGenerationChoice.Limits { Dynamic = -1 }),
+                "nothing said yet");
+        }
+
+        [TestMethod]
+        public void TheNoteSaysWhatDynamicRunsAsWhereItIsNotSupported()
+        {
+            StringAssert.Contains(FrameGenerationChoice.Note(Dlss(4, 0), false, "Dynamic"), "2x runs instead.");
+            StringAssert.Contains(FrameGenerationChoice.Note(new FrameGenerationChoice.Limits { Technique = 1, Most = 2 }, false,
+                                                             "Dynamic"), "2x runs instead.");
+            Assert.IsFalse(FrameGenerationChoice.Note(Dlss(4, 0), false, "3x").Contains("runs instead"));
         }
 
         [TestMethod]

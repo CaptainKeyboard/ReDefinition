@@ -286,21 +286,27 @@ namespace redefinition
         // GPU and the package offer; never more than they offer.
         const int multiplierAsked = askedMultiplier.load();
         const uint32_t askedFrames = multiplierAsked >= 2 ? static_cast<uint32_t>(multiplierAsked - 1)
+                                     // Dynamic asked for by the mod: the fixed multiplier it falls back to where
+                                     // Streamline does not support it is 2x, not as many as the GPU offers.
+                                     : multiplierAsked == 0 && askedDynamic.load() ? 1u
                                      : multiplierAsked == 0 && cfg.dlssgFrames > 0 ? static_cast<uint32_t>(cfg.dlssgFrames)
                                                                                     : streamlineFrames;
         const uint32_t wantedFrames = askedFrames < streamlineFrames ? askedFrames : streamlineFrames;
-        const uint32_t frames = limit != 0 && limit < wantedFrames ? limit : wantedFrames;
+        uint32_t frames = limit != 0 && limit < wantedFrames ? limit : wantedFrames;
         LogStreamlineApiErrors();
 
         // Dynamic Multi Frame Generation where dlssgMode asks for it and the state of this
         // swapchain's first Present reported it supported (ReadStreamlineStateLocked); the
         // fixed multiplier until that is known, and where it is not. Streamline ignores
-        // numFramesToGenerate under it, and the latency brake stays off as under any
+        // numFramesToGenerate under it, and the latency brake runs as under any
         // Streamline Reflex (LowLatency::Describe).
         // Asked for by the mod, or by dlssgMode where the mod has asked for nothing.
         const bool dynamicAsked = multiplierAsked != 0 || askedDynamic.load() ? askedDynamic.load()
                                                                                 : cfg.dlssgMode == kDlssgModeDynamic;
         const bool dynamic = dynamicAsked && streamlineDynamicKnown && streamlineDynamicSupported;
+        // Under it the frames are the most Streamline may choose from, not the fixed fallback.
+        if (dynamic)
+            frames = limit != 0 && limit < streamlineFrames ? limit : streamlineFrames;
         if (dynamicAsked && streamlineDynamicKnown && !streamlineDynamicSupported && !loggedDynamicFallback)
         {
             loggedDynamicFallback = true;

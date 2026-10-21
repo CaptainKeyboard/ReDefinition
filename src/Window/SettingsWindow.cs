@@ -666,7 +666,8 @@ namespace ReDefinition.Window
                 ? FrameGenerationBridge.TechniqueName() : null;
             string head = edit == null || edit.After == null || !edit.After.FrameGeneration ? ""
                 : running != null ? "Running: " + running + ". " : "Not generating now. ";
-            string reasons = FrameGenerationChoice.Note(FrameGenerationBridge.Limits(), AmpereFrameGeneration.Installed());
+            string reasons = FrameGenerationChoice.Note(FrameGenerationBridge.Limits(), AmpereFrameGeneration.Installed(),
+                edit != null && edit.After != null ? edit.After.FrameGenerationMultiplier : null);
             string text = head + (reasons ?? "");
             if (text != frameGenerationNoteFor)
             {

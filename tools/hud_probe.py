@@ -77,6 +77,20 @@ CASES = {
                                         "-redefinitionProbeShotVariant", "none", "-redefinitionProbeDiagnostics",
                                         "overview@category=Overview|fg@category=FrameGeneration,set=frameGenerationMultiplier:1"
                                         "|fg3@category=FrameGeneration"]),
+    # DLSS-G's dynamic mode with and without the latency brake, and a fixed 3x as the reference, 12 s each: the
+    # proxy's log holds the presented/rendered and latency lines of each.
+    "dynamic-brake": case("Auto", {"reportSeconds": "1"}, launch=[
+        "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeShot", "dyn", "-redefinitionProbeShotVariant",
+        "none", "-redefinitionProbeShotIni",
+        "mod.frameGenerationMultiplier=Dynamic,latencyBrake=1,latencyBrakeWithDlssg=1;"
+        "mod.frameGenerationMultiplier=Dynamic,latencyBrake=0;"
+        "mod.frameGenerationMultiplier=3x,latencyBrake=1,latencyBrakeWithDlssg=1;"
+        "mod.frameGenerationMultiplier=3x,latencyBrake=0"]),
+    # The default multiplier (Dynamic) where the package does not support dynamic generation (--max-generated-frames 1):
+    # it runs as 2x, and the settings window says so.
+    "default": case("Auto", launch=["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeShot", "choice",
+                                    "-redefinitionProbeShotVariant", "none", "-redefinitionProbeSettingsWindow", "Display",
+                                    "-redefinitionProbeShotIni", "latencyBrake=1"]),
     # Frame generation's inputs dumped (HUD-less image and backbuffer), for which pixels the HUD covers.
     "dump": case("Auto", arguments=["-redefinitionProbeDumps"]),
 }
