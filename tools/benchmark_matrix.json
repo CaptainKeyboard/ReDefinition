@@ -10,6 +10,7 @@
   "mod_settings": {
     "enabled": "True",
     "frameGeneration": "True",
+    "frameGenerationMultiplier": "2x",
     "quality": "Quality"
   },
   "proxy_load": {
