@@ -907,7 +907,7 @@ The raytracing's frames that built 50 meshes or more, at the flight's start:
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 09:52:50.135] [ReDefinition] Probe: profile medium applied. |
 | Groups | `rt-modes` |
-| Matrix | `tools/benchmark_matrix.json`, 1 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Matrix | `tools/benchmark_matrix.json`, 1 start, 2 s settling per phase, 8 s after a change of the rendering |
 | Full record | [benchmarks/2026-10-21-0951.json](benchmarks/2026-10-21-0951.json) |
 
 <details><summary>What ran in each phase</summary>
@@ -960,7 +960,7 @@ The raytracing's frames that built 50 meshes or more, at the flight's start:
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 09:43:44.280] [ReDefinition] Probe: profile medium applied. |
 | Groups | `frame-steps` |
-| Matrix | `tools/benchmark_matrix.json`, 2 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Matrix | `tools/benchmark_matrix.json`, 2 starts, 4 s settling per phase, 8 s after a change of the rendering |
 | Full record | [benchmarks/2026-10-21-0942.json](benchmarks/2026-10-21-0942.json) |
 
 <details><summary>What ran in each phase</summary>
@@ -1084,7 +1084,7 @@ The raytracing's frames that built 50 meshes or more, at the flight's start:
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 08:35:12.239] [ReDefinition] Probe: profile medium applied. |
 | Groups | `cutout-oneoff` |
-| Matrix | `../../AppData/Local/Temp/claude/C--Users-franz-IdeaProjects-ReDefinition/830891e0-1c5a-4643-8173-8b16e3f60297/scratchpad/omm_matrix.json`, 1 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Matrix | `omm_matrix.json`, 1 start, 2 s settling per phase, 8 s after a change of the rendering |
 | Full record | [benchmarks/2026-10-21-0834.json](benchmarks/2026-10-21-0834.json) |
 
 <details><summary>What ran in each phase</summary>
@@ -1487,7 +1487,7 @@ The raytracing's frames that built 50 meshes or more, at the flight's start:
 | Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
 | Profile | `medium`: [LOG 23:35:52.187] [ReDefinition] Probe: profile medium applied. |
 | Groups | `main` |
-| Matrix | `tools/benchmark_matrix.json`, 1 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Matrix | `tools/benchmark_matrix.json`, 1 start, 2 s settling per phase, 8 s after a change of the rendering |
 | Skipped | latency antilag2 (only on AMD) |
 | Full record | [benchmarks/2026-10-20-2334.json](benchmarks/2026-10-20-2334.json) |
 

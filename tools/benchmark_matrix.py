@@ -1490,7 +1490,7 @@ def run(args):
     stamp = datetime.datetime.now().strftime("%Y-%m-%d-%H%M")
     raw = os.path.join(args.raw, stamp)
     os.makedirs(raw, exist_ok=True)
-    plan = {"matrix": matrix, "matrix_file": os.path.relpath(args.matrix, REPO), "groups": groups, "starts": starts, "skipped": skipped,
+    plan = {"matrix": matrix, "matrix_file": matrix_label(args.matrix), "groups": groups, "starts": starts, "skipped": skipped,
             "vendor": vendor, "resources": resources, "stamp": stamp, "settle_seconds": matrix.get("settle_seconds", 3)}
     print("groups {}: {} starts, about {:.0f} minutes; raw logs in {}".format(
         ", ".join(groups), len(starts), estimate_seconds(starts, not args.no_profile) / 60.0, raw))
@@ -1565,6 +1565,16 @@ def apply_profile(install, profile, settings_template, raw):
     with open(os.path.join(raw, "profile.settings.cfg"), "w", encoding="utf-8") as f:
         f.write(after)
     return lines, after
+
+
+def matrix_label(path):
+    """The matrix file as the record names it: relative to the repository, or just its name where it
+    lies outside (a matrix of one run kept in a scratch folder, or on another drive)."""
+    try:
+        relative = os.path.relpath(path, REPO)
+    except ValueError:
+        return os.path.basename(path)
+    return os.path.basename(path) if relative.startswith("..") else relative
 
 
 def _save_plan(raw, plan):
@@ -1865,6 +1875,26 @@ def _machine_line(record):
     return ", ".join(p for p in parts if p)
 
 
+def _matrix_shown(stored):
+    """The matrix file of a record as the page shows it: a path outside the repository (a record from before
+    matrix_label) only by its name."""
+    path = (stored or "").replace("\\", "/")
+    return path.rsplit("/", 1)[-1] if path.startswith("..") else path
+
+
+def _settling(record):
+    """The seconds the record's phases settled before they were measured, as text: those the phases
+    name (a group may settle longer than the matrix does), else the record's own. Several values,
+    for a record of groups that differ, are joined with a slash."""
+    phases = [p for s in record["starts"] for p in s.get("phases", [])]
+    def seconds(rebuilt, fallback):
+        found = sorted({p["settle_seconds"] for p in phases if bool(p.get("rebuild")) == rebuilt and p.get("settle_seconds") is not None})
+        return " / ".join("{:g}".format(v) for v in found) if found else "{:g}".format(fallback) if fallback is not None else "?"
+    matrix = record.get("matrix") or {}
+    return (seconds(False, record.get("settle_seconds")),
+            seconds(True, matrix.get("settle_after_rebuild_seconds", record.get("settle_seconds"))))
+
+
 def run_section(record, json_name):
     git = record.get("git") or {}
     # A table rather than prose: its rows may be as long as the values are.
@@ -1880,9 +1910,10 @@ def run_section(record, json_name):
     lines.append("| Profile | `{}`: {} |".format(record.get("profile"), "; ".join(record.get("profile_lines") or ["no profile line"])))
     matrix = record.get("matrix") or {}
     lines.append("| Groups | {} |".format(", ".join("`{}`".format(g) for g in record_groups(record))))
-    lines.append("| Matrix | `{}`, {} starts, {} s settling per phase, {} s after a change of the rendering |".format(
-        (record.get("matrix_file") or "").replace(os.sep, "/"), len(record["starts"]), record.get("settle_seconds"),
-        matrix.get("settle_after_rebuild_seconds", record.get("settle_seconds"))))
+    settle, settle_rebuilt = _settling(record)
+    lines.append("| Matrix | `{}`, {} start{}, {} s settling per phase, {} s after a change of the rendering |".format(
+        _matrix_shown(record.get("matrix_file")),
+        len(record["starts"]), "" if len(record["starts"]) == 1 else "s", settle, settle_rebuilt))
     for what, why in record.get("skipped") or []:
         lines.append("| Skipped | {} ({}) |".format(what, why))
     lines.append("| Full record | [benchmarks/{0}](benchmarks/{0}) |".format(json_name))

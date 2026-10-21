@@ -717,6 +717,34 @@ class DocTest(unittest.TestCase):
         self.assertLess(out.index("### Run 2026-10-20-1800"), out.index("### Run 2026-10-19-1800"))
 
 
+    def matrix_line(self, record):
+        section = bm.run_section(record, "x.json")
+        return next(l for l in section.splitlines() if l.startswith("| Matrix |"))
+
+    def test_the_matrix_line_names_the_settling_the_phases_had(self):
+        # A group may settle longer than the matrix: the page says what the phases did, not the matrix's own value.
+        record = self.record("2026-10-20-1800")
+        record["settle_seconds"] = 2
+        record["matrix"]["settle_after_rebuild_seconds"] = 8
+        self.assertEqual(self.matrix_line(record),
+                         "| Matrix | `tools/benchmark_matrix.json`, 1 start, 3 s settling per phase, 8 s after a change of the rendering |")
+        record["starts"][0]["phases"][1]["rebuild"] = True
+        record["starts"][0]["phases"][0]["rebuild"] = False
+        record["starts"][0]["phases"][1]["settle_seconds"] = 6
+        self.assertIn("3 s settling per phase, 6 s after", self.matrix_line(record))
+        record["starts"].append(copy.deepcopy(record["starts"][0]))
+        record["starts"][1]["phases"][0]["settle_seconds"] = 4
+        self.assertIn("2 starts, 3 / 4 s settling per phase, 6 s after", self.matrix_line(record))
+
+    def test_a_matrix_outside_the_repository_is_named_by_its_file(self):
+        record = self.record("2026-10-20-1800")
+        record["matrix_file"] = "..\\..\\AppData\\Local\\Temp\\scratch\\omm_matrix.json"
+        self.assertIn("`omm_matrix.json`", self.matrix_line(record))
+        self.assertNotIn("AppData", bm.run_section(record, "x.json"))
+        self.assertEqual(bm.matrix_label(bm.DEFAULT_MATRIX), "tools" + os.sep + "benchmark_matrix.json")
+        self.assertEqual(bm.matrix_label(os.path.join(tempfile.gettempdir(), "m.json")), "m.json")
+
+
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 
 
