@@ -823,6 +823,15 @@ namespace redefinition
             RetireBlasLocked(mesh.blas, slot);
             mesh.blas = into;
             mesh.blasSerial = blasMemory.nextSerial++;
+            // A structure that had micromaps (switched off, OmmIdleLocked) has none now: its set
+            // is let go of, and the mesh is as one never baked.
+            if (mesh.ommSet != 0)
+            {
+                OmmReleaseMeshLocked(mesh, fenceValue + 1);
+                mesh.ommAlphaHash = 0;
+                mesh.ommCheckedAt = UINT32_MAX;
+                mesh.ommAsked = false;
+            }
             frame.builds.push_back(build);
             BuildFrame::Build& queued = frame.builds.back();
             queued.desc.Inputs.pGeometryDescs = &queued.geometry;

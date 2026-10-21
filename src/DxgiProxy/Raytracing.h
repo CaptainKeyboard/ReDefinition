@@ -970,12 +970,17 @@ namespace redefinition
         void OmmNoteTextureLocked(int layer, const std::vector<uint8_t>& pixels);
         // A new mesh: its texture coordinates kept where a cut-out instance may use it.
         void OmmNoteMeshLocked(Mesh& mesh, const PendingMesh& pending);
-        // The meshes cut-out instances of the newest scene use (or may: a material not known
+        // The meshes cut-out instances of the scenes held use (or may: a material not known
         // yet), where the driver has micromaps.
         void OmmCollectCutoutMeshesLocked();
         // A frame's bakes taken in, bakes asked for, structures with micromaps queued.
         // How many structures it built again.
         uint32_t OmmUpdateLocked(BuildFrame& frame, Slot& slot);
+        // While rtOpacityMicromaps is 0 after having been 1: the bakes in flight dropped at once,
+        // and past a grace period the meshes with micromaps queued to be built plain again
+        // (RefineMeshesLocked lets go of their sets), the sets nobody holds freed.
+        void OmmIdleLocked();
+        void OmmSweepSetsLocked();
         // A set let go of by one mesh, freed past freeAt once none holds it; a mesh's share of
         // its set let go of.
         void OmmUnrefSetLocked(uint32_t setId, UINT64 freeAt);
@@ -1253,6 +1258,11 @@ namespace redefinition
             std::unordered_map<uint64_t, uint32_t> byKey;
             uint32_t nextSet = 1;
             uint32_t updates = 0;
+            // While the micromaps are switched off: since which update, and whether the meshes
+            // that have them were queued to be built plain.
+            bool offTracking = false;
+            bool offDropped = false;
+            uint32_t offSince = 0;
             RtBufferPool arrays;
             bool poolSetUp = false;
             // Meshes asked for and not yet attached: the mesh and the layer, by the set's key.

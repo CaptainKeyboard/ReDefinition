@@ -73,8 +73,10 @@ namespace redefinition
             return Fnv(parts, sizeof(parts));
         }
 
-        // The frames a set nobody holds is kept for.
+        // The frames a set nobody holds is kept for, and the frames the micromaps stay in place
+        // after they were switched off before the structures that have them are built plain.
         constexpr uint32_t kIdleUpdates = 300;
+        constexpr uint32_t kOffGraceUpdates = 300;
 
         UINT64 RoundUp(UINT64 value, UINT64 granularity)
         {
@@ -103,6 +105,8 @@ namespace redefinition
         byKey.clear();
         nextSet = 1;
         updates = 0;
+        offTracking = offDropped = false;
+        offSince = 0;
         arrays.Reset();
         poolSetUp = false;
         wantedMeshes.clear();
@@ -219,20 +223,25 @@ namespace redefinition
     void Raytracing::OmmCollectCutoutMeshesLocked()
     {
         omm.cutoutMeshes.clear();
-        if (frameScenes.empty())
-            return;
-        const FrameScene& scene = frameScenes.back();
         const auto maybeCutout = [&](int32_t material)
         {
             const auto found = materialData.find(material);
             return found == materialData.end() || found->second.albedo[3] > 0.0f;
         };
-        for (const RtInstance& instance : scene.instances)
-            if (maybeCutout(instance.material))
-                omm.cutoutMeshes.insert(instance.mesh);
-        for (const RtGpuInstanceGroup& group : scene.groups)
-            if (maybeCutout(group.material))
-                omm.cutoutMeshes.insert(group.mesh);
+        // Every scene held, not the newest alone: the main thread runs a frame or two ahead, and
+        // a mesh handed over with a frame's instances may meet its cut-out instance in an older
+        // scene. A mesh whose first cut-out instance comes after it was uploaded has no
+        // coordinates kept (they are on the GPU only), and gets no micromaps until it is handed
+        // over again.
+        for (const FrameScene& scene : frameScenes)
+        {
+            for (const RtInstance& instance : scene.instances)
+                if (maybeCutout(instance.material))
+                    omm.cutoutMeshes.insert(instance.mesh);
+            for (const RtGpuInstanceGroup& group : scene.groups)
+                if (maybeCutout(group.material))
+                    omm.cutoutMeshes.insert(group.mesh);
+        }
     }
 
     void Raytracing::OmmNoteMeshLocked(Mesh& mesh, const PendingMesh& pending)
@@ -339,10 +348,81 @@ namespace redefinition
 
     // ---------------------------------------------------------------- baking and building
 
+    void Raytracing::OmmIdleLocked()
+    {
+        // A bake that finishes now is of no use: dropped.
+        {
+            std::lock_guard<std::mutex> lock(omm.jobLock);
+            omm.jobs.clear();
+            omm.results.clear();
+        }
+        // Nothing was ever built with micromaps: nothing to give back. The coordinates and the
+        // coverage kept stay, so that a switch back on bakes what is in the scene.
+        if (omm.sets.empty() && omm.toAttach.empty() && omm.waiting.empty() && omm.wantedMeshes.empty())
+        {
+            omm.offTracking = false;
+            return;
+        }
+        if (!omm.offTracking)
+        {
+            omm.offTracking = true;
+            omm.offDropped = false;
+            omm.offSince = omm.updates;
+            // The bakes asked for and not attached are of no use now.
+            for (const auto& entry : omm.wantedMeshes)
+            {
+                auto mesh = meshes.find(entry.first);
+                if (mesh != meshes.end())
+                    mesh->second.ommAsked = false;
+            }
+            for (const auto& entry : omm.toAttach)
+            {
+                auto mesh = meshes.find(entry.first);
+                if (mesh != meshes.end())
+                    mesh->second.ommAsked = false;
+            }
+            for (const auto& entry : omm.waiting)
+                for (const auto& waiter : entry.second)
+                {
+                    auto mesh = meshes.find(waiter.first);
+                    if (mesh != meshes.end())
+                        mesh->second.ommAsked = false;
+                }
+            omm.wantedMeshes.clear();
+            omm.toAttach.clear();
+            omm.waiting.clear();
+        }
+        ++omm.updates;
+        if (!omm.offDropped && omm.updates - omm.offSince > kOffGraceUpdates)
+        {
+            // The structures that have micromaps built again without, from the buffers they
+            // keep (RefineMeshesLocked); each lets go of its set as it is built.
+            uint32_t queued = 0;
+            for (auto& entry : meshes)
+            {
+                Mesh& mesh = entry.second;
+                if (mesh.ommSet == 0 || !mesh.built)
+                    continue;
+                mesh.refine = kRefineRebuild;
+                blasMemory.toRefine.push_back(entry.first);
+                ++queued;
+            }
+            omm.offDropped = true;
+            LogLine("Raytracing: opacity micromaps off -- " + std::to_string(queued)
+                    + " structure(s) with micromaps built again without them, their micromaps freed");
+        }
+        OmmSweepSetsLocked();
+    }
+
     uint32_t Raytracing::OmmUpdateLocked(BuildFrame& frame, Slot& slot)
     {
         if (!omm.wanted || !omm.pipelines)
+        {
+            if (omm.caps == 1)
+                OmmIdleLocked();
             return 0;
+        }
+        omm.offTracking = false;
 
         // The bakes done: each a set, and the meshes that waited for it queued.
         std::vector<OmmMemory::Result> done;
@@ -534,7 +614,19 @@ namespace redefinition
         }
 
         ++omm.updates;
+        OmmSweepSetsLocked();
+        if (rebuilt > 0)
+        {
+            std::lock_guard<std::mutex> status(statusLock);
+            ommBytes = omm.arrays.Used();
+        }
+        return rebuilt;
+    }
+
+    void Raytracing::OmmSweepSetsLocked()
+    {
         // Sets nobody has held for a while nor waits for.
+        bool freed = false;
         for (auto it = omm.sets.begin(); it != omm.sets.end();)
         {
             bool waited = false;
@@ -546,16 +638,16 @@ namespace redefinition
                     omm.arrays.Free(it->second.array.range, fenceValue + 1);
                 omm.byKey.erase(it->second.key);
                 it = omm.sets.erase(it);
+                freed = true;
             }
             else
                 ++it;
         }
-        if (rebuilt > 0)
+        if (freed)
         {
             std::lock_guard<std::mutex> status(statusLock);
             ommBytes = omm.arrays.Used();
         }
-        return rebuilt;
     }
 
     bool Raytracing::OmmQueueBuildLocked(BuildFrame& frame, Mesh& mesh, uint32_t setId, Slot& slot)
