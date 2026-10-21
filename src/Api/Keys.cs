@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using ReDefinition.Settings;
 using ReDefinition.Window;
@@ -30,12 +31,13 @@ namespace ReDefinition.Api
         /// <summary>
         /// Whether the binding's key went down this frame, with exactly its modifiers held:
         /// <c>F10</c> does not answer while <c>Alt+F10</c> is pressed. False while the player
-        /// is setting a binding in the window, and while a text field has the keyboard.
+        /// is setting a binding in the window, and while a text field has the keyboard: KSP's,
+        /// the settings window's, and the search field of the diagnostics window.
         /// </summary>
         /// <param name="key">As for <see cref="Binding"/>.</param>
         public static bool Pressed(string key)
         {
-            return !KeyCapture.Busy && !UiHygiene.Typing && Combination(key).Pressed();
+            return !Blocked && Combination(key).Pressed();
         }
 
         /// <summary>
@@ -44,7 +46,7 @@ namespace ReDefinition.Api
         /// <param name="key">As for <see cref="Binding"/>.</param>
         public static bool Held(string key)
         {
-            return !KeyCapture.Busy && !UiHygiene.Typing && Combination(key).Held();
+            return !Blocked && Combination(key).Held();
         }
 
         /// <summary>
@@ -53,7 +55,19 @@ namespace ReDefinition.Api
         /// <param name="key">As for <see cref="Binding"/>.</param>
         public static bool Released(string key)
         {
-            return !KeyCapture.Busy && !UiHygiene.Typing && Combination(key).Released();
+            return !Blocked && Combination(key).Released();
+        }
+
+        // Whether the diagnostics window's search field has the keyboard. UiHygiene.Typing
+        // leaves an IMGUI field out on purpose (it keeps the keyboard control long after the
+        // typing), so the window says it itself; a test sets this.
+        internal static Func<bool> DiagnosticsTyping = () =>
+            ReDefinitionAddon.Instance != null && ReDefinitionAddon.Instance.DiagnosticsTyping;
+
+        // Whether a key typed is text or a binding being set, not a key press for a mod.
+        internal static bool Blocked
+        {
+            get { return DiagnosticsTyping() || UiHygiene.Typing || KeyCapture.Busy; }
         }
 
         // The parsed binding, kept while its text stands: asked every frame, and

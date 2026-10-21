@@ -29,9 +29,11 @@ namespace ReDefinition
             if (debugOptions != null) return;
             debugOptions = BuildDebugOptions();
             pins.Load(settings.DiagnosticsPins, debugOptions);
-            category = settings.DiagnosticsPage;
-            window.x = settings.DiagnosticsX;
-            window.y = settings.DiagnosticsY;
+            // The last page, except Previews: it reads the image back from the GPU on every
+            // frame it is shown, and a window that opens on it costs frame rate unasked.
+            category = settings.DiagnosticsPage == DebugCategory.Previews ? DebugCategory.Overview : settings.DiagnosticsPage;
+            if (!float.IsNaN(settings.DiagnosticsX) && !float.IsInfinity(settings.DiagnosticsX)) window.x = settings.DiagnosticsX;
+            if (!float.IsNaN(settings.DiagnosticsY) && !float.IsInfinity(settings.DiagnosticsY)) window.y = settings.DiagnosticsY;
         }
 
         // At the start of each layout pass.

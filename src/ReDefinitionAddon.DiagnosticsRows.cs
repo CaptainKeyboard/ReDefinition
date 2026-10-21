@@ -9,8 +9,10 @@ namespace ReDefinition
     // star; a row that does not apply greyed out with its reason beneath.
     public partial class ReDefinitionAddon
     {
-        private const float MarkerWidth = 56f;
         private const float SegmentMinimum = 44f;
+
+        // What the rows draw with, made once (DiagnosticsContent).
+        private readonly DiagnosticsContent content = new DiagnosticsContent();
 
         // The options as rows, a heading where their group changes.
         private void DrawOptions(List<DebugOption> options, bool groups = true)
@@ -42,7 +44,7 @@ namespace ReDefinition
             bool outer = GUI.enabled;
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label(new GUIContent(option.CurrentLabel, option.Tooltip), blocked ? styles.Dim : styles.Row);
+            GUILayout.Label(content.Label(option), blocked ? styles.Dim : styles.Row);
             GUILayout.FlexibleSpace();
             GUI.enabled = outer && !blocked;
             DrawControl(option);
@@ -59,27 +61,10 @@ namespace ReDefinition
         {
             if (option.Kind == DebugKind.Action)
             {
-                GUILayout.Label(GUIContent.none, GUILayout.Width(MarkerWidth));
+                GUILayout.Label(GUIContent.none, content.MarkerOption);
                 return;
             }
-            string text;
-            string tip;
-            switch (option.Persistence)
-            {
-                case DebugPersistence.Saved:
-                    text = "saved";
-                    tip = "Saved";
-                    break;
-                case DebugPersistence.NeedsRestart:
-                    text = "restart";
-                    tip = "Needs A Restart";
-                    break;
-                default:
-                    text = "session";
-                    tip = "This Session Only";
-                    break;
-            }
-            GUILayout.Label(new GUIContent(text, tip), styles.Marker, GUILayout.Width(MarkerWidth));
+            GUILayout.Label(content.MarkerFor(option.Persistence), styles.Marker, content.MarkerOption);
         }
 
         private void DrawControl(DebugOption option)
@@ -98,7 +83,7 @@ namespace ReDefinition
         {
             bool pinned = pins.Has(option.Id);
             string glyph = styles.StarGlyph ? (pinned ? "★" : "☆") : (pinned ? "*" : "+");
-            if (GUILayout.Toggle(pinned, new GUIContent(glyph, pinned ? "Unpin" : "Pin"), styles.Star) != pinned)
+            if (GUILayout.Toggle(pinned, content.StarFor(glyph, pinned), styles.Star) != pinned)
                 pendingPin = option.Id;
         }
 
@@ -106,7 +91,7 @@ namespace ReDefinition
         // wide as its segments and no gap opens after it.
         private float SegmentWidth(string label)
         {
-            return Mathf.Max(SegmentMinimum, styles.Segment.CalcSize(new GUIContent(label)).x);
+            return content.SegmentOf(styles.Segment, label, SegmentMinimum).Width;
         }
 
         // A row of segments, the selected one pressed; the index clicked, or the selected one.
@@ -115,7 +100,7 @@ namespace ReDefinition
             int result = selected;
             GUILayout.BeginHorizontal(GUILayout.ExpandWidth(false));
             for (int i = 0; i < labels.Length; i++)
-                if (GUILayout.Toggle(selected == i, labels[i], styles.Segment, GUILayout.Width(SegmentWidth(labels[i]))) && selected != i)
+                if (GUILayout.Toggle(selected == i, labels[i], styles.Segment, content.SegmentOf(styles.Segment, labels[i], SegmentMinimum).Option) && selected != i)
                     result = i;
             GUILayout.EndHorizontal();
             return result;
@@ -146,12 +131,16 @@ namespace ReDefinition
 
         private float ChipWidth(DebugOption option)
         {
+            DiagnosticsContent.Row row = content.RowOf(option.Id);
+            if (row.ChipWidth >= 0f) return row.ChipWidth;
             GUIContent label = new GUIContent(option.Label);
             float width = styles.Segment.CalcSize(label).x + 4f;
-            if (option.Kind != DebugKind.Choice) return width;
-            width = styles.Small.CalcSize(label).x + 6f;
-            foreach (string choice in option.Choices)
-                width += Mathf.Max(SegmentMinimum, styles.Segment.CalcSize(new GUIContent(choice)).x);
+            if (option.Kind == DebugKind.Choice)
+            {
+                width = styles.Small.CalcSize(label).x + 6f;
+                foreach (string choice in option.Choices) width += SegmentWidth(choice);
+            }
+            row.ChipWidth = width;
             return width;
         }
 
@@ -161,7 +150,7 @@ namespace ReDefinition
             optionReasons.TryGetValue(option.Id, out reason);
             bool outer = GUI.enabled;
             GUI.enabled = outer && reason == null;
-            GUIContent label = new GUIContent(option.Label, reason ?? option.Tooltip);
+            GUIContent label = content.Chip(option, reason);
             switch (option.Kind)
             {
                 case DebugKind.Action:
@@ -176,7 +165,7 @@ namespace ReDefinition
                     int picked = value;
                     for (int i = 0; i < option.Choices.Length; i++)
                         if (GUILayout.Toggle(value == i, option.Choices[i], styles.Segment,
-                                             GUILayout.Width(SegmentWidth(option.Choices[i]))) && value != i)
+                                             content.SegmentOf(styles.Segment, option.Choices[i], SegmentMinimum).Option) && value != i)
                             picked = i;
                     if (picked != value) option.Set(picked);
                     break;
@@ -190,9 +179,9 @@ namespace ReDefinition
 
         // The room a row's star and marker take, for a row that has neither: its control ends where
         // the others' do.
-        private static void RowTail()
+        private void RowTail()
         {
-            GUILayout.Label(GUIContent.none, GUILayout.Width(MarkerWidth + 28f));
+            GUILayout.Label(GUIContent.none, content.TailOption);
         }
 
         // A fact that is not a setting: its name and what it says now.

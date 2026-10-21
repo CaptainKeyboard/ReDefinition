@@ -228,14 +228,6 @@ namespace ReDefinition
             Debug.Log(Log.Tag + " Frame generation multiplier " + choice);
         }
 
-        private static Fsr3Upscaler.QualityMode Step(Fsr3Upscaler.QualityMode mode, int direction)
-        {
-            int value = (int)mode + direction;
-            if (value < (int)Fsr3Upscaler.QualityMode.NativeAA) value = (int)Fsr3Upscaler.QualityMode.NativeAA;
-            if (value > (int)Fsr3Upscaler.QualityMode.UltraPerformance) value = (int)Fsr3Upscaler.QualityMode.UltraPerformance;
-            return (Fsr3Upscaler.QualityMode)value;
-        }
-
         private void SetQuality(Fsr3Upscaler.QualityMode mode)
         {
             if (quality == mode) return;

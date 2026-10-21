@@ -72,6 +72,68 @@ namespace ReDefinition
             get { return query.Trim().Length > 0 || changedOnly; }
         }
 
+        // The lists the pages draw, made when first asked in a layout pass and kept for the
+        // events of that pass: the layout and the repaint must see the same rows, and the
+        // lists are not built again for each. Dropped at the start of every layout pass.
+        private readonly Dictionary<DebugCategory, List<DebugOption>> pageLists = new Dictionary<DebugCategory, List<DebugOption>>();
+        private readonly Dictionary<DebugCategory, List<DebugOption>> resultLists = new Dictionary<DebugCategory, List<DebugOption>>();
+        private readonly Dictionary<DebugCategory, int> passCounts = new Dictionary<DebugCategory, int>();
+        private List<DebugOption> foundList;
+        private List<DebugOption> pinnedList;
+        // Frame generation's context failure, as the layout pass found it: a call into the
+        // proxy per event, and the note is a control, so the repaint must not ask again.
+        private bool contextFailing;
+        private bool contextFailingAny;
+
+        private void ForgetLists()
+        {
+            pageLists.Clear();
+            resultLists.Clear();
+            passCounts.Clear();
+            foundList = null;
+            pinnedList = null;
+            contextFailingAny = FrameGenerationBridge.ContextFailing;
+            contextFailing = frameGeneration && contextFailingAny;
+        }
+
+        // The options a page shows.
+        private List<DebugOption> OptionsOf(DebugCategory page)
+        {
+            List<DebugOption> list;
+            if (!pageLists.TryGetValue(page, out list)) pageLists[page] = list = debugOptions.Of(page);
+            return list;
+        }
+
+        // The options that pass the search and the "Changed" filter, from every page.
+        private List<DebugOption> Found()
+        {
+            return foundList ?? (foundList = debugOptions.Filter(query, changedOnly));
+        }
+
+        // Those of them that are on this page.
+        private List<DebugOption> FoundOn(DebugCategory page)
+        {
+            List<DebugOption> list;
+            if (resultLists.TryGetValue(page, out list)) return list;
+            list = new List<DebugOption>();
+            foreach (DebugOption option in Found())
+                if (option.Category == page) list.Add(option);
+            resultLists[page] = list;
+            return list;
+        }
+
+        private int PassCount(DebugCategory page)
+        {
+            int count;
+            if (!passCounts.TryGetValue(page, out count)) passCounts[page] = count = debugOptions.Count(page, query, changedOnly);
+            return count;
+        }
+
+        private List<DebugOption> Pinned()
+        {
+            return pinnedList ?? (pinnedList = pins.Options(debugOptions));
+        }
+
         private void ToggleWindow()
         {
             windowVisible = !windowVisible;
@@ -79,8 +141,11 @@ namespace ReDefinition
         }
 
         // From the settings window's Diagnostics button.
+        // Opens on the page where the upscaler's options live; a window already open stays
+        // on its page.
         internal void ShowDiagnostics()
         {
+            if (!windowVisible) pendingCategory = DebugCategory.UpscalerInputs;
             windowVisible = true;
         }
 
@@ -106,6 +171,7 @@ namespace ReDefinition
             GUI.skin = HighLogic.Skin;
             if (styles == null) styles = new DiagnosticsStyles(HighLogic.Skin);
             EnsureOptions();
+            EndTypingByEvent(Event.current);
 
             window.width = WindowWidth;
             float height = ShownHeight;
@@ -153,6 +219,7 @@ namespace ReDefinition
         // The changes the last events asked for, made where the layout starts.
         private void ApplyPendingChanges()
         {
+            ForgetLists();
             if (pendingCategory.HasValue)
             {
                 category = pendingCategory.Value;
@@ -193,13 +260,11 @@ namespace ReDefinition
             bool filtering = FilterActive;
             foreach (DebugCategory page in Pages)
             {
-                string text = DebugOptionSet.Title(page);
                 bool optionPage = page != DebugCategory.Previews && page != DebugCategory.OtherMods;
-                int count = filtering && optionPage ? debugOptions.Count(page, query, changedOnly) : -1;
-                if (count > 0) text += "  (" + count + ")";
+                int count = filtering && optionPage ? PassCount(page) : -1;
                 Color previous = GUI.contentColor;
                 if (count == 0 && page != category) GUI.contentColor = DiagnosticsStyles.Grey;
-                if (GUILayout.Toggle(category == page, new GUIContent(text, ""), styles.Category) && category != page)
+                if (GUILayout.Toggle(category == page, content.PageEntry(page, count), styles.Category) && category != page)
                     pendingCategory = page;
                 GUI.contentColor = previous;
             }
@@ -229,7 +294,8 @@ namespace ReDefinition
                     case DebugCategory.FrameGeneration: DrawFrameGeneration(); break;
                     case DebugCategory.GameSettings: DrawGameSettings(); break;
                     case DebugCategory.Capture: DrawCapture(); break;
-                    default: DrawPreview(); break;
+                    case DebugCategory.Previews: DrawPreview(); break;
+                    default: DrawOverview(); break;
                 }
             GUILayout.EndScrollView();
         }
@@ -237,7 +303,7 @@ namespace ReDefinition
         // The window's foot: the pinned options as compact toggles, and Close.
         private void DrawFoot()
         {
-            List<DebugOption> pinned = pins.Options(debugOptions);
+            List<DebugOption> pinned = Pinned();
             GUILayout.BeginHorizontal();
             GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             if (pinned.Count == 0)
@@ -259,20 +325,36 @@ namespace ReDefinition
                 bool typing = GUI.GetNameOfFocusedControl() == SearchControl;
                 if (typing != searchTyping) SetTyping(typing);
             }
-            // A click anywhere but in the search field ends the typing.
-            if (Event.current.type == EventType.MouseDown && searchTyping && !searchRect.Contains(Event.current.mousePosition))
-                GUI.FocusControl("");
         }
+
+        // A click anywhere but in the search field, inside the window or outside it, ends
+        // the typing; so do Escape and Return in it. Asked before the window function: the
+        // controls of the window are FocusType.Passive and use the click, so IMGUI leaves
+        // the keyboard control on the field (UiHygiene.Typing) and the field would be typed
+        // into, with KSP's keys locked, until another text field is clicked.
+        private void EndTypingByEvent(Event current)
+        {
+            if (current == null || !searchTyping) return;
+            if (current.type == EventType.MouseDown)
+            {
+                // searchRect is in the window's own coordinates.
+                if (!searchRect.Contains(current.mousePosition - window.position)) ReleaseTyping();
+            }
+            else if (current.type == EventType.KeyDown && DiagnosticsContent.EndsTyping(current.keyCode))
+                ReleaseTyping();
+        }
+
 
         private void DrawTooltip()
         {
             if (tooltipNow.Length == 0) return;
-            Vector2 size = styles.Tip.CalcSize(new GUIContent(tooltipNow));
+            if (content.Tip.text != tooltipNow) content.Tip.text = tooltipNow;
+            Vector2 size = styles.Tip.CalcSize(content.Tip);
             Vector2 mouse = Event.current.mousePosition;
             Rect area = new Rect(mouse.x + 14f, mouse.y + 18f, size.x, size.y + 2f);
             area.x = Mathf.Clamp(area.x, 2f, Mathf.Max(2f, WindowWidth - area.width - 2f));
             if (area.yMax > window.height - 2f) area.y = mouse.y - area.height - 4f;
-            GUI.Box(area, tooltipNow, styles.Tip);
+            GUI.Box(area, content.Tip, styles.Tip);
         }
 
         // The search field has the keyboard: KSP's own keys stay quiet, and the add-on's

@@ -127,7 +127,7 @@ namespace ReDefinition
             if (Event.current.type == EventType.Repaint) searchRect = GUILayoutUtility.GetLastRect();
             // Shown by the search in force, not by the text being typed: the controls of a
             // layout pass and of the event after it must be the same.
-            if (query.Length > 0 && GUILayout.Button(new GUIContent("x", "Clear Search"), styles.Segment, GUILayout.Width(24f)))
+            if (query.Length > 0 && GUILayout.Button(content.ClearSearch, styles.Segment, GUILayout.Width(24f)))
             {
                 typedQuery = "";
                 GUI.FocusControl("");
@@ -135,13 +135,13 @@ namespace ReDefinition
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            if (GUILayout.Toggle(changedOnly, new GUIContent("Changed (" + changedCount + ")", "Differ From Their Default"), styles.Segment)
+            if (GUILayout.Toggle(changedOnly, content.ChangedChip(changedCount), styles.Segment)
                 != changedOnly)
                 pendingChangedToggle = true;
             GUILayout.Space(4f);
             bool outer = GUI.enabled;
             GUI.enabled = outer && changedCount > 0;
-            if (GUILayout.Button(new GUIContent("Reset debug switches", "Put Them Back To Their Defaults"), styles.Segment))
+            if (GUILayout.Button(content.ResetSwitches, styles.Segment))
                 pendingReset = true;
             GUI.enabled = outer;
             GUILayout.EndHorizontal();

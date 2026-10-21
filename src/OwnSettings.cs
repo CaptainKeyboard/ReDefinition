@@ -203,8 +203,32 @@ namespace ReDefinition
             {
                 Key = key, Get = get, Set = set, Live = live,
                 Format = v => v.ToString(format, CultureInfo.InvariantCulture),
-                Parse = (string text, out float v) => float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out v),
+                Parse = ParseFloat,
             };
+        }
+
+        // A finite number: NaN and the infinities parse, but no setting is one, and a
+        // window position of NaN is a window nobody sees.
+        internal static bool ParseFloat(string text, out float value)
+        {
+            return float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                && !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        // A name or number of a value the enum has: Enum.Parse takes any number, 99 included.
+        internal static bool ParseEnum<T>(string text, out T value) where T : struct
+        {
+            value = default(T);
+            // Not a list: Enum.Parse adds up "Overview, Capture" to one value of its own.
+            if (string.IsNullOrEmpty(text) || text.IndexOf(',') >= 0) return false;
+            try
+            {
+                object parsed = System.Enum.Parse(typeof(T), text);
+                if (!System.Enum.IsDefined(typeof(T), parsed)) return false;
+                value = (T)parsed;
+                return true;
+            }
+            catch { return false; }
         }
 
         private static Field<T> Enum<T>(string key, Func<OwnSettings, T> get, Action<OwnSettings, T> set, bool live = false)
@@ -213,13 +237,7 @@ namespace ReDefinition
             return new Field<T>
             {
                 Key = key, Get = get, Set = set, Live = live, Format = v => v.ToString(),
-                Parse = (string text, out T v) =>
-                {
-                    v = default(T);
-                    if (string.IsNullOrEmpty(text)) return false;
-                    try { v = (T)System.Enum.Parse(typeof(T), text); return true; }
-                    catch { return false; }
-                },
+                Parse = ParseEnum,
             };
         }
 

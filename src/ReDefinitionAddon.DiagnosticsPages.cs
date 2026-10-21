@@ -21,7 +21,7 @@ namespace ReDefinition
         // under the heading of their page.
         private void DrawResults()
         {
-            List<DebugOption> found = debugOptions.Filter(query, changedOnly);
+            List<DebugOption> found = Found();
             string what = found.Count + (found.Count == 1 ? " option" : " options")
                           + (query.Trim().Length > 0 ? " matching \"" + query.Trim() + "\"" : "")
                           + (changedOnly ? (query.Trim().Length > 0 ? ", " : " ") + "away from their default" : "");
@@ -35,9 +35,7 @@ namespace ReDefinition
             }
             foreach (DebugCategory page in Pages)
             {
-                List<DebugOption> onPage = new List<DebugOption>();
-                foreach (DebugOption option in found)
-                    if (option.Category == page) onPage.Add(option);
+                List<DebugOption> onPage = FoundOn(page);
                 if (onPage.Count == 0) continue;
                 GUILayout.Space(6f);
                 GUILayout.Label(DebugOptionSet.Title(page), styles.Heading);
@@ -57,11 +55,11 @@ namespace ReDefinition
                   + rig.DisplaySize.x + "x" + rig.DisplaySize.y
                   // The capture goes on for the proxy's attempts, which need its
                   // packets; the player sees that nothing is generated.
-                  + (frameGeneration && FrameGenerationBridge.ContextFailing ? "  -- " + ContextFailedNote() : "")
+                  + (contextFailing ? "  -- " + ContextFailedNote() : "")
                 : rig != null && rig.PassThrough
                     // What stopped the upscaler follows below.
                     ? (wantEnabled ? "Upscaler not set up" : "Upscaler off")
-                      + (FrameGenerationBridge.ContextFailing
+                      + (contextFailingAny
                           ? " -- " + ContextFailedNote()
                           : " -- frame generation runs")
                 : !wantEnabled
@@ -75,7 +73,7 @@ namespace ReDefinition
             if (!string.IsNullOrEmpty(problem)) WarningLabel(problem);
 
             GUILayout.Space(6f);
-            DrawOptions(debugOptions.Of(DebugCategory.Overview));
+            DrawOptions(OptionsOf(DebugCategory.Overview));
             GUILayout.Space(6f);
 
             DrawTechniqueRows();
@@ -111,14 +109,8 @@ namespace ReDefinition
             GUILayout.BeginHorizontal();
             GUILayout.Label("Technique", styles.Row);
             GUILayout.FlexibleSpace();
-            string[] techniqueNames = new string[offeredBackends.Count];
-            int techniqueAt = -1;
-            for (int i = 0; i < techniqueNames.Length; i++)
-            {
-                techniqueNames[i] = UpscalerBackends.Name(offeredBackends[i]);
-                if (offeredBackends[i] == backend) techniqueAt = i;
-            }
-            int pickedTechnique = Segments(techniqueNames, techniqueAt);
+            int techniqueAt = offeredBackends.IndexOf(backend);
+            int pickedTechnique = Segments(offeredTechniqueNames, techniqueAt);
             if (pickedTechnique != techniqueAt) SetBackend(offeredBackends[pickedTechnique]);
             RowTail();
             GUILayout.EndHorizontal();
@@ -127,11 +119,8 @@ namespace ReDefinition
             GUILayout.BeginHorizontal();
             GUILayout.Label("Mode", styles.Row);
             GUILayout.FlexibleSpace();
-            string[] modeNames = new string[ModeCount];
-            for (int i = 0; i < ModeCount; i++)
-                modeNames[i] = KspSettingsSection.ModeName((Fsr3Upscaler.QualityMode)(ModeCount - 1 - i));
             int modeAt = ModeCount - 1 - (int)quality;
-            int pickedMode = Segments(modeNames, modeAt);
+            int pickedMode = Segments(modeNames ?? (modeNames = MakeModeNames()), modeAt);
             if (pickedMode != modeAt) SetQuality((Fsr3Upscaler.QualityMode)(ModeCount - 1 - pickedMode));
             RowTail();
             GUILayout.EndHorizontal();
@@ -171,14 +160,35 @@ namespace ReDefinition
         private Texture previewTexture;
         private const int ModeCount = 6;
         private readonly List<UpscalerBackend> offeredBackends = new List<UpscalerBackend>();
+        private string[] offeredTechniqueNames = new string[0];
+        private static readonly UpscalerBackend[] AllBackends = (UpscalerBackend[])System.Enum.GetValues(typeof(UpscalerBackend));
 
-        // At the start of a layout pass: the techniques that can run here.
+        // The modes, smaller render sizes to the left and AA at the right end; made when first drawn.
+        private static string[] modeNames;
+
+        private static string[] MakeModeNames()
+        {
+            string[] names = new string[ModeCount];
+            for (int i = 0; i < ModeCount; i++)
+                names[i] = KspSettingsSection.ModeName((Fsr3Upscaler.QualityMode)(ModeCount - 1 - i));
+            return names;
+        }
+
+        // At the start of a layout pass: the techniques that can run here, and their names
+        // (made again only when the techniques are others).
         private void RefreshOfferedBackends()
         {
             offeredBackends.Clear();
-            foreach (UpscalerBackend candidate in System.Enum.GetValues(typeof(UpscalerBackend)))
+            foreach (UpscalerBackend candidate in AllBackends)
                 if (candidate == backend || UpscalerBackends.WhyNotOffered(candidate) == null)
                     offeredBackends.Add(candidate);
+            bool same = offeredTechniqueNames.Length == offeredBackends.Count;
+            for (int i = 0; same && i < offeredBackends.Count; i++)
+                same = offeredTechniqueNames[i] == UpscalerBackends.Name(offeredBackends[i]);
+            if (same) return;
+            offeredTechniqueNames = new string[offeredBackends.Count];
+            for (int i = 0; i < offeredTechniqueNames.Length; i++)
+                offeredTechniqueNames[i] = UpscalerBackends.Name(offeredBackends[i]);
         }
 
         // Other visual mods run temporal filters of their own, which conflict with
@@ -208,31 +218,31 @@ namespace ReDefinition
         private void DrawUpscalerInputs()
         {
             
-            DrawOptions(debugOptions.Of(DebugCategory.UpscalerInputs));
+            DrawOptions(OptionsOf(DebugCategory.UpscalerInputs));
         }
 
         private void DrawFrameGeneration()
         {
             
-            DrawOptions(debugOptions.Of(DebugCategory.FrameGeneration));
+            DrawOptions(OptionsOf(DebugCategory.FrameGeneration));
 
             Heading("Running now");
             InfoRow("Frame generation", fgTechniqueText);
             InfoRow("Low latency", lowLatencyDescription);
             InfoRow("Frames", rateRatioText);
-            if (frameGeneration && FrameGenerationBridge.ContextFailing) WarningLabel(ContextFailedNote());
+            if (contextFailing) WarningLabel(ContextFailedNote());
         }
 
         private void DrawGameSettings()
         {
             
-            DrawOptions(debugOptions.Of(DebugCategory.GameSettings));
+            DrawOptions(OptionsOf(DebugCategory.GameSettings));
         }
 
         private void DrawCapture()
         {
             
-            DrawOptions(debugOptions.Of(DebugCategory.Capture));
+            DrawOptions(OptionsOf(DebugCategory.Capture));
             GUILayout.Space(4f);
             InfoRow("Last recording", recordingState);
         }
