@@ -470,11 +470,12 @@ namespace redefinition
                  + " fgObjectSeparationMetres=" + std::to_string(c.fgObjectSeparationMetres)
                  + " dlssgMode=" + DlssgModeName(c.dlssgMode)
                  + (c.dlssgFrames > 0 ? "/" + std::to_string(c.dlssgFrames) + "f" : "")
-                 + (c.dlssgMode == kDlssgModeDynamic ? "/" + std::to_string(static_cast<int>(c.dlssgDynamicTargetFps)) : "")
-                 + " dlssgUi=" + (c.dlssgUiRecomposition
-                                      ? std::string(DlssgUiAlphaName(c.dlssgUiAlpha)) + "/"
-                                            + std::to_string(static_cast<int>(c.dlssgUiThreshold))
-                                      : std::string("off"))
+                 // Shown whatever the mode: the mod's Dynamic choice uses the target with dlssgMode=on, and
+                 // the plane's alpha and threshold change under recomposition at any time.
+                 + " dlssgDynamicTargetFps=" + std::to_string(static_cast<int>(c.dlssgDynamicTargetFps))
+                 + " dlssgUiRecomposition=" + (c.dlssgUiRecomposition ? "1" : "0")
+                 + " dlssgUiAlpha=" + DlssgUiAlphaName(c.dlssgUiAlpha)
+                 + " dlssgUiThreshold=" + std::to_string(static_cast<int>(c.dlssgUiThreshold))
                  + " pacing=" + std::to_string(c.fgPacingSafetyMarginMs) + "/"
                  + std::to_string(c.fgPacingVarianceFactor)
                  + (c.fgPacingHybridSpin ? "/spin " + std::to_string(c.fgPacingHybridSpinTime) : "")
@@ -482,7 +483,8 @@ namespace redefinition
                  + " fgMinimumFps=" + std::to_string(static_cast<int>(c.fgMinimumFps))
                  + " lowLatency=" + (c.lowLatency ? "1" : "0")
                  + " latencyBrake=" + (c.latencyBrake ? "1" : "0") + "/" + std::to_string(c.latencyBrakeTargetMs) + "/"
-                 + std::to_string(c.latencyBrakeWaits) + (c.latencyBrakeWithDlssg ? "/dlssg" : "")                 + " antiLag2=" + std::to_string(c.antiLag2)
+                 + std::to_string(c.latencyBrakeWaits) + (c.latencyBrakeWithDlssg ? "/dlssg" : "")
+                 + " antiLag2=" + std::to_string(c.antiLag2)
                  + " xell=" + (c.xell ? "1" : "0")
                  + " xellLowLatencyBoost=" + (c.xellLowLatencyBoost ? "1" : "0")
                  + " vendorDiagnostics=" + (c.vendorDiagnostics ? "1" : "0")

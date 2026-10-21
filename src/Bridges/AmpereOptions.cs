@@ -41,8 +41,9 @@ namespace ReDefinition.Bridges
                       + "recomposition off and on; B only takes effect when the game hands DLSS-G both a\n"
                       + "HUD-less image and a UI plane, which ReDefinition does not.\n"
                       + "C is NVIDIA's lighter candidate blending (Frame Generation Performance Mode): the\n"
-                      + "project measured 32 to 54 percent less GPU time per generated frame; in KSP the HUD\n"
-                      + "and the scene come out the same as with Auto. Installing the package here sets C.\n"
+                      + "project measured 32 to 54 percent less GPU time per generated frame. In KSP the HUD's\n"
+                      + "own pixels measured the same as with Auto, a ring along its edges 1 to 3 dB lower.\n"
+                      + "Installing the package here sets C.\n"
                       + "Applies after a restart of KSP.",
         };
 

@@ -822,10 +822,10 @@ namespace redefinition
             // its end to the Present's start -- the main thread's rendering, the render
             // thread's work and its waits in the proxy -- the Present, and from its end to
             // the GPU's, where the frame's work still queued runs; last the render
-            // thread's own share of the second, from its first call.
+            // thread's first call to the Present.
             static const char* const names[kLatencyStages] = { "simulation", "simulation's end to the Present",
                                                                "Present", "to the GPU's end",
-                                                               "of the second, the render thread's" };
+                                                               "the render thread's first call to the Present" };
             if (cpuStages[0].size() >= 16)
             {
                 std::string breakdown = "Latency: the frame's stages, medians in ms --";

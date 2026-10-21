@@ -5,6 +5,7 @@ probe start writes (tools/tests/fixtures).
 """
 import copy
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -555,9 +556,122 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(self.install.package_in_place(), [])
 
 
+class FakeWindows:
+    """The calls of bm._Win32, with a window that Windows lets through after `allow` of them."""
+
+    def __init__(self, front, minimised=False, allow=None):
+        self.hwnd = 7
+        self.front = front
+        self.is_minimised = minimised
+        self.allow = allow
+        self.calls = []
+
+    def find_window(self, pid):
+        return self.hwnd
+
+    def foreground(self):
+        return self.front
+
+    def minimised(self, hwnd):
+        return self.is_minimised
+
+    def restore(self, hwnd):
+        self.calls.append("restore")
+        self.is_minimised = False
+
+    def _try(self, name):
+        self.calls.append(name)
+        if self.allow == name:
+            self.front = self.hwnd
+        return self.front == self.hwnd
+
+    def set_foreground(self, hwnd):
+        return self._try("plain")
+
+    def set_foreground_attached(self, hwnd):
+        return self._try("attached")
+
+    def alt_tap(self, hwnd):
+        return self._try("alt")
+
+
+class StagesLineTest(unittest.TestCase):
+    def test_the_parser_reads_the_line_the_proxy_writes(self):
+        """The five labels are the proxy's (LowLatency.cpp, names[]): both change together."""
+        source = os.path.join(os.path.dirname(HERE), "..", "src", "DxgiProxy", "LowLatency.cpp")
+        with open(source, encoding="utf-8") as f:
+            text = f.read()
+        block = text[text.index("names[kLatencyStages]"):]
+        block = block[:block.index("};")]
+        labels = re.findall(r'"((?:[^"\\]|\\.)*)"', block)
+        self.assertEqual(len(labels), 5)
+        line = "Latency: the frame's stages, medians in ms -- " + ", ".join(
+            "{} {}".format(label, value) for label, value in zip(labels, ("1.5", "2.5", "3.5", "4.5", "5.5")))
+        log = bm.parse_proxy_log("12:00:00.000  " + line + "\n")
+        self.assertEqual(len(log["stages"]), 1)
+        self.assertEqual(log["stages"][0]["render_thread"], 5.5)
+        self.assertEqual(log["stages"][0]["simulation"], 1.5)
+
+
 class ForegroundTest(unittest.TestCase):
     def test_no_window_of_a_process_that_is_not_there(self):
         self.assertFalse(bm.bring_to_front(0x7FFFFFF0))
+
+    def test_a_window_in_front_is_left_alone(self):
+        win = FakeWindows(front=7, minimised=True)
+        self.assertTrue(bm.Foreground(1, win).keep())
+        self.assertEqual(win.calls, [])
+
+    def test_the_gentlest_way_that_works_is_the_one_taken(self):
+        win = FakeWindows(front=3, allow="plain")
+        self.assertTrue(bm.Foreground(1, win).keep())
+        self.assertEqual(win.calls, ["plain"])
+        win = FakeWindows(front=3, allow="attached")
+        self.assertTrue(bm.Foreground(1, win).keep())
+        self.assertEqual(win.calls, ["plain", "attached"])
+
+    def test_a_window_is_restored_only_where_it_is_minimised(self):
+        win = FakeWindows(front=3, allow="plain")
+        bm.Foreground(1, win).keep()
+        self.assertNotIn("restore", win.calls)
+        win = FakeWindows(front=3, minimised=True, allow="plain")
+        bm.Foreground(1, win).keep()
+        self.assertEqual(win.calls, ["restore", "plain"])
+
+    def test_alt_is_tapped_once_and_last(self):
+        now = [100.0]
+        win = FakeWindows(front=3)
+        keeper = bm.Foreground(1, win, clock=lambda: now[0])
+        self.assertFalse(keeper.keep())
+        self.assertEqual(win.calls, ["plain", "attached", "alt"])
+        # Refused: left alone for a while, then tried again without the Alt press.
+        now[0] += bm.FOREGROUND_RETRY_SECONDS / 2
+        self.assertFalse(keeper.keep())
+        self.assertEqual(len(win.calls), 3)
+        now[0] += bm.FOREGROUND_RETRY_SECONDS
+        self.assertFalse(keeper.keep())
+        self.assertEqual(win.calls, ["plain", "attached", "alt", "plain", "attached"])
+        self.assertEqual(win.calls.count("alt"), 1)
+
+    def test_the_wait_ends_once_the_window_is_in_front(self):
+        now = [100.0]
+        win = FakeWindows(front=3)
+        keeper = bm.Foreground(1, win, clock=lambda: now[0])
+        keeper.keep()
+        win.front = win.hwnd
+        self.assertTrue(keeper.keep())
+        win.front = 3
+        win.allow = "plain"
+        self.assertTrue(keeper.keep())
+        self.assertEqual(win.calls[-1], "plain")
+
+    def test_the_help_says_the_machine_is_not_to_be_used(self):
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
+            bm.main(["--help"])
+        self.assertIn("Do not use the machine while a run is going", out.getvalue())
 
     def test_the_games_window_out_of_the_foreground_is_told_by_the_proxys_last_word(self):
         proxy = {"lines": {"dlssg": [

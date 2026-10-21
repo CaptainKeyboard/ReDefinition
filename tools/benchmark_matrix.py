@@ -44,8 +44,10 @@ PROBE_FLIGHT_SECONDS = 30.0
 # Measured on the RTX A4500: from the process start to the flight, and the quit after.
 START_OVERHEAD_SECONDS = 75.0
 PROFILE_START_SECONDS = 60.0
-# How often the game's window is brought to the foreground while it runs.
+# How often the game's window is looked at while it runs, and how long it is left alone after
+# Windows refused to bring it forward.
 FOREGROUND_SECONDS = 2.0
+FOREGROUND_RETRY_SECONDS = 15.0
 
 # What the snapshot keeps: every settings file of the install (snapshot.py).
 SNAP_EXT = (".cfg", ".xml", ".json", ".txt", ".ini", ".settings")
@@ -429,7 +431,7 @@ _RT_BUILD = re.compile(r"^Raytracing: the (\d+) meshes built in one frame \((\d+
 _BRAKE = re.compile(r"^Latency brake: sleeps ([\d.]+) ms before the frame, ([\d.]+) ms of waits in the proxy(?: with the Present)? left a frame"
                     r" of ([\d.]+) ms work")
 _STAGES = re.compile(r"^Latency: the frame's stages, medians in ms -- simulation ([\d.-]+), simulation's end to the Present"
-                      r" ([\d.-]+), Present ([\d.-]+), to the GPU's end ([\d.-]+), of the second, the render thread's ([\d.-]+)$")
+                      r" ([\d.-]+), Present ([\d.-]+), to the GPU's end ([\d.-]+), the render thread's first call to the Present ([\d.-]+)$")
 _UPSCALER = re.compile(r"Upscaler running on '([^']*)': (\d+)x(\d+) -> (\d+)x(\d+) \(([^,]+), (.*)\)$")
 
 
@@ -813,65 +815,125 @@ def _merge_repeats(results):
 
 # ----------------------------------------------------------------------------- the install
 
-def bring_to_front(pid):
-    """Makes the top-level window of the process the foreground window. NVIDIA's DLSS-G
+class _Win32:
+    """The few user32 calls that bring a process's window forward. Windows only."""
+
+    def __init__(self):
+        import ctypes
+        from ctypes import wintypes
+        self.ctypes = ctypes
+        self.wintypes = wintypes
+        self.user32 = user32 = ctypes.WinDLL("user32", use_last_error=True)
+        self.kernel32 = kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        for name in ("IsWindowVisible", "IsIconic", "SetForegroundWindow", "GetWindowTextLengthW"):
+            getattr(user32, name).argtypes = [wintypes.HWND]
+        user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+        user32.GetWindow.restype = wintypes.HWND
+        user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+        user32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
+        kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+
+    def find_window(self, pid):
+        """The process's top-level window, or None."""
+        ctypes, wintypes, user32 = self.ctypes, self.wintypes, self.user32
+        found = []
+        visit_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+        def visit(hwnd, _):
+            owner = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+            # Visible, titled and not owned by another window: the game's own, not a tool window.
+            if (owner.value == pid and user32.IsWindowVisible(hwnd) and not user32.GetWindow(hwnd, 4)
+                    and user32.GetWindowTextLengthW(hwnd) > 0):
+                found.append(hwnd)
+            return True
+
+        user32.EnumWindows.argtypes = [visit_type, wintypes.LPARAM]
+        user32.EnumWindows(visit_type(visit), 0)
+        return found[0] if found else None
+
+    def foreground(self):
+        return self.user32.GetForegroundWindow()
+
+    def minimised(self, hwnd):
+        return bool(self.user32.IsIconic(hwnd))
+
+    def restore(self, hwnd):
+        self.user32.ShowWindow(hwnd, 9)   # SW_RESTORE
+
+    def set_foreground(self, hwnd):
+        self.user32.SetForegroundWindow(hwnd)
+        return self.user32.GetForegroundWindow() == hwnd
+
+    def set_foreground_attached(self, hwnd):
+        """Sharing the input queue of the window in front is what lets this process take the foreground."""
+        user32 = self.user32
+        front = user32.GetForegroundWindow()
+        front_thread = user32.GetWindowThreadProcessId(front, None) if front else 0
+        mine = self.kernel32.GetCurrentThreadId()
+        attached = bool(front_thread) and front_thread != mine and user32.AttachThreadInput(mine, front_thread, True)
+        try:
+            return self.set_foreground(hwnd)
+        finally:
+            if attached:
+                user32.AttachThreadInput(mine, front_thread, False)
+
+    def alt_tap(self, hwnd):
+        """An Alt press, which Windows counts as input."""
+        self.user32.keybd_event(0x12, 0, 0, 0)
+        self.user32.keybd_event(0x12, 0, 2, 0)
+        return self.set_foreground(hwnd)
+
+
+class Foreground:
+    """Keeps a process's window in front, as little intrusively as it can. NVIDIA's DLSS-G
     generates nothing while the game's window is not (Streamline: "DLSS-G disabled: window not
     focused"), and a KSP that this tool starts is not given the foreground when another
-    program's window is in front. False where there is no such window, or Windows did not
-    allow it. Windows only."""
-    if os.name != "nt":
-        return False
-    import ctypes
-    from ctypes import wintypes
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
-    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
-    user32.GetForegroundWindow.restype = wintypes.HWND
-    for name in ("IsWindowVisible", "IsIconic", "SetForegroundWindow", "GetWindowTextLengthW"):
-        getattr(user32, name).argtypes = [wintypes.HWND]
-    user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
-    user32.GetWindow.restype = wintypes.HWND
-    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
-    user32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
-    kernel32.GetCurrentThreadId.restype = wintypes.DWORD
-    found = []
-    visit_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    program's window is in front. keep() does nothing while the window is in front; else it
+    restores it only if it is minimised, asks plainly, then with the input queue of the window
+    in front shared, and taps Alt only once for a process, when both failed. After a failure
+    it leaves the window alone for FOREGROUND_RETRY_SECONDS."""
 
-    def visit(hwnd, _):
-        owner = wintypes.DWORD()
-        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
-        # Visible, titled and not owned by another window: the game's own, not a tool window.
-        if (owner.value == pid and user32.IsWindowVisible(hwnd) and not user32.GetWindow(hwnd, 4)
-                and user32.GetWindowTextLengthW(hwnd) > 0):
-            found.append(hwnd)
-        return True
+    def __init__(self, pid, win=None, clock=time.monotonic):
+        self.pid = pid
+        self.win = win
+        self.clock = clock
+        self.alt_tapped = False
+        self.retry_at = 0.0
 
-    user32.EnumWindows.argtypes = [visit_type, wintypes.LPARAM]
-    user32.EnumWindows(visit_type(visit), 0)
-    if not found:
-        return False
-    hwnd = found[0]
-    if user32.GetForegroundWindow() == hwnd:
-        return True
-    if user32.IsIconic(hwnd):
-        user32.ShowWindow(hwnd, 9)   # SW_RESTORE
-    # Sharing the input queue of the window in front is what lets this process take the foreground.
-    front = user32.GetForegroundWindow()
-    front_thread = user32.GetWindowThreadProcessId(front, None) if front else 0
-    mine = kernel32.GetCurrentThreadId()
-    attached = bool(front_thread) and front_thread != mine and user32.AttachThreadInput(mine, front_thread, True)
-    try:
-        user32.SetForegroundWindow(hwnd)
-    finally:
-        if attached:
-            user32.AttachThreadInput(mine, front_thread, False)
-    if user32.GetForegroundWindow() != hwnd:
-        # An Alt press, which Windows counts as input, and once more.
-        user32.keybd_event(0x12, 0, 0, 0)
-        user32.keybd_event(0x12, 0, 2, 0)
-        user32.SetForegroundWindow(hwnd)
-    return user32.GetForegroundWindow() == hwnd
+    def keep(self):
+        """True where the window is in front afterwards; False where there is none, or Windows did
+        not allow it."""
+        if self.win is None:
+            if os.name != "nt":
+                return False
+            self.win = _Win32()
+        win = self.win
+        hwnd = win.find_window(self.pid)
+        if hwnd is None:
+            return False
+        if win.foreground() == hwnd:
+            self.retry_at = 0.0
+            return True
+        if self.clock() < self.retry_at:
+            return False
+        if win.minimised(hwnd):
+            win.restore(hwnd)
+        ok = win.set_foreground(hwnd) or win.set_foreground_attached(hwnd)
+        if not ok and not self.alt_tapped:
+            self.alt_tapped = True
+            ok = win.alt_tap(hwnd)
+        self.retry_at = 0.0 if ok else self.clock() + FOREGROUND_RETRY_SECONDS
+        return ok
+
+
+def bring_to_front(pid):
+    """Makes the top-level window of the process the foreground window once (Foreground). False
+    where there is no such window, or Windows did not allow it. Windows only."""
+    return Foreground(pid).keep()
 
 
 class Install:
@@ -969,11 +1031,12 @@ class Install:
         # would measure the frames it renders alone. REDEFINITION_BENCH_NO_FOREGROUND leaves
         # the window where Windows puts it, to reproduce that.
         done = threading.Event()
+        foreground = Foreground(proc.pid)
 
         def keep_in_front():
             while not done.wait(FOREGROUND_SECONDS):
                 try:
-                    bring_to_front(proc.pid)
+                    foreground.keep()
                 except Exception:
                     pass
 
@@ -1540,7 +1603,13 @@ def parse_command(args):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(
+        description=__doc__.split("\n\n")[0],
+        epilog="Do not use the machine while a run is going: the game's window is kept in front (DLSS-G generates no\n"
+               "frame otherwise), any program or key press in the meantime moves the frame rate and the latency the\n"
+               "run measures, and the GPU is shared with whatever else uses it. REDEFINITION_BENCH_NO_FOREGROUND=1 leaves\n"
+               "the window where Windows puts it.",
+        formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="command", required=True)
 
     def common(p):
