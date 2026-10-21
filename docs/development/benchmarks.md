@@ -468,6 +468,54 @@ Run it with `python tools/benchmark_matrix.py run --group frame-steps`.
 | FSR 3 · RT Full · FG DLSS-G 6x · none | 32.7 | 195.7 | 6.00 | yes | 93.8 | 96.0 | -55.5 % | +72.1 ms | -28.6 % | +36.9 ms | – |  |
 | FSR 3 · RT Full · FG DLSS-G Dynamic · none | 37.7 | 114.4 | 3.04 | n/a | 78.5 | 80.5 | -48.7 % | +56.8 ms | -17.7 % | +21.6 ms | – |  |
 
+### DLSS-G presets (`dlssg-presets`)
+
+The package's preset Auto and preset C with every upscaler at raytracing Off and Full,
+no latency model; FSR's frame generation and no frame generation as the references.
+
+Run `2026-10-21-1012`. Its machine and options are under [the runs](#the-runs).
+
+Run it with `python tools/benchmark_matrix.py run --group dlssg-presets`.
+
+| Scenario | fps | Shown fps | Latency median ms | Latency p90 ms | fps vs baseline | Latency vs baseline | fps vs FG off, no model | Latency vs FG off, no model | fps vs previous run | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| FSR 3 · RT Off · FG off · none | 72.2 | 72.1 | 21.8 | 23.1 | +0.0 % | +0.0 ms | – | – | – | baseline |
+| FSR 3 · RT Off · FG FSR · none | 66.7 | 133.3 | 29.1 | 32.2 | -7.6 % | +7.3 ms | -7.6 % | +7.3 ms | – |  |
+| FSR 3 · RT Full · FG off · none | 45.9 | 45.9 | 56.6 | 58.2 | -36.4 % | +34.8 ms | – | – | – |  |
+| FSR 3 · RT Full · FG FSR · none | 40.1 | 80.4 | 59.5 | 60.8 | -44.5 % | +37.7 ms | -12.6 % | +2.9 ms | – |  |
+| DLSS · RT Off · FG off · none | 69.2 | 69.0 | 23.2 | 25.3 | -4.2 % | +1.4 ms | – | – | – |  |
+| DLSS · RT Off · FG FSR · none | 63.1 | 126.2 | 32.8 | 35.1 | -12.6 % | +11.0 ms | -8.8 % | +9.6 ms | – |  |
+| DLSS · RT Full, RR on · FG off · none | 35.9 | 35.9 | 74.6 | 76.1 | -50.3 % | +52.8 ms | – | – | – |  |
+| DLSS · RT Full, RR on · FG FSR · none | 32.2 | 64.0 | 77.4 | 78.9 | -55.4 % | +55.6 ms | -10.3 % | +2.8 ms | – |  |
+| DLSS · RT Full, RR off · FG off · none | 43.4 | 43.5 | 60.0 | 61.6 | -39.9 % | +38.2 ms | – | – | – |  |
+| DLSS · RT Full, RR off · FG FSR · none | 38.3 | 76.8 | 62.6 | 64.3 | -47.0 % | +40.8 ms | -11.8 % | +2.6 ms | – |  |
+| AMD DLL · RT Off · FG off · none | 70.8 | 70.6 | 23.2 | 25.1 | -1.9 % | +1.4 ms | – | – | – |  |
+| AMD DLL · RT Off · FG FSR · none | 63.0 | 126.1 | 32.0 | 34.9 | -12.7 % | +10.2 ms | -11.0 % | +8.8 ms | – |  |
+| AMD DLL · RT Full · FG off · none | 43.9 | 43.9 | 59.5 | 61.0 | -39.2 % | +37.7 ms | – | – | – |  |
+| AMD DLL · RT Full · FG FSR · none | 38.7 | 77.1 | 61.8 | 63.5 | -46.4 % | +40.0 ms | -11.8 % | +2.3 ms | – |  |
+| XeSS · RT Off · FG off · none | 70.7 | 70.5 | 24.4 | 26.5 | -2.1 % | +2.6 ms | – | – | – |  |
+| XeSS · RT Off · FG FSR · none | 61.1 | 122.2 | 34.6 | 36.5 | -15.4 % | +12.8 ms | -13.6 % | +10.2 ms | – |  |
+| XeSS · RT Full · FG off · none | 42.7 | 42.8 | 61.2 | 62.6 | -40.9 % | +39.4 ms | – | – | – |  |
+| XeSS · RT Full · FG FSR · none | 37.9 | 75.8 | 63.4 | 65.3 | -47.5 % | +41.6 ms | -11.2 % | +2.2 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G preset Auto · none | 66.2 | 132.7 | 46.7 | 49.2 | -8.3 % | +24.9 ms | -8.3 % | +24.9 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G preset Auto · none | 40.3 | 80.7 | 71.8 | 73.8 | -44.2 % | +50.0 ms | -12.2 % | +15.2 ms | – |  |
+| DLSS · RT Off · FG DLSS-G preset Auto · none | 62.8 | 125.6 | 50.0 | 52.0 | -13.0 % | +28.2 ms | -9.2 % | +26.8 ms | – |  |
+| DLSS · RT Full, RR on · FG DLSS-G preset Auto · none | 32.5 | 64.7 | 89.7 | 91.7 | -55.0 % | +67.9 ms | -9.5 % | +15.1 ms | – |  |
+| DLSS · RT Full, RR off · FG DLSS-G preset Auto · none | 38.9 | 77.8 | 74.8 | 76.6 | -46.1 % | +53.0 ms | -10.4 % | +14.8 ms | – |  |
+| AMD DLL · RT Off · FG DLSS-G preset Auto · none | 62.2 | 124.6 | 50.8 | 52.6 | -13.9 % | +29.0 ms | -12.1 % | +27.6 ms | – |  |
+| AMD DLL · RT Full · FG DLSS-G preset Auto · none | 38.8 | 77.4 | 75.5 | 77.1 | -46.3 % | +53.7 ms | -11.6 % | +16.0 ms | – |  |
+| XeSS · RT Off · FG DLSS-G preset Auto · none | 60.1 | 120.1 | 52.7 | 54.3 | -16.8 % | +30.9 ms | -15.0 % | +28.3 ms | – |  |
+| XeSS · RT Full · FG DLSS-G preset Auto · none | 37.9 | 75.7 | 76.7 | 78.6 | -47.5 % | +54.9 ms | -11.2 % | +15.5 ms | – |  |
+| FSR 3 · RT Off · FG DLSS-G preset C · none | 70.8 | 142.1 | 26.5 | 30.7 | -1.9 % | +4.7 ms | -1.9 % | +4.7 ms | – |  |
+| FSR 3 · RT Full · FG DLSS-G preset C · none | 41.9 | 84.1 | 68.0 | 69.8 | -42.0 % | +46.2 ms | -8.7 % | +11.4 ms | – |  |
+| DLSS · RT Off · FG DLSS-G preset C · none | 67.2 | 134.5 | 43.1 | 45.9 | -6.9 % | +21.3 ms | -2.9 % | +19.9 ms | – |  |
+| DLSS · RT Full, RR on · FG DLSS-G preset C · none | 33.6 | 66.9 | 86.1 | 87.9 | -53.5 % | +64.3 ms | -6.4 % | +11.5 ms | – |  |
+| DLSS · RT Full, RR off · FG DLSS-G preset C · none | 40.4 | 80.6 | 71.0 | 72.6 | -44.0 % | +49.2 ms | -6.9 % | +11.0 ms | – |  |
+| AMD DLL · RT Off · FG DLSS-G preset C · none | 66.9 | 133.8 | 43.1 | 45.9 | -7.3 % | +21.3 ms | -5.5 % | +19.9 ms | – |  |
+| AMD DLL · RT Full · FG DLSS-G preset C · none | 40.2 | 80.7 | 71.3 | 73.0 | -44.3 % | +49.5 ms | -8.4 % | +11.8 ms | – |  |
+| XeSS · RT Off · FG DLSS-G preset C · none | 64.4 | 128.9 | 45.3 | 47.8 | -10.8 % | +23.5 ms | -8.9 % | +20.9 ms | – |  |
+| XeSS · RT Full · FG DLSS-G preset C · none | 39.3 | 78.7 | 72.8 | 74.6 | -45.6 % | +51.0 ms | -8.0 % | +11.6 ms | – |  |
+
 ### Latency brake targets (`latency-brake`)
 
 The latency brake at 4 ms (the default), 2 ms and 1 ms for FSR 3 at raytracing Off and
@@ -589,6 +637,86 @@ with it (preset, `MaxGeneratedFrames`), the proxy's ini at the start, the frame 
 lines of the phase, the upscaler's line, and each measured value.
 
 <!-- benchmark-runs:start -->
+### Run 2026-10-21-1012
+
+| What | Value |
+|---|---|
+| Date | 2026-10-21T10:12:23 to 2026-10-21T10:31:16 |
+| Commit | `5bf39dc` on `worktree-agent-a3c8b23ed6951386f` |
+| Build in the install | `dxgi.dll` ec66cbc3a2508f0c (2026-10-21T09:05:20), `GameData/ReDefinition/Plugins/ReDefinition.dll` f61fcfbde9484e82 (2026-10-21T09:16:32) |
+| Machine | NVIDIA RTX A4500, driver 597.16, AMD Ryzen 5 5600X 6-Core Processor, 31.9 GB, Microsoft Windows 11 Pro 26300, screen 2560x1440 rendered at 1707x960, 120 Hz |
+| Profile | `medium`: [LOG 10:13:23.339] [ReDefinition] Probe: profile medium applied. |
+| Groups | `dlssg-presets` |
+| Matrix | `tools/benchmark_matrix.json`, 3 starts, 2 s settling per phase, 8 s after a change of the rendering |
+| Full record | [benchmarks/2026-10-21-1012.json](benchmarks/2026-10-21-1012.json) |
+
+<details><summary>What ran in each phase</summary>
+
+| Start | Scenario | Upscaler that ran | Frame generation that ran | presented/rendered | Lowered by | Reports | fps range | Notes |
+|---|---|---|---|---|---|---|---|---|
+| dlssg-presets-fsr | FSR 3 · RT Off · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 9 | 67.2–73.4 |  |
+| dlssg-presets-fsr | FSR 3 · RT Off · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 64.9–67.4 |  |
+| dlssg-presets-fsr | FSR 3 · RT Full · FG off · none | FSR 3 Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 43.8–46.2 |  |
+| dlssg-presets-fsr | FSR 3 · RT Full · FG FSR · none | FSR 3 Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 39.9–40.3 |  |
+| dlssg-presets-fsr | DLSS · RT Off · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 60.3–73.3 |  |
+| dlssg-presets-fsr | DLSS · RT Off · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 61.9–63.5 |  |
+| dlssg-presets-fsr | DLSS · RT Full, RR on · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 34.4–36.1 |  |
+| dlssg-presets-fsr | DLSS · RT Full, RR on · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 32.2–32.3 |  |
+| dlssg-presets-fsr | DLSS · RT Full, RR off · FG off · none | DLSS Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 41.4–43.7 |  |
+| dlssg-presets-fsr | DLSS · RT Full, RR off · FG FSR · none | DLSS Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 38.0–38.6 |  |
+| dlssg-presets-fsr | AMD DLL · RT Off · FG off · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 14 | 67.0–72.5 |  |
+| dlssg-presets-fsr | AMD DLL · RT Off · FG FSR · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 8 | 62.6–63.3 |  |
+| dlssg-presets-fsr | AMD DLL · RT Full · FG off · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 42.1–44.1 |  |
+| dlssg-presets-fsr | AMD DLL · RT Full · FG FSR · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 38.5–38.9 |  |
+| dlssg-presets-fsr | XeSS · RT Off · FG off · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 66.9–72.1 |  |
+| dlssg-presets-fsr | XeSS · RT Off · FG FSR · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 61.0–61.4 |  |
+| dlssg-presets-fsr | XeSS · RT Full · FG off · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | none | 1.00 | nothing | 15 | 40.9–43.0 |  |
+| dlssg-presets-fsr | XeSS · RT Full · FG FSR · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | FSR | 2.00 | nothing | 9 | 37.8–38.0 |  |
+| dlssg-presets-dlssg-auto | FSR 3 · RT Off · FG DLSS-G preset Auto · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 9 | 64.5–66.7 |  |
+| dlssg-presets-dlssg-auto | FSR 3 · RT Full · FG DLSS-G preset Auto · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 38.3–40.5 |  |
+| dlssg-presets-dlssg-auto | DLSS · RT Off · FG DLSS-G preset Auto · none | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 61.3–63.2 |  |
+| dlssg-presets-dlssg-auto | DLSS · RT Full, RR on · FG DLSS-G preset Auto · none | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 30.7–32.7 |  |
+| dlssg-presets-dlssg-auto | DLSS · RT Full, RR off · FG DLSS-G preset Auto · none | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 36.9–39.1 |  |
+| dlssg-presets-dlssg-auto | AMD DLL · RT Off · FG DLSS-G preset Auto · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 59.5–63.1 |  |
+| dlssg-presets-dlssg-auto | AMD DLL · RT Full · FG DLSS-G preset Auto · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 36.9–39.0 |  |
+| dlssg-presets-dlssg-auto | XeSS · RT Off · FG DLSS-G preset Auto · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 57.0–60.9 |  |
+| dlssg-presets-dlssg-auto | XeSS · RT Full · FG DLSS-G preset Auto · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 36.0–38.2 |  |
+| dlssg-presets-dlssg-c | FSR 3 · RT Off · FG DLSS-G preset C · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 9 | 70.1–71.5 |  |
+| dlssg-presets-dlssg-c | FSR 3 · RT Full · FG DLSS-G preset C · none | FSR 3 Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 13 | 40.8–42.2 |  |
+| dlssg-presets-dlssg-c | DLSS · RT Off · FG DLSS-G preset C · none | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 62.9–68.0 |  |
+| dlssg-presets-dlssg-c | DLSS · RT Full, RR on · FG DLSS-G preset C · none | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 31.7–33.8 |  |
+| dlssg-presets-dlssg-c | DLSS · RT Full, RR off · FG DLSS-G preset C · none | DLSS Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 38.7–40.6 |  |
+| dlssg-presets-dlssg-c | AMD DLL · RT Off · FG DLSS-G preset C · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 63.2–67.6 |  |
+| dlssg-presets-dlssg-c | AMD DLL · RT Full · FG DLSS-G preset C · none | AMD FSR (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 38.3–40.4 |  |
+| dlssg-presets-dlssg-c | XeSS · RT Off · FG DLSS-G preset C · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 14 | 60.8–64.9 |  |
+| dlssg-presets-dlssg-c | XeSS · RT Full · FG DLSS-G preset C · none | XeSS (DLL) Quality, 1707x960 to 2560x1440 | DLSS-G | 2.00 | Streamline's Reflex | 15 | 37.2–39.7 |  |
+
+The proxy's configuration in each start, as the proxy logged it at load:
+
+```
+dlssg-presets-fsr: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=fsr rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=1000 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(set) xessDirectory=(set) streamlineDirectory=(none) xessFgDirectory=(none)
+dlssg-presets-dlssg-auto: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=dlss rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=0 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(set) xessDirectory=(set) streamlineDirectory=(none) xessFgDirectory=(none)
+dlssg-presets-dlssg-c: enabled=1 allowTearing=1 measureOnly=0 frameGeneration=1 frameGenerationTechnique=dlss rrPath=auto hudLessColour=1 fgDepthInverted=1 fgNegateMotionScale=0 fgFlipInputs=1 fgFlipHudLess=0 fgCameraBasis=1 fgVSync=0 fgHalfRefreshLimit=0 fgAsyncWorkloads=0 fgObjectSeparationMetres=0.000000 dlssgMode=on dlssgDynamicTargetFps=0 dlssgUiRecomposition=0 dlssgUiAlpha=binary dlssgUiThreshold=2 pacing=0.100000/0.100000 fgMinimumFps=0 lowLatency=0 latencyBrake=0/4.000000/1/dlssg antiLag2=0 xell=1 xellLowLatencyBoost=0 vendorDiagnostics=0 streamlineImgui=0 fgShowOnlyGenerated=0 xessFgUiComposition=0 xessFgUiMode=auto xessFgFrames=1 xessFgSceneChangeThreshold=0.700000 xessFgTagInterpolatedFrames=0 xessFgPresentFailedInterpolation=0 xessFgOwnWaitable=auto xessFgGraceFrames=3 xessFgBadConstants=skip xessFgAllowOld=0 xessFgResetOnChange=0 xessFgResetDebounce=0 xellLimitLive=1 rtOwnQueue=0 rtCutoutTest=0 rtOpacityMicromaps=0 rtOmmMaxSubdivision=6 rtSunUnfiltered=0 rtSunAtrousSteps=0 rtSunHistory=4 rtFoliageTransmission=0.000000 rtRadianceCache=0 rtRadianceCacheEntries=20 rtRadianceCacheCellPixels=8.000000 rtRadianceCacheMinCell=0.125000 rtRadianceCacheSamples=256 rtRadianceCacheMaxAge=50 rtRadianceCacheDebug=0 rtBlasBatch=1 rtBlasPool=1 rtBlasBudget=0 rtBlasCompaction=2 rtBlasRefineBudget=65536 rtTlasFastTrace=0 rtMegaGeometry=0 reportSeconds=1 logInputsSeconds=0 dlssDirectory=(none) amdUpscalerDirectory=(set) xessDirectory=(set) streamlineDirectory=(none) xessFgDirectory=(none)
+```
+
+The DLSS-G package's ini in each start that had it, with the values it was read with:
+
+```
+dlssg-presets-dlssg-auto: [FrameGeneration] Engine=DLSS MaxGeneratedFrames=1 [DLSSG] Optimized=2 Preset=Auto [XeSSFG] FlowResolution=Middle UseHudless=1 [Logging] Level=1 FrameTiming=1 [Runtime] Mode=Bundled [SuperResolution] Mode=Off
+dlssg-presets-dlssg-c: [FrameGeneration] Engine=DLSS MaxGeneratedFrames=1 [DLSSG] Optimized=2 Preset=C [XeSSFG] FlowResolution=Middle UseHudless=1 [Logging] Level=1 FrameTiming=1 [Runtime] Mode=Bundled [SuperResolution] Mode=Off
+```
+
+The raytracing's frames that built 50 meshes or more, at the flight's start:
+
+* dlssg-presets-fsr: 10 frames, 1320 meshes, 548556 triangles; the slowest 0.78 ms of the GPU,
+  4.72 ms of the CPU
+* dlssg-presets-dlssg-auto: 10 frames, 1308 meshes, 510956 triangles; the slowest 0.62 ms of the GPU,
+  4.18 ms of the CPU
+* dlssg-presets-dlssg-c: 10 frames, 1317 meshes, 554355 triangles; the slowest 0.63 ms of the GPU,
+  5.70 ms of the CPU
+
+</details>
+
 ### Run 2026-10-21-1001
 
 | What | Value |
