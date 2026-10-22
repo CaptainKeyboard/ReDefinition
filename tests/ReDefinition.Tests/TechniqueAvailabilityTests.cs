@@ -25,6 +25,16 @@ namespace ReDefinition.Tests
             Assert.IsNull(TechniqueAvailability.Upscaler("Fsr3", Rtx(GpuClass.Intel)), "FSR 3 runs everywhere");
             Assert.IsNotNull(TechniqueAvailability.Upscaler("Xess", Rtx(GpuClass.Rtx40)));
             Assert.IsNull(TechniqueAvailability.Upscaler("Xess", new TechniqueAvailability.Facts { XessOffered = true }));
+            StringAssert.Contains(TechniqueAvailability.Upscaler("Xess", new TechniqueAvailability.Facts
+                { XessOffered = true, XessDllMissing = true }), "libxess.dll");
+            Assert.IsNull(TechniqueAvailability.Upscaler("Amd", new TechniqueAvailability.Facts
+                { Gpu = GpuClass.Radeon9000, AmdOffered = true }));
+            Assert.IsNull(TechniqueAvailability.Upscaler("Amd", new TechniqueAvailability.Facts
+                { Gpu = GpuClass.Radeon7000, AmdOffered = true }));
+            StringAssert.Contains(TechniqueAvailability.Upscaler("Amd", new TechniqueAvailability.Facts
+                { Gpu = GpuClass.Radeon9000, AmdOffered = true, AmdDllMissing = true }), "amd_fidelityfx_upscaler_dx12.dll");
+            Assert.IsNull(TechniqueAvailability.Upscaler("Amd", new TechniqueAvailability.Facts
+                { Gpu = GpuClass.Rtx30, AmdOffered = true }), "the DLL runs its FSR 3.1 on any GPU (measured on the A4500)");
         }
 
         [TestMethod]

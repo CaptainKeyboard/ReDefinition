@@ -1039,6 +1039,11 @@ namespace ReDefinition.Probe
                 string iniSets = SceneProbe.ArgumentAfter("-redefinitionProbeShotIni");
                 if (iniSets != null)
                     yield return IniShots(folder, shot, iniSets);
+                // -redefinitionProbeDownloads: the settings window's downloads run as the player runs
+                // them (DownloadProbe), with a shot of the question and of the window before, during
+                // and after each.
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeDownloads") >= 0)
+                    yield return DownloadProbe.Run(folder, shot);
                 // -redefinitionProbeShotRaytracing <mode,mode,...>: then the raytracing
                 // switched to each mode in turn, as in the settings window, and the same view
                 // 10 s later as <shot>-<mode>.png: several modes compared in one run.

@@ -20,6 +20,9 @@ namespace ReDefinition.Upscaler
             public bool CanGenerate;
             public bool AmdOffered;
             public bool XessOffered;
+            // AMD's upscaler DLL and Intel's libxess.dll are not where the proxy loads them from.
+            public bool AmdDllMissing;
+            public bool XessDllMissing;
             // NVIDIA's nvngx_dlss.dll, and Streamline's files with the DLSS-G library, are missing.
             public bool DlssFileMissing;
             public bool StreamlineMissing;
@@ -55,8 +58,10 @@ namespace ReDefinition.Upscaler
                     if (entry.Use == NvidiaFiles.Use.Dlss) found.DlssFileMissing = true;
                     else found.StreamlineMissing = true;
                 }
-                bool superResolution;
-                IntelFiles.Uses(IntelDownloader.Needed(), out superResolution, out found.XessFgMissing);
+                IntelFiles.Uses(IntelDownloader.Needed(), out found.XessDllMissing, out found.XessFgMissing);
+                string amdFolder = ProxyIni.Get("amdUpscalerDirectory");
+                found.AmdDllMissing = !System.IO.File.Exists(System.IO.Path.Combine(
+                    string.IsNullOrEmpty(amdFolder) ? NvidiaDownloader.GameFolder : amdFolder, "amd_fidelityfx_upscaler_dx12.dll"));
             }
             catch (System.Exception)
             {
@@ -77,9 +82,13 @@ namespace ReDefinition.Upscaler
                     if (f.DlssFileMissing) return "NVIDIA's nvngx_dlss.dll is missing: download it below.";
                     return null;
                 case "Amd":
-                    return f.AmdOffered ? null : "Needs AMD's amd_fidelityfx_upscaler_dx12.dll next to KSP_x64.exe.";
+                    if (!f.AmdOffered) return "Needs the dxgi.dll proxy, presenting through Direct3D 12.";
+                    return f.AmdDllMissing
+                        ? "Needs AMD's amd_fidelityfx_upscaler_dx12.dll next to KSP_x64.exe, from AMD's FidelityFX SDK."
+                        : null;
                 case "Xess":
-                    return f.XessOffered ? null : "Needs Intel's libxess.dll next to KSP_x64.exe: download it below.";
+                    if (!f.XessOffered) return "Needs the dxgi.dll proxy, presenting through Direct3D 12.";
+                    return f.XessDllMissing ? "Intel's libxess.dll is missing: download it below." : null;
                 default:
                     return null;
             }

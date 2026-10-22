@@ -663,10 +663,14 @@ namespace ReDefinition.Window
             download.OptionInteractableCondition = () => needed.Count > 0 && !NvidiaDownloader.Running
                                                          && !NvidiaDownloader.Installed;
 
+            string nvidiaName = frameGeneration ? "NVIDIA DLSS-G files" : "NVIDIA DLSS files";
+            // Fetched: no button any more, only what the download came to.
+            if (needed.Count == 0 || NvidiaDownloader.Installed)
+                return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
+                    new DialogGUILabel(nvidiaName, NameWidth), new DialogGUILabel(NvidiaStatus, true));
             return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
                 new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUILabel(frameGeneration ? "NVIDIA DLSS-G files" : "NVIDIA DLSS files", NameWidth), download,
-                    new DialogGUILabel(offer, true)),
+                    new DialogGUILabel(nvidiaName, NameWidth), download, new DialogGUILabel(offer, true)),
                 new DialogGUILabel(NvidiaStatus, true));
         }
 
@@ -705,10 +709,13 @@ namespace ReDefinition.Window
             download.OptionInteractableCondition = () => needed.Count > 0 && !IntelDownloader.Running
                                                          && !IntelDownloader.Installed;
 
+            string intelName = frameGeneration ? "Intel XeSS-FG files" : "Intel XeSS files";
+            if (needed.Count == 0 || IntelDownloader.Installed)
+                return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
+                    new DialogGUILabel(intelName, NameWidth), new DialogGUILabel(IntelStatus, true));
             return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
                 new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUILabel(frameGeneration ? "Intel XeSS-FG files" : "Intel XeSS files", NameWidth), download,
-                    new DialogGUILabel(offer, true)),
+                    new DialogGUILabel(intelName, NameWidth), download, new DialogGUILabel(offer, true)),
                 new DialogGUILabel(IntelStatus, true));
         }
 
