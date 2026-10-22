@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Upscaler
 {
-    // The active vessel's depth and motion vectors, written by the rig and checked on
+    // The active vessel's depth and motion vectors -- and those of the vessels it dropped, near it -- written by the rig and checked on
     // every pixel.
     //
     // The depth first. Unity's depth sources in the deferred path -- ResolvedDepth, which
@@ -94,6 +94,7 @@ namespace ReDefinition.Upscaler
         private readonly PartTally[] tallies = new PartTally[MaxParts];
         private readonly uint[] zeros = new uint[MaxParts * 4];
         private Vessel drawnFor;
+        // The signature of the vessels the renderers were chosen from (LoadedSignature).
         private int partCount;
         private ComputeBuffer stats;
         private Material material;
@@ -157,7 +158,8 @@ namespace ReDefinition.Upscaler
             Matrix4x4 jittered = CameraRedirect.JitterActive ? CameraRedirect.Jittered(projection) : projection;
             raster = GL.GetGPUProjectionMatrix(jittered, true) * camera.worldToCameraMatrix;
 
-            if (vessel != drawnFor || vessel.parts.Count != partCount) Choose(vessel);
+            int signature = LoadedSignature(vessel);
+            if (vessel != drawnFor || signature != partCount) Choose(vessel, signature);
 
             stepped = physicsSteps != stepsAtPreviousFrame;
             stepsAtPreviousFrame = physicsSteps;
@@ -301,17 +303,56 @@ namespace ReDefinition.Upscaler
                                         out created);
         }
 
-        private void Choose(Vessel vessel)
+        // How far from the active vessel another loaded vessel's parts are drawn too: what it dropped -- boosters,
+        // fairings, a stage -- which KSP makes vessels of their own the moment they part, and which frame generation
+        // and the upscalers otherwise read with the ground's motion and without their forward-drawn depth.
+        private const float NearbyMetres = 2500f;
+
+        // -redefinitionProbeActiveVesselOnly: the active vessel alone, as before, to compare.
+        private static readonly bool ActiveOnly =
+            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeActiveVesselOnly") >= 0;
+
+        // The active vessel and the loaded vessels near it, the active one first.
+        private readonly List<Vessel> near = new List<Vessel>();
+
+        private void Near(Vessel vessel)
+        {
+            near.Clear();
+            near.Add(vessel);
+            if (ActiveOnly) return;
+            foreach (Vessel other in FlightGlobals.VesselsLoaded)
+            {
+                if (other == null || other == vessel || other.packed || other.parts == null) continue;
+                if ((other.CoMD - vessel.CoMD).sqrMagnitude > (double)NearbyMetres * NearbyMetres) continue;
+                near.Add(other);
+            }
+        }
+
+        // Changes when a vessel near the active one comes or goes or its parts change: the renderers chosen again.
+        private int LoadedSignature(Vessel vessel)
+        {
+            Near(vessel);
+            int signature = 17;
+            foreach (Vessel v in near) signature = signature * 31 + v.persistentId.GetHashCode() * 7 + v.parts.Count;
+            return signature;
+        }
+
+        private void Choose(Vessel vessel, int signature)
         {
             drawnFor = vessel;
-            partCount = vessel.parts.Count;
+            partCount = signature;
             drawn.Clear();
             depthDrawn.Clear();
             parts.Clear();
-            previousModel.Clear();
-            for (int p = 0; p < vessel.parts.Count && p < MaxParts; p++)
+            // The previous matrices kept: a renderer that was drawn the frame before -- a booster that has just
+            // become a vessel of its own -- has its motion from it in this frame too. Without, the frame the vessel
+            // parts carried the ground's motion on every part, a ghost in the frames generated from it.
+            Near(vessel);
+            List<Part> all = new List<Part>();
+            foreach (Vessel v in near) all.AddRange(v.parts);
+            for (int p = 0; p < all.Count && p < MaxParts; p++)
             {
-                Part part = vessel.parts[p];
+                Part part = all[p];
                 parts.Add(part);
                 if (part == null) continue;
                 foreach (SkinnedMeshRenderer skinned in part.GetComponentsInChildren<SkinnedMeshRenderer>(true))
@@ -342,6 +383,13 @@ namespace ReDefinition.Upscaler
                 }
             }
             for (int i = 0; i < tallies.Length; i++) tallies[i] = null;
+            // Those of renderers no longer drawn let go.
+            HashSet<Renderer> kept = new HashSet<Renderer>();
+            foreach (Drawn d in drawn) kept.Add(d.Renderer);
+            List<Renderer> gone = new List<Renderer>();
+            foreach (Renderer r in previousModel.Keys)
+                if (r == null || !kept.Contains(r)) gone.Add(r);
+            foreach (Renderer r in gone) previousModel.Remove(r);
         }
 
         // Materials that write depth and motion vectors: none above queue 2500.

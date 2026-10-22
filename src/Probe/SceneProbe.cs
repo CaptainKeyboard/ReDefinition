@@ -193,6 +193,17 @@ namespace ReDefinition.Probe
             }
             HighLogic.SaveFolder = SceneProbe.SaveFolder;
             HighLogic.CurrentGame = game;
+            // -redefinitionProbeLaunch <craft>: a new launch of that craft instead (StagingProbe), from the space
+            // centre, whose scene holds the launch pad KSP puts a new vessel on.
+            if (StagingProbe.CraftPath() != null)
+            {
+                // The pad cleared of the save's vessel, as KSP clears it for a launch.
+                game.flightState.protoVessels.RemoveAt(index);
+                StagingProbe.Pending = true;
+                Debug.Log(Log.Tag + " Probe: to the space centre for a new launch.");
+                HighLogic.LoadScene(GameScenes.SPACECENTER);
+                yield break;
+            }
             Debug.Log(Log.Tag + " Probe: flight of " + game.flightState.protoVessels[index].vesselName + ".");
             FlightDriver.StartAndFocusVessel(game, index);
         }
@@ -332,6 +343,14 @@ namespace ReDefinition.Probe
     {
         private IEnumerator Start()
         {
+            // The new launch the probe asked for (StagingProbe), once the space centre stands.
+            if (SceneProbe.Requested && StagingProbe.Pending)
+            {
+                StagingProbe.Pending = false;
+                yield return new WaitForSeconds(5f);
+                if (!StagingProbe.Launch(HighLogic.CurrentGame)) Application.Quit();
+                yield break;
+            }
             if (!SceneProbe.Requested || SceneProbe.ScenesLeft < 0 || HighLogic.SaveFolder != SceneProbe.SaveFolder)
                 yield break;
             yield return new WaitForSeconds(10f);
@@ -916,9 +935,23 @@ namespace ReDefinition.Probe
 
         private IEnumerator Start()
         {
-            if (!SceneProbe.Requested || HighLogic.SaveFolder != SceneProbe.SaveFolder) yield break;
+            // A new launch (StagingProbe) is the probe's flight whatever save folder KSP names then.
+            bool probeFlight = HighLogic.SaveFolder == SceneProbe.SaveFolder || StagingProbe.Launched;
+            if (SceneProbe.Requested && !probeFlight)
+                Debug.Log(Log.Tag + " Probe: flight of the save " + HighLogic.SaveFolder + ", not the probe's; left alone.");
+            if (!SceneProbe.Requested || !probeFlight) yield break;
+            float waitSaid = Time.realtimeSinceStartup;
             while (!FlightGlobals.ready || FlightGlobals.ActiveVessel == null || FlightCamera.fetch == null)
+            {
+                if (Time.realtimeSinceStartup - waitSaid > 10f)
+                {
+                    waitSaid = Time.realtimeSinceStartup;
+                    Debug.Log(Log.Tag + " Probe: waiting for the flight: ready " + FlightGlobals.ready + ", vessel "
+                              + (FlightGlobals.ActiveVessel != null) + ", camera " + (FlightCamera.fetch != null) + ".");
+                }
                 yield return null;
+            }
+            Debug.Log(Log.Tag + " Probe: in flight with " + FlightGlobals.ActiveVessel.vesselName + ".");
             if (Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.StayArgument) >= 0)
             {
                 yield return new WaitForSeconds(5f);
@@ -938,6 +971,14 @@ namespace ReDefinition.Probe
                               + ScienceUtil.GetExperimentBiome(vessel.mainBody, vessel.latitude, vessel.longitude) + ".");
                 }
                 yield return ShotVariant.Apply();
+                // -redefinitionProbeStaging <seconds>: the launch flown and a stage dropped, recorded (StagingProbe).
+                if (StagingProbe.Requested)
+                {
+                    string stagingShot = SceneProbe.ArgumentAfter("-redefinitionProbeShot") ?? "staging";
+                    yield return StagingProbe.Run(CaptureFolder.Run, stagingShot);
+                    Application.Quit();
+                    yield break;
+                }
                 // -redefinitionProbeDiagnostics "<name>@<commands>|<name>@<commands>": the diagnostics
                 // window opened and set by each step's commands (ReDefinitionAddon.ProbeDiagnostics),
                 // a shot of the whole frame after each as diagnostics-<name>.png, then KSP quits.
