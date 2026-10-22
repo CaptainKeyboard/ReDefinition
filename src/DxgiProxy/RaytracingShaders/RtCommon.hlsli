@@ -509,7 +509,15 @@ struct Hit
     uint flags;
 };
 
-Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terrainSkip = 0.0f)
+// The share of the light a cut-out surface -- a blade of grass -- lets through (rtFoliageTransmission).
+float FoliageThrough()
+{
+    return float((frameFlags >> RT_FLAG_FOLIAGE_SHIFT) & RT_FLAG_FOLIAGE_MASK) * (1.0f / 255.0f);
+}
+
+// `through`: a cut-out surface's hit lets the ray on with that chance, as a blade lets the sky's light
+// through as it lets the sun's (Radiance's diffuse rays; SunUnoccluded).
+Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terrainSkip = 0.0f, float through = 0.0f)
 {
     Hit hit;
     hit.found = false;
@@ -529,9 +537,20 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
     query.TraceRayInline(scene, CutoutRayFlags(), 0xFF, ray);
     while (query.Proceed())
-        if (CandidateCounts(query.CandidateInstanceID(), RT_TRIANGLE(query, Candidate), query.CandidateTriangleBarycentrics(),
-                            query.CandidateTriangleRayT(), terrainSkip, query.WorldRayOrigin()))
-            query.CommitNonOpaqueTriangleHit();
+    {
+        uint instanceId = query.CandidateInstanceID();
+        uint primitive = RT_TRIANGLE(query, Candidate);
+        float t = query.CandidateTriangleRayT();
+        if (!CandidateCounts(instanceId, primitive, query.CandidateTriangleBarycentrics(), t, terrainSkip, query.WorldRayOrigin()))
+            continue;
+        if (through > 0.0f && (instanceData[instanceId].flags & RT_INSTANCE_CUTOUT) != 0u)
+        {
+            uint seed = Pcg(primitive * 7919u ^ Pcg(asuint(t) ^ Pcg(asuint(origin.x) ^ Pcg(frameIndex + 29u))));
+            if (float(seed >> 8) * (1.0f / 16777216.0f) < through)
+                continue;
+        }
+        query.CommitNonOpaqueTriangleHit();
+    }
     if (query.CommittedStatus() != COMMITTED_TRIANGLE_HIT)
         return hit;
 
@@ -1072,7 +1091,9 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
     float recordRay = 0.0f;
     for (uint bounce = 0u; bounce <= bounces; ++bounce)
     {
-        Hit hit = TraceClosest(origin, direction, bounce == 0u ? maxDistance : 1.0e7f, bounce == 0u ? firstTerrainSkip : 0.0f);
+        // Diffuse rays through the grass's blades with the share they let through; a reflection sees them.
+        Hit hit = TraceClosest(origin, direction, bounce == 0u ? maxDistance : 1.0e7f, bounce == 0u ? firstTerrainSkip : 0.0f,
+                               mirror ? 0.0f : FoliageThrough());
         if (bounce == 0u)
             firstDistance = hit.distance;
         if (!hit.found)
@@ -1261,7 +1282,14 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     // The ground: the terrain the rays see, and past it -- they see it to 30 km
     // (RtKspSources, the terrain's quads) -- what they meet nothing at, as the parts, the
     // buildings and the scatter near the camera are all in their scene.
-    terrain = hit.found ? (hit.flags & RT_INSTANCE_TERRAIN) != 0u : distance > 1000.0f;
+    // The space centre's lawns too, which Parallax's grass is lifted onto: its scenery (MeadowShade takes
+    // the green of it only), not the grass's blades, which shade themselves.
+    // A blade the rays meet in front of the drawn surface -- the rays' grass is not the drawn grass, blade for
+    // blade -- stands on the ground behind it, which the pixel shows.
+    bool cutout = hit.found && (hit.flags & RT_INSTANCE_CUTOUT) != 0u;
+    terrain = !hit.found ? distance > 1000.0f
+              : cutout ? hit.distance < distance - (distance * 0.005f + 0.05f)
+              : (hit.flags & (RT_INSTANCE_TERRAIN | RT_INSTANCE_SCENERY)) != 0u;
     // The ground the rays see is its undisplaced mesh, Parallax draws it displaced: a
     // looser match for it.
     float tolerance = (hit.flags & RT_INSTANCE_TERRAIN) != 0u ? distance * 0.03f + 2.0f : distance * 0.005f + 0.05f;

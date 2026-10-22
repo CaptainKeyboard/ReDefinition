@@ -117,7 +117,8 @@ void AmbientOcclusion(uint3 id : SV_DispatchThreadID)
     }
     Random random = MakeRandom(id.xy, frameIndex, 1u);
     float3 direction = SampleCosine(normal, float2(NextFloat(random), NextFloat(random)));
-    float open = Unoccluded(RayOrigin(position, normal), direction, AO_DISTANCE, kTerrainSkip) ? 1.0f : 0.0f;
+    // Through the grass's blades with the share they let through, as the sky's light passes them.
+    float open = SunUnoccluded(RayOrigin(position, normal), direction, AO_DISTANCE, kTerrainSkip) ? 1.0f : 0.0f;
     output3[id.xy] = float4(open, 0.0f, 0.0f, 0.0f);
 }
 

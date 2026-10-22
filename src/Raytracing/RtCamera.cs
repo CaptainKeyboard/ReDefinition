@@ -213,6 +213,14 @@ namespace ReDefinition.Raytracing
         // beyond the grass, with the blades letting through half the sun (rtFoliageTransmission 0.5); without the
         // grass in the rays 1.04. Into the ground's albedo, for the sun and the sky alike.
         private const float MeadowShade = 0.77f;
+        private static readonly float MeadowShadeProbe = Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowShade") != null
+            && float.TryParse(Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowShade"),
+                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float shadeProbe)
+            ? shadeProbe : 0f;
+        private static readonly float MeadowFrom =Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowFrom") != null
+            && float.TryParse(Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowFrom"),
+                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float from)
+            ? from : 0f;
         private CommandBuffer fadeGrab;
         private RenderTexture fadeTexture;
         private Action<AsyncGPUReadbackRequest> fadeDone;
@@ -1318,8 +1326,11 @@ namespace ReDefinition.Raytracing
             packet.ShadowFade[5] = fades ? fadeScale.y : 0f;
             // The meadow's shade on the ground past Parallax's grass (RtCommon.hlsli, MeadowShade): how far
             // the grass is drawn, and how much light a meadow's own blades keep from it.
-            packet.ShadowFade[6] = RtKspMods.ParallaxGrassRange();
-            packet.ShadowFade[7] = MeadowShade;
+            float grassRange = RtKspMods.ParallaxGrassRange();
+            // -redefinitionProbeMeadowFrom <metres>: the meadow's shade from there on instead of the grass's range.
+            packet.ShadowFade[6] = grassRange > 0f && MeadowFrom > 0f ? MeadowFrom : grassRange;
+            // -redefinitionProbeMeadowShade <0..1>: another shade, to see where it lies.
+            packet.ShadowFade[7] = MeadowShadeProbe > 0f ? MeadowShadeProbe : MeadowShade;
             Color sky = SkyColor();
             packet.SkyColor[0] = sky.r;
             packet.SkyColor[1] = sky.g;

@@ -126,12 +126,40 @@ namespace ReDefinition.Probe
                     yield return new WaitForSecondsRealtime(4f);
                     yield return new WaitForEndOfFrame();
                     string name = shot + "-v" + i + "-" + mode + suffix + ".png";
+                    // -redefinitionProbeViewTimings: the raytracing passes' GPU time and the frame time, each averaged
+                    // over 6 s at the pose.
+                    if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeViewTimings") >= 0)
+                        yield return Timings(name);
                     ScreenCapture.CaptureScreenshot(Path.Combine(folder, name));
                     Debug.Log(Log.Tag + " Probe: views: " + name + " at pitch " + pitch + ", distance " + distance
                               + " m, heading " + heading + (NoGloss ? ", without Parallax's shine" : "") + ".");
                     yield return null;
                 }
             }
+        }
+
+        private static IEnumerator Timings(string name)
+        {
+            float[] passes = new float[8];
+            float[] sum = new float[8];
+            double frames = 0, seconds = 0;
+            float until = Time.realtimeSinceStartup + 6f;
+            while (Time.realtimeSinceStartup < until)
+            {
+                yield return null;
+                Raytracing.RtNative.KspRtPassTimings(passes, passes.Length);
+                for (int p = 0; p < passes.Length; p++) sum[p] += passes[p];
+                frames++;
+                seconds += Time.unscaledDeltaTime;
+            }
+            if (frames == 0) yield break;
+            Func<int, string> ms = p => (sum[p] / frames).ToString("0.00", CultureInfo.InvariantCulture);
+            float traced = 0f;
+            for (int p = 0; p < 4; p++) traced += sum[p] / (float)frames;
+            Debug.Log(Log.Tag + " Probe: views: timings " + name + ": frame " + (seconds / frames * 1000.0).ToString("0.00",
+                          CultureInfo.InvariantCulture) + " ms; GPU ms sun " + ms(0) + ", occlusion " + ms(1) + ", diffuse "
+                      + ms(2) + ", reflections " + ms(3) + ", denoiser " + ms(6) + "; traced "
+                      + traced.ToString("0.00", CultureInfo.InvariantCulture) + ".");
         }
 
         private static bool Number(string text, out float value)
