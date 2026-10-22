@@ -111,7 +111,12 @@ namespace ReDefinition
             GUILayout.FlexibleSpace();
             int techniqueAt = offeredBackends.IndexOf(backend);
             int pickedTechnique = Segments(offeredTechniqueNames, techniqueAt);
-            if (pickedTechnique != techniqueAt) SetBackend(offeredBackends[pickedTechnique]);
+            if (pickedTechnique != techniqueAt)
+            {
+                // Picked by hand: no longer Auto's.
+                settings.BackendAuto = false;
+                SetBackend(offeredBackends[pickedTechnique]);
+            }
             RowTail();
             GUILayout.EndHorizontal();
 
@@ -121,7 +126,11 @@ namespace ReDefinition
             GUILayout.FlexibleSpace();
             int modeAt = ModeCount - 1 - (int)quality;
             int pickedMode = Segments(modeNames ?? (modeNames = MakeModeNames()), modeAt);
-            if (pickedMode != modeAt) SetQuality((Fsr3Upscaler.QualityMode)(ModeCount - 1 - pickedMode));
+            if (pickedMode != modeAt)
+            {
+                settings.QualityAuto = false;
+                SetQuality((Fsr3Upscaler.QualityMode)(ModeCount - 1 - pickedMode));
+            }
             RowTail();
             GUILayout.EndHorizontal();
 

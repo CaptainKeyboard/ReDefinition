@@ -134,6 +134,20 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void AValueSetByNameIsNoLongerAutos()
+        {
+            OwnSettings settings = new OwnSettings();
+
+            Assert.IsTrue(settings.SetValue("technique", "Dlss"));
+            Assert.IsTrue(settings.SetValue("quality", "Performance"));
+            Assert.IsTrue(settings.SetValue("rayReconstruction", "false"));
+
+            Assert.IsFalse(settings.BackendAuto);
+            Assert.IsFalse(settings.QualityAuto);
+            Assert.IsFalse(settings.RayReconstructionAuto);
+        }
+
+        [TestMethod]
         public void ThePlayersChoicesSurviveTheFile()
         {
             OwnSettings settings = new OwnSettings { LowLatency = "Off", RenderTargetHeight = 720, QualityAuto = false };

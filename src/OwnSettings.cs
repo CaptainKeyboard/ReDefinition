@@ -450,7 +450,12 @@ namespace ReDefinition
                 if (field.Key != key) continue;
                 string before = field.Text(this);
                 field.Read(this, text);
-                return field.Text(this) != before || string.Equals(before, text, StringComparison.OrdinalIgnoreCase);
+                bool took = field.Text(this) != before || string.Equals(before, text, StringComparison.OrdinalIgnoreCase);
+                // A value set by name is the player's, not Auto's.
+                if (took && key == "technique") BackendAuto = false;
+                if (took && key == "quality") QualityAuto = false;
+                if (took && key == "rayReconstruction") RayReconstructionAuto = false;
+                return took;
             }
             return false;
         }
