@@ -373,6 +373,9 @@ namespace ReDefinition.Window
             }
 
             Installed = true;
+            // XeSS frame generation's swapchain is made when KSP starts.
+            if (frameGenerationFetched)
+                SettingsWindow.NoteRestart("files.intel", "Intel's files for XeSS frame generation", "Intel");
             Finish("Installed. " + WhenUsed(superResolutionFetched, frameGenerationFetched)
                    + (backups != null && backups.Count > 0 ? " Kept before: " + string.Join(", ", backups.ToArray()) + "." : ""),
                    rangeFiles);

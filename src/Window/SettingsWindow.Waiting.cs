@@ -32,6 +32,32 @@ namespace ReDefinition.Window
             foreach (KeyValuePair<string, WaitingChange> pair in Waiting(false)) applied[pair.Key] = pair.Value;
         }
 
+        // What waits for a restart without a row: files a download or an install placed, which KSP takes at
+        // its next start (Streamline's, XeSS frame generation's, the RTX 30 package and its preset).
+        internal static void NoteRestart(string key, string title, string owner)
+        {
+            applied[key] = new WaitingChange { Title = title, Owner = owner, Window = ApplyWindow.Restart };
+            waitingVersion = -1;
+        }
+
+        // The changes waiting for a restart the player has been asked about: Accept asks once for each.
+        private static readonly HashSet<string> restartAsked = new HashSet<string>();
+
+        // Accept, and where it sets something that takes effect only at a start -- or a download placed such
+        // files -- the question whether to restart KSP now or later.
+        private static void ApplyAndAskRestart()
+        {
+            List<string> titles = new List<string>();
+            foreach (KeyValuePair<string, WaitingChange> pair in Waiting(true))
+                if (pair.Value.Window == ApplyWindow.Restart && restartAsked.Add(pair.Key)) titles.Add(pair.Value.Title);
+            Apply();
+            if (titles.Count == 0 || !GameRestart.Available) return;
+            ConfirmDialog.OverWindow("ReDefinitionRestartNow", "Restart KSP?",
+                string.Join(", ", titles.ToArray()) + (titles.Count == 1 ? " takes" : " take")
+                + " effect after a restart of KSP." + (GameRestart.SavesGame ? " The game is saved first." : ""), 420f,
+                "Restart now", ApplyAndRestart, "Later");
+        }
+
         // From ModWindowsAddon once a scene is ready.
         internal static void SceneChanged()
         {
@@ -64,14 +90,17 @@ namespace ReDefinition.Window
                 {
                     foreach (ModuleSetting setting in module.Settings)
                     {
-                        if (setting.TakesEffect == ApplyWindow.Live || setting.Read(edit.Before) == setting.Read(edit.After))
-                            continue;
+                        string before = setting.Read(edit.Before);
+                        string after = setting.Read(edit.After);
+                        if (before == after) continue;
+                        ApplyWindow window = setting.EffectOf != null ? setting.EffectOf(before, after) : setting.TakesEffect;
+                        if (window == ApplyWindow.Live) continue;
                         string key = "redefinition." + module.Name + "." + setting.Key;
                         list.Add(new KeyValuePair<string, WaitingChange>(key, new WaitingChange
                         {
                             Title = setting.Title,
                             Owner = "ReDefinition",
-                            Window = setting.TakesEffect,
+                            Window = window,
                         }));
                         seen.Add(key);
                     }

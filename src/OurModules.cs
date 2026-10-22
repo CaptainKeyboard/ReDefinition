@@ -69,19 +69,13 @@ namespace ReDefinition
                 Label = value => value == "Off" ? "Off"
                     : value == AutoSettings.Auto ? "Auto (" + TechniqueLabel(AutoSettings.ResolvedBackend) + ")"
                     : TechniqueLabel(Backend(value)),
-                Tooltip = "Off: the 3D scene is not touched.\n"
-                          + "Auto takes DLSS on a GeForce RTX, AMD's FSR 4 on a Radeon RX 7000 or RX 9000 where its DLL is\n"
-                          + "there, XeSS on an Intel GPU where its DLL is, and FSR 3 otherwise.\n"
-                          + "FSR 3 runs on every GPU and comes with ReDefinition.\n"
-                          + "DLSS needs an NVIDIA RTX GPU and NVIDIA's nvngx_dlss.dll: choosing DLSS without it offers\n"
-                          + "the download from NVIDIA.\n"
-                          + "FSR 4 runs AMD's amd_fidelityfx_upscaler_dx12.dll, the player's own copy next to KSP_x64.exe,\n"
-                          + "on a Radeon RX 7000 or RX 9000; greyed out on any other card. Without the DLL, choosing it says\n"
-                          + "where to get it.\n"
-                          + "XeSS runs Intel's libxess.dll on any GPU with Shader Model 6.4 and DP4a: choosing XeSS\n"
-                          + "without it offers the download from Intel; once it runs, this row names its version.\n"
-                          + "A technique greyed out says why in its tooltip. All three need the dxgi.dll proxy next to\n"
-                          + "KSP_x64.exe.",
+                Tooltip = "Renders the 3D scene smaller and reconstructs it at full size.",
+                ChoiceTooltip = value => value == "Off" ? "No upscaling and no temporal antialiasing."
+                    : value == AutoSettings.Auto ? "The best upscaler for this card: DLSS on an RTX, FSR 4 on a Radeon RX 7000 or 9000, XeSS on an Intel GPU, otherwise FSR 3."
+                    : value == UpscalerBackend.Fsr3.ToString() ? "AMD FSR 3, built into ReDefinition. Runs on every card."
+                    : value == UpscalerBackend.Dlss.ToString() ? "NVIDIA DLSS, on a GeForce RTX."
+                    : value == UpscalerBackend.Amd.ToString() ? "AMD FSR 4, on a Radeon RX 7000 or 9000."
+                    : "Intel XeSS. Runs on most cards.",
                 Read = settings => !settings.Enabled ? "Off"
                     : settings.BackendAuto ? AutoSettings.Auto : settings.Backend.ToString(),
                 Write = (settings, value) =>
@@ -104,14 +98,8 @@ namespace ReDefinition
                 Choices = ModesRightToLeft(),
                 Label = value => value == AutoSettings.Auto ? "Auto (" + KspSettingsSection.ModeName(AutoSettings.ResolvedQuality) + ")"
                     : KspSettingsSection.ModeName(Mode(value)),
-                Tooltip = "Auto takes the mode that renders nearest the size the graphics profile aims for at your\n"
-                          + "screen's height: a smaller one on a larger screen.\n"
-                          + "Right end: AA only, full resolution, the upscaler as antialiasing.\n"
-                          + "Further left: rendered smaller by the factor shown, and reconstructed.\n"
-                          + "DLSS renders at the size it asks for in each mode; 1.2x, which DLSS does not have, as its Quality.\n"
-                          + "The diagnostics window shows the frame rate it gives.\n"
-                          + "With V-Sync on and frame generation, the rendered rate is held at half the refresh rate,\n"
-                          + "or lower where DLSS generates several frames from each rendered one.",
+                Tooltip = "How much smaller the scene renders: AA only is full size, further left is faster and softer. "
+                          + "Auto fits the profile to your screen.",
                 Read = settings => settings.QualityAuto ? AutoSettings.Auto : settings.Quality.ToString(),
                 Write = (settings, value) =>
                 {
@@ -173,9 +161,7 @@ namespace ReDefinition
                 StepsPerUnit = 20f,
                 Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)
                     .ToString("0.00", CultureInfo.InvariantCulture),
-                Tooltip = "RCAS sharpening after the upscaler -- FSR 3, DLSS, AMD's DLL and XeSS alike; 0 switches it off.\n"
-                          + "1.0 is FidelityFX's maximum; above it is beyond what FidelityFX intends,\n"
-                          + "and AMD's DLL stops there.",
+                Tooltip = "Sharpening after the upscaler. 0 is off, 1.0 is AMD's maximum.",
                 Read = settings => SettingValues.Text(settings.Sharpness),
                 Write = (settings, value) =>
                     settings.Sharpness = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
@@ -209,16 +195,17 @@ namespace ReDefinition
                 Choices = FrameGenerationTechniqueSetting.All,
                 ChoiceLabel = FrameGenerationTechniqueSetting.Label,
                 Label = value => FrameGenerationTechniqueLabel(value),
-                Tooltip = "Generated frames between the rendered ones, from KSP's own depth and motion vectors.\n"
-                          + "Auto: DLSS frame generation where NVIDIA's Streamline DLLs lie next to KSP_x64.exe and the GPU\n"
-                          + "runs it (RTX 40 and newer, RTX 30 and 20 with the dlssg_for_sm86 package), XeSS frame generation\n"
-                          + "on an Intel GPU where Intel's files are, FSR 3 otherwise. A technique greyed out says why; one\n"
-                          + "whose files are missing offers their download when chosen.\n"
-                          + "Needs the dxgi.dll proxy next to KSP_x64.exe, which makes its swapchain for the technique when KSP\n"
-                          + "starts: another technique applies after a restart of KSP. Off applies at once.\n"
-                          + "With the upscaler off, the scene is still captured for it, at full resolution.\n"
-                          + "With FSR 3, turn V-Sync on in KSP's settings for even frames, with G-Sync or FreeSync too:\n"
-                          + "in full screen, frames can tear without it even on a variable refresh rate (AMD).",
+                Tooltip = "Generated frames between the rendered ones.",
+                ChoiceTooltip = value => value == FrameGenerationTechniqueSetting.Off ? "No generated frames."
+                    : value == FrameGenerationTechniqueSetting.Auto
+                        ? "The best frame generation that runs here: DLSS on an RTX, XeSS on an Intel GPU, otherwise FSR 3."
+                    : value == FrameGenerationTechniqueSetting.Dlss
+                        ? "NVIDIA DLSS frame generation, up to 6x and Dynamic, on a GeForce RTX. Takes effect after a restart."
+                    : value == FrameGenerationTechniqueSetting.Fsr
+                        ? "AMD FSR 3 frame generation, one frame between two, on every card. Turn V-Sync on for even frames. Takes effect after a restart."
+                    : "Intel XeSS frame generation. Takes effect after a restart.",
+                // Off and the technique that runs at once; another one at KSP's next start.
+                EffectOf = (before, after) => FrameGenerationTakesEffect(after),
                 Read = settings => settings.FrameGeneration ? settings.FrameGenerationTechnique : FrameGenerationTechniqueSetting.Off,
                 Write = (settings, value) =>
                 {
@@ -243,10 +230,11 @@ namespace ReDefinition
                 Control = SettingControl.Choice,
                 Radio = true,
                 Choices = FrameGenerationChoice.Shown,
-                Tooltip = "Frames shown per rendered frame: 2x is one generated frame, 6x five. Dynamic is DLSS frame\n"
-                          + "generation choosing the multiplier to reach the display's refresh rate (multi frame generation,\n"
-                          + "NVIDIA driver 595.41 or newer; an RTX 30 or 20 with the dlssg_for_sm86 package too). What the\n"
-                          + "technique does not allow is greyed out and says why. Changes apply at once.",
+                Tooltip = "Frames shown per rendered frame.",
+                ChoiceTooltip = value => value == FrameGenerationChoice.Dynamic
+                    ? "DLSS frame generation picks the multiplier that reaches the display's refresh rate."
+                    : value == "2x" ? "One generated frame per rendered frame."
+                    : (FrameGenerationChoice.Multiplier(value) - 1) + " generated frames per rendered frame.",
                 Read = settings => settings.FrameGenerationMultiplier,
                 Write = (settings, value) =>
                 {
@@ -273,11 +261,10 @@ namespace ReDefinition
                 // The card's technique behind Auto, once the proxy says which lowers the latency.
                 Label = value => LowLatencyLabel(value),
                 ChoiceLabel = value => LowLatencyLabel(value),
-                Tooltip = "Auto: the latency brake, which waits before each frame so that it is not queued ahead,\n"
-                          + "and the graphics card's own technique where it lowers the latency: Intel's XeLL on an Intel GPU,\n"
-                          + "AMD's Anti-Lag 2 on a Radeon once it has been tried there. Those run alone, and the brake\n"
-                          + "steps back while they lower the latency. Off: none of them.\n"
-                          + "Needs the dxgi.dll proxy next to KSP_x64.exe.",
+                Tooltip = "Lowers the delay between input and picture.",
+                ChoiceTooltip = value => value == LowLatencySetting.Auto
+                    ? "The card's own technique (NVIDIA Reflex, AMD Anti-Lag 2 or Intel XeLL) and ReDefinition's frame pacing."
+                    : "No latency reduction.",
                 Read = settings => settings.LowLatency,
                 Write = (settings, value) => settings.LowLatency = value,
                 Interactable = settings => FrameGenerationBridge.Available,
@@ -301,12 +288,9 @@ namespace ReDefinition
                     ReDefinition.Raytracing.RaytracingMode.Light.ToString(), ReDefinition.Raytracing.RaytracingMode.Full.ToString(),
                 },
                 Label = value => RaytracingLabel(value),
-                Tooltip = "Lighting from rays traced through the scene, on the proxy's Direct3D 12 device.\n"
-                          + "Shadows: the sun's shadows, as far as the scene reaches.\n"
-                          + "Light: also the light bouncing off surfaces and the sky, and ambient occlusion.\n"
-                          + "Full: also reflections.\n"
-                          + "Needs the dxgi.dll proxy next to KSP_x64.exe and a GPU with DirectX Raytracing 1.1\n"
-                          + "(GeForce RTX 20 and newer, Radeon RX 6000 and newer). Greyed while the proxy does not offer it.",
+                Tooltip = "Raytraced lighting. Shadows: the sun's shadows. Shadows and light: plus bounced light and "
+                          + "ambient occlusion. Full: plus reflections. Needs a card with DirectX Raytracing 1.1 (RTX 20, "
+                          + "Radeon RX 6000 and newer).",
                 Read = settings => settings.Raytracing.ToString(),
                 Write = (settings, value) => settings.Raytracing = RaytracingModeOf(value),
                 // Offered while the proxy runs raytracing here, and always while it is on, so that a
@@ -342,17 +326,12 @@ namespace ReDefinition
                 Order = 65,
                 Control = SettingControl.Choice,
                 Choices = new[] { AutoSettings.Auto, "Off", "On" },
-                Label = value => value == AutoSettings.Auto
-                    ? "Auto (" + (AutoSettings.ResolvedRayReconstruction ? "from " + RaytracingLabel(AutoSettings.ResolvedRayReconstructionFrom.ToString())
-                                  : "Off") + ")"
-                    : value,
-                Tooltip = "Auto takes it on a GeForce RTX with DLSS as the upscaler: from Full on an RTX 20 or 30, from\n"
-                          + "Shadows on an RTX 40 or 50. A Radeon RX 9000 has AMD's own denoiser, which runs by itself.\n"
-                          + "NVIDIA's DLSS Ray Reconstruction cleans up and upscales the raytraced image in one step:\n"
-                          + "sharper reflections, less flicker and smearing, at more GPU time. Off, ReDefinition's own\n"
-                          + "denoiser and DLSS Super Resolution do it.\n"
-                          + "Needs DLSS as the upscaler. Runs beside every frame generation: through Streamline with DLSS\n"
-                          + "frame generation or none, directly through NGX with FSR or XeSS frame generation.",
+                // Auto says whether it runs with the raytracing chosen now.
+                LabelWith = (settings, value) => value != AutoSettings.Auto ? value
+                    : "Auto (" + (AutoSettings.ResolvedRayReconstruction && settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off
+                                  && settings.Raytracing >= AutoSettings.ResolvedRayReconstructionFrom ? "On" : "Off") + ")",
+                Tooltip = "NVIDIA's denoiser for the raytracing: sharper reflections, less flicker, more GPU time. Needs DLSS. "
+                          + "Auto: on an RTX 40 or 50 always, on an RTX 20 or 30 with Full only.",
                 Read = settings => settings.RayReconstructionAuto ? AutoSettings.Auto : settings.RayReconstruction ? "On" : "Off",
                 Write = (settings, value) =>
                 {
@@ -1017,6 +996,16 @@ namespace ReDefinition
         }
 
         // Auto with the technique that lowers the latency in brackets; Off as it is.
+        // Off, and the technique the proxy's swapchain was made for, take effect at once; another one when KSP
+        // starts again (the window asks then whether to restart).
+        private static ApplyWindow FrameGenerationTakesEffect(string after)
+        {
+            if (after == FrameGenerationTechniqueSetting.Off || !FrameGenerationBridge.Available) return ApplyWindow.Live;
+            string technique = AutoSettings.FrameGenerationTechnique(after, TechniqueAvailability.Current());
+            int kind = technique == FrameGenerationTechniqueSetting.Fsr ? 1 : technique == FrameGenerationTechniqueSetting.Dlss ? 2 : 3;
+            return FrameGenerationBridge.Limits().Technique == kind ? ApplyWindow.Live : ApplyWindow.Restart;
+        }
+
         private static string LowLatencyLabel(string value)
         {
             if (value != LowLatencySetting.Auto) return value;

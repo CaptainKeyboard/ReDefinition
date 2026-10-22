@@ -1044,6 +1044,10 @@ namespace ReDefinition.Probe
                 // and after each.
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeDownloads") >= 0)
                     yield return DownloadProbe.Run(folder, shot);
+                // -redefinitionProbeWindow "step;...": the settings window used as the player does (WindowProbe).
+                string windowSteps = SceneProbe.ArgumentAfter("-redefinitionProbeWindow");
+                if (windowSteps != null)
+                    yield return WindowProbe.Run(folder, shot, windowSteps);
                 // -redefinitionProbeShotRaytracing <mode,mode,...>: then the raytracing
                 // switched to each mode in turn, as in the settings window, and the same view
                 // 10 s later as <shot>-<mode>.png: several modes compared in one run.

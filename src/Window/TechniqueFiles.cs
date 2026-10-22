@@ -18,16 +18,22 @@ namespace ReDefinition.Window
         public static FilesNeeded For(TechniqueAvailability.Needs needs)
         {
             if (needs == TechniqueAvailability.Needs.None) return null;
-            List<string> parts = new List<string>();
-            if ((needs & TechniqueAvailability.Needs.NvidiaFiles) != 0) parts.Add("NVIDIA's files");
-            if ((needs & TechniqueAvailability.Needs.IntelFiles) != 0) parts.Add("Intel's files");
-            if ((needs & TechniqueAvailability.Needs.AmperePackage) != 0) parts.Add("the dlssg_for_sm86 package");
-            if ((needs & TechniqueAvailability.Needs.AmdDll) != 0) parts.Add("AMD's amd_fidelityfx_upscaler_dx12.dll");
+            // The tooltip's last line: what choosing it does first.
+            string text;
+            if ((needs & TechniqueAvailability.Needs.AmdDll) != 0)
+                text = "AMD's DLL is not there: choosing it says where to get it.";
+            else if ((needs & TechniqueAvailability.Needs.AmperePackage) != 0)
+                text = "An RTX 30 or 20 needs the dlssg_for_sm86 package: choosing it installs it first.";
+            else
+            {
+                List<string> parts = new List<string>();
+                if ((needs & TechniqueAvailability.Needs.NvidiaFiles) != 0) parts.Add("NVIDIA's");
+                if ((needs & TechniqueAvailability.Needs.IntelFiles) != 0) parts.Add("Intel's");
+                text = string.Join(" and ", parts.ToArray()) + " files download when chosen.";
+            }
             return new FilesNeeded
             {
-                Text = "Needs " + string.Join(" and ", parts.ToArray()) + ": choosing it "
-                       + ((needs & TechniqueAvailability.Needs.AmdDll) != 0 ? "says where to get it"
-                          : "offers the download") + ", and takes it once they are in place.",
+                Text = text,
                 Begin = done => Next(needs, done),
             };
         }

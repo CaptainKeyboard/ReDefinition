@@ -131,6 +131,7 @@ namespace ReDefinition.Window
             optionValues[option] = option.Values[index];
             optionsLookedAt[option] = Time.realtimeSinceStartup;
             OptionsChanged = true;
+            SettingsWindow.NoteRestart("dlssg." + option.Key, option.Title, "dlssg_for_sm86");
             Debug.Log(Log.Tag + " dlssg_for_sm86: " + option.Section + " " + option.Key + " = " + option.Values[index]
                       + ", applies after a restart of KSP");
         }
@@ -316,6 +317,8 @@ namespace ReDefinition.Window
                 {
                     InstalledNow = true;
                     SettleIni(before);
+                    SettingsWindow.NoteRestart("files.dlssg", "dlssg_for_sm86 (DLSS frame generation on RTX 30 and 20)",
+                        "dlssg_for_sm86");
                 }
                 // Looked at again at the next question: what waits for the package asks at once.
                 installedLookedAt = float.NegativeInfinity;

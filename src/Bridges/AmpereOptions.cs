@@ -37,14 +37,8 @@ namespace ReDefinition.Bridges
             Labels = new[] { "Auto", "A", "B", "C (Lite)" },
             Default = "Auto",
             Title = "DLSS-G preset",
-            Tooltip = "Auto lets the game or the driver profile decide. A and B force the user interface\n"
-                      + "recomposition off and on; B only takes effect when the game hands DLSS-G both a\n"
-                      + "HUD-less image and a UI plane, which ReDefinition does not.\n"
-                      + "C is NVIDIA's lighter candidate blending (Frame Generation Performance Mode): the\n"
-                      + "project measured 32 to 54 percent less GPU time per generated frame. In KSP the HUD's\n"
-                      + "own pixels measured the same as with Auto, a ring along its edges 1 to 3 dB lower.\n"
-                      + "Installing the package here sets C.\n"
-                      + "Applies after a restart of KSP.",
+            Tooltip = "How DLSS frame generation blends its frames on an RTX 30 or 20. C (Lite) costs about half "
+                      + "the GPU time of Auto at the same look. Takes effect after a restart.",
         };
 
         public static readonly Option MaxGeneratedFrames = new Option

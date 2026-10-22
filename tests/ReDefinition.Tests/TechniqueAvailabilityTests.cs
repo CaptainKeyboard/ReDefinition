@@ -21,7 +21,7 @@ namespace ReDefinition.Tests
         public void DlssNeedsAnRtxAndTheProxy()
         {
             Assert.IsNull(TechniqueAvailability.Upscaler("Dlss", Gpu(GpuClass.Rtx30)));
-            StringAssert.Contains(TechniqueAvailability.Upscaler("Dlss", Gpu(GpuClass.Radeon9000)), "RTX");
+            Assert.AreEqual(TechniqueAvailability.NotThisCard, TechniqueAvailability.Upscaler("Dlss", Gpu(GpuClass.Radeon9000)));
             TechniqueAvailability.Facts noProxy = Gpu(GpuClass.Rtx40);
             noProxy.DlssOffered = false;
             StringAssert.Contains(TechniqueAvailability.Upscaler("Dlss", noProxy), "proxy");
@@ -46,7 +46,7 @@ namespace ReDefinition.Tests
         {
             Assert.IsNull(TechniqueAvailability.Upscaler("Amd", Gpu(GpuClass.Radeon9000)));
             Assert.IsNull(TechniqueAvailability.Upscaler("Amd", Gpu(GpuClass.Radeon7000)));
-            StringAssert.Contains(TechniqueAvailability.Upscaler("Amd", Gpu(GpuClass.Rtx30)), "Radeon RX 7000 or RX 9000");
+            Assert.AreEqual(TechniqueAvailability.NotThisCard, TechniqueAvailability.Upscaler("Amd", Gpu(GpuClass.Rtx30)));
             Assert.IsNotNull(TechniqueAvailability.Upscaler("Amd", Gpu(GpuClass.RadeonOlder)));
             TechniqueAvailability.Facts missing = Gpu(GpuClass.Radeon9000);
             missing.AmdDllMissing = true;

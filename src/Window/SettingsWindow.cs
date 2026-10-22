@@ -269,7 +269,7 @@ namespace ReDefinition.Window
                     RestartButton(),
                     WaitingNotice(WindowWidth - 20f - ResetWidth - RestartWidth - 2f * 80f - 32f),
                     new DialogGUIFlexibleSpace(),
-                    PendingButton(Localizer.Format("#autoLOC_149513"), Apply, true),
+                    PendingButton(Localizer.Format("#autoLOC_149513"), ApplyAndAskRestart, true),
                     PendingButton(Localizer.Format("#autoLOC_174783"), Discard, true),
                     PendingButton(Localizer.Format("#autoLOC_149514"), () => { }, false)),
             };

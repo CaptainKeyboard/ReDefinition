@@ -409,6 +409,9 @@ namespace ReDefinition.Window
             }
 
             Installed = true;
+            // Streamline loads its plugins when KSP starts: Ray Reconstruction and DLSS frame generation wait for it.
+            if (streamlineFetched || frameGenerationFetched)
+                SettingsWindow.NoteRestart("files.nvidia", "NVIDIA's files for Ray Reconstruction and frame generation", "NVIDIA");
             Finish("Installed. " + WhenUsed(dlssFetched, streamlineFetched, frameGenerationFetched)
                    + (backups != null && backups.Count > 0 ? " Kept before: " + string.Join(", ", backups.ToArray()) + "." : ""),
                    rangeFiles);

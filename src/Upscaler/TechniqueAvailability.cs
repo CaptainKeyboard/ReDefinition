@@ -48,6 +48,9 @@ namespace ReDefinition.Upscaler
             public bool AmdFgDllMissing;
         }
 
+        // Why a technique the card cannot run is greyed out: the button's own tooltip says which cards run it.
+        internal const string NotThisCard = "Not on this card.";
+
         private static Facts facts;
         private static float askedAt = float.MinValue;
 
@@ -97,11 +100,11 @@ namespace ReDefinition.Upscaler
             switch (choice)
             {
                 case "Dlss":
-                    if (!GpuClasses.IsRtx(f.Gpu)) return "Needs a GeForce RTX card.";
+                    if (!GpuClasses.IsRtx(f.Gpu)) return NotThisCard;
                     return f.DlssOffered ? null : "Needs the dxgi.dll proxy next to KSP_x64.exe.";
                 case "Amd":
                     if (f.Gpu != GpuClass.Radeon9000 && f.Gpu != GpuClass.Radeon7000)
-                        return "FSR 4 runs on a Radeon RX 7000 or RX 9000 only.";
+                        return NotThisCard;
                     return f.AmdOffered ? null : "Needs the dxgi.dll proxy, presenting through Direct3D 12.";
                 case "Xess":
                     return f.XessOffered ? null : "Needs the dxgi.dll proxy, presenting through Direct3D 12.";
@@ -142,7 +145,7 @@ namespace ReDefinition.Upscaler
                                                                      ?? "each technique waits for its files.");
                 case FrameGenerationTechniqueSetting.Dlss:
                     // Its own swapchain, from the next start on: neither AMD's runtime nor what generates now matters.
-                    return GpuClasses.IsRtx(f.Gpu) ? null : "Needs a GeForce RTX card.";
+                    return GpuClasses.IsRtx(f.Gpu) ? null : NotThisCard;
                 case FrameGenerationTechniqueSetting.Xess:
                     return null;
                 default:

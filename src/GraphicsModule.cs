@@ -60,6 +60,9 @@ namespace ReDefinition
         // When a change takes effect: at once, unless the row says otherwise.
         public ApplyWindow TakesEffect = ApplyWindow.Live;
 
+        // Where that depends on the change (from the value before to the one after): in place of TakesEffect.
+        public Func<string, string, ApplyWindow> EffectOf;
+
         // The heading the row stands under in its tab, where the tab groups
         // ReDefinition's own rows (Gameplay: flight; Mods / Toolbar: scaling).
         public string Section;
@@ -81,6 +84,12 @@ namespace ReDefinition
 
         // For a Radio row: a button's text, where the value is not it.
         public Func<string, string> ChoiceLabel;
+
+        // For a Radio row: a button's own tooltip, in place of the row's.
+        public Func<string, string> ChoiceTooltip;
+
+        // What the value column shows where it depends on the other settings too; in place of Label.
+        public Func<OwnSettings, string, string> LabelWith;
 
         // For a Radio row: null where the choice can be taken now, otherwise why not, which the greyed
         // button's tooltip says.

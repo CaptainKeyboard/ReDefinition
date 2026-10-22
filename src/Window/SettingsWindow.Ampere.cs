@@ -32,17 +32,8 @@ namespace ReDefinition.Window
                 slider,
                 new DialogGUISpace(10f),
                 new DialogGUILabel(() => AmpereFrameGeneration.OptionLabel(choice), AmpereValueWidth)));
-            rows.Add(new DialogGUILabel(AmpereOptionsNote, true));
+            // A change waits for a restart like every other (NoteRestart): the line under the window says so.
             return rows;
-        }
-
-        // Below the preset: that it is the package's ini, and once it was changed, that it applies after a
-        // restart.
-        private static string AmpereOptionsNote()
-        {
-            return AmpereFrameGeneration.OptionsChanged
-                ? "<color=#ffd966>Changed: dlssg_sm86.ini is read when KSP starts, so this applies after a restart of KSP.</color>"
-                : "<color=#9a9a9a>The preset is dlssg_sm86.ini's; the package reads it when KSP starts, so a change applies after a restart.</color>";
         }
     }
 }

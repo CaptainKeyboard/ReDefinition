@@ -225,8 +225,9 @@ namespace ReDefinition.Tests
             {
                 Assert.AreEqual(option.Values.Length, option.Labels.Length, option.Key);
                 CollectionAssert.Contains(option.Values, option.Default, option.Key);
-                foreach (string line in option.Tooltip.Split('\n'))
-                    Assert.IsTrue(line.Length <= 90, option.Key + ": " + line);
+                // The window breaks the lines (TooltipText.Wrap): none is longer than KSP's tooltip takes.
+                foreach (string line in ReDefinition.Window.TooltipText.Wrap(option.Tooltip).Split('\n'))
+                    Assert.IsTrue(line.Length <= ReDefinition.Window.TooltipText.MaxLine, option.Key + ": " + line);
             }
         }
     }

@@ -43,6 +43,9 @@ namespace ReDefinition.Window
         // name, the control, and for sliders a 30 gap and an 80 wide value.
         // Toggles at 150 with their state as text, as KSPCF's are.
         private const float NameWidth = 150f;
+
+        // A tooltip's last line while the row waits for a graphics profile.
+        private const string Locked = "Needs a graphics profile chosen.";
         private const float ControlWidth = 150f;
         private const float ValueGap = 30f;
         private const float ValueWidth = 80f;
@@ -304,12 +307,23 @@ namespace ReDefinition.Window
             foreach (string choice in setting.Choices)
             {
                 string value = choice;
+                string reason = setting.Unavailable == null ? null : setting.Unavailable(edit.After, value);
+                // A choice that cannot run here stays a button with grey text, not a disabled one: KSP shows no
+                // tooltip over a disabled button, and the tooltip says why. Clicking it says so on the screen.
                 string text = setting.ChoiceLabel != null ? setting.ChoiceLabel(value) : value;
+                if (reason != null) text = "<color=#7a7a7a>" + text + "</color>";
                 DialogGUIToggleButton toggle = new DialogGUIToggleButton(() => setting.Read(edit.After) == value, text,
                     // Only the player's click chooses: KSP sets the toggle from the row in every frame it shows.
                     on =>
                     {
                         if (!on || setting.Read(edit.After) == value) return;
+                        string why = setting.Unavailable == null ? null : setting.Unavailable(edit.After, value);
+                        if (why != null)
+                        {
+                            string named = setting.ChoiceLabel != null ? setting.ChoiceLabel(value) : value;
+                            ScreenMessages.PostScreenMessage(named + ": " + why, 4f, ScreenMessageStyle.UPPER_CENTER);
+                            return;
+                        }
                         // Files missing: their download first, and the choice once they are in place; a
                         // cancelled dialog leaves the row as it was.
                         FilesNeeded files = setting.Files == null ? null : setting.Files(edit.After, value);
@@ -317,16 +331,14 @@ namespace ReDefinition.Window
                         else setting.Write(edit.After, value);
                     },
                     button, RowHeight + 2f);
-                string reason = setting.Unavailable == null ? null : setting.Unavailable(edit.After, value);
                 FilesNeeded needed = reason != null || setting.Files == null ? null : setting.Files(edit.After, value);
-                toggle.tooltipText = TooltipText.Wrap((reason != null ? reason + "\n\n" : "")
-                                                      + (needed != null ? needed.Text + "\n\n" : "") + setting.Tooltip
-                                                      + (setting.NeedsProfile
-                                                          ? "\nLocked while no graphics profile is chosen in ReDefinition's window."
-                                                          : ""));
+                // The button's own text, then why it is greyed out or what it waits for; the lock only while it holds.
+                string own = setting.ChoiceTooltip != null ? setting.ChoiceTooltip(value) : setting.Tooltip;
+                toggle.tooltipText = TooltipText.Wrap(own + (reason != null ? "\n" + reason : "")
+                                                      + (needed != null ? "\n" + needed.Text : "")
+                                                      + (setting.NeedsProfile && !edit.ProfileChosen() ? "\n" + Locked : ""));
                 toggle.OptionInteractableCondition = () => (!setting.NeedsProfile || edit.ProfileChosen())
-                    && (setting.Interactable == null || setting.Interactable(edit.After))
-                    && (setting.Unavailable == null || setting.Unavailable(edit.After, value) == null);
+                    && (setting.Interactable == null || setting.Interactable(edit.After));
                 if (buttons.Count > 0) buttons.Add(new DialogGUISpace(Spacing));
                 buttons.Add(toggle);
             }
@@ -381,9 +393,7 @@ namespace ReDefinition.Window
                     f => setting.Write(edit.After, setting.Choices[Mathf.Clamp(Mathf.RoundToInt(f), 0, last)]));
             }
             control.tooltipText = TooltipText.Wrap(setting.Tooltip
-                                                   + (setting.NeedsProfile
-                                                       ? "\nLocked while no graphics profile is chosen in ReDefinition's window."
-                                                       : ""));
+                                                   + (setting.NeedsProfile && !edit.ProfileChosen() ? "\n" + Locked : ""));
             control.OptionInteractableCondition = () => (!setting.NeedsProfile || edit.ProfileChosen())
                                                         && (setting.Interactable == null || setting.Interactable(edit.After));
             return control;
@@ -422,6 +432,7 @@ namespace ReDefinition.Window
         private static string Shown(Edit edit, ModuleSetting setting)
         {
             string now = setting.Read(edit.After);
+            if (setting.LabelWith != null) return setting.LabelWith(edit.After, now);
             return setting.Label != null ? setting.Label(now) : now;
         }
 
