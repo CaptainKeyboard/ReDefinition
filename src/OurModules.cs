@@ -1000,9 +1000,12 @@ namespace ReDefinition
         {
             if (value == FrameGenerationTechniqueSetting.Off) return value;
             FrameGenerationChoice.Limits limits = FrameGenerationBridge.Limits();
-            string running = FrameGenerationBridge.TechniqueName();
             if (value == FrameGenerationTechniqueSetting.Auto)
+            {
+                // The technique only: the multiplier row says how many frames.
+                string running = limits.Technique == 1 ? "FSR 3" : limits.Technique == 2 ? "DLSS" : limits.Technique == 3 ? "XeSS" : null;
                 return running == null ? value : "Auto (" + running + ")";
+            }
             int kind = value == FrameGenerationTechniqueSetting.Fsr ? 1 : value == FrameGenerationTechniqueSetting.Dlss ? 2 : 3;
             return limits.Known && limits.Technique != kind
                 ? FrameGenerationTechniqueSetting.Label(value) + " (after a restart)"
