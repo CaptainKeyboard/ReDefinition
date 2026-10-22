@@ -52,14 +52,22 @@ namespace ReDefinition.Bridges
             get
             {
                 if (current != GpuClass.Unknown) return current;
-                uint architecture = 0, implementation = 0;
-                bool known = FrameGenerationBridge.NvidiaGpu(out architecture, out implementation);
-                GpuClass found = Of(SystemInfo.graphicsDeviceVendorID, SystemInfo.graphicsDeviceName,
-                                    known ? architecture : 0, known ? implementation : 0);
-                // A name alone for an NVIDIA card may be wrong for a new model, so it is asked again
-                // until NVAPI has answered.
-                if (found != GpuClass.Unknown && (known || SystemInfo.graphicsDeviceVendorID != Nvidia)) current = found;
-                return found;
+                try
+                {
+                    uint architecture = 0, implementation = 0;
+                    bool known = FrameGenerationBridge.NvidiaGpu(out architecture, out implementation);
+                    GpuClass found = Of(SystemInfo.graphicsDeviceVendorID, SystemInfo.graphicsDeviceName,
+                                        known ? architecture : 0, known ? implementation : 0);
+                    // A name alone for an NVIDIA card may be wrong for a new model, so it is asked again
+                    // until NVAPI has answered.
+                    if (found != GpuClass.Unknown && (known || SystemInfo.graphicsDeviceVendorID != Nvidia)) current = found;
+                    return found;
+                }
+                catch (Exception)
+                {
+                    // Outside the game, in the tests, Unity's SystemInfo does not answer.
+                    return GpuClass.Unknown;
+                }
             }
         }
 

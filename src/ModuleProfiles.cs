@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System;
+using ReDefinition.Bridges;
 using ReDefinition.Core;
 using ReDefinition.Settings;
 
@@ -16,18 +17,21 @@ namespace ReDefinition
         public static void Apply(GraphicsProfile profile, OwnSettings settings, List<string> problems, bool active = false)
         {
             if (settings == null) return;
-            foreach (KeyValuePair<ModuleSetting, string> pair in Values(profile, problems))
+            foreach (KeyValuePair<ModuleSetting, string> pair in Values(profile, problems, null))
                 if (!active || !pair.Key.OnlyActivates) pair.Key.Write(settings, pair.Value);
         }
 
         // The values a profile's MODULE nodes set, each as its setting holds it --
-        // read as any mod's block is, without a case of their own: quality settings
-        // only, as for the other mods; a module, a setting or a value that cannot be
-        // taken is reported and left out. `problems` may be null. Internal: the
-        // check outside the game asks the same.
+        // read as any mod's block is: a module, a setting or a value that cannot be
+        // taken is reported and left out. A profile sets what its own modules offer in
+        // the graphics settings, but neither taste (the sharpness) nor the hotkeys and the
+        // interface. A value may differ by the card (ProfileValue); `gpu` null takes the
+        // card KSP runs on. `problems` may be null. Internal: the check outside the game
+        // asks the same.
         internal static List<KeyValuePair<ModuleSetting, string>> Values(GraphicsProfile profile,
-                                                                          List<string> problems)
+                                                                          List<string> problems, GpuClass? gpu = null)
         {
+            GpuClass card = gpu ?? GpuClasses.Current;
             List<KeyValuePair<ModuleSetting, string>> values = new List<KeyValuePair<ModuleSetting, string>>();
             foreach (KeyValuePair<string, ConfigNode> entry in profile.Modules)
             {
@@ -56,14 +60,27 @@ namespace ReDefinition
                     string text = last[key];
                     ModuleSetting setting = module.Setting(key);
                     string why = setting == null ? "no setting of the module"
-                        : setting.Kind != SettingKind.Quality ? "a profile sets quality only, never taste or other switches"
-                        : setting.Refusal(text);
+                        : setting.Kind == SettingKind.Taste || setting.Row != SettingCategory.General
+                            ? "a profile sets no taste, hotkey or interface setting"
+                            : null;
+                    List<ProfileValue.Alternative> alternatives = null;
+                    if (why == null)
+                    {
+                        alternatives = ProfileValue.Parse(text, out why);
+                        if (alternatives != null)
+                            foreach (ProfileValue.Alternative alternative in alternatives)
+                            {
+                                why = setting.Refusal(alternative.Value);
+                                if (why != null) break;
+                            }
+                    }
                     if (why != null)
                     {
                         if (problems != null) problems.Add(where + ", " + key + " = " + text + ": " + why + " -- left out.");
                         continue;
                     }
-                    values.Add(new KeyValuePair<ModuleSetting, string>(setting, setting.Normalize(text)));
+                    string value = ProfileValue.Resolve(alternatives, card);
+                    if (value != null) values.Add(new KeyValuePair<ModuleSetting, string>(setting, setting.Normalize(value)));
                 }
             }
             return values;

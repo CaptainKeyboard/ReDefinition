@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FidelityFX.FSR3;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Bridges;
 using ReDefinition.Settings;
 
 namespace ReDefinition.Tests
@@ -50,18 +51,55 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void AProfileLeavesTasteAndFrameGenerationToThePlayer()
+        public void AProfileLeavesTasteAndTheHotkeysToThePlayer()
         {
             OwnSettings settings = new OwnSettings();
             List<string> problems = new List<string>();
 
             ModuleProfiles.Apply(Profile(Upscaler("  sharpness = 0.5\n")
-                                                + " MODULE\n {\n  name = frameGeneration\n  enabled = True\n }\n"),
+                                                + " MODULE\n {\n  name = frameGeneration\n  enabled = True\n }\n"
+                                                + " MODULE\n {\n  name = hotkeys\n  upscalerKey = F5\n }\n"),
                 settings, problems);
 
             Assert.AreEqual(1.0f, settings.Sharpness);
-            Assert.IsFalse(settings.FrameGeneration);
+            Assert.IsTrue(settings.FrameGeneration, "frame generation is the profile's");
+            Assert.AreEqual(KeyCombination.NoneText, settings.UpscalerKey);
             Assert.AreEqual(2, problems.Count, string.Join("\n", problems));
+        }
+
+        [TestMethod]
+        public void AValueDiffersByTheCard()
+        {
+            GraphicsProfile profile = Profile(Upscaler("  dlssModel = K (Rtx20 Rtx30), L (Rtx40 Rtx50), Default\n"));
+
+            Assert.AreEqual("K", ModuleProfiles.Values(profile, null, GpuClass.Rtx30)[0].Value);
+            Assert.AreEqual("L", ModuleProfiles.Values(profile, null, GpuClass.Rtx40)[0].Value);
+            Assert.AreEqual("Default", ModuleProfiles.Values(profile, null, GpuClass.Radeon9000)[0].Value);
+            Assert.AreEqual("Default", ModuleProfiles.Values(profile, null, GpuClass.Unknown)[0].Value);
+        }
+
+        [TestMethod]
+        public void ACardNoAlternativeIsForGetsNoValue()
+        {
+            GraphicsProfile profile = Profile(Upscaler("  dlssModel = K (Rtx20 Rtx30)\n"));
+
+            Assert.AreEqual(0, ModuleProfiles.Values(profile, null, GpuClass.Rtx40).Count);
+            Assert.AreEqual(1, ModuleProfiles.Values(profile, null, GpuClass.Rtx20).Count);
+        }
+
+        [TestMethod]
+        public void EveryAlternativeIsCheckedWhateverTheCard()
+        {
+            List<string> problems = new List<string>();
+
+            ModuleProfiles.Values(Profile(Upscaler("  dlssModel = K (Rtx20), Q\n")), problems, GpuClass.Rtx20);
+            ModuleProfiles.Values(Profile(Upscaler("  dlssModel = K (Rtx999), L\n")), problems, GpuClass.Rtx20);
+            ModuleProfiles.Values(Profile(Upscaler("  dlssModel = K, L (Rtx20)\n")), problems, GpuClass.Rtx20);
+
+            Assert.AreEqual(3, problems.Count, string.Join("\n", problems));
+            StringAssert.Contains(problems[0], "dlssModel = K (Rtx20), Q");
+            StringAssert.Contains(problems[1], "Rtx999");
+            StringAssert.Contains(problems[2], "must stand last");
         }
 
         [TestMethod]
