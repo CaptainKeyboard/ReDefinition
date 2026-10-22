@@ -74,7 +74,8 @@ cbuffer Frame : register(b0)
     row_major float4x4 prevWorldToClipFar : RT_AT(RT_CB_PREV_WORLD_TO_CLIP_FAR);
     // How Unity fades the sun's shadow out towards its shadow distance (Raytracing.h,
     // RtFramePacket.shadowFade): the fade's centre relative to the camera and its type,
-    // its scale and bias.
+    // its scale and bias; in z how far Parallax draws its grass, in w the light a meadow keeps
+    // from its ground (MeadowShade).
     float4 shadowFadeCentre : RT_AT(RT_CB_SHADOW_FADE);
     float4 shadowFadeScale : RT_AT(RT_CB_SHADOW_FADE1);
     // The radiance cache (RadianceCache.hlsli; Raytracing.h, RtFrameConstants): its
@@ -1224,9 +1225,32 @@ float3 IntendedSpecular(MaterialData material)
 // smoothness as KSP's highlight (LegacySmoothness).
 static const float kMostSmoothness = 0.95f;
 
-float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode)
+// The light a meadow's own blades keep from the ground they stand on, for the terrain where Parallax
+// no longer draws them: 1 nearer than its grass's range, the meadow's shade (shadowFadeScale.w) from
+// the range on, faded in over its last fifth as the grass fades out, and so to the horizon; only on
+// green ground, which on Kerbin is its meadow band (Parallax's lowest texture) and not its rock, sand
+// or snow. 1 where Parallax draws no grass. The grass casts this shade itself where it is drawn (its
+// blades in the rays, letting part of the sun through: rtFoliageTransmission), so the ground beyond
+// looks the same; as a distant meadow's darker colour, it takes the sky's light as the sun's.
+float MeadowShade(uint2 pixel, float distance)
+{
+    float range = shadowFadeScale.z;
+    float shade = shadowFadeScale.w;
+    if (range <= 0.0f || shade <= 0.0f || shade >= 1.0f || !HAS_GBUFFER)
+        return 1.0f;
+    float3 drawn = gbuffer0[pixel].rgb;
+    float most = max(drawn.r, max(drawn.g, drawn.b));
+    float saturation = (most - min(drawn.r, min(drawn.g, drawn.b))) / max(most, 1e-3f);
+    // Green: the green channel the brightest, by a margin over red, and saturated.
+    float green = smoothstep(0.0f, 0.04f, drawn.g - max(drawn.r, drawn.b)) * smoothstep(0.12f, 0.25f, saturation);
+    float beyond = smoothstep(range * 0.8f, range, distance);
+    return lerp(1.0f, shade, green * beyond);
+}
+
+float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode, out bool terrain)
 {
     float4 g1 = gbuffer1[pixel];
+    terrain = false;
     if (IsStockWater(position, normal))
     {
         mode = RT_SURFACE_WATER;
@@ -1234,6 +1258,10 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode)
     }
     float distance = length(position);
     Hit hit = TraceClosest(float3(0.0f, 0.0f, 0.0f), position / max(distance, 1e-6f), distance * 1.05f + 2.0f);
+    // The ground: the terrain the rays see, and past it -- they see it to 30 km
+    // (RtKspSources, the terrain's quads) -- what they meet nothing at, as the parts, the
+    // buildings and the scatter near the camera are all in their scene.
+    terrain = hit.found ? (hit.flags & RT_INSTANCE_TERRAIN) != 0u : distance > 1000.0f;
     // The ground the rays see is its undisplaced mesh, Parallax draws it displaced: a
     // looser match for it.
     float tolerance = (hit.flags & RT_INSTANCE_TERRAIN) != 0u ? distance * 0.03f + 2.0f : distance * 0.005f + 0.05f;

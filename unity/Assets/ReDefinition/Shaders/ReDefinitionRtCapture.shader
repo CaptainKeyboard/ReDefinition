@@ -317,6 +317,16 @@ Shader "Hidden/ReDefinition/RtCapture"
     // magenta where no material was found at the pixel; the sky as it is.
     sampler2D _ReDefinitionRtSurfaceMode;
 
+    // The terrain past Parallax's grass in a meadow's shade (RtCommon.hlsli, MeadowShade, in the surface
+    // mode's y), multiplied into the G-buffer's albedo: a distant meadow's darker colour, for the sun's
+    // light and the sky's alike. 1 where the raytracing found no surface.
+    half4 fragMeadow(v2fQuad i) : SV_Target
+    {
+        float4 found = tex2D(_ReDefinitionRtSurfaceMode, i.screen.xy / i.screen.w);
+        half shade = found.a < 0.5 ? 1.0 : saturate(found.g);
+        return half4(shade, shade, shade, 1.0);
+    }
+
     half4 fragSurfaceView(v2fQuad i) : SV_Target
     {
         float2 uv = i.screen.xy / i.screen.w;
@@ -454,6 +464,14 @@ Shader "Hidden/ReDefinition/RtCapture"
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragShadowFade
+            ENDCG }
+        // Pass 16: the meadow's shade into the G-buffer's albedo, its occlusion in alpha kept.
+        Pass {
+            Blend DstColor Zero
+            ColorMask RGB
+            CGPROGRAM
+            #pragma vertex vertQuad
+            #pragma fragment fragMeadow
             ENDCG }
     }
     Fallback Off

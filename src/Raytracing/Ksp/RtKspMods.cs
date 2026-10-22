@@ -33,6 +33,12 @@ namespace ReDefinition.Raytracing
         private static FieldInfo shifterColour;
         // Parallax's fields, read through compiled getters: a FieldInfo's GetValue costs
         // a reflection call per field, nine per scatter renderer a frame.
+        private static FieldInfo scatterOf;
+        private static FieldInfo scatterName;
+        private static FieldInfo scatterDistribution;
+        private static FieldInfo distributionRange;
+        private static float grassRange;
+        private static float grassRangeAt = float.MinValue;
         private static Func<object, object> scatterManager;
         private static Func<object, IList> activeScatters;
         private static readonly Func<object, Mesh>[] scatterMeshes = new Func<object, Mesh>[3];
@@ -95,6 +101,14 @@ namespace ReDefinition.Raytracing
                         scatterManager = Getter<object>(manager?.GetField("Instance", BindingFlags.Public | BindingFlags.Static));
                         activeScatters = Getter<IList>(manager?.GetField("activeScatterRenderers",
                                                                          BindingFlags.Public | BindingFlags.Instance));
+                        // ScatterRenderer.scatter, its scatterName and distributionParams.range (Scatter.cs,
+                        // DistributionParams; public): how far the grass is drawn.
+                        scatterOf = renderer?.GetField("scatter", BindingFlags.Public | BindingFlags.Instance);
+                        scatterName = scatterOf?.FieldType.GetField("scatterName", BindingFlags.Public | BindingFlags.Instance);
+                        scatterDistribution = scatterOf?.FieldType.GetField("distributionParams",
+                            BindingFlags.Public | BindingFlags.Instance);
+                        distributionRange = scatterDistribution?.FieldType.GetField("range", BindingFlags.Public | BindingFlags.Instance);
+                        if (distributionRange != null && distributionRange.FieldType != typeof(float)) distributionRange = null;
                         for (int lod = 0; lod < 3 && renderer != null; lod++)
                         {
                             scatterMeshes[lod] = Getter<Mesh>(renderer.GetField("meshLOD" + lod, BindingFlags.Public | BindingFlags.Instance));
@@ -292,6 +306,40 @@ namespace ReDefinition.Raytracing
                 scatterManager = null;
             }
             return buffers;
+        }
+
+        // How far Parallax draws its grass, in metres: the longest range of the active scatters named
+        // grass; 0 where none is (or another version of Parallax). Asked once a second.
+        internal static float ParallaxGrassRange()
+        {
+            float now = Time.realtimeSinceStartup;
+            if (now - grassRangeAt < 1f) return grassRange;
+            grassRangeAt = now;
+            grassRange = 0f;
+            Look();
+            if (scatterManager == null || activeScatters == null || scatterOf == null || distributionRange == null) return 0f;
+            try
+            {
+                object manager = scatterManager(null);
+                IList renderers = manager != null ? activeScatters(manager) : null;
+                if (renderers == null) return 0f;
+                foreach (object renderer in renderers)
+                {
+                    object scatter = renderer != null ? scatterOf.GetValue(renderer) : null;
+                    if (scatter == null) continue;
+                    string name = scatterName != null ? scatterName.GetValue(scatter) as string : null;
+                    if (name == null || name.IndexOf("Grass", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    object distribution = scatterDistribution.GetValue(scatter);
+                    if (distribution == null) continue;
+                    grassRange = Mathf.Max(grassRange, (float)distributionRange.GetValue(distribution));
+                }
+            }
+            catch (Exception)
+            {
+                distributionRange = null;
+                grassRange = 0f;
+            }
+            return grassRange;
         }
 
         // The materials Parallax draws its scatter with this scene, every active renderer's

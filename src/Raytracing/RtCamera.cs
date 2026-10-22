@@ -208,6 +208,11 @@ namespace ReDefinition.Raytracing
         // (ReDefinitionRtCapture.shader, fragShadowFade), read back a frame or two later,
         // and kept in the camera's own frame, where Unity's fade does not move with it.
         private const int ShadowFadePass = 15;
+        // The light a meadow's blades keep from its ground, measured from the space centre at 60 degrees and
+        // 800 m on the RTX A4500 (2026-10-22): its lawn with Parallax's grass in the rays 0.80 of the terrain
+        // beyond the grass, with the blades letting through half the sun (rtFoliageTransmission 0.5); without the
+        // grass in the rays 1.04. Into the ground's albedo, for the sun and the sky alike.
+        private const float MeadowShade = 0.77f;
         private CommandBuffer fadeGrab;
         private RenderTexture fadeTexture;
         private Action<AsyncGPUReadbackRequest> fadeDone;
@@ -320,6 +325,7 @@ namespace ReDefinition.Raytracing
         private const int OceanDiscsPass = 11;
         // The surfaces written back into the G-buffer (ReDefinitionRtCapture.shader, fragSurface).
         private const int SurfacePass = 12;
+        private const int MeadowPass = 16;
         private const int SurfaceViewPass = 13;
         // KSP's flat ambient light taken out of the light buffer where a surface's own
         // G-buffer pass put it (ReDefinitionRtCapture.shader, fragUnbakeAmbient).
@@ -755,6 +761,12 @@ namespace ReDefinition.Raytracing
                 command.SetGlobalTexture(SurfaceModeId, surfaceMode);
                 command.SetRenderTarget(BuiltinRenderTextureType.GBuffer1);
                 command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfacePass);
+                // The terrain past Parallax's grass in a meadow's shade, into its albedo.
+                if (packet.ShadowFade[6] > 0f)
+                {
+                    command.SetRenderTarget(BuiltinRenderTextureType.GBuffer0);
+                    command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, MeadowPass);
+                }
                 Probe.GpuProfiler.Mark(command, "ReDefinition raytracing: surface intent");
             }
             ShowSurfaces(intent && SurfaceView);
@@ -1304,6 +1316,10 @@ namespace ReDefinition.Raytracing
             packet.ShadowFade[3] = fades ? fadeCentre.w : 0f;
             packet.ShadowFade[4] = fades ? fadeScale.x : 0f;
             packet.ShadowFade[5] = fades ? fadeScale.y : 0f;
+            // The meadow's shade on the ground past Parallax's grass (RtCommon.hlsli, MeadowShade): how far
+            // the grass is drawn, and how much light a meadow's own blades keep from it.
+            packet.ShadowFade[6] = RtKspMods.ParallaxGrassRange();
+            packet.ShadowFade[7] = MeadowShade;
             Color sky = SkyColor();
             packet.SkyColor[0] = sky.r;
             packet.SkyColor[1] = sky.g;

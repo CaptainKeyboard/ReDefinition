@@ -924,6 +924,9 @@ namespace ReDefinition.Probe
                 yield return new WaitForSeconds(5f);
                 LightProbe.HideClouds();
                 Debug.Log(Log.Tag + " Probe: the flight is the player's.");
+                // -redefinitionProbeNoGloss: Parallax's materials without their shine for the whole flight.
+                if (ViewProbe.NoGloss && ReDefinitionAddon.Instance != null)
+                    ReDefinitionAddon.Instance.StartCoroutine(ViewProbe.KeepGlossOff());
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.GrassArgument) >= 0)
                 {
                     // Where the grass scene ended up: the situation, the height above the ground
@@ -1048,6 +1051,11 @@ namespace ReDefinition.Probe
                 string windowSteps = SceneProbe.ArgumentAfter("-redefinitionProbeWindow");
                 if (windowSteps != null)
                     yield return WindowProbe.Run(folder, shot, windowSteps);
+                // -redefinitionProbeViews "pitch,distance,heading;...": shots from several poses, in each
+                // raytracing mode asked for (ViewProbe).
+                string views = SceneProbe.ArgumentAfter(ViewProbe.ViewsArgument);
+                if (views != null)
+                    yield return ViewProbe.Run(folder, shot, views);
                 // -redefinitionProbeShotRaytracing <mode,mode,...>: then the raytracing
                 // switched to each mode in turn, as in the settings window, and the same view
                 // 10 s later as <shot>-<mode>.png: several modes compared in one run.
@@ -1141,6 +1149,9 @@ namespace ReDefinition.Probe
             // a pose depends on nothing but the step, whatever came before it.
             FlightCamera.fetch.sharpness = 1e4f;
             FlightCamera.fetch.orientationSharpness = 1e4f;
+            // -redefinitionProbeNoGloss: Parallax's materials without their shine for the whole flight.
+            if (ViewProbe.NoGloss && ReDefinitionAddon.Instance != null)
+                ReDefinitionAddon.Instance.StartCoroutine(ViewProbe.KeepGlossOff());
             LogMotionModes(FlightGlobals.ActiveVessel);
             // The finished frame without KSP's interface over it; -redefinitionProbeShowHud keeps
             // the interface, for what frame generation does to it (tools/hud_probe.py).

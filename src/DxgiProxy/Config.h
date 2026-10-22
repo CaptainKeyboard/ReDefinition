@@ -410,9 +410,10 @@ namespace redefinition
         int rtSunHistory = 4;
 
         // What of the sun's light a cut-out surface -- grass, ferns -- lets through to
-        // what lies behind it, 0 to 1 (RtCommon.hlsli, SunUnoccluded). Re-read while
-        // the game runs.
-        float rtFoliageTransmission = 0.0f;
+        // what lies behind it, 0 to 1 (RtCommon.hlsli, SunUnoccluded): a blade is thin and
+        // lets part of it through, as Parallax's own subsurface scattering shades it. Re-read
+        // while the game runs.
+        float rtFoliageTransmission = 0.5f;
 
         // The world-space radiance cache of the raytraced indirect light (RaytracingCache.cpp,
         // RaytracingShaders/RadianceCache.hlsli): the diffuse light's and the reflections'

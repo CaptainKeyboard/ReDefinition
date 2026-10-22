@@ -432,10 +432,14 @@ namespace ReDefinition.Raytracing
         private static readonly bool ParallaxLeftOut =
             System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoParallaxScatterRays") >= 0;
 
+        // -redefinitionProbeNoKscGrassRays: the space centre's lifted grass left out of the rays too.
+        private static readonly bool KscGrassLeftOut =
+            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoKscGrassRays") >= 0;
+
         public void CollectGpu(List<RtGpuItem> into)
         {
             Buffers = HighLogic.LoadedSceneIsFlight || HighLogic.LoadedScene == GameScenes.SPACECENTER
-                ? (ParallaxLeftOut ? 0 : RtKspMods.ParallaxScatter(into)) + Scenery.KscGrass.CollectGpu(into)
+                ? (ParallaxLeftOut ? 0 : RtKspMods.ParallaxScatter(into)) + (KscGrassLeftOut ? 0 : Scenery.KscGrass.CollectGpu(into))
                 : 0;
         }
     }

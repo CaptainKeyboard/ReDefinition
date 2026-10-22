@@ -634,7 +634,7 @@ namespace redefinition
             target.rtSunUnfiltered = GetPrivateProfileIntW(L"Proxy", L"rtSunUnfiltered", 0, file.c_str()) != 0;
             target.rtSunAtrousSteps = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunAtrousSteps", 0, file.c_str()));
             target.rtSunHistory = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunHistory", 4, file.c_str()));
-            target.rtFoliageTransmission = ReadFloat(L"rtFoliageTransmission", file, 0.0f);
+            target.rtFoliageTransmission = ReadFloat(L"rtFoliageTransmission", file, 0.5f);
             target.rtRadianceCache = ReadFlag(L"rtRadianceCache", file, false);
             target.rtRadianceCacheEntries = std::clamp(
                 static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheEntries", 20, file.c_str())), 16, 22);
