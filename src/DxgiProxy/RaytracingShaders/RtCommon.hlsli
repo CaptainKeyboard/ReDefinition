@@ -1253,25 +1253,36 @@ static const float kMostSmoothness = 0.95f;
 // or snow. 1 where Parallax draws no grass. The grass casts this shade itself where it is drawn (its
 // blades in the rays, letting part of the sun through: rtFoliageTransmission), so the ground beyond
 // looks the same; as a distant meadow's darker colour, it takes the sky's light as the sun's.
-float MeadowShade(uint2 pixel, float distance)
+// `lawn`: the space centre's lawn rather than the terrain: drawn a pale yellow-green in the G-buffer, told
+// from its tarmac and concrete by its colour alone (grey has none), and in the shade at any distance, as
+// the grass lifted onto it leaves bare patches of it among its clumps.
+float MeadowShade(uint2 pixel, float distance, bool lawn = false)
 {
     float range = shadowFadeScale.z;
     float shade = shadowFadeScale.w;
+    // A range below 0, for the probe to see where the shade can reach (-redefinitionProbeMeadowFrom): -1 every
+    // pixel, -2 every green one, whatever the rays met there.
+    if (range < -1.5f)
+        range = 1.0f;
+    else if (range < 0.0f)
+        return shade;
     if (range <= 0.0f || shade <= 0.0f || shade >= 1.0f || !HAS_GBUFFER)
         return 1.0f;
     float3 drawn = gbuffer0[pixel].rgb;
     float most = max(drawn.r, max(drawn.g, drawn.b));
     float saturation = (most - min(drawn.r, min(drawn.g, drawn.b))) / max(most, 1e-3f);
     // Green: the green channel the brightest, by a margin over red, and saturated.
-    float green = smoothstep(0.0f, 0.04f, drawn.g - max(drawn.r, drawn.b)) * smoothstep(0.12f, 0.25f, saturation);
-    float beyond = smoothstep(range * 0.8f, range, distance);
+    float green = lawn ? smoothstep(0.10f, 0.20f, saturation) * step(drawn.b, drawn.g)
+                       : smoothstep(0.0f, 0.04f, drawn.g - max(drawn.r, drawn.b)) * smoothstep(0.12f, 0.25f, saturation);
+    float beyond = lawn ? 1.0f : smoothstep(range * 0.8f, range, distance);
     return lerp(1.0f, shade, green * beyond);
 }
 
-float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode, out bool terrain)
+float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode, out bool terrain, out bool lawn)
 {
     float4 g1 = gbuffer1[pixel];
     terrain = false;
+    lawn = false;
     if (IsStockWater(position, normal))
     {
         mode = RT_SURFACE_WATER;
@@ -1290,6 +1301,8 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     terrain = !hit.found ? distance > 1000.0f
               : cutout ? hit.distance < distance - (distance * 0.005f + 0.05f)
               : (hit.flags & (RT_INSTANCE_TERRAIN | RT_INSTANCE_SCENERY)) != 0u;
+    // The lawn's rules (MeadowShade): the space centre's grounds, and ground among the rays' blades.
+    lawn = terrain && hit.found && (cutout || (hit.flags & RT_INSTANCE_SCENERY) != 0u);
     // The ground the rays see is its undisplaced mesh, Parallax draws it displaced: a
     // looser match for it.
     float tolerance = (hit.flags & RT_INSTANCE_TERRAIN) != 0u ? distance * 0.03f + 2.0f : distance * 0.005f + 0.05f;

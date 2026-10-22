@@ -770,7 +770,7 @@ namespace ReDefinition.Raytracing
                 command.SetRenderTarget(BuiltinRenderTextureType.GBuffer1);
                 command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfacePass);
                 // The terrain past Parallax's grass in a meadow's shade, into its albedo.
-                if (packet.ShadowFade[6] > 0f)
+                if (packet.ShadowFade[6] != 0f)
                 {
                     command.SetRenderTarget(BuiltinRenderTextureType.GBuffer0);
                     command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, MeadowPass);
@@ -1328,7 +1328,7 @@ namespace ReDefinition.Raytracing
             // the grass is drawn, and how much light a meadow's own blades keep from it.
             float grassRange = RtKspMods.ParallaxGrassRange();
             // -redefinitionProbeMeadowFrom <metres>: the meadow's shade from there on instead of the grass's range.
-            packet.ShadowFade[6] = grassRange > 0f && MeadowFrom > 0f ? MeadowFrom : grassRange;
+            packet.ShadowFade[6] = grassRange > 0f && MeadowFrom != 0f ? MeadowFrom : grassRange;
             // -redefinitionProbeMeadowShade <0..1>: another shade, to see where it lies.
             packet.ShadowFade[7] = MeadowShadeProbe > 0f ? MeadowShadeProbe : MeadowShade;
             Color sky = SkyColor();
