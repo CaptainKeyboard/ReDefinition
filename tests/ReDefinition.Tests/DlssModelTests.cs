@@ -93,12 +93,13 @@ namespace ReDefinition.Tests
                 Assert.AreEqual(raytracing[i], Chosen(name, GpuClass.Rtx40, "raytracing", "mode"), name);
                 Assert.AreEqual("Auto", Chosen(name, GpuClass.Rtx40, "raytracing", "rayReconstruction"), name);
 
-                // Dynamic on an RTX 50 and, with the package, on an RTX 20 and 30; 2x elsewhere.
-                string off = i == 0 ? "Off" : null;
-                Assert.AreEqual(off ?? "Dynamic", Chosen(name, GpuClass.Rtx50, "frameGeneration", "mode"), name);
-                Assert.AreEqual(off ?? "Dynamic", Chosen(name, GpuClass.Rtx30, "frameGeneration", "mode"), name);
-                Assert.AreEqual(off ?? "2x", Chosen(name, GpuClass.Rtx40, "frameGeneration", "mode"), name);
-                Assert.AreEqual(off ?? "2x", Chosen(name, GpuClass.Radeon9000, "frameGeneration", "mode"), name);
+                // Frame generation Off on Low, the technique Auto elsewhere; Dynamic on an RTX 50 and, with the
+                // package, on an RTX 20 and 30; 2x elsewhere.
+                Assert.AreEqual(i == 0 ? "Off" : "Auto", Chosen(name, GpuClass.Rtx40, "frameGeneration", "technique"), name);
+                Assert.AreEqual(i == 0 ? null : "Dynamic", Chosen(name, GpuClass.Rtx50, "frameGeneration", "mode"), name);
+                Assert.AreEqual(i == 0 ? null : "Dynamic", Chosen(name, GpuClass.Rtx30, "frameGeneration", "mode"), name);
+                Assert.AreEqual(i == 0 ? null : "2x", Chosen(name, GpuClass.Rtx40, "frameGeneration", "mode"), name);
+                Assert.AreEqual(i == 0 ? null : "2x", Chosen(name, GpuClass.Radeon9000, "frameGeneration", "mode"), name);
             }
         }
 

@@ -128,6 +128,7 @@ namespace ReDefinition.Probe
                 {
                     BundledSettings.SetEnabled(true);
                     ModuleProfiles.ApplyNow(profile, profiles, problems);
+                    if (ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.SaveSettingsForProbeProfile();
                     Debug.Log(Log.Tag + " Probe: profile " + profileName + " applied.");
                 }
                 foreach (string problem in problems) Debug.LogWarning(Log.Tag + " Probe: " + problem);
@@ -694,6 +695,12 @@ namespace ReDefinition.Probe
                 string windowArgument = SceneProbe.ArgumentAfter("-redefinitionProbeSettingsWindow");
                 if (windowArgument != null && Enum.TryParse(windowArgument, true, out windowTab))
                 {
+                    // -redefinitionProbeSettingsWindowScroll <0 to 1>: the page scrolled, 1 the top, 0 the bottom.
+                    float scrollAt;
+                    string scrollArgument = SceneProbe.ArgumentAfter("-redefinitionProbeSettingsWindowScroll");
+                    ReDefinition.Window.TabScrollList.ProbePosition =
+                        scrollArgument != null && float.TryParse(scrollArgument, NumberStyles.Float, CultureInfo.InvariantCulture, out scrollAt)
+                            ? scrollAt : (float?)null;
                     ReDefinition.Window.SettingsWindow.OpenOn(windowTab);
                     yield return new WaitForSecondsRealtime(2f);
                     yield return new WaitForEndOfFrame();

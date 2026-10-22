@@ -501,42 +501,59 @@ namespace ReDefinition.Window
             return false;
         }
 
-        // ReDefinition's upscaler and frame generation, NVIDIA's files, and the
-        // rows other mods register as General: Display's upscaling section.
+        // Display's ReDefinition part, in three groups -- Upscaling, Frame generation, Raytracing -- each with
+        // the settings that belong to it, and under a technique what can be downloaded or installed to
+        // enable another (NVIDIA's, Intel's and the RTX 30 package's rows); then the rows other mods
+        // register as General.
         private static void AddUpscaling(List<DialogGUIBase> rows)
         {
-            rows.Add(SectionHeading("Upscaling"));
             DialogGUIBase[] own = KspSettingsSection.Rows(edit, OwnLayout());
             // One row per module setting, in the same order (KspSettingsSection.Rows).
             List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows(SettingCategory.General, false));
+            string section = null;
             for (int i = 0; i < own.Length; i++)
             {
-                rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Upscaler") + " ReDefinition"));
-                // Under the frame generation choice: what runs, and why a step is not offered.
-                if (i < titles.Count && titles[i].Key == "mode" && titles[i].Title == "Frame generation")
-                    rows.Add(Searchable(new DialogGUILabel(FrameGenerationNote, true),
-                                        "frame generation multiplier 2x 3x 4x dynamic DLSS XeSS FSR"));
-                // Under the low latency choice: what lowers the latency now.
-                if (i < titles.Count && titles[i].Key == "mode" && titles[i].Title == "Low latency")
+                ModuleSetting setting = i < titles.Count ? titles[i] : null;
+                string group = setting != null && setting.Section != null ? setting.Section : "Upscaling";
+                if (group != section)
                 {
-                    DialogGUIBase latency = LowLatencyRow();
-                    if (latency != null) rows.Add(Searchable(latency, "Low latency NVIDIA Reflex XeLL Anti-Lag"));
+                    rows.Add(SectionHeading(group));
+                    section = group;
+                }
+                rows.Add(Searchable(own[i], (setting != null ? setting.Title : "Upscaler") + " " + group + " ReDefinition"));
+                if (setting == null || setting.Key != "technique") continue;
+                // Under the technique row: what to download or install for a technique that is greyed out.
+                if (setting.Title == "Upscaler")
+                {
+                    AddHint(rows, NvidiaRow(false), "NVIDIA DLSS files download");
+                    AddHint(rows, IntelRow(false), "Intel XeSS files download libxess");
+                }
+                else if (setting.Title == "Frame generation")
+                {
+                    AddHint(rows, NvidiaRow(true), "NVIDIA DLSS frame generation files download Streamline");
+                    AddHint(rows, IntelRow(true), "Intel XeSS frame generation files download libxess_fg libxell");
+                    AddHint(rows, AmpereRow(), "DLSS frame generation RTX 30 RTX 20 dlssg_for_sm86 download preset");
                 }
             }
-            DialogGUIBase nvidia = NvidiaRow();
-            if (nvidia != null) rows.Add(Searchable(nvidia, "NVIDIA DLSS files download"));
-            DialogGUIBase intel = IntelRow();
-            if (intel != null) rows.Add(Searchable(intel, "Intel XeSS files download libxess libxess_fg libxell"));
-            DialogGUIBase ampere = AmpereRow();
-            if (ampere != null) rows.Add(Searchable(ampere, "DLSS frame generation RTX 30 RTX 20 dlssg_for_sm86 download preset multiplier super resolution frame timing"));
+            bool others = false;
             foreach (BundledSetting setting in WindowLayout.In(SettingCategory.General))
             {
                 DialogGUIBase row = Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
                 if (row == null) continue;
+                if (!others)
+                {
+                    rows.Add(SectionHeading("Other mods"));
+                    others = true;
+                }
                 shownKeys.Add(setting.Key);
                 NoteKey(SettingCategory.Display, setting.Key);
                 rows.Add(row);
             }
+        }
+
+        private static void AddHint(List<DialogGUIBase> rows, DialogGUIBase hint, string searchText)
+        {
+            if (hint != null) rows.Add(Searchable(hint, searchText));
         }
 
         // Detail: KSP's render quality, textures, lights and antialiasing, then
@@ -612,37 +629,44 @@ namespace ReDefinition.Window
         // NVIDIA's DLLs for DLSS and DLSS frame generation, which the player fetches
         // from NVIDIA's release (NvidiaDownloader): offered where this GPU can use
         // them and they are missing, and followed by what the download came to.
-        private static DialogGUIBase NvidiaRow()
+        private static DialogGUIBase NvidiaRow(bool frameGeneration)
         {
             List<NvidiaFiles.Entry> needed = NvidiaDownloader.Needed();
             if (needed.Count == 0 && NvidiaDownloader.Status == null) return null;
+            // Under the upscaler: where nvngx_dlss.dll is missing; under frame generation: where
+            // Streamline's files or the DLSS-G library are. The download fetches whatever is missing.
+            bool wantsDlss;
+            bool wantsStreamline;
+            bool wantsFrameGeneration;
+            NvidiaDownloader.Uses(needed, out wantsDlss, out wantsStreamline, out wantsFrameGeneration);
+            if (needed.Count > 0 && (frameGeneration ? !(wantsStreamline || wantsFrameGeneration) : !wantsDlss)) return null;
 
             string offer = needed.Count == 0
                 ? ""
                 : "<color=#9a9a9a>" + NvidiaDownloader.Megabytes(NvidiaFiles.DownloadSize(needed)) + " MB from NVIDIA</color>";
 
-            bool dlss;
-            bool streamline;
-            bool frameGeneration;
-            NvidiaDownloader.Uses(needed, out dlss, out streamline, out frameGeneration);
+            bool dlss = wantsDlss;
+            bool streamline = wantsStreamline;
+            bool generation = wantsFrameGeneration;
             DialogGUIButton download = new DialogGUIButton("Download ...", () => NvidiaDownloader.Confirm(needed),
                 ControlWidth, 24f, false);
             // Nothing needed says nothing about why: the files in place, or no answer
             // from NVAPI yet.
             download.tooltipText = needed.Count == 0
                 ? "Nothing to download from NVIDIA for this GPU now."
-                : "NVIDIA's DLLs for " + NvidiaDownloader.Purpose(dlss, streamline, frameGeneration)
+                : "NVIDIA's DLLs for " + NvidiaDownloader.Purpose(dlss, streamline, generation)
                   + ".\n"
                   + "This fetches them from NVIDIA's release of the Streamline SDK on GitHub, once NVIDIA's\n"
                   + "licences are accepted, and places them where ReDefinition's dxgi.dll loads them from:\n"
                   + "next to KSP_x64.exe, unless its ini names other folders.\n"
-                  + NvidiaDownloader.WhenUsed(dlss, streamline, frameGeneration);
+                  + NvidiaDownloader.WhenUsed(dlss, streamline, generation);
             download.OptionInteractableCondition = () => needed.Count > 0 && !NvidiaDownloader.Running
                                                          && !NvidiaDownloader.Installed;
 
             return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
                 new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUILabel("NVIDIA DLSS files", NameWidth), download, new DialogGUILabel(offer, true)),
+                    new DialogGUILabel(frameGeneration ? "NVIDIA DLSS-G files" : "NVIDIA DLSS files", NameWidth), download,
+                    new DialogGUILabel(offer, true)),
                 new DialogGUILabel(NvidiaStatus, true));
         }
 
@@ -650,36 +674,41 @@ namespace ReDefinition.Window
         // player fetches from Intel's release (IntelDownloader): offered where the proxy
         // has XeSS and they are missing, with what is in place and its versions below,
         // else what the download came to.
-        private static DialogGUIBase IntelRow()
+        private static DialogGUIBase IntelRow(bool frameGeneration)
         {
             if (!XessUpscalerBridge.Offered) return null;
             IntelDownloader.Refresh();
             List<IntelFiles.Item> needed = IntelDownloader.Needed();
             if (needed.Count == 0 && IntelDownloader.Status == null) return null;
+            // Under the upscaler: where libxess.dll is missing; under frame generation: the XeSS-FG files.
+            bool wantsSuperResolution;
+            bool wantsFrameGeneration;
+            IntelFiles.Uses(needed, out wantsSuperResolution, out wantsFrameGeneration);
+            if (needed.Count > 0 && (frameGeneration ? !wantsFrameGeneration : !wantsSuperResolution)) return null;
 
             string offer = needed.Count == 0
                 ? ""
                 : "<color=#9a9a9a>" + NvidiaDownloader.Megabytes(IntelFiles.DownloadSize(needed)) + " MB from Intel</color>";
 
-            bool superResolution;
-            bool frameGeneration;
-            IntelFiles.Uses(needed, out superResolution, out frameGeneration);
+            bool superResolution = wantsSuperResolution;
+            bool generation = wantsFrameGeneration;
             DialogGUIButton download = new DialogGUIButton("Download ...", () => IntelDownloader.Confirm(needed),
                 ControlWidth, 24f, false);
             download.tooltipText = needed.Count == 0
                 ? "Nothing to download from Intel now."
-                : "Intel's DLLs for " + IntelDownloader.Purpose(superResolution, frameGeneration)
+                : "Intel's DLLs for " + IntelDownloader.Purpose(superResolution, generation)
                   + ".\n"
                   + "This fetches them from Intel's release of the XeSS SDK on GitHub, once Intel's\n"
                   + "licence is accepted, and places them where ReDefinition's dxgi.dll loads them from:\n"
                   + "next to KSP_x64.exe, unless its ini names other folders.\n"
-                  + IntelDownloader.WhenUsed(superResolution, frameGeneration);
+                  + IntelDownloader.WhenUsed(superResolution, generation);
             download.OptionInteractableCondition = () => needed.Count > 0 && !IntelDownloader.Running
                                                          && !IntelDownloader.Installed;
 
             return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
                 new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUILabel("Intel XeSS files", NameWidth), download, new DialogGUILabel(offer, true)),
+                    new DialogGUILabel(frameGeneration ? "Intel XeSS-FG files" : "Intel XeSS files", NameWidth), download,
+                    new DialogGUILabel(offer, true)),
                 new DialogGUILabel(IntelStatus, true));
         }
 
@@ -695,53 +724,6 @@ namespace ReDefinition.Window
                 intelStatusText = now == null ? "" : "<color=#9a9a9a>" + now + "</color>";
             }
             return intelStatusText;
-        }
-
-        // What lowers the latency, as the proxy says (ReflexFrames.LowLatencyText): the
-        // mod chooses it, the row only shows it. None without the proxy.
-        private static DialogGUIBase LowLatencyRow()
-        {
-            if (ReflexFrames.LowLatencyText() == null) return null;
-            DialogGUILabel name = new DialogGUILabel("", NameWidth);
-            return new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                name, new DialogGUILabel(LowLatencyRowText, true));
-        }
-
-        private static string latencyShownFor;
-        private static string latencyRowText = "";
-
-        private static string LowLatencyRowText()
-        {
-            string now = ReflexFrames.LowLatencyText();
-            if (!ReferenceEquals(now, latencyShownFor))
-            {
-                latencyShownFor = now;
-                latencyRowText = now == null ? "" : "<color=#9a9a9a>" + now + "</color>";
-            }
-            return latencyRowText;
-        }
-
-        // Under the frame generation row, grey: what generates and how many frames, and the steps the
-        // technique does not offer with the reason (FrameGenerationChoice.Note). Made anew only when
-        // the text changes.
-        private static string frameGenerationNoteFor = "";
-        private static string frameGenerationNote = "";
-
-        private static string FrameGenerationNote()
-        {
-            string running = edit != null && edit.After != null && edit.After.FrameGeneration
-                ? FrameGenerationBridge.TechniqueName() : null;
-            string head = edit == null || edit.After == null || !edit.After.FrameGeneration ? ""
-                : running != null ? "Running: " + running + ". " : "Not generating now. ";
-            string reasons = FrameGenerationChoice.Note(FrameGenerationBridge.Limits(), AmpereFrameGeneration.Installed(),
-                edit != null && edit.After != null ? edit.After.FrameGenerationMultiplier : null);
-            string text = head + (reasons ?? "");
-            if (text != frameGenerationNoteFor)
-            {
-                frameGenerationNoteFor = text;
-                frameGenerationNote = text.Length == 0 ? " " : "<color=#9a9a9a>" + text + "</color>";
-            }
-            return frameGenerationNote;
         }
 
         // DLSS frame generation on RTX 30 and RTX 20 (AmpereFrameGeneration): the
@@ -767,7 +749,7 @@ namespace ReDefinition.Window
                     new DialogGUILabel("DLSS-G on RTX 30/20", NameWidth), manually, install),
                 new DialogGUILabel(AmpereRowText, true),
             };
-            rows.AddRange(AmpereOptionRows());
+            if (AmpereFrameGeneration.Installed()) rows.AddRange(AmpereOptionRows());
             return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft, rows.ToArray());
         }
 

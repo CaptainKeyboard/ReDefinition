@@ -85,23 +85,30 @@ namespace ReDefinition.Tests
             Assert.IsNull(FrameGenerationChoice.Note(Dlss(6, 1), false), "all offered");
         }
 
-        // The row holds two settings: the switch, which a profile sets as "enabled", and the multiplier.
+        // The technique row holds the switch and the technique, the multiplier row the multiplier.
         [TestMethod]
-        public void TheRowHoldsTheSwitchAndTheMultiplier()
+        public void TheTechniqueRowHoldsTheSwitchAndTheMultiplierRowTheMultiplier()
         {
             OwnSettings settings = new OwnSettings();
+            ModuleSetting technique = OurModules.FrameGeneration.Setting("technique");
             ModuleSetting row = OurModules.FrameGeneration.Setting("mode");
-            Assert.AreEqual("Off", row.Read(settings));
-            row.Write(settings, "4x");
+            Assert.AreEqual("Off", technique.Read(settings));
+            technique.Write(settings, "Fsr");
             Assert.IsTrue(settings.FrameGeneration);
+            Assert.AreEqual("Fsr", settings.FrameGenerationTechnique);
+            Assert.AreEqual("Fsr", technique.Read(settings));
+            row.Write(settings, "4x");
             Assert.AreEqual("4x", settings.FrameGenerationMultiplier);
             Assert.AreEqual("4x", row.Read(settings));
-            row.Write(settings, "Off");
+            technique.Write(settings, "Off");
             Assert.IsFalse(settings.FrameGeneration);
+            Assert.AreEqual("Fsr", settings.FrameGenerationTechnique, "held while off");
             Assert.AreEqual("4x", settings.FrameGenerationMultiplier, "held while off");
-            Assert.AreEqual("Off", row.Read(settings));
+            Assert.AreEqual("Off", technique.Read(settings));
             row.Write(settings, "Dynamic");
             Assert.AreEqual("Dynamic", settings.FrameGenerationMultiplier);
+            row.Write(settings, "Off");
+            Assert.AreEqual("Dynamic", settings.FrameGenerationMultiplier, "Off is the technique row's");
 
             // Saved by its key; a value that is none leaves the multiplier as it is.
             Assert.IsTrue(settings.SetValue("frameGenerationMultiplier", "3x"));

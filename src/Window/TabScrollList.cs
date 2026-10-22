@@ -24,6 +24,11 @@ namespace ReDefinition.Window
         private const int TopFrames = 3;
         private int toTop;
 
+        // The probe's shot of a page's lower part (-redefinitionProbeSettingsWindowScroll): the
+        // normalized position to hold for the first frames, 1 the top and 0 the bottom; null for none.
+        internal static float? ProbePosition;
+        private int probeFrames = 12;
+
         public TabScrollList(Vector2 size, DialogGUILayoutBase layout)
             : base(size, false, true, layout)
         {
@@ -58,6 +63,13 @@ namespace ReDefinition.Window
         public override void Update()
         {
             base.Update();
+            if (ProbePosition.HasValue && scrollRect != null && probeFrames > 0)
+            {
+                probeFrames--;
+                scrollRect.StopMovement();
+                scrollRect.verticalNormalizedPosition = ProbePosition.Value;
+                return;
+            }
             if (toTop <= 0 || scrollRect == null) return;
             toTop--;
             scrollRect.StopMovement();

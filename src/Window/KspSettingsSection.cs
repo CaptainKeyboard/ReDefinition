@@ -277,11 +277,63 @@ namespace ReDefinition.Window
                     ? null
                     : (Func<string>)(() => SettingsWindow.MarkedName(shown.Title, shown.Read(edit.After) != shown.Read(edit.Before),
                         defaultOf != null && defaultOf(shown, edit.After) != null));
+                if (shown.Radio)
+                {
+                    rows.Add(RadioRow(edit, layout, shown, name));
+                    continue;
+                }
                 DialogGUIBase control = Control(edit, shown, layout.Control);
                 if (defaultOf != null) SettingsWindow.DefaultTooltip(control, () => defaultOf(shown, edit.After));
                 rows.Add(Row(layout, shown.Title, control, value, name));
             }
             return rows.ToArray();
+        }
+
+        // A choice as a row of buttons under its name, one lit (a technique to pick, not a step to move
+        // along): a button the setting cannot take now is greyed out, and its tooltip says why. The
+        // chosen value stands at the name's right, as a slider's does.
+        private static DialogGUIBase RadioRow(Edit edit, Layout layout, ModuleSetting setting, Func<string> markedName)
+        {
+            const float Spacing = 4f;
+            float width = layout.Name + layout.Control + layout.ValueGap + layout.Value
+                          + (layout.Source != null ? layout.SourceWidth : 0f);
+            int count = setting.Choices.Length;
+            float button = Mathf.Floor((width - Spacing * (count - 1)) / count);
+
+            List<DialogGUIBase> buttons = new List<DialogGUIBase>();
+            foreach (string choice in setting.Choices)
+            {
+                string value = choice;
+                string text = setting.ChoiceLabel != null ? setting.ChoiceLabel(value) : value;
+                DialogGUIToggleButton toggle = new DialogGUIToggleButton(() => setting.Read(edit.After) == value, text,
+                    // Only the player's click chooses: KSP sets the toggle from the row in every frame it shows.
+                    on => { if (on && setting.Read(edit.After) != value) setting.Write(edit.After, value); },
+                    button, RowHeight + 2f);
+                string reason = setting.Unavailable == null ? null : setting.Unavailable(edit.After, value);
+                toggle.tooltipText = TooltipText.Wrap((reason != null ? reason + "\n\n" : "") + setting.Tooltip
+                                                      + (setting.NeedsProfile
+                                                          ? "\nLocked while no graphics profile is chosen in ReDefinition's window."
+                                                          : ""));
+                toggle.OptionInteractableCondition = () => (!setting.NeedsProfile || edit.ProfileChosen())
+                    && (setting.Interactable == null || setting.Interactable(edit.After))
+                    && (setting.Unavailable == null || setting.Unavailable(edit.After, value) == null);
+                if (buttons.Count > 0) buttons.Add(new DialogGUISpace(Spacing));
+                buttons.Add(toggle);
+            }
+
+            DialogGUILabel name = markedName != null
+                ? new DialogGUILabel(markedName, layout.Name)
+                : new DialogGUILabel(setting.Title, layout.Name);
+            List<DialogGUIBase> head = new List<DialogGUIBase>
+            {
+                name,
+                new DialogGUILabel(() => Shown(edit, setting), layout.Control + layout.ValueGap + layout.Value),
+            };
+            if (layout.Source != null)
+                head.Add(new DialogGUILabel("<color=#9a9a9a>" + layout.Source + "</color>", layout.SourceWidth));
+            return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
+                new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft, head.ToArray()),
+                new DialogGUIHorizontalLayout(0f, RowHeight + 2f, 0f, new RectOffset(), TextAnchor.MiddleLeft, buttons.ToArray()));
         }
 
         // Read from and written into edit.After, which an Apply replaces without

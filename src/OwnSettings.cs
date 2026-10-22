@@ -34,6 +34,9 @@ namespace ReDefinition
         public bool TransparencyMask;
         public UpscalerMasks.ReactiveSource ReactiveMask = UpscalerMasks.ReactiveSource.Off;
         public bool FrameGeneration;
+        // The technique frame generation is made for when it is on (FrameGenerationTechniqueSetting): the
+        // proxy's ini holds it, read when the swapchain is made.
+        public string FrameGenerationTechnique = FrameGenerationTechniqueSetting.Auto;
         // How many frames frame generation shows per rendered frame, 2x to 6x, or Dynamic where
         // DLSS-G chooses (FrameGenerationChoice). Held while frame generation is off; never more
         // than the technique that runs allows.
@@ -351,6 +354,16 @@ namespace ReDefinition
                 Live = true, Format = v => v.ToString(CultureInfo.InvariantCulture),
                 Parse = (string text, out int v) => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out v)
                                                     && v >= 240 && v <= 4320,
+            },
+            new Field<string>
+            {
+                Key = "frameGenerationTechnique", Get = x => x.FrameGenerationTechnique,
+                Set = (x, v) => x.FrameGenerationTechnique = v, Live = true, Format = v => v,
+                Parse = (string text, out string v) =>
+                {
+                    v = FrameGenerationTechniqueSetting.Valid(text) ? text : null;
+                    return v != null;
+                },
             },
             new Field<string>
             {

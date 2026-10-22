@@ -67,6 +67,17 @@ namespace ReDefinition
         // Choice: the values in the order the row shows them, left to right.
         public string[] Choices;
 
+        // A choice drawn as a row of buttons, one lit, instead of a slider through the values (a
+        // technique to pick rather than a step to move along).
+        public bool Radio;
+
+        // For a Radio row: a button's text, where the value is not it.
+        public Func<string, string> ChoiceLabel;
+
+        // For a Radio row: null where the choice can be taken now, otherwise why not, which the greyed
+        // button's tooltip says.
+        public Func<OwnSettings, string, string> Unavailable;
+
         // What the row's value column shows for a value; null shows the value.
         public Func<string, string> Label;
 

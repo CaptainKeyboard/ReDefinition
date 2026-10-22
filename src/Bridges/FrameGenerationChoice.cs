@@ -18,6 +18,9 @@ namespace ReDefinition.Bridges
         // The row's values in the order it shows them.
         public static readonly string[] All = { Off, "2x", "3x", "4x", "5x", "6x", Dynamic };
 
+        // The multiplier row's buttons: Dynamic first, then the steps.
+        public static readonly string[] Shown = { Dynamic, "2x", "3x", "4x", "5x", "6x" };
+
         // The multiplier a fresh settings file holds: Dynamic, which DLSS-G does where it supports
         // multi frame generation; everywhere else it runs as 2x (Effective), the one step every
         // technique does.
@@ -83,6 +86,19 @@ namespace ReDefinition.Bridges
             if (choice == Dynamic) return DynamicFallback;
             if (Multiplier(choice) > limits.Most) return limits.Most + "x";
             return choice;
+        }
+
+        // Why the step is not offered by the technique that runs, in a few words; null where it is.
+        public static string StepReason(string choice, Limits limits)
+        {
+            if (!limits.Known || Offered(choice, limits)) return null;
+            if (choice == Dynamic)
+                return limits.Technique == 2
+                    ? "Dynamic needs multi frame generation and NVIDIA driver 595.41 or newer."
+                    : "Dynamic is DLSS frame generation only.";
+            if (limits.Technique == 1) return "FSR 3 generates one frame between two.";
+            return (limits.Technique == 3 ? "XeSS frame generation" : "DLSS frame generation") + " allows up to "
+                   + limits.Most + "x here.";
         }
 
         // Why each step that is not offered is not, in a few lines, or null where all are.

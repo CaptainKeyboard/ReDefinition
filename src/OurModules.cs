@@ -48,9 +48,16 @@ namespace ReDefinition
             {
                 Key = "technique",
                 Title = "Upscaler",
+                Section = "Upscaling",
                 Kind = SettingKind.Other,
                 Order = 15,
                 Control = SettingControl.Choice,
+                Radio = true,
+                ChoiceLabel = value => value == "Off" || value == AutoSettings.Auto ? value
+                    : value == UpscalerBackend.Fsr3.ToString() ? "FSR 3"
+                    : value == UpscalerBackend.Dlss.ToString() ? "DLSS"
+                    : value == UpscalerBackend.Amd.ToString() ? "AMD FSR" : "XeSS",
+                Unavailable = (settings, value) => TechniqueAvailability.Upscaler(value, TechniqueAvailability.Current()),
                 Choices = new[]
                 {
                     "Off", AutoSettings.Auto, UpscalerBackend.Fsr3.ToString(), UpscalerBackend.Dlss.ToString(),
@@ -88,6 +95,7 @@ namespace ReDefinition
             {
                 Key = "quality",
                 Title = "Mode",
+                Section = "Upscaling",
                 Kind = SettingKind.Quality,
                 Order = 20,
                 Control = SettingControl.Choice,
@@ -154,6 +162,7 @@ namespace ReDefinition
             {
                 Key = "sharpness",
                 Title = "Sharpness",
+                Section = "Upscaling",
                 Kind = SettingKind.Taste,
                 Order = 30,
                 Control = SettingControl.Slider,
@@ -188,36 +197,59 @@ namespace ReDefinition
             },
             new ModuleSetting
             {
-                Key = "mode",
+                Key = "technique",
                 Title = "Frame generation",
+                Section = "Frame generation",
                 Kind = SettingKind.Other,
                 Order = 40,
                 Control = SettingControl.Choice,
-                Choices = FrameGenerationChoice.All,
-                // The step as it runs: a multiplier above what the technique allows is the most it
-                // allows.
-                Label = value => FrameGenerationLabel(value),
+                Radio = true,
+                Choices = FrameGenerationTechniqueSetting.All,
+                ChoiceLabel = FrameGenerationTechniqueSetting.Label,
+                Label = value => FrameGenerationTechniqueLabel(value),
                 Tooltip = "Generated frames between the rendered ones, from KSP's own depth and motion vectors.\n"
-                          + "Off, 2x to 6x frames shown per rendered frame, or Dynamic, where DLSS frame generation\n"
-                          + "chooses the multiplier to reach the display's refresh rate. Changes apply at once; what the\n"
-                          + "technique does not allow is said under the row.\n"
-                          + "DLSS frame generation where NVIDIA's Streamline 2.14.16 DLLs lie next to KSP_x64.exe\n"
-                          + "and the GPU runs it (RTX 40 and newer, RTX 30 and 20 with the dlssg_for_sm86 package);\n"
-                          + "FSR 3 frame generation otherwise, one frame between every two (2x).\n"
-                          + "Needs the dxgi.dll proxy next to KSP_x64.exe. With the upscaler off,\n"
-                          + "the scene is still captured for it, at full resolution.\n"
+                          + "Auto: DLSS frame generation where NVIDIA's Streamline DLLs lie next to KSP_x64.exe and the GPU\n"
+                          + "runs it (RTX 40 and newer, RTX 30 and 20 with the dlssg_for_sm86 package), XeSS frame generation\n"
+                          + "on an Intel GPU where Intel's files are, FSR 3 otherwise. A technique greyed out says why, and the\n"
+                          + "line under the row says what to download or install for it.\n"
+                          + "Needs the dxgi.dll proxy next to KSP_x64.exe, which makes its swapchain for the technique when KSP\n"
+                          + "starts: another technique applies after a restart of KSP. Off applies at once.\n"
+                          + "With the upscaler off, the scene is still captured for it, at full resolution.\n"
                           + "With FSR 3, turn V-Sync on in KSP's settings for even frames, with G-Sync or FreeSync too:\n"
                           + "in full screen, frames can tear without it even on a variable refresh rate (AMD).",
-                Read = settings => settings.FrameGeneration ? settings.FrameGenerationMultiplier : FrameGenerationChoice.Off,
+                Read = settings => settings.FrameGeneration ? settings.FrameGenerationTechnique : FrameGenerationTechniqueSetting.Off,
                 Write = (settings, value) =>
                 {
-                    settings.FrameGeneration = value != FrameGenerationChoice.Off;
+                    settings.FrameGeneration = value != FrameGenerationTechniqueSetting.Off;
+                    if (FrameGenerationTechniqueSetting.Valid(value)) settings.FrameGenerationTechnique = value;
+                },
+                // Offered where the proxy can generate, and always while it is on, so that a setting saved
+                // with the proxy installed can still be switched off after it has gone.
+                Interactable = settings => FrameGenerationBridge.CanGenerate || settings.FrameGeneration,
+                Unavailable = (settings, value) => TechniqueAvailability.FrameGeneration(value, TechniqueAvailability.Current()),
+            },
+            new ModuleSetting
+            {
+                Key = "mode",
+                Title = "Multiplier",
+                Section = "Frame generation",
+                Kind = SettingKind.Other,
+                Order = 41,
+                Control = SettingControl.Choice,
+                Radio = true,
+                Choices = FrameGenerationChoice.Shown,
+                Tooltip = "Frames shown per rendered frame: 2x is one generated frame, 6x five. Dynamic is DLSS frame\n"
+                          + "generation choosing the multiplier to reach the display's refresh rate (multi frame generation,\n"
+                          + "NVIDIA driver 595.41 or newer; an RTX 30 or 20 with the dlssg_for_sm86 package too). What the\n"
+                          + "technique does not allow is greyed out and says why. Changes apply at once.",
+                Read = settings => settings.FrameGenerationMultiplier,
+                Write = (settings, value) =>
+                {
                     if (FrameGenerationChoice.Valid(value)) settings.FrameGenerationMultiplier = value;
                 },
-                // Offered where the proxy can generate, and always while it is on,
-                // so that a setting saved with the proxy installed can still be
-                // switched off after it has gone.
-                Interactable = settings => FrameGenerationBridge.CanGenerate || settings.FrameGeneration,
+                Interactable = settings => settings.FrameGeneration,
+                Unavailable = (settings, value) => TechniqueAvailability.Step(value,
+                    settings.FrameGenerationTechnique, FrameGenerationBridge.Limits()),
             });
 
         // The low latency mode (docs/development/low-latency.md): Auto, or Off. Written into the
@@ -227,10 +259,15 @@ namespace ReDefinition
             {
                 Key = "mode",
                 Title = "Low latency",
+                Section = "Frame generation",
                 Kind = SettingKind.Other,
                 Order = 45,
                 Control = SettingControl.Choice,
+                Radio = true,
                 Choices = LowLatencySetting.All,
+                // The card's technique behind Auto, once the proxy says which lowers the latency.
+                Label = value => LowLatencyLabel(value),
+                ChoiceLabel = value => LowLatencyLabel(value),
                 Tooltip = "Auto: the latency brake, which waits before each frame so that it is not queued ahead,\n"
                           + "and the graphics card's own technique where it lowers the latency: Intel's XeLL on an Intel GPU,\n"
                           + "AMD's Anti-Lag 2 on a Radeon once it has been tried there. Those run alone, and the brake\n"
@@ -249,6 +286,7 @@ namespace ReDefinition
             {
                 Key = "mode",
                 Title = "Raytracing",
+                Section = "Raytracing",
                 Kind = SettingKind.Other,
                 Order = 50,
                 Control = SettingControl.Choice,
@@ -294,6 +332,7 @@ namespace ReDefinition
             {
                 Key = "rayReconstruction",
                 Title = "Ray Reconstruction",
+                Section = "Raytracing",
                 Kind = SettingKind.Other,
                 Order = 65,
                 Control = SettingControl.Choice,
@@ -531,15 +570,6 @@ namespace ReDefinition
                 case ReDefinition.Raytracing.RaytracingMode.Full: return "Full";
                 default: return "Off";
             }
-        }
-
-        // The technique that runs, "DLSS 2x", "XeSS 2x" or "FSR 3", in place of "Enabled" --
-        // the ticked box says it is on, and the control is too narrow for both --
-        // and the plain state while none runs.
-        private static string FrameGenerationLabel(string value)
-        {
-            if (value == FrameGenerationChoice.Off) return FrameGenerationChoice.Off;
-            return FrameGenerationChoice.Effective(value, FrameGenerationBridge.Limits());
         }
 
         // ReDefinition's own hotkeys, in the Keys tab beside the mods' and KSP's.
@@ -962,6 +992,29 @@ namespace ReDefinition
         private static UpscalerBackend Backend(string name)
         {
             return (UpscalerBackend)System.Enum.Parse(typeof(UpscalerBackend), name, true);
+        }
+
+        // The frame generation row's value column: the technique, and for Auto what it makes of it; a
+        // technique chosen that is not the one running yet says so.
+        private static string FrameGenerationTechniqueLabel(string value)
+        {
+            if (value == FrameGenerationTechniqueSetting.Off) return value;
+            FrameGenerationChoice.Limits limits = FrameGenerationBridge.Limits();
+            string running = FrameGenerationBridge.TechniqueName();
+            if (value == FrameGenerationTechniqueSetting.Auto)
+                return running == null ? value : "Auto (" + running + ")";
+            int kind = value == FrameGenerationTechniqueSetting.Fsr ? 1 : value == FrameGenerationTechniqueSetting.Dlss ? 2 : 3;
+            return limits.Known && limits.Technique != kind
+                ? FrameGenerationTechniqueSetting.Label(value) + " (after a restart)"
+                : FrameGenerationTechniqueSetting.Label(value);
+        }
+
+        // Auto with the technique that lowers the latency in brackets; Off as it is.
+        private static string LowLatencyLabel(string value)
+        {
+            if (value != LowLatencySetting.Auto) return value;
+            string name = ReflexFrames.LowLatencyName();
+            return name == null ? value : "Auto (" + name + ")";
         }
 
         internal static string TechniqueLabel(UpscalerBackend backend)

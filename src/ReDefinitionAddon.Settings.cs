@@ -115,6 +115,9 @@ namespace ReDefinition
             // The hotkeys and the settings read live are read from the settings object
             // itself (HandleHotkeys and the views), so the file's values go there.
             CopyLiveSettings(loaded);
+            // The proxy reads it when its swapchain is made, before this runs: the ini follows the
+            // settings for the next start.
+            FrameGenerationTechniqueSetting.Write(settings.FrameGenerationTechnique);
 
             savedSnapshot = asSaved;
         }
@@ -245,11 +248,12 @@ namespace ReDefinition
 
         // Compared with what was saved last, so no setter has to mark the settings
         // dirty.
-        private void SaveSettingsIfChanged(bool now = false)
+        private void SaveSettingsIfChanged(bool now = false, bool probeProfile = false)
         {
             // The scene probe switches settings for its measurements: the player's stay
-            // as they were on disk, however the probe ends.
-            if (Probe.SceneProbe.Requested) return;
+            // as they were on disk, however the probe ends -- except the probe's profile
+            // start, whose whole purpose is to leave the profile's settings on disk.
+            if (Probe.SceneProbe.Requested && !probeProfile) return;
             if (!now && Time.unscaledTime < nextSettingsCheck) return;
             nextSettingsCheck = Time.unscaledTime + 2f;
 
@@ -282,6 +286,12 @@ namespace ReDefinition
         internal void SaveSettingsNow()
         {
             SaveSettingsIfChanged(true);
+        }
+
+        // The probe's profile start: the settings the profile left, on disk for the next start.
+        internal void SaveSettingsForProbeProfile()
+        {
+            SaveSettingsIfChanged(true, true);
         }
 
         // The first start's answer to take control: KSP's Settings buttons open
@@ -346,6 +356,8 @@ namespace ReDefinition
         {
             if (before.Enabled != after.Enabled && !after.Enabled) SetEnabled(false);
             if (before.LowLatency != after.LowLatency) LowLatencySetting.Write(after.LowLatency);
+            if (before.FrameGenerationTechnique != after.FrameGenerationTechnique)
+                FrameGenerationTechniqueSetting.Write(after.FrameGenerationTechnique);
             if (before.Quality != after.Quality) SetQuality(after.Quality);
             if (before.Sharpness != after.Sharpness) SetSharpness(after.Sharpness);
             if (before.Backend != after.Backend) SetBackend(after.Backend);
