@@ -31,7 +31,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void DefaultStandsFirstThenKMAndL()
         {
-            ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "DLSS model");
+            ModuleSetting row = OurModules.Upscaler.Setting("dlssModel");
             CollectionAssert.AreEqual(new[] { "Default", "K", "M", "L" }, row.Choices);
             Assert.AreEqual(SettingKind.Quality, row.Kind);
         }
@@ -39,7 +39,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void OnlyDlssOffersIt()
         {
-            ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "DLSS model");
+            ModuleSetting row = OurModules.Upscaler.Setting("dlssModel");
             Assert.IsTrue(row.Interactable(new OwnSettings { Backend = UpscalerBackend.Dlss }));
             Assert.IsFalse(row.Interactable(new OwnSettings { Backend = UpscalerBackend.Fsr3 }));
         }
@@ -86,7 +86,6 @@ namespace ReDefinition.Tests
             for (int i = 0; i < names.Length; i++)
             {
                 string name = names[i];
-                Assert.AreEqual("True", Chosen(name, GpuClass.Rtx40, "upscaler", "enabled"), name);
                 Assert.AreEqual("Auto", Chosen(name, GpuClass.Rtx40, "upscaler", "technique"), name);
                 Assert.AreEqual("Auto", Chosen(name, GpuClass.Rtx40, "upscaler", "quality"), name);
                 Assert.AreEqual(heights[i], Chosen(name, GpuClass.Rtx40, "upscaler", "renderTargetHeight"), name);

@@ -491,12 +491,12 @@ namespace ReDefinition.Window
 
         // Whether one of ReDefinition's own rows in a tab waits for Accept; under
         // Mods / Toolbar, Better Time Warp's button among the toolbar's too.
-        private static bool OwnPending(SettingCategory category)
+        private static bool OwnPending(SettingCategory category, bool detail = false)
         {
             if (edit == null || edit.Before == null || edit.After == null) return false;
             if (category == SettingCategory.Interface && edit.Before.TimeWarpToolbarButton != edit.After.TimeWarpToolbarButton)
                 return true;
-            foreach (ModuleSetting setting in OurModules.Rows(category))
+            foreach (ModuleSetting setting in OurModules.Rows(category, detail))
                 if (setting.Read(edit.Before) != setting.Read(edit.After)) return true;
             return false;
         }
@@ -508,7 +508,7 @@ namespace ReDefinition.Window
             rows.Add(SectionHeading("Upscaling"));
             DialogGUIBase[] own = KspSettingsSection.Rows(edit, OwnLayout());
             // One row per module setting, in the same order (KspSettingsSection.Rows).
-            List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows());
+            List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows(SettingCategory.General, false));
             for (int i = 0; i < own.Length; i++)
             {
                 rows.Add(Searchable(own[i], (i < titles.Count ? titles[i].Title : "Upscaler") + " ReDefinition"));
@@ -516,9 +516,13 @@ namespace ReDefinition.Window
                 if (i < titles.Count && titles[i].Key == "mode" && titles[i].Title == "Frame generation")
                     rows.Add(Searchable(new DialogGUILabel(FrameGenerationNote, true),
                                         "frame generation multiplier 2x 3x 4x dynamic DLSS XeSS FSR"));
+                // Under the low latency choice: what lowers the latency now.
+                if (i < titles.Count && titles[i].Key == "mode" && titles[i].Title == "Low latency")
+                {
+                    DialogGUIBase latency = LowLatencyRow();
+                    if (latency != null) rows.Add(Searchable(latency, "Low latency NVIDIA Reflex XeLL Anti-Lag"));
+                }
             }
-            DialogGUIBase latency = LowLatencyRow();
-            if (latency != null) rows.Add(Searchable(latency, "Low latency NVIDIA Reflex"));
             DialogGUIBase nvidia = NvidiaRow();
             if (nvidia != null) rows.Add(Searchable(nvidia, "NVIDIA DLSS files download"));
             DialogGUIBase intel = IntelRow();
@@ -565,6 +569,16 @@ namespace ReDefinition.Window
                 AddFold(rows, SettingCategory.Detail, group.Value, members, first);
                 first = false;
             }
+
+            // ReDefinition's own single settings of the raytracing.
+            if (edit == null) return;
+            List<ModuleSetting> own = OurModules.Rows(SettingCategory.General, true);
+            if (own.Count == 0) return;
+            DialogGUIBase[] ownRows = KspSettingsSection.Rows(edit, OwnLayout(), SettingCategory.General, true);
+            List<DialogGUIBase> raytracing = new List<DialogGUIBase>();
+            for (int i = 0; i < ownRows.Length && i < own.Count; i++)
+                raytracing.Add(Searchable(ownRows[i], own[i].Title + " Raytracing ReDefinition"));
+            AddFold(rows, SettingCategory.Detail, "Raytracing", raytracing, first);
         }
 
         // Texts joined for the search.
@@ -688,7 +702,7 @@ namespace ReDefinition.Window
         private static DialogGUIBase LowLatencyRow()
         {
             if (ReflexFrames.LowLatencyText() == null) return null;
-            DialogGUILabel name = new DialogGUILabel("Low latency", NameWidth);
+            DialogGUILabel name = new DialogGUILabel("", NameWidth);
             return new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
                 name, new DialogGUILabel(LowLatencyRowText, true));
         }

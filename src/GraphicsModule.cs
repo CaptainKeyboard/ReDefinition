@@ -73,6 +73,10 @@ namespace ReDefinition
         // Where its row stands under General, among every module's rows.
         public int Order;
 
+        // A row of Detail's own group rather than of Display's basics: the single settings of a
+        // feature, as the mods' are.
+        public bool Detail;
+
         // The tab its row stands in; the hotkeys stand under Keys.
         public SettingCategory Row = SettingCategory.General;
 

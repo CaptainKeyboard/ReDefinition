@@ -257,15 +257,15 @@ namespace ReDefinition.Window
         // switch without a value column, a slider or a list with one.
         internal static DialogGUIBase[] Rows(Edit edit, Layout layout)
         {
-            return Rows(edit, layout, SettingCategory.General);
+            return Rows(edit, layout, SettingCategory.General, false);
         }
 
         // The rows of one tab: the upscaler's under General, the flight UI's under
         // Gameplay, the scaling under Mods / Toolbar.
-        internal static DialogGUIBase[] Rows(Edit edit, Layout layout, SettingCategory tab)
+        internal static DialogGUIBase[] Rows(Edit edit, Layout layout, SettingCategory tab, bool detail = false)
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            foreach (ModuleSetting setting in OurModules.Rows(tab))
+            foreach (ModuleSetting setting in OurModules.Rows(tab, detail))
             {
                 ModuleSetting shown = setting;
                 Func<string> value = shown.Control == SettingControl.Toggle ? null : (Func<string>)(() => Shown(edit, shown));

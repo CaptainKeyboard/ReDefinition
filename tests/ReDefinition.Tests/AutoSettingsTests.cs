@@ -105,7 +105,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheRowsReadAndWriteAutoAsAChoice()
         {
-            OwnSettings settings = new OwnSettings();
+            OwnSettings settings = new OwnSettings { Enabled = true };
             ModuleSetting technique = OurModules.Upscaler.Setting("technique");
             ModuleSetting mode = OurModules.Upscaler.Setting("quality");
             ModuleSetting reconstruction = OurModules.Raytracing.Setting("rayReconstruction");
@@ -127,6 +127,10 @@ namespace ReDefinition.Tests
             technique.Write(settings, "Auto");
             Assert.IsTrue(settings.BackendAuto);
             Assert.AreEqual("Auto", technique.Read(settings));
+
+            technique.Write(settings, "Off");
+            Assert.AreEqual("Off", technique.Read(settings));
+            Assert.IsTrue(settings.BackendAuto, "off keeps Auto for when it is on again");
         }
 
         [TestMethod]

@@ -23,6 +23,7 @@ namespace ReDefinition.Window
         {
             switch (category)
             {
+                case SettingCategory.Display:
                 case SettingCategory.Detail:
                     return SettingCategory.Profiles;
                 case SettingCategory.Axes:
@@ -331,7 +332,8 @@ namespace ReDefinition.Window
                 }
                 // ReDefinition's own: the rows of General stand in Display's
                 // upscaling section, its hotkeys under Keys.
-                if (OwnPending(SettingCategory.General)) pendingIn.Add(SettingCategory.Display);
+                if (OwnPending(SettingCategory.General, false)) pendingIn.Add(SettingCategory.Display);
+                if (OwnPending(SettingCategory.General, true)) pendingIn.Add(SettingCategory.Detail);
                 if (model.Profile != BundledSettings.ProfileName || model.Resetting) pendingIn.Add(SettingCategory.Profiles);
                 if (kspPending.Count > 0 || layoutPending != null || OwnPending(SettingCategory.Keys))
                     pendingIn.Add(SettingCategory.Keys);

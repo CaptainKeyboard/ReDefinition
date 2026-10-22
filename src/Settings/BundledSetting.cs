@@ -17,12 +17,12 @@ namespace ReDefinition.Settings
         Gameplay,
         // KSP's volumes and its sound normalizer.
         Audio,
-        // The screen: resolution, full screen, V-Sync, frame limit, then
-        // ReDefinition's upscaler and frame generation, the UI's size and the
-        // brightness boosts.
-        Display,
-        // Titled Graphics: the profiles, and Detail under it.
+        // Titled Graphics: the profiles, and Display and Detail under it.
         Profiles,
+        // The screen: resolution, full screen, V-Sync, frame limit, then
+        // ReDefinition's upscaler, frame generation, low latency and raytracing, the UI's size
+        // and the brightness boosts. The first tab under Graphics.
+        Display,
         // Shown in Display, as its upscaling section, not as a tab: named
         // General in the registration format, which is released.
         General,

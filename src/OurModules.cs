@@ -28,36 +28,40 @@ namespace ReDefinition
         public static readonly IGraphicsModule Upscaler = new GraphicsModule("upscaler", "Upscaler",
             new ModuleSetting
             {
+                // The switch alone, for the hotkey and the diagnostics window; the row is "technique".
                 Key = "enabled",
-                Title = "Upscaler",
+                Title = "Upscaler switch",
                 Kind = SettingKind.Quality,
                 OnlyActivates = true,
                 Order = 10,
                 Control = SettingControl.Toggle,
                 // KSP's tooltip draws its text as one line across the screen, so
                 // the texts break their own lines.
-                Tooltip = "The upscaler on the 3D scene, FSR 3 or the chosen technique: temporal antialiasing,\n"
+                Tooltip = "The upscaler on the 3D scene: temporal antialiasing,\n"
                           + "and in every mode but AA only also upscaling.",
                 Read = settings => SettingValues.Text(settings.Enabled),
                 Write = (settings, value) => settings.Enabled = bool.Parse(value),
+                Present = () => false,
             },
-            // Not a profile's: it depends on the GPU and on a file the player adds.
+            // Off, Auto or a technique; the switch and the technique in one row.
             new ModuleSetting
             {
                 Key = "technique",
-                Title = "Technique",
+                Title = "Upscaler",
                 Kind = SettingKind.Other,
                 Order = 15,
                 Control = SettingControl.Choice,
                 Choices = new[]
                 {
-                    AutoSettings.Auto, UpscalerBackend.Fsr3.ToString(), UpscalerBackend.Dlss.ToString(),
+                    "Off", AutoSettings.Auto, UpscalerBackend.Fsr3.ToString(), UpscalerBackend.Dlss.ToString(),
                     UpscalerBackend.Amd.ToString(), UpscalerBackend.Xess.ToString(),
                 },
                 // AMD's DLL by the FSR it runs, XeSS by its version, once they run.
-                Label = value => value == AutoSettings.Auto ? "Auto (" + TechniqueLabel(AutoSettings.ResolvedBackend) + ")"
+                Label = value => value == "Off" ? "Off"
+                    : value == AutoSettings.Auto ? "Auto (" + TechniqueLabel(AutoSettings.ResolvedBackend) + ")"
                     : TechniqueLabel(Backend(value)),
-                Tooltip = "Auto takes DLSS on a GeForce RTX, AMD's FSR 4 on a Radeon RX 7000 or RX 9000 where its DLL is\n"
+                Tooltip = "Off: the 3D scene is not touched.\n"
+                          + "Auto takes DLSS on a GeForce RTX, AMD's FSR 4 on a Radeon RX 7000 or RX 9000 where its DLL is\n"
                           + "there, XeSS on an Intel GPU where its DLL is, and FSR 3 otherwise.\n"
                           + "FSR 3 runs on every GPU and comes with ReDefinition.\n"
                           + "DLSS needs an NVIDIA RTX GPU and NVIDIA's nvngx_dlss.dll, which NVIDIA DLSS files\n"
@@ -69,14 +73,15 @@ namespace ReDefinition
                           + "window downloads from Intel, on any GPU with Shader Model 6.4 and DP4a; once it runs,\n"
                           + "this row names its version.\n"
                           + "All three need the dxgi.dll proxy next to KSP_x64.exe. Without their DLL, FSR 3 runs.",
-                Read = settings => settings.BackendAuto ? AutoSettings.Auto : settings.Backend.ToString(),
+                Read = settings => !settings.Enabled ? "Off"
+                    : settings.BackendAuto ? AutoSettings.Auto : settings.Backend.ToString(),
                 Write = (settings, value) =>
                 {
+                    settings.Enabled = value != "Off";
+                    if (value == "Off") return;
                     settings.BackendAuto = value == AutoSettings.Auto;
                     if (!settings.BackendAuto) settings.Backend = Backend(value);
                 },
-                Interactable = settings => DlssBridge.Offered || AmdUpscalerBridge.Offered || XessUpscalerBridge.Offered
-                                           || settings.Backend != UpscalerBackend.Fsr3,
             },
             // AA only at the right end, smaller render sizes to its left.
             new ModuleSetting
@@ -103,6 +108,7 @@ namespace ReDefinition
                     settings.QualityAuto = value == AutoSettings.Auto;
                     if (!settings.QualityAuto) settings.Quality = Mode(value);
                 },
+                Interactable = settings => settings.Enabled,
             },
             // What a profile aims for, which Auto turns into the mode for the screen: the height
             // the 3D scene is rendered at on a screen 1440 pixels high. No row: the profile's.
@@ -141,6 +147,8 @@ namespace ReDefinition
                 Read = settings => settings.DlssModel.ToString(),
                 Write = (settings, value) => settings.DlssModel = DlssModelOf(value),
                 Interactable = settings => settings.Backend == UpscalerBackend.Dlss,
+                // The profile's, by the card; not a row.
+                Present = () => false,
             },
             new ModuleSetting
             {
@@ -276,6 +284,8 @@ namespace ReDefinition
                 Write = (settings, value) =>
                     settings.RaytracingBounces = (int)float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
                 Interactable = TracesDiffuseLight,
+                // The profile's; not a row.
+                Present = () => false,
             },
             new ModuleSetting
             {
@@ -300,7 +310,10 @@ namespace ReDefinition
                 Write = (settings, value) =>
                 {
                     settings.RayReconstructionAuto = value == AutoSettings.Auto;
-                    if (!settings.RayReconstructionAuto) settings.RayReconstruction = value == "On";
+                    if (settings.RayReconstructionAuto) return;
+                    settings.RayReconstruction = value == "On";
+                    // On, by the player's choice, runs in every mode.
+                    if (settings.RayReconstruction) settings.RayReconstructionFrom = ReDefinition.Raytracing.RaytracingMode.Shadows;
                 },
                 Interactable = settings => settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off
                                            && settings.Backend == UpscalerBackend.Dlss,
@@ -327,10 +340,13 @@ namespace ReDefinition
                 Interactable = settings => settings.RayReconstruction && !settings.RayReconstructionAuto
                                            && settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off
                                            && settings.Backend == UpscalerBackend.Dlss,
+                // Auto sets it by the card; On runs in every mode.
+                Present = () => false,
             },
             new ModuleSetting
             {
                 Key = "moonlight",
+                Detail = true,
                 Title = "Moonlight",
                 Kind = SettingKind.Other,
                 Order = 70,
@@ -351,6 +367,7 @@ namespace ReDefinition
             new ModuleSetting
             {
                 Key = "moonReflection",
+                Detail = true,
                 Title = "Moon reflection",
                 Kind = SettingKind.Other,
                 Order = 75,
@@ -369,6 +386,7 @@ namespace ReDefinition
             new ModuleSetting
             {
                 Key = "moonGlow",
+                Detail = true,
                 Title = "Moon glow",
                 Kind = SettingKind.Other,
                 Order = 76,
@@ -381,6 +399,7 @@ namespace ReDefinition
             new ModuleSetting
             {
                 Key = "sunReflection",
+                Detail = true,
                 Title = "Sun reflection",
                 Kind = SettingKind.Other,
                 Order = 77,
@@ -398,6 +417,7 @@ namespace ReDefinition
             new ModuleSetting
             {
                 Key = "nightAmbient",
+                Detail = true,
                 Title = "Night light",
                 Kind = SettingKind.Other,
                 Order = 80,
@@ -417,6 +437,7 @@ namespace ReDefinition
             new ModuleSetting
             {
                 Key = "lightColour",
+                Detail = true,
                 Title = "Light colour",
                 Kind = SettingKind.Other,
                 Order = 85,
@@ -870,6 +891,12 @@ namespace ReDefinition
         public static List<ModuleSetting> Rows()
         {
             return Rows(SettingCategory.General);
+        }
+
+        // The rows of a tab that stand in Display (or the tab itself) or in Detail's group.
+        public static List<ModuleSetting> Rows(SettingCategory tab, bool detail)
+        {
+            return Rows(tab).FindAll(setting => setting.Detail == detail);
         }
 
         public static List<ModuleSetting> Rows(SettingCategory tab)

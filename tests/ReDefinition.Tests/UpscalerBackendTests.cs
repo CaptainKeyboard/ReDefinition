@@ -13,8 +13,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheRowOffersFsr3DlssAmdAndXessInThatOrder()
         {
-            ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "Technique");
-            CollectionAssert.AreEqual(new[] { "Auto", "Fsr3", "Dlss", "Amd", "Xess" }, row.Choices);
+            ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "Upscaler");
+            CollectionAssert.AreEqual(new[] { "Off", "Auto", "Fsr3", "Dlss", "Amd", "Xess" }, row.Choices);
         }
 
         [TestMethod]
@@ -29,13 +29,19 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void XessIsWrittenAndReadByName()
         {
-            ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "Technique");
+            ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "Upscaler");
             OwnSettings settings = new OwnSettings();
 
             row.Write(settings, "Xess");
 
             Assert.AreEqual(UpscalerBackend.Xess, settings.Backend);
+            Assert.IsTrue(settings.Enabled, "a technique switches the upscaler on");
             Assert.AreEqual("Xess", row.Read(settings));
+
+            row.Write(settings, "Off");
+            Assert.IsFalse(settings.Enabled);
+            Assert.AreEqual("Off", row.Read(settings));
+            Assert.AreEqual(UpscalerBackend.Xess, settings.Backend, "off keeps the technique chosen");
         }
     }
 }

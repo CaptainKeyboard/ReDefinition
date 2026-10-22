@@ -214,6 +214,7 @@ namespace ReDefinition.Window
             KeyCapture.Stop();
             NoteWaiting();
             bool resetting = model.Resetting;
+            bool newProfile = model.Profile != BundledSettings.ProfileName;
             HashSet<IBundledMod> written = new HashSet<IBundledMod>();
 
             Step("The bundling switch and the toolbar buttons from the window could not be applied", ApplySwitches);
@@ -232,6 +233,10 @@ namespace ReDefinition.Window
             Step("Other mods' settings from the window applied only in part", () => ApplyBundled(resetting));
             Step("The settings set from the window could not be saved", () => BundledSettings.SaveNow(written));
             ApplyOwn();
+            // A profile is what the player has now, whatever was set in the proxy's ini.
+            if (newProfile || resetting)
+                Step("The low latency mode could not be written into the proxy's ini",
+                     () => LowLatencySetting.Write(edit.After.LowLatency));
 
             // The new starting point, read back -- a failure there stays a warning,
             // not an exception the button handler sees.
