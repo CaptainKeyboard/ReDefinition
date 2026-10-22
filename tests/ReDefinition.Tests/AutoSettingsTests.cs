@@ -148,6 +148,36 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void RayReconstructionSetOnByNameRunsInEveryMode()
+        {
+            OwnSettings settings = new OwnSettings { RayReconstructionFrom = RaytracingMode.Full };
+
+            Assert.IsTrue(settings.SetValue("rayReconstruction", "True"));
+
+            Assert.AreEqual(RaytracingMode.Shadows, settings.RayReconstructionFrom);
+        }
+
+        [TestMethod]
+        public void TheRowsNameWhatAutoIsWhetherOrNotItIsChosen()
+        {
+            OwnSettings settings = new OwnSettings { BackendAuto = false, Backend = UpscalerBackend.Fsr3, RenderTargetHeight = 960 };
+
+            AutoSettings.Resolve(settings, GpuClass.Rtx40, 1440, false, false);
+
+            Assert.AreEqual(UpscalerBackend.Fsr3, settings.Backend);
+            Assert.AreEqual(UpscalerBackend.Dlss, AutoSettings.ResolvedBackend);
+        }
+
+        [TestMethod]
+        public void AProfileCannotSetTheSingleRaytracingSettings()
+        {
+            Assert.IsFalse(ModuleProfiles.CanSet(OurModules.Raytracing.Setting("moonlight")));
+            Assert.IsFalse(ModuleProfiles.CanSet(OurModules.Upscaler.Setting("sharpness")));
+            Assert.IsTrue(ModuleProfiles.CanSet(OurModules.Raytracing.Setting("mode")));
+            Assert.IsTrue(ModuleProfiles.CanSet(OurModules.Upscaler.Setting("dlssModel")));
+        }
+
+        [TestMethod]
         public void ThePlayersChoicesSurviveTheFile()
         {
             OwnSettings settings = new OwnSettings { LowLatency = "Off", RenderTargetHeight = 720, QualityAuto = false };

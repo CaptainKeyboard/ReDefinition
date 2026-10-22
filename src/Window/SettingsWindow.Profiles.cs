@@ -275,7 +275,7 @@ namespace ReDefinition.Window
             return status;
         }
 
-        // Whether every quality setting of ReDefinition's modules still holds the value the
+        // Whether every setting of ReDefinition's modules a profile sets still holds the value the
         // status line was worked out with; the values now are kept for the next
         // frame.
         private static bool SameModules(OwnSettings after)
@@ -285,7 +285,7 @@ namespace ReDefinition.Window
             {
                 IList<ModuleSetting> settings = OurModules.All[m].Settings;
                 for (int s = 0; s < settings.Count; s++)
-                    if (settings[s].Kind == SettingKind.Quality) count++;
+                    if (ModuleProfiles.CanSet(settings[s])) count++;
             }
             bool same = statusModules != null && statusModules.Length == count;
             if (!same) statusModules = new string[count];
@@ -296,7 +296,7 @@ namespace ReDefinition.Window
                 IList<ModuleSetting> settings = OurModules.All[m].Settings;
                 for (int s = 0; s < settings.Count; s++)
                 {
-                    if (settings[s].Kind != SettingKind.Quality) continue;
+                    if (!ModuleProfiles.CanSet(settings[s])) continue;
                     string value = after != null ? settings[s].Read(after) : null;
                     if (!string.Equals(statusModules[i], value, StringComparison.Ordinal))
                     {

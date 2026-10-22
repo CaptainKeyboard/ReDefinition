@@ -21,6 +21,13 @@ namespace ReDefinition
                 if (!active || !pair.Key.OnlyActivates) pair.Key.Write(settings, pair.Value);
         }
 
+        // Whether a profile can set the setting: the graphics settings of ReDefinition's modules, not
+        // taste (the sharpness), the hotkeys, the interface or the raytracing's single settings.
+        internal static bool CanSet(ModuleSetting setting)
+        {
+            return setting.Kind != SettingKind.Taste && setting.Row == SettingCategory.General && !setting.Detail;
+        }
+
         // The values a profile's MODULE nodes set, each as its setting holds it --
         // read as any mod's block is: a module, a setting or a value that cannot be
         // taken is reported and left out. A profile sets what its own modules offer in
@@ -60,9 +67,8 @@ namespace ReDefinition
                     string text = last[key];
                     ModuleSetting setting = module.Setting(key);
                     string why = setting == null ? "no setting of the module"
-                        : setting.Kind == SettingKind.Taste || setting.Row != SettingCategory.General
-                            ? "a profile sets no taste, hotkey or interface setting"
-                            : null;
+                        : !CanSet(setting) ? "a profile sets no taste, hotkey, interface or single raytracing setting"
+                        : null;
                     List<ProfileValue.Alternative> alternatives = null;
                     if (why == null)
                     {

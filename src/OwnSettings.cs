@@ -454,7 +454,12 @@ namespace ReDefinition
                 // A value set by name is the player's, not Auto's.
                 if (took && key == "technique") BackendAuto = false;
                 if (took && key == "quality") QualityAuto = false;
-                if (took && key == "rayReconstruction") RayReconstructionAuto = false;
+                if (took && key == "rayReconstruction")
+                {
+                    RayReconstructionAuto = false;
+                    // On, set by name, runs in every mode (as the row's On does).
+                    if (RayReconstruction) RayReconstructionFrom = RaytracingMode.Shadows;
+                }
                 return took;
             }
             return false;

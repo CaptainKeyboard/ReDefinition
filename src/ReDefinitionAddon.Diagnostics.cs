@@ -435,6 +435,7 @@ namespace ReDefinition
                     UpscalerBackend wantedBackend;
                     if (!Enum.TryParse(value, true, out wantedBackend)) { done.Append(" no technique ").Append(value).Append(';'); continue; }
                     settings.BackendAuto = false;
+                    resolvedFor = null;
                     SetBackend(wantedBackend);
                 }
                 else { done.Append(" unknown ").Append(name).Append(';'); continue; }

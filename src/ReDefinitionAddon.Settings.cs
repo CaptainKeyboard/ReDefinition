@@ -88,7 +88,7 @@ namespace ReDefinition
 
             // What Auto stands for on this card and screen, before anything is built from it.
             AutoSettings.Resolve(loaded);
-            resolvedScreenHeight = Screen.height;
+            resolvedFor = AutoSettings.Inputs();
             wantEnabled = loaded.Enabled;
             quality = loaded.Quality;
             sharpness = loaded.Sharpness;
@@ -201,15 +201,17 @@ namespace ReDefinition
             get { return settings; }
         }
 
-        // The screen's height Auto was last resolved for.
-        private int resolvedScreenHeight;
+        // What Auto was last resolved for (AutoSettings.Inputs); null asks for it again.
+        private string resolvedFor;
 
-        // The mode Auto takes depends on the screen: settled again when its height changes (a new
-        // resolution, a window resized), through Apply as every change.
+        // Auto depends on the card, the screen and the DLLs the proxy offers: settled again when one
+        // changes (a new resolution, a window resized, the proxy attached late) or after a hand pick,
+        // through Apply as every change.
         private void ResolveAutoOnNewScreen()
         {
-            if (Screen.height == resolvedScreenHeight || !settings.QualityAuto) return;
-            resolvedScreenHeight = Screen.height;
+            string inputs = AutoSettings.Inputs();
+            if (inputs == resolvedFor) return;
+            resolvedFor = inputs;
             OwnSettings now = Current();
             Apply(now, now.Clone());
         }
@@ -322,7 +324,7 @@ namespace ReDefinition
 
             EnforceProfile();
             AutoSettings.Resolve(after);
-            resolvedScreenHeight = Screen.height;
+            resolvedFor = AutoSettings.Inputs();
             try
             {
                 ApplyChanges(before, after);

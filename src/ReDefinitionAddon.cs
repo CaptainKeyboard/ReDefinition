@@ -191,7 +191,7 @@ namespace ReDefinition
             Guarded("profile", enforceProfileStep);
             Guarded("host-stack", syncHostStackStep);
             Guarded("host-stack-reassert", ReassertHostStackStep);
-            ResolveAutoOnNewScreen();
+            Guarded("auto", ResolveAutoOnNewScreen);
             SaveSettingsIfChanged();
             SharedFrame.PollProfile();
 

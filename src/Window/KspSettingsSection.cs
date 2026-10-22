@@ -221,7 +221,10 @@ namespace ReDefinition.Window
         // key bindings are. This dialog holds ReDefinition's own rows only.
         internal static DialogGUIBase[] Rows(Edit edit, bool header = true)
         {
-            DialogGUIBase[] rows = Rows(edit, DialogLayout);
+            // The single settings of the raytracing too: this dialog holds all of ReDefinition's own rows.
+            List<DialogGUIBase> own = new List<DialogGUIBase>(Rows(edit, DialogLayout));
+            own.AddRange(Rows(edit, DialogLayout, SettingCategory.General, true));
+            DialogGUIBase[] rows = own.ToArray();
             if (!header) return rows;
 
             DialogGUIButton all = new DialogGUIButton("All settings ...", OpenWindow, ControlWidth, RowHeight + 6f, false);

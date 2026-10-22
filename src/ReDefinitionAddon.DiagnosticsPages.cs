@@ -115,6 +115,7 @@ namespace ReDefinition
             {
                 // Picked by hand: no longer Auto's.
                 settings.BackendAuto = false;
+                resolvedFor = null;
                 SetBackend(offeredBackends[pickedTechnique]);
             }
             RowTail();
@@ -129,6 +130,7 @@ namespace ReDefinition
             if (pickedMode != modeAt)
             {
                 settings.QualityAuto = false;
+                resolvedFor = null;
                 SetQuality((Fsr3Upscaler.QualityMode)(ModeCount - 1 - pickedMode));
             }
             RowTail();

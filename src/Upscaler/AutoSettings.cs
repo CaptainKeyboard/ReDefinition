@@ -90,23 +90,27 @@ namespace ReDefinition.Upscaler
         // Fills in what the Auto flags of `settings` stand for, for the card and the screen given.
         public static void Resolve(OwnSettings settings, GpuClass gpu, int screenHeight, bool amdDllOffered, bool xessDllOffered)
         {
-            if (settings.BackendAuto)
-                settings.Backend = Technique(gpu, amdDllOffered, xessDllOffered);
-            if (settings.QualityAuto)
-                settings.Quality = Mode(screenHeight, settings.RenderTargetHeight, settings.Backend == UpscalerBackend.Dlss);
+            // What Auto is, kept for the rows to name whether or not it is the player's choice now.
+            ResolvedBackend = Technique(gpu, amdDllOffered, xessDllOffered);
+            if (settings.BackendAuto) settings.Backend = ResolvedBackend;
+            ResolvedQuality = Mode(screenHeight, settings.RenderTargetHeight, settings.Backend == UpscalerBackend.Dlss);
+            if (settings.QualityAuto) settings.Quality = ResolvedQuality;
+            RaytracingMode from;
+            ResolvedRayReconstruction = RayReconstruction(gpu, settings.Backend, out from);
+            ResolvedRayReconstructionFrom = from;
             if (settings.RayReconstructionAuto)
             {
-                RaytracingMode from;
-                settings.RayReconstruction = RayReconstruction(gpu, settings.Backend, out from);
+                settings.RayReconstruction = ResolvedRayReconstruction;
                 settings.RayReconstructionFrom = from;
             }
-            ResolvedBackend = settings.Backend;
-            ResolvedQuality = settings.Quality;
-            if (settings.RayReconstructionAuto)
-            {
-                ResolvedRayReconstruction = settings.RayReconstruction;
-                ResolvedRayReconstructionFrom = settings.RayReconstructionFrom;
-            }
+        }
+
+        // What Resolve depends on besides the settings, for the add-on to settle Auto again when
+        // one changes: the card, the screen's height, and whether AMD's and Intel's DLLs are offered
+        // (the proxy attaches them after the settings load).
+        public static string Inputs()
+        {
+            return GpuClasses.Current + "|" + Screen.height + "|" + AmdUpscalerBridge.Offered + "|" + XessUpscalerBridge.Offered;
         }
 
         // For the card and screen KSP runs on.
