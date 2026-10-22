@@ -22,18 +22,44 @@ namespace ReDefinition.Probe
 
         public static IEnumerator Run(string folder, string shot)
         {
-            yield return WindowShots(folder, shot + "-dl0-before");
-
             ModuleSetting upscaler = OurModules.Upscaler.Setting("technique");
             ModuleSetting generation = OurModules.FrameGeneration.Setting("technique");
+
+            yield return new WaitForSecondsRealtime(2f);
+            LogButtons("before", upscaler, generation);
+            yield return WindowShots(folder, shot + "-dl0-before");
 
             yield return Choose("1-xess-fg-cancelled", folder, shot, generation, "Xess", new[] { "Cancel" });
             yield return Choose("2-dlss", folder, shot, upscaler, "Dlss", new[] { "Accept and download" });
             yield return WindowShots(folder, shot + "-dl3-after-dlss");
             yield return Choose("4-xess", folder, shot, upscaler, "Xess", new[] { "Accept and download" });
             yield return WindowShots(folder, shot + "-dl5-after-xess");
-            yield return Choose("6-dlss-fg", folder, shot, generation, "Dlss", new[] { "Install from zip" });
-            yield return WindowShots(folder, shot + "-dl7-after-dlss-fg");
+            yield return Choose("6-dlss-fg", folder, shot, generation, "Dlss", new[] { "Install from zip", "Accept and download" });
+            yield return Choose("8-xess-fg", folder, shot, generation, "Xess", new string[0]);
+            yield return new WaitForSecondsRealtime(2f);
+            LogButtons("after", upscaler, generation);
+            yield return WindowShots(folder, shot + "-dl9-after-all");
+        }
+
+        // Each button of the two technique rows: greyed out and why, waiting for files, or ready.
+        private static void LogButtons(string when, params ModuleSetting[] rows)
+        {
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon == null) return;
+            OwnSettings now = addon.Current();
+            Debug.Log(Log.Tag + " Probe: buttons " + when + ": frame generation's Auto stands for "
+                      + ReDefinition.Upscaler.AutoSettings.FrameGenerationTechnique(FrameGenerationTechniqueSetting.Auto,
+                          ReDefinition.Upscaler.TechniqueAvailability.Current())
+                      + ", the upscaler's for " + ReDefinition.Upscaler.AutoSettings.ResolvedBackend + ".");
+            foreach (ModuleSetting row in rows)
+                foreach (string choice in row.Choices)
+                {
+                    string reason = row.Unavailable == null ? null : row.Unavailable(now, choice);
+                    FilesNeeded files = reason != null || row.Files == null ? null : row.Files(now, choice);
+                    Debug.Log(Log.Tag + " Probe: buttons " + when + ": " + row.Title + " " + choice + ": "
+                              + (reason != null ? "greyed out (" + reason + ")"
+                                 : files != null ? "lit, waits for files (" + files.Text + ")" : "lit, ready"));
+                }
         }
 
         // Chooses the value as the window's button does: the way to its files, then the continuation. The

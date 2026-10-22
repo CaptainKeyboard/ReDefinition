@@ -131,7 +131,8 @@ namespace ReDefinition.Window
                 return new List<NvidiaFiles.Entry>();
             try
             {
-                return NvidiaFiles.Missing(Folders(), NvidiaFiles.For(architecture, implementation));
+                return NvidiaFiles.Missing(Folders(), NvidiaFiles.For(architecture, implementation,
+                    AmpereFrameGeneration.Installed()));
             }
             catch (Exception e)
             {

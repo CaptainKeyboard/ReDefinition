@@ -28,7 +28,8 @@ namespace ReDefinition.Upscaler
         internal struct Facts
         {
             public GpuClass Gpu;
-            // The proxy's DLSS and its frame generation.
+            // The proxy is there; its DLSS; a frame generation swapchain of it presents now.
+            public bool ProxyPresent;
             public bool DlssOffered;
             public bool CanGenerate;
             public bool AmdOffered;
@@ -43,6 +44,8 @@ namespace ReDefinition.Upscaler
             public bool AmperePackage;
             // Intel's libxess_fg.dll and libxell.dll are missing.
             public bool XessFgMissing;
+            // AMD's frame generation runtime, which comes with ReDefinition, is not next to KSP_x64.exe.
+            public bool AmdFgDllMissing;
         }
 
         private static Facts facts;
@@ -57,6 +60,7 @@ namespace ReDefinition.Upscaler
             Facts found = new Facts
             {
                 Gpu = GpuClasses.Current,
+                ProxyPresent = FrameGenerationBridge.Available,
                 DlssOffered = DlssBridge.Offered,
                 CanGenerate = FrameGenerationBridge.CanGenerate,
                 AmdOffered = AmdUpscalerBridge.Offered,
@@ -75,6 +79,9 @@ namespace ReDefinition.Upscaler
                 string amdFolder = ProxyIni.Get("amdUpscalerDirectory");
                 found.AmdDllMissing = !System.IO.File.Exists(System.IO.Path.Combine(
                     string.IsNullOrEmpty(amdFolder) ? NvidiaDownloader.GameFolder : amdFolder, "amd_fidelityfx_upscaler_dx12.dll"));
+                // The proxy loads it from next to KSP_x64.exe only (FidelityFx.cpp).
+                found.AmdFgDllMissing = !System.IO.File.Exists(System.IO.Path.Combine(NvidiaDownloader.GameFolder,
+                    "amd_fidelityfx_framegeneration_dx12.dll"));
             }
             catch (Exception)
             {
@@ -119,9 +126,36 @@ namespace ReDefinition.Upscaler
         public static string FrameGeneration(string choice, Facts f)
         {
             if (choice == FrameGenerationTechniqueSetting.Off) return null;
-            if (!f.CanGenerate) return "Needs the dxgi.dll proxy next to KSP_x64.exe.";
-            if (choice == FrameGenerationTechniqueSetting.Dlss && !GpuClasses.IsRtx(f.Gpu)) return "Needs a GeForce RTX card.";
-            return null;
+            const string runtimeMissing = "AMD's amd_fidelityfx_framegeneration_dx12.dll, which comes with ReDefinition, is missing"
+                                          + " next to KSP_x64.exe: install ReDefinition again.";
+            if (!f.ProxyPresent) return "Needs the dxgi.dll proxy next to KSP_x64.exe.";
+            switch (choice)
+            {
+                case FrameGenerationTechniqueSetting.Auto:
+                    // The best that runs here (AutoSettings.FrameGenerationTechnique): greyed out only where none does.
+                    foreach (string technique in new[]
+                             {
+                                 FrameGenerationTechniqueSetting.Dlss, FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess,
+                             })
+                        if (Ready(technique, f)) return null;
+                    return "No frame generation runs here yet: " + (FrameGeneration(FrameGenerationTechniqueSetting.Fsr, f)
+                                                                     ?? "each technique waits for its files.");
+                case FrameGenerationTechniqueSetting.Dlss:
+                    // Its own swapchain, from the next start on: neither AMD's runtime nor what generates now matters.
+                    return GpuClasses.IsRtx(f.Gpu) ? null : "Needs a GeForce RTX card.";
+                case FrameGenerationTechniqueSetting.Xess:
+                    return null;
+                default:
+                    // FSR 3.
+                    if (f.AmdFgDllMissing) return runtimeMissing;
+                    return f.CanGenerate ? null : "Frame generation could not be set up: ReDefinitionProxy.log says why.";
+            }
+        }
+
+        // A frame generation technique that runs here with nothing to fetch: not greyed out, nothing missing.
+        public static bool Ready(string technique, Facts f)
+        {
+            return FrameGeneration(technique, f) == null && FrameGenerationNeeds(technique, f) == Needs.None;
         }
 
         public static Needs FrameGenerationNeeds(string choice, Facts f)
@@ -129,7 +163,9 @@ namespace ReDefinition.Upscaler
             Needs needs = Needs.None;
             if (choice == FrameGenerationTechniqueSetting.Dlss)
             {
-                if (GpuClasses.IsRtx20Or30(f.Gpu) && !f.AmperePackage) needs |= Needs.AmperePackage;
+                // Without the package NVIDIA's frame generation files are not yet among the missing: they are
+                // looked for again once it is in place.
+                if (GpuClasses.IsRtx20Or30(f.Gpu) && !f.AmperePackage) needs |= Needs.AmperePackage | Needs.NvidiaFiles;
                 if (f.StreamlineMissing) needs |= Needs.NvidiaFiles;
             }
             else if (choice == FrameGenerationTechniqueSetting.Xess && f.XessFgMissing)

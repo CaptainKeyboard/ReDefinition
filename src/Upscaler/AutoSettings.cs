@@ -2,6 +2,7 @@ using System;
 using FidelityFX.FSR3;
 using ReDefinition.Bridges;
 using ReDefinition.Raytracing;
+using ReDefinition.Settings;
 using UnityEngine;
 
 namespace ReDefinition.Upscaler
@@ -107,13 +108,41 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // The frame generation technique a choice stands for: itself, or for Auto the card's own where it
+        // runs here -- DLSS on an RTX, XeSS on an Intel GPU -- else FSR 3, else whichever other runs; FSR 3
+        // where none does (the row greys Auto out then). Written into the proxy's ini, which makes its
+        // swapchain for it when KSP starts.
+        public static string FrameGenerationTechnique(string chosen, TechniqueAvailability.Facts f)
+        {
+            if (chosen != FrameGenerationTechniqueSetting.Auto) return chosen;
+            string[] order = GpuClasses.IsRtx(f.Gpu)
+                ? new[] { FrameGenerationTechniqueSetting.Dlss, FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess }
+                : f.Gpu == GpuClass.Intel
+                    ? new[] { FrameGenerationTechniqueSetting.Xess, FrameGenerationTechniqueSetting.Fsr }
+                    : new[] { FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess };
+            foreach (string technique in order)
+                if (TechniqueAvailability.Ready(technique, f)) return technique;
+            return FrameGenerationTechniqueSetting.Fsr;
+        }
+
         // What Resolve depends on besides the settings, for the add-on to settle Auto again when
-        // one changes: the card, the screen's height, and whether AMD's and Intel's DLLs are offered
-        // (the proxy attaches them after the settings load).
+        // one changes: the card, the screen's height, and whether DLSS, AMD's DLL and Intel's can run
+        // (the proxy attaches them after the settings load, a download places them).
         public static string Inputs()
         {
-            return GpuClasses.Current + "|" + Screen.height + "|" + DlssUsable() + "|" + AmdUpscalerBridge.Offered + "|"
-                   + XessUpscalerBridge.Offered;
+            TechniqueAvailability.Facts f = TechniqueAvailability.Current();
+            return GpuClasses.Current + "|" + Screen.height + "|" + DlssUsable() + "|" + AmdUsable(f) + "|" + XessUsable(f);
+        }
+
+        // AMD's DLL and Intel's offered by the proxy and in their folders.
+        private static bool AmdUsable(TechniqueAvailability.Facts f)
+        {
+            return f.AmdOffered && !f.AmdDllMissing;
+        }
+
+        private static bool XessUsable(TechniqueAvailability.Facts f)
+        {
+            return f.XessOffered && !f.XessDllMissing;
         }
 
         // Whether DLSS can run: the proxy has it, the GPU is NVIDIA's, and NVIDIA's DLSS file is in its
@@ -140,7 +169,8 @@ namespace ReDefinition.Upscaler
         // For the card and screen KSP runs on.
         public static void Resolve(OwnSettings settings)
         {
-            Resolve(settings, GpuClasses.Current, Screen.height, DlssUsable(), AmdUpscalerBridge.Offered, XessUpscalerBridge.Offered);
+            TechniqueAvailability.Facts f = TechniqueAvailability.Current();
+            Resolve(settings, GpuClasses.Current, Screen.height, DlssUsable(), AmdUsable(f), XessUsable(f));
         }
     }
 }

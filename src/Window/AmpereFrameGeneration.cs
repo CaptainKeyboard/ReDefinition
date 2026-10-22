@@ -317,6 +317,8 @@ namespace ReDefinition.Window
                     InstalledNow = true;
                     SettleIni(before);
                 }
+                // Looked at again at the next question: what waits for the package asks at once.
+                installedLookedAt = float.NegativeInfinity;
                 superResolutionLookedAt = float.NegativeInfinity;
                 status = "Installed, " + placed + " files from " + Path.GetFileName(found)
                          + (superResolution

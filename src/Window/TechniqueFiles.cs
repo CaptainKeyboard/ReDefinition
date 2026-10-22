@@ -34,6 +34,15 @@ namespace ReDefinition.Window
 
         private static void Next(TechniqueAvailability.Needs needs, Action done)
         {
+            // The package first: once it is in place, NVIDIA's files for DLSS-G are among the missing
+            // (NvidiaDownloader.Needed), which the next step then fetches.
+            if ((needs & TechniqueAvailability.Needs.AmperePackage) != 0)
+            {
+                TechniqueAvailability.Needs rest = needs & ~TechniqueAvailability.Needs.AmperePackage;
+                if (AmpereFrameGeneration.Installed()) Next(rest, done);
+                else AmpereFrameGeneration.Show(() => Next(rest, done));
+                return;
+            }
             if ((needs & TechniqueAvailability.Needs.NvidiaFiles) != 0)
             {
                 TechniqueAvailability.Needs rest = needs & ~TechniqueAvailability.Needs.NvidiaFiles;
@@ -49,13 +58,6 @@ namespace ReDefinition.Window
                 List<ReDefinition.Bridges.IntelFiles.Item> missing = IntelDownloader.Needed();
                 if (missing.Count == 0 || IntelDownloader.Running) Next(rest, done);
                 else IntelDownloader.Confirm(missing, () => Next(rest, done));
-                return;
-            }
-            if ((needs & TechniqueAvailability.Needs.AmperePackage) != 0)
-            {
-                TechniqueAvailability.Needs rest = needs & ~TechniqueAvailability.Needs.AmperePackage;
-                if (AmpereFrameGeneration.Installed()) Next(rest, done);
-                else AmpereFrameGeneration.Show(() => Next(rest, done));
                 return;
             }
             if ((needs & TechniqueAvailability.Needs.AmdDll) != 0)

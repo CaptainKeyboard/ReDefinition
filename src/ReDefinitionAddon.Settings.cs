@@ -117,7 +117,7 @@ namespace ReDefinition
             CopyLiveSettings(loaded);
             // The proxy reads it when its swapchain is made, before this runs: the ini follows the
             // settings for the next start.
-            FrameGenerationTechniqueSetting.Write(settings.FrameGenerationTechnique);
+            WriteFrameGenerationTechnique();
 
             savedSnapshot = asSaved;
         }
@@ -210,8 +210,22 @@ namespace ReDefinition
         // Auto depends on the card, the screen and the DLLs the proxy offers: settled again when one
         // changes (a new resolution, a window resized, the proxy attached late) or after a hand pick,
         // through Apply as every change.
+        // The technique frame generation's choice stands for -- Auto resolved for the card and the files
+        // in place -- into the proxy's ini, for its next start; again whenever that changes (a download).
+        private string frameGenerationTechniqueWritten;
+
+        private void WriteFrameGenerationTechnique(string chosen = null)
+        {
+            string technique = AutoSettings.FrameGenerationTechnique(chosen ?? settings.FrameGenerationTechnique,
+                TechniqueAvailability.Current());
+            if (technique == frameGenerationTechniqueWritten) return;
+            frameGenerationTechniqueWritten = technique;
+            FrameGenerationTechniqueSetting.Write(technique);
+        }
+
         private void ResolveAutoOnNewScreen()
         {
+            WriteFrameGenerationTechnique();
             string inputs = AutoSettings.Inputs();
             if (inputs == resolvedFor) return;
             resolvedFor = inputs;
@@ -357,7 +371,7 @@ namespace ReDefinition
             if (before.Enabled != after.Enabled && !after.Enabled) SetEnabled(false);
             if (before.LowLatency != after.LowLatency) LowLatencySetting.Write(after.LowLatency);
             if (before.FrameGenerationTechnique != after.FrameGenerationTechnique)
-                FrameGenerationTechniqueSetting.Write(after.FrameGenerationTechnique);
+                WriteFrameGenerationTechnique(after.FrameGenerationTechnique);
             if (before.Quality != after.Quality) SetQuality(after.Quality);
             if (before.Sharpness != after.Sharpness) SetSharpness(after.Sharpness);
             if (before.Backend != after.Backend) SetBackend(after.Backend);

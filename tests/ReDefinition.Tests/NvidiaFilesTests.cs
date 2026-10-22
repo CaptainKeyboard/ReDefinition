@@ -53,6 +53,9 @@ namespace ReDefinition.Tests
             };
             CollectionAssert.AreEquivalent(beforeAda, NvidiaFiles.For(0x160, RtxTuring).Select(e => e.FileName).ToArray());
             CollectionAssert.AreEquivalent(beforeAda, NvidiaFiles.For(0x170, 0x4).Select(e => e.FileName).ToArray(), "Ampere");
+            Assert.AreEqual(NvidiaFiles.All.Length, NvidiaFiles.For(0x170, 0x4, true).Count,
+                "Ampere with dlssg_for_sm86: Streamline's frame generation plugins too");
+            Assert.AreEqual(0, NvidiaFiles.For(0x160, GtxTuring, true).Count, "no DLSS, no package's frame generation");
 
             Assert.AreEqual(NvidiaFiles.All.Length, NvidiaFiles.For(0x190, Ada102).Count);
             Assert.AreEqual(NvidiaFiles.All.Length, NvidiaFiles.For(0x1B0, Ada102).Count, "Blackwell");

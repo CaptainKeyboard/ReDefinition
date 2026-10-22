@@ -180,12 +180,13 @@ namespace ReDefinition.Bridges
         }
 
         // What a GPU can use: DLSS and Ray Reconstruction on an RTX GPU from Turing on,
-        // frame generation from Ada on, and the licence texts of what it gets. Nothing
-        // for another GPU, or an unknown one (0).
-        public static List<Entry> For(uint architecture, uint implementation)
+        // frame generation from Ada on -- and on an RTX 30 or 20 with the dlssg_for_sm86 package in
+        // place (ampereFrameGeneration), whose DLSS-G needs Streamline's frame generation plugins
+        // too -- and the licence texts of what it gets. Nothing for another GPU, or an unknown one (0).
+        public static List<Entry> For(uint architecture, uint implementation, bool ampereFrameGeneration = false)
         {
             bool dlss = DlssRuns(architecture, implementation);
-            bool frameGeneration = FrameGenerationRuns(architecture);
+            bool frameGeneration = FrameGenerationRuns(architecture) || (dlss && ampereFrameGeneration);
             List<Entry> entries = new List<Entry>();
             foreach (Entry entry in All)
             {

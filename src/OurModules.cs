@@ -225,9 +225,10 @@ namespace ReDefinition
                     settings.FrameGeneration = value != FrameGenerationTechniqueSetting.Off;
                     if (FrameGenerationTechniqueSetting.Valid(value)) settings.FrameGenerationTechnique = value;
                 },
-                // Offered where the proxy can generate, and always while it is on, so that a setting saved
-                // with the proxy installed can still be switched off after it has gone.
-                Interactable = settings => FrameGenerationBridge.CanGenerate || settings.FrameGeneration,
+                // Offered where the proxy is there -- a technique that does not generate now can from the next
+                // start on, each button says -- and always while it is on, so that a setting saved with the
+                // proxy installed can still be switched off after it has gone.
+                Interactable = settings => FrameGenerationBridge.Available || settings.FrameGeneration,
                 Unavailable = (settings, value) => TechniqueAvailability.FrameGeneration(value, TechniqueAvailability.Current()),
                 Files = (settings, value) => TechniqueFiles.For(
                     TechniqueAvailability.FrameGenerationNeeds(value, TechniqueAvailability.Current())),
@@ -1004,15 +1005,14 @@ namespace ReDefinition
         {
             if (value == FrameGenerationTechniqueSetting.Off) return value;
             FrameGenerationChoice.Limits limits = FrameGenerationBridge.Limits();
-            if (value == FrameGenerationTechniqueSetting.Auto)
-            {
-                // The technique only: the multiplier row says how many frames.
-                string running = limits.Technique == 1 ? "FSR 3" : limits.Technique == 2 ? "DLSS" : limits.Technique == 3 ? "XeSS" : null;
-                return running == null ? value : "Auto (" + running + ")";
-            }
-            int kind = value == FrameGenerationTechniqueSetting.Fsr ? 1 : value == FrameGenerationTechniqueSetting.Dlss ? 2 : 3;
-            return limits.Known && limits.Technique != kind
-                ? FrameGenerationTechniqueSetting.Label(value) + " (after a restart)"
+            // Auto names the technique it stands for here (the technique only: the multiplier row says how many
+            // frames).
+            string technique = AutoSettings.FrameGenerationTechnique(value, TechniqueAvailability.Current());
+            int kind = technique == FrameGenerationTechniqueSetting.Fsr ? 1 : technique == FrameGenerationTechniqueSetting.Dlss ? 2 : 3;
+            string name = FrameGenerationTechniqueSetting.Label(technique)
+                          + (limits.Known && limits.Technique != kind ? ", after a restart" : "");
+            return value == FrameGenerationTechniqueSetting.Auto ? "Auto (" + name + ")"
+                : limits.Known && limits.Technique != kind ? FrameGenerationTechniqueSetting.Label(value) + " (after a restart)"
                 : FrameGenerationTechniqueSetting.Label(value);
         }
 
