@@ -263,9 +263,12 @@ namespace ReDefinition
                           + "Light: also the light bouncing off surfaces and the sky, and ambient occlusion.\n"
                           + "Full: also reflections.\n"
                           + "Needs the dxgi.dll proxy next to KSP_x64.exe and a GPU with DirectX Raytracing 1.1\n"
-                          + "(GeForce RTX 20 and newer, Radeon RX 6000 and newer).",
+                          + "(GeForce RTX 20 and newer, Radeon RX 6000 and newer). Greyed while the proxy does not offer it.",
                 Read = settings => settings.Raytracing.ToString(),
                 Write = (settings, value) => settings.Raytracing = RaytracingModeOf(value),
+                // Offered while the proxy runs raytracing here, and always while it is on, so that a
+                // setting saved with the proxy installed can still be switched off after it has gone.
+                Interactable = settings => RaytracingOffered() || settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off,
             },
             new ModuleSetting
             {
@@ -465,6 +468,29 @@ namespace ReDefinition
                 // (RtLighting); without Deferred the raytraced light goes in as it is.
                 Interactable = settings => TracesDiffuseLight(settings) && ReDefinition.Core.ForeignAssumptions.DeferredReflections.Holds,
             });
+
+        // Whether the proxy offers raytracing on this GPU (RtNative.Ready), asked once a second: a row asks
+        // it in every frame.
+        private static float raytracingAskedAt = float.MinValue;
+        private static bool raytracingOffered;
+
+        private static bool RaytracingOffered()
+        {
+            float now;
+            try
+            {
+                now = UnityEngine.Time.realtimeSinceStartup;
+            }
+            catch (System.Exception)
+            {
+                now = 0f;
+            }
+            if (raytracingAskedAt != float.MinValue && now - raytracingAskedAt < 1f) return raytracingOffered;
+            raytracingAskedAt = now;
+            string why;
+            raytracingOffered = ReDefinition.Raytracing.RtNative.Ready(out why);
+            return raytracingOffered;
+        }
 
         private static string LightColourLabel(string value)
         {
