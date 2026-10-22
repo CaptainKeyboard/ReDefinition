@@ -180,7 +180,7 @@ namespace ReDefinition.Tests
         public void TheUpscalingRowsStandInTheirOrder()
         {
             CollectionAssert.AreEqual(new[] { "Upscaler", "Technique", "Mode", "DLSS model", "Sharpness", "Frame generation",
-                                            "Raytracing", "Light bounces", "Ray Reconstruction", "Ray Reconstruction from", "Moonlight", "Moon reflection", "Moon glow", "Sun reflection", "Night light", "Light colour" },
+                                            "Low latency", "Raytracing", "Light bounces", "Ray Reconstruction", "Ray Reconstruction from", "Moonlight", "Moon reflection", "Moon glow", "Sun reflection", "Night light", "Light colour" },
                 OurModules.Rows().Select(setting => setting.Title).ToArray());
         }
 
@@ -189,8 +189,9 @@ namespace ReDefinition.Tests
         {
             string[] modes = OurModules.Upscaler.Setting("quality").Choices;
 
-            Assert.AreEqual(6, modes.Length);
-            Assert.AreEqual("UltraPerformance", modes[0]);
+            Assert.AreEqual(7, modes.Length);
+            Assert.AreEqual("Auto", modes[0]);
+            Assert.AreEqual("UltraPerformance", modes[1]);
             Assert.AreEqual("NativeAA", modes[modes.Length - 1]);
         }
         // The settings window builds a switch, a slider or a list for every own row

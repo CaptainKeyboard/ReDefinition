@@ -17,11 +17,12 @@ namespace ReDefinition
     // and commit it through the add-on's setters (ReDefinitionAddon.Apply); the FSR rig
     // stays as it is.
     //
-    // A profile sets their quality settings only, as it does the other mods': the
-    // upscaler and its mode. Its sharpness is taste, and frame generation -- which
-    // needs the dxgi.dll proxy a profile cannot see -- the player's switch. None of
-    // them can be changed without a graphics profile chosen: only a profile makes
-    // ReDefinition active (ReDefinitionAddon).
+    // A profile sets the graphics settings of these modules -- the upscaler, its mode, frame
+    // generation, raytracing, Ray Reconstruction and the low latency mode -- by the class of the
+    // graphics card (ProfileValue); a value may be Auto, which stands for what fits the card and
+    // the screen (AutoSettings). Its sharpness is taste and stays the player's. None of them can
+    // be changed without a graphics profile chosen: only a profile makes ReDefinition active
+    // (ReDefinitionAddon).
     internal static class OurModules
     {
         public static readonly IGraphicsModule Upscaler = new GraphicsModule("upscaler", "Upscaler",
@@ -50,12 +51,15 @@ namespace ReDefinition
                 Control = SettingControl.Choice,
                 Choices = new[]
                 {
-                    UpscalerBackend.Fsr3.ToString(), UpscalerBackend.Dlss.ToString(), UpscalerBackend.Amd.ToString(),
-                    UpscalerBackend.Xess.ToString(),
+                    AutoSettings.Auto, UpscalerBackend.Fsr3.ToString(), UpscalerBackend.Dlss.ToString(),
+                    UpscalerBackend.Amd.ToString(), UpscalerBackend.Xess.ToString(),
                 },
                 // AMD's DLL by the FSR it runs, XeSS by its version, once they run.
-                Label = value => TechniqueLabel(Backend(value)),
-                Tooltip = "FSR 3 runs on every GPU and comes with ReDefinition.\n"
+                Label = value => value == AutoSettings.Auto ? "Auto (" + TechniqueLabel(AutoSettings.ResolvedBackend) + ")"
+                    : TechniqueLabel(Backend(value)),
+                Tooltip = "Auto takes DLSS on a GeForce RTX, AMD's FSR 4 on a Radeon RX 7000 or RX 9000 where its DLL is\n"
+                          + "there, XeSS on an Intel GPU where its DLL is, and FSR 3 otherwise.\n"
+                          + "FSR 3 runs on every GPU and comes with ReDefinition.\n"
                           + "DLSS needs an NVIDIA RTX GPU and NVIDIA's nvngx_dlss.dll, which NVIDIA DLSS files\n"
                           + "in ReDefinition's settings window downloads from NVIDIA.\n"
                           + "AMD FSR (DLL) runs AMD's amd_fidelityfx_upscaler_dx12.dll, the player's own copy next to KSP_x64.exe:\n"
@@ -65,8 +69,12 @@ namespace ReDefinition
                           + "window downloads from Intel, on any GPU with Shader Model 6.4 and DP4a; once it runs,\n"
                           + "this row names its version.\n"
                           + "All three need the dxgi.dll proxy next to KSP_x64.exe. Without their DLL, FSR 3 runs.",
-                Read = settings => settings.Backend.ToString(),
-                Write = (settings, value) => settings.Backend = Backend(value),
+                Read = settings => settings.BackendAuto ? AutoSettings.Auto : settings.Backend.ToString(),
+                Write = (settings, value) =>
+                {
+                    settings.BackendAuto = value == AutoSettings.Auto;
+                    if (!settings.BackendAuto) settings.Backend = Backend(value);
+                },
                 Interactable = settings => DlssBridge.Offered || AmdUpscalerBridge.Offered || XessUpscalerBridge.Offered
                                            || settings.Backend != UpscalerBackend.Fsr3,
             },
@@ -79,15 +87,41 @@ namespace ReDefinition
                 Order = 20,
                 Control = SettingControl.Choice,
                 Choices = ModesRightToLeft(),
-                Label = value => KspSettingsSection.ModeName(Mode(value)),
-                Tooltip = "Right end: AA only, full resolution, the upscaler as antialiasing.\n"
+                Label = value => value == AutoSettings.Auto ? "Auto (" + KspSettingsSection.ModeName(AutoSettings.ResolvedQuality) + ")"
+                    : KspSettingsSection.ModeName(Mode(value)),
+                Tooltip = "Auto takes the mode that renders nearest the size the graphics profile aims for at your\n"
+                          + "screen's height: a smaller one on a larger screen.\n"
+                          + "Right end: AA only, full resolution, the upscaler as antialiasing.\n"
                           + "Further left: rendered smaller by the factor shown, and reconstructed.\n"
                           + "DLSS renders at the size it asks for in each mode; 1.2x, which DLSS does not have, as its Quality.\n"
                           + "The diagnostics window shows the frame rate it gives.\n"
                           + "With V-Sync on and frame generation, the rendered rate is held at half the refresh rate,\n"
                           + "or lower where DLSS generates several frames from each rendered one.",
-                Read = settings => settings.Quality.ToString(),
-                Write = (settings, value) => settings.Quality = Mode(value),
+                Read = settings => settings.QualityAuto ? AutoSettings.Auto : settings.Quality.ToString(),
+                Write = (settings, value) =>
+                {
+                    settings.QualityAuto = value == AutoSettings.Auto;
+                    if (!settings.QualityAuto) settings.Quality = Mode(value);
+                },
+            },
+            // What a profile aims for, which Auto turns into the mode for the screen: the height
+            // the 3D scene is rendered at on a screen 1440 pixels high. No row: the profile's.
+            new ModuleSetting
+            {
+                Key = "renderTargetHeight",
+                Title = "Render height Auto aims for",
+                Kind = SettingKind.Quality,
+                Order = 21,
+                Control = SettingControl.Slider,
+                Min = 240f,
+                Max = 4320f,
+                WholeNumbers = true,
+                StepsPerUnit = 1f,
+                Tooltip = "The height the 3D scene is rendered at, in pixels, that Auto aims for in the mode row.",
+                Read = settings => settings.RenderTargetHeight.ToString(CultureInfo.InvariantCulture),
+                Write = (settings, value) =>
+                    settings.RenderTargetHeight = (int)float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+                Present = () => false,
             },
             // DLSS's own choice first, then K, M and L, from the quickest to the sharpest.
             new ModuleSetting
@@ -178,6 +212,27 @@ namespace ReDefinition
                 Interactable = settings => FrameGenerationBridge.CanGenerate || settings.FrameGeneration,
             });
 
+        // The low latency mode (docs/development/low-latency.md): Auto, or Off. Written into the
+        // proxy's ini, which reads it within a second.
+        public static readonly IGraphicsModule Latency = new GraphicsModule("latency", "Low latency",
+            new ModuleSetting
+            {
+                Key = "mode",
+                Title = "Low latency",
+                Kind = SettingKind.Other,
+                Order = 45,
+                Control = SettingControl.Choice,
+                Choices = LowLatencySetting.All,
+                Tooltip = "Auto: the latency brake, which waits before each frame so that it is not queued ahead,\n"
+                          + "and the graphics card's own technique where it lowers the latency: Intel's XeLL on an Intel GPU,\n"
+                          + "AMD's Anti-Lag 2 on a Radeon once it has been tried there. Those run alone, and the brake\n"
+                          + "steps back while they lower the latency. Off: none of them.\n"
+                          + "Needs the dxgi.dll proxy next to KSP_x64.exe.",
+                Read = settings => settings.LowLatency,
+                Write = (settings, value) => settings.LowLatency = value,
+                Interactable = settings => FrameGenerationBridge.Available,
+            });
+
         // Raytracing: how much of the lighting, and how often its light bounces
         // (docs/development/raytracing.md). Not a quality a profile sets: it asks for a GPU
         // with raytracing and costs what the player decides to spend.
@@ -228,14 +283,25 @@ namespace ReDefinition
                 Title = "Ray Reconstruction",
                 Kind = SettingKind.Other,
                 Order = 65,
-                Control = SettingControl.Toggle,
-                Tooltip = "NVIDIA's DLSS Ray Reconstruction cleans up and upscales the raytraced image in one step:\n"
+                Control = SettingControl.Choice,
+                Choices = new[] { AutoSettings.Auto, "Off", "On" },
+                Label = value => value == AutoSettings.Auto
+                    ? "Auto (" + (AutoSettings.ResolvedRayReconstruction ? "from " + RaytracingLabel(AutoSettings.ResolvedRayReconstructionFrom.ToString())
+                                  : "Off") + ")"
+                    : value,
+                Tooltip = "Auto takes it on a GeForce RTX with DLSS as the upscaler: from Full on an RTX 20 or 30, from\n"
+                          + "Shadows on an RTX 40 or 50. A Radeon RX 9000 has AMD's own denoiser, which runs by itself.\n"
+                          + "NVIDIA's DLSS Ray Reconstruction cleans up and upscales the raytraced image in one step:\n"
                           + "sharper reflections, less flicker and smearing, at more GPU time. Off, ReDefinition's own\n"
                           + "denoiser and DLSS Super Resolution do it.\n"
                           + "Needs DLSS as the upscaler. Runs beside every frame generation: through Streamline with DLSS\n"
                           + "frame generation or none, directly through NGX with FSR or XeSS frame generation.",
-                Read = settings => SettingValues.Text(settings.RayReconstruction),
-                Write = (settings, value) => settings.RayReconstruction = bool.Parse(value),
+                Read = settings => settings.RayReconstructionAuto ? AutoSettings.Auto : settings.RayReconstruction ? "On" : "Off",
+                Write = (settings, value) =>
+                {
+                    settings.RayReconstructionAuto = value == AutoSettings.Auto;
+                    if (!settings.RayReconstructionAuto) settings.RayReconstruction = value == "On";
+                },
                 Interactable = settings => settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off
                                            && settings.Backend == UpscalerBackend.Dlss,
             },
@@ -258,7 +324,8 @@ namespace ReDefinition
                           + "4.2 ms with shadows and light and 5.2 ms with Full. Shadows: Ray Reconstruction in all of them.",
                 Read = settings => settings.RayReconstructionFrom.ToString(),
                 Write = (settings, value) => settings.RayReconstructionFrom = RaytracingModeOf(value),
-                Interactable = settings => settings.RayReconstruction && settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off
+                Interactable = settings => settings.RayReconstruction && !settings.RayReconstructionAuto
+                                           && settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off
                                            && settings.Backend == UpscalerBackend.Dlss,
             },
             new ModuleSetting
@@ -788,7 +855,7 @@ namespace ReDefinition
             });
 
         public static readonly IList<IGraphicsModule> All =
-            new List<IGraphicsModule> { Upscaler, FrameGeneration, Raytracing, Hotkeys, FlightUi, Scaling, MainMenuScene, SpaceCentre }
+            new List<IGraphicsModule> { Upscaler, FrameGeneration, Latency, Raytracing, Hotkeys, FlightUi, Scaling, MainMenuScene, SpaceCentre }
                 .AsReadOnly();
 
         public static IGraphicsModule Find(string name)
@@ -822,14 +889,15 @@ namespace ReDefinition
             return sorted;
         }
 
-        // The modes from UltraPerformance on the left to AA only on the right: they
+        // Auto, then the modes from UltraPerformance on the left to AA only on the right: they
         // run from NativeAA = 0 to UltraPerformance = 5, so the row shows them
         // mirrored.
         private static string[] ModesRightToLeft()
         {
             int last = (int)Fsr3Upscaler.QualityMode.UltraPerformance;
-            string[] names = new string[last + 1];
-            for (int i = 0; i <= last; i++) names[i] = ((Fsr3Upscaler.QualityMode)(last - i)).ToString();
+            string[] names = new string[last + 2];
+            names[0] = AutoSettings.Auto;
+            for (int i = 0; i <= last; i++) names[i + 1] = ((Fsr3Upscaler.QualityMode)(last - i)).ToString();
             return names;
         }
 

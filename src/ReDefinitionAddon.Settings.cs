@@ -86,6 +86,9 @@ namespace ReDefinition
                 loaded.FrameGeneration = false;
             }
 
+            // What Auto stands for on this card and screen, before anything is built from it.
+            AutoSettings.Resolve(loaded);
+            resolvedScreenHeight = Screen.height;
             wantEnabled = loaded.Enabled;
             quality = loaded.Quality;
             sharpness = loaded.Sharpness;
@@ -198,6 +201,19 @@ namespace ReDefinition
             get { return settings; }
         }
 
+        // The screen's height Auto was last resolved for.
+        private int resolvedScreenHeight;
+
+        // The mode Auto takes depends on the screen: settled again when its height changes (a new
+        // resolution, a window resized), through Apply as every change.
+        private void ResolveAutoOnNewScreen()
+        {
+            if (Screen.height == resolvedScreenHeight || !settings.QualityAuto) return;
+            resolvedScreenHeight = Screen.height;
+            OwnSettings now = Current();
+            Apply(now, now.Clone());
+        }
+
         private OwnSettings Collect()
         {
             settings.Enabled = wantEnabled;
@@ -305,6 +321,8 @@ namespace ReDefinition
             if (before == null || after == null) return;
 
             EnforceProfile();
+            AutoSettings.Resolve(after);
+            resolvedScreenHeight = Screen.height;
             try
             {
                 ApplyChanges(before, after);
@@ -325,6 +343,7 @@ namespace ReDefinition
         private void ApplyChanges(OwnSettings before, OwnSettings after)
         {
             if (before.Enabled != after.Enabled && !after.Enabled) SetEnabled(false);
+            if (before.LowLatency != after.LowLatency) LowLatencySetting.Write(after.LowLatency);
             if (before.Quality != after.Quality) SetQuality(after.Quality);
             if (before.Sharpness != after.Sharpness) SetSharpness(after.Sharpness);
             if (before.Backend != after.Backend) SetBackend(after.Backend);

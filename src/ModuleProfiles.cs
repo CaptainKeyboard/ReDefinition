@@ -117,6 +117,8 @@ namespace ReDefinition
                 OwnSettings after = before.Clone();
                 Apply(profile, after, problems, active);
                 addon.Apply(before, after);
+                // A profile is what the player has now: the proxy's ini follows it, whatever was set there.
+                LowLatencySetting.Write(after.LowLatency);
             }
             catch (Exception e)
             {

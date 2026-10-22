@@ -14,7 +14,7 @@ namespace ReDefinition.Tests
         public void TheRowOffersFsr3DlssAmdAndXessInThatOrder()
         {
             ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "Technique");
-            CollectionAssert.AreEqual(new[] { "Fsr3", "Dlss", "Amd", "Xess" }, row.Choices);
+            CollectionAssert.AreEqual(new[] { "Auto", "Fsr3", "Dlss", "Amd", "Xess" }, row.Choices);
         }
 
         [TestMethod]

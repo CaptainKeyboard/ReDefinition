@@ -50,6 +50,17 @@ namespace ReDefinition
         // RTX A4500 in every mode, against the own denoiser's 0.7 ms (Shadows), 2.7 (Light) and
         // 3.7 (Full) plus Super Resolution's 1.5. Shadows: every mode, as before.
         public RaytracingMode RayReconstructionFrom = RaytracingMode.Shadows;
+        // The technique, the mode and Ray Reconstruction follow the graphics card and the
+        // screen (AutoSettings): Backend, Quality, RayReconstruction and RayReconstructionFrom
+        // hold what Auto resolved to, and are the player's own value once the flag is off.
+        public bool BackendAuto = true;
+        public bool QualityAuto = true;
+        public bool RayReconstructionAuto = true;
+        // The render height, at the display's height of 1440, the mode Auto aims for; a profile
+        // sets it (Upscaler/AutoSettings.Mode).
+        public int RenderTargetHeight = 1440;
+        // Auto: the latency brake and the card's own technique; Off: neither (LowLatencySetting).
+        public string LowLatency = LowLatencySetting.Auto;
         // How bright the moons' and planets' light is, in percent of the raytracing's
         // artistic scale (Raytracing/Ksp/RtReflectors).
         public float RaytracingMoonlight = 10f;
@@ -331,6 +342,25 @@ namespace ReDefinition
             Bool("stagingResetAsks", x => x.StagingResetAsks, (x, v) => x.StagingResetAsks = v, true),
             Bool("crewSlotButtons", x => x.CrewSlotButtons, (x, v) => x.CrewSlotButtons = v, true),
             Bool("timeWarpPanelButton", x => x.TimeWarpPanelButton, (x, v) => x.TimeWarpPanelButton = v, true),
+            Bool("techniqueAuto", x => x.BackendAuto, (x, v) => x.BackendAuto = v, true),
+            Bool("qualityAuto", x => x.QualityAuto, (x, v) => x.QualityAuto = v, true),
+            Bool("rayReconstructionAuto", x => x.RayReconstructionAuto, (x, v) => x.RayReconstructionAuto = v, true),
+            new Field<int>
+            {
+                Key = "renderTargetHeight", Get = x => x.RenderTargetHeight, Set = (x, v) => x.RenderTargetHeight = v,
+                Live = true, Format = v => v.ToString(CultureInfo.InvariantCulture),
+                Parse = (string text, out int v) => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out v)
+                                                    && v >= 240 && v <= 4320,
+            },
+            new Field<string>
+            {
+                Key = "lowLatency", Get = x => x.LowLatency, Set = (x, v) => x.LowLatency = v, Live = true, Format = v => v,
+                Parse = (string text, out string v) =>
+                {
+                    v = LowLatencySetting.Valid(text) ? text : null;
+                    return v != null;
+                },
+            },
             Enum("raytracing", x => x.Raytracing, (x, v) => x.Raytracing = v),
             new Field<int>
             {
