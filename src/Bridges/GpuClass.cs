@@ -56,11 +56,15 @@ namespace ReDefinition.Bridges
                 {
                     uint architecture = 0, implementation = 0;
                     bool known = FrameGenerationBridge.NvidiaGpu(out architecture, out implementation);
+                    // The package for an RTX 30 or 20 (dlssg_for_sm86) makes NVAPI answer as a Blackwell card
+                    // (0x1B0 for an RTX A4500, 0x170 without it, in the proxy's log), so that DLSS frame
+                    // generation runs; the adapter's name is the card then.
+                    if (known && Spoofed()) known = false;
                     GpuClass found = Of(SystemInfo.graphicsDeviceVendorID, SystemInfo.graphicsDeviceName,
                                         known ? architecture : 0, known ? implementation : 0);
                     // A name alone for an NVIDIA card may be wrong for a new model, so it is asked again
                     // until NVAPI has answered.
-                    if (found != GpuClass.Unknown && (known || SystemInfo.graphicsDeviceVendorID != Nvidia)) current = found;
+                    if (found != GpuClass.Unknown && (known || SystemInfo.graphicsDeviceVendorID != Nvidia || Spoofed())) current = found;
                     return found;
                 }
                 catch (Exception)
@@ -68,6 +72,19 @@ namespace ReDefinition.Bridges
                     // Outside the game, in the tests, Unity's SystemInfo does not answer.
                     return GpuClass.Unknown;
                 }
+            }
+        }
+
+        // Whether the package that makes an RTX 30 or 20 pass for a newer card lies next to KSP_x64.exe.
+        private static bool Spoofed()
+        {
+            try
+            {
+                return AmperePackage.Installed(System.IO.Path.GetDirectoryName(Application.dataPath));
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 
@@ -124,6 +141,12 @@ namespace ReDefinition.Bridges
             if (at < upper.Length && upper[at] == '9') return GpuClass.Radeon9000;
             if (at < upper.Length && upper[at] == '7') return GpuClass.Radeon7000;
             return GpuClass.RadeonOlder;
+        }
+
+        // Whether the card is a GeForce RTX or an NVIDIA RTX workstation card, Turing or newer.
+        public static bool IsRtx(GpuClass gpu)
+        {
+            return gpu == GpuClass.Rtx20 || gpu == GpuClass.Rtx30 || gpu == GpuClass.Rtx40 || gpu == GpuClass.Rtx50;
         }
 
         // Whether the card is one of an RTX 20 or 30: the generations NVIDIA gives neither
