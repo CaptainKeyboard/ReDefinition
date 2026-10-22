@@ -733,6 +733,18 @@ namespace ReDefinition.Window
         {
             if (!AmpereFrameGeneration.Offered()) return null;
 
+            // In place: nothing to download or install any more, only the preset.
+            if (AmpereFrameGeneration.Installed())
+            {
+                List<DialogGUIBase> inPlace = new List<DialogGUIBase>
+                {
+                    new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                        new DialogGUILabel("DLSS-G on RTX 30/20", NameWidth), new DialogGUILabel(AmpereRowText, true)),
+                };
+                inPlace.AddRange(AmpereOptionRows());
+                return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft, inPlace.ToArray());
+            }
+
             DialogGUIButton manually = new DialogGUIButton("Download manually ...", AmpereFrameGeneration.Show,
                 ControlWidth, 24f, false);
             manually.tooltipText = "DLSS frame generation on RTX 30 and RTX 20 through dlssg_for_sm86, a community\n"
@@ -749,7 +761,6 @@ namespace ReDefinition.Window
                     new DialogGUILabel("DLSS-G on RTX 30/20", NameWidth), manually, install),
                 new DialogGUILabel(AmpereRowText, true),
             };
-            if (AmpereFrameGeneration.Installed()) rows.AddRange(AmpereOptionRows());
             return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft, rows.ToArray());
         }
 
