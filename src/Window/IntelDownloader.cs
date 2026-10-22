@@ -122,9 +122,10 @@ namespace ReDefinition.Window
 
         // The question before anything is fetched: what, from where, under which
         // licence -- a click away -- and that downloading accepts it.
-        public static void Confirm(List<IntelFiles.Item> items)
+        public static void Confirm(List<IntelFiles.Item> items, Action installed = null)
         {
             if (Running || items.Count == 0) return;
+            onInstalled = installed;
 
             bool superResolution;
             bool frameGeneration;
@@ -174,7 +175,7 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton("Accept and download", () => Start(items), 200f, 30f, true),
-                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { }, 120f, 30f, true),
+                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { onInstalled = null; }, 120f, 30f, true),
                     new DialogGUIFlexibleSpace()),
             };
             // libxess.dll is four fifths of it: the player who wants only XeSS super
@@ -196,6 +197,9 @@ namespace ReDefinition.Window
             UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
         }
+
+        // What waits for the files: called when they are in place, dropped where the player cancels.
+        private static Action onInstalled;
 
         private static void Start(List<IntelFiles.Item> items)
         {
@@ -394,6 +398,9 @@ namespace ReDefinition.Window
             if (Installed) Debug.Log(Log.Tag + " Intel's files: " + outcome);
             else Debug.LogWarning(Log.Tag + " Intel's files: " + outcome);
             ScreenMessages.PostScreenMessage("Intel's XeSS files: " + outcome, 8f);
+            Action finished = onInstalled;
+            onInstalled = null;
+            if (Installed && finished != null) finished();
         }
     }
 }

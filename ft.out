@@ -1,0 +1,14 @@
+snapshot 2378
+moved away: ['dlssg_sm86', 'dlssg_sm86.ini', 'nvngx_dlss.dll', 'nvngx_dlss.license.txt', 'nvngx_dlssd.dll', 'nvngx_dlssg.dll', 'reflex.license.txt', 'sl.3rd-party-licenses.md', 'sl.common.dll', 'sl.dlss_d.dll', 'sl.dlss_g.dll', 'sl.interposer.dll', 'sl.license.txt', 'sl.pcl.dll', 'sl.reflex.dll', 'version.dll']
+profile start: quit
+start nofiles Display 1 quit
+captures: C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program\ReDefinitionCaptures\20261022-160829-run
+start nofiles Display 0 quit
+captures: C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program\ReDefinitionCaptures\20261022-161029-run
+downloads: quit
+captures: C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program\ReDefinitionCaptures\20261022-161237-run
+['restored dlssg_sm86.ini', 'restored reflex.license.txt', 'restored settings.cfg', 'restored GameData\\BetterTimeWarp\\PluginData\\BetterTimeWarp.cfg', 'restored GameData\\PersistentRotation\\PluginData\\PersistentRotation_default_0.cfg', 'restored GameData\\PersistentRotation\\PluginData\\PersistentRotation_default_1.cfg', 'restored GameData\\ReDefinition\\PluginData\\settings.cfg', 'removed xess.license.txt', 'written since, not kept: KSP.log', 'written since, not kept: libxell.dll', 'written since, not kept: libxess.dll', 'written since, not kept: libxess_fg.dll', 'written since, not kept: nvngx_dlss.dll', 'written since, not kept: nvngx_dlssd.dll', 'written since, not kept: ReDefinitionProxy.log', 'written since, not kept: sl.3rd-party-licenses.md', 'written since, not kept: sl.common.dll', 'written since, not kept: sl.dlss_d.dll', 'written since, not kept: sl.interposer.dll', 'written since, not kept: sl.pcl.dll', 'written since, not kept: GameData\\toolbar-settings.dat', 'written since, not kept: GameData\\AtmosphereAutopilot\\thread.log', 'written since, not kept: GameData\\KerbalEngineer\\KerbalEngineer.log', 'written since, not kept: GameData\\Kopernicus\\Cache\\mesh.hash', 'written since, not kept: GameData\\Squad\\squadcorefx.ksp', 'written since, not kept: GameData\\Squad\\KSPedia\\squadcorefx.ksp', 'written since, not kept: Launcher_Data\\E5150.cfg.bak']
+new in KSP's folder: libxell.dll
+new in KSP's folder: libxess.dll
+new in KSP's folder: libxess_fg.dll
+restored

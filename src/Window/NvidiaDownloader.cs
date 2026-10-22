@@ -148,9 +148,10 @@ namespace ReDefinition.Window
         // The question before anything is fetched: what, from where, under which of
         // NVIDIA's licences -- each one a click away -- and that downloading accepts
         // them.
-        public static void Confirm(List<NvidiaFiles.Entry> entries)
+        public static void Confirm(List<NvidiaFiles.Entry> entries, Action installed = null)
         {
             if (Running || entries.Count == 0) return;
+            onInstalled = installed;
 
             bool dlss;
             bool streamline;
@@ -224,7 +225,7 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton("Accept and download", () => Start(entries), 200f, 30f, true),
-                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { }, 120f, 30f, true),
+                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { onInstalled = null; }, 120f, 30f, true),
                     new DialogGUIFlexibleSpace()),
             };
 
@@ -233,6 +234,9 @@ namespace ReDefinition.Window
             UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
         }
+
+        // What waits for the files: called when they are in place, dropped where the player cancels.
+        private static Action onInstalled;
 
         private static void Start(List<NvidiaFiles.Entry> entries)
         {
@@ -428,6 +432,9 @@ namespace ReDefinition.Window
             if (Installed) Debug.Log(Log.Tag + " NVIDIA's files: " + outcome);
             else Debug.LogWarning(Log.Tag + " NVIDIA's files: " + outcome);
             ScreenMessages.PostScreenMessage("NVIDIA's DLSS files: " + outcome, 8f);
+            Action finished = onInstalled;
+            onInstalled = null;
+            if (Installed && finished != null) finished();
         }
 
         // The part of the archive for one file, into a temporary file: a server that

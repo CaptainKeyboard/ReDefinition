@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System;
 using ReDefinition.Bridges;
 using ReDefinition.Settings;
 using ReDefinition.Window;
@@ -6,11 +6,24 @@ using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
-    // Which techniques of the upscaler row and the frame generation row can run now, and for the
-    // ones that cannot, why in a few words: the tooltip of their greyed button. What can be
-    // downloaded or installed to enable one stands under the row (SettingsWindow).
+    // Which techniques of the upscaler row and the frame generation row the card and the proxy can run, and
+    // which of those still wait for files. A button the card or the proxy rules out is greyed out, its
+    // tooltip saying why. A button for a technique the card can run is lit even where its files are
+    // missing: choosing it opens the download or the steps for them (TechniqueFiles), and only once they
+    // are in place is the technique chosen.
     internal static class TechniqueAvailability
     {
+        // What a technique waits for.
+        [Flags]
+        internal enum Needs
+        {
+            None = 0,
+            NvidiaFiles = 1,
+            IntelFiles = 2,
+            AmdDll = 4,
+            AmperePackage = 8,
+        }
+
         // What the reasons rest on.
         internal struct Facts
         {
@@ -63,7 +76,7 @@ namespace ReDefinition.Upscaler
                 found.AmdDllMissing = !System.IO.File.Exists(System.IO.Path.Combine(
                     string.IsNullOrEmpty(amdFolder) ? NvidiaDownloader.GameFolder : amdFolder, "amd_fidelityfx_upscaler_dx12.dll"));
             }
-            catch (System.Exception)
+            catch (Exception)
             {
                 // Looked for again in a second.
             }
@@ -71,47 +84,59 @@ namespace ReDefinition.Upscaler
             return facts;
         }
 
-        // Null where the upscaler row's choice can run; why not otherwise.
+        // Null where the card and the proxy can run the upscaler row's choice; why not otherwise.
         public static string Upscaler(string choice, Facts f)
         {
             switch (choice)
             {
                 case "Dlss":
                     if (!GpuClasses.IsRtx(f.Gpu)) return "Needs a GeForce RTX card.";
-                    if (!f.DlssOffered) return "Needs the dxgi.dll proxy next to KSP_x64.exe.";
-                    if (f.DlssFileMissing) return "NVIDIA's nvngx_dlss.dll is missing: download it below.";
-                    return null;
+                    return f.DlssOffered ? null : "Needs the dxgi.dll proxy next to KSP_x64.exe.";
                 case "Amd":
-                    if (!f.AmdOffered) return "Needs the dxgi.dll proxy, presenting through Direct3D 12.";
-                    return f.AmdDllMissing
-                        ? "Needs AMD's amd_fidelityfx_upscaler_dx12.dll next to KSP_x64.exe, from AMD's FidelityFX SDK."
-                        : null;
+                    if (f.Gpu != GpuClass.Radeon9000 && f.Gpu != GpuClass.Radeon7000)
+                        return "FSR 4 runs on a Radeon RX 7000 or RX 9000 only.";
+                    return f.AmdOffered ? null : "Needs the dxgi.dll proxy, presenting through Direct3D 12.";
                 case "Xess":
-                    if (!f.XessOffered) return "Needs the dxgi.dll proxy, presenting through Direct3D 12.";
-                    return f.XessDllMissing ? "Intel's libxess.dll is missing: download it below." : null;
+                    return f.XessOffered ? null : "Needs the dxgi.dll proxy, presenting through Direct3D 12.";
                 default:
                     return null;
             }
         }
 
-        // Null where the frame generation row's choice can run; why not otherwise.
+        // What a choice the card can run still waits for; choosing it opens the way to it.
+        public static Needs UpscalerNeeds(string choice, Facts f)
+        {
+            switch (choice)
+            {
+                case "Dlss": return f.DlssFileMissing ? Needs.NvidiaFiles : Needs.None;
+                case "Amd": return f.AmdDllMissing ? Needs.AmdDll : Needs.None;
+                case "Xess": return f.XessDllMissing ? Needs.IntelFiles : Needs.None;
+                default: return Needs.None;
+            }
+        }
+
+        // Null where the card and the proxy can run the frame generation row's choice; why not otherwise.
         public static string FrameGeneration(string choice, Facts f)
         {
             if (choice == FrameGenerationTechniqueSetting.Off) return null;
             if (!f.CanGenerate) return "Needs the dxgi.dll proxy next to KSP_x64.exe.";
-            switch (choice)
+            if (choice == FrameGenerationTechniqueSetting.Dlss && !GpuClasses.IsRtx(f.Gpu)) return "Needs a GeForce RTX card.";
+            return null;
+        }
+
+        public static Needs FrameGenerationNeeds(string choice, Facts f)
+        {
+            Needs needs = Needs.None;
+            if (choice == FrameGenerationTechniqueSetting.Dlss)
             {
-                case FrameGenerationTechniqueSetting.Dlss:
-                    if (!GpuClasses.IsRtx(f.Gpu)) return "Needs a GeForce RTX card.";
-                    if (GpuClasses.IsRtx20Or30(f.Gpu) && !f.AmperePackage)
-                        return "An RTX 30 or 20 needs the dlssg_for_sm86 package: install it below.";
-                    if (f.StreamlineMissing) return "NVIDIA's Streamline files are missing: download them below.";
-                    return null;
-                case FrameGenerationTechniqueSetting.Xess:
-                    return f.XessFgMissing ? "Intel's libxess_fg.dll and libxell.dll are missing: download them below." : null;
-                default:
-                    return null;
+                if (GpuClasses.IsRtx20Or30(f.Gpu) && !f.AmperePackage) needs |= Needs.AmperePackage;
+                if (f.StreamlineMissing) needs |= Needs.NvidiaFiles;
             }
+            else if (choice == FrameGenerationTechniqueSetting.Xess && f.XessFgMissing)
+            {
+                needs |= Needs.IntelFiles;
+            }
+            return needs;
         }
 
         // Null where the multiplier can run with the technique chosen; why not otherwise. The technique

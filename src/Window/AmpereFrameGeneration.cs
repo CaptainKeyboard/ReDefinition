@@ -190,8 +190,12 @@ namespace ReDefinition.Window
 
         // The steps, as the player follows them: the release page, the zip into KSP's
         // folder, the install, a restart.
-        public static void Show()
+        // What waits for the package: called once it is installed, dropped where the player closes the dialog.
+        private static Action onInstalled;
+
+        public static void Show(Action installed = null)
         {
+            onInstalled = installed;
             string message =
                 "NVIDIA's DLSS frame generation runs on GeForce RTX 40 and newer. dlssg_for_sm86, a community project"
                 + " by sdli1995, runs it on RTX 30 and RTX 20 as well: its version.dll next to KSP_x64.exe has NVIDIA's"
@@ -205,11 +209,13 @@ namespace ReDefinition.Window
                 + " them next to KSP_x64.exe. A file already"
                 + " there is kept, renamed to end in .old; the choices it held (preset, multiplier ceiling, super"
                 + " resolution, frame timing) are carried into the new ini.\n\n"
-                + "DLSS frame generation runs from it after a restart of KSP. Where NVIDIA's files for it are missing,"
-                + " the \"NVIDIA DLSS files\" row offers them then. Each generated frame costs GPU time on these cards."
+                + "DLSS frame generation runs from it after a restart of KSP. Choosing DLSS frame generation offers NVIDIA's"
+                + " files for it too, where they are missing. Each generated frame costs GPU time on these cards."
                 + " To remove it, delete version.dll, dlssg_sm86.ini and the dlssg_sm86 folder while KSP is closed.";
 
-            DialogGUIButton install = new DialogGUIButton("Install from zip", Start, 200f, 30f, false);
+            // The dialog closes with the click: the install's progress and outcome are the window's status line and a
+            // screen message.
+            DialogGUIButton install = new DialogGUIButton("Install from zip", Start, 200f, 30f, true);
             install.OptionInteractableCondition = () => !Running && Zip() != null;
 
             DialogGUIBase[] rows =
@@ -224,7 +230,7 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(
                     new DialogGUIFlexibleSpace(),
                     install,
-                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { }, 120f, 30f, true),
+                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { onInstalled = null; }, 120f, 30f, true),
                     new DialogGUIFlexibleSpace()),
             };
 
@@ -319,6 +325,9 @@ namespace ReDefinition.Window
                 Debug.Log(Log.Tag + " dlssg_for_sm86: " + status);
             }
             ScreenMessages.PostScreenMessage("dlssg_for_sm86: " + status, 8f);
+            Action finished = onInstalled;
+            onInstalled = null;
+            if (error == null && !superResolution && finished != null) finished();
         }
     }
 }

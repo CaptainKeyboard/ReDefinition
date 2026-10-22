@@ -10,10 +10,12 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Probe
 {
-    // -redefinitionProbeDownloads: the settings window's downloads as the player runs them -- the question
-    // each asks (shot), "Accept and download" clicked, the window while it runs and the rows after -- for
-    // NVIDIA's files, Intel's, and the RTX 30 package from the zip in KSP's folder. The click is the
-    // player's acceptance of the vendors' licences: the probe runs it only where its caller asked for it.
+    // -redefinitionProbeDownloads: choosing a technique whose files are missing, as the player does -- the
+    // dialog it opens (shot), its button clicked, the technique taken once the files are in place, and
+    // left as it was where the dialog is cancelled -- for XeSS frame generation (cancelled), DLSS as the
+    // upscaler (NVIDIA's files), XeSS as the upscaler (Intel's) and DLSS frame generation on an RTX 30
+    // (the package from the zip in KSP's folder). The click on "Accept and download" is the player's
+    // acceptance of the vendors' licences: the probe runs only where its caller asked for it.
     internal static class DownloadProbe
     {
         private const float Timeout = 900f;
@@ -22,68 +24,60 @@ namespace ReDefinition.Probe
         {
             yield return WindowShots(folder, shot + "-dl0-before");
 
-            yield return Download("nvidia", folder, shot,
-                () => NvidiaDownloader.Needed().Count > 0,
-                () => NvidiaDownloader.Confirm(NvidiaDownloader.Needed()),
-                () => NvidiaDownloader.Running, () => NvidiaDownloader.Status, true);
-            yield return WindowShots(folder, shot + "-dl2-after-nvidia");
+            ModuleSetting upscaler = OurModules.Upscaler.Setting("technique");
+            ModuleSetting generation = OurModules.FrameGeneration.Setting("technique");
 
-            IntelDownloader.Refresh();
-            yield return Download("intel", folder, shot,
-                () => IntelDownloader.Needed().Count > 0,
-                () => IntelDownloader.Confirm(IntelDownloader.Needed()),
-                () => IntelDownloader.Running, () => IntelDownloader.Status, true);
-            yield return WindowShots(folder, shot + "-dl4-after-intel");
-
-            yield return Download("package", folder, shot,
-                () => AmpereFrameGeneration.Zip() != null && !AmpereFrameGeneration.Installed(),
-                AmpereFrameGeneration.Start,
-                () => AmpereFrameGeneration.Running, () => AmpereFrameGeneration.StatusText(), false);
-            yield return WindowShots(folder, shot + "-dl6-after-package");
+            yield return Choose("1-xess-fg-cancelled", folder, shot, generation, "Xess", new[] { "Cancel" });
+            yield return Choose("2-dlss", folder, shot, upscaler, "Dlss", new[] { "Accept and download" });
+            yield return WindowShots(folder, shot + "-dl3-after-dlss");
+            yield return Choose("4-xess", folder, shot, upscaler, "Xess", new[] { "Accept and download" });
+            yield return WindowShots(folder, shot + "-dl5-after-xess");
+            yield return Choose("6-dlss-fg", folder, shot, generation, "Dlss", new[] { "Install from zip" });
+            yield return WindowShots(folder, shot + "-dl7-after-dlss-fg");
         }
 
-        private static IEnumerator Download(string name, string folder, string shot, Func<bool> hasWork, Action begin,
-                                            Func<bool> running, Func<string> status, bool dialog)
+        // Chooses the value as the window's button does: the way to its files, then the continuation. The
+        // clicks are the dialogs' buttons in the order they come.
+        private static IEnumerator Choose(string name, string folder, string shot, ModuleSetting setting, string value,
+                                          string[] clicks)
         {
-            if (!hasWork())
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            FilesNeeded needed = addon == null ? null : setting.Files(addon.Current(), value);
+            if (needed == null)
             {
-                Debug.Log(Log.Tag + " Probe: downloads: nothing to fetch for " + name + ".");
+                Debug.Log(Log.Tag + " Probe: downloads: " + name + ": nothing missing, the choice is taken at once.");
                 yield break;
             }
-            begin();
-            if (dialog)
+            Debug.Log(Log.Tag + " Probe: downloads: " + name + ": " + needed.Text.Replace('\n', ' '));
+            bool continued = false;
+            needed.Begin(() => continued = true);
+
+            for (int i = 0; i < clicks.Length; i++)
             {
                 yield return new WaitForSecondsRealtime(2f);
                 yield return new WaitForEndOfFrame();
-                ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-dl1-" + name + "-question.png"));
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-dl-" + name + "-dialog" + (i + 1) + ".png"));
                 yield return new WaitForSecondsRealtime(1f);
-                if (!ClickButton("Accept and download"))
+                if (!ClickButton(clicks[i]))
                 {
-                    Debug.LogWarning(Log.Tag + " Probe: downloads: no \"Accept and download\" button for " + name + ".");
+                    Debug.LogWarning(Log.Tag + " Probe: downloads: " + name + ": no \"" + clicks[i] + "\" button.");
                     yield break;
                 }
-            }
-            float started = Time.realtimeSinceStartup;
-            bool progressShown = false;
-            while (Time.realtimeSinceStartup - started < Timeout)
-            {
+                // Until the download or the install is over.
+                float started = Time.realtimeSinceStartup;
                 yield return new WaitForSecondsRealtime(1f);
-                if (!progressShown && Time.realtimeSinceStartup - started > 4f)
-                {
-                    progressShown = true;
-                    yield return WindowShots(folder, shot + "-dl-progress-" + name, true);
-                }
-                if (!running()) break;
+                while ((NvidiaDownloader.Running || IntelDownloader.Running || AmpereFrameGeneration.Running)
+                       && Time.realtimeSinceStartup - started < Timeout)
+                    yield return new WaitForSecondsRealtime(1f);
             }
-            Debug.Log(Log.Tag + " Probe: downloads: " + name + " ended after " + (Time.realtimeSinceStartup - started).ToString("0")
-                      + " s, " + (running() ? "still running" : "status \"" + status() + "\"") + ".");
             yield return new WaitForSecondsRealtime(2f);
+            Debug.Log(Log.Tag + " Probe: downloads: " + name + ": the choice " + (continued ? "was taken" : "was not taken") + ".");
         }
 
-        // The Display page, top and bottom (the progress once: the top).
-        private static IEnumerator WindowShots(string folder, string name, bool topOnly = false)
+        // The Display page, top and bottom.
+        private static IEnumerator WindowShots(string folder, string name)
         {
-            foreach (float position in topOnly ? new[] { 1f } : new[] { 1f, 0f })
+            foreach (float position in new[] { 1f, 0f })
             {
                 TabScrollList.ProbePosition = position;
                 SettingsWindow.OpenOn(SettingCategory.Display);

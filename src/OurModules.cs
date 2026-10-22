@@ -56,8 +56,10 @@ namespace ReDefinition
                 ChoiceLabel = value => value == "Off" || value == AutoSettings.Auto ? value
                     : value == UpscalerBackend.Fsr3.ToString() ? "FSR 3"
                     : value == UpscalerBackend.Dlss.ToString() ? "DLSS"
-                    : value == UpscalerBackend.Amd.ToString() ? "AMD FSR" : "XeSS",
+                    : value == UpscalerBackend.Amd.ToString() ? "FSR 4" : "XeSS",
                 Unavailable = (settings, value) => TechniqueAvailability.Upscaler(value, TechniqueAvailability.Current()),
+                Files = (settings, value) => TechniqueFiles.For(
+                    TechniqueAvailability.UpscalerNeeds(value, TechniqueAvailability.Current())),
                 Choices = new[]
                 {
                     "Off", AutoSettings.Auto, UpscalerBackend.Fsr3.ToString(), UpscalerBackend.Dlss.ToString(),
@@ -71,15 +73,15 @@ namespace ReDefinition
                           + "Auto takes DLSS on a GeForce RTX, AMD's FSR 4 on a Radeon RX 7000 or RX 9000 where its DLL is\n"
                           + "there, XeSS on an Intel GPU where its DLL is, and FSR 3 otherwise.\n"
                           + "FSR 3 runs on every GPU and comes with ReDefinition.\n"
-                          + "DLSS needs an NVIDIA RTX GPU and NVIDIA's nvngx_dlss.dll, which NVIDIA DLSS files\n"
-                          + "in ReDefinition's settings window downloads from NVIDIA.\n"
-                          + "AMD FSR runs AMD's amd_fidelityfx_upscaler_dx12.dll, the player's own copy next to KSP_x64.exe:\n"
-                          + "FSR 4 where the DLL and the GPU have it (Radeon RX 7000 or RX 9000), otherwise the FSR 3.1\n"
-                          + "the DLL carries, on any GPU; once it runs, this row names it, \"fallback\" for FSR 3 from FSR 4's DLL.\n"
-                          + "XeSS (DLL) runs Intel's libxess.dll, which Intel XeSS files in ReDefinition's settings\n"
-                          + "window downloads from Intel, on any GPU with Shader Model 6.4 and DP4a; once it runs,\n"
-                          + "this row names its version.\n"
-                          + "All three need the dxgi.dll proxy next to KSP_x64.exe. Without their DLL, FSR 3 runs.",
+                          + "DLSS needs an NVIDIA RTX GPU and NVIDIA's nvngx_dlss.dll: choosing DLSS without it offers\n"
+                          + "the download from NVIDIA.\n"
+                          + "FSR 4 runs AMD's amd_fidelityfx_upscaler_dx12.dll, the player's own copy next to KSP_x64.exe,\n"
+                          + "on a Radeon RX 7000 or RX 9000; greyed out on any other card. Without the DLL, choosing it says\n"
+                          + "where to get it.\n"
+                          + "XeSS runs Intel's libxess.dll on any GPU with Shader Model 6.4 and DP4a: choosing XeSS\n"
+                          + "without it offers the download from Intel; once it runs, this row names its version.\n"
+                          + "A technique greyed out says why in its tooltip. All three need the dxgi.dll proxy next to\n"
+                          + "KSP_x64.exe.",
                 Read = settings => !settings.Enabled ? "Off"
                     : settings.BackendAuto ? AutoSettings.Auto : settings.Backend.ToString(),
                 Write = (settings, value) =>
@@ -210,8 +212,8 @@ namespace ReDefinition
                 Tooltip = "Generated frames between the rendered ones, from KSP's own depth and motion vectors.\n"
                           + "Auto: DLSS frame generation where NVIDIA's Streamline DLLs lie next to KSP_x64.exe and the GPU\n"
                           + "runs it (RTX 40 and newer, RTX 30 and 20 with the dlssg_for_sm86 package), XeSS frame generation\n"
-                          + "on an Intel GPU where Intel's files are, FSR 3 otherwise. A technique greyed out says why, and the\n"
-                          + "line under the row says what to download or install for it.\n"
+                          + "on an Intel GPU where Intel's files are, FSR 3 otherwise. A technique greyed out says why; one\n"
+                          + "whose files are missing offers their download when chosen.\n"
                           + "Needs the dxgi.dll proxy next to KSP_x64.exe, which makes its swapchain for the technique when KSP\n"
                           + "starts: another technique applies after a restart of KSP. Off applies at once.\n"
                           + "With the upscaler off, the scene is still captured for it, at full resolution.\n"
@@ -227,6 +229,8 @@ namespace ReDefinition
                 // with the proxy installed can still be switched off after it has gone.
                 Interactable = settings => FrameGenerationBridge.CanGenerate || settings.FrameGeneration,
                 Unavailable = (settings, value) => TechniqueAvailability.FrameGeneration(value, TechniqueAvailability.Current()),
+                Files = (settings, value) => TechniqueFiles.For(
+                    TechniqueAvailability.FrameGenerationNeeds(value, TechniqueAvailability.Current())),
             },
             new ModuleSetting
             {

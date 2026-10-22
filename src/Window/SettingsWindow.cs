@@ -522,17 +522,17 @@ namespace ReDefinition.Window
                 }
                 rows.Add(Searchable(own[i], (setting != null ? setting.Title : "Upscaler") + " " + group + " ReDefinition"));
                 if (setting == null || setting.Key != "technique") continue;
-                // Under the technique row: what to download or install for a technique that is greyed out.
+                // Under the technique row: what a download that was chosen came to, while it runs and after.
                 if (setting.Title == "Upscaler")
-                {
-                    AddHint(rows, NvidiaRow(false), "NVIDIA DLSS files download");
-                    AddHint(rows, IntelRow(false), "Intel XeSS files download libxess");
-                }
+                    AddHint(rows, StatusLine(() => JoinStatus(NvidiaStatus(), IntelStatus())), "download NVIDIA Intel files");
                 else if (setting.Title == "Frame generation")
                 {
-                    AddHint(rows, NvidiaRow(true), "NVIDIA DLSS frame generation files download Streamline");
-                    AddHint(rows, IntelRow(true), "Intel XeSS frame generation files download libxess_fg libxell");
-                    AddHint(rows, AmpereRow(), "DLSS frame generation RTX 30 RTX 20 dlssg_for_sm86 download preset");
+                    AddHint(rows, StatusLine(() => JoinStatus(NvidiaStatus(), IntelStatus(), AmpereFrameGeneration.StatusText())),
+                        "download NVIDIA Intel files dlssg_for_sm86");
+                    // The package's preset, once it is in place.
+                    if (AmpereFrameGeneration.Installed())
+                        foreach (DialogGUIBase preset in AmpereOptionRows())
+                            AddHint(rows, preset, "DLSS-G preset dlssg_for_sm86");
                 }
             }
             bool others = false;
@@ -626,97 +626,13 @@ namespace ReDefinition.Window
                 new DialogGUILabel("<b><color=#ffffff>" + title + "</color></b>", NameWidth + ControlWidth));
         }
 
-        // NVIDIA's DLLs for DLSS and DLSS frame generation, which the player fetches
-        // from NVIDIA's release (NvidiaDownloader): offered where this GPU can use
-        // them and they are missing, and followed by what the download came to.
-        private static DialogGUIBase NvidiaRow(bool frameGeneration)
+        // A grey line under a technique row that shows only while there is something to say: a download's
+        // progress or outcome.
+        private static DialogGUIBase StatusLine(Func<string> text)
         {
-            List<NvidiaFiles.Entry> needed = NvidiaDownloader.Needed();
-            if (needed.Count == 0 && NvidiaDownloader.Status == null) return null;
-            // Under the upscaler: where nvngx_dlss.dll is missing; under frame generation: where
-            // Streamline's files or the DLSS-G library are. The download fetches whatever is missing.
-            bool wantsDlss;
-            bool wantsStreamline;
-            bool wantsFrameGeneration;
-            NvidiaDownloader.Uses(needed, out wantsDlss, out wantsStreamline, out wantsFrameGeneration);
-            if (needed.Count > 0 && (frameGeneration ? !(wantsStreamline || wantsFrameGeneration) : !wantsDlss)) return null;
-
-            string offer = needed.Count == 0
-                ? ""
-                : "<color=#9a9a9a>" + NvidiaDownloader.Megabytes(NvidiaFiles.DownloadSize(needed)) + " MB from NVIDIA</color>";
-
-            bool dlss = wantsDlss;
-            bool streamline = wantsStreamline;
-            bool generation = wantsFrameGeneration;
-            DialogGUIButton download = new DialogGUIButton("Download ...", () => NvidiaDownloader.Confirm(needed),
-                ControlWidth, 24f, false);
-            // Nothing needed says nothing about why: the files in place, or no answer
-            // from NVAPI yet.
-            download.tooltipText = needed.Count == 0
-                ? "Nothing to download from NVIDIA for this GPU now."
-                : "NVIDIA's DLLs for " + NvidiaDownloader.Purpose(dlss, streamline, generation)
-                  + ".\n"
-                  + "This fetches them from NVIDIA's release of the Streamline SDK on GitHub, once NVIDIA's\n"
-                  + "licences are accepted, and places them where ReDefinition's dxgi.dll loads them from:\n"
-                  + "next to KSP_x64.exe, unless its ini names other folders.\n"
-                  + NvidiaDownloader.WhenUsed(dlss, streamline, generation);
-            download.OptionInteractableCondition = () => needed.Count > 0 && !NvidiaDownloader.Running
-                                                         && !NvidiaDownloader.Installed;
-
-            string nvidiaName = frameGeneration ? "NVIDIA DLSS-G files" : "NVIDIA DLSS files";
-            // Fetched: no button any more, only what the download came to.
-            if (needed.Count == 0 || NvidiaDownloader.Installed)
-                return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
-                    new DialogGUILabel(nvidiaName, NameWidth), new DialogGUILabel(NvidiaStatus, true));
-            return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
-                new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUILabel(nvidiaName, NameWidth), download, new DialogGUILabel(offer, true)),
-                new DialogGUILabel(NvidiaStatus, true));
-        }
-
-        // Intel's DLLs for XeSS super resolution and XeSS frame generation, which the
-        // player fetches from Intel's release (IntelDownloader): offered where the proxy
-        // has XeSS and they are missing, with what is in place and its versions below,
-        // else what the download came to.
-        private static DialogGUIBase IntelRow(bool frameGeneration)
-        {
-            if (!XessUpscalerBridge.Offered) return null;
-            IntelDownloader.Refresh();
-            List<IntelFiles.Item> needed = IntelDownloader.Needed();
-            if (needed.Count == 0 && IntelDownloader.Status == null) return null;
-            // Under the upscaler: where libxess.dll is missing; under frame generation: the XeSS-FG files.
-            bool wantsSuperResolution;
-            bool wantsFrameGeneration;
-            IntelFiles.Uses(needed, out wantsSuperResolution, out wantsFrameGeneration);
-            if (needed.Count > 0 && (frameGeneration ? !wantsFrameGeneration : !wantsSuperResolution)) return null;
-
-            string offer = needed.Count == 0
-                ? ""
-                : "<color=#9a9a9a>" + NvidiaDownloader.Megabytes(IntelFiles.DownloadSize(needed)) + " MB from Intel</color>";
-
-            bool superResolution = wantsSuperResolution;
-            bool generation = wantsFrameGeneration;
-            DialogGUIButton download = new DialogGUIButton("Download ...", () => IntelDownloader.Confirm(needed),
-                ControlWidth, 24f, false);
-            download.tooltipText = needed.Count == 0
-                ? "Nothing to download from Intel now."
-                : "Intel's DLLs for " + IntelDownloader.Purpose(superResolution, generation)
-                  + ".\n"
-                  + "This fetches them from Intel's release of the XeSS SDK on GitHub, once Intel's\n"
-                  + "licence is accepted, and places them where ReDefinition's dxgi.dll loads them from:\n"
-                  + "next to KSP_x64.exe, unless its ini names other folders.\n"
-                  + IntelDownloader.WhenUsed(superResolution, generation);
-            download.OptionInteractableCondition = () => needed.Count > 0 && !IntelDownloader.Running
-                                                         && !IntelDownloader.Installed;
-
-            string intelName = frameGeneration ? "Intel XeSS-FG files" : "Intel XeSS files";
-            if (needed.Count == 0 || IntelDownloader.Installed)
-                return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
-                    new DialogGUILabel(intelName, NameWidth), new DialogGUILabel(IntelStatus, true));
-            return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
-                new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUILabel(intelName, NameWidth), download, new DialogGUILabel(offer, true)),
-                new DialogGUILabel(IntelStatus, true));
+            DialogGUILabel line = new DialogGUILabel(text, true);
+            line.OptionEnabledCondition = () => !string.IsNullOrEmpty(text());
+            return line;
         }
 
         private static string intelStatus;
@@ -733,52 +649,16 @@ namespace ReDefinition.Window
             return intelStatusText;
         }
 
-        // DLSS frame generation on RTX 30 and RTX 20 (AmpereFrameGeneration): the
-        // dialog with the steps, and the install from the zip the player put into KSP's
-        // folder, followed by the zip found and what the install came to.
-        private static DialogGUIBase AmpereRow()
+        private static string JoinStatus(params string[] parts)
         {
-            if (!AmpereFrameGeneration.Offered()) return null;
-
-            // In place: nothing to download or install any more, only the preset.
-            if (AmpereFrameGeneration.Installed())
+            System.Text.StringBuilder joined = new System.Text.StringBuilder();
+            foreach (string part in parts)
             {
-                List<DialogGUIBase> inPlace = new List<DialogGUIBase>
-                {
-                    new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                        new DialogGUILabel("DLSS-G on RTX 30/20", NameWidth), new DialogGUILabel(AmpereRowText, true)),
-                };
-                inPlace.AddRange(AmpereOptionRows());
-                return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft, inPlace.ToArray());
+                if (string.IsNullOrEmpty(part)) continue;
+                if (joined.Length > 0) joined.Append('\n');
+                joined.Append(part);
             }
-
-            DialogGUIButton manually = new DialogGUIButton("Download manually ...", AmpereFrameGeneration.Show,
-                ControlWidth, 24f, false);
-            manually.tooltipText = "DLSS frame generation on RTX 30 and RTX 20 through dlssg_for_sm86, a community\n"
-                                   + "project by sdli1995: where to download it, and where to put it.";
-            DialogGUIButton install = new DialogGUIButton("Install from zip", AmpereFrameGeneration.Start, 130f, 24f, false);
-            install.tooltipText = "Takes version.dll, dlssg_sm86.ini and the dlssg_sm86 folder out of the\n"
-                                  + AmperePackage.ZipPattern + " in KSP's folder and places them next to KSP_x64.exe.\n"
-                                  + "DLSS frame generation runs from them after a restart of KSP.";
-            install.OptionInteractableCondition = () => !AmpereFrameGeneration.Running && AmpereFrameGeneration.Zip() != null;
-
-            List<DialogGUIBase> rows = new List<DialogGUIBase>
-            {
-                new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUILabel("DLSS-G on RTX 30/20", NameWidth), manually, install),
-                new DialogGUILabel(AmpereRowText, true),
-            };
-            return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft, rows.ToArray());
-        }
-
-        // The package in place, else the zip found, and the install's outcome below.
-        private static string AmpereRowText()
-        {
-            string outcome = AmpereFrameGeneration.StatusText();
-            if (outcome.Length > 0) return outcome;
-            return AmpereFrameGeneration.Installed()
-                ? "<color=#9a9a9a>dlssg_for_sm86 is in place next to KSP_x64.exe.</color>"
-                : AmpereFrameGeneration.ZipText();
+            return joined.ToString();
         }
 
         // The download's progress or outcome, grey, made anew only when it changes:

@@ -26,6 +26,14 @@ namespace ReDefinition
         ModuleSetting Setting(string key);
     }
 
+    // What choosing a technique waits for: the text for its tooltip, and the way to it -- the download or the
+    // steps -- which calls the continuation once the files are in place, and not when the player cancels.
+    internal sealed class FilesNeeded
+    {
+        public string Text;
+        public Action<Action> Begin;
+    }
+
     // One setting of a module: what a profile's MODULE node sets, and a row under
     // General. Its value travels as text in the invariant culture, as a ConfigNode
     // holds it.
@@ -77,6 +85,10 @@ namespace ReDefinition
         // For a Radio row: null where the choice can be taken now, otherwise why not, which the greyed
         // button's tooltip says.
         public Func<OwnSettings, string, string> Unavailable;
+
+        // For a Radio row: what the choice still waits for, or null. A choice of the card's reach whose files are
+        // missing is lit, and choosing it opens their download first (TechniqueFiles).
+        public Func<OwnSettings, string, FilesNeeded> Files;
 
         // What the row's value column shows for a value; null shows the value.
         public Func<string, string> Label;

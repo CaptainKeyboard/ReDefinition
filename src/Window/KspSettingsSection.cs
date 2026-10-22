@@ -307,10 +307,20 @@ namespace ReDefinition.Window
                 string text = setting.ChoiceLabel != null ? setting.ChoiceLabel(value) : value;
                 DialogGUIToggleButton toggle = new DialogGUIToggleButton(() => setting.Read(edit.After) == value, text,
                     // Only the player's click chooses: KSP sets the toggle from the row in every frame it shows.
-                    on => { if (on && setting.Read(edit.After) != value) setting.Write(edit.After, value); },
+                    on =>
+                    {
+                        if (!on || setting.Read(edit.After) == value) return;
+                        // Files missing: their download first, and the choice once they are in place; a
+                        // cancelled dialog leaves the row as it was.
+                        FilesNeeded files = setting.Files == null ? null : setting.Files(edit.After, value);
+                        if (files != null) files.Begin(() => setting.Write(edit.After, value));
+                        else setting.Write(edit.After, value);
+                    },
                     button, RowHeight + 2f);
                 string reason = setting.Unavailable == null ? null : setting.Unavailable(edit.After, value);
-                toggle.tooltipText = TooltipText.Wrap((reason != null ? reason + "\n\n" : "") + setting.Tooltip
+                FilesNeeded needed = reason != null || setting.Files == null ? null : setting.Files(edit.After, value);
+                toggle.tooltipText = TooltipText.Wrap((reason != null ? reason + "\n\n" : "")
+                                                      + (needed != null ? needed.Text + "\n\n" : "") + setting.Tooltip
                                                       + (setting.NeedsProfile
                                                           ? "\nLocked while no graphics profile is chosen in ReDefinition's window."
                                                           : ""));
