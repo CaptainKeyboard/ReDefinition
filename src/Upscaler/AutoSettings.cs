@@ -32,10 +32,11 @@ namespace ReDefinition.Upscaler
             Fsr3Upscaler.QualityMode.Balanced, Fsr3Upscaler.QualityMode.Performance, Fsr3Upscaler.QualityMode.UltraPerformance,
         };
 
-        // The technique for a card: DLSS on an RTX, FSR 4 through AMD's DLL on a Radeon RX 7000 or
-        // 9000 where the DLL is there, XeSS on an Intel adapter where its DLL is, FSR 3 otherwise.
-        // A technique whose files are missing still falls back to FSR 3 by itself (the rig says why).
-        public static UpscalerBackend Technique(GpuClass gpu, bool amdDllOffered, bool xessDllOffered)
+        // The technique for a card: DLSS on an RTX where the proxy offers it and NVIDIA's DLL is there,
+        // FSR 4 through AMD's DLL on a Radeon RX 7000 or 9000 where the DLL is there, XeSS on an Intel
+        // adapter where its DLL is, FSR 3 otherwise -- so that Auto never names a technique that would
+        // fall back to FSR 3 with the mode of another.
+        public static UpscalerBackend Technique(GpuClass gpu, bool dlssUsable, bool amdDllOffered, bool xessDllOffered)
         {
             switch (gpu)
             {
@@ -43,7 +44,7 @@ namespace ReDefinition.Upscaler
                 case GpuClass.Rtx30:
                 case GpuClass.Rtx40:
                 case GpuClass.Rtx50:
-                    return UpscalerBackend.Dlss;
+                    return dlssUsable ? UpscalerBackend.Dlss : UpscalerBackend.Fsr3;
                 case GpuClass.Radeon7000:
                 case GpuClass.Radeon9000:
                     return amdDllOffered ? UpscalerBackend.Amd : UpscalerBackend.Fsr3;
@@ -88,10 +89,11 @@ namespace ReDefinition.Upscaler
         }
 
         // Fills in what the Auto flags of `settings` stand for, for the card and the screen given.
-        public static void Resolve(OwnSettings settings, GpuClass gpu, int screenHeight, bool amdDllOffered, bool xessDllOffered)
+        public static void Resolve(OwnSettings settings, GpuClass gpu, int screenHeight, bool dlssUsable, bool amdDllOffered,
+                                   bool xessDllOffered)
         {
             // What Auto is, kept for the rows to name whether or not it is the player's choice now.
-            ResolvedBackend = Technique(gpu, amdDllOffered, xessDllOffered);
+            ResolvedBackend = Technique(gpu, dlssUsable, amdDllOffered, xessDllOffered);
             if (settings.BackendAuto) settings.Backend = ResolvedBackend;
             ResolvedQuality = Mode(screenHeight, settings.RenderTargetHeight, settings.Backend == UpscalerBackend.Dlss);
             if (settings.QualityAuto) settings.Quality = ResolvedQuality;
@@ -110,13 +112,35 @@ namespace ReDefinition.Upscaler
         // (the proxy attaches them after the settings load).
         public static string Inputs()
         {
-            return GpuClasses.Current + "|" + Screen.height + "|" + AmdUpscalerBridge.Offered + "|" + XessUpscalerBridge.Offered;
+            return GpuClasses.Current + "|" + Screen.height + "|" + DlssUsable() + "|" + AmdUpscalerBridge.Offered + "|"
+                   + XessUpscalerBridge.Offered;
+        }
+
+        // Whether DLSS can run: the proxy has it, the GPU is NVIDIA's, and NVIDIA's DLSS file is in its
+        // folder. The folder is looked at every two seconds, not in every frame.
+        private static float dlssAskedAt = float.MinValue;
+        private static bool dlssUsable;
+
+        public static bool DlssUsable()
+        {
+            float now = Time.realtimeSinceStartup;
+            if (dlssAskedAt != float.MinValue && now - dlssAskedAt < 2f) return dlssUsable;
+            dlssAskedAt = now;
+            dlssUsable = DlssBridge.Offered && !DlssFileMissing();
+            return dlssUsable;
+        }
+
+        private static bool DlssFileMissing()
+        {
+            foreach (NvidiaFiles.Entry entry in ReDefinition.Window.NvidiaDownloader.Needed())
+                if (!entry.Notice && entry.Use == NvidiaFiles.Use.Dlss) return true;
+            return false;
         }
 
         // For the card and screen KSP runs on.
         public static void Resolve(OwnSettings settings)
         {
-            Resolve(settings, GpuClasses.Current, Screen.height, AmdUpscalerBridge.Offered, XessUpscalerBridge.Offered);
+            Resolve(settings, GpuClasses.Current, Screen.height, DlssUsable(), AmdUpscalerBridge.Offered, XessUpscalerBridge.Offered);
         }
     }
 }

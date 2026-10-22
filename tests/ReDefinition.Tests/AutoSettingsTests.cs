@@ -14,16 +14,18 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheTechniqueFollowsTheCard()
         {
-            Assert.AreEqual(UpscalerBackend.Dlss, AutoSettings.Technique(GpuClass.Rtx20, false, false));
-            Assert.AreEqual(UpscalerBackend.Dlss, AutoSettings.Technique(GpuClass.Rtx50, false, false));
-            Assert.AreEqual(UpscalerBackend.Amd, AutoSettings.Technique(GpuClass.Radeon9000, true, false));
-            Assert.AreEqual(UpscalerBackend.Amd, AutoSettings.Technique(GpuClass.Radeon7000, true, false));
-            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.Radeon7000, false, false));
-            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.RadeonOlder, true, true));
-            Assert.AreEqual(UpscalerBackend.Xess, AutoSettings.Technique(GpuClass.Intel, false, true));
-            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.Intel, true, false));
-            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.NvidiaOlder, true, true));
-            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.Unknown, true, true));
+            Assert.AreEqual(UpscalerBackend.Dlss, AutoSettings.Technique(GpuClass.Rtx20, true, false, false));
+            Assert.AreEqual(UpscalerBackend.Dlss, AutoSettings.Technique(GpuClass.Rtx50, true, false, false));
+            Assert.AreEqual(UpscalerBackend.Amd, AutoSettings.Technique(GpuClass.Radeon9000, true, true, false));
+            Assert.AreEqual(UpscalerBackend.Amd, AutoSettings.Technique(GpuClass.Radeon7000, true, true, false));
+            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.Radeon7000, true, false, false));
+            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.RadeonOlder, true, true, true));
+            Assert.AreEqual(UpscalerBackend.Xess, AutoSettings.Technique(GpuClass.Intel, true, false, true));
+            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.Intel, true, true, false));
+            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.NvidiaOlder, true, true, true));
+            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.Unknown, true, true, true));
+            Assert.AreEqual(UpscalerBackend.Fsr3, AutoSettings.Technique(GpuClass.Rtx40, false, false, false),
+                "DLSS without its file or the proxy is not Auto's choice");
         }
 
         // The table's modes per profile: the target render heights 720, 960, 960, 1200 and 1440
@@ -80,7 +82,7 @@ namespace ReDefinition.Tests
                 RayReconstructionAuto = true,
             };
 
-            AutoSettings.Resolve(settings, GpuClass.Rtx40, 1440, false, false);
+            AutoSettings.Resolve(settings, GpuClass.Rtx40, 1440, true, false, false);
 
             Assert.AreEqual(UpscalerBackend.Fsr3, settings.Backend, "a technique the player chose stays");
             Assert.AreEqual(Fsr3Upscaler.QualityMode.Quality, settings.Quality);
@@ -92,12 +94,12 @@ namespace ReDefinition.Tests
         {
             OwnSettings settings = new OwnSettings { RenderTargetHeight = 960 };
 
-            AutoSettings.Resolve(settings, GpuClass.Rtx30, 1080, false, false);
+            AutoSettings.Resolve(settings, GpuClass.Rtx30, 1080, true, false, false);
             Assert.AreEqual(UpscalerBackend.Dlss, settings.Backend);
             Assert.AreEqual(Fsr3Upscaler.QualityMode.NativeAA, settings.Quality, "DLSS has no 1.2x");
             Assert.IsTrue(settings.RayReconstruction);
 
-            AutoSettings.Resolve(settings, GpuClass.Radeon9000, 1080, true, false);
+            AutoSettings.Resolve(settings, GpuClass.Radeon9000, 1080, true, true, false);
             Assert.AreEqual(UpscalerBackend.Amd, settings.Backend);
             Assert.AreEqual(Fsr3Upscaler.QualityMode.UltraQuality, settings.Quality);
         }
@@ -162,7 +164,7 @@ namespace ReDefinition.Tests
         {
             OwnSettings settings = new OwnSettings { BackendAuto = false, Backend = UpscalerBackend.Fsr3, RenderTargetHeight = 960 };
 
-            AutoSettings.Resolve(settings, GpuClass.Rtx40, 1440, false, false);
+            AutoSettings.Resolve(settings, GpuClass.Rtx40, 1440, true, false, false);
 
             Assert.AreEqual(UpscalerBackend.Fsr3, settings.Backend);
             Assert.AreEqual(UpscalerBackend.Dlss, AutoSettings.ResolvedBackend);
