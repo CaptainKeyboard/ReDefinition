@@ -226,6 +226,52 @@ namespace ReDefinition.Menu
             t = Mathf.Clamp01(t);
             return t * t * (3f - 2f * t);
         }
+
+        // The temporal antialiasing of the other mods started afresh, each frame of the way
+        // down and once at its end: to them the camera's flight is a cut in every frame.
+        // Scatterer's TAA, left with it, turned the picture to NaN for good, shown black by
+        // TUFX's post-processing -- in the space centre after the way down, with ReDefinition's
+        // upscaler off (which takes that TAA off while it runs), and not after KSP's own load
+        // (KscArrivalCheck, 2026-10-23); it keeps its history when switched off and on, and
+        // makes it anew only on a reset (TemporalAntiAliasing.ResetHistory, CheckHistory;
+        // Scatterer 0.908, decompiled). TUFX's PostProcessing takes the same
+        // (PostProcessLayer.ResetHistory).
+        private static readonly Dictionary<Type, System.Reflection.MethodInfo> resets =
+            new Dictionary<Type, System.Reflection.MethodInfo>();
+        private static bool resetWarned;
+
+        internal static void ResetTemporalHistories()
+        {
+            try
+            {
+                foreach (Camera camera in Camera.allCameras)
+                {
+                    if (camera == null) continue;
+                    foreach (Component component in camera.GetComponents<Component>())
+                    {
+                        if (component == null) continue;
+                        Type type = component.GetType();
+                        System.Reflection.MethodInfo reset;
+                        if (!resets.TryGetValue(type, out reset))
+                        {
+                            reset = type.FullName == "Scatterer.TemporalAntiAliasing"
+                                    || type.FullName == "UnityEngine.Rendering.PostProcessing.PostProcessLayer"
+                                ? type.GetMethod("ResetHistory", TypeLookup.Any, null, Type.EmptyTypes, null)
+                                : null;
+                            resets[type] = reset;
+                        }
+                        if (reset != null) reset.Invoke(component, null);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                if (resetWarned) return;
+                resetWarned = true;
+                CompatibilityLog.Warn("ksc-arrival-taa", "The other mods' temporal antialiasing could not be started afresh"
+                                                         + " after the way down (" + CompatibilityLog.Reason(e) + ").");
+            }
+        }
     }
 
     // The menu's half: the camera's way in, the picture, then KSP's load.
@@ -490,7 +536,17 @@ namespace ReDefinition.Menu
         private IEnumerator Start()
         {
             KscArrivalOverlay overlay = KscArrival.Overlay;
-            if (overlay == null) yield break;
+            if (overlay == null)
+            {
+                // In the test without the way in (MenuKscZoom off): the same check after KSP's
+                // own load, to compare.
+                if (!KscArrival.Test) yield break;
+                yield return new WaitForSeconds(8f);
+                KscArrival.TestShot("3-ksp-view");
+                yield return KscArrivalCheck.Run();
+                Application.Quit();
+                yield break;
+            }
             SpaceCenterCamera2 control = null;
             for (int i = 0; i < 300 && control == null; i++)
             {
@@ -547,6 +603,7 @@ namespace ReDefinition.Menu
                 view.rotation = startRotation;
                 float waited = Time.unscaledTime - held;
                 FlightCamera.fetch.SetFoV(startFieldOfView);
+                KscArrival.ResetTemporalHistories();
                 KscArrival.TestFrame("2-hold", waited, KscArrival.ScreenShare(planetRadius, planetRadius + startHeight, startFieldOfView));
                 if (waited > 0f) KscArrival.FrameTime();
                 yield return null;
@@ -570,6 +627,7 @@ namespace ReDefinition.Menu
                 view.rotation = Quaternion.Slerp(startRotation, endRotation, e);
                 float fieldOfView = Mathf.Lerp(startFieldOfView, endFieldOfView, e);
                 FlightCamera.fetch.SetFoV(fieldOfView);
+                KscArrival.ResetTemporalHistories();
                 KscArrival.TestFrame("3-down", elapsed, KscArrival.ScreenShare(planetRadius, (float)((Vector3d)view.position - body.position).magnitude, fieldOfView));
                 if (elapsed > 0f) KscArrival.FrameTime();
                 if (t >= 1f) break;
@@ -584,17 +642,143 @@ namespace ReDefinition.Menu
             view.localPosition = endLocalPosition;
             view.localRotation = endLocalRotation;
             FlightCamera.fetch.SetFoV(endFieldOfView);
+            KscArrival.ResetTemporalHistories();
             control.enabled = true;
             overlay.Close();
             GameEvents.onShowUI.Fire();
             interfaceHidden = false;
             Debug.Log(Log.Tag + " Menu to the space centre: " + (skipped ? "skipped" : "down") + ".");
+            // Once more after KSP's own camera has taken its place again.
+            yield return null;
+            KscArrival.ResetTemporalHistories();
             if (KscArrival.Test)
             {
                 yield return new WaitForSeconds(1f);
                 KscArrival.TestShot("3-ksp-view");
-                yield return new WaitForSeconds(1f);
+                yield return KscArrivalCheck.Run();
                 Application.Quit();
+            }
+        }
+    }
+
+    // In the test, at the end in the space centre: where each camera draws and how bright
+    // that is, the rig's state, and the view with the upscaler switched the other way and
+    // back, each into the log and a screenshot.
+    internal static class KscArrivalCheck
+    {
+        // The stages of a camera's frame each sampled: where in it the picture goes.
+        private static readonly UnityEngine.Rendering.CameraEvent[] Stages =
+        {
+            UnityEngine.Rendering.CameraEvent.AfterGBuffer, UnityEngine.Rendering.CameraEvent.AfterLighting,
+            UnityEngine.Rendering.CameraEvent.AfterSkybox, UnityEngine.Rendering.CameraEvent.AfterForwardAlpha,
+            UnityEngine.Rendering.CameraEvent.AfterImageEffectsOpaque, UnityEngine.Rendering.CameraEvent.AfterImageEffects,
+            UnityEngine.Rendering.CameraEvent.AfterEverything,
+        };
+
+        private static IEnumerator SampleStages(string when)
+        {
+            var samples = new List<KeyValuePair<string, RenderTexture>>();
+            var attached = new List<KeyValuePair<Camera, KeyValuePair<UnityEngine.Rendering.CameraEvent, UnityEngine.Rendering.CommandBuffer>>>();
+            foreach (Camera camera in Camera.allCameras)
+            {
+                if (camera.name != "Camera 00" && camera.name != "Camera ScaledSpace" && camera.name != "GalaxyCamera") continue;
+                foreach (UnityEngine.Rendering.CameraEvent stage in Stages)
+                {
+                    var small = new RenderTexture(4, 4, 0, RenderTextureFormat.ARGBFloat);
+                    var buffer = new UnityEngine.Rendering.CommandBuffer { name = "ReDefinition arrival check" };
+                    buffer.Blit(UnityEngine.Rendering.BuiltinRenderTextureType.CameraTarget, small);
+                    camera.AddCommandBuffer(stage, buffer);
+                    samples.Add(new KeyValuePair<string, RenderTexture>(camera.name + " " + stage, small));
+                    attached.Add(new KeyValuePair<Camera, KeyValuePair<UnityEngine.Rendering.CameraEvent, UnityEngine.Rendering.CommandBuffer>>(
+                        camera, new KeyValuePair<UnityEngine.Rendering.CameraEvent, UnityEngine.Rendering.CommandBuffer>(stage, buffer)));
+                }
+            }
+            for (int i = 0; i < 5; i++) yield return null;
+            foreach (var a in attached)
+                if (a.Key != null) a.Key.RemoveCommandBuffer(a.Value.Key, a.Value.Value);
+            var text = new System.Text.StringBuilder(Log.Tag + " Menu to the space centre: stages " + when + ":");
+            foreach (var s in samples)
+            {
+                text.Append("; ").Append(s.Key).Append(' ').Append(Mean(s.Value));
+                s.Value.Release();
+                UnityEngine.Object.Destroy(s.Value);
+            }
+            foreach (var a in attached) a.Value.Value.Release();
+            Debug.Log(text.ToString());
+        }
+
+        internal static IEnumerator Run()
+        {
+            yield return new WaitForSeconds(1f);
+            Report("as arrived");
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon == null) yield break;
+            yield return SampleStages("as arrived");
+            bool enabled = addon.Live.Enabled;
+            foreach (bool now in new[] { !enabled, enabled })
+            {
+                OwnSettings before = addon.Live.Clone();
+                OwnSettings after = before.Clone();
+                after.Enabled = now;
+                addon.Apply(before, after);
+                yield return new WaitForSeconds(3f);
+                string name = "4-upscaler-" + (now ? "on" : "off");
+                KscArrival.TestShot(name);
+                yield return new WaitForSeconds(0.5f);
+                Report(name);
+                yield return SampleStages(name);
+            }
+        }
+
+        private static void Report(string when)
+        {
+            var text = new System.Text.StringBuilder(Log.Tag + " Menu to the space centre: check " + when + ":");
+            Upscaler.UpscalerRig rig = Upscaler.UpscalerRig.Current;
+            text.Append(rig == null ? " no rig" : " rig " + (rig.PassThrough ? "passing through" : "upscaling"));
+            foreach (Camera camera in Camera.allCameras)
+            {
+                RenderTexture target = camera.targetTexture;
+                text.Append("; '").Append(camera.name).Append("' depth ")
+                    .Append(camera.depth.ToString("0.##", CultureInfo.InvariantCulture))
+                    .Append(" into ").Append(target == null ? "the screen" : target.name + " " + target.width + "x" + target.height)
+                    .Append(target != null ? ", mean " + Mean(target) : "");
+            }
+            Debug.Log(text.ToString());
+        }
+
+        // The texture's mean red and green, rendered down to 4 by 4 in float and read back,
+        // and how many of the 16 texels are not a number.
+        private static string Mean(RenderTexture texture)
+        {
+            RenderTexture small = RenderTexture.GetTemporary(4, 4, 0, RenderTextureFormat.ARGBFloat);
+            RenderTexture before = RenderTexture.active;
+            var read = new Texture2D(4, 4, TextureFormat.RGBAFloat, false, true);
+            try
+            {
+                Graphics.Blit(texture, small);
+                RenderTexture.active = small;
+                read.ReadPixels(new Rect(0, 0, 4, 4), 0, 0, false);
+                float r = 0f, g = 0f;
+                int nan = 0;
+                foreach (Color c in read.GetPixels())
+                {
+                    if (float.IsNaN(c.r) || float.IsNaN(c.g) || float.IsInfinity(c.r) || float.IsInfinity(c.g))
+                    {
+                        nan++;
+                        continue;
+                    }
+                    r += c.r;
+                    g += c.g;
+                }
+                int n = Mathf.Max(16 - nan, 1);
+                return (r / n).ToString("0.000", CultureInfo.InvariantCulture) + "/" + (g / n).ToString("0.000", CultureInfo.InvariantCulture)
+                       + (nan > 0 ? " NaN " + nan : "");
+            }
+            finally
+            {
+                RenderTexture.active = before;
+                RenderTexture.ReleaseTemporary(small);
+                UnityEngine.Object.Destroy(read);
             }
         }
     }
