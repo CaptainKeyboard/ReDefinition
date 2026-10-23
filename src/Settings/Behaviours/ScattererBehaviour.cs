@@ -85,10 +85,16 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
-        // Each of its keys has one modifier beside it, so a row for one holds one.
+        // Each of its keys has one modifier beside it, so a row for one holds one;
+        // either modifier opens the window with either key (GUIhandler
+        // .UpdateGUIvisible), so each row is crossed with the other.
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
-            if (registration.IsBinding) setting.MaxModifiers = 1;
+            if (!registration.IsBinding) return;
+            setting.MaxModifiers = 1;
+            string number = registration.Name.Substring(registration.Name.Length - 1);
+            if (number == "1") setting.CrossedWith = mod.Id + ".guiKey2";
+            else if (number == "2") setting.CrossedWith = mod.Id + ".guiKey1";
         }
 
         public override void Complete(RegisteredMod mod)
@@ -137,10 +143,17 @@ namespace ReDefinition.Settings.Behaviours
                 object data = PluginData();
                 if (data == null) throw new InvalidOperationException("Scatterer has no plugin data to set");
                 KeyCombination combination = KeyCombination.Parse(text);
+                // Its window asks Input.GetKey of the modifier, which a modifier
+                // at None never is: the key alone goes in as its own modifier,
+                // held as it is pressed. Read back, the key is no modifier, and
+                // the row shows it alone.
+                UnityEngine.KeyCode held = combination.FirstModifier != UnityEngine.KeyCode.None
+                    ? combination.FirstModifier
+                    : combination.Key;
                 key.SetValue(data, combination.Key);
                 keyText.SetValue(data, combination.Key.ToString());
-                modifier.SetValue(data, combination.FirstModifier);
-                modifierText.SetValue(data, combination.FirstModifier.ToString());
+                modifier.SetValue(data, held);
+                modifierText.SetValue(data, held.ToString());
                 pluginDataChanged = true;
             };
             return true;

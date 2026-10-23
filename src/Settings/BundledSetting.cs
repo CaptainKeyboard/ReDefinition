@@ -120,6 +120,12 @@ namespace ReDefinition.Settings
         // modifier beside each of its keys.
         public int MaxModifiers = 2;
 
+        // Binding: the key of another binding of the same mod whose modifier works
+        // with this one's key as well, and the other way round -- Scatterer opens
+        // its window on either modifier with either key. The Keys tab counts the
+        // crossed combinations among the conflicts. Null for most.
+        public string CrossedWith;
+
         // Binding: the Keys tab's section it stands in (SettingRegistration.KeyGroup).
         public const string ModsGroup = "Mods";
         public string Group = ModsGroup;

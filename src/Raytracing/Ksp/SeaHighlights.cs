@@ -106,7 +106,11 @@ namespace ReDefinition.Raytracing
             {
                 if (found == null) continue;
                 Material ocean = nodeMaterial.GetValue(found) as Material;
-                if (ocean == null || !ocean.HasProperty(PropertyId)) continue;
+                // Without HasProperty, which asks the shader for the property (Unity:
+                // "Checks if material's shader has a property of a given name") while
+                // Scatterer only sets it on the material (OceanNode.InitOceanMaterial);
+                // its name is checked in Scatterer's code (ScattererOceanSun).
+                if (ocean == null) continue;
                 float wanted = (float)nodeStrength.GetValue(found) * Mathf.Max(percent, 0f) / 100f * OwnSettings.SunReflectionAt100;
                 if (ocean.GetFloat(PropertyId) != wanted) ocean.SetFloat(PropertyId, wanted);
             }

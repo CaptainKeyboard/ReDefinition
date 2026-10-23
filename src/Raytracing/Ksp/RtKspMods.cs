@@ -31,31 +31,12 @@ namespace ReDefinition.Raytracing
         private static bool oceanOnBody;
         private static bool oceanReadsLogged;
         private static FieldInfo shifterColour;
-        // Parallax's fields, read through compiled getters: a FieldInfo's GetValue costs
-        // a reflection call per field, nine per scatter renderer a frame.
-        private static FieldInfo scatterOf;
-        private static FieldInfo scatterName;
-        private static FieldInfo scatterDistribution;
-        private static FieldInfo distributionRange;
+        // Parallax's scatters, read through Scenery.ParallaxScatterFields; off for the run
+        // once reading them failed.
+        private static bool parallaxFailed;
+        private static bool grassRangeFailed;
         private static float grassRange;
         private static float grassRangeAt = float.MinValue;
-        private static Func<object, object> scatterManager;
-        private static Func<object, IList> activeScatters;
-        private static readonly Func<object, Mesh>[] scatterMeshes = new Func<object, Mesh>[3];
-        private static readonly Func<object, Material>[] scatterMaterials = new Func<object, Material>[3];
-        private static readonly Func<object, ComputeBuffer>[] scatterBuffers = new Func<object, ComputeBuffer>[3];
-
-        // A getter of the field on an object of its declaring type (null for a static
-        // field), or null where there is no such field or it is not a T.
-        private static Func<object, T> Getter<T>(FieldInfo field) where T : class
-        {
-            if (field == null || !typeof(T).IsAssignableFrom(field.FieldType)) return null;
-            ParameterExpression target = Expression.Parameter(typeof(object), "target");
-            Expression owner = field.IsStatic ? null : Expression.Convert(target, field.DeclaringType);
-            Expression value = Expression.Field(owner, field);
-            if (field.FieldType != typeof(T)) value = Expression.Convert(value, typeof(T));
-            return Expression.Lambda<Func<object, T>>(value, target).Compile();
-        }
 
         // Whether Scatterer is installed: its atmosphere colours the sun's light.
         internal static bool ScattererInstalled
@@ -90,33 +71,6 @@ namespace ReDefinition.Raytracing
                         starShifter = star?.GetField("shifter", BindingFlags.Public | BindingFlags.Instance);
                         shifterColour = starShifter?.FieldType.GetField("sunlightColor", BindingFlags.Public | BindingFlags.Instance);
                         if (shifterColour != null && shifterColour.FieldType != typeof(Color)) shifterColour = null;
-                    }
-                    else if (name == "ParallaxContinued")
-                    {
-                        // ScatterManager.Instance.activeScatterRenderers, each ScatterRenderer's
-                        // meshLOD0-2, instancedMaterialLOD0-2 and outputLOD0-2 (Parallax Continued,
-                        // Scatter System/ScatterManager.cs, ScatterRenderer.cs; public).
-                        Type manager = assembly.GetType("Parallax.ScatterManager");
-                        Type renderer = assembly.GetType("Parallax.ScatterRenderer");
-                        scatterManager = Getter<object>(manager?.GetField("Instance", BindingFlags.Public | BindingFlags.Static));
-                        activeScatters = Getter<IList>(manager?.GetField("activeScatterRenderers",
-                                                                         BindingFlags.Public | BindingFlags.Instance));
-                        // ScatterRenderer.scatter, its scatterName and distributionParams.range (Scatter.cs,
-                        // DistributionParams; public): how far the grass is drawn.
-                        scatterOf = renderer?.GetField("scatter", BindingFlags.Public | BindingFlags.Instance);
-                        scatterName = scatterOf?.FieldType.GetField("scatterName", BindingFlags.Public | BindingFlags.Instance);
-                        scatterDistribution = scatterOf?.FieldType.GetField("distributionParams",
-                            BindingFlags.Public | BindingFlags.Instance);
-                        distributionRange = scatterDistribution?.FieldType.GetField("range", BindingFlags.Public | BindingFlags.Instance);
-                        if (distributionRange != null && distributionRange.FieldType != typeof(float)) distributionRange = null;
-                        for (int lod = 0; lod < 3 && renderer != null; lod++)
-                        {
-                            scatterMeshes[lod] = Getter<Mesh>(renderer.GetField("meshLOD" + lod, BindingFlags.Public | BindingFlags.Instance));
-                            scatterMaterials[lod] = Getter<Material>(renderer.GetField("instancedMaterialLOD" + lod,
-                                                                                       BindingFlags.Public | BindingFlags.Instance));
-                            scatterBuffers[lod] = Getter<ComputeBuffer>(renderer.GetField("outputLOD" + lod,
-                                                                                          BindingFlags.Public | BindingFlags.Instance));
-                        }
                     }
                     else if (name == "PlanetShine")
                     {
@@ -200,6 +154,14 @@ namespace ReDefinition.Raytracing
             return frameStarBody;
         }
 
+        // The same body alone, for a caller outside the raytracing that runs every frame
+        // (DistantObjectBehaviour): this frame's where it was looked at already, else
+        // looked for without the light and its colour, which allocate.
+        internal static CelestialBody StarBodyOnly()
+        {
+            return starFrame == Time.frameCount ? frameStarBody : FindStarBody();
+        }
+
         private static Light FindSunLight()
         {
             Look();
@@ -269,13 +231,11 @@ namespace ReDefinition.Raytracing
         // there.
         internal static int ParallaxScatter(List<RtGpuItem> into)
         {
-            Look();
-            if (scatterManager == null || activeScatters == null || scatterBuffers[2] == null) return 0;
+            if (parallaxFailed || !Scenery.ParallaxScatterFields.Available) return 0;
             int buffers = 0;
             try
             {
-                object manager = scatterManager(null);
-                IList renderers = manager != null ? activeScatters(manager) : null;
+                IList renderers = Scenery.ParallaxScatterFields.Renderers();
                 if (renderers == null) return 0;
                 for (int r = 0; r < renderers.Count; r++)
                 {
@@ -285,25 +245,28 @@ namespace ReDefinition.Raytracing
                     {
                         // Where the space centre's grass is lifted, its clumps under the
                         // space centre's ground left out (Scenery.KscGrass.RaysBuffer).
-                        ComputeBuffer buffer = Scenery.KscGrass.RaysBuffer(renderer, lod, scatterBuffers[lod](renderer));
-                        Mesh mesh = scatterMeshes[lod]?.Invoke(renderer);
+                        ComputeBuffer buffer = Scenery.KscGrass.RaysBuffer(renderer, lod,
+                                                                           Scenery.ParallaxScatterFields.Output(renderer, lod));
+                        Mesh mesh = Scenery.ParallaxScatterFields.Mesh(renderer, lod);
                         if (buffer == null || !buffer.IsValid() || mesh == null) continue;
                         into.Add(new RtGpuItem
                         {
                             Transforms = buffer,
                             Mesh = mesh,
                             SubMesh = 0,
-                            Material = scatterMaterials[lod]?.Invoke(renderer),
+                            Material = Scenery.ParallaxScatterFields.Material(renderer, lod),
                             Mask = 0xFF,
                         });
                         buffers++;
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 // Another version of Parallax: its scatter stays out of the rays.
-                scatterManager = null;
+                parallaxFailed = true;
+                Core.CompatibilityLog.Warn("rt-parallax-scatter", "Raytracing: Parallax's scatter is left out of the rays ("
+                                                                  + Core.CompatibilityLog.Reason(e) + ").");
             }
             return buffers;
         }
@@ -316,27 +279,21 @@ namespace ReDefinition.Raytracing
             if (now - grassRangeAt < 1f) return grassRange;
             grassRangeAt = now;
             grassRange = 0f;
-            Look();
-            if (scatterManager == null || activeScatters == null || scatterOf == null || distributionRange == null) return 0f;
+            if (parallaxFailed || grassRangeFailed || !Scenery.ParallaxScatterFields.Available) return 0f;
             try
             {
-                object manager = scatterManager(null);
-                IList renderers = manager != null ? activeScatters(manager) : null;
+                IList renderers = Scenery.ParallaxScatterFields.Renderers();
                 if (renderers == null) return 0f;
                 foreach (object renderer in renderers)
                 {
-                    object scatter = renderer != null ? scatterOf.GetValue(renderer) : null;
-                    if (scatter == null) continue;
-                    string name = scatterName != null ? scatterName.GetValue(scatter) as string : null;
+                    string name = Scenery.ParallaxScatterFields.ScatterName(renderer);
                     if (name == null || name.IndexOf("Grass", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                    object distribution = scatterDistribution.GetValue(scatter);
-                    if (distribution == null) continue;
-                    grassRange = Mathf.Max(grassRange, (float)distributionRange.GetValue(distribution));
+                    grassRange = Mathf.Max(grassRange, Scenery.ParallaxScatterFields.Range(renderer));
                 }
             }
             catch (Exception)
             {
-                distributionRange = null;
+                grassRangeFailed = true;
                 grassRange = 0f;
             }
             return grassRange;
@@ -346,12 +303,10 @@ namespace ReDefinition.Raytracing
         // three levels of detail.
         internal static void ParallaxScatterMaterials(List<Material> into)
         {
-            Look();
-            if (scatterManager == null || activeScatters == null) return;
+            if (parallaxFailed || !Scenery.ParallaxScatterFields.Available) return;
             try
             {
-                object manager = scatterManager(null);
-                IList renderers = manager != null ? activeScatters(manager) : null;
+                IList renderers = Scenery.ParallaxScatterFields.Renderers();
                 if (renderers == null) return;
                 for (int r = 0; r < renderers.Count; r++)
                 {
@@ -359,7 +314,7 @@ namespace ReDefinition.Raytracing
                     if (renderer == null) continue;
                     for (int lod = 0; lod < 3; lod++)
                     {
-                        Material material = scatterMaterials[lod]?.Invoke(renderer);
+                        Material material = Scenery.ParallaxScatterFields.Material(renderer, lod);
                         if (material != null) into.Add(material);
                     }
                 }
@@ -409,10 +364,13 @@ namespace ReDefinition.Raytracing
                     planetShineLeft = false;
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 planetShineOn = null;
                 planetShineRead = null;
+                Core.CompatibilityLog.Warn("rt-planetshine", "Raytracing: PlanetShine's light is no longer switched off under"
+                                                             + " the raytraced diffuse light ("
+                                                             + Core.CompatibilityLog.Reason(e) + ").");
             }
         }
 
@@ -517,7 +475,9 @@ namespace ReDefinition.Raytracing
         internal static void HoldDeferredReflections(bool hold, Camera sceneCamera)
         {
             Look();
-            if (deferredReflections == null) return;
+            // How the component switches its pass on and off, checked in Deferred's code
+            // (ForeignAssumptions.DeferredSsrHold): where it changed, the reflections stay on.
+            if (deferredReflections == null || !Core.ForeignAssumptions.DeferredSsrHold.Holds) return;
             try
             {
                 if (hold && reflectionsHeld == null)
@@ -546,9 +506,23 @@ namespace ReDefinition.Raytracing
                     reflectionsLeft = false;
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 deferredReflections = null;
+                // Not left off for good where the hold had switched them off.
+                try
+                {
+                    if (reflectionsHeld != null && !reflectionsHeld.enabled) reflectionsHeld.enabled = true;
+                }
+                catch (Exception)
+                {
+                    // The same failure, or the component gone: the warning below stands.
+                }
+                reflectionsHeld = null;
+                reflectionsLeft = false;
+                Core.CompatibilityLog.Warn("rt-deferred-ssr", "Raytracing: Deferred's screen-space reflections are no longer"
+                                                              + " held for the raytraced ones ("
+                                                              + Core.CompatibilityLog.Reason(e) + ").");
             }
         }
     }

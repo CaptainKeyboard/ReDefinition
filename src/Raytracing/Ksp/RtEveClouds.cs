@@ -31,6 +31,8 @@ namespace ReDefinition.Raytracing
         // -redefinitionProbeCloudValue 1, 2, 3: with the probe's cloud check, the rays write
         // the map's u, v or coverage (RtCommon.hlsli, CloudProbeValue); the brightness 1 else.
         private static readonly float ProbeMode = ProbeArgument();
+        private static readonly int TimeFadeDensityId = Shader.PropertyToID("cloudTimeFadeDensity");
+        private static readonly int MapViewFadeId = Shader.PropertyToID("mapViewFade");
 
         private static float ProbeArgument()
         {
@@ -203,8 +205,13 @@ namespace ReDefinition.Raytracing
                 float factor = shadow.HasProperty("_ShadowFactor") ? shadow.GetFloat("_ShadowFactor") : 0.75f;
                 clouds[16] = factor * colour.a;
                 clouds[17] = readFadeCoverage != null ? readFadeCoverage(layer) : 1f;
-                float fade = (shadow.HasProperty("cloudTimeFadeDensity") ? shadow.GetFloat("cloudTimeFadeDensity") : 1f)
-                             * (shadow.HasProperty("mapViewFade") ? shadow.GetFloat("mapViewFade") : 1f)
+                // The fades read without HasProperty, which asks the shader for the property
+                // (Unity: "Checks if material's shader has a property of a given name") while
+                // EVE only sets them on the material, from the layer's setup on
+                // (Clouds2D.Apply, Reassign, SetTimeFade, SetMapViewFade): where the shader did not declare
+                // them, the layer counted as never faded. Their names are checked in EVE's
+                // code (ForeignAssumptions.EveRtClouds).
+                float fade = shadow.GetFloat(TimeFadeDensityId) * shadow.GetFloat(MapViewFadeId)
                              * (readScaledFade != null ? readScaledFade(layer) : 1f);
                 clouds[18] = fade;
                 clouds[19] = readFadeDensity != null ? readFadeDensity(layer) : 1f;

@@ -118,6 +118,7 @@ namespace ReDefinition.Settings
             { "Eve", () => new EveBehaviour() },
             { "Firefly", () => new FireflyBehaviour() },
             { "Ksp", () => new KspBehaviour() },
+            { "ParallaxKeywords", () => new ParallaxKeywordsBehaviour() },
             { "ParallaxScatter", () => new ParallaxScatterBehaviour() },
             { "Scatterer", () => new ScattererBehaviour() },
             { "Tufx", () => new TufxBehaviour() },

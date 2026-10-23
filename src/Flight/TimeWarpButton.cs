@@ -26,7 +26,8 @@ namespace ReDefinition.Flight
     // extension's top right corner is squared to join it. The mod's own IMGUI
     // button is not drawn while the copy stands (a transpiler routes its
     // GUI.Toggle through Toggle), nor where there is no time panel; elsewhere it
-    // stays, right of the WARP label (Place).
+    // stays, right of the WARP label (Place). Where the mod's own settings switch the
+    // mod or its drop-down button off, no copy stands either (ModDrawsButton).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class TimeWarpButton : MonoBehaviour
     {
@@ -36,6 +37,9 @@ namespace ReDefinition.Flight
 
         // The copy in the time panel stands: the mod's own button is not drawn.
         internal static bool Replaced;
+        // The copy is being made in this scene (TimeWarpBar.Start): the mod's toolbar
+        // button is hidden from then on, not only once it stands.
+        internal static bool Coming;
         private static TextMeshProUGUI label;
         private static float lookedAt = -10f;
         private static int routed;
@@ -60,11 +64,15 @@ namespace ReDefinition.Flight
         {
             System.Type mod = TypeLookup.Find(ModType);
             if (mod == null) return;
-            // Its toolbar button only where the player keeps it (OwnSettings.TimeWarpToolbarButton).
+            // Its toolbar button only where the player keeps it (OwnSettings.TimeWarpToolbarButton),
+            // and hidden only where the copy stands in its place: the mod registers it once, for
+            // the space centre, the flight, the map and the tracking station alike
+            // (BetterTimeWarp.Start, AddToAllToolbars; its source read), and the copy is made
+            // in the flight and at the space centre only, so in the tracking station it stays.
             ToolbarTakeover.KeepOwn(ToolbarNamespace, () =>
             {
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                return addon != null && addon.Live.TimeWarpToolbarButton;
+                return (addon != null && addon.Live.TimeWarpToolbarButton) || !(Replaced || Coming);
             });
             HarmonyHooks.Safely("timewarp-button", "Better Time Warp's button stays where the mod puts it", () =>
             {
@@ -130,6 +138,48 @@ namespace ReDefinition.Flight
                 text.rectTransform.TransformPoint(new Vector3(bounds.max.x, bounds.center.y, 0f)));
             return new Rect(end.x + Gap * GameSettings.UI_SCALE, Screen.height - end.y - height / 2f, width, height);
         }
+
+        // Whether the mod draws its drop-down button in this game: its OnGUI returns at
+        // once where its "Mod Enabled?" is off, and draws no button where "Hide the
+        // dropdown button in the flight scene?" is on -- at the space centre too
+        // (BTWCustomParams.enabled, hideDropdownButtonInFlight, read in OnGUI from
+        // HighLogic.CurrentGame.Parameters; its source read). Where they cannot be read,
+        // as it draws by default.
+        internal static bool ModDrawsButton()
+        {
+            if (!paramsResolved)
+            {
+                paramsResolved = true;
+                paramsType = TypeLookup.Find(ParamsType);
+                paramEnabled = paramsType != null ? paramsType.GetField("enabled", BindingFlags.Instance | BindingFlags.Public) : null;
+                paramHidden = paramsType != null
+                    ? paramsType.GetField("hideDropdownButtonInFlight", BindingFlags.Instance | BindingFlags.Public)
+                    : null;
+                if (paramEnabled != null && paramEnabled.FieldType != typeof(bool)) paramEnabled = null;
+                if (paramHidden != null && paramHidden.FieldType != typeof(bool)) paramHidden = null;
+            }
+            Game game = HighLogic.CurrentGame;
+            if (paramsType == null || game == null || game.Parameters == null) return true;
+            try
+            {
+                object node = game.Parameters.CustomParams(paramsType);
+                if (node == null) return true;
+                if (paramEnabled != null && !(bool)paramEnabled.GetValue(node)) return false;
+                return paramHidden == null || !(bool)paramHidden.GetValue(node);
+            }
+            catch (System.Exception e)
+            {
+                CompatibilityLog.Warn("timewarp-params", "Better Time Warp's own switches could not be read, so its button"
+                                                         + " is copied as the mod draws it by default ("
+                                                         + CompatibilityLog.Reason(e) + ").");
+                return true;
+            }
+        }
+
+        private const string ParamsType = "BetterTimeWarp.BTWCustomParams";
+        private static System.Type paramsType;
+        private static FieldInfo paramEnabled, paramHidden;
+        private static bool paramsResolved;
 
         // The warp row's label, looked for again a second after it was not found.
         internal static TextMeshProUGUI Label()

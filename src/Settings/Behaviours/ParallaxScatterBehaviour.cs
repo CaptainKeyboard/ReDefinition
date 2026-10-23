@@ -32,8 +32,11 @@ namespace ReDefinition.Settings.Behaviours
             write = null;
             type = null;
             Resolve();
-            // Without the calls: not offered, and not named among the drops.
-            return !canRenormalise;
+            if (canRenormalise) return false;
+            // Without the calls: not offered, and said so where its row would stand.
+            mod.MemberMissing(setting, "this build of Parallax cannot rebake its scatters with a new value"
+                                       + " (ConfigLoader.ReverseNormalisationConversions, PerformNormalisationConversions)");
+            return true;
         }
 
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)

@@ -17,7 +17,7 @@ namespace ReDefinition.Settings.Behaviours
     // through Application.targetFrameRate. The others are read where they matter:
     // the terrain shader quality and the terrain detail preset when a planet's
     // surface is built, terrain scatter likewise, surface FX when a part's module
-    // starts, aerodynamic FX in the FX camera, the reflection probe on
+    // starts, aerodynamic FX (FXCamera, AerodynamicsFX) and the reflection probe on
     // OnGameSettingsApplied. A value set here is saved as KSP's own settings
     // screens save it -- GameSettings.SaveSettings, the registration's `save`.
     //
@@ -42,8 +42,8 @@ namespace ReDefinition.Settings.Behaviours
             None,
             // Unity's quality settings from GameSettings, then the event.
             Quality,
-            // OnGameSettingsApplied alone: the reflection probe and terrain
-            // scatter's shadows listen to it.
+            // OnGameSettingsApplied alone: the reflection probe, terrain
+            // scatter's shadows and the aerodynamic FX listen to it.
             Event,
             // The engine settings of GameSettings.ApplySettings, then the event.
             Engine,
@@ -57,8 +57,7 @@ namespace ReDefinition.Settings.Behaviours
 
         private static readonly string[] NoFollow =
         {
-            "terrainDetail", "TERRAIN_SHADER_QUALITY", "PLANET_SCATTER", "PLANET_SCATTER_FACTOR", "AERO_FX_QUALITY",
-            "SURFACE_FX",
+            "terrainDetail", "TERRAIN_SHADER_QUALITY", "PLANET_SCATTER", "PLANET_SCATTER_FACTOR", "SURFACE_FX",
         };
 
         private static readonly string[] EngineFollow =
@@ -74,9 +73,9 @@ namespace ReDefinition.Settings.Behaviours
             "MISSION_GAP_CAMERA_VAB_CONTROLS", "MISSION_MINIMUM_CANVAS_ZOOM",
         };
 
-        // Whether the end-of-frame follow-up sets Unity's quality, or the engine
-        // settings, again besides firing the event.
-        private static bool qualityDue;
+        // Which of Unity's quality settings the end-of-frame follow-up sets again,
+        // and whether the engine settings, besides firing the event.
+        private static readonly HashSet<string> qualityDue = new HashSet<string>();
         private static bool engineDue;
 
         // KSP.cfg's REQUIRES on V-Sync while DLSS frame generation runs: every
@@ -399,10 +398,11 @@ namespace ReDefinition.Settings.Behaviours
                 : Array.IndexOf(NoFollow, registration.Name) >= 0 ? Follow.None : Follow.Event;
             if (follow == Follow.None) return;
             Action<string> write = setting.Write;
+            string name = registration.Name;
             setting.Write = text =>
             {
                 write(text);
-                FollowUp(follow);
+                FollowUp(follow, name);
             };
         }
 
@@ -481,20 +481,20 @@ namespace ReDefinition.Settings.Behaviours
         // every listener runs once -- CommNet builds its network anew on it. The
         // event fires even where the quality part throws, since it is what puts this
         // mod's quality overrides back.
-        private static void FollowUp(Follow follow)
+        private static void FollowUp(Follow follow, string name)
         {
             if (follow == Follow.None) return;
-            if (follow == Follow.Quality) qualityDue = true;
+            if (follow == Follow.Quality) qualityDue.Add(name);
             if (follow == Follow.Engine) engineDue = true;
             BundledSettingsAddon.AtEndOfFrame("ksp-settings-applied", () =>
             {
-                bool quality = qualityDue;
+                HashSet<string> quality = new HashSet<string>(qualityDue);
                 bool engine = engineDue;
-                qualityDue = false;
+                qualityDue.Clear();
                 engineDue = false;
                 try
                 {
-                    if (quality) ApplyQuality();
+                    if (quality.Count > 0) ApplyQuality(quality);
                 }
                 catch (Exception e)
                 {
@@ -550,15 +550,123 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
-        private static void ApplyQuality()
+        // What GameSettings.ApplySettings hands Unity, but only what changed: a new
+        // quality level sets every one of Unity's quality settings anew
+        // (SetQualityLevel), and with it what other mods set over them for the
+        // scene -- so the level is set only where it moved, the members KSP hands
+        // over after it all again, and what the others hold put back (OthersHold).
+        // Without a new level only the members that changed are set.
+        private static void ApplyQuality(HashSet<string> changed)
         {
-            QualitySettings.SetQualityLevel(GameSettings.QUALITY_PRESET, true);
-            QualitySettings.antiAliasing = GameSettings.ANTI_ALIASING;
-            QualitySettings.masterTextureLimit = GameSettings.TEXTURE_QUALITY;
-            QualitySettings.vSyncCount = GameSettings.SYNC_VBL;
-            QualitySettings.pixelLightCount = GameSettings.LIGHT_QUALITY;
-            QualitySettings.shadowCascades = GameSettings.SHADOWS_QUALITY;
-            Application.targetFrameRate = GameSettings.FRAMERATE_LIMIT;
+            bool level = changed.Contains("QUALITY_PRESET")
+                         && QualitySettings.GetQualityLevel() != GameSettings.QUALITY_PRESET;
+            if (level)
+            {
+                HeldQuality held = OthersHold();
+                QualitySettings.SetQualityLevel(GameSettings.QUALITY_PRESET, true);
+                PutBack(held);
+            }
+            if (level || changed.Contains("ANTI_ALIASING")) QualitySettings.antiAliasing = GameSettings.ANTI_ALIASING;
+            if (level || changed.Contains("TEXTURE_QUALITY")) QualitySettings.masterTextureLimit = GameSettings.TEXTURE_QUALITY;
+            if (level || changed.Contains("SYNC_VBL")) QualitySettings.vSyncCount = GameSettings.SYNC_VBL;
+            if (level || changed.Contains("LIGHT_QUALITY")) QualitySettings.pixelLightCount = PixelLightCount();
+            if (level || changed.Contains("SHADOWS_QUALITY")) QualitySettings.shadowCascades = GameSettings.SHADOWS_QUALITY;
+            if (changed.Contains("FRAMERATE_LIMIT")) Application.targetFrameRate = GameSettings.FRAMERATE_LIMIT;
+        }
+
+        // KSP's pixel light count as Unity is to have it: with Deferred at 64 at
+        // least, as Deferred sets it at every scene load (Deferred.OnSceneLoaded:
+        // Math.Max(GameSettings.LIGHT_QUALITY, 64)). Deferred starts in the main
+        // menu and stays, so its type being loaded is enough.
+        private static int PixelLightCount()
+        {
+            return DeferredLoaded() ? Math.Max(GameSettings.LIGHT_QUALITY, 64) : GameSettings.LIGHT_QUALITY;
+        }
+
+        private static int deferredLoaded = -1;
+
+        private static bool DeferredLoaded()
+        {
+            if (deferredLoaded < 0) deferredLoaded = TypeLookup.Find("Deferred.Deferred") != null ? 1 : 0;
+            return deferredLoaded == 1;
+        }
+
+        // What other mods set over Unity's quality level for the scene, which a
+        // new level would take back until the next scene: Scatterer's shadow
+        // distance where it holds one -- its static originalShadowDistance is the
+        // level's own while it does, 0 otherwise, and what it puts back when its
+        // terrain shadows go off -- and its shadow projection where it sets one:
+        // with the unified camera and d3d11ShadowFix or terrainShadows, or with
+        // shadowsOnOcean or oceanLightRays (Scatterer.SetShadows, 0.908, decompiled).
+        // Deferred's light count follows PixelLightCount.
+        internal struct HeldQuality
+        {
+            public bool Distance;
+            public float ShadowDistance;
+            public FieldInfo Original;
+            public bool Projection;
+            public ShadowProjection ShadowProjection;
+        }
+
+        internal static HeldQuality OthersHold()
+        {
+            HeldQuality held = new HeldQuality
+            {
+                ShadowDistance = QualitySettings.shadowDistance,
+                ShadowProjection = QualitySettings.shadowProjection,
+            };
+            try
+            {
+                Type scatterer = TypeLookup.Find("Scatterer.Scatterer");
+                if (scatterer == null) return held;
+                FieldInfo original = scatterer.GetField("originalShadowDistance", TypeLookup.Any);
+                held.Distance = original != null && original.IsStatic && original.FieldType == typeof(float)
+                                && (float)original.GetValue(null) != 0f;
+                if (held.Distance) held.Original = original;
+                PropertyInfo instance = scatterer.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+                FieldInfo active = scatterer.GetField("isActive", TypeLookup.Any);
+                UnityEngine.Object running = instance != null ? instance.GetValue(null, null) as UnityEngine.Object : null;
+                bool runs = running != null && active != null && !active.IsStatic && active.FieldType == typeof(bool)
+                            && (bool)active.GetValue(running);
+                held.Projection = runs && SetsProjection(scatterer, running);
+            }
+            catch (Exception)
+            {
+                // Nothing held that can be told.
+            }
+            return held;
+        }
+
+        // After a new quality level -- the settings window's, or KSP's reset
+        // through GameSettings.ApplySettings, which sets the level and the light
+        // count as KSP's own screen does.
+        // Whether Scatterer's SetShadows sets the shadow projection with its settings as
+        // they are now.
+        private static bool SetsProjection(Type scatterer, object running)
+        {
+            FieldInfo settingsField = scatterer.GetField("mainSettings", TypeLookup.Any);
+            FieldInfo unifiedField = scatterer.GetField("unifiedCameraMode", TypeLookup.Any);
+            object settings = settingsField != null ? settingsField.GetValue(running) : null;
+            if (settings == null || unifiedField == null || unifiedField.FieldType != typeof(bool)) return false;
+            bool unified = (bool)unifiedField.GetValue(running);
+            return unified && (Flag(settings, "d3d11ShadowFix") || Flag(settings, "terrainShadows"))
+                   || Flag(settings, "shadowsOnOcean") || Flag(settings, "oceanLightRays");
+        }
+
+        private static bool Flag(object settings, string name)
+        {
+            FieldInfo field = settings.GetType().GetField(name, TypeLookup.Any);
+            return field != null && field.FieldType == typeof(bool) && (bool)field.GetValue(settings);
+        }
+
+        internal static void PutBack(HeldQuality held)
+        {
+            // The new level's distance is what Scatterer puts back when its terrain
+            // shadows go off, not the old one's.
+            if (held.Distance && held.Original != null) held.Original.SetValue(null, QualitySettings.shadowDistance);
+            if (held.Distance) QualitySettings.shadowDistance = held.ShadowDistance;
+            if (held.Projection) QualitySettings.shadowProjection = held.ShadowProjection;
+            QualitySettings.pixelLightCount = PixelLightCount();
         }
     }
 

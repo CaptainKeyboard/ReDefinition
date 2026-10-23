@@ -29,7 +29,12 @@ namespace ReDefinition.Settings
             GameSettings.FULLSCREEN = fullScreen;
             GameSettings.LoadLayoutKeyBindings(GameSettings.DetectKeyboardLayout(), true);
             PQSCache.CreateDefaultPresetList();
+            // ApplySettings sets Unity's quality level anew and the light count to
+            // KSP's: what Deferred and Scatterer hold over them for the scene is
+            // put back.
+            Behaviours.KspBehaviour.HeldQuality held = Behaviours.KspBehaviour.OthersHold();
             GameSettings.ApplySettings();
+            Behaviours.KspBehaviour.PutBack(held);
             // What listens to KSP's settings -- the music, the reflection probe,
             // the upscaler's hold on MSAA -- takes them as after KSP's own screen.
             GameEvents.OnGameSettingsApplied.Fire();

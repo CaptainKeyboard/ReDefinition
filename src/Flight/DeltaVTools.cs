@@ -101,20 +101,34 @@ namespace ReDefinition.Flight
         }
 
         // The total delta-v's button presses the tools' button, so that both open
-        // and close the same.
+        // and close the same. Runs inside KSP's StageManager.DeltaVButtonClicked:
+        // nothing may escape; where it fails before the button is pressed, KSP's own
+        // click runs.
         private static bool PressButton()
         {
             if (!active) return true;
-            ApplicationLauncherButton button = DeltaVApp.Instance != null ? DeltaVApp.Instance.appLauncherButton : null;
-            if (button == null || button.toggleButton == null) return true;
-            if (Pinned(button)) button.SetFalse();
-            else button.SetTrue();
-            // As a click on the button does: the launcher's pinned button follows
-            // (ApplicationLauncher.MutuallyExclusiveStockApplistCLICK), and another
-            // pinned app closes.
-            ApplicationLauncher launcher = ApplicationLauncher.Instance;
-            if (launcher != null && ClickField != null) ClickField.Invoke(launcher, new object[] { button.toggleButton });
-            return false;
+            bool pressed = false;
+            try
+            {
+                ApplicationLauncherButton button = DeltaVApp.Instance != null ? DeltaVApp.Instance.appLauncherButton : null;
+                if (button == null || button.toggleButton == null) return true;
+                bool pinned = Pinned(button);
+                pressed = true;
+                if (pinned) button.SetFalse();
+                else button.SetTrue();
+                // As a click on the button does: the launcher's pinned button follows
+                // (ApplicationLauncher.MutuallyExclusiveStockApplistCLICK), and another
+                // pinned app closes.
+                ApplicationLauncher launcher = ApplicationLauncher.Instance;
+                if (launcher != null && ClickField != null) ClickField.Invoke(launcher, new object[] { button.toggleButton });
+                return false;
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("deltav-tools-press", "The total delta-v's button could not press the delta-v tools'"
+                                                            + " button (" + CompatibilityLog.Reason(e) + ").");
+                return !pressed;
+            }
         }
 
         private static void AlsoTyped(ref bool __result)

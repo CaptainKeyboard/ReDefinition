@@ -59,6 +59,31 @@ namespace ReDefinition.Tests
             Assert.AreEqual(2, setting.MaxModifiers);
         }
 
+        // Deferred's rule: every modifier member held with the key. One modifier
+        // goes into both, and the key alone into both as the key itself.
+        [TestMethod]
+        public void AllModifiersWithoutOneHoldTheKeyItself()
+        {
+            BundledSetting setting = Build(" KEY\n {\n  name = window\n  member = ReDefinition.Tests.BindingFake.Key\n"
+                                           + "  modifier1 = ReDefinition.Tests.BindingFake.Modifier1\n"
+                                           + "  modifier2 = ReDefinition.Tests.BindingFake.Modifier2\n"
+                                           + "  modifiers = all\n }\n");
+            setting.Write("LeftAlt+D");
+            Assert.AreEqual(KeyCode.LeftAlt, BindingFake.Modifier1);
+            Assert.AreEqual(KeyCode.LeftAlt, BindingFake.Modifier2);
+            Assert.AreEqual("LeftAlt+D", setting.Read());
+
+            setting.Write("D");
+            Assert.AreEqual(KeyCode.D, BindingFake.Key);
+            Assert.AreEqual(KeyCode.D, BindingFake.Modifier1);
+            Assert.AreEqual(KeyCode.D, BindingFake.Modifier2);
+            Assert.AreEqual("D", setting.Read());
+
+            setting.Write(KeyCombination.NoneText);
+            Assert.AreEqual(KeyCode.None, BindingFake.Modifier1);
+            Assert.AreEqual(KeyCode.None, BindingFake.Modifier2);
+        }
+
         [TestMethod]
         public void TextHoldsTheWholeCombination()
         {

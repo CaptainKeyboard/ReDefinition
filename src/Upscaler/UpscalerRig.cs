@@ -646,6 +646,12 @@ namespace ReDefinition.Upscaler
                 && Screen.width > 0 && Screen.height > 0)
                 RequestRebuild("the screen is now " + Screen.width + "x" + Screen.height + ", the rig was built for "
                                + displaySize.x + "x" + displaySize.y);
+            // HDR switched on the camera since: TUFX sets allowHDR with each profile it
+            // applies (TexturesUnlimitedFXLoader.ApplyProfile), its HDR switch and a
+            // profile changed in the middle of a scene included. The textures and the
+            // upscaler's shaders follow the camera's, as at setup.
+            if (!RebuildWanted && cam != null && cam.allowHDR != EffectiveHdr)
+                RequestRebuild("the camera's HDR is now " + (cam.allowHDR ? "on" : "off"));
 
             // Once, a few seconds after the rig was built. See AttachHudLessCapture.
             if (Time.unscaledTime >= hudLessRecheckTime)

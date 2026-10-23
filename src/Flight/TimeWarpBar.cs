@@ -32,8 +32,22 @@ namespace ReDefinition.Flight
         private static readonly FieldInfo ContentField = TypeLookup.Find(TimeWarpButton.ModType) != null
             ? TypeLookup.Find(TimeWarpButton.ModType).GetField("buttonContent", BindingFlags.Instance | BindingFlags.NonPublic)
             : null;
+        // The arrow the mod shows, read every frame through a compiled getter; by the
+        // FieldInfo where the runtime refuses the compiled read of a private field.
+        private static System.Func<object, GUIContent> readContent;
+        private static readonly System.Func<object, GUIContent> ReflectContent = target => ContentField.GetValue(target) as GUIContent;
 
         private GameObject bar;
+        // What Build adds to the sunrise extension to join it to the area, shown and
+        // hidden with it.
+        private readonly List<GameObject> joins = new List<GameObject>();
+        private UIWarpToNextMorning sunrise;
+        // The time panel and the mod were found: the copy follows the mod's own switches
+        // from then on (Follow), checked once a second.
+        private bool found;
+        private bool built;
+        private bool failed;
+        private float followAt;
         private RectTransform barRect;
         private UIHoverSlidePanel slide;
         // The button's place in the panel while the panel is unfolded.
@@ -50,8 +64,8 @@ namespace ReDefinition.Flight
         {
             System.Type type = TypeLookup.Find(TimeWarpButton.ModType);
             if (type == null || !TimeWarpButton.Routed || !FlightUiSwitch.On(s => s.TimeWarpPanelButton)) yield break;
+            TimeWarpButton.Coming = TimeWarpButton.ModDrawsButton();
             float until = Time.unscaledTime + 15f;
-            UIWarpToNextMorning sunrise = null;
             while (Time.unscaledTime < until)
             {
                 label = TimeWarpButton.Label();
@@ -60,17 +74,64 @@ namespace ReDefinition.Flight
                 if (label != null && sunrise != null && mod != null) break;
                 yield return new WaitForSecondsRealtime(0.5f);
             }
+            TimeWarpButton.Coming = false;
             if (label == null || sunrise == null || mod == null) yield break;
+            if (readContent == null && ContentField != null)
+            {
+                try
+                {
+                    readContent = CompiledGetter.Of<GUIContent>(ContentField);
+                }
+                catch (System.Exception)
+                {
+                    readContent = null;
+                }
+                if (readContent == null) readContent = ReflectContent;
+            }
+            found = true;
+            Follow();
+        }
+
+        // The copy where the mod draws its button (TimeWarpButton.ModDrawsButton), made
+        // the first time it does; hidden, with what joins the sunrise extension to it,
+        // where the player has switched the mod or its button off in its settings, so
+        // that the time panel shows no button that would open nothing the mod shows.
+        private void Follow()
+        {
+            followAt = Time.unscaledTime + 1f;
+            bool draws = TimeWarpButton.ModDrawsButton();
+            if (!built)
+            {
+                if (draws && !failed && sunrise != null && label != null) TryBuild();
+                return;
+            }
+            // Gone with the scene's UI.
+            if (bar == null || bar.activeSelf == draws) return;
+            bar.SetActive(draws);
+            foreach (GameObject join in joins)
+                if (join != null) join.SetActive(draws);
+            TimeWarpButton.Replaced = draws;
+            Debug.Log(Log.Tag + " Better Time Warp's button in the time panel " + (draws ? "shown again" : "hidden")
+                      + ", as the mod's own settings say.");
+        }
+
+        private void TryBuild()
+        {
             try
             {
                 Build(sunrise);
+                built = true;
             }
             catch (System.Exception e)
             {
+                failed = true;
                 CompatibilityLog.Warn("timewarp-bar", "Better Time Warp's button stays where the mod puts it ("
                                                       + CompatibilityLog.Reason(e) + ").");
                 if (bar != null) Destroy(bar);
                 bar = null;
+                foreach (GameObject join in joins)
+                    if (join != null) Destroy(join);
+                joins.Clear();
                 TimeWarpButton.Replaced = false;
             }
         }
@@ -304,7 +365,7 @@ namespace ReDefinition.Flight
         // extension, under its button, as large as the corner's rounding, which is
         // how far the sprite's top row stops short of its right edge. Returns that
         // size in the extension's units, 0 where there is nothing to square.
-        private static float Square(RectTransform container, Image plate, Color colour)
+        private float Square(RectTransform container, Image plate, Color colour)
         {
             int width, height;
             Color32[] pixels = Shared.TexturePixels.OfSprite(plate != null ? plate.sprite : null, out width, out height);
@@ -316,6 +377,7 @@ namespace ReDefinition.Flight
             if (last < 0 || rounding <= 0) return 0f;
             float size = rounding * container.rect.width / width;
             GameObject patch = new GameObject("ReDefinitionSquareCorner", typeof(RectTransform), typeof(Image));
+            joins.Add(patch);
             patch.layer = container.gameObject.layer;
             RectTransform patchRect = (RectTransform)patch.transform;
             patchRect.SetParent(container, false);
@@ -363,9 +425,10 @@ namespace ReDefinition.Flight
 
         // A strip in the extension's bar colour from the top of its bar picture up
         // by `gap`, over the picture's drawn width.
-        private static void Strip(RectTransform container, Rect filled, float gap, Color colour)
+        private void Strip(RectTransform container, Rect filled, float gap, Color colour)
         {
             GameObject strip = new GameObject("ReDefinitionSunriseGap", typeof(RectTransform), typeof(Image));
+            joins.Add(strip);
             strip.layer = container.gameObject.layer;
             RectTransform stripRect = (RectTransform)strip.transform;
             stripRect.SetParent(container, false);
@@ -382,9 +445,11 @@ namespace ReDefinition.Flight
 
         private void LateUpdate()
         {
-            if (bar == null || label == null) return;
+            if (!found) return;
+            if (Time.unscaledTime >= followAt) Follow();
+            if (bar == null || !bar.activeSelf || label == null) return;
             Hold();
-            GUIContent content = ContentField != null && mod != null ? ContentField.GetValue(mod) as GUIContent : null;
+            GUIContent content = Content();
             Texture2D texture = content != null ? content.image as Texture2D : null;
             if (icon != null && texture != null && texture != shown)
             {
@@ -401,11 +466,26 @@ namespace ReDefinition.Flight
             }
         }
 
+        private GUIContent Content()
+        {
+            if (readContent == null || mod == null) return null;
+            try
+            {
+                return readContent(mod);
+            }
+            catch (System.MemberAccessException)
+            {
+                readContent = ReflectContent;
+                return readContent(mod);
+            }
+        }
+
         // KSP destroys the scene's UI before its addons, so the area is gone
         // already: the mod's own button counts again whatever is left of it.
         private void OnDestroy()
         {
             TimeWarpButton.Replaced = false;
+            TimeWarpButton.Coming = false;
             foreach (Sprite sprite in made)
                 if (sprite != null) Destroy(sprite);
             made.Clear();

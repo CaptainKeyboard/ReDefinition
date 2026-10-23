@@ -380,22 +380,25 @@ namespace ReDefinition.Window
         }
 
         // Reset to defaults: ReDefinition's own bindings and the mods' go back to
-        // their defaults with their other settings, and KSP's to what KSP ships
-        // (KspKeyBindings.Defaults). Filled in only: Apply writes them.
+        // their defaults with their other settings, and KSP's to what KSP's own
+        // reset sets -- what KSP ships with the preset of the keyboard layout it
+        // detects (KspKeyBindings.Defaults), the same KspReset loads before these
+        // are written. Filled in only: Apply writes them.
         internal static void ResetKeyBindings()
         {
             kspPending.Clear();
+            string layout = KspKeyBindings.DetectedLayout(true);
             foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
             {
-                ResetOne(binding, false);
-                ResetOne(binding, true);
+                ResetOne(binding, layout, false);
+                ResetOne(binding, layout, true);
             }
             KeysChanged();
         }
 
-        private static void ResetOne(KspKeyBindings.Binding binding, bool second)
+        private static void ResetOne(KspKeyBindings.Binding binding, string layout, bool second)
         {
-            string shipped = binding.Default(second);
+            string shipped = binding.DefaultIn(layout, second);
             if (shipped == null) return;
             kspPending["ksp." + binding.Name + (second ? ".secondary" : ".primary")] = shipped;
         }
@@ -431,6 +434,17 @@ namespace ReDefinition.Window
                 value => model.Change(key, value),
                 () => (model.Bundled || SetDirectly(shown, false)) && model.HasPending(key), shown.MaxModifiers,
                 KspKeyBindings.SituationsOfGroup(shown.Group));
+            if (shown.CrossedWith != null)
+            {
+                string other = shown.CrossedWith;
+                Conflicts.RegisterCrossed(key, shown.Owner.Id, () =>
+                {
+                    string otherText;
+                    return Conflicts.Crossed(text(), model.TryGetPending(other, out otherText)
+                        ? otherText
+                        : KeyCombination.NoneText);
+                }, KspKeyBindings.SituationsOfGroup(shown.Group));
+            }
             if (inKeysTab) row.OptionEnabledCondition = () => MatchesSearch(shown.Title, shown.Owner.ModName);
             return row;
         }

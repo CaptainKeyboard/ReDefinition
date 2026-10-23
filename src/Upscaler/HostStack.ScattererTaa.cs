@@ -34,6 +34,47 @@ namespace ReDefinition.Upscaler
             {
                 Debug.LogWarning(Log.Tag + " Scatterer's TAA is taken off once a second instead of as it comes: " + e.Message);
             }
+
+            // On its own: a build without the method still has the hook above.
+            MethodInfo register = taaType.GetMethod("RegisterVesselRenderers", BindingFlags.NonPublic | BindingFlags.Instance,
+                                                    null, new[] { typeof(Vessel) }, null);
+            try
+            {
+                HarmonyHooks.Install("ReDefinition.ScattererTaaVessels", typeof(HostStack), new[]
+                {
+                    new HarmonyHook(register, null, nameof(ScattererTaaRegisterPostfix), null),
+                });
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("scatterer-taa-vessels", "Scatterer's TAA's hold on a changed vessel's renderers is"
+                                                               + " taken off once a second, for the active vessel only ("
+                                                               + CompatibilityLog.Reason(e) + ").");
+            }
+        }
+
+        // The TAA's GameEvents registration outlives its disable
+        // (TemporalAntiAliasing.Awake: onVesselLoaded, onVesselWasModified,
+        // onVesselPartCountChanged): each vessel loaded or changed -- at staging the
+        // vessel and what it drops -- has every renderer of its parts set to
+        // ForceNoMotion (RegisterVesselRenderers, Part.FindModelComponents), which the
+        // disabled TAA never corrects. Taken off again as it is set while the upscaler
+        // runs, rather than up to ReassertInterval later and for the active vessel only.
+        // Also from the TAA's own Awake, for the vessels loaded then, just before its
+        // postfix above switches it off.
+        private static void ScattererTaaRegisterPostfix(Vessel __0)
+        {
+            if (!Applied || __0 == null) return;
+            HarmonyHooks.Safely("scatterer-taa-vessels", "A vessel's renderers could not be freed from Scatterer's ForceNoMotion", () =>
+            {
+                foreach (Part part in __0.parts)
+                {
+                    if (part == null) continue;
+                    foreach (Renderer renderer in part.FindModelComponents<Renderer>())
+                        if (renderer != null && renderer.motionVectorGenerationMode == MotionVectorGenerationMode.ForceNoMotion)
+                            renderer.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
+                }
+            });
         }
 
         private static void ScattererTaaAwakePostfix(object __instance)
@@ -139,7 +180,8 @@ namespace ReDefinition.Upscaler
         // decompiled). Disable the component and they freeze on ForceNoMotion: they
         // stop writing object motion while still moving in the image, and smear.
         // Its GameEvents registration survives the disable too, so newly loaded
-        // vessels keep arriving on ForceNoMotion, and the sweep repeats. Only the
+        // vessels keep arriving on ForceNoMotion: freed as they come
+        // (ScattererTaaRegisterPostfix), and the sweep repeats. Only the
         // renderers of vessels, the ones Scatterer sets: ForceNoMotion elsewhere is
         // another mod's choice and stands.
         private static int ReleaseMotionVectorModes(bool activeVesselOnly)

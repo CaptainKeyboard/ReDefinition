@@ -24,9 +24,10 @@ namespace ReDefinition.Window
     // KSP's defaults are the ones its own reset sets: GameSettings.SetDefaultValues
     // assigns every static field of GameSettings anew -- 119 new KeyBindings among
     // them -- and does nothing else (its IL in KSP 1.12.5: stores to its own fields
-    // and constructors without side effects). Every field is saved first, the
-    // defaults are read, and every field is put back as it was, the same objects
-    // included: nothing that holds one of KSP's bindings sees a change.
+    // and constructors without side effects), and the keyboard layout's preset is
+    // loaded over them. Every field is saved first, the defaults are read, and
+    // every field is put back as it was, the same objects included: nothing that
+    // holds one of KSP's bindings sees a change.
     internal static class KspKeyBindings
     {
         // Where a binding counts: a key used on EVA and one used flying a vessel
@@ -63,14 +64,20 @@ namespace ReDefinition.Window
                 SetCode(binding, secondary, KeyCombination.ParseLoose(text).Key);
             }
 
-            // What KSP ships for it; null where it could not be read.
+            // What KSP ships for it with the keyboard layout KSP holds now; null
+            // where it could not be read.
             public string Default(bool secondary)
             {
-                string[] shipped;
-                if (!Defaults().TryGetValue(Name, out shipped)) return null;
-                return shipped[secondary ? 1 : 0];
+                return DefaultIn(LayoutHeld(), secondary);
             }
 
+            // What KSP ships for it with the given layout's preset.
+            public string DefaultIn(string layout, bool secondary)
+            {
+                string[] shipped;
+                if (!Defaults(layout).TryGetValue(Name, out shipped)) return null;
+                return shipped[secondary ? 1 : 0];
+            }
         }
 
         private static List<Binding> bindings;
@@ -322,32 +329,78 @@ namespace ReDefinition.Window
             which.SetValue(binding, extended);
         }
 
-        private static Dictionary<string, string[]> defaults;
+        // Per layout, by its name in GameSettings.KeyboardLayouts ("Qwertz.cfg").
+        private static readonly Dictionary<string, Dictionary<string, string[]>> defaults =
+            new Dictionary<string, Dictionary<string, string[]>>(StringComparer.OrdinalIgnoreCase);
+
+        private static string detected;
+
+        // The layout KSP's own reset binds the keys to (GameSettings.ResetSettings,
+        // decompiled: LoadLayoutKeyBindings(DetectKeyboardLayout(), true)). Asked of
+        // the system again where `again`: the reset asks as KSP's does; the rows,
+        // asking in every frame, take the one detected first -- KSP writes a log
+        // line at each detection.
+        internal static string DetectedLayout(bool again)
+        {
+            if (detected == null || again)
+            {
+                try
+                {
+                    detected = GameSettings.DetectKeyboardLayout() ?? "";
+                }
+                catch (Exception)
+                {
+                    detected = "";
+                }
+            }
+            return detected;
+        }
+
+        // The layout whose preset the player's keys stand on: the one chosen
+        // (CURRENT_LAYOUT_SETTINGS, which KSP's reset sets to the detected one),
+        // else the one KSP detects.
+        private static string LayoutHeld()
+        {
+            string chosen = GameSettings.CURRENT_LAYOUT_SETTINGS;
+            return !string.IsNullOrEmpty(chosen) ? chosen : DetectedLayout(false);
+        }
 
         // KSP's own defaults of every binding (KspShipped), by field name: primary
-        // and secondary. Once per run -- they are KSP's code, not the player's.
-        private static Dictionary<string, string[]> Defaults()
+        // and secondary, as KSP's reset leaves them -- SetDefaultValues, then the
+        // layout's preset over it (LoadLayoutKeyBindings loads each of the layout
+        // file's nodes into the KeyBinding of that name: Squad/Controls/Azerty.cfg
+        // pitches on Z rather than W, Qwertz.cfg moves Z and the punctuation
+        // keys). Once per run and layout -- they
+        // are KSP's files, not the player's.
+        private static Dictionary<string, string[]> Defaults(string layout)
         {
-            if (defaults != null) return defaults;
-            defaults = new Dictionary<string, string[]>();
-            if (All().Count == 0) return defaults;
+            string name = layout ?? "";
+            Dictionary<string, string[]> shippedKeys;
+            if (defaults.TryGetValue(name, out shippedKeys)) return shippedKeys;
+            shippedKeys = new Dictionary<string, string[]>();
+            defaults[name] = shippedKeys;
+            if (All().Count == 0) return shippedKeys;
 
             Exception e = KspShipped.Read(() =>
             {
+                // Into the KeyBindings SetDefaultValues has just made, which
+                // KspShipped drops again; false keeps CURRENT_LAYOUT_SETTINGS. A
+                // layout KSP does not know loads nothing, as in KSP.
+                if (name.Length > 0) GameSettings.LoadLayoutKeyBindings(name, false);
                 foreach (Binding binding in All())
                 {
                     object shipped = binding.Get();
-                    defaults[binding.Name] = new[] { Text(Code(shipped, false)), Text(Code(shipped, true)) };
+                    shippedKeys[binding.Name] = new[] { Text(Code(shipped, false)), Text(Code(shipped, true)) };
                 }
             });
             if (e != null)
             {
-                defaults.Clear();
+                shippedKeys.Clear();
                 CompatibilityLog.Warn("ksp-binding-defaults", "KSP's default key bindings could not be read ("
                                                               + CompatibilityLog.Reason(e)
                                                               + "); the reset leaves KSP's bindings as they are.");
             }
-            return defaults;
+            return shippedKeys;
         }
 
         private static string Text(KeyCode code)

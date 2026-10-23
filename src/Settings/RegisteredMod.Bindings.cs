@@ -158,7 +158,12 @@ namespace ReDefinition.Settings
                 UnityEngine.KeyCode firstModifier = combination.FirstModifier;
                 UnityEngine.KeyCode secondModifier = combination.SecondModifier;
                 // A mod that holds every modifier member at once reads one modifier
-                // only where both say it.
+                // only where both say it, and the key alone only where both hold the
+                // key itself: a member at None is a key never held (Deferred's
+                // OnGUI asks Input.GetKey of each). Read back, a modifier member
+                // holding the key is no modifier, and the row shows the key alone.
+                if (all && firstModifier == UnityEngine.KeyCode.None && combination.IsBound)
+                    firstModifier = combination.Key;
                 if (all && secondModifier == UnityEngine.KeyCode.None) secondModifier = firstModifier;
                 SetBinding(first, firstModifier.ToString());
                 if (second != null) SetBinding(second, secondModifier.ToString());

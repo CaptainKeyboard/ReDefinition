@@ -52,6 +52,10 @@ namespace ReDefinition.Settings.Behaviours
         // once: by reflection each frame the four doubles read and the one returned
         // would each be boxed.
         private static Func<object, object, Camera, double> skyBrightness;
+        // The settings, their sky group and the solar system, read every frame through
+        // compiled getters; by reflection where the runtime refuses the compiled read of
+        // the solar system's internal Instance.
+        private static Func<object, object> readSettings, readSkybox, readSolarSystem;
 
         private Type settingsType;
         private PropertyInfo instance;
@@ -278,6 +282,9 @@ namespace ReDefinition.Settings.Behaviours
                 return;
             }
             skyBrightness = SkyBrightness(group, contract);
+            readSettings = CompiledGetter.Of<object>(settingsInstance) ?? Reflected(settingsInstance);
+            readSkybox = CompiledGetter.Of<object>(skybox) ?? Reflected(skybox);
+            readSolarSystem = CompiledGetter.Of<object>(solarSystem) ?? Reflected(solarSystem);
             HarmonyHooks.Install(HarmonyId + ".Sky", typeof(DistantObjectBehaviour), new[]
             {
                 new HarmonyHook(update, null, nameof(DarkenSkyPostfix), null),
@@ -332,9 +339,22 @@ namespace ReDefinition.Settings.Behaviours
         {
             try
             {
-                object settings = settingsInstance.GetValue(null, null);
-                object values = settings != null ? skybox.GetValue(settings) : null;
-                object system = solarSystem.GetValue(null, null);
+                object settings, values, system;
+                try
+                {
+                    settings = readSettings(null);
+                    values = settings != null ? readSkybox(settings) : null;
+                    system = readSolarSystem(null);
+                }
+                catch (MemberAccessException)
+                {
+                    readSettings = Reflected(settingsInstance);
+                    readSkybox = Reflected(skybox);
+                    readSolarSystem = Reflected(solarSystem);
+                    settings = readSettings(null);
+                    values = settings != null ? readSkybox(settings) : null;
+                    system = readSolarSystem(null);
+                }
                 if (values == null || system == null) return;
                 float brightness = (float)skyBrightness(system, values, camera);
                 GalaxyCubeControl.Instance.maxGalaxyColor = new Color(brightness, brightness, brightness);
@@ -346,10 +366,23 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
-        // Whether a body stands between the camera and the sun.
+        private static Func<object, object> Reflected(FieldInfo field)
+        {
+            return target => field.GetValue(target);
+        }
+
+        private static Func<object, object> Reflected(PropertyInfo property)
+        {
+            return target => property.GetValue(target, null);
+        }
+
+        // Whether a body stands between the camera and the sun: the star that lights the
+        // scene, Kopernicus's current one where it is installed, as Distant Object's
+        // Kopernicus solar system takes it (KopernicusStar.Current; decompiled), KSP's sun
+        // otherwise (RtKspMods.StarBodyOnly).
         private static bool SunHidden(Vector3 cameraAt)
         {
-            CelestialBody sun = Planetarium.fetch != null ? Planetarium.fetch.Sun : null;
+            CelestialBody sun = ReDefinition.Raytracing.RtKspMods.StarBodyOnly();
             if (sun == null || FlightGlobals.Bodies == null) return false;
             Vector3d from = cameraAt;
             Vector3d toSun = sun.position - from;

@@ -31,13 +31,21 @@ namespace ReDefinition.Upscaler
                 return;
             }
 
-            if (!tufxBackups.ContainsKey(profile))
+            HookTufxSave(profileType);
+            object secondary;
+            Type secondaryType;
+            TryGetAaMode(profile, profileType, "SecondaryCameraAntialiasing", out secondary, out secondaryType);
+            TufxBackup backup;
+            if (!tufxBackups.TryGetValue(profile, out backup))
             {
-                object secondary;
-                Type secondaryType;
-                TryGetAaMode(profile, profileType, "SecondaryCameraAntialiasing",
-                             out secondary, out secondaryType);
                 tufxBackups[profile] = new TufxBackup { Primary = mode, Secondary = secondary };
+            }
+            else if (backup.Applied != null)
+            {
+                // A mode chosen in TUFX's own window since, or read again from its file
+                // (Reload Selected): the player's now, the one handed back.
+                if (mode != null && !Equals(mode, backup.Applied)) backup.Primary = mode;
+                if (secondary != null && !Equals(secondary, backup.Applied)) backup.Secondary = secondary;
             }
 
             // TUFX's antialiasing modes as PostProcessing v2 names them; without a
@@ -59,6 +67,78 @@ namespace ReDefinition.Upscaler
             int layers = SetLiveAntialiasingNone(none);
             if (report != null)
                 report.Append("TUFX AA set to None (profile + ").Append(layers).Append(" layers).");
+        }
+
+        // TUFX's own save (TUFXProfile.SaveToDisk -- its window's Save Selected and
+        // Save All) writes the profile's antialiasing into its file (SaveToNode). It
+        // writes the player's modes: the profile holds them for the call, and None
+        // again after. A profile changed in TUFX's window since it was set here holds
+        // the player's mode already and is saved as it is.
+        private static bool tufxSaveHookTried;
+
+        private static void HookTufxSave(Type profileType)
+        {
+            if (tufxSaveHookTried || profileType == null) return;
+            tufxSaveHookTried = true;
+            MethodInfo save = profileType.GetMethod("SaveToDisk", BindingFlags.Instance | BindingFlags.Public,
+                                                    null, Type.EmptyTypes, null);
+            try
+            {
+                HarmonyHooks.Install("ReDefinition.TufxSave", typeof(HostStack), new[]
+                {
+                    new HarmonyHook(save, nameof(TufxSaveBefore), null, nameof(TufxSaveAfter)),
+                });
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("tufx-save", "TUFX's save could not be hooked (" + CompatibilityLog.Reason(e)
+                                                   + "): a profile saved in its window while the upscaler runs is"
+                                                   + " saved with antialiasing None.");
+            }
+        }
+
+        // Which of the two modes were swapped for the save: 1 the primary, 2 the
+        // secondary.
+        private static void TufxSaveBefore(object __instance, out int __state)
+        {
+            __state = 0;
+            TufxBackup backup;
+            if (__instance == null || !tufxBackups.TryGetValue(__instance, out backup) || backup.Applied == null) return;
+            int swapped = 0;
+            HarmonyHooks.Safely("tufx-save", "TUFX's profile could not be given its antialiasing back for its save", () =>
+            {
+                Type profileType = __instance.GetType();
+                if (SwapAaMode(__instance, profileType, "Antialiasing", backup.Applied, backup.Primary)) swapped |= 1;
+                if (SwapAaMode(__instance, profileType, "SecondaryCameraAntialiasing", backup.Applied, backup.Secondary))
+                    swapped |= 2;
+            });
+            __state = swapped;
+        }
+
+        private static Exception TufxSaveAfter(object __instance, int __state, Exception __exception)
+        {
+            if (__state == 0 || __instance == null) return __exception;
+            TufxBackup backup;
+            if (!tufxBackups.TryGetValue(__instance, out backup) || backup.Applied == null) return __exception;
+            HarmonyHooks.Safely("tufx-save", "TUFX's profile could not be set to antialiasing None again after its save", () =>
+            {
+                Type profileType = __instance.GetType();
+                if ((__state & 1) != 0) SwapAaMode(__instance, profileType, "Antialiasing", backup.Primary, backup.Applied);
+                if ((__state & 2) != 0)
+                    SwapAaMode(__instance, profileType, "SecondaryCameraAntialiasing", backup.Secondary, backup.Applied);
+            });
+            return __exception;
+        }
+
+        // `to` where the profile still holds `from`.
+        private static bool SwapAaMode(object profile, Type profileType, string field, object from, object to)
+        {
+            object now;
+            Type modeType;
+            if (to == null || Equals(from, to) || !TryGetAaMode(profile, profileType, field, out now, out modeType)
+                || !Equals(now, from))
+                return false;
+            return TrySetAaMode(profile, profileType, field, to);
         }
 
         // TUFX's own pass over its cameras and the settings its profile implies
@@ -109,9 +189,11 @@ namespace ReDefinition.Upscaler
                     // Missing scripts show up as null here.
                     if (component == null) continue;
                     if (component.GetType().Name != "PostProcessLayer") continue;
+                    // Kept anew where the layer holds another mode than None: TUFX has
+                    // handed it out since (RefreshCameras, after a change in its window).
                     object before;
-                    if (!liveAntialiasing.ContainsKey(component)
-                        && TryGet(component, component.GetType(), "antialiasingMode", out before))
+                    if (TryGet(component, component.GetType(), "antialiasingMode", out before)
+                        && (!liveAntialiasing.ContainsKey(component) || (before != null && !Equals(before, none))))
                         liveAntialiasing[component] = before;
                     if (TrySet(component, component.GetType(), "antialiasingMode", none)) count++;
                 }

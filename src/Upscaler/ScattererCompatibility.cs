@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Reflection;
 using System;
 using Object = UnityEngine.Object;
@@ -83,12 +84,10 @@ namespace ReDefinition.Upscaler
         {
             Resolve();
             if (godraysType == null) return;
-            // Its code checked first (ForeignAssumptions.ScattererGodrays): where
-            // what is named here is missing, neither hook goes in, and the report
-            // says why.
-            if (!ForeignAssumptions.ScattererGodrays.Holds) return;
-
-            if (Present && init != null)
+            // Its code checked first, the sizing's (ForeignAssumptions.ScattererGodrays) and
+            // the history's (ScattererGodrayHistory): where it does not hold, that hook
+            // does not go in, and the report says why.
+            if (ForeignAssumptions.ScattererGodrays.Holds && Present && init != null)
             {
                 try
                 {
@@ -102,12 +101,14 @@ namespace ReDefinition.Upscaler
                 }
             }
 
-            if (preCull == null || godraysTextures == null || useFlipBuffer == null || targetCamera == null)
+            if (!ForeignAssumptions.ScattererGodrayHistory.Holds
+                || preCull == null || godraysTextures == null || useFlipBuffer == null || targetCamera == null)
             {
                 CompatibilityLog.Warn("scatterer-godray-history", "Scatterer's godrays are not the ones this mod was"
                                       + " written against; their history may leave outlines of a vessel in the sky.");
                 return;
             }
+            CompileHistoryReads();
             try
             {
                 HarmonyHooks.Install(HarmonyHistoryId, typeof(ScattererCompatibility),
@@ -120,9 +121,52 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Read every frame per renderer through compiled calls: godraysRT is a
+        // FlipFlop<FlipFlop<RenderTexture>> struct, which FieldInfo.GetValue and its
+        // indexer's PropertyInfo box at each read, and so is useFlipBuffer's bool.
+        // Null where they could not be made, or once a call was refused: then by
+        // reflection, as before.
+        private static Func<object, bool, bool, RenderTexture> pickTexture;
+        private static Func<object, Camera> cameraOf;
+        private static Func<object, bool> flipBufferOf;
+        // Scatterer's OnPreCull renders nothing while its sky node is gone or in
+        // scaled space; nothing to set then. Null where not found: set anyway.
+        private static Func<object, Object> skyNodeOf;
+        private static Func<object, bool> inScaledSpaceOf;
+
         // Runs inside Scatterer: nothing may escape.
         private static void AfterPreCull(object __instance)
         {
+            if (pickTexture != null)
+            {
+                try
+                {
+                    if (skyNodeOf != null && inScaledSpaceOf != null)
+                    {
+                        Object sky = skyNodeOf(__instance);
+                        if (sky == null || inScaledSpaceOf(sky)) return;
+                    }
+                    Camera eyeCamera = cameraOf(__instance);
+                    if (eyeCamera == null) return;
+                    bool right = eyeCamera.stereoActiveEye == Camera.MonoOrStereoscopicEye.Right;
+                    bool writes = flipBufferOf(__instance);
+                    Filter(pickTexture(__instance, right, !writes), FilterMode.Point);
+                    Filter(pickTexture(__instance, right, writes), FilterMode.Bilinear);
+                    return;
+                }
+                catch (MemberAccessException)
+                {
+                    // A runtime that refuses compiled calls at Scatterer's private
+                    // fields: by reflection from the next frame on.
+                    pickTexture = null;
+                    return;
+                }
+                catch (Exception e)
+                {
+                    WarnHistory(e);
+                    return;
+                }
+            }
             try
             {
                 Camera camera = targetCamera.GetValue(__instance) as Camera;
@@ -135,10 +179,48 @@ namespace ReDefinition.Upscaler
             }
             catch (Exception e)
             {
-                if (historyWarned) return;
-                historyWarned = true;
-                CompatibilityLog.Warn("scatterer-godray-history", "Scatterer's godray history could not be set to"
-                                      + " point filtering (" + CompatibilityLog.Reason(e) + ").");
+                WarnHistory(e);
+            }
+        }
+
+        private static void WarnHistory(Exception e)
+        {
+            if (historyWarned) return;
+            historyWarned = true;
+            CompatibilityLog.Warn("scatterer-godray-history", "Scatterer's godray history could not be set to"
+                                  + " point filtering (" + CompatibilityLog.Reason(e) + ").");
+        }
+
+        private static void CompileHistoryReads()
+        {
+            try
+            {
+                PropertyInfo outer = godraysTextures.FieldType.GetProperty("Item", TypeLookup.Any, null, null,
+                                                                           new[] { typeof(bool) }, null);
+                PropertyInfo inner = outer != null
+                    ? outer.PropertyType.GetProperty("Item", TypeLookup.Any, null, null, new[] { typeof(bool) }, null)
+                    : null;
+                if (inner == null || inner.PropertyType != typeof(RenderTexture)) return;
+                ParameterExpression target = Expression.Parameter(typeof(object), "target");
+                ParameterExpression eye = Expression.Parameter(typeof(bool), "eye");
+                ParameterExpression buffer = Expression.Parameter(typeof(bool), "buffer");
+                Expression pair = Expression.Property(
+                    Expression.Field(Expression.Convert(target, godraysType), godraysTextures), outer, eye);
+                Func<object, bool, bool, RenderTexture> pick = Expression.Lambda<Func<object, bool, bool, RenderTexture>>(
+                    Expression.Property(pair, inner, buffer), target, eye, buffer).Compile();
+                cameraOf = CompiledGetter.Of<Camera>(targetCamera);
+                flipBufferOf = CompiledGetter.Of<bool>(useFlipBuffer);
+                FieldInfo skyNode = godraysType.GetField("parentSkyNode", TypeLookup.Any);
+                skyNodeOf = CompiledGetter.Of<Object>(skyNode);
+                inScaledSpaceOf = skyNode != null
+                    ? CompiledGetter.Of<bool>(skyNode.FieldType.GetField("inScaledSpace", TypeLookup.Any))
+                    : null;
+                if (cameraOf != null && flipBufferOf != null) pickTexture = pick;
+            }
+            catch (Exception e)
+            {
+                // By reflection, as before.
+                Debug.Log(Log.Tag + " Scatterer's godray history is read by reflection (" + CompatibilityLog.Reason(e) + ").");
             }
         }
 

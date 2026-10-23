@@ -27,6 +27,7 @@ namespace ReDefinition.Settings.Behaviours
         private FieldInfo managerInstance;
         private FieldInfo configs;
         private MethodInfo saveConfig;
+        private MethodInfo apply;
 
         public override bool Attach(RegisteredMod mod)
         {
@@ -40,6 +41,7 @@ namespace ReDefinition.Settings.Behaviours
             managerInstance = manager.GetField("instance", Any);
             configs = manager.GetField("configs", Any);
             saveConfig = manager.GetMethod("SaveConfig", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+            apply = manager.GetMethod("Apply", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
             if (reinitAll != null && managerInstance != null && configs != null && saveConfig != null) return true;
             mod.Drop(RegisteredMod.WholeMod, "this build of EVE cannot be asked to save its cloud quality settings");
             return false;
@@ -103,7 +105,61 @@ namespace ReDefinition.Settings.Behaviours
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             setting.Applicable = () => FirstObjectNode() != null;
+            if (registration.Name != "nonTiling3DNoise") return;
+            if (apply == null)
+            {
+                // Taken as the clouds are next built.
+                if (setting.Window == ApplyWindow.Live) setting.Window = ApplyWindow.NextScene;
+                return;
+            }
+            // Read as each cloud volume sets up its noise (CloudsRaymarchedVolume.Apply,
+            // SetNoisetextureParams), which a rebuild of the renderers does not
+            // repeat: the quality manager applies its node anew, as its window's
+            // *Apply* does -- the quality object, the statics, the renderers and
+            // every cloud layer (EVEManagerBase.Apply, PostApplyConfigNodes).
+            Action<string> write = setting.Write;
+            setting.Write = text =>
+            {
+                write(text);
+                BundledSettingsAddon.AtEndOfFrame("eve-apply-quality", ApplyQuality);
+            };
         }
+
+        private void ApplyQuality()
+        {
+            try
+            {
+                object instance = managerInstance.GetValue(null);
+                if (instance != null) apply.Invoke(instance, null);
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("eve-apply-quality", "EVE's clouds could not be applied anew after a change ("
+                                                           + CompatibilityLog.Reason(e) + "); they take it at their"
+                                                           + " next rebuild.");
+            }
+        }
+
+        // The registration's defaults are Volumetric Clouds' own: its Stock pack's
+        // file (StockVolumetricClouds/raymarchedClouds.cfg sets horizontalResolution
+        // 224 and directLightTimeSlicing 12) over the classes' initialisers (256
+        // and 8, LightVolumeSettings). Where another pack's file is the one EVE
+        // builds its quality from, Stock's numbers are not that pack's: its default
+        // is what the installed pack held before ReDefinition first changed it --
+        // the backup ReDefinition keeps, else the value EVE holds now, which is the
+        // class's where the pack's file sets none.
+        public override string Default(RegisteredMod mod, string setting)
+        {
+            UrlDir.UrlConfig[] list = configs.GetValue(null) as UrlDir.UrlConfig[];
+            if (list == null || list.Length == 0 || list[0].parent == null) return null;
+            if (list[0].parent.url.StartsWith(StockPack, StringComparison.OrdinalIgnoreCase)) return null;
+            string key = mod.Id + "." + setting;
+            foreach (BundledSetting candidate in mod.Settings)
+                if (candidate.Key == key) return BundledSettings.BeforeReDefinition(candidate);
+            return null;
+        }
+
+        private const string StockPack = "StockVolumetricClouds/";
 
         // As its own window's Save: the files of its configs.
         public override void Save(RegisteredMod mod)

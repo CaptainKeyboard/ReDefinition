@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Reflection;
 using ReDefinition.Core;
 using ReDefinition.Shared;
 using ReDefinition.Upscaler;
@@ -46,7 +45,6 @@ namespace ReDefinition.Scenery
         {
             public string Name;
             public object Renderer;
-            public readonly FieldInfo[] Outputs = new FieldInfo[3];
             public readonly Mesh[] Meshes = new Mesh[3];
             public readonly Material[] Materials = new Material[3];
             public float Reach;
@@ -267,42 +265,39 @@ namespace ReDefinition.Scenery
             return addon == null || addon.Live.KscGrass;
         }
 
-        // Parallax.ScatterManager.Instance.activeScatterRenderers: each ScatterRenderer's
-        // planetName, scatter (scatterName "<body>-<name>"), meshLOD0-2,
-        // instancedMaterialLOD0-2 and outputLOD0-2. False where Parallax is not installed.
+        // Parallax's active scatter renderers (ParallaxScatterFields): each one's planetName,
+        // scatter name ("<body>-<name>"), meshes and materials; its outputs are read as it
+        // draws. False where Parallax is not installed or its scatters are not as checked.
         private bool FindParallax()
         {
-            Type managerType = TypeLookup.Find("Parallax.ScatterManager");
-            if (managerType == null)
+            if (TypeLookup.Find("Parallax.ScatterManager") == null)
             {
                 Debug.Log(Log.Tag + " Space centre grass: none (Parallax is not installed).");
                 return false;
             }
-            const BindingFlags Public = BindingFlags.Public | BindingFlags.Instance;
-            object manager = managerType.GetField("Instance", BindingFlags.Public | BindingFlags.Static).GetValue(null);
-            IList renderers = manager != null ? managerType.GetField("activeScatterRenderers", Public).GetValue(manager) as IList : null;
+            if (!ParallaxScatterFields.Available)
+            {
+                Debug.Log(Log.Tag + " Space centre grass: none (Parallax's scatters are not the ones checked: "
+                          + (ForeignAssumptions.ParallaxScatters.Problem ?? "unreadable") + ").");
+                return false;
+            }
+            IList renderers = ParallaxScatterFields.Renderers();
             if (renderers == null) return true;
             string body = FlightGlobals.currentMainBody != null ? FlightGlobals.currentMainBody.name : null;
             foreach (object renderer in renderers)
             {
                 if (renderer == null) continue;
-                Type rendererType = renderer.GetType();
-                string planet = (string)rendererType.GetField("planetName", Public).GetValue(renderer);
-                if (body != null && planet != body) continue;
-                object scatter = rendererType.GetField("scatter", Public).GetValue(renderer);
-                if (scatter == null) continue;
-                string name = (string)scatter.GetType().GetField("scatterName", Public).GetValue(scatter);
+                string planet = ParallaxScatterFields.PlanetName(renderer);
+                if (planet == null || body != null && planet != body) continue;
+                string name = ParallaxScatterFields.ScatterName(renderer);
                 if (name == null || !name.StartsWith(planet + "-", StringComparison.Ordinal)) continue;
                 name = name.Substring(planet.Length + 1);
                 if (Array.IndexOf(GrassScatters, name) < 0 || kinds.Exists(k => k.Name == name)) continue;
                 var kind = new Kind { Name = name, Renderer = renderer };
                 for (int lod = 0; lod < 3; lod++)
                 {
-                    kind.Meshes[lod] = rendererType.GetField("meshLOD" + lod, Public).GetValue(renderer) as Mesh;
-                    kind.Materials[lod] = rendererType.GetField("instancedMaterialLOD" + lod, Public).GetValue(renderer) as Material;
-                    kind.Outputs[lod] = rendererType.GetField("outputLOD" + lod, Public);
-                    if (kind.Outputs[lod] == null || kind.Outputs[lod].FieldType != typeof(ComputeBuffer))
-                        throw new MissingFieldException("ScatterRenderer.outputLOD" + lod);
+                    kind.Meshes[lod] = ParallaxScatterFields.Mesh(renderer, lod);
+                    kind.Materials[lod] = ParallaxScatterFields.Material(renderer, lod);
                 }
                 if (kind.Meshes[0] == null || kind.Materials[0] == null) continue;
                 Bounds model = kind.Meshes[0].bounds;
@@ -713,7 +708,8 @@ namespace ReDefinition.Scenery
                 lift.SetFloat(ReachId, kind.Reach);
                 for (int lod = 0; lod < 3; lod++)
                 {
-                    var source = kind.Outputs[lod].GetValue(kind.Renderer) as ComputeBuffer;
+                    // Null where Parallax's clumps are not the 64 bytes the lift reads.
+                    ComputeBuffer source = ParallaxScatterFields.Output(kind.Renderer, lod);
                     Mesh mesh = kind.Meshes[lod];
                     Material material = kind.Materials[lod];
                     if (source == null || !source.IsValid() || mesh == null || material == null) continue;

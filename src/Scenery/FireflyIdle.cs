@@ -19,6 +19,8 @@ namespace ReDefinition.Scenery
     // (GlowPass.cginc: alpha and heat both scale with _EntryStrength / 4000). Below that
     // the command buffer is emptied and the airstream camera stopped; at 1 and above
     // Firefly's own PopulateCommandBuffer fills the buffer again and the camera runs.
+    // OwnSettings.FireflyIdle switches it; switched off, every idle vessel's effects are
+    // woken that way.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class FireflyIdle : MonoBehaviour
     {
@@ -92,8 +94,33 @@ namespace ReDefinition.Scenery
             leaving = true;
         }
 
+        // Whether the player keeps it on (OwnSettings.FireflyIdle).
+        private static bool SwitchedOn
+        {
+            get
+            {
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+                return addon == null || addon.Live.FireflyIdle;
+            }
+        }
+
+        // Whether Firefly is installed: the window's switch shows only then.
+        internal static bool FireflyInstalled
+        {
+            get { return TypeLookup.Find("Firefly.AtmoFxModule") != null; }
+        }
+
         private void LateUpdate()
         {
+            if (!SwitchedOn)
+            {
+                // Switched off: every idle vessel's effects drawn again, by Firefly alone.
+                if (idle.Count == 0) return;
+                foreach (object module in idle) Wake(module);
+                idle.Clear();
+                Debug.Log(Log.Tag + " Firefly idle: switched off; Firefly draws every vessel's effects as it does.");
+                return;
+            }
             try
             {
                 foreach (Vessel vessel in FlightGlobals.VesselsLoaded)
@@ -105,7 +132,16 @@ namespace ReDefinition.Scenery
                         object fx = readFxVessel(module);
                         if (fx == null || !readIsLoaded(module))
                         {
-                            idle.Remove(module);
+                            // Firefly took the vessel's envelopes down (RemoveVesselFx with
+                            // onlyEnvelopes, as its part count changes) and keeps fxVessel and
+                            // its airstream camera for the next CreateVesselFx, which does not
+                            // switch the camera on again (AtmoFxModule, decompiled): it is
+                            // switched on here, as Firefly left it.
+                            if (idle.Remove(module) && fx != null)
+                            {
+                                Camera kept = readCamera(fx);
+                                if (kept != null) kept.enabled = true;
+                            }
                             continue;
                         }
                         Material material = readMaterial(fx);

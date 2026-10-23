@@ -34,6 +34,10 @@ namespace ReDefinition.Scaling
 
         internal static void Install()
         {
+            // The map's icons and captions are scaled by MapNodeScale, an addon of each map
+            // scene that needs no hook, so 4kSP's sizing of them is skipped whatever was
+            // installed: run beside it, it would size the icons a second time. Only the
+            // captions' room needs ScalingHooks.
             Guarded("4kSP", () => Skip("4kSP", UiScaling.FourkSpMap, () => true, "UpdateNodes", "AddToolbarButton"));
             Guarded("4kSP's R&D part", () => Skip("4kSP's R&D part", UiScaling.FourkSpRnD, () => RnDNodeHooks.Installed, "Start"));
             Guarded("4kSP's R&D part", () => Skip("4kSP's R&D part", FourkSpRnDScene, () => RnDNodeHooks.Installed, "Start"));
@@ -117,7 +121,9 @@ namespace ReDefinition.Scaling
             System.Func<bool> oursRuns;
             try
             {
-                return __originalMethod != null && skipWhen.TryGetValue(__originalMethod, out oursRuns) && !oursRuns();
+                // A method not in the table is not one skipped here: it runs.
+                if (__originalMethod == null || !skipWhen.TryGetValue(__originalMethod, out oursRuns)) return true;
+                return !oursRuns();
             }
             catch (System.Exception)
             {

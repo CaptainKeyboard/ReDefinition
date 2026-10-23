@@ -139,6 +139,8 @@ namespace ReDefinition
         public bool MenuKscZoom = true;
         // Parallax's grass on the space centre's lawns (Scenery/KscGrass).
         public bool KscGrass = true;
+        // Firefly's re-entry effects not drawn while they show nothing (Scenery/FireflyIdle).
+        public bool FireflyIdle = true;
         // The round gauge in place of the vertical speed's (Flight/RoundGauge).
         public bool RoundGauge = true;
         // The vertical and horizontal speed at the navball (Flight/NavballSpeeds).
@@ -333,6 +335,7 @@ namespace ReDefinition
             Bool("menuFireworks", x => x.MenuFireworks, (x, v) => x.MenuFireworks = v, true),
             Bool("menuKscZoom", x => x.MenuKscZoom, (x, v) => x.MenuKscZoom = v, true),
             Bool("kscGrass", x => x.KscGrass, (x, v) => x.KscGrass = v, true),
+            Bool("fireflyIdle", x => x.FireflyIdle, (x, v) => x.FireflyIdle = v, true),
             Bool("roundGauge", x => x.RoundGauge, (x, v) => x.RoundGauge = v, true),
             Bool("navballSpeeds", x => x.NavballSpeeds, (x, v) => x.NavballSpeeds = v, true),
             Bool("navballDockingMarker", x => x.NavballDockingMarker, (x, v) => x.NavballDockingMarker = v, true),

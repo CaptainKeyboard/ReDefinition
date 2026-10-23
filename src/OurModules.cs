@@ -915,8 +915,30 @@ namespace ReDefinition
                 Write = (settings, value) => settings.KscGrass = bool.Parse(value),
             });
 
+        // Firefly's re-entry effects (Scenery/FireflyIdle).
+        public static readonly IGraphicsModule ReEntry = new GraphicsModule("reEntry", "Re-entry",
+            new ModuleSetting
+            {
+                Key = "fireflyIdle",
+                Title = "Skip unseen re-entry effects",
+                Order = 240,
+                Row = SettingCategory.Effects,
+                Section = "Re-entry",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Firefly's re-entry effects are not drawn while they are too weak to be seen, as on the launch\n"
+                          + "pad, which saves GPU time. They are drawn again as soon as they show.",
+                // Only with the mod, as Better Time Warp's switch.
+                Present = () => ReDefinition.Scenery.FireflyIdle.FireflyInstalled,
+                Read = settings => SettingValues.Text(settings.FireflyIdle),
+                Write = (settings, value) => settings.FireflyIdle = bool.Parse(value),
+            });
+
         public static readonly IList<IGraphicsModule> All =
-            new List<IGraphicsModule> { Upscaler, FrameGeneration, Latency, Raytracing, Hotkeys, FlightUi, Scaling, MainMenuScene, SpaceCentre }
+            new List<IGraphicsModule>
+                {
+                    Upscaler, FrameGeneration, Latency, Raytracing, Hotkeys, FlightUi, Scaling, MainMenuScene, SpaceCentre, ReEntry,
+                }
                 .AsReadOnly();
 
         public static IGraphicsModule Find(string name)

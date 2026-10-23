@@ -82,7 +82,6 @@ namespace ReDefinition.Upscaler
             "Bloom", "Vignette", "Grain", "ColorGrading",
         };
 
-        private static readonly object False = false;
         private static readonly object True = true;
 
         private static bool resolved;
@@ -121,25 +120,32 @@ namespace ReDefinition.Upscaler
         private static FieldInfo settingsEnabled;
         private static FieldInfo parameterValue;
         private static MethodInfo settingsIsEnabled;
-        private static MethodInfo contextReset;
-        // The context's camera read by the dithering hook; its setters called with
-        // an argument array kept here, where PropertyInfo.SetValue makes one per call.
-        private static PropertyInfo contextCamera;
-        private static MethodInfo setContextCamera;
-        private static MethodInfo setContextCommand;
-        private static MethodInfo setContextSource;
-        private static MethodInfo setContextDestination;
-        private static MethodInfo setContextSourceFormat;
-        private static MethodInfo setContextFlip;
+        // The public members called every frame, through compiled calls as well:
+        // MethodInfo.Invoke takes an argument array and boxes value types. The
+        // private and internal ones -- SetupContext, TextureLerper, uberSheet,
+        // m_SettingsUpdateNeeded -- stay reflection calls.
+        private static Action<object> resetContext;
+        private static Action<object, Camera> setContextCamera;
+        private static Action<object, CommandBuffer> setContextCommand;
+        private static Action<object, RenderTargetIdentifier> setContextSource;
+        private static Action<object, RenderTargetIdentifier> setContextDestination;
+        private static Action<object, RenderTextureFormat> setContextSourceFormat;
+        private static Action<object, bool> setContextFlip;
+        private static Action<object, Camera, CommandBuffer> updateVolumeSystem;
+        private static Action<object, object> renderLayer;
+        private static Func<object, Type, object> bundleOf;
+        private static Func<object, object> settingsOf;
+        private static Action<object> switchOffSettings;
+        private static Func<object> registeredTypes;
+        private static Func<object, Camera> contextCameraOf;
         private static FieldInfo contextUberSheet;
-        private static PropertyInfo sheetProperties;
+        private static Func<object, MaterialPropertyBlock> sheetPropertiesOf;
         private static object antialiasingNone;
 
         private static Type[] afterTypes = new Type[0];
         private static Type[] beforeTypes = new Type[0];
         private static int classified = -1;
         private static Texture2D neutralDither;
-        private static readonly object[] bundleArguments = new object[1];
 
         // What the hooks ask about, one rig at a time: the redirected cameras, the
         // one whose depth and motion the rig copies, and ReDefinition's layer. The frame in
@@ -161,18 +167,6 @@ namespace ReDefinition.Upscaler
         private Behaviour copiedFrom;
         private int copiedMask = -1;
         private readonly object[] one = new object[1];
-        private readonly object[] two = new object[2];
-        // The context's setters' own, so a setter never replaces what `one` holds
-        // for the call after it.
-        private readonly object[] setterArgument = new object[1];
-        // What the setters are handed, boxed once per format and texture rather
-        // than every frame.
-        private RenderTextureFormat boxedFormatValue;
-        private object boxedFormat;
-        private Texture boxedSourceOf;
-        private object boxedSource;
-        private Texture boxedOutputOf;
-        private object boxedOutput;
         private string status = "off";
 
         // Kept apart, so that nothing outside the game touches Shader.
@@ -281,19 +275,16 @@ namespace ReDefinition.Upscaler
 
                 // As PostProcessLayer.BuildCommandBuffers sets up its own context and
                 // blends its settings.
-                contextReset.Invoke(context, null);
-                SetOnContext(setContextCamera, ownCamera);
+                resetContext(context);
+                setContextCamera(context, ownCamera);
                 RenderTexture sourceTexture = source as RenderTexture;
-                SetOnContext(setContextSourceFormat,
-                             BoxedFormat(sourceTexture != null ? sourceTexture.format : RenderTextureFormat.DefaultHDR));
+                setContextSourceFormat(context, sourceTexture != null ? sourceTexture.format : RenderTextureFormat.DefaultHDR);
                 one[0] = context;
                 layerSetupContext.Invoke(layer, one);
-                SetOnContext(setContextCommand, buffer);
+                setContextCommand(context, buffer);
                 object lerper = lerperInstance.GetValue(null, null);
                 lerperBeginFrame.Invoke(lerper, one);
-                two[0] = ownCamera;
-                two[1] = buffer;
-                layerUpdateVolumeSystem.Invoke(layer, two);
+                updateVolumeSystem(layer, ownCamera, buffer);
 
                 if (!AnyAfterEffectOn())
                 {
@@ -317,11 +308,10 @@ namespace ReDefinition.Upscaler
                     buffer.SetGlobalTexture(Ids.CameraMotionVectorsTexture, motionAtDisplaySize);
                 }
 
-                SetOnContext(setContextSource, BoxedTarget(source, ref boxedSourceOf, ref boxedSource));
-                SetOnContext(setContextDestination, BoxedTarget(output, ref boxedOutputOf, ref boxedOutput));
-                SetOnContext(setContextFlip, False);
-                one[0] = context;
-                layerRender.Invoke(layer, one);
+                setContextSource(context, new RenderTargetIdentifier(source));
+                setContextDestination(context, new RenderTargetIdentifier(output));
+                setContextFlip(context, false);
+                renderLayer(layer, context);
 
                 Graphics.ExecuteCommandBuffer(buffer);
                 Graphics.Blit(output, destination);
@@ -333,32 +323,6 @@ namespace ReDefinition.Upscaler
                 Stop(brokenStatus);
                 return false;
             }
-        }
-
-        private void SetOnContext(MethodInfo setter, object value)
-        {
-            setterArgument[0] = value;
-            setter.Invoke(context, setterArgument);
-        }
-
-        private object BoxedFormat(RenderTextureFormat format)
-        {
-            if (boxedFormat == null || format != boxedFormatValue)
-            {
-                boxedFormat = format;
-                boxedFormatValue = format;
-            }
-            return boxedFormat;
-        }
-
-        private static object BoxedTarget(Texture texture, ref Texture of, ref object boxed)
-        {
-            if (boxed == null || !ReferenceEquals(texture, of))
-            {
-                boxed = new RenderTargetIdentifier(texture);
-                of = texture;
-            }
-            return boxed;
         }
 
         internal string Describe()
@@ -467,8 +431,7 @@ namespace ReDefinition.Upscaler
             if (type == null) return false;
             object bundle = Bundle(layer, type);
             if (bundle == null) return false;
-            object settings = bundleSettings.GetValue(bundle, null);
-            return enabledAndSupported(settings, context);
+            return enabledAndSupported(settingsOf(bundle), context);
         }
 
         private bool EnsureMotion(RenderTexture motion)
@@ -494,10 +457,6 @@ namespace ReDefinition.Upscaler
             if (ownCamera != null) ownCamera.targetTexture = null;
             RenderTextures.Release(ref output);
             RenderTextures.Release(ref motionAtDisplaySize);
-            boxedSourceOf = null;
-            boxedSource = null;
-            boxedOutputOf = null;
-            boxedOutput = null;
         }
 
         private void DestroyHost()
@@ -534,6 +493,13 @@ namespace ReDefinition.Upscaler
             if (loader == null)
             {
                 unavailable = "TUFX is not installed";
+                return false;
+            }
+            // PostProcessing v2 as TUFX carries it, checked first (ForeignAssumptions.TufxPostProcessing).
+            if (!ForeignAssumptions.TufxPostProcessing.Holds)
+            {
+                unavailable = "this build of TUFX is not the one the split was checked against ("
+                              + ForeignAssumptions.TufxPostProcessing.Problem + ")";
                 return false;
             }
             try
@@ -583,16 +549,38 @@ namespace ReDefinition.Upscaler
                 enabledAndSupported = Expression.Lambda<Func<object, object, bool>>(
                     Expression.Convert(Expression.Call(Expression.Convert(target, settings), settingsIsEnabled,
                         Expression.Convert(argument, contextType)), typeof(bool)), target, argument).Compile();
-                contextReset = MethodOf(contextType, "Reset");
-                contextCamera = PropertyOf(contextType, "camera", Members);
-                setContextCamera = SetterOf(contextCamera);
-                setContextCommand = SetterOf(PropertyOf(contextType, "command", Members));
-                setContextSource = SetterOf(PropertyOf(contextType, "source", Members));
-                setContextDestination = SetterOf(PropertyOf(contextType, "destination", Members));
-                setContextSourceFormat = SetterOf(PropertyOf(contextType, "sourceFormat", Members));
-                setContextFlip = SetterOf(PropertyOf(contextType, "flip", Members));
+                resetContext = Expression.Lambda<Action<object>>(
+                    Expression.Call(Expression.Convert(target, contextType), MethodOf(contextType, "Reset")), target).Compile();
+                PropertyInfo contextCamera = PropertyOf(contextType, "camera", Members);
+                setContextCamera = Setter<Camera>(contextCamera);
+                setContextCommand = Setter<CommandBuffer>(PropertyOf(contextType, "command", Members));
+                setContextSource = Setter<RenderTargetIdentifier>(PropertyOf(contextType, "source", Members));
+                setContextDestination = Setter<RenderTargetIdentifier>(PropertyOf(contextType, "destination", Members));
+                setContextSourceFormat = Setter<RenderTextureFormat>(PropertyOf(contextType, "sourceFormat", Members));
+                setContextFlip = Setter<bool>(PropertyOf(contextType, "flip", Members));
+                ParameterExpression cameraArgument = Expression.Parameter(typeof(Camera), "camera");
+                ParameterExpression commandArgument = Expression.Parameter(typeof(CommandBuffer), "command");
+                updateVolumeSystem = Expression.Lambda<Action<object, Camera, CommandBuffer>>(
+                    Expression.Call(Expression.Convert(target, layerType), layerUpdateVolumeSystem, cameraArgument, commandArgument),
+                    target, cameraArgument, commandArgument).Compile();
+                renderLayer = Expression.Lambda<Action<object, object>>(
+                    Expression.Call(Expression.Convert(target, layerType), layerRender, Expression.Convert(argument, contextType)),
+                    target, argument).Compile();
+                ParameterExpression typeArgument = Expression.Parameter(typeof(Type), "type");
+                bundleOf = Expression.Lambda<Func<object, Type, object>>(
+                    Expression.Convert(Expression.Call(Expression.Convert(target, layerType), layerGetBundle, typeArgument), typeof(object)),
+                    target, typeArgument).Compile();
+                settingsOf = CompiledGetter.Of<object>(bundleSettings);
+                switchOffSettings = Expression.Lambda<Action<object>>(
+                    Expression.Assign(Expression.Field(Expression.Field(Expression.Convert(target, settings), settingsEnabled), parameterValue),
+                        Expression.Constant(false)), target).Compile();
+                registeredTypes = Expression.Lambda<Func<object>>(Expression.Convert(
+                    Expression.Field(Expression.Property(null, managerInstance), managerSettingsTypes), typeof(object))).Compile();
+                contextCameraOf = CompiledGetter.Of<Camera>(contextCamera);
                 contextUberSheet = FieldOf(contextType, "uberSheet");
-                sheetProperties = PropertyOf(sheet, "properties", Members);
+                sheetPropertiesOf = CompiledGetter.Of<MaterialPropertyBlock>(PropertyOf(sheet, "properties", Members));
+                if (settingsOf == null || contextCameraOf == null || sheetPropertiesOf == null)
+                    throw new MissingMemberException(contextType.Name, "camera, settings or properties");
                 antialiasingNone = Enum.ToObject(layerAntialiasing.FieldType, 0);
                 Classify();
 
@@ -616,7 +604,7 @@ namespace ReDefinition.Upscaler
         // mod's registered after the first look.
         private static void Classify()
         {
-            IDictionary types = managerSettingsTypes.GetValue(managerInstance.GetValue(null, null)) as IDictionary;
+            IDictionary types = registeredTypes() as IDictionary;
             if (types == null || types.Count == classified) return;
             List<Type> after = new List<Type>();
             List<Type> before = new List<Type>();
@@ -683,10 +671,10 @@ namespace ReDefinition.Upscaler
             try
             {
                 object renderContext = __0;
-                Camera camera = renderContext != null ? contextCamera.GetValue(renderContext, null) as Camera : null;
+                Camera camera = contextCameraOf(renderContext);
                 if (camera == null || !redirectedCameras.Contains(camera)) return true;
                 object uber = contextUberSheet.GetValue(renderContext);
-                MaterialPropertyBlock properties = uber != null ? sheetProperties.GetValue(uber, null) as MaterialPropertyBlock : null;
+                MaterialPropertyBlock properties = uber != null ? sheetPropertiesOf(uber) : null;
                 if (properties == null) return true;
                 properties.SetTexture(Ids.DitheringTex, NeutralDither());
                 properties.SetVector(Ids.DitheringCoords, new Vector4(1f, 1f, 0f, 0f));
@@ -708,8 +696,7 @@ namespace ReDefinition.Upscaler
         {
             object bundle = Bundle(on, type);
             if (bundle == null) return;
-            object settings = bundleSettings.GetValue(bundle, null);
-            parameterValue.SetValue(settingsEnabled.GetValue(settings), False);
+            switchOffSettings(settingsOf(bundle));
         }
 
         // A layer built before an effect was registered has none of it.
@@ -718,10 +705,9 @@ namespace ReDefinition.Upscaler
             if (type == null) return null;
             try
             {
-                bundleArguments[0] = type;
-                return layerGetBundle.Invoke(on, bundleArguments);
+                return bundleOf(on, type);
             }
-            catch (TargetInvocationException e) when (e.InnerException is KeyNotFoundException)
+            catch (KeyNotFoundException)
             {
                 return null;
             }
@@ -782,11 +768,16 @@ namespace ReDefinition.Upscaler
             return property;
         }
 
-        private static MethodInfo SetterOf(PropertyInfo property)
+        // A compiled call of the property's setter on an object of its declaring type.
+        private static Action<object, T> Setter<T>(PropertyInfo property)
         {
             MethodInfo setter = property.GetSetMethod(true);
-            if (setter == null) throw new MissingMethodException(property.DeclaringType.Name, "set_" + property.Name);
-            return setter;
+            if (setter == null || property.PropertyType != typeof(T))
+                throw new MissingMethodException(property.DeclaringType.Name, "set_" + property.Name);
+            ParameterExpression target = Expression.Parameter(typeof(object), "target");
+            ParameterExpression value = Expression.Parameter(typeof(T), "value");
+            return Expression.Lambda<Action<object, T>>(
+                Expression.Call(Expression.Convert(target, property.DeclaringType), setter, value), target, value).Compile();
         }
 
         private static MethodInfo MethodOf(Type type, string name, params Type[] parameters)

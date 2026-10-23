@@ -22,13 +22,18 @@ namespace ReDefinition.Core
     {
         private const string Camera = "UnityEngine.Camera";
         private const string Material = "UnityEngine.Material";
-        private const string Vector3Type = "UnityEngine.Vector3";
+        private const string Mesh = "UnityEngine.Mesh";
+        private const string ColorType = "UnityEngine.Color";
         private const string RenderTexture = "UnityEngine.RenderTexture";
+        private const string ComputeBuffer = "UnityEngine.ComputeBuffer";
+        private const string CommandBuffer = "UnityEngine.Rendering.CommandBuffer";
+        private const string CameraEvent = "UnityEngine.Rendering.CameraEvent";
         private const string Shader = "UnityEngine.Shader";
         private const string Bool = "System.Boolean";
         private const string Int = "System.Int32";
         private const string Double = "System.Double";
         private const string Float = "System.Single";
+        private const string StringType = "System.String";
 
         private const string EveClouds = "Atmosphere.DeferredRaymarchedVolumetricCloudsRenderer";
         private const string EveToScreen = "Atmosphere.DeferredRaymarchedRendererToScreen";
@@ -101,24 +106,36 @@ namespace ReDefinition.Core
                 .Field("Atmosphere.ScreenSpaceShadowsManager", "cameraToShadowsRenderer")
                 .OnChange(WhenChanged.Keep, "EVE's shadows keep the screen's size");
 
-        // Scatterer's raymarched godrays: sized by its own fractions for the
-        // upscaler's cameras, and their history read with point filtering
-        // (ScattererCompatibility).
+        // Scatterer's raymarched godrays, sized by its own fractions for the
+        // upscaler's cameras (ScattererCompatibility): Init sets the fractions, which
+        // are read back, and every size written here is checked by name.
         public static readonly ForeignAssumption ScattererGodrays =
-            new ForeignAssumption("scatterer-godrays", "Scatterer",
-                                  "Scatterer's godrays sized for the upscaler, their history without outlines")
+            new ForeignAssumption("scatterer-godrays", "Scatterer", "Scatterer's godrays sized for the upscaler")
                 .Type(Godrays)
-                .Method(Godrays, "OnPreCull")
                 .Method(Godrays, "Init")
                 .Calls(Godrays, "ResizeRenderTextures", Bool)
                 .Field(Godrays, "screenWidth", Int).Field(Godrays, "screenHeight", Int)
                 .Field(Godrays, "renderWidth", Int).Field(Godrays, "renderHeight", Int)
                 .Field(Godrays, "scatteringOcclusionMaterial", Material)
                 .Field(Godrays, "downscaledDepth", RenderTexture)
-                .Field(Godrays, "godraysRT").Field(Godrays, "useFlipBuffer", Bool).Field(Godrays, "targetCamera", Camera)
                 .Literal(Godrays, "godrayRenderingResolution")
-                .Tested("eee2c26a7da2") // Scatterer 0.908
-                .OnChange(WhenChanged.Keep, "the godrays keep the screen's size and their history its filtering");
+                .Tested("e262d789e588") // Scatterer 0.908
+                .OnChange(WhenChanged.Keep, "the godrays keep the screen's size");
+
+        // Their history read with point filtering: a postfix on OnPreCull sets one texture
+        // of godraysRT's pair to Point and the other to Bilinear, chosen by useFlipBuffer as
+        // OnPreCull leaves it (ScattererCompatibility.AfterPreCull; RaymarchedGodraysRenderer
+        // .OnPreCull, Scatterer 0.908, decompiled). Where OnPreCull uses them otherwise, the
+        // filter could land on the wrong one, unseen.
+        public static readonly ForeignAssumption ScattererGodrayHistory =
+            new ForeignAssumption("scatterer-godray-history", "Scatterer", "Scatterer's godray history without outlines")
+                .Type(Godrays)
+                .Method(Godrays, "OnPreCull")
+                .Field(Godrays, "godraysRT").Field(Godrays, "useFlipBuffer", Bool).Field(Godrays, "targetCamera", Camera)
+                // Its postfix returns early where OnPreCull does (ScattererCompatibility).
+                .Field(Godrays, "parentSkyNode").Field("Scatterer.SkyNode", "inScaledSpace", Bool)
+                .Tested("e94b5c123c81") // Scatterer 0.908
+                .OnChange(WhenChanged.Fallback, "the godrays' history keeps Scatterer's filtering");
 
         // Scatterer's TAA, turned off while the upscaler runs, with the motion vector
         // shader it installs and the globals it feeds that shader (HostStack).
@@ -128,15 +145,37 @@ namespace ReDefinition.Core
                 .Calls(ScattererTaa, "Awake")
                 .Literal(ScattererTaa, "TAA_UseFloatingOriginCameraMotion", "TAA_PreviousFrameTransform")
                 .Literal("Scatterer.Scatterer", "Scatterer/Internal-MotionVectors")
+                // The vessels' renderers it sets to ForceNoMotion, freed again by a postfix.
+                .Calls(ScattererTaa, "RegisterVesselRenderers", "Vessel")
+                // Whether it resolves on its camera, for one antialiasing per camera
+                // (HostStack.Duplicates).
+                .Calls(ScattererTaa, "EffectiveRole")
+                // Its history started afresh on the way to the space centre (KscArrival).
+                .Calls(ScattererTaa, "ResetHistory")
                 .OnChange(WhenChanged.Keep, "Scatterer's TAA stays on over the upscaler");
 
-        // Scatterer's SMAA, turned off the same way.
+        // Scatterer's SMAA, turned off the same way: its command buffer taken off the
+        // camera at its own event, and its "initialized" reset so that it attaches the
+        // buffer again when switched back on (HostStack; SubpixelMorphologicalAntialiasing,
+        // Scatterer 0.908, decompiled).
         public static readonly ForeignAssumption ScattererSmaa =
             new ForeignAssumption("scatterer-smaa", "Scatterer", "Scatterer's SMAA off while the upscaler runs")
                 .Type("Scatterer.SubpixelMorphologicalAntialiasing")
-                .Field("Scatterer.SubpixelMorphologicalAntialiasing", "SMAACameraEvent")
-                .Field("Scatterer.SubpixelMorphologicalAntialiasing", "SMAACommandBuffer")
+                .Field("Scatterer.SubpixelMorphologicalAntialiasing", "SMAACameraEvent", CameraEvent)
+                .Field("Scatterer.SubpixelMorphologicalAntialiasing", "SMAACommandBuffer", CommandBuffer)
+                .Field("Scatterer.SubpixelMorphologicalAntialiasing", "initialized", Bool)
                 .OnChange(WhenChanged.Keep, "Scatterer's SMAA is only disabled, its command buffer may stay");
+
+        // Deferred's SMAA, which it adds to the editors' Main Camera, turned off as
+        // Scatterer's: the same fields (SubpixelMorphologicalAntialiasing, Deferred 1.3.5,
+        // decompiled).
+        public static readonly ForeignAssumption DeferredSmaa =
+            new ForeignAssumption("deferred-smaa", "Deferred", "Deferred's SMAA off in the editors while the upscaler runs")
+                .Type("Deferred.SubpixelMorphologicalAntialiasing")
+                .Field("Deferred.SubpixelMorphologicalAntialiasing", "SMAACameraEvent", CameraEvent)
+                .Field("Deferred.SubpixelMorphologicalAntialiasing", "SMAACommandBuffer", CommandBuffer)
+                .Field("Deferred.SubpixelMorphologicalAntialiasing", "initialized", Bool)
+                .OnChange(WhenChanged.Keep, "Deferred's SMAA is only disabled, its command buffer may stay");
 
         // Scatterer's ocean in the upscaler's masks: its G-buffer depth and its
         // switch for the current camera, globals Scatterer sets.
@@ -160,16 +199,14 @@ namespace ReDefinition.Core
                 .OnChange(WhenChanged.Fallback, "the ocean keeps Deferred's screen-space reflections, which stay on");
 
         // The strength of Scatterer's sun glint on the ocean, which it sets on its ocean's
-        // material once, from its node's field (OceanNode.InitOceanMaterial); and the
-        // colour its ocean multiplies its reflections with, but not its sun glint, which
-        // the raytraced sun's and moons' glints stand in for.
+        // material once, from its node's field (OceanNode.InitOceanMaterial), and which the
+        // raytraced sun's and moons' glints stand in for (SeaHighlights).
         public static readonly ForeignAssumption ScattererOceanSun =
             new ForeignAssumption("scatterer-ocean-sun", "Scatterer", "the sun's reflection on the ocean")
                 .Type("Scatterer.OceanNode")
                 .Field("Scatterer.OceanNode", "m_oceanMaterial", Material)
                 .Field("Scatterer.OceanNode", "sunReflectionStrength", Float)
-                .Field("Scatterer.OceanNode", "reflectionColor", Vector3Type)
-                .Literal("Scatterer.OceanNode", "sunReflectionStrength", "reflectionColor")
+                .Literal("Scatterer.OceanNode", "sunReflectionStrength")
                 .TestedVersions("0.908.0.0")
                 .OnChange(WhenChanged.Fallback, "the sun's reflection stays as Scatterer sets it");
 
@@ -185,7 +222,8 @@ namespace ReDefinition.Core
                          "useSSROnCurrentCamera", "deferredAmbientBrightness", "deferredAmbientTint",
                          "internalSpaceToWorld", "legacyAmbientColor")
                 .TestedVersions("1.3.5.0")
-                .OnChange(WhenChanged.Keep, "the raytraced light goes in without the reflections pass's share");
+                .OnChange(WhenChanged.Fallback, "Deferred's own reflections shader stays, and the raytraced light is laid"
+                                                + " over the frame as without Deferred");
 
         // Deferred's screen-space reflections, sized for the upscaler's cameras.
         public static readonly ForeignAssumption DeferredSsr =
@@ -196,52 +234,172 @@ namespace ReDefinition.Core
                 .Field("Deferred.ScreenSpaceReflections", "screenColor")
                 .OnChange(WhenChanged.Keep, "Deferred's reflections keep the screen's size");
 
+        // Deferred's screen-space reflections held while the raytraced ones take their
+        // place (RtKspMods.HoldDeferredReflections): the component switched off in Update,
+        // outside any camera's render, on the strength of its OnPreRender setting
+        // useSSROnCurrentCamera to 1 and adding its command buffers, and its OnPostRender
+        // taking those off and setting it back to 0 -- so a component off leaves 0 and no
+        // pass. Its result, ssrOutput, the global Scatterer's ocean reads and the raytraced
+        // reflections are handed to it under (RtCamera.OceanReflections). Deferred 1.3.5,
+        // decompiled.
+        public static readonly ForeignAssumption DeferredSsrHold =
+            new ForeignAssumption("deferred-ssr-hold", "Deferred", "Deferred's reflections held for the raytraced ones")
+                .Type("Deferred.ScreenSpaceReflections")
+                .Method("Deferred.ScreenSpaceReflections", "OnPreRender")
+                .Method("Deferred.ScreenSpaceReflections", "OnPostRender")
+                .Literal("Deferred.ScreenSpaceReflections", "useSSROnCurrentCamera", "ssrOutput")
+                .Tested("17e177397045") // Deferred 1.3.5
+                .OnChange(WhenChanged.Fallback, "Deferred's screen-space reflections stay on beside the raytraced ones");
+
         // TUFX's post-processing split around the upscaler: PostProcessing v2 as TUFX
-        // carries it (TufxPostProcessing).
+        // carries it (TufxPostProcessing, PostProcessing v2 in TUFX 1.1.1, decompiled).
+        // What the split rests on beyond names: PostProcessManager.UpdateSettings blending
+        // a layer's settings anew from the defaults every frame (ReplaceData), after which
+        // the postfix switches effects off for that frame; PostProcessLayer's
+        // BuildCommandBuffers, whose setup the layer after the upscaler repeats
+        // (SetupContext, UpdateVolumeSystem, Render); and Dithering.Render, whose
+        // texture and coordinates the prefix sets in its place.
         public static readonly ForeignAssumption TufxPostProcessing =
             new ForeignAssumption("tufx-post-processing", "TUFX", "TUFX's effects split around the upscaler")
                 .Type("TUFX.TexturesUnlimitedFXLoader")
                 .Type("UnityEngine.Rendering.PostProcessing.PostProcessLayer")
                 .Type("UnityEngine.Rendering.PostProcessing.PostProcessManager")
-                .Calls("UnityEngine.Rendering.PostProcessing.PostProcessManager", "UpdateSettings",
-                       "UnityEngine.Rendering.PostProcessing.PostProcessLayer", Camera)
-                .Calls("UnityEngine.Rendering.PostProcessing.Dithering", "Render",
-                       "UnityEngine.Rendering.PostProcessing.PostProcessRenderContext")
-                .Calls("UnityEngine.Rendering.PostProcessing.PostProcessLayer", "Render",
-                       "UnityEngine.Rendering.PostProcessing.PostProcessRenderContext")
-                .OnChange(WhenChanged.Keep, "TUFX's effects all run after the upscaler");
+                .Method("UnityEngine.Rendering.PostProcessing.PostProcessManager", "UpdateSettings",
+                        "UnityEngine.Rendering.PostProcessing.PostProcessLayer", Camera)
+                .Method("UnityEngine.Rendering.PostProcessing.PostProcessManager", "ReplaceData",
+                        "UnityEngine.Rendering.PostProcessing.PostProcessLayer")
+                .Method("UnityEngine.Rendering.PostProcessing.PostProcessLayer", "BuildCommandBuffers")
+                .Method("UnityEngine.Rendering.PostProcessing.PostProcessLayer", "UpdateVolumeSystem",
+                        Camera, CommandBuffer)
+                .Method("UnityEngine.Rendering.PostProcessing.PostProcessLayer", "Render",
+                        "UnityEngine.Rendering.PostProcessing.PostProcessRenderContext")
+                .Method("UnityEngine.Rendering.PostProcessing.Dithering", "Render",
+                        "UnityEngine.Rendering.PostProcessing.PostProcessRenderContext")
+                .Tested("b2d414868765") // TUFX 1.1.1
+                .OnChange(WhenChanged.Fallback, "TUFX's effects all run before the upscaler, as without the split");
+
+        // TUFX's antialiasing off while the upscaler runs (HostStack.Tufx): the loader's
+        // current profile, its Antialiasing and SecondaryCameraAntialiasing (structs with
+        // a Mode), the cameras' PostProcessLayer.antialiasingMode, and RefreshCameras to
+        // hand them theirs back (TUFX 1.1.1, decompiled).
+        private const string TufxLoader = "TUFX.TexturesUnlimitedFXLoader";
+        private const string PostProcessAntialiasing = "UnityEngine.Rendering.PostProcessing.PostProcessLayer+Antialiasing";
+        public static readonly ForeignAssumption TufxAntialiasing =
+            new ForeignAssumption("tufx-antialiasing", "TUFX", "TUFX's antialiasing off while the upscaler runs")
+                .Type(TufxLoader).Type("TUFX.TUFXProfile").Type("TUFX.AntialiasingParameters")
+                .Field(TufxLoader, "INSTANCE", TufxLoader)
+                .Calls(TufxLoader, "get_CurrentProfile")
+                .Calls(TufxLoader, "RefreshCameras")
+                .Calls("TUFX.TUFXProfile", "get_ProfileName")
+                .Field("TUFX.TUFXProfile", "Antialiasing", "TUFX.AntialiasingParameters")
+                .Field("TUFX.TUFXProfile", "SecondaryCameraAntialiasing", "TUFX.AntialiasingParameters")
+                .Field("TUFX.AntialiasingParameters", "Mode", PostProcessAntialiasing)
+                .Field("UnityEngine.Rendering.PostProcessing.PostProcessLayer", "antialiasingMode", PostProcessAntialiasing)
+                // Its own Save writes the player's modes, swapped in for it (HostStack.Tufx).
+                .Calls("TUFX.TUFXProfile", "SaveToDisk")
+                // Its temporal history started afresh on the way to the space centre (KscArrival).
+                .Calls("UnityEngine.Rendering.PostProcessing.PostProcessLayer", "ResetHistory")
+                .OnChange(WhenChanged.Keep, "TUFX's antialiasing stays as its profile sets it");
+
+        // TUFX's scene profiles in ReDefinition's window (TufxBehaviour): its window's choice
+        // through ChangeProfileForScene, hooked; a choice here applied through ApplyProfile and
+        // saved where TUFX saves its own -- the configuration (defaultConfiguration's
+        // MainMenuProfile, written to defaultConfigUrl's file) or the save's TUFXGameSettings
+        // (SetProfileName) (TUFX 1.1.1, decompiled).
+        private const string TufxConfiguration = "TUFX.TexturesUnlimitedFXLoader+Configuration";
+        public static readonly ForeignAssumption TufxProfiles =
+            new ForeignAssumption("tufx-profiles", "TUFX", "TUFX's scene profiles in ReDefinition's window")
+                .Type(TufxLoader).Type("TUFX.TUFXScene").Type("TUFX.TUFXGameSettings").Type("TUFX.Utils").Type(TufxConfiguration)
+                .Field(TufxLoader, "INSTANCE", TufxLoader)
+                .Calls(TufxLoader, "get_Profiles")
+                .Calls(TufxLoader, "ChangeProfileForScene", StringType, "TUFX.TUFXScene")
+                .Calls(TufxLoader, "ApplyProfile", "TUFX.TUFXProfile", "TUFX.TUFXScene")
+                .Calls(TufxLoader, "GetProfileNameForScene", "TUFX.TUFXScene")
+                .Calls(TufxLoader, "GetProfileByName", StringType)
+                .Calls("TUFX.Utils", "GetCurrentScene")
+                .Calls("TUFX.TUFXGameSettings", "SetProfileName", StringType, "TUFX.TUFXScene")
+                .Field(TufxLoader, "defaultConfiguration", TufxConfiguration)
+                .Field(TufxLoader, "defaultConfigUrl", "UrlDir+UrlConfig")
+                .Field(TufxConfiguration, "NODE_NAME", StringType)
+                .Field(TufxConfiguration, "MainMenuProfile", StringType)
+                .OnChange(WhenChanged.Keep, "TUFX's scene profiles are chosen in its own window only");
 
         // Parallax's tessellation edge length, scaled for the upscaler's render
         // height: it counts pixels of the target it renders into (ParallaxUtils
         // .cginc, Parallax Continued 1.0.0) -- shader code, which only the version
-        // can tell.
+        // can tell. Its save writes the setting as it stands, and a prefix and a
+        // postfix hand it the player's value for that (ParallaxSettings.SaveSettings,
+        // decompiled; ParallaxTessellation).
         public static readonly ForeignAssumption ParallaxTessellation =
             new ForeignAssumption("parallax-tessellation", "Parallax", "Parallax's tessellation kept at display density")
                 .Type("Parallax.ParallaxSettings")
-                .Calls("Parallax.ParallaxSettings", "SaveSettings")
+                .Method("Parallax.ParallaxSettings", "SaveSettings")
+                .Tested("84470e62cb62") // Parallax Continued 1.0.0
                 .TestedVersions("1.0.0.0")
-                .OnChange(WhenChanged.Keep, "Parallax's tessellation follows the render size");
+                .OnChange(WhenChanged.Fallback, "Parallax's tessellation follows the render size");
 
-        // Parallax's scatters in the raytraced scene.
+        // Parallax's scatters in the raytraced scene and on the space centre's lawns
+        // (Scenery.ParallaxScatterFields, KscGrass): the active renderers, each one's
+        // planet, scatter name and range, its three levels' meshes, materials and output
+        // buffers, which the lift and the rays read as 64-byte clumps, and _InstanceData,
+        // the buffer Parallax's materials draw them from (ScatterRenderer, Scatter,
+        // DistributionParams, TransformData; Parallax Continued 1.0.0, decompiled).
+        private const string ScatterRenderer = "Parallax.ScatterRenderer";
         public static readonly ForeignAssumption ParallaxScatters =
-            new ForeignAssumption("parallax-scatters", "Parallax", "Parallax's scatters in the raytraced scene")
-                .Type("Parallax.ScatterManager").Type("Parallax.ScatterRenderer")
-                .Field("Parallax.ScatterManager", "Instance").Field("Parallax.ScatterManager", "activeScatterRenderers")
-                .Field("Parallax.ScatterRenderer", "meshLOD0").Field("Parallax.ScatterRenderer", "instancedMaterialLOD0")
-                .Field("Parallax.ScatterRenderer", "outputLOD0")
-                .OnChange(WhenChanged.Keep, "the scatters are left out of the rays");
+            new ForeignAssumption("parallax-scatters", "Parallax", "Parallax's scatters in the raytraced scene and on the lawns")
+                .Type("Parallax.ScatterManager").Type(ScatterRenderer).Type("Parallax.Scatter").Type("Parallax.DistributionParams")
+                .Field("Parallax.ScatterManager", "Instance", "Parallax.ScatterManager")
+                .Field("Parallax.ScatterManager", "activeScatterRenderers", "System.Collections.Generic.List`1")
+                .Field(ScatterRenderer, "planetName", StringType)
+                .Field(ScatterRenderer, "scatter", "Parallax.Scatter")
+                .Field("Parallax.Scatter", "scatterName", StringType)
+                .Field("Parallax.Scatter", "distributionParams", "Parallax.DistributionParams")
+                .Field("Parallax.DistributionParams", "range", Float)
+                .Field(ScatterRenderer, "meshLOD0", Mesh).Field(ScatterRenderer, "meshLOD1", Mesh).Field(ScatterRenderer, "meshLOD2", Mesh)
+                .Field(ScatterRenderer, "instancedMaterialLOD0", Material).Field(ScatterRenderer, "instancedMaterialLOD1", Material)
+                .Field(ScatterRenderer, "instancedMaterialLOD2", Material)
+                .Field(ScatterRenderer, "outputLOD0", ComputeBuffer).Field(ScatterRenderer, "outputLOD1", ComputeBuffer)
+                .Field(ScatterRenderer, "outputLOD2", ComputeBuffer)
+                .Literal(ScatterRenderer, "_InstanceData")
+                .TestedVersions("1.0.0.0")
+                .OnChange(WhenChanged.Fallback, "the scatters are left out of the rays, and the space centre's lawns stay bare");
 
         // Distant Object's sky dimming, without the sun's term where the sun is
         // hidden: DarkenSky.Update as decompiled, and CalculatePlanetsBrightness
-        // called with its arguments by position.
+        // called with its arguments by position, on SolarSystemEngine.Instance with
+        // the settings' SkyboxBrightness values (DistantObjectBehaviour).
+        private const string DistantSkybox = "DistantObject.SettingsBuffer+SkyboxBrightnessClass";
         public static readonly ForeignAssumption DistantObjectSky =
             new ForeignAssumption("distantobject-sky", "Distant Object", "the night sky's stars behind a body")
-                .Type("DistantObject.DarkenSky").Type("DistantObject.Contract.SolarSystemEngine")
+                .Type("DistantObject.DarkenSky").Type("DistantObject.Contract.SolarSystemEngine").Type("DistantObject.Settings")
                 .Method("DistantObject.DarkenSky", "Update")
                 .Calls("DistantObject.Contract.SolarSystemEngine+Interface", "CalculatePlanetsBrightness",
                        Double, Double, Double, Camera)
+                .Calls("DistantObject.Contract.SolarSystemEngine", "get_Instance")
+                .Field("DistantObject.Settings", "SkyboxBrightness", DistantSkybox)
+                .Field(DistantSkybox, "minimumSignificantBodySize", Double)
+                .Field(DistantSkybox, "minimumTargetRelativeAngle", Double)
+                .Field(DistantSkybox, "referenceBodySize", Double)
+                .Field(DistantSkybox, "maxBrightness", Double)
                 .Tested("6d3386a7d13e") // Distant Object 2.2.1.7
                 .OnChange(WhenChanged.Fallback, "Distant Object dims the sky its own way");
+
+        // Distant Object's settings in ReDefinition's window (DistantObjectBehaviour):
+        // Settings.Instance, its Load and Commit, and its window -- SettingsGui's buffer,
+        // held by SettingsGuiOnMainMenu and SettingsGuiOnGameScenes, and ApplySettings,
+        // hooked so that a change made there reaches ReDefinition's window (Distant Object
+        // 2.2.1.7, decompiled).
+        public static readonly ForeignAssumption DistantObjectSettings =
+            new ForeignAssumption("distantobject-settings", "Distant Object", "Distant Object's settings in ReDefinition's window")
+                .Type("DistantObject.Settings").Type("DistantObject.SettingsGui")
+                .Calls("DistantObject.Settings", "get_Instance")
+                .Calls("DistantObject.Settings", "Load")
+                .Calls("DistantObject.Settings", "Commit")
+                .Calls("DistantObject.SettingsGui", "ApplySettings")
+                .Field("DistantObject.SettingsGui", "buffer", "DistantObject.SettingsBuffer")
+                .Field("DistantObject.SettingsGuiOnMainMenu", "settingsGui", "DistantObject.SettingsGui")
+                .Field("DistantObject.SettingsGuiOnGameScenes", "settingsGui", "DistantObject.SettingsGui")
+                .OnChange(WhenChanged.Keep, "what of its settings cannot be reached is left to its own window");
 
         // Other mods' UI scaling, turned off so ReDefinition's applies alone: whole
         // methods skipped (4kSP) and writes rerouted (Maneuver Node Evolved,
@@ -253,12 +411,39 @@ namespace ReDefinition.Core
             new ForeignAssumption("4ksp", "4kSP", "4kSP's map scaling left to ReDefinition's")
                 .Type("FourkSP.FourkSP")
                 .Calls("FourkSP.FourkSP", "UpdateNodes")
+                .Calls("FourkSP.FourkSP", "AddToolbarButton")
                 .OnChange(WhenChanged.Keep, "the skipped method is skipped all the same");
 
+        // 4kSP Expanded's R&D part: its bootstrap's Start, which patches the R&D part list,
+        // and RDSceneScaler.Start, which hooks the R&D screen's opening, both skipped.
+        public static readonly ForeignAssumption FourkSpRnD =
+            new ForeignAssumption("4ksp-rnd", "4kSP Expanded", "4kSP's R&D scaling left to ReDefinition's")
+                .Type("_4kSP_RnD.RDScalerHarmonyBootstrap").Type("_4kSP_RnD.RDSceneScaler")
+                .Calls("_4kSP_RnD.RDScalerHarmonyBootstrap", "Start")
+                .Calls("_4kSP_RnD.RDSceneScaler", "Start")
+                .OnChange(WhenChanged.Keep, "the skipped methods are skipped all the same");
+
+        // 4kSP Expanded's window part: its bootstrap's Start, which patches the IMGUI window
+        // methods, skipped.
+        public static readonly ForeignAssumption FourkSpWindows =
+            new ForeignAssumption("4ksp-windows", "4kSP Expanded", "4kSP's window scaling left to ReDefinition's")
+                .Type("_4kSP_ModWindows.ModWindowScalerHarmonyBootstrap")
+                .Calls("_4kSP_ModWindows.ModWindowScalerHarmonyBootstrap", "Start")
+                .OnChange(WhenChanged.Keep, "the skipped method is skipped all the same");
+
+        // Better Time Warp's button copied into the time panel (TimeWarpButton,
+        // TimeWarpBar): its OnGUI's two GUI.Toggle calls routed, its buttonContent
+        // shown on the copy, its UIOpen switched by a press on it, and its toolbar
+        // button kept by the namespace it registers with ToolbarControl
+        // (BetterTimeWarp.MODID) (Better Time Warp 2.3.14.2, decompiled).
         public static readonly ForeignAssumption BetterTimeWarp =
             new ForeignAssumption("better-time-warp", "Better Time Warp", "Better Time Warp's button in the time panel")
                 .Type("BetterTimeWarp.BetterTimeWarp")
                 .Method("BetterTimeWarp.BetterTimeWarp", "OnGUI")
+                .Field("BetterTimeWarp.BetterTimeWarp", "buttonContent", "UnityEngine.GUIContent")
+                .Calls("BetterTimeWarp.BetterTimeWarp", "get_UIOpen")
+                .Calls("BetterTimeWarp.BetterTimeWarp", "set_UIOpen", Bool)
+                .Literal("BetterTimeWarp.BetterTimeWarp", "BetterTimeWarp_NS")
                 .Tested("054d15081476") // Better Time Warp 2.3.14.2
                 .OnChange(WhenChanged.Keep, "its button is moved where the code still matches, else left");
 
@@ -269,11 +454,32 @@ namespace ReDefinition.Core
                 .Calls("BetterManeuvering.ManeuverController", "gizmoSpawn")
                 .OnChange(WhenChanged.Keep, "its size writes are rerouted where the code still matches, else left");
 
-        // Kopernicus's shader settings, read for KSP's terrain shader quality.
+        // Kopernicus's shader settings, read for KSP's terrain shader quality
+        // (KspBehaviour.KopernicusShaderLevel): RuntimeUtility.KopernicusConfig, its
+        // EnforceShaders, WarnShaders and EnforcedShaderLevel (Kopernicus 1.12.249,
+        // decompiled).
+        private const string KopernicusConfig = "Kopernicus.Configuration.ConfigReader";
         public static readonly ForeignAssumption KopernicusShaders =
             new ForeignAssumption("kopernicus-shaders", "Kopernicus", "Kopernicus's enforced terrain shader level")
-                .Type("Kopernicus.RuntimeUtility.RuntimeUtility")
+                .Type("Kopernicus.RuntimeUtility.RuntimeUtility").Type(KopernicusConfig)
+                .Field("Kopernicus.RuntimeUtility.RuntimeUtility", "KopernicusConfig", KopernicusConfig)
+                .Field(KopernicusConfig, "EnforceShaders", Bool)
+                .Field(KopernicusConfig, "WarnShaders", Bool)
+                .Field(KopernicusConfig, "EnforcedShaderLevel", Int)
                 .OnChange(WhenChanged.Keep, "KSP's terrain shader quality is offered as it is");
+
+        // Kopernicus's star in the raytracing (RtKspMods): KopernicusStar.Current, the star
+        // nearest the focus, whose light lights the scene, and its shifter's sunlightColor,
+        // the colour Kopernicus gives that light (KopernicusStar, LightShifter; Kopernicus
+        // 1.12.249, decompiled).
+        private const string KopernicusStar = "Kopernicus.Components.KopernicusStar";
+        public static readonly ForeignAssumption KopernicusStarLight =
+            new ForeignAssumption("kopernicus-star", "Kopernicus", "the raytraced sun as Kopernicus's current star")
+                .Type(KopernicusStar).Type("Kopernicus.Components.LightShifter")
+                .Field(KopernicusStar, "Current", KopernicusStar)
+                .Field(KopernicusStar, "shifter", "Kopernicus.Components.LightShifter")
+                .Field("Kopernicus.Components.LightShifter", "sunlightColor", ColorType)
+                .OnChange(WhenChanged.Keep, "the raytraced sun is KSP's, in white");
 
         // Firefly (FireflyIdle): its AtmoFxModule's fxVessel with the command buffer it
         // keeps on the flight camera, its airstream camera and its effect material, whose
@@ -289,12 +495,15 @@ namespace ReDefinition.Core
                 .Field("Firefly.AtmoFxVessel", "material", Material)
                 .Method("Firefly.AtmoFxModule", "PopulateCommandBuffer")
                 .Method("Firefly.AtmoFxModule", "UpdateMaterialProperties")
+                .Literal("Firefly.AtmoFxModule", "_EntryStrength")
                 .Tested("fdf8ca4c28ff") // Firefly 1.0.6
+                // The thresholds are its shader's, which only the version can tell.
+                .TestedVersions("1.0.6.0")
                 .OnChange(WhenChanged.Fallback, "Firefly draws its effects every frame, as it does by itself");
 
         // EVE's cloud layer in the raytracing (RtEveClouds): the loaded bodies' cloud objects,
-        // their volumetric and 2D layers, the volume's maps, radii, rotation and fades, the 2D
-        // layer's shadow material; EVE's own coverage sampler for the probe's check.
+        // their volumetric and 2D layers, the volume's material, switch, maps, radii,
+        // rotation and fades, the 2D layer's shadow material.
         private const string EveVolume = "Atmosphere.CloudsRaymarchedVolume";
         public static readonly ForeignAssumption EveRtClouds =
             new ForeignAssumption("eve-rt-clouds", "EVE", "EVE's clouds over the rays: the moons' light, the water's discs, reflections")
@@ -306,12 +515,80 @@ namespace ReDefinition.Core
                 .Method(EveVolume, "get_CloudRotationMatrix").Method(EveVolume, "get_InnerSphereRadius")
                 .Method(EveVolume, "get_OuterSphereRadius").Method(EveVolume, "get_CurrentTimeFadeCoverage")
                 .Method(EveVolume, "get_CurrentTimeFadeDensity").Method(EveVolume, "get_CoverageMap").Method(EveVolume, "get_CloudTypeMap")
+                .Method(EveVolume, "get_RaymarchedCloudMaterial").Method(EveVolume, "get_enabled")
+                .Method(EveVolume, "get_VolumetricLayerScaledFade")
                 .Field(EveVolume, "curvesTexture")
                 .Method("Atmosphere.Clouds2D", "get_ScreenSpaceShadowMaterial").Method("Atmosphere.Clouds2D", "get_Scaled")
                 .Method("Utils.TextureWrapper", "GetTexture")
                 .Field("Utils.TextureWrapper", "type").Field("Utils.TextureWrapper", "alphaMask")
-                .Tested("25f1a62fb3c7") // EVE 3.2.2.0, the volumetric build of 2026-10
-                .OnChange(WhenChanged.Keep, "the rays leave EVE's clouds out");
+                // The fades read off the 2D layer's shadow material (RtEveClouds), which EVE sets.
+                .Literal("Atmosphere.Clouds2D", "cloudTimeFadeDensity")
+                .Tested("f36a77d52162") // EVE 3.2.2.0, the volumetric build of 2026-10
+                .OnChange(WhenChanged.Fallback, "the rays leave EVE's clouds out");
+
+        // Scatterer's main settings in ReDefinition's window (ScattererBehaviour):
+        // Scatterer.Instance, its mainSettings and isActive, the Scatterer_config node they
+        // load from, and pluginData with its savePluginData for the window's keys
+        // (Scatterer 0.908, decompiled).
+        public static readonly ForeignAssumption ScattererSettings =
+            new ForeignAssumption("scatterer-settings", "Scatterer", "Scatterer's settings in ReDefinition's window")
+                .Type("Scatterer.Scatterer").Type("Scatterer.MainSettingsReadWrite").Type("Scatterer.PluginDataReadWrite")
+                .Calls("Scatterer.Scatterer", "get_Instance")
+                .Field("Scatterer.Scatterer", "mainSettings", "Scatterer.MainSettingsReadWrite")
+                .Field("Scatterer.Scatterer", "isActive", Bool)
+                .Field("Scatterer.Scatterer", "pluginData", "Scatterer.PluginDataReadWrite")
+                .Calls("Scatterer.PluginDataReadWrite", "savePluginData")
+                .Literal("Scatterer.MainSettingsReadWrite", "Scatterer_config")
+                .OnChange(WhenChanged.Keep, "what of its settings cannot be reached is left to its own window");
+
+        // Kerbal Frame Generator's frame blend off while the upscaler runs (HostStack.Kfg):
+        // its global switch, KFG_Settings.effectEnabled, a public static bool it reads every
+        // frame. Named from its source without a fingerprint: no build of it was installed
+        // to take one from.
+        public static readonly ForeignAssumption KerbalFrameGenerator =
+            new ForeignAssumption("kerbal-frame-generator", "Kerbal Frame Generator", "its frame blend off while the upscaler runs")
+                .Type("KFG_Settings")
+                .Field("KFG_Settings", "effectEnabled", Bool)
+                .OnChange(WhenChanged.Keep, "its blend stays on over the upscaler");
+
+        // The Toolbar's buttons and MechJeb's menu kept off KSP's loading screen
+        // (Window.LoadingScreenWindows): their OnGUI skipped while its camera is on, a
+        // prefix whose effect does not depend on what OnGUI draws (Toolbar 1.8.1.2,
+        // MechJeb 2.15.3, decompiled).
+        public static readonly ForeignAssumption ToolbarLoadingScreen =
+            new ForeignAssumption("toolbar-loading-screen", "Toolbar", "the Toolbar's buttons off KSP's loading screen")
+                .Type("Toolbar.ToolbarManager")
+                .Calls("Toolbar.ToolbarManager", "OnGUI")
+                .OnChange(WhenChanged.Keep, "its buttons show on the loading screen");
+
+        public static readonly ForeignAssumption MechJebLoadingScreen =
+            new ForeignAssumption("mechjeb-loading-screen", "MechJeb", "MechJeb's menu off KSP's loading screen")
+                .Type("MuMech.MechJebCore")
+                .Calls("MuMech.MechJebCore", "OnGUI")
+                .OnChange(WhenChanged.Keep, "its menu shows on the loading screen");
+
+        // Other mods' buttons in KSP's toolbar hidden or kept by the namespace they register
+        // with ToolbarControl (Window.ToolbarTakeover): its static tcList, each one's
+        // nameSpace and stockButton (ToolbarControl 0.1.9.14, decompiled).
+        public static readonly ForeignAssumption ToolbarControlButtons =
+            new ForeignAssumption("toolbarcontrol-buttons", "ToolbarControl", "other mods' toolbar buttons hidden by their mod")
+                .Type("ToolbarControl_NS.ToolbarControl")
+                .Field("ToolbarControl_NS.ToolbarControl", "tcList", "System.Collections.Generic.List`1")
+                .Field("ToolbarControl_NS.ToolbarControl", "nameSpace", StringType)
+                .Field("ToolbarControl_NS.ToolbarControl", "stockButton", "KSP.UI.Screens.ApplicationLauncherButton")
+                .OnChange(WhenChanged.Keep, "the buttons are told apart by the launcher's own list only");
+
+        // Persistent Rotation's toolbar button hidden for good (Window.ToolbarHides): it
+        // registers with ToolbarControl as "PersistentRotation" (Interface.MODID), and its
+        // OnClick only shows and hides its window, which a row of ReDefinition's window
+        // does (Persistent Rotation 1.9.2.1, decompiled).
+        public static readonly ForeignAssumption PersistentRotationButton =
+            new ForeignAssumption("persistentrotation-button", "Persistent Rotation", "its toolbar button left to the window's row")
+                .Type("PersistentRotation.Interface")
+                .Method("PersistentRotation.Interface", "OnClick")
+                .Literal("PersistentRotation.Interface", "PersistentRotation")
+                .Tested("c72a2f85bff4") // Persistent Rotation 1.9.2.1
+                .OnChange(WhenChanged.Keep, "its button is hidden while the row stands");
 
         // The light of EVE's clouds where Scatterer integrates them (EveCloudMoonlight): after
         // SkyNode.UpdateEVECloudMaterials has set a body's cloud materials for the frame, the
@@ -339,16 +616,20 @@ namespace ReDefinition.Core
                 .Literal(SkyNode, "PLANETSHINE_ON", "PLANETSHINE_OFF")
                 // The layers' radii, which EVE sets on the same materials.
                 .Literal("Atmosphere.CloudsRaymarchedVolume", "innerSphereRadius", "outerSphereRadius")
-                .Tested("29ed9e0dcc46") // Scatterer 0.908
+                .Tested("963805946f31") // Scatterer 0.908
                 .TestedVersions("0.908.0.0")
                 .OnChange(WhenChanged.Fallback, "EVE's clouds take the sun's light alone, dark at night");
 
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererCloudLight, ScattererTemporalAa, ScattererSmaa, ScattererOceanMask, ScattererOceanReflections, ScattererOceanSun,
-            DeferredReflections, DeferredSsr, TufxPostProcessing, ParallaxTessellation, ParallaxScatters,
-            DistantObjectSky, FourkSp, BetterTimeWarp, ManeuverNodeEvolved, KopernicusShaders, FireflyIdle, EveRtClouds,
+            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
+            ScattererOceanReflections, ScattererOceanSun, ScattererSettings,
+            DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,
+            TufxPostProcessing, TufxAntialiasing, TufxProfiles, ParallaxTessellation, ParallaxScatters,
+            DistantObjectSky, DistantObjectSettings, FourkSp, FourkSpRnD, FourkSpWindows, BetterTimeWarp, ManeuverNodeEvolved,
+            KopernicusShaders, KopernicusStarLight, FireflyIdle, EveRtClouds, KerbalFrameGenerator,
+            ToolbarLoadingScreen, MechJebLoadingScreen, ToolbarControlButtons, PersistentRotationButton,
         };
 
         // The installed mods' assumptions, in the catalogue's order.

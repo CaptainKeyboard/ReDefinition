@@ -78,6 +78,8 @@ $expectedDrops = @{
     'deferred'  = @('capReflectionProbeRefreshRate', 'capReflectionProbeResolution');
     # Its visibility mode, which its Awake ignores; its toolbar button is hidden instead.
     'persistentrotation' = @('visibilityMode');
+    # Its toolbar switch, which its Start reads before its configuration is loaded.
+    'tufx'      = @('ShowToolbarButton');
 }
 
 # Settings one build of a mod does not have, left out without a word (`optional = True`).
@@ -327,9 +329,10 @@ try {
             $profileNames.Add($profile.Name)
             foreach ($p in $problems) { $refused += "'$($profile.Name)': $p" }
             # ReDefinition's modules' part, as ModuleProfiles reads it: every value a
-            # quality setting of a module, one its setting takes.
+            # quality setting of a module, one its setting takes. The card null, as
+            # Values takes it by default: the one KSP runs on, Unknown outside the game.
             $moduleProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
-            [void]$moduleValues.Invoke($null, [object[]]@($profile, $moduleProblems))
+            [void]$moduleValues.Invoke($null, [object[]]@($profile, $moduleProblems, $null))
             foreach ($p in $moduleProblems) { $refused += $p }
         }
     }

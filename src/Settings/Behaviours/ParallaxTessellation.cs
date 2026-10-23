@@ -139,6 +139,16 @@ namespace ReDefinition.Settings.Behaviours
         {
             if (hooked) return true;
             if (hookFailed) return false;
+            // The save and the shaders' edge length checked first (ForeignAssumptions.ParallaxTessellation).
+            if (!ForeignAssumptions.ParallaxTessellation.Holds)
+            {
+                hookFailed = true;
+                CompatibilityLog.Warn("parallax-tessellation", "Parallax is not the build its tessellation was checked against ("
+                                                               + (ForeignAssumptions.ParallaxTessellation.Problem ?? "not installed")
+                                                               + "): its tessellation edge length is not scaled to the"
+                                                               + " upscaler's render size.");
+                return false;
+            }
             Type settings = TypeLookup.Find(SettingsTypeName);
             MethodInfo save = settings != null
                 ? settings.GetMethod("SaveSettings", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null)
