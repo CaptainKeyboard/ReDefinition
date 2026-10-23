@@ -141,6 +141,9 @@ namespace ReDefinition
         public bool KscGrass = true;
         // Firefly's re-entry effects not drawn while they show nothing (Scenery/FireflyIdle).
         public bool FireflyIdle = true;
+        // The mods' antialiasing not twice on one camera with the upscaler and frame
+        // generation off (Upscaler/HostStack.Duplicates).
+        public bool OneAntialiasing = true;
         // The round gauge in place of the vertical speed's (Flight/RoundGauge).
         public bool RoundGauge = true;
         // The vertical and horizontal speed at the navball (Flight/NavballSpeeds).
@@ -336,6 +339,7 @@ namespace ReDefinition
             Bool("menuKscZoom", x => x.MenuKscZoom, (x, v) => x.MenuKscZoom = v, true),
             Bool("kscGrass", x => x.KscGrass, (x, v) => x.KscGrass = v, true),
             Bool("fireflyIdle", x => x.FireflyIdle, (x, v) => x.FireflyIdle = v, true),
+            Bool("oneAntialiasing", x => x.OneAntialiasing, (x, v) => x.OneAntialiasing = v, true),
             Bool("roundGauge", x => x.RoundGauge, (x, v) => x.RoundGauge = v, true),
             Bool("navballSpeeds", x => x.NavballSpeeds, (x, v) => x.NavballSpeeds = v, true),
             Bool("navballDockingMarker", x => x.NavballDockingMarker, (x, v) => x.NavballDockingMarker = v, true),

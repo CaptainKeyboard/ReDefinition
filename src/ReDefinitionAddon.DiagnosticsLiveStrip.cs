@@ -36,7 +36,9 @@ namespace ReDefinition
             List<string> parts = new List<string>();
             if (rig != null && rig.Ready)
                 parts.Add(OurModules.TechniqueLabel(rig.Backend) + (rig.Backend != backend && fallbackReason != null ? " (instead of "
-                          + UpscalerBackends.Name(backend) + ")" : ""));
+                          + UpscalerBackends.Name(backend) + ")" : "")
+                          // Upscaler off, frame generation on: native antialiasing (NativeForFrameGeneration).
+                          + (!wantEnabled ? " native AA" : ""));
             else if (rig != null && rig.PassThrough) parts.Add("Upscaler off");
             else parts.Add(wantEnabled ? "Upscaler setting up" : "Upscaler off");
 

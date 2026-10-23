@@ -125,6 +125,8 @@ namespace ReDefinition
             ReflexFrames.Install();
             EscapeGuard.Install();
             GameEvents.OnGameSettingsApplied.Add(OnGameSettingsApplied);
+            GameEvents.OnMapEntered.Add(OnMapToggled);
+            GameEvents.OnMapExited.Add(OnMapToggled);
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
 
             // The button opens the settings window; the diagnostics window this
@@ -198,8 +200,9 @@ namespace ReDefinition
 
             bool active = rig != null && rig.Ready;
             // Neither on nor off: a rig for frame generation alone carries the
-            // capture's cost, which would skew the upscaler's comparison.
-            if (rig == null || !rig.PassThrough)
+            // capture's cost, or the native antialiasing's, which would skew the
+            // upscaler's comparison.
+            if (rig == null || (!rig.PassThrough && wantEnabled))
                 (active ? meterOn : meterOff).Sample(Time.unscaledDeltaTime);
             UpdateFrameRates();
             if (windowVisible) RefreshLiveStrip();
@@ -228,9 +231,11 @@ namespace ReDefinition
                 nextAttachAttempt = 0f;
             }
 
-            // The rig follows what is wanted of it: the upscaler, or with the
-            // upscaler off only frame generation's inputs (UpscalerRig.PassThrough).
-            if (rig != null && (!WantsRig() || rig.PassThrough != PassThroughWanted))
+            // The rig follows what is wanted of it: the upscaler, at the player's
+            // quality or with the upscaler off at the screen's size for frame
+            // generation, or only frame generation's inputs (UpscalerRig.PassThrough).
+            if (rig != null && (!WantsRig() || rig.PassThrough != PassThroughWanted
+                                || (!rig.PassThrough && rig.QualityMode != EffectiveQuality)))
             {
                 Detach();
                 nextAttachAttempt = 0f;
@@ -293,17 +298,29 @@ namespace ReDefinition
             cameraModeKnown = true;
         }
 
+        // Set where a camera's antialiasing changes at once: the map view entered or left.
+        private bool duplicatesNow;
+
+        private void OnMapToggled()
+        {
+            duplicatesNow = true;
+        }
+
         // The other mods' antialiasing, and what Scatterer's TAA leaves behind, are
-        // taken while the upscaler runs, and handed back when it stops (HostStack):
-        // without the upscaler, the mods' own antialiasing is the only one there
-        // is. Frame generation alone leaves it to them. Taken where the cameras it
-        // configures exist: once a rig runs, or in flight and the editors. Taken
-        // earlier, at the main menu say, HostStack would record Scatterer's state
-        // before Scatterer has set itself up. What a later scene builds anew is
-        // taken once a second, each with its own record (HostStack.Reassert).
+        // taken while the upscaler runs -- with frame generation alone too, as
+        // antialiasing at the screen's size (NativeForFrameGeneration) -- and handed back
+        // when it stops (HostStack): without either, the mods' own antialiasing is the
+        // only one there is, one per camera (HostStack.Duplicates). Taken where the
+        // cameras it configures exist: once a rig runs, or in flight and the editors.
+        // Taken earlier, at the main menu say, HostStack would record Scatterer's state
+        // before Scatterer has set itself up. What a later scene builds anew is taken
+        // once a second, each with its own record (HostStack.Reassert).
         private void SyncHostStack()
         {
             bool upscaling = ProfileChosen() && !PassThroughWanted;
+            // Given back before HostStack takes everything.
+            HostStack.SyncDuplicates(!upscaling && rig == null && ProfileChosen() && Live.OneAntialiasing, duplicatesNow);
+            duplicatesNow = false;
             if (upscaling && !HostStack.Applied
                 && (rig != null || HighLogic.LoadedSceneIsFlight || HighLogic.LoadedSceneIsEditor))
                 hostStackMessage = HostStack.Apply();
@@ -375,7 +392,26 @@ namespace ReDefinition
         // with an upscaler that could not be set up.
         private bool PassThroughWanted
         {
-            get { return !wantEnabled || setupFailures >= SetupAttempts; }
+            get { return (!wantEnabled && !NativeForFrameGeneration) || setupFailures >= SetupAttempts; }
+        }
+
+        // With the upscaler off and frame generation on, the upscaler runs all the same, at
+        // the screen's size (NativeAA: DLAA, FSR's and XeSS's native AA): the one
+        // antialiasing there is then, as while it upscales -- the mods' own taken
+        // (HostStack) -- and with a jitter frame generation is told of. Measured without
+        // ReDefinition, 2026-10-23: in the space centre and in flight Scatterer's TAA and
+        // SMAA and TUFX's TAA all ran on the scene camera at once. Where the upscaler
+        // cannot be set up, frame generation's capture alone, the mods' antialiasing theirs.
+        private bool NativeForFrameGeneration
+        {
+            get { return !wantEnabled && frameGeneration && FrameGenerationBridge.InputsUsable; }
+        }
+
+        // The quality the rig is built with: the player's, or NativeAA for frame
+        // generation alone.
+        private Fsr3Upscaler.QualityMode EffectiveQuality
+        {
+            get { return !wantEnabled ? Fsr3Upscaler.QualityMode.NativeAA : quality; }
         }
 
         // What changes the outcome of a failure that need not stand forgets it;
@@ -536,8 +572,9 @@ namespace ReDefinition
             // would have it rebuilt from, and no longer if no answer comes. The
             // texture only carries Unity's device.
             Vector2Int known;
+            Fsr3Upscaler.QualityMode builtWith = EffectiveQuality;
             if (runs == UpscalerBackend.Dlss && !bypass
-                && !DlssBridge.RenderSize(output, DlssBridge.Quality(quality), out known))
+                && !DlssBridge.RenderSize(output, DlssBridge.Quality(builtWith), out known))
             {
                 if (dlssSizesAskedFor != output)
                 {
@@ -554,7 +591,7 @@ namespace ReDefinition
             }
 
             UpscalerRig created = target.gameObject.AddComponent<UpscalerRig>();
-            created.QualityMode = quality;
+            created.QualityMode = builtWith;
             created.Sharpness = sharpness;
             created.Sharpening = sharpness > 0f;
             created.AutoExposure = autoExposure;
@@ -629,11 +666,11 @@ namespace ReDefinition
 
             Debug.Log(Log.Tag + " Upscaler running on '" + target.name + "': "
                       + rig.RenderSize.x + "x" + rig.RenderSize.y + " -> "
-                      + rig.DisplaySize.x + "x" + rig.DisplaySize.y + " (" + quality + ", "
+                      + rig.DisplaySize.x + "x" + rig.DisplaySize.y + " (" + builtWith + ", "
                       + UpscalerBackends.Name(runs)
                       + (passThrough
                           ? (wantEnabled ? ", the upscaler not set up" : ", upscaler off") + ": frame generation's inputs only"
-                          : "") + ")");
+                          : !wantEnabled ? ", upscaler off: antialiasing at the screen's size for frame generation" : "") + ")");
             RequestRenderSizeFollowUp("upscaler attached at " + rig.RenderSize.x + "x" + rig.RenderSize.y);
         }
 
@@ -736,6 +773,8 @@ namespace ReDefinition
                 UpscalerRig.Current = null;
             }
             GameEvents.OnGameSettingsApplied.Remove(OnGameSettingsApplied);
+            GameEvents.OnMapEntered.Remove(OnMapToggled);
+            GameEvents.OnMapExited.Remove(OnMapToggled);
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
 
             if (toolbarButton != null)
@@ -748,6 +787,7 @@ namespace ReDefinition
             Guarded("host-stack-restore", () =>
             {
                 if (HostStack.Applied) HostStack.Restore();
+                HostStack.SyncDuplicates(false, false);
             });
 
             // The throttled check may not have run since the last change. Not after a scene

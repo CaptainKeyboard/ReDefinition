@@ -70,7 +70,8 @@ namespace ReDefinition
                     : value == AutoSettings.Auto ? "Auto (" + TechniqueLabel(AutoSettings.ResolvedBackend) + ")"
                     : TechniqueLabel(Backend(value)),
                 Tooltip = "Renders the 3D scene smaller and reconstructs it at full size.",
-                ChoiceTooltip = value => value == "Off" ? "No upscaling and no temporal antialiasing."
+                ChoiceTooltip = value => value == "Off" ? "No upscaling. With frame generation on, the upscaler last chosen still smooths\n"
+                                                         + "the edges at full size (AA only), in place of the mods' antialiasing."
                     : value == AutoSettings.Auto ? "The best upscaler for this card: DLSS on an RTX, FSR 4 on a Radeon RX 7000 or 9000, XeSS on an Intel GPU, otherwise FSR 3."
                     : value == UpscalerBackend.Fsr3.ToString() ? "AMD FSR 3, built into ReDefinition. Runs on every card."
                     : value == UpscalerBackend.Dlss.ToString() ? "NVIDIA DLSS, on a GeForce RTX."
@@ -165,6 +166,20 @@ namespace ReDefinition
                 Read = settings => SettingValues.Text(settings.Sharpness),
                 Write = (settings, value) =>
                     settings.Sharpness = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
+            },
+            // The mods' antialiasing with the upscaler and frame generation off (HostStack.Duplicates).
+            new ModuleSetting
+            {
+                Key = "oneAntialiasing",
+                Title = "One antialiasing per camera",
+                Section = "Upscaling",
+                Kind = SettingKind.Other,
+                Order = 35,
+                Control = SettingControl.Toggle,
+                Tooltip = "With the upscaler and frame generation off: where Scatterer's TAA smooths a camera,\n"
+                          + "TUFX's antialiasing is not run on it as well. With either on, the upscaler smooths alone.",
+                Read = settings => SettingValues.Text(settings.OneAntialiasing),
+                Write = (settings, value) => settings.OneAntialiasing = bool.Parse(value),
             });
 
         public static readonly IGraphicsModule FrameGeneration = new GraphicsModule("frameGeneration", "Frame generation",

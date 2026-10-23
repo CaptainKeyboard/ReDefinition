@@ -178,7 +178,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheUpscalingRowsStandInTheirOrder()
         {
-            CollectionAssert.AreEqual(new[] { "Upscaler", "Mode", "Sharpness", "Frame generation", "Multiplier",
+            CollectionAssert.AreEqual(new[] { "Upscaler", "Mode", "Sharpness", "One antialiasing per camera", "Frame generation", "Multiplier",
                                             "Low latency", "Raytracing", "Ray Reconstruction", "Moonlight", "Moon reflection", "Moon glow", "Sun reflection", "Night light", "Light colour" },
                 OurModules.Rows().Select(setting => setting.Title).ToArray());
         }
