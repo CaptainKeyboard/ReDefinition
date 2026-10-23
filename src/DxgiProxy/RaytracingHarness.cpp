@@ -3151,7 +3151,16 @@ int main(int argc, char** argv)
         // third the ground lies in its shadow, under the middle in half of it, as a texel
         // covered by half stops half the rays, under the right in the sun; with the cut-out
         // off, under all. The same with the card among the GPU's instances; and with its
-        // texture not read yet, in the sun under all of it.
+        // texture not read yet, in the sun under all of it. Covered texels stop the sun's
+        // rays wholly only where a blade lets none of the light through (rtFoliageTransmission
+        // 0; 0.5 by default): set so for the check, and put back after it.
+        const std::wstring ini = NextToExecutable(L"ReDefinitionProxy.ini");
+        wchar_t foliageBefore[32] = {};
+        const bool foliageSet = GetPrivateProfileStringW(L"Proxy", L"rtFoliageTransmission", L"", foliageBefore, 32, ini.c_str()) > 0;
+        WritePrivateProfileStringW(L"Proxy", L"rtFoliageTransmission", L"0", ini.c_str());
+        // The proxy looks at the file at most once a second, from its Present.
+        Sleep(1100);
+        swapChain->Present(0, 0);
         Mesh card;
         card.id = 40;
         AddQuad(card, { -0.5, 0, 0.5 }, { 0.5, 0, 0.5 }, { 0.5, 0, -0.5 }, { -0.5, 0, -0.5 }, { 0, 1, 0 });
@@ -3283,6 +3292,9 @@ int main(int argc, char** argv)
         Check(right(cut) && right(gpu) && whole[1] >= 0.0 && whole[1] < 0.05 && whole[2] >= 0.0 && whole[2] < 0.05
                   && unread[0] > 0.95 && unread[1] > 0.95 && unread[2] > 0.95,
               "cut-out surfaces", detail);
+        WritePrivateProfileStringW(L"Proxy", L"rtFoliageTransmission", foliageSet ? foliageBefore : nullptr, ini.c_str());
+        Sleep(1100);
+        swapChain->Present(0, 0);
         proxy.releaseMesh(40);
         SendInstances(proxy, scene, camera.position);
         RenderGBuffer(context.Get(), g, camera, meshes, scene);
