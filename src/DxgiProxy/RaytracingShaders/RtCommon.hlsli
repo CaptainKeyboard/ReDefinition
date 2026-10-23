@@ -653,7 +653,7 @@ float3 CloudTransmittance(float3 position, float3 towards)
 }
 
 // The sky a ray that escapes the scene sees from under the layer: the cloud where it
-// covers, lit by the sun from above and by the sky, darker underneath the denser it is,
+// covers, lit by the sun and the moons from above and by the sky, darker underneath the denser it is,
 // over the sky by its opacity (1 - its transmittance). The reflection probe the sky comes
 // from otherwise (HAS_ENVIRONMENT) holds EVE's clouds as EVE draws them already.
 float3 CloudOverSky(float3 origin, float3 direction, float3 sky)
@@ -668,6 +668,11 @@ float3 CloudOverSky(float3 origin, float3 direction, float3 sky)
     float tr = CloudTransmittanceAt(at);
     float3 up = normalize(at - bodySphere.xyz);
     float3 lit = InputColor(sunColor.rgb) * saturate(dot(up, normalize(sunDirection.xyz))) + SkyLight(up);
+    // The bodies the sun lights (RtReflectors) light the cloud from above as the sun does.
+    if (LIGHT_COUNT > 0u)
+        lit += lightColor0.rgb * saturate(dot(up, normalize(lightDirection0.xyz)));
+    if (LIGHT_COUNT > 1u)
+        lit += lightColor1.rgb * saturate(dot(up, normalize(lightDirection1.xyz)));
     float3 cloud = lit * cloudColor.w * lerp(1.0f, 0.5f, 1.0f - tr);
     return lerp(sky, cloud, fade * (1.0f - tr));
 }

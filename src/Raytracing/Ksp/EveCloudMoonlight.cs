@@ -15,9 +15,12 @@ namespace ReDefinition.Raytracing
     //
     // - The raymarched layers (Scatterer-EVE/RaymarchCloud) take one directional light,
     //   _Sun_WorldSunDir and _sunColor; EVE's light volume is filled with the same material
-    //   (LightVolume.Update, its passes 4 to 7). As the sun sets that light turns from the
-    //   sun to the moon, by the layers' heights (CloudLightBlend), and back as it rises; by
-    //   day it is the sun's as before.
+    //   (LightVolume.Update, its passes 4 to 7). As the sun sets the moon's light is added
+    //   at each cloud by its own place (EveCloudRelight), the sun staying their light, until
+    //   the sun reaches none of them in view; then that light turns to the moon, and back as
+    //   the sun rises; by day it is the sun's as before. Where the light per pixel cannot
+    //   run, the one light turns from the sun to the moon for all clouds together, by the
+    //   layers' heights (CloudLightBlend).
     // - The 2D layers, which show from orbit (Scatterer-EVE/Cloud), take up to four lights
     //   beside the sun, as Scatterer sets a secondary sun's (ProlandManager
     //   .UpdateSecondarySuns): the moon in the first row, its position relative to the
@@ -42,7 +45,7 @@ namespace ReDefinition.Raytracing
         private static readonly int InnerId = Shader.PropertyToID("innerSphereRadius");
         private static readonly int OuterId = Shader.PropertyToID("outerSphereRadius");
 
-        private static FieldInfo bodyNameField, handlerField, layersField, flatField, raymarchedField, probeField;
+        private static FieldInfo bodyNameField, handlerField, layersField, flatField, raymarchedField, probeField, atlasField;
         private static PropertyInfo scattererInstance;
         private static bool warned;
 
@@ -83,6 +86,7 @@ namespace ReDefinition.Raytracing
             Type layer = TypeLookup.Find("Scatterer.EVECloudLayer");
             MethodInfo update = skyNode.GetMethod("UpdateEVECloudMaterials", TypeLookup.Any, null, Type.EmptyTypes, null);
             bodyNameField = skyNode.GetField("celestialBodyName", TypeLookup.Any);
+            atlasField = skyNode.GetField("atmosphereAtlas", TypeLookup.Any);
             scattererInstance = scatterer != null ? scatterer.GetProperty("Instance", TypeLookup.Any) : null;
             handlerField = scatterer != null ? scatterer.GetField("EveReflectionHandler", TypeLookup.Any) : null;
             layersField = handler != null ? handler.GetField("EVECloudLayers", TypeLookup.Any) : null;
@@ -136,6 +140,13 @@ namespace ReDefinition.Raytracing
                 if (lit2D.Count > 0) Light2D(false, null, null, Color.black);
                 return;
             }
+            // Scatterer's atmosphere atlas for the light per pixel: it sets it on the cloud
+            // materials, whose shader does not declare it, so it cannot be read back from them.
+            if (atlasField != null)
+            {
+                Texture atlas = atlasField.GetValue(skyNode) as Texture;
+                if (atlas != null) EveCloudRelight.Atlas = atlas;
+            }
 
             CelestialBody moon;
             Vector3d eye;
@@ -172,9 +183,18 @@ namespace ReDefinition.Raytracing
             sun.Normalize();
             Vector3d up = (eye - main.position).normalized;
             double elevation = Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(up, (Vector3d)sun))));
+            double top = CloudLightBlend.Dip(main.Radius, highest);
+            float sunBrightness = Luminance(sunColour);
+            Color moonLight = moonColour * sunBrightness;
+
+            if (EveCloudRelight.Ready)
+            {
+                LightPerPixel(main, moon, eye, up, towards, moonLight, sunColour, elevation, top);
+                return;
+            }
+
             // From when the sun leaves the top of the clouds overhead to when it leaves the
             // farthest ones in view (CloudLightBlend.FarthestDip).
-            double top = CloudLightBlend.Dip(main.Radius, highest);
             double reach = CloudLightBlend.Reach(elevation, top, CloudLightBlend.FarthestDip(top));
             lastReach = reach;
             if (reach >= 1.0)
@@ -182,9 +202,6 @@ namespace ReDefinition.Raytracing
                 Report(0, null);
                 return;
             }
-
-            float sunBrightness = Luminance(sunColour);
-            Color moonLight = moonColour * sunBrightness;
             sunDir[0] = sun.x; sunDir[1] = sun.y; sunDir[2] = sun.z;
             moonDir[0] = towards.x; moonDir[1] = towards.y; moonDir[2] = towards.z;
             CloudLightBlend.Direction(sunDir, sunBrightness, moonDir, Luminance(moonLight), reach, lightDir);
@@ -198,6 +215,47 @@ namespace ReDefinition.Raytracing
             }
             Report(reach <= 0.0 ? 2 : 1, moon);
         }
+
+        // With the moon's light per pixel (EveCloudRelight): the sun stays the raymarched
+        // layers' light as Scatterer set it, each cloud in its own sunset, and the moon's light
+        // is added at each cloud by its own place, from the dusk on and while the moon reaches
+        // a cloud in view. Once the sun reaches none of them, the layers' light turns to the
+        // moon and the per-pixel light gives way, over CloudLightBlend.HandoffWindow.
+        private static void LightPerPixel(CelestialBody main, CelestialBody moon, Vector3d eye, Vector3d up, Vector3 towards,
+                                          Color moonLight, Color sunColour, double elevation, double top)
+        {
+            double cameraDip = CloudLightBlend.Dip(main.Radius, (eye - main.position).magnitude);
+            double farthest = CloudLightBlend.FarthestDip(top, cameraDip);
+            double handoff = ProbeHandoff >= 0f ? ProbeHandoff : CloudLightBlend.Handoff(elevation, farthest);
+            lastReach = 1.0 - handoff;
+            // From the planet's centre, as Scatterer places the sun for the clouds' planet
+            // shadow: the brightest moon's place, the moons' direction from the eye without one.
+            Vector3 fromCentre = moon != null ? (Vector3)(moon.position - main.position).normalized : towards;
+            double moonElevation = Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(up, (Vector3d)towards))));
+            float share = ProbeShare >= 0f ? ProbeShare : (float)((1.0 - handoff) * CloudLightBlend.Dusk(elevation));
+            bool perPixel = (share > 0f || EveCloudRelight.ProbeAlways) && moonElevation > -farthest;
+            if (perPixel) EveCloudRelight.Light(main, fromCentre, moonLight, share);
+            if (handoff <= 0.0)
+            {
+                Report(perPixel ? 3 : 0, moon);
+                return;
+            }
+            Color colour = moonLight * (float)handoff;
+            colour.a = sunColour.a;
+            foreach (Material material in raymarched)
+            {
+                material.SetVector(SunDirId, fromCentre);
+                material.SetColor(SunColourId, colour);
+            }
+            Report(handoff >= 1.0 ? 2 : 4, moon);
+        }
+
+        // For the light probe: the moon's share of the clouds' one light with the light per
+        // pixel, forced; below 0 as the sun's place gives it.
+        internal static float ProbeHandoff = -1f;
+
+        // The same for the share of the moon's light added per pixel.
+        internal static float ProbeShare = -1f;
 
         // The body's cloud materials Scatterer keeps, into raymarched and flat; false where
         // it keeps none.
@@ -260,7 +318,9 @@ namespace ReDefinition.Raytracing
             lit2D.RemoveAll(m => m == null);
         }
 
-        // 0 the sun's alone, 1 from the sun to the moon, 2 the moon's alone.
+        // 0 the sun's alone, 1 from the sun to the moon, 2 the moon's alone; with the light
+        // per pixel 3 the sun's with the moon's per pixel, 4 from the sun to the moon while
+        // the per-pixel light gives way.
         private static int stateKind = -1;
         private static CelestialBody stateMoon;
 
@@ -269,7 +329,10 @@ namespace ReDefinition.Raytracing
             if (kind == stateKind && moon == stateMoon) return;
             stateKind = kind;
             stateMoon = moon;
-            state = kind == 0 ? "the sun's alone" : kind == 1 ? "from the sun to " + moon.bodyName : moon.bodyName + "'s alone";
+            string name = moon != null ? moon.bodyName : "the moons";
+            state = kind == 0 ? "the sun's alone" : kind == 1 ? "from the sun to " + name
+                  : kind == 3 ? "the sun's, " + name + "'s per pixel" : kind == 4 ? "from the sun to " + name + ", per pixel giving way"
+                  : name + "'s alone";
             Debug.Log(Log.Tag + " Clouds: their light " + state + ".");
         }
 

@@ -6,6 +6,11 @@ namespace ReDefinition.Raytracing
     // _sunColor), made from the sun and a moon as the sun sets and rises
     // (EveCloudMoonlight). Free of Unity and KSP, for the tests.
     //
+    // With the moon's light added per pixel (EveCloudRelight) the sun stays the clouds'
+    // light, each cloud in its own sunset as Scatterer shades it, until it reaches none in
+    // view; the light then turns to the moon (Handoff) as the per-pixel light gives way.
+    // Without it, as follows.
+    //
     // A cloud at height h over a planet of radius R sees the sun until it sinks
     // acos(R / (R + h)) under the horizon of the ground below (Dip): on Kerbin some 10
     // degrees for the top of a layer at 10 km. The clouds farther off towards the sunset
@@ -34,12 +39,44 @@ namespace ReDefinition.Raytracing
         }
 
         // How far under the horizon of the ground below the sun sinks before it leaves the
-        // farthest clouds in view, given the dip of the layer's top: those clouds stand on
-        // that top's horizon, as far round the planet as the dip, and see the sun so much
-        // longer.
-        internal static double FarthestDip(double topDip)
+        // farthest clouds in view, given the dip of the layer's top and that of the camera's
+        // own height (0 on the ground): those clouds stand where the line of sight that
+        // grazes the ground meets the top, as far round the planet as the two dips together,
+        // and see the sun so much longer, by the top's dip again.
+        internal static double FarthestDip(double topDip, double cameraDip = 0.0)
         {
-            return 2.0 * Math.Max(topDip, 0.0);
+            return 2.0 * Math.Max(topDip, 0.0) + Math.Max(cameraDip, 0.0);
+        }
+
+        // From how high a sun, in radians over the camera's horizon, the moon's light per
+        // pixel eases in as the sun goes down: by day the sun's outshines it on every cloud.
+        internal const double DuskStart = 5.0 * Math.PI / 180.0;
+
+        // The share of the moon's light per pixel by the sun's elevation over the camera's
+        // horizon, in radians: 0 from DuskStart up, 1 from the horizon down, smooth between.
+        internal static double Dusk(double elevation)
+        {
+            double t = 1.0 - elevation / DuskStart;
+            if (t <= 0.0) return 0.0;
+            if (t >= 1.0) return 1.0;
+            return t * t * (3.0 - 2.0 * t);
+        }
+
+        // Over how many radians past FarthestDip the clouds' one light turns to the moon,
+        // where the moon's light is added per pixel until then (EveCloudRelight).
+        internal const double HandoffWindow = 2.0 * Math.PI / 180.0;
+
+        // The moon's share of the clouds' one light at the sun's elevation over the camera's
+        // horizon, in radians, with the moon's light added per pixel: 0 while the sun still
+        // reaches a cloud in view (down to -farthest), 1 from HandoffWindow further on, smooth
+        // in between. The sun's light no longer reaches any cloud then, so the light can take
+        // the moon's direction at once and only its strength eases in.
+        internal static double Handoff(double elevation, double farthest)
+        {
+            double t = (-elevation - Math.Max(farthest, 0.0)) / HandoffWindow;
+            if (t <= 0.0) return 0.0;
+            if (t >= 1.0) return 1.0;
+            return t * t * (3.0 - 2.0 * t);
         }
 
         // The sun's share of the clouds' light at its elevation over the ground's horizon,

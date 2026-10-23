@@ -45,6 +45,43 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.0, CloudLightBlend.Reach(-21.0 * Degree, top, CloudLightBlend.FarthestDip(top)), 1e-12);
         }
 
+        // From 3 km up the camera sees past the ground's horizon, some 5.7 degrees round
+        // the planet further, and the clouds there keep the sun so much longer.
+        [TestMethod]
+        public void FromAboveTheFarthestCloudsLieFurtherRound()
+        {
+            double top = CloudLightBlend.Dip(Kerbin, Kerbin + 10000.0);
+            double camera = CloudLightBlend.Dip(Kerbin, Kerbin + 3000.0);
+            Assert.AreEqual(5.7, camera / Degree, 0.1);
+            Assert.AreEqual(CloudLightBlend.FarthestDip(top) + camera, CloudLightBlend.FarthestDip(top, camera), 1e-12);
+            Assert.AreEqual(CloudLightBlend.FarthestDip(top), CloudLightBlend.FarthestDip(top, -1.0), 1e-12);
+        }
+
+        // With the moon's light per pixel, the one light stays the sun's until the sun
+        // reaches no cloud in view, then turns to the moon over two degrees.
+        [TestMethod]
+        public void TheHandoffStartsWhereTheSunLeavesTheLastCloud()
+        {
+            double farthest = 20.8 * Degree;
+            Assert.AreEqual(0.0, CloudLightBlend.Handoff(5.0 * Degree, farthest));
+            Assert.AreEqual(0.0, CloudLightBlend.Handoff(-20.8 * Degree, farthest), 1e-12);
+            Assert.AreEqual(0.5, CloudLightBlend.Handoff(-21.8 * Degree, farthest), 1e-9);
+            Assert.AreEqual(1.0, CloudLightBlend.Handoff(-22.8 * Degree, farthest), 1e-12);
+            Assert.AreEqual(1.0, CloudLightBlend.Handoff(-80.0 * Degree, farthest));
+            for (double e = -22.8; e < -20.8; e += 0.1)
+                Assert.IsTrue(CloudLightBlend.Handoff(e * Degree, farthest) >= CloudLightBlend.Handoff((e + 0.1) * Degree, farthest));
+        }
+
+        [TestMethod]
+        public void TheMoonsLightPerPixelEasesInAsTheSunGoesDown()
+        {
+            Assert.AreEqual(0.0, CloudLightBlend.Dusk(30.0 * Degree));
+            Assert.AreEqual(0.0, CloudLightBlend.Dusk(5.0 * Degree), 1e-12);
+            Assert.AreEqual(0.5, CloudLightBlend.Dusk(2.5 * Degree), 1e-9);
+            Assert.AreEqual(1.0, CloudLightBlend.Dusk(0.0), 1e-12);
+            Assert.AreEqual(1.0, CloudLightBlend.Dusk(-30.0 * Degree));
+        }
+
         [TestMethod]
         public void AThinLayerStillFadesOverTwoDegrees()
         {

@@ -620,10 +620,58 @@ namespace ReDefinition.Core
                 .TestedVersions("0.908.0.0")
                 .OnChange(WhenChanged.Fallback, "EVE's clouds take the sun's light alone, dark at night");
 
+        // The moon's light on EVE's raymarched clouds per pixel (EveCloudRelight): right after
+        // DeferredRaymarchedVolumetricCloudsRenderer.OnPreRender has added its command buffer
+        // for a camera, the history it reconstructs into this frame (historyRT and
+        // historyDistanceRT at [useFlipUpscalingBuffer, eye, face], HistoryManager's indexer)
+        // is copied with the moon's light added and bound in its place (colorBuffer,
+        // scattererReconstructedCloud); before its OnPostRender the copy's command buffer
+        // comes off again. The layout of those buffers -- premultiplied light and the
+        // transmittance, the distance in hundreds of metres -- and the lighting it repeats
+        // are Scatterer's shaders' (ScattererCloudReconstruction, scatterer-cloud-light).
+        public static readonly ForeignAssumption EveCloudRelight =
+            new ForeignAssumption("eve-cloud-relight", "EVE", "EVE's clouds lit by a moon per pixel as the sun sets")
+                .Type(EveClouds).Type(EveVolume).Type("Utils.HistoryManager`1").Type(EveProperties)
+                .Method(EveClouds, "OnPreRender").Method(EveClouds, "OnPostRender")
+                .Field(EveClouds, "targetCamera", Camera)
+                .Field(EveClouds, "renderingEnabled", Bool)
+                .Field(EveClouds, "reflectionProbeCamera", Bool)
+                .Field(EveClouds, "useFlipUpscalingBuffer", Bool)
+                .Field(EveClouds, "volumesAdded")
+                .Field(EveClouds, "historyRT")
+                .Field(EveClouds, "historyDistanceRT")
+                .Field(EveClouds, "CloudRenderingCameraEvent", CameraEvent)
+                .Method("Utils.HistoryManager`1", "get_Item", Bool, Bool, Int)
+                .Method(EveVolume, "get_RaymarchedCloudMaterial").Method(EveVolume, "get_InnerSphereRadius")
+                .Method(EveVolume, "get_OuterSphereRadius")
+                .Literal(EveProperties, "colorBuffer", "scattererReconstructedCloud")
+                .Literal(EveVolume, "directPhaseFunctionProperties", "multiplePhaseFunctionProperties", "cloudColor")
+                .Tested("427bd9602cbb") // EVE 3.2.2
+                .OnChange(WhenChanged.Fallback, "EVE's clouds take the moon's light all at once as the sun sets");
+
+        // The other half of it: Scatterer's atmosphere on EVE's raymarched cloud materials
+        // (SkyNode.InitPostprocessMaterialUniforms: the transmittance table's place and size in
+        // the atlas, the radii, scale heights and extinction; the atlas itself read from
+        // SkyNode.atmosphereAtlas, as the shader does not declare it), and the way its raymarching
+        // shader lights the clouds with them, which EveCloudRelight repeats for the moon
+        // (Scatterer-EVE/RaymarchCloud, scatterershaders-directx of 0.908, disassembled): only
+        // its version can tell the latter.
+        public static readonly ForeignAssumption ScattererCloudAtmosphere =
+            new ForeignAssumption("scatterer-cloud-atmosphere", "Scatterer", "the moon's light per pixel lit as Scatterer lights the clouds")
+                .Type(SkyNode).Type("Scatterer.ShaderProperties")
+                .Method(SkyNode, "InitPostprocessMaterialUniforms")
+                .Field(SkyNode, "atmosphereAtlas", "UnityEngine.Texture2D")
+                .Literal("Scatterer.ShaderProperties", "AtmosphereAtlas", "TransmittanceAtlasScaleAndOffset", "AtmosphereAtlasDimensions",
+                         "TRANSMITTANCE_W", "TRANSMITTANCE_H", "Rg", "Rt", "HR", "HM", "betaR", "betaMEx")
+                .Tested("07ac45f0abe4") // Scatterer 0.908
+                .TestedVersions("0.908.0.0")
+                .OnChange(WhenChanged.Fallback, "EVE's clouds take the moon's light all at once as the sun sets");
+
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
+            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere,
+            ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
             ScattererOceanReflections, ScattererOceanSun, ScattererSettings,
             DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,
             TufxPostProcessing, TufxAntialiasing, TufxProfiles, ParallaxTessellation, ParallaxScatters,

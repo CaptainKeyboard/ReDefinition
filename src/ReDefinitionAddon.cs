@@ -121,6 +121,7 @@ namespace ReDefinition
             Guarded("scatterer-hook", ScattererCompatibility.InstallHook);
             Guarded("eve-hook", EveCloudMotion.InstallHook);
             Guarded("scatterer-cloud-light", ReDefinition.Raytracing.EveCloudMoonlight.InstallHook);
+            Guarded("eve-cloud-relight", ReDefinition.Raytracing.EveCloudRelight.InstallHook);
             UnityMouseEvents.Install();
             ReflexFrames.Install();
             EscapeGuard.Install();

@@ -223,6 +223,9 @@ namespace ReDefinition.Raytracing
                 lastLayer = layer;
                 lastRadius = radius;
                 lastCentre = (Vector3)body.position;
+                MapFromCentre = readRotation(layer) * Matrix4x4.Translate(lastCentre);
+                MapFades = new Vector3(clouds[17], clouds[19], clouds[18]);
+                filledFrame = Time.frameCount;
                 if (loggedBody != name)
                 {
                     loggedBody = name;
@@ -311,8 +314,24 @@ namespace ReDefinition.Raytracing
             pack.SetVector(mask, channel);
         }
 
-        // The last layer filled, for the probe's check (EvePrediction).
+        // The last layer filled, for the probe's check (EvePrediction) and the moon's light on
+        // the clouds (EveCloudRelight).
         internal static RtEveClouds Last { get; private set; }
+
+        // The packed map of the layer filled in the last frame or the one before, for the
+        // moon's light on the clouds; null for none.
+        internal RenderTexture PackedMap { get { return Time.frameCount - filledFrame <= 1 ? packed : null; } }
+
+        // From the planet's centre, world axes, to the packed map's direction.
+        internal Matrix4x4 MapFromCentre { get; private set; }
+
+        // The layer's coverage fade, density fade and its other fades together, as the rays take them.
+        internal Vector3 MapFades { get; private set; }
+
+        private int filledFrame = -10;
+
+        // The frame the layer was last filled in, for the log.
+        internal int FilledFrame { get { return filledFrame; } }
         private object lastLayer;
         private float lastRadius;
         private Vector3 lastCentre;
@@ -339,6 +358,28 @@ namespace ReDefinition.Raytracing
             float tr = 1f / (1f + 7f * density + 26f * density * density);
             float fade = Mathf.Clamp01(100f * Vector3.Dot(toCentre / distance, -towardsSun)) * Mathf.Clamp01(0.01f * (lastRadius - distance));
             return 1f + fade * strength * (1f - tr) * (Mathf.Clamp01(tr * colour.r) - 1f);
+        }
+
+        // For the probe: EVE's own density of the last layer filled at a world point
+        // (CloudsRaymarchedVolume.SampleCoverage, CPU), 0 to 1; -1 where there is none.
+        internal float DensityAt(Vector3 world)
+        {
+            if (lastLayer == null) return -1f;
+            if (sampleCoverage == null)
+                sampleCoverage = lastLayer.GetType().GetMethod("SampleCoverage", new[] { typeof(Vector3), typeof(float).MakeByRefType(), typeof(bool) });
+            if (sampleCoverage == null) return -1f;
+            object[] arguments = { world, 0f, false };
+            return (float)sampleCoverage.Invoke(lastLayer, arguments);
+        }
+
+        // The layer's shell, from the planet's centre, for the probe; false where none is filled.
+        internal bool Shell(out float inner, out float outer)
+        {
+            inner = outer = 0f;
+            if (lastLayer == null || readInner == null || readOuter == null) return false;
+            inner = readInner(lastLayer);
+            outer = readOuter(lastLayer);
+            return outer > inner;
         }
 
         // For the probe: at the exit point towards the sun, EVE's density, its coverage and type
