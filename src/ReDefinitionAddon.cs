@@ -120,6 +120,7 @@ namespace ReDefinition
             // Another build of Scatterer or EVE costs its own hook, not the rest of the add-on.
             Guarded("scatterer-hook", ScattererCompatibility.InstallHook);
             Guarded("eve-hook", EveCloudMotion.InstallHook);
+            Guarded("scatterer-cloud-light", ReDefinition.Raytracing.EveCloudMoonlight.InstallHook);
             UnityMouseEvents.Install();
             ReflexFrames.Install();
             EscapeGuard.Install();

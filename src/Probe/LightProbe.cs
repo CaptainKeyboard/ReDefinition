@@ -34,6 +34,8 @@ namespace ReDefinition.Probe
         internal const string PerfArgument = "-redefinitionProbePerf";
         // With it, Firefly's effects forced on and off again on the pad (FireflyShots).
         internal const string FireflyArgument = "-redefinitionProbeFirefly";
+        // With it, EVE's clouds by the light of the sun rising and setting and of the Mun at night (CloudShots).
+        internal const string CloudLightArgument = "-redefinitionProbeCloudLight";
 
         private const float SettleSeconds = 4f;
 
@@ -111,6 +113,11 @@ namespace ReDefinition.Probe
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), FireflyArgument) >= 0)
                 {
                     yield return FireflyShots(folder);
+                    yield break;
+                }
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), CloudLightArgument) >= 0)
+                {
+                    yield return CloudShots(addon, folder);
                     yield break;
                 }
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), PerfArgument) >= 0)
@@ -552,6 +559,126 @@ namespace ReDefinition.Probe
                     yield return Shot(folder, time + "-" + pose.Name + "-overlay");
                     RtCamera.SurfaceView = false;
                 }
+            }
+        }
+
+        // The light's times over the pad for the clouds: the sun rising and setting at 3 degrees, where the
+        // clouds take its light alone; at dusk with the Mun up, the sun 6 and 9 degrees under the horizon,
+        // where their light turns from the sun to the Mun (EveCloudMoonlight); and a night with the Mun high.
+        // At each, the raytracing off, on with the clouds in the sun's light alone ("before") and on with the
+        // Mun's light on them ("after"), from 60 m off the vessel looking up 6 degrees towards the light (the
+        // light through the clouds) and away from it (the clouds it lights), and from 14 km out looking down
+        // towards it (the clouds' tops).
+        private static IEnumerator CloudShots(ReDefinitionAddon addon, string folder)
+        {
+            CelestialBody sun = RtKspMods.StarBody();
+            CelestialBody mun = FlightGlobals.Bodies.Find(b => b.bodyName == SceneProbe.MoonName);
+            if (sun == null) yield break;
+            RaytracingMode on = addon.Live.Raytracing == RaytracingMode.Off ? RaytracingMode.Full : addon.Live.Raytracing;
+            float moonlight = addon.Live.RaytracingMoonlight, nightAmbient = addon.Live.RaytracingNightAmbient;
+            double day = Math.Max(43200.0, 1.2 * FlightGlobals.currentMainBody.solarDayLength);
+            Debug.Log(Log.Tag + " Probe: light: clouds, into " + folder + ".");
+            foreach (bool rising in new[] { true, false })
+            {
+                bool reached = false;
+                yield return WarpUntil("the sun " + (rising ? "rising" : "setting") + " at 1 to 6 degrees",
+                                       SunMoving(sun, rising, 1f, 6f), result => reached = result, day);
+                if (reached) yield return CloudShotsAt(addon, folder, rising ? "morning03" : "evening03", sun, on, moonlight, nightAmbient);
+            }
+            if (mun == null) yield break;
+
+            // Dusk with the Mun up and more than a crescent of it lit: found near the horizon, where the
+            // window is wide enough for the rails warp, then slowly down to each depth.
+            bool dusk = false;
+            Func<bool> setting = SunMoving(sun, false, -2f, 3f);
+            yield return WarpUntil("the sun setting at -2 to 3 degrees, " + mun.bodyName + " up",
+                                   () => setting() && Elevation(mun) > 20f && PhaseAngle(mun, sun) < 100f,
+                                   result => dusk = result, 3.0 * mun.orbit.period);
+            if (dusk)
+                foreach (float depth in new[] { 6f, 9f })
+                {
+                    bool deep = false;
+                    yield return SlowWarpUntil("the sun " + depth + " degrees down", () => Elevation(sun) < -depth,
+                                               result => deep = result);
+                    if (deep)
+                        yield return CloudShotsAt(addon, folder, "dusk" + depth.ToString("00", CultureInfo.InvariantCulture), mun, on,
+                                                  moonlight, nightAmbient);
+                }
+
+            // A night with the moon high and more than half of it lit.
+            bool night = false;
+            yield return WarpUntil("the sun down, " + mun.bodyName + " high and full",
+                                   () => Elevation(sun) < -12f && Elevation(mun) > 30f && PhaseAngle(mun, sun) < 60f,
+                                   result => night = result, 4.0 * mun.orbit.period);
+            if (night) yield return CloudShotsAt(addon, folder, "night", mun, on, moonlight, nightAmbient);
+        }
+
+        // Whether the sun stands between `lowest` and `highest` degrees, rising or setting as asked.
+        private static Func<bool> SunMoving(CelestialBody sun, bool rising, float lowest, float highest)
+        {
+            float last = Elevation(sun);
+            return () =>
+            {
+                float now = Elevation(sun);
+                // Unmoved since the last look (the first, or a frame without time warp), it is neither.
+                bool moved = now != last, up = now > last;
+                last = now;
+                return moved && up == rising && now > lowest && now < highest;
+            };
+        }
+
+        // Time warp at 50 times on rails until `wanted` holds, a minute at most: the sun moves a
+        // degree in some seconds then, so a narrow window is not stepped over.
+        private static IEnumerator SlowWarpUntil(string what, Func<bool> wanted, Action<bool> done)
+        {
+            bool found = wanted();
+            float until = Time.realtimeSinceStartup + 60f;
+            if (!found)
+            {
+                TimeWarp.fetch.Mode = TimeWarp.Modes.HIGH;
+                TimeWarp.SetRate(3, true);
+            }
+            while (!found && Time.realtimeSinceStartup < until)
+            {
+                yield return null;
+                found = wanted();
+            }
+            TimeWarp.SetRate(0, true);
+            yield return new WaitForSeconds(3f);
+            Debug.Log(Log.Tag + " Probe: light: slow warp; " + what + (found ? "." : " not reached."));
+            done(found);
+        }
+
+        private static IEnumerator CloudShotsAt(ReDefinitionAddon addon, string folder, string time, CelestialBody light,
+                                                RaytracingMode on, float moonlight, float nightAmbient)
+        {
+            CelestialBody sun = RtKspMods.StarBody();
+            Debug.Log(Log.Tag + " Probe: light: clouds " + time + ", " + light.bodyName + " at "
+                      + Elevation(light).ToString("0.0", CultureInfo.InvariantCulture) + " degrees, the sun at "
+                      + Elevation(sun).ToString("0.0", CultureInfo.InvariantCulture) + ".");
+            var views = new[]
+            {
+                new { Name = "towards", Pitch = -6f, Distance = 60f, Away = false },
+                new { Name = "away", Pitch = -6f, Distance = 60f, Away = true },
+                new { Name = "above", Pitch = 35f, Distance = 14000f, Away = false },
+            };
+            string mode = on.ToString().ToLowerInvariant();
+            foreach (var view in views)
+            {
+                string name = "clouds-" + time + "-" + view.Name;
+                yield return LookTowards(light, view.Pitch, view.Distance, view.Away);
+                Set(addon, RaytracingMode.Off, moonlight, nightAmbient);
+                for (int i = 0; i < 30; i++) yield return null;
+                yield return Shot(folder, name + "-off");
+                Set(addon, on, moonlight, nightAmbient);
+                // EVE's light volume takes some frames to fill again (LightVolume, time slicing).
+                EveCloudMoonlight.HeldOff = true;
+                for (int i = 0; i < 90; i++) yield return null;
+                yield return Shot(folder, name + "-" + mode + "-before");
+                EveCloudMoonlight.HeldOff = false;
+                for (int i = 0; i < 90; i++) yield return null;
+                Debug.Log(Log.Tag + " Probe: light: " + name + ": the clouds' light " + EveCloudMoonlight.Describe() + ".");
+                yield return Shot(folder, name + "-" + mode + "-after");
             }
         }
 

@@ -313,10 +313,40 @@ namespace ReDefinition.Core
                 .Tested("25f1a62fb3c7") // EVE 3.2.2.0, the volumetric build of 2026-10
                 .OnChange(WhenChanged.Keep, "the rays leave EVE's clouds out");
 
+        // The light of EVE's clouds where Scatterer integrates them (EveCloudMoonlight): after
+        // SkyNode.UpdateEVECloudMaterials has set a body's cloud materials for the frame, the
+        // sun's direction and colour on its raymarched ones (_Sun_WorldSunDir, _sunColor) and
+        // a second light on its 2D ones (PLANETSHINE_ON, planetShineSources,
+        // cloudPlanetShineRGB, as Scatterer sets a secondary sun's). Those names are what the
+        // shaders Scatterer puts in for EVE's read (Scatterer-EVE/RaymarchCloud and
+        // Scatterer-EVE/Cloud, scatterershaders-directx of 0.908): their use only the
+        // version can tell.
+        private const string SkyNode = "Scatterer.SkyNode";
+        private const string CloudLayer = "Scatterer.EVECloudLayer";
+        public static readonly ForeignAssumption ScattererCloudLight =
+            new ForeignAssumption("scatterer-cloud-light", "Scatterer", "EVE's clouds lit by a moon at night")
+                .Type(SkyNode).Type(CloudLayer).Type("Scatterer.EVEReflectionHandler").Type("Scatterer.Scatterer")
+                .Method(SkyNode, "UpdateEVECloudMaterials")
+                .Field(SkyNode, "celestialBodyName")
+                .Field("Scatterer.Scatterer", "EveReflectionHandler")
+                .Field("Scatterer.EVEReflectionHandler", "EVECloudLayers")
+                .Field(CloudLayer, "Clouds2dMaterial", Material)
+                .Field(CloudLayer, "RaymarchedVolumetricsMaterial", Material)
+                .Field(CloudLayer, "ReflectionProbeRaymarchedVolumetricsMaterial", Material)
+                .Method("Scatterer.Scatterer", "get_Instance")
+                .Literal("Scatterer.ShaderProperties", "_Sun_WorldSunDir", "_sunColor", "cloudSunColor", "planetShineSources",
+                         "cloudPlanetShineRGB")
+                .Literal(SkyNode, "PLANETSHINE_ON", "PLANETSHINE_OFF")
+                // The layers' radii, which EVE sets on the same materials.
+                .Literal("Atmosphere.CloudsRaymarchedVolume", "innerSphereRadius", "outerSphereRadius")
+                .Tested("29ed9e0dcc46") // Scatterer 0.908
+                .TestedVersions("0.908.0.0")
+                .OnChange(WhenChanged.Fallback, "EVE's clouds take the sun's light alone, dark at night");
+
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererTemporalAa, ScattererSmaa, ScattererOceanMask, ScattererOceanReflections, ScattererOceanSun,
+            ScattererGodrays, ScattererCloudLight, ScattererTemporalAa, ScattererSmaa, ScattererOceanMask, ScattererOceanReflections, ScattererOceanSun,
             DeferredReflections, DeferredSsr, TufxPostProcessing, ParallaxTessellation, ParallaxScatters,
             DistantObjectSky, FourkSp, BetterTimeWarp, ManeuverNodeEvolved, KopernicusShaders, FireflyIdle, EveRtClouds,
         };

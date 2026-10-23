@@ -51,6 +51,7 @@ namespace ReDefinition.Raytracing
             internal Color Surface;
             // The brightest at 100 %, whatever the player's percentage.
             internal float Order;
+            internal CelestialBody Body;
         }
 
         private static readonly List<Candidate> candidates = new List<Candidate>();
@@ -129,6 +130,7 @@ namespace ReDefinition.Raytracing
                     Luminance = Luminance(light),
                     Surface = colour * starColour * discFactor,
                     Order = (float)RtReflectorLight.Brightness(share, 100.0),
+                    Body = body,
                 });
             }
             candidates.Sort((a, b) => b.Order.CompareTo(a.Order));
@@ -150,12 +152,41 @@ namespace ReDefinition.Raytracing
                 lastLuminance[i] = c.Luminance;
             }
             lastCount = count;
+            if (count > 0)
+            {
+                brightest = candidates[0];
+                brightestFrame = Time.frameCount;
+                brightestMain = main;
+                brightestEye = eye;
+            }
             return count;
         }
 
         // What Fill handed over last, for the diagnostics log (RtKsp.Report).
         private static int lastCount;
         private static readonly float[] lastLuminance = new float[2];
+        // The brightest light Fill found last, the frame and the main body it was for: the
+        // light EVE's clouds take at night (EveCloudMoonlight).
+        private static Candidate brightest;
+        private static int brightestFrame = -100;
+        private static CelestialBody brightestMain;
+        private static Vector3d brightestEye;
+
+        // The brightest body's light over `main` as the raytracing takes it this frame or
+        // the last few -- the body, the camera (world), the direction to the body from it,
+        // its colour in units of the sunlight, linear, at the player's percentage --; false
+        // where the raytracing has handed over none since, as while it is off.
+        internal static bool Brightest(CelestialBody main, out CelestialBody body, out Vector3d eye, out Vector3 towards,
+                                       out Color colour)
+        {
+            bool recent = Time.frameCount - brightestFrame <= 3 && main != null && main == brightestMain
+                          && brightest.Body != null;
+            body = recent ? brightest.Body : null;
+            eye = recent ? brightestEye : Vector3d.zero;
+            towards = recent ? brightest.Towards : Vector3.zero;
+            colour = recent ? brightest.Colour : Color.black;
+            return recent;
+        }
 
         internal static string Describe()
         {
