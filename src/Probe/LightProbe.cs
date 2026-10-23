@@ -563,8 +563,9 @@ namespace ReDefinition.Probe
         }
 
         // The light's times over the pad for the clouds: the sun rising and setting at 3 degrees, where the
-        // clouds take its light alone; at dusk with the Mun up, the sun 6 and 9 degrees under the horizon,
-        // where their light turns from the sun to the Mun (EveCloudMoonlight); and a night with the Mun high.
+        // clouds take its light alone; at dusk with the Mun up, the sun 9, 13 and 17 degrees under the
+        // horizon -- the sunset's still alone on them, then turning to the Mun (EveCloudMoonlight) --; and a
+        // night with the Mun high.
         // At each, the raytracing off, on with the clouds in the sun's light alone ("before") and on with the
         // Mun's light on them ("after"), from 60 m off the vessel looking up 6 degrees towards the light (the
         // light through the clouds) and away from it (the clouds it lights), and from 14 km out looking down
@@ -595,7 +596,7 @@ namespace ReDefinition.Probe
                                    () => setting() && Elevation(mun) > 20f && PhaseAngle(mun, sun) < 100f,
                                    result => dusk = result, 3.0 * mun.orbit.period);
             if (dusk)
-                foreach (float depth in new[] { 6f, 9f })
+                foreach (float depth in new[] { 9f, 13f, 17f })
                 {
                     bool deep = false;
                     yield return SlowWarpUntil("the sun " + depth + " degrees down", () => Elevation(sun) < -depth,
@@ -605,10 +606,11 @@ namespace ReDefinition.Probe
                                                   moonlight, nightAmbient);
                 }
 
-            // A night with the moon high and more than half of it lit.
+            // A night with the moon high and more than half of it lit, the sun deep enough down
+            // that no cloud in view sees it (CloudLightBlend.FarthestDip).
             bool night = false;
             yield return WarpUntil("the sun down, " + mun.bodyName + " high and full",
-                                   () => Elevation(sun) < -12f && Elevation(mun) > 30f && PhaseAngle(mun, sun) < 60f,
+                                   () => Elevation(sun) < -25f && Elevation(mun) > 30f && PhaseAngle(mun, sun) < 60f,
                                    result => night = result, 4.0 * mun.orbit.period);
             if (night) yield return CloudShotsAt(addon, folder, "night", mun, on, moonlight, nightAmbient);
         }

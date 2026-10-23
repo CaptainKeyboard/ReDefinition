@@ -33,6 +33,18 @@ namespace ReDefinition.Tests
                               > CloudLightBlend.Reach(e * Degree, lowest, highest));
         }
 
+        // The farthest clouds of a layer topping out at 10 km see the sun some 21 degrees
+        // under the camera's horizon on Kerbin: the moon takes over only by then.
+        [TestMethod]
+        public void TheSunLeavesTheFarthestCloudsTwiceAsDeep()
+        {
+            double top = CloudLightBlend.Dip(Kerbin, Kerbin + 10000.0);
+            Assert.AreEqual(20.8, CloudLightBlend.FarthestDip(top) / Degree, 0.2);
+            Assert.AreEqual(1.0, CloudLightBlend.Reach(-10.0 * Degree, top, CloudLightBlend.FarthestDip(top)), 1e-12);
+            Assert.IsTrue(CloudLightBlend.Reach(-15.0 * Degree, top, CloudLightBlend.FarthestDip(top)) > 0.3);
+            Assert.AreEqual(0.0, CloudLightBlend.Reach(-21.0 * Degree, top, CloudLightBlend.FarthestDip(top)), 1e-12);
+        }
+
         [TestMethod]
         public void AThinLayerStillFadesOverTwoDegrees()
         {

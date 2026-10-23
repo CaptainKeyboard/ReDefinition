@@ -24,8 +24,10 @@ namespace ReDefinition.Raytracing
     //   planet, its colour times its strength. Only where Scatterer has its secondary
     //   lights off on that material, which then are this class's to turn on and off.
     //
-    // The moon's colour is the raytracing's, in units of the sunlight, times the brightness
-    // of the sun's colour Scatterer sets on the material. Without Scatterer, EVE's own
+    // The moon's light is the raytracing's moons' together (RtReflectors.Combined), in units
+    // of the sunlight, at CloudShare of it, times the brightness of the sun's colour
+    // Scatterer sets on the material; the 2D layers take it from the brightest moon's
+    // place. Without Scatterer, EVE's own
     // clouds take the sun's direction alone, without a colour to dim: nothing here then.
     internal static class EveCloudMoonlight
     {
@@ -51,6 +53,14 @@ namespace ReDefinition.Raytracing
         private static readonly double[] sunDir = new double[3], moonDir = new double[3], lightDir = new double[3];
         private static string state;
         private static double lastReach = 1.0;
+
+        // The share of the raytracing's moonlight the clouds take. EVE's clouds answer their
+        // light far more brightly than the raytraced ground does: from 14 km over the pad,
+        // the clouds came out 17 times as bright as the land under them in the sun and 49
+        // times in the full Mun's light (light probe, 2026-10-23, the brightest clouds
+        // against the land's median, linear), and the player found them too bright at night.
+        // At this share they stand to the land as in the sun.
+        internal const float CloudShare = 0.35f;
 
         // For the light probe: the clouds in the sun's light alone, as without this, to compare.
         internal static bool HeldOff;
@@ -131,9 +141,11 @@ namespace ReDefinition.Raytracing
             Vector3d eye;
             Vector3 towards;
             Color moonColour;
-            // The raytracing's moonlight, as it lights the ground; none while it is off.
-            bool lit = RtReflectors.Brightest(main, out moon, out eye, out towards, out moonColour)
+            // The raytracing's moonlight, the moons' together as they light the ground; none
+            // while it is off. On the clouds at CloudShare of it.
+            bool lit = RtReflectors.Combined(main, out moon, out eye, out towards, out moonColour)
                        && Luminance(moonColour) > 0f && !HeldOff;
+            moonColour *= CloudShare;
             Light2D(lit, main, moon, moonColour);
             lastReach = 1.0;
             if (!lit || raymarched.Count == 0)
@@ -142,14 +154,13 @@ namespace ReDefinition.Raytracing
                 return;
             }
 
-            // The layers' lowest and highest heights over the ground, from all of them: EVE's
-            // light volume holds them all, filled with each one's light.
-            double lowest = double.MaxValue, highest = 0.0;
+            // The layers' highest top, from all of them: EVE's light volume holds them all,
+            // filled with each one's light.
+            double highest = 0.0;
             foreach (Material material in raymarched)
             {
                 float inner = material.GetFloat(InnerId), outer = material.GetFloat(OuterId);
                 if (inner <= 0f || outer <= inner) continue;
-                lowest = Math.Min(lowest, inner);
                 highest = Math.Max(highest, outer);
             }
             if (highest <= 0.0) return;
@@ -161,8 +172,10 @@ namespace ReDefinition.Raytracing
             sun.Normalize();
             Vector3d up = (eye - main.position).normalized;
             double elevation = Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(up, (Vector3d)sun))));
-            double reach = CloudLightBlend.Reach(elevation, CloudLightBlend.Dip(main.Radius, lowest),
-                                                 CloudLightBlend.Dip(main.Radius, highest));
+            // From when the sun leaves the top of the clouds overhead to when it leaves the
+            // farthest ones in view (CloudLightBlend.FarthestDip).
+            double top = CloudLightBlend.Dip(main.Radius, highest);
+            double reach = CloudLightBlend.Reach(elevation, top, CloudLightBlend.FarthestDip(top));
             lastReach = reach;
             if (reach >= 1.0)
             {

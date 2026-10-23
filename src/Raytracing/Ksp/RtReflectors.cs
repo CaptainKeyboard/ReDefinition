@@ -158,6 +158,16 @@ namespace ReDefinition.Raytracing
                 brightestFrame = Time.frameCount;
                 brightestMain = main;
                 brightestEye = eye;
+                // Every body's light together, for EVE's clouds' one light.
+                Vector3 weighted = Vector3.zero;
+                Color sum = Color.black;
+                foreach (Candidate c in candidates)
+                {
+                    weighted += c.Towards * c.Luminance;
+                    sum += c.Colour;
+                }
+                combinedTowards = weighted.sqrMagnitude > 0f ? weighted.normalized : brightest.Towards;
+                combinedColour = sum;
             }
             return count;
         }
@@ -171,20 +181,25 @@ namespace ReDefinition.Raytracing
         private static int brightestFrame = -100;
         private static CelestialBody brightestMain;
         private static Vector3d brightestEye;
+        private static Vector3 combinedTowards;
+        private static Color combinedColour;
 
-        // The brightest body's light over `main` as the raytracing takes it this frame or
-        // the last few -- the body, the camera (world), the direction to the body from it,
-        // its colour in units of the sunlight, linear, at the player's percentage --; false
-        // where the raytracing has handed over none since, as while it is off.
-        internal static bool Brightest(CelestialBody main, out CelestialBody body, out Vector3d eye, out Vector3 towards,
-                                       out Color colour)
+        // The bodies' light over `main` as the raytracing takes it this frame or the last
+        // few, as one: the brightest body, the camera (world), the direction from it the
+        // bodies' light comes from, each weighted by its brightness, and their colours
+        // together, in units of the sunlight, linear, at the player's percentage. So a
+        // moon as small as Minmus counts for as little as it lights, and the light does not
+        // jump from one body to another as their order changes. False where the raytracing
+        // has handed over none since, as while it is off.
+        internal static bool Combined(CelestialBody main, out CelestialBody body, out Vector3d eye, out Vector3 towards,
+                                      out Color colour)
         {
             bool recent = Time.frameCount - brightestFrame <= 3 && main != null && main == brightestMain
                           && brightest.Body != null;
             body = recent ? brightest.Body : null;
             eye = recent ? brightestEye : Vector3d.zero;
-            towards = recent ? brightest.Towards : Vector3.zero;
-            colour = recent ? brightest.Colour : Color.black;
+            towards = recent ? combinedTowards : Vector3.zero;
+            colour = recent ? combinedColour : Color.black;
             return recent;
         }
 

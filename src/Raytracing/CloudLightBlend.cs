@@ -7,13 +7,18 @@ namespace ReDefinition.Raytracing
     // (EveCloudMoonlight). Free of Unity and KSP, for the tests.
     //
     // A cloud at height h over a planet of radius R sees the sun until it sinks
-    // acos(R / (R + h)) under the horizon of the ground below: on Kerbin some 5 degrees
-    // for the base of a layer at 2 km, some 10 for its top at 10 km. Down to the base's
-    // angle the sun alone lights them, as without this; from the top's angle on the moon
-    // alone; in between the sun's share eases from 1 to 0 (Reach). Each light counts by
-    // its brightness times its share: the light comes from their weighted mean direction
-    // and in the sum of their colours, so that it moves from the sun to the moon while
-    // both are faint, instead of switching.
+    // acos(R / (R + h)) under the horizon of the ground below (Dip): on Kerbin some 10
+    // degrees for the top of a layer at 10 km. The clouds farther off towards the sunset
+    // see it longer, by the angle between their place and the camera's from the planet's
+    // centre; the farthest in view, on the horizon of the layer's top, by that dip again
+    // (FarthestDip). Down to the top's dip the sun alone lights them, as without this, and
+    // the clouds overhead that it no longer reaches go dark as they would; from the
+    // farthest clouds' dip on the moon alone; in between the sun's share eases from 1 to 0
+    // (Reach) -- so that the clouds still in the sunset keep its light (the player,
+    // 2026-10-23: the moon's light on them at 9 degrees under the horizon was wrong).
+    // Each light counts by its brightness times its share: the light comes from their
+    // weighted mean direction and in the sum of their colours, so that it moves from the
+    // sun to the moon while both are faint, instead of switching.
     internal static class CloudLightBlend
     {
         // Where the layer is too thin for a window of its own: so wide a one, in radians.
@@ -26,6 +31,15 @@ namespace ReDefinition.Raytracing
         {
             if (planetRadius <= 0.0 || radius <= planetRadius) return 0.0;
             return Math.Acos(planetRadius / radius);
+        }
+
+        // How far under the horizon of the ground below the sun sinks before it leaves the
+        // farthest clouds in view, given the dip of the layer's top: those clouds stand on
+        // that top's horizon, as far round the planet as the dip, and see the sun so much
+        // longer.
+        internal static double FarthestDip(double topDip)
+        {
+            return 2.0 * Math.Max(topDip, 0.0);
         }
 
         // The sun's share of the clouds' light at its elevation over the ground's horizon,
