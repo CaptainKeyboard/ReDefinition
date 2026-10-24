@@ -3,6 +3,7 @@
 	// The menu page: KSP's progress while it loads at its start, and in the main menu the saves, the
 	// last one played first, each loaded by holding its button. widget.js shows it in the scenes below,
 	// subscribes its keys and hands it the data; commands go out through Dashboard.run.
+	const { esc, num, whole, hold, holdButton, ago, minutes } = Pages;
 	const SCENES = ["LOADING", "PSYSTEM", "MAINMENU", "SETTINGS", "CREDITS"];
 	const KEYS = ["g.versions", "g.loading", "g.saves"];
 	const SCENE_TEXT = { LOADING: "LOADING", PSYSTEM: "LOADING", MAINMENU: "MAIN MENU", SETTINGS: "KSP SETTINGS", CREDITS: "CREDITS" };
@@ -14,41 +15,11 @@
 	const $ = (id) => document.getElementById(id);
 	let shownSaves, shownAt = 0, pending = null, lastScene = null;
 
-	const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-	const num = (v) => (typeof v === "number" && isFinite(v) ? v : null);
-	const whole = (v) => (num(v) === null ? "-" : Math.round(v).toLocaleString());
-	function ago(ms) {
-		const s = (Date.now() - ms) / 1000;
-		if (s < 90) return "just now";
-		if (s < 3600) return Math.round(s / 60) + " min ago";
-		if (s < 86400) return Math.round(s / 3600) + " h ago";
-		if (s < 2 * 86400) return "yesterday";
-		if (s < 14 * 86400) return Math.round(s / 86400) + " days ago";
-		return new Date(ms).toLocaleDateString();
-	}
-	const clock = (s) => { s = Math.max(0, Math.floor(num(s) || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
-
-	// A button that fires once held for ms; its bar fills while it is held.
-	function hold(b, ms, fire) {
-		let timer = 0, raf = 0, t0 = 0;
-		const prog = b.querySelector(".prog");
-		const stop = () => { clearTimeout(timer); cancelAnimationFrame(raf); prog.style.width = "0"; };
-		b.addEventListener("pointerdown", (e) => {
-			if (b.disabled) return;
-			b.setPointerCapture(e.pointerId);
-			t0 = performance.now();
-			const tick = () => { prog.style.width = Math.min(100, ((performance.now() - t0) / ms) * 100) + "%"; raf = requestAnimationFrame(tick); };
-			tick();
-			timer = setTimeout(() => { stop(); fire(); }, ms);
-		});
-		for (const e of ["pointerup", "pointercancel", "lostpointercapture"]) b.addEventListener(e, stop);
-	}
-
 	// What a save's summary holds, as the game mode has it: funds, reputation and contracts in a career,
 	// science there and in science mode, vessels in every mode.
 	function stats(s) {
 		const career = s.mode === "CAREER", science = career || s.mode === "SCIENCE_SANDBOX";
-		const cell = (label, value) => '<div class="mstat"><div class="plate sm">' + label + '</div><div class="lcd">' + value + "</div></div>";
+		const cell = (label, value) => '<div class="sstat"><div class="plate sm">' + label + '</div><div class="lcd">' + value + "</div></div>";
 		let html = "";
 		if (career) html += cell("Funds", whole(s.funds));
 		if (science) html += cell("Science", whole(s.science));
@@ -60,19 +31,19 @@
 
 	function card(s, big) {
 		const mode = s.mode ? MODES[s.mode] || s.mode : null;
-		return '<div class="msave' + (big ? " big" : "") + '" data-name="' + esc(s.name) + '">' +
+		return '<div class="msave' + (big ? " big" : "") + '">' +
 			'<div class="mhead"><div class="mname">' + esc(s.name) + "</div>" + (mode ? '<div class="mmode">' + esc(mode) + "</div>" : "") + "</div>" +
 			(s.date ? '<div class="mdate lcd">' + esc(s.date) + "</div>" : "") +
-			(s.mode ? '<div class="mstats">' + stats(s) + "</div>" : '<div class="mnote">No summary yet: KSP writes one when it lists the save in its Load dialog.</div>') +
+			(s.mode ? '<div class="mstats">' + stats(s) + "</div>" : '<div class="snote">No summary yet: KSP writes one when it lists the save in its Load dialog.</div>') +
 			'<div class="mfoot"><span>Played ' + ago(s.played) + "</span>" + (s.version ? '<span class="mwarn">Made with KSP ' + esc(s.version) + "</span>" : "") + "</div>" +
-			'<button class="mhold" data-load="' + esc(s.name) + '"><b>' + (big ? "CONTINUE" : "LOAD") + '</b><span class="hint">HOLD</span><i class="prog"></i></button>' +
+			holdButton(big ? "CONTINUE" : "LOAD", ' data-load="' + esc(s.name) + '"') +
 			"</div>";
 	}
 
 	function renderSaves(list) {
 		const latest = list[0];
-		$("mcontinue").innerHTML = '<div class="plate title">Continue</div>' + (latest ? card(latest, true) : '<div class="mnote">No saves yet.</div>');
-		$("mlist").innerHTML = list.slice(1).map((s) => card(s, false)).join("") || '<div class="mnote">No other saves.</div>';
+		$("mcontinue").innerHTML = '<div class="plate title">Continue</div>' + (latest ? card(latest, true) : '<div class="snote">No saves yet.</div>');
+		$("mlist").innerHTML = list.slice(1).map((s) => card(s, false)).join("") || '<div class="snote">No other saves.</div>';
 		$("msavecount").textContent = list.length ? list.length + (list.length === 1 ? " save" : " saves") : "";
 		for (const b of document.querySelectorAll("#menu [data-load]"))
 			hold(b, HOLD_LOAD, () => {
@@ -107,7 +78,7 @@
 			$("mloadstep").textContent = l && l.title ? l.title : scene === "PSYSTEM" ? "Building the solar system" : "Starting";
 			$("mloadbar").style.width = (fraction * 100).toFixed(1) + "%";
 			$("mloadpct").innerHTML = Math.floor(fraction * 100) + '<span class="u">%</span>';
-			$("mloadtime").textContent = l ? clock(l.seconds) : "";
+			$("mloadtime").textContent = l ? minutes(l.seconds) : "";
 			return;
 		}
 
@@ -147,5 +118,5 @@
 		};
 	}
 
-	window.MenuPage = { scenes: SCENES, keys: KEYS, demos: DEMOS, build, render, demo };
+	window.MenuPage = { id: "menu", scenes: SCENES, keys: KEYS, demos: DEMOS, build, render, demo };
 })();

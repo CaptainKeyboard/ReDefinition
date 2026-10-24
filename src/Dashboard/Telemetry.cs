@@ -26,6 +26,7 @@ namespace ReDefinition.Dashboard
         private readonly Dictionary<string, SceneReader> sceneReaders = new Dictionary<string, SceneReader>();
         private readonly Dictionary<string, SceneAction> sceneActions = new Dictionary<string, SceneAction>();
         private readonly MenuTelemetry menu = new MenuTelemetry();
+        private readonly KscTelemetry ksc = new KscTelemetry();
 
         // Resource totals are summed over the whole vessel once per frame and then looked up per key.
         private int resourceFrame = -1;
@@ -48,6 +49,33 @@ namespace ReDefinition.Dashboard
             sceneReaders["g.saves"] = a => menu.Saves();
             sceneActions["g.load"] = a => menu.Load(a);
             sceneActions["g.quit"] = a => MenuTelemetry.Quit();
+
+            // A game in progress, in every scene but the menus: its mode, funds, science, reputation,
+            // UT, date and calendar; time warp at the Space Center, in the Tracking Station and in
+            // flight; g.quicksave and g.mainMenu at the Space Center and in the Tracking Station.
+            sceneReaders["g.mode"] = a => GameTelemetry.Mode();
+            sceneReaders["g.funds"] = a => GameTelemetry.Funds();
+            sceneReaders["g.science"] = a => GameTelemetry.Science();
+            sceneReaders["g.reputation"] = a => GameTelemetry.Reputation();
+            sceneReaders["g.ut"] = a => GameTelemetry.Ut();
+            sceneReaders["g.date"] = a => GameTelemetry.Date();
+            sceneReaders["g.calendar"] = a => GameTelemetry.Calendar();
+            sceneReaders["t.currentRate"] = a => GameTelemetry.WarpRate();
+            sceneReaders["t.currentRateIndex"] = a => GameTelemetry.WarpRateIndex();
+            sceneActions["t.timeWarp"] = a => GameTelemetry.SetWarp(a);
+            sceneActions["g.quicksave"] = a => GameTelemetry.QuickSave();
+            sceneActions["g.mainMenu"] = a => GameTelemetry.MainMenu();
+
+            // The Space Center: its buildings, the vessels to fly, the next alarms, the active
+            // contracts and the crew; k.enter[facility], k.fly[vessel id], k.warpTo[alarm id].
+            sceneReaders["k.buildings"] = a => ksc.Buildings();
+            sceneReaders["k.vessels"] = a => ksc.Vessels();
+            sceneReaders["k.alarms"] = a => ksc.Alarms();
+            sceneReaders["k.contracts"] = a => ksc.Contracts();
+            sceneReaders["k.crew"] = a => ksc.Crew();
+            sceneActions["k.enter"] = a => KscTelemetry.Enter(a);
+            sceneActions["k.fly"] = a => KscTelemetry.Fly(a);
+            sceneActions["k.warpTo"] = a => KscTelemetry.WarpTo(a);
 
             // Vessel
             readers["v.name"] = (v, a) => v.vesselName;
@@ -134,9 +162,7 @@ namespace ReDefinition.Dashboard
                 return Local(v, (u - Vector3d.Dot(u, p) * p).normalized);
             };
 
-            // Time warp
-            readers["t.currentRate"] = (v, a) => (double)TimeWarp.CurrentRate;
-            readers["t.currentRateIndex"] = (v, a) => TimeWarp.CurrentRateIndex;
+            // Time warp: the rate and its index are the game's (GameTelemetry)
             readers["t.physics"] = (v, a) => TimeWarp.WarpMode == TimeWarp.Modes.LOW;
 
             // Views and the game
@@ -191,11 +217,6 @@ namespace ReDefinition.Dashboard
             actions["v.steerCurve"] = (v, a) => FlyByWire.SetCurve(a.Length > 0 ? a[0] : "s"); // v.steerCurve[linear|s|auto]
             actions["v.steerReset"] = (v, a) => FlyByWire.Reset();
             actions["v.steerArm"] = (v, a) => FlyByWire.SetArmed(Float(a, 0) != 0); // v.steerArm[1] play, [0] pause
-            actions["t.timeWarp"] = (v, a) =>
-            {
-                float[] rates = TimeWarp.WarpMode == TimeWarp.Modes.LOW ? TimeWarp.fetch.physicsWarpRates : TimeWarp.fetch.warpRates;
-                TimeWarp.SetRate(Mathf.Clamp((int)Float(a, 0), 0, rates.Length - 1), false);
-            };
             // Switches between on-rails and physics warp, from 1x.
             actions["t.physicsToggle"] = (v, a) =>
             {
@@ -266,6 +287,9 @@ namespace ReDefinition.Dashboard
             Steps["v.geeForce"] = d => 0.01;
             Steps["f.throttle"] = d => 0.001;
             Steps["o.nodeLead"] = d => 1;
+            // The game's numbers as the pages show them: whole funds and seconds, a tenth of science and reputation.
+            Steps["g.funds"] = Steps["g.ut"] = d => 1;
+            Steps["g.science"] = Steps["g.reputation"] = d => 0.1;
             // Resources show as whole percents of their maximum; four significant digits keep that.
             Steps["r.resource"] = Steps["r.resourceMax"] = d => d == 0 ? 1 : Math.Pow(10, Math.Floor(Math.Log10(Math.Abs(d))) - 3);
         }

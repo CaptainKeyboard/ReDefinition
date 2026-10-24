@@ -1,0 +1,35 @@
+/* What the scene pages share (pages.js): one page at a time, as widget.js sets it on body; each page
+   laid out by the screen, not scaled, and scrolled where it is longer; a bar along the top; hold
+   buttons, amber like STAGE, red like CLEAR for leaving. */
+body:not([data-page="flight"]) #app, body:not([data-page="menu"]) #menu, body:not([data-page="ksc"]) #ksc { display:none !important; }
+.scene { position:fixed; inset:0; display:flex; flex-direction:column; gap:10px; padding:10px; overflow:auto; }
+.sbar { display:flex; align-items:center; gap:16px; padding:10px 16px; flex:none; }
+.sbar .plate.title { font-size:18px; }
+.sbar .lcd { font-size:20px; padding:4px 12px; }
+.sbar .dim { font-family:Consolas, monospace; font-size:16px; color:var(--dim); white-space:pre; }
+.sbar .link { font-family:Consolas, monospace; font-size:16px; color:var(--dim); }
+.sbar .link.ok { color:#6dff5e; }
+.sbar .push { margin-left:auto; }
+
+.shold { position:relative; overflow:hidden; border-radius:8px; border:3px solid #2a1800; color:#2a1600; font-weight:900; cursor:pointer; touch-action:none;
+	background:radial-gradient(circle at 50% 30%, #ffe08a, #f0a713 60%, #9a5f05); box-shadow:0 4px 0 #4a2c00, inset 0 2px 0 rgba(255,255,255,.4);
+	display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+.shold b { font-size:22px; letter-spacing:.12em; }
+.shold .hint { font-size:11px; letter-spacing:.12em; }
+.shold .prog { position:absolute; left:0; bottom:0; height:7px; width:0; background:#2a1600; }
+.shold:active { transform:translateY(2px); box-shadow:0 2px 0 #4a2c00; }
+.shold:disabled { filter:grayscale(1) brightness(.55); cursor:default; transform:none; }
+.shold.leave { flex:none; min-width:120px; padding:0 14px; white-space:nowrap; height:56px; border-color:#120707; color:#ffd0cc; background:linear-gradient(180deg, #7a2723, #4e1613); box-shadow:0 4px 0 #0c0404; }
+.shold.leave b { font-size:18px; }
+.shold.leave .prog { background:#ffd0cc; }
+
+/* Readouts with their name above. */
+.sstat .plate { text-align:left; margin-bottom:2px; font-size:11px; }
+.sstat .lcd { font-size:18px; }
+.snote { color:var(--dim); font-size:15px; line-height:1.4; }
+
+@media (max-width: 900px) {
+	.sbar { flex-wrap:wrap; gap:8px 12px; }
+	.sbar .dim { order:5; width:100%; }
+	.sbar .push { margin-left:auto; }
+}

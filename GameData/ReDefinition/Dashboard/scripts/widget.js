@@ -210,7 +210,10 @@
 
 	function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 	// Commands go to the mod, or without it to the demo rocket.
-	function run(cmd) { if (connected) send({ run: [cmd] }); else demoRun(cmd); }
+	function run(cmd) {
+		if (connected) send({ run: [cmd] });
+		else { const p = scenePage(); if (!p) demoRun(cmd); else if (p.demoRun) p.demoRun(cmd); }
+	}
 
 	function buildUi() {
 		for (const [key, label] of RESOURCES) {
@@ -423,24 +426,26 @@
 		putText("smode", (d["n.speedMode"] || "").toUpperCase());
 	}
 
-	// The page follows the game's scene: the menu page (menu.js) in its scenes, the flight panels in
-	// every other until those scenes have pages of their own; between two scenes the page stays. Each
-	// page is subscribed to its own keys, both to these. Without the game, index.html#menu and #loading
-	// show the menu page's demos.
+	// The page follows the game's scene: each scene page (menu.js, ksc.js) in its scenes, the flight
+	// panels in every other until those scenes have pages of their own; between two scenes the page
+	// stays. Each page is subscribed to its own keys, all to these. Without the game, a page's demo
+	// shows at its address (index.html#menu, #loading, #ksc).
 	const COMMON = ["p.paused", "g.scene"];
-	const MENU_SCENES = new Set(MenuPage.scenes);
+	const PAGES = [MenuPage, KscPage];
 	let page = null, pageKeys = [];
+	const scenePage = () => PAGES.find((p) => p.id === page) || null;
 	function pageFor() {
-		if (!connected) return MenuPage.demos.includes(location.hash) ? "menu" : "flight";
+		if (!connected) { const p = PAGES.find((x) => x.demos.includes(location.hash)); return p ? p.id : "flight"; }
 		const scene = data["g.scene"];
 		if (typeof scene !== "string" || scene === "LOADINGBUFFER") return page;
-		return MENU_SCENES.has(scene) ? "menu" : "flight";
+		const p = PAGES.find((x) => x.scenes.includes(scene));
+		return p ? p.id : "flight";
 	}
 	function showPage(next) {
 		if (!next || next === page) return;
 		page = next;
-		document.body.classList.toggle("menu", page === "menu");
-		const keys = page === "menu" ? MenuPage.keys : subscription();
+		document.body.dataset.page = page;
+		const p = scenePage(), keys = p ? p.keys : subscription();
 		if (connected) send({ "-": pageKeys, "+": keys });
 		pageKeys = connected ? keys : [];
 		if (page === "flight") { fitScreen(); dirty = panelsDirty = true; }
@@ -560,8 +565,9 @@
 
 	buildUi();
 	// The menu page sends its commands through the same connection.
-	window.Dashboard = { run };
-	MenuPage.build();
+	// The scene pages send their commands through the same connection, and read the data as it stands.
+	window.Dashboard = { run, data: () => data };
+	for (const p of PAGES) p.build();
 	addBrowserButtons();
 	arrangeTaps();
 	fitScreen();
@@ -869,10 +875,15 @@
 	// a second.
 	let lastPanels = 0, lastBall = 0, panelsDirty = true;
 	function frame(now) {
-		if (!connected) { data = pageFor() === "menu" ? MenuPage.demo(now) : demoFrame(now); dirty = panelsDirty = true; }
+		if (!connected) {
+			const p = PAGES.find((x) => x.id === pageFor());
+			data = p ? p.demo(now) : demoFrame(now);
+			dirty = panelsDirty = true;
+		}
 		showPage(pageFor());
-		if (page === "menu") {
-			if (panelsDirty && now - lastPanels >= 33) { panelsDirty = false; lastPanels = now; MenuPage.render(data, connected); }
+		const p = scenePage();
+		if (p) {
+			if (panelsDirty && now - lastPanels >= 33) { panelsDirty = false; lastPanels = now; p.render(data, connected); }
 			requestAnimationFrame(frame);
 			return;
 		}
