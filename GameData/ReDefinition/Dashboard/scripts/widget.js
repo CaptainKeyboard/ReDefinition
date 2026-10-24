@@ -55,6 +55,8 @@
 
 	function fitScreen() {
 		const app = document.getElementById("app"), arr = arrangement();
+		// The ball takes the size of its new room at the next frame, also while no data changes.
+		dirty = true;
 		if (!served) { shownRows = 1; place(arr[1], app.clientWidth, app.clientHeight); return; }
 		// In a browser: the number of rows asked for, or with "auto" the one that comes out largest.
 		let best = null;

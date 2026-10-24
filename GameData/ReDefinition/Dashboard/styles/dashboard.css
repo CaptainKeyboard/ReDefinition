@@ -57,7 +57,10 @@ button { font:inherit; color:inherit; padding:0; }
 
 /* CENTRE: navball with the target altitude left and clear right */
 /* The ball sits in the middle of the panel, also from top to bottom; the readouts lie above it. */
-#ballpanel { display:grid; grid-template-columns:92px 1fr 92px; grid-template-rows:1fr; gap:8px; }
+/* The ball's column may shrink below the ball (minmax(0, 1fr), min-width:0): the ball sizes itself to
+   that column, so a column held at the ball's last size -- a phone turned from upright to sideways --
+   would never let it shrink, and would push the right column out of the panel. */
+#ballpanel { display:grid; grid-template-columns:92px minmax(0, 1fr) 92px; grid-template-rows:1fr; gap:8px; }
 #ballpanel .hdr { position:absolute; left:16px; right:16px; top:16px; display:flex; justify-content:space-between; z-index:2; pointer-events:none; }
 #ballpanel .hdr .lcd { font-size:20px; }
 .side { grid-row:1; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:0; }
@@ -90,7 +93,7 @@ button { font:inherit; color:inherit; padding:0; }
 .pb.play.paused .lens { background:radial-gradient(circle at 50% 40%, #ffe2a6, #ffb23e 55%, #c97a12); color:#3a2200; box-shadow:0 0 14px rgba(255,180,60,.75); }
 .pb.play.playing .lens { background:radial-gradient(circle at 50% 40%, #d9ffd2, #62e35a 55%, #2c9a26); color:#073600; box-shadow:0 0 14px rgba(100,240,90,.6); }
 .grow { flex:1; }
-#ballwrap { grid-row:1; grid-column:2; display:flex; align-items:center; justify-content:center; touch-action:none; min-height:0; }
+#ballwrap { grid-row:1; grid-column:2; display:flex; align-items:center; justify-content:center; touch-action:none; min-height:0; min-width:0; }
 #ballwrap > div { border-radius:50%; box-shadow:0 0 0 6px #0e1012, 0 0 0 12px #4b5157, 0 0 0 16px #24282c, 0 6px 14px 16px rgba(0,0,0,.6); }
 #altbox .lcd { font-size:21px; width:84px; padding:2px 3px; text-align:center; color:var(--dim); text-shadow:none; }
 #altbox .lcd .u { font-size:13px; margin-left:2px; }
