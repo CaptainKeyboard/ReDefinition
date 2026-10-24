@@ -26,7 +26,10 @@ namespace ReDefinition.Scenery
     {
         private const float WakeAt = 1f;
         private const float SleepBelow = 0.5f;
-        private static readonly int EntryStrength = Shader.PropertyToID("_EntryStrength");
+        // Taken as the first vessel is looked at, not as the type is first touched:
+        // FireflyInstalled is asked where Unity's engine is not there, outside the
+        // game.
+        private int entryStrength = -1;
 
         private Type moduleType;
         private FieldInfo fxVesselField, isLoadedField, bufferField, cameraField, materialField;
@@ -148,7 +151,11 @@ namespace ReDefinition.Scenery
                         CommandBuffer buffer = readBuffer(fx);
                         Camera airstream = readCamera(fx);
                         if (material == null || buffer == null) continue;
-                        float strength = material.GetFloat(EntryStrength);
+                        if (entryStrength < 0) entryStrength = Shader.PropertyToID("_EntryStrength");
+                        // Until Firefly gives the material its shader, it has no strength
+                        // to read, and Unity says so in the log.
+                        if (!material.HasProperty(entryStrength)) continue;
+                        float strength = material.GetFloat(entryStrength);
                         if (idle.Contains(module))
                         {
                             if (strength >= WakeAt)
