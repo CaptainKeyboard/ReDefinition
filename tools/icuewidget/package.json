@@ -1,11 +1,10 @@
 {
   "name": "redefinition-icuewidget",
   "private": true,
-  "description": "Packages the dashboard in GameData/ReDefinition/Dashboard as an iCUE widget for Corsair's touch screens.",
+  "description": "Validates the dashboard in GameData/ReDefinition/Dashboard as an iCUE widget for Corsair's touch screens. The build packages it (ReDefinition.csproj, PackageIcueWidget).",
   "license": "GPL-3.0-or-later",
   "scripts": {
-    "validate": "icuewidget validate ../../GameData/ReDefinition/Dashboard",
-    "package": "icuewidget package ../../GameData/ReDefinition/Dashboard -o ../../build/release/ksp-dashboard.icuewidget"
+    "validate": "icuewidget validate ../../GameData/ReDefinition/Dashboard"
   },
   "devDependencies": {
     "icuewidget-cli": "0.5.1"

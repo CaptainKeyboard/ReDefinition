@@ -189,11 +189,54 @@
                       WriteOnlyWhenDifferent="true" />
   </Target>
 
-  <Target Name="DeployToGameData" AfterTargets="Build" DependsOnTargets="GenerateVersionFile"
+  <!-- The iCUE widget for Corsair's touch screens: the dashboard's folder as a zip whose files are
+       stored, not compressed, as Corsair's icuewidget-cli writes it (tools/icuewidget validates it).
+       Made with every build, so that the deploy and the release zip carry it beside the mod's
+       folder's other files; MSBuild's own ZipDirectory compresses always. -->
+  <UsingTask TaskName="ZipStored" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <SourceDirectory ParameterType="System.String" Required="true" />
+      <DestinationFile ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.IO.Compression" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        string root = Path.GetFullPath(SourceDirectory).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+        string[] files = Directory.GetFiles(root, "*", SearchOption.AllDirectories);
+        Array.Sort(files, StringComparer.Ordinal);
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(DestinationFile)));
+        using (FileStream stream = File.Create(DestinationFile))
+        using (ZipArchive zip = new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+            foreach (string file in files)
+            {
+                string name = file.Substring(root.Length).Replace('\\', '/');
+                // As the CLI: no hidden files, no package inside the package.
+                if (name.StartsWith(".") || name.Contains("/.") || name.EndsWith(".icuewidget")) continue;
+                ZipArchiveEntry entry = zip.CreateEntry(name, CompressionLevel.NoCompression);
+                using (Stream to = entry.Open())
+                using (FileStream from = File.OpenRead(file))
+                    from.CopyTo(to);
+            }
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <ItemGroup>
+    <_IcueWidgetSource Include="$(MSBuildThisFileDirectory)..\GameData\$(ModName)\Dashboard\**\*" />
+  </ItemGroup>
+
+  <Target Name="PackageIcueWidget" AfterTargets="Build" Inputs="@(_IcueWidgetSource)" Outputs="$(OutputPath)ksp-dashboard.icuewidget">
+    <ZipStored SourceDirectory="$(MSBuildThisFileDirectory)..\GameData\$(ModName)\Dashboard" DestinationFile="$(OutputPath)ksp-dashboard.icuewidget" />
+  </Target>
+
+  <Target Name="DeployToGameData" AfterTargets="Build" DependsOnTargets="GenerateVersionFile;PackageIcueWidget"
           Condition="'$(DeployToGameData)' == 'true' And Exists('$(KspGameData)')">
     <MakeDir Directories="$(KspGameData)\$(ModName)\Plugins" />
     <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml" DestinationFolder="$(KspGameData)\$(ModName)\Plugins" />
-    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version" DestinationFolder="$(KspGameData)\$(ModName)" />
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(OutputPath)ksp-dashboard.icuewidget" DestinationFolder="$(KspGameData)\$(ModName)" />
     <!-- The static GameData files of the repository (profiles and mod
          registrations), copied the way KSPCommunityFixes copies its own. What
          this build ships is removed from the game first, so that a file dropped
@@ -210,7 +253,7 @@
     </ItemGroup>
     <Delete Files="@(_ShippedInGame)" />
     <Copy SourceFiles="@(_StaticGameData)" DestinationFolder="$(KspGameData)\%(RecursiveDir)" />
-    <Message Importance="high" Text="$(ModName).dll, $(ModName).version and the static GameData files copied to $(KspGameData)\$(ModName)." />
+    <Message Importance="high" Text="$(ModName).dll, $(ModName).version, the iCUE widget and the static GameData files copied to $(KspGameData)\$(ModName)." />
   </Target>
 
   <!-- The player package, built only on request:
@@ -235,7 +278,7 @@
        proxy's ini goes into GameData as a template only: without it the
        proxy's defaults apply, and one in the game folder holds a player's
        settings, which an update must not overwrite (docs/development/packaging.md). -->
-  <Target Name="MakeReleaseZip" AfterTargets="DeployToGameData" DependsOnTargets="GenerateVersionFile"
+  <Target Name="MakeReleaseZip" AfterTargets="DeployToGameData" DependsOnTargets="GenerateVersionFile;PackageIcueWidget"
           Condition="'$(Configuration)' == 'Release' And '$(ReleasePackage)' == 'true'">
     <PropertyGroup>
       <_ReleaseDir>$(OutputPath)release</_ReleaseDir>
@@ -309,7 +352,7 @@
 
     <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml" DestinationFolder="$(_StageMod)\Plugins" />
     <Copy SourceFiles="$(_ShaderBundle)" DestinationFolder="$(_StageMod)\Shaders" />
-    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(OutputPath)ksp-dashboard.icuewidget;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"
           DestinationFolder="$(_StageMod)" />
     <Copy SourceFiles="$(_RepoRoot)docs\credits-and-licences.md" DestinationFiles="$(_StageMod)\CREDITS.md" />
     <Copy SourceFiles="$(_RepoRoot)src\Fsr3\LICENSE.txt" DestinationFiles="$(_StageMod)\LICENSE-FSR3Unity.txt" />
