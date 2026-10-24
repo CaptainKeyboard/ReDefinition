@@ -472,12 +472,11 @@ namespace ReDefinition.Raytracing
         private readonly List<MeshFilter> found = new List<MeshFilter>();
         private readonly List<SkinnedMeshRenderer> foundSkinned = new List<SkinnedMeshRenderer>();
         // The skinned renderers' meshes as last baked, and when: their cloth moves every
-        // frame, the rays follow it twice a second -- each bake builds the mesh's structure
-        // for the rays anew.
+        // frame, and the rays follow it every frame: a stale bake shadows the cloth drawn
+        // beside it with black streaks. A bake handed over again is refit in place.
         private readonly Dictionary<SkinnedMeshRenderer, Mesh> baked = new Dictionary<SkinnedMeshRenderer, Mesh>();
-        private readonly Dictionary<SkinnedMeshRenderer, float> bakedAt = new Dictionary<SkinnedMeshRenderer, float>();
+        private readonly Dictionary<SkinnedMeshRenderer, int> bakedAt = new Dictionary<SkinnedMeshRenderer, int>();
         private readonly List<SkinnedMeshRenderer> goneBakes = new List<SkinnedMeshRenderer>();
-        private const float BakeEvery = 0.5f;
         private readonly List<MeshFilter> all = new List<MeshFilter>();
         private readonly RtScene scene;
         private GameScenes sitesOf = GameScenes.LOADING;
@@ -659,13 +658,13 @@ namespace ReDefinition.Raytracing
             {
                 mesh = new Mesh { name = "ReDefinition baked " + skinned.name };
                 baked[skinned] = mesh;
-                bakedAt[skinned] = float.NegativeInfinity;
+                bakedAt[skinned] = -1;
             }
-            if (Time.unscaledTime - bakedAt[skinned] >= BakeEvery)
+            if (bakedAt[skinned] != Time.frameCount)
             {
                 skinned.BakeMesh(mesh);
                 scene.Invalidate(mesh);
-                bakedAt[skinned] = Time.unscaledTime;
+                bakedAt[skinned] = Time.frameCount;
             }
             return mesh;
         }
