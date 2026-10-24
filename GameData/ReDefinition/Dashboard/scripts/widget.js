@@ -624,24 +624,10 @@
 	// picture by phi counter-clockwise. What lies in the middle now (and what lies above it) was,
 	// before, the middle (and the top) turned back by both; in north/east/up through the attitude at
 	// the start. Returns the target's nose and top, six numbers. Turning the picture counter-clockwise
-	// is what rolling right looks like on the navball.
-	// The roll as the readout shows it (against the horizon), and the top that gives a roll at a nose.
-	// Moving the target keeps its roll; only twisting or the roll buttons change it. Straight up or
-	// down the roll has no meaning, and the turned top is kept as it is.
-	const rollOf = (T, U) => Math.atan2(cross(U, T)[2], U[2]);
-	function topForRoll(T, roll, fallback) {
-		if (Math.abs(T[2]) > 0.995) return fallback;
-		const k = T[2], z0 = [-k * T[0], -k * T[1], 1 - k * T[2]], l = Math.hypot(z0[0], z0[1], z0[2]);
-		const z = z0.map((x) => x / l), r0 = cross(z, T), a = -roll;
-		return z.map((x, i) => x * Math.cos(a) + r0[i] * Math.sin(a));
-	}
+	// is what rolling right looks like on the navball. The top turns with the ball, so the target
+	// goes over the zenith without turning round.
 	function dragTarget(d) {
-		const turned = turnTarget(d, d.phi || 0), T = turned.slice(0, 3), U = turned.slice(3);
-		const B = d.base, baseRoll = Math.abs(B.nose[2]) > 0.995 ? rollOf(T, U) : rollOf(B.nose, B.top);
-		// A twist adds what it turned the target by; a drag alone adds nothing.
-		let delta = 0;
-		if (d.phi) { const s0 = turnTarget(d, 0); delta = rollOf(T, U) - rollOf(s0.slice(0, 3), s0.slice(3)); }
-		return T.concat(topForRoll(T, baseRoll + delta, U));
+		return turnTarget(d, d.phi || 0);
 	}
 	function turnTarget(d, phi) {
 		const v0 = d.v0, v1 = onBall(d.x, d.y);
@@ -676,7 +662,7 @@
 			const kc = cross(k, top), kt = dot3(k, top);
 			top = top.map((x, i) => x * c + kc[i] * s + k[i] * kt * (1 - c)); // Rodrigues, by the angle
 		}
-		return to.concat(topForRoll(to, rollOf(d.base.nose, d.base.top), top));
+		return to.concat(top);
 	}
 
 	// Snaps the target's roll (as the readout shows it) to the nearest multiple of 45 degrees; without
