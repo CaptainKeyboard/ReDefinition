@@ -1,7 +1,8 @@
 /* What the scene pages share (pages.js): one page at a time, as widget.js sets it on body; each page
    laid out by the screen, not scaled, and scrolled where it is longer; a bar along the top; hold
    buttons, amber like STAGE, red like CLEAR for leaving. */
-body:not([data-page="flight"]) #app, body:not([data-page="menu"]) #menu, body:not([data-page="ksc"]) #ksc { display:none !important; }
+body:not([data-page="flight"]) #app, body:not([data-page="menu"]) #menu, body:not([data-page="ksc"]) #ksc,
+body:not([data-page="editor"]) #editor { display:none !important; }
 .scene { position:fixed; inset:0; display:flex; flex-direction:column; gap:10px; padding:10px; overflow:auto; }
 .sbar { display:flex; align-items:center; gap:16px; padding:10px 16px; flex:none; }
 .sbar .plate.title { font-size:18px; }

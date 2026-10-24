@@ -431,9 +431,18 @@
 	// stays. Each page is subscribed to its own keys, all to these. Without the game, a page's demo
 	// shows at its address (index.html#menu, #loading, #ksc).
 	const COMMON = ["p.paused", "g.scene"];
-	const PAGES = [MenuPage, KscPage];
+	const PAGES = [MenuPage, KscPage, EditorPage];
 	let page = null, pageKeys = [];
 	const scenePage = () => PAGES.find((p) => p.id === page) || null;
+	// A page's keys may change while it shows, with its tab: then they are a function.
+	const keysOf = (p) => (typeof p.keys === "function" ? p.keys() : p.keys);
+	function resubscribe() {
+		const p = scenePage();
+		if (!connected || !p) return;
+		const keys = keysOf(p);
+		send({ "-": pageKeys, "+": keys });
+		pageKeys = keys;
+	}
 	function pageFor() {
 		if (!connected) { const p = PAGES.find((x) => x.demos.includes(location.hash)); return p ? p.id : "flight"; }
 		const scene = data["g.scene"];
@@ -445,7 +454,7 @@
 		if (!next || next === page) return;
 		page = next;
 		document.body.dataset.page = page;
-		const p = scenePage(), keys = p ? p.keys : subscription();
+		const p = scenePage(), keys = p ? keysOf(p) : subscription();
 		if (connected) send({ "-": pageKeys, "+": keys });
 		pageKeys = connected ? keys : [];
 		if (page === "flight") { fitScreen(); dirty = panelsDirty = true; }
@@ -566,7 +575,7 @@
 	buildUi();
 	// The menu page sends its commands through the same connection.
 	// The scene pages send their commands through the same connection, and read the data as it stands.
-	window.Dashboard = { run, data: () => data };
+	window.Dashboard = { run, data: () => data, resubscribe, connected: () => connected };
 	for (const p of PAGES) p.build();
 	addBrowserButtons();
 	arrangeTaps();

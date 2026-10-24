@@ -198,6 +198,19 @@ namespace ReDefinition.Engineer
             transition = null;
         }
 
+        // Worked out without being shown, for the dashboard: the plan and its rows' texts,
+        // with nothing of the panel drawn or held.
+        internal void TickHidden()
+        {
+            if (root == null || Shown) return;
+            view.Tick();
+        }
+
+        internal PlannerView View
+        {
+            get { return view; }
+        }
+
         internal void Tick()
         {
             if (root == null || !Shown) return;

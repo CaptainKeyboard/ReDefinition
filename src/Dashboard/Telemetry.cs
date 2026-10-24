@@ -27,6 +27,7 @@ namespace ReDefinition.Dashboard
         private readonly Dictionary<string, SceneAction> sceneActions = new Dictionary<string, SceneAction>();
         private readonly MenuTelemetry menu = new MenuTelemetry();
         private readonly KscTelemetry ksc = new KscTelemetry();
+        private readonly EditorTelemetry editor = new EditorTelemetry();
 
         // Resource totals are summed over the whole vessel once per frame and then looked up per key.
         private int resourceFrame = -1;
@@ -76,6 +77,16 @@ namespace ReDefinition.Dashboard
             sceneActions["k.enter"] = a => KscTelemetry.Enter(a);
             sceneActions["k.fly"] = a => KscTelemetry.Fly(a);
             sceneActions["k.warpTo"] = a => KscTelemetry.WarpTo(a);
+
+            // The VAB and the SPH: the Engineer (e.ship), the planner's plan (e.plan) and the list
+            // one of its buttons folds out (e.choiceList, asked with e.choices[list,a,b]);
+            // e.change[name,numbers...] and e.pick[list,a,b,index,label] change the plan.
+            sceneReaders["e.ship"] = a => editor.Ship();
+            sceneReaders["e.plan"] = a => editor.Plan();
+            sceneReaders["e.choiceList"] = a => editor.Choices();
+            sceneActions["e.change"] = a => EditorTelemetry.Change(a);
+            sceneActions["e.choices"] = a => editor.AskChoices(a);
+            sceneActions["e.pick"] = a => EditorTelemetry.Pick(a);
 
             // Vessel
             readers["v.name"] = (v, a) => v.vesselName;

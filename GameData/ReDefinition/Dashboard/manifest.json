@@ -3,7 +3,7 @@
   "id": "com.franz.kspdashboard",
   "name": "KSP Dashboard",
   "description": "Flight instruments and controls for Kerbal Space Program via the ReDefinition mod",
-  "version": "0.32.0",
+  "version": "0.33.0",
   "preview_icon": "resources/icon.svg",
   "min_framework_version": "1.0.1",
   "min_app_version": "5.47",

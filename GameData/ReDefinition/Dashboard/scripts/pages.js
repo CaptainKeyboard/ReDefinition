@@ -48,5 +48,17 @@
 	// T- before a moment, T+ after it.
 	const countdown = (ut, now, calendar) => (num(ut) === null || num(now) === null ? "-" : (ut >= now ? "T- " : "T+ ") + span(ut - now, calendar));
 
-	window.Pages = { esc, num, whole, hold, holdButton, ago, minutes, span, countdown };
+	// KSP's rich text, as the mod's own panels write it (the planner's rows), as HTML: its colours,
+	// bold and underline; a <pos=..> column as a gap; sizes and alignment dropped. Everything else
+	// stays text.
+	function rich(text) {
+		return esc(text == null ? "" : text)
+			.replace(/&lt;color=(#[0-9a-fA-F]{3,8})&gt;/g, '<span style="color:$1">')
+			.replace(/&lt;\/color&gt;/g, "</span>")
+			.replace(/&lt;(\/?)(b|u|i)&gt;/g, "<$1$2>")
+			.replace(/&lt;pos=[^&]*&gt;/g, '<span class="rgap"></span>')
+			.replace(/&lt;\/?(size|align)(=[^&]*)?&gt;/g, "");
+	}
+
+	window.Pages = { esc, num, whole, hold, holdButton, ago, minutes, span, countdown, rich };
 })();

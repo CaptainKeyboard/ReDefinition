@@ -85,7 +85,7 @@ namespace ReDefinition.Engineer
         // The entry of a row; null for none.
         private ThrustStep ThrustAt(int row)
         {
-            return thrustShown && Worked() && row < thrustSteps.Count && thrustSteps[row].Step < steps.Count ? thrustSteps[row] : null;
+            return (thrustShown || everyRow) && Worked() && row < thrustSteps.Count && thrustSteps[row].Step < steps.Count ? thrustSteps[row] : null;
         }
 
         // The entry of an open row; null for none, and for a closed one, so that its
@@ -93,7 +93,7 @@ namespace ReDefinition.Engineer
         private ThrustStep OpenThrust(int row)
         {
             ThrustStep entry = ThrustAt(row);
-            return entry != null && thrustOpen.Contains(FuelKey(entry.Step)) ? entry : null;
+            return entry != null && (everyRow || thrustOpen.Contains(FuelKey(entry.Step))) ? entry : null;
         }
 
         private void ToggleThrust(int row)

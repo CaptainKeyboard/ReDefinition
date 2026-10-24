@@ -9,6 +9,7 @@
 		<link rel="stylesheet" href="styles/pages.css" />
 		<link rel="stylesheet" href="styles/menu.css" />
 		<link rel="stylesheet" href="styles/ksc.css" />
+		<link rel="stylesheet" href="styles/editor.css" />
 		<meta name="x-icue-property" content="panelLayout" data-label="'Panel layout'" data-type="combobox" data-default="'default'" data-values="[{'key':'default','value':'Default'},{'key':'defaultMirrored','value':'Default (Mirrored)'},{'key':'handheld','value':'Handheld'},{'key':'handheldMirrored','value':'Handheld (Mirrored)'}]" />
 	</head>
 	<body data-page="flight">
@@ -166,10 +167,30 @@
 				</section>
 			</div>
 		</div>
+		<!-- The VAB and SPH page: the Engineer and the planner, in two tabs (editor.js). -->
+		<div id="editor" class="scene">
+			<header class="sbar panel">
+				<div class="plate title" id="efacility">Vehicle Assembly Building</div>
+				<div class="lcd" id="ename">-</div>
+				<div class="etabs push" id="etabs"><button data-tab="engineer">ENGINEER</button><button data-tab="planner">PLANNER</button></div>
+				<span class="link" id="elink">connecting...</span>
+			</header>
+			<div id="eengineer">
+				<section class="panel" id="ecraft"><div class="plate title">Craft</div><div class="estats" id="ecraftstats"></div></section>
+				<section class="panel" id="estages"><div class="plate title">Stages <span class="dim" id="esituation"></span></div><div class="escroll" id="estagetable"></div></section>
+				<section class="panel" id="eside">
+					<div class="plate title">Resources</div><div id="eresources"></div>
+					<div class="plate title">Crew</div><div class="estats" id="ecrew"></div>
+				</section>
+			</div>
+			<div id="eplanner"></div>
+			<div id="epicker" hidden><div class="panel epickerbox"><div class="eprow"><b>Choose</b><button class="pb epbtn" id="epickerclose"><span class="lens">&#xD7;</span></button></div><div id="epickerlist"></div></div></div>
+		</div>
 		<script src="scripts/navball.js"></script>
 		<script src="scripts/pages.js"></script>
 		<script src="scripts/menu.js"></script>
 		<script src="scripts/ksc.js"></script>
+		<script src="scripts/editor.js"></script>
 		<script src="scripts/widget.js"></script>
 	</body>
 </html>
