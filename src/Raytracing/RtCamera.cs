@@ -1543,41 +1543,49 @@ namespace ReDefinition.Raytracing
         }
 
         // For the scene probe (-redefinitionProbeSurfaces): this frame's G-buffer copies,
-        // the surfaces as their materials mean them with their modes, and the raytraced
-        // diffuse light, each into <prefix>-<name>.bin in folder -- the width and height as
-        // two little-endian ints, then four floats a pixel, rows from the bottom. The names
-        // written.
-        internal string WriteSurfaceImages(string folder, string prefix)
+        // the surfaces as their materials mean them with their modes and what the camera's
+        // ray met (RT_REGION_*), the raytraced diffuse and reflected light, and the sun's
+        // visibility, each into <prefix>-<name>.bin in folder -- the width and height as two
+        // little-endian ints, then four floats a pixel, rows from the bottom. `step`: every
+        // step-th pixel of every step-th row; `only`: the names to write, or all. The names
+        // written (tools/surface_sheet.py reads them).
+        internal string WriteSurfaceImages(string folder, string prefix, int step = 1, string[] only = null)
         {
+            step = Math.Max(1, step);
             var written = new System.Text.StringBuilder();
             var named = new[]
             {
                 new KeyValuePair<string, RenderTexture>("gbuffer0", gbuffer0), new KeyValuePair<string, RenderTexture>("gbuffer1", gbuffer1),
                 new KeyValuePair<string, RenderTexture>("surface", surface), new KeyValuePair<string, RenderTexture>("surfacemode", surfaceMode),
                 new KeyValuePair<string, RenderTexture>("diffuse", diffuse), new KeyValuePair<string, RenderTexture>("sun", sun),
+                new KeyValuePair<string, RenderTexture>("specular", specular), new KeyValuePair<string, RenderTexture>("gbuffer2", gbuffer2),
             };
             RenderTexture before = RenderTexture.active;
             foreach (KeyValuePair<string, RenderTexture> pair in named)
             {
                 RenderTexture texture = pair.Value;
                 if (texture == null || !texture.IsCreated()) continue;
+                if (only != null && Array.IndexOf(only, pair.Key) < 0) continue;
                 var read = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
                 try
                 {
                     RenderTexture.active = texture;
                     read.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
                     Color[] pixels = read.GetPixels();
+                    int width = (texture.width + step - 1) / step, height = (texture.height + step - 1) / step;
                     using (var file = new System.IO.BinaryWriter(System.IO.File.Create(System.IO.Path.Combine(folder, prefix + "-" + pair.Key + ".bin"))))
                     {
-                        file.Write(texture.width);
-                        file.Write(texture.height);
-                        foreach (Color c in pixels)
-                        {
-                            file.Write(c.r);
-                            file.Write(c.g);
-                            file.Write(c.b);
-                            file.Write(c.a);
-                        }
+                        file.Write(width);
+                        file.Write(height);
+                        for (int y = 0; y < texture.height; y += step)
+                            for (int x = 0; x < texture.width; x += step)
+                            {
+                                Color c = pixels[y * texture.width + x];
+                                file.Write(c.r);
+                                file.Write(c.g);
+                                file.Write(c.b);
+                                file.Write(c.a);
+                            }
                     }
                     written.Append(pair.Key).Append(' ');
                 }

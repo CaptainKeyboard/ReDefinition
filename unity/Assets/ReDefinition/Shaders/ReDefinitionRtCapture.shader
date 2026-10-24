@@ -312,19 +312,20 @@ Shader "Hidden/ReDefinition/RtCapture"
     // The surfaces' overlay (RtCamera.SurfaceView), over the finished picture: each surface's
     // shine as its material means it. Dark grey matt; blue to green to yellow to red from
     // rough to smooth, brighter the stronger it reflects; striped where the G-buffer's own
-    // shine was kept (Unity's physically based or an unknown shader); cyan KSP's sea; orange
-    // the space centre's ground;
-    // magenta where no material was found at the pixel; the sky as it is.
+    // shine was kept (Unity's physically based or an unknown shader), striped across for the
+    // space centre's ground, striped down with magenta where no material was found at the
+    // pixel, each by the shine it gets; cyan KSP's sea; the sky as it is.
     sampler2D _ReDefinitionRtSurfaceMode;
 
-    // The terrain past Parallax's grass in a meadow's shade (RtCommon.hlsli, MeadowShade, in the surface
-    // mode's y), multiplied into the G-buffer's albedo: a distant meadow's darker colour, for the sun's
-    // light and the sky's alike. 1 where the raytracing found no surface.
+    // The terrain past Parallax's grass in a meadow's shade, and the space centre's lawn as bright as the
+    // terrain beside it (RtCommon.hlsli, MeadowShade, in the surface mode's y), multiplied into the
+    // G-buffer's albedo: a distant meadow's darker colour, for the sun's light and the sky's alike. 1 where
+    // the raytracing found no surface. Half the factor, which pass 16 blends in twice, up to 2.
     half4 fragMeadow(v2fQuad i) : SV_Target
     {
         float4 found = tex2D(_ReDefinitionRtSurfaceMode, i.screen.xy / i.screen.w);
-        half shade = found.a < 0.5 ? 1.0 : saturate(found.g);
-        return half4(shade, shade, shade, 1.0);
+        half shade = found.a < 0.5 ? 1.0 : clamp(found.g, 0.0, 2.0);
+        return half4(shade, shade, shade, 1.0) * 0.5;
     }
 
     half4 fragSurfaceView(v2fQuad i) : SV_Target
@@ -335,14 +336,12 @@ Shader "Hidden/ReDefinition/RtCapture"
         if (found.a < 0.5)
             return half4(0.0, 0.0, 0.0, 0.0);
         float mode = found.r * 8.0;
+        float2 pixel = uv * _ScreenParams.xy;
+        float strength = max(surface.r, max(surface.g, surface.b));
         half3 colour;
-        if (mode > 5.5 && mode < 6.5)
-            colour = half3(1.0, 0.0, 1.0);
-        else if (mode > 6.5)
-            colour = half3(1.0, 0.5, 0.0);
-        else if (mode > 4.5)
+        if (mode > 4.5 && mode < 5.5)
             colour = half3(0.0, 0.8, 1.0);
-        else if (mode > 0.5 && mode < 1.5)
+        else if (strength <= 1e-4 && (mode > 0.5 && mode < 1.5 || mode > 5.5))
             colour = half3(0.12, 0.12, 0.14);
         else
         {
@@ -350,11 +349,15 @@ Shader "Hidden/ReDefinition/RtCapture"
             colour = s < 0.33 ? lerp(half3(0.1, 0.2, 1.0), half3(0.1, 1.0, 0.2), s / 0.33)
                    : s < 0.66 ? lerp(half3(0.1, 1.0, 0.2), half3(1.0, 1.0, 0.1), (s - 0.33) / 0.33)
                    : lerp(half3(1.0, 1.0, 0.1), half3(1.0, 0.1, 0.05), (s - 0.66) / 0.34);
-            float strength = max(surface.r, max(surface.g, surface.b));
             colour *= 0.3 + 0.7 * saturate(sqrt(strength * 4.0));
-            float2 pixel = uv * _ScreenParams.xy;
+            // Striped where the G-buffer's own shine was kept, across for the space centre's ground,
+            // down where no material was found at the pixel.
             if (mode < 0.5 && frac((pixel.x + pixel.y) / 16.0) < 0.5)
                 colour *= 0.4;
+            else if (mode > 6.5 && frac(pixel.y / 8.0) < 0.5)
+                colour *= 0.4;
+            else if (mode > 5.5 && mode < 6.5 && frac(pixel.x / 8.0) < 0.5)
+                colour = lerp(colour, half3(1.0, 0.0, 1.0), 0.6);
         }
         return half4(colour, 1.0);
     }
@@ -465,9 +468,10 @@ Shader "Hidden/ReDefinition/RtCapture"
             #pragma vertex vert
             #pragma fragment fragShadowFade
             ENDCG }
-        // Pass 16: the meadow's shade into the G-buffer's albedo, its occlusion in alpha kept.
+        // Pass 16: the meadow's shade into the G-buffer's albedo, its occlusion in alpha kept: the
+        // albedo times twice the output, so that the factor may lift it too (the space centre's lawn).
         Pass {
-            Blend DstColor Zero
+            Blend DstColor SrcColor
             ColorMask RGB
             CGPROGRAM
             #pragma vertex vertQuad

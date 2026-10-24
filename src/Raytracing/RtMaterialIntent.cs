@@ -44,6 +44,10 @@ namespace ReDefinition.Raytracing
         private const float ParallaxGlossDivisor = 0.644f;
         // The gloss a hit without a G-buffer takes for the legacy families.
         private const float MeanGloss = 0.5f;
+        // The gloss of Parallax's terrain beside the space centre's lawn, which the lawn takes (Ground):
+        // the terrain's F0 there 0.020 to 0.022 at its intensity 0.12, from six views in the evening
+        // (2026-10-25, tools/surface_sheet.py).
+        private const float LawnGloss = 0.175f;
 
         private static readonly HashSet<string> Unknown = new HashSet<string>();
 
@@ -132,14 +136,53 @@ namespace ReDefinition.Raytracing
         }
 
         // The space centre's ground (RT_SURFACE_GROUND): its lawn, told apart per pixel by
-        // its drawn colour, keeps the G-buffer's shine, its tarmac and concrete none.
-        // Matt as a whole (Dry), the lawn was darker than the terrain beside it at a
-        // glancing view, which the G-buffer's rough shine lifts without the rays: at the
-        // launch pad a dark strip where they meet (measured 2026-10-19: 66 against 100
-        // with the rays, 89 against 94 without; 100 against 108 with the lawn's shine).
+        // its drawn colour, shines as Parallax's terrain beside it does, at the terrain's
+        // gloss there (LawnGloss); its tarmac and concrete not at all. Matt as a whole
+        // (Dry), the lawn was darker than the terrain at a glancing view: at the launch
+        // pad a dark strip where they meet (measured 2026-10-19: 66 against 100 with the
+        // rays). With the G-buffer's shine (0.22 at a smoothness of 0.013, rough and
+        // strong) it was lighter than the terrain towards a low sun instead (the player,
+        // 2026-10-25). Without Parallax the G-buffer's, as before.
         private static RtMaterialIntent Ground()
         {
-            return new RtMaterialIntent { Mode = RtNative.SurfaceGround, Specular = Color.black, Smoothness = 0f };
+            var ground = new RtMaterialIntent { Mode = RtNative.SurfaceGround, Specular = Color.black, Smoothness = 0f };
+            RtMaterialIntent terrain;
+            if (!HomeTerrain(out terrain)) return ground;
+            ground.Specular = terrain.Specular * LawnGloss;
+            ground.Smoothness = terrain.Smoothness;
+            return ground;
+        }
+
+        // Parallax's terrain of the home body as its config gives it (ParallaxTerrain, Body, ShaderProperties:
+        // _SpecularIntensity at _SpecularPower), the shine the terrain beside the space centre's lawn gets;
+        // false without Parallax.
+        private static bool homeTerrainRead;
+        private static bool homeTerrainFound;
+        private static RtMaterialIntent homeTerrain;
+
+        private static bool HomeTerrain(out RtMaterialIntent terrain)
+        {
+            if (!homeTerrainRead && GameDatabase.Instance != null)
+            {
+                homeTerrainRead = true;
+                CelestialBody home = FlightGlobals.GetHomeBody();
+                string name = home != null ? home.bodyName : "Kerbin";
+                foreach (ConfigNode root in GameDatabase.Instance.GetConfigNodes("ParallaxTerrain"))
+                    foreach (ConfigNode body in root.GetNodes("Body"))
+                    {
+                        ConfigNode values = body.GetValue("name") == name ? body.GetNode("ShaderProperties") : null;
+                        float power, intensity;
+                        if (values == null || !float.TryParse(values.GetValue("_SpecularPower"), System.Globalization.NumberStyles.Float,
+                                                              System.Globalization.CultureInfo.InvariantCulture, out power)
+                            || !float.TryParse(values.GetValue("_SpecularIntensity"), System.Globalization.NumberStyles.Float,
+                                               System.Globalization.CultureInfo.InvariantCulture, out intensity))
+                            continue;
+                        homeTerrain = Legacy(intensity * Color.white, power, ParallaxGlossDivisor, RtNative.SurfaceLegacy);
+                        homeTerrainFound = true;
+                    }
+            }
+            terrain = homeTerrain;
+            return homeTerrainFound;
         }
 
         private static RtMaterialIntent Dry()
