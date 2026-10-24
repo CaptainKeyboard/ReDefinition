@@ -88,6 +88,22 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void ADialogLetsTheToolbarButtonGoWithoutAWindow()
+        {
+            const string Connect = " DIALOG\n {\n  name = connect\n  content = ReDefinition.Tests.DialogFake.Content\n"
+                                   + "  row = Devices\n }\n";
+            List<string> problems = new List<string>();
+            RegisteredMod mod = Build(" button = DialogFake\n" + Connect, problems);
+            CollectionAssert.AreEqual(new string[0], problems);
+            Assert.IsTrue(ReDefinition.Window.ToolbarTakeover.CanHide(mod));
+
+            List<string> without = new List<string>();
+            RegisteredMod alone = Build(" button = DialogFake\n", without);
+            Assert.IsFalse(ReDefinition.Window.ToolbarTakeover.CanHide(alone));
+            Assert.IsTrue(without.Exists(p => p.Contains("a toolbar button without a window or a dialog")));
+        }
+
+        [TestMethod]
         public void AnOrderPutsTheDialogAmongTheSettings()
         {
             List<string> problems = new List<string>();

@@ -11,9 +11,10 @@ namespace ReDefinition.Window
 {
     // Hides the toolbar buttons of the mods whose settings are bundled here,
     // for the run, and brings them back when the bundling is switched off. Only
-    // where ReDefinition's window opens the mod's own (IBundledMod.OwnWindow):
-    // what the rows leave out stays reachable -- a build without the method its
-    // registration names for that window keeps its button.
+    // where ReDefinition's window opens the mod's own (IBundledMod.OwnWindow) or a
+    // dialog of the mod's (DIALOG): what the rows leave out stays reachable -- a
+    // build without the method its registration names for that window keeps its
+    // button.
     //
     // KSP's launcher, decompiled: ApplicationLauncherButton.VisibleInScenes is
     // public, and its setter calls ApplicationLauncher.DetermineVisibility,
@@ -158,10 +159,13 @@ namespace ReDefinition.Window
         }
 
         // Whether ReDefinition could hide this mod's button at all: it names one,
-        // and ReDefinition's window opens the mod's own window in its place.
+        // and ReDefinition's window opens the mod's own window in its place, or a
+        // dialog the mod gives it (DIALOG).
         internal static bool CanHide(IBundledMod mod)
         {
-            return mod.OwnWindow != null && (mod.ButtonAssembly != null || mod.ToolbarControlNamespace != null);
+            RegisteredMod registered = mod as RegisteredMod;
+            bool opensInWindow = mod.OwnWindow != null || (registered != null && registered.Dialogs.Count > 0);
+            return opensInWindow && (mod.ButtonAssembly != null || mod.ToolbarControlNamespace != null);
         }
 
         // Whether it is hidden: it could be, and the player has not kept it

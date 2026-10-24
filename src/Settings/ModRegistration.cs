@@ -365,9 +365,6 @@ namespace ReDefinition.Settings
             mod.Window = Last(node, "window", where, problems);
             mod.Button = Last(node, "button", where, problems);
             mod.ToolbarControl = Last(node, "toolbarControl", where, problems);
-            if ((mod.Button != null || mod.ToolbarControl != null) && mod.Window == null)
-                problems.Add(where + ": a toolbar button without a window -- the button stays, since ReDefinition's"
-                             + " window could not open the mod's own.");
             mod.Behaviour = Last(node, "behaviour", where, problems);
             string tab = Last(node, "tab", where, problems);
             if (tab != null)
@@ -420,6 +417,11 @@ namespace ReDefinition.Settings
                 problems.Add(where + ", dialog '" + dialog.Name + "': a setting of the mod has that name -- left out.");
                 return true;
             });
+            // What the button opens must stay reachable from the window: through the
+            // mod's own window, or a dialog of its own standing in for it.
+            if ((mod.Button != null || mod.ToolbarControl != null) && mod.Window == null && mod.Dialogs.Count == 0)
+                problems.Add(where + ": a toolbar button without a window or a dialog -- the button stays, since"
+                             + " ReDefinition's window could not open what it opens.");
 
             // Once every setting is known, wherever the blocks stand: a key that is no
             // setting, and in a profile one that is no quality setting, is left out.

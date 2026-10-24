@@ -11,8 +11,8 @@ namespace ReDefinition.Window
     internal static partial class SettingsWindow
     {
         // The mods whose toolbar button ReDefinition can hide, with what it does
-        // with it now. A mod without a button of its own, or without a window to
-        // open in its place, has nothing to choose here.
+        // with it now. A mod without a button of its own, or without a window or a
+        // dialog to open in its place, has nothing to choose here.
         private static IEnumerable<KeyValuePair<string, bool>> ButtonStates()
         {
             foreach (IBundledMod mod in BundledSettings.Installed())
