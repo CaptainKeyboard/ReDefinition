@@ -30,6 +30,7 @@ namespace ReDefinition.Settings
         private readonly MemberPath ready;
         private readonly string build;
         private readonly List<BundledSetting> settings = new List<BundledSetting>();
+        private readonly List<BundledSetting> dialogs = new List<BundledSetting>();
         private readonly List<string> dropped = new List<string>();
         // A dropped line names what went, then why: the whole mod by this name.
         internal const string WholeMod = "(the whole mod)";
@@ -202,7 +203,8 @@ namespace ReDefinition.Settings
             FindUnknown();
             if (ready != null) WaitForReady();
             WindowFrom(where, problems);
-            IsInstalled = settings.Count > 0;
+            foreach (DialogRegistration dialog in registration.Dialogs) AddDialog(dialog, where, problems);
+            IsInstalled = settings.Count > 0 || dialogs.Count > 0;
         }
 
         // The registration's behaviour hooked in; false, the whole mod dropped,
@@ -310,7 +312,7 @@ namespace ReDefinition.Settings
                     if (settings[i].Key == key) settings.RemoveAt(i);
                 Drop(entry.Name, "left to " + entry.LeftOutWith + ", which holds it itself");
             }
-            IsInstalled = settings.Count > 0;
+            IsInstalled = settings.Count > 0 || dialogs.Count > 0;
         }
 
         // A setting this build of the mod does not offer, or one that cannot be

@@ -56,6 +56,9 @@ namespace ReDefinition.Settings
         // name -- for a setting the window does not show: the reset and the
         // profiles set it, and it is checked by its type (ValueType).
         Value,
+        // No value: a button that opens a dialog of the mod's (DIALOG). Never
+        // among a mod's Settings, so nothing that sets values meets it.
+        Dialog,
     }
 
     // How a mod keeps a value set in ReDefinition's window.
@@ -162,6 +165,13 @@ namespace ReDefinition.Settings
         // the bundling off, never kept in bundled.cfg, never set by a profile nor
         // put back by the restore. KSP's audio, gameplay, system and input.
         public bool Bundled = true;
+
+        // Dialog: the button's text, the dialog's title and width, and its content
+        // from the mod, asked for each time it opens.
+        public string DialogButton;
+        public string DialogHeading;
+        public float DialogWidth;
+        public Func<DialogGUIBase[]> DialogContent;
 
         // Set by the mod that declares it.
         public IBundledMod Owner;

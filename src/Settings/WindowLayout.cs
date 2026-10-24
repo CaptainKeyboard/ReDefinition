@@ -4,8 +4,8 @@ namespace ReDefinition.Settings
 {
     // Where the bundled settings show in the settings window: tabs by what a setting
     // does, each listing the rows of every mod, as the registrations
-    // place them (docs/modders/registering-a-mod.md): a setting's `row` and `order`,
-    // `rowUnless`, and a mod's `tab` for its Advanced button.
+    // place them (docs/modders/registering-a-mod.md): a setting's or a dialog's `row`
+    // and `order`, `rowUnless`, and a mod's `tab` for its Advanced button.
     //
     // Shown of the graphics mods is what players set in a game's graphics menu:
     // one row per feature -- its quality, or whether it is on -- for the features
@@ -59,6 +59,16 @@ namespace ReDefinition.Settings
                     BundledSetting setting = Of(mod, entry.Name);
                     if (setting == null) continue;
                     rows.Add(new Row { Setting = setting, Order = entry.Order ?? int.MaxValue, Position = position });
+                }
+                // Its dialogs' buttons after its settings, where no order says.
+                foreach (DialogRegistration entry in registered.Registration.Dialogs)
+                {
+                    position++;
+                    if (entry.Row != tab) continue;
+                    if (entry.RowUnless != null && Contains(installed, entry.RowUnless)) continue;
+                    BundledSetting dialog = registered.Dialog(entry.Name);
+                    if (dialog == null) continue;
+                    rows.Add(new Row { Setting = dialog, Order = entry.Order ?? int.MaxValue, Position = position });
                 }
             }
             rows.Sort((a, b) => a.Order != b.Order ? a.Order.CompareTo(b.Order) : a.Position.CompareTo(b.Position));

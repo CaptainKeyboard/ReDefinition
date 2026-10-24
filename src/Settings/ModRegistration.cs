@@ -71,6 +71,30 @@ namespace ReDefinition.Settings
         public bool ModifiersAll;
     }
 
+    // A dialog of a mod, as its DIALOG node gives it: a row with a button that
+    // opens it, drawn by ReDefinition around what the mod's method hands it.
+    internal sealed class DialogRegistration
+    {
+        public string Name = "";
+        // A method without parameters returning the dialog's content: a
+        // DialogGUIBase or an array of them.
+        public string Content;
+        public string Title = "";
+        public string Heading;
+        public string Button;
+        public string Tooltip = "";
+        public float Width = DefaultWidth;
+        // The tab its row is shown in; a dialog has one always.
+        public SettingCategory? Row;
+        public int? Order;
+        public string Section;
+        // As a setting's: a reason, or True.
+        public string Optional;
+        public string RowUnless;
+
+        public const float DefaultWidth = 360f;
+    }
+
     // A build of a mod, told by a member it has.
     internal sealed class BuildRegistration
     {
@@ -202,6 +226,7 @@ namespace ReDefinition.Settings
         public const string RequiresNodeName = "REQUIRES";
         public const string ProfileNodeName = "PROFILE";
         public const string AllProfilesNodeName = "ALL_PROFILES";
+        public const string DialogNodeName = "DIALOG";
 
         private static readonly string[] ModKeys =
         {
@@ -224,6 +249,14 @@ namespace ReDefinition.Settings
             "name", "member", "modifier1", "modifier2", "modifiers", "group", "title", "tooltip", "default", "row",
             "order", "takesEffect", "optional", "after", "perSave", "leftOutWith", "rowUnless", "behaviour", "leftOut",
             "required",
+        };
+
+        // A DIALOG block: no value, so nothing a profile, the reset or the store
+        // could take.
+        private static readonly string[] DialogKeys =
+        {
+            "name", "content", "title", "heading", "button", "tooltip", "width", "row", "order", "section", "optional",
+            "rowUnless",
         };
 
         private static readonly string[] BuildKeys = { "name", "has" };
@@ -276,6 +309,7 @@ namespace ReDefinition.Settings
         public readonly List<ProfileRegistration> Profiles = new List<ProfileRegistration>();
         public readonly List<AllProfilesRegistration> AllProfiles = new List<AllProfilesRegistration>();
         public readonly List<RequirementRegistration> Requirements = new List<RequirementRegistration>();
+        public readonly List<DialogRegistration> Dialogs = new List<DialogRegistration>();
 
         public SettingRegistration Setting(string name)
         {
@@ -370,11 +404,22 @@ namespace ReDefinition.Settings
                     case AllProfilesNodeName:
                         ReadAllProfiles(mod, child, where, problems);
                         break;
+                    case DialogNodeName:
+                        ReadDialog(mod, child, where, problems);
+                        break;
                     default:
                         problems.Add(where + ": unknown node '" + child.name + "' -- ignored.");
                         break;
                 }
             }
+
+            // A dialog's row has the key a setting's has, the mod's and its name.
+            mod.Dialogs.RemoveAll(dialog =>
+            {
+                if (mod.Setting(dialog.Name) == null) return false;
+                problems.Add(where + ", dialog '" + dialog.Name + "': a setting of the mod has that name -- left out.");
+                return true;
+            });
 
             // Once every setting is known, wherever the blocks stand: a key that is no
             // setting, and in a profile one that is no quality setting, is left out.
@@ -592,6 +637,77 @@ namespace ReDefinition.Settings
                 mod.Settings.Remove(earlier);
             }
             mod.Settings.Add(setting);
+        }
+
+        private static void ReadDialog(ModRegistration mod, ConfigNode node, string modWhere, List<string> problems)
+        {
+            string name = Last(node, "name", modWhere, problems);
+            if (name == null)
+            {
+                problems.Add(modWhere + ": a " + DialogNodeName + " without a name -- left out.");
+                return;
+            }
+            string where = modWhere + ", dialog '" + name + "'";
+            if (!IsId(name, true))
+            {
+                problems.Add(where + ": the name may hold only letters, digits, _ and . -- left out.");
+                return;
+            }
+            DialogRegistration dialog = new DialogRegistration { Name = name };
+            dialog.Content = Last(node, "content", where, problems);
+            if (dialog.Content == null)
+            {
+                problems.Add(where + ": no content -- left out.");
+                return;
+            }
+            string row = Last(node, "row", where, problems);
+            SettingCategory tab;
+            if (row == null || !TryTab(row, out tab))
+            {
+                problems.Add(where + (row == null ? ": no row" : ": row '" + row + "' is not " + TabNames)
+                             + ", and only its row opens it -- left out.");
+                return;
+            }
+            dialog.Row = tab;
+            dialog.Title = Last(node, "title", where, problems) ?? name;
+            dialog.Heading = Text(Last(node, "heading", where, problems));
+            dialog.Button = Text(Last(node, "button", where, problems));
+            dialog.Tooltip = Text(Last(node, "tooltip", where, problems)) ?? "";
+            string width = Last(node, "width", where, problems);
+            if (width != null)
+            {
+                float parsed;
+                if (float.TryParse(width, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed)
+                    && parsed >= 200f && parsed <= 1200f)
+                    dialog.Width = parsed;
+                else
+                    problems.Add(where + ": width '" + width + "' is no number from 200 to 1200 -- "
+                                 + DialogRegistration.DefaultWidth.ToString(CultureInfo.InvariantCulture) + " is taken.");
+            }
+            string order = Last(node, "order", where, problems);
+            if (order != null)
+            {
+                int parsed;
+                if (int.TryParse(order, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed)) dialog.Order = parsed;
+                else problems.Add(where + ": order '" + order + "' is not a whole number -- ignored.");
+            }
+            dialog.Section = Text(Last(node, "section", where, problems));
+            string optional = Last(node, "optional", where, problems);
+            bool optionalSwitch;
+            if (optional != null && bool.TryParse(optional, out optionalSwitch)) optional = optionalSwitch ? "True" : null;
+            dialog.Optional = optional;
+            dialog.RowUnless = ModName(node, "rowUnless", where, problems);
+            Unknown(node, DialogKeys, where, problems);
+            foreach (ConfigNode child in node.GetNodes())
+                problems.Add(where + ": node '" + child.name + "' inside a " + DialogNodeName + " -- ignored.");
+
+            DialogRegistration earlier = mod.Dialogs.Find(other => other.Name == name);
+            if (earlier != null)
+            {
+                problems.Add(modWhere + ": dialog '" + name + "' twice -- the last one counts.");
+                mod.Dialogs.Remove(earlier);
+            }
+            mod.Dialogs.Add(dialog);
         }
 
         private static void ReadSlider(SettingRegistration setting, ConfigNode node, string where, List<string> problems)

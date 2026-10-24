@@ -74,6 +74,7 @@ namespace ReDefinition.Window
             // refuses.
             if (setting.Control == SettingControl.Value) return null;
             if (setting.Control == SettingControl.Binding) return BundledBindingRow(setting, false);
+            if (setting.Control == SettingControl.Dialog) return BundledDialogRow(setting);
 
             string key = setting.Key;
             DialogGUIBase control;
@@ -159,6 +160,69 @@ namespace ReDefinition.Window
                 new DialogGUILabel(() => MarkedTitle(setting), NameWidth), control, new DialogGUISpace(10f),
                 new DialogGUILabel(value, ValueWidth),
                 new DialogGUILabel("<color=#9a9a9a>" + setting.Owner.ModName + "</color>", SourceWidth));
+        }
+
+        // A mod's dialog (DIALOG): its button where a row's control stands, usable
+        // with the bundling off as well -- it sets nothing -- once what the mod's
+        // method is called on is there.
+        private static DialogGUIBase BundledDialogRow(BundledSetting setting)
+        {
+            DialogGUIButton open = new DialogGUIButton(setting.DialogButton, () => OpenModDialog(setting), ControlWidth,
+                RowHeight + 6f, false);
+            open.tooltipText = setting.Tooltip;
+            open.OptionInteractableCondition = () => SafeApplicable(setting);
+            return new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUILabel(setting.Title, NameWidth), open, new DialogGUISpace(10f),
+                new DialogGUILabel("", ValueWidth),
+                new DialogGUILabel("<color=#9a9a9a>" + setting.Owner.ModName + "</color>", SourceWidth));
+        }
+
+        private static bool SafeApplicable(BundledSetting setting)
+        {
+            try
+            {
+                return setting.Applicable == null || setting.Applicable();
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // Over the window as its own dialogs stand (DialogOverWindow): the mod's
+        // content under its title, KSP's Close below it; Escape closes it too.
+        private static void OpenModDialog(BundledSetting setting)
+        {
+            DialogGUIBase[] content;
+            try
+            {
+                content = setting.DialogContent();
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("mod-dialog-" + setting.Key, setting.Owner.ModName + "'s dialog " + setting.Title
+                                      + " could not be opened (" + CompatibilityLog.Reason(e) + ").");
+                return;
+            }
+            if (content == null || content.Length == 0)
+            {
+                CompatibilityLog.Warn("mod-dialog-empty-" + setting.Key, setting.Owner.ModName + "'s dialog "
+                                      + setting.Title + " gave nothing to show.");
+                return;
+            }
+            List<DialogGUIBase> rows = new List<DialogGUIBase>(content);
+            rows.Add(new DialogGUIHorizontalLayout(
+                new DialogGUIFlexibleSpace(),
+                new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_149410"), () => { }, 120f, 30f, true),
+                new DialogGUIFlexibleSpace()));
+            TooltipText.WrapAll(rows);
+            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionModDialog." + setting.Key, "",
+                setting.DialogHeading, HighLogic.UISkin, setting.DialogWidth, rows.ToArray());
+            PopupDialog shown = UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
+            // Once its elements stand.
+            DialogTooltips.Attach(rows);
+            EscapeGuard.Own(shown);
         }
 
         private static string[] SafeChoices(BundledSetting setting)

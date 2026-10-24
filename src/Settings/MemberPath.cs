@@ -288,26 +288,54 @@ namespace ReDefinition.Settings
             }
         }
 
-        public void Invoke()
+        // The method's result; null for a void one.
+        public object Invoke()
         {
             object[] holders = Holders();
             Segment end = segments[segments.Count - 1];
-            end.Method.Invoke(end.Method.IsStatic ? null : holders[segments.Count - 1], null);
+            return end.Method.Invoke(end.Method.IsStatic ? null : holders[segments.Count - 1], null);
+        }
+
+        // What the method at the end returns; null where the path ends in a value.
+        public Type ReturnType
+        {
+            get
+            {
+                MethodInfo method = segments[segments.Count - 1].Method;
+                return method != null ? method.ReturnType : null;
+            }
+        }
+
+        // Whether everything holding the end is there now -- the mod's object made,
+        // its instance set -- without an exception for what is not: asked in every
+        // frame a row shows.
+        public bool Reachable()
+        {
+            object[] holders;
+            return Holders(out holders) == null;
         }
 
         // What holds each member of the path, the root's first.
         private object[] Holders()
         {
-            object[] holders = new object[segments.Count];
+            object[] holders;
+            string missing = Holders(out holders);
+            if (missing != null) throw new InvalidOperationException(missing);
+            return holders;
+        }
+
+        // Null, or what is not there.
+        private string Holders(out object[] holders)
+        {
+            holders = new object[segments.Count];
             holders[0] = RootObject();
-            if (fromScene && holders[0] == null)
-                throw new InvalidOperationException(Text + ": " + Root.FullName + " is not in the scene.");
+            if (fromScene && holders[0] == null) return Text + ": " + Root.FullName + " is not in the scene.";
             for (int i = 1; i < segments.Count; i++)
             {
                 holders[i] = Read(segments[i - 1], holders[i - 1]);
-                if (Gone(holders[i])) throw new InvalidOperationException(Text + ": " + segments[i - 1].Name + " is not there.");
+                if (Gone(holders[i])) return Text + ": " + segments[i - 1].Name + " is not there.";
             }
-            return holders;
+            return null;
         }
 
         private object RootObject()
