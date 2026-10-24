@@ -30,7 +30,8 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
     {
         uint mode;
         bool terrain, lawn;
-        output5[id.xy] = SurfaceIntent(id.xy, position, normal, mode, terrain, lawn);
+        uint region;
+        output5[id.xy] = SurfaceIntent(id.xy, position, normal, mode, terrain, lawn, region);
         // In y the light the ground keeps under a meadow's blades past Parallax's grass (MeadowShade),
         // which the G-buffer's albedo is multiplied by (ReDefinitionRtCapture.shader, fragMeadow): sun and
         // sky alike, at any distance -- the sun's visibility here goes into Unity's shadows, which it
@@ -38,7 +39,8 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
         // -3 (the probe): every pixel the rays take as ground, green or not.
         float meadow = shadowFadeScale.z < -2.5f ? (terrain ? shadowFadeScale.w : 1.0f)
                        : terrain || shadowFadeScale.z < 0.0f ? MeadowShade(id.xy, length(position), lawn) : 1.0f;
-        output6[id.xy] = float4(float(mode) / 8.0f, meadow, 0.0f, 1.0f);
+        // In z what the camera's ray met (RT_REGION_*), for the probe's surface images.
+        output6[id.xy] = float4(float(mode) / 8.0f, meadow, float(region) / 8.0f, 1.0f);
     }
     float3 towardsSun = normalize(sunDirection.xyz);
     float visible = 0.0f;

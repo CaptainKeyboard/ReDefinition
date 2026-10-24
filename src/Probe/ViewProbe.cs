@@ -12,7 +12,11 @@ namespace ReDefinition.Probe
     // degrees (positive looks down), distance in metres, heading in degrees from the one it started with --
     // and a shot of each with the raytracing in each mode of -redefinitionProbeViewModes "Off,Full" (the
     // mode the settings hold where none is given), as <shot>-v<i>-<mode>.png. For how a surface looks from
-    // near and far, steep and flat: the grass against the ground beside it.
+    // near and far, steep and flat: the grass against the ground beside it. With -redefinitionProbeSurfaces,
+    // in each mode with the raytracing on, the surfaces of each view too (<shot>-v<i>-<mode>-<name>.bin), at
+    // half the resolution, which tools/surface_sheet.py makes into pictures and figures per region; with
+    // -redefinitionProbeViewOverlay, the surfaces' overlay (RtCamera.SurfaceView) as <shot>-v<i>-<mode>-overlay.png.
+    // With -redefinitionProbeViewTarget <part of a name>, about the renderer so named instead of the vessel.
     //
     // -redefinitionProbeNoGloss: Parallax's materials without their shine -- specular, Fresnel rim and
     // environment reflection set to nothing, and so the raytracing's shine for them too, which it reads from
@@ -21,6 +25,7 @@ namespace ReDefinition.Probe
     internal static class ViewProbe
     {
         internal const string ViewsArgument = "-redefinitionProbeViews";
+        private static readonly string[] SurfaceNames = { "gbuffer0", "gbuffer1", "gbuffer2", "surface", "surfacemode", "specular", "sun", "diffuse" };
         private static readonly int SpecularIntensity = Shader.PropertyToID("_SpecularIntensity");
         private static readonly int EnvironmentMapFactor = Shader.PropertyToID("_EnvironmentMapFactor");
         private static readonly int FresnelColor = Shader.PropertyToID("_FresnelColor");
@@ -72,6 +77,41 @@ namespace ReDefinition.Probe
         public static IEnumerator Run(string folder, string shot, string views)
         {
             if (FlightCamera.fetch == null || ReDefinitionAddon.Instance == null) yield break;
+            // -redefinitionProbeViewTarget <part of a name>: the views about the renderer so named nearest the
+            // vessel (the space centre's flag) instead of the vessel.
+            string targetName = SceneProbe.ArgumentAfter("-redefinitionProbeViewTarget");
+            if (targetName != null && FlightGlobals.ActiveVessel != null)
+            {
+                Renderer nearest = null;
+                float best = float.MaxValue;
+                Vector3 from = FlightGlobals.ActiveVessel.transform.position;
+                // A skinned one first: the space centre's waving flags are, a vessel's flag decal is not.
+                bool skinned = false;
+                foreach (SkinnedMeshRenderer renderer in UnityEngine.Object.FindObjectsOfType<SkinnedMeshRenderer>())
+                    if (renderer.enabled && renderer.name.IndexOf(targetName, StringComparison.OrdinalIgnoreCase) >= 0) skinned = true;
+                foreach (Renderer renderer in UnityEngine.Object.FindObjectsOfType<Renderer>())
+                {
+                    if (!renderer.enabled || renderer.name.IndexOf(targetName, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    if (skinned && !(renderer is SkinnedMeshRenderer)) continue;
+                    float distance = (renderer.bounds.center - from).sqrMagnitude;
+                    if (distance < best)
+                    {
+                        best = distance;
+                        nearest = renderer;
+                    }
+                }
+                if (nearest != null)
+                {
+                    // About its middle, not its pivot (a flag's is at the foot of its pole).
+                    var middle = new GameObject("ReDefinition probe view target").transform;
+                    middle.position = nearest.bounds.center;
+                    middle.SetParent(nearest.transform, true);
+                    FlightCamera.fetch.SetTargetTransform(middle);
+                    yield return new WaitForSecondsRealtime(2f);
+                }
+                Debug.Log(Log.Tag + " Probe: views: about " + (nearest != null ? nearest.name + " (" + nearest.GetType().Name + "), "
+                                                                 + Mathf.Sqrt(best).ToString("0") + " m from the vessel" : "nothing named " + targetName) + ".");
+            }
             float startHeading = FlightCamera.fetch.camHdg;
             List<Raytracing.RaytracingMode> modes = new List<Raytracing.RaytracingMode>();
             string modeList = SceneProbe.ArgumentAfter("-redefinitionProbeViewModes");
@@ -134,6 +174,29 @@ namespace ReDefinition.Probe
                     Debug.Log(Log.Tag + " Probe: views: " + name + " at pitch " + pitch + ", distance " + distance
                               + " m, heading " + heading + (NoGloss ? ", without Parallax's shine" : "") + ".");
                     yield return null;
+                    // -redefinitionProbeSurfaces: with the raytracing on, the surfaces of the frame after at every
+                    // second pixel (RtCamera.WriteSurfaceImages), for tools/surface_sheet.py.
+                    if (mode != Raytracing.RaytracingMode.Off && Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeSurfaces") >= 0)
+                    {
+                        yield return new WaitForEndOfFrame();
+                        Raytracing.RtCamera traced = Raytracing.RtCamera.Current;
+                        string prefix = name.Substring(0, name.Length - 4);
+                        Debug.Log(Log.Tag + " Probe: views: surfaces of " + prefix + ": "
+                                  + (traced != null ? traced.WriteSurfaceImages(folder, prefix, 2, SurfaceNames) : "none, no raytraced camera") + ".");
+                    }
+                    // -redefinitionProbeViewOverlay: with the raytracing on, the surfaces' overlay too
+                    // (RtCamera.SurfaceView), as <shot>-v<i>-<mode>-overlay.png.
+                    if (mode != Raytracing.RaytracingMode.Off && Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeViewOverlay") >= 0)
+                    {
+                        bool shown = Raytracing.RtCamera.SurfaceView;
+                        Raytracing.RtCamera.SurfaceView = true;
+                        for (int frame = 0; frame < 3; frame++) yield return null;
+                        yield return new WaitForEndOfFrame();
+                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, name.Substring(0, name.Length - 4) + "-overlay.png"));
+                        yield return null;
+                        Raytracing.RtCamera.SurfaceView = shown;
+                        yield return null;
+                    }
                 }
             }
         }
