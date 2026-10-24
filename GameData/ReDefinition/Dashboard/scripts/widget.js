@@ -423,8 +423,31 @@
 		putText("smode", (d["n.speedMode"] || "").toUpperCase());
 	}
 
+	// The page follows the game's scene: the menu page (menu.js) in its scenes, the flight panels in
+	// every other until those scenes have pages of their own; between two scenes the page stays. Each
+	// page is subscribed to its own keys, both to these. Without the game, index.html#menu and #loading
+	// show the menu page's demos.
+	const COMMON = ["p.paused", "g.scene"];
+	const MENU_SCENES = new Set(MenuPage.scenes);
+	let page = null, pageKeys = [];
+	function pageFor() {
+		if (!connected) return MenuPage.demos.includes(location.hash) ? "menu" : "flight";
+		const scene = data["g.scene"];
+		if (typeof scene !== "string" || scene === "LOADINGBUFFER") return page;
+		return MENU_SCENES.has(scene) ? "menu" : "flight";
+	}
+	function showPage(next) {
+		if (!next || next === page) return;
+		page = next;
+		document.body.classList.toggle("menu", page === "menu");
+		const keys = page === "menu" ? MenuPage.keys : subscription();
+		if (connected) send({ "-": pageKeys, "+": keys });
+		pageKeys = connected ? keys : [];
+		if (page === "flight") { fitScreen(); dirty = panelsDirty = true; }
+	}
+
 	function subscription() {
-		const keys = ["p.paused", "v.name", "v.body", "v.situationString", "v.altitude", "v.surfaceVelocity", "v.surfaceSpeed", "v.verticalSpeed", "v.heightFromTerrain", "o.ApA", "o.PeA", "o.timeToAp", "o.timeToPe", "v.geeForce", "v.missionTime", "v.currentStage", "f.throttle", "f.sasEnabled", "f.sasMode", "v.rcsValue", "v.lightValue", "v.gearValue", "v.brakeValue", "t.currentRate", "t.currentRateIndex", "n.nose", "n.right", "n.top", "n.prograde", "n.normal", "n.radial", "n.speedMode", "n.maneuver", "o.nodeDvTotal", "o.nodeDv", "o.nodeTime", "o.nodeBurnTime", "o.nodeStartIn", "o.nodeLead", "n.steerTarget", "n.steerTargetTop", "n.steerAltitude", "n.steerSCurve", "n.steerCurve", "n.steerArmed", "t.physics", "m.mapIsEnabled", "v.precisionControlValue"];
+		const keys = ["v.name", "v.body", "v.situationString", "v.altitude", "v.surfaceVelocity", "v.surfaceSpeed", "v.verticalSpeed", "v.heightFromTerrain", "o.ApA", "o.PeA", "o.timeToAp", "o.timeToPe", "v.geeForce", "v.missionTime", "v.currentStage", "f.throttle", "f.sasEnabled", "f.sasMode", "v.rcsValue", "v.lightValue", "v.gearValue", "v.brakeValue", "t.currentRate", "t.currentRateIndex", "n.nose", "n.right", "n.top", "n.prograde", "n.normal", "n.radial", "n.speedMode", "n.maneuver", "o.nodeDvTotal", "o.nodeDv", "o.nodeTime", "o.nodeBurnTime", "o.nodeStartIn", "o.nodeLead", "n.steerTarget", "n.steerTargetTop", "n.steerAltitude", "n.steerSCurve", "n.steerCurve", "n.steerArmed", "t.physics", "m.mapIsEnabled", "v.precisionControlValue"];
 		for (let i = 1; i <= 10; i++) keys.push("v.ag" + i + "Value");
 		for (const [r] of RESOURCES) keys.push("r.resource[" + r + "]", "r.resourceMax[" + r + "]");
 		return keys;
@@ -432,7 +455,8 @@
 
 	function connect() {
 		try { ws = new WebSocket(URL); } catch (e) { setTimeout(connect, 3000); return; }
-		ws.onopen = () => { connected = true; data = {}; send({ "+": subscription(), rate: RATE_MS }); };
+		// The page's keys follow once the scene is known.
+		ws.onopen = () => { connected = true; data = {}; page = null; pageKeys = []; send({ "+": COMMON, rate: RATE_MS }); };
 		ws.onmessage = (m) => { try { Object.assign(data, JSON.parse(m.data)); dirty = panelsDirty = true; } catch (e) { /* ignore malformed frame */ } };
 		// No empty frame when a connection fails or ends: the demo loop takes over with its next tick.
 		ws.onclose = () => { connected = false; setTimeout(connect, 3000); };
@@ -535,6 +559,9 @@
 	}
 
 	buildUi();
+	// The menu page sends its commands through the same connection.
+	window.Dashboard = { run };
+	MenuPage.build();
 	addBrowserButtons();
 	arrangeTaps();
 	fitScreen();
@@ -842,9 +869,15 @@
 	// a second.
 	let lastPanels = 0, lastBall = 0, panelsDirty = true;
 	function frame(now) {
+		if (!connected) { data = pageFor() === "menu" ? MenuPage.demo(now) : demoFrame(now); dirty = panelsDirty = true; }
+		showPage(pageFor());
+		if (page === "menu") {
+			if (panelsDirty && now - lastPanels >= 33) { panelsDirty = false; lastPanels = now; MenuPage.render(data, connected); }
+			requestAnimationFrame(frame);
+			return;
+		}
 		steerTick(now);
 		altitudeTick(now);
-		if (!connected) { data = demoFrame(now); dirty = panelsDirty = true; }
 		const ballDue = Navball.mode($("ball")) === "gpu" || now - lastBall >= 66;
 		if (dirty && ballDue) { dirty = false; lastBall = now; renderBall(); }
 		if (panelsDirty && now - lastPanels >= 33) { panelsDirty = false; lastPanels = now; render(); renderSteerButtons(); }

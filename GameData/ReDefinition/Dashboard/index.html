@@ -6,6 +6,7 @@
 		<title>'KSP Dashboard'</title>
 		<link rel="icon" type="image/svg+xml" href="resources/icon.svg" />
 		<link rel="stylesheet" href="styles/dashboard.css" />
+		<link rel="stylesheet" href="styles/menu.css" />
 		<meta name="x-icue-property" content="panelLayout" data-label="'Panel layout'" data-type="combobox" data-default="'default'" data-values="[{'key':'default','value':'Default'},{'key':'defaultMirrored','value':'Default (Mirrored)'},{'key':'handheld','value':'Handheld'},{'key':'handheldMirrored','value':'Handheld (Mirrored)'}]" />
 	</head>
 	<body>
@@ -99,7 +100,31 @@
 			</section>
 
 </div>
+
+		<!-- The menu page: KSP loading at its start, the main menu with the saves (menu.js). -->
+		<div id="menu">
+			<header class="mbar panel">
+				<div class="plate title">Kerbal Space Program</div>
+				<div class="lcd" id="mscene">-</div>
+				<span id="mversions"></span>
+				<span id="mlink">connecting...</span>
+				<button class="mhold quit" id="mquit"><b>QUIT</b><span class="hint">HOLD</span><i class="prog"></i></button>
+			</header>
+			<section id="mload" class="panel">
+				<div class="plate">Loading KSP</div>
+				<div class="mloadbar"><div id="mloadbar"></div></div>
+				<div class="mloadrow"><div class="lcd" id="mloadstep">-</div><div class="lcd" id="mloadpct">-</div><div class="lcd" id="mloadtime"></div></div>
+			</section>
+			<div id="mmain">
+				<section id="mcontinue" class="panel"></section>
+				<section id="msaves" class="panel">
+					<div class="plate title">Saves <span id="msavecount"></span><span id="mhint"></span></div>
+					<div id="mlist"></div>
+				</section>
+			</div>
+		</div>
 		<script src="scripts/navball.js"></script>
+		<script src="scripts/menu.js"></script>
 		<script src="scripts/widget.js"></script>
 	</body>
 </html>

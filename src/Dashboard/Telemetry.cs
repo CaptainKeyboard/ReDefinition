@@ -20,6 +20,13 @@ namespace ReDefinition.Dashboard
         private readonly Dictionary<string, Reader> readers = new Dictionary<string, Reader>();
         private readonly Dictionary<string, Action> actions = new Dictionary<string, Action>();
 
+        // Keys and commands with no vessel, read and run in every scene: the menu page's.
+        private delegate object SceneReader(string[] args);
+        private delegate void SceneAction(string[] args);
+        private readonly Dictionary<string, SceneReader> sceneReaders = new Dictionary<string, SceneReader>();
+        private readonly Dictionary<string, SceneAction> sceneActions = new Dictionary<string, SceneAction>();
+        private readonly MenuTelemetry menu = new MenuTelemetry();
+
         // Resource totals are summed over the whole vessel once per frame and then looked up per key.
         private int resourceFrame = -1;
         private readonly Dictionary<string, double[]> resources = new Dictionary<string, double[]>();
@@ -33,6 +40,15 @@ namespace ReDefinition.Dashboard
 
         public Telemetry()
         {
+            // The game, in every scene: the scene's name (GameScenes), the versions, KSP's progress
+            // while it loads, the saves; g.load[name] (URI-encoded) and g.quit from the main menu.
+            sceneReaders["g.scene"] = a => MenuTelemetry.Scene;
+            sceneReaders["g.versions"] = a => MenuTelemetry.Versions();
+            sceneReaders["g.loading"] = a => MenuTelemetry.Loading();
+            sceneReaders["g.saves"] = a => menu.Saves();
+            sceneActions["g.load"] = a => menu.Load(a);
+            sceneActions["g.quit"] = a => MenuTelemetry.Quit();
+
             // Vessel
             readers["v.name"] = (v, a) => v.vesselName;
             readers["v.body"] = (v, a) => v.mainBody != null ? v.mainBody.bodyName : null;
@@ -223,9 +239,11 @@ namespace ReDefinition.Dashboard
         {
             value = null;
             if (key == "p.paused") { value = PauseState(); return true; }
-            if (PauseState() != 0) return false;
             string name; string[] args;
             Split(key, out name, out args);
+            SceneReader sceneReader;
+            if (sceneReaders.TryGetValue(name, out sceneReader)) { value = sceneReader(args); return true; }
+            if (PauseState() != 0) return false;
             Reader reader;
             if (!readers.TryGetValue(name, out reader)) return false;
             value = reader(FlightGlobals.ActiveVessel, args);
@@ -271,12 +289,14 @@ namespace ReDefinition.Dashboard
             return Math.Round(d / s) * s;
         }
 
-        /// <summary>Runs a command on the active vessel. Must be called on the main thread.</summary>
+        /// <summary>Runs a command on the active vessel, or one of every scene. Must be called on the main thread.</summary>
         public bool TryRun(string command)
         {
-            if (PauseState() != 0) return false;
             string name; string[] args;
             Split(command, out name, out args);
+            SceneAction sceneAction;
+            if (sceneActions.TryGetValue(name, out sceneAction)) { sceneAction(args); return true; }
+            if (PauseState() != 0) return false;
             Action action;
             if (!actions.TryGetValue(name, out action)) return false;
             action(FlightGlobals.ActiveVessel, args);
@@ -287,7 +307,8 @@ namespace ReDefinition.Dashboard
         {
             string name; string[] args;
             Split(key, out name, out args);
-            return key == "p.paused" || readers.ContainsKey(name) || actions.ContainsKey(name);
+            return key == "p.paused" || readers.ContainsKey(name) || actions.ContainsKey(name) || sceneReaders.ContainsKey(name)
+                   || sceneActions.ContainsKey(name);
         }
 
         private object Resource(Vessel v, string[] args, int index)

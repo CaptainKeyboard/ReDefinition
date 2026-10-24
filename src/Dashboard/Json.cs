@@ -7,8 +7,8 @@ using System.Text;
 namespace ReDefinition.Dashboard
 {
     /// <summary>
-    /// The little JSON this mod needs: values out, and flat objects of strings, numbers and
-    /// arrays of strings in. KSP's Mono has no JSON library worth depending on.
+    /// The little JSON this mod needs: values out, objects and arrays among them, and flat objects of
+    /// strings, numbers and arrays of strings in. KSP's Mono has no JSON library worth depending on.
     /// </summary>
     internal static class Json
     {
@@ -55,6 +55,7 @@ namespace ReDefinition.Dashboard
                 case float f: WriteNumber(sb, f); break;
                 case int i: sb.Append(i.ToString(CultureInfo.InvariantCulture)); break;
                 case long l: sb.Append(l.ToString(CultureInfo.InvariantCulture)); break;
+                case IDictionary<string, object> map: sb.Append(Encode(map)); break;
                 case IEnumerable e:
                     sb.Append('[');
                     bool first = true;
