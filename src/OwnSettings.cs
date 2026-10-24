@@ -85,6 +85,11 @@ namespace ReDefinition
         // (Raytracing/Ksp/RtKsp, RaytracingLightColour).
         public RaytracingLightColour RaytracingLightColour = RaytracingLightColour.Neutral;
 
+        // Whether phones and tablets on the network may open the dashboard (Dashboard/DashboardServer),
+        // and the key such a device needs, random where the file has none (the phone's address carries it).
+        public bool DashboardNetwork = true;
+        public string DashboardKey = "";
+
         // Whether the settings window holds the flight while it is open.
         public bool PauseWhileOpen;
 
@@ -402,6 +407,13 @@ namespace ReDefinition
             Float("sunReflection", "0", x => x.SunReflection, (x, v) => x.SunReflection = v, true),
             Float("raytracingNightAmbient", "0", x => x.RaytracingNightAmbient, (x, v) => x.RaytracingNightAmbient = v, true),
             Enum("raytracingLightColour", x => x.RaytracingLightColour, (x, v) => x.RaytracingLightColour = v, true),
+            Bool("dashboardNetwork", x => x.DashboardNetwork, (x, v) => x.DashboardNetwork = v, true),
+            // Live, so that the window's Apply, which copies only what it changed, never takes it back.
+            new Field<string>
+            {
+                Key = "dashboardKey", Get = x => x.DashboardKey, Set = (x, v) => x.DashboardKey = v, Live = true,
+                Format = v => v, Parse = (string text, out string v) => { v = text ?? ""; return true; },
+            },
         };
 
         public static OwnSettings Load()

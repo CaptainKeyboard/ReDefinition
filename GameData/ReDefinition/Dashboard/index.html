@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>'KSP Dashboard'</title>
+		<link rel="icon" type="image/svg+xml" href="resources/icon.svg" />
+		<link rel="stylesheet" href="styles/dashboard.css" />
+		<meta name="x-icue-property" content="panelLayout" data-label="'Panel layout'" data-type="combobox" data-default="'default'" data-values="[{'key':'default','value':'Default'},{'key':'defaultMirrored','value':'Default (Mirrored)'},{'key':'handheld','value':'Handheld'},{'key':'handheldMirrored','value':'Handheld (Mirrored)'}]" />
+	</head>
+	<body>
+		<div id="app">
+			<section id="ctl" class="panel">
+				<div class="toggles" id="toggles"></div>
+				<div class="plate sm">SAS MODE</div>
+				<div class="grid5" id="sasmodes">
+				</div>
+				<div class="plate sm">TIME WARP</div>
+				<div class="warp" id="warp"></div>
+				<div class="plate sm">VIEW &amp; GAME</div>
+				<div class="grid5" id="extras"></div>
+			</section>
+
+			<section id="agpanel" class="panel">
+				<div class="abort" id="abort">
+				<div class="aslot"></div>
+				<div class="alever" id="alever"><b>ABORT</b></div>
+				<div class="arrow">PULL &#x25BC;</div>
+				<div class="cover" id="cover"><div class="tab">&#x25B2; LIFT</div></div>
+				</div>
+				<div class="plate sm">ACTION GROUPS</div>
+				<div id="groups"></div>
+			</section>
+
+			<section id="ballpanel" class="panel">
+				<div class="hdr"><div class="lcd" id="hdg">HDG -</div><div class="lcd" id="smode"></div></div>
+				<div class="side left">
+					<div class="altgroup">
+						<div class="clearbox"><button id="resetBtn" class="clear">&#x2715;</button><div class="plate sm">CLEAR</div></div>
+						<div id="altbox"><div class="plate sm">TGT ALT</div><div class="lcd" id="altval">-</div></div>
+						<div id="altjog"><div id="altknob"></div></div>
+						<div class="curvebox"><button id="curveBtn" class="pb curve"></button></div>
+						<div class="playbox"><button id="playBtn" class="pb play"></button></div>
+					</div>
+				</div>
+				<div id="ballwrap"><canvas id="ball" width="440" height="440"></canvas></div>
+				<div class="side right"></div>
+				<button id="rollL" class="roundpb">&#x21BA;</button>
+				<button id="rollR" class="roundpb">&#x21BB;</button>
+				<button id="snapBtn" class="pb snap"><span class="lens">45&#xB0;</span></button>
+				<div id="dragdot"></div>
+			</section>
+
+			<section id="flight" class="panel">
+				<div id="fl-main">
+					<div class="readrow">
+						<div class="read"><div class="plate">Altitude ASL</div><div class="lcd" id="alt">-</div></div>
+						<div class="read"><div class="plate">Radar Alt</div><div class="lcd" id="agl">-</div></div>
+					</div>
+					<div class="readrow">
+						<div class="read"><div class="plate">Apoapsis</div><div class="lcd" id="apa">-</div><div class="lcd t" id="tap">-</div></div>
+						<div class="read"><div class="plate">Periapsis</div><div class="lcd" id="pea">-</div><div class="lcd t" id="tpe">-</div></div>
+					</div>
+					<div class="readrow">
+						<div class="read"><div class="plate">Horiz. Speed</div><div class="lcd" id="hs">-</div></div>
+						<div class="read"><div class="plate">Vertical Speed</div><div class="lcd" id="vs">-</div></div>
+					</div>
+					<div class="node" id="node">
+						<div class="plate">Maneuver <span id="nodestate"></span></div>
+						<div class="dvbar"><div class="dvfill" id="dvfill"></div><div class="lcd" id="nodedv">-</div></div>
+						<div class="nodegrid">
+							<div><div class="plate">Node</div><div class="lcd" id="nodet">-</div></div>
+							<div><div class="plate">Burn Time</div><div class="lcd" id="nodeburn">-</div></div>
+							<div><div class="plate">Start Burn</div><div class="lcd" id="nodestart">-</div></div>
+							<div class="lead"><div class="plate">Lead</div><div class="leadrow"><button class="pb" id="leadDn"><span class="lens">&#x2212;</span></button><div class="lcd" id="nodelead">50%</div><button class="pb" id="leadUp"><span class="lens">+</span></button></div></div>
+						</div>
+					</div>
+					<div class="foot"><span id="met"></span><span id="gee"></span><span id="link">connecting...</span></div>
+				</div>
+				<div id="tapes"></div>
+			</section>
+
+			<section id="thr" class="panel">
+				<div class="speedbox"><div class="plate sm">Surface Speed</div><div class="lcd" id="spd">-</div></div>
+				<div class="plate">Throttle</div>
+				<div class="lever-wrap">
+					<div class="scale"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
+					<div class="slot" id="thrtrack"><div class="fill" id="thrfill"></div><div class="handle" id="thrhandle"></div></div>
+					<div class="scale right"><span>&#x2014;</span><span>&#x2014;</span><span>&#x2014;</span><span>&#x2014;</span><span>&#x2014;</span></div>
+				</div>
+				<div class="cut">
+					<button class="pb" data-cmd="f.throttleZero"><span class="lens">CUT</span></button>
+					<div class="lcd" id="thrv">0%</div>
+					<button class="pb" data-cmd="f.throttleFull"><span class="lens">FULL</span></button>
+				</div>
+				<div class="stagebox">
+					<button class="hold" id="stage" data-cmd="f.stage"><span class="row"><span class="snum" id="stagenum">--</span><b>STAGE</b></span><span class="hint">HOLD TO FIRE</span><i class="prog"></i></button>
+				</div>
+			</section>
+
+</div>
+		<script src="scripts/navball.js"></script>
+		<script src="scripts/widget.js"></script>
+	</body>
+</html>

@@ -34,6 +34,24 @@ namespace ReDefinition
         public Action<Action> Begin;
     }
 
+    // A row of ReDefinition's own whose button opens a dialog. It holds no value, so it stands
+    // apart from the modules' settings, which the profiles, the reset and the store go through,
+    // as a mod's DIALOG stands apart from its settings (RegisteredMod.Dialogs).
+    internal sealed class ModuleDialog
+    {
+        public string Key;
+        public string Title;
+        public string Tooltip = "";
+        public SettingCategory Row;
+        // The group it joins in its tab, as a ModuleSetting's Section.
+        public string Section;
+        public string Button;
+        public string Heading;
+        public float Width = 360f;
+        // The dialog's elements, made afresh each time it opens.
+        public Func<DialogGUIBase[]> Content;
+    }
+
     // One setting of a module: what a profile's MODULE node sets, and a row under
     // General. Its value travels as text in the invariant culture, as a ConfigNode
     // holds it.

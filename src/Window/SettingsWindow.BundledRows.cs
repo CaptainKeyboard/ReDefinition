@@ -189,8 +189,8 @@ namespace ReDefinition.Window
             }
         }
 
-        // Over the window as its own dialogs stand (DialogOverWindow): the mod's
-        // content under its title, KSP's Close below it; Escape closes it too.
+        // The mod's content, from its method; one that throws or gives nothing is logged
+        // and opens no dialog.
         private static void OpenModDialog(BundledSetting setting)
         {
             DialogGUIBase[] content;
@@ -210,14 +210,21 @@ namespace ReDefinition.Window
                                       + setting.Title + " gave nothing to show.");
                 return;
             }
+            OpenDialogOverWindow(setting.Key, setting.DialogHeading, setting.DialogWidth, content);
+        }
+
+        // A dialog's content under its heading, KSP's Close below it, over the window as its own
+        // dialogs stand; Escape closes it too. A mod's (DIALOG) and ReDefinition's own (ModuleDialog).
+        internal static void OpenDialogOverWindow(string key, string heading, float width, DialogGUIBase[] content)
+        {
             List<DialogGUIBase> rows = new List<DialogGUIBase>(content);
             rows.Add(new DialogGUIHorizontalLayout(
                 new DialogGUIFlexibleSpace(),
                 new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_149410"), () => { }, 120f, 30f, true),
                 new DialogGUIFlexibleSpace()));
             TooltipText.WrapAll(rows);
-            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionModDialog." + setting.Key, "",
-                setting.DialogHeading, HighLogic.UISkin, setting.DialogWidth, rows.ToArray());
+            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionModDialog." + key, "",
+                heading, HighLogic.UISkin, width, rows.ToArray());
             PopupDialog shown = UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
             // Once its elements stand.

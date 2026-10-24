@@ -3,7 +3,8 @@ namespace ReDefinition
     // ReDefinition's own settings as the settings window's Reset leaves them: each
     // back to its default, but for what is the player's menu and no graphics setting --
     // "Replace original settings", the window's pause, the navball's place, the
-    // diagnostics window's pins. The graphics settings -- the upscaler, frame generation,
+    // diagnostics window's pins, and the dashboard's key, which the phones that
+    // opened it hold. The graphics settings -- the upscaler, frame generation,
     // raytracing, low latency -- are the profile's, which the Reset chooses (High) over them.
     internal static class OwnSettingsReset
     {
@@ -19,6 +20,7 @@ namespace ReDefinition
             reset.DiagnosticsPage = now.DiagnosticsPage;
             reset.DiagnosticsX = now.DiagnosticsX;
             reset.DiagnosticsY = now.DiagnosticsY;
+            reset.DashboardKey = now.DashboardKey;
             return reset;
         }
     }

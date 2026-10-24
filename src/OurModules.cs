@@ -949,12 +949,59 @@ namespace ReDefinition
                 Write = (settings, value) => settings.FireflyIdle = bool.Parse(value),
             });
 
+        // The dashboard for phones, tablets and touch screens (Dashboard/DashboardServer): its server
+        // listens on this computer always, on the network with this switch.
+        public static readonly IGraphicsModule Dashboard = new GraphicsModule("dashboard", "Dashboard",
+            new ModuleSetting
+            {
+                Key = "dashboardNetwork",
+                Title = "Dashboard on other devices",
+                Order = 250,
+                Row = SettingCategory.Devices,
+                Section = DashboardSection,
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "Phones and tablets in the same Wi-Fi may open the dashboard (Connect shows the QR code).\n"
+                          + "On this computer, the iCUE widget for instance, it opens either way.",
+                Read = settings => SettingValues.Text(settings.DashboardNetwork),
+                Write = (settings, value) => settings.DashboardNetwork = bool.Parse(value),
+            });
+
+        private const string DashboardSection = "Dashboard";
+
         public static readonly IList<IGraphicsModule> All =
             new List<IGraphicsModule>
                 {
                     Upscaler, FrameGeneration, Latency, Raytracing, Hotkeys, FlightUi, Scaling, MainMenuScene, SpaceCentre, ReEntry,
+                    Dashboard,
                 }
                 .AsReadOnly();
+
+        // The rows that open a dialog, kept apart from the modules' settings (ModuleDialog).
+        public static readonly IList<ModuleDialog> Dialogs =
+            new List<ModuleDialog>
+                {
+                    new ModuleDialog
+                    {
+                        Key = "dashboard.connect",
+                        Title = "Phone",
+                        Row = SettingCategory.Devices,
+                        Section = DashboardSection,
+                        Button = "Connect",
+                        Heading = "Connect a phone",
+                        Tooltip = "Shows the QR code that opens the dashboard on a phone or tablet.",
+                        Content = ReDefinition.Dashboard.ConnectDialog.Content,
+                    },
+                }
+                .AsReadOnly();
+
+        public static List<ModuleDialog> DialogRows(SettingCategory tab)
+        {
+            List<ModuleDialog> rows = new List<ModuleDialog>();
+            foreach (ModuleDialog dialog in Dialogs)
+                if (dialog.Row == tab) rows.Add(dialog);
+            return rows;
+        }
 
         public static IGraphicsModule Find(string name)
         {

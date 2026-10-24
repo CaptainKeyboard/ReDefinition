@@ -1,0 +1,255 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Text;
+using ReDefinition.Core;
+using UnityEngine;
+
+namespace ReDefinition.Dashboard
+{
+    // The dashboard's server: telemetry out and commands in over a WebSocket, and the dashboard's
+    // own files (GameData/ReDefinition/Dashboard) for a phone's browser. It listens on this computer
+    // always, and on the network where the settings say so (OwnSettings.DashboardNetwork); a change
+    // there starts it again. The network threads only queue messages; everything that touches the
+    // game runs here in Update.
+    [KSPAddon(KSPAddon.Startup.Instantly, true)]
+    internal sealed class DashboardServer : MonoBehaviour
+    {
+        // Fixed on purpose: a dashboard's manifest, the iCUE widget's, names the port it may talk to.
+        public const int Port = 8765;
+
+        private const string KeyLetters = "abcdefghijkmnpqrstuvwxyz23456789";
+
+        private sealed class Subscriptions
+        {
+            public readonly HashSet<string> Keys = new HashSet<string>();
+            public readonly List<string> OneShot = new List<string>();
+            public float IntervalSeconds = 0.5f;
+            public float NextSend;
+            // What each key was last sent as: a key goes out again only when that changes.
+            public readonly Dictionary<string, string> Sent = new Dictionary<string, string>();
+        }
+
+        private struct Incoming
+        {
+            public WebSocketServer.Client Client;
+            public string Text;
+        }
+
+        private WebSocketServer server;
+        // What the server was last started with, null for not yet; it is started again where the
+        // settings differ.
+        private bool listensOnNetwork;
+        private string listensWithKey;
+        private Telemetry telemetry;
+        private readonly ConcurrentQueue<Incoming> incoming = new ConcurrentQueue<Incoming>();
+
+        private static string WebRoot
+        {
+            get { return KSPUtil.ApplicationRootPath + "GameData/ReDefinition/Dashboard"; }
+        }
+
+        // The dashboard's address for a phone on the same network, with its key; null where it may
+        // not be opened from the network, or this computer has no address there.
+        internal static string PhoneUrl
+        {
+            get
+            {
+                OwnSettings settings = Settings;
+                string ip = LanAddress();
+                return settings != null && settings.DashboardNetwork && ip != null && settings.DashboardKey != ""
+                    ? "http://" + ip + ":" + Port + "/?key=" + settings.DashboardKey
+                    : null;
+            }
+        }
+
+        // ReDefinition's settings once the add-on has loaded them.
+        internal static OwnSettings Settings
+        {
+            get
+            {
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+                return addon == null ? null : addon.Live;
+            }
+        }
+
+        private void Awake()
+        {
+            DontDestroyOnLoad(gameObject);
+            telemetry = new Telemetry();
+        }
+
+        private void OnDestroy()
+        {
+            if (server != null) server.Stop();
+        }
+
+        private void Update()
+        {
+            OwnSettings settings = Settings;
+            if (settings == null) return;
+            if (settings.DashboardKey == "") settings.DashboardKey = NewKey();
+            if (listensWithKey == null || listensOnNetwork != settings.DashboardNetwork || listensWithKey != settings.DashboardKey)
+                Listen(settings.DashboardNetwork, settings.DashboardKey);
+            if (server == null) return;
+
+            FlyByWire.Follow(HighLogic.LoadedSceneIsFlight ? FlightGlobals.ActiveVessel : null);
+
+            Incoming msg;
+            while (incoming.TryDequeue(out msg)) Handle(msg.Client, msg.Text);
+
+            float now = Time.realtimeSinceStartup;
+            foreach (var client in server.Snapshot())
+            {
+                var subs = client.State as Subscriptions;
+                if (subs == null || now < subs.NextSend) continue;
+                if (subs.Keys.Count == 0 && subs.OneShot.Count == 0) continue;
+                subs.NextSend = now + subs.IntervalSeconds;
+                // A dropped frame may have held changes: everything goes out again.
+                if (client.Dropped) { client.Dropped = false; subs.Sent.Clear(); }
+                var update = Collect(subs);
+                if (update.Count > 0) client.SendText(Json.Encode(update));
+            }
+        }
+
+        // Tried once per setting: a port another program holds is not tried every frame.
+        private void Listen(bool network, string key)
+        {
+            if (server != null) server.Stop();
+            server = null;
+            listensOnNetwork = network;
+            listensWithKey = key;
+            WebSocketServer started = new WebSocketServer(Port, LogLine, network, key, WebRoot);
+            started.MessageReceived += (c, text) => incoming.Enqueue(new Incoming { Client = c, Text = text });
+            started.ClientConnected += c => { c.State = new Subscriptions(); LogLine("client connected, origin " + (c.Origin ?? "none")); };
+            started.ClientDisconnected += c => LogLine("client disconnected");
+            try
+            {
+                started.Start();
+                server = started;
+                LogLine(network ? "listening on the network, port " + Port : "listening on 127.0.0.1:" + Port);
+            }
+            catch (Exception e)
+            {
+                LogLine("could not listen on port " + Port + ": " + e.Message);
+            }
+        }
+
+        private static string NewKey()
+        {
+            var random = new System.Random();
+            StringBuilder key = new StringBuilder();
+            for (int i = 0; i < 8; i++) key.Append(KeyLetters[random.Next(KeyLetters.Length)]);
+            return key.ToString();
+        }
+
+        private Dictionary<string, object> Collect(Subscriptions subs)
+        {
+            var result = new Dictionary<string, object>();
+            var unknown = new List<string>();
+            var keys = new List<string>(subs.Keys);
+            var oneShot = new HashSet<string>(subs.OneShot);
+            keys.AddRange(subs.OneShot);
+            subs.OneShot.Clear();
+            foreach (string key in keys)
+            {
+                try
+                {
+                    object value;
+                    if (telemetry.TryRead(key, out value))
+                    {
+                        string text = Json.Value(Telemetry.Round(key, value)), last;
+                        if (!oneShot.Contains(key) && subs.Sent.TryGetValue(key, out last) && last == text) continue;
+                        if (subs.Keys.Contains(key)) subs.Sent[key] = text;
+                        result[key] = new Json.Raw(text);
+                    }
+                    else if (!telemetry.IsKnown(key)) unknown.Add(key);
+                }
+                catch (Exception e)
+                {
+                    // One broken key (a part that vanished mid-frame, say) must not silence the rest.
+                    LogLine("reading " + key + " failed: " + e.Message);
+                    subs.Keys.Remove(key);
+                }
+            }
+            if (unknown.Count > 0) result["unknown"] = unknown;
+            return result;
+        }
+
+        private void Handle(WebSocketServer.Client client, string text)
+        {
+            var subs = client.State as Subscriptions;
+            if (subs == null) return;
+            Dictionary<string, object> json;
+            try { json = Json.DecodeObject(text); }
+            catch (Exception e) { LogLine("bad message: " + e.Message); return; }
+
+            foreach (var entry in json)
+            {
+                var list = entry.Value as List<object>;
+                switch (entry.Key)
+                {
+                    case "+":
+                        if (list != null) foreach (var k in list) subs.Keys.Add(Convert.ToString(k));
+                        break;
+                    case "-":
+                        if (list != null) foreach (var k in list) { subs.Keys.Remove(Convert.ToString(k)); subs.Sent.Remove(Convert.ToString(k)); }
+                        break;
+                    case "run":
+                        if (list != null) foreach (var k in list) Run(Convert.ToString(k), subs);
+                        break;
+                    case "rate":
+                        double ms;
+                        // Down to 16 ms, one update per frame of a 60 Hz screen; KSP's own frame rate
+                        // caps it anyway, as updates go out from Update().
+                        if (entry.Value is double && (ms = (double)entry.Value) >= 16 && ms <= 5000) subs.IntervalSeconds = (float)(ms / 1000.0);
+                        break;
+                }
+            }
+        }
+
+        private void Run(string command, Subscriptions subs)
+        {
+            try
+            {
+                if (telemetry.TryRun(command)) return;
+                // Not a command: a one-shot read, answered with the next update.
+                if (telemetry.IsKnown(command)) subs.OneShot.Add(command);
+            }
+            catch (Exception e)
+            {
+                LogLine("command " + command + " failed: " + e.Message);
+            }
+        }
+
+        // This computer's address on the local network: an interface that is up, not loopback or a
+        // tunnel, with a gateway (the one towards the router).
+        private static string LanAddress()
+        {
+            try
+            {
+                foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback
+                        || ni.NetworkInterfaceType == NetworkInterfaceType.Tunnel) continue;
+                    IPInterfaceProperties p = ni.GetIPProperties();
+                    if (p.GatewayAddresses.Count == 0) continue;
+                    foreach (UnicastIPAddressInformation a in p.UnicastAddresses)
+                        if (a.Address.AddressFamily == AddressFamily.InterNetwork) return a.Address.ToString();
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return null;
+        }
+
+        // Called from the network threads too: Unity's log takes lines from any thread.
+        private static void LogLine(string message)
+        {
+            Debug.Log(Log.Tag + " Dashboard: " + message);
+        }
+    }
+}

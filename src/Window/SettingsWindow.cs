@@ -469,16 +469,48 @@ namespace ReDefinition.Window
                 || category == SettingCategory.Keys)
                 return bySection;
             List<ModuleSetting> settings = OurModules.Rows(category);
-            if (settings.Count == 0) return bySection;
-            DialogGUIBase[] rows = KspSettingsSection.Rows(edit, OwnLayout(), category);
+            DialogGUIBase[] rows = settings.Count == 0 ? new DialogGUIBase[0] : KspSettingsSection.Rows(edit, OwnLayout(), category);
             for (int i = 0; i < rows.Length && i < settings.Count; i++)
-            {
-                string section = settings[i].Section ?? Title(category);
-                List<DialogGUIBase> list;
-                if (!bySection.TryGetValue(section, out list)) bySection[section] = list = new List<DialogGUIBase>();
-                list.Add(Searchable(rows[i], settings[i].Title + " " + section + " ReDefinition"));
-            }
+                AddOwn(bySection, settings[i].Section ?? Title(category), rows[i], settings[i].Title);
+            // The dialogs' buttons after the settings of their section.
+            foreach (ModuleDialog dialog in OurModules.DialogRows(category))
+                AddOwn(bySection, dialog.Section ?? Title(category), OwnDialogRow(dialog), dialog.Title);
             return bySection;
+        }
+
+        private static void AddOwn(Dictionary<string, List<DialogGUIBase>> bySection, string section, DialogGUIBase row,
+            string title)
+        {
+            List<DialogGUIBase> list;
+            if (!bySection.TryGetValue(section, out list)) bySection[section] = list = new List<DialogGUIBase>();
+            list.Add(Searchable(row, title + " " + section + " ReDefinition"));
+        }
+
+        // An own dialog's button where a row's control stands, as a mod's DIALOG row has it.
+        private static DialogGUIBase OwnDialogRow(ModuleDialog dialog)
+        {
+            DialogGUIButton open = new DialogGUIButton(dialog.Button, () => OpenOwnDialog(dialog), ControlWidth,
+                RowHeight + 6f, false);
+            open.tooltipText = dialog.Tooltip;
+            return new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                new DialogGUILabel(dialog.Title, NameWidth), open, new DialogGUISpace(10f),
+                new DialogGUILabel("", ValueWidth),
+                new DialogGUILabel("<color=#9a9a9a>ReDefinition</color>", SourceWidth));
+        }
+
+        private static void OpenOwnDialog(ModuleDialog dialog)
+        {
+            DialogGUIBase[] content;
+            try
+            {
+                content = dialog.Content();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(Log.Tag + " The dialog " + dialog.Title + " could not be opened: " + e);
+                return;
+            }
+            if (content != null && content.Length > 0) OpenDialogOverWindow(dialog.Key, dialog.Heading ?? dialog.Title, dialog.Width, content);
         }
 
         private static List<DialogGUIBase> TakeOwn(Dictionary<string, List<DialogGUIBase>> own, string section)

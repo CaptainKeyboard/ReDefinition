@@ -1,0 +1,217 @@
+:root { --panel:#24282c; --lcd:#0b1a0d; --lcdtxt:#8dff7f; --amber:#ffb23e; --label:#d8dde2; --dim:#8b939b; --target:#ffffff; }
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; background:#1b1e21; color:var(--label); font-family:"Segoe UI", Arial, sans-serif; overflow:hidden;
+	user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+button { font:inherit; color:inherit; padding:0; }
+/* The navball panel (758 px, the ball 526 px) sits in the middle of the screen: the columns left and
+   right of it take the same width. */
+#app { display:grid; gap:10px; height:100%; padding:10px;
+	grid-template-columns:calc((100% - 758px) / 2 - 250px) 230px 758px calc((100% - 758px) / 2 - 320px) 300px; }
+/* Left to right: controls, action groups, navball, flight data, throttle: the readouts the throttle
+   is worked by sit next to it. */
+#app.off .panel:not(#thr) { opacity:.55; }
+/* Every arrangement but the standard row: the panels are placed by widget.js. */
+#app.placed { display:block; position:relative; }
+/* Browser only: the arrangement and full-screen buttons in the navball panel's right column. */
+.pb.tool { width:70px; height:70px; flex:none; font-size:13px; letter-spacing:.04em; margin-bottom:6px; }
+#fsBtn { font-size:30px; }
+/* Arranging: a tap chooses a panel, a second swaps it with the chosen one. */
+#app.arranging .panel::after { content:""; position:absolute; inset:0; z-index:50; border-radius:10px; background:rgba(255,178,62,.06); outline:3px dashed rgba(255,178,62,.5); outline-offset:-3px; }
+#app.arranging .panel.chosen::after { background:rgba(255,178,62,.22); outline:4px solid #ffb23e; }
+#arranger { position:fixed; left:50%; top:8px; transform:translateX(-50%); z-index:100; display:flex; flex-wrap:wrap; justify-content:center; gap:8px 16px;
+	max-width:calc(100vw - 16px); padding:8px 10px; border-radius:8px; background:rgba(20,23,26,.95); box-shadow:0 4px 16px rgba(0,0,0,.7), inset 0 0 0 1px #3a4147;
+	font-size:14px; }
+#arranger .grp { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+#arranger span { color:var(--dim); margin-right:4px; }
+#arranger button { padding:6px 10px; border:1px solid #111; border-radius:5px; background:linear-gradient(180deg, #4a5056, #2f3438); cursor:pointer; }
+#arranger button.on { background:radial-gradient(circle at 50% 40%, #ffe2a6, #ffb23e 55%, #c97a12); color:#3a2200; }
+.panel { position:relative; border-radius:10px; padding:16px; background:var(--panel); box-shadow:inset 0 0 0 1px #33393f, 0 2px 6px rgba(0,0,0,.6); min-height:0; min-width:0; }
+
+/* Engraved labels */
+.plate { font-size:13px; letter-spacing:.14em; font-weight:700; text-transform:uppercase; text-align:center; color:var(--label); }
+.plate.sm { font-size:13px; color:var(--dim); }
+.plate.title { text-align:left; color:var(--amber); }
+
+/* Backlit LCD readouts */
+.lcd { background:var(--lcd); border-radius:5px; border:2px solid #050805; box-shadow:inset 0 0 12px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.07);
+	font-family:Consolas, "Lucida Console", monospace; color:var(--lcdtxt); text-shadow:0 0 6px rgba(141,255,127,.7); text-align:right;
+	padding:2px 10px; font-weight:700; white-space:nowrap; overflow:hidden; }
+.lcd .u { font-size:.5em; color:#5fbf55; margin-left:4px; }
+
+/* LEFT: flight data */
+#flight { display:grid; grid-template-columns:1fr auto; gap:14px; }
+#fl-main { display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
+.readrow { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.read .plate { text-align:left; margin-bottom:3px; }
+.read .lcd { font-size:34px; height:54px; line-height:46px; }
+/* The time to apoapsis or periapsis: a second, smaller readout under the altitude. */
+.read .lcd.t { font-size:24px; height:40px; line-height:32px; margin-top:10px; }
+.foot { display:flex; justify-content:space-between; gap:10px; white-space:nowrap; font-family:Consolas, monospace; font-size:16px; color:var(--dim); }
+.foot #link.ok { color:#6dff5e; }
+#tapes { display:flex; gap:6px; }
+.tape { width:36px; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.tape .bar { flex:1; width:100%; border-radius:4px; background:#0c0e10; border:2px solid #050607; position:relative; overflow:hidden; box-shadow:inset 0 0 8px #000; }
+.tape .fill { position:absolute; left:3px; right:3px; bottom:3px; border-radius:2px; background:linear-gradient(90deg, #c98a1c, #ffd27a, #c98a1c); box-shadow:0 0 8px rgba(255,190,80,.5); }
+.tape .ticks { position:absolute; inset:0; background:repeating-linear-gradient(0deg, transparent 0 calc(10% - 1px), rgba(255,255,255,.25) calc(10% - 1px) 10%); }
+.tape .v { font-family:Consolas, monospace; font-size:18px; font-weight:700; color:var(--amber); }
+
+/* CENTRE: navball with the target altitude left and clear right */
+/* The ball sits in the middle of the panel, also from top to bottom; the readouts lie above it. */
+#ballpanel { display:grid; grid-template-columns:92px 1fr 92px; grid-template-rows:1fr; gap:8px; }
+#ballpanel .hdr { position:absolute; left:16px; right:16px; top:16px; display:flex; justify-content:space-between; z-index:2; pointer-events:none; }
+#ballpanel .hdr .lcd { font-size:20px; }
+.side { grid-row:1; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:0; }
+/* Each side is one column as wide as its roll button, flush with the panel's edge: everything on a
+   side is centred on its roll button, and both roll buttons keep the same distance to their edge. */
+.side.left { grid-column:1; width:84px; justify-self:start; position:relative; }
+.side.right { grid-column:3; width:84px; justify-self:end; align-items:center; padding-top:44px; }
+#ballpanel .hdr #smode { width:84px; text-align:center; padding:2px 0; margin-left:auto; }
+/* The attitude readout centred over the ball; white while it shows the navball target. */
+#ballpanel .hdr #hdg { position:absolute; left:50%; transform:translateX(-50%); width:400px; text-align:center; white-space:pre; }
+#ballpanel .hdr #hdg.target { color:var(--target); text-shadow:0 0 6px rgba(255,255,255,.6); }
+.clearbox { height:70px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:4px; }
+.clearbox .clear { width:52px; height:52px; font-size:26px; }
+/* Target altitude, its slider and the curve switch in one column, the slider level with the ball's
+   centre: the readout above and the switch below take the same height. */
+/* The column runs the panel's full height, from the edge CLEAR shares with the readouts to the one the
+   roll buttons share; the slider takes what is left. Above and below it the same height, so its
+   middle stays level with the ball's. */
+.altgroup { position:absolute; left:0; width:84px; top:0; bottom:0; display:flex; flex-direction:column; align-items:center; gap:8px; }
+#altbox, .curvebox { height:70px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; }
+.curvebox { justify-content:flex-start; }
+/* The roll buttons under the ball, close to it and to each other. */
+#ballpanel #rollL, #ballpanel #rollR { position:absolute; bottom:16px; z-index:2; }
+#ballpanel #rollL { left:calc(50% - 250px); }
+#ballpanel #rollR { left:calc(50% + 166px); }
+/* Beside the right roll button: snaps the target's roll to a multiple of 45 degrees. */
+#ballpanel #snapBtn { position:absolute; right:16px; bottom:23px; width:70px; height:70px; font-size:20px; z-index:2; }
+.playbox { height:70px; display:flex; align-items:flex-start; justify-content:center; }
+.pb.play { width:70px; height:70px; flex:none; font-size:26px; }
+.pb.play.paused .lens { background:radial-gradient(circle at 50% 40%, #ffe2a6, #ffb23e 55%, #c97a12); color:#3a2200; box-shadow:0 0 14px rgba(255,180,60,.75); }
+.pb.play.playing .lens { background:radial-gradient(circle at 50% 40%, #d9ffd2, #62e35a 55%, #2c9a26); color:#073600; box-shadow:0 0 14px rgba(100,240,90,.6); }
+.grow { flex:1; }
+#ballwrap { grid-row:1; grid-column:2; display:flex; align-items:center; justify-content:center; touch-action:none; min-height:0; }
+#ballwrap > div { border-radius:50%; box-shadow:0 0 0 6px #0e1012, 0 0 0 12px #4b5157, 0 0 0 16px #24282c, 0 6px 14px 16px rgba(0,0,0,.6); }
+#altbox .lcd { font-size:21px; width:84px; padding:2px 3px; text-align:center; color:var(--dim); text-shadow:none; }
+#altbox .lcd .u { font-size:13px; margin-left:2px; }
+#altbox .plate { margin-bottom:3px; }
+#altbox.set .lcd { color:var(--target); text-shadow:0 0 6px rgba(255,255,255,.6); }
+#altjog { position:relative; width:58px; flex:1; min-height:120px; border-radius:29px; background:linear-gradient(90deg, #111, #222 50%, #111); border:2px solid #0a0a0a;
+	box-shadow:inset 0 0 10px #000; touch-action:none; }
+#altknob { position:absolute; left:5px; right:5px; top:50%; height:44px; margin-top:-22px; border-radius:8px; background:#59606a; box-shadow:0 2px 4px #000; transition:transform .15s ease-out; }
+#altjog.held #altknob { transition:none; background:var(--target); }
+#altknob { display:flex; align-items:center; justify-content:center; font:800 12px Consolas, monospace; color:#101418; }
+#dragdot { position:absolute; display:none; width:56px; height:56px; margin:-31px 0 0 -31px; border:3px solid #fff; border-radius:50%; pointer-events:none; z-index:3; }
+
+/* Push buttons: a backlit lens in a bezel */
+.pb { position:relative; border-radius:6px; background:linear-gradient(180deg, #4a5056, #2f3438); border:2px solid #111; min-width:0; min-height:0;
+	box-shadow:0 3px 0 #0c0d0e, inset 0 1px 0 rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center;
+	font-weight:800; letter-spacing:.06em; color:#c9ced3; font-size:18px; text-align:center; line-height:1.05; cursor:pointer; }
+.pb .lens { position:absolute; inset:7px; border-radius:3px; background:linear-gradient(180deg, #22262a, #181b1e); box-shadow:inset 0 2px 4px #000;
+	display:flex; align-items:center; justify-content:center; }
+.pb:active { transform:translateY(2px); box-shadow:0 1px 0 #0c0d0e; }
+.pb.lit .lens { background:radial-gradient(circle at 50% 40%, #ffe2a6, #ffb23e 55%, #c97a12); color:#3a2200; box-shadow:0 0 14px rgba(255,180,60,.75), inset 0 1px 2px #fff6; }
+.pb .led { position:absolute; top:8px; left:50%; margin-left:-5px; width:10px; height:10px; border-radius:50%; background:#2a1a10; box-shadow:inset 0 1px 2px #000; z-index:1; }
+.pb.on .led { background:#ff9a30; box-shadow:0 0 8px #ff9a30; }
+.pb.curve { width:70px; height:70px; flex:none; }
+.pb.curve svg { width:42px; height:30px; }
+.roundpb { width:84px; height:84px; flex:none; border-radius:50%; background:radial-gradient(circle at 40% 35%, #5b6167, #2d3236 70%); border:3px solid #0d0f10;
+	box-shadow:0 4px 0 #0b0c0d, 0 6px 8px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.15); font-size:38px; color:#d6dbe0; touch-action:none; }
+.roundpb.on { background:radial-gradient(circle at 40% 35%, #ffe2a6, #ffb23e 60%, #c97a12); color:#3a2200; }
+.clear { width:60px; height:60px; flex:none; border-radius:8px; background:linear-gradient(180deg, #7a2723, #4e1613); border:2px solid #120707;
+	box-shadow:0 4px 0 #0c0404, 0 5px 6px #000; color:#ffd0cc; font-size:30px; font-weight:700; }
+.clear:active, .roundpb:active { transform:translateY(2px); }
+
+/* Controls */
+#ctl { display:flex; flex-direction:column; gap:8px; }
+/* The controls' buttons are square and sized so that all five rows fit the panel's height; six
+   columns, the last one for what does not fit the rows' groups of five. */
+#ctl { --key:104px; justify-content:space-between; }
+.toggles { display:grid; grid-template-columns:repeat(5, var(--key)); justify-content:center; gap:10px; }
+.tog { aspect-ratio:1; flex-direction:column; border-radius:6px; background:linear-gradient(180deg, #3a3f44, #2a2e32); border:2px solid #111; box-shadow:0 3px 0 #0c0d0e;
+	display:flex; align-items:center; justify-content:center; gap:6px; font-size:14px; font-weight:700; letter-spacing:.06em; color:var(--label); }
+.tog .l { width:12px; height:12px; border-radius:50%; background:#1d2a1b; box-shadow:inset 0 1px 2px #000; }
+.tog.on { background:radial-gradient(circle at 50% 40%, #d9ffd2, #62e35a 55%, #2c9a26); box-shadow:0 0 14px rgba(100,240,90,.6), 0 3px 0 #0c0d0e; color:#073600; }
+.tog.on .l { background:#073600; }
+.tog:active { transform:translateY(2px); }
+.grid5 { display:grid; grid-template-columns:repeat(5, var(--key)); justify-content:center; gap:10px; }
+.grid5 .pb, .warp .pb { aspect-ratio:1; }
+.grid5 .pb { font-size:13px; letter-spacing:.02em; }
+/* SAS mode buttons: the mode's navball marker in its colour, its name under it. On the lit button
+   the marker turns dark like the name, as its colour would not hold against the amber. */
+#sasmodes .lens { flex-direction:column; gap:4px; }
+.sasicon { width:46px; height:46px; background:currentColor; -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center; }
+#sasmodes .pb.lit .sasicon { background:currentColor !important; }
+/* Action groups: a column beside the navball */
+/* Abort on top, the action groups in two columns under it. */
+#agpanel { display:flex; flex-direction:column; gap:8px; padding:12px; }
+#agpanel .abort { height:190px; }
+#extras { grid-template-columns:repeat(6, calc((var(--key) * 5 + 40px - 50px) / 6)); } /* six in the width of five */
+#agpanel .plate { line-height:1.3; }
+#groups { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(5, 1fr); gap:8px; min-height:0; }
+#groups .pb { font-size:20px; }
+#groups .pb .led { top:50%; left:12px; margin:-5px 0 0 0; }
+#groups .pb .lens { left:28px; }
+.warp { display:grid; grid-template-columns:repeat(5, var(--key)); justify-content:center; gap:10px; }
+.warp .lcd { grid-column:span 2; font-size:36px; display:flex; align-items:center; justify-content:flex-end; }
+.warp .pb { font-size:20px; }
+
+/* RIGHT: abort, throttle, stage */
+#thr { display:flex; flex-direction:column; gap:10px; align-items:stretch; }
+/* Abort sits in the controls, beside the SAS modes, over both their rows. */
+.abort .alever b { font-size:20px; letter-spacing:.12em; }
+.speedbox .lcd { font-size:26px; height:46px; line-height:38px; }
+/* Maneuver node: delta-v still to burn (bar of the node's total), times, and the lead share. */
+.node .plate { text-align:left; }
+.node.none { opacity:.4; }
+.dvbar { position:relative; height:46px; border-radius:5px; background:#0b1a0d; border:2px solid #050805; overflow:hidden; margin:3px 0 6px; }
+.dvfill { position:absolute; left:0; top:0; bottom:0; width:0; background:linear-gradient(90deg, #2f7a25, #62e35a); opacity:.5; }
+.dvbar .lcd { position:relative; background:transparent; border:0; box-shadow:none; font-size:26px; line-height:38px; }
+.nodegrid { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; }
+.nodegrid .lcd { font-size:24px; height:40px; line-height:32px; } /* as the times under apoapsis and periapsis */
+.nodegrid .plate { margin-bottom:3px; }
+.leadrow { display:grid; grid-template-columns:40px 1fr 40px; gap:4px; height:40px; }
+.leadrow .pb { font-size:18px; }
+.leadrow .pb .lens { inset:3px; }
+.abort { position:relative; height:118px; flex:none; border-radius:10px; overflow:hidden; touch-action:none;
+	background:repeating-linear-gradient(45deg, #f2c21b 0 12px, #151515 12px 24px); box-shadow:inset 0 0 0 3px #000; }
+.abort::before { content:""; position:absolute; inset:7px; border-radius:6px; background:#1a1d20; box-shadow:inset 0 0 10px #000; }
+.aslot { position:absolute; left:50%; top:16px; bottom:16px; width:18px; margin-left:-9px; border-radius:9px; background:#050607; }
+.alever { position:absolute; left:22px; right:22px; top:34px; height:42px; border-radius:7px; transition:top .2s;
+	background:radial-gradient(circle at 50% 30%, #ff6a5f, #c52a22 60%, #6a110d); border:2px solid #2a0605;
+	box-shadow:0 4px 0 #3b0806, 0 6px 8px #000, inset 0 2px 0 rgba(255,255,255,.3); display:flex; align-items:center; justify-content:center; }
+.alever b { font-size:22px; letter-spacing:.14em; color:#fff1ef; font-weight:900; }
+.abort.held .alever { transition:none; }
+.arrow { position:absolute; bottom:12px; left:0; right:0; text-align:center; font-size:12px; font-weight:800; letter-spacing:.15em; color:#ffd2cc; text-shadow:0 0 8px #ff3b30; }
+.abort:not(.open) .arrow { visibility:hidden; }
+.cover { position:absolute; left:10px; right:10px; top:10px; bottom:10px; border-radius:7px; transition:transform .25s;
+	background:linear-gradient(135deg, rgba(255,255,255,.28) 0%, rgba(255,90,80,.12) 35%, rgba(255,90,80,.18) 65%, rgba(255,255,255,.18) 100%);
+	border:2px solid rgba(255,170,160,.55); box-shadow:inset 0 0 0 1px rgba(255,255,255,.25), 0 4px 10px rgba(0,0,0,.6); }
+.cover::after { content:""; position:absolute; left:10%; top:8%; width:30%; height:70%; border-radius:40%; background:linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,0)); transform:skewX(-12deg); }
+.cover .tab { position:absolute; left:28%; right:28%; bottom:-2px; height:26px; border-radius:8px 8px 6px 6px; background:rgba(255,200,190,.55);
+	border:2px solid rgba(255,220,210,.8); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; letter-spacing:.1em; color:#3a0b08; }
+.abort.dragging .cover { transition:none; }
+/* Pushed up, the cover leaves only a thin edge at the top, clear of the lever. */
+.abort.open .cover { transform:translateY(calc(-100% + 18px)); }
+.abort.open .cover .tab, .abort.open .cover::after { opacity:0; }
+.lever-wrap { flex:1; display:grid; grid-template-columns:42px 1fr 30px; gap:4px; min-height:0; }
+.scale { display:flex; flex-direction:column; justify-content:space-between; font-family:Consolas, monospace; font-size:18px; font-weight:700; color:var(--dim); padding:14px 0; }
+.scale.right { text-align:right; }
+.slot { position:relative; border-radius:10px; background:#0b0d0f; border:2px solid #050607; box-shadow:inset 0 0 12px #000; touch-action:none; }
+.slot .fill { position:absolute; left:28%; right:28%; bottom:8px; height:0; border-radius:4px; background:linear-gradient(180deg, #ffd27a, #c98a1c); opacity:.4; }
+.slot .handle { position:absolute; left:-12px; right:-12px; height:44px; bottom:0; border-radius:6px; background:#59606a; border:2px solid #111; box-shadow:0 3px 6px #000; }
+.slot .handle::after { content:""; position:absolute; left:8px; right:8px; top:18px; height:4px; background:var(--amber); box-shadow:0 0 6px var(--amber); }
+.cut { display:grid; grid-template-columns:1fr 1.1fr 1fr; gap:8px; height:56px; flex:none; }
+.cut .lcd { font-size:22px; line-height:48px; padding:0 6px; }
+.stagebox { height:108px; flex:none; border-radius:10px; padding:7px; background:repeating-linear-gradient(-45deg, #f2c21b 0 14px, #151515 14px 28px); box-shadow:inset 0 0 0 3px #000; }
+#stage { position:relative; width:100%; height:100%; overflow:hidden; border-radius:8px; border:3px solid #2a1800; color:#2a1600; font-weight:900;
+	background:radial-gradient(circle at 50% 30%, #ffe08a, #f0a713 60%, #9a5f05); box-shadow:0 5px 0 #4a2c00, inset 0 2px 0 rgba(255,255,255,.4);
+	display:flex; flex-direction:column; align-items:center; justify-content:center; }
+#stage .row { display:flex; align-items:center; gap:14px; }
+#stage b { font-size:32px; letter-spacing:.12em; }
+#stage .snum { font-family:Consolas, monospace; font-size:34px; font-weight:900; padding:0 8px; border-radius:6px; background:#2a1600; color:#ffd27a; }
+#stage .hint { font-size:12px; letter-spacing:.1em; margin-top:4px; }
+#stage .prog { position:absolute; left:0; bottom:0; height:7px; width:0; background:#2a1600; }
+
+.plate.title .sit { color:var(--dim); }
+#altval .cur { display:inline-block; box-shadow:0 3px 0 currentColor; } /* the digit the next step changes */

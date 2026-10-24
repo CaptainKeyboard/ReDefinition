@@ -39,3 +39,6 @@ __pycache__/
 
 # Claude Code: local settings and worktrees.
 .claude/
+
+# The iCUE widget packager (tools/icuewidget): npm install puts its modules here.
+node_modules/
