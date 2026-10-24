@@ -665,22 +665,23 @@
 		return to.concat(top);
 	}
 
-	// Snaps the target's roll (as the readout shows it) to the nearest multiple of 45 degrees; without
-	// a target the vessel's attitude is the one snapped.
-	function snapRoll() {
+	// Sets the target's roll (as the readout shows it) to what `to` makes of it: snapped to the nearest
+	// multiple of 45 degrees, or 0; without a target the vessel's attitude is the one turned.
+	function setRoll(to) {
 		const has = Array.isArray(data["n.steerTarget"]) && Array.isArray(data["n.steerTargetTop"]);
 		const T = has ? data["n.steerTarget"] : data["n.nose"], U = has ? data["n.steerTargetTop"] : data["n.top"];
 		if (!Array.isArray(T) || !Array.isArray(U)) return;
-		const roll = Math.atan2(cross(U, T)[2], U[2]);
-		const snapped = Math.round(roll / (Math.PI / 4)) * (Math.PI / 4);
+		const roll = to(Math.atan2(cross(U, T)[2], U[2]));
 		// The top at no roll: towards the zenith (towards north when the nose points straight up or down).
 		const ref = Math.abs(T[2]) < 0.999 ? [0, 0, 1] : [1, 0, 0];
 		const k = dot3(ref, T), z0 = ref.map((x, i) => x - k * T[i]), l = Math.hypot(z0[0], z0[1], z0[2]);
 		const z = z0.map((x) => x / l), r0 = cross(z, T);
-		const a = -snapped; // the readout's roll turns the other way round than this angle
+		const a = -roll; // the readout's roll turns the other way round than this angle
 		const top = z.map((x, i) => x * Math.cos(a) + r0[i] * Math.sin(a));
 		run("v.steerTo[" + T.concat(top).map((x) => x.toFixed(4)).join(",") + "]");
 	}
+	function snapRoll() { setRoll((roll) => Math.round(roll / (Math.PI / 4)) * (Math.PI / 4)); }
+	function levelRoll() { setRoll(() => 0); }
 
 	function setupSteering() {
 		const wrap = $("ballwrap"), dot = $("dragdot");
@@ -743,6 +744,7 @@
 		};
 		wrap.addEventListener("pointerup", end); wrap.addEventListener("pointercancel", end);
 		$("snapBtn").addEventListener("click", snapRoll);
+		$("levelBtn").addEventListener("click", levelRoll);
 		for (const key of ["rollL", "rollR"]) {
 			const b = $(key);
 			b.addEventListener("pointerdown", (e) => { b.setPointerCapture(e.pointerId); steer[key] = true; b.classList.add("on"); });

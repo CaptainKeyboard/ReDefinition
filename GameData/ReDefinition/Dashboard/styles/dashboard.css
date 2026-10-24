@@ -91,6 +91,8 @@ button { font:inherit; color:inherit; padding:0; }
 #ballpanel #rollR { left:calc(50% + 166px); }
 /* Beside the right roll button: snaps the target's roll to a multiple of 45 degrees. */
 #ballpanel #snapBtn { position:absolute; right:16px; bottom:23px; width:70px; height:70px; font-size:20px; z-index:2; }
+/* Above it: turns the target's roll to 0. */
+#ballpanel #levelBtn { position:absolute; right:16px; bottom:101px; width:70px; height:70px; font-size:20px; z-index:2; }
 .playbox { height:70px; display:flex; align-items:flex-start; justify-content:center; }
 .pb.play { width:70px; height:70px; flex:none; font-size:26px; }
 .pb.play.paused .lens { background:radial-gradient(circle at 50% 40%, #ffe2a6, #ffb23e 55%, #c97a12); color:#3a2200; box-shadow:0 0 14px rgba(255,180,60,.75); }
