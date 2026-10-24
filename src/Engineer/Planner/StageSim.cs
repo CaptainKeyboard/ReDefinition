@@ -99,6 +99,18 @@ namespace ReDefinition.Engineer
             public readonly List<Dictionary<int, double[]>> Fuel = new List<Dictionary<int, double[]>>();
             // The row of the air-breathing engines; null for none.
             public Row AirRow;
+            // Each time rocket engines run dry in the stages, in order.
+            public readonly List<Dry> Dry = new List<Dry>();
+        }
+
+        // Rocket engines running dry: the propellants they burn, and what is left
+        // then of each resource that can flow, in units: in the parts still attached,
+        // and what the parts dropped by then held as they went.
+        internal sealed class Dry
+        {
+            public readonly HashSet<string> Propellants = new HashSet<string>();
+            public readonly Dictionary<string, double> Left = new Dictionary<string, double>();
+            public readonly Dictionary<string, double> Dropped = new Dictionary<string, double>();
         }
 
         private const double G0 = StageTable.StandardGravity;
@@ -184,7 +196,9 @@ namespace ReDefinition.Engineer
                     if (burnt > 0.0 && mass - burnt > 0.0) row.DeltaV += thrust / flow * Math.Log(mass / (mass - burnt));
                     mass -= burnt;
                     time += step;
-                    lit = lit.FindAll(i => state.Feeds(attached, i, parts[i].Rocket));
+                    List<int> still = lit.FindAll(i => state.Feeds(attached, i, parts[i].Rocket));
+                    if (still.Count < lit.Count) result.Dry.Add(state.DryOf(lit.FindAll(i => !still.Contains(i)), attached));
+                    lit = still;
                     if (watched.Count > 0 && !watched.Exists(i => lit.Contains(i))) break;
                 }
                 row.EndMass = state.Mass(attached);
@@ -302,6 +316,25 @@ namespace ReDefinition.Engineer
                 foreach (int i in attached)
                     foreach (KeyValuePair<string, double> held in amount[i]) fuel[i] += held.Value * Density(held.Key);
                 return fuel;
+            }
+
+            internal Dry DryOf(List<int> engines, HashSet<int> attached)
+            {
+                Dry dry = new Dry();
+                foreach (int i in engines)
+                    foreach (SimPropellant propellant in Parts[i].Rocket.Propellants) dry.Propellants.Add(propellant.Name);
+                for (int i = 0; i < Parts.Count; i++)
+                {
+                    if (Parts[i].Clamp) continue;
+                    Dictionary<string, double> into = attached.Contains(i) ? dry.Left : dry.Dropped;
+                    foreach (KeyValuePair<string, double> held in amount[i])
+                    {
+                        double sum;
+                        into.TryGetValue(held.Key, out sum);
+                        into[held.Key] = sum + held.Value;
+                    }
+                }
+                return dry;
             }
 
             // Every propellant reaches the engine.

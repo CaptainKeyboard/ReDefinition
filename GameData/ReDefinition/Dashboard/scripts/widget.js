@@ -219,7 +219,7 @@
 		for (const [key, label] of RESOURCES) {
 			const t = document.createElement("div");
 			t.className = "tape"; t.dataset.res = key;
-			t.innerHTML = '<div class="plate sm">' + label + '</div><div class="bar"><div class="fill"></div><div class="ticks"></div></div><div class="v">-</div>';
+			t.innerHTML = '<div class="plate sm">' + label + '</div><div class="bar"><div class="fill"></div><div class="ticks"></div><div class="marks"></div></div><div class="v">-</div>';
 			$("tapes").appendChild(t);
 		}
 		const mk = (parent, cls, html, onTap, key) => {
@@ -385,11 +385,18 @@
 		put("hs", speed(d["v.surfaceSpeed"]));
 		const stage = num(d["v.currentStage"]);
 		putText("stagenum", stage === null ? "--" : (stage < 10 ? "0" : "") + stage);
-		if (!tapes) tapes = [...document.querySelectorAll(".tape")].map((t) => ({ t, res: t.dataset.res, fill: t.querySelector(".fill"), v: t.querySelector(".v") }));
-		for (const { t, res, fill, v } of tapes) {
+		if (!tapes) tapes = [...document.querySelectorAll(".tape")].map((t) => ({ t, res: t.dataset.res, fill: t.querySelector(".fill"), marks: t.querySelector(".marks"), v: t.querySelector(".v") }));
+		for (const { t, res, fill, marks, v } of tapes) {
 			const cur = num(d["r.resource[" + res + "]"]), max = num(d["r.resourceMax[" + res + "]"]);
 			const p = cur !== null && max ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
 			putStyle(fill, "tape:" + res, "height", "calc(" + p.toFixed(1) + "% - 6px)");
+			// Where engines burning it run dry: a line at that level, on the fill's scale; none at the bottom.
+			const dry = Array.isArray(d["r.engineDry[" + res + "]"]) && max ? d["r.engineDry[" + res + "]"] : [];
+			const lines = dry.map((a) => (a / max) * 100).filter((m) => m >= 1 && m <= 100)
+				.map((m) => '<i class="mark" style="bottom:calc(3px + (100% - 6px) * ' + (m / 100).toFixed(4) + ')"></i>').join("");
+			if (shown.get("tapemarks:" + res) !== lines) { shown.set("tapemarks:" + res, lines); marks.innerHTML = lines; }
+			const empty = truthy(d["r.engineEmpty[" + res + "]"]);
+			if (shown.get("tapeempty:" + res) !== empty) { shown.set("tapeempty:" + res, empty); t.classList.toggle("empty", empty); }
 			const text = max ? String(Math.round(p)) : "-";
 			if (shown.get("tapev:" + res) !== text) { shown.set("tapev:" + res, text); v.textContent = text; }
 			putStyle(t, "tapeshow:" + res, "display", max ? "" : "none"); // a resource the vessel does not carry takes no room
@@ -463,7 +470,7 @@
 	function subscription() {
 		const keys = ["v.name", "v.body", "v.situationString", "v.altitude", "v.surfaceVelocity", "v.surfaceSpeed", "v.verticalSpeed", "v.heightFromTerrain", "o.ApA", "o.PeA", "o.timeToAp", "o.timeToPe", "v.geeForce", "v.missionTime", "v.currentStage", "f.throttle", "f.sasEnabled", "f.sasMode", "v.rcsValue", "v.lightValue", "v.gearValue", "v.brakeValue", "t.currentRate", "t.currentRateIndex", "n.nose", "n.right", "n.top", "n.prograde", "n.normal", "n.radial", "n.speedMode", "n.maneuver", "o.nodeDvTotal", "o.nodeDv", "o.nodeTime", "o.nodeBurnTime", "o.nodeStartIn", "o.nodeLead", "n.steerTarget", "n.steerTargetTop", "n.steerAltitude", "n.steerSCurve", "n.steerCurve", "n.steerArmed", "t.physics", "m.mapIsEnabled", "v.precisionControlValue"];
 		for (let i = 1; i <= 10; i++) keys.push("v.ag" + i + "Value");
-		for (const [r] of RESOURCES) keys.push("r.resource[" + r + "]", "r.resourceMax[" + r + "]");
+		for (const [r] of RESOURCES) keys.push("r.resource[" + r + "]", "r.resourceMax[" + r + "]", "r.engineDry[" + r + "]", "r.engineEmpty[" + r + "]");
 		return keys;
 	}
 
@@ -482,7 +489,7 @@
 	const demo = {
 		on: { "f.sasEnabled": true, "v.rcsValue": false, "v.lightValue": true, "v.gearValue": false, "v.brakeValue": false, "v.abortValue": false },
 		sasMode: "Prograde", ag: [false, false, false, false, false, false, false, false, false, false],
-		throttle: 0.6, warp: 0, stage: 4, fuel: 1, abortUntil: 0,
+		throttle: 0.6, warp: 0, stage: 4, fuel: 1, solid: 1, abortUntil: 0,
 		nose: null, top: null, target: null, targetTop: null, altitude: null, curve: "s", last: 0,
 	};
 	const unit = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return v.map((x) => x / l); };
@@ -513,7 +520,7 @@
 		if (name === "t.physicsToggle") { demo.physics = !demo.physics; demo.warp = 0; return; }
 		if (name === "m.toggleMap") { demo.map = !demo.map; return; }
 		if (name === "f.precisionControl") { demo.precision = !demo.precision; return; }
-		if (name === "f.stage") { demo.stage = demo.stage > 0 ? demo.stage - 1 : 4; demo.fuel = 1; return; }
+		if (name === "f.stage") { demo.stage = demo.stage > 0 ? demo.stage - 1 : 4; demo.fuel = 1; demo.solid = demo.stage === 4 ? 1 : 0; return; }
 		if (name === "f.abort") { demo.abortUntil = performance.now() + 3000; demo.throttle = 0; return; }
 		if (name === "v.steerTo") { demo.target = unit(args.slice(0, 3)); demo.targetTop = unit(args.slice(3, 6)); return; }
 		if (name === "v.steerRoll") {
@@ -551,6 +558,12 @@
 		const f = demo.nose, top = demo.top, right = cross(top, f);
 		const off = (a) => unit([f[0] + a, f[1] - a * 0.5, f[2] + a * 0.3]);
 		demo.fuel = Math.max(0, demo.fuel - demo.throttle * dt / 90);
+		// Boosters lit with the first stage: liquid ones that run dry at 2/3 and 1/3 of the fuel, small
+		// solid ones at half the solid fuel, the rest of the solid with the stage; each empty a while
+		// before it would be dropped.
+		demo.solid = demo.stage === 4 ? Math.max(0, demo.solid - dt / 40) : 0;
+		const dryAt = (marks, left) => marks.filter((m) => m < left), emptyAt = (marks, left) => left === 0 || marks.some((m) => left <= m && left > m - 0.06);
+		const liquid = [2 / 3, 1 / 3], solid = [1 / 2];
 		const aborting = t < demo.abortUntil;
 		const d = {
 			"p.paused": 0, "v.name": aborting ? "Demo Rocket — ABORT" : "Demo Rocket", "v.body": "Kerbin", "v.situationString": "Sub-orbital (demo)",
@@ -565,7 +578,11 @@
 			"r.resource[Oxidizer]": 2200 * demo.fuel, "r.resourceMax[Oxidizer]": 2200,
 			"r.resource[MonoPropellant]": 90, "r.resourceMax[MonoPropellant]": 120,
 			"r.resource[ElectricCharge]": 350 + 40 * Math.sin(s), "r.resourceMax[ElectricCharge]": 400,
-			"r.resource[SolidFuel]": 0, "r.resourceMax[SolidFuel]": 0,
+			"r.resource[SolidFuel]": 600 * demo.solid, "r.resourceMax[SolidFuel]": demo.stage === 4 ? 600 : 0,
+			"r.engineDry[LiquidFuel]": dryAt(liquid, demo.fuel).map((m) => 1800 * m), "r.engineDry[Oxidizer]": dryAt(liquid, demo.fuel).map((m) => 2200 * m),
+			"r.engineDry[SolidFuel]": dryAt(solid, demo.solid).map((m) => 600 * m),
+			"r.engineEmpty[LiquidFuel]": emptyAt(liquid, demo.fuel), "r.engineEmpty[Oxidizer]": emptyAt(liquid, demo.fuel),
+			"r.engineEmpty[SolidFuel]": demo.stage === 4 && emptyAt(solid, demo.solid),
 		};
 		Object.assign(d, demo.on);
 		for (let i = 1; i <= 10; i++) d["v.ag" + i + "Value"] = demo.ag[i - 1];

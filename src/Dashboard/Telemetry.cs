@@ -28,6 +28,7 @@ namespace ReDefinition.Dashboard
         private readonly MenuTelemetry menu = new MenuTelemetry();
         private readonly KscTelemetry ksc = new KscTelemetry();
         private readonly EditorTelemetry editor = new EditorTelemetry();
+        private readonly FuelTelemetry fuel = new FuelTelemetry();
 
         // Resource totals are summed over the whole vessel once per frame and then looked up per key.
         private int resourceFrame = -1;
@@ -181,9 +182,13 @@ namespace ReDefinition.Dashboard
             readers["v.precisionControlValue"] = (v, a) => FlightInputHandler.fetch.precisionMode;
             readers["c.mode"] = (v, a) => FlightCamera.fetch != null ? FlightCamera.fetch.mode.ToString() : null;
 
-            // Resources: r.resource[name], r.resourceMax[name] over the whole vessel
+            // Resources: r.resource[name], r.resourceMax[name] over the whole vessel; r.engineDry[name], the
+            // totals of it at which engines burning it run dry (FuelTelemetry); r.engineEmpty[name], an engine
+            // lit that burns it is empty
             readers["r.resource"] = (v, a) => Resource(v, a, 0);
             readers["r.resourceMax"] = (v, a) => Resource(v, a, 1);
+            readers["r.engineDry"] = (v, a) => fuel.Dry(v, a);
+            readers["r.engineEmpty"] = (v, a) => fuel.Empty(v, a);
 
             // Controls: commands
             actions["f.stage"] = (v, a) => StageManager.ActivateNextStage();
