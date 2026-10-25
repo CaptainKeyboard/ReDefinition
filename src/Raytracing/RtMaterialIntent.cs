@@ -93,7 +93,7 @@ namespace ReDefinition.Raytracing
                 Color f0 = material.HasProperty("_SpecularColor") ? material.GetColor("_SpecularColor") : Color.black;
                 if (Max(f0) >= 0.004f)
                     return new RtMaterialIntent { Mode = RtNative.SurfaceFixed, Specular = f0, Smoothness = 0.25f };
-                return Ground();
+                return Ground(Scenery.KscGround.Draws(material));
             }
             bool kspLegacy = shader.StartsWith("KSP/", StringComparison.Ordinal);
             bool unityLegacy = shader.StartsWith("Legacy Shaders/", StringComparison.Ordinal);
@@ -142,10 +142,16 @@ namespace ReDefinition.Raytracing
         // pad a dark strip where they meet (measured 2026-10-19: 66 against 100 with the
         // rays). With the G-buffer's shine (0.22 at a smoothness of 0.013, rough and
         // strong) it was lighter than the terrain towards a low sun instead (the player,
-        // 2026-10-25). Without Parallax the G-buffer's, as before.
-        private static RtMaterialIntent Ground()
+        // 2026-10-25). Without Parallax the G-buffer's, as before. `asTerrain`: drawn as
+        // Parallax's terrain already (Scenery/KscGround), which the raytracing then does not
+        // lift or shade to the terrain's look (RtCommon.hlsli, MeadowShade, LawnOcclusion):
+        // in GlossMean, which the ground's shine does not use.
+        private static RtMaterialIntent Ground(bool asTerrain)
         {
-            var ground = new RtMaterialIntent { Mode = RtNative.SurfaceGround, Specular = Color.black, Smoothness = 0f };
+            var ground = new RtMaterialIntent
+            {
+                Mode = RtNative.SurfaceGround, Specular = Color.black, Smoothness = 0f, GlossMean = asTerrain ? 1f : 0f,
+            };
             RtMaterialIntent terrain;
             if (!HomeTerrain(out terrain)) return ground;
             ground.Specular = terrain.Specular * LawnGloss;

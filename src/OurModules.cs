@@ -928,6 +928,21 @@ namespace ReDefinition
                 Interactable = settings => ReDefinition.Scenery.KscGrass.ParallaxInstalled,
                 Read = settings => SettingValues.Text(settings.KscGrass),
                 Write = (settings, value) => settings.KscGrass = bool.Parse(value),
+            },
+            new ModuleSetting
+            {
+                Key = "kscLawnTerrain",
+                Title = "Lawns like the terrain",
+                Order = 231,
+                Row = SettingCategory.Planets,
+                Section = "Space centre",
+                Control = SettingControl.Toggle,
+                NeedsProfile = false,
+                Tooltip = "The space centre's lawns drawn with Parallax's terrain textures and colours, so that they\n"
+                          + "look like the terrain beside them. Needs Parallax.",
+                Interactable = settings => ReDefinition.Scenery.KscGrass.ParallaxInstalled,
+                Read = settings => SettingValues.Text(settings.KscLawnTerrain),
+                Write = (settings, value) => settings.KscLawnTerrain = bool.Parse(value),
             });
 
         // Firefly's re-entry effects (Scenery/FireflyIdle).
