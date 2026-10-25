@@ -1304,7 +1304,7 @@ float LawnOcclusion(float3 drawn)
     return lerp(1.0f, kLawnOcclusion, LawnShare(drawn));
 }
 
-float MeadowShade(uint2 pixel, float3 position, bool lawn = false)
+float MeadowShade(uint2 pixel, float3 position, bool lawn = false, float lift = 1.0f)
 {
     if (!HAS_GBUFFER)
         return 1.0f;
@@ -1330,7 +1330,7 @@ float MeadowShade(uint2 pixel, float3 position, bool lawn = false)
     if (lawn && !everyGreen)
     {
         float share = LawnShare(drawn);
-        return lerp(1.0f, kLawnLift, share) * (none ? 1.0f : lerp(1.0f, shade, beyond * share));
+        return lerp(1.0f, kLawnLift, share * lift) * (none ? 1.0f : lerp(1.0f, shade, beyond * share));
     }
     if (none)
         return 1.0f;
@@ -1354,11 +1354,13 @@ bool IsBlade(Hit hit)
 }
 
 // `region`: what the camera's ray met (RT_REGION_*), for the probe's surface images.
-float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode, out bool terrain, out bool lawn, out uint region)
+float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode, out bool terrain, out bool lawn, out float lift,
+                     out uint region)
 {
     float4 g1 = gbuffer1[pixel];
     terrain = false;
     lawn = false;
+    lift = 0.0f;
     region = RT_REGION_OTHER;
     if (IsStockWater(position, normal))
     {
@@ -1398,6 +1400,9 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     // terrain (its material's specular colour, RtMaterialIntent.Ground).
     float3 groundShine = near && hitMode == RT_SURFACE_GROUND ? materialData[hit.material].specular : 0.0f;
     lawn = max(groundShine.r, max(groundShine.g, groundShine.b)) > 0.0f;
+    // Drawn as the terrain already (Scenery/KscGround; RtMaterialIntent.Ground): neither lifted nor its occlusion
+    // taken to the terrain's.
+    lift = lawn && materialData[hit.material].vertexColour.w < 0.5f ? 1.0f : 0.0f;
     region = !hit.found ? (behind ? RT_REGION_OTHER_MISSED : RT_REGION_NOTHING)
              : near ? (behind ? RT_REGION_BEHIND_BLADE : (hit.flags & RT_INSTANCE_TERRAIN) != 0u ? RT_REGION_TERRAIN
                        : hitMode == RT_SURFACE_GROUND ? RT_REGION_GROUND : IsBlade(hit) ? RT_REGION_BLADE : RT_REGION_OTHER)

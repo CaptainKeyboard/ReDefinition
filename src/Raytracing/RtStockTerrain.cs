@@ -31,7 +31,8 @@ namespace ReDefinition.Raytracing
     // vertex colour: grass, _NearGrassTexture times _GrassColor, and _TarmacTexture at
     // uv0, mixed by _BlendMaskTexture's red at uv1 (both with their _ST). Per vertex here:
     // the averages mixed by the mask at the vertex, so paths narrower than the mesh's
-    // spacing blur into the grass.
+    // spacing blur into the grass. Drawn as Parallax's terrain (Scenery/KscGround), its
+    // grass is the meadow's mean colour there.
     internal static class RtStockTerrain
     {
         private static readonly int AtlasId = Shader.PropertyToID("_AtlasTex");
@@ -64,7 +65,8 @@ namespace ReDefinition.Raytracing
 
         private static bool Ksc(Material material)
         {
-            return material.shader.name.StartsWith("KSP/Scenery/Diffuse Ground KSC", System.StringComparison.Ordinal)
+            return (material.shader.name.StartsWith("KSP/Scenery/Diffuse Ground KSC", System.StringComparison.Ordinal)
+                    || Scenery.KscGround.Draws(material))
                    && material.HasProperty(BlendMaskId);
         }
 
@@ -144,6 +146,8 @@ namespace ReDefinition.Raytracing
             int count = mesh.vertexCount;
             Color grass = material.HasProperty("_NearGrassTexture") ? Layer(material.GetTexture("_NearGrassTexture"), 0) : Color.white;
             if (material.HasProperty("_GrassColor")) grass *= material.GetColor("_GrassColor");
+            // Drawn as Parallax's terrain (Scenery/KscGround): its meadow's colour.
+            if (Scenery.KscGround.Draws(material)) grass = Scenery.KscGround.LawnColour;
             Color tarmac = material.HasProperty("_TarmacTexture") ? Layer(material.GetTexture("_TarmacTexture"), 0) : Color.grey;
             Texture maskTexture = material.GetTexture(BlendMaskId);
             Color[] mask = Mask(maskTexture);
